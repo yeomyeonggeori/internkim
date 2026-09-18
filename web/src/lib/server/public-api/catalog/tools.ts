@@ -12,6 +12,7 @@ import {
 
 import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
+import { computerToolDefinitions } from './computer';
 import { crmToolDefinitions } from './crm';
 import { taskLabelVocabularySchema, taskVocabularySetInputIntentSchema, taskVocabularySetInputSchema } from './labels';
 import {
@@ -2000,6 +2001,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...fileToolDefinitions,
   ...browserToolDefinitions,
   ...browserControlToolDefinitions,
+  ...computerToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...crmToolDefinitions,

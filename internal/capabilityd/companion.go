@@ -40,7 +40,6 @@ type capabilityToolRoute struct {
 
 var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "browser_screenshot", Handler: Service.invokeDeviceBrowserTool},
-	{ToolName: "browser_handoff", Handler: Service.invokeBrowserHandoffTool},
 	{ToolName: "browser_open", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_snapshot", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_click", Handler: Service.invokeDeviceBrowserTool},
@@ -48,6 +47,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "browser_select", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_press", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_wait", Handler: Service.invokeDeviceBrowserTool},
+	{ToolName: capabilityprotocol.ComputerTaskToolName, Handler: Service.answerCompanionOnlyTool},
 	{ToolName: "web_search", Handler: Service.invokeWebTool},
 	{ToolName: "web_fetch", Handler: Service.invokeWebTool},
 	{ToolName: "document_read", Handler: Service.invokeDocumentReadTool},
@@ -583,6 +583,11 @@ func isCapabilityUnavailableResponse(response capabilities.ToolInvokeResponse) b
 	default:
 		return false
 	}
+}
+
+// The device has no computer to control; only the requester's companion does.
+func (service Service) answerCompanionOnlyTool(_ context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
 }
 
 func capabilityUnavailableResponse(toolName string, code string) capabilities.ToolInvokeResponse {

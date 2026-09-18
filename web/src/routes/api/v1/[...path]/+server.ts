@@ -25,7 +25,6 @@ import {
 	sizeTheHeaderClaims,
 } from '$lib/server/public-api/files';
 import { previewToolOverTheRecord, recordRunsTheTool } from '$lib/server/public-api/record';
-import { destroysSomething } from '$lib/server/public-api/catalog';
 import {
 	apiRequestCapability,
 	descriptorTheTokenReaches,
@@ -91,10 +90,7 @@ function previewedToolName(method: string, path: string): string | null {
 }
 
 async function previewHere(request: Request, member: CallingMember, name: string): Promise<Response> {
-	const descriptor = descriptorTheTokenReaches(name, member);
-	if (!destroysSomething(descriptor)) {
-		error(400, `${name} destroys nothing, so there is nothing to look at before calling it`);
-	}
+	descriptorTheTokenReaches(name, member);
 	if (!recordRunsTheTool(name)) {
 		error(400, `${name} is answered on the company machine, which is where a preview of it lives`);
 	}

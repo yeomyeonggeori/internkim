@@ -262,12 +262,6 @@ GROUPS = [
         working_directory="workers/connection-gateway",
     ),
     Group(
-        "companion",
-        ["companion/*"],
-        [BUN_INSTALL, ["bun", "run", "check"], ["bun", "run", "test"]],
-        working_directory="companion",
-    ),
-    Group(
         "docs-site",
         ["docs/*", "pkg/capabilityprotocol/generated/*"],
         [

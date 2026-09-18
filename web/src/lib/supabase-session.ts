@@ -7,6 +7,7 @@ import { signedOutSession, type WebAuthSession } from '$lib/web-auth-session';
 import { stopBeingReached } from '$lib/notifications/subscribe';
 import { forgetSignedInAccount, signedInMember } from '$lib/signed-in-account-memo';
 import { forgetWidgetSupply } from '$lib/widget/attendance-widget-supply';
+import { releaseActivityTokens } from '$lib/widget/attendance-activity-tokens';
 
 export { isSupabaseConfigured };
 
@@ -69,6 +70,7 @@ export async function supabaseMemberRole(): Promise<MemberRole> {
 export async function signOutOfSupabase(): Promise<void> {
 	await stopBeingReached().catch(() => undefined);
 	await forgetWidgetSupply().catch(() => undefined);
+	await releaseActivityTokens().catch(() => undefined);
 	forgetLastSeenTask();
 	forgetLastSeenDirectory();
 	forgetSignedInAccount();

@@ -684,8 +684,8 @@ and delete the duplicates.
 
 Browser automation is an interactive fallback, not the default web research
 path. Prefer search/fetch tools for ordinary public lookup. Use `agent-browser`
-only when the user needs visible browser operation, login/MFA/captcha handoff,
-page interaction, page state, screenshots, or when search/fetch fails.
+only when the user needs visible browser operation, page interaction, page
+state, screenshots, or when search/fetch fails.
 
 Run `agent-browser --help` for syntax. Core flow: `agent-browser open <url>`,
 `agent-browser snapshot -i`, interact with refs such as `@e1`, then snapshot

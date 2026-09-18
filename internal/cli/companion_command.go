@@ -7,11 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
-const companionApplicationName = "internkim.app"
+const companionBinaryName = "internkim-companion"
 
 func runCompanion() {
 	if len(os.Args) < 3 || os.Args[2] == "--help" || os.Args[2] == "-h" {
@@ -32,67 +31,55 @@ func printCompanionUsage() {
 	fmt.Println("Usage: internkim companion <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  upgrade   Build and install the local companion app")
+	fmt.Println("  upgrade   Build the companion binary from this checkout and install it")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  ./internkim companion upgrade")
-	fmt.Println("  ./internkim companion upgrade --skip-build")
+	fmt.Println("  ./internkim companion upgrade --install-path /usr/local/bin/internkim-companion")
 }
 
 func runCompanionUpgrade(arguments []string) error {
 	flags := flag.NewFlagSet("companion upgrade", flag.ContinueOnError)
-	installPath := flags.String("install-path", defaultCompanionInstallPath(), "installed companion app path")
-	skipBuild := flags.Bool("skip-build", false, "install the last built companion app without rebuilding")
+	installPath := flags.String("install-path", defaultCompanionInstallPath(), "installed companion binary path")
 	if errorValue := flags.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
-	if runtime.GOOS != "darwin" {
-		return errors.New("companion app upgrade is currently only supported on macOS")
+	if strings.TrimSpace(*installPath) == "" {
+		return errors.New("install path is required")
 	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
 	}
-	if !*skipBuild {
-		if errorValue := runCompanionUpgradeCommand(repositoryRootPath, "make", "build-companion-shell"); errorValue != nil {
-			return errorValue
-		}
-	}
-	bundlePath := companionBuiltApplicationPath(repositoryRootPath)
-	if errorValue := verifyCompanionApplicationBundle(bundlePath); errorValue != nil {
+	if errorValue := os.MkdirAll(filepath.Dir(*installPath), 0o755); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := installCompanionApplication(bundlePath, *installPath); errorValue != nil {
+	if errorValue := runCompanionUpgradeCommand(repositoryRootPath, "go", "build", "-o", *installPath, "./cmd/internkim-companion"); errorValue != nil {
 		return errorValue
 	}
-	fmt.Println("Updated " + *installPath)
-	fmt.Println("Restart internkim to use the new version.")
-	return nil
+	fmt.Println("Installed " + *installPath)
+	return restartCompanionServiceIfInstalled(*installPath)
 }
 
 func defaultCompanionInstallPath() string {
-	return filepath.Join("/Applications", companionApplicationName)
-}
-
-func companionBuiltApplicationPath(repositoryRootPath string) string {
-	return filepath.Join(repositoryRootPath, "companion", "src-tauri", "target", "debug", "bundle", "macos", companionApplicationName)
-}
-
-func verifyCompanionApplicationBundle(path string) error {
-	executablePath := filepath.Join(path, "Contents", "MacOS", "internkim-companion-shell")
-	if fileInfo, errorValue := os.Stat(executablePath); errorValue != nil {
-		return errors.New("companion app bundle is missing; run without --skip-build first")
-	} else if fileInfo.IsDir() {
-		return errors.New("companion app executable path is a directory")
+	homeDirectory, errorValue := os.UserHomeDir()
+	if errorValue != nil {
+		return companionBinaryName
 	}
-	return nil
+	return filepath.Join(homeDirectory, ".local", "bin", companionBinaryName)
 }
 
-func installCompanionApplication(sourcePath string, targetPath string) error {
-	if strings.TrimSpace(targetPath) == "" {
-		return errors.New("install path is required")
+func restartCompanionServiceIfInstalled(installPath string) error {
+	if !isCompanionServiceInstalled(installPath) {
+		fmt.Println("Run `" + installPath + " service install` to keep it running in the background.")
+		return nil
 	}
-	return runCompanionUpgradeCommand("", "ditto", sourcePath, targetPath)
+	return runCompanionUpgradeCommand("", installPath, "service", "restart")
+}
+
+func isCompanionServiceInstalled(installPath string) bool {
+	status, errorValue := exec.Command(installPath, "service", "status").Output()
+	return errorValue == nil && strings.HasPrefix(strings.TrimSpace(string(status)), "running")
 }
 
 func runCompanionUpgradeCommand(directoryPath string, name string, arguments ...string) error {

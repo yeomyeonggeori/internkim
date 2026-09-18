@@ -13,13 +13,16 @@ var companionBrowserToolNames = []string{
 	"browser_open",
 	"browser_snapshot",
 	"browser_screenshot",
-	"browser_handoff",
 	"browser_click",
 	"browser_fill",
 	"browser_select",
 	"browser_press",
 	"browser_wait",
 }
+
+const ComputerTaskToolName = "computer_task"
+
+var companionToolNames = append(append([]string{}, companionBrowserToolNames...), ComputerTaskToolName)
 
 var deviceBrowserDescriptions = map[string]string{
 	"browser_open":     "Open an exact HTTP or HTTPS URL in the device browser.",
@@ -39,7 +42,7 @@ var deviceBrowserToolsUnderTheBrowserGrant = map[string]bool{
 }
 
 func CompanionToolDescriptors() []Descriptor {
-	return MustCanonicalizeBuiltInDescriptors(MustGeneratedToolDescriptors(companionBrowserToolNames...))
+	return MustCanonicalizeBuiltInDescriptors(MustGeneratedToolDescriptors(companionToolNames...))
 }
 
 func CompanionLLMDescriptors() []Descriptor {

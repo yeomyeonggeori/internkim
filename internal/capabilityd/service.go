@@ -68,7 +68,6 @@ type Configuration struct {
 	DeviceBrowserFirstPort        int
 	DeviceBrowserCapacity         int
 	DeviceBrowserUserName         string
-	RelayBaseURL                  string
 	CompanionFileDirectory        string
 	APIURLPath                    string
 	FleetIDPath                   string
@@ -167,7 +166,6 @@ func DefaultConfiguration() Configuration {
 		DeviceBrowserFirstPort:        browserruntime.DeviceBrowsersFirstPort,
 		DeviceBrowserCapacity:         browserruntime.DeviceBrowsersCapacity,
 		DeviceBrowserUserName:         browserruntime.DeviceBrowsersUserName,
-		RelayBaseURL:                  "http://127.0.0.1:18091",
 		CompanionFileDirectory:        "/tmp/internkim-companion-files",
 		APIURLPath:                    "/root/.internkim/env/api-url",
 		FleetIDPath:                   "/root/.internkim/env/fleet-id",
@@ -656,9 +654,6 @@ func (configuration Configuration) WithDefaults() Configuration {
 	}
 	if configuration.DeviceBrowserUserName == "" {
 		configuration.DeviceBrowserUserName = defaultConfiguration.DeviceBrowserUserName
-	}
-	if configuration.RelayBaseURL == "" {
-		configuration.RelayBaseURL = defaultConfiguration.RelayBaseURL
 	}
 	if configuration.CompanionFileDirectory == "" {
 		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory

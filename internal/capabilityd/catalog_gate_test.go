@@ -205,6 +205,19 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
 			},
 		},
+		// Only the requester's companion has a computer to control; the device
+		// says so instead of pretending.
+		"computer_task": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{},
+			input:   `{"goal":"the inbox shows no unread mail"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				if answered.Outcome == capabilities.ToolOutcomeSucceeded {
+					t.Fatalf("the device answered a computer task: %s", answered.Result)
+				}
+				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
+			},
+		},
 		"site_serve": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"siteID":"s1","slug":"q3-report","status":"published","publishedURL":"https://example.test/q3-report","previewURL":"https://example.test/preview/q3-report"}`)},
@@ -930,7 +943,6 @@ func gateCases() map[string]catalogGateCase {
 const (
 	implementedOnThePlaneToo = "implemented twice, once in Go here and once on the plane; step 4 of internkim#1254 deletes the Go handler, and the case written then is as thin as leave's"
 	overIMAPAndSMTP          = "answered over IMAP and SMTP, which no stand-in here speaks yet"
-	throughTheRelay          = "hands the device browser over through the relay, which this gate does not run"
 	reachesLivePublicURLs    = "fetches live public URLs"
 )
 
@@ -952,7 +964,6 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"mail_message_read":      overIMAPAndSMTP,
 	"mail_message_search":    overIMAPAndSMTP,
 	"mail_message_send":      overIMAPAndSMTP,
-	"browser_handoff":        throughTheRelay,
 	"web_fetch":              reachesLivePublicURLs,
 }
 

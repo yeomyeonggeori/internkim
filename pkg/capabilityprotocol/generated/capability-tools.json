@@ -10897,181 +10897,6 @@
     },
     {
       "answeredBy": "local",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "browser_handoff",
-      "description": "Hand the device browser to the requester for a step only a person can do, such as signing in or passing a CAPTCHA. The requester watches and controls it live on intern.kim. Read the returned page first: if it is not the page they need, such as a not-found or error page, fix it with browser_open, since openURL shows whatever the browser shows. Then share openURL, describe the page as it is rather than as you intended, end your turn, and continue when they finish.",
-      "estimatedLatency": "interactive",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "message": {
-            "description": "What the person should do in the browser, in the language of the conversation.",
-            "type": "string"
-          },
-          "url": {
-            "description": "An HTTP or HTTPS address to open in the device browser before handing it over.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "message": {
-            "description": "What the person should do in the browser, in the language of the conversation.",
-            "type": "string"
-          },
-          "url": {
-            "description": "An HTTP or HTTPS address to open in the device browser before handing it over.",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "browser_handoff",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "browser_handoff",
-      "namespace": "browser",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "expiresAt": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "handoffID": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "openURL": {
-            "description": "The intern.kim address where the requester watches and controls the device browser. Share it only once page shows what they need.",
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "page": {
-            "additionalProperties": false,
-            "description": "What the requester sees when they open openURL.",
-            "properties": {
-              "text": {
-                "description": "The start of the text the page shows. Read it: a not-found, error or unexpected page is what the requester would see.",
-                "type": "string"
-              },
-              "title": {
-                "type": "string"
-              },
-              "url": {
-                "description": "The address the device browser actually shows, which may differ from the url asked for.",
-                "minLength": 1,
-                "pattern": "^\\S(?:.*\\S)?$",
-                "type": "string"
-              }
-            },
-            "required": [
-              "url"
-            ],
-            "type": "object"
-          },
-          "status": {
-            "const": "waiting",
-            "type": "string"
-          }
-        },
-        "required": [
-          "handoffID",
-          "status",
-          "openURL",
-          "expiresAt",
-          "page"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:browser_handoff",
-      "privacyClass": "device_browser",
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "expiresAt": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "handoffID": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "openURL": {
-              "description": "The intern.kim address where the requester watches and controls the device browser. Share it only once page shows what they need.",
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "page": {
-              "additionalProperties": false,
-              "description": "What the requester sees when they open openURL.",
-              "properties": {
-                "text": {
-                  "description": "The start of the text the page shows. Read it: a not-found, error or unexpected page is what the requester would see.",
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "url": {
-                  "description": "The address the device browser actually shows, which may differ from the url asked for.",
-                  "minLength": 1,
-                  "pattern": "^\\S(?:.*\\S)?$",
-                  "type": "string"
-                }
-              },
-              "required": [
-                "url"
-              ],
-              "type": "object"
-            },
-            "status": {
-              "const": "waiting",
-              "type": "string"
-            }
-          },
-          "required": [
-            "handoffID",
-            "status",
-            "openURL",
-            "expiresAt",
-            "page"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "connect",
-      "sideEffectClass": "connect",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "local",
       "approvalScope": "browser",
       "availability": {
         "state": "ok"
@@ -11425,6 +11250,293 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "local",
+      "approvalScope": "desktop",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "computer_task",
+      "description": "Carry out a goal in the requester's own companion browser. A decision model reads the page, picks one safe action at a time from what is actually on screen, and stops when the goal is reached, cannot be reached, or no safe step remains. State the goal as the outcome to reach and put any text to type in inputs. The browser is a persistent profile of the companion's own, so sign-ins made there stay for later tasks but the requester's personal browser is never touched. Read the returned page and outcome before telling the requester what was done.",
+      "estimatedLatency": "interactive",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "description": "What must be true when the task is done, said as an outcome the requester would recognise on screen, not as a list of clicks.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "inputs": {
+            "description": "Every piece of text the task may type. Nothing outside this list is ever typed.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "description": "What the text is for, such as \"search query\" or \"message\".",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "text": {
+                  "description": "The exact text to type.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "text"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "maxSteps": {
+            "description": "How many actions the task may take before it gives up. Defaults to 12.",
+            "maximum": 40,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "startURL": {
+            "description": "An HTTP or HTTPS address to open first. Leave it out to continue from the page the companion browser already shows.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "description": "What must be true when the task is done, said as an outcome the requester would recognise on screen, not as a list of clicks.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "inputs": {
+            "description": "Every piece of text the task may type. Nothing outside this list is ever typed.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "description": "What the text is for, such as \"search query\" or \"message\".",
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "text": {
+                  "description": "The exact text to type.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "text"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "maxSteps": {
+            "description": "How many actions the task may take before it gives up. Defaults to 12.",
+            "maximum": 40,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "startURL": {
+            "description": "An HTTP or HTTPS address to open first. Leave it out to continue from the page the companion browser already shows.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "computer_task",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "computer_task",
+      "namespace": "computer",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "description": "verified: a fresh observation showed the goal reached. refuted: the page showed the goal cannot be reached. unknown: an action failed and its effect is unknown. abstained: no safe step remained. budget_exhausted: maxSteps ran out.",
+            "enum": [
+              "verified",
+              "refuted",
+              "unknown",
+              "abstained",
+              "budget_exhausted"
+            ],
+            "type": "string"
+          },
+          "page": {
+            "additionalProperties": false,
+            "description": "The page as it was when the task ended, so the caller can judge the result itself.",
+            "properties": {
+              "text": {
+                "description": "The start of the text the page showed when the task ended.",
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "title",
+              "text"
+            ],
+            "type": "object"
+          },
+          "steps": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "candidateID": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "number"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "step": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "step",
+                "candidateID",
+                "description",
+                "confidence"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "description": "What happened, in one or two sentences a person would understand.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "summary",
+          "steps",
+          "page"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:computer_task",
+      "privacyClass": "user_browser",
+      "requiresCompanionBrowser": true,
+      "requiresRequesterDevice": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "outcome": {
+              "description": "verified: a fresh observation showed the goal reached. refuted: the page showed the goal cannot be reached. unknown: an action failed and its effect is unknown. abstained: no safe step remained. budget_exhausted: maxSteps ran out.",
+              "enum": [
+                "verified",
+                "refuted",
+                "unknown",
+                "abstained",
+                "budget_exhausted"
+              ],
+              "type": "string"
+            },
+            "page": {
+              "additionalProperties": false,
+              "description": "The page as it was when the task ended, so the caller can judge the result itself.",
+              "properties": {
+                "text": {
+                  "description": "The start of the text the page showed when the task ended.",
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "title",
+                "text"
+              ],
+              "type": "object"
+            },
+            "steps": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "candidateID": {
+                    "type": "string"
+                  },
+                  "confidence": {
+                    "type": "number"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "step": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "step",
+                  "candidateID",
+                  "description",
+                  "confidence"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "summary": {
+              "description": "What happened, in one or two sentences a person would understand.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "outcome",
+            "summary",
+            "steps",
+            "page"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "external_write",
+      "sideEffectClass": "external_write",
       "version": "1",
       "worksOffline": false
     },

@@ -18,7 +18,8 @@
 	import { timeInTimeZone } from './shared/attendance-date';
 	import { formatHoursMinutes } from './shared/attendance-format';
 	import AttendanceProgressBar, { type AttendanceProgressSegment } from './shared/attendance-progress-bar.svelte';
-	import { dayWidthPercent } from './shared/day-timeline';
+	import { segmentWidthPercent } from './shared/day-timeline';
+	import { elapsedWorkedMinutes } from './shared/attendance-day-events';
 	import DurationText from './shared/duration-text.svelte';
 	import LocationLabel from './shared/location-label.svelte';
 	import { attendanceText } from './text';
@@ -45,13 +46,7 @@
 			: ''
 	);
 
-	const elapsedMinutes = $derived.by(() => {
-		if (todayDay.activeSegment) {
-			const elapsed = (Date.now() - new Date(todayDay.activeSegment.clockIn.occurredAt).getTime()) / 60000;
-			return todayDay.workedMinutes + Math.max(0, Math.round(elapsed));
-		}
-		return todayDay.workedMinutes;
-	});
+	const elapsedMinutes = $derived(elapsedWorkedMinutes(todayDay, new Date()));
 
 	const activeLocationName = $derived(
 		todayDay.activeSegment?.locationName ?? todayDay.activeSegment?.locationID ?? text.location
@@ -125,7 +120,7 @@
 		return segments.map((segment) => {
 			return {
 				id: segment.id,
-				widthPercent: dayWidthPercent(segment.startTime, segment.isOpen ? currentTime : segment.endTime ?? segment.startTime),
+				widthPercent: segmentWidthPercent(segment, currentTime),
 				color: segmentColor(segment) ?? 'var(--color-muted-foreground)',
 			};
 		});

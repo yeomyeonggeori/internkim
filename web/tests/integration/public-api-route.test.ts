@@ -410,10 +410,10 @@ describe('a tool the company machine runs', () => {
 });
 
 describe('looking at what a destructive call would touch', () => {
-	test('is refused for a tool that destroys nothing', async () => {
+	test('answers no target for a tool that has nothing to look at', async () => {
 		const answered = await preview('task_list', holdersToken, {});
-		expect(answered.status).toBe(400);
-		expect(messageOf(answered)).toContain('destroys nothing');
+		expect(answered.status).toBe(200);
+		expect(answered.body).toEqual({ tool: 'task_list', target: null });
 	});
 
 	test('is refused by rung before it resolves anything', async () => {

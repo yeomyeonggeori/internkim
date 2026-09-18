@@ -34,6 +34,17 @@
 		7A11C0DE0000000000000131 /* AttendanceWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7A11C0DE0000000000000128 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010C /* Localizable.xcstrings */; };
 		7A11C0DE0000000000000129 /* AttendanceRefusal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010D /* AttendanceRefusal.swift */; };
+		7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
+		7A11C0DE000000000000012A /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
+		7A11C0DE0000000000000118 /* AttendanceLockScreenCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */; };
+		7A11C0DE000000000000012C /* AttendanceLockScreenCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */; };
+		7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */; };
+		7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */; };
+		7A11C0DE0000000000000211 /* AttendanceTodayCasesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000201 /* AttendanceTodayCasesTests.swift */; };
+		7A11C0DE0000000000000212 /* AttendanceToday.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000103 /* AttendanceToday.swift */; };
+		7A11C0DE0000000000000213 /* AttendanceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000102 /* AttendanceAPI.swift */; };
+		7A11C0DE0000000000000214 /* AttendanceWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000101 /* AttendanceWidgetStore.swift */; };
+		7A11C0DE0000000000000215 /* attendance-today-cases.json in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000202 /* attendance-today-cases.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +112,13 @@
 		7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AttendanceWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A11C0DE000000000000010C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		7A11C0DE000000000000010D /* AttendanceRefusal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceRefusal.swift; sourceTree = "<group>"; };
+		7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityAttributes.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLockScreenCards.swift; sourceTree = "<group>"; };
+		7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLiveActivity.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceActivityPlugin.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000201 /* AttendanceTodayCasesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceTodayCasesTests.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000202 /* attendance-today-cases.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "attendance-today-cases.json"; path = "../../tests/fixtures/attendance-today-cases.json"; sourceTree = SOURCE_ROOT; };
+		7A11C0DE0000000000000203 /* AttendanceWidgetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AttendanceWidgetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +139,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		7A11C0DE0000000000000153 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A11C0DE0000000000000253 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -148,6 +173,7 @@
 				5495ECBD43A411B8EB0CA2F2 /* NotificationService */,
 				7A11C0DE0000000000000140 /* Shared */,
 				7A11C0DE0000000000000141 /* AttendanceWidget */,
+				7A11C0DE0000000000000240 /* AttendanceWidgetTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -157,6 +183,7 @@
 				504EC3041FED79650016851F /* App.app */,
 				C4703789FF4E0A8EC43E57CD /* NotificationService.appex */,
 				7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */,
+				7A11C0DE0000000000000203 /* AttendanceWidgetTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -172,6 +199,7 @@
 				7A11C0DE0000000000000003 /* PageThemePlugin.swift */,
 				7A11C0DE0000000000000006 /* ForegroundNotificationsPlugin.swift */,
 				7A11C0DE0000000000000104 /* AttendanceWidgetPlugin.swift */,
+				7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -206,6 +234,8 @@
 				7A11C0DE0000000000000101 /* AttendanceWidgetStore.swift */,
 				7A11C0DE0000000000000102 /* AttendanceAPI.swift */,
 				7A11C0DE0000000000000103 /* AttendanceToday.swift */,
+				7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */,
+				7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -218,11 +248,21 @@
 				7A11C0DE0000000000000107 /* AttendanceWidgetView.swift */,
 				7A11C0DE0000000000000108 /* AttendanceWidgetIntents.swift */,
 				7A11C0DE000000000000010D /* AttendanceRefusal.swift */,
+				7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */,
 				7A11C0DE000000000000010C /* Localizable.xcstrings */,
 				7A11C0DE000000000000010A /* AttendanceWidget.entitlements */,
 				7A11C0DE0000000000000109 /* Info.plist */,
 			);
 			path = AttendanceWidget;
+			sourceTree = "<group>";
+		};
+		7A11C0DE0000000000000240 /* AttendanceWidgetTests */ = {
+			isa = PBXGroup;
+			children = (
+				7A11C0DE0000000000000201 /* AttendanceTodayCasesTests.swift */,
+				7A11C0DE0000000000000202 /* attendance-today-cases.json */,
+			);
+			path = AttendanceWidgetTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -285,6 +325,23 @@
 			productReference = 7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		7A11C0DE0000000000000250 /* AttendanceWidgetTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7A11C0DE0000000000000251 /* Build configuration list for PBXNativeTarget "AttendanceWidgetTests" */;
+			buildPhases = (
+				7A11C0DE0000000000000252 /* Sources */,
+				7A11C0DE0000000000000253 /* Frameworks */,
+				7A11C0DE0000000000000254 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AttendanceWidgetTests;
+			productName = AttendanceWidgetTests;
+			productReference = 7A11C0DE0000000000000203 /* AttendanceWidgetTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -321,6 +378,7 @@
 				504EC3031FED79650016851F /* App */,
 				5AE968BBFCAB542E138A7DB8 /* NotificationService */,
 				7A11C0DE0000000000000150 /* AttendanceWidgetExtension */,
+				7A11C0DE0000000000000250 /* AttendanceWidgetTests */,
 			);
 		};
 /* End PBXProject section */
@@ -354,6 +412,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7A11C0DE0000000000000254 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A11C0DE0000000000000215 /* attendance-today-cases.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -376,6 +442,9 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				7A11C0DE0000000000000111 /* AttendanceWidgetStore.swift in Sources */,
 				7A11C0DE0000000000000114 /* AttendanceWidgetPlugin.swift in Sources */,
+				7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */,
+				7A11C0DE0000000000000118 /* AttendanceLockScreenCards.swift in Sources */,
+				7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -391,6 +460,20 @@
 				7A11C0DE0000000000000126 /* AttendanceWidgetView.swift in Sources */,
 				7A11C0DE0000000000000127 /* AttendanceWidgetIntents.swift in Sources */,
 				7A11C0DE0000000000000129 /* AttendanceRefusal.swift in Sources */,
+				7A11C0DE000000000000012A /* AttendanceActivityAttributes.swift in Sources */,
+				7A11C0DE000000000000012C /* AttendanceLockScreenCards.swift in Sources */,
+				7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A11C0DE0000000000000252 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A11C0DE0000000000000211 /* AttendanceTodayCasesTests.swift in Sources */,
+				7A11C0DE0000000000000212 /* AttendanceToday.swift in Sources */,
+				7A11C0DE0000000000000213 /* AttendanceAPI.swift in Sources */,
+				7A11C0DE0000000000000214 /* AttendanceWidgetStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -683,6 +766,38 @@
 			};
 			name = Release;
 		};
+		7A11C0DE0000000000000255 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.AttendanceWidgetTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7A11C0DE0000000000000256 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.AttendanceWidgetTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -718,6 +833,15 @@
 			buildConfigurations = (
 				7A11C0DE0000000000000155 /* Debug */,
 				7A11C0DE0000000000000156 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7A11C0DE0000000000000251 /* Build configuration list for PBXNativeTarget "AttendanceWidgetTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7A11C0DE0000000000000255 /* Debug */,
+				7A11C0DE0000000000000256 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

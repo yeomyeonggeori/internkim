@@ -1,17 +1,18 @@
 import type { ReleaseRegistryEnvironment } from './index';
 
 const releaseTokenHeader = 'X-INTERNKIM-RELEASE-TOKEN';
+const publicObjectPrefix = 'companion/';
 
 export async function handleReleaseRegistryRequest(request: Request, environment: ReleaseRegistryEnvironment): Promise<Response> {
 	if (!isAllowedMethod(request.method)) {
 		return textResponse('method not allowed', 405);
 	}
-	if (!isAuthorized(request, environment.RELEASE_DOWNLOAD_TOKEN)) {
-		return textResponse('unauthorized', 401);
-	}
 	const objectKey = objectKeyFromRequest(request);
 	if (!objectKey) {
 		return textResponse('not found', 404);
+	}
+	if (!isPublicObject(objectKey) && !isAuthorized(request, environment.RELEASE_DOWNLOAD_TOKEN)) {
+		return textResponse('unauthorized', 401);
 	}
 	const object = await environment.RELEASE_BUCKET.get(objectKey);
 	if (!object) {
@@ -22,6 +23,10 @@ export async function handleReleaseRegistryRequest(request: Request, environment
 
 function isAllowedMethod(method: string): boolean {
 	return method === 'GET' || method === 'HEAD';
+}
+
+function isPublicObject(objectKey: string): boolean {
+	return objectKey.startsWith(publicObjectPrefix);
 }
 
 function isAuthorized(request: Request, expectedToken?: string): boolean {
