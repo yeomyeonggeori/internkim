@@ -11,6 +11,7 @@ import {
   jsonValueSchema,
   resourceEffectContractSchema,
 } from './protocol';
+import { toolInvokeOutcomes } from './contract';
 
 export enum ResourceMutationEffect {
   Created = 'created',
@@ -95,7 +96,7 @@ export const toolInvokeOutputSchema = z.strictObject({
   failureStage: z.string().optional(),
   isError: z.boolean().optional(),
   message: z.string().optional(),
-  outcome: z.enum(["succeeded", "failed", "denied"]).optional(),
+  outcome: z.enum(toolInvokeOutcomes).optional(),
   provider: z.string(),
   result: z.unknown(),
   retryable: z.boolean().optional(),

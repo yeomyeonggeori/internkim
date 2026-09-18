@@ -14,6 +14,7 @@ import {
 	type LeaveRow
 } from './leave';
 import type { RecordContext } from './company';
+import type { WorkspaceDecision } from '../catalog/tools';
 
 export type AnsweredLeave = {
 	leaveID: string;
@@ -200,12 +201,7 @@ export async function leaveGrantSet(
 	context: RecordContext,
 	input: LeaveGrantSetInput
 ): Promise<AnsweredBalance> {
-	if (!input.personHint?.trim()) throw new Error('a leave grant names the person it is for');
-	if (input.days === undefined || input.days < 0) {
-		throw new Error('a leave grant is a number of days, and never fewer than none');
-	}
-
-	const memberID = personOfHint(context.people, input.personHint).personID;
+	const memberID = personOfHint(context.people, input.personHint ?? '').personID;
 	const { error } = await context.caller.rpc('member_leave_days_set', {
 		target_member: memberID,
 		granted_days: input.days
@@ -253,23 +249,21 @@ export async function leaveRequest(
 	context: RecordContext,
 	input: LeaveRequestInput
 ): Promise<AnsweredLeave> {
-	if (!input.kind?.trim()) throw new Error('a leave request names the kind of leave it is');
 	if (!input.startsAt || !input.endsAt) throw new Error('a leave request names the days it covers');
-	if (input.days === undefined || input.days <= 0) {
-		throw new Error('a leave request says how many days it consumes; a half day is 0.5');
-	}
+	const days = input.days ?? 0;
+	if (days <= 0) throw new Error('a leave request says how many days it consumes; a half day is 0.5');
 
-	const kind = leaveKindOf(context.leaveKinds, input.kind);
+	const kind = leaveKindOf(context.leaveKinds, input.kind ?? '');
 	const written = {
 		member_id: targetMember(context, input.personHint),
 		kind: kind.id,
 		is_paid: kind.isPaid,
 		is_deducted: kind.isDeducted,
-		days: -input.days,
+		days: -days,
 		status: 'requested',
 		starts_at: instantWritten(context.labels.timezone, input.startsAt),
 		ends_at:
-			input.days > halfADay
+			days > halfADay
 				? midnightAfter(context.labels.timezone, input.endsAt)
 				: instantWritten(context.labels.timezone, input.endsAt, true),
 		note: input.note?.trim() || null
@@ -293,12 +287,11 @@ export async function leaveUpdate(
 	context: RecordContext,
 	input: LeaveUpdateInput
 ): Promise<AnsweredLeave> {
-	if (!input.leaveHint) throw new Error('a correction names the leave it corrects');
 	if (input.days !== undefined && input.days <= 0) {
 		throw new Error('a leave consumes more than nothing; a half day is 0.5');
 	}
 
-	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint);
+	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint ?? '');
 	const held = answeredLeave(context, row);
 	const days = input.days ?? held.days;
 	const corrected: Record<string, unknown> = {
@@ -333,9 +326,7 @@ export async function leaveDelete(
 	context: RecordContext,
 	input: LeaveDeleteInput
 ): Promise<AnsweredLeave> {
-	if (!input.leaveHint) throw new Error('a removal names the leave it removes');
-
-	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint);
+	const row = leaveOfHint(context, await leaveOfCompany(context.caller), input.leaveHint ?? '');
 	const taken = answeredLeave(context, row);
 	const { error } = await context.caller
 		.from('leave')
@@ -347,19 +338,14 @@ export async function leaveDelete(
 	return taken;
 }
 
-export type LeaveDecideInput = { leaveHint?: string; decision?: string };
+export type LeaveDecideInput = { leaveHint?: string; decision?: WorkspaceDecision };
 
 export async function leaveDecide(
 	context: RecordContext,
 	input: LeaveDecideInput
 ): Promise<AnsweredLeave> {
-	if (!input.leaveHint) throw new Error('a decision names the leave it decides');
-	if (input.decision !== 'approved' && input.decision !== 'rejected') {
-		throw new Error('a decision is approved or rejected');
-	}
-
 	const rows = await leaveOfCompany(context.caller);
-	const row = leaveOfHint(context, rows, input.leaveHint);
+	const row = leaveOfHint(context, rows, input.leaveHint ?? '');
 	const { error } = await context.caller
 		.from('leave')
 		.update({ status: input.decision })
