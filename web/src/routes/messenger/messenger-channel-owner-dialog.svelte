@@ -5,7 +5,7 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { ChannelMember } from '$lib/components/channel/channel-api';
-	import { MessengerRefusal, handOverChannel } from '$lib/messenger/messenger-api';
+	import { MessengerRefusal, addChannelOwner, handOverChannel } from '$lib/messenger/messenger-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { toast } from 'svelte-sonner';
 
@@ -13,46 +13,54 @@
 		open = $bindable(false),
 		channelID,
 		members,
+		action,
 		onHandedOver
 	}: {
 		open?: boolean;
 		channelID: string;
 		members: ChannelMember[];
+		action: 'add' | 'hand-over';
 		onHandedOver: () => void;
 	} = $props();
 
 	const text = createPageText(channelText);
 	const candidates = $derived(members.filter((member) => member.role !== 'owner'));
+	const title = $derived(action === 'hand-over' ? text.handOverChannelTitle : text.addChannelOwnerTitle);
 
-	let isHandingOver = $state(false);
+	let isSubmitting = $state(false);
 
-	async function handOverTo(member: ChannelMember) {
-		isHandingOver = true;
+	async function chooseOwner(member: ChannelMember) {
+		isSubmitting = true;
 		try {
-			await handOverChannel(channelID, member.externalID ?? '');
+			if (action === 'hand-over') {
+				await handOverChannel(channelID, member.externalID ?? '');
+			} else {
+				await addChannelOwner(channelID, member.externalID ?? '');
+			}
 			open = false;
 			onHandedOver();
 		} catch (failure) {
 			onHandedOver();
 			toast.error(refusalText(failure));
 		} finally {
-			isHandingOver = false;
+			isSubmitting = false;
 		}
 	}
 
 	function refusalText(failure: unknown): string {
 		if (failure instanceof MessengerRefusal && failure.reason === 'not-owner') return text.notChannelOwner;
-		if (failure instanceof MessengerRefusal && failure.reason === 'still-an-owner') {
+		if (action === 'hand-over' && failure instanceof MessengerRefusal && failure.reason === 'still-an-owner') {
 			return text.ownershipPartlyHandedOver;
 		}
-		return failure instanceof Error ? failure.message : text.handOverChannelFailed;
+		if (failure instanceof Error) return failure.message;
+		return action === 'hand-over' ? text.handOverChannelFailed : text.addChannelOwnerFailed;
 	}
 </script>
 
 <Dialog.Root bind:open>
 	<Dialog.Content class="sm:max-w-sm" closeLabel={text.closeChannelMembers}>
 		<Dialog.Header>
-			<Dialog.Title>{text.handOverChannelTitle}</Dialog.Title>
+			<Dialog.Title>{title}</Dialog.Title>
 		</Dialog.Header>
 		<Command.Root>
 			<Command.Input placeholder={text.searchMembers} />
@@ -63,8 +71,8 @@
 						<Command.Item
 							value={member.memberID ?? member.externalID ?? ''}
 							keywords={[member.name, displayPersonName(member.name)]}
-							disabled={isHandingOver}
-							onSelect={() => handOverTo(member)}
+							disabled={isSubmitting}
+							onSelect={() => chooseOwner(member)}
 						>
 							<PersonAvatar
 								name={member.name}
