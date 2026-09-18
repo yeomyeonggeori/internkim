@@ -69,7 +69,7 @@ func resolveBuzzKeySeed(context *Context) (string, error) {
 	}
 	seed = strings.TrimSpace(seed)
 	if !buzzKeySeedIsPresent(seed) {
-		return "", errors.New("buzz key seed is empty; generate .local/secrets/buzz-key-seed (openssl rand -hex 32) or set INTERNKIM_BUZZ_KEY_SEED")
+		return "", errors.New("buzz key seed is empty; set INTERNKIM_BUZZ_KEY_SEED in .env (openssl rand -hex 32)")
 	}
 	return seed, nil
 }

@@ -368,9 +368,11 @@ R2 publishes a stable channel for several devices to pull. The bucket is
 carrying the right `X-INTERNKIM-RELEASE-TOKEN`. An untokened download must be a
 401.
 
+The same token goes in two places: `INTERNKIM_RELEASE_DOWNLOAD_TOKEN` in `.env`,
+and the Worker's secret.
+
 ```bash
-openssl rand -base64 32 > .local/secrets/release-download-token
-chmod 600 .local/secrets/release-download-token
+openssl rand -base64 32
 
 cd workers/release-registry
 ../../web/node_modules/.bin/wrangler secret put RELEASE_DOWNLOAD_TOKEN
@@ -379,13 +381,13 @@ cd workers/release-registry
 
 Publishing from a development machine with a Wrangler OAuth session needs the
 bucket and base URL. `INTERNKIM_RELEASE_R2_ACCOUNT_ID` falls back to
-`CLOUDFLARE_ACCOUNT_ID` in `.env`, and `INTERNKIM_RELEASE_DOWNLOAD_TOKEN` falls
-back to `.local/secrets/release-download-token`.
+`CLOUDFLARE_ACCOUNT_ID`. Everything the CLI reads comes from `.env`, which it
+loads itself, so nothing here needs exporting by hand.
 
 ```bash
-export INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
-export INTERNKIM_RELEASE_R2_PUBLISHER=wrangler
-export INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.<zone>
+INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
+INTERNKIM_RELEASE_R2_PUBLISHER=wrangler
+INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.<zone>
 ```
 
 CI, with no OAuth session, publishes with R2 S3 credentials instead:
