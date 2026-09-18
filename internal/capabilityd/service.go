@@ -229,10 +229,10 @@ func (service Service) Run(ctx context.Context) error {
 
 func (service Service) router() http.Handler {
 	multiplexer := http.NewServeMux()
-	multiplexer.HandleFunc("POST /v1/llm/structured", service.handleStructuredLLM)
-	multiplexer.HandleFunc("POST /v1/llm/decide", service.handleDecideLLM)
-	multiplexer.HandleFunc("POST /v1/llm/chat", service.handleChatLLM)
-	multiplexer.HandleFunc("POST /v1/llm/text", service.handleTextLLM)
+	multiplexer.HandleFunc("POST /v1/llm/structured", handleLLMRoute(service, Service.completeStructured))
+	multiplexer.HandleFunc("POST /v1/llm/decide", handleLLMRoute(service, Service.decide))
+	multiplexer.HandleFunc("POST /v1/llm/chat", handleLLMRoute(service, Service.completeChat))
+	multiplexer.HandleFunc("POST /v1/llm/text", handleLLMRoute(service, Service.completeText))
 	multiplexer.HandleFunc("POST /v1/embedding/create", service.handleEmbeddingCreate)
 	multiplexer.HandleFunc("POST /v1/directory/person", service.handleDirectoryPerson)
 	multiplexer.HandleFunc("POST /v1/tools/{toolName}/invoke", service.handleToolInvoke)
@@ -289,40 +289,19 @@ func (service Service) handleCapabilities(responseWriter http.ResponseWriter, re
 	service.writeResponse(responseWriter, response, errorValue)
 }
 
-func (service Service) handleStructuredLLM(responseWriter http.ResponseWriter, request *http.Request) {
-	var structuredRequest StructuredLLMRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&structuredRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
+func handleLLMRoute[RequestBody any, ResponseBody any](service Service, complete func(Service, context.Context, RequestBody) (ResponseBody, error)) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		var requestBody RequestBody
+		if errorValue := json.NewDecoder(request.Body).Decode(&requestBody); errorValue != nil {
+			http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
+			return
+		}
+		capturingService := service
+		capturedClient, capture := llmbackend.NewFailureCapture(capturingService.providerHTTPClient())
+		capturingService.HTTPClient = capturedClient
+		response, errorValue := complete(capturingService, request.Context(), requestBody)
+		capturingService.writeLLMResponse(responseWriter, response, errorValue, requestBody, capture)
 	}
-	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
-	service.HTTPClient = capturedClient
-	response, errorValue := service.completeStructured(request.Context(), structuredRequest)
-	service.writeLLMResponse(responseWriter, response, errorValue, structuredRequest, capture)
-}
-
-func (service Service) handleChatLLM(responseWriter http.ResponseWriter, request *http.Request) {
-	var chatRequest ChatLLMRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&chatRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
-	service.HTTPClient = capturedClient
-	response, errorValue := service.completeChat(request.Context(), chatRequest)
-	service.writeLLMResponse(responseWriter, response, errorValue, chatRequest, capture)
-}
-
-func (service Service) handleTextLLM(responseWriter http.ResponseWriter, request *http.Request) {
-	var textRequest TextLLMRequest
-	if errorValue := json.NewDecoder(request.Body).Decode(&textRequest); errorValue != nil {
-		http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-		return
-	}
-	capturedClient, capture := llmbackend.NewFailureCapture(service.providerHTTPClient())
-	service.HTTPClient = capturedClient
-	response, errorValue := service.completeText(request.Context(), textRequest)
-	service.writeLLMResponse(responseWriter, response, errorValue, textRequest, capture)
 }
 
 func (service Service) handleEmbeddingCreate(responseWriter http.ResponseWriter, request *http.Request) {
@@ -389,9 +368,6 @@ func (state *platformHealthState) Update(update func(*platformHealthState)) {
 	update(state)
 }
 
-// The options go in the message itself. They used to live in an attachment
-// beside the buttons, and removing the buttons would have taken the choices
-// with them.
 func numberedChoiceLabel(index int, label string) string {
 	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
 }
