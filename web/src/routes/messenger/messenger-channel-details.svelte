@@ -1,0 +1,153 @@
+<script lang="ts">
+	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
+	import HashIcon from '@lucide/svelte/icons/hash';
+	import LockIcon from '@lucide/svelte/icons/lock';
+	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Avatar from '$lib/components/ui/avatar';
+	import { CopyButton } from '$lib/components/ui/copy-button';
+	import * as Item from '$lib/components/ui/item';
+	import { Separator } from '$lib/components/ui/separator';
+	import * as Sheet from '$lib/components/ui/sheet';
+	import { channelText } from '$lib/i18n/channel-text';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import type { ChannelSummary } from '$lib/components/channel/channel-api';
+	import { MessengerRefusal, leaveChannel } from '$lib/messenger/messenger-api';
+	import { toast } from 'svelte-sonner';
+
+	let {
+		open = $bindable(false),
+		channel,
+		openMembers,
+		onLeft
+	}: {
+		open?: boolean;
+		channel: ChannelSummary;
+		openMembers: () => void;
+		onLeft: (channelID: string) => void;
+	} = $props();
+
+	const text = createPageText(channelText);
+	const members = $derived(channel.members ?? []);
+	const memberCountLabel = $derived(text.channelMemberCount.replace('{count}', String(members.length)));
+	let isConfirmingLeave = $state(false);
+	let isLeaving = $state(false);
+
+	async function leave() {
+		isLeaving = true;
+		try {
+			await leaveChannel(channel.id);
+			isConfirmingLeave = false;
+			open = false;
+			onLeft(channel.id);
+		} catch (failure) {
+			isConfirmingLeave = false;
+			if (failure instanceof MessengerRefusal && failure.reason === 'last-owner') {
+				toast.error(text.lastOwnerCannotLeave);
+			} else {
+				toast.error(failure instanceof Error ? failure.message : text.leaveChannelFailed);
+			}
+		} finally {
+			isLeaving = false;
+		}
+	}
+
+	const shortChannelID = $derived(
+		channel.id.length > 14 ? `${channel.id.slice(0, 8)}…${channel.id.slice(-4)}` : channel.id
+	);
+</script>
+
+<Sheet.Root bind:open>
+	<Sheet.Content side="right" class="gap-0 p-0 sm:max-w-sm" closeLabel={text.closeChannelDetails}>
+		<Sheet.Header class="border-b">
+			<Sheet.Title>{text.channelDetails}</Sheet.Title>
+		</Sheet.Header>
+		<div class="min-h-0 flex-1 overflow-y-auto">
+			<div class="flex flex-col items-center gap-3 px-6 py-6 text-center">
+				<Avatar.Root class="size-16">
+					<Avatar.Fallback>
+						{#if channel.isPrivate}<LockIcon class="size-7" />{:else}<HashIcon class="size-7" />{/if}
+					</Avatar.Fallback>
+				</Avatar.Root>
+				<p class="text-lg font-semibold break-all">{channel.name}</p>
+				{#if channel.description}
+					<p class="text-muted-foreground text-sm break-words whitespace-pre-line">{channel.description}</p>
+				{/if}
+			</div>
+
+			<div class="grid gap-2 px-4 pb-6">
+				<p class="text-muted-foreground px-2 text-xs font-medium">{text.channelDetailsSection}</p>
+				<div class="rounded-lg border">
+					<Item.Root>
+						<Item.Content>
+							<Item.Title>{text.channelVisibility}</Item.Title>
+							<Item.Description>
+								{channel.isPrivate ? text.channelPrivate : text.channelPublic}
+							</Item.Description>
+						</Item.Content>
+					</Item.Root>
+					<Separator />
+					<Item.Root>
+						{#snippet child({ props })}
+							<button {...props} type="button" onclick={openMembers}>
+								<Item.Content class="text-left">
+									<Item.Title>{text.channelMembersTitle}</Item.Title>
+									<Item.Description>{memberCountLabel}</Item.Description>
+								</Item.Content>
+								<Item.Actions>
+									<PersonAvatarStack
+										people={members.map((member) => ({
+											name: member.name,
+											seed: member.memberID ?? member.externalID,
+											memberID: member.memberID,
+											externalID: member.externalID
+										}))}
+										label={memberCountLabel}
+									/>
+								</Item.Actions>
+							</button>
+						{/snippet}
+					</Item.Root>
+					<Separator />
+					<Item.Root>
+						<Item.Content>
+							<Item.Title>{text.channelIDLabel}</Item.Title>
+							<Item.Description class="font-mono" title={channel.id}>{shortChannelID}</Item.Description>
+						</Item.Content>
+						<Item.Actions>
+							<CopyButton text={channel.id} size="icon-sm" tabindex={0}>
+								<span class="sr-only">{text.copyChannelID}</span>
+							</CopyButton>
+						</Item.Actions>
+					</Item.Root>
+				</div>
+
+				<div class="mt-4 rounded-lg border">
+					<Item.Root>
+						{#snippet child({ props })}
+							<button {...props} type="button" onclick={() => (isConfirmingLeave = true)}>
+								<Item.Media variant="icon"><DoorOpenIcon /></Item.Media>
+								<Item.Content class="text-left">
+									<Item.Title>{text.leaveChannel}</Item.Title>
+								</Item.Content>
+							</button>
+						{/snippet}
+					</Item.Root>
+				</div>
+			</div>
+		</div>
+	</Sheet.Content>
+</Sheet.Root>
+
+<AlertDialog.Root bind:open={isConfirmingLeave}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>{text.leaveChannelTitle.replace('{name}', channel.name)}</AlertDialog.Title>
+			<AlertDialog.Description>{text.leaveChannelDescription}</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel disabled={isLeaving}>{text.cancel}</AlertDialog.Cancel>
+			<AlertDialog.Action disabled={isLeaving} onclick={leave}>{text.leaveChannel}</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
