@@ -53,10 +53,9 @@ function aRouterDocument(fields: Record<string, unknown>): string {
 function finishing(reply: string): string {
 	return JSON.stringify({
 		message: reply,
-		completionSummary: reply,
 		goalStatus: 'satisfied',
 		goalSatisfied: true,
-		completionEvidence: []
+		completionEvidenceIDs: []
 	});
 }
 
