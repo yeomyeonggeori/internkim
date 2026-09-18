@@ -64,6 +64,7 @@
 	let isChannelDetailsOpen = $state(false);
 	let isChannelMembersOpen = $state(false);
 	let isChannelOwnerOpen = $state(false);
+	let channelOwnerAction = $state<'add' | 'hand-over'>('add');
 	const canManageChannels = isSupabaseConfigured();
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
@@ -405,7 +406,10 @@
 		bind:open={isChannelDetailsOpen}
 		channel={activeConversation}
 		openMembers={() => ((isChannelDetailsOpen = false), openChannelMembers())}
-		openOwnerHandover={() => ((isChannelDetailsOpen = false), (isChannelOwnerOpen = true))}
+		openOwnerAdd={() => ((isChannelDetailsOpen = false), (channelOwnerAction = 'add'), (isChannelOwnerOpen = true))}
+		openOwnerHandover={() => (
+			(isChannelDetailsOpen = false), (channelOwnerAction = 'hand-over'), (isChannelOwnerOpen = true)
+		)}
 		onLeft={leftChannel}
 		onDeleted={leftChannel}
 	/>
@@ -413,12 +417,14 @@
 		bind:open={isChannelMembersOpen}
 		channelID={activeConversation.id}
 		members={activeConversation.members ?? []}
+		viewerRole={activeConversation.myRole}
 		onMembersChanged={() => refreshConversations('the channel list did not refresh after adding members')}
 	/>
 	<MessengerChannelOwnerDialog
 		bind:open={isChannelOwnerOpen}
 		channelID={activeConversation.id}
 		members={activeConversation.members ?? []}
+		action={channelOwnerAction}
 		onHandedOver={() => refreshConversations('the channel list did not refresh after handing the channel over')}
 	/>
 {/if}
