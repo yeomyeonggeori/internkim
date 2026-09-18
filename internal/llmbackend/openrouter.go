@@ -101,10 +101,6 @@ func (backend OpenRouterBackend) completeStructuredModel(ctx context.Context, ap
 	if isStructuredOutputLimitError(promptedError) {
 		return promptedResponse, errors.Join(errorValue, promptedError)
 	}
-	// A model that answers with nothing has not refused the schema, it has
-	// dropped the turn: the same request succeeds on the next attempt. Giving up
-	// here hands the turn to whatever stands next in the chain, which on a device
-	// is a model small enough to invent its answer.
 	if isEmptyStructuredContentError(errorValue) && isEmptyStructuredContentError(promptedError) {
 		retriedResponse, retryError := backend.completeJSONSchema(ctx, apiKey, request, modelName)
 		if retryError == nil {
@@ -627,16 +623,16 @@ func normalizeStructuredJSONContent(content string) string {
 	return content
 }
 
-const emptyStructuredContentMessage = "structured response content was empty"
+var errEmptyStructuredContent = errors.New("structured response content was empty")
 
 func isEmptyStructuredContentError(errorValue error) bool {
-	return errorValue != nil && strings.Contains(errorValue.Error(), emptyStructuredContentMessage)
+	return errors.Is(errorValue, errEmptyStructuredContent)
 }
 
 func validateStructuredJSONContent(content string) error {
 	trimmedContent := strings.TrimSpace(content)
 	if trimmedContent == "" {
-		return errors.New(emptyStructuredContentMessage)
+		return errEmptyStructuredContent
 	}
 	if !json.Valid([]byte(trimmedContent)) {
 		return errors.New("structured response content was not valid json")
