@@ -32,6 +32,7 @@ type openAIRequest struct {
 	Provider             map[string]any         `json:"provider,omitempty"`
 	Reasoning            *openAIReasoning       `json:"reasoning,omitempty"`
 	Usage                *openAIUsageOptions    `json:"usage,omitempty"`
+	PromptCacheKey       string                 `json:"prompt_cache_key,omitempty"`
 	NativeToolSchemaLint NativeSchemaLintResult `json:"-"`
 }
 

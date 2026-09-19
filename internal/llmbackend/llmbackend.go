@@ -61,6 +61,7 @@ type StructuredRequest struct {
 	Accelerator            string                 `json:"accelerator,omitempty"`
 	ExecutionMode          string                 `json:"executionMode"`
 	Context                RequestContext         `json:"context,omitempty"`
+	SessionID              string                 `json:"sessionID,omitempty"`
 	Messages               []Message              `json:"messages"`
 	StructuredOutputSchema StructuredOutputSchema `json:"structuredOutputSchema"`
 	GenerationOptions      *GenerationOptions     `json:"generationOptions,omitempty"`
@@ -76,6 +77,7 @@ type TextRequest struct {
 	Accelerator           string         `json:"accelerator,omitempty"`
 	ExecutionMode         string         `json:"executionMode"`
 	Context               RequestContext `json:"context,omitempty"`
+	SessionID             string         `json:"sessionID,omitempty"`
 	Messages              []Message      `json:"messages"`
 	RequireParameters     bool           `json:"requireParameters"`
 	EnableResponseHealing bool           `json:"enableResponseHealing"`
@@ -89,6 +91,7 @@ type ChatRequest struct {
 	Accelerator       string             `json:"accelerator,omitempty"`
 	ExecutionMode     string             `json:"executionMode"`
 	Context           RequestContext     `json:"context,omitempty"`
+	SessionID         string             `json:"sessionID,omitempty"`
 	Messages          []ChatMessage      `json:"messages"`
 	Tools             []ChatTool         `json:"tools,omitempty"`
 	ToolChoice        json.RawMessage    `json:"toolChoice,omitempty"`
