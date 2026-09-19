@@ -16,6 +16,7 @@ interface ArmSummary {
 	totalCompletionTokens: number;
 	medianWallClockSeconds: number;
 	costUSD: number;
+	approvalsAnsweredByRequester: number;
 	providers: Record<string, number>;
 }
 
@@ -70,6 +71,7 @@ function summarize(arm: string, results: RunResult[], price: ListedPrice): ArmSu
 		totalCompletionTokens: completionTokens,
 		medianWallClockSeconds: median(results.map((result) => result.wallClockMs / 1000)),
 		costUSD: promptTokens * price.promptUSDPerToken + completionTokens * price.completionUSDPerToken,
+		approvalsAnsweredByRequester: results.reduce((sum, result) => sum + result.harness.approvalsAnsweredByRequester, 0),
 		providers,
 	};
 }
@@ -81,7 +83,7 @@ function row(summary: ArmSummary): string {
 		.sort(([, left], [, right]) => right - left)
 		.map(([name, count]) => `${name} ${count}`)
 		.join(', ');
-	return `| ${summary.arm} | ${summary.passed}/${summary.runs} (${passRate.toFixed(0)}%) | ${summary.medianPromptTokensPerCall.toFixed(0)} | ${summary.medianCallsPerRun} | ${summary.totalPromptTokens.toLocaleString('en-US')} | ${summary.medianWallClockSeconds.toFixed(0)} | $${summary.costUSD.toFixed(4)} | ${costPerPassed} | ${providers} |`;
+	return `| ${summary.arm} | ${summary.passed}/${summary.runs} (${passRate.toFixed(0)}%) | ${summary.medianPromptTokensPerCall.toFixed(0)} | ${summary.medianCallsPerRun} | ${summary.totalPromptTokens.toLocaleString('en-US')} | ${summary.medianWallClockSeconds.toFixed(0)} | $${summary.costUSD.toFixed(4)} | ${costPerPassed} | ${summary.approvalsAnsweredByRequester} | ${providers} |`;
 }
 
 function gate(summaries: ArmSummary[]): string {
@@ -108,8 +110,8 @@ async function main(): Promise<void> {
 	const summaries = arms.map((arm) => summarize(arm, results.filter((result) => result.arm === arm), price));
 
 	console.log(`pilot ${runID} · model ${models[0]} · listed price $${price.promptUSDPerToken * 1e6}/M prompt, $${price.completionUSDPerToken * 1e6}/M completion\n`);
-	console.log('| arm | passed | median prompt tokens/call | median calls/run | total prompt tokens | median wall clock s | cost | cost per passed task | providers |');
-	console.log('|---|---|---|---|---|---|---|---|---|');
+	console.log('| arm | passed | median prompt tokens/call | median calls/run | total prompt tokens | median wall clock s | cost | cost per passed task | approvals answered | providers |');
+	console.log('|---|---|---|---|---|---|---|---|---|---|');
 	for (const summary of summaries) console.log(row(summary));
 	console.log(`\n${gate(summaries)}`);
 	const failed = results.filter((result) => !result.passed);

@@ -54,12 +54,23 @@ def send_direct_message(secret, text):
     return sent_at, request("/v1/platform/buzz/dm.send", {"userSecretHex": secret, "message": text}, origin=chatd_origin)
 
 
+approved_calls = []
+
+
+def approve_as_the_requester(task_run_id):
+    approved_calls.append(task_run_id)
+    request("/admin/api/run/approve", {"taskRunID": task_run_id, "decision": "confirm"}, accepted=(200, 400), timeout=600)
+
+
 def settled_run_after(person_id, conversation_id, sent_at):
     for listed in request("/admin/api/run?viewerIsAdmin=true"):
         if listed["requesterPersonID"] != person_id or listed["status"] in {"planned", "running"}:
             continue
         if listed.get("originConversationID") != conversation_id or datetime.fromisoformat(listed["createdAt"]) < sent_at:
             continue
+        if listed["status"] == "waiting_approval":
+            approve_as_the_requester(listed["taskRunID"])
+            return None
         return request("/admin/api/run/detail?" + urlencode({"taskRunID": listed["taskRunID"], "viewerIsAdmin": "true"}))
     return None
 
@@ -90,6 +101,7 @@ def main():
         "result": task_run.get("result") or "",
         "failureReason": task_run.get("failureReason") or "",
         "turns": len(events_named(detail, "agent.action")),
+        "approvals": len(approved_calls),
         "detail": detail,
     }, ensure_ascii=False), flush=True)
 

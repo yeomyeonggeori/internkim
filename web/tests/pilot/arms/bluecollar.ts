@@ -25,6 +25,7 @@ interface GuestResult {
 	result: string;
 	failureReason: string;
 	turns: number;
+	approvals: number;
 	detail: unknown;
 }
 
@@ -58,13 +59,14 @@ export async function runBluecollar(context: ArmRunContext): Promise<HarnessOutc
 	writeFileSync(join(context.evidenceDirectory, 'vm-ssh-stdout.txt'), stdout);
 	writeFileSync(join(context.evidenceDirectory, 'vm-ssh-stderr.txt'), new TextDecoder().decode(run.stderr));
 	const resultLine = stdout.split('\n').find((line) => line.startsWith(resultMarker));
-	if (run.exitCode === null) return { status: 'timed_out', turns: 0, toolCalls: [], reply: '', calls: [] };
-	if (!resultLine) return { status: 'failed', turns: 0, toolCalls: [], reply: `no result line; exit ${run.exitCode}`, calls: [] };
+	if (run.exitCode === null) return { status: 'timed_out', turns: 0, approvalsAnsweredByRequester: 0, toolCalls: [], reply: '', calls: [] };
+	if (!resultLine) return { status: 'failed', turns: 0, approvalsAnsweredByRequester: 0, toolCalls: [], reply: `no result line; exit ${run.exitCode}`, calls: [] };
 	const guest = JSON.parse(resultLine.slice(resultMarker.length)) as GuestResult;
 	writeFileSync(join(context.evidenceDirectory, 'run-detail.json'), JSON.stringify(guest.detail, null, 2));
 	return {
 		status: guest.status === 'completed' ? 'completed' : 'failed',
 		turns: guest.turns,
+		approvalsAnsweredByRequester: guest.approvals,
 		toolCalls: guest.requestedTools,
 		reply: guest.status === 'completed' ? guest.result : guest.failureReason,
 		calls: guest.llmCalls.map(modelCallOf),
