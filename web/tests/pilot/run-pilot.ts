@@ -1,4 +1,4 @@
-//   bun --env-file=../.env run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|claude-code> [--repetitions 3] [--tasks tests/pilot/tasks] [--run-id <id>] [--only <task name>]
+//   bun --env-file=../.env run tests/pilot/run-pilot.ts --arm <bluecollar|bluecollar-pi-shaped|bluecollar-reply-action|claude-code> [--repetitions 3] [--tasks tests/pilot/tasks] [--run-id <id>] [--only <task name>]
 //
 //   PILOT_APP_URL          the local app the external harness reaches over MCP (claude-code)
 //   PILOT_FLEET_CONFIG     the kept Local Fleet's config.json (bluecollar arms)
@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join, resolve } from 'node:path';
 import { controlPlane, forgetPersonalAccessToken, issuePersonalAccessToken } from '../../src/lib/server/control-plane';
 import { memberOfCompanyByEmail } from '../../src/lib/server/member-credential';
-import { isArmName, type ArmName, type ArmRunContext, type HarnessOutcome } from './arms/arm';
+import { armNames, isArmName, type ArmName, type ArmRunContext, type HarnessOutcome } from './arms/arm';
 import { runBluecollar } from './arms/bluecollar';
 import { runClaudeCode } from './arms/claude-code';
 import { cleanUp, judge, localRecord, seedCompanyID, type Judgement, type PilotTask } from './record';
@@ -44,7 +44,7 @@ function argument(name: string): string | undefined {
 
 function options(): Options {
 	const arm = argument('arm') ?? '';
-	if (!isArmName(arm)) throw new Error('--arm is one of bluecollar, bluecollar-pi-shaped, claude-code');
+	if (!isArmName(arm)) throw new Error(`--arm is one of ${armNames.join(', ')}`);
 	return {
 		arm,
 		repetitions: Number(argument('repetitions') ?? 3),
