@@ -2,6 +2,7 @@ package blueclawworkspace
 
 import (
 	"crypto/sha256"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -139,9 +140,6 @@ func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 		}
 		if strings.Contains(string(document), "/workspace/.blueclaw/tmp") {
 			t.Fatalf("%s skill must use requester temporary workspace, not /workspace/.blueclaw/tmp", skillName)
-		}
-		if strings.Contains(string(document), "$BLUECLAW_TASK_TMP") || strings.Contains(string(document), "$BLUECLAW_REQUESTER_ARTIFACTS") {
-			t.Fatalf("%s skill must use relative workspace paths in tool path fields, not shell variables", skillName)
 		}
 	}
 }
@@ -436,8 +434,8 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 		if !strings.Contains(string(runtimeScript), "requirements.txt") {
 			t.Fatalf("%s runtime script must install from requirements.txt", skillName)
 		}
-		if !strings.Contains(string(runtimeScript), "BLUECLAW_BUILTIN_SKILLS_PYTHON") {
-			t.Fatalf("%s runtime script must prefer the host-advertised skills Python environment", skillName)
+		if !strings.Contains(string(runtimeScript), "XDG_CACHE_HOME") {
+			t.Fatalf("%s runtime script must keep its dependency environment under the standard cache home", skillName)
 		}
 		for _, hostPath := range []string{"/opt/blueclaw", "/workspace"} {
 			if strings.Contains(string(runtimeScript), hostPath) {
@@ -449,6 +447,33 @@ func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.
 		}
 		if !strings.Contains(string(runtimeScript), "Path(sys.executable).absolute()") {
 			t.Fatalf("%s runtime script must compare Python paths without resolving venv symlinks", skillName)
+		}
+	}
+}
+
+func TestBundledSkillsNameNoHostEnvironmentVariable(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	requirePluginSkills(t, repositoryRootPath)
+	skillRootPaths, errorValue := SkillRootPaths(repositoryRootPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, skillRootPath := range skillRootPaths {
+		walkError := filepath.WalkDir(skillRootPath, func(path string, entry fs.DirEntry, walkError error) error {
+			if walkError != nil || entry.IsDir() {
+				return walkError
+			}
+			content, readError := os.ReadFile(path)
+			if readError != nil {
+				return readError
+			}
+			if strings.Contains(string(content), "BLUECLAW_") {
+				t.Errorf("%s names the host that runs it; a bundled skill reads only environment variables no harness owns", path)
+			}
+			return nil
+		})
+		if walkError != nil {
+			t.Fatal(walkError)
 		}
 	}
 }
@@ -978,7 +1003,7 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("presentation build script must not contain token-filter required text check %q", forbiddenText)
 		}
 	}
-	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "BLUECLAW_REQUESTER_TMP", "is older than DESIGN.md", "must include design-source: DESIGN.md", "DESIGN.md not found", "deck-brief.md not found"} {
+	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "is older than DESIGN.md", "must include design-source: DESIGN.md", "DESIGN.md not found", "deck-brief.md not found"} {
 		if strings.Contains(buildContent, forbiddenText) {
 			t.Fatalf("presentation build script must not contain old workflow fragment %q", forbiddenText)
 		}
