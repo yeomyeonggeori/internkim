@@ -18,10 +18,25 @@ import { fileURLToPath } from 'node:url';
 import table from 'emoji-datasource/emoji.json';
 
 type DatasourceEmoji = {
+	short_name: string;
 	short_names: string[];
 	unified: string;
+	category: string;
+	sort_order: number;
 	skin_variations?: Record<string, { unified: string }>;
 };
+
+export const pickerCategories = [
+	'Smileys & Emotion',
+	'People & Body',
+	'Animals & Nature',
+	'Food & Drink',
+	'Travel & Places',
+	'Activities',
+	'Objects',
+	'Symbols',
+	'Flags'
+];
 
 const toneNames: Record<string, string> = {
 	'1F3FB': 'light',
@@ -57,8 +72,28 @@ export function emojiGlyphsSource(): string {
 	return `// Written by scripts/build-emoji-glyphs.ts from emoji-datasource. Do not edit.\n\nexport const emojiGlyphLines = '${lines}';\n`;
 }
 
+export function emojiNamesByCategory(): Map<string, string[]> {
+	return new Map(
+		pickerCategories.map((category) => [
+			category,
+			(table as DatasourceEmoji[])
+				.filter((emoji) => emoji.category === category)
+				.sort((left, right) => left.sort_order - right.sort_order)
+				.map((emoji) => emoji.short_name)
+		])
+	);
+}
+
+export function emojiPickerOrderSource(): string {
+	const lines = [...emojiNamesByCategory()].map(([category, names]) => `${category}\\t${names.join(' ')}`).join('\\n');
+	return `// Written by scripts/build-emoji-glyphs.ts from emoji-datasource. Do not edit.\n\nexport const emojiPickerOrderLines = '${lines}';\n`;
+}
+
 if (import.meta.main) {
 	const path = fileURLToPath(new URL('../src/lib/messenger/emoji-glyphs.generated.ts', import.meta.url));
 	await Bun.write(path, emojiGlyphsSource());
 	console.log(`${emojiGlyphsByName().size} names written to ${path}`);
+	const orderPath = fileURLToPath(new URL('../src/lib/messenger/emoji-picker-order.generated.ts', import.meta.url));
+	await Bun.write(orderPath, emojiPickerOrderSource());
+	console.log(`${[...emojiNamesByCategory().values()].flat().length} emoji ordered in ${orderPath}`);
 }

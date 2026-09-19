@@ -1,13 +1,17 @@
 import { isSupabaseConfigured } from '$lib/supabase';
 import {
-	bridgeConversation,
+	bridgeAddReaction,
 	bridgeAgentConversation,
+	bridgeConversation,
 	bridgeConversations,
+	bridgeDeleteMessage,
 	bridgeDirectMessage,
 	bridgePeople,
+	bridgeRemoveReaction,
 	bridgeSendMessage
 } from '$lib/messenger/channel-over-bridge';
 
+import { reactionsWithValues } from './channel-reactions';
 import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { shortcodePattern } from '$lib/messenger/custom-emoji-names';
@@ -38,8 +42,11 @@ export type ChannelInteraction = {
 
 export type ChannelMessageReaction = {
 	emoji: string;
+	value: string;
 	count: number;
 	imageURL?: string;
+	reactedByMe?: boolean;
+	people?: ChannelParticipant[];
 };
 
 // url is where the message says the file is; source is where this browser can
@@ -204,7 +211,10 @@ export async function fetchChannelConversation(
 	return {
 		conversationID: document.conversationID ?? '',
 		currentUserID: document.currentUserId ?? '',
-		messages: document.messages ?? [],
+		messages: (document.messages ?? []).map((message) => ({
+			...message,
+			reactions: reactionsWithValues(message.reactions)
+		})),
 		hasMoreBefore: document.hasMoreBefore ?? false,
 		historyCursor: document.historyCursor ?? ''
 	};
@@ -292,4 +302,23 @@ export async function sendChannelMessage(
 		return;
 	}
 	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);
+}
+
+export function canChangeMessages(): boolean {
+	return isSupabaseConfigured();
+}
+
+export async function deleteChannelMessage(messageID: string, channelID?: string): Promise<void> {
+	if (!isSupabaseConfigured()) throw new Error('this messenger cannot change a message here');
+	await bridgeDeleteMessage(channelID, messageID);
+}
+
+export async function addChannelReaction(messageID: string, value: string, channelID?: string): Promise<void> {
+	if (!isSupabaseConfigured()) throw new Error('this messenger cannot change a message here');
+	await bridgeAddReaction(channelID, messageID, value);
+}
+
+export async function removeChannelReaction(messageID: string, value: string, channelID?: string): Promise<void> {
+	if (!isSupabaseConfigured()) throw new Error('this messenger cannot change a message here');
+	await bridgeRemoveReaction(channelID, messageID, value);
 }

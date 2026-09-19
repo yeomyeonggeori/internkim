@@ -9,10 +9,13 @@ import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 import { emojifyText, glyphOfEmojiName } from './emoji-glyph';
 import { customEmojiNamesIn } from './custom-emoji-names';
 import {
+	addReaction,
+	deletePost,
 	fetchChannels,
 	fetchPeople,
 	fetchPosts,
 	openDirectChannel,
+	removeReaction,
 	writePost,
 	type OutgoingAttachment,
 	type MessengerChannel,
@@ -43,7 +46,7 @@ type Person = { id: string; name: string; avatarURL?: string };
 type ChannelRole = 'owner' | 'admin' | 'member';
 type ChannelMember = MessengerPerson & { name: string; role: ChannelRole };
 type Participant = { id: string; name: string; avatarURL?: string; memberID?: string; externalID?: string };
-type Reaction = { emoji: string; count: number; reactedByMe: boolean; imageURL?: string; people?: Participant[] };
+type Reaction = { emoji: string; value: string; count: number; reactedByMe: boolean; imageURL?: string; people: Participant[] };
 // url is where the message says the file is, which names it and is what the
 // body's own link is stripped against; source is where this browser can
 // actually open it.
@@ -264,6 +267,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: View
 		sentAt: post.postedAt,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
+			value: reaction.emoji,
 			count: reaction.people.length,
 			imageURL: reaction.imageURL ?? customEmoji.nameToURL.get(reaction.emoji),
 			reactedByMe: reaction.people.some((person) => isViewer(person, people, viewer)),
@@ -290,4 +294,19 @@ export async function bridgeSendMessage(
 ): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
 	await writePost(channelID, text, replyToRootID, attachments);
+}
+
+export async function bridgeDeleteMessage(channelID: string | undefined, messageID: string): Promise<void> {
+	if (!channelID) throw new Error('choose a conversation first');
+	await deletePost(channelID, messageID);
+}
+
+export async function bridgeAddReaction(channelID: string | undefined, messageID: string, value: string): Promise<void> {
+	if (!channelID) throw new Error('choose a conversation first');
+	await addReaction(channelID, messageID, value);
+}
+
+export async function bridgeRemoveReaction(channelID: string | undefined, messageID: string, value: string): Promise<void> {
+	if (!channelID) throw new Error('choose a conversation first');
+	await removeReaction(channelID, messageID, value);
 }
