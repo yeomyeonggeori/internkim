@@ -1,0 +1,12 @@
+{
+	"name": "task-add-with-due-date",
+	"instruction": "'파일럿 견적서 초안 작성' 업무를 등록해줘. 마감은 2026년 10월 10일이야.",
+	"assertions": [
+		{
+			"table": "task",
+			"where": { "title": "파일럿 견적서 초안 작성" },
+			"expect": { "status": "planned", "ends_at": { "dayInZone": "2026-10-10" } }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "파일럿 견적서 초안 작성" } }]
+}
