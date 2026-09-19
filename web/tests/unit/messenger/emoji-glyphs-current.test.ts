@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { fileURLToPath } from 'node:url';
-import { emojiGlyphsByName, emojiGlyphsSource } from '../../../scripts/build-emoji-glyphs';
+import { emojiGlyphsByName, emojiGlyphsSource, emojiPickerOrderSource } from '../../../scripts/build-emoji-glyphs';
 
 test('the committed glyph table is what the generator writes today', async () => {
 	const committed = await Bun.file(
@@ -20,4 +20,11 @@ test('no two emoji differ only in how their name is separated', () => {
 		return otherSpelling !== name && already !== undefined && already !== glyph;
 	});
 	expect(confusable).toEqual([]);
+});
+
+test('the committed picker order is what the generator writes today', async () => {
+	const committed = await Bun.file(
+		fileURLToPath(new URL('../../../src/lib/messenger/emoji-picker-order.generated.ts', import.meta.url))
+	).text();
+	expect(committed).toBe(emojiPickerOrderSource());
 });

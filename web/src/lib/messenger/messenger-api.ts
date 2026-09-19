@@ -293,6 +293,18 @@ export async function writePost(
 	return asPost(message);
 }
 
+export async function deletePost(channelID: string, messageID: string): Promise<void> {
+	await ask('person.message.delete', { conversationID: channelID, messageID });
+}
+
+export async function addReaction(channelID: string, messageID: string, emoji: string): Promise<void> {
+	await ask('person.reaction.add', { conversationID: channelID, messageID, emoji });
+}
+
+export async function removeReaction(channelID: string, messageID: string, emoji: string): Promise<void> {
+	await ask('person.reaction.remove', { conversationID: channelID, messageID, emoji });
+}
+
 export async function fetchCustomEmojiNames(): Promise<string[]> {
 	const answer = await ask<{ emoji: { name: string }[] }>('person.emoji.list');
 	return answer.emoji.map((emoji) => emoji.name);
