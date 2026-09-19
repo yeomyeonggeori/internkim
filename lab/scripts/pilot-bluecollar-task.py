@@ -54,11 +54,7 @@ def send_direct_message(secret, text):
     return sent_at, request("/v1/platform/buzz/dm.send", {"userSecretHex": secret, "message": text}, origin=chatd_origin)
 
 
-approved_calls = []
-
-
 def approve_as_the_requester(task_run_id):
-    approved_calls.append(task_run_id)
     request("/admin/api/run/approve", {"taskRunID": task_run_id, "decision": "confirm"}, accepted=(200, 400), timeout=600)
 
 
@@ -101,7 +97,6 @@ def main():
         "result": task_run.get("result") or "",
         "failureReason": task_run.get("failureReason") or "",
         "turns": len(events_named(detail, "agent.action")),
-        "approvals": len(approved_calls),
         "detail": detail,
     }, ensure_ascii=False), flush=True)
 
