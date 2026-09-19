@@ -71,7 +71,7 @@ function summarize(arm: string, results: RunResult[], price: ListedPrice): ArmSu
 		totalCompletionTokens: completionTokens,
 		medianWallClockSeconds: median(results.map((result) => result.wallClockMs / 1000)),
 		costUSD: promptTokens * price.promptUSDPerToken + completionTokens * price.completionUSDPerToken,
-		approvalsAnsweredByRequester: results.reduce((sum, result) => sum + result.harness.approvalsAnsweredByRequester, 0),
+		approvalsAnsweredByRequester: results.reduce((sum, result) => sum + (result.harness.approvalsAnsweredByRequester ?? 0), 0),
 		providers,
 	};
 }
