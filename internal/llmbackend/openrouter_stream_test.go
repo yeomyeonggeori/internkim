@@ -22,7 +22,7 @@ func streamingBackend(t *testing.T, handler http.HandlerFunc) OpenRouterBackend 
 	if errorValue := os.WriteFile(keyPath, []byte("sk-or-test"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	return OpenRouterBackend{KeyPath: keyPath, BaseURL: server.URL, ModelName: "a-model", ProviderOrder: []string{"modal", "baseten"}, ProviderSort: "throughput", HTTPClient: server.Client()}
+	return OpenRouterBackend{KeyPath: keyPath, BaseURL: server.URL, ModelName: "a-model", ProviderSort: "throughput", HTTPClient: server.Client()}
 }
 
 func writeStreamChunk(t *testing.T, responseWriter http.ResponseWriter, chunk string) {

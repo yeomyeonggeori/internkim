@@ -1,7 +1,6 @@
 package modelladder
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -64,7 +63,7 @@ func TestEveryRungAsksForTheSameServingAndTheTiersOwnEffort(t *testing.T) {
 	document := LanguageModelDocument("", "")
 	for _, tier := range Tiers {
 		for _, rung := range document.Tiers[tier] {
-			if rung.ProviderSort != ProviderSort || !reflect.DeepEqual(rung.ProviderOrder, PreferredProviders()) {
+			if rung.ProviderSort != ProviderSort {
 				t.Fatalf("%s rung lost the serving preference: %+v", tier, rung)
 			}
 			if rung.ReasoningEffort != ReasoningEffort(tier) {

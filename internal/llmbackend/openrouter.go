@@ -23,7 +23,6 @@ type OpenRouterBackend struct {
 	FallbackModelNames  []string
 	GatewaySecretPath   string
 	GatewaySecretHeader string
-	ProviderOrder       []string
 	ProviderSort        string
 	HTTPClient          *http.Client
 }
@@ -520,13 +519,10 @@ func (backend OpenRouterBackend) setGatewaySecretHeader(request *http.Request) {
 // https://openrouter.ai/docs/features/provider-routing
 func (backend OpenRouterBackend) providerRouting(requireParameters bool) map[string]any {
 	providerSort := strings.TrimSpace(backend.ProviderSort)
-	if providerSort == "" && len(backend.ProviderOrder) == 0 && !requireParameters {
+	if providerSort == "" && !requireParameters {
 		return nil
 	}
 	routing := map[string]any{"allow_fallbacks": true}
-	if len(backend.ProviderOrder) > 0 {
-		routing["order"] = append([]string{}, backend.ProviderOrder...)
-	}
 	if providerSort != "" {
 		routing["sort"] = providerSort
 	}
