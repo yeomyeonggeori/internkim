@@ -7,6 +7,12 @@ const glyphsByName = new Map(
 	})
 );
 
+const glyphEntryList = [...glyphsByName.entries()];
+
+export function emojiEntries(): readonly (readonly [name: string, glyph: string])[] {
+	return glyphEntryList;
+}
+
 // Mattermost writes `star-struck` and GitHub-descended messengers write
 // `star_struck`, so a name that misses is asked again in the other spelling.
 // A hyphen and an underscore never separate two different emoji in this table
