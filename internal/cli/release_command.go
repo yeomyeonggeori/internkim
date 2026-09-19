@@ -80,7 +80,7 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
 	fmt.Println("  INTERNKIM_RELEASE_R2_PUBLISHER optional: s3 or wrangler")
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
-	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN optional: falls back to .local/secrets/release-download-token")
+	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 }
 
 func runReleasePublish(arguments []string) error {
@@ -859,17 +859,8 @@ func addReleaseDownloadHeaders(request *http.Request) {
 	request.Header.Set("X-INTERNKIM-RELEASE-TOKEN", token)
 }
 
-// Falls back to the local secrets file so a developer with a repo checkout
-// does not need to export INTERNKIM_RELEASE_DOWNLOAD_TOKEN by hand.
 func releaseDownloadToken() string {
-	if token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN")); token != "" {
-		return token
-	}
-	document, errorValue := os.ReadFile(".local/secrets/release-download-token")
-	if errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(document))
+	return strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN"))
 }
 
 func defaultReleaseID(repositoryRootPath string) string {
