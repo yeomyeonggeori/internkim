@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Cut the docs favicon and the bot avatar from assets/internkim.square.png.
+"""Cut every tab favicon from assets/internkim.favicon.png and the bot avatar
+from assets/internkim.square.png.
+
+assets/internkim.favicon.png is the round mark, drawn for the sizes a browser
+draws a tab at: the sprout, the head and the glasses, with the eyes and mouth
+dropped so the glasses still read at 16 pixels. Both sites take their tab
+favicon from it, so intern.kim and docs.intern.kim show one mark.
 
 assets/internkim.icon.png is the finished app icon, drawn in Icon Composer,
-and waits for a desktop wrapper. assets/internkim.square.png is the same face
-drawn full bleed, and takes the slots a platform recuts or shrinks: the docs
-favicon and the bot avatar.
+and waits for a desktop wrapper. assets/internkim.square.png is the face drawn
+full bleed, and takes the slots a platform masks for itself: the bot avatar,
+and the installed-app tiles in web/static, which are supplied artwork this
+script does not write.
 
-The web app's icons in web/static are supplied artwork, not cut from these
-masters, so this script does not write them.
-
-A tab favicon is drawn at 16 to 32 pixels, and the whole square is unreadable
-there: the face lands on a dozen pixels and the frame around it takes the
-rest. The docs favicon is cut to FAVICON_FRAME instead, which fills the tile
-with the sprout, head and glasses.
+web/static/favicon.svg is the round mark as a vector, and a browser that reads
+SVG icons uses it instead of these rasters. It is drawn by hand, so a new
+round master has to be exported to it as well.
 
 Needs Pillow on the running Python.
 """
@@ -26,38 +29,36 @@ except ImportError as error:
     sys.exit(f"tools/generate-icons needs Pillow: {error}")
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROUND_MASTER = REPOSITORY_ROOT / "assets" / "internkim.favicon.png"
 SQUARE_MASTER = REPOSITORY_ROOT / "assets" / "internkim.square.png"
-FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
-MASTER_SIDE = 1024
-FAVICON_FRAME = (122, 178, 780)
+DOCS_FAVICON_SIZES = [(48, 48), (32, 32), (16, 16)]
+WEB_FAVICON_SIDES = {"web/static/favicon.png": 32, "web/static/favicon-192.png": 192, "web/static/favicon-512.png": 512}
 
 
-def save(image: Image.Image, relative_path: str, size: int, mode: str) -> None:
-    output = image.resize((size, size), Image.LANCZOS).convert(mode)
+def save(image: Image.Image, relative_path: str, side: int, mode: str) -> None:
+    output = image.resize((side, side), Image.LANCZOS).convert(mode)
     output.save(REPOSITORY_ROOT / relative_path, optimize=True)
     print(relative_path, output.size, output.mode)
 
 
-def framed_face(square: Image.Image) -> Image.Image:
-    if square.size != (MASTER_SIDE, MASTER_SIDE):
-        sys.exit(f"{SQUARE_MASTER} is {square.size[0]}x{square.size[1]}; FAVICON_FRAME reads {MASTER_SIDE}")
-    left, top, side = FAVICON_FRAME
-    return square.crop((left, top, left + side, top + side))
+def write_docs_favicon(round_mark: Image.Image) -> None:
+    frames = [round_mark.resize(size, Image.LANCZOS) for size in DOCS_FAVICON_SIZES]
+    frames[0].save(REPOSITORY_ROOT / "docs/web/public/favicon.ico", append_images=frames[1:], sizes=DOCS_FAVICON_SIZES)
+    print("docs/web/public/favicon.ico", DOCS_FAVICON_SIZES)
 
 
-def write_favicon(square: Image.Image) -> None:
-    face = framed_face(square)
-    largest, *rest = FAVICON_SIZES
-    frames = [face.resize(size, Image.LANCZOS).convert("RGBA") for size in (largest, *rest)]
-    frames[0].save(REPOSITORY_ROOT / "docs/web/public/favicon.ico", append_images=frames[1:], sizes=FAVICON_SIZES)
-    print("docs/web/public/favicon.ico", FAVICON_SIZES)
+def write_web_favicons(round_mark: Image.Image) -> None:
+    for relative_path, side in WEB_FAVICON_SIDES.items():
+        save(round_mark, relative_path, side, "RGBA")
 
 
 def main() -> None:
-    square = Image.open(SQUARE_MASTER).convert("RGB")
+    round_mark = Image.open(ROUND_MASTER).convert("RGBA")
+    write_docs_favicon(round_mark)
+    write_web_favicons(round_mark)
 
+    square = Image.open(SQUARE_MASTER).convert("RGB")
     save(square, "assets/internkim.png", 512, "RGB")
-    write_favicon(square)
 
 
 if __name__ == "__main__":
