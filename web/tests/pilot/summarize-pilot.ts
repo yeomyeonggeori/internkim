@@ -2,6 +2,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import type { ModelCall } from './arms/arm';
 import type { RunResult } from './run-pilot';
 
 const gateSampleSize = 30;
@@ -13,9 +14,11 @@ interface ArmSummary {
 	medianPromptTokensPerCall: number;
 	medianCallsPerRun: number;
 	totalPromptTokens: number;
+	totalCachedPromptTokens: number;
 	totalCompletionTokens: number;
 	medianWallClockSeconds: number;
 	costUSD: number;
+	callsPricedByProvider: number;
 	approvalsAnsweredByRequester: number;
 	providers: Record<string, number>;
 }
@@ -72,6 +75,13 @@ async function listedPriceOf(model: string): Promise<ListedPrice> {
 	return { promptUSDPerToken: Number(listed.pricing.prompt), completionUSDPerToken: Number(listed.pricing.completion) };
 }
 
+// The provider reports what it actually charged, which is what a cache hit
+// changes; list price says what the same tokens would have cost uncached.
+function costOfCall(call: ModelCall, price: ListedPrice): number {
+	if (call.providerReportedCostUSD !== undefined) return call.providerReportedCostUSD;
+	return call.promptTokens * price.promptUSDPerToken + call.completionTokens * price.completionUSDPerToken;
+}
+
 function summarize(arm: string, evidence: RunEvidence[], price: ListedPrice): ArmSummary {
 	const results = evidence.map((run) => run.result);
 	const calls = results.flatMap((result) => result.calls);
@@ -86,9 +96,11 @@ function summarize(arm: string, evidence: RunEvidence[], price: ListedPrice): Ar
 		medianPromptTokensPerCall: median(calls.map((call) => call.promptTokens)),
 		medianCallsPerRun: median(results.map((result) => result.calls.length)),
 		totalPromptTokens: promptTokens,
+		totalCachedPromptTokens: calls.reduce((sum, call) => sum + call.cachedPromptTokens, 0),
 		totalCompletionTokens: completionTokens,
 		medianWallClockSeconds: median(results.map((result) => result.wallClockMs / 1000)),
-		costUSD: promptTokens * price.promptUSDPerToken + completionTokens * price.completionUSDPerToken,
+		costUSD: calls.reduce((sum, call) => sum + costOfCall(call, price), 0),
+		callsPricedByProvider: calls.filter((call) => call.providerReportedCostUSD !== undefined).length,
 		approvalsAnsweredByRequester: evidence.reduce((sum, run) => sum + run.approvalsAnsweredByRequester, 0),
 		providers,
 	};
@@ -101,7 +113,8 @@ function row(summary: ArmSummary): string {
 		.sort(([, left], [, right]) => right - left)
 		.map(([name, count]) => `${name} ${count}`)
 		.join(', ');
-	return `| ${summary.arm} | ${summary.passed}/${summary.runs} (${passRate.toFixed(0)}%) | ${summary.medianPromptTokensPerCall.toFixed(0)} | ${summary.medianCallsPerRun} | ${summary.totalPromptTokens.toLocaleString('en-US')} | ${summary.medianWallClockSeconds.toFixed(0)} | $${summary.costUSD.toFixed(4)} | ${costPerPassed} | ${summary.approvalsAnsweredByRequester} | ${providers} |`;
+	const cachedShare = summary.totalPromptTokens === 0 ? 0 : (summary.totalCachedPromptTokens / summary.totalPromptTokens) * 100;
+	return `| ${summary.arm} | ${summary.passed}/${summary.runs} (${passRate.toFixed(0)}%) | ${summary.medianPromptTokensPerCall.toFixed(0)} | ${summary.medianCallsPerRun} | ${summary.totalPromptTokens.toLocaleString('en-US')} | ${cachedShare.toFixed(0)}% | ${summary.medianWallClockSeconds.toFixed(0)} | $${summary.costUSD.toFixed(4)} | ${costPerPassed} | ${summary.approvalsAnsweredByRequester} | ${providers} |`;
 }
 
 function gate(summaries: ArmSummary[]): string {
@@ -128,9 +141,11 @@ async function main(): Promise<void> {
 	const arms = [...new Set(results.map((result) => result.arm))].sort();
 	const summaries = arms.map((arm) => summarize(arm, evidence.filter((run) => run.result.arm === arm), price));
 
-	console.log(`pilot ${runID} · model ${models[0]} · listed price $${price.promptUSDPerToken * 1e6}/M prompt, $${price.completionUSDPerToken * 1e6}/M completion\n`);
-	console.log('| arm | passed | median prompt tokens/call | median calls/run | total prompt tokens | median wall clock s | cost | cost per passed task | approvals answered | providers |');
-	console.log('|---|---|---|---|---|---|---|---|---|---|');
+	const callCount = results.reduce((sum, result) => sum + result.calls.length, 0);
+	const pricedByProvider = summaries.reduce((sum, summary) => sum + summary.callsPricedByProvider, 0);
+	console.log(`pilot ${runID} · model ${models[0]} · listed price $${price.promptUSDPerToken * 1e6}/M prompt, $${price.completionUSDPerToken * 1e6}/M completion · ${pricedByProvider}/${callCount} calls priced from the provider's own report\n`);
+	console.log('| arm | passed | median prompt tokens/call | median calls/run | total prompt tokens | cached share | median wall clock s | cost | cost per passed task | approvals answered | providers |');
+	console.log('|---|---|---|---|---|---|---|---|---|---|---|');
 	for (const summary of summaries) console.log(row(summary));
 	console.log(`\n${gate(summaries)}`);
 	const failed = results.filter((result) => !result.passed);
