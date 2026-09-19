@@ -30,12 +30,29 @@ function argument(name: string): string | undefined {
 	return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
-function resultsUnder(directory: string): RunResult[] {
+interface RunEvidence {
+	result: RunResult;
+	approvalsAnsweredByRequester: number;
+}
+
+interface LedgerEvent {
+	name: string;
+}
+
+function approvalsAnsweredIn(runDirectory: string): number {
+	const ledgerPath = join(runDirectory, 'run-detail.json');
+	if (!existsSync(ledgerPath)) return 0;
+	const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8')) as { taskEvents: LedgerEvent[] };
+	return ledger.taskEvents.filter((event) => event.name === 'approval.decided').length;
+}
+
+function evidenceUnder(directory: string): RunEvidence[] {
 	if (!existsSync(directory)) return [];
 	return readdirSync(directory).flatMap((name) => {
 		const path = join(directory, name);
-		if (statSync(path).isDirectory()) return resultsUnder(path);
-		return name === 'result.json' ? [JSON.parse(readFileSync(path, 'utf8')) as RunResult] : [];
+		if (statSync(path).isDirectory()) return evidenceUnder(path);
+		if (name !== 'result.json') return [];
+		return [{ result: JSON.parse(readFileSync(path, 'utf8')) as RunResult, approvalsAnsweredByRequester: approvalsAnsweredIn(directory) }];
 	});
 }
 
@@ -55,7 +72,8 @@ async function listedPriceOf(model: string): Promise<ListedPrice> {
 	return { promptUSDPerToken: Number(listed.pricing.prompt), completionUSDPerToken: Number(listed.pricing.completion) };
 }
 
-function summarize(arm: string, results: RunResult[], price: ListedPrice): ArmSummary {
+function summarize(arm: string, evidence: RunEvidence[], price: ListedPrice): ArmSummary {
+	const results = evidence.map((run) => run.result);
 	const calls = results.flatMap((result) => result.calls);
 	const providers: Record<string, number> = {};
 	for (const call of calls) providers[call.provider || 'unknown'] = (providers[call.provider || 'unknown'] ?? 0) + 1;
@@ -71,7 +89,7 @@ function summarize(arm: string, results: RunResult[], price: ListedPrice): ArmSu
 		totalCompletionTokens: completionTokens,
 		medianWallClockSeconds: median(results.map((result) => result.wallClockMs / 1000)),
 		costUSD: promptTokens * price.promptUSDPerToken + completionTokens * price.completionUSDPerToken,
-		approvalsAnsweredByRequester: results.reduce((sum, result) => sum + (result.harness.approvalsAnsweredByRequester ?? 0), 0),
+		approvalsAnsweredByRequester: evidence.reduce((sum, run) => sum + run.approvalsAnsweredByRequester, 0),
 		providers,
 	};
 }
@@ -101,13 +119,14 @@ async function main(): Promise<void> {
 	const runID = argument('run-id');
 	if (!runID) throw new Error('pass --run-id <id>');
 	const evidenceRoot = resolve(import.meta.dir, '../../../.artifacts/pilot', runID);
-	const results = resultsUnder(evidenceRoot);
+	const evidence = evidenceUnder(evidenceRoot);
+	const results = evidence.map((run) => run.result);
 	if (results.length === 0) throw new Error(`no result.json under ${evidenceRoot}`);
 	const models = [...new Set(results.map((result) => result.model))];
 	if (models.length !== 1) throw new Error(`one model per pilot; found ${models.join(', ')}`);
 	const price = await listedPriceOf(models[0]);
 	const arms = [...new Set(results.map((result) => result.arm))].sort();
-	const summaries = arms.map((arm) => summarize(arm, results.filter((result) => result.arm === arm), price));
+	const summaries = arms.map((arm) => summarize(arm, evidence.filter((run) => run.result.arm === arm), price));
 
 	console.log(`pilot ${runID} · model ${models[0]} · listed price $${price.promptUSDPerToken * 1e6}/M prompt, $${price.completionUSDPerToken * 1e6}/M completion\n`);
 	console.log('| arm | passed | median prompt tokens/call | median calls/run | total prompt tokens | median wall clock s | cost | cost per passed task | approvals answered | providers |');

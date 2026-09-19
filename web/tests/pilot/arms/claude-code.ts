@@ -42,7 +42,7 @@ function outcomeOf(stdout: string, exitCode: number | null, calls: HarnessOutcom
 		.map((block) => block.name ?? '');
 	const result = lines.find((line) => line.type === 'result');
 	const status = exitCode === null ? 'timed_out' : result && !result.is_error && result.subtype === 'success' ? 'completed' : 'failed';
-	return { status, turns: result?.num_turns ?? 0, approvalsAnsweredByRequester: 0, toolCalls, reply: result?.result ?? '', calls };
+	return { status, turns: result?.num_turns ?? 0, toolCalls, reply: result?.result ?? '', calls };
 }
 
 export async function runClaudeCode(context: ArmRunContext): Promise<HarnessOutcome> {

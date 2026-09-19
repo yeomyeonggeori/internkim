@@ -12,7 +12,6 @@ export interface ModelCall {
 export interface HarnessOutcome {
 	status: 'completed' | 'failed' | 'timed_out';
 	turns: number;
-	approvalsAnsweredByRequester: number;
 	toolCalls: string[];
 	reply: string;
 	calls: ModelCall[];
