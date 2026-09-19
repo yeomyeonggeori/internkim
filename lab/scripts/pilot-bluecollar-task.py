@@ -5,7 +5,6 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -17,11 +16,17 @@ instruction = base64.b64decode(sys.argv[2]).decode("utf-8")
 settle_timeout_seconds = 720
 
 
-def request(path, body=None, accepted=(200,), timeout=15, origin="http://127.0.0.1:8080"):
+def request(path, body=None, accepted=(200,), timeout=15, origin="http://127.0.0.1:8080", attempts=3):
     command = ["curl", "--silent", "--show-error", "--max-time", str(timeout), "--write-out", "\n%{http_code}"]
     if body is not None:
         command += ["-H", "Content-Type: application/json", "-d", "@-"]
-    response = subprocess.run(command + [origin + path], input=json.dumps(body) if body is not None else None, capture_output=True, text=True, check=True)
+    for attempt in range(1, attempts + 1):
+        response = subprocess.run(command + [origin + path], input=json.dumps(body) if body is not None else None, capture_output=True, text=True)
+        if response.returncode == 0:
+            break
+        if attempt == attempts:
+            raise RuntimeError(f"{path}: curl exit {response.returncode} after {attempts} attempts: {response.stderr.strip()}")
+        time.sleep(5)
     payload, status = response.stdout.rsplit("\n", 1)
     if int(status) not in accepted:
         raise RuntimeError(f"{path}: HTTP {status}: {payload}")
@@ -50,19 +55,23 @@ def requester_secret():
 
 
 def send_direct_message(secret, text):
-    sent_at = datetime.now(timezone.utc)
-    return sent_at, request("/v1/platform/buzz/dm.send", {"userSecretHex": secret, "message": text}, origin=chatd_origin)
+    return request("/v1/platform/buzz/dm.send", {"userSecretHex": secret, "message": text}, origin=chatd_origin)
+
+
+def is_run_of_message(listed, message_reference):
+    reply_target = listed.get("originReplyTargetID") or ""
+    return len(reply_target) > len("buzz:") and message_reference.startswith(reply_target)
 
 
 def approve_as_the_requester(task_run_id):
     request("/admin/api/run/approve", {"taskRunID": task_run_id, "decision": "confirm"}, accepted=(200, 400), timeout=600)
 
 
-def settled_run_after(person_id, conversation_id, sent_at):
+def settled_run_of_message(person_id, message_reference):
     for listed in request("/admin/api/run?viewerIsAdmin=true"):
         if listed["requesterPersonID"] != person_id or listed["status"] in {"planned", "running"}:
             continue
-        if listed.get("originConversationID") != conversation_id or datetime.fromisoformat(listed["createdAt"]) < sent_at:
+        if not is_run_of_message(listed, message_reference):
             continue
         if listed["status"] == "waiting_approval":
             approve_as_the_requester(listed["taskRunID"])
@@ -85,9 +94,10 @@ def main():
     assert len(people) == 1, f"{requester_email} must resolve to exactly one person"
     person_id = people[0]["personID"]
     secret = requester_secret()
-    conversation_id = "buzz:" + send_direct_message(secret, "/stop")[1]["channelID"]
-    sent_at, _ = send_direct_message(secret, instruction)
-    detail = wait_for(lambda: settled_run_after(person_id, conversation_id, sent_at), "the request to settle", settle_timeout_seconds)
+    send_direct_message(secret, "/stop")
+    sent = send_direct_message(secret, instruction)
+    message_reference = "buzz:" + sent["channelID"] + ":" + sent["messageID"]
+    detail = wait_for(lambda: settled_run_of_message(person_id, message_reference), "the request to settle", settle_timeout_seconds)
     task_run = detail["taskRun"]
     print(resultLine := "PILOT-RESULT " + json.dumps({
         "status": task_run["status"],
