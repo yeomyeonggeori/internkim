@@ -1,20 +1,17 @@
+import Action from "./attachment-action.svelte";
+import Actions from "./attachment-actions.svelte";
+import Content from "./attachment-content.svelte";
+import Description from "./attachment-description.svelte";
+import Group from "./attachment-group.svelte";
+import Media from "./attachment-media.svelte";
+import Title from "./attachment-title.svelte";
+import Trigger from "./attachment-trigger.svelte";
 import Root, {
 	attachmentVariants,
 	type AttachmentOrientation,
 	type AttachmentSize,
 	type AttachmentState,
 } from "./attachment.svelte";
-import Group from "./attachment-group.svelte";
-import Media, {
-	attachmentMediaVariants,
-	type AttachmentMediaVariant,
-} from "./attachment-media.svelte";
-import Content from "./attachment-content.svelte";
-import Title from "./attachment-title.svelte";
-import Description from "./attachment-description.svelte";
-import Actions from "./attachment-actions.svelte";
-import Action from "./attachment-action.svelte";
-import Trigger from "./attachment-trigger.svelte";
 
 export {
 	Root,
@@ -27,11 +24,9 @@ export {
 	Action,
 	Trigger,
 	attachmentVariants,
-	attachmentMediaVariants,
-	type AttachmentOrientation,
 	type AttachmentSize,
+	type AttachmentOrientation,
 	type AttachmentState,
-	type AttachmentMediaVariant,
 	//
 	Root as Attachment,
 	Group as AttachmentGroup,

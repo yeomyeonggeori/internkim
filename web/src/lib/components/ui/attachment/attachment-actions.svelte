@@ -13,7 +13,7 @@
 <div
 	bind:this={ref}
 	data-slot="attachment-actions"
-	class={cn("relative z-20 group-data-[orientation=vertical]/attachment:absolute group-data-[orientation=vertical]/attachment:top-3 group-data-[orientation=vertical]/attachment:right-3 group-data-[orientation=vertical]/attachment:gap-1 flex shrink-0 items-center", className)}
+	class={cn("group-data-[orientation=vertical]/attachment:absolute group-data-[orientation=vertical]/attachment:top-3 group-data-[orientation=vertical]/attachment:right-3 relative z-20 group-data-[orientation=vertical]/attachment:gap-1 flex shrink-0 items-center", className)}
 	{...restProps}
 >
 	{@render children?.()}

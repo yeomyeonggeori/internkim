@@ -8,16 +8,14 @@
 		class: className,
 		type = "button",
 		child,
-		children,
 		...restProps
 	}: WithElementRef<HTMLButtonAttributes> & {
 		child?: Snippet<[{ props: Record<string, unknown> }]>;
 	} = $props();
 
 	const mergedProps = $derived({
-		"data-slot": "attachment-trigger",
 		class: cn("absolute inset-0 z-10 outline-none", className),
-		...(child ? {} : { type }),
+		"data-slot": "attachment-trigger",
 		...restProps,
 	});
 </script>
@@ -25,7 +23,7 @@
 {#if child}
 	{@render child({ props: mergedProps })}
 {:else}
-	<button bind:this={ref} {...mergedProps}>
-		{@render children?.()}
+	<button bind:this={ref} {type} {...mergedProps}>
+		{@render mergedProps.children?.()}
 	</button>
 {/if}
