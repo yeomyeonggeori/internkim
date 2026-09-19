@@ -104,20 +104,22 @@ function row(summary: ArmSummary): string {
 	return `| ${summary.arm} | ${summary.passed}/${summary.runs} (${passRate.toFixed(0)}%) | ${summary.medianPromptTokensPerCall.toFixed(0)} | ${summary.medianCallsPerRun} | ${summary.totalPromptTokens.toLocaleString('en-US')} | ${summary.medianWallClockSeconds.toFixed(0)} | $${summary.costUSD.toFixed(4)} | ${costPerPassed} | ${summary.approvalsAnsweredByRequester} | ${providers} |`;
 }
 
-function gate(summaries: ArmSummary[]): string {
-	const current = summaries.find((summary) => summary.arm === 'bluecollar');
-	const piShaped = summaries.find((summary) => summary.arm === 'bluecollar-pi-shaped');
-	if (!current || !piShaped) return 'gate: not decidable, both Bluecollar arms are needed';
-	const passRateHolds = piShaped.passed / piShaped.runs >= current.passed / current.runs;
-	const tokensDrop = piShaped.medianPromptTokensPerCall < current.medianPromptTokensPerCall;
+function gate(summaries: ArmSummary[], baselineArm: string, candidateArm: string): string {
+	const baseline = summaries.find((summary) => summary.arm === baselineArm);
+	const candidate = summaries.find((summary) => summary.arm === candidateArm);
+	if (!baseline || !candidate) return `gate: not decidable, both ${baselineArm} and ${candidateArm} are needed`;
+	const passRateHolds = candidate.passed / candidate.runs >= baseline.passed / baseline.runs;
+	const tokensDrop = candidate.medianPromptTokensPerCall < baseline.medianPromptTokensPerCall;
 	const verdict = passRateHolds && tokensDrop ? 'adopt' : 'reject';
-	const sampleNote = Math.min(current.runs, piShaped.runs) < gateSampleSize ? ` (pilot: fewer than ${gateSampleSize} samples per arm, not the final gate)` : '';
-	return `gate: ${verdict} — pass rate ${passRateHolds ? 'holds' : 'drops'}, median prompt tokens per call ${tokensDrop ? 'lower' : 'not lower'}${sampleNote}`;
+	const sampleNote = Math.min(baseline.runs, candidate.runs) < gateSampleSize ? ` (pilot: fewer than ${gateSampleSize} samples per arm, not the final gate)` : '';
+	return `gate ${candidateArm} against ${baselineArm}: ${verdict} — pass rate ${passRateHolds ? 'holds' : 'drops'}, median prompt tokens per call ${tokensDrop ? 'lower' : 'not lower'}${sampleNote}`;
 }
 
 async function main(): Promise<void> {
 	const runID = argument('run-id');
 	if (!runID) throw new Error('pass --run-id <id>');
+	const baselineArm = argument('baseline') ?? 'bluecollar';
+	const candidateArm = argument('candidate') ?? 'bluecollar-pi-shaped';
 	const evidenceRoot = resolve(import.meta.dir, '../../../.artifacts/pilot', runID);
 	const evidence = evidenceUnder(evidenceRoot);
 	const results = evidence.map((run) => run.result);
@@ -132,7 +134,7 @@ async function main(): Promise<void> {
 	console.log('| arm | passed | median prompt tokens/call | median calls/run | total prompt tokens | median wall clock s | cost | cost per passed task | approvals answered | providers |');
 	console.log('|---|---|---|---|---|---|---|---|---|---|');
 	for (const summary of summaries) console.log(row(summary));
-	console.log(`\n${gate(summaries)}`);
+	console.log(`\n${gate(summaries, baselineArm, candidateArm)}`);
 	const failed = results.filter((result) => !result.passed);
 	if (failed.length > 0) {
 		console.log('\nfailed runs:');
