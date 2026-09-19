@@ -1,0 +1,23 @@
+{
+	"name": "leave-request",
+	"instruction": "2026년 10월 6일 하루 연차 신청해줘.",
+	"assertions": [
+		{
+			"table": "leave",
+			"where": {
+				"member_id": "000000ee-0000-0000-0000-000000000003",
+				"starts_at": { "gte": "2026-10-05T00:00:00Z", "lte": "2026-10-07T00:00:00Z" }
+			},
+			"expect": { "kind": "annual", "status": "requested", "days": 1, "starts_at": { "dayInZone": "2026-10-06" } }
+		}
+	],
+	"cleanup": [
+		{
+			"delete": "leave",
+			"where": {
+				"member_id": "000000ee-0000-0000-0000-000000000003",
+				"starts_at": { "gte": "2026-10-05T00:00:00Z", "lte": "2026-10-07T00:00:00Z" }
+			}
+		}
+	]
+}

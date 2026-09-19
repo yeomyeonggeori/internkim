@@ -1,0 +1,12 @@
+{
+	"name": "task-add-in-progress-for-organization",
+	"instruction": "견본 물산 건으로 '견본 물산 재계약 조건 정리' 업무를 등록해줘. 이미 시작했으니 진행 중 상태로.",
+	"assertions": [
+		{
+			"table": "task",
+			"where": { "title": "견본 물산 재계약 조건 정리" },
+			"expect": { "status": "in_progress", "organization_id": "000000a0-0000-0000-0000-000000000004" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "견본 물산 재계약 조건 정리" } }]
+}

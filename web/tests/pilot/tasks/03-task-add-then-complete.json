@@ -1,0 +1,12 @@
+{
+	"name": "task-add-then-complete",
+	"instruction": "'파일럿 회의록 정리' 업무를 등록하고, 이미 끝난 일이니까 바로 완료 처리해줘.",
+	"assertions": [
+		{
+			"table": "task",
+			"where": { "title": "파일럿 회의록 정리" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "파일럿 회의록 정리" } }]
+}
