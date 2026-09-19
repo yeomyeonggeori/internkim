@@ -2,7 +2,7 @@
 	import { tv, type VariantProps } from "tailwind-variants";
 
 	export const bubbleReactionsVariants = tv({
-		base: "ring-card bg-muted shrink-0 gap-1 rounded-full px-1.5 py-0.5 text-sm ring-3 has-[button]:p-0 absolute z-10 flex w-fit items-center justify-center",
+		base: "rounded-full ring-3 ring-card bg-muted shrink-0 gap-1 px-1.5 py-0.5 has-[button]:p-0 text-sm absolute z-10 flex w-fit items-center justify-center",
 		variants: {
 			side: {
 				top: "top-0 -translate-y-3/4",
@@ -43,8 +43,8 @@
 <div
 	bind:this={ref}
 	data-slot="bubble-reactions"
-	data-side={side}
 	data-align={align}
+	data-side={side}
 	class={cn(bubbleReactionsVariants({ side, align }), className)}
 	{...restProps}
 >
