@@ -11,23 +11,33 @@
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import ChannelCode from './channel-code.svelte';
 	import ChannelLinkPreview from './channel-link-preview.svelte';
+	import MessageReactions from './message-reactions.svelte';
+	import MessageRow from './message-row.svelte';
 	import { firstLinkIn } from './channel-link';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
+		canChangeMessages,
 		fetchChannelConversation,
 		messageTextBeside,
 		applyCustomEmoji,
 		sendChannelMessage,
 		type ChannelMessage,
-		type ChannelMessageReaction,
 		type ChannelOutgoingAttachment,
 		type ChannelParticipant,
 		type ThreadSummary
 	} from './channel-api';
-	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
+	import {
+		fileToAttachment,
+		formatAttachmentMeta,
+		openableAttachments,
+		pictureAddressesOf
+	} from './channel-attachments';
+	import { messageActionsFor } from './channel-message-actions';
+	import { whatToCopy } from './message-copy';
+	import { messagesWithReactions } from './channel-reactions';
 	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
@@ -46,13 +56,15 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, type Snippet } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
-	let { isActive = true, threadLayout = 'sheet', channelId }: {
+	let { isActive = true, threadLayout = 'sheet', channelId, showSenderNames = false, canModerate = false }: {
 		isActive?: boolean;
 		threadLayout?: 'sheet' | 'inline';
 		channelId?: string;
+		showSenderNames?: boolean;
+		canModerate?: boolean;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -144,6 +156,25 @@
 	function isMine(message: ChannelMessage): boolean {
 		return currentUserID !== '' && message.sender.id === currentUserID;
 	}
+
+	const canChange = canChangeMessages();
+	const openableAddressOf = (url: string): string => attachmentSource.openable(url);
+	const messageActions = messageActionsFor({
+		channelID: () => channelId,
+		reader: () => currentUser,
+		text: () => text,
+		showReactions: (messageID, reactions) => {
+			messages = messagesWithReactions(messages, messageID, reactions);
+			olderMessages = messagesWithReactions(olderMessages, messageID, reactions);
+			if (openThreadRoot?.id === messageID) openThreadRoot = { ...openThreadRoot, reactions };
+		},
+		forgetMessage: (messageID) => {
+			messages = messages.filter((message) => message.id !== messageID);
+			olderMessages = olderMessages.filter((message) => message.id !== messageID);
+			if (openThreadRoot?.id === messageID) closeThread();
+		},
+		readAgain: loadConversation
+	});
 
 	const threadRepliesByRoot = $derived.by(() => {
 		const repliesByRoot = new Map<string, ChannelMessage[]>();
@@ -587,35 +618,20 @@
 	});
 </script>
 
-{#snippet reactionRow(
-	reactions: ChannelMessageReaction[],
-	align: 'start' | 'end',
-	side: 'top' | 'bottom'
-)}
-	<Bubble.Reactions
-		{align}
-		{side}
-		role="img"
-		aria-label={reactions.map((reaction) => reaction.emoji).join(', ')}
-	>
-		{#each reactions as reaction (reaction.emoji)}
-			<span class="inline-flex items-center gap-0.5">
-				{#if reaction.imageURL}
-					<img src={reaction.imageURL} alt={reaction.emoji} class="inline size-4" />
-				{:else}
-					{reaction.emoji}
-				{/if}
-				{#if reaction.count > 1}<span class="text-muted-foreground text-xs">{reaction.count}</span>{/if}
-			</span>
-		{/each}
-	</Bubble.Reactions>
+{#snippet ownReactions(message: ChannelMessage, farCorner: 'start' | 'end', nameWidthPixels: number)}
+	<MessageReactions
+		reactions={message.reactions ?? []}
+		canChange={canChange && !message.id.startsWith('pending-')}
+		side="top"
+		{farCorner}
+		{nameWidthPixels}
+		onToggle={(reaction) => messageActions.toggleReaction(message, reaction)}
+		onPick={(glyph) => messageActions.reactWith(message, glyph)}
+	/>
 {/snippet}
 
-{#snippet messageBody(message: ChannelMessage)}
-	{@const attachments = (message.attachments ?? []).map((attachment) => ({
-		...attachment,
-		source: attachment.source || attachmentSource.openable(attachment.url)
-	}))}
+{#snippet messageBody(message: ChannelMessage, nameWidthPixels: number, isToolbarShown: boolean, toolbar: Snippet)}
+	{@const attachments = openableAttachments(message.attachments ?? [], openableAddressOf)}
 	{@const bodyText = messageTextBeside(
 		message.text,
 		attachments.map((attachment) => attachment.url)
@@ -623,11 +639,9 @@
 	{@const reactions = message.reactions ?? []}
 	{@const mine = isMine(message)}
 	{@const reactionAlign = mine ? 'start' : 'end'}
-	{@const reactionSide = 'top' as const}
-	{@const imageReactionSpacing = !bodyText && reactions.length > 0 ? 'mt-5' : ''}
-	{@const imageAttachmentURLs = attachments
-		.filter((attachment) => attachment.kind === 'image' && attachment.source)
-		.map((attachment) => attachment.source ?? '')}
+	{@const reactionSpacing = reactions.length > 0 && nameWidthPixels === 0 ? 'mt-5' : ''}
+	{@const imageReactionSpacing = bodyText ? '' : reactionSpacing}
+	{@const imageAttachmentURLs = pictureAddressesOf(attachments)}
 	{@const loneImage =
 		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source
 			? attachments[0]
@@ -644,14 +658,15 @@
 		     The proportions come from the message when the messenger reported them,
 		     so the browser holds the space before the file arrives and nothing below
 		     jumps when it does. -->
-		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
+		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
 			<button
 				type="button"
-				class={`block cursor-zoom-in overflow-hidden rounded-lg ${imageReactionSpacing}`}
+				class="block cursor-zoom-in overflow-hidden rounded-lg"
 				aria-label={loneImage.filename ?? '이미지 크게 보기'}
 				onclick={() => openLightbox(imageAttachmentURLs, 0)}
 			>
 				<img
+					data-message-picture
 					src={loneImage.source}
 					alt={loneImage.filename ?? ''}
 					width={loneImage.widthPixels}
@@ -662,13 +677,13 @@
 				/>
 			</button>
 			{#if !bodyText && reactions.length > 0}
-				{@render reactionRow(reactions, reactionAlign, reactionSide)}
+				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{#if !bodyText}{@render timeStamp(message)}{/if}
+			{#if !bodyText}{@render timeStamp(message, isToolbarShown, toolbar)}{/if}
 		</div>
 	{:else if attachments.length > 0}
-		<div class="relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end">
-			<Attachment.Group class={`relative w-fit max-w-full ${imageReactionSpacing}`}>
+		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
+			<Attachment.Group class="relative w-fit max-w-full">
 			{#each attachments as attachment (attachment.url)}
 				<Attachment.Root orientation="vertical">
 					{#if attachment.kind === 'image' && attachment.source}
@@ -681,6 +696,7 @@
 									openLightbox(imageAttachmentURLs, imageAttachmentURLs.indexOf(attachment.source ?? ''))}
 							>
 								<img
+									data-message-picture
 									src={attachment.source}
 									alt={attachment.filename ?? ''}
 									loading="lazy"
@@ -714,9 +730,9 @@
 			{/each}
 			</Attachment.Group>
 			{#if !bodyText && reactions.length > 0}
-				{@render reactionRow(reactions, reactionAlign, reactionSide)}
+				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{#if !bodyText}{@render timeStamp(message)}{/if}
+			{#if !bodyText}{@render timeStamp(message, isToolbarShown, toolbar)}{/if}
 		</div>
 	{/if}
 	{#if message.isError}
@@ -747,12 +763,12 @@
 					</Popover.Content>
 				</Popover.Root>
 			</Bubble.Reactions>
-			{@render timeStamp(message)}
+			{@render timeStamp(message, isToolbarShown, toolbar)}
 		</Bubble.Root>
 	{:else if bodyText}
 		<Bubble.Root
 			variant={mine ? 'default' : 'muted'}
-			class={`max-w-[min(80%,32rem)] ${reactions.length > 0 ? 'mt-5' : ''}`}
+			class={`max-w-[min(80%,32rem)] ${reactionSpacing}`}
 		>
 			<Bubble.Content>
 				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
@@ -764,16 +780,13 @@
 				</div>
 			</Bubble.Content>
 			{#if reactions.length > 0}
-				{@render reactionRow(reactions, reactionAlign, reactionSide)}
+				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{@render timeStamp(message)}
+			{@render timeStamp(message, isToolbarShown, toolbar)}
 		</Bubble.Root>
 		{#if firstLinkIn(bodyText)}
 			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
 		{/if}
-	{/if}
-	{#if message.thread}
-		{@render threadChip(message)}
 	{/if}
 	{#if message.interaction}
 		<div class="flex flex-wrap gap-2">
@@ -791,12 +804,23 @@
 	{/if}
 {/snippet}
 
-{#snippet timeStamp(message: ChannelMessage)}
-	<time
-		class="text-muted-foreground/70 pointer-events-none absolute bottom-0.5 left-full ml-1.5 text-[11px] whitespace-nowrap tabular-nums group-data-[align=end]/message:right-full group-data-[align=end]/message:left-auto group-data-[align=end]/message:mr-1.5 group-data-[align=end]/message:ml-0"
+{#snippet timeStamp(message: ChannelMessage, isToolbarShown: boolean, toolbar: Snippet)}
+	<div
+		class="pointer-events-none absolute bottom-0 left-full ml-1.5 flex items-end gap-1.5 group-data-[align=end]/message:right-full group-data-[align=end]/message:left-auto group-data-[align=end]/message:mr-1.5 group-data-[align=end]/message:ml-0 group-data-[align=end]/message:flex-row-reverse @max-[56rem]/conversation:contents"
 	>
-		{clockTime(message.sentAt)}
-	</time>
+		<time
+			class="text-muted-foreground/70 pb-0.5 text-[11px] whitespace-nowrap tabular-nums @max-[56rem]/conversation:absolute @max-[56rem]/conversation:bottom-0.5 @max-[56rem]/conversation:left-full @max-[56rem]/conversation:ml-1.5 @max-[56rem]/conversation:pb-0 @max-[56rem]/conversation:group-data-[align=end]/message:right-full @max-[56rem]/conversation:group-data-[align=end]/message:left-auto @max-[56rem]/conversation:group-data-[align=end]/message:mr-1.5 @max-[56rem]/conversation:group-data-[align=end]/message:ml-0"
+		>
+			{clockTime(message.sentAt)}
+		</time>
+		{#if isToolbarShown}
+			<div
+				class="bg-background pointer-events-auto z-20 rounded-lg border p-0.5 shadow-sm @max-[56rem]/conversation:absolute @max-[56rem]/conversation:top-full @max-[56rem]/conversation:left-0 @max-[56rem]/conversation:mt-1 @max-[56rem]/conversation:group-data-[align=end]/message:right-0 @max-[56rem]/conversation:group-data-[align=end]/message:left-auto"
+			>
+				{@render toolbar()}
+			</div>
+		{/if}
+	</div>
 {/snippet}
 
 {#snippet threadChip(message: ChannelMessage)}
@@ -813,7 +837,9 @@
 					name: participant.name,
 					email: participant.email,
 					seed: participant.email || participant.id || participant.name,
-					image: participant.avatarURL
+					image: participant.avatarURL,
+					memberID: participant.memberID,
+					externalID: participant.externalID
 				}))}
 				class="-space-x-1.5"
 				avatarClass="ring-background size-5 ring-2"
@@ -839,26 +865,51 @@
 	</Message.Avatar>
 {/snippet}
 
-{#snippet messageRow(message: ChannelMessage)}
-	<Message.Root align={isMine(message) ? 'end' : 'start'}>
-		{#if !isMine(message)}
+{#snippet messageRow(message: ChannelMessage, startsGroup: boolean, endsGroup: boolean, isInTimeline: boolean)}
+	<MessageRow
+		{message}
+		mine={isMine(message)}
+		{startsGroup}
+		{endsGroup}
+		senderName={showSenderNames ? message.sender.name : ''}
+		{canChange}
+		canReply={isInTimeline && !message.threadRootId}
+		canDelete={isMine(message) || canModerate}
+		isSettled={!message.id.startsWith('pending-')}
+		hasFooter={message.thread !== undefined}
+		copyable={whatToCopy(
+			messageTextBeside(
+				message.text,
+				(message.attachments ?? []).map((attachment) => attachment.url)
+			),
+			pictureAddressesOf(openableAttachments(message.attachments ?? [], openableAddressOf))
+		)}
+		onReply={() => openThread(message)}
+		onCopy={(wanted) => messageActions.copy(wanted)}
+		onDelete={() => messageActions.askToDelete(message)}
+		onReact={(glyph) => messageActions.reactWith(message, glyph)}
+	>
+		{#snippet avatar()}
 			{@render senderAvatar(message.sender)}
-		{/if}
-		<Message.Content>
+		{/snippet}
+		{#snippet children({ nameWidthPixels, isToolbarShown, toolbar })}
 			<Bubble.Group class="w-full">
-				{@render messageBody(message)}
+				{@render messageBody(message, nameWidthPixels, isToolbarShown, toolbar)}
 			</Bubble.Group>
-		</Message.Content>
-	</Message.Root>
+		{/snippet}
+		{#snippet footer()}
+			{@render threadChip(message)}
+		{/snippet}
+	</MessageRow>
 {/snippet}
 
 {#snippet threadBody()}
-	<div class="min-h-0 flex-1 overflow-y-auto">
-		<div class="flex flex-col gap-8 px-4 py-8">
+	<div class="@container/conversation min-h-0 flex-1 overflow-y-auto">
+		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
-				{@render messageRow({ ...openThreadRoot, thread: undefined })}
+				{@render messageRow({ ...openThreadRoot, thread: undefined }, true, true, false)}
 				{#each threadReplies as reply (reply.id)}
-					{@render messageRow(reply)}
+					{@render messageRow(reply, true, true, false)}
 				{/each}
 			{/if}
 		</div>
@@ -981,7 +1032,7 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
-					class="flex min-h-0 flex-1 flex-col-reverse gap-8 overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
+					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
 				>
 					{#if isAgentWorking}
 						<Marker.Root role="status">
@@ -994,20 +1045,11 @@
 								<Marker.Content>{item.label}</Marker.Content>
 							</Marker.Root>
 						{:else}
-							<div data-message-id={item.id}>
-								<Message.Root align={item.senderID === currentUserID ? 'end' : 'start'}>
-									{#if item.senderID !== currentUserID}
-										{@render senderAvatar(item.items[0].sender)}
-									{/if}
-									<Message.Content>
-										<Bubble.Group class="w-full">
-											{#each item.items as message (message.id)}
-												{@render messageBody(message)}
-											{/each}
-										</Bubble.Group>
-									</Message.Content>
-								</Message.Root>
-							</div>
+							<Message.Group>
+								{#each item.items as message, index (message.id)}
+									{@render messageRow(message, index === 0, index === item.items.length - 1, true)}
+								{/each}
+							</Message.Group>
 						{/if}
 					{/each}
 				</div>

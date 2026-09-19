@@ -1,0 +1,107 @@
+<script lang="ts">
+	import * as Command from '$lib/components/ui/command/index.js';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import { channelText } from '$lib/i18n/channel-text';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { emojiCategories, searchEmoji } from '$lib/messenger/emoji-catalog';
+	import { quickEmojiGlyphs, rememberEmojiGlyph } from '$lib/messenger/recent-emoji';
+	import type { Snippet } from 'svelte';
+
+	let {
+		open = $bindable(false),
+		onPick,
+		trigger,
+		customAnchor = null,
+		side = 'top',
+		align = 'end'
+	}: {
+		open?: boolean;
+		onPick: (glyph: string) => void;
+		trigger?: Snippet<[{ props: Record<string, unknown> }]>;
+		customAnchor?: HTMLElement | null;
+		side?: 'top' | 'bottom';
+		align?: 'start' | 'center' | 'end';
+	} = $props();
+
+	const text = createPageText(channelText);
+
+	let query = $state('');
+	const quickGlyphs = $derived(open ? quickEmojiGlyphs(8) : []);
+	const searchResults = $derived(query.trim() === '' ? [] : searchEmoji(query, 40));
+	const categoryLabels = $derived<Record<string, string>>({
+		'Smileys & Emotion': text.emojiSmileys,
+		'People & Body': text.emojiPeople,
+		'Animals & Nature': text.emojiNature,
+		'Food & Drink': text.emojiFood,
+		'Travel & Places': text.emojiTravel,
+		Activities: text.emojiActivities,
+		Objects: text.emojiObjects,
+		Symbols: text.emojiSymbols,
+		Flags: text.emojiFlags
+	});
+
+	function pickEmoji(glyph: string): void {
+		rememberEmojiGlyph(glyph);
+		onPick(glyph);
+		open = false;
+		query = '';
+	}
+</script>
+
+<Popover.Root bind:open>
+	{#if trigger}
+		<Popover.Trigger>
+			{#snippet child({ props })}
+				{@render trigger({ props })}
+			{/snippet}
+		</Popover.Trigger>
+	{/if}
+	<Popover.Content {side} {align} {customAnchor} class="w-64 p-0">
+		<Command.Root shouldFilter={false}>
+			<Command.Input bind:value={query} placeholder={text.searchEmoji} />
+			<Command.List>
+				{#if query.trim() === ''}
+					<Command.Group heading={text.quickEmojiTitle}>
+						<div class="grid grid-cols-8 gap-1 p-1">
+							{#each quickGlyphs as glyph (glyph)}
+								<button
+									type="button"
+									aria-label={glyph}
+									onclick={() => pickEmoji(glyph)}
+									class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden"
+								>
+									{glyph}
+								</button>
+							{/each}
+						</div>
+					</Command.Group>
+					{#each emojiCategories() as category (category.name)}
+						<Command.Group heading={categoryLabels[category.name] ?? category.name}>
+							<div class="grid grid-cols-8 gap-1 p-1 [contain-intrinsic-size:auto_12rem] [content-visibility:auto]">
+								{#each category.emoji as emoji (emoji.name)}
+									<button
+										type="button"
+										aria-label={emoji.name}
+										title={emoji.name}
+										onclick={() => pickEmoji(emoji.glyph)}
+										class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden"
+									>
+										{emoji.glyph}
+									</button>
+								{/each}
+							</div>
+						</Command.Group>
+					{/each}
+				{:else}
+					{#each searchResults as emoji (emoji.name)}
+						<Command.Item value={emoji.name} onSelect={() => pickEmoji(emoji.glyph)}>
+							<span class="text-base">{emoji.glyph}</span>
+							<span class="truncate">{emoji.name}</span>
+						</Command.Item>
+					{/each}
+					<Command.Empty>{text.noEmojiFound}</Command.Empty>
+				{/if}
+			</Command.List>
+		</Command.Root>
+	</Popover.Content>
+</Popover.Root>

@@ -394,7 +394,11 @@
 					{/if}
 				</header>
 				{#key activeID}
-					<Channel channelId={activeID} />
+					<Channel
+						channelId={activeID}
+						showSenderNames={activeConversation?.kind === 'group'}
+						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
+					/>
 				{/key}
 			</div>
 		</div>
