@@ -313,7 +313,7 @@
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "cli, tools/mirror-local",
-    "description": "the Buzz identity seed value; internal/cli reads it as a setup-time override, tools/mirror-local writes it to the local bridge's seed file"
+    "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file"
   },
   "INTERNKIM_COMPANION_BIN_DIR": {
     "process": "companion installer",
@@ -325,7 +325,7 @@
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
-    "description": "the console password used for a Jetson's physical login during setup/flashing"
+    "description": "the console password used for a Jetson's physical login during setup/flashing; flashing writes the one it generated back here"
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
     "process": "tools/prepare-container-kernel",
@@ -493,7 +493,7 @@
   },
   "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
     "process": "cli",
-    "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows"
+    "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows; the same value is the release-registry Worker's RELEASE_DOWNLOAD_TOKEN secret"
   },
   "INTERNKIM_RELEASE_PUBLIC_BASE_URL": {
     "process": "cli",

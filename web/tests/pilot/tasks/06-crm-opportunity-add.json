@@ -1,0 +1,18 @@
+{
+	"name": "crm-opportunity-add",
+	"instruction": "견본 물산과 '파일럿 공급 계약' 거래를 판매 파이프라인에 열어줘. 금액은 3천만 원.",
+	"assertions": [
+		{
+			"table": "opportunity",
+			"where": { "name": "파일럿 공급 계약" },
+			"expect": {
+				"organization_id": "000000a0-0000-0000-0000-000000000004",
+				"pipeline_id": "sales",
+				"amount_minor": 30000000,
+				"currency_code": "KRW",
+				"archived_at": null
+			}
+		}
+	],
+	"cleanup": [{ "delete": "opportunity", "where": { "name": "파일럿 공급 계약" } }]
+}

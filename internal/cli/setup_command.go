@@ -137,12 +137,7 @@ func resolveSetupSSHCredentials(boardType string, requestedUser string, requeste
 		requestedUser = jetsonDefaultUser
 	}
 	if requestedPassword == "" {
-		requestedPassword = os.Getenv("INTERNKIM_CONSOLE_PASSWORD")
-	}
-	if requestedPassword == "" {
-		if data, err := os.ReadFile(".local/secrets/console-password"); err == nil {
-			requestedPassword = strings.TrimSpace(string(data))
-		}
+		requestedPassword = strings.TrimSpace(os.Getenv("INTERNKIM_CONSOLE_PASSWORD"))
 	}
 	return requestedUser, requestedPassword
 }

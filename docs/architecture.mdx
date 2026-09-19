@@ -204,8 +204,27 @@ The sections above are the target. This is what has shipped as of internkim
 - Registering tools during a turn, the durable approval envelope and the
   service receipts of "Connection and execution" are contract text, not
   released endpoints.
-- The measurement program and the adoption decision it gates are open
-  (internkim#1832).
+- The measurement program has a runner (`web/tests/pilot`, internkim#1842)
+  and one pilot behind it (2026-09-19, ten record-answered tasks, three
+  repetitions, every arm on `z-ai/glm-5.3-flash`, judged by reading the record
+  afterwards). The Pi-shaped kernel (seven model-facing tools and the whole
+  catalog delivered at once) kept the pass rate and cost 2.6 times the prompt
+  tokens per call, because a turn then carries 112 tool definitions where the
+  current shortlist carries 25, so the gate rejected it and the kernel keeps
+  its eleven model-facing tools. The thirty-task program that would make the
+  gate final is still open (internkim#1832).
+
+| Arm | Passed | Median prompt tokens per call | Cost per passed task |
+| --- | --- | --- | --- |
+| Bluecollar, current kernel | 24/29 | 19,550 | $0.0058 |
+| Bluecollar, Pi-shaped kernel | 14/15 | 50,845 | $0.0136 |
+| Claude Code 2.1.277 with the plugin | 30/30 | 50,945 | $0.0140 |
+
+Bluecollar's misses are the intake asking a question the other harness did
+not need (three) and one event written in UTC because the box reads the
+company time zone from its own workspace setting (internkim#1840). The
+missing repetitions are runs the fleet's intake never started while a router
+call waited on a stalled provider stream (internkim#1821).
 
 | Harness | Version tested | Loads the plugin through | Status |
 | --- | --- | --- | --- |

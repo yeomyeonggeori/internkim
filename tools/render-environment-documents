@@ -58,7 +58,14 @@ ENV_EXAMPLE_GROUPS = [
     ),
     (
         "Fleet and devices",
-        ["INTERNKIM_DOMAIN", "INTERNKIM_API_URL", "INTERNKIM_FLEET_SECRET", "INTERNKIM_CONSOLE_PASSWORD", "INTERNKIM_ADMIN_EMAIL"],
+        [
+            "INTERNKIM_DOMAIN",
+            "INTERNKIM_API_URL",
+            "INTERNKIM_FLEET_SECRET",
+            "INTERNKIM_CONSOLE_PASSWORD",
+            "INTERNKIM_ADMIN_EMAIL",
+            "INTERNKIM_BUZZ_KEY_SEED",
+        ],
     ),
     ("Models", ["OPENROUTER_API_KEY"]),
 ]

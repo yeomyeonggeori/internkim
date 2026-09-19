@@ -1,0 +1,12 @@
+{
+	"name": "crm-contact-add",
+	"instruction": "샘플 상사에 새 담당자 '한견본'을 추가해줘. 직함은 구매 담당이고 이메일은 han.sample@example.com이야.",
+	"assertions": [
+		{
+			"table": "contact",
+			"where": { "name": "한견본" },
+			"expect": { "organization_id": "000000a0-0000-0000-0000-000000000003", "title": "구매 담당", "email": "han.sample@example.com" }
+		}
+	],
+	"cleanup": [{ "delete": "contact", "where": { "name": "한견본" } }]
+}

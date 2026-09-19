@@ -1,0 +1,18 @@
+{
+	"name": "crm-opportunity-move",
+	"instruction": "'신제품 공급 견적' 거래를 진행 중 단계로 옮겨줘.",
+	"assertions": [
+		{
+			"table": "opportunity",
+			"where": { "id": "0000000a-0000-0000-0000-000000000002" },
+			"expect": { "stage_id": "in_progress", "archived_at": null }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "opportunity",
+			"where": { "id": "0000000a-0000-0000-0000-000000000002" },
+			"set": { "stage_id": "waiting", "stage_position": 1 }
+		}
+	]
+}
