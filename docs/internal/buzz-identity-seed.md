@@ -32,17 +32,19 @@ history that was signed under `seedA`.
 
 ## Where the seed MUST live (do not use an ephemeral env var)
 
-The seed has to survive across machines, restarts, and sessions. Persist it in a
-durable, gitignored secret file and back it up:
+The seed has to survive across machines, restarts, and sessions, and one seed a
+reader can find beats two a reader has to reconcile: a second local copy that
+disagrees derives identities nobody can sign in as, and it does so silently.
 
-- **Local dev / Mac:** `.local/secrets/buzz-key-seed` (gitignored). Point admind
-  at it with `-buzz-key-seed-path .local/secrets/buzz-key-seed` and pass the same
-  value to `buzz-migrate -key-seed "$(cat .local/secrets/buzz-key-seed)"`.
+- **Local dev / Mac:** `INTERNKIM_BUZZ_KEY_SEED` in the repository `.env`
+  (gitignored), which the CLI loads by itself. Point admind at a file written
+  from it with `-buzz-key-seed-path`, and pass the same value to
+  `buzz-migrate -key-seed "$INTERNKIM_BUZZ_KEY_SEED"`.
 - **Device (Jetson):** the service secrets directory
   (`/root/.internkim/secrets/…`), owned by the service, backed up with the rest
   of the device secrets.
 - **Off-box backup:** keep a copy in the ops password manager / secret vault.
-  Losing every copy is unrecoverable.
+  Nothing reads it, so it cannot drift; losing every copy is unrecoverable.
 
 `tools/mirror-local` reads `INTERNKIM_BUZZ_KEY_SEED` from the environment or the
 repo `.env` and writes it to a seed file **only if the env var is set**. Setting

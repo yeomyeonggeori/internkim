@@ -116,7 +116,7 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	fmt.Println()
 	fmt.Printf("  user: %s\n", username)
 	fmt.Printf("  password: %s\n", consolePassword)
-	fmt.Println(messenger.t("  저장: .env, .local/secrets/console-password, macOS Keychain", "  Saved: .env, .local/secrets/console-password, macOS Keychain"))
+	fmt.Println(messenger.t("  저장: .env", "  Saved: .env"))
 	fmt.Println(messenger.t("  SD 카드를 Jetson에 다시 꽂고 부팅하세요.", "  Put the SD card back into the Jetson and boot it."))
 	return nil
 }
@@ -538,19 +538,8 @@ func applyJetsonRootPatch(rootPatch jetsonRootPatch) (string, error) {
 }
 
 func resolveConsolePassword() (string, error) {
-	if data, err := os.ReadFile(".local/secrets/console-password"); err == nil {
-		if password := strings.TrimSpace(string(data)); password != "" {
-			return password, nil
-		}
-	}
-	if password := os.Getenv("INTERNKIM_CONSOLE_PASSWORD"); password != "" {
+	if password := strings.TrimSpace(os.Getenv("INTERNKIM_CONSOLE_PASSWORD")); password != "" {
 		return password, nil
-	}
-	output, err := exec.Command("security", "find-generic-password", "-a", "internkim", "-s", "internkim-console", "-w").Output()
-	if err == nil {
-		if password := strings.TrimSpace(string(output)); password != "" {
-			return password, nil
-		}
 	}
 	return generateConsolePassword()
 }
@@ -571,16 +560,6 @@ func saveConsolePassword(password string) error {
 	if errorValue := updateEnvFile("INTERNKIM_CONSOLE_PASSWORD", password); errorValue != nil {
 		return fmt.Errorf("save console password to .env: %w", errorValue)
 	}
-	secretsPath := ".local/secrets/console-password"
-	if errorValue := os.MkdirAll(".local/secrets", 0o700); errorValue != nil {
-		return fmt.Errorf("save console password to .local/secrets: %w", errorValue)
-	}
-	if errorValue := os.WriteFile(secretsPath, []byte(password), 0o600); errorValue != nil {
-		return fmt.Errorf("save console password to .local/secrets: %w", errorValue)
-	}
-	_ = exec.Command("security", "add-generic-password",
-		"-a", "internkim", "-s", "internkim-console", "-w", password, "-U",
-	).Run()
 	return nil
 }
 

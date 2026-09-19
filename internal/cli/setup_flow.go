@@ -975,7 +975,7 @@ rm -f /usr/local/bin/gws-* /etc/sudoers.d/blueclaw-gws /etc/sudoers.d/blueclaw-m
 }
 
 func (state *setupFlowState) installReleaseDownloadTokenSSH() error {
-	tokenPath, cleanup, errorValue := state.releaseDownloadTokenSourcePath()
+	tokenPath, cleanup, errorValue := releaseDownloadTokenSourcePath()
 	if errorValue != nil {
 		return errorValue
 	}
@@ -993,33 +993,30 @@ func (state *setupFlowState) installReleaseDownloadTokenSSH() error {
 	return nil
 }
 
-func (state *setupFlowState) releaseDownloadTokenSourcePath() (string, func(), error) {
-	if token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN")); token != "" {
-		file, errorValue := os.CreateTemp("", "internkim-release-token-*")
-		if errorValue != nil {
-			return "", nil, errorValue
-		}
-		cleanup := func() { _ = os.Remove(file.Name()) }
-		if _, errorValue := file.WriteString(token + "\n"); errorValue != nil {
-			_ = file.Close()
-			cleanup()
-			return "", nil, errorValue
-		}
-		if errorValue := file.Close(); errorValue != nil {
-			cleanup()
-			return "", nil, errorValue
-		}
-		if errorValue := os.Chmod(file.Name(), 0o600); errorValue != nil {
-			cleanup()
-			return "", nil, errorValue
-		}
-		return file.Name(), cleanup, nil
+func releaseDownloadTokenSourcePath() (string, func(), error) {
+	token := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN"))
+	if token == "" {
+		return "", nil, nil
 	}
-	localPath := filepath.Join(state.scriptDir, ".local", "secrets", "release-download-token")
-	if information, errorValue := os.Stat(localPath); errorValue == nil && !information.IsDir() {
-		return localPath, nil, nil
+	file, errorValue := os.CreateTemp("", "internkim-release-token-*")
+	if errorValue != nil {
+		return "", nil, errorValue
 	}
-	return "", nil, nil
+	cleanup := func() { _ = os.Remove(file.Name()) }
+	if _, errorValue := file.WriteString(token + "\n"); errorValue != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, errorValue
+	}
+	if errorValue := file.Close(); errorValue != nil {
+		cleanup()
+		return "", nil, errorValue
+	}
+	if errorValue := os.Chmod(file.Name(), 0o600); errorValue != nil {
+		cleanup()
+		return "", nil, errorValue
+	}
+	return file.Name(), cleanup, nil
 }
 
 func (state *setupFlowState) ensureManagedHostExecutablesSSH() error {

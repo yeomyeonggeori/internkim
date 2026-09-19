@@ -429,18 +429,7 @@ func buildOpenRouterKeyCallback(stateDir string, messenger *msg, openRouterAPIKe
 func buildBuzzKeySeedCallback() func(force bool) (string, error) {
 	return func(force bool) (string, error) {
 		_ = force
-		if envSeed := strings.TrimSpace(os.Getenv("INTERNKIM_BUZZ_KEY_SEED")); envSeed != "" {
-			return envSeed, nil
-		}
-		repositoryRoot := repositoryRootForDependencyCache()
-		if repositoryRoot == "" {
-			return "", nil
-		}
-		seedBytes, errorValue := os.ReadFile(filepath.Join(repositoryRoot, ".local", "secrets", "buzz-key-seed"))
-		if errorValue != nil {
-			return "", nil
-		}
-		return strings.TrimSpace(string(seedBytes)), nil
+		return strings.TrimSpace(os.Getenv("INTERNKIM_BUZZ_KEY_SEED")), nil
 	}
 }
 

@@ -1,0 +1,18 @@
+{
+	"name": "crm-organization-update",
+	"instruction": "'예시 후원 기관'은 이제 활성 거래처야. 상태를 활성으로 바꾸고 태그에 '2026 후원'을 추가해줘.",
+	"assertions": [
+		{
+			"table": "organization",
+			"where": { "id": "000000a0-0000-0000-0000-000000000002" },
+			"expect": { "status": "active", "tags": { "contains": "2026 후원" } }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "organization",
+			"where": { "id": "000000a0-0000-0000-0000-000000000002" },
+			"set": { "status": "prospect", "tags": [] }
+		}
+	]
+}

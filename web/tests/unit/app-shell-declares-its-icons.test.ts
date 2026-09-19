@@ -9,6 +9,9 @@ const rootLayout = readFileSync(join(webRoot, 'src', 'routes', '+layout.svelte')
 describe('the served HTML shell declares every icon a browser reads before hydration', () => {
 	test('the shell links the tab favicon, the touch icon and the manifest', () => {
 		expect(shell).toContain('<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />');
+		expect(shell).toContain('<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />');
+		expect(shell).toContain('<link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png" />');
+		expect(shell).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />');
 		expect(shell).toContain('<link rel="apple-touch-icon" href="/apple-touch-icon.png" />');
 		expect(shell).toContain('<link id="app-manifest" rel="manifest" href="/manifest.webmanifest" />');
 	});
