@@ -1,4 +1,20 @@
-import type { ChannelOutgoingAttachment } from './channel-api';
+import type { ChannelMessageAttachment, ChannelOutgoingAttachment } from './channel-api';
+
+export function openableAttachments(
+	attachments: ChannelMessageAttachment[],
+	openableAddressOf: (url: string) => string
+): ChannelMessageAttachment[] {
+	return attachments.map((attachment) => ({
+		...attachment,
+		source: attachment.source || openableAddressOf(attachment.url)
+	}));
+}
+
+export function pictureAddressesOf(attachments: ChannelMessageAttachment[]): string[] {
+	return attachments
+		.filter((attachment) => attachment.kind === 'image' && attachment.source)
+		.map((attachment) => attachment.source ?? '');
+}
 
 export function formatAttachmentMeta(attachment: {
 	mimeType?: string;
