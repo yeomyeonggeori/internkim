@@ -21,22 +21,52 @@ Three layers compose what a model actually sees.
 InternKim (`.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`,
 `KernelToolNames()`): `shell`, `read`, `file_read`, `file_write`, `file_edit`,
 `file_delete`, `file_preview`, `file_deliver`, `skill_search`, `image_read`,
-`conversation_history`, `plan_update`, `request_tools`: 13 tools. Bluecollar
-also defines `ask_input`, `ask_confirm`, and `ask_choice` as tool-name
-constants, but only `ask_input` is registered as a callable tool
-(`.dependency/blueclaw/internal/agentruntime/ask_tools.go`); `ask_confirm` is
-reused as the interaction *kind* label the approval gate stamps on a pause
-(`.dependency/blueclaw/internal/approvalgate/gate.go:172`) rather than
-registered as a second tool, and `ask_choice` is folded into `ask_input`'s
-`options` field.
+`conversation_history`, `plan_update`, `request_tools`: 13 names. Ten of them
+reach the model as a callable action. The descriptor specs in
+`.dependency/blueclaw/internal/agentruntime/kernel_tool_provider.go` mark
+`file_read` and `file_preview` `ToolVisibilityInternal` and every other kernel
+descriptor `ToolVisibilityModel`; `image_read` is not a kernel descriptor but a
+capability tool whose generated entry carries `modelVisibility: "hidden"`
+(`pkg/capabilityprotocol/generated/capability-tools.json`). A hidden tool is
+one the model is never offered: `toolcontract.ToolSet.IsAllowed` applies the
+visibility check to the described tool list and to the action schema the loop
+builds each turn (`.dependency/bluecollar/loop/action_schema.go`), and
+`CanExpose` applies it again when `request_tools` tries to pin a name
+(`.dependency/bluecollar/loop/tool_selection.go`), so a hidden tool cannot be
+requested back into reach either.
+
+Bluecollar also names `ask_input`, `ask_confirm`, and `ask_choice`, but only
+`ask_input` is registered as a callable tool
+(`.dependency/blueclaw/internal/agentruntime/local_tool_provider.go`);
+`ask_confirm` is the interaction kind the approval gate stamps on a pause
+(`.dependency/blueclaw/internal/approvalgate/gate.go`), and `ask_choice` is
+folded into `ask_input`'s `options`. With `ask_input` the model-facing native
+set is 11: `shell`, `read`, `file_write`, `file_edit`, `file_deliver`,
+`skill_search`, `file_delete`, `conversation_history`, `plan_update`,
+`request_tools`, `ask_input`. `file_read`, `file_preview`, and `image_read`
+are the three native names the model is never offered.
 
 **Blueclaw's default allowlist**
 (`.dependency/blueclaw/internal/agentruntime/tool_catalog.go:272`,
 `DefaultAllowedToolNames()`) is exactly `KernelToolNames()` plus `ask_input`:
-14 tools, the fallback ceiling when no agent-profile override applies
-(`internal/app/tool_catalog.go:95`, `deriveAllowedToolNames`, which only ever
-admits kernel tool names, so this ceiling gates the native tool set, not the
-InternKim catalog).
+14 names, the fallback ceiling when no agent-profile override applies
+(`.dependency/blueclaw/internal/app/tool_catalog.go:95`,
+`deriveAllowedToolNames`, which only ever admits kernel tool names, so this
+ceiling gates the native tool set, not the InternKim catalog). The ceiling
+names what an agent profile may grant; descriptor visibility then decides
+which of the granted names the model is actually offered, and 11 is today's
+answer to that second question.
+
+**The harness-owned tool audience filter**
+(`.dependency/blueclaw/internal/mcpserver/published_tools.go`) lists eight
+names to drop from the MCP tool catalog for a self-equipped harness, one that
+brings its own shell and file tools: `shell`, `file_read`, `file_write`,
+`file_edit`, `file_preview`, `image_read`, `plan_update`, `skill_search`.
+Three of them (`file_read`, `file_preview`, `image_read`) are already hidden by
+descriptor visibility, so the list the filter runs over
+(`.dependency/blueclaw/internal/mcpserver/tool_catalog_server.go`,
+`ListDescribedToolDefinitions`) never contains them; the filter only ever
+removes the other five.
 
 Beyond that ceiling, Blueclaw registers seven more native tools when their
 dependency is configured: `memory_remember`, `memory_search`, `memory_forget`
