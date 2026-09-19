@@ -29,9 +29,9 @@ export interface ArmRunContext {
 	fleetConfigurationPath: string;
 }
 
-export type ArmName = 'bluecollar' | 'bluecollar-pi-shaped' | 'claude-code';
+export type ArmName = 'bluecollar' | 'bluecollar-pi-shaped' | 'bluecollar-reply-action' | 'claude-code';
 
-export const armNames: ArmName[] = ['bluecollar', 'bluecollar-pi-shaped', 'claude-code'];
+export const armNames: ArmName[] = ['bluecollar', 'bluecollar-pi-shaped', 'bluecollar-reply-action', 'claude-code'];
 
 export function isArmName(candidate: string): candidate is ArmName {
 	return (armNames as string[]).includes(candidate);
