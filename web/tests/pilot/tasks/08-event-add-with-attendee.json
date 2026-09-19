@@ -1,0 +1,18 @@
+{
+	"name": "event-add-with-attendee",
+	"instruction": "2026년 10월 2일 오후 2시부터 3시까지 '파일럿 킥오프 미팅' 일정을 잡아줘. 최견본도 참석해.",
+	"assertions": [
+		{
+			"table": "task",
+			"select": "*,task_participant(member_id)",
+			"where": { "title": "파일럿 킥오프 미팅" },
+			"expect": {
+				"is_event": true,
+				"starts_at": { "instant": "2026-10-02T14:00:00+09:00" },
+				"ends_at": { "instant": "2026-10-02T15:00:00+09:00" },
+				"task_participant": { "contains": { "member_id": "000000ee-0000-0000-0000-000000000004" } }
+			}
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "파일럿 킥오프 미팅" } }]
+}

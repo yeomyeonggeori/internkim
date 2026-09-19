@@ -1,0 +1,12 @@
+{
+	"name": "crm-organization-add",
+	"instruction": "'견본 반도체'를 거래처로 추가해줘. 고객사이고 중요도는 높음으로.",
+	"assertions": [
+		{
+			"table": "organization",
+			"where": { "name": "견본 반도체" },
+			"expect": { "types": { "contains": "customer" }, "importance": "high", "archived_at": null }
+		}
+	],
+	"cleanup": [{ "delete": "organization", "where": { "name": "견본 반도체" } }]
+}
