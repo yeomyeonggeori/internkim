@@ -8,7 +8,7 @@
 				"member_id": "000000ee-0000-0000-0000-000000000003",
 				"starts_at": { "gte": "2026-10-05T00:00:00Z", "lte": "2026-10-07T00:00:00Z" }
 			},
-			"expect": { "kind": "annual", "status": "requested", "days": 1, "starts_at": { "dayInZone": "2026-10-06" } }
+			"expect": { "kind": "annual", "status": "approved", "days": -1, "starts_at": { "dayInZone": "2026-10-06" } }
 		}
 	],
 	"cleanup": [
