@@ -16,7 +16,7 @@ instruction = base64.b64decode(sys.argv[2]).decode("utf-8")
 settle_timeout_seconds = 720
 
 
-def request(path, body=None, accepted=(200,), timeout=15, origin="http://127.0.0.1:8080", attempts=3):
+def request(path, body=None, accepted=(200,), timeout=60, origin="http://127.0.0.1:8080", attempts=3):
     command = ["curl", "--silent", "--show-error", "--max-time", str(timeout), "--write-out", "\n%{http_code}"]
     if body is not None:
         command += ["-H", "Content-Type: application/json", "-d", "@-"]
