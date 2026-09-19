@@ -9,10 +9,17 @@ export type MessengerDirectory = {
 	memberOfExternal: Map<string, string>;
 	externalsOfMember: Map<string, string[]>;
 	memberOfEmail: Map<string, string>;
+	adminMemberIDs: Set<string>;
 };
 
 type ContactRow = { name: string; messenger: Record<string, string> | null };
-type MemberRow = { id: string; name: string | null; email: string | null; messenger: Record<string, string> | null };
+type MemberRow = {
+	id: string;
+	name: string | null;
+	email: string | null;
+	messenger: Record<string, string> | null;
+	is_admin: boolean;
+};
 
 let loading: Promise<MessengerDirectory> | null = null;
 
@@ -36,7 +43,7 @@ async function readMessengerDirectory(): Promise<MessengerDirectory> {
 
 	const members = await client
 		.from('member')
-		.select('id, name, email, messenger')
+		.select('id, name, email, messenger, is_admin')
 		.neq('status', 'withdrawn')
 		.returns<MemberRow[]>();
 	if (members.error) throw new Error(members.error.message);
@@ -63,7 +70,8 @@ async function readMessengerDirectory(): Promise<MessengerDirectory> {
 		externalsOfMember: externalsByMember(accounts),
 		memberOfEmail: new Map(
 			members.data.filter((member) => member.email).map((member) => [(member.email as string).toLowerCase(), member.id])
-		)
+		),
+		adminMemberIDs: new Set(members.data.filter((member) => member.is_admin).map((member) => member.id))
 	};
 }
 
