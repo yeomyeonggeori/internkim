@@ -66,6 +66,8 @@ struct AttendanceWidgetView: View {
                 Text("Working")
             } else if let location = defaultLocation {
                 Text("Default location · \(location.name)")
+            } else if case let .gone(name) = choice {
+                Text("\(name) gone · Edit Widget")
             } else {
                 Text("No workplace registered")
             }
@@ -103,12 +105,16 @@ struct AttendanceWidgetView: View {
         .foregroundStyle(.secondary)
     }
 
+    private var choice: AttendanceDefaultWorkplace {
+        AttendanceDefaultWorkplace.of(configured: entry.configuredWorkplace, among: entry.locations)
+    }
+
     private var defaultLocation: WorkLocation? {
-        entry.locations.first
+        choice.location
     }
 
     private var otherLocations: [WorkLocation] {
-        Array(entry.locations.dropFirst())
+        AttendanceDefaultWorkplace.others(besides: defaultLocation, among: entry.locations)
     }
 
     @ViewBuilder
@@ -119,6 +125,24 @@ struct AttendanceWidgetView: View {
                     Label("Clock out", systemImage: "arrow.right.from.line").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+            } else if choice.needsChoice {
+                if showingLocations, !otherLocations.isEmpty {
+                    Button(intent: ShowLocationsIntent()) {
+                        HStack(spacing: 4) {
+                            Text("Other location").lineLimit(1)
+                            Image(systemName: "chevron.right")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Text("Choose a workplace in Edit Widget")
+                        .font(.footnote.weight(.medium))
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+                }
             } else {
                 Button(intent: ClockInIntent(location: defaultLocation?.name)) {
                     Group {

@@ -11,6 +11,16 @@
         }
       }
     },
+    "%@ gone · Edit Widget" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 없어짐 · 위젯 편집"
+          }
+        }
+      }
+    },
     "Attendance" : {
       "localizations" : {
         "ko" : {
@@ -37,6 +47,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "오늘로 돌아가기"
+          }
+        }
+      }
+    },
+    "Choose a workplace in Edit Widget" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "위젯 편집에서 근무지를 고르세요"
           }
         }
       }
@@ -107,6 +127,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "기본 장소 · %@"
+          }
+        }
+      }
+    },
+    "Default workplace" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본 근무지"
           }
         }
       }
@@ -207,6 +237,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "근무 중"
+          }
+        }
+      }
+    },
+    "Workplace" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "근무지"
           }
         }
       }

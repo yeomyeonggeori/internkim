@@ -13,7 +13,11 @@ struct AttendanceWidgetBundle: WidgetBundle {
 
 struct AttendanceWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "AttendanceWidget", provider: AttendanceProvider()) { entry in
+        AppIntentConfiguration(
+            kind: "AttendanceWidget",
+            intent: AttendanceWidgetConfiguration.self,
+            provider: AttendanceProvider()
+        ) { entry in
             AttendanceWidgetView(entry: entry)
         }
         .configurationDisplayName("Attendance")
