@@ -156,7 +156,7 @@ func (backend OpenRouterBackend) completeNativeAction(ctx context.Context, apiKe
 		return Response{}, isActionSchema, errorValue
 	}
 	document := backend.chatActionDocument(request, modelName, toolSet.Tools, toolSet.NativeSchemaLint)
-	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
+	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, modelName, request.SessionID, func(ignoredProviders []string) ([]byte, error) {
 		document.Provider = backend.providerRoutingIgnoring(request.RequireParameters, ignoredProviders)
 		return json.Marshal(document)
 	})
@@ -201,7 +201,7 @@ func nativeActionCompletionFromStream(response openAIResponseWithUsage, toolSet 
 	return nativeActionCompletion{}, errors.New("openrouter chat completion response did not include tool_calls")
 }
 
-func (backend OpenRouterBackend) streamWithHedge(ctx context.Context, apiKey string, modelName string, buildRequest func(ignoredProviders []string) ([]byte, error)) (openAIResponseWithUsage, string, error) {
+func (backend OpenRouterBackend) streamWithHedge(ctx context.Context, apiKey string, modelName string, sessionID string, buildRequest func(ignoredProviders []string) ([]byte, error)) (openAIResponseWithUsage, string, error) {
 	ignoredProviders := sharedServingRecord.ignoredProviders(modelName)
 	firstDocument, errorValue := buildRequest(ignoredProviders)
 	if errorValue != nil {
@@ -212,18 +212,18 @@ func (backend OpenRouterBackend) streamWithHedge(ctx context.Context, apiKey str
 	slowSignal := make(chan slowServingError, 1)
 	firstOutcome := make(chan streamOutcome, 1)
 	go func() {
-		response, streamError := backend.streamCompletion(firstContext, apiKey, firstDocument, modelName, slowSignal)
+		response, streamError := backend.streamCompletion(firstContext, apiKey, firstDocument, modelName, sessionID, slowSignal)
 		firstOutcome <- streamOutcome{response: response, errorValue: streamError}
 	}()
 	select {
 	case outcome := <-firstOutcome:
 		return outcome.response, "", outcome.errorValue
 	case slow := <-slowSignal:
-		return backend.raceHedge(ctx, apiKey, modelName, buildRequest, append(ignoredProviders, providerSlug(slow.Provider)), slow, firstOutcome, cancelFirst)
+		return backend.raceHedge(ctx, apiKey, modelName, sessionID, buildRequest, append(ignoredProviders, providerSlug(slow.Provider)), slow, firstOutcome, cancelFirst)
 	}
 }
 
-func (backend OpenRouterBackend) raceHedge(ctx context.Context, apiKey string, modelName string, buildRequest func(ignoredProviders []string) ([]byte, error), ignoredProviders []string, slow slowServingError, firstOutcome <-chan streamOutcome, cancelFirst context.CancelFunc) (openAIResponseWithUsage, string, error) {
+func (backend OpenRouterBackend) raceHedge(ctx context.Context, apiKey string, modelName string, sessionID string, buildRequest func(ignoredProviders []string) ([]byte, error), ignoredProviders []string, slow slowServingError, firstOutcome <-chan streamOutcome, cancelFirst context.CancelFunc) (openAIResponseWithUsage, string, error) {
 	hedgeDocument, errorValue := buildRequest(ignoredProviders)
 	if errorValue != nil {
 		outcome := <-firstOutcome
@@ -234,7 +234,7 @@ func (backend OpenRouterBackend) raceHedge(ctx context.Context, apiKey string, m
 	defer cancelHedge()
 	hedgeOutcome := make(chan streamOutcome, 1)
 	go func() {
-		response, streamError := backend.streamCompletion(hedgeContext, apiKey, hedgeDocument, modelName, nil)
+		response, streamError := backend.streamCompletion(hedgeContext, apiKey, hedgeDocument, modelName, sessionID, nil)
 		hedgeOutcome <- streamOutcome{response: response, errorValue: streamError}
 	}()
 	var lastError error
@@ -321,10 +321,11 @@ func (backend OpenRouterBackend) CompleteChat(ctx context.Context, request ChatR
 	}
 	modelName := backend.resolveModelName(request.Model)
 	chatRequest := openAIChatCompletionRequest(modelName, request)
+	chatRequest.PromptCacheKey = promptCacheKeyOf(request.SessionID)
 	chatRequest.Reasoning = openAIReasoningFor(request.ReasoningEffort)
 	chatRequest.Stream = true
 	chatRequest.Usage = &openAIUsageOptions{Include: true}
-	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, modelName, func(ignoredProviders []string) ([]byte, error) {
+	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, modelName, request.SessionID, func(ignoredProviders []string) ([]byte, error) {
 		chatRequest.Provider = backend.providerRoutingIgnoring(false, ignoredProviders)
 		return json.Marshal(chatRequest)
 	})
@@ -389,6 +390,7 @@ func prefersPromptedStructuredJSON(modelName string) bool {
 
 type openRouterRequest struct {
 	ModelName         string
+	SessionID         string
 	Document          map[string]any
 	RequireParameters bool
 	IsResponseHealed  bool
@@ -434,7 +436,7 @@ func (backend OpenRouterBackend) send(ctx context.Context, apiKey string, reques
 func (backend OpenRouterBackend) sendStreamed(ctx context.Context, apiKey string, request openRouterRequest) (openRouterCompletion, error) {
 	request.Document["stream"] = true
 	request.Document["usage"] = openAIUsageOptions{Include: true}
-	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, request.ModelName, func(ignoredProviders []string) ([]byte, error) {
+	response, servingNote, errorValue := backend.streamWithHedge(ctx, apiKey, request.ModelName, request.SessionID, func(ignoredProviders []string) ([]byte, error) {
 		setProviderRouting(request.Document, backend.providerRoutingIgnoring(request.RequireParameters, ignoredProviders))
 		return json.Marshal(request.Document)
 	})
@@ -478,6 +480,7 @@ func (backend OpenRouterBackend) sendWhole(ctx context.Context, apiKey string, r
 	}
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
+	setSessionAffinityHeader(httpRequest, request.SessionID)
 	backend.setGatewaySecretHeader(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
@@ -567,9 +570,10 @@ func (backend OpenRouterBackend) buildStructuredRequest(request StructuredReques
 		},
 	}
 	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
+	addPromptCacheKey(document, request.SessionID)
 	addResponseHealing(document, request.EnableResponseHealing)
 	addGenerationOptions(document, request.GenerationOptions)
-	return openRouterRequest{ModelName: modelName, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
+	return openRouterRequest{ModelName: modelName, SessionID: request.SessionID, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
 }
 
 func (backend OpenRouterBackend) buildPromptedStructuredRequest(request StructuredRequest, modelName string) openRouterRequest {
@@ -583,9 +587,34 @@ func (backend OpenRouterBackend) buildPromptedStructuredRequest(request Structur
 		"messages": messages,
 	}
 	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
+	addPromptCacheKey(document, request.SessionID)
 	addResponseHealing(document, request.EnableResponseHealing)
 	addGenerationOptions(document, request.GenerationOptions)
-	return openRouterRequest{ModelName: modelName, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
+	return openRouterRequest{ModelName: modelName, SessionID: request.SessionID, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
+}
+
+// One id for every call of a task run pins the run to one upstream provider and
+// names its cache: OpenRouter reads it from the x-session-id header, and falls
+// back to prompt_cache_key when the header is absent
+// (https://openrouter.ai/docs/features/prompt-caching).
+func setSessionAffinityHeader(request *http.Request, sessionID string) {
+	affinityKey := promptCacheKeyOf(sessionID)
+	if affinityKey == "" {
+		return
+	}
+	request.Header.Set("X-Session-Id", affinityKey)
+}
+
+func addPromptCacheKey(document map[string]any, sessionID string) {
+	affinityKey := promptCacheKeyOf(sessionID)
+	if affinityKey == "" {
+		return
+	}
+	document["prompt_cache_key"] = affinityKey
+}
+
+func promptCacheKeyOf(sessionID string) string {
+	return strings.TrimSpace(sessionID)
 }
 
 func addResponseHealing(document map[string]any, isEnabled bool) {
@@ -652,6 +681,7 @@ func fencedJSONContent(content string) (string, bool) {
 
 func (backend OpenRouterBackend) chatActionDocument(request StructuredRequest, modelName string, tools []nativeActionTool, lintResults ...NativeSchemaLintResult) openAIRequest {
 	document := openAIActionToolRequest(modelName, request.Messages, tools, generationOptionsValue(request.GenerationOptions), lintResults...)
+	document.PromptCacheKey = promptCacheKeyOf(request.SessionID)
 	document.Provider = backend.providerRouting(request.RequireParameters)
 	document.Reasoning = openAIReasoningFor(request.ReasoningEffort)
 	document.Stream = true
@@ -671,8 +701,9 @@ func (backend OpenRouterBackend) buildTextRequest(request TextRequest, modelName
 		"messages": openAIMessages(request.Messages),
 	}
 	backend.applyServingPreferences(document, request.RequireParameters, request.ReasoningEffort)
+	addPromptCacheKey(document, request.SessionID)
 	addResponseHealing(document, request.EnableResponseHealing)
-	return openRouterRequest{ModelName: modelName, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
+	return openRouterRequest{ModelName: modelName, SessionID: request.SessionID, Document: document, RequireParameters: request.RequireParameters, IsResponseHealed: request.EnableResponseHealing}
 }
 
 func addGenerationOptions(document map[string]any, options *GenerationOptions) {
