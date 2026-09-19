@@ -73,12 +73,12 @@ type streamOutcome struct {
 	errorValue error
 }
 
-func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey string, requestDocument []byte, modelName string, slowSignal chan<- slowServingError) (openAIResponseWithUsage, error) {
+func (backend OpenRouterBackend) streamCompletion(ctx context.Context, apiKey string, requestDocument []byte, modelName string, sessionID string, slowSignal chan<- slowServingError) (openAIResponseWithUsage, error) {
 	progress := &streamProgress{startedAt: time.Now()}
 	if expectation, isKnown := sharedServingRecord.expectation(modelName); isKnown && slowSignal != nil {
 		go watchServing(ctx, slowSignal, progress, expectation)
 	}
-	response, errorValue := backend.readStream(ctx, apiKey, requestDocument, progress)
+	response, errorValue := backend.readStream(ctx, apiKey, requestDocument, sessionID, progress)
 	provider, elapsed, outputCharacters := progress.snapshot(time.Now())
 	if errorValue == nil {
 		sharedServingRecord.recordSample(modelName, servingSample{Provider: provider, Duration: elapsed, CharactersPerSecond: float64(outputCharacters) / elapsed.Seconds()})
@@ -108,7 +108,7 @@ func watchServing(ctx context.Context, slowSignal chan<- slowServingError, progr
 	}
 }
 
-func (backend OpenRouterBackend) readStream(ctx context.Context, apiKey string, requestDocument []byte, progress *streamProgress) (openAIResponseWithUsage, error) {
+func (backend OpenRouterBackend) readStream(ctx context.Context, apiKey string, requestDocument []byte, sessionID string, progress *streamProgress) (openAIResponseWithUsage, error) {
 	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, backend.BaseURL, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return openAIResponseWithUsage{}, errorValue
@@ -116,6 +116,7 @@ func (backend OpenRouterBackend) readStream(ctx context.Context, apiKey string, 
 	httpRequest.Header.Set("Authorization", "Bearer "+apiKey)
 	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set("Accept", "text/event-stream")
+	setSessionAffinityHeader(httpRequest, sessionID)
 	backend.setGatewaySecretHeader(httpRequest)
 
 	httpResponse, errorValue := backend.HTTPClient.Do(httpRequest)
