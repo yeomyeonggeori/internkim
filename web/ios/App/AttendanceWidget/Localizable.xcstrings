@@ -21,6 +21,36 @@
         }
       }
     },
+    "Back" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "뒤로"
+          }
+        }
+      }
+    },
+    "Back to today" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오늘로 돌아가기"
+          }
+        }
+      }
+    },
+    "Choose another location" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 장소 고르기"
+          }
+        }
+      }
+    },
     "Clock in" : {
       "localizations" : {
         "ko" : {
@@ -121,6 +151,16 @@
         }
       }
     },
+    "Other location" : {
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 장소"
+          }
+        }
+      }
+    },
     "See today's hours, and clock in and out with a tap." : {
       "localizations" : {
         "ko" : {
@@ -151,12 +191,12 @@
         }
       }
     },
-    "Today" : {
+    "Where are you clocking in?" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "오늘"
+            "value" : "어디로 출근할까요?"
           }
         }
       }

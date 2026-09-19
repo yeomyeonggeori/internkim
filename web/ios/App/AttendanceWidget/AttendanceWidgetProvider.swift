@@ -7,6 +7,7 @@ struct AttendanceEntry: TimelineEntry {
     let timeZone: TimeZone
     let failure: String?
     var refusal: String?
+    var isChoosingLocation = false
 
     var workedMinutes: Int {
         today.elapsedMinutes(at: date)
@@ -16,8 +17,16 @@ struct AttendanceEntry: TimelineEntry {
         CompanyClock.time(of: date, in: timeZone)
     }
 
-    func at(_ moment: Date, refusal: String? = nil) -> AttendanceEntry {
-        AttendanceEntry(date: moment, today: today, locations: locations, timeZone: timeZone, failure: failure, refusal: refusal)
+    func at(_ moment: Date, refusal: String? = nil, isChoosingLocation: Bool = false) -> AttendanceEntry {
+        AttendanceEntry(
+            date: moment,
+            today: today,
+            locations: locations,
+            timeZone: timeZone,
+            failure: failure,
+            refusal: refusal,
+            isChoosingLocation: isChoosingLocation
+        )
     }
 
     static func nothingYet(_ date: Date = Date()) -> AttendanceEntry {
@@ -42,6 +51,12 @@ struct AttendanceProvider: TimelineProvider {
             let now = Date()
             let read = await read(at: now)
             var entries: [AttendanceEntry] = []
+
+            if !read.today.isWorking, let closing = AttendanceLocationChoice.closes(after: now) {
+                let choosing = [read.at(now, isChoosingLocation: true), read.at(closing)]
+                completion(Timeline(entries: choosing, policy: .after(now.addingTimeInterval(Self.whileIdle))))
+                return
+            }
 
             if let refusal = AttendanceRefusal.recent(at: now) {
                 entries.append(read.at(now, refusal: refusal))

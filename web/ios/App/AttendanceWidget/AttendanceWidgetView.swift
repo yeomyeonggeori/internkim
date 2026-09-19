@@ -8,7 +8,6 @@ struct AttendanceWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             if let failure = entry.failure {
-                header
                 Spacer(minLength: 0)
                 Text(failure)
                     .font(.footnote)
@@ -16,7 +15,11 @@ struct AttendanceWidgetView: View {
                     .lineLimit(3)
                 Spacer(minLength: 0)
             } else if family == .systemMedium {
-                mediumBody
+                if #available(iOS 17.0, *), entry.isChoosingLocation, !otherLocations.isEmpty {
+                    AttendanceLocationPicker(locations: otherLocations)
+                } else {
+                    mediumBody
+                }
             } else {
                 smallBody
             }
@@ -24,37 +27,33 @@ struct AttendanceWidgetView: View {
         .widgetBackground()
     }
 
-    private var header: some View {
-        Label("Today", systemImage: "bolt")
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-    }
-
     private var smallBody: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            header
-            WorkedTime(entry: entry, size: 19)
-            DayBar(entry: entry)
-            statusLine
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                WorkedTime(entry: entry, size: 22)
+                DayBar(entry: entry)
+                statusLine
+            }
+            .frame(maxHeight: .infinity)
             actionButtons(showingLocations: false)
         }
     }
 
     private var mediumBody: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 7) {
-                header
-                WorkedTime(entry: entry, size: 21)
-                whereabouts
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    WorkedTime(entry: entry, size: 24)
+                    Spacer(minLength: 0)
+                    whereabouts
+                }
                 DayBar(entry: entry)
                 statusLine
-                Spacer(minLength: 0)
             }
-            VStack(spacing: 5) {
+            .frame(maxHeight: .infinity)
+            HStack(spacing: 8) {
                 actionButtons(showingLocations: true)
             }
-            .frame(width: 124)
         }
     }
 
@@ -108,6 +107,10 @@ struct AttendanceWidgetView: View {
         entry.locations.first
     }
 
+    private var otherLocations: [WorkLocation] {
+        Array(entry.locations.dropFirst())
+    }
+
     @ViewBuilder
     private func actionButtons(showingLocations: Bool) -> some View {
         if #available(iOS 17.0, *) {
@@ -125,23 +128,20 @@ struct AttendanceWidgetView: View {
                             Label("Clock in", systemImage: "arrow.right.to.line")
                         }
                     }
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
 
-                if showingLocations {
-                    ForEach(entry.locations.dropFirst().prefix(2), id: \.name) { location in
-                        Button(intent: ClockInIntent(location: location.name)) {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color(hex: location.color) ?? .secondary)
-                                    .frame(width: 7, height: 7)
-                                Text(location.name).lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity)
+                if showingLocations, !otherLocations.isEmpty {
+                    Button(intent: ShowLocationsIntent()) {
+                        HStack(spacing: 4) {
+                            Text("Other location").lineLimit(1)
+                            Image(systemName: "chevron.right")
                         }
-                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.bordered)
                 }
             }
         } else {
