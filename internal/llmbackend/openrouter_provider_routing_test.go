@@ -2,7 +2,6 @@ package llmbackend
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 )
 
@@ -53,7 +52,7 @@ func everyWayOfAsking(backend OpenRouterBackend, requireParameters bool, reasoni
 // so they say it once: a request that skips the preference is served by whoever
 // OpenRouter picks, silently and only sometimes.
 func TestEveryWayOfAskingCarriesTheSameServingPreferences(t *testing.T) {
-	backend := OpenRouterBackend{ProviderOrder: []string{"modal", "baseten"}, ProviderSort: "throughput"}
+	backend := OpenRouterBackend{ProviderSort: "throughput"}
 	for name, body := range everyWayOfAsking(backend, true, "low") {
 		routing := routingOf(t, body)
 		if routing["require_parameters"] != true {
@@ -65,8 +64,8 @@ func TestEveryWayOfAskingCarriesTheSameServingPreferences(t *testing.T) {
 		if routing["sort"] != "throughput" {
 			t.Errorf("%s left the rest of the providers in price order: %v", name, routing)
 		}
-		if !reflect.DeepEqual(routing["order"], []any{"modal", "baseten"}) {
-			t.Errorf("%s did not ask for the preferred providers first: %v", name, routing)
+		if _, isOrdered := routing["order"]; isOrdered {
+			t.Errorf("%s named providers by hand instead of leaving the choice to throughput: %v", name, routing)
 		}
 		reasoning, _ := documentOf(t, body)["reasoning"].(map[string]any)
 		if reasoning["effort"] != "low" {
