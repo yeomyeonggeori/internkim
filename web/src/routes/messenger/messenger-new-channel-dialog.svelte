@@ -11,6 +11,7 @@
 	import * as ToggleGroup from '$lib/components/ui/toggle-group';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { seatCompanyAdminsAsOwners } from '$lib/messenger/channel-admin-owners';
 	import { fetchChannelCandidates, type ChannelCandidate } from '$lib/messenger/channel-candidates';
 	import { createChannel, type NewChannel } from '$lib/messenger/messenger-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
@@ -66,6 +67,13 @@
 				visibility,
 				memberExternalIDs: invited.map((candidate) => candidate.externalID)
 			});
+			let unseatedAdminNames: string[] = [];
+			try {
+				unseatedAdminNames = await seatCompanyAdminsAsOwners(created.channel.id);
+			} catch (refusal) {
+				console.warn('the company administrators were not seated as owners', refusal);
+				toast.warning(text.adminOwnersNotSeatedAtAll);
+			}
 			open = false;
 			onCreated(created.channel.id);
 			const uninvitedNames = invited
@@ -73,6 +81,9 @@
 				.map((candidate) => displayPersonName(candidate.name));
 			if (uninvitedNames.length > 0) {
 				toast.warning(text.inviteFailed.replace('{names}', uninvitedNames.join(', ')));
+			}
+			if (unseatedAdminNames.length > 0) {
+				toast.warning(text.adminOwnersNotSeated.replace('{names}', unseatedAdminNames.join(', ')));
 			}
 		} catch (failure) {
 			errorMessage = failure instanceof Error ? failure.message : text.createChannelFailed;
