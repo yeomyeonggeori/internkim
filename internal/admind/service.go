@@ -31,6 +31,7 @@ type Service struct {
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
 	mutex                      sync.Mutex
+	adminSeating               sync.Mutex
 	centralPlaneOnce           sync.Once
 	siteScaffoldOnce           sync.Once
 	siteScaffoldDocuments      []siteScaffoldDocument
@@ -162,6 +163,7 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startBuzzAccountLinkSync(ctx)
 	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)
+	service.startAdminChannelSeatSync(ctx)
 	service.ensureBuzzRelayTerminator()
 	service.warnWhenFontAssetsMissing()
 }
