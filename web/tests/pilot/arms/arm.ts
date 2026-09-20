@@ -9,11 +9,23 @@ export interface ModelCall {
 	generationID?: string;
 }
 
+export type HarnessStatus = 'completed' | 'failed' | 'timed_out' | 'waiting_user_input';
+
+export interface DeliveredFile {
+	filename: string;
+	contentType: string;
+	sizeBytes: number;
+	devicePath: string;
+	isZipContainer: boolean | null;
+}
+
 export interface HarnessOutcome {
-	status: 'completed' | 'failed' | 'timed_out';
+	status: HarnessStatus;
+	reachedTheLoop: boolean;
 	turns: number;
 	toolCalls: string[];
 	reply: string;
+	deliveredFiles: DeliveredFile[];
 	calls: ModelCall[];
 }
 

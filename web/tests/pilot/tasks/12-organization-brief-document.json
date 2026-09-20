@@ -1,0 +1,13 @@
+{
+	"name": "organization-brief-document",
+	"instruction": "샘플 상사 현황을 워드 보고서 한 장으로 정리해줘. 제목, 개요, 열려 있는 거래를 담은 표, 다음 할 일 순서로 쓰고, 표에는 거래 금액과 단계, 우리 쪽 담당자와 상대 담당자가 들어가야 해. 끝나면 '샘플 상사 현황 보고서' 업무를 완료로 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".docx", "minBytes": 5000 } },
+		{
+			"table": "task",
+			"where": { "title": "샘플 상사 현황 보고서" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "샘플 상사 현황 보고서" } }]
+}

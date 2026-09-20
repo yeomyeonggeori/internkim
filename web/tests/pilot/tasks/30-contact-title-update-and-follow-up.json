@@ -1,0 +1,24 @@
+{
+	"name": "contact-title-update-and-follow-up",
+	"instruction": "김샘플 직함이 구매 본부장으로 바뀌었어. 담당자 정보 수정하고, '샘플 상사 담당자 직함 확인' 업무도 하나 잡아줘.",
+	"assertions": [
+		{
+			"table": "contact",
+			"where": { "id": "000000c0-0000-0000-0000-000000000003" },
+			"expect": { "title": "구매 본부장" }
+		},
+		{
+			"table": "task",
+			"where": { "title": "샘플 상사 담당자 직함 확인" },
+			"expect": { "status": "planned" }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "contact",
+			"where": { "id": "000000c0-0000-0000-0000-000000000003" },
+			"set": { "title": "구매 팀장" }
+		},
+		{ "delete": "task", "where": { "title": "샘플 상사 담당자 직함 확인" } }
+	]
+}

@@ -1,0 +1,20 @@
+{
+	"name": "weekly-recurring-event",
+	"instruction": "2026년 10월 한 달 동안 매주 화요일 오전 10시부터 30분씩 '주간 연구 싱크' 일정을 잡아줘. 최견본도 참석해.",
+	"assertions": [
+		{
+			"table": "task",
+			"select": "*,task_participant(member_id)",
+			"where": {
+				"title": "주간 연구 싱크",
+				"starts_at": { "gte": "2026-10-01T00:00:00Z", "lte": "2026-11-01T00:00:00Z" }
+			},
+			"rowCount": 4,
+			"expect": {
+				"is_event": true,
+				"task_participant": { "contains": { "member_id": "000000ee-0000-0000-0000-000000000004" } }
+			}
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "주간 연구 싱크" } }]
+}

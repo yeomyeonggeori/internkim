@@ -1,0 +1,15 @@
+{
+	"name": "crm-activity-discovery",
+	"instruction": "예시 벤처스 윤예시 심사역이랑 방금 통화했어. 'IR 자료 검토 일정 확인'으로 활동 기록 남겨줘.",
+	"assertions": [
+		{
+			"table": "task",
+			"where": { "title": "IR 자료 검토 일정 확인" },
+			"expect": {
+				"organization_id": "000000a0-0000-0000-0000-000000000005",
+				"contact_id": "000000c0-0000-0000-0000-000000000005"
+			}
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "IR 자료 검토 일정 확인" } }]
+}

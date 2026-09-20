@@ -1,0 +1,13 @@
+{
+	"name": "contact-question-and-follow-up",
+	"instruction": "견본 물산 쪽 우리 창구가 누구고 직함이 뭔지 알려주고, 그 사람한테 연락할 '견본 물산 재계약 문의' 업무도 하나 잡아줘.",
+	"assertions": [
+		{ "replyMentions": ["정견본", "재무 이사"] },
+		{
+			"table": "task",
+			"where": { "title": "견본 물산 재계약 문의" },
+			"expect": { "status": "planned" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "견본 물산 재계약 문의" } }]
+}

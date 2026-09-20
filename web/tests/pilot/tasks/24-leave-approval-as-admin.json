@@ -1,0 +1,19 @@
+{
+	"name": "leave-approval-as-admin",
+	"requesterEmail": "member1@example.com",
+	"instruction": "박예시가 올린 휴가 신청 승인해줘.",
+	"assertions": [
+		{
+			"table": "leave",
+			"where": { "member_id": "000000ee-0000-0000-0000-000000000003", "days": -2 },
+			"expect": { "status": "approved", "kind": "연차" }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "leave",
+			"where": { "member_id": "000000ee-0000-0000-0000-000000000003", "days": -2 },
+			"set": { "status": "requested" }
+		}
+	]
+}

@@ -1,0 +1,13 @@
+{
+	"name": "opportunity-owner-question",
+	"instruction": "'연간 유지보수 계약' 담당이 누구고 어느 거래처 건인지 알려주고, '유지보수 계약 진행 확인' 업무를 하나 등록해줘.",
+	"assertions": [
+		{ "replyMentions": ["이샘플", "샘플 상사"] },
+		{
+			"table": "task",
+			"where": { "title": "유지보수 계약 진행 확인" },
+			"expect": { "status": "planned" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "유지보수 계약 진행 확인" } }]
+}
