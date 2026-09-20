@@ -630,7 +630,7 @@
 	/>
 {/snippet}
 
-{#snippet messageBody(message: ChannelMessage, nameWidthPixels: number, isToolbarShown: boolean, toolbar: Snippet)}
+{#snippet messageBody(message: ChannelMessage, nameWidthPixels: number, hasFooter: boolean, isToolbarShown: boolean, toolbar: Snippet)}
 	{@const attachments = openableAttachments(message.attachments ?? [], openableAddressOf)}
 	{@const bodyText = messageTextBeside(
 		message.text,
@@ -679,7 +679,7 @@
 			{#if !bodyText && reactions.length > 0}
 				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{#if !bodyText}{@render timeStamp(message, isToolbarShown, toolbar)}{/if}
+			{#if !bodyText}{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}{/if}
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
@@ -732,7 +732,7 @@
 			{#if !bodyText && reactions.length > 0}
 				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{#if !bodyText}{@render timeStamp(message, isToolbarShown, toolbar)}{/if}
+			{#if !bodyText}{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}{/if}
 		</div>
 	{/if}
 	{#if message.isError}
@@ -763,7 +763,7 @@
 					</Popover.Content>
 				</Popover.Root>
 			</Bubble.Reactions>
-			{@render timeStamp(message, isToolbarShown, toolbar)}
+			{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}
 		</Bubble.Root>
 	{:else if bodyText}
 		<Bubble.Root
@@ -782,7 +782,7 @@
 			{#if reactions.length > 0}
 				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{@render timeStamp(message, isToolbarShown, toolbar)}
+			{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}
 		</Bubble.Root>
 		{#if firstLinkIn(bodyText)}
 			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
@@ -804,7 +804,7 @@
 	{/if}
 {/snippet}
 
-{#snippet timeStamp(message: ChannelMessage, isToolbarShown: boolean, toolbar: Snippet)}
+{#snippet timeStamp(message: ChannelMessage, hasFooter: boolean, isToolbarShown: boolean, toolbar: Snippet)}
 	<div
 		class="pointer-events-none absolute bottom-0 left-full ml-1.5 flex items-end gap-1.5 group-data-[align=end]/message:right-full group-data-[align=end]/message:left-auto group-data-[align=end]/message:mr-1.5 group-data-[align=end]/message:ml-0 group-data-[align=end]/message:flex-row-reverse @max-[56rem]/conversation:contents"
 	>
@@ -815,7 +815,11 @@
 		</time>
 		{#if isToolbarShown}
 			<div
-				class="bg-background pointer-events-auto z-20 rounded-lg border p-0.5 shadow-sm @max-[56rem]/conversation:absolute @max-[56rem]/conversation:top-full @max-[56rem]/conversation:left-0 @max-[56rem]/conversation:mt-1 @max-[56rem]/conversation:group-data-[align=end]/message:right-0 @max-[56rem]/conversation:group-data-[align=end]/message:left-auto"
+				class={`bg-background pointer-events-auto z-20 rounded-lg border p-0.5 shadow-sm @max-[56rem]/conversation:absolute @max-[56rem]/conversation:left-0 @max-[56rem]/conversation:group-data-[align=end]/message:right-0 @max-[56rem]/conversation:group-data-[align=end]/message:left-auto ${
+					hasFooter
+						? '@max-[56rem]/conversation:bottom-full @max-[56rem]/conversation:mb-1'
+						: '@max-[56rem]/conversation:top-full @max-[56rem]/conversation:mt-1'
+				}`}
 			>
 				{@render toolbar()}
 			</div>
@@ -823,17 +827,16 @@
 	</div>
 {/snippet}
 
-{#snippet threadChip(message: ChannelMessage)}
-	{#if message.thread}
-		<div class="group-data-[align=end]/message:self-end flex w-fit items-center gap-1.5">
-			<CornerDownRightIcon class="text-border size-4 shrink-0" />
-			<button
-				type="button"
-				onclick={() => openThread(message)}
-				class="text-muted-foreground hover:bg-muted/60 hover:text-foreground flex w-fit items-center gap-2 rounded-full border py-1 pe-3 ps-1 text-xs transition-colors"
-			>
+{#snippet threadChip(message: ChannelMessage, thread: ThreadSummary)}
+	<div class="group-data-[align=end]/message:self-end flex w-fit items-center gap-1.5">
+		<CornerDownRightIcon class="text-border size-4 shrink-0" />
+		<button
+			type="button"
+			onclick={() => openThread(message)}
+			class="text-muted-foreground hover:bg-muted/60 hover:text-foreground flex w-fit items-center gap-2 rounded-full border py-1 pe-3 ps-1 text-xs transition-colors"
+		>
 			<PersonAvatarStack
-				people={message.thread.participants.map((participant) => ({
+				people={thread.participants.map((participant) => ({
 					name: participant.name,
 					email: participant.email,
 					seed: participant.email || participant.id || participant.name,
@@ -844,11 +847,10 @@
 				class="-space-x-1.5"
 				avatarClass="ring-background size-5 ring-2"
 			/>
-			<span class="text-primary font-medium">{message.thread.replyCount}{text.repliesSuffix}</span>
-			<span>{relativeTime(message.thread.lastReplyAt)}</span>
-			</button>
-		</div>
-	{/if}
+			<span class="text-primary font-medium">{thread.replyCount}{text.repliesSuffix}</span>
+			<span>{relativeTime(thread.lastReplyAt)}</span>
+		</button>
+	</div>
 {/snippet}
 
 {#snippet senderAvatar(sender: ChannelParticipant)}
@@ -866,6 +868,7 @@
 {/snippet}
 
 {#snippet messageRow(message: ChannelMessage, startsGroup: boolean, endsGroup: boolean, isInTimeline: boolean)}
+	{@const replyChip = isInTimeline ? message.thread : undefined}
 	<MessageRow
 		{message}
 		mine={isMine(message)}
@@ -876,7 +879,7 @@
 		canReply={isInTimeline && !message.threadRootId}
 		canDelete={isMine(message) || canModerate}
 		isSettled={!message.id.startsWith('pending-')}
-		hasFooter={isInTimeline && message.thread !== undefined}
+		hasFooter={replyChip !== undefined}
 		copyable={whatToCopy(
 			messageTextBeside(
 				message.text,
@@ -892,13 +895,13 @@
 		{#snippet avatar()}
 			{@render senderAvatar(message.sender)}
 		{/snippet}
-		{#snippet children({ nameWidthPixels, isToolbarShown, toolbar })}
+		{#snippet children({ nameWidthPixels, hasFooter, isToolbarShown, toolbar })}
 			<Bubble.Group class="w-full">
-				{@render messageBody(message, nameWidthPixels, isToolbarShown, toolbar)}
+				{@render messageBody(message, nameWidthPixels, hasFooter, isToolbarShown, toolbar)}
 			</Bubble.Group>
 		{/snippet}
 		{#snippet footer()}
-			{#if isInTimeline}{@render threadChip(message)}{/if}
+			{#if replyChip}{@render threadChip(message, replyChip)}{/if}
 		{/snippet}
 	</MessageRow>
 {/snippet}

@@ -50,7 +50,7 @@
 		onDelete: () => void;
 		onReact: (glyph: string) => void;
 		avatar: Snippet;
-		children: Snippet<[{ nameWidthPixels: number; isToolbarShown: boolean; toolbar: Snippet }]>;
+		children: Snippet<[{ nameWidthPixels: number; hasFooter: boolean; isToolbarShown: boolean; toolbar: Snippet }]>;
 		footer: Snippet;
 	} = $props();
 
@@ -158,7 +158,7 @@
 							<span bind:clientWidth={measuredNameWidthPixels}>{senderName}</span>
 						</Message.Header>
 					{/if}
-					{@render children({ nameWidthPixels: hasHeader ? measuredNameWidthPixels : 0, isToolbarShown, toolbar })}
+					{@render children({ nameWidthPixels: hasHeader ? measuredNameWidthPixels : 0, hasFooter, isToolbarShown, toolbar })}
 					{#if hasFooter}
 						<Message.Footer class="px-0">{@render footer()}</Message.Footer>
 					{/if}
