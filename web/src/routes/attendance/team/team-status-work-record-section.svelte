@@ -243,8 +243,6 @@
 									startDisabled={!workRecordEditor.isEventEditable(segment.startEventID)}
 									endDisabled={!workRecordEditor.isEventEditable(segment.endEventID)}
 									locationDisabled={!workRecordEditor.isSegmentLocationEditable(segment)}
-									startMaximumTime={workRecordEditor.maximumTimeFor(startDraft.localDate)}
-									endMaximumTime={workRecordEditor.maximumTimeFor(endDraft?.localDate)}
 									{text}
 									onStartTimeChange={(value) =>
 										workRecordEditor.updateEventTime(segment.startEventID, value)}

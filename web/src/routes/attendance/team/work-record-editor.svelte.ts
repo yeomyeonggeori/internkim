@@ -4,11 +4,7 @@ import type {
 } from '$lib/attendance/attendance-write';
 import type { UpdateAttendanceEventRequest } from '../attendance-api';
 import type { AttendanceEvent, AttendanceSummary } from '../attendance-context.svelte';
-import {
-	fallbackFutureAttendanceLocalTime,
-	timeInTimeZone,
-	todayDateInTimeZone
-} from '../shared/attendance-date';
+import { fallbackFutureAttendanceLocalTime } from '../shared/attendance-date';
 import { localTimeMinutes } from '../shared/day-timeline';
 import {
 	attendanceEventsWriteOutcome,
@@ -162,13 +158,6 @@ export class WorkRecordEditorState {
 
 	durationMinutes(startTime: string, endTime: string): number {
 		return Math.max(0, localTimeMinutes(endTime) - localTimeMinutes(startTime));
-	}
-
-	maximumTimeFor(localDate: string | undefined): string | undefined {
-		const summary = this.dependencies.getSummary();
-		if (!summary || !localDate || !Number.isFinite(this.currentTime.getTime())) return undefined;
-		if (localDate !== todayDateInTimeZone(summary.timeZone, this.currentTime)) return undefined;
-		return timeInTimeZone(summary.timeZone, this.currentTime);
 	}
 
 	updateEventTime(eventID: string | undefined, localTime: string): string {
