@@ -415,9 +415,6 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 // The member and circle syncs cover the rooms the company runs, but the company
 // account also stands in rooms it only mirrored — private rooms whose members
 // it seated. It leaves those the same way: any admin standing in the room is
-// raised to owner first, and a room with no admin in it keeps the account,
-// because raising anybody else and adding the agent would both widen who
-// reads a private room.
 func (service *Service) retireBootstrapFromRemainingRooms(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, seed string) {
 	bootstrapSecret := buzzidentity.Secret(seed, buzzidentity.BootstrapSubject)
 	bootstrapPubkey, errorValue := buzzPublicKey(bootstrapSecret)
