@@ -63,6 +63,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "message_send", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_update", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_delete", Handler: Service.invokePlatformMessageTool},
+	{ToolName: "mail_mailbox_list", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_list", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_search", Handler: Service.invokeMailTool},
 	{ToolName: "mail_message_read", Handler: Service.invokeMailTool},
