@@ -74,7 +74,7 @@
 				</Button>
 			{/snippet}
 		</Popover.Trigger>
-		<Popover.Content class="z-[52] w-[var(--bits-popover-anchor-width)] p-0" align="start" side="top">
+		<Popover.Content class="w-[var(--bits-popover-anchor-width)] p-0" align="start" side="top">
 			<Command.Root>
 				<Command.Input placeholder={text.participantsPlaceholder} />
 				<Command.List>
