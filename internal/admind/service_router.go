@@ -81,6 +81,7 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/buzz-repair-orphans", service.handleBuzzRepairOrphans)
 	multiplexer.HandleFunc("/agent/api/buzz-stranger-members", service.handleBuzzStrangerMembers)
 	multiplexer.HandleFunc("/agent/api/buzz-sweep-seats", service.handleBuzzSweepSeats)
+	multiplexer.HandleFunc("/agent/api/buzz-seat-admins", service.handleBuzzSeatAdmins)
 	multiplexer.HandleFunc("/agent/api/buzz-ghost-rooms", service.handleBuzzGhostRooms)
 	multiplexer.HandleFunc("/agent/api/buzz-identity-report", service.handleBuzzIdentityReport)
 	multiplexer.HandleFunc("/agent/api/person-pictures", service.handlePersonPictures)
