@@ -827,17 +827,16 @@
 	</div>
 {/snippet}
 
-{#snippet threadChip(message: ChannelMessage)}
-	{#if message.thread}
-		<div class="group-data-[align=end]/message:self-end flex w-fit items-center gap-1.5">
-			<CornerDownRightIcon class="text-border size-4 shrink-0" />
-			<button
-				type="button"
-				onclick={() => openThread(message)}
-				class="text-muted-foreground hover:bg-muted/60 hover:text-foreground flex w-fit items-center gap-2 rounded-full border py-1 pe-3 ps-1 text-xs transition-colors"
-			>
+{#snippet threadChip(message: ChannelMessage, thread: ThreadSummary)}
+	<div class="group-data-[align=end]/message:self-end flex w-fit items-center gap-1.5">
+		<CornerDownRightIcon class="text-border size-4 shrink-0" />
+		<button
+			type="button"
+			onclick={() => openThread(message)}
+			class="text-muted-foreground hover:bg-muted/60 hover:text-foreground flex w-fit items-center gap-2 rounded-full border py-1 pe-3 ps-1 text-xs transition-colors"
+		>
 			<PersonAvatarStack
-				people={message.thread.participants.map((participant) => ({
+				people={thread.participants.map((participant) => ({
 					name: participant.name,
 					email: participant.email,
 					seed: participant.email || participant.id || participant.name,
@@ -848,11 +847,10 @@
 				class="-space-x-1.5"
 				avatarClass="ring-background size-5 ring-2"
 			/>
-			<span class="text-primary font-medium">{message.thread.replyCount}{text.repliesSuffix}</span>
-			<span>{relativeTime(message.thread.lastReplyAt)}</span>
-			</button>
-		</div>
-	{/if}
+			<span class="text-primary font-medium">{thread.replyCount}{text.repliesSuffix}</span>
+			<span>{relativeTime(thread.lastReplyAt)}</span>
+		</button>
+	</div>
 {/snippet}
 
 {#snippet senderAvatar(sender: ChannelParticipant)}
@@ -870,6 +868,7 @@
 {/snippet}
 
 {#snippet messageRow(message: ChannelMessage, startsGroup: boolean, endsGroup: boolean, isInTimeline: boolean)}
+	{@const replyChip = isInTimeline ? message.thread : undefined}
 	<MessageRow
 		{message}
 		mine={isMine(message)}
@@ -880,7 +879,7 @@
 		canReply={isInTimeline && !message.threadRootId}
 		canDelete={isMine(message) || canModerate}
 		isSettled={!message.id.startsWith('pending-')}
-		hasFooter={isInTimeline && message.thread !== undefined}
+		hasFooter={replyChip !== undefined}
 		copyable={whatToCopy(
 			messageTextBeside(
 				message.text,
@@ -902,7 +901,7 @@
 			</Bubble.Group>
 		{/snippet}
 		{#snippet footer()}
-			{#if isInTimeline}{@render threadChip(message)}{/if}
+			{#if replyChip}{@render threadChip(message, replyChip)}{/if}
 		{/snippet}
 	</MessageRow>
 {/snippet}
