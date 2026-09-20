@@ -14,21 +14,21 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 | 도구 | 하는 일 |
 |---|---|
 | `read` | 워크스페이스 파일이나 대화 첨부를 읽음. 텍스트는 텍스트로, 문서는 변환된 Markdown으로, 이미지는 모델이 보는 이미지로 |
-| `file_write` | 텍스트 파일 하나를 만들거나 덮어씀 |
-| `file_edit` | 정확한 텍스트 치환들을 원자적 편집 하나로 적용 |
-| `shell` | 워크스페이스에서 명령 하나를 실행 |
+| `write` | 텍스트 파일 하나를 만들거나 덮어씀 |
+| `edit` | 정확한 텍스트 치환들을 원자적 편집 하나로 적용 |
+| `bash` | 워크스페이스에서 명령 하나를 실행 |
 
-이 넷이 실제 작업입니다. 모델 커널의 나머지 둘인 `plan`과 `find_tools`는
+이 넷이 실제 작업입니다. 모델 커널의 나머지 둘인 `plan`과 `equip`은
 파일을 건드리지 않습니다. `file_read`, `file_preview`,
 `file_delete`, `file_deliver`는 런타임이 호출하는 내부 도구로 등록되어 있고
 모델이 고르는 이름이 아닙니다. 그래서 파일을 지우는 일은 요청자 본인의 권한
-아래 도는 평범한 `shell` 명령입니다.
+아래 도는 평범한 `bash` 명령입니다.
 
 `.dependency/blueclaw/internal/agentruntime/file_tools.go`와
 `shell_tools.go`에 등록되고, 이름은
 `.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`에
 있습니다. 파일 도구는 별도 코드 경로가 아닙니다. 각자 셸 명령을 만들어
-`shell`과 같은 요청자 프리미티브를 타고(`internal/agentruntime/requester_shell.go`),
+`bash`와 같은 요청자 프리미티브를 타고(`internal/agentruntime/requester_shell.go`),
 요청자 본인의 `$HOME`에서 시작하므로 틸드 확장, 글롭, 상대 경로가 셸에서와
 똑같이 동작합니다.
 
@@ -79,8 +79,8 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 ## 완성물이 떠나는 길 [#delivery]
 
 ```
-file_write   tmp/<slug>/…          초안과 빌드 입력
-shell        cwd=tmp/<slug>        빌드, 렌더링, 검증
+write        tmp/<slug>/…          초안과 빌드 입력
+bash         cwd=tmp/<slug>        빌드, 렌더링, 검증
              artifacts/<slug>/…    완성물이 여기로 옮겨짐
 reply        attachments           런타임이 받는 답장에 붙여 줌
 ```

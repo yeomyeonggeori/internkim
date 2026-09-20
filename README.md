@@ -11,8 +11,8 @@ runs tools as the person who asked, and owns approval and the task ledger.
 that runs inside it. This repository is the layer that puts those two on a
 machine and operates them.
 
-The model's kernel is `read`, `file_write`, `file_edit`, `shell`, `plan` and
-`find_tools`, and it speaks through a single `reply` that carries the words,
+The model's kernel is `read`, `write`, `edit`, `bash`, `plan` and
+`equip`, and it speaks through a single `reply` that carries the words,
 the attachments and any question it needs answered. Everything else a company
 publishes reaches it as a shortlist settled once per plan step.
 
@@ -135,7 +135,7 @@ that requester.
 
 - A person becomes a stable `bc_person_<shortID>` Linux user.
 - A circle becomes a `bc_circle_<circleID>` group.
-- `shell`, terminal sessions, file reads and writes, artifact delivery,
+- `bash`, terminal sessions, file reads and writes, artifact delivery,
   user-authored skills and tools, dependency install scripts and package
   lifecycle scripts all run with the requester's unprivileged UID, GID and
   supplementary groups.
@@ -166,7 +166,7 @@ Durable output is promoted explicitly.
 
 ```mermaid
 flowchart LR
-  Draft["file_write tmp/<slug>/source"] --> Build["shell cwd=tmp/<slug>"]
+  Draft["write tmp/<slug>/source"] --> Build["bash cwd=tmp/<slug>"]
   Build --> Output["tmp/<slug>/build/*"]
   Output --> Promote["file.promote to artifacts/<slug>/"]
   Promote --> Attach["file.attach the promoted artifact"]

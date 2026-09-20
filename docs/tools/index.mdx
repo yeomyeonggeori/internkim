@@ -53,7 +53,7 @@ never decides.
 | Class | The mark it leaves | Examples |
 |---|---|---|
 | `read` | none | `task_list`, `message_search`, `leave_balance` |
-| `workspace_write` | a company record created or changed | `task_add`, `event_update`, `file_write` |
+| `workspace_write` | a company record created or changed | `task_add`, `event_update`, `write` |
 | `external_write` | state on the messenger changed | `message_update` |
 | `external_send` | a message reaches people | `message_send` |
 | `site_publish` | a URL goes live | `site_serve` |
@@ -67,7 +67,7 @@ Whether a call pauses for your approval is descriptor metadata
 `.dependency/blueclaw/internal/approvalgate` before the call executes. The
 [catalog](/docs/tools/catalog) marks every tool the flag is set on, so read it
 there rather than from a list written by hand. Among workspace tools,
-`file_delete` is gated, and `shell` gates itself per call: the agent sets
+`file_delete` is gated, and `bash` gates itself per call: the agent sets
 `approvalRequired` on a command it judges consequential.
 
 One exemption: a `message_send` whose `targetType` is `currentThread` or

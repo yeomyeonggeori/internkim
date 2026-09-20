@@ -66,7 +66,7 @@ leaf directories enforce privacy and membership.
   built-in admin/capability tools for approved admin actions.
 - Do not change ownership, chmod around denials, copy protected paths into shared
   locations, or use dependency caches to move private/source files.
-- Use bundled skill scripts, `shell`, and `file_deliver` for
+- Use bundled skill scripts, `bash`, and `file_deliver` for
   user-visible artifacts. If a built-in capability reads through a grant, do not leave the
   privileged source file in a terminal-visible path.
 - Prefer `rg` when searching text or files.

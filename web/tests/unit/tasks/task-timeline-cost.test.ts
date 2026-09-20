@@ -10,7 +10,7 @@ describe('summarizeTimeline cost and cache accounting', () => {
 		const events: TaskEvent[] = [
 			llmCallEvent({ totalTokens: 12159, cachedPromptTokens: 128, costUSD: 0.0155 }),
 			llmCallEvent({ totalTokens: 800, cachedPromptTokens: 600, costUSD: 0.0009 }),
-			{ name: 'tool.shell.result', body: '{}' }
+			{ name: 'tool.bash.result', body: '{}' }
 		];
 
 		const summary = summarizeTimeline(events);

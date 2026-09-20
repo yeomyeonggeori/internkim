@@ -64,7 +64,7 @@ class CollisionsBetweenTest(unittest.TestCase):
 
     def test_a_name_neither_native_side_serves_is_not_a_collision(self):
         collisions = verify_tool_name_collisions.collisions_between(
-            {"task_add"}, {"memory_search"}, {"shell"}
+            {"task_add"}, {"memory_search"}, {"bash"}
         )
 
         self.assertEqual(collisions, [])
