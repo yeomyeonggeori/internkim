@@ -272,6 +272,14 @@ async function findingOf(record: RecordAccess, assertion: Assertion, outcome: Ju
 
 export async function judge(record: RecordAccess, assertions: Assertion[], outcome: JudgedOutcome): Promise<Judgement> {
 	const findings: Finding[] = [];
+	if (outcome.status === 'failed' || outcome.status === 'timed_out') {
+		findings.push({
+			subject: 'runStatus',
+			rowCount: 0,
+			mismatches: [`the run ended with status ${outcome.status}`],
+			notes: [],
+		});
+	}
 	for (const assertion of assertions) findings.push(await findingOf(record, assertion, outcome));
 	return { passed: findings.every((finding) => finding.mismatches.length === 0), findings };
 }
