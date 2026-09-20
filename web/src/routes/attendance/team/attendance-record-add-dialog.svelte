@@ -86,7 +86,6 @@
 					<Input
 						type="time"
 						value={addition.startTime}
-						max={addition.maximumTime}
 						disabled={addition.isSaving}
 						oninput={updateStartTimeInput}
 					/>
@@ -96,7 +95,6 @@
 					<Input
 						type="time"
 						value={addition.endTime}
-						max={addition.maximumTime}
 						disabled={addition.isSaving}
 						oninput={updateEndTimeInput}
 					/>
