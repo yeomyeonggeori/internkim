@@ -13,6 +13,10 @@ Revisions this table was derived from: this worktree at
 `protocolVersion` `0.4.0` (`pkg/capabilityprotocol/generated/capability-tools.json`,
 matching `internkim-plugin`'s `plugin.json` version).
 
+"Default tool contract" below was re-derived on 2026-09-21 at this worktree
+`8a9b7dae5`, `.dependency/blueclaw` `8857d92a` and Bluecollar `bc91eee6`. The
+rest of the table still stands on the revisions above.
+
 ## Default tool contract
 
 Three layers compose what a model actually sees.
@@ -21,52 +25,69 @@ Three layers compose what a model actually sees.
 InternKim (`.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`,
 `KernelToolNames()`): `shell`, `read`, `file_read`, `file_write`, `file_edit`,
 `file_delete`, `file_preview`, `file_deliver`, `skill_search`, `image_read`,
-`conversation_history`, `plan_update`, `request_tools`: 13 names. Ten of them
-reach the model as a callable action. The descriptor specs in
+`conversation_history`, `plan`, `find_tools`: 13 names. Six of them reach the
+model as a callable action. The descriptor specs in
 `.dependency/blueclaw/internal/agentruntime/kernel_tool_provider.go` mark
-`file_read` and `file_preview` `ToolVisibilityInternal` and every other kernel
-descriptor `ToolVisibilityModel`; `image_read` is not a kernel descriptor but a
+`shell`, `read`, `file_write`, `file_edit`, `plan` and `find_tools`
+`ToolVisibilityModel`, and `file_read`, `file_preview`, `file_delete`,
+`file_deliver`, `skill_search` and `conversation_history`
+`ToolVisibilityInternal`; `image_read` is not a kernel descriptor but a
 capability tool whose generated entry carries `modelVisibility: "hidden"`
 (`pkg/capabilityprotocol/generated/capability-tools.json`). A hidden tool is
 one the model is never offered: `toolcontract.ToolSet.IsAllowed` applies the
 visibility check to the described tool list and to the action schema the loop
 builds each turn (`.dependency/bluecollar/loop/action_schema.go`), and
-`CanExpose` applies it again when `request_tools` tries to pin a name
+`CanExpose` applies it again when `find_tools` names one
 (`.dependency/bluecollar/loop/tool_selection.go`), so a hidden tool cannot be
-requested back into reach either.
+found back into reach either.
 
-Bluecollar also names `ask_input`, `ask_confirm`, and `ask_choice`, but only
-`ask_input` is registered as a callable tool
-(`.dependency/blueclaw/internal/agentruntime/local_tool_provider.go`);
-`ask_confirm` is the interaction kind the approval gate stamps on a pause
+An internal tool still runs, and the runtime is what calls it. `file_deliver`
+and `ask_input` are invoked behind a `reply` that carries attachments or sets
+`expectsAnswer`
+(`.dependency/blueclaw/.dependency/bluecollar/loop/reply_action.go`), so each
+leaves the tool observation the completion gate reads; `skill_search` backs
+the retrieval and arbitration the runtime does before a turn starts. The
+retired model-facing names are `finish`, `ask_input`, `file_deliver`,
+`request_tools` and `plan_update`, and
+`.dependency/blueclaw/.dependency/bluecollar/loop/model_facing_vocabulary_test.go`
+fails when any of them reaches a prompt or an action schema again.
+
+Bluecollar also names `ask_confirm` and `ask_choice`. `ask_confirm` is the
+interaction kind the approval gate stamps on a pause
 (`.dependency/blueclaw/internal/approvalgate/gate.go`), and `ask_choice` is
-folded into `ask_input`'s `options`. With `ask_input` the model-facing native
-set is 11: `shell`, `read`, `file_write`, `file_edit`, `file_deliver`,
-`skill_search`, `file_delete`, `conversation_history`, `plan_update`,
-`request_tools`, `ask_input`. `file_read`, `file_preview`, and `image_read`
-are the three native names the model is never offered.
+folded into a reply's `choices`. So the model-facing native set is 6:
+`shell`, `read`, `file_write`, `file_edit`, `plan`, `find_tools`.
 
 **Blueclaw's default allowlist**
-(`.dependency/blueclaw/internal/agentruntime/tool_catalog.go:272`,
+(`.dependency/blueclaw/internal/agentruntime/tool_catalog.go:277`,
 `DefaultAllowedToolNames()`) is exactly `KernelToolNames()` plus `ask_input`:
 14 names, the fallback ceiling when no agent-profile override applies
 (`.dependency/blueclaw/internal/app/tool_catalog.go:95`,
 `deriveAllowedToolNames`, which only ever admits kernel tool names, so this
 ceiling gates the native tool set, not the InternKim catalog). The ceiling
 names what an agent profile may grant; descriptor visibility then decides
-which of the granted names the model is actually offered, and 11 is today's
+which of the granted names the model is actually offered, and 6 is today's
 answer to that second question.
 
+**The per-plan-step shortlist** narrows the catalog again. A plan step change
+re-selects a shortlist capped at
+`toolcontract.ToolNamesOnePlanStepIsExpectedToNeed` (5), and every iteration
+inside one step sends a byte-identical system instruction and tool catalog
+(`.dependency/blueclaw/.dependency/bluecollar/loop/step_tool_selection_test.go`).
+`find_tools` is how the model reaches past that shortlist: it answers a
+described need through `agentcontract.ToolSelector` as implemented by
+`intake.DecisionPlanner`, and the tools it names are pinned for the next turn.
+
 **The harness-owned tool audience filter**
-(`.dependency/blueclaw/internal/mcpserver/published_tools.go`) lists eight
+(`.dependency/blueclaw/internal/mcpserver/published_tools.go`) lists nine
 names to drop from the MCP tool catalog for a self-equipped harness, one that
 brings its own shell and file tools: `shell`, `file_read`, `file_write`,
-`file_edit`, `file_preview`, `image_read`, `plan_update`, `skill_search`.
-Three of them (`file_read`, `file_preview`, `image_read`) are already hidden by
-descriptor visibility, so the list the filter runs over
+`file_edit`, `file_preview`, `image_read`, `plan`, `find_tools`,
+`skill_search`. Three of them (`file_read`, `file_preview`, `image_read`) are
+already hidden by descriptor visibility, so the list the filter runs over
 (`.dependency/blueclaw/internal/mcpserver/tool_catalog_server.go`,
 `ListDescribedToolDefinitions`) never contains them; the filter only ever
-removes the other five.
+removes the other six.
 
 Beyond that ceiling, Blueclaw registers seven more native tools when their
 dependency is configured: `memory_remember`, `memory_search`, `memory_forget`
@@ -106,11 +127,12 @@ desktop) tools instead carry `requiresUserPresence: true` and an
 `approvalScope` of `browser` or `desktop`, since they hand off to a person at
 a keyboard rather than pausing for a policy decision.
 
-So a fully-provisioned company session's default surface is at most
-14 always-on native tools, up to 20 native tools where memory/persona/skill
-management are wired in, 97 model-visible catalog tools filtered further by
-the company's held public-API permission, and up to 9 `local` companion
-tools when a companion browser or desktop is connected.
+So a fully-provisioned company session's native surface is 6 always-on tools,
+up to 13 where memory, persona and skill management are wired in, and the
+97 model-visible catalog tools are filtered by the company's held public-API
+permission and then by the plan step's shortlist before any of them reaches a
+turn. Up to 9 `local` companion tools join the catalog when a companion
+browser or desktop is connected.
 
 ## Correspondence table
 
@@ -125,8 +147,8 @@ because nothing in the plugin's skills names it.
 | Feature | Tools / skills | Answered by | Permission and approval | Regression scenario |
 |---|---|---|---|---|
 | File discovery | `shell` (e.g. `rg`, `find`) | harness-native | `workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/shell_tools_test.go` |
-| File reading | `file_read`, `read`, `image_read` | harness-native | `read`, no approval | `.dependency/blueclaw/internal/agentruntime/kernel_tool_provider_test.go` (`TestKernelToolProviderUsesCanonicalDescriptors`) |
-| File writing / editing / deleting | `file_write`, `file_edit`, `file_delete`, `file_deliver` | harness-native | `workspace_write`/`external_write`, no approval | `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestFileWriteAcceptance`, `TestFileWriteAcceptanceRejectsWrongPersistedContent`) |
+| File reading | `read` (model-facing); `file_read` and `image_read` internal | harness-native | `read`, no approval | `.dependency/blueclaw/internal/agentruntime/kernel_tool_provider_test.go` (`TestKernelToolProviderUsesCanonicalDescriptors`) |
+| File writing / editing / deleting | `file_write`, `file_edit` (model-facing); `file_delete` and `file_deliver` internal, deletion otherwise through `shell` | harness-native | `workspace_write`/`external_write`, no approval | `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestFileWriteAcceptance`, `TestFileWriteAcceptanceRejectsWrongPersistedContent`) |
 | Terminal execution | `shell` | harness-native | `workspace_write`, runs as the requester's POSIX identity, no approval | `.dependency/blueclaw/internal/agentruntime/shell_tools_test.go` (`TestTerminalRun*`), `.dependency/blueclaw/internal/security/posix_identity.go` |
 | Long-running sessions | none; `shell` is one stateless command per call (`TimeoutSecond` field only) | harness-native | same as terminal execution | none found |
 | Dependency installation | none; runs through `shell` like any other command | harness-native | same as terminal execution | none found |
@@ -146,18 +168,18 @@ because nothing in the plugin's skills names it.
 | Company documents (data room) | `company_document_list/search/download/register/update/upload` | record | `read`/`write`, no approval | `internkim-plugin` skills `dataroom`, `paperwork`; `web/tests/integration/company-ledger-tools.test.ts` |
 | Mail (connected email) | `mail_connection_start/status`, `mail_message_list/search/read/send/mark/move` | company | `read`/`write`/`external_send`; `mail_connection_start` and `mail_message_send` require approval | `internkim-plugin` skill `mail`; ~17 unit tests under `web/tests/unit/mail/`; no integration or scenario test found |
 | Messaging and recipient identification | `message_context`, `message_search`, `message_send`, `message_update`, `message_delete` | company | `read`/`write`/`external_send`/`delete`; `message_send` and `message_delete` require approval; recipients resolve server-side from a hint field, never a model-supplied ID | `internkim-plugin` skills `messages`, `direct-message`; `web/tests/plane/dm-to-a-colleague.test.ts`, `a-dm-through-the-acp-session.test.ts`, `a-channel-post-through-the-acp-session.test.ts`, `somebody-just-invited.test.ts`; `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestVirtualMessageToolsUseGeneratedCanonicalContracts`) |
-| Documents (.docx/.pdf) | local skill scripts (no catalog tool); attach through `file_deliver` | harness-native | `external_write`, no approval | `internkim-plugin` skills `document`, `pdf`; `tests/expensive/09-document-lifecycle.json` (retained spec, not run, see Gaps) |
-| Spreadsheets (.xlsx) | local skill scripts; attach through `file_deliver` | harness-native | `external_write`, no approval | `internkim-plugin` skill `spreadsheet`; no scenario found |
-| Presentations (slides/.pptx) | local skill scripts; attach through `file_deliver` | harness-native | `external_write`, no approval | `internkim-plugin` skill `presentation`; `tests/expensive/03-presentation-lifecycle.json` (retained spec, not run); `.dependency/blueclaw/internal/e2e/presentation_assets_test.go` |
+| Documents (.docx/.pdf) | local skill scripts (no catalog tool); attach as a reply attachment | harness-native | `external_write`, no approval | `internkim-plugin` skills `document`, `pdf`; `tests/expensive/09-document-lifecycle.json` (retained spec, not run, see Gaps) |
+| Spreadsheets (.xlsx) | local skill scripts; attach as a reply attachment | harness-native | `external_write`, no approval | `internkim-plugin` skill `spreadsheet`; no scenario found |
+| Presentations (slides/.pptx) | local skill scripts; attach as a reply attachment | harness-native | `external_write`, no approval | `internkim-plugin` skill `presentation`; `tests/expensive/03-presentation-lifecycle.json` (retained spec, not run); `.dependency/blueclaw/internal/e2e/presentation_assets_test.go` |
 | Images | `image_generate` (creation), `image_read` (hidden, attachment ingestion) | company / harness-native | `external_write` for `image_generate`, no approval | no plugin skill references `image_generate`; no scenario found |
 | Sites (websites/prototypes) | `site_list`, `site_serve`, `site_unserve`, `artifact_review` | company | `read`/`write`/`delete`; `site_unserve` requires approval | `internkim-plugin` skill `website`; `tests/expensive/04-website-lifecycle.json` (retained spec, not run); `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestVirtualSiteServeRequiresValidSourceBundle`, `TestVirtualSiteToolsUseCanonicalThreeToolContracts`) |
-| Skill discovery | `skill_search`, `skill_add`, `skill_remove`, `request_tools` | harness-native | `read`/`workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/skill_search_tool_test.go`, `skill_management_test.go`; `web/tests/plane/the-agent-can-see-its-skills.test.ts`, `the-agent-can-see-the-tools-it-was-given.test.ts` |
+| Skill discovery | `skill_add`, `skill_remove`, `find_tools` (model-facing); `skill_search` internal, run by the runtime before the turn | harness-native | `read`/`workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/skill_search_tool_test.go`, `skill_management_test.go`; `web/tests/plane/the-agent-can-see-its-skills.test.ts`, `the-agent-can-see-the-tools-it-was-given.test.ts` |
 | Memory | `memory_remember`, `memory_search`, `memory_forget` | harness-native | `workspace_write`/`read`, no approval; conditional on a configured memory store | harness-native only, no InternKim plugin path exists for memory; `.dependency/blueclaw/internal/agentruntime/memory_store_tools_test.go`; localfleet scenario `memory-store`, `lab/scripts/scenario-memory-store.py` |
 | Conversation history | `conversation_history` | harness-native | `read`, no approval; conditional on a configured history provider | harness-native only; none found |
 | Scheduled execution (the schedule firing itself, as distinct from the CRUD tools above) | host cron/poller, no model-facing tool | n/a | n/a | localfleet scenario `firing-schedules-nothing`, `lab/scripts/scenario-firing-schedules-nothing.py` |
-| User questions | `ask_input` | harness-native | `read`-like interaction, `requiresUserPresence` implicit in pausing the turn | `.dependency/blueclaw/internal/agentruntime/ask_tools_test.go` |
+| User questions | a `reply` with `expectsAnswer`, optionally `choices`; the runtime invokes `ask_input` behind it | harness-native | `read`-like interaction, `requiresUserPresence` implicit in pausing the turn | `.dependency/blueclaw/internal/agentruntime/ask_tools_test.go` |
 | Approvals | approval gate wraps any `requiresApproval: true` tool call, presented as an `ask_confirm`-kind interaction; resumed by `/admin/api/run/approve` or a messenger button | harness-native | pauses the task in `waiting_approval` until a recorded, authenticated decision | `.dependency/blueclaw/internal/approvalgate/{gate,turn_gate,continuation,executed_call,permission_asker,target,wording}_test.go` |
-| Composite work across multiple tools | no dedicated tool; the loop's own planning (`plan_update`) and tool sequencing | harness-native | n/a | localfleet scenario `morning-briefing`, `lab/scripts/scenario-morning-briefing.py` |
+| Composite work across multiple tools | `plan`, whose steps also settle the tool shortlist, plus the loop's own tool sequencing | harness-native | n/a | localfleet scenario `morning-briefing`, `lab/scripts/scenario-morning-briefing.py` |
 | Follow-up instructions / long conversations | `conversation_history`, memory-guided follow-up handling in the loop | harness-native | n/a | `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestMemoryGuidedFollowup`, `TestRequestRevisionBurstProducesOneReply`) |
 | Cancellation | task-run cancel transition (no model tool; triggered by the requester or an admin action) | harness-native | task moves to a terminal cancelled state, remaining work stops | `.dependency/blueclaw/.dependency/bluecollar/taskstate/task_run_service_test.go` (`TestTaskRunCancelCallsRegisteredCancelFunction`, `TestCancelledTaskRunCannotComplete`, `TestCancelTaskRunTransitionAllowsActiveTaskRuns`, `TestCancelTaskRunTransitionRejectsIllegalSourceStates`) |
 | Recovery after failure / restart | auto-resume of interrupted task runs (no model tool) | harness-native | resumes at most once per interruption, expires if nobody resumes it | `.dependency/blueclaw/.dependency/bluecollar/taskstate/task_run_service_test.go` (`TestAdvanceTaskRunAllowsBlockedResume`, `TestClaimInterruptedTaskRunAutoResumeAllowsOnlyOneAttempt`, `TestAnInterruptNobodyResumesEventuallyExpires`); localfleet scenario `restart-policy-survival`, `task-history-retry`, `lab/scripts/scenario-task-history-retry.py` |

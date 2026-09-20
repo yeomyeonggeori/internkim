@@ -189,8 +189,7 @@ counterpart aligned with the released behavior and remaining design work.
 ### Released behavior
 
 The sections above are the target. This is what has shipped as of internkim
-`b3b1406e3` (device release `20260918T165525Z-b3b1406e3656`, plugin
-`c1e156b`, Blueclaw `f41ae448`).
+`8a9b7dae5`, plugin `1be15af`, Blueclaw `8857d92a`, Bluecollar `bc91eee6`.
 
 - The plugin is a plain Agent Plugins 1.0.0 checkout: `plugin.json`,
   `mcp.json` naming `https://api.intern.kim/v1/mcp`, and `skills/`. There is
@@ -204,27 +203,49 @@ The sections above are the target. This is what has shipped as of internkim
 - Registering tools during a turn, the durable approval envelope and the
   service receipts of "Connection and execution" are contract text, not
   released endpoints.
-- The measurement program has a runner (`web/tests/pilot`, internkim#1842)
-  and one pilot behind it (2026-09-19, ten record-answered tasks, three
-  repetitions, every arm on `z-ai/glm-5.3-flash`, judged by reading the record
-  afterwards). The Pi-shaped kernel (seven model-facing tools and the whole
-  catalog delivered at once) kept the pass rate and cost 2.6 times the prompt
-  tokens per call, because a turn then carries 112 tool definitions where the
-  current shortlist carries 25, so the gate rejected it and the kernel keeps
-  its eleven model-facing tools. The thirty-task program that would make the
-  gate final is still open (internkim#1832).
+- The model's kernel is `read`, `file_write`, `file_edit`, `shell`, `plan`
+  and `find_tools`. The first four are the work. `plan` records the goal, its
+  steps and the level that sizes the run. `find_tools` takes a sentence
+  describing a need and answers with the tools that serve it, through the
+  same selector intake uses to pick a turn's likely tools. The rest of the
+  company catalog reaches the model as a shortlist settled once per plan
+  step, so what stands in front of it holds still while it works on one
+  thing.
+- The model speaks through a `reply`. It carries the words and any files it
+  attaches; `final` makes it the last word on the task, `expectsAnswer` parks
+  the run until somebody answers, and `choices` turns that question into
+  buttons where the messenger draws them. `file_deliver` and `ask_input` stay
+  registered as internal tools the runtime invokes behind the reply, so each
+  still leaves a tool observation the completion gate reads. `finish`,
+  `ask_input`, `file_deliver`, `request_tools` and `plan_update` are gone
+  from the model's vocabulary.
+- Model calls reach OpenRouter sorted by throughput, and every call of one
+  conversation carries that conversation as its session id, so a provider
+  already holding the prompt prefix keeps the work.
+- The pilot runner (`web/tests/pilot`, internkim#1842) drives thirty tasks.
+  Twenty end in a file the judge checks by the delivered attachment's
+  metadata, and a run intake parked before any turn ran is reported in its
+  own column instead of being scored as a kernel result.
 
-| Arm | Passed | Median prompt tokens per call | Cost per passed task |
-| --- | --- | --- | --- |
-| Bluecollar, current kernel | 24/29 | 19,550 | $0.0058 |
-| Bluecollar, Pi-shaped kernel | 14/15 | 50,845 | $0.0136 |
-| Claude Code 2.1.277 with the plugin | 30/30 | 50,945 | $0.0140 |
+Thirty tasks, one repetition each, `z-ai/glm-5.3-flash` for every arm, on a
+disposable fleet with a judge that reads the resulting records. The kernel
+above is what the run `pilot-8` measured, and the seven-tool kernel it
+replaced is `pilot-6` (internkim#1832):
 
-Bluecollar's misses are the intake asking a question the other harness did
-not need (three) and one event written in UTC because the box reads the
-company time zone from its own workspace setting (internkim#1840). The
-missing repetitions are runs the fleet's intake never started while a router
-call waited on a stalled provider stream (internkim#1821).
+| Arm | Passed | Reached the loop | Passed in the loop | Median prompt tokens per call | Median calls per run | Cost per passed task |
+| --- | --- | --- | --- | --- | --- | --- |
+| Seven-tool kernel (`pilot-6`) | 24/30 | 29/30 | 24/29 | 22,399 | 5.5 | $0.0354 |
+| This kernel (`pilot-8`) | 24/30 | 23/30 | 23/23 | 23,257 | 4 | $0.0220 |
+
+Read the reached-the-loop column first. All six of `pilot-8`'s failures
+happened before a turn ran: five were intake asking the requester a question
+and parking the task, which both kernels do and which no kernel change can
+fix, and one was a run the harness lost to its own settle timeout. The
+adoption gate as written rejects this row, because it asks for lower prompt
+tokens per call and was worded for an experiment about definition counts; the
+case for adopting anyway is the in-loop column together with the cost, and it
+is argued on the issue. Claude Code, Codex and Pi over the same thirty tasks
+with the same plugin release are the next arms in that program.
 
 | Harness | Version tested | Loads the plugin through | Status |
 | --- | --- | --- | --- |
