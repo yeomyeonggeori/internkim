@@ -238,6 +238,8 @@
 		openThreadRoot ? (threadRepliesByRoot.get(openThreadRoot.id) ?? []) : []
 	);
 
+	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
+
 	async function loadConversation() {
 		try {
 			const conversation = await fetchChannelConversation(channelId);
@@ -900,8 +902,12 @@
 		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
 				{@render messageRow(openThreadRoot, true, true, false)}
-				{#each threadReplies as reply (reply.id)}
-					{@render messageRow(reply, true, true, false)}
+				{#each threadReplyGroups as group (group.id)}
+					<Message.Group>
+						{#each group.items as reply, index (reply.id)}
+							{@render messageRow(reply, index === 0, index === group.items.length - 1, false)}
+						{/each}
+					</Message.Group>
 				{/each}
 			{/if}
 		</div>
