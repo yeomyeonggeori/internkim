@@ -1,6 +1,8 @@
 import { toast } from 'svelte-sonner';
+import { MessengerRefusal } from '$lib/messenger/messenger-api';
 import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 import { copyText } from '$lib/hooks/use-clipboard.svelte';
+import { deleteWarningFor } from './channel-delete-warning';
 import {
 	addChannelReaction,
 	deleteChannelMessage,
@@ -19,7 +21,9 @@ export type MessageActionText = {
 	pictureCopyFailed: string;
 	deleteMessageTitle: string;
 	deleteMessageDescription: string;
+	deleteThreadDescription: string;
 	deleteMessageFailed: string;
+	deleteThreadPartly: string;
 	reactionFailed: string;
 	reactionRemoveFailed: string;
 	delete: string;
@@ -62,9 +66,12 @@ export function messageActionsFor(host: MessageActionHost): MessageActions {
 		try {
 			await deleteChannelMessage(message.id, host.channelID());
 		} catch (failure) {
-			console.warn('the messenger did not delete the message', failure);
-			toast.error(host.text().deleteMessageFailed);
-			return;
+			if (!(failure instanceof MessengerRefusal) || failure.reason !== 'thread-partly-deleted') {
+				console.warn('the messenger did not delete the message', failure);
+				toast.error(host.text().deleteMessageFailed);
+				return;
+			}
+			toast.warning(host.text().deleteThreadPartly.replace('{count}', String(failure.remaining ?? '')));
 		}
 		host.forgetMessage(message.id);
 		await host.readAgain();
@@ -97,7 +104,7 @@ export function messageActionsFor(host: MessageActionHost): MessageActions {
 			const text = host.text();
 			confirmDelete({
 				title: text.deleteMessageTitle,
-				description: text.deleteMessageDescription,
+				description: deleteWarningFor(message, text),
 				confirm: { text: text.delete },
 				cancel: { text: text.cancel },
 				onConfirm: () => deleteMessage(message)

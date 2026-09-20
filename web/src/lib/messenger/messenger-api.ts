@@ -100,7 +100,8 @@ type PersonalMessage = {
 export class MessengerRefusal extends Error {
 	constructor(
 		message: string,
-		readonly reason: string | undefined
+		readonly reason: string | undefined,
+		readonly remaining?: number
 	) {
 		super(message);
 		this.name = 'MessengerRefusal';
@@ -110,7 +111,11 @@ export class MessengerRefusal extends Error {
 async function ask<Value>(capability: string, body?: Record<string, unknown>): Promise<Value> {
 	const answer = await callCompanyApp({ capability, body });
 	if (answer.status >= 400) {
-		throw new MessengerRefusal(messageOf(answer.body, `the app answered ${answer.status}`), reasonOf(answer.body));
+		throw new MessengerRefusal(
+			messageOf(answer.body, `the app answered ${answer.status}`),
+			reasonOf(answer.body),
+			remainingOf(answer.body)
+		);
 	}
 	return answer.body as Value;
 }
@@ -119,6 +124,12 @@ function reasonOf(body: unknown): string | undefined {
 	if (typeof body !== 'object' || body === null) return undefined;
 	const { reason } = body as { reason?: unknown };
 	return typeof reason === 'string' ? reason : undefined;
+}
+
+function remainingOf(body: unknown): number | undefined {
+	if (typeof body !== 'object' || body === null) return undefined;
+	const { remaining } = body as { remaining?: unknown };
+	return typeof remaining === 'number' ? remaining : undefined;
 }
 
 function messageOf(body: unknown, fallback: string): string {
