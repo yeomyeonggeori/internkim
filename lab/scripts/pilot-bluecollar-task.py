@@ -14,7 +14,7 @@ workspace = Path("/mnt/shared/workspace")
 chatd_origin = "http://172.31.0.1:18090"
 requester_email = sys.argv[1]
 instruction = base64.b64decode(sys.argv[2]).decode("utf-8")
-settle_timeout_seconds = 720
+settle_timeout_seconds = 1800
 agent_workspace_prefix = "/workspace/"
 host_workspace_root = "/root/.blueclaw/workspace"
 readable_delivered_file_maximum_bytes = 25 * 1024 * 1024
@@ -40,7 +40,12 @@ def request(path, body=None, accepted=(200,), timeout=60, origin="http://127.0.0
 def wait_for(read, description, timeout):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        value = read()
+        try:
+            value = read()
+        except RuntimeError as error:
+            print(f"still waiting for {description}: {error}", file=sys.stderr, flush=True)
+            time.sleep(10)
+            continue
         if value:
             return value
         time.sleep(3)

@@ -15,7 +15,6 @@
 			"set": {
 				"stage_id": "in_progress",
 				"stage_position": 2,
-				"stage_changed_at": null,
 				"base_amount_minor": null,
 				"base_currency_code": null
 			}
