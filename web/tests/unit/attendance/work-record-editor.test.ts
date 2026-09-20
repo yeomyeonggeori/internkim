@@ -68,7 +68,6 @@ describe('work record editor state', () => {
 		fixture.editor.open([segment]);
 
 		expect(fixture.editor.updateEventTime(segment.endEventID, '23:59')).toBe('10:30');
-		expect(fixture.editor.maximumTimeFor(localDate)).toBe('10:30');
 	});
 
 	test('keeps a segment clock-in and clock-out in chronological order', () => {

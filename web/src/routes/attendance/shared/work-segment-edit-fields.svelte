@@ -15,8 +15,6 @@
 		startDisabled: boolean;
 		endDisabled: boolean;
 		locationDisabled: boolean;
-		startMaximumTime?: string;
-		endMaximumTime?: string;
 		text: AttendanceText;
 		onStartTimeChange: (value: string) => string;
 		onEndTimeChange: (value: string) => string;
@@ -34,8 +32,6 @@
 		startDisabled,
 		endDisabled,
 		locationDisabled,
-		startMaximumTime,
-		endMaximumTime,
 		text,
 		onStartTimeChange,
 		onEndTimeChange,
@@ -61,7 +57,6 @@
 			<Input
 				type="time"
 				value={startTime}
-				max={startMaximumTime}
 				disabled={isSaving || startDisabled}
 				oninput={(event) => updateTimeInput(event, onStartTimeChange)}
 				class="w-full"
@@ -73,7 +68,6 @@
 				<Input
 					type="time"
 					value={endTime}
-					max={endMaximumTime}
 					disabled={isSaving || endDisabled}
 					oninput={(event) => updateTimeInput(event, onEndTimeChange)}
 					class="w-full"
