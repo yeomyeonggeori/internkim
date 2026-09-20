@@ -16,9 +16,13 @@ could touch at a shell.
 | `read` | reads a workspace file or a conversation attachment: text as text, documents as converted Markdown, images as an image the model sees |
 | `file_write` | creates or overwrites one text file |
 | `file_edit` | applies exact text replacements as one atomic edit |
-| `file_delete` | removes one file, after your approval |
-| `file_deliver` | attaches finished workspace files to the reply |
 | `shell` | runs one command in the workspace |
+
+These four are the work. `plan` and `find_tools` complete the model's kernel
+and touch no file. `file_read`,
+`file_preview`, `file_delete` and `file_deliver` are registered as internal
+tools the runtime invokes, never names the model picks from, so deleting a
+file is an ordinary `shell` command under your own permissions.
 
 Registered in `.dependency/blueclaw/internal/agentruntime/file_tools.go` and
 `shell_tools.go`; the names live in
@@ -80,7 +84,7 @@ system-modifying command simply fails for an unprivileged actor. The
 file_write   tmp/<slug>/…          draft and build inputs
 shell        cwd=tmp/<slug>        build, render, verify
              artifacts/<slug>/…    the finished output moves here
-file_deliver                       attached to the reply you receive
+reply        attachments           the runtime attaches them to what you receive
 ```
 
 `tmp/` is ephemeral and `artifacts/` is durable; the artifact manifest
@@ -91,9 +95,11 @@ safe to show outsiders goes to `shared/public`.
 ## Skills [#skills]
 
 A skill is a bundled instruction set the agent loads when a task matches it:
-building a deck, filing paperwork, shaping a site. The model finds them with
-`skill_search` and receives only the selected `SKILL.md` body; the scripts,
-references, and assets bundled next to it load when the work needs them.
+building a deck, filing paperwork, shaping a site. The runtime picks them
+before the turn starts, by retrieving candidates for the request and letting
+a router settle which ones apply, and the model receives only the selected
+`SKILL.md` body; the scripts, references, and assets bundled next to it load
+when the work needs them.
 Skills live under `/workspace/skills`, their scripts run as the requester like
 any other command, and each `SKILL.md` is budgeted (the repository gate is
 15 KB and 300 lines) because an oversized skill is a prompt-runtime bug.
@@ -101,8 +107,7 @@ any other command, and each `SKILL.md` is budgeted (the repository gate is
 ## When a human has to be there [#presence]
 
 Login, MFA, and confirmation happen on the user's own computer through the
-companion, which reports back only what the agent needs. Alongside the file
-and terminal tools the
-model also holds run-control tools (`plan_update`, `conversation_history`,
-`request_tools`, the `ask_*` prompts), which shape the run and touch nothing
-outside it.
+companion, which reports back only what the agent needs. A question the agent
+has to put to you is no tool of its own: it is a reply marked
+`expectsAnswer`, which parks the task until somebody answers and draws
+buttons when the reply carries `choices`.

@@ -11,6 +11,11 @@ runs tools as the person who asked, and owns approval and the task ledger.
 that runs inside it. This repository is the layer that puts those two on a
 machine and operates them.
 
+The model's kernel is `read`, `file_write`, `file_edit`, `shell`, `plan` and
+`find_tools`, and it speaks through a single `reply` that carries the words,
+the attachments and any question it needs answered. Everything else a company
+publishes reaches it as a shortlist settled once per plan step.
+
 The agent reads `identity.json` and `soul.json` in its runtime workspace, and
 each person's preferences from their own `user.json`. Administration publishes
 agent documents to Blueclaw and checks its acknowledgment. Contributor details
@@ -130,10 +135,10 @@ that requester.
 
 - A person becomes a stable `bc_person_<shortID>` Linux user.
 - A circle becomes a `bc_circle_<circleID>` group.
-- `shell`, terminal sessions, file reads and writes, `file.promote`,
-  `file.attach`, user-authored skills and tools, dependency install scripts and
-  package lifecycle scripts all run with the requester's unprivileged UID, GID
-  and supplementary groups.
+- `shell`, terminal sessions, file reads and writes, artifact delivery,
+  user-authored skills and tools, dependency install scripts and package
+  lifecycle scripts all run with the requester's unprivileged UID, GID and
+  supplementary groups.
 - An admin requester gets the same task-actor scope at a raw terminal.
   Admin-only file access, task-scoped grants and outbound transfer stay behind
   built-in tools.
