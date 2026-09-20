@@ -120,7 +120,7 @@
 						</Button>
 					{/snippet}
 				</DropdownMenu.Trigger>
-				<DropdownMenu.Content align="end" sideOffset={6} class="z-[52]">
+				<DropdownMenu.Content align="end" sideOffset={6}>
 					<DropdownMenu.Item
 						variant="destructive"
 						onclick={(event) => {

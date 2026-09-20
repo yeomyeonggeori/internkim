@@ -1170,7 +1170,7 @@
 	{@const currentImage = lightbox.images[lightbox.index]}
 	{@const hasMultiple = lightbox.images.length > 1}
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center"
+		class="fixed inset-0 z-(--layer-alert) flex items-center justify-center"
 		role="dialog"
 		aria-modal="true"
 		tabindex="-1"

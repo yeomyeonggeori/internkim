@@ -257,7 +257,7 @@
 
 {#if draggedNode}
 	<div
-		class="pointer-events-none fixed z-[60] flex h-12 w-52 items-center gap-2 rounded-xl border border-primary/40 bg-background px-3 text-sm font-semibold shadow-xl"
+		class="pointer-events-none fixed z-(--layer-dragged) flex h-12 w-52 items-center gap-2 rounded-xl border border-primary/40 bg-background px-3 text-sm font-semibold shadow-xl"
 		style={`left: ${dragClientX + 12}px; top: ${dragClientY + 12}px`}
 		data-testid="organization-drag-card"
 	>
