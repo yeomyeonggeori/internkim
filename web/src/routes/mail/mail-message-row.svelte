@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { mailMessageTimeLabel } from './mail-message-utils';
+	import { mailMessageTimeLabel, mailSenderName } from './mail-message-utils';
 	import type { MailMessage } from './mail-types';
 	import type { mailText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
@@ -17,34 +17,41 @@
 	let { message, isPlaceholder = false, isActive = false, isInteractive = true, text, selectMessage }: Props = $props();
 
 	const rowClass =
-		'w-full rounded-lg border bg-background p-3 text-left shadow-xs transition-shadow data-[active=true]:bg-background data-[active=true]:shadow-md';
+		'flex w-full flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all data-[active=true]:bg-muted';
 	const timeLabel = $derived(message ? mailMessageTimeLabel(message.date, text.yesterday) : '');
 </script>
 
 {#snippet placeholderContent()}
-	<div class="flex items-center gap-2">
-		<span class="size-2 shrink-0 rounded-full bg-muted"></span>
-		<Skeleton class="h-4 w-40" />
-		<Skeleton class="ml-auto h-3 w-10" />
+	<div class="flex w-full flex-col gap-1">
+		<div class="flex items-center gap-2">
+			<Skeleton class="h-4 w-40" />
+			<Skeleton class="ml-auto h-3 w-10" />
+		</div>
+		<Skeleton class="h-3 w-3/5" />
 	</div>
-	<Skeleton class="mt-2 ml-4 h-4 w-3/5" />
-	<Skeleton class="mt-2 ml-4 h-3 w-4/5" />
+	<Skeleton class="h-3 w-4/5" />
 {/snippet}
 
 {#snippet rowContent()}
 	{#if !message}
 		{@render placeholderContent()}
 	{:else}
-		<div class="flex items-center gap-2">
-			<span class="size-2 shrink-0 rounded-full {message.isRead ? 'bg-transparent' : 'bg-primary'}" aria-label={message.isRead ? '' : text.unread}></span>
-			<span class="min-w-0 flex-1 truncate text-sm {message.isRead ? 'text-muted-foreground' : 'font-semibold'}">{message.from || text.unknownSender}</span>
-			{#if timeLabel}
-				<span class="shrink-0 text-xs tabular-nums text-muted-foreground">{timeLabel}</span>
-			{/if}
+		<div class="flex w-full flex-col gap-1">
+			<div class="flex items-center">
+				<div class="flex min-w-0 items-center gap-2">
+					<span class="truncate font-semibold">{mailSenderName(message.from) || text.unknownSender}</span>
+					{#if !message.isRead}
+						<span class="flex size-2 shrink-0 rounded-full bg-sky-500" aria-label={text.unread}></span>
+					{/if}
+				</div>
+				{#if timeLabel}
+					<span class="ml-auto shrink-0 pl-2 text-xs tabular-nums {isActive ? 'text-foreground' : 'text-muted-foreground'}">{timeLabel}</span>
+				{/if}
+			</div>
+			<div class="truncate text-xs font-medium">{message.subject || text.noSubject}</div>
 		</div>
-		<p class="mt-1 truncate pl-4 text-sm {message.isRead ? '' : 'font-medium'}">{message.subject || text.noSubject}</p>
 		{#if message.preview}
-			<p class="mt-1 line-clamp-2 pl-4 text-xs leading-5 text-muted-foreground">{message.preview}</p>
+			<div class="line-clamp-2 text-xs text-muted-foreground">{message.preview}</div>
 		{/if}
 	{/if}
 {/snippet}
@@ -54,7 +61,7 @@
 		{@render rowContent()}
 	</div>
 {:else if isInteractive}
-	<button type="button" class="{rowClass} hover:bg-muted/60" data-active={isActive} onclick={() => selectMessage?.(message)}>
+	<button type="button" class="{rowClass} hover:bg-accent" data-active={isActive} onclick={() => selectMessage?.(message)}>
 		{@render rowContent()}
 	</button>
 {:else}

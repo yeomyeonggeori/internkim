@@ -6,7 +6,6 @@ import { mailText } from '../../../src/routes/mail/text';
 describe('mail provider setup guides', () => {
 	test('returns Google app password guide with localized image alt text', () => {
 		expect(mailProviderSetupGuide('gmail', mailText.ko)).toMatchObject({
-			panelID: 'mail-google-setup',
 			triggerLabel: 'Google 앱 비밀번호 만들기',
 			isNumbered: false,
 			items: [
@@ -43,7 +42,6 @@ describe('mail provider setup guides', () => {
 			'https://mail.daum.net/setting/POP3IMAP',
 			'https://member.daum.net/my/security'
 		]);
-		expect(daumGuide?.panelID).toBe('mail-daum-hanmail-setup-links');
 		expect(hanmailGuide).toEqual(daumGuide);
 		expect(daumGuide?.items.map((item) => item.image.src)).toEqual([
 			'/mail/providers/daum/imap-smtp-example.png',

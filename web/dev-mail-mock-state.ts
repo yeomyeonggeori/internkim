@@ -43,6 +43,7 @@ function createDevMailboxes(): Mailbox[] {
 		{ name: 'INBOX', displayName: '받은편지함', unseen: 1, total: 3 },
 		{ name: 'Sent', displayName: '보낸메일', unseen: 0, total: 1 },
 		{ name: 'Archive', displayName: '보관함', unseen: 0, total: 0 },
+		{ name: 'Spam', displayName: '스팸메일함', unseen: 0, total: 0 },
 		{ name: 'Trash', displayName: '휴지통', unseen: 0, total: 0 }
 	];
 }
@@ -53,7 +54,7 @@ function createDevMailMessages(userEmail: string): MailMessage[] {
 			uid: 103,
 			mailbox: 'INBOX',
 			subject: '메일 캐시 동작 확인',
-			from: 'product@example.com',
+			from: '이샘플 <product@example.com>',
 			to: userEmail,
 			date: '2026-06-18T10:30:00+09:00',
 			preview: '저장된 목록을 먼저 보여주고 뒤에서 새 메일을 확인합니다.',

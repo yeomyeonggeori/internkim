@@ -17,7 +17,6 @@ export type MailProviderSetupGuideItem = {
 };
 
 export type MailProviderSetupGuide = {
-	panelID: string;
 	triggerLabel: string;
 	isNumbered: boolean;
 	items: MailProviderSetupGuideItem[];
@@ -32,7 +31,6 @@ export function mailProviderSetupGuide(providerID: MailProviderID, text: MailTex
 
 function googleSetupGuide(text: MailText): MailProviderSetupGuide {
 	return {
-		panelID: 'mail-google-setup',
 		triggerLabel: text.settingsSheet.googleAppPasswordLink,
 		isNumbered: false,
 		items: [
@@ -51,7 +49,6 @@ function googleSetupGuide(text: MailText): MailProviderSetupGuide {
 
 function naverSetupGuide(text: MailText): MailProviderSetupGuide {
 	return {
-		panelID: 'mail-naver-setup-links',
 		triggerLabel: text.settingsSheet.naverSetupLink,
 		isNumbered: true,
 		items: [
@@ -79,7 +76,6 @@ function naverSetupGuide(text: MailText): MailProviderSetupGuide {
 
 function daumSetupGuide(text: MailText): MailProviderSetupGuide {
 	return {
-		panelID: 'mail-daum-hanmail-setup-links',
 		triggerLabel: text.settingsSheet.daumSetupLink,
 		isNumbered: true,
 		items: [

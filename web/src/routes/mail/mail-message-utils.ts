@@ -14,6 +14,17 @@ export function mergeMailMessages(existingMessages: MailMessage[], incomingMessa
 	return mergedMessages;
 }
 
+export function mailSenderName(from: string) {
+	const [, displayName] = from.match(/^\s*(.*?)\s*<[^<>]+>\s*$/) ?? [];
+	if (displayName === undefined) return from.trim();
+	return displayName.replace(/^"(.*)"$/, '$1').trim() || from.trim();
+}
+
+export function mailSenderAddress(from: string) {
+	const [, address] = from.match(/<([^<>]+)>\s*$/) ?? [];
+	return address?.trim() ?? '';
+}
+
 export function mailMessageKey(message: MailMessage) {
 	return `${message.mailbox}:${message.uid}`;
 }

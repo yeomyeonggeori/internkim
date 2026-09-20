@@ -80,7 +80,8 @@
 		{#if !isStackedDetail}
 			<MailMessageList
 				account={page.account}
-				selectedMailboxCountText={page.selectedMailboxCountText()}
+				selectedMailboxLabel={page.selectedMailboxLabel()}
+				bind:searchText={page.searchText}
 				isLoading={page.isLoading}
 				isSyncing={page.isSyncing}
 				hasLoadedAccount={page.hasLoadedAccount}
@@ -95,6 +96,7 @@
 				openSettings={page.openSettings}
 				loadMoreMessages={page.loadMoreMessages}
 				setUnreadOnly={page.setUnreadOnly}
+				searchMessages={page.searchMessages}
 				selectMessage={page.selectMessage}
 			/>
 		{/if}
@@ -133,18 +135,17 @@
 
 {#snippet messageDetail(goBack?: () => void)}
 	<MailMessageDetail
-		account={page.account}
 		selectedMessage={page.selectedMessage}
-		hasLoadedAccount={page.hasLoadedAccount}
+		hasVisibleMessages={page.visibleMessages().length > 0}
 		isLoadingMessage={page.isLoadingMessage}
 		messageBody={page.selectedMessageBody()}
 		messageBodyHTML={page.selectedMessageBodyHTML()}
+		moveTargets={page.moveTargets()}
 		{text}
 		moveSelectedMessage={page.moveSelectedMessage}
+		markSelectedMessageUnread={page.markSelectedMessageUnread}
 		openReply={page.openReply}
 		openForward={page.openForward}
-		openCompose={page.openCompose}
-		openSettings={page.openSettings}
 		{goBack}
 	/>
 {/snippet}
