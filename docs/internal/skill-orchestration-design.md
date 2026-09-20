@@ -18,6 +18,19 @@ internkim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skill
 
 ## Skill and Tool Contract
 
+> Superseded 2026-09-21 by bluecollar#333 and #335 wherever this section names
+> a kernel tool: the model's kernel is now `read`, `file_write`, `file_edit`,
+> `shell`, `plan`, `find_tools`, and the model speaks only through a `reply`
+> carrying `message`, attachments, `choices`, `expectsAnswer` and `final`.
+> `finish`, `ask_input`, `file_deliver`, `request_tools` and `plan_update` are
+> gone from the model's vocabulary; the first three stay registered as
+> internal tools the runtime invokes behind the reply. `file.patch`,
+> `ask_confirm` and `ask.input.choices` below name nothing that exists. The
+> current contract is
+> `.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`,
+> and `docs/internal/harness-feature-correspondence.md` carries the derived
+> table.
+
 Skill은 절차와 판단 기준이다. Kernel tool은 LLM이 직접 호출할 수 있는 실행 API다. Domain capability는 `/workspace/tools/capability` CLI를 통해 호출하는 로컬 bridge API다. Skill은 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
 
 LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `shell`, `ask_input`, `ask_confirm`, `file_deliver`, `skill_search`, `file_read`, `file_write`, `file_edit`, `file.patch`, `file_preview`, `image_read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. Interactive terminal session 동작은 `shell`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
