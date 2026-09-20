@@ -162,6 +162,7 @@ describe('canonical capability tools', () => {
       'leave_update',
       'mail_connection_start',
       'mail_connection_status',
+      'mail_mailbox_list',
       'mail_message_list',
       'mail_message_mark',
       'mail_message_move',
@@ -401,6 +402,7 @@ describe('canonical capability tools', () => {
     expect(visibleMailToolNames).toEqual([
       'mail_connection_start',
       'mail_connection_status',
+      'mail_mailbox_list',
       'mail_message_list',
       'mail_message_mark',
       'mail_message_move',

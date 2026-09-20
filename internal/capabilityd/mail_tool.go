@@ -57,6 +57,8 @@ func (service Service) invokeMailTool(ctx context.Context, request capabilities.
 
 func (service Service) invokeMail(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
 	switch strings.TrimSpace(request.ToolName) {
+	case "mail_mailbox_list":
+		return service.invokeMailMailboxList(ctx, request)
 	case "mail_message_list":
 		return service.invokeMailMessageList(ctx, request)
 	case "mail_message_search":
@@ -76,6 +78,10 @@ func (service Service) invokeMail(ctx context.Context, request capabilities.Tool
 	default:
 		return nil, fmt.Errorf("mail tool is not configured: %s", request.ToolName)
 	}
+}
+
+func (service Service) invokeMailMailboxList(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {
+	return service.sendMailToolRequest(ctx, http.MethodGet, "/mail/api/mailboxes", nil, request.Context.RequesterEmail)
 }
 
 func (service Service) invokeMailMessageList(ctx context.Context, request capabilities.ToolInvokeRequest) (json.RawMessage, error) {

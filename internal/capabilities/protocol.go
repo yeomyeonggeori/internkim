@@ -133,6 +133,7 @@ func MailDescriptors() []Descriptor {
 	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
 		"mail_connection_status",
 		"mail_connection_start",
+		"mail_mailbox_list",
 		"mail_message_list",
 		"mail_message_search",
 		"mail_message_read",

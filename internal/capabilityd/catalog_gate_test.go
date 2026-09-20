@@ -958,6 +958,7 @@ var toolsWithNoGateCaseYet = map[string]string{
 	"task_update":            implementedOnThePlaneToo,
 	"mail_connection_start":  overIMAPAndSMTP,
 	"mail_connection_status": overIMAPAndSMTP,
+	"mail_mailbox_list":      overIMAPAndSMTP,
 	"mail_message_list":      overIMAPAndSMTP,
 	"mail_message_mark":      overIMAPAndSMTP,
 	"mail_message_move":      overIMAPAndSMTP,
