@@ -39,6 +39,7 @@
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
 	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
+	import { groupConsecutiveMessages } from './channel-message-groups';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
@@ -213,19 +214,7 @@
 		};
 	}
 
-	const messageGroups = $derived.by(() => {
-		const groups: { id: string; senderID: string; items: ChannelMessage[] }[] = [];
-		for (const message of visibleMessages) {
-			const lastGroup = groups.at(-1);
-			const canMergeIntoLastGroup =
-				lastGroup &&
-				lastGroup.senderID === message.sender.id &&
-				!lastGroup.items.at(-1)?.thread;
-			if (canMergeIntoLastGroup) lastGroup.items.push(message);
-			else groups.push({ id: message.id, senderID: message.sender.id, items: [message] });
-		}
-		return groups;
-	});
+	const messageGroups = $derived(groupConsecutiveMessages(visibleMessages));
 
 	type TimelineItem =
 		| { kind: 'date'; id: string; label: string }
@@ -248,6 +237,8 @@
 	const threadReplies = $derived(
 		openThreadRoot ? (threadRepliesByRoot.get(openThreadRoot.id) ?? []) : []
 	);
+
+	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
 
 	async function loadConversation() {
 		try {
@@ -911,8 +902,12 @@
 		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
 				{@render messageRow(openThreadRoot, true, true, false)}
-				{#each threadReplies as reply (reply.id)}
-					{@render messageRow(reply, true, true, false)}
+				{#each threadReplyGroups as group (group.id)}
+					<Message.Group>
+						{#each group.items as reply, index (reply.id)}
+							{@render messageRow(reply, index === 0, index === group.items.length - 1, false)}
+						{/each}
+					</Message.Group>
 				{/each}
 			{/if}
 		</div>
