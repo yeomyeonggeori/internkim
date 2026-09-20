@@ -47,6 +47,11 @@
 		7A11C0DE0000000000000213 /* AttendanceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000102 /* AttendanceAPI.swift */; };
 		7A11C0DE0000000000000214 /* AttendanceWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000101 /* AttendanceWidgetStore.swift */; };
 		7A11C0DE0000000000000215 /* attendance-today-cases.json in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000202 /* attendance-today-cases.json */; };
+		7A11C0DE000000000000012F /* AttendanceWorkplaceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */; };
+		7A11C0DE0000000000000130 /* AttendanceDefaultWorkplace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */; };
+		7A11C0DE0000000000000216 /* AttendanceDefaultWorkplace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */; };
+		7A11C0DE0000000000000217 /* AttendanceDefaultWorkplaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011C /* AttendanceDefaultWorkplaceTests.swift */; };
+		7A11C0DE0000000000000218 /* AttendanceWorkplaceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -123,6 +128,9 @@
 		7A11C0DE0000000000000201 /* AttendanceTodayCasesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceTodayCasesTests.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000202 /* attendance-today-cases.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "attendance-today-cases.json"; path = "../../tests/fixtures/attendance-today-cases.json"; sourceTree = SOURCE_ROOT; };
 		7A11C0DE0000000000000203 /* AttendanceWidgetTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AttendanceWidgetTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWorkplaceEntity.swift; sourceTree = "<group>"; };
+		7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceDefaultWorkplace.swift; sourceTree = "<group>"; };
+		7A11C0DE000000000000011C /* AttendanceDefaultWorkplaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceDefaultWorkplaceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -240,6 +248,7 @@
 				7A11C0DE0000000000000103 /* AttendanceToday.swift */,
 				7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */,
 				7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */,
+				7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -255,6 +264,7 @@
 				7A11C0DE0000000000000113 /* AttendanceLocationChoice.swift */,
 				7A11C0DE0000000000000119 /* AttendanceLocationPicker.swift */,
 				7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */,
+				7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */,
 				7A11C0DE000000000000010C /* Localizable.xcstrings */,
 				7A11C0DE000000000000010A /* AttendanceWidget.entitlements */,
 				7A11C0DE0000000000000109 /* Info.plist */,
@@ -267,6 +277,7 @@
 			children = (
 				7A11C0DE0000000000000201 /* AttendanceTodayCasesTests.swift */,
 				7A11C0DE0000000000000202 /* attendance-today-cases.json */,
+				7A11C0DE000000000000011C /* AttendanceDefaultWorkplaceTests.swift */,
 			);
 			path = AttendanceWidgetTests;
 			sourceTree = "<group>";
@@ -471,6 +482,8 @@
 				7A11C0DE000000000000012A /* AttendanceActivityAttributes.swift in Sources */,
 				7A11C0DE000000000000012C /* AttendanceLockScreenCards.swift in Sources */,
 				7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */,
+				7A11C0DE000000000000012F /* AttendanceWorkplaceEntity.swift in Sources */,
+				7A11C0DE0000000000000130 /* AttendanceDefaultWorkplace.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -482,6 +495,9 @@
 				7A11C0DE0000000000000212 /* AttendanceToday.swift in Sources */,
 				7A11C0DE0000000000000213 /* AttendanceAPI.swift in Sources */,
 				7A11C0DE0000000000000214 /* AttendanceWidgetStore.swift in Sources */,
+				7A11C0DE0000000000000216 /* AttendanceDefaultWorkplace.swift in Sources */,
+				7A11C0DE0000000000000217 /* AttendanceDefaultWorkplaceTests.swift in Sources */,
+				7A11C0DE0000000000000218 /* AttendanceWorkplaceEntity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -734,7 +750,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AttendanceWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -758,7 +774,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = AttendanceWidget/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -780,7 +796,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.AttendanceWidgetTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -796,7 +812,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.intern.kim.AttendanceWidgetTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

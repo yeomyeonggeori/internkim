@@ -19,7 +19,7 @@ struct AttendanceWrite: Decodable {
     let eventID: String?
 }
 
-struct WorkLocation: Decodable {
+struct WorkLocation: Decodable, Equatable {
     let name: String
     let color: String?
 }
