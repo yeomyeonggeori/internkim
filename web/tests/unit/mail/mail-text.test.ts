@@ -10,13 +10,19 @@ describe('mailText', () => {
 		expect(collectTextShape(mailText.en).sort()).toEqual(collectTextShape(mailText.ko).sort());
 	});
 
+	test('calls a mail a 메일, leaving 메시지 to the messenger', () => {
+		const messengerWording = collectKoreanStrings(mailText.ko).filter((entry) => entry.value.includes('메시지'));
+
+		expect(messengerWording).toEqual([]);
+	});
+
 	test('uses beginner-friendly provider setup copy', () => {
 		expect(mailText.ko.providers.gmail).toBe('gmail.com');
 		expect(mailText.ko.providers.naver).toBe('naver.com');
 		expect(mailText.ko.providers.daum).toBe('daum.net');
 		expect(mailText.ko.providers.hanmail).toBe('hanmail.net');
 		expect(mailText.ko.checkingMail).toBe('메일을 확인하는 중...');
-		expect(mailText.ko.loadingMessages).toBe('메시지를 불러오는 중...');
+		expect(mailText.ko.loadingMessages).toBe('메일을 불러오는 중...');
 		expect(mailText.ko.settingsSheet.advancedSettings).toBe('고급 설정');
 		expect(mailText.ko.settingsSheet.googleAppPasswordLink).toBe('Google 앱 비밀번호 만들기');
 		expect(mailText.ko.settingsSheet.googleAccountNote).toBe('먼저 올바른 Google 계정으로 로그인했는지 확인하세요. 다른 계정에서 만든 앱 비밀번호는 연결되지 않습니다.');
@@ -43,6 +49,13 @@ describe('mailText', () => {
 		expect(mailText.en.settingsSheet.setupImageAlts.daumAppPassword).toBe('Daum app password creation example');
 	});
 });
+
+function collectKoreanStrings(node: TextNode, path: string[] = []): { path: string; value: string }[] {
+	if (typeof node === 'string') return [{ path: path.join('.'), value: node }];
+	if (Array.isArray(node)) return node.flatMap((entry, index) => collectKoreanStrings(entry, [...path, String(index)]));
+
+	return Object.entries(node).flatMap(([key, value]) => collectKoreanStrings(value, [...path, key]));
+}
 
 function collectTextShape(node: TextNode, path: string[] = []): string[] {
 	if (typeof node === 'string') return [`${path.join('.')}:string`];

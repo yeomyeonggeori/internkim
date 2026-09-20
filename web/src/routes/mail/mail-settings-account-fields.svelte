@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import {
@@ -34,13 +35,7 @@
 		syncAccountEmailFromParts,
 		syncCommonAppPassword
 	}: Props = $props();
-	let openSetupProviderID = $state<MailProviderID | null>(null);
 	let setupGuide = $derived(mailProviderSetupGuide(emailProviderID, text));
-	let isSetupGuideOpen = $derived(setupGuide !== null && openSetupProviderID === emailProviderID);
-
-	function toggleSetupGuide() {
-		openSetupProviderID = isSetupGuideOpen ? null : emailProviderID;
-	}
 </script>
 
 <div class="grid gap-4">
@@ -86,15 +81,19 @@
 			<div class="flex items-center justify-between gap-3">
 				<Label for="mail-app-password">{text.fields.appPassword}</Label>
 				{#if setupGuide}
-					<button
-						type="button"
-						class="text-xs font-medium text-primary underline-offset-4 hover:underline"
-						aria-expanded={isSetupGuideOpen}
-						aria-controls={setupGuide.panelID}
-						onclick={toggleSetupGuide}
-					>
-						{setupGuide.triggerLabel}
-					</button>
+					<Dialog.Root>
+						<Dialog.Trigger class="text-xs font-medium text-primary underline-offset-4 hover:underline">
+							{setupGuide.triggerLabel}
+						</Dialog.Trigger>
+						<Dialog.Content class="sm:max-w-lg">
+							<Dialog.Header>
+								<Dialog.Title>{setupGuide.triggerLabel}</Dialog.Title>
+							</Dialog.Header>
+							<div class="max-h-[70vh] overflow-y-auto">
+								<MailProviderSetupGuide guide={setupGuide} />
+							</div>
+						</Dialog.Content>
+					</Dialog.Root>
 				{/if}
 			</div>
 				<Input
@@ -105,9 +104,6 @@
 					placeholder={account.hasIMAPPassword || account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
 					oninput={syncCommonAppPassword}
 				/>
-			{#if setupGuide && isSetupGuideOpen}
-				<MailProviderSetupGuide guide={setupGuide} />
-			{/if}
 			<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.appPassword}</p>
 		</div>
 		<div class="w-full space-y-2">
