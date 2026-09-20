@@ -12,7 +12,6 @@ import {
 	mailboxUnreadCountText,
 	mailMessageBody,
 	mailMessageBodyHTML,
-	selectedMailboxCountText,
 	visibleMailMessages
 } from '../../../src/routes/mail/mail-page-utils';
 import type { MailMessage } from '../../../src/routes/mail/mail-types';
@@ -51,15 +50,7 @@ describe('mail page utils', () => {
 		const mailboxes = [{ name: 'INBOX', displayName: 'INBOX', unseen: 3, total: 10 }];
 
 		expect(mailboxUnreadCount(mailboxes[0])).toBe(3);
-		expect(selectedMailboxCountText(mailboxes, 'INBOX', mailText.ko)).toBe('전체 10개 · 읽지 않음 3개');
 		expect(mailboxUnreadCountText(mailboxes[0], mailText.ko)).toBe('읽지 않음 3개');
-		expect(selectedMailboxCountText(mailboxes, 'Sent', mailText.ko)).toBe('');
-	});
-
-	test('keeps server mailbox counts independent', () => {
-		const mailbox = { name: 'INBOX', displayName: 'INBOX', unseen: 12, total: 10 };
-
-		expect(selectedMailboxCountText([mailbox], 'INBOX', mailText.en)).toBe('Total 10 · Unread 12');
 	});
 
 	test('does not show negative unread counts', () => {
@@ -67,7 +58,6 @@ describe('mail page utils', () => {
 
 		expect(mailboxUnreadCount(mailbox)).toBe(0);
 		expect(mailboxUnreadCountText(mailbox, mailText.ko)).toBe('읽지 않음 0개');
-		expect(selectedMailboxCountText([mailbox], 'INBOX', mailText.ko)).toBe('전체 10개 · 읽지 않음 0개');
 	});
 
 	test('builds message body and reply draft values', () => {
@@ -92,7 +82,7 @@ describe('mail page utils', () => {
 	test('finds mailbox names by hint and builds api error messages', () => {
 		const mailboxes = defaultMailboxes(mailText.ko);
 
-		expect(mailboxNameByHint(mailboxes, 'trash')).toBe('Trash');
+		expect(mailboxNameByHint(mailboxes, ['trash'])).toBe('Trash');
 		expect(mailApiErrorMessages('fallback', 'unavailable')).toEqual({ fallback: 'fallback', serviceUnavailable: 'unavailable' });
 	});
 });

@@ -5,6 +5,8 @@ import {
 	mailHTMLDocument,
 	mailMessageKey,
 	mailMessageTimeLabel,
+	mailSenderAddress,
+	mailSenderName,
 	mergeMailMessages
 } from '../../../src/routes/mail/mail-message-utils';
 import type { MailMessage } from '../../../src/routes/mail/mail-types';
@@ -71,5 +73,17 @@ describe('mail message utils', () => {
 
 	test('allows only link popups from the message iframe sandbox', () => {
 		expect(MAIL_MESSAGE_IFRAME_SANDBOX).toBe('allow-popups allow-popups-to-escape-sandbox');
+	});
+
+	test('reads the display name and the address out of a From header', () => {
+		expect(mailSenderName('이샘플 <sample@example.com>')).toBe('이샘플');
+		expect(mailSenderAddress('이샘플 <sample@example.com>')).toBe('sample@example.com');
+		expect(mailSenderName('"Park, Yesi" <yesi@example.com>')).toBe('Park, Yesi');
+	});
+
+	test('falls back to the address when a From header carries no display name', () => {
+		expect(mailSenderName('sample@example.com')).toBe('sample@example.com');
+		expect(mailSenderAddress('sample@example.com')).toBe('');
+		expect(mailSenderName('<sample@example.com>')).toBe('<sample@example.com>');
 	});
 });

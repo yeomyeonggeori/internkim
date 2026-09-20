@@ -45,6 +45,17 @@
 </script>
 
 <Sidebar.Root collapsible="icon" class="absolute h-full">
+	<Sidebar.Header class="h-[52px] justify-center border-b p-2">
+		<Sidebar.Menu>
+			<Sidebar.MenuItem>
+				<Sidebar.MenuButton variant="outline" tooltipContent={accountText()} onclick={() => openSettings()}>
+					<AtSignIcon />
+					<span>{accountText()}</span>
+				</Sidebar.MenuButton>
+			</Sidebar.MenuItem>
+		</Sidebar.Menu>
+	</Sidebar.Header>
+
 	<Sidebar.Content>
 		<Sidebar.Group>
 			<Sidebar.GroupLabel>{text.mailboxes}</Sidebar.GroupLabel>
@@ -77,15 +88,4 @@
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>
-
-	<Sidebar.Footer>
-		<Sidebar.Menu>
-			<Sidebar.MenuItem>
-				<Sidebar.MenuButton class="text-muted-foreground" tooltipContent={accountText()} onclick={() => openSettings()}>
-					<AtSignIcon />
-					<span class="text-xs">{accountText()}</span>
-				</Sidebar.MenuButton>
-			</Sidebar.MenuItem>
-		</Sidebar.Menu>
-	</Sidebar.Footer>
 </Sidebar.Root>

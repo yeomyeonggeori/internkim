@@ -1,19 +1,20 @@
 import { moveMailMessage, updateMailMessageFlags } from './mail-api';
 import { mailPageMessageKey, selectedVisibleMessage } from './mail-message-detail-cache';
 import { removeMessageFromPageCache, updateMessageInPageCache } from './mail-message-page-cache';
-import { mailboxNameByHint } from './mail-page-utils';
+import { MAIL_MOVE_TARGET_HINTS, mailboxNameByHint } from './mail-page-utils';
+import type { MailMoveTarget } from './mail-page-utils';
 import type { MailPageControllerState, MailPageText } from './mail-page-controller-types';
 import type { MailMessage } from './mail-types';
 import { loadMessageDetail } from './mail-page-message-detail-actions';
 import { loadPageMailboxes } from './mail-page-message-list-actions';
 
-export async function moveSelectedMailMessage(controller: MailPageControllerState, text: MailPageText, targetHint: string) {
+export async function moveSelectedMailMessage(controller: MailPageControllerState, text: MailPageText, target: MailMoveTarget) {
 	if (!controller.selectedMessage) return;
 	const movedMessage = controller.selectedMessage;
 	const movedMessageKey = mailPageMessageKey(movedMessage);
-	const targetMailbox = mailboxNameByHint(controller.pageMailboxes(), targetHint);
+	const targetMailbox = mailboxNameByHint(controller.pageMailboxes(), MAIL_MOVE_TARGET_HINTS[target]);
 	if (!targetMailbox) {
-		controller.errorMessage = `${targetHint} ${text.errors.mailboxNotFound}`;
+		controller.errorMessage = `${target} ${text.errors.mailboxNotFound}`;
 		return;
 	}
 	try {
@@ -37,22 +38,26 @@ export async function moveSelectedMailMessage(controller: MailPageControllerStat
 	}
 }
 
-export async function markMailMessageRead(controller: MailPageControllerState, text: MailPageText, message: MailMessage) {
-	if (message.isRead) return;
+export function markMailMessageRead(controller: MailPageControllerState, text: MailPageText, message: MailMessage) {
+	return setMailMessageRead(controller, text, message, true);
+}
+
+export async function setMailMessageRead(controller: MailPageControllerState, text: MailPageText, message: MailMessage, isRead: boolean) {
+	if (message.isRead === isRead) return;
 	const messageKey = mailPageMessageKey(message);
 	try {
-		await updateMailMessageFlags(message, true, controller.mailErrors(text.errors.updateMessage));
+		await updateMailMessageFlags(message, isRead, controller.mailErrors(text.errors.updateMessageFlags));
 	} catch (error) {
-		controller.errorMessage = error instanceof Error ? error.message : text.errors.updateMessage;
+		controller.errorMessage = error instanceof Error ? error.message : text.errors.updateMessageFlags;
 		return;
 	}
 	const cachedMessage = controller.messageDetailCache.get(messageKey);
-	if (cachedMessage) controller.messageDetailCache.set(messageKey, { ...cachedMessage, isRead: true });
+	if (cachedMessage) controller.messageDetailCache.set(messageKey, { ...cachedMessage, isRead });
 	if (mailPageMessageKey(controller.selectedMessage) === messageKey && controller.selectedMessage) {
-		controller.selectedMessage = { ...controller.selectedMessage, isRead: true };
+		controller.selectedMessage = { ...controller.selectedMessage, isRead };
 	}
-	controller.messages = controller.messages.map((candidateMessage) => (mailPageMessageKey(candidateMessage) === messageKey ? { ...candidateMessage, isRead: true } : candidateMessage));
-	updateMessageInPageCache(controller.messageListCache, messageKey, (candidateMessage) => ({ ...candidateMessage, isRead: true }));
+	controller.messages = controller.messages.map((candidateMessage) => (mailPageMessageKey(candidateMessage) === messageKey ? { ...candidateMessage, isRead } : candidateMessage));
+	updateMessageInPageCache(controller.messageListCache, messageKey, (candidateMessage) => ({ ...candidateMessage, isRead }));
 	try {
 		await loadPageMailboxes(controller, text);
 	} catch (error) {

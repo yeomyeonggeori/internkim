@@ -28,17 +28,6 @@ export function selectedMailboxLabel(mailboxes: Mailbox[], selectedMailbox: stri
 	return mailbox?.displayName || selectedMailbox;
 }
 
-export function selectedMailboxCountText(mailboxes: Mailbox[], selectedMailbox: string, text: MailPageText) {
-	const mailbox = mailboxes.find((candidateMailbox) => candidateMailbox.name === selectedMailbox);
-	if (!mailbox) return '';
-	const total = mailboxTotalCount(mailbox);
-	const unread = mailboxUnreadCount(mailbox);
-	if (total === 0 && unread === 0) return '';
-	return text.mailboxCountSummary
-		.replace('{total}', String(total))
-		.replace('{unread}', String(unread));
-}
-
 export function mailboxUnreadCount(mailbox: Mailbox) {
 	return Math.max(mailbox.unseen, 0);
 }
@@ -75,15 +64,25 @@ export function createMailForwardDraft(message: MailMessage, quotedHeader: strin
 	};
 }
 
-export function mailboxNameByHint(mailboxes: Mailbox[], hint: string) {
-	const normalizedHint = hint.toLowerCase();
-	return mailboxes.find((mailbox) => mailbox.name.toLowerCase().includes(normalizedHint))?.name;
+export const MAIL_MOVE_TARGET_HINTS = {
+	archive: ['archive', '보관'],
+	junk: ['junk', 'spam', '스팸'],
+	trash: ['trash', 'deleted', '휴지통']
+} as const satisfies Record<string, readonly string[]>;
+
+export type MailMoveTarget = keyof typeof MAIL_MOVE_TARGET_HINTS;
+
+export function mailboxNameByHint(mailboxes: Mailbox[], hints: readonly string[]) {
+	const normalizedHints = hints.map((hint) => hint.toLowerCase());
+	return mailboxes.find((mailbox) => normalizedHints.some((hint) => mailbox.name.toLowerCase().includes(hint)))?.name;
+}
+
+export function availableMailMoveTargets(mailboxes: Mailbox[]) {
+	const targets = Object.keys(MAIL_MOVE_TARGET_HINTS) as MailMoveTarget[];
+	return targets.filter((target) => mailboxNameByHint(mailboxes, MAIL_MOVE_TARGET_HINTS[target]));
 }
 
 export function mailApiErrorMessages(fallback: string, serviceUnavailable: string) {
 	return { fallback, serviceUnavailable };
 }
 
-function mailboxTotalCount(mailbox: Mailbox) {
-	return Math.max(mailbox.total, 0);
-}
