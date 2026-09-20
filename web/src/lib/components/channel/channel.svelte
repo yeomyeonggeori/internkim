@@ -271,7 +271,7 @@
 				messages = mergeOlderMessages(olderMessages, conversation.messages);
 				setCachedMessages(channelId, conversation.messages);
 				if (openThreadRoot) {
-					openThreadRoot = messages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
+					openThreadRoot = visibleMessages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
 				}
 			}
 			loadFailed = false;
@@ -876,7 +876,7 @@
 		canReply={isInTimeline && !message.threadRootId}
 		canDelete={isMine(message) || canModerate}
 		isSettled={!message.id.startsWith('pending-')}
-		hasFooter={message.thread !== undefined}
+		hasFooter={isInTimeline && message.thread !== undefined}
 		copyable={whatToCopy(
 			messageTextBeside(
 				message.text,
@@ -898,7 +898,7 @@
 			</Bubble.Group>
 		{/snippet}
 		{#snippet footer()}
-			{@render threadChip(message)}
+			{#if isInTimeline}{@render threadChip(message)}{/if}
 		{/snippet}
 	</MessageRow>
 {/snippet}
@@ -907,7 +907,7 @@
 	<div class="@container/conversation min-h-0 flex-1 overflow-y-auto">
 		<div class="flex flex-col gap-4 px-4 py-8">
 			{#if openThreadRoot}
-				{@render messageRow({ ...openThreadRoot, thread: undefined }, true, true, false)}
+				{@render messageRow(openThreadRoot, true, true, false)}
 				{#each threadReplies as reply (reply.id)}
 					{@render messageRow(reply, true, true, false)}
 				{/each}
