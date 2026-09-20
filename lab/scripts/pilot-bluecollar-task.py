@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -14,6 +15,9 @@ chatd_origin = "http://172.31.0.1:18090"
 requester_email = sys.argv[1]
 instruction = base64.b64decode(sys.argv[2]).decode("utf-8")
 settle_timeout_seconds = 720
+agent_workspace_prefix = "/workspace/"
+host_workspace_root = "/root/.blueclaw/workspace"
+readable_delivered_file_maximum_bytes = 25 * 1024 * 1024
 
 
 def request(path, body=None, accepted=(200,), timeout=60, origin="http://127.0.0.1:8080", attempts=3):
@@ -88,6 +92,50 @@ def requested_tools(detail):
     return [event["name"][len("tool.") : -len(".requested")] for event in detail["taskEvents"] if event["name"].startswith("tool.") and event["name"].endswith(".requested")]
 
 
+def host_path_of(device_path):
+    if not device_path.startswith(agent_workspace_prefix):
+        return device_path
+    return host_workspace_root + device_path[len("/workspace") :]
+
+
+def zip_container_state(host_path, size_bytes):
+    if size_bytes > readable_delivered_file_maximum_bytes or not os.path.isfile(host_path):
+        return None
+    try:
+        with zipfile.ZipFile(host_path) as container:
+            return container.testzip() is None
+    except zipfile.BadZipFile:
+        return False
+    except OSError:
+        return None
+
+
+def described_attachment(attachment):
+    device_path = attachment.get("devicePath") or ""
+    size_bytes = attachment.get("sizeBytes") or 0
+    return {
+        "filename": attachment.get("filename") or "",
+        "contentType": attachment.get("contentType") or "",
+        "sizeBytes": size_bytes,
+        "devicePath": device_path,
+        "isZipContainer": zip_container_state(host_path_of(device_path), size_bytes),
+    }
+
+
+def delivered_files(detail):
+    files = []
+    for event in detail["taskEvents"]:
+        if not (event["name"].startswith("tool.") and event["name"].endswith(".result")):
+            continue
+        try:
+            body = json.loads(event["body"])
+        except ValueError:
+            continue
+        for attachment in body.get("attachments") or []:
+            files.append(described_attachment(attachment))
+    return files
+
+
 def main():
     policy = request("/admin/api/policy")
     people = [person for person in policy["people"] if requester_email in person["emails"]]
@@ -104,6 +152,7 @@ def main():
         "taskRunID": task_run["taskRunID"],
         "requestedTools": requested_tools(detail),
         "llmCalls": [json.loads(event["body"]) for event in events_named(detail, "llm.call")],
+        "deliveredFiles": delivered_files(detail),
         "result": task_run.get("result") or "",
         "failureReason": task_run.get("failureReason") or "",
         "turns": len(events_named(detail, "agent.action")),

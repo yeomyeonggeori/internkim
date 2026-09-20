@@ -4,17 +4,18 @@
 //   PILOT_FLEET_CONFIG     the kept Local Fleet's config.json (bluecollar arms)
 //   OPENROUTER_API_KEY     the model credential an external harness sends through the meter (claude-code)
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { controlPlane, forgetPersonalAccessToken, issuePersonalAccessToken } from '../../src/lib/server/control-plane';
 import { memberOfCompanyByEmail } from '../../src/lib/server/member-credential';
 import { armNames, isArmName, type ArmName, type ArmRunContext, type HarnessOutcome } from './arms/arm';
 import { runBluecollar } from './arms/bluecollar';
 import { runClaudeCode } from './arms/claude-code';
-import { cleanUp, judge, localRecord, seedCompanyID, type Judgement, type PilotTask } from './record';
+import { cleanUp, judge, loadTasks, localRecord, seedCompanyID, type Judgement, type PilotTask } from './record';
 
 const model = 'z-ai/glm-5.3-flash';
-const requesterEmail = 'member3@example.com';
+const defaultRequesterEmail = 'member3@example.com';
 
 interface Options {
 	arm: ArmName;
@@ -27,14 +28,22 @@ interface Options {
 export interface RunResult {
 	arm: ArmName;
 	task: string;
+	requesterEmail: string;
 	repetition: number;
 	model: string;
 	startedAt: string;
 	wallClockMs: number;
 	passed: boolean;
+	reachedTheLoop: boolean;
 	judgement: Judgement;
-	harness: Omit<HarnessOutcome, 'calls'>;
+	harness: Omit<HarnessOutcome, 'calls' | 'reachedTheLoop'>;
 	calls: HarnessOutcome['calls'];
+}
+
+interface RequesterCredential {
+	memberID: string;
+	tokenName: string;
+	personalAccessToken: string;
 }
 
 function argument(name: string): string | undefined {
@@ -54,14 +63,6 @@ function options(): Options {
 	};
 }
 
-function loadTasks(directory: string, only?: string): PilotTask[] {
-	return readdirSync(directory)
-		.filter((name) => name.endsWith('.json'))
-		.sort()
-		.map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')) as PilotTask)
-		.filter((task) => !only || task.name === only);
-}
-
 function requiredEnvironment(name: string, arm: ArmName): string {
 	const value = (process.env[name] ?? '').trim();
 	if (!value) throw new Error(`${name} must be set for the ${arm} arm`);
@@ -76,6 +77,37 @@ function tokenSum(calls: HarnessOutcome['calls']): number {
 	return calls.reduce((sum, call) => sum + call.promptTokens, 0);
 }
 
+function requesterOf(task: PilotTask): string {
+	return task.requesterEmail ?? defaultRequesterEmail;
+}
+
+async function issueCredential(client: SupabaseClient, email: string, runID: string): Promise<RequesterCredential> {
+	const memberID = await memberOfCompanyByEmail(client, seedCompanyID, email);
+	if (!memberID) throw new Error(`${email} is not a member of the seed company; reset the local record first`);
+	const tokenName = `pilot-${runID}-${email.split('@')[0]}`;
+	const personalAccessToken = await issuePersonalAccessToken(client, memberID, tokenName, 'write');
+	return { memberID, tokenName, personalAccessToken };
+}
+
+async function credentialFor(
+	client: SupabaseClient,
+	credentials: Map<string, RequesterCredential>,
+	email: string,
+	runID: string,
+): Promise<RequesterCredential> {
+	const known = credentials.get(email);
+	if (known) return known;
+	const issued = await issueCredential(client, email, runID);
+	credentials.set(email, issued);
+	return issued;
+}
+
+async function forgetCredentials(client: SupabaseClient, credentials: Map<string, RequesterCredential>): Promise<void> {
+	for (const credential of credentials.values()) {
+		await forgetPersonalAccessToken(client, credential.memberID, credential.tokenName);
+	}
+}
+
 async function main(): Promise<void> {
 	const chosen = options();
 	const repositoryRoot = resolve(import.meta.dir, '../../..');
@@ -86,18 +118,13 @@ async function main(): Promise<void> {
 	const isExternalHarness = chosen.arm === 'claude-code';
 
 	const client = controlPlane({ projectURL: record.apiURL, serviceRoleKey: record.secretKey });
-	const memberID = await memberOfCompanyByEmail(client, seedCompanyID, requesterEmail);
-	if (!memberID) throw new Error(`${requesterEmail} is not a member of the seed company; reset the local record first`);
-	const tokenName = `pilot-${chosen.runID}`;
-	const personalAccessToken = await issuePersonalAccessToken(client, memberID, tokenName, 'write');
+	const credentials = new Map<string, RequesterCredential>();
 
-	const context: Omit<ArmRunContext, 'instruction' | 'evidenceDirectory'> = {
+	const context: Omit<ArmRunContext, 'instruction' | 'evidenceDirectory' | 'personalAccessToken' | 'requesterEmail'> = {
 		repositoryRoot,
 		appURL: isExternalHarness ? requiredEnvironment('PILOT_APP_URL', chosen.arm) : '',
-		personalAccessToken,
 		modelCredential: isExternalHarness ? requiredEnvironment('OPENROUTER_API_KEY', chosen.arm) : '',
 		model,
-		requesterEmail,
 		fleetConfigurationPath: isExternalHarness ? '' : resolve(requiredEnvironment('PILOT_FLEET_CONFIG', chosen.arm)),
 	};
 
@@ -108,33 +135,46 @@ async function main(): Promise<void> {
 				const evidenceDirectory = join(evidenceRoot, task.name, String(repetition));
 				if (existsSync(join(evidenceDirectory, 'result.json'))) continue;
 				mkdirSync(evidenceDirectory, { recursive: true });
+				const requesterEmail = requesterOf(task);
+				const credential = await credentialFor(client, credentials, requesterEmail, chosen.runID);
 				await cleanUp(record, task.cleanup);
 				const startedAt = new Date();
-				const outcome = await armRunner(chosen.arm)({ ...context, instruction: task.instruction, evidenceDirectory });
+				const outcome = await armRunner(chosen.arm)({
+					...context,
+					requesterEmail,
+					personalAccessToken: credential.personalAccessToken,
+					instruction: task.instruction,
+					evidenceDirectory,
+				});
 				const wallClockMs = Date.now() - startedAt.getTime();
-				const judgement = await judge(record, task.assertions);
+				const judgement = await judge(record, task.assertions, outcome);
 				await cleanUp(record, task.cleanup);
-				const { calls, ...harness } = outcome;
+				const { calls, reachedTheLoop, ...harness } = outcome;
 				const result: RunResult = {
 					arm: chosen.arm,
 					task: task.name,
+					requesterEmail,
 					repetition,
 					model,
 					startedAt: startedAt.toISOString(),
 					wallClockMs,
 					passed: judgement.passed,
+					reachedTheLoop,
 					judgement,
 					harness,
 					calls,
 				};
 				writeFileSync(join(evidenceDirectory, 'result.json'), JSON.stringify(result, null, 2));
 				const verdict = judgement.passed ? '✓' : '✗';
+				const loop = reachedTheLoop ? 'in the loop' : 'never reached the loop';
 				const reason = judgement.passed ? '' : ` — ${judgement.findings.flatMap((finding) => finding.mismatches).join('; ')}`;
-				console.log(`${verdict} ${chosen.arm} ${task.name} #${repetition}: ${harness.status}, ${calls.length} model calls, ${tokenSum(calls)} prompt tokens, ${(wallClockMs / 1000).toFixed(0)} s${reason}`);
+				console.log(
+					`${verdict} ${chosen.arm} ${task.name} #${repetition}: ${harness.status}, ${loop}, ${calls.length} model calls, ${tokenSum(calls)} prompt tokens, ${(wallClockMs / 1000).toFixed(0)} s${reason}`,
+				);
 			}
 		}
 	} finally {
-		await forgetPersonalAccessToken(client, memberID, tokenName);
+		await forgetCredentials(client, credentials);
 	}
 }
 

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ArmRunContext, HarnessOutcome, ModelCall } from './arm';
+import type { ArmRunContext, DeliveredFile, HarnessOutcome, HarnessStatus, ModelCall } from './arm';
 
 const guestScriptPath = '/mnt/shared/workspace/lab/scripts/pilot-bluecollar-task.py';
 const resultMarker = 'PILOT-RESULT ';
@@ -17,11 +17,20 @@ interface LLMCallRecord {
 	costUSD?: number;
 }
 
+interface GuestDeliveredFile {
+	filename?: string;
+	contentType?: string;
+	sizeBytes?: number;
+	devicePath?: string;
+	isZipContainer?: boolean | null;
+}
+
 interface GuestResult {
 	status: string;
 	taskRunID: string;
 	requestedTools: string[];
 	llmCalls: LLMCallRecord[];
+	deliveredFiles: GuestDeliveredFile[];
 	result: string;
 	failureReason: string;
 	turns: number;
@@ -38,6 +47,26 @@ function modelCallOf(record: LLMCallRecord): ModelCall {
 		latencyMs: record.latencyMs,
 		providerReportedCostUSD: record.costUSD,
 	};
+}
+
+function deliveredFileOf(record: GuestDeliveredFile): DeliveredFile {
+	return {
+		filename: record.filename ?? '',
+		contentType: record.contentType ?? '',
+		sizeBytes: record.sizeBytes ?? 0,
+		devicePath: record.devicePath ?? '',
+		isZipContainer: record.isZipContainer ?? null,
+	};
+}
+
+function harnessStatusOf(guestStatus: string): HarnessStatus {
+	if (guestStatus === 'completed') return 'completed';
+	if (guestStatus === 'waiting_user_input') return 'waiting_user_input';
+	return 'failed';
+}
+
+function unstartedOutcome(status: HarnessStatus, reply: string): HarnessOutcome {
+	return { status, reachedTheLoop: false, turns: 0, toolCalls: [], reply, deliveredFiles: [], calls: [] };
 }
 
 export async function runBluecollar(context: ArmRunContext): Promise<HarnessOutcome> {
@@ -58,15 +87,17 @@ export async function runBluecollar(context: ArmRunContext): Promise<HarnessOutc
 	writeFileSync(join(context.evidenceDirectory, 'vm-ssh-stdout.txt'), stdout);
 	writeFileSync(join(context.evidenceDirectory, 'vm-ssh-stderr.txt'), new TextDecoder().decode(run.stderr));
 	const resultLine = stdout.split('\n').find((line) => line.startsWith(resultMarker));
-	if (run.exitCode === null) return { status: 'timed_out', turns: 0, toolCalls: [], reply: '', calls: [] };
-	if (!resultLine) return { status: 'failed', turns: 0, toolCalls: [], reply: `no result line; exit ${run.exitCode}`, calls: [] };
+	if (run.exitCode === null) return unstartedOutcome('timed_out', '');
+	if (!resultLine) return unstartedOutcome('failed', `no result line; exit ${run.exitCode}`);
 	const guest = JSON.parse(resultLine.slice(resultMarker.length)) as GuestResult;
 	writeFileSync(join(context.evidenceDirectory, 'run-detail.json'), JSON.stringify(guest.detail, null, 2));
 	return {
-		status: guest.status === 'completed' ? 'completed' : 'failed',
+		status: harnessStatusOf(guest.status),
+		reachedTheLoop: guest.turns > 0,
 		turns: guest.turns,
 		toolCalls: guest.requestedTools,
 		reply: guest.status === 'completed' ? guest.result : guest.failureReason,
+		deliveredFiles: (guest.deliveredFiles ?? []).map(deliveredFileOf),
 		calls: guest.llmCalls.map(modelCallOf),
 	};
 }

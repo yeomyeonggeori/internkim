@@ -1,13 +1,26 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { callsInLedger, startPromptMeter, withProviders } from '../prompt-meter';
-import type { ArmRunContext, HarnessOutcome } from './arm';
+import type { ArmRunContext, DeliveredFile, HarnessOutcome } from './arm';
 
 const meterPort = 8331;
 const serverName = 'internkim-plane';
 const maximumTurns = 12;
 const runTimeoutMs = 600_000;
+
+const contentTypeByExtension: Record<string, string> = {
+	'.csv': 'text/csv',
+	'.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'.html': 'text/html',
+	'.md': 'text/markdown',
+	'.pdf': 'application/pdf',
+	'.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+	'.txt': 'text/plain',
+	'.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+const zipLocalFileHeader = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
 
 interface StreamLine {
 	type: string;
@@ -30,7 +43,31 @@ function mcpConfiguration(appURL: string, personalAccessToken: string): string {
 	});
 }
 
-function outcomeOf(stdout: string, exitCode: number | null, calls: HarnessOutcome['calls']): HarnessOutcome {
+function startsWithZipHeader(path: string): boolean | null {
+	try {
+		return readFileSync(path).subarray(0, zipLocalFileHeader.length).equals(zipLocalFileHeader);
+	} catch {
+		return null;
+	}
+}
+
+function deliveredFilesIn(directory: string): DeliveredFile[] {
+	return readdirSync(directory, { withFileTypes: true })
+		.filter((entry) => entry.isFile())
+		.map((entry) => {
+			const path = join(directory, entry.name);
+			const extension = extname(entry.name).toLowerCase();
+			return {
+				filename: entry.name,
+				contentType: contentTypeByExtension[extension] ?? 'application/octet-stream',
+				sizeBytes: statSync(path).size,
+				devicePath: path,
+				isZipContainer: startsWithZipHeader(path),
+			};
+		});
+}
+
+function outcomeOf(stdout: string, exitCode: number | null, deliveredFiles: DeliveredFile[], calls: HarnessOutcome['calls']): HarnessOutcome {
 	const lines = stdout
 		.split('\n')
 		.filter((line) => line.startsWith('{'))
@@ -42,7 +79,15 @@ function outcomeOf(stdout: string, exitCode: number | null, calls: HarnessOutcom
 		.map((block) => block.name ?? '');
 	const result = lines.find((line) => line.type === 'result');
 	const status = exitCode === null ? 'timed_out' : result && !result.is_error && result.subtype === 'success' ? 'completed' : 'failed';
-	return { status, turns: result?.num_turns ?? 0, toolCalls, reply: result?.result ?? '', calls };
+	return {
+		status,
+		reachedTheLoop: lines.some((line) => line.type === 'assistant'),
+		turns: result?.num_turns ?? 0,
+		toolCalls,
+		reply: result?.result ?? '',
+		deliveredFiles,
+		calls,
+	};
 }
 
 export async function runClaudeCode(context: ArmRunContext): Promise<HarnessOutcome> {
@@ -92,7 +137,7 @@ export async function runClaudeCode(context: ArmRunContext): Promise<HarnessOutc
 		writeFileSync(join(context.evidenceDirectory, 'claude-stream.jsonl'), stdout);
 		writeFileSync(join(context.evidenceDirectory, 'claude-stderr.txt'), new TextDecoder().decode(run.stderr));
 		const calls = await withProviders(callsInLedger(meter.ledgerPath), context.modelCredential);
-		return outcomeOf(stdout, run.exitCode, calls);
+		return outcomeOf(stdout, run.exitCode, deliveredFilesIn(workingDirectory), calls);
 	} finally {
 		meter.stop();
 		rmSync(privateDirectory, { recursive: true, force: true });
