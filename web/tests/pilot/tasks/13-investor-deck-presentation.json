@@ -1,0 +1,19 @@
+{
+	"name": "investor-deck-presentation",
+	"instruction": "예시 벤처스에 보낼 투자 검토용 발표자료를 파워포인트로 만들어줘. 진행 중인 투자 유치 건과 회사 거래 현황이 들어가야 해. 다 되면 'IR 자료 공유' 업무를 완료로 바꿔줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".pptx", "minBytes": 10000 } },
+		{
+			"table": "task",
+			"where": { "id": "000000f0-0000-0000-0000-0000000000c5" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "task",
+			"where": { "id": "000000f0-0000-0000-0000-0000000000c5" },
+			"set": { "status": "planned" }
+		}
+	]
+}

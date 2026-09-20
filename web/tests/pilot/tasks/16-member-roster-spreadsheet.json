@@ -1,0 +1,13 @@
+{
+	"name": "member-roster-spreadsheet",
+	"instruction": "회사 구성원 명부를 엑셀로 만들어줘. 이름, 직함, 소속 팀, 입사일 열이 필요하고, 팀이 없는 사람은 '미배정'으로 적어줘. 끝나면 '구성원 명부 정리' 업무를 완료로 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".xlsx", "minBytes": 2000 } },
+		{
+			"table": "task",
+			"where": { "title": "구성원 명부 정리" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "구성원 명부 정리" } }]
+}

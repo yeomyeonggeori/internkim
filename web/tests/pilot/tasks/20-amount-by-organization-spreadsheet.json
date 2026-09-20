@@ -1,0 +1,13 @@
+{
+	"name": "amount-by-organization-spreadsheet",
+	"instruction": "거래처별로 열려 있는 거래 금액 합계를 엑셀로 내줘. 통화가 섞여 있으니 통화별로 나눠서 적어줘. 끝나면 '거래처별 금액 집계 공유' 업무도 하나 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".xlsx", "minBytes": 2000 } },
+		{
+			"table": "task",
+			"where": { "title": "거래처별 금액 집계 공유" },
+			"expect": { "status": "planned" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "거래처별 금액 집계 공유" } }]
+}

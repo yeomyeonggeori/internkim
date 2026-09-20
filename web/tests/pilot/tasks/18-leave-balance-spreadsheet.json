@@ -1,0 +1,13 @@
+{
+	"name": "leave-balance-spreadsheet",
+	"instruction": "구성원별 연차 잔여일수를 엑셀로 정리해줘. 이름, 부여일수, 사용일수, 남은 일수 열이 필요해. 끝나면 '연차 잔여 정리' 업무를 완료로 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".xlsx", "minBytes": 2000 } },
+		{
+			"table": "task",
+			"where": { "title": "연차 잔여 정리" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "연차 잔여 정리" } }]
+}

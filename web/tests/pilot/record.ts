@@ -1,3 +1,7 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import type { DeliveredFile, HarnessOutcome } from './arms/arm';
+
 export interface RecordAccess {
 	apiURL: string;
 	secretKey: string;
@@ -10,7 +14,7 @@ type Scalar = string | number | boolean | null;
 type FilterValue = Scalar | { gte?: string; lte?: string };
 export type Where = Record<string, FilterValue>;
 
-export interface Assertion {
+export interface RecordAssertion {
 	table: string;
 	select?: string;
 	where: Where;
@@ -18,20 +22,68 @@ export interface Assertion {
 	expect: Record<string, unknown>;
 }
 
+export interface DeliveredFileAssertion {
+	deliveredFile: {
+		filenameEndsWith: string;
+		contentType?: string;
+		minBytes?: number;
+	};
+}
+
+export interface ReplyMentionsAssertion {
+	replyMentions: string[];
+}
+
+export interface WaitingForAnswerAssertion {
+	waitingForAnswer: { mentions: string[] };
+}
+
+export type Assertion = RecordAssertion | DeliveredFileAssertion | ReplyMentionsAssertion | WaitingForAnswerAssertion;
+
 export type CleanupStep =
 	| { delete: string; where: Where }
-	| { update: string; where: Where; set: Record<string, Scalar> };
+	| { update: string; where: Where; set: Record<string, unknown> };
 
 export interface PilotTask {
 	name: string;
+	requesterEmail?: string;
 	instruction: string;
 	assertions: Assertion[];
 	cleanup: CleanupStep[];
 }
 
+export interface Finding {
+	subject: string;
+	rowCount: number;
+	mismatches: string[];
+	notes: string[];
+}
+
 export interface Judgement {
 	passed: boolean;
-	findings: { table: string; rowCount: number; mismatches: string[] }[];
+	findings: Finding[];
+}
+
+export type JudgedOutcome = Pick<HarnessOutcome, 'status' | 'reply' | 'deliveredFiles'>;
+
+export function isRecordAssertion(assertion: Assertion): assertion is RecordAssertion {
+	return 'table' in assertion;
+}
+
+export function isDeliveredFileAssertion(assertion: Assertion): assertion is DeliveredFileAssertion {
+	return 'deliveredFile' in assertion;
+}
+
+export function isReplyMentionsAssertion(assertion: Assertion): assertion is ReplyMentionsAssertion {
+	return 'replyMentions' in assertion;
+}
+
+export function loadTasks(directory: string, only?: string): PilotTask[] {
+	return readdirSync(directory)
+		.filter((name) => name.endsWith('.json'))
+		.sort()
+		.map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')) as PilotTask)
+		.filter((task) => !only || task.name === only);
 }
 
 export function localRecord(): RecordAccess {
@@ -126,17 +178,101 @@ function mismatchesOf(expected: Record<string, unknown>, row: Record<string, unk
 		.map(([column, value]) => `${column}: expected ${JSON.stringify(value)}, found ${JSON.stringify(row[column])}`);
 }
 
-export async function judge(record: RecordAccess, assertions: Assertion[]): Promise<Judgement> {
-	const findings = [];
-	for (const assertion of assertions) {
-		const rows = await rowsOfAnyTable(record, assertion.table, assertion.where, assertion.select ?? '*');
-		const expectedRowCount = assertion.rowCount ?? 1;
-		const mismatches =
-			rows.length === expectedRowCount
-				? rows.flatMap((row) => mismatchesOf(assertion.expect, row))
-				: [`expected ${expectedRowCount} row(s), found ${rows.length}`];
-		findings.push({ table: assertion.table, rowCount: rows.length, mismatches });
+async function recordFinding(record: RecordAccess, assertion: RecordAssertion): Promise<Finding> {
+	const rows = await rowsOfAnyTable(record, assertion.table, assertion.where, assertion.select ?? '*');
+	const expectedRowCount = assertion.rowCount ?? 1;
+	const mismatches =
+		rows.length === expectedRowCount
+			? rows.flatMap((row) => mismatchesOf(assertion.expect, row))
+			: [`expected ${expectedRowCount} row(s), found ${rows.length}`];
+	return { subject: assertion.table, rowCount: rows.length, mismatches, notes: [] };
+}
+
+const zipContainerExtensions = new Set(['.docx', '.pptx', '.xlsx']);
+
+function isZipContainerFilename(filename: string): boolean {
+	return zipContainerExtensions.has(extname(filename).toLowerCase());
+}
+
+function deliveredFileMismatches(expected: DeliveredFileAssertion['deliveredFile'], file: DeliveredFile): string[] {
+	const mismatches: string[] = [];
+	if (expected.contentType !== undefined && file.contentType !== expected.contentType) {
+		mismatches.push(`contentType: expected ${expected.contentType}, found ${file.contentType || 'nothing'}`);
 	}
+	if (expected.minBytes !== undefined && file.sizeBytes < expected.minBytes) {
+		mismatches.push(`sizeBytes: expected at least ${expected.minBytes}, found ${file.sizeBytes}`);
+	}
+	if (isZipContainerFilename(file.filename) && file.isZipContainer === false) {
+		mismatches.push(`${file.filename} is not a readable zip container`);
+	}
+	return mismatches;
+}
+
+function deliveredFileNotes(file: DeliveredFile): string[] {
+	if (!isZipContainerFilename(file.filename) || file.isZipContainer !== null) return [];
+	return [`${file.filename}: the arm could not read the bytes, so only the attachment metadata was checked`];
+}
+
+export function deliveredFileFinding(assertion: DeliveredFileAssertion, deliveredFiles: DeliveredFile[]): Finding {
+	const suffix = assertion.deliveredFile.filenameEndsWith.toLowerCase();
+	const candidates = deliveredFiles.filter((file) => file.filename.toLowerCase().endsWith(suffix));
+	if (candidates.length === 0) {
+		return {
+			subject: 'deliveredFile',
+			rowCount: 0,
+			mismatches: [`no delivered file ends with ${assertion.deliveredFile.filenameEndsWith}`],
+			notes: [],
+		};
+	}
+	const judged = candidates.map((file) => ({ file, mismatches: deliveredFileMismatches(assertion.deliveredFile, file) }));
+	const accepted = judged.find((candidate) => candidate.mismatches.length === 0) ?? judged[0];
+	return {
+		subject: 'deliveredFile',
+		rowCount: candidates.length,
+		mismatches: accepted.mismatches,
+		notes: accepted.mismatches.length === 0 ? deliveredFileNotes(accepted.file) : [],
+	};
+}
+
+export function replyMentionsFinding(assertion: ReplyMentionsAssertion, reply: string): Finding {
+	const missing = assertion.replyMentions.filter((value) => !reply.includes(value));
+	return {
+		subject: 'replyMentions',
+		rowCount: assertion.replyMentions.length - missing.length,
+		mismatches: missing.map((value) => `the reply does not mention ${JSON.stringify(value)}`),
+		notes: [],
+	};
+}
+
+const statusesThatCanCarryAQuestion: JudgedOutcome['status'][] = ['waiting_user_input', 'completed'];
+
+export function waitingForAnswerFinding(assertion: WaitingForAnswerAssertion, outcome: JudgedOutcome): Finding {
+	const mismatches: string[] = [];
+	if (!statusesThatCanCarryAQuestion.includes(outcome.status)) {
+		mismatches.push(`expected the run to stop and ask, found ${outcome.status}`);
+	}
+	if (!assertion.waitingForAnswer.mentions.some((value) => outcome.reply.includes(value))) {
+		mismatches.push(`the question mentions none of ${JSON.stringify(assertion.waitingForAnswer.mentions)}`);
+	}
+	const askedWithoutPausing = mismatches.length === 0 && outcome.status === 'completed';
+	return {
+		subject: 'waitingForAnswer',
+		rowCount: mismatches.length === 0 ? 1 : 0,
+		mismatches,
+		notes: askedWithoutPausing ? ['the arm has no paused state, so the question was read from the final reply'] : [],
+	};
+}
+
+async function findingOf(record: RecordAccess, assertion: Assertion, outcome: JudgedOutcome): Promise<Finding> {
+	if (isRecordAssertion(assertion)) return recordFinding(record, assertion);
+	if (isDeliveredFileAssertion(assertion)) return deliveredFileFinding(assertion, outcome.deliveredFiles);
+	if (isReplyMentionsAssertion(assertion)) return replyMentionsFinding(assertion, outcome.reply);
+	return waitingForAnswerFinding(assertion, outcome);
+}
+
+export async function judge(record: RecordAccess, assertions: Assertion[], outcome: JudgedOutcome): Promise<Judgement> {
+	const findings: Finding[] = [];
+	for (const assertion of assertions) findings.push(await findingOf(record, assertion, outcome));
 	return { passed: findings.every((finding) => finding.mismatches.length === 0), findings };
 }
 

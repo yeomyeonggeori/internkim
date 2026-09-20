@@ -1,0 +1,13 @@
+{
+	"name": "company-record-add-as-admin",
+	"requesterEmail": "member1@example.com",
+	"instruction": "2026년 9월 18일에 ISO 9001 인증을 받았어. 'ISO 9001 인증 취득'으로 회사 이력에 등록해줘.",
+	"assertions": [
+		{
+			"table": "company_record",
+			"where": { "title": "ISO 9001 인증 취득" },
+			"expect": { "record_date": { "dayInZone": "2026-09-18" } }
+		}
+	],
+	"cleanup": [{ "delete": "company_record", "where": { "title": "ISO 9001 인증 취득" } }]
+}
