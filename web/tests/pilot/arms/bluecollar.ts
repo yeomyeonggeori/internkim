@@ -5,7 +5,7 @@ import type { ArmRunContext, DeliveredFile, HarnessOutcome, HarnessStatus, Model
 const guestScriptPath = '/mnt/shared/workspace/lab/scripts/pilot-bluecollar-task.py';
 const resultMarker = 'PILOT-RESULT ';
 const guestPassword = 'admin';
-const runTimeoutMs = 900_000;
+const runTimeoutMs = 2_000_000;
 
 interface LLMCallRecord {
 	kind: string;
