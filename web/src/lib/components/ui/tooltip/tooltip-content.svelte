@@ -33,7 +33,10 @@
 		{...restProps}
 	>
 		{#snippet child({ props, wrapperProps })}
-			<div {...wrapperProps} class={cn("z-(--layer-tooltip)", (wrapperProps as { class?: string }).class)}>
+			<div
+				{...wrapperProps}
+				style={`${(wrapperProps as { style?: string }).style ?? ''};z-index:var(--layer-tooltip)`}
+			>
 				<div {...props}>
 					{@render children?.()}
 		<TooltipPrimitive.Arrow>
