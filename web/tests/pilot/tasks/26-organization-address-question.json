@@ -1,0 +1,13 @@
+{
+	"name": "organization-address-question",
+	"instruction": "샘플 상사 주소가 어디로 등록돼 있는지 알려주고, 방문 준비용으로 '샘플 상사 방문 준비' 업무 하나 만들어줘.",
+	"assertions": [
+		{ "replyMentions": ["경기도 성남시"] },
+		{
+			"table": "task",
+			"where": { "title": "샘플 상사 방문 준비" },
+			"expect": { "status": "planned" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "샘플 상사 방문 준비" } }]
+}

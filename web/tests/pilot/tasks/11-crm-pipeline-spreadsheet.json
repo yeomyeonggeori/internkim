@@ -1,0 +1,13 @@
+{
+	"name": "crm-pipeline-spreadsheet",
+	"instruction": "판매 파이프라인에 올라 있는 거래를 전부 모아서 엑셀 한 장으로 정리해줘. 거래처, 거래명, 단계, 금액, 통화, 담당자가 열로 들어가야 해. 정리가 끝나면 '판매 파이프라인 정리' 업무를 완료 상태로 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".xlsx", "minBytes": 2000 } },
+		{
+			"table": "task",
+			"where": { "title": "판매 파이프라인 정리" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "판매 파이프라인 정리" } }]
+}

@@ -1,0 +1,19 @@
+{
+	"name": "investment-memo-document",
+	"instruction": "'시리즈 A 브리지 라운드' 건은 당분간 속도를 낮추기로 했어. 중요도를 보통으로 내리고, 지금까지 진행 상황과 다음 단계를 정리한 워드 메모를 만들어줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".docx", "minBytes": 5000 } },
+		{
+			"table": "opportunity",
+			"where": { "id": "0000000a-0000-0000-0000-000000000007" },
+			"expect": { "importance": "medium", "archived_at": null }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "opportunity",
+			"where": { "id": "0000000a-0000-0000-0000-000000000007" },
+			"set": { "importance": "high" }
+		}
+	]
+}

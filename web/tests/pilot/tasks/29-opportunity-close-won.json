@@ -1,0 +1,24 @@
+{
+	"name": "opportunity-close-won",
+	"instruction": "'상반기 협력 제안' 건 계약이 확정됐어. 성사로 정리해줘.",
+	"assertions": [
+		{
+			"table": "opportunity",
+			"where": { "id": "0000000a-0000-0000-0000-000000000001" },
+			"expect": { "stage_id": "done", "archived_at": null }
+		}
+	],
+	"cleanup": [
+		{
+			"update": "opportunity",
+			"where": { "id": "0000000a-0000-0000-0000-000000000001" },
+			"set": {
+				"stage_id": "in_progress",
+				"stage_position": 2,
+				"stage_changed_at": null,
+				"base_amount_minor": null,
+				"base_currency_code": null
+			}
+		}
+	]
+}

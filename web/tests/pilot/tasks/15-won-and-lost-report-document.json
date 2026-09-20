@@ -1,0 +1,13 @@
+{
+	"name": "won-and-lost-report-document",
+	"instruction": "마무리된 거래를 성사와 실패로 나눠서 워드 보고서로 정리해줘. 실패한 건은 왜 그렇게 됐는지도 적어줘. 끝나면 '수주 결과 정리' 업무를 완료로 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".docx", "minBytes": 5000 } },
+		{
+			"table": "task",
+			"where": { "title": "수주 결과 정리" },
+			"expect": { "status": "completed" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "수주 결과 정리" } }]
+}

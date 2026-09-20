@@ -1,0 +1,13 @@
+{
+	"name": "contact-directory-spreadsheet",
+	"instruction": "거래처 담당자 연락처를 한눈에 볼 수 있게 엑셀로 만들어줘. 거래처, 담당자 이름, 직함, 부서, 이메일, 전화번호 열이 필요하고, 전화번호가 없는 사람은 '미기재'로 적어줘. 끝나면 '담당자 연락처 분기 갱신' 업무도 하나 등록해줘.",
+	"assertions": [
+		{ "deliveredFile": { "filenameEndsWith": ".xlsx", "minBytes": 2000 } },
+		{
+			"table": "task",
+			"where": { "title": "담당자 연락처 분기 갱신" },
+			"expect": { "status": "planned" }
+		}
+	],
+	"cleanup": [{ "delete": "task", "where": { "title": "담당자 연락처 분기 갱신" } }]
+}
