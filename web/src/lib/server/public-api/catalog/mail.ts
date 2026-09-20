@@ -14,6 +14,8 @@ const mailConnectionStartInputIntentSchema = z.strictObject({});
 
 const mailConnectionStatusInputSchema = z.strictObject({});
 
+const mailMailboxListInputSchema = z.strictObject({});
+
 const mailMessageListInputSchema = z.strictObject({
   cursor: z.string().describe("Pagination cursor from a previous list response. Omit on the first call.").optional(),
   limit: z.int().describe("Maximum number of messages to return. Defaults to 20.").optional(),
@@ -82,6 +84,17 @@ const mailConnectionStatusResultSchema = z.strictObject({
   isConfigured: z.boolean().describe("True when the account can read and send mail. When false, offer mail_connection_start."),
   hasIMAPPassword: z.boolean(),
   hasSMTPPassword: z.boolean(),
+});
+
+const mailMailboxListResultSchema = z.strictObject({
+  mailboxes: z.array(
+    z.strictObject({
+      name: z.string().describe("IMAP folder name to pass as `mailbox` to the other mail tools."),
+      displayName: z.string(),
+      unseen: z.int(),
+      total: z.int(),
+    })
+  ),
 });
 
 const mailMessageUIDSchema = z.int().describe("IMAP UID of the message. Pass it as a string, with its mailbox, to mail_message_read.");
@@ -158,6 +171,19 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: mailConnectionStatusInputSchema,
     result: { schema: mailConnectionStatusResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
+    name: "mail_mailbox_list",
+    namespace: "mail",
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: "workspace_mail",
+    policyResource: "tool:mail_mailbox_list",
+    description: "List the requester's mail folders with their unread and total counts. Call this to learn the folder names the other mail tools take as `mailbox`, rather than guessing them.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    inputSchema: mailMailboxListInputSchema,
+    result: { schema: mailMailboxListResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
   {

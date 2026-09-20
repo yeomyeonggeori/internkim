@@ -1,3 +1,4 @@
+import { invokeTool } from '$lib/public-api-call';
 import { isSupabaseConfigured } from '$lib/supabase';
 import { keepRecordMailAccount, recordMailAccount, testRecordMailAccount } from './mail-account-api';
 import {
@@ -15,12 +16,28 @@ export type MailErrorMessages = {
 };
 
 export async function fetchMailBootstrap(query: URLSearchParams, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) return companyMailBootstrap(query, errors);
 	const response = await fetchMailResponse(`/mail/api/bootstrap?${query}`, {
 		method: 'GET',
 		credentials: 'include'
 	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailBootstrapResponse(await response.json());
+}
+
+async function companyMailBootstrap(query: URLSearchParams, errors: MailErrorMessages) {
+	const account = await fetchMailAccount(errors);
+	if (!account.isConfigured) return normalizeMailBootstrapResponse({ account });
+	const [mailboxes, messages] = await Promise.all([
+		fetchMailboxes(errors),
+		fetchMailMessages(query, errors)
+	]);
+	return normalizeMailBootstrapResponse({
+		account,
+		mailboxes,
+		messages: messages.messages,
+		nextCursor: messages.nextCursor
+	});
 }
 
 export async function fetchMailAccount(errors: MailErrorMessages) {
@@ -33,6 +50,9 @@ export async function fetchMailAccount(errors: MailErrorMessages) {
 }
 
 export async function fetchMailboxes(errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) {
+		return normalizeMailboxesResponse(await askTheCompany('mail_mailbox_list', {}, errors));
+	}
 	const response = await fetchMailResponse('/mail/api/mailboxes', {
 		credentials: 'include'
 	}, errors);
@@ -41,6 +61,12 @@ export async function fetchMailboxes(errors: MailErrorMessages) {
 }
 
 export async function fetchMailMessages(query: URLSearchParams, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) {
+		const searchText = query.get('query') ?? '';
+		const input = messageListToolInput(query, searchText);
+		const toolName = searchText ? 'mail_message_search' : 'mail_message_list';
+		return normalizeMailMessagesResponse(await askTheCompany(toolName, input, errors));
+	}
 	const response = await fetchMailResponse(`/mail/api/messages?${query}`, {
 		credentials: 'include'
 	}, errors);
@@ -49,6 +75,11 @@ export async function fetchMailMessages(query: URLSearchParams, errors: MailErro
 }
 
 export async function fetchMailMessage(message: MailMessage, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) {
+		return normalizeMailMessageDetailResponse(
+			await askTheCompany('mail_message_read', messageTarget(message), errors)
+		);
+	}
 	const response = await fetchMailResponse(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}`, {
 		credentials: 'include'
 	}, errors);
@@ -80,6 +111,10 @@ export async function testMailAccount(payload: MailAccountWritePayload, errors: 
 }
 
 export async function sendMailMessage(payload: ComposePayload, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) {
+		await askTheCompany('mail_message_send', payload, errors);
+		return;
+	}
 	const response = await fetchMailResponse('/mail/api/messages/send', {
 		method: 'POST',
 		credentials: 'include',
@@ -90,6 +125,10 @@ export async function sendMailMessage(payload: ComposePayload, errors: MailError
 }
 
 export async function moveMailMessage(message: MailMessage, targetMailbox: string, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) {
+		await askTheCompany('mail_message_move', { ...messageTarget(message), targetMailbox }, errors);
+		return;
+	}
 	const response = await fetchMailResponse(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}/move`, {
 		method: 'POST',
 		credentials: 'include',
@@ -100,6 +139,10 @@ export async function moveMailMessage(message: MailMessage, targetMailbox: strin
 }
 
 export async function updateMailMessageFlags(message: MailMessage, seen: boolean, errors: MailErrorMessages) {
+	if (isSupabaseConfigured()) {
+		await askTheCompany('mail_message_mark', { ...messageTarget(message), seen }, errors);
+		return;
+	}
 	const response = await fetchMailResponse(`/mail/api/messages/${encodeURIComponent(message.mailbox)}/${message.uid}/flags`, {
 		method: 'POST',
 		credentials: 'include',
@@ -107,6 +150,31 @@ export async function updateMailMessageFlags(message: MailMessage, seen: boolean
 		body: JSON.stringify({ seen })
 	}, errors);
 	await assertMailResponse(response, errors);
+}
+
+async function askTheCompany(name: string, input: Record<string, unknown>, errors: MailErrorMessages) {
+	try {
+		return await invokeTool<unknown>(name, input);
+	} catch (error) {
+		const said = error instanceof Error ? error.message.trim() : '';
+		throw new Error(said || `${errors.fallback} ${errors.serviceUnavailable}`);
+	}
+}
+
+function messageTarget(message: MailMessage) {
+	return { mailbox: message.mailbox, uid: String(message.uid) };
+}
+
+function messageListToolInput(query: URLSearchParams, searchText: string) {
+	const input: Record<string, unknown> = {};
+	const mailbox = query.get('mailbox');
+	if (mailbox) input.mailbox = mailbox;
+	const limit = Number(query.get('limit'));
+	if (Number.isInteger(limit) && limit > 0) input.limit = limit;
+	const cursor = query.get('cursor');
+	if (cursor) input.cursor = cursor;
+	if (searchText) input.query = searchText;
+	return input;
 }
 
 async function fetchMailResponse(input: RequestInfo | URL, init: RequestInit, errors: MailErrorMessages) {
