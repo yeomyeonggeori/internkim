@@ -352,7 +352,7 @@
 			id={listboxId}
 			role="listbox"
 			class={cn(
-				'bg-popover text-popover-foreground absolute right-0 left-0 z-50 max-h-50 overflow-y-auto rounded-md border p-1 shadow-md',
+				'bg-popover text-popover-foreground absolute right-0 left-0 z-(--layer-panel-popout) max-h-50 overflow-y-auto rounded-md border p-1 shadow-md',
 				suggestionsPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
 			)}
 		>

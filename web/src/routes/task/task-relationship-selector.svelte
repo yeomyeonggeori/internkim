@@ -95,7 +95,7 @@
 	{title}
 	description={searchPlaceholder}
 	showCloseButton
-	class="z-[53] sm:max-w-lg"
+	class="sm:max-w-lg"
 	onOpenChange={handleOpenChange}
 >
 	<Command.Input placeholder={searchPlaceholder} />
