@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { DeliveredFile } from '../../pilot/arms/arm';
 import {
 	deliveredFileFinding,
+	judge,
 	replyMentionsFinding,
 	waitingForAnswerFinding,
 	type JudgedOutcome,
@@ -126,5 +127,40 @@ describe('the waiting for an answer assertion', () => {
 			outcome({ status: 'failed', reply: '담당자를 찾지 못했습니다.' }),
 		);
 		expect(finding.mismatches).toEqual(['expected the run to stop and ask, found failed']);
+	});
+});
+
+describe('the overall pilot judgement', () => {
+	const record = { apiURL: '', secretKey: '' };
+	const fileAssertion = { deliveredFile: { filenameEndsWith: '.docx', minBytes: 1000 } };
+	const deliveredDocument = deliveredFile({ filename: 'brief.docx' });
+
+	for (const status of ['failed', 'timed_out'] as const) {
+		test(`does not pass a ${status} run with valid file metadata`, async () => {
+			const judgement = await judge(record, [fileAssertion], outcome({ status, deliveredFiles: [deliveredDocument] }));
+
+			expect(judgement.passed).toBe(false);
+			expect(judgement.findings.find((finding) => finding.subject === 'deliveredFile')?.mismatches).toEqual([]);
+			expect(judgement.findings.find((finding) => finding.subject === 'runStatus')?.mismatches).toEqual([
+				`the run ended with status ${status}`,
+			]);
+		});
+	}
+
+	test('passes a completed run when its evidence assertions pass', async () => {
+		const judgement = await judge(record, [fileAssertion], outcome({ deliveredFiles: [deliveredDocument] }));
+
+		expect(judgement.passed).toBe(true);
+	});
+
+	test('passes a waiting run when its file and question assertions pass', async () => {
+		const judgement = await judge(
+			record,
+			[fileAssertion, { waitingForAnswer: { mentions: ['담당자'] } }],
+			outcome({ status: 'waiting_user_input', reply: '담당자를 누구로 바꿀까요?', deliveredFiles: [deliveredDocument] }),
+		);
+
+		expect(judgement.passed).toBe(true);
+		expect(judgement.findings.find((finding) => finding.subject === 'waitingForAnswer')?.mismatches).toEqual([]);
 	});
 });
