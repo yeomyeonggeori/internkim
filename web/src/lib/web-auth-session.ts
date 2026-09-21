@@ -1,3 +1,5 @@
+import { withReturnPath } from '$lib/return-path';
+
 export const webAuthSessionDependency = 'app:session';
 
 export type WebAuthSession = {
@@ -18,7 +20,7 @@ type SessionResponse = {
 };
 
 export function cloudflareLoginURLFor(returnPath: string): string {
-	return `/auth/cloudflare/start?return=${encodeURIComponent(returnPath)}`;
+	return withReturnPath('/auth/cloudflare/start', returnPath);
 }
 
 export function signedOutSession(returnPath: string, isUnavailable: boolean): WebAuthSession {

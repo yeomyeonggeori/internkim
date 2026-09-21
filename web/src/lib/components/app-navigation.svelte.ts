@@ -22,6 +22,7 @@ import MailIcon from '@lucide/svelte/icons/mail';
 import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
 import BrainIcon from '@lucide/svelte/icons/brain';
 import NetworkIcon from '@lucide/svelte/icons/network';
+import { withReturnPath } from '$lib/return-path';
 
 type AdminSession = {
 	email?: string;
@@ -122,7 +123,7 @@ class AppNavigation {
 		}
 		let redirectURL = homePath;
 		try {
-			const response = await fetch(`/auth/logout?return=${encodeURIComponent(this.currentPath)}`, {
+			const response = await fetch(withReturnPath('/auth/logout', this.currentPath), {
 				method: 'POST',
 				credentials: 'include'
 			});

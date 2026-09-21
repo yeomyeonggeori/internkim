@@ -1,11 +1,7 @@
+import { ownPath } from '$lib/return-path';
+
 const cacheName = 'internkim-notification-destination';
 const address = '/internkim/notification-destination';
-
-export function ownPath(offered: unknown): string {
-	if (typeof offered !== 'string') return '';
-	if (!offered.startsWith('/') || offered.startsWith('//')) return '';
-	return offered;
-}
 
 export async function keepPendingDestination(openPath: string): Promise<void> {
 	const path = ownPath(openPath);
