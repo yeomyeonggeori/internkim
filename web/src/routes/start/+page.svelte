@@ -12,6 +12,7 @@
 		type FoundedCompany
 	} from '$lib/company/found-company';
 	import { homePath } from '$lib/home-path';
+	import { returnPathOf } from '$lib/return-path';
 	import { isSupabaseConfigured } from '$lib/supabase';
 	import { signOutOfSupabase } from '$lib/supabase-session';
 	import { onMount } from 'svelte';
@@ -30,6 +31,7 @@
 	let isSigningOut = $state(false);
 
 	const signedInAs = $derived(page.data.session?.email ?? '');
+	const whereTheyWereGoing = $derived(returnPathOf(page.url));
 
 	async function signOut() {
 		isSigningOut = true;
@@ -88,6 +90,7 @@
 		errorMessage = '';
 		try {
 			founded = await foundCompany({ name: name.trim(), slug: slug.trim().toLowerCase(), invited: invitedAddresses });
+			if (whereTheyWereGoing) await goto(whereTheyWereGoing);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : '회사를 만들지 못했습니다.';
 		} finally {
@@ -97,7 +100,7 @@
 
 	onMount(async () => {
 		if (!isSupabaseConfigured()) return;
-		if (await belongsToACompany()) await goto(homePath);
+		if (await belongsToACompany()) await goto(whereTheyWereGoing || homePath);
 	});
 </script>
 

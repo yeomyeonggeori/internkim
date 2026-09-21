@@ -1,6 +1,6 @@
 import { isInsideNativeShell, shellPlatform } from '$lib/native-shell/shell';
+import { ownPath } from '$lib/return-path';
 import { pushDeviceKindOfPlatform, type PushDeviceKind, type Reachability } from './reachability';
-import { safeOpenPath } from './opened-notification';
 import { claimPushDevice, releasePushDevice } from './push-device';
 
 const heldTokenKey = 'internkim.push.deviceToken';
@@ -32,7 +32,7 @@ export function openPathOfTappedNotification(tapped: unknown): string {
 	if (typeof tapped !== 'object' || tapped === null) return '';
 	const carried = (tapped as { notification?: { data?: unknown } }).notification?.data;
 	if (typeof carried !== 'object' || carried === null) return '';
-	return safeOpenPath((carried as Record<string, unknown>).openPath);
+	return ownPath((carried as Record<string, unknown>).openPath);
 }
 
 export function reachabilityOfPermission(permission: PermissionState): Reachability {

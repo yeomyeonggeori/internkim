@@ -1,3 +1,4 @@
+import { defaultZone } from './fleet-domain';
 import { protectedResourceMetadataPath } from './public-api/protected-resource';
 
 export type CompanyHostQuestion = {
@@ -12,6 +13,10 @@ function bareHost(value: string): string {
 
 export function theOneAddressOf(zone: string): string {
 	return bareHost(zone);
+}
+
+export function theAppAddressOf(environment: { CLOUDFLARE_DOMAIN?: string }): string {
+	return `https://${theOneAddressOf(environment.CLOUDFLARE_DOMAIN || defaultZone)}`;
 }
 
 // fetch drops Authorization across origins, and every attached hostname is the

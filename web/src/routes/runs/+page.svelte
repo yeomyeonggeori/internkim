@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { withReturnPath } from '$lib/return-path';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { page } from '$app/state';
 	import { pendingApprovalsPathOf, taskRunDetailPathOf } from '$lib/app-shell';
@@ -184,7 +185,7 @@
 	async function loadViewerRole() {
 		try {
 			const returnPath = `${location.pathname}${location.search}`;
-			const response = await fetch(`/auth/session?return=${encodeURIComponent(returnPath)}`, { credentials: 'include' });
+			const response = await fetch(withReturnPath('/auth/session', returnPath), { credentials: 'include' });
 			if (!response.ok) return;
 			const session = (await response.json()) as { isAdmin?: boolean };
 			isAdmin = session.isAdmin === true;
