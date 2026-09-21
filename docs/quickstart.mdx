@@ -56,24 +56,24 @@ connection**.
 
 ## 3. Install the company server
 
-On the company computer, clone the source repository with its submodules and
-run the installer from the repository root:
+On the company computer, download the installer and run it against the
+connection file:
 
 ```bash
-git clone --recurse-submodules https://github.com/yeomyeonggeori/internkim.git
-cd internkim
-python3 tools/install-company-host ~/Downloads/internkim-host.json
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+internkim-host install ~/Downloads/internkim-host.json
 ```
 
-If the repository was cloned without submodules, run
-`git submodule update --init --recursive` before starting the installer.
+The download script picks the build for this machine, checks it against the
+published `SHA256SUMS`, and puts `internkim-host` in `~/.local/bin`. A download
+whose checksum does not match is refused and nothing is installed.
 
-The installer checks the connection file, asks for the OpenRouter key, builds
-the company Docker images, and starts the server with Docker Compose. The first
-source build can take several minutes. It stores `compose.yaml`, `01-buzz.sql`,
-`compose.env`, and private keys under
-`~/.internkim/companies/<company-id>`. When it finishes, open the printed
-`/settings/setup` address and choose **Check connection**.
+`internkim-host install` checks the connection file, asks for the OpenRouter
+key, and starts the company server with Docker Compose. It stores
+`compose.yaml`, `01-buzz.sql`, `compose.env`, and private keys under
+`~/.internkim/companies/<company-id>`. Running it again keeps every key it
+already generated. When it finishes, open the printed `/settings/setup` address
+and choose **Check connection**.
 
 The company server and its local data stay on this computer. Keep Docker
 running and keep the computer awake. Docker brings the server back when Docker

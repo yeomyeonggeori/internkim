@@ -90,7 +90,7 @@ func TestMemberPairingCodeIsAddressedToTheSignedInMember(t *testing.T) {
 	if errorValue := json.Unmarshal(response.Body.Bytes(), &pairingCode); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if pairingCode.InstallCommand != "curl -fsSL https://intern.kim/companion/install.sh | sh" || pairingCode.ServiceCommand != "internkim-companion service install" {
+	if pairingCode.InstallCommand != "curl -fsSL https://intern.kim/install.sh | sh -s -- companion" || pairingCode.ServiceCommand != "internkim-companion service install" {
 		t.Fatalf("pairing code = %+v", pairingCode)
 	}
 	if !strings.HasSuffix(pairingCode.PairCommand, "--code "+pairingCode.Code) {

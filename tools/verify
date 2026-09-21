@@ -279,6 +279,11 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "install-script",
+        ["web/static/install.sh", "tools/tests/test_install_script.py"],
+        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_install_script.py"]],
+    ),
+    Group(
         "model-evaluation-harness",
         ["lab/scripts/evaluate-model-response.py", "tools/tests/test_evaluate_model_response.py"],
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_evaluate_model_response.py"]],

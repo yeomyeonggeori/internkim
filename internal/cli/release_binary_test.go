@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -12,19 +13,19 @@ import (
 func TestPublishCompanionReleaseUploadsEveryTargetUnderTheReleaseAndLatest(t *testing.T) {
 	publisher := &testReleasePublisher{publicBaseURL: "https://updates.example.test"}
 	var output bytes.Buffer
-	build := func(target companionReleaseTarget, outputPath string) error {
+	build := func(target releaseTarget, outputPath string) error {
 		return os.WriteFile(outputPath, []byte("binary for "+target.String()), 0o755)
 	}
 
-	if errorValue := publishCompanionRelease("20260918T000000Z-abc123", publisher, build, &output); errorValue != nil {
+	if errorValue := publishBinaryRelease(companionProduct, "20260918T000000Z-abc123", publisher, build, &output); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 
-	for _, target := range companionReleaseTargets {
+	for _, target := range binaryReleaseTargets {
 		expected := []byte("binary for " + target.String())
 		for _, prefix := range []string{"companion/20260918T000000Z-abc123/", "companion/latest/"} {
-			if !bytes.Equal(publisher.objects[prefix+target.BinaryName()], expected) {
-				t.Fatalf("%s%s was not uploaded", prefix, target.BinaryName())
+			if !bytes.Equal(publisher.objects[prefix+companionProduct.ArtifactName(target)], expected) {
+				t.Fatalf("%s%s was not uploaded", prefix, companionProduct.ArtifactName(target))
 			}
 		}
 	}
@@ -43,11 +44,11 @@ func TestPublishCompanionReleaseUploadsEveryTargetUnderTheReleaseAndLatest(t *te
 
 func TestPublishCompanionReleaseStopsAtTheFirstBuildFailure(t *testing.T) {
 	publisher := &testReleasePublisher{publicBaseURL: "https://updates.example.test"}
-	build := func(target companionReleaseTarget, outputPath string) error {
+	build := func(target releaseTarget, outputPath string) error {
 		return os.ErrPermission
 	}
 
-	if errorValue := publishCompanionRelease("r1", publisher, build, &bytes.Buffer{}); errorValue == nil {
+	if errorValue := publishBinaryRelease(companionProduct, "r1", publisher, build, &bytes.Buffer{}); errorValue == nil {
 		t.Fatal("a failed build published anyway")
 	}
 	if len(publisher.objects) != 0 {
@@ -56,12 +57,29 @@ func TestPublishCompanionReleaseStopsAtTheFirstBuildFailure(t *testing.T) {
 }
 
 func TestCompanionBuildEnvironmentKeepsCgoForDarwinOnly(t *testing.T) {
-	darwin := strings.Join(companionBuildEnvironment(companionReleaseTarget{OperatingSystem: "darwin", Architecture: "arm64"}), " ")
+	darwin := strings.Join(releaseBuildEnvironment(releaseTarget{OperatingSystem: "darwin", Architecture: "arm64"}), " ")
 	if darwin != "GOOS=darwin GOARCH=arm64 CGO_ENABLED=1" {
 		t.Fatalf("darwin environment = %q", darwin)
 	}
-	linux := strings.Join(companionBuildEnvironment(companionReleaseTarget{OperatingSystem: "linux", Architecture: "amd64"}), " ")
+	linux := strings.Join(releaseBuildEnvironment(releaseTarget{OperatingSystem: "linux", Architecture: "amd64"}), " ")
 	if linux != "GOOS=linux GOARCH=amd64 CGO_ENABLED=0" {
 		t.Fatalf("linux environment = %q", linux)
+	}
+}
+
+func TestTheReleaseRegistryServesEveryPublishedProductWithoutAToken(t *testing.T) {
+	source, errorValue := os.ReadFile("../../workers/release-registry/src/registry.ts")
+	if errorValue != nil {
+		t.Fatalf("read the release registry worker: %v", errorValue)
+	}
+	declaration := regexp.MustCompile(`const publicObjectPrefixes = \[([^\]]*)\];`).FindStringSubmatch(string(source))
+	if declaration == nil {
+		t.Fatal("the release registry worker no longer declares its public prefixes")
+	}
+	served := strings.NewReplacer("'", "", " ", "", "\n", "", "\t", "").Replace(declaration[1])
+	for _, product := range []releaseProduct{companionProduct, companyHostProduct} {
+		if !strings.Contains(","+served+",", ","+product.Name+"/,") {
+			t.Fatalf("%s is published but the release registry asks for a token to serve it: %s", product.Name, served)
+		}
 	}
 }

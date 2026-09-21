@@ -1,24 +1,31 @@
 #!/bin/sh
 set -eu
 
-release_url="${INTERNKIM_COMPANION_RELEASE_URL:-https://updates.intern.kim/companion/latest}"
-bin_dir="${INTERNKIM_COMPANION_BIN_DIR:-$HOME/.local/bin}"
-binary_path="$bin_dir/internkim-companion"
+product="${1:-}"
+case "$product" in
+  companion|host) ;;
+  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- <companion|host>" >&2; exit 1 ;;
+esac
+
+binary="internkim-$product"
+release_url="${INTERNKIM_INSTALL_RELEASE_URL:-https://updates.intern.kim/$product/latest}"
+bin_dir="${INTERNKIM_INSTALL_BIN_DIR:-$HOME/.local/bin}"
+binary_path="$bin_dir/$binary"
 
 operating_system="$(uname -s | tr '[:upper:]' '[:lower:]')"
 case "$operating_system" in
   darwin|linux) ;;
-  *) echo "internkim-companion has no build for $operating_system" >&2; exit 1 ;;
+  *) echo "$binary has no build for $operating_system" >&2; exit 1 ;;
 esac
 
 architecture="$(uname -m)"
 case "$architecture" in
   arm64|aarch64) architecture=arm64 ;;
   x86_64|amd64) architecture=amd64 ;;
-  *) echo "internkim-companion has no build for $architecture" >&2; exit 1 ;;
+  *) echo "$binary has no build for $architecture" >&2; exit 1 ;;
 esac
 
-binary_name="internkim-companion-$operating_system-$architecture"
+binary_name="$binary-$operating_system-$architecture"
 download_dir="$(mktemp -d)"
 trap 'rm -rf "$download_dir"' EXIT
 
@@ -44,6 +51,13 @@ case ":$PATH:" in
   *":$bin_dir:"*) ;;
   *) echo "Add it to your PATH: export PATH=\"$bin_dir:\$PATH\"" ;;
 esac
+
+if [ "$product" = "host" ]; then
+  echo
+  echo "Next, install your company server with the connection file you downloaded:"
+  echo "  internkim-host install ~/Downloads/internkim-host.json"
+  exit 0
+fi
 
 if "$binary_path" service status 2>/dev/null | grep -q '^running'; then
   "$binary_path" service restart

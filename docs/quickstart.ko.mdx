@@ -54,23 +54,22 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 
 ## 3. 회사 서버 설치하기
 
-회사 컴퓨터에서 서브모듈을 포함해 소스 저장소를 받고, 저장소 루트에서
-설치 프로그램을 실행하세요.
+회사 컴퓨터에서 설치 프로그램을 내려받아 연결 파일과 함께 실행하세요.
 
 ```bash
-git clone --recurse-submodules https://github.com/yeomyeonggeori/internkim.git
-cd internkim
-python3 tools/install-company-host ~/Downloads/internkim-host.json
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+internkim-host install ~/Downloads/internkim-host.json
 ```
 
-서브모듈 없이 받았다면 설치 프로그램을 실행하기 전에
-`git submodule update --init --recursive`를 실행하세요.
+내려받기 스크립트는 이 컴퓨터에 맞는 빌드를 골라 공개된 `SHA256SUMS`와
+대조한 뒤 `internkim-host`를 `~/.local/bin`에 놓습니다. 체크섬이 맞지 않으면
+거부하고 아무것도 설치하지 않습니다.
 
-설치 프로그램은 연결 파일을 확인하고 OpenRouter 키를 먼저 묻습니다. 그 뒤
-회사용 Docker 이미지를 빌드하고 Docker Compose로 서버를 시작합니다. 첫 소스
-빌드는 몇 분 걸릴 수 있습니다. `compose.yaml`, `01-buzz.sql`, `compose.env`와
-비밀 키는 `~/.internkim/companies/<company-id>` 아래에 저장됩니다. 끝나면
-출력된 `/settings/setup` 주소를 열어 **연결 확인**을 누르세요.
+`internkim-host install`은 연결 파일을 확인하고 OpenRouter 키를 먼저 묻습니다.
+그 뒤 Docker Compose로 회사 서버를 시작합니다. `compose.yaml`, `01-buzz.sql`,
+`compose.env`와 비밀 키는 `~/.internkim/companies/<company-id>` 아래에
+저장됩니다. 다시 실행해도 이미 만들어 둔 키는 그대로 둡니다. 끝나면 출력된
+`/settings/setup` 주소를 열어 **연결 확인**을 누르세요.
 
 회사 서버와 컴퓨터에 저장되는 로컬 데이터는 이 컴퓨터에 남습니다. Docker를
 실행한 채로 두고 컴퓨터가 잠들지 않게 하세요. Docker가 다시 시작하면

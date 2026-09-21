@@ -170,7 +170,7 @@ func CompanionInstallURL() string {
 }
 
 func CompanionInstallCommand() string {
-	return "curl -fsSL https://intern.kim/companion/install.sh | sh"
+	return "curl -fsSL https://intern.kim/install.sh | sh -s -- companion"
 }
 
 func CompanionServiceCommand() string {

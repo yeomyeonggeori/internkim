@@ -406,6 +406,7 @@ cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
 ./internkim release publish
 ./internkim release companion
+./internkim release host
 
 ./internkim update check --profile dawn --node 1
 ./internkim update apply --profile dawn --node 1
@@ -508,17 +509,31 @@ app around it; an agent can install it on a person's computer without anyone
 clicking through a wizard, and a desktop wrapper can come later.
 
 ```bash
-curl -fsSL https://intern.kim/companion/install.sh | sh
+curl -fsSL https://intern.kim/install.sh | sh -s -- companion
 internkim-companion pair --device-url https://<deviceID>.<zone> --code ABCD-1234
 internkim-companion service install
 internkim-companion status
 ```
 
-The installer downloads the macOS or Linux build from
-`updates.<zone>/companion/latest/`, the one public prefix of the release
-registry, and verifies it against the published `SHA256SUMS`.
+`web/static/install.sh` downloads the macOS or Linux build from
+`updates.<zone>/companion/latest/` and verifies it against the published
+`SHA256SUMS`. `companion/` and `host/` are the public prefixes of the release
+registry; everything else there needs the download token.
 `./internkim release companion` cross-compiles the four builds and publishes
-them there; `make build-companion` builds the host's own.
+them; `make build-companion` builds the host's own.
+
+The same script installs the company host, which arrives the same way:
+
+```bash
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+internkim-host install ~/Downloads/internkim-host.json
+```
+
+`./internkim release host` pushes the company server image to
+`INTERNKIM_COMPANY_HOST_IMAGE_REPOSITORY`, stamps each host build with the tag
+it pushed, and publishes the four builds under `host/latest`. The binary refuses
+to install when it carries no stamped image, so a build that never went through
+that command cannot start a stack against an image nobody published.
 
 Pairing starts in Settings → My computer of the web app: admind issues a
 ten-minute one-time code bound to the signed-in member (`/companion/api` in

@@ -3,7 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
 
-.PHONY: build build-maild build-relay build-companion verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
+.PHONY: build build-maild build-relay build-companion build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -17,6 +17,9 @@ build-relay:
 
 build-companion:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-companion ./cmd/internkim-companion
+
+build-company-host:
+	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-host ./cmd/internkim-host
 
 generate-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile
