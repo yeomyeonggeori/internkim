@@ -1,8 +1,4 @@
 {
-  "ADMIN_ASSERTION_KEY_PATH": {
-    "process": "tools/render-company-runtime",
-    "description": "path to the key used to authenticate company-plane requests to Blueclaw"
-  },
   "ADMIND_BASE_URL": {
     "process": "relay",
     "description": "admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080"
@@ -14,6 +10,10 @@
   "ADMIND_SOCKET_PATH": {
     "process": "relay",
     "description": "the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock"
+  },
+  "ADMIN_ASSERTION_KEY_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "path to the key used to authenticate company-plane requests to Blueclaw"
   },
   "AGENT_API_KEY": {
     "process": "relay",
@@ -51,13 +51,13 @@
     "process": "tools/prepare-blueclaw-runtime",
     "description": "when \"1\", builds the guest Linux kernel from source instead of requiring BLUECLAW_KERNEL_IMAGE_SOURCE"
   },
-  "BLUECLAW_BUN_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the Bun version installed into the Blueclaw guest rootfs; defaults to 1.3.10"
-  },
   "BLUECLAW_BUNDLED_SKILLS_PATH": {
     "process": "host",
     "description": "where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills"
+  },
+  "BLUECLAW_BUN_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the Bun version installed into the Blueclaw guest rootfs; defaults to 1.3.10"
   },
   "BLUECLAW_E2E_LLM_PROVIDER": {
     "process": "cli tests",
@@ -147,10 +147,6 @@
     "process": "host",
     "description": "the loopback port host/entrypoint.sh starts chatd on; defaults to 18090"
   },
-  "CLOUD_HYPERVISOR_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the cloud-hypervisor version fetched for the Blueclaw guest runtime; defaults to 53.0"
-  },
   "CLOUDFLARE_ACCOUNT_ID": {
     "process": "cli",
     "description": "the Cloudflare account ID for R2 release uploads, falling back from INTERNKIM_RELEASE_R2_ACCOUNT_ID"
@@ -162,6 +158,10 @@
   "CLOUDFLARE_DOMAIN": {
     "process": "web, cli",
     "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's fallback zone when INTERNKIM_DOMAIN is unset; falls back to the compiled-in default zone"
+  },
+  "CLOUD_HYPERVISOR_VERSION": {
+    "process": "tools/prepare-blueclaw-runtime",
+    "description": "the cloud-hypervisor version fetched for the Blueclaw guest runtime; defaults to 53.0"
   },
   "COMPANY_CONNECTIONS": {
     "process": "connection-gateway worker",
@@ -175,10 +175,6 @@
     "process": "web plane tests",
     "description": "the disposable PostgreSQL URL for the Local Fleet guest database, read by web/tests/plane/a-company-plane.ts to create and remove per-run state"
   },
-  "COMPANY_PLANE_STATE_ROOT": {
-    "process": "web plane tests",
-    "description": "the VM-local temporary root where web/tests/plane/a-company-plane.ts keeps each run's state, secrets and logs"
-  },
   "COMPANY_PLANE_KEEP": {
     "process": "web plane tests",
     "description": "when \"1\", web/tests/plane/a-company-plane.ts keeps the run directory after the test instead of deleting it"
@@ -186,6 +182,10 @@
   "COMPANY_PLANE_SKILLS": {
     "process": "web plane tests",
     "description": "the shared-workspace skills directory tools/prepare-company-plane assembles and hands to web/tests/plane for the sandboxed company plane"
+  },
+  "COMPANY_PLANE_STATE_ROOT": {
+    "process": "web plane tests",
+    "description": "the VM-local temporary root where web/tests/plane/a-company-plane.ts keeps each run's state, secrets and logs"
   },
   "DATABASE_URL": {
     "process": "host",
@@ -259,9 +259,9 @@
     "process": "internal/browser test",
     "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"
   },
-  "INTERNKIM_APP_URL": {
-    "process": "relay, host",
-    "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
+  "INTERNKIM_API_URL": {
+    "process": "cli",
+    "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
   },
   "INTERNKIM_APPROVE_BUTTON": {
     "process": "web e2e tests",
@@ -274,6 +274,10 @@
   "INTERNKIM_APPROVE_TIMEOUT_MS": {
     "process": "web e2e tests",
     "description": "how long tests/e2e/crud-approve.spec.ts waits for the ephemeral approval button; defaults to 150000"
+  },
+  "INTERNKIM_APP_URL": {
+    "process": "relay, host",
+    "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
   },
   "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
     "process": "tools/prepare-blueclaw-payload",
@@ -314,14 +318,6 @@
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "cli, tools/mirror-local",
     "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file"
-  },
-  "INTERNKIM_COMPANION_BIN_DIR": {
-    "process": "companion installer",
-    "description": "the directory web/static/companion/install.sh puts the companion binary in; defaults to ~/.local/bin"
-  },
-  "INTERNKIM_COMPANION_RELEASE_URL": {
-    "process": "companion installer",
-    "description": "the release registry prefix web/static/companion/install.sh downloads the companion from; defaults to https://updates.intern.kim/companion/latest"
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
@@ -379,10 +375,6 @@
     "process": "web e2e tests",
     "description": "the delete-triggering prompt tests/e2e/delete-evidence.spec.ts records alongside its screenshots"
   },
-  "INTERNKIM_API_URL": {
-    "process": "cli",
-    "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
-  },
   "INTERNKIM_DOMAIN": {
     "process": "cli",
     "description": "overrides the CLI's compiled-in zone; everything else (the API URL, hostnames) derives from it"
@@ -439,6 +431,18 @@
     "process": "tools/verify-api",
     "description": "the OpenRouter key file path required when INTERNKIM_GATE_MODEL is set, also read by internal/capabilityd's gate backend test"
   },
+  "INTERNKIM_INSTALL_BIN_DIR": {
+    "process": "install script",
+    "description": "the directory web/static/install.sh puts the downloaded binary in; defaults to ~/.local/bin"
+  },
+  "INTERNKIM_INSTALL_RELEASE_URL": {
+    "process": "install script",
+    "description": "the release registry prefix web/static/install.sh downloads from; defaults to https://updates.intern.kim/<product>/latest"
+  },
+  "INTERNKIM_INSTALL_SCRIPT_URL": {
+    "process": "install script",
+    "description": "the install script web/static/companion/install.sh forwards to; defaults to https://intern.kim/install.sh"
+  },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",
     "description": "override URL for the Jetson base image internal/cli/jetson_flash.go downloads"
@@ -450,6 +454,10 @@
   "INTERNKIM_LITERT_MODEL_PATH": {
     "process": "device",
     "description": "override path to the local LiteRT model file, read by internal/cli/main.go"
+  },
+  "INTERNKIM_LIVE_ARTIFACT_DIR": {
+    "process": "llmbackend live tests",
+    "description": "the directory internal/llmbackend's live OpenRouter truncation test writes its request and response evidence into; the test skips when it is unset"
   },
   "INTERNKIM_LIVE_LLM_TEST": {
     "process": "llmbackend live tests",
@@ -559,13 +567,13 @@
     "process": "cli",
     "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
   },
-  "INTERNKIM_TEST_MOLI": {
-    "process": "go tests",
-    "description": "the moli executable internal/browser/device_browsers_test.go launches to prove a device browser serves the DevTools Protocol and stops; unset skips that test"
-  },
   "INTERNKIM_TARGET_USERNAME": {
     "process": "web e2e tests",
     "description": "the messenger username the ephemeral-render-check and matrix-evidence specs target"
+  },
+  "INTERNKIM_TEST_MOLI": {
+    "process": "go tests",
+    "description": "the moli executable internal/browser/device_browsers_test.go launches to prove a device browser serves the DevTools Protocol and stops; unset skips that test"
   },
   "INTERNKIM_TOKEN": {
     "process": "web plane tests",
@@ -751,6 +759,10 @@
     "process": "companion",
     "description": "the Windows Program Files directory, read to locate the default Chrome path on Windows"
   },
+  "RELAY_STATE_DIR": {
+    "process": "relay, host",
+    "description": "where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay"
+  },
   "RELEASE_BUCKET": {
     "process": "release-registry worker",
     "description": "the R2 bucket binding the release-registry worker serves published release objects from"
@@ -786,10 +798,6 @@
   "SMOKE_WAIT_SECONDS": {
     "process": "host smoke test",
     "description": "how long host/smoke.sh and host/smoke-listen.ts wait for the smoke message's answer; defaults to 90"
-  },
-  "RELAY_STATE_DIR": {
-    "process": "relay, host",
-    "description": "where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay"
   },
   "SUPABASE_ACCESS_TOKEN": {
     "process": "web scripts",
@@ -902,9 +910,5 @@
   "XDG_CACHE_HOME": {
     "process": "tools/prepare-container-kernel",
     "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"
-  },
-  "INTERNKIM_LIVE_ARTIFACT_DIR": {
-    "process": "llmbackend live tests",
-    "description": "the directory internal/llmbackend's live OpenRouter truncation test writes its request and response evidence into; the test skips when it is unset"
   }
 }

@@ -34,14 +34,14 @@ describe('a pairing code the device issues', () => {
 				code: 'ABCD-1234',
 				expiresAt: '2026-09-19T00:10:00Z',
 				deepLink: 'internkim://pair?code=ABCD-1234',
-				installCommand: 'curl -fsSL https://intern.kim/companion/install.sh | sh',
+				installCommand: 'curl -fsSL https://intern.kim/install.sh | sh -s -- companion',
 				pairCommand: 'internkim-companion pair --device-url https://device.example.test --code ABCD-1234',
 				serviceCommand: 'internkim-companion service install'
 			})
 		).toEqual({
 			code: 'ABCD-1234',
 			expiresAt: '2026-09-19T00:10:00Z',
-			installCommand: 'curl -fsSL https://intern.kim/companion/install.sh | sh',
+			installCommand: 'curl -fsSL https://intern.kim/install.sh | sh -s -- companion',
 			pairCommand: 'internkim-companion pair --device-url https://device.example.test --code ABCD-1234',
 			serviceCommand: 'internkim-companion service install'
 		});
