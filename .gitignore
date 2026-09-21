@@ -25,6 +25,8 @@ dist/
 !.github/ISSUE_TEMPLATE.md
 host/relay/node_modules/
 workers/*/node_modules/
+companion/node_modules/
+companion/src-tauri/binaries/
 .env
 .dev.vars
 secrets/
