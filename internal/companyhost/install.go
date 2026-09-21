@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"gitlab.com/eastriver/internkim/host/quickstart"
+	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -192,7 +193,21 @@ func startStack(directoryPath string, commands Commands, environment []Environme
 		"--file", filepath.Join(directoryPath, composeFileName),
 		"up", "--detach", "--wait", "--wait-timeout", composeWaitSeconds,
 	}
-	return commands.Run("docker", arguments, processEnvironment(environment), progress)
+	if errorValue := commands.Run("docker", arguments, processEnvironment(environment), progress); errorValue != nil {
+		return unstartedServer(directoryPath, errorValue)
+	}
+	return nil
+}
+
+func unstartedServer(directoryPath string, errorValue error) error {
+	return fmt.Errorf(
+		"docker compose could not start the company server (%w); its own output is above.\n"+
+			"This build runs the company server image %s, stamped in when the build was made, and cannot be pointed at another.\n"+
+			"If that image is what failed, install a build stamped with the current one:\n"+
+			"  curl -fsSL %s | sh -s -- host\n"+
+			"or build the image on this computer: make build-company-host-image build-company-host\n"+
+			"Nothing was removed. The company's keys and settings are still in %s",
+		errorValue, AgentImage, capabilities.InstallScriptURL(), directoryPath)
 }
 
 func processEnvironment(environment []EnvironmentEntry) []string {

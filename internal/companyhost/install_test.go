@@ -1,6 +1,9 @@
 package companyhost
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -186,5 +189,50 @@ func TestComposeEnvironmentQuotesDollarAndApostropheValues(t *testing.T) {
 	rendered := composeEnvironmentText([]EnvironmentEntry{{"DOLLAR", "value$HOME"}, {"APOSTROPHE", "Kim's key"}})
 	if rendered != "DOLLAR='value$HOME'\nAPOSTROPHE='Kim\\'s key'\n" {
 		t.Fatalf("compose environment rendered as %q", rendered)
+	}
+}
+
+type failingCommands struct {
+	dockerOutput string
+	failure      error
+}
+
+func (commands *failingCommands) Run(name string, arguments []string, environment []string, output io.Writer) error {
+	fmt.Fprint(output, commands.dockerOutput)
+	return commands.failure
+}
+
+func (commands *failingCommands) Output(name string, arguments []string) (string, error) {
+	if len(arguments) > 0 && arguments[0] == "info" {
+		return "linux\n", nil
+	}
+	return "v2\n", nil
+}
+
+func TestAServerThatWillNotStartNamesTheImageItRunsAndWhatToDoNext(t *testing.T) {
+	withAgentImage(t, "registry.example.test/company-host:20260922T000000Z-abc123")
+	request, directoryPath := installationRequest(t)
+	dockerOutput := "Error response from daemon: manifest unknown\n"
+	commands := &failingCommands{dockerOutput: dockerOutput, failure: errors.New("exit status 18")}
+	var progress bytes.Buffer
+
+	_, errorValue := Install(request, commands, &progress)
+
+	if errorValue == nil {
+		t.Fatal("a server that never started reported success")
+	}
+	if !strings.Contains(progress.String(), dockerOutput) {
+		t.Fatalf("docker's own output never reached the customer: %q", progress.String())
+	}
+	for _, named := range []string{
+		"registry.example.test/company-host:20260922T000000Z-abc123",
+		"exit status 18",
+		"curl -fsSL https://intern.kim/install.sh | sh -s -- host",
+		"make build-company-host-image build-company-host",
+		directoryPath,
+	} {
+		if !strings.Contains(errorValue.Error(), named) {
+			t.Fatalf("the failure does not name %q:\n%s", named, errorValue)
+		}
 	}
 }
