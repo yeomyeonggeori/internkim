@@ -366,6 +366,19 @@ argument that `internkim release company-host` refuses to run without.
 connection, identity and secret handling survive unchanged, because none of it
 was ever about containers.
 
+Publishing such a build took two commands, because building the image and
+publishing the installer were separate things: `internkim release host-image`
+pushed `linux/amd64` and `linux/arm64` to
+`INTERNKIM_COMPANY_HOST_IMAGE_REPOSITORY` and printed the reference, and
+`internkim release host --image <that reference>` stamped it into the binary.
+A published install then depended on that registry for as long as it lived. The
+tag is pulled again whenever the agent container is recreated, so a tag pruned
+or overwritten after publication turned the next restart into `manifest
+unknown` on a host that had been working a minute earlier, with nothing
+detecting it in advance and nothing re-stamping the binaries already installed.
+That dependency is the clearest single reason the package replaces this: a
+`.deb` carries what it installs.
+
 **#1702** wanted every company computer, Jetson included, to run the `host/`
 bundle, and was closed as obsolete on 2026-09-19: its plan was new design
 against the frozen device path. The package removes that objection. A Jetson
