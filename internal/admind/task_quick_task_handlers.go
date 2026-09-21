@@ -37,7 +37,7 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 		return
 	}
 	owner = quickTaskOwner(inferredTask.ParticipantIDs, members, owner)
-	inferredTask.Status = statusCompletedWhenEnded(inferredTask.Status, preferExplicitTaskValue(payload.EndDate, inferredTask.EndDate), taskDateNow().Format("2006-01-02"))
+	inferredTask.Status = statusCompletedWhenEnded(inferredTask.Status, preferExplicitTaskValue(payload.EndDate, inferredTask.EndDate), service.companyDateNow(request.Context()).Format("2006-01-02"))
 	writeRequest := taskWriteRequest{
 		OwnerID:        owner.ID,
 		ParticipantIDs: firstNonEmptySlice(inferredTask.ParticipantIDs, payload.ParticipantIDs, []string{owner.ID}),

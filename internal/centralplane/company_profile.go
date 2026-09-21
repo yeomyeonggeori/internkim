@@ -73,14 +73,6 @@ type CompanySettings struct {
 	CurrencyCode string `json:"currencyCode"`
 }
 
-func (client *Client) CompanySettings(ctx context.Context, requesterEmail string) (CompanySettings, error) {
-	var settings CompanySettings
-	if errorValue := client.runRecordTool(ctx, requesterEmail, "company_settings_get", map[string]any{}, &settings); errorValue != nil {
-		return CompanySettings{}, errorValue
-	}
-	return settings, nil
-}
-
 func (client *Client) WriteCompanySettings(ctx context.Context, requesterEmail string, change map[string]any) (CompanySettings, error) {
 	if len(change) == 0 {
 		return CompanySettings{}, fmt.Errorf("a settings write names at least one setting")

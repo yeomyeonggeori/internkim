@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -88,7 +89,7 @@ func (service *Service) handleFiles(responseWriter http.ResponseWriter, request 
 	path := strings.TrimPrefix(request.URL.Path, "/files/api")
 	switch {
 	case request.Method == http.MethodGet && path == "/roots":
-		service.writeWorkspaceRoots(responseWriter, access)
+		service.writeWorkspaceRoots(responseWriter, request, access)
 	case request.Method == http.MethodGet && path == "/list":
 		service.writeWorkspaceList(responseWriter, request, access)
 	case request.Method == http.MethodGet && path == "/download":
@@ -144,10 +145,11 @@ func blueclawPersonIDByEmail(policyDocument map[string]any, email string) string
 	return ""
 }
 
-func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, access workspaceAccess) {
+func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
+	labels := service.workspaceRootLabels(request.Context())
 	roots := []workspaceRoot{{
 		ID:        "personal",
-		Label:     service.workspaceRootLabels().personal,
+		Label:     labels.personal,
 		AgentPath: workspacePrivatePeoplePath + access.personID,
 		Kind:      "personal",
 	}}
@@ -161,7 +163,7 @@ func (service *Service) writeWorkspaceRoots(responseWriter http.ResponseWriter, 
 	}
 	roots = append(roots, workspaceRoot{
 		ID:        "public",
-		Label:     service.workspaceRootLabels().public,
+		Label:     labels.public,
 		AgentPath: workspacePublicPath,
 		Kind:      "public",
 	})
@@ -385,8 +387,8 @@ type workspaceRootLabelSet struct {
 	public   string
 }
 
-func (service *Service) workspaceRootLabels() workspaceRootLabelSet {
-	if strings.HasPrefix(strings.ToLower(service.workspaceLanguage()), "en") {
+func (service *Service) workspaceRootLabels(ctx context.Context) workspaceRootLabelSet {
+	if strings.HasPrefix(strings.ToLower(service.workspaceLanguage(ctx)), "en") {
 		return workspaceRootLabelSet{personal: "My workspace", public: "Public"}
 	}
 	return workspaceRootLabelSet{personal: "개인", public: "공개"}

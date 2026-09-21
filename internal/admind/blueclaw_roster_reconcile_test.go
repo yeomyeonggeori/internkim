@@ -171,7 +171,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
 		StateDirectory:             t.TempDir(),
 	})
-	settledPolicy := `{"company":{"brandName":"","description":"","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
+	settledPolicy := `{"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
@@ -282,44 +282,118 @@ func TestTheSeedAdminStaysEvenWhenTheDirectoryDoesNotNameThem(t *testing.T) {
 	}
 }
 
-func TestTheDeviceReadsTheTimeZoneTheCompanyKeeps(t *testing.T) {
+func TestTheDeviceReadsTheSettingsTheCompanyKeeps(t *testing.T) {
+	service := newCompanyPolicyService(t, companyRowAnswering("Asia/Seoul", "en"))
+
+	if timeZone := service.companyTimeZoneName(context.Background()); timeZone != "Asia/Seoul" {
+		t.Fatalf("the device reads the zone the company keeps, got %q", timeZone)
+	}
+	if language := service.workspaceLanguage(context.Background()); language != workspaceLanguageEnglish {
+		t.Fatalf("the device works in the language the company keeps, got %q", language)
+	}
+}
+
+// The profile document is read as a person, and a device nobody has signed
+// into names none, so a device that reads its settings through that document
+// reads the clock in its own zone and calls it the company's.
+func TestAnUnclaimedDeviceStillCarriesTheCompanySettingsIntoThePolicy(t *testing.T) {
+	service := newCompanyPolicyService(t, companyRowAnswering("America/Los_Angeles", "en"))
+
+	if errorValue := service.deliverRosterReconciledWith(context.Background(), nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if timeZone := deliveredCompanyField(t, service, "timeZone"); timeZone != "America/Los_Angeles" {
+		t.Fatalf("the delivered policy must carry the company's zone, got %q", timeZone)
+	}
+	if locale := deliveredCompanyField(t, service, "locale"); locale != workspaceLanguageEnglish {
+		t.Fatalf("the delivered policy must carry the company's language, got %q", locale)
+	}
+}
+
+func TestACompanyTheDeviceCouldNotAskKeepsTheSettingsThePolicyCarries(t *testing.T) {
+	service := newCompanyPolicyService(t, companyRowRefusing())
+
+	if errorValue := service.deliverRosterReconciledWith(context.Background(), nil); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, statError := os.Stat(service.Configuration.BlueclawPolicyDeliveryPath); !os.IsNotExist(statError) {
+		t.Fatalf("a settled policy the device could not improve on stays undelivered, got %v", statError)
+	}
+}
+
+// A profile save writes the company block whole, and a plane that cannot
+// answer the settings read must not turn that into a blank zone.
+func TestAProfileSaveKeepsTheSettingsThePolicyCarriesWhenThePlaneIsSilent(t *testing.T) {
+	service := newCompanyPolicyService(t, companyRowRefusing())
+
+	if errorValue := service.syncCompanySnapshotToBlueclaw(context.Background(), centralplane.CompanyProfile{Name: "예시회사"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if timeZone := deliveredCompanyField(t, service, "timeZone"); timeZone != "Asia/Seoul" {
+		t.Fatalf("a profile save must not blank the zone the policy carries, got %q", timeZone)
+	}
+	if locale := deliveredCompanyField(t, service, "locale"); locale != workspaceLanguageKorean {
+		t.Fatalf("a profile save must not blank the locale the policy carries, got %q", locale)
+	}
+	if name := deliveredCompanyField(t, service, "name"); name != "예시회사" {
+		t.Fatalf("a profile save still writes the profile it was given, got %q", name)
+	}
+}
+
+func companyRowAnswering(timeZone string, locale string) func() (int, string) {
+	return func() (int, string) {
+		return http.StatusOK, `{"company":{"name":"예시회사","profileImage":"","timezone":"` + timeZone + `","locale":"` + locale + `"}}`
+	}
+}
+
+func companyRowRefusing() func() (int, string) {
+	return func() (int, string) {
+		return http.StatusBadGateway, `{"error":"the record did not answer"}`
+	}
+}
+
+func newCompanyPolicyService(t *testing.T, companyRow func() (int, string)) *Service {
+	t.Helper()
+	temporaryDirectory := t.TempDir()
 	service := NewService(Configuration{
 		CentralPlaneAppURL:         "https://company.example.test",
 		CentralPlaneProjectURL:     "https://project.example.test",
 		CentralPlanePublishableKey: "publishable",
 		CentralPlaneAgentKeyPath:   writeTestFile(t, "agent-key"),
 		BlueclawBaseURL:            "http://blueclaw.local",
-		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
-		ClaimedAdminEmailPath:      writeTestFile(t, "owner@example.com"),
-		StateDirectory:             t.TempDir(),
+		StateDirectory:             temporaryDirectory,
+		BlueclawPolicyDeliveryPath: filepath.Join(temporaryDirectory, "policy.json"),
 	})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case request.URL.Path == "/api/agent/session":
-			return jsonResponse(http.StatusOK, `{"memberID":"member-admin","accessToken":"token","expiresAt":4102444800}`, nil), nil
-		case request.URL.Path == "/api/v1/tools/company_settings_get/invoke":
-			return jsonResponse(http.StatusOK, `{"tool":"company_settings_get","result":{"timeZone":"America/Los_Angeles","locale":"en"}}`, nil), nil
+		switch request.URL.Path {
+		case "/api/agent/company":
+			status, body := companyRow()
+			return jsonResponse(status, body, nil), nil
+		case "/admin/api/policy":
+			return jsonResponse(http.StatusOK, `{"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[]}`, nil), nil
+		case "/admin/api/policy/reload":
+			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
+			return jsonResponse(http.StatusUnauthorized, `{"error":"this call named nobody"}`, nil), nil
 		}
 	})}
-
-	if resolved := service.workspaceTimeZone(); resolved.name != "America/Los_Angeles" {
-		t.Fatalf("the device reads the zone the company keeps, got %+v", resolved)
-	}
-	if language := service.workspaceLanguage(); language != workspaceLanguageEnglish {
-		t.Fatalf("the device works in the language the company keeps, got %q", language)
-	}
+	return service
 }
 
-func TestTheDeliveredPolicyCarriesTheLocaleBesideTheTimeZone(t *testing.T) {
-	snapshot := companyPolicySnapshot(centralplane.CompanyProfile{Name: "예시회사"}, "America/Los_Angeles", workspaceLanguageEnglish)
-
-	if snapshot["timeZone"] != "America/Los_Angeles" {
-		t.Fatalf("expected the time zone on the delivered company snapshot, got %v", snapshot)
+func deliveredCompanyField(t *testing.T, service *Service, field string) string {
+	t.Helper()
+	document, errorValue := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	if snapshot["locale"] != workspaceLanguageEnglish {
-		t.Fatalf("expected the locale beside the time zone on the delivered company snapshot, got %v", snapshot)
+	var policyDocument struct {
+		Company map[string]string `json:"company"`
 	}
+	if errorValue := json.Unmarshal(document, &policyDocument); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return policyDocument.Company[field]
 }

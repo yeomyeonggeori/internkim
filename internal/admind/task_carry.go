@@ -177,7 +177,7 @@ func (service *Service) carryTasksIntoTheRecord(ctx context.Context) (taskCarryR
 		return report, errorValue
 	}
 	addressByPersonID := service.taskPeopleByID(ctx)
-	companyToday := service.companyToday(ctx, client)
+	companyToday := service.companyToday(ctx)
 	for _, task := range tasks {
 		refusal := service.carryOneTask(ctx, client, database, task, addressByPersonID, companyToday)
 		if refusal != "" {
@@ -307,15 +307,8 @@ func carriedTaskAddresses(task deviceTask, addressByPersonID map[string]adminUse
 
 // The record decides a day boundary in the company's own timezone, so that is
 // the one a refusal has to agree with.
-func (service *Service) companyToday(ctx context.Context, client *centralplane.Client) time.Time {
-	location := taskDateLocation()
-	company, found, errorValue := client.Company(ctx)
-	if errorValue == nil && found {
-		if named, loadError := time.LoadLocation(strings.TrimSpace(company.Timezone)); loadError == nil {
-			location = named
-		}
-	}
-	now := time.Now().In(location)
+func (service *Service) companyToday(ctx context.Context) time.Time {
+	now := service.companyDateNow(ctx)
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 }
 

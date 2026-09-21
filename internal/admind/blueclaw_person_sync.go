@@ -37,7 +37,7 @@ func (service *Service) upsertBlueclawPerson(ctx context.Context, userID string,
 		people = append(people, person)
 		policyDocument["people"] = people
 	}
-	language := service.workspaceLanguage()
+	language := service.workspaceLanguage(ctx)
 	applyBlueclawPersonAttributes(person, name, role, circles, note, language)
 	if errorValue := service.deliverBlueclawPolicy(ctx, policyDocument); errorValue != nil {
 		return errorValue

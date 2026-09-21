@@ -17,8 +17,8 @@
 	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
-	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
-	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: 'system', language: 'ko' });
+	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: '', language: 'ko' });
+	let workspaceSettingsDraft = $state<WorkspaceSettings>({ timeZone: '', language: 'ko' });
 	let workspaceSettingsMessage = $state('');
 	let isLoadingWorkspaceSettings = $state(false);
 	let isSavingWorkspaceSettings = $state(false);
@@ -38,7 +38,7 @@
 
 	function normalizeWorkspaceSettings(settings: WorkspaceSettings): WorkspaceSettings {
 		return {
-			timeZone: settings.timeZone?.trim() || 'system',
+			timeZone: settings.timeZone?.trim() ?? '',
 			language: settings.language === 'en' ? 'en' : 'ko',
 			updatedAt: settings.updatedAt
 		};

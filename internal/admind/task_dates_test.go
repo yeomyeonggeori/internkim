@@ -7,7 +7,7 @@ import (
 
 func TestTaskBusinessTimezoneOwnsTheCurrentWeek(t *testing.T) {
 	sundayUTC := time.Date(2026, time.July, 19, 15, 30, 0, 0, time.UTC)
-	mondaySeoul := sundayUTC.In(taskDateLocation())
+	mondaySeoul := sundayUTC.In(defaultCompanyLocation())
 
 	if mondaySeoul.Weekday() != time.Monday {
 		t.Fatalf("expected Monday in Seoul, got %s", mondaySeoul.Weekday())
