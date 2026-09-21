@@ -214,7 +214,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		participants = calendarParticipantsFromPeople(people)
 	}
 	createdByEmail, createdByName := service.webMemberActorIdentity(request)
-	_, workspaceTimeZone := service.workspaceTimeLocation()
+	companyTimeZone := service.companyTimeZoneName(request.Context())
 	return calendarEvent{
 		ID:                id,
 		UID:               id + "@internkim",
@@ -223,7 +223,7 @@ func (service *Service) normalizeCalendarEventWriteRequest(request *http.Request
 		Location:          strings.TrimSpace(payload.Location),
 		StartISO:          startTime.UTC().Format(time.RFC3339),
 		EndISO:            endTime.UTC().Format(time.RFC3339),
-		TimeZone:          firstNonEmpty(strings.TrimSpace(payload.TimeZone), workspaceTimeZone),
+		TimeZone:          firstNonEmpty(strings.TrimSpace(payload.TimeZone), companyTimeZone),
 		IsAllDay:          payload.IsAllDay,
 		People:            people,
 		Participants:      participants,

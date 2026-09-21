@@ -83,7 +83,7 @@ func companyProfileChange(asked map[string]any) (map[string]any, error) {
 	return change, nil
 }
 
-func companyPolicySnapshot(profile centralplane.CompanyProfile, timeZone string, locale string) map[string]string {
+func companyProfileSnapshot(profile centralplane.CompanyProfile) map[string]string {
 	return map[string]string{
 		"name":           strings.TrimSpace(profile.Name),
 		"brandName":      strings.TrimSpace(profile.BrandName),
@@ -91,9 +91,42 @@ func companyPolicySnapshot(profile centralplane.CompanyProfile, timeZone string,
 		"description":    strings.TrimSpace(profile.Description),
 		"representative": strings.TrimSpace(profile.Representative),
 		"website":        strings.TrimSpace(profile.Website),
-		"timeZone":       timeZone,
-		"locale":         locale,
 	}
+}
+
+func (service *Service) reconcileCompanySnapshot(ctx context.Context, policyDocument map[string]any) {
+	service.writeCompanySettingsIntoPolicy(ctx, policyDocument)
+	profile, errorValue := service.companyProfile(ctx, service.claimedAdminEmail(), "")
+	if errorValue != nil {
+		return
+	}
+	writeCompanyProfileIntoPolicy(policyDocument, profile)
+}
+
+func (service *Service) writeCompanySettingsIntoPolicy(ctx context.Context, policyDocument map[string]any) {
+	settings, isAnswered := service.readCompanySettings(ctx)
+	if !isAnswered {
+		return
+	}
+	company := companySnapshotIn(policyDocument)
+	company["timeZone"] = settings.timeZone
+	company["locale"] = settings.language
+}
+
+func writeCompanyProfileIntoPolicy(policyDocument map[string]any, profile centralplane.CompanyProfile) {
+	company := companySnapshotIn(policyDocument)
+	for field, value := range companyProfileSnapshot(profile) {
+		company[field] = value
+	}
+}
+
+func companySnapshotIn(policyDocument map[string]any) map[string]any {
+	company, held := policyDocument["company"].(map[string]any)
+	if !held {
+		company = map[string]any{}
+		policyDocument["company"] = company
+	}
+	return company
 }
 
 func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, profile centralplane.CompanyProfile) error {
@@ -101,7 +134,8 @@ func (service *Service) syncCompanySnapshotToBlueclaw(ctx context.Context, profi
 	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
 		return errorValue
 	}
-	policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name, service.workspaceLanguage())
+	writeCompanyProfileIntoPolicy(policyDocument, profile)
+	service.writeCompanySettingsIntoPolicy(ctx, policyDocument)
 	return service.deliverBlueclawPolicy(ctx, policyDocument)
 }
 

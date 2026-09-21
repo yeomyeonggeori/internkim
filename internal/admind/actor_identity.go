@@ -42,7 +42,7 @@ func (service *Service) resolveUserActorFromUserRecords(ctx context.Context, ema
 	for _, record := range records {
 		if strings.EqualFold(record.Email, email) && isActiveTaskUser(record) {
 			actor := userActorFromAdminUserRecord(record)
-			actor.Name = personname.Render(actor.Name, service.workspaceLanguage())
+			actor.Name = personname.Render(actor.Name, service.workspaceLanguage(ctx))
 			return actor, true, nil
 		}
 	}

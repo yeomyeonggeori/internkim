@@ -65,10 +65,6 @@ func (service *Service) adminText() localizedAdminText {
 	return localizedAdminTextForLocale(service.adminLocale())
 }
 
-func (service *Service) workspaceText() localizedAdminText {
-	return localizedAdminTextForLocale(normalizeAdminLocale(service.workspaceLanguage()))
-}
-
 func (service *Service) adminLocalePath() string {
 	return filepath.Join(service.Configuration.StateDirectory, "admin-locale")
 }

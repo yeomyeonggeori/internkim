@@ -77,7 +77,7 @@ type companyShareMemberSource struct {
 }
 
 func (service *Service) buildCompanyShareTeamActivity(ctx context.Context, now time.Time) (companyShareTeamActivity, error) {
-	location, _ := service.workspaceTimeLocation()
+	location := service.companyTimeLocation(ctx)
 	localNow := now.In(location)
 	startDate := localNow.AddDate(0, 0, -(companyShareActivityWindowDays - 1)).Format("2006-01-02")
 	endDate := localNow.Format("2006-01-02")
@@ -276,7 +276,7 @@ func (service *Service) readCompanyShareBoardActivity(ctx context.Context, start
 	})
 	rows := []companyShareWorkRow{}
 	for _, task := range tasks {
-		row := companyShareWorkRowOfBoardTask(task)
+		row := companyShareWorkRowOfBoardTask(task, service.companyTimeLocation(ctx))
 		if row.Date < startDate || row.Date > endDate {
 			continue
 		}
@@ -285,7 +285,7 @@ func (service *Service) readCompanyShareBoardActivity(ctx context.Context, start
 	return rows, nil
 }
 
-func companyShareWorkRowOfBoardTask(task centralplane.BoardTask) companyShareWorkRow {
+func companyShareWorkRowOfBoardTask(task centralplane.BoardTask, location *time.Location) companyShareWorkRow {
 	memberMail := task.RequesterMail
 	if len(task.ParticipantMails) > 0 {
 		memberMail = task.ParticipantMails[0]
@@ -297,9 +297,9 @@ func companyShareWorkRowOfBoardTask(task centralplane.BoardTask) companyShareWor
 		Type:      task.Type,
 		Size:      task.Size,
 		Status:    task.Status,
-		StartDate: taskDayOfInstant(task.StartsAt),
-		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
-		Date:      taskDayOfInstant(task.UpdatedAt),
+		StartDate: taskDayOfInstant(task.StartsAt, location),
+		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt), location),
+		Date:      taskDayOfInstant(task.UpdatedAt, location),
 	}
 }
 

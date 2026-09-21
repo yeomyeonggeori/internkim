@@ -22,7 +22,7 @@ func (service *Service) nameMembersTheRelayCannotName(ctx context.Context, relay
 		return
 	}
 	recordedNames := service.recordedNamesByEmail(ctx)
-	language := service.workspaceLanguage()
+	language := service.workspaceLanguage(ctx)
 	named, unnamed := 0, 0
 	for _, email := range service.everyAddressThisDeviceKnows(ctx) {
 		if recordedNames[email] == "" {
@@ -58,7 +58,7 @@ func (service *Service) seatAndNameOneMemberInBuzz(ctx context.Context, email st
 	if strings.TrimSpace(recordedName) == "" {
 		recordedName = service.recordedNamesByEmail(ctx)[email]
 	}
-	service.nameMemberFromTheDirectory(ctx, profiles, email, recordedName, service.workspaceLanguage())
+	service.nameMemberFromTheDirectory(ctx, profiles, email, recordedName, service.workspaceLanguage(ctx))
 }
 
 func (service *Service) nameMemberFromTheDirectory(

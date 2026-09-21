@@ -61,7 +61,7 @@ type Service struct {
 	calendarStoreWriteMutex    sync.Mutex
 	companyShareMutex          sync.Mutex
 	companyShareAttempts       map[string]companyShareAttempt
-	workspaceSettingsCache     heldWorkspaceSettings
+	companySettingsCache       heldCompanySettings
 	policyRecordCacheMutex     sync.Mutex
 	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics

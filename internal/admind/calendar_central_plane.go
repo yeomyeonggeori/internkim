@@ -24,7 +24,7 @@ func (service *Service) centralCalendarEventByID(request *http.Request, eventID 
 	if !held {
 		return calendarEvent{}, false
 	}
-	events := calendarEventsOfCompanyEvents([]centralplane.Event{companyEvent}, service.workspaceTimeZone().name)
+	events := calendarEventsOfCompanyEvents([]centralplane.Event{companyEvent}, service.companyTimeZoneName(request.Context()))
 	if len(events) != 1 {
 		return calendarEvent{}, false
 	}
@@ -129,7 +129,7 @@ func (service *Service) saveCentralCalendarEvent(request *http.Request, event ca
 	saved := event
 	saved.ID = savedID
 	saved.UID = savedID
-	saved.TimeZone = service.workspaceTimeZone().name
+	saved.TimeZone = service.companyTimeZoneName(request.Context())
 	if stored, found, readError := client.EventByID(request.Context(), "email", requesterEmail, savedID); readError == nil && found {
 		saved.UpdatedAt = stored.UpdatedAt
 	}
