@@ -109,7 +109,7 @@ var hostDependencies = []HostDependency{
 	{
 		DebianPackage:          "coreutils",
 		DebianCallsItEssential: true,
-		ProgramsTheHostRuns:    []string{"cp", "install", "mkdir", "chown"},
+		ProgramsTheHostRuns:    []string{"cat", "cp", "dirname", "install", "mkdir", "chown", "sleep"},
 		NeededBy:               []HostPart{HostPartEntrypoint},
 	},
 	{

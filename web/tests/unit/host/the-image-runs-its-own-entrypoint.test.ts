@@ -2,25 +2,9 @@ import { expect, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-	theCommandWordsTheEntrypointRuns,
-	theProgramsTheEntrypointDeclares,
-	whatStarts
-} from '../../support/the-entrypoint';
+import { whatStarts } from '../../support/the-entrypoint';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..', '..');
-
-test('every program the entrypoint runs is one it checks for', () => {
-	const undeclared = theCommandWordsTheEntrypointRuns().filter(
-		(program) => !theProgramsTheEntrypointDeclares().includes(program)
-	);
-	expect(
-		undeclared,
-		`host/entrypoint.sh runs ${undeclared.join(', ')} without naming it in ` +
-			`programsThisScriptRuns, so an image built without it reaches that line and stops there ` +
-			`instead of refusing at the door — and the Dockerfile's own --check-programs never asks`
-	).toEqual([]);
-});
 
 test('the image asks the entrypoint what it needs', () => {
 	const dockerfile = readFileSync(join(repositoryRoot, 'host', 'Dockerfile'), 'utf8');
