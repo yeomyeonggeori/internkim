@@ -67,7 +67,7 @@ func startRelayCache(connection BoardConnection) error {
 func relayCacheInstallCommand() string {
 	return `if systemctl is-active --quiet redis-server; then exit 0; fi
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq redis-server 2>&1 | tail -5
+apt-get install -y -qq ` + blueclaw.BuzzRelayCachePackages() + ` 2>&1 | tail -5
 systemctl enable --now redis-server 2>&1 | tail -5`
 }
 
@@ -78,13 +78,13 @@ func startRelayDatabase(connection BoardConnection) error {
 		return nil
 	}
 	return fmt.Errorf("postgresql is %s after installing %s, so the buzz relay bound to it cannot start: %s",
-		state, blueclaw.BuzzRelayDatabasePackages, strings.TrimSpace(output))
+		state, blueclaw.BuzzRelayDatabasePackages(), strings.TrimSpace(output))
 }
 
 func relayDatabaseInstallCommand() string {
 	return `if systemctl is-active --quiet postgresql; then exit 0; fi
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq ` + blueclaw.BuzzRelayDatabasePackages + ` 2>&1 | tail -5
+apt-get install -y -qq ` + blueclaw.BuzzRelayDatabasePackages() + ` 2>&1 | tail -5
 systemctl enable --now postgresql 2>&1 | tail -5
 sleep 1`
 }

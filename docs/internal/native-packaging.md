@@ -145,7 +145,8 @@ document virtualenv and the systemd units.
 ## 3. Dependencies
 
 `host/Dockerfile` and `host/entrypoint.sh` already worked this list out, #1908
-finished it, and the package reuses it:
+finished it, and it now lives once in `internal/runtime/blueclaw/host_dependencies.go`,
+which `HostDebianDependsLine()` renders as:
 
 ```
 Depends: postgresql (>= 14), postgresql-contrib, redis-server,
@@ -300,12 +301,15 @@ kinds present at once is a refusal that names both, because guessing which one
 owns `/usr/bin/internkim` is how a machine ends up with neither.
 
 **Where the source of truth is.** Service definitions:
-`internal/runtime/blueclaw`. Dependency list: one declaration in the same
-package, from which the `.deb`'s `Depends:`, the Homebrew formula's
-`depends_on` lines and the unpackaged preflight are all derived. Today that
-list exists three times — `host/Dockerfile`'s `apt-get install` line,
-`BuzzRelayDatabasePackages`, and the two program lists in `entrypoint.sh` —
-and this design collapses it to one. What binds `install.sh` to the package is
+`internal/runtime/blueclaw`. Dependency list: `host_dependencies.go` in the
+same package, from which the `.deb`'s `Depends:`, the Homebrew formula's
+`depends_on` lines and the unpackaged preflight are all derived. It used to
+exist three times — `host/Dockerfile`'s `apt-get install` line,
+`BuzzRelayDatabasePackages`, and the two program lists in `entrypoint.sh`. The
+two that are still written out are held to the declaration by a test that reads
+what the Dockerfile installs and runs `entrypoint.sh --check-programs` against a
+PATH carrying exactly what the declaration names, so a package added to one and
+not the other fails. What binds `install.sh` to the package is
 a test: `tools/tests/test_install_script.py` already stands up a fake release
 server and shims `uname`, and it gains an `apt-get` shim asserting the script
 reaches for the package manager when one is present.
