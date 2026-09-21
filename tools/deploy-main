@@ -47,7 +47,7 @@ PLAN_STEPS = [
     "make prepare-buzz-relay",
     "(cd web && bun run build:board)",
     "remove .dependency/blueclaw/internal/app/.blueclaw if a build step recreated it",
-    "./internkim verify install-addresses, refusing while an address admind prints is unserved",
+    "./internkim verify install-addresses, refusing while an address admind prints is unserved or unanswered",
     "./internkim deploy --components <every component from --help's Available: line>",
     "poll every target's health endpoint until gitRevision matches origin/main, up to 5 minutes",
     "print the before/after revision table",
@@ -253,7 +253,7 @@ def require_install_addresses_are_served():
     print(checked.stdout.strip(), flush=True)
     if checked.returncode != 0:
         raise Refusal(
-            "admind prints an install address the web app does not serve yet: "
+            "the install addresses admind prints were not confirmed: "
             f"{checked.stderr.strip() or checked.stdout.strip()}"
         )
 

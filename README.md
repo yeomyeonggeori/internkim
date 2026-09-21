@@ -550,7 +550,9 @@ has not been redeployed prints that address, and the file there forwards to
 release that changes what admind prints, never after.
 `./internkim verify install-addresses` checks that every address
 `internal/capabilities` names answers 200, and `tools/deploy-main` refuses the
-release when one does not.
+release when one does not. It separates an address the web app does not serve
+from one nothing could reach after three tries, and says which it found, because
+a stalled read is not evidence that a deploy is out of order.
 
 Pairing starts in Settings → My computer of the web app: admind issues a
 ten-minute one-time code bound to the signed-in member (`/companion/api` in
