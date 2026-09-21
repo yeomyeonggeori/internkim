@@ -34,7 +34,7 @@ services:
       retries: 40
 
   media:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     restart: unless-stopped
     network_mode: service:postgres
     command: ["server", "/data", "--address", "127.0.0.1:9000", "--console-address", "127.0.0.1:9001"]
@@ -53,7 +53,7 @@ services:
       retries: 40
 
   prepare-media:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     network_mode: service:postgres
     environment:
       MEDIA_ACCESS_KEY: ${MEDIA_ACCESS_KEY}
