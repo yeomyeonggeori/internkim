@@ -6,13 +6,6 @@ const entrypointPath = join(import.meta.dir, '..', '..', '..', 'host', 'entrypoi
 type AFlag = { name: string; rawValue: string };
 type AToken = { text: string; isOperator: boolean; isRedirect: boolean };
 
-const shellWords = new Set([
-	'if', 'then', 'elif', 'else', 'fi', 'for', 'in', 'do', 'done', 'while', 'until', 'case', 'esac',
-	'set', 'exit', 'echo', 'printf', 'trap', 'wait', 'kill', 'sleep', 'true', 'false', 'cd', 'export',
-	'command', 'return', 'shift', 'read', 'eval', 'exec', 'local', 'unset', 'test', ':', '[', '{',
-	'}', '!'
-]);
-
 const introducesACommand = new Set(['if', 'then', 'elif', 'else', 'do', 'while', 'until', '!']);
 
 const assignmentPrefix = /^[A-Za-z_][A-Za-z0-9_]*=/;
@@ -41,11 +34,6 @@ function theLogicalLines(): string[] {
 		pending = '';
 	}
 	return joined;
-}
-
-function wholeWordAt(logicalLine: string, start: number): string {
-	const rest = logicalLine.slice(start);
-	return rest.slice(0, rest.search(/\s|$/));
 }
 
 function tokenize(logicalLine: string): AToken[] {
@@ -115,14 +103,6 @@ function tokenize(logicalLine: string): AToken[] {
 	return tokens;
 }
 
-function theFunctionsDefinedHere(): Set<string> {
-	return new Set(
-		theLogicalLines()
-			.map((logicalLine) => logicalLine.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(\)/)?.[1])
-			.filter((name): name is string => Boolean(name))
-	);
-}
-
 function theCommandWordsOf(logicalLine: string): string[] {
 	const tokens = tokenize(logicalLine);
 	const words: string[] = [];
@@ -143,22 +123,6 @@ function theCommandWordsOf(logicalLine: string): string[] {
 		atCommandStart = introducesACommand.has(token.text);
 	}
 	return words;
-}
-
-export function theCommandWordsTheEntrypointRuns(): string[] {
-	const defined = theFunctionsDefinedHere();
-	const words = theLogicalLines().flatMap(theCommandWordsOf);
-	return [
-		...new Set(
-			words.filter(
-				(word) =>
-					!shellWords.has(word) &&
-					!defined.has(word) &&
-					!/^["'$]/.test(word) &&
-					!assignmentPrefix.test(word)
-			)
-		)
-	].sort();
 }
 
 function theCommandThatStarts(program: string): AToken[] {
@@ -256,10 +220,4 @@ export function theArgumentsThatStart(
 		return [name, value];
 	});
 	return [...fromTheEntrypoint, ...Object.entries(sandboxOnly).flat()];
-}
-
-export function theProgramsTheEntrypointDeclares(): string[] {
-	const declared = theEntrypoint().match(/programsThisScriptRuns="([^"]*)"/);
-	if (!declared) throw new Error('host/entrypoint.sh no longer declares programsThisScriptRuns');
-	return declared[1].split(/\s+/).filter(Boolean);
 }
