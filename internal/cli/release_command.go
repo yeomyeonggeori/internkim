@@ -75,7 +75,7 @@ func printReleaseUsage() {
 	fmt.Println("  publish     Publish a device release to the stable channel")
 	fmt.Println("  status      Show what the channel points at")
 	fmt.Println("  companion   Build the companion for macOS and Linux and publish it under companion/latest")
-	fmt.Println("  host        Push the company server image and publish the host installer under host/latest")
+	fmt.Println("  host        Publish the host installer under host/latest, stamped with --image")
 	fmt.Println()
 	fmt.Println("Environment for publish:")
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")

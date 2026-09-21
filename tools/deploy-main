@@ -47,6 +47,7 @@ PLAN_STEPS = [
     "make prepare-buzz-relay",
     "(cd web && bun run build:board)",
     "remove .dependency/blueclaw/internal/app/.blueclaw if a build step recreated it",
+    "./internkim verify install-addresses, refusing while an address admind prints is unserved",
     "./internkim deploy --components <every component from --help's Available: line>",
     "poll every target's health endpoint until gitRevision matches origin/main, up to 5 minutes",
     "print the before/after revision table",
@@ -246,6 +247,17 @@ def every_release_component():
     return parse_available_components(help_run.stdout)
 
 
+def require_install_addresses_are_served():
+    print("$ ./internkim verify install-addresses", flush=True)
+    checked = run(["./internkim", "verify", "install-addresses"])
+    print(checked.stdout.strip(), flush=True)
+    if checked.returncode != 0:
+        raise Refusal(
+            "admind prints an install address the web app does not serve yet: "
+            f"{checked.stderr.strip() or checked.stdout.strip()}"
+        )
+
+
 def run_deploy(components):
     print(f"$ ./internkim deploy --components {','.join(components)}", flush=True)
     returncode, output_lines = run_streaming(["./internkim", "deploy", "--components", ",".join(components)])
@@ -301,6 +313,7 @@ def main():
             targets = load_fleet_targets()
             require_targets_are_shippable(targets)
             run_build_steps()
+            require_install_addresses_are_served()
             components = every_release_component()
             deploy_line = run_deploy(components)
             short_sha = short_revision_of_origin_main()

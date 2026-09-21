@@ -45,6 +45,8 @@ func runVerifyArguments(arguments []string) error {
 		return runVerifyAPI(arguments)
 	case "browser":
 		return runVerifyBrowser(arguments)
+	case "install-addresses":
+		return runVerifyInstallAddresses()
 	default:
 		return fmt.Errorf("unknown verify subcommand: %s", subcommand)
 	}

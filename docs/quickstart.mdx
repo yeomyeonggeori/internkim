@@ -68,6 +68,11 @@ The download script picks the build for this machine, checks it against the
 published `SHA256SUMS`, and puts `internkim-host` in `~/.local/bin`. A download
 whose checksum does not match is refused and nothing is installed.
 
+To build both halves yourself instead, from a checkout of this repository,
+run `make build-company-host-image build-company-host` and use the
+`./internkim-host` it leaves in the repository root. Nothing is downloaded from
+us on that path.
+
 `internkim-host install` checks the connection file, asks for the OpenRouter
 key, and starts the company server with Docker Compose. It stores
 `compose.yaml`, `01-buzz.sql`, `compose.env`, and private keys under

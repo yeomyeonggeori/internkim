@@ -169,8 +169,20 @@ func CompanionInstallURL() string {
 	return "https://docs.intern.kim/docs/companion"
 }
 
+func InstallScriptURL() string {
+	return "https://intern.kim/install.sh"
+}
+
+func RetiredCompanionInstallScriptURL() string {
+	return "https://intern.kim/companion/install.sh"
+}
+
+func InstallScriptURLs() []string {
+	return []string{InstallScriptURL(), RetiredCompanionInstallScriptURL()}
+}
+
 func CompanionInstallCommand() string {
-	return "curl -fsSL https://intern.kim/install.sh | sh -s -- companion"
+	return "curl -fsSL " + InstallScriptURL() + " | sh -s -- companion"
 }
 
 func CompanionServiceCommand() string {

@@ -65,6 +65,11 @@ internkim-host install ~/Downloads/internkim-host.json
 대조한 뒤 `internkim-host`를 `~/.local/bin`에 놓습니다. 체크섬이 맞지 않으면
 거부하고 아무것도 설치하지 않습니다.
 
+직접 빌드하려면 이 저장소를 받은 뒤
+`make build-company-host-image build-company-host`를 실행하고 저장소 루트에
+생긴 `./internkim-host`를 쓰세요. 이 경로에서는 우리 쪽에서 아무것도
+내려받지 않습니다.
+
 `internkim-host install`은 연결 파일을 확인하고 OpenRouter 키를 먼저 묻습니다.
 그 뒤 Docker Compose로 회사 서버를 시작합니다. `compose.yaml`, `01-buzz.sql`,
 `compose.env`와 비밀 키는 `~/.internkim/companies/<company-id>` 아래에
