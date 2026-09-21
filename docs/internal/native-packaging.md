@@ -443,3 +443,8 @@ identity derivation moving inline off a `docker run`.
 - **The package's installed size.** Nine binaries, a Chromium-driving browser
   pair, a Python virtualenv and an S3 server, against whatever the appliance
   image budget is. Build one and weigh it.
+
+[`native-install-rig.md`](./native-install-rig.md) is what judges whether a
+build of this package installs, upgrades and removes correctly on a clean
+arm64 Debian, and records which of the questions above no virtual machine can
+answer.
