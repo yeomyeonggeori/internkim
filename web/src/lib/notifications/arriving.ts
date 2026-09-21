@@ -1,4 +1,5 @@
 import { homePath } from '$lib/home-path';
+import { ownPath } from '$lib/return-path';
 
 export type Arriving = {
 	title: string;
@@ -36,10 +37,4 @@ function secureURL(offered: unknown): string {
 
 function text(offered: unknown): string {
 	return typeof offered === 'string' ? offered : '';
-}
-
-function ownPath(offered: unknown): string {
-	if (typeof offered !== 'string') return '';
-	if (!offered.startsWith('/') || offered.startsWith('//')) return '';
-	return offered;
 }

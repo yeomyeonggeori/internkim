@@ -77,6 +77,7 @@
 							</Alert.Description>
 						</Alert.Root>
 					{/if}
+					<p class="text-sm text-muted-foreground">{text.notStartedByYou}</p>
 					{#if failure}
 						<p class="text-sm text-destructive">{failure}</p>
 					{/if}

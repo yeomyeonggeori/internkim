@@ -50,13 +50,13 @@ registration, PKCE, loopback redirect, browser window, CLI waits.
 
 ### What the human sees at the consent screen
 
-`web/src/routes/oauth/consent/+page.svelte:47` wraps the page in `WebAuthGate`
+`web/src/routes/oauth/consent/+page.svelte:45` wraps the page in `WebAuthGate`
 (`web/src/lib/components/web-auth-gate.svelte`), passing
 `returnPath = pathname + search`, which carries the `authorization_id`.
 
 An unsigned visitor whose plane serves companies
 (`web-auth-gate.svelte:38`) is offered a passkey button, an email/password
-form, and two links (`web-auth-gate.svelte:136-142`):
+form, and two links (`web-auth-gate.svelte:138-141`):
 
 - `/auth/claim` — claim an account that was already invited
 - `/auth/claim?new-company=1` — found a new company
@@ -284,29 +284,40 @@ with tools instead of `401`.
 
 ### One name for the return path
 
-Before the change the concept had one spelling and four hand-written copies of
+Before the change the concept had one spelling and five hand-written copies of
 it: the identifier `returnPath`, the query parameter `return`, and the value
 `pathname + search`, written out with `encodeURIComponent` in
-`web-auth-session.ts`, `web-auth-gate.svelte`, `+layout.ts` and
-`runs/+page.svelte`. Validation had two copies of a *different* rule, `ownPath`
-and `safeOpenPath` in `web/src/lib/notifications/`, identical to each other and
-reached only by the push-notification paths.
+`web-auth-session.ts`, `web-auth-gate.svelte`, `+layout.ts`,
+`runs/+page.svelte` and `app-navigation.svelte.ts`. Validation had **three**
+copies of a *different* rule, all under `web/src/lib/notifications/` and
+identical to each other: `ownPath` in `pending-destination.ts`, `safeOpenPath`
+in `opened-notification.ts`, and a second private `ownPath` in `arriving.ts`.
+The third survived the first pass of this change and was caught in review; the
+conformance test in this change was rewritten to look for the rule's shape
+rather than its name, which is what would have found it.
 
 `web/src/lib/return-path.ts` now holds all three operations, and every producer
 and consumer goes through it:
 
 | | |
 |---|---|
-| `ownPath(offered)` | the validator the two notification copies were |
-| `withReturnPath(destination, returnPath)` | writes the parameter, handling a destination that already asks something |
+| `ownPath(offered)` | the validator the three notification copies were |
+| `withReturnPath(destination, returnPath)` | writes the parameter, in front of any fragment and after any existing question |
 | `returnPathOf(url)` | reads and validates it back |
 
-Merging the validators closed a hole. The rule both copies carried was "starts
+Merging the validators closed a hole. The rule all three carried was "starts
 with `/`, does not start with `//`", which accepts `/\evil.test`; a browser
-reads those backslashes as slashes and leaves the origin. The merged
-`ownPath` resolves the candidate against a host nothing can be and compares
-origins, so a path that leaves gives itself away whichever spelling it uses. The
-notification paths that carried the old rule inherit the fix.
+reads those backslashes as slashes and leaves the origin. `ownPath` resolves the
+candidate against a host nothing can be and compares origins, so a path that
+leaves gives itself away whichever spelling it uses, and a candidate that is no
+URL at all answers empty rather than throwing. The push-notification paths that
+carried the old rule inherit both.
+
+The Go function `safeWebReturnPath` (`internal/admind/web_session.go:397`) is
+not a fourth copy. It is a stricter allowlist of six path prefixes, it belongs
+to the frozen device path, and it is in another language. Searching by name, by
+the rule's shape, by the `'//'` literal and by every consumer of `openPath`
+found nothing else.
 
 ### The four hops
 
@@ -315,8 +326,9 @@ notification paths that carried the old rule inherit the fix.
 2. `web/src/routes/auth/claim/+page.svelte` — all four exits go to
    `returnPathOf(page.url) || homePath`.
 3. `web/src/routes/+layout.ts` — the bounce for an account that belongs to no
-   company redirects to `withReturnPath('/start', returnPath)` rather than bare
-   `/start`. One rule for every page, so nothing special-cases `/oauth/consent`.
+   company redirects to `withReturnPath('/start', returnPath)`, where it used
+   to redirect to bare `/start`. One rule for every page, so nothing
+   special-cases `/oauth/consent`.
 4. `web/src/routes/start/+page.svelte` — founding returns to the carried path,
    and so does the case where the visitor turns out to belong to a company
    already.
@@ -329,6 +341,41 @@ told so. A signed-in account that belongs to no company is told that, and where
 to start one. The address is derived through `theAppAddressOf`, which moved from
 `digest-app-url.ts` to `company-host-redirect.ts` so it sits beside
 `theOneAddressOf`, the zone's one home.
+
+### Four decisions review asked for out loud
+
+**The founder never skips the temporary passwords.** `/start` returns to the
+carried path by itself only when nobody was invited
+(`start/leaving-after-founding.ts`). When there are invitations the card stands,
+because it is the one and only place each temporary password is readable, and it
+grew a button that continues to the carried path once they have been written
+down. A guard alone would have stranded that founder, since the card's only exit
+was `/settings/setup`; a button alone would have made somebody who invited
+nobody click for nothing.
+
+**The parameter is a one-click path into a consent prompt, and that is accepted.**
+`/start?return=%2Foauth%2Fconsent%3Fauthorization_id%3D<theirs>` lands a person
+on an approve card for a client they never started, at the moment they are
+primed to click through. What the attacker gains over sending a plain consent
+link is the timing. The card is still the gate: it names the client and the
+account, and it warns in red when the access is received off this computer. The
+gap was that nothing told the person they might not have started this, so the
+card now says to deny it if they did not. Removing the parameter would remove
+the feature it exists for.
+
+**`withReturnPath` splits on `#` first.** No call site passes a fragment today,
+so this is a trap waiting: appending after one produces
+`/start#frag?return=…`, which a browser never sends. Three lines beat a
+precondition nobody reads.
+
+**A stale authorization is now a likely ending, and the copy says so.** The
+round trip is consent, an emailed code, a password, a passkey, a company name,
+founding, and back. That is minutes. If the authorization
+record expires meanwhile the consent card shows its unreadable state, which had
+no button and told the person nothing about the company they had just made. It
+now says the company is set up either way and to start connecting again from the
+app. What the record's lifetime actually is could not be read from this
+repository: it is Supabase's, not ours, and `config.toml` does not name it.
 
 ### The documentation
 
@@ -343,32 +390,40 @@ computer.
 
 | | |
 |---|---|
-| New | `web/src/lib/return-path.ts`, two unit test files |
+| New | `web/src/lib/return-path.ts`, `routes/start/leaving-after-founding.ts`, three unit test files |
 | Return path | `web-auth-gate.svelte`, `auth/claim/+page.svelte`, `+layout.ts`, `start/+page.svelte`, `web-auth-session.ts`, `runs/+page.svelte`, `app-navigation.svelte.ts` |
-| Validator merge | `notifications/pending-destination.ts`, `notifications/opened-notification.ts`, `notifications/native-device.ts` |
+| Validator merge | `notifications/pending-destination.ts`, `notifications/opened-notification.ts`, `notifications/native-device.ts`, `notifications/arriving.ts` |
 | Refusal | `server/member-request.ts`, `server/company-host-redirect.ts`, `server/digest-app-url.ts` |
+| Consent copy | `oauth/consent/+page.svelte`, `oauth/consent/consent-text.ts` |
 | Documentation | `docs/api/index.mdx`, `docs/api/index.ko.mdx` |
 
 No new route, table, tool, or environment variable.
 
 ### What the tests cover, and what they do not
 
-`web/tests/unit/return-path.test.ts` covers the three operations, including the
-backslash case that the rule it replaced accepted.
-`web/tests/unit/sign-up-keeps-the-authorization.test.ts` walks the four hops as
-the pages compute them and asserts the `authorization_id` survives, then asserts
-each page calls the shared builder and that nothing else under `src` writes the
-parameter by hand. `web/tests/integration/public-api-mcp-authorization.test.ts`
-gained an account that belongs to no company and asserts the `403` names that
-and `/start`; it extends the file that already drives registration, consent and
-`tools/list` against a real Supabase project.
+`web/tests/unit/return-path.test.ts` covers the three operations: the backslash
+the old rule accepted, the unterminated IPv6 literal that makes the parser
+throw, and the collision case `//internkim.invalid/evil`, which degrades to the
+local path `/evil` and never reaches the sentinel host. That last one is the
+property the whole design rests on, so it is pinned.
 
-What no test covers is the browser. The integration suite drives Supabase's
-OAuth API directly and never renders `/oauth/consent`, and the sign-up half
-needs a mailbox, so the hops are verified as the functions the pages share
-rather than as clicks. A Playwright case against the local plane would close
-that, and it would need a `supabase db reset`, which is why it is not in this
-change.
+`web/tests/unit/sign-up-keeps-the-authorization.test.ts` walks the hops as the
+pages compute them and asserts the `authorization_id` survives, then asserts
+that nothing else under `src` writes the parameter or judges a path by its
+leading slashes. An earlier draft also asserted that each page contained a
+particular line; review showed those passed on wrong plumbing, such as the two
+sign-up links swapped, so they were removed.
+`web/tests/unit/start-leaving-after-founding.test.ts` covers the rule that keeps
+a founder on the card that holds the temporary passwords.
+`web/tests/integration/public-api-mcp-authorization.test.ts` gained an account
+that belongs to no company and asserts the `403` names that and `/start`.
+
+What no test covers is the browser, and one hop lives only there: the consent
+page handing its own address to the gate, which is where the whole path starts.
+`web/tests/unit` has no rendering harness, the integration suite drives
+Supabase's OAuth API and never renders `/oauth/consent`, and the sign-up half
+needs a mailbox. The honest cover is Playwright against the local plane. It
+would need a `supabase db reset`, which is why it is not in this change.
 
 ### Checked against the repository's rules
 
@@ -386,6 +441,9 @@ change.
   runtime holds and the agent cannot see. No prompt or classifier was added.
 - *No mechanism whose main output is side effects.* The output is a URL that
   survives one more navigation.
+- *Delete half-baked features.* The automatic hop back from `/start` fires on
+  an explicit parameter, its blast radius is one navigation inside this origin,
+  and it is off whenever the parameter is absent or points anywhere else.
 
 ## What was decided against
 
@@ -400,7 +458,7 @@ schema of record.
 **A `company_create` catalog tool.** The catalog's entry condition is that the
 caller already belongs to a company: `callingMember` resolves the member row and
 its `company_id` before any tool is dispatched
-(`member-request.ts:97-108`), and every `RecordContext` carries `companyID`.
+(`member-request.ts:96-99`), and every `RecordContext` carries `companyID`.
 Such a tool would have to run for a caller the catalog cannot describe. The
 anti-abuse control does not move either: one account founds at most one company
 because `claimMemberFor` refuses a second (`api/company/+server.ts:50-51`), and
@@ -429,6 +487,11 @@ second answer to a question the `401` already answers.
 (`internal/cli/main.go:159-209`) and the host installer is already a standalone
 Python script, so a `signup` verb would put a third sign-up surface next to the
 web page and the API.
+
+[`natural-language-onboarding.md`](./natural-language-onboarding.md) takes the
+next question: which surfaces this chain serves, what the standards offer for
+the ones it misses, and the whole onboarding written out as a conversation. It
+corrects one line of reasoning below, on the device authorization grant.
 
 ## Open questions
 
