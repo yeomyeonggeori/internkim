@@ -26,6 +26,21 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 
 A virtual-machine guest, Mattermost and cloudflared are **not** needed.
 
+### What the skills need
+
+The bundled skills that write a document, a spreadsheet, a PDF or a deck run as
+the requester, through the PATH blueclaw fixes. The image resolves what they
+declare rather than leaving them to fetch it mid-task:
+
+| | Why |
+|---|---|
+| **fonts-nanum** | `NanumGothic.ttf` is the one system path every skill that embeds a font into a PDF looks for; without it fpdf2 falls back to DejaVu, which has no Hangul, and writes the file anyway |
+| **chromium** | the deck's own quality gate reads rendered slides, and marks its verdict unreliable unless a browser produced them; the PDF comes from the same render |
+| **uv and the declared wheels** | `/opt/internkim/document-venv`, resolved from each skill's `scripts/requirements.txt` and `assets/document-conversion/requirements.txt` at build time and reachable as `python3`; uv stays for a skill whose requirements move past the image |
+
+`entrypoint.sh` refuses to start without any of them and names the one that is
+missing, because each absence produces a plausible file rather than an error.
+
 ## The relay
 
 `docs/internal/saas-design.md` §6 has the shape; the part that matters here is

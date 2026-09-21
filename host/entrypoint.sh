@@ -34,10 +34,36 @@ blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
 blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
 
 programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv"
-for programThisScriptRuns in ${programsThisScriptRuns}; do
-  command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
-    || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
+# The bundled skills reach these through the requester's shell, whose PATH
+# blueclaw fixes to /usr/local/bin:/usr/bin:/bin and friends.
+programsTheBundledSkillsRun="python3 bun uv chromium"
+koreanCapableFontPath="/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+skillRequirementsGlob="/opt/internkim/skills/*/scripts/requirements.txt /opt/internkim/document-conversion/requirements.txt"
+
+for programThisImageCarries in ${programsThisScriptRuns} ${programsTheBundledSkillsRun}; do
+  command -v "${programThisImageCarries}" >/dev/null 2>&1 \
+    || { echo "[host] this image carries no ${programThisImageCarries}" >&2; exit 1; }
 done
+[ -r "${koreanCapableFontPath}" ] \
+  || { echo "[host] this image carries no Korean-capable font at ${koreanCapableFontPath}; every PDF the skills write would come out without its Hangul" >&2; exit 1; }
+missingSkillPackages="$(cat ${skillRequirementsGlob} 2>/dev/null | python3 -c '
+import importlib.metadata
+import re
+import sys
+
+missing = []
+for line in sys.stdin:
+    name = re.split(r"[\s=<>!~;\[]", line.split("#", 1)[0].strip(), maxsplit=1)[0]
+    if name == "":
+        continue
+    try:
+        importlib.metadata.distribution(name)
+    except importlib.metadata.PackageNotFoundError:
+        missing.append(name)
+print(" ".join(sorted(set(missing))))
+')"
+[ -z "${missingSkillPackages}" ] \
+  || { echo "[host] the python3 on this image cannot supply what the bundled skills declare: ${missingSkillPackages}" >&2; exit 1; }
 if [ "${1:-}" = "--check-programs" ]; then
   exit 0
 fi

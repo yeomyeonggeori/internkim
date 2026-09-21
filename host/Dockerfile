@@ -27,7 +27,7 @@ RUN cd relay && bun install --frozen-lockfile
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv libfontconfig1 \
+	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv libfontconfig1 fonts-nanum chromium \
 	&& rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
@@ -58,9 +58,22 @@ COPY --from=bun-build /src/relay /opt/internkim/host/relay
 COPY web/src/lib/person-name.ts /opt/internkim/web/src/lib/person-name.ts
 COPY .dependency/blueclaw/migrations /opt/blueclaw/migrations
 COPY .dependency/internkim-plugin/skills /opt/internkim/skills
+COPY assets/document-conversion/requirements.txt /opt/internkim/document-conversion/requirements.txt
 COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json
+
+# The requirement files the skills already carry are the list, so a skill that
+# declares a new package gets it here rather than at a person's request. uv
+# stays behind for the one whose requirements move past this image.
+ARG UV_VERSION=0.11.11
+RUN curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_UNMANAGED_INSTALL=/usr/local/bin sh \
+	&& uv venv --python /usr/bin/python3 /opt/internkim/document-venv \
+	&& cat /opt/internkim/skills/*/scripts/requirements.txt /opt/internkim/document-conversion/requirements.txt \
+		| uv pip install --python /opt/internkim/document-venv/bin/python --requirements - \
+	&& uv cache clean \
+	&& printf '#!/bin/sh\nexec /opt/internkim/document-venv/bin/python3 "$@"\n' > /usr/local/bin/python3 \
+	&& chmod 0755 /usr/local/bin/python3
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
 RUN printf '#!/bin/sh\nexec bun run /opt/blueclaw-workspace/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \
