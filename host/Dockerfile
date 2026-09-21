@@ -33,10 +33,11 @@ RUN curl -fsSL https://bun.sh/install | bash && ln -s /root/.bun/bin/bun /usr/lo
 
 ARG MOLI_VERSION=1.1.5
 ARG AGENT_BROWSER_VERSION=0.32.3
+ARG VERSITYGW_VERSION=1.8.0
 ARG TARGETARCH
 RUN case "${TARGETARCH}" in \
-		amd64) moliTriple=x86_64-unknown-linux-gnu; moliSHA256=7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181; agentBrowserAsset=agent-browser-linux-x64; agentBrowserSHA256=243f6e01c4b7dea53ad07d9754df99033c614582d5c685c529a1cb81cafc3ab1 ;; \
-		arm64) moliTriple=aarch64-unknown-linux-gnu; moliSHA256=76abe24ad32a42e190dd09d3a475f57b91cda66cd8cbf547f602f3aa28963a7b; agentBrowserAsset=agent-browser-linux-arm64; agentBrowserSHA256=87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18 ;; \
+		amd64) moliTriple=x86_64-unknown-linux-gnu; moliSHA256=7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181; agentBrowserAsset=agent-browser-linux-x64; agentBrowserSHA256=243f6e01c4b7dea53ad07d9754df99033c614582d5c685c529a1cb81cafc3ab1; versitygwTarget=x86_64; versitygwSHA256=2ba2c734d10d2c4e651d03182cb4b246656bc735a2f282db7b0b73fba6073467 ;; \
+		arm64) moliTriple=aarch64-unknown-linux-gnu; moliSHA256=76abe24ad32a42e190dd09d3a475f57b91cda66cd8cbf547f602f3aa28963a7b; agentBrowserAsset=agent-browser-linux-arm64; agentBrowserSHA256=87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18; versitygwTarget=arm64; versitygwSHA256=b34051d33f5a9c457f790896acb7bd7d7e15ad8d92efb70616b924f37e401910 ;; \
 		*) echo "no device browser build for ${TARGETARCH}" >&2; exit 1 ;; \
 	esac \
 	&& curl -fsSL -o /tmp/moli.tar.gz "https://github.com/lexmount/moli/releases/download/v${MOLI_VERSION}/moli-${moliTriple}.tar.gz" \
@@ -46,7 +47,12 @@ RUN case "${TARGETARCH}" in \
 	&& rm -rf /tmp/moli.tar.gz "/tmp/moli-v${MOLI_VERSION}-${moliTriple}" \
 	&& curl -fsSL -o /usr/local/bin/agent-browser "https://github.com/vercel-labs/agent-browser/releases/download/v${AGENT_BROWSER_VERSION}/${agentBrowserAsset}" \
 	&& echo "${agentBrowserSHA256}  /usr/local/bin/agent-browser" | sha256sum -c - \
-	&& chmod 0755 /usr/local/bin/agent-browser
+	&& chmod 0755 /usr/local/bin/agent-browser \
+	&& curl -fsSL -o /tmp/versitygw.tar.gz "https://github.com/versity/versitygw/releases/download/v${VERSITYGW_VERSION}/versitygw_v${VERSITYGW_VERSION}_Linux_${versitygwTarget}.tar.gz" \
+	&& echo "${versitygwSHA256}  /tmp/versitygw.tar.gz" | sha256sum -c - \
+	&& tar -xzf /tmp/versitygw.tar.gz -C /tmp versitygw \
+	&& install -m 0755 /tmp/versitygw /usr/local/bin/versitygw \
+	&& rm -f /tmp/versitygw.tar.gz /tmp/versitygw
 
 COPY --from=go-build /out/blueclaw /opt/blueclaw/bin/blueclaw
 COPY --from=go-build /out/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper
