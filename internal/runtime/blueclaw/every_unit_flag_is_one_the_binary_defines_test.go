@@ -25,7 +25,7 @@ func TestEveryUnitFlagIsOneTheBinaryDefines(t *testing.T) {
 		"internkim-admind":             AdmindServiceUnit(),
 		"buzz-relay":                   BuzzRelayServiceUnit("wss://relay.example.test"),
 		"chatd":                        ChatdServiceUnit("wss://relay.example.test"),
-		"minio":                        MinioServiceUnit(),
+		"buzz-media":                   BuzzMediaServiceUnit(),
 		"llama-cpp":                    LlamaCppServiceUnit(),
 		"llama-cpp-embedding":          LlamaCppEmbeddingServiceUnit(),
 		"internkim-relay":              RelayServiceUnit(),

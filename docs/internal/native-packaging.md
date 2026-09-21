@@ -417,17 +417,20 @@ identity derivation moving inline off a `docker run`.
 
 ## 10. What could not be determined
 
-- **Which S3 server.** Versioned-object support decides it and none of the
-  three candidates was tested. `crates/buzz-media/tests/versioned_minio.rs`
-  takes `BUZZ_S3_ENDPOINT` from the environment, so the measurement is running
-  it three times.
-- **Whether versioning is required at all.** Neither the compose path nor
-  `step_buzz_media.go` enables bucket versioning on MinIO, so the versioned
-  deletion path may already be degraded in every install that exists. Read
-  what `buzz-deletion` does when `ListObjectVersions` returns nothing.
-- **Whether Supabase Storage can hold the media.** The `rust-s3` patch exists
-  for that endpoint shape, no configuration uses it, and the versioning
-  question applies to it too.
+The first three were measured afterwards, against running servers, and the swap
+they decided is written.
+[`replacing-the-object-store.md`](./replacing-the-object-store.md) carries the
+evidence: versioning is not required, versitygw is what replaces MinIO, Supabase
+Storage would report a tenant erasure it did not perform, and the MinIO binary
+URL `step_buzz_media.go` fetched answered 410 Gone while nothing noticed.
+
+- ~~**Which S3 server.**~~ versitygw, posix backend, no `--versioning-dir`,
+  vendored beside `moli` and `agent-browser`.
+- ~~**Whether versioning is required at all.**~~ No. An unversioned bucket
+  enumerates null versions and deletes them exactly, which is what every
+  install has.
+- ~~**Whether Supabase Storage can hold the media.**~~ Not safely: its S3
+  endpoint answers `?versions` with a plain `ListBucketResult`.
 - **A macOS `buzz-relay`.** Never built. Until it is, the Homebrew formula
   either ships without the bundled messenger or does not ship.
 - **Whether Valkey serves the relay.** Wire-compatible, untested here.
