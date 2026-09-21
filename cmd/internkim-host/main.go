@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -84,7 +86,7 @@ func runInstall(arguments []string) error {
 		ConnectionPath:     parsed.ConnectionPath,
 		StateDirectoryPath: parsed.StateDirectoryPath,
 		ModelKey:           modelKey,
-		PromptForModelKey:  promptForModelKey,
+		PromptForModelKey:  func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
 	}, systemCommands{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
@@ -102,15 +104,26 @@ func readModelKeyFile(path string) (string, error) {
 	if errorValue != nil {
 		return "", errorValue
 	}
-	return strings.TrimSpace(string(document)), nil
+	key := strings.TrimSpace(string(document))
+	if key == "" {
+		return "", fmt.Errorf("%s holds no OpenRouter API key. Put the key from your account's Keys page in it", path)
+	}
+	return key, nil
 }
 
-func promptForModelKey() (string, error) {
-	fmt.Print("OpenRouter API key (hidden): ")
-	document, errorValue := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if errorValue != nil {
+func readModelKey(input *os.File, output io.Writer) (string, error) {
+	if term.IsTerminal(int(input.Fd())) {
+		fmt.Fprint(output, "OpenRouter API key (hidden): ")
+		document, errorValue := term.ReadPassword(int(input.Fd()))
+		fmt.Fprintln(output)
+		return string(document), errorValue
+	}
+	line, errorValue := bufio.NewReader(input).ReadString('\n')
+	if errorValue != nil && !errors.Is(errorValue, io.EOF) {
 		return "", errorValue
 	}
-	return string(document), nil
+	if strings.TrimSpace(line) == "" {
+		return "", fmt.Errorf("no OpenRouter API key on standard input. Supply --model-key-file, or run this where you can type")
+	}
+	return line, nil
 }

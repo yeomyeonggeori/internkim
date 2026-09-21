@@ -46,7 +46,7 @@ type Request struct {
 
 func Install(request Request, commands Commands, progress io.Writer) (Installation, error) {
 	if AgentImage == "" {
-		return Installation{}, fmt.Errorf("this build carries no company server image; publish one with internkim release host")
+		return Installation{}, fmt.Errorf("this build carries no company server image: build one from source with make build-company-host-image build-company-host, or publish one with internkim release host")
 	}
 	connection, errorValue := ReadConnection(request.ConnectionPath)
 	if errorValue != nil {

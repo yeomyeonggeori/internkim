@@ -535,6 +535,21 @@ it pushed, and publishes the four builds under `host/latest`. The binary refuses
 to install when it carries no stamped image, so a build that never went through
 that command cannot start a stack against an image nobody published.
 
+Self-hosting from source needs no registry. `make build-company-host-image`
+builds the company server image on this machine and `make build-company-host`
+stamps a binary with it; both take `COMPANY_HOST_IMAGE`, which defaults to
+`internkim-company-host:local`.
+
+```bash
+make build-company-host-image build-company-host
+./internkim-host install ~/Downloads/internkim-host.json
+```
+
+`https://intern.kim/companion/install.sh` still answers: admind on a device that
+has not been redeployed prints that address, and the file there forwards to
+`install.sh` with `companion`. Deploy `web` before `admind`, never after, so the
+address a freshly deployed device prints already exists.
+
 Pairing starts in Settings → My computer of the web app: admind issues a
 ten-minute one-time code bound to the signed-in member (`/companion/api` in
 `internal/admind/companion_member_routes.go`) and the page shows the install,

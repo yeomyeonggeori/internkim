@@ -279,9 +279,20 @@ GROUPS = [
         lane="web",
     ),
     Group(
-        "install-script",
-        ["web/static/install.sh", "tools/tests/test_install_script.py"],
-        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_install_script.py"]],
+        "host-install",
+        [
+            "web/static/install.sh",
+            "web/static/companion/install.sh",
+            "tools/tests/test_install_script.py",
+            "tools/tests/test_company_host_source_build.py",
+            "cmd/internkim-host/*",
+            "internal/companyhost/*",
+            "Makefile",
+        ],
+        [
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_install_script.py"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_company_host_source_build.py"],
+        ],
     ),
     Group(
         "model-evaluation-harness",

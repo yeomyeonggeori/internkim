@@ -163,8 +163,13 @@ func TestInstallRefusesWhenTheBuildCarriesNoPublishedServerImage(t *testing.T) {
 	withAgentImage(t, "")
 	request, _ := installationRequest(t)
 	_, errorValue := Install(request, &recordedCommands{operatingSystem: "linux"}, io.Discard)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "internkim release host") {
-		t.Fatalf("an unpublished build installed anyway: %v", errorValue)
+	if errorValue == nil {
+		t.Fatal("an unpublished build installed anyway")
+	}
+	for _, lever := range []string{"make build-company-host-image build-company-host", "internkim release host"} {
+		if !strings.Contains(errorValue.Error(), lever) {
+			t.Fatalf("the refusal does not name %q: %v", lever, errorValue)
+		}
 	}
 }
 

@@ -443,6 +443,10 @@
     "process": "install script",
     "description": "the release registry prefix web/static/install.sh downloads from; defaults to https://updates.intern.kim/<product>/latest"
   },
+  "INTERNKIM_INSTALL_SCRIPT_URL": {
+    "process": "install script",
+    "description": "the install script web/static/companion/install.sh forwards to; defaults to https://intern.kim/install.sh"
+  },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",
     "description": "override URL for the Jetson base image internal/cli/jetson_flash.go downloads"
