@@ -22,10 +22,15 @@ passes `max_connections=100` explicitly, so the budget divides a number this
 repository states.
 
 Every connection string the installer writes names the role `internkim`
-(`tools/install-company-host:143`), which is the image's superuser. The
-server's own reserve therefore protects nothing from us: our three programs
-could take those three slots too. The budget carves its own operator share
-instead.
+(`tools/install-company-host:143`), which is the image's superuser
+(`SELECT usesuper` on a container started the way the quickstart starts one
+answers `t`). The server's own reserve therefore protects nothing from us: our
+three programs could take those three slots too, and so nothing on this host is
+held back for an operator who needs to connect and look. Giving that back is a
+question about every install already out there — three non-superuser roles with
+their own `CONNECTION LIMIT`, and new connection strings for each program — so
+it is filed as an issue instead of decided here. Until then the shares below are
+what each program takes, and the server would refuse none of them.
 
 ## The division
 
@@ -36,9 +41,12 @@ instead.
 | the messenger | 50 | `buzz-relay`'s own `BUZZ_DB_POOL_SIZE` default, now stated in the quickstart's environment |
 | the agent | 30 | eight background loops that each hold one, plus concurrent turns and the admin API |
 | admind | 12 | four background passes, the admin operations, and room for a sign-in burst to run several at a time |
-| an operator | 5 | `psql`, a `pg_dump`, and `buzz-admin`, whose own pool keeps two connections warm |
 
-50 + 30 + 12 + 5 = 97, which is what 100 minus the reserve leaves.
+50 + 30 + 12 = 92 against the 97 that 100 minus the reserve leaves. The five
+that are left over are not reserved for anyone: `psql`, a `pg_dump` and each
+`buzz-admin` admind runs as a subprocess take from them, and nothing refuses a
+ninety-eighth connection. They are the headroom the arithmetic leaves, and
+naming them a share would claim an enforcement that does not exist.
 
 `buzz-relay`'s 50 is the one share that belongs to somebody else. Its library
 default is 20, sized in its own words "for a single relay pod against PG
@@ -67,7 +75,8 @@ Each consumer derives its share from there:
 | admind's Buzz pool | imports the constant |
 | the device runtime document | rendered by `blueclaw_config.go` from the constant |
 | the host runtime template | a literal bound by `TestTheAgentIsToldTheShareTheBudgetGivesIt` |
-| the quickstart's postgres and messenger | literals bound by the two tests beside it |
+| a device installed before the share existed | restamped into its runtime document by admind's release reconcile |
+| the quickstart's postgres and messenger | literals in the compose file, bound by tests that decode it and read the service that carries each one |
 
 `blueclaw` is a separate Go module under a different licence, so it cannot
 import an internkim constant and must not learn one. It receives its share as
@@ -88,26 +97,46 @@ Before, a pool with no bound could not run out: it kept opening connections
 until the server refused, and the refusal arrived as a query error in whatever
 code path happened to be running.
 
-Now the two bounded pools queue instead. A caller that waits is visible in two
-places:
+Now the two bounded pools queue instead, and `database/sql` queues without a
+deadline of its own: a caller that carries no deadline waits for a free
+connection for the life of the process. So every background pass and every
+goroutine a sign-in or an invitation sets off carries one, and the seating pass
+skips when another is already running.
 
-- `GET /admin/api/health` on blueclaw reports `database.connections`, with the
-  share it was granted, how many are in use and idle, and the cumulative
-  `waitCount` and `waitDuration`.
-- admind logs a line the first time each batch of callers queues, naming how
-  many waited and against what share.
+A caller that waits is visible in two places:
 
-So "the database is down" reads as `reachable: false` with the server's own
-error, and "we ran out of our own budget" reads as `inUse` at the granted
-share with `waitCount` climbing. A 53300 after this change means the budget's
-assumptions about the server or the messenger are wrong, not that a pool ran
-away.
+- `GET /admin/api/health` on blueclaw reports `database.connections`: the share
+  it was granted, how many are in use and idle, `exhausted`, and the cumulative
+  `waitCount` and `waitDuration`. The health request takes its connection with
+  a two-second budget of its own instead of queueing with everyone else, so it
+  answers while the share is full.
+- admind logs a line when it hands out the pool to a caller and finds that
+  others have queued since the last one, naming how many waited and against
+  what share.
+
+That makes the two failures different answers.
+`reachable: false` with `exhausted: false` and the server's own error is the
+database being down, and the failure reason reads `postgres database is not
+reachable`. `exhausted: true` with `inUse` at the granted share is our own
+budget, and the failure reason reads `postgres connection budget is exhausted`.
+Both leave `status` at `unhealthy`, because both are real, but they no longer
+say the same thing. A 53300 after this change means the budget's assumptions
+about the server or the messenger are wrong, not that a pool ran away.
 
 ## Stage 3
 
 Once the host supervises PostgreSQL itself, the arrow inverts: the host writes
 `max_connections` as the sum of the shares it grants, and `PostgresMaxConnections`
 stops being a number this repository hopes is large enough.
+
+## A device that was installed before this existed
+
+A device's runtime document is written once at provisioning and never again, so
+a device already in the field would have kept a document with no share in it and
+gone on asking the server for everything it allows — which on a stock server is
+97, more than the whole budget divides. The release reconcile that already
+restamps the capability contract and the model ladder stamps the share too, so
+an installed device takes 30 at its next release, with no reprovision.
 
 ## What this does not touch
 

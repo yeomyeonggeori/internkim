@@ -50,7 +50,7 @@ func (service *Service) startCircleRoomMembershipSync(ctx context.Context) {
 		ticker := time.NewTicker(circleRoomSyncInterval)
 		defer ticker.Stop()
 		for {
-			service.keepCircleRoomsToTheirCircles(ctx)
+			service.withinASweepBudget(ctx, service.keepCircleRoomsToTheirCircles)
 			select {
 			case <-ctx.Done():
 				return

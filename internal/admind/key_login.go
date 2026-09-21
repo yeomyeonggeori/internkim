@@ -157,7 +157,9 @@ func (service *Service) handleKeyLogin(responseWriter http.ResponseWriter, reque
 		return
 	}
 	logAuditEvent("key login success")
-	go service.ensureUserChannelMembership(context.Background(), email)
+	inTheBackgroundWithin(buzzDatabaseRequestBudget, func(ctx context.Context) {
+		service.ensureUserChannelMembership(ctx, email)
+	})
 	service.writeJSON(responseWriter, map[string]bool{"ok": true})
 }
 

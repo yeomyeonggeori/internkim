@@ -163,7 +163,9 @@ func (service *Service) handleBuzzInviteCreate(responseWriter http.ResponseWrite
 	store.mutex.Unlock()
 	if identityError == nil {
 		service.writeBuzzAccountLinksFile()
-		go service.seatAndNameOneMemberInBuzz(context.Background(), email, name)
+		inTheBackgroundWithin(buzzDatabaseRequestBudget, func(ctx context.Context) {
+			service.seatAndNameOneMemberInBuzz(ctx, email, name)
+		})
 	}
 	response := map[string]string{
 		"inviteURL": service.buzzInviteURL(code),

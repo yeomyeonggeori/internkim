@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log"
@@ -44,6 +45,30 @@ func (service *Service) buzzDatabase() (*sql.DB, error) {
 	return database, nil
 }
 
+// database/sql has no acquire timeout: a caller that finds the share full waits
+// for a free connection until its own context ends, and a caller carrying
+// context.Background() waits for the life of the process. The messenger's pool
+// bounds the wait alone and leaves the query unbounded (buzz-db's DbConfig, at
+// three seconds); Go offers no such split, so the only deadline available bounds
+// the queries too and has to be long enough for the work rather than for the
+// wait. These two are: what one person's action sets off, and a pass over
+// everything, which its own ticker loop already runs one at a time.
+const (
+	buzzDatabaseRequestBudget = 2 * time.Minute
+	buzzDatabaseSweepBudget   = 30 * time.Minute
+)
+
+// Work a person's action sets off runs after the answer has gone, so nothing
+// waits on it and nothing notices it never ending. A sign-in burst started one
+// of these per sign-in.
+func inTheBackgroundWithin(budget time.Duration, work func(ctx context.Context)) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		defer cancel()
+		work(ctx)
+	}()
+}
+
 func boundToTheConnectionBudget(database *sql.DB, connections int) {
 	database.SetMaxOpenConns(connections)
 	database.SetMaxIdleConns(connections)
@@ -64,4 +89,14 @@ func reportBuzzDatabaseWaiting(handle *buzzDatabaseHandle) {
 		statistics.WaitDuration.Round(time.Millisecond),
 		statistics.MaxOpenConnections,
 	)
+}
+
+// A sweep is best-effort work on a clock: it runs again on the next tick, so it
+// is better for one to give up than for one queued for a connection to hold the
+// clock for the life of the process. Its own loop runs one at a time, so the
+// budget bounds the pathological pass rather than spacing them out.
+func (service *Service) withinASweepBudget(ctx context.Context, sweep func(ctx context.Context)) {
+	sweepContext, cancel := context.WithTimeout(ctx, buzzDatabaseSweepBudget)
+	defer cancel()
+	sweep(sweepContext)
 }

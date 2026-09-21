@@ -30,7 +30,7 @@ func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 		ticker := time.NewTicker(memberChannelSyncInterval)
 		defer ticker.Stop()
 		for {
-			service.ensureMemberChannelMembership(ctx)
+			service.withinASweepBudget(ctx, service.ensureMemberChannelMembership)
 			select {
 			case <-ctx.Done():
 				return
