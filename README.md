@@ -406,7 +406,8 @@ cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
 ./internkim release publish
 ./internkim release companion
-./internkim release host --image <company server image>
+./internkim release host-image
+./internkim release host --image <the reference host-image printed>
 
 ./internkim update check --profile dawn --node 1
 ./internkim update apply --profile dawn --node 1
@@ -540,9 +541,25 @@ make build-company-host-image build-company-host
 ```
 
 Every host binary runs exactly the company server image it was stamped with,
-and refuses to install carrying none. `./internkim release host --image <ref>`
-stamps the four builds with an image already published and puts them under
-`host/latest`; building and pushing that image is a separate change.
+and refuses to install carrying none. Publishing is two commands, because
+building the image and publishing the installer are separate things:
+
+```bash
+./internkim release host-image                     # prints the reference it pushed
+./internkim release host --image <that reference>
+```
+
+`host-image` pushes `linux/amd64` and `linux/arm64` to
+`INTERNKIM_COMPANY_HOST_IMAGE_REPOSITORY` and prints the `--image` line to run
+next.
+
+A published install therefore depends on that registry for as long as it lives.
+The tag is pulled again whenever the agent container is recreated, so a tag
+pruned or overwritten after publication turns the next restart into
+`manifest unknown` on a host that was working a minute earlier, and nothing
+detects it in advance or re-stamps the binaries already installed. Keep every
+tag any published build carries. Self-hosting from source avoids the dependency
+outright.
 
 `https://intern.kim/companion/install.sh` still answers: admind on a device that
 has not been redeployed prints that address, and the file there forwards to

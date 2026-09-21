@@ -319,6 +319,10 @@
     "process": "cli, tools/mirror-local",
     "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file"
   },
+  "INTERNKIM_COMPANY_HOST_IMAGE_REPOSITORY": {
+    "process": "internkim release host-image",
+    "description": "the registry repository the company server image is pushed to; its tag is what internkim release host stamps into every host build"
+  },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
     "description": "the console password used for a Jetson's physical login during setup/flashing; flashing writes the one it generated back here"
