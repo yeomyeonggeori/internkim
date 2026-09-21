@@ -107,7 +107,6 @@ const (
 	BuzzAdminBinaryPath                   = "/usr/local/bin/buzz-admin"
 	BuzzRelayDatabaseName                 = "buzz"
 	BuzzRelayDatabaseUser                 = "buzz"
-	BuzzRelayDatabasePackages             = "postgresql postgresql-contrib"
 	BuzzRelayDatabasePasswordPath         = "/root/.internkim/secrets/buzz-db-pass"
 	BuzzRelayKeyEnvironmentFilePath       = "/root/.internkim/secrets/buzz-relay-env"
 	BuzzRelayDatabaseEnvironmentFilePath  = "/root/.internkim/secrets/buzz-relay-db"
@@ -158,6 +157,8 @@ const (
 	RelayEnvironmentFilePath   = "/etc/internkim/relay.env"
 	RelayAgentKeyPath          = "/etc/internkim/agent-key"
 	RelayUserName              = "internkim"
+	MaildName                  = "internkim-maild"
+	RenderCompanyRuntimeName   = "render-company-runtime"
 	BuzzPremigrateSnapshotPath = "/root/.internkim/state/buzz-premigrate.sql"
 )
 

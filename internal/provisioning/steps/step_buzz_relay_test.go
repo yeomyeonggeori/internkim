@@ -54,7 +54,7 @@ func TestBuzzRelayInstallsTheDatabaseItBindsTo(t *testing.T) {
 		t.Fatalf("a machine whose postgres comes up must install cleanly, got %v", errorValue)
 	}
 	installed := strings.Join(connection.commands, "\n")
-	if !strings.Contains(installed, "apt-get install -y -qq "+blueclaw.BuzzRelayDatabasePackages) {
+	if !strings.Contains(installed, "apt-get install -y -qq "+blueclaw.BuzzRelayDatabasePackages()) {
 		t.Fatalf("the step must install the packages the image path downloads, got %s", installed)
 	}
 }
@@ -84,7 +84,7 @@ func TestBuzzRelayWaitsForTheAccountsItsPackagesCreate(t *testing.T) {
 	if errorValue := StepBuzzRelay.Run(relayContext(connection)); errorValue != nil {
 		t.Fatalf("a machine whose services come up must install cleanly, got %v", errorValue)
 	}
-	for _, packageName := range []string{"redis-server", blueclaw.BuzzRelayDatabasePackages} {
+	for _, packageName := range []string{blueclaw.BuzzRelayCachePackages(), blueclaw.BuzzRelayDatabasePackages()} {
 		installCommand := ""
 		for _, command := range connection.commands {
 			if strings.Contains(command, "apt-get install -y -qq "+packageName) {
