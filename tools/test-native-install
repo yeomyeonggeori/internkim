@@ -1,0 +1,754 @@
+#!/usr/bin/env python3
+"""Judge whether installing the company host through apt leaves a working machine.
+
+The rig boots one disposable arm64 Debian guest with nothing of ours on it,
+serves an apt repository from this Mac, runs the install, and then reads the
+guest's own state: dpkg's database, systemd's, the filesystem. Nothing here
+judges a transcript of what the install printed.
+
+    tools/test-native-install --help
+"""
+
+import argparse
+import json
+import shutil
+import sys
+import tempfile
+import time
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from native_install_rig import (  # noqa: E402
+    APT_SOURCE_PATH,
+    ARCHITECTURE,
+    COMPONENT,
+    CONFIGURATION_DIRECTORY,
+    KEYRING_PATH,
+    PACKAGE_NAME,
+    PRESEEDED_PACKAGES,
+    STATE_DIRECTORY,
+    SUITE,
+    Machine,
+    Release,
+    RigFailure,
+    build_stand_in_package,
+    dependency_names,
+    package_fields,
+)
+
+
+DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
+PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
+PLANTED_SECRET = "0123456789abcdef" * 4
+
+SNAPSHOT_COMMAND = r"""
+find / -xdev \
+  \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp -o -path /var/tmp \
+     -o -path /var/log -o -path /var/cache -o -path /var/lib/dpkg -o -path /var/lib/apt \
+     -o -path /var/lib/systemd -o -path /srv/internkim-rig -o -path /root -o -path /home \
+     -o -path /etc/ssl/certs -o -path /var/backups \) -prune -o -print | sort
+"""
+
+UNOWNED_BY_DESIGN = [
+    (APT_SOURCE_PATH, "the file that teaches apt about the package cannot be shipped by that package (plan §6)"),
+    (KEYRING_PATH, "same: the key that verifies the package is installed before it"),
+    ("/etc/apt/keyrings", "the directory the keyring may land in"),
+    ("/etc/systemd/system/multi-user.target.wants", "systemd's enable symlinks; dpkg never owns them"),
+    (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
+]
+
+UNOWNED_BY_DEBIAN = [
+    ("__pycache__", "python bytecode caches, written by the interpreter after install"),
+    (".pyc", "the same caches"),
+    ("/usr/share/info/dir", "the info index, rebuilt by the install-info trigger"),
+    ("/usr/lib/systemd/catalog", "systemd's journal catalogue, rebuilt by a trigger"),
+]
+
+MERGED_USR_ALIASES = [("/lib/", "/usr/lib/"), ("/bin/", "/usr/bin/"), ("/sbin/", "/usr/sbin/")]
+
+
+APT_PROGRESS = ("(Reading database", "Selecting previously", "Adding 'diversion")
+
+
+def without_apt_noise(text):
+    return "\n".join(
+        line for line in text.splitlines() if not any(line.startswith(noise) for noise in APT_PROGRESS)
+    )
+
+
+def alternate_spellings(path):
+    """Every name the same file has on a merged-/usr Debian.
+
+    dpkg records a unit as /lib/systemd/system/x.service while `find` walks to
+    /usr/lib/systemd/system/x.service, because /lib is a symlink. Asking dpkg
+    about only one of the two invents an unowned file that is not there.
+    """
+    spellings = {path}
+    for short, long in MERGED_USR_ALIASES:
+        if path.startswith(short):
+            spellings.add(long + path[len(short) :])
+        if path.startswith(long):
+            spellings.add(short + path[len(long) :])
+    return spellings
+
+
+class Observation:
+    def __init__(self, name, observes, not_a_proxy):
+        self.name = name
+        self.observes = observes
+        self.not_a_proxy = not_a_proxy
+        self.passed = None
+        self.detail = ""
+
+    def record(self, passed, detail=""):
+        self.passed = bool(passed)
+        self.detail = detail.strip()
+        return self
+
+
+class Step:
+    def __init__(self, number, name):
+        self.number = number
+        self.name = name
+        self.observations = []
+        self.blocked_because = None
+
+    def observe(self, name, observes, not_a_proxy):
+        observation = Observation(name, observes, not_a_proxy)
+        self.observations.append(observation)
+        return observation
+
+    def block(self, reason):
+        self.blocked_because = reason
+        return self
+
+    @property
+    def verdict(self):
+        if self.blocked_because:
+            return "BLOCKED"
+        if not self.observations:
+            return "BLOCKED"
+        return "PASS" if all(observation.passed for observation in self.observations) else "FAIL"
+
+
+class Rig:
+    def __init__(self, options):
+        self.options = options
+        self.steps = []
+        self.machine = None
+        self.release = None
+        self.working_directory = None
+        self.base_url = None
+        self.installed_version = None
+        self.dependencies = []
+
+    def step(self, number, name):
+        step = Step(number, name)
+        self.steps.append(step)
+        return step
+
+    # ------------------------------------------------------------------ setup
+
+    def packages_under_test(self):
+        if self.options.stand_in:
+            directory = self.working_directory / "stand-in"
+            return [
+                build_stand_in_package(directory, "0.0.0+standin1", "standinrevision1"),
+                build_stand_in_package(directory, "0.0.0+standin2", "standinrevision2"),
+            ]
+        directory = Path(self.options.package_directory)
+        if not directory.is_absolute():
+            directory = Path.cwd() / directory
+        found = sorted(directory.glob(f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb")) if directory.exists() else []
+        return found
+
+    def prepare_release(self, packages):
+        self.release = Release(self.working_directory / "release")
+        self.release.directory.mkdir(parents=True, exist_ok=True)
+        self.release.generate_signing_key()
+        shutil.copyfile(
+            Path(__file__).resolve().parent.parent / "web" / "static" / "install.sh",
+            self.release.directory / "install.sh",
+        )
+        self.release.publish(packages[0])
+        port = self.release.serve()
+        return port
+
+    def start_machine(self):
+        share = self.working_directory / "share"
+        (share / "scripts").mkdir(parents=True, exist_ok=True)
+        self.machine = Machine(self.options.name, share)
+        self.machine.preflight()
+        self.machine.create()
+        self.machine.wait_until_running()
+        gateway = self.machine.host_gateway()
+        self.base_url = f"http://{gateway}:{self.release.port}"
+
+    def install_declared_dependencies(self, package_path):
+        """Bring the guest to a machine that already satisfies `Depends:`.
+
+        The list is read out of the package under test, so it cannot drift from
+        what the package asks for. It runs before the baseline snapshot so that
+        the footprint the assertions read is this package's and not
+        readline-common's; whether the dependency line is honest is a separate
+        observation, made against the same field.
+        """
+        declared = self.declared_dependencies(package_path)
+        if not declared:
+            return []
+        self.machine.checked_shell(
+            "export DEBIAN_FRONTEND=noninteractive\n"
+            "apt-get update\n"
+            f"apt-get install -y --no-install-recommends {' '.join(declared)}\n",
+            timeout_seconds=1800,
+        )
+        return declared
+
+    def declared_dependencies(self, package_path):
+        return dependency_names(package_fields(package_path).get("Depends", ""))
+
+    # ------------------------------------------------------------------ steps
+
+    def snapshot(self):
+        return set(self.machine.checked_shell(SNAPSHOT_COMMAND).stdout.splitlines())
+
+    def run_step_one(self, step):
+        one_liner = (
+            f"set -eu\n"
+            f"export INTERNKIM_INSTALL_RELEASE_URL={self.base_url}/{PACKAGE_NAME}\n"
+            f"export INTERNKIM_INSTALL_REPOSITORY_URL={self.base_url}/deb\n"
+            f"export INTERNKIM_INSTALL_KEYRING_URL={self.base_url}/internkim-archive-keyring.pgp\n"
+            f"curl -fsSL {self.base_url}/install.sh | sh -s -- host\n"
+        )
+        attempt = self.machine.shell(one_liner)
+        installed = self.machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
+        reached = installed.returncode == 0 and "install ok installed" in installed.stdout
+
+        step.observe(
+            "the published one-liner leaves the package installed",
+            f"`dpkg-query -W {PACKAGE_NAME}` in the guest after running install.sh as published",
+            "dpkg's database is what apt upgrade and apt remove act on; an exit code of 0 from a "
+            "shell script says only that the script ended",
+        ).record(
+            reached,
+            f"install.sh exited {attempt.returncode}\n"
+            f"{without_apt_noise(attempt.stdout + attempt.stderr).strip()[-600:]}",
+        )
+
+        if reached:
+            return True
+
+        self.machine.checked_shell(
+            f"set -eu\n"
+            f"install -d -m 0755 /usr/share/keyrings\n"
+            f"curl -fsSL {self.base_url}/internkim-archive-keyring.pgp -o {KEYRING_PATH}\n"
+            f"chmod 0644 {KEYRING_PATH}\n"
+            f"cat > {APT_SOURCE_PATH} <<'SOURCE'\n"
+            f"Types: deb\n"
+            f"URIs: {self.base_url}/deb\n"
+            f"Suites: {SUITE}\n"
+            f"Components: {COMPONENT}\n"
+            f"Architectures: {ARCHITECTURE}\n"
+            f"Signed-By: {KEYRING_PATH}\n"
+            f"SOURCE\n"
+            f"export DEBIAN_FRONTEND=noninteractive\n"
+            f"apt-get update\n"
+            f"apt-get install -y {PACKAGE_NAME}\n"
+        )
+        return False
+
+    def run_step_two(self, step, baseline):
+        status = self.machine.shell(
+            f"dpkg-query -W -f '${{Package}} ${{Version}} ${{Status}}' {PACKAGE_NAME}"
+        )
+        recorded = status.stdout.strip()
+        self.installed_version = recorded.split()[1] if len(recorded.split()) > 2 else None
+        step.observe(
+            "dpkg records the package as installed",
+            f"`dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}`",
+            "a file at /usr/bin/internkim proves a file exists; dpkg's status is what makes it a "
+            "package that apt can upgrade and remove",
+        ).record("install ok installed" in recorded, recorded)
+
+        verified = self.machine.shell(f"dpkg --verify {PACKAGE_NAME}")
+        step.observe(
+            "every file the package shipped is present and unmodified",
+            f"`dpkg --verify {PACKAGE_NAME}`, which re-hashes each shipped file against dpkg's md5sums",
+            "listing the files in dpkg's manifest would prove only that the manifest exists; this "
+            "reads the files on disk",
+        ).record(verified.returncode == 0 and not verified.stdout.strip(), verified.stdout.strip() or "no differences")
+
+        source = self.machine.shell(f"cat {APT_SOURCE_PATH}")
+        fields = dict(
+            (line.split(":", 1)[0].strip(), line.split(":", 1)[1].strip())
+            for line in source.stdout.splitlines()
+            if ":" in line
+        )
+        signed_by = fields.get("Signed-By", "")
+        keyring = self.machine.shell(f"test -s {signed_by} && echo present")
+        step.observe(
+            "the apt source is deb822 and names a keyring that is there",
+            f"the text of {APT_SOURCE_PATH} and a stat of the path its Signed-By names",
+            "the rig substitutes the URI for a local one and nothing else, so the Types/Suites/"
+            "Components/Signed-By shape it reads is the shape the real source will have",
+        ).record(
+            source.returncode == 0
+            and {"Types", "URIs", "Suites", "Components", "Signed-By"} <= set(fields)
+            and signed_by == KEYRING_PATH
+            and "present" in keyring.stdout,
+            source.stdout.strip(),
+        )
+
+        legacy = self.machine.shell(
+            "ls /etc/apt/trusted.gpg /etc/apt/trusted.gpg.d/*internkim* 2>/dev/null | head; true"
+        )
+        step.observe(
+            "no key was added the way Debian forbids",
+            "the contents of /etc/apt/trusted.gpg and /etc/apt/trusted.gpg.d",
+            "apt-key puts a key where it signs every repository, not just ours; the absence of "
+            "those files is the only way to see it was not used",
+        ).record(not legacy.stdout.strip(), legacy.stdout.strip() or "neither exists")
+
+        policy = self.machine.shell(f"apt-get update 2>&1 | tail -20; apt-cache policy {PACKAGE_NAME}")
+        step.observe(
+            "apt itself accepts the repository's signature",
+            f"`apt-get update` output and `apt-cache policy {PACKAGE_NAME}` naming our URI as a candidate",
+            "apt refuses an unsigned or wrongly-signed repository by default, so a candidate "
+            "appearing here is apt's own verdict on the keyring, not ours",
+            ).record(
+            "NO_PUBKEY" not in policy.stdout
+            and "not signed" not in policy.stdout
+            and self.base_url in policy.stdout,
+            policy.stdout.strip()[-800:],
+        )
+
+        missing = self.machine.shell(
+            "for name in " + " ".join(self.dependencies or ["true"]) + "; do "
+            "dpkg-query -W -f '${Status}' \"$name\" 2>/dev/null | grep -q 'install ok installed' || echo \"$name\"; "
+            "done; true"
+        )
+        step.observe(
+            "everything the package declares a dependency on is installed",
+            "`dpkg-query -W` for each name in the package's own Depends: field",
+            "the plan's §3 makes fonts-nanum and chromium hard dependencies because without them "
+            "a skill is withheld from the prompt and the Korean silently leaves the PDF; reading "
+            "the field back off the machine is what shows apt honoured the line",
+        ).record(not missing.stdout.strip(), missing.stdout.strip() or ", ".join(self.dependencies))
+
+        unowned = self.unowned_paths(baseline)
+        step.observe(
+            "nothing was dropped behind dpkg's back",
+            "every path that appeared on the filesystem during the install, asked of `dpkg-query -S`",
+            "the install's own log would report what it meant to write; this reads what is there "
+            "and asks dpkg who owns it",
+        ).record(not unowned, "\n".join(sorted(unowned)) or "every new path is owned or expected")
+
+        modes = self.machine.shell(
+            "for path in /usr/lib/internkim/blueclaw-posix-helper "
+            f"{STATE_DIRECTORY}; do "
+            "if [ -e \"$path\" ]; then stat -c '%n %a %U:%G' \"$path\"; else echo \"$path MISSING\"; fi; done"
+        )
+        helper_line = next((line for line in modes.stdout.splitlines() if "posix-helper" in line), "")
+        state_line = next((line for line in modes.stdout.splitlines() if line.startswith(STATE_DIRECTORY)), "")
+        step.observe(
+            "the setuid helper and the state tree carry the modes the boundary rests on",
+            "`stat` of /usr/lib/internkim/blueclaw-posix-helper and " + STATE_DIRECTORY,
+            "the POSIX permission boundary is these bits; a package built without an explicit mode "
+            "loses the setuid bit silently and every terminal grant with it",
+        ).record(
+            helper_line.split()[1:] == ["4755", "root:root"] and state_line.split()[1:] == ["700", "root:root"],
+            modes.stdout.strip(),
+        )
+
+        self.observe_services(step)
+
+    def units(self):
+        listed = self.machine.shell(
+            f"dpkg-query -L {PACKAGE_NAME} 2>/dev/null | grep -E '^/(lib|usr/lib)/systemd/system/.*\\.service$' | xargs -r -n1 basename | sort -u"
+        )
+        return [name for name in listed.stdout.split() if name]
+
+    def observe_services(self, step):
+        unit_names = self.units()
+        if not unit_names:
+            step.observe(
+                "the package's units are enabled",
+                "`systemctl is-enabled` for every unit in dpkg's file list",
+                "",
+            ).record(False, "the package ships no systemd unit")
+            return
+
+        enabled = self.machine.shell(f"systemctl is-enabled {' '.join(unit_names)} 2>&1")
+        step.observe(
+            "every unit the package ships is enabled",
+            "`systemctl is-enabled` for each unit dpkg lists, which reads the symlink farm",
+            "a unit file existing under /lib/systemd/system says the file was copied; the symlink "
+            "is what decides whether it comes back after a reboot",
+        ).record(
+            enabled.returncode == 0 and all(line.strip() == "enabled" for line in enabled.stdout.splitlines()),
+            " ".join(f"{name}={state}" for name, state in zip(unit_names, enabled.stdout.split())),
+        )
+
+        active = self.machine.shell(
+            f"systemctl is-active {' '.join(unit_names)} 2>&1; "
+            f"systemctl show -p NRestarts --value {' '.join(unit_names)}"
+        )
+        lines = active.stdout.split()
+        states = lines[: len(unit_names)]
+        restarts = lines[len(unit_names) :]
+        step.observe(
+            "every unit is running and is not restarting in a loop",
+            "`systemctl is-active` plus NRestarts for each unit",
+            "a crash-looping unit reports active for most of every second, so is-active alone "
+            "cannot tell a running service from one that keeps dying",
+        ).record(
+            all(state == "active" for state in states) and all(count == "0" for count in restarts),
+            " ".join(f"{name}={state}/{count}" for name, state, count in zip(unit_names, states, restarts)),
+        )
+
+        probes = self.readiness_probes()
+        if not probes:
+            step.observe(
+                "the services answer their readiness endpoints",
+                "an HTTP request from inside the guest to each endpoint the plan names",
+                "",
+            ).record(False, "no readiness endpoint answered on 8080 or 8081")
+            return
+        answers = self.machine.shell(
+            "; ".join(
+                f"printf '%s ' {path}; curl -fsS --max-time 5 http://127.0.0.1:{port}{path} || echo UNANSWERED"
+                for port, path in probes
+            )
+        )
+        step.observe(
+            "the services answer their readiness endpoints with the revision just installed",
+            "an HTTP GET from inside the guest to /_readiness on 8081 and /admin/api/health on 8080",
+            "`systemctl is-active` reports active for a process that answers HTTP while refusing "
+            "all work, which is how a half-deploy stayed green for forty minutes; the endpoint is "
+            "the narrowest thing the machine can be asked without a company on it, and the "
+            "document says where that bound stops",
+        ).record("UNANSWERED" not in answers.stdout and answers.returncode == 0, answers.stdout.strip()[-500:])
+
+    def readiness_probes(self):
+        candidates = [(8081, "/_readiness"), (8080, "/admin/api/health")]
+        answering = []
+        for port, path in candidates:
+            for _ in range(20):
+                probe = self.machine.shell(f"curl -fsS --max-time 3 http://127.0.0.1:{port}{path} >/dev/null")
+                if probe.returncode == 0:
+                    answering.append((port, path))
+                    break
+                time.sleep(2)
+        return answering
+
+    def running_revisions(self):
+        answers = {}
+        for port, path in self.readiness_probes():
+            probe = self.machine.shell(f"curl -fsS --max-time 5 http://127.0.0.1:{port}{path}")
+            try:
+                answers[port] = json.loads(probe.stdout)
+            except json.JSONDecodeError:
+                answers[port] = {"raw": probe.stdout.strip()}
+        return answers
+
+    def unowned_paths(self, baseline):
+        appeared = sorted(self.snapshot() - baseline)
+        if not appeared:
+            return []
+        listing = "\n".join(sorted(set().union(*(alternate_spellings(path) for path in appeared))))
+        owner_query = self.machine.shell(
+            "cat <<'PATHS' | xargs -d '\\n' -r -n 100 dpkg-query -S 2>/dev/null | cut -d: -f2- | sed 's/^ //'\n"
+            + listing
+            + "\nPATHS\n"
+        )
+        owned = set(owner_query.stdout.split())
+        unexplained = []
+        for path in appeared:
+            if alternate_spellings(path) & owned:
+                continue
+            if any(path == expected or path.startswith(expected + "/") for expected, _ in UNOWNED_BY_DESIGN):
+                continue
+            if any(fragment in path for fragment, _ in UNOWNED_BY_DEBIAN):
+                continue
+            unexplained.append(path)
+        return unexplained
+
+    def run_step_three(self, step, packages):
+        if len(packages) < 2:
+            return step.block(
+                f"an upgrade needs two versions of {PACKAGE_NAME} to move between; "
+                f"{len(packages)} was found"
+            )
+        before = self.running_revisions()
+        self.release.publish(packages[1])
+        newer = package_fields(packages[1])["Version"]
+
+        candidate = self.machine.shell(f"apt-get update >/dev/null 2>&1; apt-cache policy {PACKAGE_NAME}")
+        step.observe(
+            "apt sees the newer version as the candidate",
+            f"`apt-cache policy {PACKAGE_NAME}` after the repository gained a version",
+            "the repository's Packages file having a new stanza says the index was written; the "
+            "candidate line says apt read and preferred it",
+        ).record(f"Candidate: {newer}" in candidate.stdout, candidate.stdout.strip()[-400:])
+
+        upgraded = self.machine.shell(
+            "export DEBIAN_FRONTEND=noninteractive\napt-get upgrade -y </dev/null 2>&1 | tail -25"
+        )
+        step.observe(
+            "the upgrade finished without asking the administrator a question",
+            "apt's output for a conffile prompt, with stdin closed as an unattended run has it",
+            "a package that reships a configuration file the administrator edited stops dpkg at a "
+            "prompt, and an unattended upgrade then halts half-configured with the old process "
+            "still serving; DEBIAN_FRONTEND=noninteractive does not prevent it",
+        ).record(
+            "conffile prompt" not in upgraded.stdout and "(Y/I/N/O/D/Z)" not in upgraded.stdout,
+            without_apt_noise(upgraded.stdout).strip()[-400:],
+        )
+
+        recorded = self.machine.shell(f"dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}")
+        step.observe(
+            "dpkg records the newer version",
+            f"`dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}` after `apt-get upgrade`",
+            "apt printing 'upgraded 1' is apt's account of its own run; dpkg's version field is "
+            "the machine's",
+        ).record(recorded.stdout.strip() == newer, recorded.stdout.strip())
+
+        after = self.running_revisions()
+        moved = bool(before) and bool(after) and any(
+            after.get(port, {}).get("gitRevision") != answer.get("gitRevision")
+            for port, answer in before.items()
+        )
+        step.observe(
+            "the running processes moved to the new build, not just the files on disk",
+            "the gitRevision each service reports on its health endpoint, before and after",
+            "an upgrade that replaces the binary without restarting the unit leaves the old "
+            "process serving; dpkg's version and the file's mtime both move anyway, so only the "
+            "running process can say it happened",
+        ).record(moved, f"before={json.dumps(before)} after={json.dumps(after)}")
+
+        edited = self.machine.shell(f"cat {CONFIGURATION_DIRECTORY}/runtime.json 2>/dev/null")
+        step.observe(
+            "a local edit to a shipped configuration file survived the upgrade",
+            f"the contents of {CONFIGURATION_DIRECTORY}/runtime.json, edited before the upgrade",
+            "the plan calls these conffiles so an administrator's edits survive; only reading the "
+            "file after dpkg has run can show whether they did",
+        ).record("edited-by-the-rig" in edited.stdout, edited.stdout.strip()[:300])
+        return step
+
+    def plant_state(self):
+        self.machine.checked_shell(
+            f"set -eu\n"
+            f"install -d -m 0700 {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets\n"
+            f"printf '%s\\n' '{PLANTED_SECRET}' > {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key\n"
+            f"chmod 0600 {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key\n"
+            f"if [ -f {CONFIGURATION_DIRECTORY}/runtime.json ]; then\n"
+            f"  printf '%s\\n' '{{\"edited-by-the-rig\": true}}' > {CONFIGURATION_DIRECTORY}/runtime.json\n"
+            f"fi\n"
+        )
+
+    def run_step_four(self, step):
+        owned_before = self.machine.shell(f"dpkg-query -L {PACKAGE_NAME}").stdout.split()
+        unit_names = self.units()
+
+        removed = self.machine.shell("export DEBIAN_FRONTEND=noninteractive\napt-get remove -y internkim 2>&1 | tail -10")
+        status = self.machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
+        step.observe(
+            "apt remove leaves dpkg holding only the configuration",
+            f"`dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}` after `apt-get remove`",
+            "'deinstall ok config-files' is the state that distinguishes remove from purge; the "
+            "absence of a binary cannot",
+        ).record(
+            "deinstall ok config-files" in status.stdout,
+            status.stdout.strip() or without_apt_noise(removed.stdout).strip()[-300:],
+        )
+
+        if unit_names:
+            after = self.machine.shell(
+                "; ".join(
+                    f"printf '%s=%s/%s\\n' {name} "
+                    f"\"$(systemctl is-enabled {name} 2>&1)\" \"$(systemctl is-active {name} 2>&1)\""
+                    for name in unit_names
+                )
+            )
+            states = dict(line.split("=", 1) for line in after.stdout.split() if "=" in line)
+            step.observe(
+                "the units are neither enabled nor running any more",
+                "`systemctl is-enabled` and `is-active` for every unit the package had shipped",
+                "removing the unit file leaves a still-running process and a still-present "
+                "enable symlink; systemd's own answers are the two that decide whether it comes "
+                "back",
+            ).record(
+                states
+                and all(
+                    enablement in ("not-found", "disabled", "masked") and activity != "active"
+                    for enablement, activity in (value.split("/", 1) for value in states.values())
+                ),
+                after.stdout.strip(),
+            )
+
+        shipped_files = [path for path in owned_before if path.startswith("/usr/") or path.startswith("/lib/")]
+        survivors = self.machine.shell(
+            "for path in " + " ".join(shipped_files) + "; do [ -f \"$path\" ] && echo \"$path\"; done; true"
+        )
+        step.observe(
+            "the files the package owned are off the disk",
+            "a stat of every regular file that was in `dpkg-query -L` before the removal",
+            "dpkg reporting the package removed is dpkg's bookkeeping; these are the files",
+        ).record(not survivors.stdout.strip(), survivors.stdout.strip() or f"{len(shipped_files)} paths gone")
+
+        kept = self.machine.shell(
+            f"test -d {CONFIGURATION_DIRECTORY} && echo etc-kept; "
+            f"cat {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key 2>/dev/null; "
+            f"stat -c '%a' {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key 2>/dev/null"
+        )
+        step.observe(
+            "remove keeps the configuration and the company, byte for byte",
+            f"the presence of {CONFIGURATION_DIRECTORY} and the contents and mode of the planted agent-key",
+            "the agent key is the company's identity on the plane and cannot be reissued, so the "
+            "assertion has to read the bytes rather than the directory's existence",
+        ).record(
+            "etc-kept" in kept.stdout and PLANTED_SECRET in kept.stdout and "600" in kept.stdout,
+            kept.stdout.strip(),
+        )
+
+        purged = self.machine.shell("export DEBIAN_FRONTEND=noninteractive\napt-get purge -y internkim 2>&1 | tail -20")
+        after_purge = self.machine.shell(f"dpkg-query -W {PACKAGE_NAME} 2>&1; echo exit=$?")
+        step.observe(
+            "apt purge leaves dpkg not knowing the package at all",
+            f"`dpkg-query -W {PACKAGE_NAME}` after `apt-get purge`",
+            "this is the same query that answered 'install ok installed' in step 2; its failing "
+            "is the end of the package's record",
+        ).record("exit=1" in after_purge.stdout, after_purge.stdout.strip())
+
+        state = self.machine.shell(
+            f"test -e {CONFIGURATION_DIRECTORY} && echo etc-survived || echo etc-gone; "
+            f"cat {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key 2>/dev/null || echo company-gone"
+        )
+        step.observe(
+            "purge removes the configuration and keeps the company, as the plan says it must",
+            f"the presence of {CONFIGURATION_DIRECTORY} and the bytes of the planted agent-key after purge",
+            "this departs from what purge usually means, so asserting the usual semantics would "
+            "make the rig demand the bug; the plan's §5 reason is that the keys are not "
+            "recoverable and `internkim destroy --confirm` is the only thing that deletes them",
+        ).record(
+            "etc-gone" in state.stdout and PLANTED_SECRET in state.stdout,
+            state.stdout.strip(),
+        )
+
+        step.observe(
+            "purge says where the company was left",
+            "the text apt printed from the package's postrm",
+            "a person who typed purge expecting everything gone needs the path on their screen; "
+            "the file surviving silently is the failure this catches",
+        ).record(STATE_DIRECTORY in purged.stdout, without_apt_noise(purged.stdout).strip()[-400:])
+        return step
+
+    # ----------------------------------------------------------------- report
+
+    def report(self):
+        lines = []
+        for step in self.steps:
+            marker = {"PASS": "✓", "FAIL": "✗", "BLOCKED": "—"}[step.verdict]
+            lines.append(f"{marker} step {step.number} · {step.name}")
+            if step.blocked_because:
+                lines.append(f"    blocked: {step.blocked_because}")
+            for observation in step.observations:
+                lines.append(f"    {'✓' if observation.passed else '✗'} {observation.name}")
+                lines.append(f"        observes: {observation.observes}")
+                if not observation.passed and observation.not_a_proxy:
+                    lines.append(f"        why that and not a stand-in: {observation.not_a_proxy}")
+                if observation.detail:
+                    for detail_line in observation.detail.splitlines():
+                        lines.append(f"        | {detail_line}")
+        return "\n".join(lines)
+
+    def verdict(self):
+        return all(step.verdict == "PASS" for step in self.steps)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--package-directory",
+        default=str(DEFAULT_PACKAGE_DIRECTORY),
+        help="where the .deb files under test are (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--stand-in",
+        action="store_true",
+        help="build a stand-in package so the rig's own assertions can be exercised before the real one exists",
+    )
+    parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
+    parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
+    options = parser.parse_args()
+
+    rig = Rig(options)
+    with tempfile.TemporaryDirectory(prefix="internkim-install-rig-") as temporary:
+        rig.working_directory = Path(temporary)
+        packages = rig.packages_under_test()
+        if not packages:
+            print(
+                f"✗ native install rig\n"
+                f"    No {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}.\n"
+                f"    The package does not exist yet; docs/internal/native-packaging.md §6 is the\n"
+                f"    plan for building it, and `internkim release deb` is the command that will.\n"
+                f"    To exercise the rig itself against a stand-in, pass --stand-in.",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(f"the machine: {ARCHITECTURE} Debian 13, named {options.name}")
+        print(f"under test:  {', '.join(path.name for path in packages)}")
+        print(f"pre-seeded:  {', '.join(PRESEEDED_PACKAGES)}, then the package's own Depends:")
+        print()
+
+        try:
+            rig.prepare_release(packages)
+            rig.start_machine()
+            rig.dependencies = rig.install_declared_dependencies(packages[0])
+            baseline = rig.snapshot()
+
+            step_one = rig.step(1, "one command installs the company host")
+            rig.run_step_one(step_one)
+
+            step_two = rig.step(2, "the machine is in the state the package manager would have left it")
+            rig.run_step_two(step_two, baseline)
+
+            rig.plant_state()
+
+            step_three = rig.step(3, "apt upgrade moves it to a newer version")
+            rig.run_step_three(step_three, packages)
+
+            step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
+            rig.run_step_four(step_four)
+
+            step_five = rig.step(5, "a person signs in and exchanges a message")
+            step_five.block(
+                "not run: it needs a company, and docs/internal/native-install-rig.md settles "
+                "where that company may come from before one is created"
+            )
+        except RigFailure as failure:
+            print(f"✗ native install rig\n    {failure}", file=sys.stderr)
+            if not options.keep and rig.machine:
+                rig.machine.destroy()
+            return 2
+        finally:
+            if rig.release:
+                rig.release.stop()
+
+        print(rig.report())
+        print()
+        if options.keep:
+            print(f"the guest is still up: container exec {options.name} bash")
+        else:
+            rig.machine.destroy()
+
+        passed = rig.verdict()
+        print(f"{'✓' if passed else '✗'} native install rig")
+        return 0 if passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
