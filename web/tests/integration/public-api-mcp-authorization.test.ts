@@ -214,3 +214,45 @@ describe('an MCP client with no credential', () => {
 		).rejects.toBeInstanceOf(UnauthorizedError);
 	}, networkHookTimeout);
 });
+
+describe('an account that belongs to no company', () => {
+	const strangerEmail = `${slug}-stranger@example.test`;
+	let strangerAccountID = '';
+	let strangerToken = '';
+
+	beforeAll(async () => {
+		const { data: account } = await record.auth.admin.createUser({
+			email: strangerEmail,
+			password: memberPassword,
+			email_confirm: true
+		});
+		strangerAccountID = account.user?.id ?? '';
+		const browser = createClient(projectURL, publishableKey, { auth: { persistSession: false } });
+		const signedIn = await browser.auth.signInWithPassword({
+			email: strangerEmail,
+			password: memberPassword
+		});
+		strangerToken = signedIn.data.session?.access_token ?? '';
+	}, networkHookTimeout);
+
+	afterAll(async () => {
+		if (strangerAccountID) await record.auth.admin.deleteUser(strangerAccountID);
+	}, networkHookTimeout);
+
+	test('is told that is what is missing, and where to start one', async () => {
+		const answered = await reachingThePlane(toolServer, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json, text/event-stream',
+				Authorization: `Bearer ${strangerToken}`
+			},
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+		});
+
+		expect(answered.status).toBe(403);
+		const refusal = (await answered.json()) as { message?: string };
+		expect(refusal.message).toContain('belongs to no company yet');
+		expect(refusal.message).toContain('https://intern.kim/start');
+	}, networkHookTimeout);
+});

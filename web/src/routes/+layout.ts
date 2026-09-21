@@ -3,6 +3,7 @@ import { belongsToACompany } from '$lib/company/found-company';
 import { isEmbeddedFrame } from '$lib/embedded';
 import { isSupabaseConfigured, supabaseMember, supabaseWebAuthSession } from '$lib/supabase-session';
 import { companyPathOf, wantsCompanyPrefix } from '$lib/company-path';
+import { withReturnPath } from '$lib/return-path';
 import { signedOutSession, webAuthSessionDependency, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
 import type { LayoutLoad } from './$types';
 
@@ -19,7 +20,7 @@ export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: 
 		const session = await supabaseWebAuthSession(returnPath);
 		const settlingIn = returnPath.startsWith('/start') || returnPath.startsWith('/auth/');
 		if (session.authenticated && !settlingIn && !(await belongsToACompany())) {
-			redirect(307, '/start');
+			redirect(307, withReturnPath('/start', returnPath));
 		}
 		if (session.authenticated) {
 			const member = await supabaseMember();
@@ -31,7 +32,7 @@ export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: 
 		return { session };
 	}
 	try {
-		const response = await fetch(`/auth/session?return=${encodeURIComponent(returnPath)}`, { credentials: 'include' });
+		const response = await fetch(withReturnPath('/auth/session', returnPath), { credentials: 'include' });
 		if (!response.ok) throw new Error(`session returned ${response.status}`);
 		return { session: webAuthSessionFrom(await response.json(), returnPath) };
 	} catch {

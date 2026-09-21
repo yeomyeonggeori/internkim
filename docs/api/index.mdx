@@ -107,6 +107,30 @@ its own app address. When the address is a website instead, the screen warns
 that the site receives the access; allow it only if you started connecting and
 know that site.
 
+### Starting from nothing [#starting-from-nothing]
+
+The person that window opens for does not need an account yet. The sign-in card
+offers to claim an invited address or to start a company, and either one carries
+the pending authorization, so they come back to the consent screen and allow the
+client there.
+
+Two of the app's own endpoints answer an OAuth access token, which is what lets
+a client finish the setup instead of handing it back:
+
+| Call | Does |
+|---|---|
+| `POST /api/company` | Founds a company for the signed-in account. One account founds one company. |
+| `POST /api/company/host-setup` | Answers the company's connection file, carrying a one-time key for its computer. |
+
+`POST /api/company/host-setup` refuses an `ik_` token: only an active
+administrator's own session connects the company computer, and an issued key is
+not a session. What the connection file is for is in the
+[Quickstart](/docs/quickstart), and the install runs on that computer, so
+nothing here performs it.
+
+Until the account belongs to a company, every tool call answers `403` naming
+that as what is missing, and the same client succeeds once it does.
+
 The [internkim plugin](https://github.com/yeomyeonggeori/internkim-plugin)
 declares the same server in its `mcp.json`, so installing the plugin connects
 it the same way. A client without MCP authorization sends an `ik_` token as

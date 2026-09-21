@@ -11,6 +11,7 @@ import {
 	type PersonalAccessTokenSession,
 	type SigningCredentials,
 } from './control-plane';
+import { theAppAddressOf } from './company-host-redirect';
 import type { Environment } from './agent-request';
 
 export type CallingMember = {
@@ -96,7 +97,8 @@ export async function callingMember(request: Request, environment: Environment):
 	const { accessToken, permission, tokenName, memberID } = await memberAccessTokenOf(request, plane);
 	const caller = asMember(plane, accessToken);
 	const member = memberID ? await memberByID(caller, memberID) : await memberOfSignedInAccount(caller);
-	if (!member) error(403, 'refused');
+	if (!member && memberID) error(403, 'the member this key was issued to is gone');
+	if (!member) error(403, `this account belongs to no company yet; start one at ${theAppAddressOf(environment)}/start`);
 
 	return {
 		accessToken,

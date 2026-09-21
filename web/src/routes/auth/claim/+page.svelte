@@ -7,6 +7,7 @@
 	import * as InputOTP from '$lib/components/ui/input-otp';
 	import { Field, FieldDescription, FieldGroup, FieldLabel } from '$lib/components/ui/field';
 	import { homePath } from '$lib/home-path';
+	import { returnPathOf } from '$lib/return-path';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
@@ -31,6 +32,7 @@
 	let passwordStepOpenedAt = 0;
 	let hasChosenAnAddress = false;
 	const isStartingCompany = $derived(page.url.searchParams.get('new-company') === '1');
+	const whereToGoNext = $derived(returnPathOf(page.url) || homePath);
 
 	const describedStep: Record<typeof step, string> = $derived({
 		address: isStartingCompany ? text.startCompanyAddressDescription : text.claimAddressDescription,
@@ -91,7 +93,7 @@
 				step = 'passkey';
 				return;
 			}
-			await goto(homePath);
+			await goto(whereToGoNext);
 		});
 
 	function openThePasswordStep() {
@@ -124,7 +126,7 @@
 				step = 'passkey';
 				return;
 			}
-			await goto(homePath);
+			await goto(whereToGoNext);
 		});
 
 	const keepThePasskey = () =>
@@ -135,7 +137,7 @@
 				if (refusalOf(error) === 'cancelled') return;
 				throw new Error(text.claimPasskeyFailed);
 			}
-			await goto(homePath);
+			await goto(whereToGoNext);
 		});
 
 	onMount(async () => {
@@ -243,7 +245,7 @@
 						<FingerprintIcon class="size-4" />
 						{text.registerPasskey}
 					</Button>
-					<Button variant="ghost" class="w-full" onclick={() => goto(homePath)} disabled={busy}>{text.claimSkipPasskey}</Button>
+					<Button variant="ghost" class="w-full" onclick={() => goto(whereToGoNext)} disabled={busy}>{text.claimSkipPasskey}</Button>
 				</FieldGroup>
 			{/if}
 		</Card.Content>

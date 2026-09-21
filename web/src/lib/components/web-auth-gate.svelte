@@ -5,6 +5,7 @@
 	import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '$lib/components/ui/field';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { withReturnPath } from '$lib/return-path';
 	import { cloudflareLoginURLFor, type WebAuthSession } from '$lib/web-auth-session';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import PowerIcon from '@lucide/svelte/icons/power';
@@ -51,9 +52,9 @@
 		}
 	});
 
-	function signupURL() {
-		return `/auth/verify/start?return=${encodeURIComponent(returnPath)}`;
-	}
+	const signupURL = $derived(withReturnPath('/auth/verify/start', returnPath));
+	const claimURL = $derived(withReturnPath('/auth/claim', returnPath));
+	const startCompanyURL = $derived(withReturnPath('/auth/claim?new-company=1', returnPath));
 
 	async function runLogin(work: () => Promise<string | null>) {
 		busy = true;
@@ -136,14 +137,14 @@
 							{#if servesCompanies}
 								<FieldDescription class="text-center">
 									{text.firstTimePrompt}
-									<a class="underline" href="/auth/claim">{text.claimAccount}</a>
+									<a class="underline" href={claimURL}>{text.claimAccount}</a>
 									<span class="px-1">·</span>
-									<a class="underline" href="/auth/claim?new-company=1">{text.startCompany}</a>
+									<a class="underline" href={startCompanyURL}>{text.startCompany}</a>
 								</FieldDescription>
 							{:else}
 								<FieldDescription class="text-center">
 									{text.firstTimePrompt}
-									<a class="underline" href={signupURL()} data-sveltekit-reload>{text.signUpWithCloudflare}</a>
+									<a class="underline" href={signupURL} data-sveltekit-reload>{text.signUpWithCloudflare}</a>
 								</FieldDescription>
 							{/if}
 						</Field>
