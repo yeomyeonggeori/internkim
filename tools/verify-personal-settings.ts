@@ -3,9 +3,11 @@ import { closeSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 type Child = ReturnType<typeof Bun.spawn>;
+type Part = { name: string; logPath: string; child?: Child };
 
 const repositoryRoot = resolve(import.meta.dir, '..');
-const children: Child[] = [];
+const parts: Part[] = [];
+const failureTailLineCount = 40;
 let appPIDPath = '';
 let fleetConfigPath = '';
 let remoteRelayPID = '';
@@ -40,7 +42,7 @@ function environmentFrom(document: string): Record<string, string> {
 	);
 }
 
-function start(command: string[], environment: Record<string, string>, logPath: string, cwd = repositoryRoot): Child {
+function start(name: string, command: string[], environment: Record<string, string>, logPath: string, cwd = repositoryRoot): Child {
 	const descriptor = openSync(logPath, 'w');
 	const child = Bun.spawn(command, {
 		cwd,
@@ -49,8 +51,29 @@ function start(command: string[], environment: Record<string, string>, logPath: 
 		stderr: descriptor
 	});
 	closeSync(descriptor);
-	children.push(child);
+	parts.push({ name, logPath, child });
 	return child;
+}
+
+function stateOf(part: Part): string {
+	if (!part.child) return 'runs in the Local Fleet';
+	if (part.child.exitCode === null) return 'is still running';
+	return `exited with code ${part.child.exitCode}`;
+}
+
+async function endOfLog(logPath: string): Promise<string> {
+	const written = await readFile(logPath, 'utf8').catch(() => '');
+	const lines = written.split('\n').filter((line) => line.trim());
+	return lines.slice(-failureTailLineCount).join('\n');
+}
+
+async function reportWhatEachPartDid(): Promise<void> {
+	for (const part of parts) {
+		console.error(`${part.name} ${stateOf(part)}; its output is at ${part.logPath}`);
+		if (!part.child || part.child.exitCode === null) continue;
+		const ending = await endOfLog(part.logPath);
+		if (ending) console.error(ending);
+	}
 }
 
 function shellQuote(value: string): string {
@@ -87,8 +110,9 @@ async function stopChildren(): Promise<void> {
 			`sudo kill ${shellQuote(remoteRelayPID)} 2>/dev/null || true`
 		]);
 	}
-	for (const child of [...children].reverse()) child.kill();
-	for (const child of children) await child.exited.catch(() => 0);
+	const spawned = parts.flatMap((part) => (part.child ? [part.child] : []));
+	for (const child of [...spawned].reverse()) child.kill();
+	for (const child of spawned) await child.exited.catch(() => 0);
 	if (appPIDPath) await unlink(appPIDPath).catch(() => undefined);
 }
 
@@ -133,6 +157,7 @@ async function main(): Promise<number> {
 	const supabaseEnvironment = environmentFrom(await commandOutput(['supabase', 'status', '-o', 'env']));
 
 	start(
+		'the connection gateway',
 		['bunx', 'wrangler', 'dev', '--local', '--ip', '127.0.0.1', '--port', String(gatewayPort), '--inspector-port', '0', '--persist-to', join(stateRoot, 'personal-settings-gateway-state'), '--config', gatewayConfigurationPath],
 		{},
 		gatewayLog,
@@ -151,6 +176,7 @@ async function main(): Promise<number> {
 	if (!vmAddress) throw new Error('the Local Fleet VM has no address');
 	const sshpass = join(repositoryRoot, 'bin/sshpass');
 	const tunnel = start(
+		'the Local Fleet socket tunnel',
 		[
 			sshpass,
 			'-p',
@@ -186,6 +212,7 @@ async function main(): Promise<number> {
 		} catch {}
 	}
 	const app = start(
+		'the company app',
 		['bunx', 'vite', 'dev', '--host', '127.0.0.1', '--port', appPort, '--strictPort'],
 		{
 			SUPABASE_URL: centralPlane.CENTRAL_PLANE_PROJECT_URL,
@@ -223,6 +250,7 @@ async function main(): Promise<number> {
 		`sudo sh -c ${shellQuote(remoteRelayCommand)}`
 	]);
 	if (!/^\d+$/.test(remoteRelayPID)) throw new Error('the VM relay did not return a process ID');
+	parts.push({ name: 'the Local Fleet relay', logPath: join(stateRoot, 'personal-settings-relay.log') });
 	const relayDeadline = Date.now() + 30_000;
 	while (Date.now() < relayDeadline) {
 		const relayLogText = await commandOutput([
@@ -234,7 +262,7 @@ async function main(): Promise<number> {
 	}
 	if (Date.now() >= relayDeadline) throw new Error('timed out waiting for the VM relay gateway connection');
 
-	const tests = start(['bun', 'run', 'test:e2e:local-fleet'], { PLAYWRIGHT_BASE_URL: `http://127.0.0.1:${appPort}`, PLAYWRIGHT_START_WEB_SERVER: '0' }, join(stateRoot, 'personal-settings-playwright.log'), join(repositoryRoot, 'web'));
+	const tests = start('the browser suite', ['bun', 'run', 'test:e2e:local-fleet'], { PLAYWRIGHT_BASE_URL: `http://127.0.0.1:${appPort}`, PLAYWRIGHT_START_WEB_SERVER: '0' }, join(stateRoot, 'personal-settings-playwright.log'), join(repositoryRoot, 'web'));
 	return await tests.exited;
 }
 
@@ -245,5 +273,6 @@ try {
 	console.error(failure instanceof Error ? failure.message : String(failure));
 	process.exitCode = 1;
 } finally {
+	if (process.exitCode) await reportWhatEachPartDid();
 	await stopChildren();
 }
