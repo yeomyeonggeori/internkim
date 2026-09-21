@@ -30,7 +30,7 @@ func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 		ticker := time.NewTicker(memberChannelSyncInterval)
 		defer ticker.Stop()
 		for {
-			service.ensureMemberChannelMembership(ctx)
+			service.withinASweepBudget(ctx, service.ensureMemberChannelMembership)
 			select {
 			case <-ctx.Done():
 				return
@@ -284,12 +284,11 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 	if errorValue != nil || len(channelIDs) == 0 {
 		return
 	}
-	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz membership for %s: %v", email, errorValue)
 		return
 	}
-	defer relay.Close()
 	connections := service.newBuzzActorConnections()
 	defer connections.closeAll()
 	role := buzzChannelRoleFor(service.buzzAdminEmails(ctx), email)
@@ -343,12 +342,11 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	}
 	connections := service.newBuzzActorConnections()
 	defer connections.closeAll()
-	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz member membership: %v", errorValue)
 		return
 	}
-	defer relay.Close()
 
 	granted, failed, alreadyIn := 0, 0, 0
 	for _, channelID := range channelIDs {
@@ -515,11 +513,10 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	database, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer database.Close()
 	rows, errorValue := database.QueryContext(ctx, memberRoomQuery, pq.Array(creatorPubkeys), pq.Array(circleRoomNames))
 	if errorValue != nil {
 		return nil, errorValue

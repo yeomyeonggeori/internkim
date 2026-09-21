@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17-bookworm
     restart: unless-stopped
-    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "max_connections=100"]
     environment:
       POSTGRES_USER: internkim
       POSTGRES_DB: blueclaw
@@ -71,6 +71,7 @@ services:
     network_mode: service:postgres
     environment:
       DATABASE_URL: ${BUZZ_DATABASE_URL}
+      BUZZ_DB_POOL_SIZE: "50"
       REDIS_URL: redis://127.0.0.1:6379
       BUZZ_AUTO_MIGRATE: "true"
       BUZZ_BIND_ADDR: 127.0.0.1:3000

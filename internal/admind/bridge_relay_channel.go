@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log"
 	"net/http"
@@ -100,11 +99,10 @@ func (service *Service) canWriteToBuzzRelay() bool {
 }
 
 func (service *Service) buzzChannelExists(ctx context.Context, buzzChannelID string) (bool, error) {
-	database, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return false, errorValue
 	}
-	defer database.Close()
 	var exists bool
 	errorValue = database.QueryRowContext(ctx,
 		"SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)", buzzChannelID,

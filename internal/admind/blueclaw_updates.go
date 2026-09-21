@@ -901,12 +901,26 @@ func refreshBlueclawCapabilityContract(document string, contract blueclawruntime
 	}
 	migrateBlueclawCapabilityModelConfiguration(runtimeDocument)
 	stampBlueclawLadderOwnedModels(runtimeDocument)
+	stampBlueclawDatabaseConnectionShare(runtimeDocument)
 	retireBlueclawGuestLLMDConfiguration(runtimeDocument)
 	refreshedBytes, errorValue := json.MarshalIndent(runtimeDocument, "", "  ")
 	if errorValue != nil {
 		return "", errorValue
 	}
 	return string(refreshedBytes) + "\n", nil
+}
+
+// A device's runtime document is written by the renderer at provisioning and by
+// this refresh on every release after it, and a field added to one and not the
+// other reaches only the devices that were provisioned since. The share is
+// stamped rather than filled, the way the model ladder is: nothing else writes
+// it, so a device holding an older number is the drift this repairs.
+func stampBlueclawDatabaseConnectionShare(runtimeDocument map[string]any) {
+	databaseSection, isPresent := runtimeDocument["database"].(map[string]any)
+	if !isPresent {
+		return
+	}
+	databaseSection[blueclawruntime.AgentDatabaseConnectionsField] = blueclawruntime.AgentDatabaseConnections
 }
 
 func ensureBlueclawMemoryAssertionKeyPath(runtimeDocument map[string]any) {

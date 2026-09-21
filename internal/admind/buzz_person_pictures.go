@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
-	"strings"
 
 	nostr "github.com/nbd-wtf/go-nostr"
 
@@ -46,20 +44,18 @@ func (service *Service) handlePersonPictures(responseWriter http.ResponseWriter,
 
 func (service *Service) personPicturesFromRelay(ctx context.Context) ([]personPicture, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
-		return nil, errors.New("buzz key seed and database url must be configured")
+	if seed == "" {
+		return nil, errBuzzKeySeedMissing
 	}
 	emails, errorValue := service.companyPeopleEmails(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	defer database.Close()
 	profiles, errorValue := latestProfilesByPubkey(ctx, database)
 	if errorValue != nil {
 		return nil, errorValue

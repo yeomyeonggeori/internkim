@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -71,9 +70,8 @@ func (service *Service) handleBuzzStrangerMembers(responseWriter http.ResponseWr
 
 func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply bool) (buzzStrangerMembersReport, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
-		return buzzStrangerMembersReport{}, errors.New("buzz key seed and database url must be configured")
+	if seed == "" {
+		return buzzStrangerMembersReport{}, errBuzzKeySeedMissing
 	}
 	strangers, emails, errorValue := service.strangerBuzzPubkeys(ctx, seed)
 	if errorValue != nil {
@@ -84,11 +82,10 @@ func (service *Service) removeStrangerBuzzMembers(ctx context.Context, apply boo
 		return report, nil
 	}
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzStrangerMembersReport{}, errorValue
 	}
-	defer database.Close()
 
 	const asBytea = "ARRAY(SELECT decode(unnest($1::text[]), 'hex'))"
 	if errorValue := database.QueryRowContext(ctx,
@@ -281,17 +278,15 @@ func (service *Service) membersNobodyAccountsFor(ctx context.Context, database *
 // can be mentioned and cannot be reached. Waiting for a person to notice is how
 // one colleague came to be in the messenger twice.
 func (service *Service) showOutWhoeverNobodyNames(ctx context.Context) {
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
 	seed := service.buzzKeySeed()
-	if databaseURL == "" || seed == "" {
+	if seed == "" {
 		return
 	}
-	relay, errorValue := sql.Open("postgres", databaseURL)
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz: the community could not be read: %v", errorValue)
 		return
 	}
-	defer relay.Close()
 
 	unaccounted, errorValue := service.membersNobodyAccountsFor(ctx, relay, seed)
 	if errorValue != nil {

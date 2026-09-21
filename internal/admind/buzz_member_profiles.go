@@ -43,12 +43,11 @@ func (service *Service) seatAndNameOneMemberInBuzz(ctx context.Context, email st
 		return
 	}
 	service.ensureUserChannelMembership(ctx, email)
-	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz profiles: %s stays a key: %v", email, errorValue)
 		return
 	}
-	defer relay.Close()
 	profiles, errorValue := latestProfilesByPubkey(ctx, relay)
 	if errorValue != nil {
 		log.Printf("buzz profiles: reading the names the relay holds failed: %v", errorValue)

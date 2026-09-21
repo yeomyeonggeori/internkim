@@ -151,6 +151,8 @@ func (service *Service) carryAdminUserWriteToBlueclaw(ctx context.Context, write
 		return errorValue
 	}
 	service.triggerUsersSync(ctx)
-	go service.seatAndNameOneMemberInBuzz(context.Background(), payload.Email, payload.Name)
+	inTheBackgroundWithin(buzzDatabaseRequestBudget, func(backgroundContext context.Context) {
+		service.seatAndNameOneMemberInBuzz(backgroundContext, payload.Email, payload.Name)
+	})
 	return nil
 }

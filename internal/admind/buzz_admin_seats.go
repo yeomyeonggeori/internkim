@@ -26,9 +26,7 @@ func (service *Service) startAdminChannelSeatSync(ctx context.Context) {
 		ticker := time.NewTicker(adminSeatSyncInterval)
 		defer ticker.Stop()
 		for {
-			if unseated := seatsNotTaken(service.seatAdministratorsEverywhere(ctx, true)); unseated > 0 {
-				log.Printf("buzz admin seats: %d seats the relay would not take; the rooms are named above", unseated)
-			}
+			service.seatAdministratorsEverywhereWithinItsBudget(ctx)
 			select {
 			case <-ctx.Done():
 				return
@@ -157,36 +155,55 @@ func (service *Service) administratorPubkeys(ctx context.Context) []string {
 	return pubkeys
 }
 
-func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply bool) []adminSeatPlan {
-	service.adminSeating.Lock()
+func (service *Service) seatAdministratorsEverywhereWithinItsBudget(ctx context.Context) {
+	passContext, cancel := context.WithTimeout(ctx, buzzDatabaseSweepBudget)
+	defer cancel()
+	planned, ran := service.seatAdministratorsEverywhere(passContext, true)
+	if !ran {
+		log.Printf("buzz admin seats: a pass was already running, so this tick was skipped")
+		return
+	}
+	if unseated := seatsNotTaken(planned); unseated > 0 {
+		log.Printf("buzz admin seats: %d seats the relay would not take; the rooms are named above", unseated)
+	}
+}
+
+// Seating reconciles against the roster as it stands, so a second pass behind
+// the one already running reaches the same answer. One asked for while another
+// runs is refused and says so, because a caller that waits holds whatever
+// started it for as long as the database makes the pass in front of it take,
+// and an empty plan would read to whoever asked as every seat already taken.
+func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply bool) ([]adminSeatPlan, bool) {
+	if !service.adminSeating.TryLock() {
+		return nil, false
+	}
 	defer service.adminSeating.Unlock()
 	if !service.canWriteToBuzzRelay() {
-		return nil
+		return nil, true
 	}
 	seed := service.buzzKeySeed()
 	if seed == "" {
-		return nil
+		return nil, true
 	}
 	adminPubkeys := service.administratorPubkeys(ctx)
 	if len(adminPubkeys) == 0 {
-		return nil
+		return nil, true
 	}
-	database, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz admin seats: cannot reach the relay database: %v", errorValue)
-		return nil
+		return nil, true
 	}
-	defer database.Close()
 	circleRoomNames, errorValue := service.circleRoomNames(ctx)
 	if errorValue != nil {
 		log.Printf("buzz admin seats: the circle rooms could not be named: %v", errorValue)
-		return nil
+		return nil, true
 	}
 	channelIDs, errorValue := everyStreamChannel(
 		ctx, database, service.buzzCommunities(ctx, database), circleRoomNames)
 	if errorValue != nil {
 		log.Printf("buzz admin seats: cannot read the channels: %v", errorValue)
-		return nil
+		return nil, true
 	}
 	connections := service.newBuzzActorConnections()
 	defer connections.closeAll()
@@ -195,7 +212,7 @@ func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply 
 	for _, channelID := range channelIDs {
 		select {
 		case <-ctx.Done():
-			return planned
+			return planned, true
 		default:
 		}
 		heldRoles, errorValue := buzzChannelMemberRoles(ctx, database, channelID)
@@ -221,7 +238,7 @@ func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply 
 			log.Printf("buzz admin seats: %d rooms changed and no client was told: %v", len(seated), errorValue)
 		}
 	}
-	return planned
+	return planned, true
 }
 
 func (service *Service) seatAdministratorsIn(
@@ -276,7 +293,11 @@ func (service *Service) handleBuzzSeatAdmins(responseWriter http.ResponseWriter,
 		return
 	}
 	apply := request.URL.Query().Get("apply") == "true"
-	planned := service.seatAdministratorsEverywhere(request.Context(), apply)
+	planned, ran := service.seatAdministratorsEverywhere(request.Context(), apply)
+	if !ran {
+		http.Error(responseWriter, "a seating pass is already running; ask again once it has finished", http.StatusConflict)
+		return
+	}
 	service.writeJSON(responseWriter, map[string]any{
 		"applied":  apply,
 		"channels": planned,

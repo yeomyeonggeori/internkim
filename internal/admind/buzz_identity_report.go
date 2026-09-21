@@ -3,10 +3,8 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"net/http"
-	"strings"
 
 	nostr "github.com/nbd-wtf/go-nostr"
 
@@ -101,9 +99,8 @@ type buzzKeyOwner struct {
 
 func (service *Service) buzzIdentityLedger(ctx context.Context) (buzzIdentityReport, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
-		return buzzIdentityReport{}, errors.New("buzz key seed and database url must be configured")
+	if seed == "" {
+		return buzzIdentityReport{}, errBuzzKeySeedMissing
 	}
 	emails, errorValue := service.companyPeopleEmails(ctx)
 	if errorValue != nil {
@@ -121,11 +118,10 @@ func (service *Service) buzzIdentityLedger(ctx context.Context) (buzzIdentityRep
 		return buzzIdentityReport{}, errorValue
 	}
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzIdentityReport{}, errorValue
 	}
-	defer database.Close()
 	rows, errorValue := readBuzzIdentityLedgerRows(ctx, database)
 	if errorValue != nil {
 		return buzzIdentityReport{}, errorValue
