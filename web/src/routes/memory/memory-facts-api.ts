@@ -17,6 +17,7 @@ export type MemoryFact = {
 	validUntil?: string;
 	reinforcementCount: number;
 	lastRecalledAt?: string;
+	triggerPhrases: string[];
 };
 
 export type MemoryProfile = {
@@ -93,7 +94,8 @@ function normalizeMemoryFact(document: unknown): MemoryFact | undefined {
 		validFrom,
 		...(validUntil ? { validUntil } : {}),
 		reinforcementCount: readCount(record.reinforcementCount),
-		...(lastRecalledAt ? { lastRecalledAt } : {})
+		...(lastRecalledAt ? { lastRecalledAt } : {}),
+		triggerPhrases: readStringArray(record.triggerPhrases)
 	};
 }
 
