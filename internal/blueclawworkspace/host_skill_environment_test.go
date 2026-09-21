@@ -2,6 +2,7 @@ package blueclawworkspace
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -134,38 +135,59 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 	}
 }
 
-func TestHostEntrypointRefusesToStartWithoutWhatTheSkillsRun(t *testing.T) {
+func TestHostImageBuildRefusesAnIncompleteSkillEnvironment(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
+	entrypointPath := filepath.Join(repositoryRootPath, "host", "entrypoint.sh")
 	entrypoint := hostEntrypoint(t, repositoryRootPath)
-	declaredPrograms := strings.Fields(shellAssignment(entrypoint, "programsTheBundledSkillsRun"))
-	declared := map[string]bool{}
-	for _, programName := range declaredPrograms {
-		declared[programName] = true
-	}
-
-	skillPath := skillDirectoryPath(t, repositoryRootPath, "presentation")
-	renderScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_render.mjs"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(renderScript), `"/usr/bin/chromium"`) {
-		t.Fatal("the presentation renderer no longer looks for /usr/bin/chromium; the host check needs the new name")
-	}
-	runtimeScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "skill_runtime.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(runtimeScript), `"uv",`) {
-		t.Fatal("the skill runtime no longer bootstraps with uv; the host check needs the new name")
-	}
-
-	for _, programName := range []string{"python3", "bun", "uv", "chromium"} {
-		if !declared[programName] {
-			t.Fatalf("host entrypoint must refuse to start without %s; a skill that cannot reach it delivers a document with its Hangul or its rendered evidence missing", programName)
+	stubDirectory := t.TempDir()
+	programNames := append(strings.Fields(shellAssignment(entrypoint, "programsThisScriptRuns")), "python3", "bun", "uv", "cat")
+	for _, programName := range programNames {
+		stubPath := filepath.Join(stubDirectory, programName)
+		if errorValue := os.WriteFile(stubPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
 		}
 	}
-	if !strings.Contains(entrypoint, "this image carries no ${programThisImageCarries}") {
-		t.Fatal("host entrypoint must name the missing program rather than failing anonymously")
+
+	command := exec.Command("sh", entrypointPath, "--check-programs")
+	command.Env = []string{"PATH=" + stubDirectory}
+	output, errorValue := command.CombinedOutput()
+	if errorValue == nil {
+		t.Fatalf("--check-programs accepted an image with no chromium and no Korean font:\n%s", output)
+	}
+	for _, expectedText := range []string{"this image carries no chromium", "carries no Korean-capable font", "install fonts-nanum"} {
+		if !strings.Contains(string(output), expectedText) {
+			t.Fatalf("--check-programs must say %q so the build failure names what to install; it said:\n%s", expectedText, output)
+		}
+	}
+}
+
+func TestARunningHostReportsAnIncompleteSkillEnvironmentInsteadOfTakingTheMessengerDown(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	entrypoint := hostEntrypoint(t, repositoryRootPath)
+
+	collector := shellFunctionBody(t, entrypoint, "whatTheBundledSkillsAreMissing")
+	if strings.Contains(collector, "exit ") {
+		t.Fatal("whatTheBundledSkillsAreMissing must collect what is missing, not exit; the image build decides what to do with it")
+	}
+	for _, expectedName := range []string{"python3", "bun", "uv", "chromium"} {
+		if !strings.Contains(entrypoint, expectedName) {
+			t.Fatalf("host entrypoint must look for %s, which the bundled skills run", expectedName)
+		}
+	}
+
+	relayIndex := strings.Index(entrypoint, "keepRelayRunning &")
+	if relayIndex < 0 {
+		t.Fatal("host entrypoint no longer starts the relay in the background; this guard needs the new shape")
+	}
+	reportIndex := strings.Index(entrypoint, `echo "[host] this box `)
+	if reportIndex < 0 {
+		t.Fatal("a running host must say what the bundled skills are missing")
+	}
+	if reportIndex < relayIndex {
+		t.Fatal("the skill environment report must come after the relay is started; the relay is what answers when the agent cannot, and a company that cannot be talked to cannot be told what is wrong with it")
+	}
+	if !strings.Contains(entrypoint, `echo "[host] up, incomplete`) {
+		t.Fatal("the last line a person reads must say the box came up incomplete, or the report scrolls away")
 	}
 }
 
@@ -245,4 +267,17 @@ func sortedKeys(values map[string]bool) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func shellFunctionBody(t *testing.T, script string, name string) string {
+	t.Helper()
+	start := strings.Index(script, name+"() {")
+	if start < 0 {
+		t.Fatalf("host entrypoint defines no %s()", name)
+	}
+	end := strings.Index(script[start:], "\n}\n")
+	if end < 0 {
+		t.Fatalf("%s() has no closing brace on its own line", name)
+	}
+	return script[start : start+end]
 }

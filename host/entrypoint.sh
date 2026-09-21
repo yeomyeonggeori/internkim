@@ -34,19 +34,30 @@ blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
 blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
 
 programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv"
-# The bundled skills reach these through the requester's shell, whose PATH
-# blueclaw fixes to /usr/local/bin:/usr/bin:/bin and friends.
+for programThisScriptRuns in ${programsThisScriptRuns}; do
+  command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
+    || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
+done
+
+# What the bundled skills need is not what this script needs, and the two do not
+# fail the same way. The skills reach these through the requester's shell, whose
+# PATH blueclaw fixes to /usr/local/bin:/usr/bin:/bin and friends. The image
+# build refuses over a gap; a box already running says so and comes up anyway,
+# because this script also starts the one process that answers when the agent
+# cannot.
 programsTheBundledSkillsRun="python3 bun uv chromium"
 koreanCapableFontPath="/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+koreanCapableFontPackage="fonts-nanum"
 skillRequirementsGlob="/opt/internkim/skills/*/scripts/requirements.txt /opt/internkim/document-conversion/requirements.txt"
 
-for programThisImageCarries in ${programsThisScriptRuns} ${programsTheBundledSkillsRun}; do
-  command -v "${programThisImageCarries}" >/dev/null 2>&1 \
-    || { echo "[host] this image carries no ${programThisImageCarries}" >&2; exit 1; }
-done
-[ -r "${koreanCapableFontPath}" ] \
-  || { echo "[host] this image carries no Korean-capable font at ${koreanCapableFontPath}; every PDF the skills write would come out without its Hangul" >&2; exit 1; }
-missingSkillPackages="$(cat ${skillRequirementsGlob} 2>/dev/null | python3 -c '
+whatTheBundledSkillsAreMissing() {
+  for programTheBundledSkillsRun in ${programsTheBundledSkillsRun}; do
+    command -v "${programTheBundledSkillsRun}" >/dev/null 2>&1 \
+      || echo "carries no ${programTheBundledSkillsRun}, which the skills that write documents and decks run"
+  done
+  [ -r "${koreanCapableFontPath}" ] \
+    || echo "carries no Korean-capable font at ${koreanCapableFontPath} — install ${koreanCapableFontPackage}, the one Debian package whose path all three font-embedding skills look for; without it every PDF they write comes out with no Hangul and no error"
+  missingSkillPackages="$(cat ${skillRequirementsGlob} 2>/dev/null | python3 -c '
 import importlib.metadata
 import re
 import sys
@@ -61,10 +72,19 @@ for line in sys.stdin:
     except importlib.metadata.PackageNotFoundError:
         missing.append(name)
 print(" ".join(sorted(set(missing))))
-')"
-[ -z "${missingSkillPackages}" ] \
-  || { echo "[host] the python3 on this image cannot supply what the bundled skills declare: ${missingSkillPackages}" >&2; exit 1; }
+' 2>/dev/null)"
+  [ -z "${missingSkillPackages}" ] \
+    || echo "has a python3 that cannot supply what the bundled skills declare: ${missingSkillPackages}"
+}
+
+whatTheBundledSkillsAreMissingReport="$(whatTheBundledSkillsAreMissing || true)"
 if [ "${1:-}" = "--check-programs" ]; then
+  [ -z "${whatTheBundledSkillsAreMissingReport}" ] || {
+    echo "${whatTheBundledSkillsAreMissingReport}" | while IFS= read -r complaint; do
+      echo "[host] this image ${complaint}" >&2
+    done
+    exit 1
+  }
   exit 0
 fi
 
@@ -125,6 +145,13 @@ keepRelayRunning() {
 }
 keepRelayRunning &
 relayPid="$!"
+
+if [ -n "${whatTheBundledSkillsAreMissingReport}" ]; then
+  echo "${whatTheBundledSkillsAreMissingReport}" | while IFS= read -r complaint; do
+    echo "[host] this box ${complaint}" >&2
+  done
+  echo "[host] the messenger and the agent come up anyway; the skills that write documents and decks will not produce what they should until that is fixed" >&2
+fi
 
 # runtime.template.json is the runtime document with the values only this box
 # knows left as holes. A configuration mounted at /etc/blueclaw wins, so a
@@ -242,5 +269,9 @@ CHATD_BUZZ_ACCOUNT_LINKS_PATH="${buzzAccountLinksPath}" \
   chatd &
 chatdPid="$!"
 
-echo "[host] up — agent on ${blueclawAddress}, messenger connector on 127.0.0.1:${chatdPort}"
+if [ -n "${whatTheBundledSkillsAreMissingReport}" ]; then
+  echo "[host] up, incomplete — agent on ${blueclawAddress}, messenger connector on 127.0.0.1:${chatdPort}; the document and deck skills are missing what they need, named above"
+else
+  echo "[host] up — agent on ${blueclawAddress}, messenger connector on 127.0.0.1:${chatdPort}"
+fi
 wait "${blueclawPid}"

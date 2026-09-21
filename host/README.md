@@ -38,8 +38,13 @@ declare rather than leaving them to fetch it mid-task:
 | **chromium** | the deck's own quality gate reads rendered slides, and marks its verdict unreliable unless a browser produced them; the PDF comes from the same render |
 | **uv and the declared wheels** | `/opt/internkim/document-venv`, resolved from each skill's `scripts/requirements.txt` and `assets/document-conversion/requirements.txt` at build time and reachable as `python3`; uv stays for a skill whose requirements move past the image |
 
-`entrypoint.sh` refuses to start without any of them and names the one that is
-missing, because each absence produces a plausible file rather than an error.
+Each absence produces a plausible file rather than an error, so the image build
+refuses over it: `entrypoint.sh --check-programs` names every missing piece and
+what to install, and the Dockerfile runs it. A box that is already running does
+not refuse — `entrypoint.sh` starts the relay first and then says the same
+sentences, and its closing line reads `up, incomplete`. The relay is what
+answers when the agent cannot, and a company that cannot be talked to cannot be
+told what is wrong with it.
 
 ## The relay
 
