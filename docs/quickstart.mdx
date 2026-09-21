@@ -49,29 +49,22 @@ Open `https://intern.kim/<company-address>/settings/setup`. Choose
 will run the company server. The file contains this company's connection key,
 so keep it on that computer and do not commit it or send it in chat.
 
-The setup page also shows the command to run and later provides **Check
-connection**.
+The setup page later provides **Check connection**.
 
 ![Korean company setup screen with a successful local connection check](/images/quickstart/setup-ko.png)
 
 ## 3. Install the company server
 
-On the company computer, download the installer and run it against the
-connection file:
+There is no installer to download and run yet; the company server is being
+packaged for apt and Homebrew. Until that lands, build both halves on the
+company computer from a checkout of this repository:
 
 ```bash
-curl -fsSL https://intern.kim/install.sh | sh -s -- host
-internkim-host install ~/Downloads/internkim-host.json
+make build-company-host-image build-company-host
+./internkim-host install ~/Downloads/internkim-host.json
 ```
 
-The download script picks the build for this machine, checks it against the
-published `SHA256SUMS`, and puts `internkim-host` in `~/.local/bin`. A download
-whose checksum does not match is refused and nothing is installed.
-
-To build both halves yourself instead, from a checkout of this repository,
-run `make build-company-host-image build-company-host` and use the
-`./internkim-host` it leaves in the repository root. Nothing is downloaded from
-us on that path.
+Nothing is downloaded from us on this path.
 
 `internkim-host install` checks the connection file, asks for the OpenRouter
 key, and starts the company server with Docker Compose. It stores

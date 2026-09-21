@@ -48,27 +48,22 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 저장하세요. 이 파일에는 이 회사의 연결 키가 들어 있으므로 그 컴퓨터에만
 보관하고, 커밋하거나 채팅으로 보내지 마세요.
 
-설정 화면에는 실행할 명령도 나오고, 나중에는 **연결 확인**도 나타납니다.
+설정 화면에는 나중에 **연결 확인**이 나타납니다.
 
 ![로컬 연결 확인이 성공한 한국어 회사 설정 화면](/images/quickstart/setup-ko.png)
 
 ## 3. 회사 서버 설치하기
 
-회사 컴퓨터에서 설치 프로그램을 내려받아 연결 파일과 함께 실행하세요.
+아직 내려받아 실행할 설치 프로그램이 없습니다. 회사 서버를 apt와 Homebrew
+패키지로 준비하고 있습니다. 그때까지는 회사 컴퓨터에서 이 저장소를 받아 양쪽을
+직접 빌드하세요.
 
 ```bash
-curl -fsSL https://intern.kim/install.sh | sh -s -- host
-internkim-host install ~/Downloads/internkim-host.json
+make build-company-host-image build-company-host
+./internkim-host install ~/Downloads/internkim-host.json
 ```
 
-내려받기 스크립트는 이 컴퓨터에 맞는 빌드를 골라 공개된 `SHA256SUMS`와
-대조한 뒤 `internkim-host`를 `~/.local/bin`에 놓습니다. 체크섬이 맞지 않으면
-거부하고 아무것도 설치하지 않습니다.
-
-직접 빌드하려면 이 저장소를 받은 뒤
-`make build-company-host-image build-company-host`를 실행하고 저장소 루트에
-생긴 `./internkim-host`를 쓰세요. 이 경로에서는 우리 쪽에서 아무것도
-내려받지 않습니다.
+이 경로에서는 우리 쪽에서 아무것도 내려받지 않습니다.
 
 `internkim-host install`은 연결 파일을 확인하고 OpenRouter 키를 먼저 묻습니다.
 그 뒤 Docker Compose로 회사 서버를 시작합니다. `compose.yaml`, `01-buzz.sql`,

@@ -379,10 +379,16 @@ and the Worker's secret.
 ```bash
 openssl rand -base64 32
 
-cd workers/release-registry
-../../web/node_modules/.bin/wrangler secret put RELEASE_DOWNLOAD_TOKEN
-../../web/node_modules/.bin/wrangler deploy
+(cd workers/release-registry && ../../web/node_modules/.bin/wrangler secret put RELEASE_DOWNLOAD_TOKEN)
+bun run web/scripts/deploy-worker.ts workers/release-registry --route-subdomain updates
 ```
+
+`deploy-worker.ts` renders the route as `<subdomain>.<zone>` from the zone
+`CLOUDFLARE_DOMAIN` or `INTERNKIM_DOMAIN` names, falling back to
+`fleetdomain.defaultZone`. No `wrangler.jsonc` writes the domain down, and
+`web/tests/unit/scripts/worker-route.test.ts` fails when one starts to.
+A route already pointing at this Worker is left alone, id and all; wrangler
+adds what is missing and deletes nothing.
 
 Publishing from a development machine with a Wrangler OAuth session needs the
 bucket and base URL. `INTERNKIM_RELEASE_R2_ACCOUNT_ID` falls back to
@@ -523,12 +529,17 @@ registry; everything else there needs the download token.
 `./internkim release companion` cross-compiles the four builds and publishes
 them; `make build-companion` builds the host's own.
 
-The same script installs the company host, which arrives the same way:
+The same script installs the company host the same way, once a host release
+exists:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host
 internkim-host install ~/Downloads/internkim-host.json
 ```
+
+None has been published, and none will be from the stamped-image path:
+`docs/internal/native-packaging.md` retires it for apt and Homebrew packages, so
+`/settings/setup` and the quickstart send people to the build below instead.
 
 Self-hosting builds both halves here and pulls nothing from a registry of ours.
 `make build-company-host-image` builds the company server image on this machine
