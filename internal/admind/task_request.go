@@ -63,7 +63,7 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 	if !containsTaskSize(definitions.Sizes, size) {
 		return Task{}, payload, taskValidationError("size is not allowed")
 	}
-	now := taskDateNow()
+	now := service.companyDateNow(request.Context())
 	canonicalWeekCode, errorValue := canonicalTaskWeekCode(payload.WeekCode, now)
 	if errorValue != nil {
 		return Task{}, payload, errorValue

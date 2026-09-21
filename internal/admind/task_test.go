@@ -72,7 +72,7 @@ func TestTaskMembersWithoutFleetCredentialsDoesNotReturnSeedMembers(t *testing.T
 }
 
 func TestNormalizeTaskDatesSetsCompletedStartEndAndWeek(t *testing.T) {
-	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
+	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, defaultCompanyLocation())
 
 	dates := normalizeTaskDates(taskWriteRequest{}, "completed", now)
 
@@ -82,7 +82,7 @@ func TestNormalizeTaskDatesSetsCompletedStartEndAndWeek(t *testing.T) {
 }
 
 func TestNormalizeTaskDatesPreservesExplicitCompletedDates(t *testing.T) {
-	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
+	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, defaultCompanyLocation())
 
 	dates := normalizeTaskDates(taskWriteRequest{StartDate: "2026-06-09", EndDate: "2026-06-10"}, "completed", now)
 
@@ -92,7 +92,7 @@ func TestNormalizeTaskDatesPreservesExplicitCompletedDates(t *testing.T) {
 }
 
 func TestNormalizeTaskDatesLeavesPlannedWorkUndated(t *testing.T) {
-	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, taskDateLocation())
+	now := time.Date(2026, time.June, 11, 10, 0, 0, 0, defaultCompanyLocation())
 
 	dates := normalizeTaskDates(taskWriteRequest{}, "planned", now)
 

@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-var taskDateTimezone = loadTaskDateTimezone()
 
 type normalizedTaskDates struct {
 	StartDate string
@@ -84,18 +83,3 @@ func weekCodeForTaskDate(dateText string, fallback time.Time) string {
 	return weekCodeForDate(date)
 }
 
-func taskDateNow() time.Time {
-	return time.Now().In(taskDateLocation())
-}
-
-func taskDateLocation() *time.Location {
-	return taskDateTimezone
-}
-
-func loadTaskDateTimezone() *time.Location {
-	location, errorValue := time.LoadLocation("Asia/Seoul")
-	if errorValue != nil {
-		return time.FixedZone("Asia/Seoul", 9*60*60)
-	}
-	return location
-}

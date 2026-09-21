@@ -1,15 +1,16 @@
 package admind
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 )
 
+// What the company works in: the language every screen speaks and the time
+// zone every date is read in. Both are the plane's company row, so this
+// carries what the record answers rather than a copy the device keeps.
 type workspaceSettings struct {
 	TimeZone string `json:"timeZone"`
 	Language string `json:"language"`
@@ -20,77 +21,23 @@ const (
 	workspaceLanguageEnglish = "en"
 )
 
-// The time zone is read once per calendar event and the language once per
-// message, so the company is asked at most this often and the last answer
-// stands in between.
-const workspaceSettingsFreshFor = 30 * time.Second
-
-type heldWorkspaceSettings struct {
-	mutex    sync.Mutex
-	settings workspaceSettings
-	readAt   time.Time
-	isHeld   bool
-}
-
-func defaultWorkspaceSettings() workspaceSettings {
-	return workspaceSettings{
-		TimeZone: workspaceSystemTimeZone,
-		Language: workspaceLanguageKorean,
-	}
-}
-
-func (service *Service) readWorkspaceSettings() workspaceSettings {
-	service.workspaceSettingsCache.mutex.Lock()
-	defer service.workspaceSettingsCache.mutex.Unlock()
-	if service.workspaceSettingsCache.isHeld && time.Since(service.workspaceSettingsCache.readAt) < workspaceSettingsFreshFor {
-		return service.workspaceSettingsCache.settings
-	}
-	client := service.centralPlane()
-	if client == nil {
-		return defaultWorkspaceSettings()
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	answered, errorValue := client.CompanySettings(ctx, service.claimedAdminEmail())
-	if errorValue != nil {
-		if service.workspaceSettingsCache.isHeld {
-			return service.workspaceSettingsCache.settings
-		}
-		return defaultWorkspaceSettings()
-	}
-	service.workspaceSettingsCache.settings = workspaceSettingsOf(answered.TimeZone, answered.Locale)
-	service.workspaceSettingsCache.readAt = time.Now()
-	service.workspaceSettingsCache.isHeld = true
-	return service.workspaceSettingsCache.settings
-}
-
-func (service *Service) forgetWorkspaceSettings() {
-	service.workspaceSettingsCache.mutex.Lock()
-	defer service.workspaceSettingsCache.mutex.Unlock()
-	service.workspaceSettingsCache.isHeld = false
-}
-
 // The record holds a BCP 47 tag and the workspace speaks two languages, so a
 // tag it does not speak reads as the default rather than as itself.
-func workspaceSettingsOf(timeZone string, locale string) workspaceSettings {
-	defaults := defaultWorkspaceSettings()
-	settings := workspaceSettings{TimeZone: strings.TrimSpace(timeZone), Language: defaults.Language}
-	if settings.TimeZone == "" {
-		settings.TimeZone = defaults.TimeZone
-	}
+func workspaceLanguageOf(locale string) string {
 	language, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(locale)), "-")
 	if language == workspaceLanguageKorean || language == workspaceLanguageEnglish {
-		settings.Language = language
+		return language
 	}
-	return settings
+	return workspaceLanguageKorean
 }
 
-func (service *Service) workspaceLanguage() string {
-	return service.readWorkspaceSettings().Language
+func workspaceSettingsOf(settings companySettings) workspaceSettings {
+	return workspaceSettings{TimeZone: settings.timeZone, Language: settings.language}
 }
 
-func (service *Service) writeWorkspaceSettings(responseWriter http.ResponseWriter) {
-	service.writeJSON(responseWriter, service.readWorkspaceSettings())
+func (service *Service) writeWorkspaceSettings(responseWriter http.ResponseWriter, request *http.Request) {
+	settings, _ := service.readCompanySettings(request.Context())
+	service.writeJSON(responseWriter, workspaceSettingsOf(settings))
 }
 
 func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWriter, request *http.Request) {
@@ -114,8 +61,11 @@ func (service *Service) updateWorkspaceSettings(responseWriter http.ResponseWrit
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	service.forgetWorkspaceSettings()
-	service.writeJSON(responseWriter, workspaceSettingsOf(answered.TimeZone, answered.Locale))
+	written := service.holdCompanySettings(companySettings{
+		timeZone: loadableTimeZoneName(answered.TimeZone),
+		language: workspaceLanguageOf(answered.Locale),
+	})
+	service.writeJSON(responseWriter, workspaceSettingsOf(written))
 }
 
 func workspaceSettingsChange(payload workspaceSettings) (map[string]any, error) {
@@ -126,9 +76,9 @@ func workspaceSettingsChange(payload workspaceSettings) (map[string]any, error) 
 		}
 		change["locale"] = language
 	}
-	if timeZone := strings.TrimSpace(payload.TimeZone); timeZone != "" && timeZone != workspaceSystemTimeZone {
+	if timeZone := strings.TrimSpace(payload.TimeZone); timeZone != "" {
 		if _, errorValue := time.LoadLocation(timeZone); errorValue != nil {
-			return nil, errorValue
+			return nil, fmt.Errorf("%q is not a time zone name this device knows; name an IANA zone such as Asia/Seoul", timeZone)
 		}
 		change["timeZone"] = timeZone
 	}

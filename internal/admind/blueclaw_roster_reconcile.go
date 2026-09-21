@@ -79,10 +79,8 @@ func (service *Service) deliverRosterReconciledWith(ctx context.Context, records
 	if errorValue != nil {
 		return errorValue
 	}
-	reconcileRosterPeople(policyDocument, records, service.alwaysRetainedRosterEmails(), service.workspaceLanguage())
-	if profile, errorValue := service.companyProfile(ctx, service.claimedAdminEmail(), ""); errorValue == nil {
-		policyDocument["company"] = companyPolicySnapshot(profile, service.workspaceTimeZone().name, service.workspaceLanguage())
-	}
+	reconcileRosterPeople(policyDocument, records, service.alwaysRetainedRosterEmails(), service.workspaceLanguage(ctx))
+	service.reconcileCompanySnapshot(ctx, policyDocument)
 	reconciledRoster, errorValue := json.Marshal(policyDocument)
 	if errorValue != nil {
 		return errorValue

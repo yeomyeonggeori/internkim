@@ -351,8 +351,8 @@ func TestWorkspaceSettingsDefaultsToKorean(t *testing.T) {
 	if settings.Language != workspaceLanguageKorean {
 		t.Fatalf("workspace language = %q", settings.Language)
 	}
-	if settings.TimeZone != workspaceSystemTimeZone {
-		t.Fatalf("workspace time zone = %q", settings.TimeZone)
+	if settings.TimeZone != "" {
+		t.Fatalf("a device that names no company knows no company time zone, got %q", settings.TimeZone)
 	}
 }
 

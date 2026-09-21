@@ -240,7 +240,7 @@ func (service *Service) handleAdminSettingsRoute(responseWriter http.ResponseWri
 	case request.Method == http.MethodPut && path == "/locale":
 		service.updateAdminLocale(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/workspace-settings":
-		service.writeWorkspaceSettings(responseWriter)
+		service.writeWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/wifi-profiles":

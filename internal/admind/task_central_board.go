@@ -46,10 +46,10 @@ func (service *Service) companyBoardTasks(ctx context.Context, members []taskMem
 		log.Printf("the company board did not answer for %s: %v", actorEmail, errorValue)
 		return nil, true, errorValue
 	}
-	return tasksOfBoardTasks(tasks, members), true, nil
+	return tasksOfBoardTasks(tasks, members, service.companyTimeLocation(ctx)), true, nil
 }
 
-func tasksOfBoardTasks(tasks []centralplane.BoardTask, members []taskMember) []Task {
+func tasksOfBoardTasks(tasks []centralplane.BoardTask, members []taskMember, location *time.Location) []Task {
 	memberByEmail := map[string]taskMember{}
 	for _, member := range members {
 		if email := strings.ToLower(strings.TrimSpace(member.Email)); email != "" {
@@ -58,7 +58,7 @@ func tasksOfBoardTasks(tasks []centralplane.BoardTask, members []taskMember) []T
 	}
 	converted := make([]Task, 0, len(tasks))
 	for _, task := range tasks {
-		converted = append(converted, taskOfBoardTask(task, memberByEmail))
+		converted = append(converted, taskOfBoardTask(task, memberByEmail, location))
 	}
 	sort.SliceStable(converted, func(first int, second int) bool {
 		return converted[first].CreatedAt > converted[second].CreatedAt
@@ -66,7 +66,7 @@ func tasksOfBoardTasks(tasks []centralplane.BoardTask, members []taskMember) []T
 	return converted
 }
 
-func taskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]taskMember) Task {
+func taskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]taskMember, location *time.Location) Task {
 	converted := Task{
 		ID:        task.CentralID,
 		Business:  task.Business,
@@ -74,8 +74,8 @@ func taskOfBoardTask(task centralplane.BoardTask, memberByEmail map[string]taskM
 		Content:   task.Title,
 		Size:      task.Size,
 		Status:    cleanTaskStatus(task.Status),
-		StartDate: taskDayOfInstant(task.StartsAt),
-		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt)),
+		StartDate: taskDayOfInstant(task.StartsAt, location),
+		EndDate:   taskDayOfInstant(firstFilled(task.EndsAt, task.DueAt), location),
 		CreatedAt: task.CreatedAt,
 	}
 	for _, email := range task.ParticipantMails {
@@ -103,7 +103,7 @@ func firstFilled(values ...string) string {
 	return ""
 }
 
-func taskDayOfInstant(instant string) string {
+func taskDayOfInstant(instant string, location *time.Location) string {
 	instant = strings.TrimSpace(instant)
 	if instant == "" {
 		return ""
@@ -115,7 +115,7 @@ func taskDayOfInstant(instant string) string {
 		}
 		return ""
 	}
-	return moment.In(taskDateLocation()).Format("2006-01-02")
+	return moment.In(location).Format("2006-01-02")
 }
 
 func taskWeekCodeOfDay(day string) string {
