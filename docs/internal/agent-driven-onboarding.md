@@ -5,6 +5,13 @@ registration, invitations, host install — and hand off to a browser window
 where a human must genuinely act, the way `claude /login` does. This records
 what exists, where the chain breaks, and the smallest change that closes it.
 
+Two documents continue it.
+[`natural-language-onboarding.md`](./natural-language-onboarding.md) asks which
+surfaces the chain serves, and records the decision that the founding
+conversation happens in a harness the person already has.
+[`single-binary-host.md`](./single-binary-host.md) takes the last step of that
+conversation, host install, and settles what the customer should receive.
+
 Evidence is file:line against `origin/main` `8a0e9f5dc`, plus live reads of
 `intern.kim` and `api.intern.kim` on 2026-09-21. The line numbers under "What
 exists today" and "Where the chain breaks" describe that revision, before the
