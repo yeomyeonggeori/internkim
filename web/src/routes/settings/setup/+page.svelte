@@ -15,7 +15,6 @@
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
-	const installCommand = 'curl -fsSL https://intern.kim/install.sh | sh -s -- host\ninternkim-host install ~/Downloads/internkim-host.json';
 	let status = $state<HostSetupStatus | null>(null);
 	let configuration = $state<HostConfiguration | null>(null);
 	let isLoading = $state(true);
@@ -24,7 +23,6 @@
 	let isReplacing = $state(false);
 	let isOpeningMessenger = $state(false);
 	let errorMessage = $state('');
-	let copyNotice = $state('');
 	let connection = $state<'unchecked' | 'connected' | 'offline' | 'unavailable'>('unchecked');
 
 	onMount(async () => {
@@ -68,15 +66,6 @@
 		}
 	}
 
-	async function copyCommand() {
-		try {
-			await navigator.clipboard.writeText(installCommand);
-			copyNotice = text.copied;
-		} catch {
-			copyNotice = text.copyFailed;
-		}
-	}
-
 	async function openMessenger() {
 		if (!status) return;
 		isOpeningMessenger = true;
@@ -116,13 +105,11 @@
 						</Button>
 						<p class="text-sm text-muted-foreground">{text.fileHint}</p>
 					</div>
-					<p class="text-sm">{text.install}</p>
-					<pre class="min-w-0 overflow-x-auto rounded-md bg-muted p-4 text-xs"><code>{installCommand}</code></pre>
-					<div class="flex flex-wrap items-center gap-3">
-						<Button variant="outline" size="sm" onclick={copyCommand}>{text.copy}</Button>
-						<a class="text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/docs/quickstart' : 'https://docs.intern.kim/docs/quickstart'}>{text.guide}</a>
+					<div class="grid gap-2 rounded-md border border-dashed p-4">
+						<p class="text-sm font-medium">{text.install}</p>
+						<p class="text-sm text-muted-foreground">{text.installMeantime}</p>
+						<a class="justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/docs/quickstart' : 'https://docs.intern.kim/docs/quickstart'}>{text.guide}</a>
 					</div>
-					{#if copyNotice}<p role="status" class="text-sm">{copyNotice}</p>{/if}
 					<p class="text-sm text-muted-foreground">{text.installHint}</p>
 				</Card.Content>
 				<Card.Footer class="flex-col items-start gap-3">

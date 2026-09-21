@@ -10,10 +10,9 @@ export const hostSetupText = {
 		downloadAgain: '연결 파일 다시 받기',
 		downloading: '연결 파일 만드는 중…',
 		fileHint: '파일에는 이 회사의 연결 키가 들어 있습니다. 회사 컴퓨터에만 보관하세요.',
-		install: '파일을 받은 컴퓨터의 터미널에서 실행하세요.',
+		install: '아직 내려받아 실행할 설치 프로그램이 없습니다. apt와 Homebrew 패키지를 준비하고 있습니다.',
+		installMeantime: '그동안에는 저장소를 받아 회사 서버를 직접 빌드해 설치하세요. 설치 안내에 순서가 있습니다. 지금 받은 연결 파일은 그대로 쓸 수 있습니다.',
 		installHint: '설치 중 AI 모델의 API 키를 입력합니다. 직원들은 별도 설치 없이 웹에서 사용합니다.',
-		copy: '명령 복사',
-		copied: '복사했습니다.',
 		guide: '설치 안내 보기',
 		check: '연결 확인',
 		checking: '확인 중…',
@@ -30,8 +29,7 @@ export const hostSetupText = {
 		replaceDescription: '이전에 받은 연결 파일은 더 이상 사용할 수 없습니다. 기존 컴퓨터에도 새 파일로 설정을 다시 적용해야 합니다. 회사 데이터와 직원 계정은 유지됩니다.',
 		replace: '새 연결 파일 받기',
 		cancel: '취소',
-		failed: '연결 파일을 만들지 못했습니다.',
-		copyFailed: '명령을 복사하지 못했습니다. 아래 명령을 직접 선택해 복사하세요.'
+		failed: '연결 파일을 만들지 못했습니다.'
 	},
 	en: {
 		title: 'Get started with InternKim',
@@ -44,10 +42,9 @@ export const hostSetupText = {
 		downloadAgain: 'Download the file again',
 		downloading: 'Preparing connection file…',
 		fileHint: 'This file contains your company connection key. Keep it on the company computer.',
-		install: 'Run this in a terminal on the computer where you downloaded the file.',
+		install: 'There is no installer to download and run yet. We are packaging the company server for apt and Homebrew.',
+		installMeantime: 'Until then, build the company server from a checkout of the repository; the installation guide has the steps. The connection file you downloaded stays valid.',
 		installHint: 'The installer asks for your AI model API key. Employees use the web app without installing anything.',
-		copy: 'Copy command',
-		copied: 'Copied.',
 		guide: 'Read the installation guide',
 		check: 'Check connection',
 		checking: 'Checking…',
@@ -64,7 +61,6 @@ export const hostSetupText = {
 		replaceDescription: 'Previously downloaded connection files will stop working. Apply the new file to any existing company computer. Company data and employee accounts are kept.',
 		replace: 'Download a new file',
 		cancel: 'Cancel',
-		failed: 'Could not create the connection file.',
-		copyFailed: 'Could not copy the command. Select and copy it below.'
+		failed: 'Could not create the connection file.'
 	}
 };

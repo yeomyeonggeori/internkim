@@ -85,6 +85,28 @@ checkOutSubmodules() {
   echo "checked out submodules"
 }
 
+# The web build imports blueclaw's protocol package, so a worktree without the
+# submodule's workspace dependencies fails at `bun run build` on an unresolved
+# `zod` rather than on anything that names the submodule. They are a few hundred
+# packages out of bun's cache, not gigabytes, so each worktree installs its own
+# against the revision it has checked out.
+installSubmoduleDependencies() {
+  submodulePath="$repositoryRoot/.dependency/blueclaw"
+  if [ ! -f "$submodulePath/package.json" ]; then
+    echo "skipped .dependency/blueclaw dependencies (no package.json)"
+    return
+  fi
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "skipped .dependency/blueclaw dependencies (bun is not installed)"
+    return
+  fi
+  if ! (cd "$submodulePath" && bun install --frozen-lockfile >/dev/null 2>&1); then
+    echo "skipped .dependency/blueclaw dependencies (bun install failed)"
+    return
+  fi
+  echo "installed .dependency/blueclaw dependencies"
+}
+
 syncSharedDependencyArtifacts() {
   syncLocalState ".dependency/blueclaw-runtime"
   syncLocalState ".dependency/container-kernel"
@@ -131,3 +153,4 @@ syncRootMatches "*.token.enc"
 syncRootMatches "*.key"
 syncSharedDependencyArtifacts
 checkOutSubmodules
+installSubmoduleDependencies
