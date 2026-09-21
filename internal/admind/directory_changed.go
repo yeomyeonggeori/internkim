@@ -2,11 +2,9 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 )
 
 func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWriter, request *http.Request) {
@@ -63,11 +61,10 @@ func (service *Service) showOutWhoeverLeftTheCompany(ctx context.Context) {
 		log.Printf("buzz membership: the rooms could not be read after the directory changed: %v", errorValue)
 		return
 	}
-	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz membership: %v", errorValue)
 		return
 	}
-	defer relay.Close()
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, service.buzzKeySeed())
 }

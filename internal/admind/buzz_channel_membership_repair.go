@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"sort"
@@ -44,19 +43,17 @@ func (service *Service) handleBuzzChannelMembershipRepair(responseWriter http.Re
 
 func (service *Service) buzzMembersTheirRoomDoesNotHold(ctx context.Context, shouldRemove bool) (buzzChannelMembershipReport, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
-		return buzzChannelMembershipReport{}, errors.New("buzz key seed and database url must be configured")
+	if seed == "" {
+		return buzzChannelMembershipReport{}, errBuzzKeySeedMissing
 	}
 	mappings, errorValue := service.bridgedMattermostChannels(ctx)
 	if errorValue != nil {
 		return buzzChannelMembershipReport{}, errorValue
 	}
-	relay, errorValue := sql.Open("postgres", databaseURL)
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzChannelMembershipReport{}, errorValue
 	}
-	defer relay.Close()
 
 	report := buzzChannelMembershipReport{Rooms: []buzzChannelUninvitedRoom{}}
 	for _, mapping := range mappings {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"net/url"
@@ -46,19 +45,14 @@ func (service *Service) handleBuzzChannelRetire(responseWriter http.ResponseWrit
 }
 
 func (service *Service) retireRooms(ctx context.Context, namedRoom string, shouldRetire bool) (buzzRetireReport, error) {
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if databaseURL == "" {
-		return buzzRetireReport{}, errors.New("buzz database url must be configured")
-	}
 	mappings, errorValue := service.bridgedMattermostChannels(ctx)
 	if errorValue != nil {
 		return buzzRetireReport{}, errorValue
 	}
-	relay, errorValue := sql.Open("postgres", databaseURL)
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzRetireReport{}, errorValue
 	}
-	defer relay.Close()
 
 	report := buzzRetireReport{Bridged: len(mappings), Rooms: []buzzRetiredRoom{}}
 	for _, mapping := range mappings {

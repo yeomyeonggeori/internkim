@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -63,9 +62,8 @@ func (service *Service) handleBuzzRepairOrphans(responseWriter http.ResponseWrit
 
 func (service *Service) repairBuzzOrphanRoots(ctx context.Context, apply bool) (buzzRepairResponse, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
-		return buzzRepairResponse{}, errors.New("buzz key seed and database url must be configured")
+	if seed == "" {
+		return buzzRepairResponse{}, errBuzzKeySeedMissing
 	}
 	token, errorValue := service.mattermostAdmin().BotToken()
 	if errorValue != nil {
@@ -103,11 +101,10 @@ func (service *Service) repairBuzzOrphanRoots(ctx context.Context, apply bool) (
 		return buzzRepairResponse{}, errorValue
 	}
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzRepairResponse{}, errorValue
 	}
-	defer database.Close()
 
 	var communityID string
 	if errorValue := database.QueryRowContext(ctx, `SELECT id FROM communities LIMIT 1`).Scan(&communityID); errorValue != nil {

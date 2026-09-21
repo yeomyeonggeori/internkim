@@ -330,6 +330,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"driver":                 "postgres",
 			"connectionString":       databaseConnectionString,
 			"migrationDirectoryPath": migrationDirectoryPath,
+			"maxOpenConnections":     AgentDatabaseConnections,
 		},
 		"memory": map[string]any{
 			"adminAssertionKeyPath":  adminAssertionKeyPath,

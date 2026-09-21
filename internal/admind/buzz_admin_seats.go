@@ -171,12 +171,11 @@ func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply 
 	if len(adminPubkeys) == 0 {
 		return nil
 	}
-	database, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("buzz admin seats: cannot reach the relay database: %v", errorValue)
 		return nil
 	}
-	defer database.Close()
 	circleRoomNames, errorValue := service.circleRoomNames(ctx)
 	if errorValue != nil {
 		log.Printf("buzz admin seats: the circle rooms could not be named: %v", errorValue)

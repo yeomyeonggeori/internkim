@@ -7,7 +7,8 @@
   "database": {
     "driver": "postgres",
     "connectionString": "${DATABASE_URL}",
-    "migrationDirectoryPath": "${MIGRATION_DIRECTORY_PATH}"
+    "migrationDirectoryPath": "${MIGRATION_DIRECTORY_PATH}",
+    "maxOpenConnections": 30
   },
   "agent": {
     "intake": { "enabled": true, "executionMode": "remote" },

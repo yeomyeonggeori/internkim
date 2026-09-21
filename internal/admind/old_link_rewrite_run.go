@@ -70,10 +70,9 @@ func (service *Service) secretsByPubkey(ctx context.Context, seed string) (map[s
 
 func (service *Service) rewriteOldLinksInBuzz(ctx context.Context, apply bool) (oldLinkRewriteReport, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
 	appURL := strings.TrimSpace(service.Configuration.CentralPlaneAppURL)
 	deviceHost := deviceHostOf(service.Configuration.DeviceURLPath)
-	if seed == "" || databaseURL == "" || appURL == "" || deviceHost == "" {
+	if seed == "" || appURL == "" || deviceHost == "" {
 		return oldLinkRewriteReport{}, errors.New("the seed, the relay, the company address and this device's host are all needed")
 	}
 	translation := linkTranslation{
@@ -83,11 +82,10 @@ func (service *Service) rewriteOldLinksInBuzz(ctx context.Context, apply bool) (
 		recordTaskID:     service.linkedTaskID,
 	}
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return oldLinkRewriteReport{}, errorValue
 	}
-	defer database.Close()
 
 	var communityID string
 	if errorValue := database.QueryRowContext(ctx, `SELECT id FROM communities LIMIT 1`).Scan(&communityID); errorValue != nil {
