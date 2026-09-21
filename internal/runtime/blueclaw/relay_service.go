@@ -6,6 +6,12 @@ import "fmt"
 // a self-hosted install, with the paths this deployment uses filled in.
 // TestTheShippedRelayUnitMatchesTheDocumentedOne fails when the two drift.
 func RelayServiceUnit() string {
+	return relayServiceUnit(RelayBinaryPath)
+}
+
+// The packaged company host runs the same relay from the path dpkg is allowed to
+// write, and nothing else about the unit changes.
+func relayServiceUnit(binaryPath string) string {
 	return fmt.Sprintf(`[Unit]
 Description=internkim relay
 Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/host/README.md
@@ -31,5 +37,5 @@ ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
-`, RelayEnvironmentFilePath, RelayBinaryPath, RelayEnvironmentFilePath, RelayUserName, RelayUserName)
+`, RelayEnvironmentFilePath, binaryPath, RelayEnvironmentFilePath, RelayUserName, RelayUserName)
 }
