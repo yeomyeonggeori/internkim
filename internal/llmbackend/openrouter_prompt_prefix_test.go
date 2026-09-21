@@ -22,7 +22,7 @@ func agentTurnSchema(t *testing.T) StructuredOutputSchema {
 	return StructuredOutputSchema{
 		Name: "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{
-			{Name: "file_write", InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`)},
+			{Name: "write", InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`)},
 			{Name: "attendance_summary", InputSchema: json.RawMessage(`{"type":"object","properties":{"month":{"type":"string"}},"required":["month"]}`)},
 			{Name: "platform_message", InputSchema: json.RawMessage(`{"type":"object","properties":{"conversationID":{"type":"string"},"text":{"type":"string"}},"required":["conversationID","text"]}`)},
 		}),
@@ -103,7 +103,7 @@ func TestTheToolDefinitionsGoOutInTheSchemasOwnOrder(t *testing.T) {
 		t.Fatalf("the tool definitions moved between turns:\nfirst:  %s\nsecond: %s", firstTools, secondTools)
 	}
 	expectedOrder := []string{
-		nativeActionFunctionName("continue", "file_write"),
+		nativeActionFunctionName("continue", "write"),
 		nativeActionFunctionName("continue", "attendance_summary"),
 		nativeActionFunctionName("continue", "platform_message"),
 	}

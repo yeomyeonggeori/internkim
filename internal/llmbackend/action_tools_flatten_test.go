@@ -25,7 +25,7 @@ func TestToolActionParametersFlattenTerminalRunInput(t *testing.T) {
 	variant := actionSchemaVariant{
 		Properties: map[string]json.RawMessage{
 			"action":               json.RawMessage(`{"type":"string","enum":["continue"]}`),
-			"toolName":             json.RawMessage(`{"type":"string","enum":["shell"]}`),
+			"toolName":             json.RawMessage(`{"type":"string","enum":["bash"]}`),
 			"toolInput":            json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`),
 			"message":              json.RawMessage(`{"type":"string"}`),
 			"reason":               json.RawMessage(`{"type":"string"}`),

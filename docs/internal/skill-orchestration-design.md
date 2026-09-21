@@ -19,8 +19,8 @@ internkim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skill
 ## Skill and Tool Contract
 
 > Superseded 2026-09-21 by bluecollar#333 and #335 wherever this section names
-> a kernel tool: the model's kernel is now `read`, `file_write`, `file_edit`,
-> `shell`, `plan`, `find_tools`, and the model speaks only through a `reply`
+> a kernel tool: the model's kernel is now `read`, `write`, `edit`,
+> `bash`, `plan`, `equip`, and the model speaks only through a `reply`
 > carrying `message`, attachments, `choices`, `expectsAnswer` and `final`.
 > `finish`, `ask_input`, `file_deliver`, `request_tools` and `plan_update` are
 > gone from the model's vocabulary; the first three stay registered as
@@ -33,7 +33,7 @@ internkim의 기능을 늘릴 때 기존 설계를 망치지 않기 위한 skill
 
 Skill은 절차와 판단 기준이다. Kernel tool은 LLM이 직접 호출할 수 있는 실행 API다. Domain capability는 `/workspace/tools/capability` CLI를 통해 호출하는 로컬 bridge API다. Skill은 tool schema, 승인 정책, side-effect 정책을 다시 정의하지 않는다.
 
-LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `shell`, `ask_input`, `ask_confirm`, `file_deliver`, `skill_search`, `file_read`, `file_write`, `file_edit`, `file.patch`, `file_preview`, `image_read`다. `ask.input.choices`가 비어 있으면 주관식 입력이고, 값이 있으면 선택지 또는 직접 입력을 받는다. Interactive terminal session 동작은 `shell`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
+LLM에 노출되는 kernel tool은 compact fixed set으로 유지한다. 기본 kernel은 `read`, `write`, `edit`, `bash`, `plan`, `equip`다. Interactive terminal session 동작은 `bash`의 `mode=session_start|session_write|session_status|session_close`로만 표현한다. WorkKind, selected skill, pinned recovery, profile별 bundle은 직접 tool palette를 확장하지 않는다.
 
 `SKILL.md`는 선택될 때 초기 LLM context에 들어가는 실행 지침이다. 일반 skill은 8 KB 이하, 복잡한 artifact skill은 12 KB 이하를 목표로 하고, repository hard gate는 15 KB 및 300 lines다. 이 한계를 넘는 skill 문서는 prompt-runtime bug로 간주한다. 긴 reference는 `references/`, 반복 실행 로직은 `scripts/`, 재사용 asset은 `assets/`에 두고 `SKILL.md`에는 언제 읽거나 실행해야 하는지만 쓴다. 초기 prompt builder는 선택된 `SKILL.md` body만 포함해야 하며 scripts, references, assets 내용을 자동으로 붙이면 안 된다.
 
@@ -49,7 +49,7 @@ CompletionGate는 tool 이름을 특별 취급하지 않는다. `ToolDefinition.
 
 `no_tool_fallback`은 순수 계산, 설명, 조회처럼 답변으로 대체 가능한 실패에만 허용한다. 메시지 전송, 업무 변경, 일정 변경, 스킬 변경처럼 외부 상태가 바뀌어야 하는 작업은 fallback 문장으로 완료 처리하지 않는다.
 
-Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc에 의존하면 코딩 품질과 회복성이 떨어지므로 `file_read`, `file_write`, `file_edit`, `file.patch`는 kernel에 포함한다. Attachment/document entrypoint인 `file_preview`와 visual attachment entrypoint인 `image_read`도 kernel에 포함한다. 이 파일 도구들은 virtual workspace path와 requester permissions를 지켜야 하며, delivery는 `file_deliver`가 담당한다. Legacy delivery aliases are not model-facing kernel tools. Domain operations such as tasks, calendar, mail, browser, and website publish remain capability CLI operations.
+Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc에 의존하면 코딩 품질과 회복성이 떨어지므로 `read`, `write`, `edit`, `bash`를 kernel에 포함한다. Attachment/document entrypoint인 `file_preview`와 visual attachment entrypoint인 `image_read`도 제공한다. 이 파일 도구들은 virtual workspace path와 requester permissions를 지켜야 하며, delivery는 `file_deliver`가 담당한다. Legacy delivery aliases are not model-facing kernel tools. Domain operations such as tasks, calendar, mail, browser, and website publish remain capability CLI operations.
 
 ## Canonical 실행 경로
 
@@ -102,8 +102,8 @@ Coding-agent 작업은 지원 대상이다. Shell quoting이나 ad-hoc heredoc�
 
 - 간단한 Google Slides와 고급 HTML 슬라이드를 같은 deck pipeline으로 다루되, 기본 출력은 HTML/PPTX/PDF다.
 - `DESIGN.md`는 YAML token front matter와 Markdown rationale을 포함한다.
-- source files는 `file_write` 또는 bundled skill script로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
-- build는 `shell`으로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
+- source files는 `write` 또는 bundled skill script로 `tmp/<deck-slug>/DESIGN.md`와 `tmp/<deck-slug>/presentation.md`에 작성한다.
+- build는 `bash`로 `workingDirectoryPath=tmp/<deck-slug>`에서 `/workspace/skills/simple-slides/scripts/build.sh`를 실행한다.
 - output은 `tmp/<deck-slug>/build/` 아래에 만들고, 최종본만 `file_deliver`로 전달한다.
 - `simple-slides`는 runtime temp/cache/home을 task build tmp 아래에 둔다.
 - 폰트는 Korean-first로 고른다. 기본 조합은 Paperlogy display + Freesentation body이며, 기술/모빌리티 덱은 A2Z display + Freesentation body를 우선한다. 후보와 import/cache 경로는 `assets/blueclaw-workspace/fonts/korean-fonts.tsv`와 `simple-slides`의 `references/design-system.md`를 따른다.

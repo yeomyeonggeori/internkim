@@ -262,7 +262,7 @@ build_case_result() { # channel_id e2e_token task_run_id root_post_id root_post_
 		| length')"
 	op_ok="$expected_operation_succeeded"
 	public_url="$(extract_public_url "$bot_post" "$detail")"
-	shell_count="$(printf '%s' "$detail" | jq -r '[(.taskEvents // [])[]|select(.name == "tool.shell.requested")]|length')"
+	shell_count="$(printf '%s' "$detail" | jq -r '[(.taskEvents // [])[]|select(.name == "tool.bash.requested")]|length')"
 	jq -cn --arg id "$task_run_id" --arg status "$status" --arg reason "$reason" --arg expectedOp "$expected_op" --arg publicURL "$public_url" --arg botPostID "$bot_post_id" --arg botMessage "$bot_message" --argjson steps "${steps:-0}" --argjson opOk "${op_ok:-false}" --argjson expectedOpObserved "${expected_operation_observed:-false}" --argjson fileIDs "${file_ids:-[]}" --argjson downloadedFiles "${downloaded_files:-[]}" --argjson shellCount "${shell_count:-0}" --argjson recoveredErrorCount "${recovered_error_count:-0}" \
 		'{taskRunID:$id,status:$status,reason:$reason,steps:$steps,expectedOp:$expectedOp,expectedOpObserved:$expectedOpObserved,opOk:$opOk,publicURL:$publicURL,botPostID:$botPostID,botMessage:$botMessage,fileIDs:$fileIDs,downloadedFiles:$downloadedFiles,shellCount:$shellCount,recoveredErrorCount:$recoveredErrorCount}'
 }
