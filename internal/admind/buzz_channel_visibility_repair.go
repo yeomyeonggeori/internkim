@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 )
 
 type buzzChannelVisibilityCoverage struct {
@@ -33,11 +32,10 @@ func (service *Service) buzzChannelsOpenerThanTheRoomTheyMirror(ctx context.Cont
 	if errorValue != nil {
 		return buzzChannelVisibilityCoverage{}, errorValue
 	}
-	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzChannelVisibilityCoverage{}, errorValue
 	}
-	defer relay.Close()
 
 	coverage := buzzChannelVisibilityCoverage{Bridged: len(mappings), ClosingNames: []string{}}
 	for _, mapping := range mappings {

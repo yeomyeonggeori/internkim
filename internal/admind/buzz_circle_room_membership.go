@@ -50,7 +50,7 @@ func (service *Service) startCircleRoomMembershipSync(ctx context.Context) {
 		ticker := time.NewTicker(circleRoomSyncInterval)
 		defer ticker.Stop()
 		for {
-			service.keepCircleRoomsToTheirCircles(ctx)
+			service.withinASweepBudget(ctx, service.keepCircleRoomsToTheirCircles)
 			select {
 			case <-ctx.Done():
 				return
@@ -67,16 +67,11 @@ func (service *Service) startCircleRoomMembershipSync(ctx context.Context) {
 const joiningNoticesARoomKeeps = 10
 
 func (service *Service) keepJoiningNoticesFromEatingTheWindow(ctx context.Context) {
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if databaseURL == "" {
-		return
-	}
-	relay, errorValue := sql.Open("postgres", databaseURL)
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		log.Printf("joining notices could not be counted: %v", errorValue)
 		return
 	}
-	defer relay.Close()
 
 	result, errorValue := relay.ExecContext(ctx, `
 DELETE FROM events WHERE kind = 40099 AND id IN (
@@ -149,8 +144,7 @@ func declaredCirclesOfPolicy(policyDocument map[string]any) []declaredCircle {
 
 func (service *Service) reconcileCircleRoomMembership(ctx context.Context, shouldApply bool) (circleRoomReport, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
+	if seed == "" {
 		return circleRoomReport{}, errors.New("this device names no buzz key seed or database")
 	}
 	var policyDocument map[string]any
@@ -159,11 +153,10 @@ func (service *Service) reconcileCircleRoomMembership(ctx context.Context, shoul
 	}
 	circlesByEmail := blueclawCirclesByEmail(policyDocument)
 
-	relay, errorValue := sql.Open("postgres", databaseURL)
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return circleRoomReport{}, errorValue
 	}
-	defer relay.Close()
 
 	report := circleRoomReport{Applied: shouldApply, Rooms: []circleRoomOutcome{}}
 	for _, circle := range declaredCirclesOfPolicy(policyDocument) {

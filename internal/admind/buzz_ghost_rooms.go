@@ -66,20 +66,18 @@ func (service *Service) handleBuzzGhostRooms(responseWriter http.ResponseWriter,
 
 func (service *Service) retireGhostRooms(ctx context.Context, apply bool) (buzzGhostRoomsReport, error) {
 	seed := service.buzzKeySeed()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if seed == "" || databaseURL == "" {
-		return buzzGhostRoomsReport{}, errors.New("buzz key seed and database url must be configured")
+	if seed == "" {
+		return buzzGhostRoomsReport{}, errBuzzKeySeedMissing
 	}
 	keys, errorValue := buzzServiceKeys(ctx, service, seed)
 	if errorValue != nil {
 		return buzzGhostRoomsReport{}, errorValue
 	}
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzGhostRoomsReport{}, errorValue
 	}
-	defer database.Close()
 
 	rooms, errorValue := readDirectRooms(ctx, database)
 	if errorValue != nil {
@@ -316,15 +314,10 @@ func counterpartNoLongerExists(room buzzDirectRoom, keys buzzServiceKeySet) bool
 // carries it out, by the same writes a ghost room is retired with, and says
 // what each named room held when it went.
 func (service *Service) retireNamedRooms(ctx context.Context, channelIDs []string, apply bool) (buzzGhostRoomsReport, error) {
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if databaseURL == "" {
-		return buzzGhostRoomsReport{}, errors.New("buzz database url must be configured")
-	}
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return buzzGhostRoomsReport{}, errorValue
 	}
-	defer database.Close()
 
 	report := buzzGhostRoomsReport{Ghosts: []buzzGhostRoom{}, HeldBack: []buzzGhostRoom{}}
 	for _, named := range channelIDs {

@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"sort"
-	"strings"
 
 	"github.com/lib/pq"
 )
@@ -111,12 +110,11 @@ func (service *Service) handleBuzzSweepSeats(responseWriter http.ResponseWriter,
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	relay, errorValue := sql.Open("postgres", strings.TrimSpace(service.Configuration.BuzzDatabaseURL))
+	relay, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	defer relay.Close()
 	report, errorValue := service.sweepSeatsNobodyAccountsFor(
 		request.Context(), relay, channelIDs, service.buzzKeySeed(), request.URL.Query().Get("apply") == "true")
 	if errorValue != nil {

@@ -66,6 +66,7 @@ type Service struct {
 	policyRecordCache          []adminUserMutation
 	requestMetrics             *adminRequestMetrics
 	databaseSchemas            *adminDatabaseSchemas
+	buzzDatabaseOwner          buzzDatabaseHandle
 	legacyDatabaseMigration    sync.Once
 	mailNotifyMarkMutex        sync.Mutex
 	taskNotifyMarkMutex        sync.Mutex

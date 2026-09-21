@@ -2,7 +2,6 @@ package admind
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -99,9 +98,8 @@ func buzzKeyForVersion(seed string, email string, version int) string {
 
 func (service *Service) reattributeBuzzMessages(ctx context.Context, oldSecretHex string, newSecretHex string) (int, error) {
 	relayURL := service.buzzRelayEffectiveURL()
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
 	communityID := strings.TrimSpace(service.Configuration.BuzzCommunityID)
-	if relayURL == "" || databaseURL == "" || communityID == "" {
+	if relayURL == "" || communityID == "" {
 		return 0, errors.New("buzz relay URL, database URL, and community id must be configured")
 	}
 	oldPubkey, errorValue := nostr.GetPublicKey(oldSecretHex)
@@ -128,11 +126,10 @@ func (service *Service) reattributeBuzzMessages(ctx context.Context, oldSecretHe
 		return oldEvents[first].CreatedAt < oldEvents[second].CreatedAt
 	})
 
-	database, errorValue := sql.Open("postgres", databaseURL)
+	database, errorValue := service.buzzDatabase()
 	if errorValue != nil {
 		return 0, errorValue
 	}
-	defer database.Close()
 	injector := buzzimport.ChannelInjector{Database: database, CommunityID: communityID}
 
 	newEventIDByOld := map[string]string{}
