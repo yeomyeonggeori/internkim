@@ -43,6 +43,11 @@ export type KeptAttachment = {
 	contentType: string;
 };
 
+export type MessengerMentions = {
+	externalIDs: string[];
+	isEveryone: boolean;
+};
+
 export type MessengerPost = {
 	id: string;
 	channelID: string;
@@ -51,6 +56,7 @@ export type MessengerPost = {
 	body: string;
 	postedAt: string;
 	editedAt?: string;
+	mentions?: MessengerMentions;
 	reactions: MessengerReaction[];
 	attachments: MessengerAttachment[];
 };
@@ -93,6 +99,7 @@ type PersonalMessage = {
 	body: string;
 	postedAt: string;
 	editedAt?: string;
+	mentions?: MessengerMentions;
 	reactions: PersonalReaction[];
 	attachments: PersonalAttachment[];
 };
@@ -164,6 +171,7 @@ function asPost(message: PersonalMessage): MessengerPost {
 		body: message.body,
 		postedAt: message.postedAt,
 		editedAt: message.editedAt,
+		mentions: message.mentions,
 		reactions: message.reactions.map((reaction) => ({
 			emoji: reaction.emoji,
 			imageURL: reaction.imageURL,
@@ -293,13 +301,15 @@ export async function writePost(
 	channelID: string,
 	body: string,
 	parentID?: string,
-	attachments: OutgoingAttachment[] = []
+	attachments: OutgoingAttachment[] = [],
+	mentions?: MessengerMentions
 ): Promise<MessengerPost> {
 	const message = await ask<PersonalMessage>('person.message.send', {
 		conversationID: channelID,
 		body,
 		parentID,
-		attachments
+		attachments,
+		mentions
 	});
 	return asPost(message);
 }

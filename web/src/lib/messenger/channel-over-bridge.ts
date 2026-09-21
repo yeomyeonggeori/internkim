@@ -66,9 +66,11 @@ type Message = {
 	sender: Participant;
 	text: string;
 	sentAt: string;
+	mentions?: Mentions;
 	reactions?: Reaction[];
 	attachments?: Attachment[];
 };
+type Mentions = { externalIDs: string[]; isEveryone: boolean };
 type Conversation = {
 	conversationID: string;
 	currentUserID: string;
@@ -265,6 +267,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: View
 		sender: senderOf(post.author, people, viewer),
 		text: emojifyText(post.body),
 		sentAt: post.postedAt,
+		mentions: post.mentions,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
 			value: reaction.emoji,
@@ -290,10 +293,11 @@ export async function bridgeSendMessage(
 	text: string,
 	channelID?: string,
 	replyToRootID?: string,
-	attachments: OutgoingAttachment[] = []
+	attachments: OutgoingAttachment[] = [],
+	mentions?: Mentions
 ): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
-	await writePost(channelID, text, replyToRootID, attachments);
+	await writePost(channelID, text, replyToRootID, attachments, mentions);
 }
 
 export async function bridgeDeleteMessage(channelID: string | undefined, messageID: string): Promise<void> {

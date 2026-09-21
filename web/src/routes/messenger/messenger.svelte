@@ -18,6 +18,7 @@
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import { channelText } from '$lib/i18n/channel-text';
+	import { mentionPeopleOf } from '$lib/messenger/mention-candidates';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
 		ensureDirectMessage,
@@ -396,6 +397,8 @@
 				{#key activeID}
 					<Channel
 						channelId={activeID}
+						participants={mentionPeopleOf(activeConversation)}
+						isGroup={activeConversation?.kind === 'group'}
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 					/>
