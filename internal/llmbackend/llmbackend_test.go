@@ -803,7 +803,7 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name: "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
-			Name:        "file_write",
+			Name:        "write",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`),
 		}}),
 	})
@@ -813,7 +813,7 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
-	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "file_write")]
+	tool := toolSet.ToolByName[nativeActionFunctionName("continue", "write")]
 	var parameters map[string]any
 	if errorValue := json.Unmarshal(tool.Parameters, &parameters); errorValue != nil {
 		t.Fatalf("expected parameters json: %v", errorValue)
@@ -834,7 +834,7 @@ func TestNativeActionToolUsesPortableInputSchemaWithoutProjection(t *testing.T) 
 			t.Fatalf("expected portable optional flattened field %s to be removed from required, got %+v in %s", fieldName, required, tool.Parameters)
 		}
 	}
-	assertNativeSchemaIsProviderSafe(t, "file_write", tool.Parameters)
+	assertNativeSchemaIsProviderSafe(t, "write", tool.Parameters)
 }
 
 func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {

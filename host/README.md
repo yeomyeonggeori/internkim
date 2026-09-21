@@ -22,7 +22,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
 | **Moli** | the device browser, a headless engine agent-browser drives over the Chrome DevTools Protocol; without it the browser tools report unavailable and everything else answers |
-| **the POSIX helper** | `shell` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
+| **the POSIX helper** | `bash` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
 A virtual-machine guest, Mattermost and cloudflared are **not** needed.
 

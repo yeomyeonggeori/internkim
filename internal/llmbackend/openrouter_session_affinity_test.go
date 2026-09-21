@@ -25,7 +25,7 @@ func openRouterBackendCapturing(t *testing.T, capture *capturedOpenRouterCall) O
 			t.Errorf("the request body could not be read: %v", errorValue)
 		}
 		writer.Header().Set("Content-Type", "application/json")
-		writer.Write([]byte(`{"provider":"a-provider","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"{\"answer\":\"ok\"}","tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__file_write","arguments":"{\"path\":\"a.txt\",\"content\":\"hello\"}"}}]}}]}`))
+		writer.Write([]byte(`{"provider":"a-provider","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"{\"answer\":\"ok\"}","tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__write","arguments":"{\"path\":\"a.txt\",\"content\":\"hello\"}"}}]}}]}`))
 	}))
 	t.Cleanup(server.Close)
 	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
@@ -42,7 +42,7 @@ func everyOpenRouterTransport(t *testing.T, sessionID string) map[string]func(Op
 	actionSchema := StructuredOutputSchema{
 		Name: "bluecollar_agent_turn_action",
 		Document: testActionSchemaForDescriptors(t, []capabilities.Descriptor{{
-			Name:        "file_write",
+			Name:        "write",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`),
 		}}),
 	}

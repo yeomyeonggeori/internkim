@@ -88,7 +88,7 @@ sequenceDiagram
   participant Helper as blueclaw-posix-helper
   participant Linux as Linux POSIX
 
-  Model->>Service: file_write / shell / file_deliver
+  Model->>Service: write / bash / file_deliver
   Service->>Resolver: virtual path validation
   Resolver-->>Service: typed workspace path
   Service->>Actor: requester operation
@@ -122,15 +122,15 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  A["file_write tmp/<slug>/DESIGN.md"] --> B["file_write tmp/<slug>/presentation.md"]
-  B --> C["shell workingDirectoryPath=tmp/<slug>"]
+  A["write tmp/<slug>/DESIGN.md"] --> B["write tmp/<slug>/presentation.md"]
+  B --> C["bash workingDirectoryPath=tmp/<slug>"]
   C --> D["build output tmp/<slug>/build/*.pptx"]
   D --> E["file_deliver tmp/<slug>/build/*.pptx"]
 ```
 
 Required artifact task는 `file_deliver` completion evidence가 있어야 completed로 인정됩니다. `tmp/<slug>` 파일 생성, local path 문자열, markdown 링크, `/workspace/...` 경로 노출은 완료 증거가 아닙니다.
 
-`simple-slides`는 `file_write -> shell -> file_deliver` 흐름을 따릅니다. 실행 중 쓰기 경로는 `tmp/<slug>/build/.tmp` 아래로 고정합니다.
+`simple-slides`는 `write -> bash -> file_deliver` 흐름을 따릅니다. 실행 중 쓰기 경로는 `tmp/<slug>/build/.tmp` 아래로 고정합니다.
 
 ## 설정 생성
 

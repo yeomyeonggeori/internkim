@@ -610,7 +610,7 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	skillContent := string(skillDocument)
-	if !strings.Contains(skillContent, `kim.intern.tool-references: "shell"`) {
+	if !strings.Contains(skillContent, `kim.intern.tool-references: "bash"`) {
 		t.Fatal("calculator skill must declare the terminal it needs in the Agent Skills metadata map")
 	}
 	if !strings.Contains(skillContent, "<skill>/scripts/calc.py") {

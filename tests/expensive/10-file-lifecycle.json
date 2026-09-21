@@ -3,25 +3,25 @@
   "requiresModelProvenance": true,
   "expectedLLMProvider": "openrouter",
   "allowedTools": [
-    "file_write",
+    "write",
     "file_read",
-    "file_edit",
+    "edit",
     "file_deliver",
     "file_delete"
   ],
   "initialToolNames": [
-    "file_write",
+    "write",
     "file_deliver"
   ],
   "steps": [
     {
       "prompt": "고객지원팀 주간 운영 점검에 쓸 작은 JSON 파일을 만들어서 보내줘. 파일 이름은 customer-support-weekly-check.json으로 하고, 보고서 이름은 '고객지원 주간 운영 점검', 상태는 '검토 중', 담당은 '운영팀'으로 넣어줘.",
       "expectedToolCalls": [
-        "file_write",
+        "write",
         "file_deliver"
       ],
       "expectedExactToolCallCounts": {
-        "file_write": 1,
+        "write": 1,
         "file_deliver": 1
       },
       "expectedAttachments": [
@@ -34,7 +34,7 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.file_write.result",
+          "name": "tool.write.result",
           "bodyFragment": "\"effect\":\"created\"",
           "count": 1,
           "exact": true,
@@ -95,11 +95,11 @@
     {
       "prompt": "그 JSON 파일의 상태를 '검토 완료'로 바꾸고 담당을 '고객경험팀'으로 수정한 뒤 같은 파일로 다시 보내줘.",
       "expectedToolCalls": [
-        "file_edit",
+        "edit",
         "file_deliver"
       ],
       "expectedExactToolCallCounts": {
-        "file_edit": 1,
+        "edit": 1,
         "file_deliver": 1
       },
       "expectedAttachments": [
@@ -112,7 +112,7 @@
       ],
       "expectedEventCounts": [
         {
-          "name": "tool.file_edit.result",
+          "name": "tool.edit.result",
           "bodyFragment": "\"effect\":\"updated\"",
           "count": 1,
           "exact": true,

@@ -23,12 +23,12 @@ Three layers compose what a model actually sees.
 
 **Bluecollar's kernel tools**, fixed by the harness itself and independent of
 InternKim (`.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`,
-`KernelToolNames()`): `shell`, `read`, `file_read`, `file_write`, `file_edit`,
+`KernelToolNames()`): `bash`, `read`, `file_read`, `write`, `edit`,
 `file_delete`, `file_preview`, `file_deliver`, `skill_search`, `image_read`,
-`conversation_history`, `plan`, `find_tools`: 13 names. Six of them reach the
+`conversation_history`, `plan`, `equip`: 13 names. Six of them reach the
 model as a callable action. The descriptor specs in
 `.dependency/blueclaw/internal/agentruntime/kernel_tool_provider.go` mark
-`shell`, `read`, `file_write`, `file_edit`, `plan` and `find_tools`
+`bash`, `read`, `write`, `edit`, `plan` and `equip`
 `ToolVisibilityModel`, and `file_read`, `file_preview`, `file_delete`,
 `file_deliver`, `skill_search` and `conversation_history`
 `ToolVisibilityInternal`; `image_read` is not a kernel descriptor but a
@@ -37,7 +37,7 @@ capability tool whose generated entry carries `modelVisibility: "hidden"`
 one the model is never offered: `toolcontract.ToolSet.IsAllowed` applies the
 visibility check to the described tool list and to the action schema the loop
 builds each turn (`.dependency/bluecollar/loop/action_schema.go`), and
-`CanExpose` applies it again when `find_tools` names one
+`CanExpose` applies it again when `equip` names one
 (`.dependency/bluecollar/loop/tool_selection.go`), so a hidden tool cannot be
 found back into reach either.
 
@@ -56,7 +56,7 @@ Bluecollar also names `ask_confirm` and `ask_choice`. `ask_confirm` is the
 interaction kind the approval gate stamps on a pause
 (`.dependency/blueclaw/internal/approvalgate/gate.go`), and `ask_choice` is
 folded into a reply's `choices`. So the model-facing native set is 6:
-`shell`, `read`, `file_write`, `file_edit`, `plan`, `find_tools`.
+`bash`, `read`, `write`, `edit`, `plan`, `equip`.
 
 **Blueclaw's default allowlist**
 (`.dependency/blueclaw/internal/agentruntime/tool_catalog.go:277`,
@@ -74,15 +74,15 @@ re-selects a shortlist capped at
 `toolcontract.ToolNamesOnePlanStepIsExpectedToNeed` (5), and every iteration
 inside one step sends a byte-identical system instruction and tool catalog
 (`.dependency/blueclaw/.dependency/bluecollar/loop/step_tool_selection_test.go`).
-`find_tools` is how the model reaches past that shortlist: it answers a
+`equip` is how the model reaches past that shortlist: it answers a
 described need through `agentcontract.ToolSelector` as implemented by
 `intake.DecisionPlanner`, and the tools it names are pinned for the next turn.
 
 **The harness-owned tool audience filter**
 (`.dependency/blueclaw/internal/mcpserver/published_tools.go`) lists nine
 names to drop from the MCP tool catalog for a self-equipped harness, one that
-brings its own shell and file tools: `shell`, `file_read`, `file_write`,
-`file_edit`, `file_preview`, `image_read`, `plan`, `find_tools`,
+brings its own shell and file tools: `bash`, `file_read`, `write`,
+`edit`, `file_preview`, `image_read`, `plan`, `equip`,
 `skill_search`. Three of them (`file_read`, `file_preview`, `image_read`) are
 already hidden by descriptor visibility, so the list the filter runs over
 (`.dependency/blueclaw/internal/mcpserver/tool_catalog_server.go`,
@@ -146,12 +146,12 @@ because nothing in the plugin's skills names it.
 
 | Feature | Tools / skills | Answered by | Permission and approval | Regression scenario |
 |---|---|---|---|---|
-| File discovery | `shell` (e.g. `rg`, `find`) | harness-native | `workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/shell_tools_test.go` |
+| File discovery | `bash` (e.g. `rg`, `find`) | harness-native | `workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/shell_tools_test.go` |
 | File reading | `read` (model-facing); `file_read` and `image_read` internal | harness-native | `read`, no approval | `.dependency/blueclaw/internal/agentruntime/kernel_tool_provider_test.go` (`TestKernelToolProviderUsesCanonicalDescriptors`) |
-| File writing / editing / deleting | `file_write`, `file_edit` (model-facing); `file_delete` and `file_deliver` internal, deletion otherwise through `shell` | harness-native | `workspace_write`/`external_write`, no approval | `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestFileWriteAcceptance`, `TestFileWriteAcceptanceRejectsWrongPersistedContent`) |
-| Terminal execution | `shell` | harness-native | `workspace_write`, runs as the requester's POSIX identity, no approval | `.dependency/blueclaw/internal/agentruntime/shell_tools_test.go` (`TestTerminalRun*`), `.dependency/blueclaw/internal/security/posix_identity.go` |
-| Long-running sessions | none; `shell` is one stateless command per call (`TimeoutSecond` field only) | harness-native | same as terminal execution | none found |
-| Dependency installation | none; runs through `shell` like any other command | harness-native | same as terminal execution | none found |
+| File writing / editing / deleting | `write`, `edit` (model-facing); `file_delete` and `file_deliver` internal, deletion otherwise through `bash` | harness-native | `workspace_write`/`external_write`, no approval | `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestFileWriteAcceptance`, `TestFileWriteAcceptanceRejectsWrongPersistedContent`) |
+| Terminal execution | `bash` | harness-native | `workspace_write`, runs as the requester's POSIX identity, no approval | `.dependency/blueclaw/internal/agentruntime/shell_tools_test.go` (`TestTerminalRun*`), `.dependency/blueclaw/internal/security/posix_identity.go` |
+| Long-running sessions | none; `bash` is one stateless command per call (`TimeoutSecond` field only) | harness-native | same as terminal execution | none found |
+| Dependency installation | none; runs through `bash` like any other command | harness-native | same as terminal execution | none found |
 | Web search | `web_search` | company | `read`, no approval | `internkim-plugin` skill `web-search`; no dedicated scenario found |
 | Web page reading | `web_fetch` | company | `read`, no approval | `internkim-plugin` skill `web-search`; no dedicated scenario found |
 | Browser manipulation | `browser_open`, `browser_click`, `browser_fill`, `browser_press`, `browser_select`, `browser_wait` | local | `connect`/`external_write`, `requiresUserPresence: true`, `approvalScope: browser` | `internkim-plugin` skill `website`; no dedicated scenario found |
@@ -173,7 +173,7 @@ because nothing in the plugin's skills names it.
 | Presentations (slides/.pptx) | local skill scripts; attach as a reply attachment | harness-native | `external_write`, no approval | `internkim-plugin` skill `presentation`; `tests/expensive/03-presentation-lifecycle.json` (retained spec, not run); `.dependency/blueclaw/internal/e2e/presentation_assets_test.go` |
 | Images | `image_generate` (creation), `image_read` (hidden, attachment ingestion) | company / harness-native | `external_write` for `image_generate`, no approval | no plugin skill references `image_generate`; no scenario found |
 | Sites (websites/prototypes) | `site_list`, `site_serve`, `site_unserve`, `artifact_review` | company | `read`/`write`/`delete`; `site_unserve` requires approval | `internkim-plugin` skill `website`; `tests/expensive/04-website-lifecycle.json` (retained spec, not run); `.dependency/blueclaw/internal/e2e/virtual_session_test.go` (`TestVirtualSiteServeRequiresValidSourceBundle`, `TestVirtualSiteToolsUseCanonicalThreeToolContracts`) |
-| Skill discovery | `skill_add`, `skill_remove`, `find_tools` (model-facing); `skill_search` internal, run by the runtime before the turn | harness-native | `read`/`workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/skill_search_tool_test.go`, `skill_management_test.go`; `web/tests/plane/the-agent-can-see-its-skills.test.ts`, `the-agent-can-see-the-tools-it-was-given.test.ts` |
+| Skill discovery | `skill_add`, `skill_remove`, `equip` (model-facing); `skill_search` internal, run by the runtime before the turn | harness-native | `read`/`workspace_write`, no approval | `.dependency/blueclaw/internal/agentruntime/skill_search_tool_test.go`, `skill_management_test.go`; `web/tests/plane/the-agent-can-see-its-skills.test.ts`, `the-agent-can-see-the-tools-it-was-given.test.ts` |
 | Memory | `memory_remember`, `memory_search`, `memory_forget` | harness-native | `workspace_write`/`read`, no approval; conditional on a configured memory store | harness-native only, no InternKim plugin path exists for memory; `.dependency/blueclaw/internal/agentruntime/memory_store_tools_test.go`; localfleet scenario `memory-store`, `lab/scripts/scenario-memory-store.py` |
 | Conversation history | `conversation_history` | harness-native | `read`, no approval; conditional on a configured history provider | harness-native only; none found |
 | Scheduled execution (the schedule firing itself, as distinct from the CRUD tools above) | host cron/poller, no model-facing tool | n/a | n/a | localfleet scenario `firing-schedules-nothing`, `lab/scripts/scenario-firing-schedules-nothing.py` |
@@ -200,9 +200,9 @@ because nothing in the plugin's skills names it.
 - Mail has a plugin skill but no integration or scenario-level regression
   test, only unit tests under `web/tests/unit/mail/`.
 - Long-running terminal sessions and dependency installation have no
-  dedicated mechanism or test: `shell` is one stateless command per call
+  dedicated mechanism or test: `bash` is one stateless command per call
   (`.dependency/blueclaw/internal/agentruntime/shell_tools.go`), so a
-  background process or a package install is only as reliable as one `shell`
+  background process or a package install is only as reliable as one `bash`
   call's timeout.
 - `tests/expensive/*.json` (task, calendar, presentation, website, message,
   addressing, two person-capture, document, and file lifecycle) are retained
