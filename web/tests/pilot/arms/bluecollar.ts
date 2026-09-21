@@ -69,6 +69,11 @@ function unstartedOutcome(status: HarnessStatus, reply: string): HarnessOutcome 
 	return { status, reachedTheLoop: false, turns: 0, toolCalls: [], reply, deliveredFiles: [], calls: [] };
 }
 
+export function replyFromGuestResult(guest: Pick<GuestResult, 'status' | 'result' | 'failureReason'>): string {
+	if (guest.status === 'completed' || guest.status === 'waiting_user_input') return guest.result;
+	return guest.failureReason;
+}
+
 export async function runBluecollar(context: ArmRunContext): Promise<HarnessOutcome> {
 	const instructionBase64 = Buffer.from(context.instruction, 'utf8').toString('base64');
 	const run = Bun.spawnSync(
@@ -96,7 +101,7 @@ export async function runBluecollar(context: ArmRunContext): Promise<HarnessOutc
 		reachedTheLoop: guest.turns > 0,
 		turns: guest.turns,
 		toolCalls: guest.requestedTools,
-		reply: guest.status === 'completed' ? guest.result : guest.failureReason,
+		reply: replyFromGuestResult(guest),
 		deliveredFiles: (guest.deliveredFiles ?? []).map(deliveredFileOf),
 		calls: guest.llmCalls.map(modelCallOf),
 	};
