@@ -88,6 +88,17 @@ async function commandOutput(command: string[], cwd = repositoryRoot): Promise<s
 	return output.trim();
 }
 
+async function localPlaneSigningKey(jwtSecret: string): Promise<string> {
+	return commandOutput([
+		'sh',
+		'-c',
+		'. "$1" && signing_key_of_secret "$2"',
+		'sh',
+		join(repositoryRoot, 'web/scripts/local-plane-signing-key.sh'),
+		jwtSecret
+	]);
+}
+
 async function waitForHTTP(url: string, expectedStatus?: number, timeoutMilliseconds = 30_000): Promise<void> {
 	const deadline = Date.now() + timeoutMilliseconds;
 	while (Date.now() < deadline) {
@@ -155,6 +166,10 @@ async function main(): Promise<number> {
 		{ mode: 0o600 }
 	);
 	const supabaseEnvironment = environmentFrom(await commandOutput(['supabase', 'status', '-o', 'env']));
+	const planeSecretKey = supabaseEnvironment.SECRET_KEY;
+	const planeJWTSecret = supabaseEnvironment.JWT_SECRET;
+	if (!planeSecretKey || !planeJWTSecret) throw new Error('the local plane named no SECRET_KEY or JWT_SECRET, so the company app cannot reach it');
+	const planeSigningKey = await localPlaneSigningKey(planeJWTSecret);
 
 	start(
 		'the connection gateway',
@@ -217,7 +232,8 @@ async function main(): Promise<number> {
 		{
 			SUPABASE_URL: centralPlane.CENTRAL_PLANE_PROJECT_URL,
 			SUPABASE_PUBLISHABLE_KEY: centralPlane.CENTRAL_PLANE_PUBLISHABLE_KEY,
-			SUPABASE_SECRET_KEY: supabaseEnvironment.SECRET_KEY ?? '',
+			SUPABASE_SECRET_KEY: planeSecretKey,
+			SUPABASE_JWT_SIGNING_KEY: planeSigningKey,
 			VITE_ADMIND_TARGET: `http://127.0.0.1:${adminPort}`,
 			GATEWAY_URL: gatewayURL,
 			GATEWAY_ADMIN_TOKEN: gatewayAdminToken
