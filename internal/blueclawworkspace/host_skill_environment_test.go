@@ -99,10 +99,13 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 		}
 		declared := map[string]bool{}
 		for _, fontPath := range systemFontPathPattern.FindAllString(scripts, -1) {
+			if _, carriesNoHangul := fontPathsThatCarryNoHangul[fontPath]; carriesNoHangul {
+				continue
+			}
 			declared[fontPath] = true
 		}
 		if len(declared) == 0 {
-			t.Fatalf("%s embeds a font into a PDF but names no system font path", skillDirectory.Name)
+			t.Fatalf("%s embeds a font into a PDF but names no system font path that carries Hangul", skillDirectory.Name)
 		}
 		embeddingSkillCount++
 		if embeddingSkillCount == 1 {
@@ -128,7 +131,7 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 		t.Fatal("host entrypoint must name the Korean-capable font path it checks for")
 	}
 	if !sharedFontPaths[checkedFontPath] {
-		t.Fatalf("host entrypoint checks %s, which is not among the paths every font-embedding skill looks for (%s)", checkedFontPath, strings.Join(sortedKeys(sharedFontPaths), ", "))
+		t.Fatalf("host entrypoint checks %s, which is not among the Hangul-carrying paths every font-embedding skill looks for (%s)", checkedFontPath, strings.Join(sortedKeys(sharedFontPaths), ", "))
 	}
 	if !strings.Contains(hostDockerfile(t, repositoryRootPath), "fonts-nanum") {
 		t.Fatalf("host Dockerfile must install the package that provides %s", checkedFontPath)
