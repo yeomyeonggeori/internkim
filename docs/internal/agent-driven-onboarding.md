@@ -125,8 +125,8 @@ takes the second branch (`member-request.ts:41-42`), arriving with
 | Found a company | not found | `POST /api/company` (`web/src/routes/api/company/+server.ts:24-75`) | not found | `/start` |
 | Invite a person | `person_invite` (`catalog/people.ts:198`) | `POST /api/member/invite` | not found | `/organization` invite dialog |
 | Issue a token | not found | `POST /v1/token` (`web/src/routes/api/v1/token/+server.ts:15-37`) | not found | `/settings` |
-| Install / connect the host | not found | `POST /api/company/host-setup` issues the connection file (`web/src/routes/api/company/host-setup/+server.ts:14-23`); the install itself has no route | `tools/install-company-host` | `/settings/setup` |
-| Connect a messenger | not found | not found | part of `tools/install-company-host` (Buzz images, relay key, `chatd` identity: lines 116-157) | not found |
+| Install / connect the host | not found | `POST /api/company/host-setup` issues the connection file (`web/src/routes/api/company/host-setup/+server.ts:14-23`); the install itself has no route | `internkim-host install` (`cmd/internkim-host`) | `/settings/setup` |
+| Connect a messenger | not found | not found | part of `internkim-host install` (the pushed Buzz and agent images, relay key, `chatd` identity: `internal/companyhost/install.go`) | not found |
 
 A sweep of `web/src/lib/server/public-api/catalog/` for *host*, *device*,
 *install*, *setup*, *provision*, *onboard*, *signup*, *company creation*,
@@ -167,17 +167,19 @@ From nothing to a running host (`docs/quickstart.mdx:31-80`):
 3. On the company computer:
 
 ```bash
-git clone --recurse-submodules https://github.com/yeomyeonggeori/internkim.git
-cd internkim
-python3 tools/install-company-host ~/Downloads/internkim-host.json
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+internkim-host install ~/Downloads/internkim-host.json
 ```
 
-The installer checks for Docker with Linux containers
-(`tools/install-company-host:60-66`), prompts for an OpenRouter key through
-`getpass` (lines 103-113), writes the agent key `0600` (line 99), builds two
-images from the clone (lines 116-125), derives Buzz identity keys inside the
-built image (lines 128-136), and runs `docker compose up --detach --wait`
-(line 206). State lands in `~/.internkim/companies/<company-id>`.
+`web/static/install.sh` picks the build for the machine, refuses one whose
+sha256 is not the published one, and installs `internkim-host` into
+`~/.local/bin`. The binary checks for Docker with Linux containers
+(`internal/companyhost/install.go`), prompts for an OpenRouter key through
+`term.ReadPassword`, writes the agent key `0600`, derives the Buzz identity
+inline from the kept seed (`internal/companyhost/identity.go`), and runs
+`docker compose up --detach --wait` against the stack it carries
+(`host/quickstart/stack.go`). State lands in
+`~/.internkim/companies/<company-id>`.
 
 `INTERNKIM_REGISTER_SECRET` and `POST /api/register` belong to the frozen device
 path, which `docs/device.mdx:9-12` says nothing new is designed against. A

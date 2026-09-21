@@ -1,6 +1,6 @@
 # The company agent as one image: the binaries entrypoint.sh starts, and nothing
-# else. Building here rather than shipping a tarball means a clone of this
-# repository is enough to run the thing it describes.
+# else. `internkim release host` pushes it; the host installer pulls the tag it
+# was stamped with.
 FROM golang:1.26-bookworm AS go-build
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -9,8 +9,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/internkim-capabilityd ./cmd/internkim-capabilityd \
 	&& CGO_ENABLED=0 go build -o /out/internkim-admind ./cmd/internkim-admind \
-	&& CGO_ENABLED=0 go build -o /out/internkim-maild ./cmd/internkim-maild \
-	&& CGO_ENABLED=0 go build -o /out/internkim-host-identity ./cmd/internkim-host-identity
+	&& CGO_ENABLED=0 go build -o /out/internkim-maild ./cmd/internkim-maild
 WORKDIR /src/.dependency/blueclaw
 RUN CGO_ENABLED=0 go build -o /out/blueclaw ./cmd/blueclaw \
 	&& CGO_ENABLED=0 go build -o /out/blueclaw-posix-helper ./cmd/blueclaw-posix-helper
@@ -54,7 +53,6 @@ COPY --from=go-build /out/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-he
 COPY --from=go-build /out/internkim-capabilityd /usr/local/bin/internkim-capabilityd
 COPY --from=go-build /out/internkim-admind /usr/local/bin/internkim-admind
 COPY --from=go-build /out/internkim-maild /usr/local/bin/internkim-maild
-COPY --from=go-build /out/internkim-host-identity /usr/local/bin/internkim-host-identity
 COPY --from=bun-build /src/blueclaw /opt/blueclaw-workspace
 COPY --from=bun-build /src/relay /opt/internkim/host/relay
 COPY web/src/lib/person-name.ts /opt/internkim/web/src/lib/person-name.ts

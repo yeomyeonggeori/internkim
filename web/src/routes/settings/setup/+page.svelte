@@ -15,7 +15,7 @@
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
-	const installCommand = 'git clone --recurse-submodules https://github.com/yeomyeonggeori/internkim.git\ncd internkim\npython3 tools/install-company-host ~/Downloads/internkim-host.json';
+	const installCommand = 'curl -fsSL https://intern.kim/install.sh | sh -s -- host\ninternkim-host install ~/Downloads/internkim-host.json';
 	let status = $state<HostSetupStatus | null>(null);
 	let configuration = $state<HostConfiguration | null>(null);
 	let isLoading = $state(true);

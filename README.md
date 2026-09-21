@@ -406,6 +406,7 @@ cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
 ./internkim release publish
 ./internkim release companion
+./internkim release host --image <company server image>
 
 ./internkim update check --profile dawn --node 1
 ./internkim update apply --profile dawn --node 1
@@ -508,17 +509,50 @@ app around it; an agent can install it on a person's computer without anyone
 clicking through a wizard, and a desktop wrapper can come later.
 
 ```bash
-curl -fsSL https://intern.kim/companion/install.sh | sh
+curl -fsSL https://intern.kim/install.sh | sh -s -- companion
 internkim-companion pair --device-url https://<deviceID>.<zone> --code ABCD-1234
 internkim-companion service install
 internkim-companion status
 ```
 
-The installer downloads the macOS or Linux build from
-`updates.<zone>/companion/latest/`, the one public prefix of the release
-registry, and verifies it against the published `SHA256SUMS`.
+`web/static/install.sh` downloads the macOS or Linux build from
+`updates.<zone>/companion/latest/` and verifies it against the published
+`SHA256SUMS`. `companion/` and `host/` are the public prefixes of the release
+registry; everything else there needs the download token.
 `./internkim release companion` cross-compiles the four builds and publishes
-them there; `make build-companion` builds the host's own.
+them; `make build-companion` builds the host's own.
+
+The same script installs the company host, which arrives the same way:
+
+```bash
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+internkim-host install ~/Downloads/internkim-host.json
+```
+
+Self-hosting builds both halves here and pulls nothing from a registry of ours.
+`make build-company-host-image` builds the company server image on this machine
+and `make build-company-host` stamps a binary with it; both take
+`COMPANY_HOST_IMAGE`, which defaults to `internkim-company-host:local`.
+
+```bash
+make build-company-host-image build-company-host
+./internkim-host install ~/Downloads/internkim-host.json
+```
+
+Every host binary runs exactly the company server image it was stamped with,
+and refuses to install carrying none. `./internkim release host --image <ref>`
+stamps the four builds with an image already published and puts them under
+`host/latest`; building and pushing that image is a separate change.
+
+`https://intern.kim/companion/install.sh` still answers: admind on a device that
+has not been redeployed prints that address, and the file there forwards to
+`install.sh` with `companion`. The web app must therefore be deployed before the
+release that changes what admind prints, never after.
+`./internkim verify install-addresses` checks that every address
+`internal/capabilities` names answers 200, and `tools/deploy-main` refuses the
+release when one does not. It separates an address the web app does not serve
+from one nothing could reach after three tries, and says which it found, because
+a stalled read is not evidence that a deploy is out of order.
 
 Pairing starts in Settings → My computer of the web app: admind issues a
 ten-minute one-time code bound to the signed-in member (`/companion/api` in
