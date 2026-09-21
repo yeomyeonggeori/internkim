@@ -70,7 +70,8 @@ function unstartedOutcome(status: HarnessStatus, reply: string): HarnessOutcome 
 }
 
 export function replyFromGuestResult(guest: Pick<GuestResult, 'status' | 'result' | 'failureReason'>): string {
-	if (guest.status === 'completed' || guest.status === 'waiting_user_input') return guest.result;
+	if (guest.status === 'completed') return guest.result;
+	if (guest.status === 'waiting_user_input') return guest.result || guest.failureReason;
 	return guest.failureReason;
 }
 
