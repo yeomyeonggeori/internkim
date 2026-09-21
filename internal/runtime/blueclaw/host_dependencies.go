@@ -167,6 +167,11 @@ var hostDependencies = []HostDependency{
 		ProgramsTheHostRuns: []string{"agent-browser"},
 		NeededBy:            []HostPart{HostPartEntrypoint},
 	},
+	{
+		ArrivesAsPayload:    true,
+		ProgramsTheHostRuns: []string{"versitygw"},
+		NeededBy:            []HostPart{HostPartMessenger},
+	},
 }
 
 // HostDependencies is the company host's dependency list, and the only one.

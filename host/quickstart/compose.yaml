@@ -33,37 +33,30 @@ services:
       timeout: 5s
       retries: 40
 
+  # versitygw serves the bucket directory as-is, so the bucket is `install -d`
+  # and no client creates it. --versioning-dir is deliberately absent; see
+  # TestBuzzMediaUnitDoesNotEnableVersioning.
   media:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    image: ${HOST_IMAGE}
     restart: unless-stopped
     network_mode: service:postgres
-    command: ["server", "/data", "--address", "127.0.0.1:9000", "--console-address", "127.0.0.1:9001"]
+    command:
+      - /bin/sh
+      - -c
+      - 'install -d -m 0750 /data/buzz-media && exec versitygw --port 127.0.0.1:9000 --health /_health posix /data'
     environment:
-      MINIO_ROOT_USER: ${MEDIA_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MEDIA_SECRET_KEY}
+      ROOT_ACCESS_KEY_ID: ${MEDIA_ACCESS_KEY}
+      ROOT_SECRET_ACCESS_KEY: ${MEDIA_SECRET_KEY}
     volumes:
       - media-data:/data
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/_health"]
       interval: 3s
       timeout: 5s
       retries: 40
-
-  prepare-media:
-    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
-    network_mode: service:postgres
-    environment:
-      MEDIA_ACCESS_KEY: ${MEDIA_ACCESS_KEY}
-      MEDIA_SECRET_KEY: ${MEDIA_SECRET_KEY}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - 'mc alias set company http://127.0.0.1:9000 "$$MEDIA_ACCESS_KEY" "$$MEDIA_SECRET_KEY" && mc mb --ignore-existing company/buzz-media'
-    depends_on:
-      media:
-        condition: service_healthy
 
   messenger:
     image: ${BUZZ_IMAGE}
@@ -89,8 +82,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      prepare-media:
-        condition: service_completed_successfully
+      media:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/_readiness"]
       interval: 5s

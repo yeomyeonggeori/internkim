@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+"""Ask every URL the host and the device fetch whether it still exists.
+
+MinIO's archival took `dl.min.io/server/minio/release/linux-arm64/minio` with
+it. The URL answered 410 Gone for months while `step_buzz_media.go` kept
+curling it, and a device provisioned in that window came up with no object
+store and reported nothing.
+
+This is deliberately not a `go test`. Detecting that an upstream file is gone
+means asking upstream, and a test that reaches the network turns somebody
+else's outage into our red build. So the distinction this tool draws is the
+whole point:
+
+  - 404/410/403 and the rest of 4xx means upstream removed or moved the file.
+    That is our problem and it exits non-zero.
+  - A timeout, a DNS failure or a 5xx means the network or their server is
+    having a moment. That is reported and does not fail.
+
+Run it before cutting a release, and on a schedule once this repository has a
+CI that can hold one. Nothing in `make check` calls it.
+
+Every URL is derived from the sources that fetch it, so there is no inventory
+to keep in step. Anything carrying a variable this cannot resolve is printed as
+skipped rather than passed over in silence, because a URL nobody probes is
+exactly the one that died.
+"""
+
+import itertools
+import pathlib
+import re
+import sys
+import urllib.error
+import urllib.request
+
+REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
+DOCKERFILE_PATH = REPOSITORY_ROOT / "host" / "Dockerfile"
+SOURCE_DIRECTORIES = ("internal/provisioning/steps", "internal/runtime/blueclaw")
+URL_PATTERN = re.compile(r'https://[A-Za-z0-9._~:/?#@!$&*+,;=%${}-]+')
+VARIABLE_PATTERN = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}')
+REQUEST_TIMEOUT_SECONDS = 20
+
+
+def logical_lines(document):
+    joined = []
+    pending = ""
+    for line in document.split("\n"):
+        continues = line.rstrip().endswith("\\")
+        if continues:
+            line = line.rstrip()[:-1]
+        pending = line if not pending else pending + " " + line.strip()
+        if continues:
+            continue
+        if pending.strip():
+            joined.append(pending.strip())
+        pending = ""
+    return joined
+
+
+def dockerfile_variable_values(lines):
+    """ARG defaults are one value; the per-architecture case arms are several."""
+    values = {}
+    for line in lines:
+        for name, value in re.findall(r'^ARG\s+([A-Za-z_][A-Za-z0-9_]*)=(\S+)', line):
+            values.setdefault(name, []).append(value)
+        for name, value in re.findall(r'(?:^|[\s;(])([A-Za-z_][A-Za-z0-9_]*)=([A-Za-z0-9._-]+)', line):
+            if name.isupper():
+                continue
+            existing = values.setdefault(name, [])
+            if value not in existing:
+                existing.append(value)
+    return values
+
+
+def expand(url, values):
+    names = sorted(set(VARIABLE_PATTERN.findall(url)))
+    unresolved = [name for name in names if name not in values]
+    if unresolved:
+        return [], unresolved
+    if not names:
+        return [url], []
+    expanded = []
+    for combination in itertools.product(*(values[name] for name in names)):
+        candidate = url
+        for name, value in zip(names, combination):
+            candidate = candidate.replace("${" + name + "}", value)
+        if candidate not in expanded:
+            expanded.append(candidate)
+    return expanded, []
+
+
+def urls_the_host_image_fetches():
+    lines = logical_lines(DOCKERFILE_PATH.read_text(encoding="utf-8"))
+    values = dockerfile_variable_values(lines)
+    resolved, skipped = [], []
+    for line in lines:
+        if not line.startswith("RUN "):
+            continue
+        for raw in URL_PATTERN.findall(line):
+            url = raw.strip('"\'')
+            expansions, unresolved = expand(url, values)
+            if unresolved:
+                skipped.append((url, "host/Dockerfile", unresolved))
+                continue
+            for expansion in expansions:
+                resolved.append((expansion, "host/Dockerfile"))
+    return resolved, skipped
+
+
+def is_a_web_page(url):
+    """A GitHub blob or tree path is something a person opens.
+
+    `relay_service.go` puts one in a unit's Documentation= field. Nothing
+    fetches it, and an anonymous HEAD against a private repository answers 404
+    whether the page exists or not, so probing it proves nothing either way.
+    """
+    return "/blob/" in url or "/tree/" in url
+
+
+def urls_provisioning_fetches():
+    resolved, skipped = [], []
+    for directory in SOURCE_DIRECTORIES:
+        for source_path in sorted((REPOSITORY_ROOT / directory).glob("*.go")):
+            if source_path.name.endswith("_test.go"):
+                continue
+            origin = str(source_path.relative_to(REPOSITORY_ROOT))
+            for raw in URL_PATTERN.findall(source_path.read_text(encoding="utf-8")):
+                url = raw.rstrip('",;)')
+                if is_a_web_page(url):
+                    continue
+                if "$" in url or "%s" in url:
+                    skipped.append((url, origin, ["a value assembled at run time"]))
+                    continue
+                resolved.append((url, origin))
+    return resolved, skipped
+
+
+def without_prefixes_of_other_urls(resolved):
+    """Drop a literal that another resolved URL is built on top of.
+
+    `buzzMediaReleaseBaseURL` is the first half of the release URL, never
+    fetched on its own, and GitHub answers 404 for it.
+    """
+    urls = [url for url, _ in resolved]
+    return [
+        (url, origin)
+        for url, origin in resolved
+        if not any(other != url and other.startswith(url) for other in urls)
+    ]
+
+
+def ask(url):
+    request = urllib.request.Request(url, method="HEAD")
+    request.add_header("User-Agent", "internkim-verify-vendored-downloads")
+    try:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            return response.status, None
+    except urllib.error.HTTPError as error:
+        return error.code, None
+    except Exception as error:  # noqa: BLE001 - every transport failure reads the same here
+        return None, str(error)
+
+
+def main():
+    resolved, skipped = urls_the_host_image_fetches()
+    more_resolved, more_skipped = urls_provisioning_fetches()
+    resolved = without_prefixes_of_other_urls(resolved + more_resolved)
+    skipped += more_skipped
+
+    seen = set()
+    gone, unreachable = [], []
+    for url, origin in resolved:
+        if url in seen:
+            continue
+        seen.add(url)
+        status, transport_error = ask(url)
+        if transport_error is not None:
+            print(f"?    {url}\n       {origin}: {transport_error}")
+            unreachable.append(url)
+            continue
+        if 400 <= status < 500:
+            print(f"GONE {url}\n       {origin}: upstream answers {status}")
+            gone.append((url, origin, status))
+            continue
+        print(f"ok   {status} {url}")
+
+    for url, origin, unresolved in skipped:
+        print(f"skip {url}\n       {origin}: cannot resolve {', '.join(unresolved)}")
+
+    if not seen:
+        print("\nNo URL was probed, so this tool read the wrong place.", file=sys.stderr)
+        return 1
+    if unreachable:
+        print(f"\n{len(unreachable)} URL(s) could not be reached. That is the network, not upstream; "
+              f"nothing failed on account of it.")
+    if gone:
+        print(f"\n{len(gone)} URL(s) upstream has removed:", file=sys.stderr)
+        for url, origin, status in gone:
+            print(f"  {status} {url} ({origin})", file=sys.stderr)
+        print("\nWhatever fetches these installs nothing and, unless it checks, says nothing.", file=sys.stderr)
+        return 1
+    print(f"\n{len(seen)} URL(s) still exist; {len(skipped)} skipped.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
