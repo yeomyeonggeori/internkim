@@ -33,7 +33,7 @@ blueclawSecretsDirectory="/run/internkim/secrets"
 blueclawAgentKeyPath="${blueclawSecretsDirectory}/agent-key"
 blueclawModelAPIKeyPath="${blueclawSecretsDirectory}/openrouter-key"
 
-programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cp install mkdir chown setpriv"
+programsThisScriptRuns="internkim-capabilityd internkim-admind internkim-maild blueclaw chatd internkim-relay moli agent-browser render-company-runtime pg_isready nc cat cp dirname install mkdir chown setpriv sleep"
 for programThisScriptRuns in ${programsThisScriptRuns}; do
   command -v "${programThisScriptRuns}" >/dev/null 2>&1 \
     || { echo "[host] this image carries no ${programThisScriptRuns}" >&2; exit 1; }
