@@ -15,19 +15,26 @@ import (
 // binary path passed in, and every name, port and address below is the constant the
 // device path already uses.
 const (
-	CompanyPackageName          = "internkim"
-	CompanyPackageMaintainer    = "internkim <support@intern.kim>"
-	CompanyPackageVendor        = "yeomyeonggeori"
-	CompanyPackageHomepage      = "https://intern.kim"
-	CompanyPackageSection       = "admin"
-	CompanyPackageBinaryRoot    = "/usr/bin"
-	CompanyPackageLibraryRoot   = "/opt/internkim"
-	CompanyPackageHelperRoot    = "/usr/lib/internkim"
-	CompanyPackageUnitRoot      = "/usr/lib/systemd/system"
-	CompanyPackageSkillsPath    = "/opt/internkim/skills"
-	CompanyPackageTemplatePath  = "/opt/internkim/runtime.template.json"
-	CompanyPackageMigrationPath = "/opt/blueclaw/migrations"
-	CompanyPackagePreparePath   = "/usr/lib/internkim/prepare-company-host"
+	CompanyPackageName         = "internkim"
+	CompanyPackageMaintainer   = "internkim <support@intern.kim>"
+	CompanyPackageVendor       = "yeomyeonggeori"
+	CompanyPackageHomepage     = "https://intern.kim"
+	CompanyPackageSection      = "admin"
+	CompanyPackageBinaryRoot   = "/usr/bin"
+	CompanyPackageLibraryRoot  = "/opt/internkim"
+	CompanyPackageHelperRoot   = "/usr/lib/internkim"
+	CompanyPackageUnitRoot     = "/usr/lib/systemd/system"
+	CompanyPackageSkillsPath   = "/opt/internkim/skills"
+	CompanyPackageTemplatePath = "/opt/internkim/runtime.template.json"
+
+	// The interpreter the document skills run under. Its site-packages are
+	// resolved once, when the package is built, so no customer machine resolves
+	// a wheel. capabilityd hands this path to the file reader, the image builds
+	// the same one, and the .deb carries it.
+	CompanyPackageDocumentVenvPath   = "/opt/internkim/document-venv"
+	CompanyPackageDocumentPythonPath = CompanyPackageDocumentVenvPath + "/bin/python"
+	CompanyPackageMigrationPath      = "/opt/blueclaw/migrations"
+	CompanyPackagePreparePath        = "/usr/lib/internkim/prepare-company-host"
 
 	// POSIXHelperProgramName is what lets the unprivileged agent act as the
 	// person who asked, and it is the one setuid file the package ships. Debian

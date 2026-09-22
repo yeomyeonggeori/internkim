@@ -581,14 +581,27 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 }
 
 func releaseBinaryBuildFlags(repositoryRootPath string) []string {
+	revision := releaseBinaryRevision(repositoryRootPath)
+	return []string{"-ldflags", admindStampFlags(revision, revision)}
+}
+
+func releaseBinaryRevision(repositoryRootPath string) string {
 	revision := strings.TrimSpace(runCmd("git", "-C", repositoryRootPath, "rev-parse", "--short", "HEAD"))
 	if revision == "" {
-		revision = "unknown"
+		return "unknown"
 	}
-	return []string{"-ldflags", strings.Join([]string{
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + revision,
+	return revision
+}
+
+// The admin gateway's health answer is the only one that carries a revision, so it is
+// the only way to see whether an upgrade moved the running process rather than the
+// file. A build that leaves these at their defaults answers `unknown` and that check
+// can never be made.
+func admindStampFlags(buildID string, revision string) string {
+	return strings.Join([]string{
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
-	}, " ")}
+	}, " ")
 }
 
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {

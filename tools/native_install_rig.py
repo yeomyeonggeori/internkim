@@ -6,15 +6,23 @@ arm64 Debian guest. The assertions that read the guest live in
 a machine and something to install on it.
 """
 
+import base64
 import hashlib
 import io
 import json
+import os
 import posixpath
+import re
+import secrets
 import shutil
+import socket
 import subprocess
 import tarfile
 import tempfile
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 
@@ -510,6 +518,12 @@ BOOTSTRAP_SCRIPT = "\n".join(
         "  done",
         "fi",
         "if [ -L /etc/resolv.conf ]; then cp /etc/resolv.conf /etc/resolv.conf.static && rm /etc/resolv.conf && mv /etc/resolv.conf.static /etc/resolv.conf; fi",
+        # The Debian container image ships a policy-rc.d that denies every service
+        # action, so that building an image starts no daemon. A machine has no such
+        # file, and leaving it here makes `deb-systemd-invoke stop` in the package's
+        # prerm quietly do nothing while the rig reads the result as the package's
+        # own behaviour.
+        "rm -f /usr/sbin/policy-rc.d",
         "ln -sf /dev/null /etc/systemd/system/systemd-resolved.service",
         "exec /lib/systemd/systemd",
     ]
@@ -545,7 +559,10 @@ class Machine:
         except json.JSONDecodeError:
             return []
 
-    def create(self, cpu_count=2, memory_mebibytes=2048):
+    # The smallest appliance is the 4 GB CM5, so the guest gets what that box has:
+    # step 5 has PostgreSQL, Redis, an S3 server, the messenger and the agent resident
+    # at once, and a rig with more memory than the product would not be measuring it.
+    def create(self, cpu_count=4, memory_mebibytes=4096):
         checked(
             [
                 self.container_binary, "create",
@@ -613,3 +630,246 @@ class Machine:
         run([self.container_binary, "stop", self.name])
         run([self.container_binary, "rm", "--force", self.name])
         self.created = False
+
+
+# ------------------------------------------------------------------- the plane
+
+CENTRAL_TEST_UTILITIES_PATH = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "central-test-utils.ts"
+GATEWAY_WORKER_PATH = REPOSITORY_ROOT / "workers" / "connection-gateway"
+COMPANY_COMPUTER_AGENT_NAME = "company-computer"
+HOST_SETUP_PATH = "/api/company/host-setup"
+SIGN_IN_PATH = "/auth/v1/token?grant_type=password"
+
+
+def seeded_administrator():
+    """The fixture admin, read from the file the browser suite signs in with.
+
+    Repeating the address here would be a second copy of a credential that has to
+    match what the development seed writes, and those two drifting apart is a
+    refusal nobody can read.
+    """
+    document = CENTRAL_TEST_UTILITIES_PATH.read_text()
+    fields = {}
+    for name in ("member1Email", "seedPassword"):
+        found = re.search(r"export const " + name + r" = '([^']+)'", document)
+        if not found:
+            raise RigFailure(f"{CENTRAL_TEST_UTILITIES_PATH} no longer exports {name}")
+        fields[name] = found.group(1)
+    return fields["member1Email"], fields["seedPassword"]
+
+
+def free_port():
+    with socket.socket() as held:
+        held.bind(("127.0.0.1", 0))
+        return held.getsockname()[1]
+
+
+def local_plane_settings():
+    completed = run(["supabase", "status", "-o", "env"], cwd=REPOSITORY_ROOT)
+    if completed.returncode != 0:
+        raise RigFailure(
+            "this Mac is running no local plane, so there is no company to install. "
+            "Start the stack and seed it, then run the rig again"
+        )
+    settings = {}
+    for line in completed.stdout.splitlines():
+        name, separator, value = line.partition("=")
+        if separator:
+            settings[name.strip()] = value.strip().strip('"')
+    for required in ("API_URL", "PUBLISHABLE_KEY", "SECRET_KEY", "JWT_SECRET"):
+        if not settings.get(required):
+            raise RigFailure(f"the local plane named no {required}")
+    return settings
+
+
+def signing_key_of_secret(secret):
+    """The local stack signs with one shared secret; this is it as an oct JWK.
+
+    web/scripts/local-plane-signing-key.sh writes the same value for the fleet.
+    """
+    encoded = base64.urlsafe_b64encode(secret.encode()).decode().rstrip("=")
+    return json.dumps({"kty": "oct", "k": encoded})
+
+
+def answered(url, headers=None, body=None, method="GET", timeout_seconds=10):
+    request = urllib.request.Request(url, method=method, data=body)
+    for name, value in (headers or {}).items():
+        request.add_header(name, value)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as refusal:
+        return refusal.code, refusal.read()
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
+        return 0, b""
+
+
+class CompanyPlane:
+    """The company's half of step 5: the record, the app and the gateway.
+
+    All three run on this Mac and answer on every interface, because the guest
+    reaches them at the address its own default route names. That address is the
+    only substitution: the company, the member who signs in, the agent key and
+    the connection document are the ones the app really issues.
+    """
+
+    def __init__(self, working_directory, guest_reachable_address):
+        self.working_directory = Path(working_directory)
+        self.working_directory.mkdir(parents=True, exist_ok=True)
+        self.address = guest_reachable_address
+        self.settings = local_plane_settings()
+        self.administrator_email, self.administrator_password = seeded_administrator()
+        self.admin_token = secrets.token_hex(16)
+        self.gateway_port = free_port()
+        self.application_port = free_port()
+        self.processes = []
+
+    @property
+    def gateway_url(self):
+        return f"ws://{self.address}:{self.gateway_port}"
+
+    @property
+    def gateway_http_url(self):
+        return f"http://127.0.0.1:{self.gateway_port}"
+
+    @property
+    def application_url(self):
+        return f"http://{self.address}:{self.application_port}"
+
+    @property
+    def project_url(self):
+        held = urllib.parse.urlsplit(self.settings["API_URL"])
+        return f"{held.scheme}://{self.address}:{held.port}"
+
+    def start(self):
+        self.start_gateway()
+        self.start_application()
+
+    def start_gateway(self):
+        configuration = json.loads((GATEWAY_WORKER_PATH / "wrangler.jsonc").read_text())
+        configuration["main"] = str(GATEWAY_WORKER_PATH / "src" / "index.ts")
+        # The gateway checks a token's issuer against this address, and the issuer
+        # GoTrue stamps is the one it was configured with rather than the one the
+        # caller reached it on. So the gateway is told that address and the guest
+        # is told one it can route to.
+        configuration["vars"] = {
+            "SUPABASE_URL": self.settings["API_URL"],
+            "SUPABASE_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
+            "GATEWAY_ADMIN_TOKEN": self.admin_token,
+        }
+        configuration_path = self.working_directory / "gateway.jsonc"
+        configuration_path.write_text(json.dumps(configuration, indent=2))
+        self.spawn(
+            "the connection gateway",
+            [
+                "bunx", "wrangler", "dev", "--local", "--ip", "0.0.0.0",
+                "--port", str(self.gateway_port), "--inspector-port", "0",
+                "--persist-to", str(self.working_directory / "gateway-state"),
+                "--config", str(configuration_path),
+            ],
+            GATEWAY_WORKER_PATH,
+            {},
+        )
+        self.wait_until_answered(f"{self.gateway_http_url}/missing", 404, "the connection gateway")
+
+    def start_application(self):
+        self.spawn(
+            "the company app",
+            [
+                "bunx", "vite", "dev", "--host", "0.0.0.0",
+                "--port", str(self.application_port), "--strictPort",
+            ],
+            REPOSITORY_ROOT / "web",
+            {
+                "SUPABASE_URL": self.project_url,
+                "SUPABASE_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
+                "SUPABASE_SECRET_KEY": self.settings["SECRET_KEY"],
+                "SUPABASE_JWT_SIGNING_KEY": signing_key_of_secret(self.settings["JWT_SECRET"]),
+                "GATEWAY_URL": self.gateway_url,
+                "GATEWAY_ADMIN_TOKEN": self.admin_token,
+            },
+        )
+        self.wait_until_answered(f"{self.application_url}/api/agent/company", None, "the company app")
+
+    def spawn(self, name, command, working_directory, environment):
+        log_path = self.working_directory / (name.replace(" ", "-") + ".log")
+        handle = log_path.open("w")
+        process = subprocess.Popen(
+            command,
+            cwd=str(working_directory),
+            stdout=handle,
+            stderr=handle,
+            stdin=subprocess.DEVNULL,
+            env={**os.environ, **environment},
+        )
+        self.processes.append((name, process, log_path, handle))
+
+    def wait_until_answered(self, url, expected_status, name, timeout_seconds=180):
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            status, _ = answered(url, timeout_seconds=3)
+            if status and (expected_status is None or status == expected_status):
+                return
+            time.sleep(1)
+        raise RigFailure(f"{name} never answered {url}\n{self.log_of(name)}")
+
+    def log_of(self, name):
+        for held, _, log_path, _ in self.processes:
+            if held == name:
+                return "\n".join(log_path.read_text().splitlines()[-30:])
+        return ""
+
+    def administrator_session(self):
+        status, document = answered(
+            self.settings["API_URL"] + SIGN_IN_PATH,
+            {"apikey": self.settings["PUBLISHABLE_KEY"], "Content-Type": "application/json"},
+            json.dumps({"email": self.administrator_email, "password": self.administrator_password}).encode(),
+            "POST",
+        )
+        if status != 200:
+            raise RigFailure(
+                f"the seeded administrator {self.administrator_email} could not sign in ({status}); "
+                "the local plane holds no company this rig can be given"
+            )
+        return json.loads(document)["access_token"]
+
+    def connection_document(self):
+        """What a person downloads from company setup, issued to this guest."""
+        status, document = answered(
+            self.application_url + HOST_SETUP_PATH,
+            {"Authorization": "Bearer " + self.administrator_session(), "Content-Type": "application/json"},
+            json.dumps({"replaceExisting": True}).encode(),
+            "POST",
+            timeout_seconds=60,
+        )
+        if status != 200:
+            raise RigFailure(
+                f"company setup answered {status} instead of a connection document: {document[:300]!r}"
+            )
+        return json.loads(document)
+
+    def forget_the_company_computer(self, company_id):
+        """Take back the agent row the connection document wrote."""
+        answered(
+            self.settings["API_URL"]
+            + "/rest/v1/agent?company_id=eq."
+            + company_id
+            + "&name=eq."
+            + COMPANY_COMPUTER_AGENT_NAME,
+            {
+                "apikey": self.settings["SECRET_KEY"],
+                "Authorization": "Bearer " + self.settings["SECRET_KEY"],
+            },
+            None,
+            "DELETE",
+        )
+
+    def stop(self):
+        for _, process, _, handle in reversed(self.processes):
+            process.terminate()
+            try:
+                process.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                process.kill()
+            handle.close()
+        self.processes = []

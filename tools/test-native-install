@@ -10,9 +10,13 @@ judges a transcript of what the install printed.
 """
 
 import argparse
+import contextlib
+import json
+import re
 import shutil
 import sys
 import tempfile
+import urllib.parse
 import uuid
 from pathlib import Path
 
@@ -34,9 +38,13 @@ from native_install_rig import (  # noqa: E402
     PRESEEDED_PACKAGES,
     STATE_DIRECTORY,
     SUITE,
+    COMPANY_CONDITION_PATH,
+    CompanyPlane,
     Machine,
     Release,
     RigFailure,
+    SHARE_PATH,
+    answered,
     build_stand_in_package,
     dependency_names,
     package_fields,
@@ -44,6 +52,16 @@ from native_install_rig import (  # noqa: E402
 
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
+CONNECTION_FILE_NAME = "internkim-host.json"
+MODEL_KEY_FILE_NAME = "rig-model-key"
+RELAY_UNIT_NAME = "internkim-relay.service"
+COMPANY_CALL_CAPABILITY = "person.people.list"
+
+# The guest is given a company whose agent never reaches a model provider. Step 5
+# judges whether a message crosses the gateway and reaches the company's store,
+# which no model is asked about; a key that could buy tokens has no business in a
+# disposable guest.
+RIG_MODEL_KEY = "sk-or-v1-this-rig-never-reaches-a-model-provider"
 PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
 PLANTED_SECRET = "0123456789abcdef" * 4
 
@@ -114,6 +132,16 @@ def without_apt_noise(text):
     return "\n".join(
         line for line in text.splitlines() if not any(line.startswith(noise) for noise in APT_PROGRESS)
     )
+
+
+# `dpkg-query -S` reads its argument as a glob when it holds one of these, and a wheel
+# ships `[Content_Types].xml`. Asking about that path unescaped asks about a character
+# class, dpkg answers that nothing matches, and the rig calls a packaged file unowned.
+GLOB_CHARACTERS = "\\*?[]"
+
+
+def literally(path):
+    return "".join("\\" + character if character in GLOB_CHARACTERS else character for character in path)
 
 
 def alternate_spellings(path):
@@ -194,6 +222,8 @@ class Rig:
         self.keyring_url = None
         self.installed_version = None
         self.dependencies = []
+        self.plane = None
+        self.company_id = ""
 
     def step(self, number, name):
         step = Step(number, name)
@@ -468,7 +498,10 @@ class Rig:
         appeared = sorted(self.snapshot() - baseline)
         if not appeared:
             return []
-        listing = "\n".join(sorted(set().union(*(alternate_spellings(path) for path in appeared))))
+        listing = "\n".join(
+            literally(spelling)
+            for spelling in sorted(set().union(*(alternate_spellings(path) for path in appeared)))
+        )
         owner_query = self.machine.shell(
             "cat <<'PATHS' | xargs -d '\\n' -r -n 100 dpkg-query -S 2>/dev/null | cut -d: -f2- | sed 's/^ //'\n"
             + listing
@@ -641,11 +674,155 @@ class Rig:
         ).record(STATE_DIRECTORY in purged.stdout, without_apt_noise(purged.stdout).strip()[-400:])
         return step
 
+    # ------------------------------------------------------------------ step 5
+
+    def give_the_guest_a_company(self, step, plane):
+        """Everything a person does between downloading the file and a running box."""
+        connection = plane.connection_document()
+        self.company_id = connection["company"]["id"]
+        share = self.machine.share_directory
+        (share / CONNECTION_FILE_NAME).write_text(json.dumps(connection, indent=2))
+        (share / MODEL_KEY_FILE_NAME).write_text(RIG_MODEL_KEY + "\n")
+        installed = self.machine.shell(
+            f"set -eu\n"
+            f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
+            f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
+            timeout_seconds=1800,
+        )
+        pointed = self.machine.shell(
+            f"readlink -f {STATE_DIRECTORY}/current 2>/dev/null; "
+            f"test -s {COMPANY_CONDITION_PATH} && echo condition-met"
+        )
+        step.observe(
+            "the box takes the company the plane issued it",
+            f"the target of {STATE_DIRECTORY}/current and the file every unit's "
+            f"ConditionPathExists names, {COMPANY_CONDITION_PATH}",
+            "`internkim install` printing five steps is the installer's account of its own run; "
+            "this is the state the units read before they will start",
+        ).record(
+            self.company_id in pointed.stdout and "condition-met" in pointed.stdout,
+            (pointed.stdout.strip() or "nothing was written")
+            + f"\ninternkim install exited {installed.returncode}"
+            + ("\n" + without_apt_noise(installed.stdout + installed.stderr).strip()[-900:] if installed.returncode else ""),
+        )
+
+    def observe_running_services(self, step):
+        unit_names = self.units()
+        states = dict(
+            line.split("=", 1)
+            for line in self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names)).stdout.split()
+            if "=" in line
+        )
+        step.observe(
+            "every unit is running and is not restarting in a loop",
+            "ActiveState and NRestarts for each unit dpkg lists",
+            "a unit that dies and is restarted reports active for most of every second, so "
+            "is-active alone cannot tell a running service from one that keeps dying",
+            ).record(
+            bool(states) and all(
+                state.split("/")[1] == "active" and state.split("/")[3] == "0"
+                for state in states.values()
+            ),
+            "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
+        )
+
+        probes = "; ".join(
+            f"printf '%s %s\\n' {port}{path} "
+            f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
+            for port, path in READINESS_PROBES
+        )
+        answers = self.machine.shell(probes)
+        step.observe(
+            "the services answer their readiness endpoints",
+            "an HTTP GET inside the guest to "
+            + ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES),
+            "systemd reports active for a process that answers a socket while refusing all work, "
+            "which is how postmortem 0002 stayed green for forty minutes",
+        ).record(
+            bool(answers.stdout.strip())
+            and all(line.split()[-1] == "200" for line in answers.stdout.splitlines() if line.strip()),
+            answers.stdout.strip() or "nothing answered",
+        )
+
+    def build_identity_the_guest_reports(self):
+        port, path = REVISION_PROBE
+        reported = self.machine.shell(f"curl -s --max-time 10 http://127.0.0.1:{port}{path}")
+        found = {}
+        for name in ("admindBuildID", "gitRevision"):
+            match = re.search(r'"' + name + r'"\s*:\s*"([^"]*)"', reported.stdout)
+            found[name] = match.group(1) if match else ""
+        return found
+
+    def observe_the_processes_moved(self, step, before, after):
+        port, path = REVISION_PROBE
+        step.observe(
+            "the running processes moved to the new build",
+            f"the admindBuildID and gitRevision 127.0.0.1:{port}{path} reports, read before "
+            "step 3's upgrade and again after it",
+            "an upgrade that replaces a binary without restarting the unit leaves the old "
+            "process serving, and dpkg's version and the file's mtime both move anyway. Two "
+            "packages cut from one tree carry one revision, so the build id is the package "
+            "version and the revision says which source it was; a build that stamps neither "
+            "answers `unknown` and this can never be asked",
+        ).record(
+            bool(before.get("admindBuildID"))
+            and before["admindBuildID"] != after.get("admindBuildID")
+            and after.get("gitRevision") not in ("", "unknown"),
+            f"before {json.dumps(before)}\nafter  {json.dumps(after)}",
+        )
+
+    def observe_the_message_path(self, step, plane):
+        """How far a message typed in a browser gets, and where it stops.
+
+        The gateway answers `server_offline` until the guest's relay holds a
+        socket to it, and on a local plane it never can: the app signs the
+        host's token HS256 and the gateway verifies ES256. So what this asserts
+        is the path up to that socket — the relay running and dialling, the
+        gateway reachable from the guest, the company addressed correctly — and
+        the refusal itself, which is recorded rather than worked around. It
+        fails the day the handshake starts working, which is when the owed
+        assertion below replaces it.
+        """
+        status, document = answered(
+            f"{plane.gateway_http_url}/company/{urllib.parse.quote(self.company_id)}/call",
+            {"Authorization": f"Bearer {plane.admin_token}", "Content-Type": "application/json"},
+            json.dumps({"requestID": str(uuid.uuid4()), "capability": COMPANY_CALL_CAPABILITY}).encode(),
+            "POST",
+            timeout_seconds=45,
+        )
+        answer = json.loads(document) if document else {}
+        dialled = self.machine.shell(
+            f"journalctl -u {RELAY_UNIT_NAME} --no-pager -n 200 2>/dev/null"
+            f" | grep -c 'gateway connection for {self.company_id}'; true"
+        )
+        step.observe(
+            "the message path is open as far as the socket the host cannot yet hold",
+            f"the gateway's answer to {COMPANY_CALL_CAPABILITY} for this company, and how many "
+            f"times {RELAY_UNIT_NAME} has dialled the gateway",
+            "a message typed in a browser reaches the guest through that socket and no other way. "
+            "On a local plane the host's token is HS256 and the gateway verifies ES256, so the "
+            "socket cannot open and the gateway answers server_offline; asserting that, rather "
+            "than deleting the question, keeps the limit on screen and makes this fail on the day "
+            "it stops being true",
+        ).record(
+            status == 200
+            and answer.get("body", {}).get("error") == "server_offline"
+            and int(dialled.stdout.split()[0] or 0) > 0,
+            f"the gateway answered {status} {json.dumps(answer)[:200]}\n"
+            + self.relay_reported_of_the_gateway(),
+        )
+
+    def relay_reported_of_the_gateway(self):
+        reported = self.machine.shell(
+            f"journalctl -u {RELAY_UNIT_NAME} --no-pager -n 40 2>/dev/null | grep -i gateway | tail -5; true"
+        )
+        return reported.stdout.strip() or f"{RELAY_UNIT_NAME} said nothing about the gateway"
+
     # ----------------------------------------------------------------- report
 
     def report(self):
         lines = []
-        for step in self.steps:
+        for step in sorted(self.steps, key=lambda step: step.number):
             marker = {"PASS": "✓", "FAIL": "✗", "BLOCKED": "—"}[step.verdict]
             lines.append(f"{marker} step {step.number} · {step.name}")
             if step.blocked_because:
@@ -668,6 +845,15 @@ class Rig:
         return all(step.verdict == "PASS" for step in self.steps)
 
 
+@contextlib.contextmanager
+def kept_or_temporary_directory(is_kept):
+    if not is_kept:
+        with tempfile.TemporaryDirectory(prefix="internkim-install-rig-") as temporary:
+            yield temporary
+        return
+    yield tempfile.mkdtemp(prefix="internkim-install-rig-")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
@@ -685,7 +871,9 @@ def main():
     options = parser.parse_args()
 
     rig = Rig(options)
-    with tempfile.TemporaryDirectory(prefix="internkim-install-rig-") as temporary:
+    # --keep leaves a guest for autopsy, and a guest whose shared directory has been
+    # deleted cannot be driven: every command the rig runs is a script it writes there.
+    with kept_or_temporary_directory(options.keep) as temporary:
         rig.working_directory = Path(temporary)
         packages = rig.packages_under_test()
         if not packages:
@@ -718,26 +906,43 @@ def main():
 
             rig.plant_state()
 
+            step_five = rig.step(5, "a person signs in and exchanges a message")
+            revision_before = {}
+            if options.stand_in:
+                step_five.block(
+                    "not run against a stand-in: the package under test carries none of the "
+                    "services a company would be given to"
+                )
+            else:
+                rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
+                rig.plane.start()
+                rig.give_the_guest_a_company(step_five, rig.plane)
+                rig.observe_running_services(step_five)
+                rig.observe_the_message_path(step_five, rig.plane)
+                revision_before = rig.build_identity_the_guest_reports()
+            for name, observes, why_it_waits in owed_until_the_host_can_hold_the_socket():
+                step_five.owe(name, observes, why_it_waits)
+
             step_three = rig.step(3, "apt upgrade moves it to a newer version")
             rig.run_step_three(step_three, packages)
 
+            if not options.stand_in:
+                rig.observe_the_processes_moved(
+                    step_five, revision_before, rig.build_identity_the_guest_reports()
+                )
+
             step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
             rig.run_step_four(step_four)
-
-            step_five = rig.step(5, "a person signs in and exchanges a message")
-            step_five.block(
-                "not run: the package ships no bun and no uv, so `internkim install` refuses "
-                "before a company reaches this guest. docs/internal/native-install-rig.md "
-                "names that gap and the gateway handshake behind it"
-            )
-            for name, observes, why_it_waits in owed_until_a_company_exists():
-                step_five.owe(name, observes, why_it_waits)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep and rig.machine:
                 rig.machine.destroy()
             return 2
         finally:
+            if rig.plane:
+                if rig.company_id:
+                    rig.plane.forget_the_company_computer(rig.company_id)
+                rig.plane.stop()
             if rig.release:
                 rig.release.stop()
 
@@ -745,6 +950,7 @@ def main():
         print()
         if options.keep:
             print(f"the guest is still up: container exec {options.name} bash")
+            print(f"its shared directory is {rig.working_directory}")
         else:
             rig.machine.destroy()
 
@@ -753,32 +959,22 @@ def main():
         return 0 if passed else 1
 
 
-# Everything the rig cannot ask a box that has the package and no company. These
-# are the assertions steps 2 and 3 used to make against a stand-in whose units
-# had no conditions; the real package declines to start until `internkim install`
-# gives it a company, so they belong to the step that creates one.
-def owed_until_a_company_exists():
-    endpoints = ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES)
-    revision_port, revision_path = REVISION_PROBE
+# The one assertion step 5 cannot make. The host authenticates to the gateway with
+# a token the app mints, the app signs it with the local stack's shared secret, and
+# the gateway verifies against a published key set; no local plane can hold both
+# ends of that. docs/internal/native-install-rig.md carries the whole reason.
+def owed_until_the_host_can_hold_the_socket():
     return [
         (
-            "every unit is running and is not restarting in a loop",
-            "`systemctl is-active` plus NRestarts for each unit, once a company exists",
-            "a crash-looping unit reports active for most of every second, so is-active alone "
-            "cannot tell a running service from one that keeps dying",
-        ),
-        (
-            "the services answer their readiness endpoints",
-            f"an HTTP GET from inside the guest to {endpoints}",
-            "`systemctl is-active` reports active for a process that answers HTTP while refusing "
-            "all work, which is how a half-deploy stayed green for forty minutes",
-        ),
-        (
-            "the running processes moved to the new build, not just the files on disk",
-            f"the gitRevision 127.0.0.1:{revision_port}{revision_path} reports, before and after an upgrade",
-            "an upgrade that replaces the binary without restarting the unit leaves the old "
-            "process serving, and dpkg's version and the file's mtime both move anyway. Only the "
-            "admin gateway's health answer carries a revision; blueclaw's carries none",
+            "a message posted in the browser reaches the guest's messenger, and the answer "
+            "comes back through the same socket",
+            "the message in the guest's own messenger store, and the browser's answer to the "
+            "call that posted it",
+            "the host's token is signed HS256 by the app and the gateway verifies ES256 and "
+            "RS256 against the key set the record publishes. Production registers the app's "
+            "own key with the project; a local stack has no way to. So the host's handshake, "
+            "and the round trip that depends on it, are first exercised against the real plane, "
+            "once, by a person",
         ),
     ]
 
