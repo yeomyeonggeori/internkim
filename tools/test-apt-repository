@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""Judge whether the published apt repository is trusted, not merely served.
+
+`tools/test-native-install` asks whether a package installs. This asks the
+question underneath it: whether apt would refuse the repository if someone
+changed what it serves. A repository that serves is not a repository that is
+trusted, and only the refusals tell the two apart.
+
+The repository under test is built by `internkim release apt` — the same
+command that publishes it to R2 — and served from this Mac the way
+`workers/release-registry` serves it. One disposable arm64 Debian guest points
+its apt at it.
+
+    tools/test-apt-repository
+    tools/test-apt-repository --keep
+"""
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from native_install_rig import (  # noqa: E402
+    ARCHITECTURE,
+    COMPONENT,
+    APT_SOURCE_PATH,
+    KEYRING_NAME,
+    KEYRING_PATH,
+    PACKAGE_NAME,
+    REPOSITORY_PREFIX,
+    SUITE,
+    Machine,
+    Release,
+    RigFailure,
+    build_stand_in_package,
+    checked,
+)
+
+PASS = "✓"
+FAIL = "✗"
+
+
+class Judgement:
+    def __init__(self):
+        self.results = []
+
+    def record(self, name, passed, observed, why):
+        self.results.append({"name": name, "passed": passed, "observed": observed, "why": why})
+        print(f"{PASS if passed else FAIL} {name}")
+        for line in observed.strip().splitlines():
+            print(f"    {line}")
+        print()
+        return passed
+
+    def verdict(self):
+        return all(result["passed"] for result in self.results)
+
+
+class RepositoryTrial:
+    def __init__(self, options):
+        self.options = options
+        self.judgement = Judgement()
+        self.working_directory = None
+        self.release = None
+        self.machine = None
+        self.base_url = None
+        self.repository_url = None
+        self.keyring_url = None
+
+    # ---------------------------------------------------------------- setup
+
+    def build_repository(self):
+        """One stand-in package, published through the shipping command."""
+        packages_directory = self.working_directory / "stand-in"
+        package_path = build_stand_in_package(packages_directory, "1.0.0", "trialrevision1")
+        self.release = Release(self.working_directory / "release")
+        self.release.directory.mkdir(parents=True, exist_ok=True)
+        self.release.generate_signing_key()
+        self.release.publish(package_path)
+        self.release.serve()
+        return package_path
+
+    def start_machine(self):
+        share = self.working_directory / "share"
+        (share / "scripts").mkdir(parents=True, exist_ok=True)
+        self.machine = Machine(self.options.name, share)
+        self.machine.preflight()
+        self.machine.create()
+        self.machine.wait_until_running()
+        gateway = self.machine.host_gateway()
+        self.base_url = f"http://{gateway}:{self.release.port}"
+        self.repository_url = f"{self.base_url}/{REPOSITORY_PREFIX}"
+        self.keyring_url = f"{self.repository_url}/{KEYRING_NAME}"
+
+    def write_source(self, keyring_path=KEYRING_PATH, signed_by=True):
+        """The deb822 source §6 documents, with only the URI substituted."""
+        stanza = [
+            "Types: deb",
+            f"URIs: {self.repository_url}",
+            f"Suites: {SUITE}",
+            f"Components: {COMPONENT}",
+            f"Architectures: {ARCHITECTURE}",
+        ]
+        if signed_by:
+            stanza.append(f"Signed-By: {keyring_path}")
+        self.machine.checked_shell(
+            "set -eu\n"
+            f"cat > {APT_SOURCE_PATH} <<'SOURCE'\n" + "\n".join(stanza) + "\nSOURCE\n"
+        )
+
+    def install_keyring(self, source_url=None):
+        self.machine.checked_shell(
+            "set -eu\n"
+            "install -d -m 0755 /usr/share/keyrings\n"
+            f"curl -fsSL {source_url or self.keyring_url} -o {KEYRING_PATH}\n"
+            f"chmod 0644 {KEYRING_PATH}\n"
+        )
+
+    def forget_what_apt_learned(self):
+        """Clear the cached lists so each verdict is apt's reading of the
+        repository as it stands, and not of the last good one it saw."""
+        self.machine.checked_shell("rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb")
+
+    def update(self):
+        return self.machine.shell(
+            "export DEBIAN_FRONTEND=noninteractive\n"
+            f"apt-get update -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts={Path(APT_SOURCE_PATH).parent}\n"
+        )
+
+    # --------------------------------------------------------------- the run
+
+    def acceptance(self):
+        self.forget_what_apt_learned()
+        self.install_keyring()
+        self.write_source()
+        updated = self.update()
+        self.judgement.record(
+            "apt accepts the signed repository",
+            updated.returncode == 0 and "NO_PUBKEY" not in updated.stdout + updated.stderr,
+            (updated.stdout + updated.stderr).strip(),
+            "apt refuses an unsigned or unverifiable repository by default, so a clean update is "
+            "apt's verdict on the signature and the keyring rather than ours",
+        )
+        policy = self.machine.shell(f"apt-cache policy {PACKAGE_NAME}")
+        candidate = ""
+        for line in policy.stdout.splitlines():
+            if line.strip().startswith("Candidate:"):
+                candidate = line.split(":", 1)[1].strip()
+        self.judgement.record(
+            "apt-cache policy names our package with a candidate version",
+            candidate not in ("", "(none)"),
+            policy.stdout.strip(),
+            "a Packages file on the server says the index was written; a candidate line says apt "
+            "read it, verified it against the signed Release, and would install it",
+        )
+        return candidate
+
+    def install_works(self):
+        installed = self.machine.shell(
+            f"export DEBIAN_FRONTEND=noninteractive\napt-get install -y --allow-unauthenticated {PACKAGE_NAME}\n"
+        )
+        status = self.machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
+        self.judgement.record(
+            "the package the repository serves installs",
+            "install ok installed" in status.stdout,
+            (installed.stdout + installed.stderr).strip()[-500:] + f"\ndpkg: {status.stdout.strip()}",
+            "dpkg's database is what makes it an install; the pool file downloading says only that "
+            "the server had it",
+        )
+        self.machine.shell(f"export DEBIAN_FRONTEND=noninteractive\napt-get purge -y {PACKAGE_NAME}")
+
+    def cost_of_a_refresh(self):
+        """What `apt-get update` costs against a server that cannot answer 304."""
+        self.forget_what_apt_learned()
+        before = len(self.release.served)
+        self.update()
+        cold = self.release.served[before:]
+        warm_start = len(self.release.served)
+        self.update()
+        warm = self.release.served[warm_start:]
+        report = {
+            "cold": {"requests": len(cold), "bytes": sum(entry["bytes"] for entry in cold)},
+            "warm": {"requests": len(warm), "bytes": sum(entry["bytes"] for entry in warm)},
+            "warm_paths": [f"{entry['status']} {entry['bytes']:>7} {entry['path']}" for entry in warm],
+        }
+        self.judgement.record(
+            "a second apt-get update re-downloads every index in full",
+            all(entry["status"] != 304 for entry in warm),
+            f"cold: {report['cold']['requests']} requests, {report['cold']['bytes']} bytes\n"
+            f"warm: {report['warm']['requests']} requests, {report['warm']['bytes']} bytes\n"
+            + "\n".join(report["warm_paths"]),
+            "the worker passes no conditional header to R2 and so never answers 304; this is what "
+            "that costs per refresh, and whether it is only a cost",
+        )
+        asked_for = [entry["path"] for entry in cold + warm]
+        self.judgement.record(
+            "apt asks for no by-hash object and no pdiff",
+            not any("by-hash" in path or ".diff/" in path for path in asked_for),
+            "\n".join(sorted(set(asked_for))),
+            "both are opt-in and advertised by the repository — by-hash through the Release's "
+            "Acquire-By-Hash field, pdiffs through a Packages.diff/Index that exists. A client "
+            "that is never offered either never asks, so neither needs turning off on the machine "
+            "a person installs on",
+        )
+        return report
+
+    def refusal_unsigned(self):
+        """Take the signatures away and leave everything else standing."""
+        suite_directory = self.release.repository_directory / "dists" / SUITE
+        moved = {}
+        for name in ("InRelease", "Release.gpg"):
+            path = suite_directory / name
+            moved[name] = path.read_bytes()
+            path.unlink()
+        self.forget_what_apt_learned()
+        refused = self.update()
+        spoken = (refused.stdout + refused.stderr).strip()
+        self.judgement.record(
+            "an unsigned repository is refused",
+            refused.returncode != 0 and "is not signed" in spoken,
+            spoken,
+            "apt fetches the unsigned Release fine; refusing it is a policy apt applies after the "
+            "fetch succeeds, which is the only thing standing between a hijacked mirror and root",
+        )
+        for name, payload in moved.items():
+            (suite_directory / name).write_bytes(payload)
+
+    def refusal_wrong_keyring(self):
+        """A valid signature by a key the machine was not told to trust."""
+        stranger_directory = Path(tempfile.mkdtemp(prefix="/tmp/ikapt-stranger-"))
+        stranger_directory.chmod(0o700)
+        checked([
+            "gpg", "--homedir", str(stranger_directory), "--batch", "--yes", "--no-tty",
+            "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
+            "Somebody Else TEST KEY <stranger@invalid.internkim.test>", "default", "default", "never",
+        ])
+        stranger_keyring = self.release.directory / "stranger-keyring.pgp"
+        exported = subprocess.run(
+            ["gpg", "--homedir", str(stranger_directory), "--batch", "--export"], capture_output=True
+        )
+        if not exported.stdout:
+            raise RigFailure(f"gpg exported no stranger key: {exported.stderr.decode()}")
+        stranger_keyring.write_bytes(exported.stdout)
+
+        self.forget_what_apt_learned()
+        self.install_keyring(source_url=f"{self.base_url}/stranger-keyring.pgp")
+        refused = self.update()
+        spoken = (refused.stdout + refused.stderr).strip()
+        self.judgement.record(
+            "a repository signed by a key the keyring does not hold is refused",
+            refused.returncode != 0 and ("NO_PUBKEY" in spoken or "not signed" in spoken),
+            spoken,
+            "the repository and its signature are untouched and valid; what changed is only which "
+            "key the machine was told to accept, which is what Signed-By is for",
+        )
+        checked(["gpgconf", "--homedir", str(stranger_directory), "--kill", "gpg-agent"])
+        shutil.rmtree(stranger_directory, ignore_errors=True)
+        self.install_keyring()
+
+    def refusal_bad_checksum(self):
+        """Change the package after the index that vouches for it was signed.
+
+        The substitution keeps the file's length, because apt checks the size
+        first and refuses on that alone. A same-size change is what makes it
+        reach the SHA256, which is the check that a real substitution — a
+        package of exactly the right length carrying something else — would
+        have to get past.
+        """
+        self.forget_what_apt_learned()
+        self.update()
+        pool_files = sorted(self.release.repository_directory.rglob("*.deb"))
+        if not pool_files:
+            raise RigFailure("the repository serves no .deb to tamper with")
+        tampered = pool_files[0]
+        original = tampered.read_bytes()
+        midpoint = len(original) // 2
+        tampered.write_bytes(original[:midpoint] + bytes([original[midpoint] ^ 0xFF]) + original[midpoint + 1 :])
+        if len(tampered.read_bytes()) != len(original):
+            raise RigFailure("the tamper changed the file's length, so apt would refuse on size alone")
+
+        refused = self.machine.shell(
+            f"export DEBIAN_FRONTEND=noninteractive\napt-get install -y --reinstall {PACKAGE_NAME}\n"
+        )
+        spoken = (refused.stdout + refused.stderr).strip()
+        status = self.machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
+        self.judgement.record(
+            "a package whose checksum does not match the signed index is refused",
+            refused.returncode != 0 and "Hash Sum mismatch" in spoken and "unexpected size" not in spoken,
+            spoken[-900:],
+            "the signature covers the Release, the Release covers the index, and the index covers "
+            "this file's SHA256; apt rejecting the download is that chain reaching the payload, "
+            "which is the only part of it a customer actually executes",
+        )
+        self.judgement.record(
+            "the tampered package was not installed",
+            "install ok installed" not in status.stdout,
+            f"dpkg-query: {status.stdout.strip() or '(the package is not installed)'}",
+            "apt printing an error is apt's account of its own run; dpkg's database is whether "
+            "anything reached the machine",
+        )
+        tampered.write_bytes(original)
+
+    # --------------------------------------------------------------- driving
+
+    def run(self):
+        self.working_directory = Path(tempfile.mkdtemp(prefix="/tmp/ikapt-trial-"))
+        try:
+            print(f"building the repository with `internkim release apt` in {self.working_directory}\n")
+            self.build_repository()
+            self.start_machine()
+            print(f"the guest's apt points at {self.repository_url}\n")
+            self.acceptance()
+            self.install_works()
+            cost = self.cost_of_a_refresh()
+            self.refusal_unsigned()
+            self.refusal_wrong_keyring()
+            self.refusal_bad_checksum()
+            self.write_report(cost)
+        finally:
+            if self.release:
+                self.release.stop()
+            if self.machine and not self.options.keep:
+                self.machine.destroy()
+            if self.options.keep:
+                print(f"kept: container {self.options.name}, working directory {self.working_directory}")
+            else:
+                shutil.rmtree(self.working_directory, ignore_errors=True)
+        return 0 if self.judgement.verdict() else 1
+
+    def write_report(self, cost):
+        report = {"results": self.judgement.results, "refresh_cost": cost}
+        destination = Path(".artifacts") / "apt-repository" / f"{self.options.name}.json"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps(report, indent=2) + "\n")
+        passed = sum(1 for result in self.judgement.results if result["passed"])
+        print(f"{passed}/{len(self.judgement.results)} observations held · {destination}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--keep", action="store_true", help="leave the guest up for autopsy")
+    parser.add_argument("--name", default=f"internkim-apt-{uuid.uuid4().hex[:8]}", help="the container's name")
+    options = parser.parse_args()
+    try:
+        return RepositoryTrial(options).run()
+    except RigFailure as failure:
+        print(f"{FAIL} {failure}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

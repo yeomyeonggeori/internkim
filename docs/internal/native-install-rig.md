@@ -34,6 +34,19 @@ assertion is the same in both modes; only the package under test changes.
 `container exec <name> bash`. `--name` fixes the container's name, which
 otherwise carries a random suffix so two runs never collide.
 
+The repository the rig serves is built by `internkim release apt`, which is
+the command that publishes it to R2. Whether apt *trusts* that repository is a
+separate question with its own rig, because a repository that serves is not a
+repository that is trusted:
+
+```
+tools/test-apt-repository
+```
+
+It stands up the same kind of guest and shows the refusals — an unsigned
+repository, a signature by a key the keyring does not hold, and a package
+whose bytes no longer match the signed index.
+
 The fast half runs without a machine and belongs to the `host-install` group in
 `tools/verify`:
 
@@ -240,9 +253,13 @@ plan asks for it to be built and weighed.
 throughput during `apt-get install`, and the behaviour of a Postgres cluster
 under `fsync` on that medium have no counterpart on a Mac's NVMe.
 
-Beyond the hardware, three things are out of reach by construction: the
+Beyond the hardware, two things are out of reach by construction: the
 Raspberry Pi OS `chromium-browser` name, which differs from Debian's `chromium`
-and comes from `archive.raspberrypi.com`; anything about the Homebrew path,
-which needs a macOS builder for `buzz-relay` that has never been run; and
-whether `apt upgrade` works against R2, since the rig serves its own repository
-and `workers/release-registry/` has no `deb/` prefix yet.
+and comes from `archive.raspberrypi.com`, and anything about the Homebrew path,
+which needs a macOS builder for `buzz-relay` that has never been run.
+
+The third used to be whether `apt upgrade` works against R2. The worker now
+serves a `deb/` prefix and the repository the rig serves is rendered by
+`internkim release apt`, the command that uploads it, so what is untested is
+narrower: R2 and the Workers runtime in front of it, rather than the
+repository. A deploy is what closes that, and no deploy has happened.

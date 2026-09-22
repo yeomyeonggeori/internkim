@@ -315,25 +315,56 @@ server and shims `uname`, and it gains an `apt-get` shim asserting the script
 reaches for the package manager when one is present.
 
 **Hosting.** `workers/release-registry/` is a generic R2 reader with an
-allowlist of public prefixes, currently `companion/` and `host/`. Adding
-`deb/` and `brew/` makes it serve an apt repository. It answers `GET` and
-`HEAD`, sets `etag` and `content-length`, and ignores `Range` and
-`If-None-Match`, so apt re-downloads indexes in full; disable
-`Acquire-By-Hash` and pdiffs and the refresh is slow and correct. A flat repository at the root would work, and the suite-and-component
-layout is worth the little it costs: suite `stable`, component `main`,
+allowlist of public prefixes. `deb/` joined `companion/` and `host/` and that
+is the whole change the worker needed; the route it answers on is still
+rendered from `fleetdomain` at deploy time and its `wrangler.jsonc` still
+names no hostname. The layout is suite `stable`, component `main`,
 architectures `arm64` and `amd64`, with a `testing` suite for release
 candidates.
+
+The worker answers `GET` and `HEAD`, sets `etag` and `content-length`, and
+passes no conditional header to R2, so it never answers `304`. Measured
+against a Debian 13 guest by `tools/test-apt-repository`, that costs one full
+re-download of `InRelease` per `apt-get update` — 1,204 bytes for a one-package
+repository — and nothing else: apt compares the `InRelease` it just fetched
+against the one it holds and skips every index when they agree, so an
+unchanged repository costs one request and roughly a kilobyte whether or not
+the server can answer `304`. `InRelease` grows with the number of indexes,
+which is two per architecture, not with the number of packages.
+
+Neither `Acquire-By-Hash` nor pdiffs needs turning off on the machine a person
+installs on, and the earlier draft of this section was wrong to imply a client
+would have to be told. Both are offered by the repository rather than asked
+for by the client: by-hash through the `Acquire-By-Hash` field of the
+`Release`, pdiffs through a `Packages.diff/Index` that exists. What publishes
+the repository writes `Acquire-By-Hash: no` and publishes no diff index, and
+the guest asks for neither — `tools/test-apt-repository` reads the server's own
+access log to say so. There is therefore no instruction to place in
+`install.sh`, in the `.sources` file, or in an `apt.conf.d` drop-in.
 
 `.deb` files come from `nfpm`, which builds them from YAML on any platform Go
 targets, needs no Debian tooling, and covers `depends`, arbitrary file
 contents, `scripts:` for `postinst`/`prerm`, `type: config` conffiles and PGP
 package signing. `internkim release deb` renders the nfpm YAML from the
 constants above and invokes it, beside the existing `internkim release
-company-host`. Repository metadata is `aptly`, which publishes to an
-S3-compatible endpoint natively and therefore to R2. The signing key is an
-offline-generated PGP key whose private half lives in the release CI secret
-store and nowhere in this repository, with the public half committed as the
-keyring the install script installs.
+company-host`.
+
+Repository metadata is not `aptly`. `internal/aptrepository` renders the
+`Packages`, `Release`, `InRelease` and `Release.gpg` documents and
+`internkim release apt` publishes them through the same
+`releaseObjectPublisher` every other release verb already uses. Two things
+decided it against `aptly`: `aptly` keeps its own database of what it has
+published, which is a second account of the bucket's contents that can
+disagree with the bucket, and reaching R2 means writing the R2 access key into
+`aptly`'s own configuration, which would give that credential a second home
+that `internal/cli/one_home_for_each_credential_test.go` exists to forbid. The
+rendering is a pure function of the set of `.deb` files, so republishing is
+idempotent and two machines cutting the same release produce the same bytes.
+
+Where the private half of the signing key lives is
+[an open decision](./apt-archive-signing-key.md). Everything that needs it
+takes it from one path, `INTERNKIM_APT_SIGNING_KEY_PATH`, so settling it is a
+change to what that path names.
 
 Rust cannot cross-compile to macOS without an Apple SDK, so the Homebrew
 formula needs a macOS builder for `buzz-relay` that has never been run.

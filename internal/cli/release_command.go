@@ -72,13 +72,17 @@ func runRelease() {
 		if errorValue := runReleaseDeb(os.Args[3:]); errorValue != nil {
 			fatal(errorValue.Error())
 		}
+	case "apt":
+		if errorValue := runReleaseAPT(os.Args[3:]); errorValue != nil {
+			fatal(errorValue.Error())
+		}
 	default:
 		printReleaseUsage()
 	}
 }
 
 func printReleaseUsage() {
-	fmt.Println("Usage: internkim release <publish|status|companion|host|host-image|deb>")
+	fmt.Println("Usage: internkim release <publish|status|companion|host|host-image|deb|apt>")
 	fmt.Println()
 	fmt.Println("  publish     Publish a device release to the stable channel")
 	fmt.Println("  status      Show what the channel points at")
@@ -86,6 +90,7 @@ func printReleaseUsage() {
 	fmt.Println("  host        Publish the host installer under host/latest, stamped with --image")
 	fmt.Println("  host-image  Build and push the company server image, and print the --image it made")
 	fmt.Println("  deb         Build the company host as a Debian package for arm64 and amd64")
+	fmt.Println("  apt         Sign and publish the Debian repository under deb/, from the .debs release deb built")
 	fmt.Println()
 	fmt.Println("Environment for publish:")
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")
@@ -96,6 +101,9 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_R2_PUBLISHER optional: s3 or wrangler")
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
+	fmt.Println()
+	fmt.Println("Environment for apt:")
+	fmt.Println("  INTERNKIM_APT_SIGNING_KEY_PATH names the exported archive signing key; --signing-key overrides it")
 }
 
 func runReleasePublish(arguments []string) error {

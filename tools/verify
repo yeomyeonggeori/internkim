@@ -298,12 +298,15 @@ GROUPS = [
         "native-install-rig",
         [
             "tools/test-native-install",
+            "tools/test-apt-repository",
             "tools/native_install_rig.py",
             "tools/tests/test_native_install_rig.py",
+            "internal/aptrepository/*",
         ],
-        # The half that needs no guest. The rig itself takes a disposable
-        # Debian and about ten minutes, so it is run by hand:
+        # The half that needs no guest. Both rigs take a disposable Debian and
+        # about ten minutes, so they are run by hand:
         # tools/test-native-install --stand-in
+        # tools/test-apt-repository
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"]],
     ),
     Group(
