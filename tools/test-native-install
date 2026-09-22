@@ -726,8 +726,9 @@ def main():
 
             step_five = rig.step(5, "a person signs in and exchanges a message")
             step_five.block(
-                "not run: it needs a company, and docs/internal/native-install-rig.md settles "
-                "where that company may come from before one is created"
+                "not run: the package ships no bun and no uv, so `internkim install` refuses "
+                "before a company reaches this guest. docs/internal/native-install-rig.md "
+                "names that gap and the gateway handshake behind it"
             )
             for name, observes, why_it_waits in owed_until_a_company_exists():
                 step_five.owe(name, observes, why_it_waits)
