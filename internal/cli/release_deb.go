@@ -62,6 +62,7 @@ type debPackagedFile struct {
 	Mode            os.FileMode
 	IsConfiguration bool
 	IsDirectoryTree bool
+	IsSymbolicLink  bool
 }
 
 func runReleaseDeb(arguments []string) error {
@@ -201,6 +202,8 @@ func debContentsFor(packaged []debPackagedFile) files.Contents {
 			FileInfo:    &files.ContentFileInfo{Owner: "root", Group: "root", Mode: file.Mode},
 		}
 		switch {
+		case file.IsSymbolicLink:
+			content.Type = files.TypeSymlink
 		case file.IsConfiguration:
 			content.Type = files.TypeConfigNoReplace
 		case file.IsDirectoryTree:
@@ -239,22 +242,56 @@ func debOwnedDirectories() []debPackagedFile {
 // constant the units use, so a rename cannot leave the package shipping a program no
 // unit starts.
 type debGoProgram struct {
-	Name       string
-	ModuleRoot string
-	Package    string
-	Mode       os.FileMode
+	Name        string
+	ModuleRoot  string
+	Package     string
+	Mode        os.FileMode
+	Destination string
+}
+
+// InstalledPath is /usr/bin unless the program says otherwise, because that is
+// where a program a person types belongs and where dpkg is allowed to write.
+func (program debGoProgram) InstalledPath() string {
+	if program.Destination != "" {
+		return program.Destination
+	}
+	return blueclaw.CompanyPackageBinaryPath(program.Name)
 }
 
 func debGoPrograms() []debGoProgram {
 	return []debGoProgram{
+		// The control command the package is named after. `internkim install`
+		// gives this box a company; until it has one, every unit's condition is
+		// unmet and nothing runs.
+		{Name: blueclaw.CompanyPackageName, Package: "./cmd/internkim-host", Mode: 0o755},
 		{Name: blueclaw.CapabilitydName, Package: "./cmd/internkim-capabilityd", Mode: 0o755},
 		{Name: blueclaw.AdmindName, Package: "./cmd/internkim-admind", Mode: 0o755},
 		{Name: blueclaw.MaildName, Package: "./cmd/internkim-maild", Mode: 0o755},
 		{Name: blueclaw.BuzzMigrateName, Package: "./cmd/buzz-migrate", Mode: 0o755},
 		{Name: blueclaw.BlueclawName, ModuleRoot: blueclaw.BlueclawSubmodulePath, Package: "./cmd/blueclaw", Mode: 0o755},
 		// The helper is what lets an unprivileged blueclaw act as the person who
-		// asked. It is the one setuid file in the package.
-		{Name: "blueclaw-posix-helper", ModuleRoot: blueclaw.BlueclawSubmodulePath, Package: "./cmd/blueclaw-posix-helper", Mode: os.ModeSetuid | 0o755},
+		// asked. It is the one setuid file in the package, and the one program
+		// that does not go in /usr/bin: nobody runs it from a shell, and the
+		// runtime document the prepare script renders names where it is.
+		{
+			Name:        blueclaw.POSIXHelperProgramName,
+			ModuleRoot:  blueclaw.BlueclawSubmodulePath,
+			Package:     "./cmd/blueclaw-posix-helper",
+			Mode:        os.ModeSetuid | 0o755,
+			Destination: blueclaw.CompanyHostPOSIXHelperPath,
+		},
+	}
+}
+
+// debSymbolicLinks keeps the name the published bare binary had working for the
+// one release in which a machine may still be carrying it.
+func debSymbolicLinks() []debPackagedFile {
+	return []debPackagedFile{
+		{
+			SourcePath:     blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName),
+			Destination:    blueclaw.CompanyPackageBinaryPath(companyHostBinaryName),
+			IsSymbolicLink: true,
+		},
 	}
 }
 
@@ -294,10 +331,11 @@ func buildDebPrograms(repositoryRootPath string, target debianTarget, stagingPat
 		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.DebianArchitecture)
 		packaged = append(packaged, debPackagedFile{
 			SourcePath:  builtPath,
-			Destination: blueclaw.CompanyPackageBinaryPath(program.Name),
+			Destination: program.InstalledPath(),
 			Mode:        program.Mode,
 		})
 	}
+	packaged = append(packaged, debSymbolicLinks()...)
 	for _, program := range debBunPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
 		if errorValue := compileDebBunProgram(repositoryRootPath, program, target, builtPath); errorValue != nil {
@@ -632,6 +670,9 @@ func writeDebMaintainerScripts(stagingPath string) (nfpm.Scripts, error) {
 func debShippedProgramNames(debianArchitecture string) ([]string, error) {
 	names := []string{blueclaw.RenderCompanyRuntimeName, blueclaw.BuzzRelayName, blueclaw.BuzzAdminName}
 	for _, program := range debGoPrograms() {
+		if program.Destination != "" {
+			continue
+		}
 		names = append(names, program.Name)
 	}
 	for _, program := range debBunPrograms() {

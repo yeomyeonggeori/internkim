@@ -22,12 +22,20 @@ const (
 	CompanyPackageSection       = "admin"
 	CompanyPackageBinaryRoot    = "/usr/bin"
 	CompanyPackageLibraryRoot   = "/opt/internkim"
-	CompanyPackageHelperRoot    = "/usr/libexec/internkim"
+	CompanyPackageHelperRoot    = "/usr/lib/internkim"
 	CompanyPackageUnitRoot      = "/usr/lib/systemd/system"
 	CompanyPackageSkillsPath    = "/opt/internkim/skills"
 	CompanyPackageTemplatePath  = "/opt/internkim/runtime.template.json"
 	CompanyPackageMigrationPath = "/opt/blueclaw/migrations"
-	CompanyPackagePreparePath   = "/usr/libexec/internkim/prepare-company-host"
+	CompanyPackagePreparePath   = "/usr/lib/internkim/prepare-company-host"
+
+	// POSIXHelperProgramName is what lets the unprivileged agent act as the
+	// person who asked, and it is the one setuid file the package ships. Debian
+	// forbids a package writing /usr/local, where the device path keeps it, so
+	// the packaged host names its own path and the rendered runtime document
+	// carries that name rather than the device's.
+	POSIXHelperProgramName     = "blueclaw-posix-helper"
+	CompanyHostPOSIXHelperPath = "/usr/lib/internkim/" + POSIXHelperProgramName
 
 	// The company directory is keyed by company id, and a unit rendered at package
 	// build time cannot name an id nobody has chosen yet. `internkim install` points
@@ -444,6 +452,7 @@ else
   LOG_DIRECTORY_PATH=%[9]s \
   MODEL_API_KEY_PATH=%[8]s \
   ADMIN_ASSERTION_KEY_PATH=%[6]s \
+  POSIX_HELPER_PATH=%[23]s \
     %[18]s --template %[19]s --capabilityd %[20]s --out %[14]s --work %[4]s
   chgrp %[3]s %[14]s
   chmod 0640 %[14]s
@@ -478,5 +487,6 @@ fi
 		CompanyPackageTemplatePath,
 		CompanyPackageBinaryPath(CapabilitydName),
 		CompanyHostPolicyOverridePath,
-		CompanyHostPolicyDocument)
+		CompanyHostPolicyDocument,
+		CompanyHostPOSIXHelperPath)
 }

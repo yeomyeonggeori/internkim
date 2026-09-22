@@ -89,17 +89,40 @@ func TestTheStateRootIsPrivate(t *testing.T) {
 
 // The helper is setuid root. If the package ever stops saying so, the agent silently
 // loses the ability to act as the person who asked.
-func TestTheHelperIsShippedSetuid(t *testing.T) {
+func TestTheHelperIsShippedSetuidWhereTheRuntimeLooksForIt(t *testing.T) {
 	for _, program := range debGoPrograms() {
-		if !strings.HasSuffix(program.Name, "posix-helper") {
+		if program.Name != blueclaw.POSIXHelperProgramName {
 			continue
 		}
 		if program.Mode&os.ModeSetuid == 0 {
 			t.Fatalf("%s is shipped %o rather than setuid", program.Name, program.Mode)
 		}
+		if program.InstalledPath() != blueclaw.CompanyHostPOSIXHelperPath {
+			t.Fatalf("the package installs the helper at %s and the rendered runtime names %s", program.InstalledPath(), blueclaw.CompanyHostPOSIXHelperPath)
+		}
 		return
 	}
 	t.Fatal("the package ships no POSIX helper, so the agent can act as nobody")
+}
+
+// The package is named after a command, and `internkim install` is the only way
+// a box gets a company. A package that ships every daemon and not that command
+// installs a machine nobody can finish setting up.
+func TestThePackageShipsTheControlCommandAndTheNameTheBareBinaryHad(t *testing.T) {
+	installed := map[string]bool{}
+	for _, program := range debGoPrograms() {
+		installed[program.InstalledPath()] = true
+	}
+	controlPath := blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName)
+	if !installed[controlPath] {
+		t.Fatalf("the package installs no %s", controlPath)
+	}
+	for _, link := range debSymbolicLinks() {
+		if link.Destination == blueclaw.CompanyPackageBinaryPath(companyHostBinaryName) && link.SourcePath == controlPath {
+			return
+		}
+	}
+	t.Fatalf("nothing keeps %s working for a machine that still has it", companyHostBinaryName)
 }
 
 // A postinst that cannot do its job must fail naming what it was doing. A box with the
@@ -110,7 +133,7 @@ func TestThePostInstallRefusesEveryStepItCannotComplete(t *testing.T) {
 		"could not create the " + blueclaw.BlueclawUser + " user",
 		"could not create the " + blueclaw.RelayUserName + " user",
 		"could not create " + blueclaw.CompanyHostStateRoot,
-		"could not make " + blueclaw.CompanyPackageBinaryPath("blueclaw-posix-helper") + " setuid",
+		"could not make " + blueclaw.CompanyHostPOSIXHelperPath + " setuid",
 		"systemd did not reload",
 		"could not enable $unit",
 	} {

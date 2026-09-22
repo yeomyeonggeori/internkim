@@ -12,6 +12,52 @@ import unittest
 repository_root = Path(__file__).resolve().parents[2]
 install_script = repository_root / "web/static/install.sh"
 companion_address = repository_root / "web/static/companion/install.sh"
+keyring_path = "/usr/share/keyrings/internkim-archive-keyring.pgp"
+apt_source_path = "/etc/apt/sources.list.d/internkim.sources"
+published_keyring = b"-----BEGIN PGP PUBLIC KEY BLOCK-----\nnot a real key\n"
+
+# `install` is the only command the script uses to put a file where root can
+# see it, and its destination is always the last argument. Rewriting that one
+# argument under a sandbox is what lets this test read what the script wrote to
+# /etc and /usr/share without the test machine having either path touched.
+install_shim = """#!/usr/bin/env python3
+import os
+import shutil
+import sys
+
+sandbox = os.environ["INTERNKIM_TEST_SANDBOX"]
+arguments = sys.argv[1:]
+mode = 0o755
+makes_a_directory = False
+positional = []
+index = 0
+while index < len(arguments):
+    if arguments[index] == "-d":
+        makes_a_directory = True
+    elif arguments[index] == "-m":
+        index += 1
+        mode = int(arguments[index], 8)
+    else:
+        positional.append(arguments[index])
+    index += 1
+
+destination = positional[-1]
+sandboxed = sandbox + destination if destination.startswith("/") else destination
+if makes_a_directory:
+    os.makedirs(sandboxed, exist_ok=True)
+else:
+    shutil.copyfile(positional[0], sandboxed)
+os.chmod(sandboxed, mode)
+"""
+
+
+def recording_shim(name, log_path, exit_code=0, output=""):
+    return (
+        "#!/bin/sh\n"
+        f'printf "%s\\n" "{name} $*" >> "{log_path}"\n'
+        + (f'echo "{output}"\n' if output else "")
+        + f"exit {exit_code}\n"
+    )
 def published_binary(binary_name):
     return f"#!/bin/sh\necho {binary_name}\n".encode()
 
@@ -57,7 +103,7 @@ class InstallScriptTests(unittest.TestCase):
         environment = dict(os.environ)
         environment["INTERNKIM_INSTALL_BIN_DIR"] = str(bin_dir or self.enterContext(tempfile.TemporaryDirectory()))
         directories = [*shims, self.uname_shim(*machine)]
-        environment["PATH"] = os.pathsep.join([*directories, environment["PATH"]])
+        environment["PATH"] = os.pathsep.join([*directories, self.path_without_a_package_manager()])
         environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
         completed = subprocess.run(
             ["sh", str(install_script), product],
@@ -66,6 +112,20 @@ class InstallScriptTests(unittest.TestCase):
             env=environment,
         )
         return completed, Path(environment["INTERNKIM_INSTALL_BIN_DIR"])
+
+    def path_without_a_package_manager(self):
+        """A PATH on which the script cannot find apt-get.
+
+        `host` reaches for the package manager whenever one is there, so the
+        direct-download path these tests read is what a machine without one
+        takes. On this Mac that is every PATH; on a Debian build machine it is
+        not, and a test that passed only where it was written proves nothing.
+        """
+        return os.pathsep.join(
+            directory
+            for directory in os.environ["PATH"].split(os.pathsep)
+            if directory and not (Path(directory) / "apt-get").exists()
+        )
 
     def forget_checksum_line(self, base_url, product, binary_name):
         checksums = self.served_directory / product / "latest" / "SHA256SUMS"
@@ -179,6 +239,106 @@ class InstallScriptTests(unittest.TestCase):
         )
         self.assertNotEqual(completed.returncode, 0)
         self.assertFalse((bin_dir / "internkim-companion").exists())
+
+    def debian_machine(self, failing_apt_subcommand="", sandbox_installs=True):
+        """A machine that has apt-get, dpkg and sudo, and a sandbox for what root writes."""
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.apt_log = directory / "apt.log"
+        (directory / "apt-get").write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "apt-get $*" >> "{self.apt_log}"\n'
+            f'case "$1" in {failing_apt_subcommand or "__never__"}) exit 100 ;; esac\n'
+            "exit 0\n"
+        )
+        (directory / "dpkg").write_text(recording_shim("dpkg", directory / "apt.log", output="arm64"))
+        (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
+        shimmed = ["apt-get", "dpkg", "sudo"]
+        if sandbox_installs:
+            (directory / "install").write_text(install_shim)
+            shimmed.append("install")
+        for name in shimmed:
+            (directory / name).chmod(0o755)
+        return str(directory)
+
+    def run_install_on_debian(self, base_url, shims, product="host"):
+        environment = dict(os.environ)
+        environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
+        environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
+        environment["INTERNKIM_INSTALL_REPOSITORY_URL"] = f"{base_url}/deb"
+        environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
+        environment["PATH"] = os.pathsep.join([shims, self.uname_shim("Linux", "aarch64"), environment["PATH"]])
+        completed = subprocess.run(
+            ["sh", str(install_script), product],
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        return completed, Path(environment["INTERNKIM_INSTALL_BIN_DIR"])
+
+    def publish_keyring(self, base_url):
+        (self.served_directory / "deb").mkdir(parents=True, exist_ok=True)
+        (self.served_directory / "deb" / "internkim-archive-keyring.pgp").write_bytes(published_keyring)
+        return base_url
+
+    def test_a_machine_with_apt_gets_the_package_and_not_a_bare_binary(self):
+        base_url = self.publish_keyring(self.serve())
+        completed, bin_dir = self.run_install_on_debian(base_url, self.debian_machine())
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+        written = (self.sandbox / apt_source_path.lstrip("/")).read_text()
+        self.assertEqual(
+            written.splitlines(),
+            [
+                "Types: deb",
+                f"URIs: {base_url}/deb",
+                "Suites: stable",
+                "Components: main",
+                "Architectures: arm64",
+                f"Signed-By: {keyring_path}",
+            ],
+        )
+        self.assertEqual((self.sandbox / keyring_path.lstrip("/")).read_bytes(), published_keyring)
+
+        calls = self.apt_log.read_text().splitlines()
+        self.assertIn("apt-get update", calls)
+        self.assertIn("apt-get install -y internkim", calls)
+        self.assertEqual(list(bin_dir.iterdir()), [])
+
+    def test_the_key_never_lands_where_it_would_sign_every_repository(self):
+        base_url = self.publish_keyring(self.serve())
+        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        for forbidden in ("etc/apt/trusted.gpg", "etc/apt/trusted.gpg.d"):
+            self.assertFalse((self.sandbox / forbidden).exists(), forbidden)
+        self.assertNotIn("apt-key", self.apt_log.read_text())
+
+    def test_a_failed_package_install_says_how_to_undo_what_it_wrote(self):
+        base_url = self.publish_keyring(self.serve())
+        completed, _ = self.run_install_on_debian(base_url, self.debian_machine(failing_apt_subcommand="install"))
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn(apt_source_path, completed.stderr)
+        self.assertIn(keyring_path, completed.stderr)
+
+    def test_a_signing_key_that_cannot_be_fetched_changes_nothing(self):
+        base_url = self.serve()
+        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("signing key", completed.stderr)
+        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
+        self.assertNotIn("apt-get", self.apt_log.read_text())
+
+    def test_the_companion_ignores_the_package_manager(self):
+        base_url = self.publish_keyring(self.serve())
+        completed, bin_dir = self.run_install_on_debian(
+            base_url, self.debian_machine(sandbox_installs=False), product="companion"
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            (bin_dir / "internkim-companion").read_bytes(),
+            published_binary("internkim-companion-linux-arm64"),
+        )
+        self.assertFalse(self.apt_log.exists())
 
     def test_refuses_a_product_it_publishes_no_build_for(self):
         completed = subprocess.run(
