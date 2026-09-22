@@ -48,12 +48,30 @@ def capability_descriptor_names() -> set[str]:
     return names_in(CAPABILITY_DESCRIPTORS, r'\{Name: "([a-z0-9_]+)"')
 
 
+def kernel_tool_name_by_constant() -> dict[str, str]:
+    if not KERNEL_TOOLS.is_file():
+        return {}
+    return dict(re.findall(r'(\w+ToolName)\s+= "([a-z0-9_.]+)"', KERNEL_TOOLS.read_text()))
+
+
 def blueclaw_local_tool_names() -> set[str]:
-    return names_in(BLUECLAW_LOCAL_TOOLS, r'Name:\s+"([a-z0-9_]+)"')
+    if not BLUECLAW_LOCAL_TOOLS.is_file():
+        return set()
+    source = BLUECLAW_LOCAL_TOOLS.read_text()
+    name_by_constant = kernel_tool_name_by_constant()
+    referenced_constants = set(re.findall(r"Name:\s+toolcontract\.(\w+ToolName)", source))
+    unresolved = sorted(referenced_constants - name_by_constant.keys())
+    if unresolved:
+        raise LookupError(
+            f"{BLUECLAW_LOCAL_TOOLS.name} names tools through {', '.join(unresolved)},"
+            f" which {KERNEL_TOOLS.name} does not declare"
+        )
+    literal_names = set(re.findall(r'Name:\s+"([a-z0-9_]+)"', source))
+    return literal_names | {name_by_constant[constant] for constant in referenced_constants}
 
 
 def kernel_tool_names() -> set[str]:
-    return names_in(KERNEL_TOOLS, r'ToolName\s+= "([a-z0-9_.]+)"')
+    return set(kernel_tool_name_by_constant().values())
 
 
 def served_tool_names() -> set[str]:
