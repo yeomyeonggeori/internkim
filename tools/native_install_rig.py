@@ -682,6 +682,56 @@ def install_attempt_on_another_suite(package_path, container_binary="container")
     )
     return completed
 
+# ------------------------------------------------------- what a person does next
+
+CONNECTION_FILE_NAME = "internkim-host.json"
+MODEL_KEY_FILE_NAME = "rig-model-key"
+
+# The guest is given a company whose agent never reaches a model provider. What
+# any rig here judges is whether a message crosses the gateway and reaches the
+# company's store, which no model is asked about; a key that could buy tokens
+# has no business in a disposable guest.
+RIG_MODEL_KEY = "sk-or-v1-this-rig-never-reaches-a-model-provider"
+
+
+def install_the_company(machine, connection):
+    """Everything a person does between downloading the file and a running box."""
+    share = machine.share_directory
+    (share / CONNECTION_FILE_NAME).write_text(json.dumps(connection, indent=2))
+    (share / MODEL_KEY_FILE_NAME).write_text(RIG_MODEL_KEY + "\n")
+    return machine.shell(
+        f"set -eu\n"
+        f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
+        f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
+        timeout_seconds=1800,
+    )
+
+
+def build_identity_reported(machine):
+    """What the one endpoint that carries a revision says it is running.
+
+    An upgrade that replaces a binary without restarting the unit leaves the
+    old process serving, and dpkg's version and the file's mtime both move
+    anyway. This is the process's own answer.
+    """
+    port, path = REVISION_PROBE
+    reported = machine.shell(f"curl -s --max-time 10 http://127.0.0.1:{port}{path}")
+    found = {}
+    for name in ("admindBuildID", "gitRevision"):
+        match = re.search(r'"' + name + r'"\s*:\s*"([^"]*)"', reported.stdout)
+        found[name] = match.group(1) if match else ""
+    return found
+
+
+def installed_units(machine):
+    """The units dpkg says this package put on the machine."""
+    listed = machine.shell(
+        f"dpkg-query -L {PACKAGE_NAME} 2>/dev/null"
+        r" | grep -E '^/(lib|usr/lib)/systemd/system/.*\.service$' | xargs -r -n1 basename | sort -u"
+    )
+    return [name for name in listed.stdout.split() if name]
+
+
 # ------------------------------------------------------------------- the plane
 
 CENTRAL_TEST_UTILITIES_PATH = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "central-test-utils.ts"
