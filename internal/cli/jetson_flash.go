@@ -116,7 +116,7 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	fmt.Println()
 	fmt.Printf("  user: %s\n", username)
 	fmt.Printf("  password: %s\n", consolePassword)
-	fmt.Println(messenger.t("  저장: .env", "  Saved: .env"))
+	fmt.Println(messenger.t("  저장: 금고 (INTERNKIM_CONSOLE_PASSWORD)", "  Saved: the vault, as INTERNKIM_CONSOLE_PASSWORD"))
 	fmt.Println(messenger.t("  SD 카드를 Jetson에 다시 꽂고 부팅하세요.", "  Put the SD card back into the Jetson and boot it."))
 	return nil
 }

@@ -247,13 +247,13 @@ func TestOpenRouterLiveApprovalReplyDecisionFromEnv(t *testing.T) {
 
 func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 	t.Helper()
-	loadTestEnvFile(t)
 	if os.Getenv("INTERNKIM_LIVE_LLM_TEST") != "1" {
 		t.Skip("set INTERNKIM_LIVE_LLM_TEST=1 to run live OpenRouter schema compatibility test")
 	}
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
 	if apiKey == "" {
-		t.Skip("OPENROUTER_API_KEY is required for live OpenRouter schema compatibility test")
+		t.Skip("OPENROUTER_API_KEY is required for the live OpenRouter test, and the vault holds it: " +
+			"monkeys run @cli go test ./internal/llmbackend -run LiveOpenRouter")
 	}
 	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(keyPath, []byte(apiKey), 0o600); errorValue != nil {
@@ -304,49 +304,6 @@ func assertOpenRouterRawRequestAccepted(ctx context.Context, backend OpenRouterB
 		return normalizeProviderError("openrouter", httpResponse.StatusCode, responseDocument)
 	}
 	return nil
-}
-
-func loadTestEnvFile(t *testing.T) {
-	t.Helper()
-	workingDirectory, errorValue := os.Getwd()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, path := range testEnvFileCandidates(workingDirectory) {
-		content, errorValue := os.ReadFile(path)
-		if errorValue == nil {
-			applyTestEnvContent(string(content))
-			return
-		}
-	}
-}
-
-func testEnvFileCandidates(workingDirectory string) []string {
-	return []string{
-		filepath.Join(workingDirectory, ".env"),
-		filepath.Join(workingDirectory, "..", ".env"),
-		filepath.Join(workingDirectory, "..", "..", ".env"),
-	}
-}
-
-func applyTestEnvContent(content string) {
-	for _, line := range strings.Split(content, "\n") {
-		key, value, isFound := strings.Cut(strings.TrimSpace(line), "=")
-		if !isFound || strings.TrimSpace(key) == "" || strings.HasPrefix(strings.TrimSpace(key), "#") {
-			continue
-		}
-		if os.Getenv(strings.TrimSpace(key)) == "" {
-			os.Setenv(strings.TrimSpace(key), normalizeTestEnvValue(value))
-		}
-	}
-}
-
-func normalizeTestEnvValue(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) >= 2 && ((value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'')) {
-		return value[1 : len(value)-1]
-	}
-	return value
 }
 
 func testEnvValue(key string, fallback string) string {

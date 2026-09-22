@@ -64,6 +64,9 @@ SIGNATURE_NAMES = ("InRelease", "Release.gpg")
 # does not; apt and curl do, which is why they are served and this was not.
 RIG_USER_AGENT = "internkim-published-apt-rig/1"
 
+# The monkeys profile this repository keeps its credentials under.
+VAULT_PROFILE = "cli"
+
 
 class Judgement:
     def __init__(self):
@@ -89,25 +92,46 @@ def asking_for(url):
     return urllib.request.Request(url, headers={"User-Agent": RIG_USER_AGENT})
 
 
+def run_through_the_vault():
+    """Hold the bucket's credential the way the CLI holds it.
+
+    `monkeys` hands a value to the command it starts and redacts one read back
+    through a pipe, so the only way to have one is to be that command. Every
+    reason not to declines and leaves the run as it was: a rig that cannot
+    reach the vault should name what it wanted rather than fail later somewhere
+    that does not say so.
+    """
+    if os.environ.get("INTERNKIM_ENVIRONMENT_FROM_VAULT"):
+        return
+    monkeys = shutil.which("monkeys")
+    if monkeys is None:
+        print(f"{FAIL} monkeys is not installed, so the environment is whatever was already set", file=sys.stderr)
+        return
+    doctor = subprocess.run(
+        [monkeys, "doctor", "--short"], cwd=str(REPOSITORY_ROOT), capture_output=True, text=True,
+    )
+    gap = [line for line in doctor.stdout.splitlines() if line.startswith(f"missing @{VAULT_PROFILE}:")]
+    if gap:
+        print(f"{FAIL} the vault has a gap, so the environment is whatever was already set: {gap[0]}", file=sys.stderr)
+        return
+    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "1"
+    # -u because this rig's output is usually redirected to a file, and python
+    # buffers stdout when it is. A watcher then reads an empty log for the whole
+    # run and cannot tell a slow step from a dead one.
+    os.execvpe(monkeys, [
+        "monkeys", "run", f"@{VAULT_PROFILE}",
+        sys.executable, "-u", str(Path(__file__).resolve()), *sys.argv[1:],
+    ], os.environ)
+
+
 def repository_setting(name):
-    for line in (REPOSITORY_ROOT / ".env").read_text().splitlines():
-        declared, _, value = line.strip().partition("=")
-        if declared == name:
-            return value.strip().strip('"').strip("'")
-    raise RigFailure(f"{name} is not set at the repository root, and the bucket is named by it")
-
-
-def wrangler_environment():
-    """`.env` the way the release command reads it: the bucket is reached with
-    the same credential whether the caller is Go or this."""
-    environment = dict(os.environ)
-    for line in (REPOSITORY_ROOT / ".env").read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name, value = line.split("=", 1)
-        environment.setdefault(name.strip(), value.strip().strip('"').strip("'"))
-    return environment
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RigFailure(
+            f"{name} did not arrive from the vault, and the bucket is named by it; "
+            f"`monkeys doctor` says what the @{VAULT_PROFILE} profile lacks"
+        )
+    return value
 
 
 def r2_object(arguments, timeout_seconds=3600):
@@ -115,7 +139,7 @@ def r2_object(arguments, timeout_seconds=3600):
     completed = subprocess.run(
         [str(wrangler), "r2", "object", *arguments, "--remote"],
         cwd=str(REPOSITORY_ROOT / "web"),
-        env=wrangler_environment(),
+        env=dict(os.environ),
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
@@ -520,6 +544,7 @@ def main():
         help="take the suite's signatures away and tamper with the .deb, putting both back",
     )
     options = parser.parse_args()
+    run_through_the_vault()
     try:
         return PublishedTrial(options).run_trial()
     except RigFailure as failure:
