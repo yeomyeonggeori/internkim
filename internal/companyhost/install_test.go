@@ -128,7 +128,7 @@ func conditionPathOf(unitContents string) string {
 // renderer would be a second definition of the same service.
 func TestTheInstallWritesTheUnitsThePackageShips(t *testing.T) {
 	unitRoot := t.TempDir()
-	if errorValue := installServiceUnits(unitRoot, io.Discard); errorValue != nil {
+	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
 		t.Fatalf("install the units: %v", errorValue)
 	}
 	for _, unit := range blueclaw.CompanyPackageUnits() {
@@ -149,7 +149,7 @@ func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
 	if errorValue := os.WriteFile(owned, []byte("installed by dpkg\n"), 0o644); errorValue != nil {
 		t.Fatalf("plant the packaged unit: %v", errorValue)
 	}
-	if errorValue := installServiceUnits(unitRoot, io.Discard); errorValue != nil {
+	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
 		t.Fatalf("install the units: %v", errorValue)
 	}
 	kept, _ := os.ReadFile(owned)
@@ -162,7 +162,7 @@ func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{"chromium": true, "redis-server": true}}
-	errorValue := requireWhatTheCompanyHostRuns(machine)
+	errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, machine)
 	if errorValue == nil {
 		t.Fatal("a machine with no chromium and no redis was accepted")
 	}
@@ -174,7 +174,7 @@ func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T)
 }
 
 func TestThePreflightPassesAMachineThatCarriesEverything(t *testing.T) {
-	if errorValue := requireWhatTheCompanyHostRuns(&recordedMachine{}); errorValue != nil {
+	if errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, &recordedMachine{}); errorValue != nil {
 		t.Fatalf("a complete machine was refused: %v", errorValue)
 	}
 }
@@ -191,7 +191,7 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 		failures: map[string]error{"pg_isready": errors.New("exit status 2")},
 		answers:  map[string]string{"systemctl": "failed"},
 	}
-	errorValue := waitUntilTheServerAnswers(machine, io.Discard)
+	errorValue := waitUntilTheServerAnswers(debianPlatform{}, machine, io.Discard)
 	if errorValue == nil {
 		t.Fatal("a server whose database never answered reported ready")
 	}
@@ -210,7 +210,7 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 
 func TestTheWaitReturnsOnceEveryServiceAnswers(t *testing.T) {
 	machine := &recordedMachine{answers: map[string]string{"redis-cli": "PONG\n"}}
-	if errorValue := waitUntilTheServerAnswers(machine, io.Discard); errorValue != nil {
+	if errorValue := waitUntilTheServerAnswers(debianPlatform{}, machine, io.Discard); errorValue != nil {
 		t.Fatalf("a machine whose services all answered was refused: %v", errorValue)
 	}
 }
@@ -226,7 +226,7 @@ func TestTheWaitKeepsTheBudgetTheComposeStackHad(t *testing.T) {
 func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *testing.T) {
 	machine := &recordedMachine{}
 	password := strings.Repeat("2", 64)
-	if errorValue := prepareDatabases(machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
+	if errorValue := prepareDatabases(debianPlatform{}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
 	}
 	prepared := false

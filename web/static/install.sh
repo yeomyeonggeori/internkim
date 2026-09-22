@@ -5,7 +5,10 @@ set -eu
 # machine `host` means apt: the keyring, a deb822 source naming it, and
 # `apt-get install internkim`, so the box ends in the state it would have
 # reached had the person typed those commands themselves and `apt upgrade` and
-# `apt remove` work on it afterwards. Everywhere else, and for `companion`
+# `apt remove` work on it afterwards. On a Mac with Homebrew it means the tap
+# and `brew install internkim`, for the same reason and with the same result:
+# `brew upgrade` and `brew uninstall` work afterwards because nothing was put
+# on the machine behind Homebrew's back. Everywhere else, and for `companion`
 # always, the published binary is fetched against its checksum.
 
 product="${1:-}"
@@ -21,6 +24,7 @@ keyring_url="${INTERNKIM_INSTALL_KEYRING_URL:-$repository_url/internkim-archive-
 apt_source_path="/etc/apt/sources.list.d/internkim.sources"
 apt_suite="${INTERNKIM_INSTALL_SUITE:-stable}"
 apt_component="main"
+homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/internkim}"
 
 stop() {
   echo "$1" >&2
@@ -103,8 +107,33 @@ Undo what this script wrote with:
   echo "  sudo internkim install ~/Downloads/internkim-host.json"
 }
 
+# Homebrew is not run as root. It refuses to be, and the files it writes belong
+# to the person who installed them; what needs root is the second line, and that
+# is `internkim install`, which asks for it itself.
+install_through_homebrew() {
+  brew tap "$homebrew_tap" || stop \
+"brew tap $homebrew_tap failed, and its own output is above.
+Nothing on this machine was changed."
+
+  brew install "$package_name" || stop \
+"brew install $package_name failed, and its own output above names what it could
+not resolve.
+Undo what this script did with:
+  brew untap $homebrew_tap"
+
+  echo
+  echo "Installed $package_name. Every service stays idle until this box has a company."
+  echo "Give it one with the connection file you downloaded from company setup:"
+  echo "  sudo internkim install ~/Downloads/internkim-host.json"
+}
+
 if [ "$product" = host ] && command -v apt-get >/dev/null 2>&1; then
   install_the_package
+  exit 0
+fi
+
+if [ "$product" = host ] && command -v brew >/dev/null 2>&1; then
+  install_through_homebrew
   exit 0
 fi
 
@@ -155,8 +184,15 @@ esac
 
 if [ "$product" = "host" ]; then
   echo
-  echo "This machine has no apt, so the company host arrived as one binary rather than"
-  echo "a package. Install the company server with the connection file you downloaded:"
+  if [ "$operating_system" = darwin ]; then
+    echo "This Mac has no Homebrew, so the company host arrived as one binary rather than"
+    echo "a package. Homebrew is where the database, the cache and the rest come from:"
+    echo "  https://brew.sh"
+    echo "Install it, run this line again, and the box ends registered with brew."
+  else
+    echo "This machine has no apt, so the company host arrived as one binary rather than"
+    echo "a package. Install the company server with the connection file you downloaded:"
+  fi
   echo "  sudo $binary_path install ~/Downloads/internkim-host.json"
   exit 0
 fi

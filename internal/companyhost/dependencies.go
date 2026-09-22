@@ -14,24 +14,31 @@ import (
 // read here and the gap is named instead of installed. The gap between the two
 // paths is this message.
 
-// The one program whose presence decides whether this repository knows the
-// command that installs the rest.
-const debianPackageManager = "apt-get"
-
 type missingPiece struct {
-	What          string
-	DebianPackage string
+	What            string
+	DebianPackage   string
+	HomebrewFormula string
+	HomebrewCask    blueclaw.HostHomebrewCask
 }
 
-func requireWhatTheCompanyHostRuns(machine Machine) error {
-	missing := whatThisComputerIsMissing(machine)
+func (piece missingPiece) belongsToOurPackage() bool {
+	return piece.DebianPackage == blueclaw.CompanyPackageName
+}
+
+func requireWhatTheCompanyHostRuns(platform companyHostPlatform, machine Machine) error {
+	missing := whatThisComputerIsMissing(platform, machine)
 	if len(missing) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%s", refusalNaming(missing, machine.CarriesProgram(debianPackageManager) == nil))
+	return fmt.Errorf("%s", refusalNaming(platform, machine, missing))
 }
 
-func whatThisComputerIsMissing(machine Machine) []missingPiece {
+// What is missing is asked of this machine in this machine's terms. A dependency
+// that declares where it is on a Mac is looked for there rather than on PATH:
+// the browser the deck renderer opens is an application bundle and the Hangul
+// face is a file the system ships, and neither is a program a `command -v`
+// would find.
+func whatThisComputerIsMissing(platform companyHostPlatform, machine Machine) []missingPiece {
 	missing := []missingPiece{}
 	for _, program := range blueclaw.HostProgramsThePackageShips() {
 		if machine.CarriesProgram(program) != nil {
@@ -39,17 +46,38 @@ func whatThisComputerIsMissing(machine Machine) []missingPiece {
 		}
 	}
 	for _, dependency := range blueclaw.HostDependencies() {
-		for _, program := range dependency.ProgramsTheHostRuns {
-			if machine.CarriesProgram(program) != nil {
-				missing = append(missing, missingPiece{What: program, DebianPackage: whatCarries(dependency)})
+		for _, piece := range whatIsMissingOf(platform, machine, dependency) {
+			missing = append(missing, piece)
+		}
+	}
+	return missing
+}
+
+func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency blueclaw.HostDependency) []missingPiece {
+	describe := func(what string) missingPiece {
+		return missingPiece{
+			What:            what,
+			DebianPackage:   whatCarries(dependency),
+			HomebrewFormula: dependency.HomebrewFormula,
+			HomebrewCask:    dependency.HomebrewCask,
+		}
+	}
+	if candidates := platform.WhereToLookFor(dependency); len(candidates) > 0 {
+		for _, candidate := range candidates {
+			if machine.CarriesFile(candidate) == nil {
+				return nil
 			}
 		}
-		if dependency.ReadableFilePath == "" {
-			continue
+		return []missingPiece{describe(candidates[0])}
+	}
+	missing := []missingPiece{}
+	for _, program := range dependency.ProgramsTheHostRuns {
+		if machine.CarriesProgram(program) != nil {
+			missing = append(missing, describe(program))
 		}
-		if machine.CarriesFile(dependency.ReadableFilePath) != nil {
-			missing = append(missing, missingPiece{What: dependency.ReadableFilePath, DebianPackage: whatCarries(dependency)})
-		}
+	}
+	if dependency.ReadableFilePath != "" && machine.CarriesFile(dependency.ReadableFilePath) != nil {
+		missing = append(missing, describe(dependency.ReadableFilePath))
 	}
 	return missing
 }
@@ -67,19 +95,15 @@ func whatCarries(dependency blueclaw.HostDependency) string {
 // missing pieces are named by what they are, because a Debian package name is
 // the wrong name on a machine that does not use Debian packages, and advice a
 // person cannot follow is worse than no advice.
-func refusalNaming(missing []missingPiece, thisMachineHasApt bool) string {
-	fromTheDistribution := []string{}
+func refusalNaming(platform companyHostPlatform, machine Machine, missing []missingPiece) string {
 	fromOurPackage := []string{}
+	fromElsewhere := []missingPiece{}
 	for _, piece := range missing {
-		if piece.DebianPackage == blueclaw.CompanyPackageName {
+		if piece.belongsToOurPackage() {
 			fromOurPackage = append(fromOurPackage, piece.What)
 			continue
 		}
-		if thisMachineHasApt {
-			fromTheDistribution = append(fromTheDistribution, piece.DebianPackage)
-			continue
-		}
-		fromTheDistribution = append(fromTheDistribution, piece.What)
+		fromElsewhere = append(fromElsewhere, piece)
 	}
 	lines := []string{"this computer is missing what the company server runs on:"}
 	if len(fromOurPackage) > 0 {
@@ -88,18 +112,18 @@ func refusalNaming(missing []missingPiece, thisMachineHasApt bool) string {
 				" belong to the "+blueclaw.CompanyPackageName+" package and are not on this machine.",
 			"  Install it with: curl -fsSL https://intern.kim/install.sh | sh -s -- host")
 	}
-	if len(fromTheDistribution) == 0 {
+	if len(fromElsewhere) == 0 {
 		return strings.Join(lines, "\n")
 	}
-	if thisMachineHasApt {
-		return strings.Join(append(lines,
-			"  Your distribution carries the rest. Install them, then run this again:",
-			"    sudo apt-get install "+strings.Join(sortedAndUnique(fromTheDistribution), " ")), "\n")
+	return strings.Join(append(lines, platform.HowToInstallTheseByHand(machine, fromElsewhere)...), "\n")
+}
+
+func whatEachPieceIs(missing []missingPiece) []string {
+	described := []string{}
+	for _, piece := range missing {
+		described = append(described, piece.What)
 	}
-	return strings.Join(append(lines,
-		"  The rest are missing and this machine has no apt to name them for:",
-		"    "+strings.Join(sortedAndUnique(fromTheDistribution), ", "),
-		"  Install them however this machine installs software, then run this again."), "\n")
+	return described
 }
 
 func sortedAndUnique(values []string) []string {

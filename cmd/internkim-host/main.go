@@ -117,7 +117,8 @@ func runInstall(arguments []string) error {
 		return errorValue
 	}
 	fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", installation.Connection.AppURL)
-	fmt.Printf("Private settings: %s\nsystemd starts the server when this computer starts. Keep it awake.\n", installation.StateDirectoryPath)
+	fmt.Printf("Private settings: %s\n%s starts the server when this computer starts. Keep it awake.\n",
+		installation.StateDirectoryPath, installation.Supervisor)
 	return nil
 }
 

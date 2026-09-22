@@ -68,8 +68,8 @@ type companyHostSettings struct {
 	DatabasePassword string
 }
 
-func prepareCompanyDirectory(machine Machine, directoryPath string, connection Connection, request Request) (companyHostSettings, error) {
-	if errorValue := ensureServiceAccounts(machine); errorValue != nil {
+func prepareCompanyDirectory(platform companyHostPlatform, machine Machine, directoryPath string, connection Connection, request Request) (companyHostSettings, error) {
+	if errorValue := platform.EnsureServiceAccounts(machine); errorValue != nil {
 		return companyHostSettings{}, errorValue
 	}
 	for _, root := range []string{blueclaw.CompanyHostStateRoot, blueclaw.CompanyHostCompaniesRoot} {
@@ -280,30 +280,4 @@ func makePrivateDirectory(path string) error {
 		return errorValue
 	}
 	return os.Chmod(path, blueclaw.CompanyHostStateRootMode)
-}
-
-// The package's postinst creates these two accounts; a machine that took the
-// unpackaged path has nobody to have done it.
-func ensureServiceAccounts(machine Machine) error {
-	for _, account := range []struct {
-		name     string
-		homePath string
-	}{
-		{blueclaw.BlueclawUser, blueclaw.BlueclawHomePath},
-		{blueclaw.RelayUserName, ""},
-	} {
-		if _, errorValue := machine.Output("getent", []string{"passwd", account.name}); errorValue == nil {
-			continue
-		}
-		machine.Run("addgroup", []string{"--system", account.name}, nil, io.Discard)
-		arguments := []string{"--system", "--ingroup", account.name, "--shell", "/usr/sbin/nologin"}
-		if account.homePath != "" {
-			arguments = append(arguments, "--home", account.homePath)
-		}
-		machine.Run("adduser", append(arguments, account.name), nil, io.Discard)
-		if _, errorValue := machine.Output("getent", []string{"passwd", account.name}); errorValue != nil {
-			return fmt.Errorf("the %s account the company host runs a service as could not be created: %w", account.name, errorValue)
-		}
-	}
-	return nil
 }

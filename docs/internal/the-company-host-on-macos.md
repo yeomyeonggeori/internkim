@@ -123,10 +123,14 @@ The two casks are the problem, and the shape of the problem is the same for
 both: a formula cannot depend on a cask. `DependencyCollector#parse_symbol_spec`
 accepts `:arch`, `:linux`, `:macos`, `:maximum_macos` and `:xcode`, and raises
 `ArgumentError: Unsupported special dependency` on anything else. `cask:` is a
-key of the **cask** DSL's `depends_on`. `HostDependency.HomebrewFormulaIsACask`
-therefore has nowhere to render, and the comment on `HostHomebrewDependencies`
-that calls this "the same list as a formula sees it" is wrong about two of its
-entries.
+key of the **cask** DSL's `depends_on`.
+
+The declaration now says so. `HostHomebrewDependencies()` returns the
+`depends_on` lines and only those; `HostHomebrewCasksAPersonMustInstall()`
+returns what the formula's caveats have to say instead, each carrying what it is
+for, whether it can be installed at all and what to install in its place. Every
+dependency also names what answers it on a Mac, so "macOS ships this" and
+"nobody has looked" stopped being the same empty field.
 
 **`chromium`.** The cask is `version :latest`, `sha256 :no_check`, pulling a
 snapshot from `download-chromium.appspot.com`, and it carries
@@ -149,6 +153,21 @@ so the list falls through to the Chrome path. On macOS the browser the deck
 renderer opens is Google Chrome, which is a cask too, and a live one
 (`google-chrome` 153.0.8010.53). `ungoogled-chromium` 152.0.7977.82-1.1 is also
 live and is not in that candidate list.
+
+**The decision.** A Mac host declares the browser the way the skill gate
+declares a missing font. The `chromium` dependency keeps its Debian package and
+its `chromium` program, and gains the two paths a Mac can have one at:
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` and
+`/Applications/Chromium.app/Contents/MacOS/Chromium`. `internkim install`'s
+preflight looks there rather than on PATH, so a Mac with Chrome is not told it
+has no browser and a Mac with neither is told which cask to install and why the
+other cannot be. The formula's caveats carry the same sentence, because a
+formula cannot carry the dependency.
+
+What is still owed is the skill side, in `internkim-plugin`: `presentation`
+declares no `requires-any-file`, so a Mac with no browser at all offers the deck
+skill and fails inside `html_render.mjs` rather than withholding it. The three
+paths to declare are the ones `chromiumExecutablePath()` walks.
 
 **`font-nanum-gothic`.** The cask installs three files into
 `~/Library/Fonts/`: `NanumGothic-Regular.ttf`, `NanumGothic-Bold.ttf`,
@@ -388,20 +407,68 @@ uses: a `backgroundService` interface with `service_launchd.go` and
 `service_systemd.go` behind it. Four of the six rows above are one file's worth
 of difference, and the middle two are none.
 
-## 8. What was not determined
+## 8. What the build found
 
-- **Whether launchd plists rendered from the unit renderers actually bring the
-  bundle up.** Nothing was rendered and nothing was loaded. Ordering is the
-  thing at risk and it is the thing no single-service test shows.
+The formula, the bottle and `internkim release brew` were built after this
+document was written, and five things Homebrew decides came out of that rather
+than out of reading. Each one moved something.
+
+**The keg puts one program in `bin`.** The package vendors `bun`, `uv` and
+`agent-browser`, Homebrew has a formula of each of those names, and a keg
+offering its own could not be linked: "Target `/opt/homebrew/bin/agent-browser`
+is a symlink belonging to agent-browser". Everything the services run lives in
+`libexec`, which Homebrew does not link, and the plists name it through
+`<prefix>/opt/internkim` so an upgrade that replaces the keg does not move a
+path a daemon holds.
+
+**A pour is not an install.** Homebrew runs a formula's `install` only when it
+builds from source, and `post_install` after either. Anything the keg needs
+built on the machine belongs in `post_install`, and the document virtualenv is
+the one thing that does.
+
+**The virtualenv cannot be shipped.** A virtualenv names its interpreter by
+absolute path, so one built at release time names the release's own directory.
+A bottle carrying one does not pour at all: Homebrew tries to rewrite every
+compiled module's install name and a Python wheel has no header padding for it
+— "Updated load commands do not fit in the header of …/`_anydoc.abi3.so`". What
+the keg carries is the exact wheels the release resolved, and `post_install`
+installs them `--no-index`.
+
+**`brew install python@3.13` gives a broken Python on macOS 26.1.** Its
+`pyexpat` links against a `/usr/lib/libexpat.1.dylib` newer than 26.1 ships, and
+`python@3.13` does not depend on the `expat` formula, so it takes whatever the
+running macOS has. `plistlib`, `xml.etree`, `platform.mac_ver()` and every
+`.docx` write go with it. `python@3.14` fails the same way. So the keg carries a
+pinned python-build-standalone interpreter beside `bun` and `uv`, and the
+release refuses to build a keg whose interpreter cannot open what the skills
+open.
+
+**launchd hands a daemon `/usr/bin:/bin:/usr/sbin:/sbin`.** That holds neither
+Homebrew's prefix nor this keg, so every plist carries a `PATH` of its own.
+systemd's default is no better and it costs nothing on Debian, where everything
+the bundle shells out to is in `/usr/bin`.
+
+Three paths the bundle invented for itself do not exist on a Mac, and the layout
+moves each: `/` is a sealed read-only volume so `mkdir /workspace` fails,
+`/home` is an autofs mount point, and `/run` is neither.
+`brew.sh`'s `check-run-command-as-root` permits exactly two Homebrew commands as
+root, `--prefix` and `services`, which is all the install needs;
+`Homebrew::Services::System.path` returns `/Library/LaunchDaemons` with the
+`system` domain when euid is zero, so the database and the cache land beside the
+nine and survive a reboot with nobody logged in.
+
+## 9. What is still not determined
+
+- **Whether launchd plists bring the bundle up.** They render, they parse under
+  `plutil`, and nothing has loaded them. That needs a company, and
+  `tools/test-macos-install --install-the-company` is where it will be read.
 - **Whether the deck renderer produces correct slides through Google Chrome.**
   The path resolves and Chrome is present; no deck was rendered.
 - **Whether `document`'s PDF loses its Hangul on macOS.** The candidate list
-  contains no path that exists, so it must, but no PDF was generated to confirm
+  contains no path that exists, so it must, and no PDF was generated to confirm
   it.
-- **Bottle portability across macOS versions.** Everything here was built and
-  run on 26.1. A bottle is per-macOS-version and none was built.
+- **Bottle portability across macOS versions.** The bottle was built, poured and
+  uninstalled on 26.1 and is tagged `arm64_tahoe`. No other macOS has seen it.
 - **Intel Macs.** Nothing was built or run for `x86_64-apple-darwin`.
-- **`brew services` for PostgreSQL and Redis as the host uses them.** Both were
-  run by hand on non-default ports, outside `brew services`.
-- **Whether `moli` works on macOS.** Its darwin asset exists and was not
-  downloaded or run.
+- **Whether `moli` works on macOS.** Its darwin asset is pinned and in the keg;
+  it has not been run.

@@ -2,7 +2,39 @@
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
-artifact_directory="$repository_root/.dependency/buzz-relay"
+
+# The messenger is built for the machine that will run it. linux/arm64 is the
+# appliance and the .deb and stays the default, so the artifact directory every
+# other caller names does not move. A Mac builds the same clone with the same two
+# patches and the same cargo line, on the host rather than in a container: the
+# patches are Python text substitutions and the platform they run on has no
+# bearing on them, and cargo needs no target flag because the host is the target.
+target="linux-arm64"
+case "${1:-}" in
+  --target) target="$2"; shift 2 ;;
+  "") ;;
+  *) echo "usage: prepare-buzz-relay [--target linux-arm64|darwin-arm64]" >&2; exit 1 ;;
+esac
+
+case "$target" in
+  linux-arm64)
+    artifact_directory="$repository_root/.dependency/buzz-relay"
+    bun_target="bun-linux-arm64"
+    ;;
+  darwin-arm64)
+    if [ "$(uname -s)" != "Darwin" ] || [ "$(uname -m)" != "arm64" ]; then
+      echo "a darwin-arm64 messenger is built on an arm64 Mac, and this is $(uname -s) $(uname -m)" >&2
+      exit 1
+    fi
+    artifact_directory="$repository_root/.dependency/buzz-relay-darwin-arm64"
+    bun_target="bun-darwin-arm64"
+    ;;
+  *)
+    echo "no messenger is built for $target; the targets are linux-arm64 and darwin-arm64" >&2
+    exit 1
+    ;;
+esac
+
 source_directory="$artifact_directory/src"
 pinned_revision="973386351646d01efca2735ad4921c0d219cff85"
 source_repository="https://github.com/block/buzz"
@@ -25,7 +57,7 @@ chatd_revision_file="$artifact_directory/CHATD_REVISION"
 # to. It is built here beside the relay it talks through.
 build_chatd() {
   (cd "$repository_root/.dependency/blueclaw/chatd" \
-    && bun build src/main.ts --compile --target=bun-linux-arm64 --outfile "$chatd_binary")
+    && bun build src/main.ts --compile --target="$bun_target" --outfile "$chatd_binary")
   chmod +x "$chatd_binary"
   git -C "$repository_root/.dependency/blueclaw" rev-parse HEAD > "$chatd_revision_file"
   echo "chatd built at $(cat "$chatd_revision_file")"
@@ -94,19 +126,25 @@ if "[patch.crates-io]" not in text:
 manifest.write_text(text.replace("[patch.crates-io]\n", f"[patch.crates-io]\n{entry}\n", 1))
 PATCH
 
-container run --rm --platform linux/arm64 --memory 8G \
-  -v "$source_directory:/build" -w /build rust:1.95-bookworm \
-  bash -c '
-    set -euo pipefail
-    export PATH=/usr/local/cargo/bin:$PATH
-    apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential pkg-config libssl-dev git >/dev/null
-    cargo update --package rust-s3
-    cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin
-  '
+if [ "$target" = "darwin-arm64" ]; then
+  (cd "$source_directory" \
+    && cargo update --package rust-s3 \
+    && cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin)
+else
+  container run --rm --platform linux/arm64 --memory 8G \
+    -v "$source_directory:/build" -w /build rust:1.95-bookworm \
+    bash -c '
+      set -euo pipefail
+      export PATH=/usr/local/cargo/bin:$PATH
+      apt-get update -qq
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential pkg-config libssl-dev git >/dev/null
+      cargo update --package rust-s3
+      cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin
+    '
+fi
 
 cp "$source_directory/target/release/buzz-relay" "$relay_binary"
 cp "$source_directory/target/release/buzz-admin" "$admin_binary"
 chmod +x "$relay_binary" "$admin_binary"
 printf '%s\n' "$built_revision" > "$revision_file"
-echo "buzz-relay artifact prepared at $built_revision"
+echo "buzz-relay artifact prepared at $built_revision for $target"
