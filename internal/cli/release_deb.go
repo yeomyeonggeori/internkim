@@ -18,6 +18,7 @@ import (
 	_ "github.com/goreleaser/nfpm/v2/deb"
 	"github.com/goreleaser/nfpm/v2/files"
 
+	"gitlab.com/eastriver/internkim/internal/aptrepository"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -663,7 +664,7 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 // tools/prepare-buzz-relay does to compile a Linux binary from a Mac. What that costs
 // the release process is written down in docs/internal/native-packaging.md §3.
 const (
-	documentVenvBuildImage   = "debian:trixie-slim"
+	documentVenvBuildImage   = "debian:" + aptrepository.DebianSuite + "-slim"
 	documentVenvBuildRuntime = "container"
 )
 

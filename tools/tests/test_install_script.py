@@ -307,12 +307,18 @@ class InstallScriptTests(unittest.TestCase):
             (directory / name).chmod(0o755)
         return str(directory)
 
-    def run_install_on_debian(self, base_url, shims, product="host"):
+    # This Mac has no /etc/os-release, so the suite the script would derive from
+    # one is named here instead. What the script derives when the file is there
+    # is the guest's to answer, in `tools/test-apt-repository`; what it does
+    # when the file is not is the test below.
+    def run_install_on_debian(self, base_url, shims, product="host", suite="trixie-stable"):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
         environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
         environment["INTERNKIM_INSTALL_REPOSITORY_URL"] = f"{base_url}/deb"
         environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
+        if suite:
+            environment["INTERNKIM_INSTALL_SUITE"] = suite
         environment["PATH"] = os.pathsep.join([shims, self.uname_shim("Linux", "aarch64"), environment["PATH"]])
         completed = subprocess.run(
             ["sh", str(install_script), product],
@@ -338,7 +344,7 @@ class InstallScriptTests(unittest.TestCase):
             [
                 "Types: deb",
                 f"URIs: {base_url}/deb",
-                "Suites: stable",
+                "Suites: trixie-stable",
                 "Components: main",
                 "Architectures: arm64",
                 f"Signed-By: {keyring_path}",
@@ -350,6 +356,18 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("apt-get update", calls)
         self.assertIn("apt-get install -y internkim", calls)
         self.assertEqual(list(bin_dir.iterdir()), [])
+
+    def test_a_machine_that_cannot_name_its_debian_release_is_told_rather_than_guessed_at(self):
+        """A suite carries the Debian release the package was built for, so a
+        machine that cannot say which release it is must not have one picked for
+        it: apt would pin on a suite nobody built and blame the server."""
+        base_url = self.publish_keyring(self.serve())
+        completed, _ = self.run_install_on_debian(base_url, self.debian_machine(), suite=None)
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("VERSION_CODENAME", completed.stderr)
+        self.assertIn("INTERNKIM_INSTALL_SUITE", completed.stderr)
+        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
+        self.assertFalse(self.apt_log.exists(), "the machine was asked nothing before the refusal")
 
     def test_the_key_never_lands_where_it_would_sign_every_repository(self):
         base_url = self.publish_keyring(self.serve())

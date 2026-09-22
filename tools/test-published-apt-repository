@@ -1,0 +1,531 @@
+#!/usr/bin/env python3
+"""Judge the repository that is published, not one this Mac stands up.
+
+`tools/test-apt-repository` builds a repository, serves it from this Mac and
+asks apt what it makes of it. Everything it proves is true of the builder. What
+it cannot reach is the half that only exists in production: R2 holding the
+bytes, `workers/release-registry` handing them out, and the archive key that
+signed them rather than a key generated for the run.
+
+So this points one disposable arm64 Debian guest at the published repository
+and runs the line a person is given, which fetches `install.sh` from the web
+site as well. Nothing here substitutes an address.
+
+    tools/test-published-apt-repository --suite trixie-testing
+    tools/test-published-apt-repository --suite trixie-testing --disturb-published-objects
+
+Two of the three refusals need the repository to be wrong, and the only place
+it can be wrong is the bucket. `--disturb-published-objects` is what writes:
+the suite's signatures are taken away and put back, and the .deb is replaced by
+a same-length copy carrying one flipped byte and then put back. Without the
+flag those two observations are not made, and the run says so rather than
+passing.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from native_install_rig import (  # noqa: E402
+    ARCHITECTURE,
+    KEYRING_NAME,
+    KEYRING_PATH,
+    PACKAGE_NAME,
+    PRESEEDED_PACKAGES,
+    REPOSITORY_PREFIX,
+    REPOSITORY_ROOT,
+    SHARE_PATH,
+    Machine,
+    RigFailure,
+    TESTING_SUITE,
+    run,
+)
+
+PASS = "✓"
+FAIL = "✗"
+
+INSTALL_LINE_URL = "https://intern.kim/install.sh"
+PUBLISHED_BASE_URL = "https://updates.intern.kim"
+APT_SOURCE_PATH = "/etc/apt/sources.list.d/internkim.sources"
+SIGNATURE_NAMES = ("InRelease", "Release.gpg")
+
+# Cloudflare answers 403 to a request that names no client, and python's default
+# does not; apt and curl do, which is why they are served and this was not.
+RIG_USER_AGENT = "internkim-published-apt-rig/1"
+
+
+class Judgement:
+    def __init__(self):
+        self.results = []
+
+    def record(self, name, passed, observed, why):
+        self.results.append({"name": name, "passed": passed, "observed": observed, "why": why})
+        print(f"{PASS if passed else FAIL} {name}")
+        for line in observed.strip().splitlines():
+            print(f"    {line}")
+        print()
+        return passed
+
+    def missing(self, name, why):
+        self.results.append({"name": name, "passed": False, "observed": "not made", "why": why})
+        print(f"{FAIL} {name}\n    not made\n")
+
+    def verdict(self):
+        return all(result["passed"] for result in self.results)
+
+
+def asking_for(url):
+    return urllib.request.Request(url, headers={"User-Agent": RIG_USER_AGENT})
+
+
+def repository_setting(name):
+    for line in (REPOSITORY_ROOT / ".env").read_text().splitlines():
+        declared, _, value = line.strip().partition("=")
+        if declared == name:
+            return value.strip().strip('"').strip("'")
+    raise RigFailure(f"{name} is not set at the repository root, and the bucket is named by it")
+
+
+def wrangler_environment():
+    """`.env` the way the release command reads it: the bucket is reached with
+    the same credential whether the caller is Go or this."""
+    environment = dict(os.environ)
+    for line in (REPOSITORY_ROOT / ".env").read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        environment.setdefault(name.strip(), value.strip().strip('"').strip("'"))
+    return environment
+
+
+def r2_object(arguments, timeout_seconds=3600):
+    wrangler = REPOSITORY_ROOT / "web" / "node_modules" / ".bin" / "wrangler"
+    completed = subprocess.run(
+        [str(wrangler), "r2", "object", *arguments, "--remote"],
+        cwd=str(REPOSITORY_ROOT / "web"),
+        env=wrangler_environment(),
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+    )
+    if completed.returncode != 0:
+        raise RigFailure(f"wrangler r2 object {arguments[0]} failed: {completed.stderr.strip()[:800]}")
+    return completed
+
+
+class PublishedObject:
+    """One published object, taken out of the bucket and put back.
+
+    The bytes are held rather than re-rendered, because what goes back has to
+    be what was there and the only certain copy of that is the object itself
+    before anything touched it.
+    """
+
+    def __init__(self, object_key, local_path, content_type):
+        self.object_key = object_key
+        self.local_path = Path(local_path)
+        self.content_type = content_type
+        self.bucket = repository_setting("INTERNKIM_RELEASE_R2_BUCKET")
+
+    def take(self):
+        r2_object(["get", f"{self.bucket}/{self.object_key}", "--file", str(self.local_path)])
+        return self.local_path.read_bytes()
+
+    def put(self, path):
+        r2_object(["put", f"{self.bucket}/{self.object_key}", "--file", str(path),
+                   "--force", "--content-type", self.content_type])
+
+    def delete(self):
+        r2_object(["delete", f"{self.bucket}/{self.object_key}", "--force"])
+
+    def restore(self):
+        self.put(self.local_path)
+
+
+class PublishedRepository:
+    """The published objects, read the way anything else reads them."""
+
+    def __init__(self, suite, working_directory):
+        self.suite = suite
+        self.working_directory = Path(working_directory)
+        self.url = f"{PUBLISHED_BASE_URL}/{REPOSITORY_PREFIX}"
+
+    def fetch(self, relative_path):
+        url = f"{self.url}/{relative_path}"
+        try:
+            with urllib.request.urlopen(asking_for(url), timeout=300) as answer:
+                return answer.read()
+        except urllib.error.HTTPError as refused:
+            raise RigFailure(f"{url} answered {refused.code}") from refused
+
+    def release(self):
+        return self.fetch(f"dists/{self.suite}/Release").decode()
+
+    def index(self):
+        return self.fetch(f"dists/{self.suite}/main/binary-{ARCHITECTURE}/Packages").decode()
+
+    def pool_path(self):
+        for line in self.index().splitlines():
+            if line.startswith("Filename: "):
+                return line.split(": ", 1)[1]
+        raise RigFailure(f"the published {ARCHITECTURE} index names no package to install")
+
+    def signed_digest(self):
+        for line in self.index().splitlines():
+            if line.startswith("SHA256: "):
+                return line.split(": ", 1)[1]
+        raise RigFailure("the published index vouches for no SHA256")
+
+    def served_digest(self, pool_path):
+        digest = hashlib.sha256()
+        with urllib.request.urlopen(asking_for(f"{self.url}/{pool_path}"), timeout=3600) as answer:
+            while True:
+                chunk = answer.read(1 << 20)
+                if not chunk:
+                    break
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def signature_objects(self):
+        return [
+            PublishedObject(
+                f"{REPOSITORY_PREFIX}/dists/{self.suite}/{name}",
+                self.working_directory / name,
+                "application/pgp-signature" if name == "Release.gpg" else "text/plain; charset=utf-8",
+            )
+            for name in SIGNATURE_NAMES
+        ]
+
+    def package_object(self, pool_path):
+        return PublishedObject(
+            f"{REPOSITORY_PREFIX}/{pool_path}",
+            self.working_directory / Path(pool_path).name,
+            "application/vnd.debian.binary-package",
+        )
+
+
+class PublishedTrial:
+    def __init__(self, options):
+        self.options = options
+        self.judgement = Judgement()
+        self.working_directory = None
+        self.repository = None
+        self.machine = None
+        self.pool_path = None
+
+    # ---------------------------------------------------------------- setup
+
+    def start_machine(self):
+        share = self.working_directory / "share"
+        (share / "scripts").mkdir(parents=True, exist_ok=True)
+        self.machine = Machine(self.options.name, share)
+        self.machine.preflight()
+        self.machine.create()
+        self.machine.wait_until_running()
+
+    def guest_has_never_heard_of_us(self):
+        looked = self.machine.shell(
+            "set -u\n"
+            f"echo \"source: $([ -e {APT_SOURCE_PATH} ] && echo present || echo absent)\"\n"
+            f"echo \"keyring: $([ -e {KEYRING_PATH} ] && echo present || echo absent)\"\n"
+            f"echo \"dpkg: $(dpkg-query -W -f '${{Status}}' {PACKAGE_NAME} 2>/dev/null || echo 'no such package')\"\n"
+            "echo \"apt sources: $(grep -rl intern.kim /etc/apt 2>/dev/null | tr '\\n' ' ')\"\n"
+            ". /etc/os-release && echo \"release: $ID $VERSION_ID $VERSION_CODENAME\"\n"
+            "echo \"page size: $(getconf PAGE_SIZE)\"\n"
+            "echo \"memory: $(awk '/MemTotal/ { print $2 \" kB\" }' /proc/meminfo)\"\n"
+        )
+        said = looked.stdout.strip()
+        named_sources = next(
+            (line.split(": ", 1)[1].strip() for line in said.splitlines() if line.startswith("apt sources: ")),
+            "",
+        )
+        self.judgement.record(
+            "the guest starts with no source, no keyring and no package",
+            "source: absent" in said and "keyring: absent" in said
+            and "dpkg: no such package" in said and named_sources == "",
+            said,
+            "a proof that begins with anything of ours already on the machine is a proof about "
+            "this rig; what this guest carries before the line is run is what a fresh machine "
+            f"carries, plus {', '.join(PRESEEDED_PACKAGES)}, which the container image lacks and "
+            "an installed Debian has",
+        )
+
+    # --------------------------------------------------------------- the run
+
+    def the_one_line(self):
+        """The line a person is given, fetched from the site that publishes it."""
+        asking = f"INTERNKIM_INSTALL_SUITE={self.options.suite} " if self.options.suite else ""
+        command = f"curl -fsSL {INSTALL_LINE_URL} | {asking}sh -s -- host"
+        print(f"in the guest: {command}\n")
+        installed = self.machine.shell(
+            "set -u\nexport DEBIAN_FRONTEND=noninteractive\n" + command + "\n", timeout_seconds=5400
+        )
+        spoken = (installed.stdout + installed.stderr).strip()
+        status = self.machine.shell(f"dpkg-query -W -f '${{Status}} ${{Version}}' {PACKAGE_NAME} 2>&1")
+        self.judgement.record(
+            "one line installs the package on a machine that had never heard of us",
+            "install ok installed" in status.stdout,
+            spoken[-1500:] + f"\n\ndpkg-query: {status.stdout.strip()}",
+            "the script came from the site, the keyring and the packages from the worker, and "
+            "dpkg's database is what makes it an install rather than a download",
+        )
+        written = self.machine.shell(f"cat {APT_SOURCE_PATH} 2>&1")
+        self.judgement.record(
+            "the source it left behind names the published suite and this keyring alone",
+            f"Suites: {self.options.suite}" in written.stdout and f"Signed-By: {KEYRING_PATH}" in written.stdout,
+            written.stdout.strip(),
+            "what apt does on every future upgrade is this file; a machine pinned to a suite "
+            "nobody publishes, or trusting a keyring that signs every repository, installs the "
+            "same way today and differently later",
+        )
+
+    def the_bytes_are_the_signed_ones(self):
+        signed = self.repository.signed_digest()
+        served = self.repository.served_digest(self.pool_path)
+        pool_name = Path(self.pool_path).name
+        in_the_guest = self.machine.shell(
+            "set -u\n"
+            f"cached=$(ls /var/cache/apt/archives/{pool_name} 2>/dev/null || true)\n"
+            "if [ -n \"$cached\" ]; then sha256sum \"$cached\"; else echo 'apt kept no copy'; fi\n"
+        ).stdout.strip()
+        self.judgement.record(
+            "what the worker serves out of R2 hashes to what the signed index vouches for",
+            served == signed,
+            f"signed index:     {signed}\nfetched from R2:  {served}\nin the guest:     {in_the_guest}",
+            "apt refuses a mismatch, so the install above already implies this; reading the digest "
+            "off the wire is the same claim without apt as its own witness",
+        )
+
+    # ------------------------------------------------------------- refusals
+
+    def forget_what_apt_learned(self):
+        self.machine.checked_shell("rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*.deb")
+
+    def update(self):
+        return self.machine.shell(
+            "export DEBIAN_FRONTEND=noninteractive\n"
+            f"apt-get update -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts={Path(APT_SOURCE_PATH).parent}\n"
+        )
+
+    def write_published_source(self):
+        self.machine.checked_shell(
+            "set -eu\n"
+            f"cat > {APT_SOURCE_PATH} <<'SOURCE'\n"
+            "Types: deb\n"
+            f"URIs: {self.repository.url}\n"
+            f"Suites: {self.options.suite}\n"
+            "Components: main\n"
+            f"Architectures: {ARCHITECTURE}\n"
+            f"Signed-By: {KEYRING_PATH}\n"
+            "SOURCE\n"
+        )
+
+    def install_published_keyring(self):
+        self.machine.checked_shell(
+            "set -eu\n"
+            "install -d -m 0755 /usr/share/keyrings\n"
+            f"curl -fsSL {self.repository.url}/{KEYRING_NAME} -o {KEYRING_PATH}\n"
+            f"chmod 0644 {KEYRING_PATH}\n"
+        )
+
+    def refusal_unsigned(self):
+        """Take the published signatures away and leave everything else standing."""
+        signatures = self.repository.signature_objects()
+        for signature in signatures:
+            signature.take()
+        try:
+            print("taking the published suite's signatures out of the bucket\n")
+            for signature in signatures:
+                signature.delete()
+            self.write_published_source()
+            self.install_published_keyring()
+            self.forget_what_apt_learned()
+            refused = self.update()
+            spoken = (refused.stdout + refused.stderr).strip()
+            self.judgement.record(
+                "an unsigned published repository is refused",
+                refused.returncode != 0 and "is not signed" in spoken,
+                spoken[-800:],
+                "apt fetches the unsigned Release from the worker without trouble; refusing it is "
+                "a policy apt applies after the fetch succeeds, and it is the whole of what stands "
+                "between a bucket somebody else can write and root on every machine",
+            )
+        finally:
+            print("putting the published signatures back\n")
+            for signature in signatures:
+                signature.restore()
+            self.judgement.record(
+                "the published suite is signed again",
+                all(self.repository.fetch(f"dists/{self.suite_name()}/{name}") for name in SIGNATURE_NAMES),
+                "\n".join(
+                    f"{name}: {len(self.repository.fetch(f'dists/{self.suite_name()}/{name}'))} bytes served"
+                    for name in SIGNATURE_NAMES
+                ),
+                "a restore that is assumed rather than read back is how a repository is left broken "
+                "by the run that proved it works",
+            )
+
+    def suite_name(self):
+        return self.options.suite
+
+    def refusal_wrong_keyring(self):
+        """A valid published signature, and a keyring that does not hold its key."""
+        stranger = Path(tempfile.mkdtemp(prefix="/tmp/ikpub-stranger-"))
+        stranger.chmod(0o700)
+        made = run([
+            "gpg", "--homedir", str(stranger), "--batch", "--yes", "--no-tty",
+            "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
+            "Somebody Else TEST KEY <stranger@invalid.internkim.test>", "default", "default", "never",
+        ])
+        if made.returncode != 0:
+            raise RigFailure(f"gpg would not generate a stranger's key: {made.stderr.strip()}")
+        exported = subprocess.run(["gpg", "--homedir", str(stranger), "--batch", "--export"], capture_output=True)
+        if not exported.stdout:
+            raise RigFailure(f"gpg exported no stranger key: {exported.stderr.decode()}")
+        (self.working_directory / "share" / "stranger-keyring.pgp").write_bytes(exported.stdout)
+
+        self.write_published_source()
+        self.machine.checked_shell(
+            f"set -eu\ncp {SHARE_PATH}/stranger-keyring.pgp {KEYRING_PATH}\nchmod 0644 {KEYRING_PATH}\n"
+        )
+        self.forget_what_apt_learned()
+        refused = self.update()
+        spoken = (refused.stdout + refused.stderr).strip()
+        self.judgement.record(
+            "the published repository is refused by a machine holding the wrong keyring",
+            refused.returncode != 0 and ("NO_PUBKEY" in spoken or "not signed" in spoken),
+            spoken[-800:],
+            "nothing published changed and the signature is still the archive key's; what changed "
+            "is which key this machine was told to accept, which is the whole of what Signed-By is",
+        )
+        run(["gpgconf", "--homedir", str(stranger), "--kill", "gpg-agent"])
+        shutil.rmtree(stranger, ignore_errors=True)
+        self.install_published_keyring()
+
+    def refusal_bad_checksum(self):
+        """Make R2 serve a package the signed index does not vouch for.
+
+        The substitution keeps the length, because apt checks the size first and
+        would refuse on that alone without ever reaching the digest.
+        """
+        package = self.repository.package_object(self.pool_path)
+        original = package.take()
+        tampered = self.working_directory / "tampered.deb"
+        midpoint = len(original) // 2
+        tampered.write_bytes(original[:midpoint] + bytes([original[midpoint] ^ 0xFF]) + original[midpoint + 1:])
+        if tampered.stat().st_size != len(original):
+            raise RigFailure("the tamper changed the length, so apt would refuse on size alone")
+        try:
+            print(f"replacing {package.object_key} with a same-length tampered copy\n")
+            package.put(tampered)
+            self.write_published_source()
+            self.install_published_keyring()
+            self.forget_what_apt_learned()
+            self.update()
+            refused = self.machine.shell(
+                f"export DEBIAN_FRONTEND=noninteractive\napt-get install -y --reinstall {PACKAGE_NAME}\n",
+                timeout_seconds=5400,
+            )
+            spoken = (refused.stdout + refused.stderr).strip()
+            self.judgement.record(
+                "a package R2 serves that the signed index does not vouch for is refused",
+                refused.returncode != 0 and "Hash Sum mismatch" in spoken and "unexpected size" not in spoken,
+                spoken[-900:],
+                "the archive key signed the Release, the Release covers the index, and the index "
+                "covers this file's SHA256; R2 was made to serve something else, and apt stopped at "
+                "the one link in that chain nobody had watched carry a real payload",
+            )
+        finally:
+            print("putting the published package back\n")
+            package.restore()
+            restored = self.repository.served_digest(self.pool_path)
+            signed = self.repository.signed_digest()
+            self.judgement.record(
+                "the published package is the signed one again",
+                restored == signed,
+                f"signed index:    {signed}\nserved from R2:  {restored}",
+                "a restore that is assumed rather than read back is how a repository is left broken "
+                "by the run that proved it works",
+            )
+
+    # --------------------------------------------------------------- driving
+
+    def run_trial(self):
+        self.working_directory = Path(tempfile.mkdtemp(prefix="/tmp/ikpub-"))
+        (self.working_directory / "share").mkdir(parents=True, exist_ok=True)
+        self.repository = PublishedRepository(self.options.suite, self.working_directory)
+        try:
+            print(self.repository.release())
+            self.pool_path = self.repository.pool_path()
+            print(f"the published {ARCHITECTURE} package is {self.pool_path}\n")
+            self.start_machine()
+            self.guest_has_never_heard_of_us()
+            self.the_one_line()
+            self.the_bytes_are_the_signed_ones()
+            self.refusal_wrong_keyring()
+            if self.options.disturb_published_objects:
+                self.refusal_unsigned()
+                self.refusal_bad_checksum()
+            else:
+                for name in ("an unsigned published repository is refused",
+                             "a package R2 serves that the signed index does not vouch for is refused"):
+                    self.judgement.missing(
+                        name,
+                        "the repository has to be wrong for this, and the only place it can be wrong "
+                        "is the bucket; --disturb-published-objects is what writes to it",
+                    )
+            self.write_report()
+        finally:
+            if self.machine and not self.options.keep:
+                self.machine.destroy()
+            if self.options.keep:
+                print(f"kept: container {self.options.name}, working directory {self.working_directory}")
+            else:
+                shutil.rmtree(self.working_directory, ignore_errors=True)
+        return 0 if self.judgement.verdict() else 1
+
+    def write_report(self):
+        destination = Path(".artifacts") / "published-apt-repository" / f"{self.options.name}.json"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(json.dumps({
+            "suite": self.options.suite,
+            "repository": self.repository.url,
+            "install_line": INSTALL_LINE_URL,
+            "pool_path": self.pool_path,
+            "results": self.judgement.results,
+        }, indent=2) + "\n")
+        passed = sum(1 for result in self.judgement.results if result["passed"])
+        print(f"{passed}/{len(self.judgement.results)} observations held · {destination}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--suite", default=TESTING_SUITE, help="the published suite to install from")
+    parser.add_argument("--keep", action="store_true", help="leave the guest up for autopsy")
+    parser.add_argument("--name", default=f"internkim-published-{uuid.uuid4().hex[:8]}", help="the container's name")
+    parser.add_argument(
+        "--disturb-published-objects", action="store_true",
+        help="take the suite's signatures away and tamper with the .deb, putting both back",
+    )
+    options = parser.parse_args()
+    try:
+        return PublishedTrial(options).run_trial()
+    except RigFailure as failure:
+        print(f"{FAIL} {failure}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

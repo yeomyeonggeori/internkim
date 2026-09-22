@@ -52,10 +52,10 @@ func TestTheRepositoryIsBuiltFromWhereThePackagesAreWritten(t *testing.T) {
 func TestEachPublishedObjectCarriesTheTypeItIs(t *testing.T) {
 	for objectKey, wanted := range map[string]string{
 		"deb/pool/main/i/internkim/internkim_1.0.0_arm64.deb": "application/vnd.debian.binary-package",
-		"deb/dists/stable/main/binary-arm64/Packages.gz":      "application/gzip",
-		"deb/dists/stable/Release.gpg":                        "application/pgp-signature",
+		"deb/dists/trixie-testing/main/binary-arm64/Packages.gz":      "application/gzip",
+		"deb/dists/trixie-testing/Release.gpg":                        "application/pgp-signature",
 		"deb/internkim-archive-keyring.pgp":                   "application/pgp-keys",
-		"deb/dists/stable/InRelease":                          "text/plain; charset=utf-8",
+		"deb/dists/trixie-testing/InRelease":                          "text/plain; charset=utf-8",
 	} {
 		if given := aptContentType(objectKey); given != wanted {
 			t.Errorf("%s is published as %s, wanted %s", objectKey, given, wanted)
