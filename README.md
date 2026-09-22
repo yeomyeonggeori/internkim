@@ -187,17 +187,13 @@ flowchart LR
 
 Credentials sit in `/root/.internkim/secrets/` and `/root/.internkim/config/`.
 Blueclaw never sees a provider token, a browser cookie, a local file path or a
-model path directly; it reaches them through the typed capability boundary that
-`internkim-capabilityd` and `internkim-admind` present.
+model path directly; it reaches them through the typed capability boundary.
 
 | Path | Read by | For |
 |---|---|---|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` | the remote LLM provider |
 | `/root/.internkim/models/*` | `internkim-capabilityd`, the local model wrapper | the local model runtime |
 | `/root/.internkim/state/companion-jobs.json` | `internkim-admind` | companion broker restart recovery |
-
-A companion's signing private key lives in the user's own secure storage, and
-the device state file keeps only a reference to it.
 
 ### Where operator secrets live
 
