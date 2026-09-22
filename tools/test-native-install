@@ -24,6 +24,8 @@ from native_install_rig import (  # noqa: E402
     APT_SOURCE_PATH,
     ARCHITECTURE,
     COMPONENT,
+    KEYRING_NAME,
+    REPOSITORY_PREFIX,
     CONFIGURATION_DIRECTORY,
     KEYRING_PATH,
     PACKAGE_NAME,
@@ -141,6 +143,8 @@ class Rig:
         self.release = None
         self.working_directory = None
         self.base_url = None
+        self.repository_url = None
+        self.keyring_url = None
         self.installed_version = None
         self.dependencies = []
 
@@ -185,6 +189,8 @@ class Rig:
         self.machine.wait_until_running()
         gateway = self.machine.host_gateway()
         self.base_url = f"http://{gateway}:{self.release.port}"
+        self.repository_url = f"{self.base_url}/{REPOSITORY_PREFIX}"
+        self.keyring_url = f"{self.repository_url}/{KEYRING_NAME}"
 
     def install_declared_dependencies(self, package_path):
         """Bring the guest to a machine that already satisfies `Depends:`.
@@ -218,8 +224,8 @@ class Rig:
         one_liner = (
             f"set -eu\n"
             f"export INTERNKIM_INSTALL_RELEASE_URL={self.base_url}/{PACKAGE_NAME}\n"
-            f"export INTERNKIM_INSTALL_REPOSITORY_URL={self.base_url}/deb\n"
-            f"export INTERNKIM_INSTALL_KEYRING_URL={self.base_url}/internkim-archive-keyring.pgp\n"
+            f"export INTERNKIM_INSTALL_REPOSITORY_URL={self.repository_url}\n"
+            f"export INTERNKIM_INSTALL_KEYRING_URL={self.keyring_url}\n"
             f"curl -fsSL {self.base_url}/install.sh | sh -s -- host\n"
         )
         attempt = self.machine.shell(one_liner)
@@ -243,11 +249,11 @@ class Rig:
         self.machine.checked_shell(
             f"set -eu\n"
             f"install -d -m 0755 /usr/share/keyrings\n"
-            f"curl -fsSL {self.base_url}/internkim-archive-keyring.pgp -o {KEYRING_PATH}\n"
+            f"curl -fsSL {self.keyring_url} -o {KEYRING_PATH}\n"
             f"chmod 0644 {KEYRING_PATH}\n"
             f"cat > {APT_SOURCE_PATH} <<'SOURCE'\n"
             f"Types: deb\n"
-            f"URIs: {self.base_url}/deb\n"
+            f"URIs: {self.repository_url}\n"
             f"Suites: {SUITE}\n"
             f"Components: {COMPONENT}\n"
             f"Architectures: {ARCHITECTURE}\n"

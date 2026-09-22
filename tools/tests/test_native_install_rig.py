@@ -5,6 +5,7 @@ import io
 import subprocess
 import sys
 import tarfile
+import re
 import tempfile
 import unittest
 import urllib.request
@@ -178,6 +179,30 @@ class DependencyReadingTests(unittest.TestCase):
             rig.dependency_names("ca-certificates, curl, git,\n openssl, python3-venv"),
             ["ca-certificates", "curl", "git", "openssl", "python3-venv"],
         )
+
+
+class RepositoryShapeTests(unittest.TestCase):
+    """The repository's shape belongs to `internal/aptrepository`.
+
+    The rig spells two of its names in a URL. A Go constant and a Python
+    constant that mean the same thing are two copies, so this reads the
+    canonical one and fails when they drift.
+    """
+
+    def declared_in_go(self, name):
+        source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "repository.go").read_text()
+        match = re.search(rf'^\t{name}\s*=\s*"([^"]+)"', source, re.MULTILINE)
+        self.assertIsNotNone(match, f"internal/aptrepository no longer declares {name}")
+        return match.group(1)
+
+    def test_the_prefix_the_rig_serves_from_is_the_one_the_builder_publishes_to(self):
+        self.assertEqual(rig.REPOSITORY_PREFIX, self.declared_in_go("Prefix"))
+
+    def test_the_keyring_the_rig_installs_is_the_one_the_builder_exports(self):
+        self.assertEqual(rig.KEYRING_NAME, self.declared_in_go("KeyringName"))
+
+    def test_the_guest_installs_that_keyring_where_the_source_looks_for_it(self):
+        self.assertTrue(rig.KEYRING_PATH.endswith("/" + rig.KEYRING_NAME))
 
 
 if __name__ == "__main__":

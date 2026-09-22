@@ -6,7 +6,6 @@ arm64 Debian guest. The assertions that read the guest live in
 a machine and something to install on it.
 """
 
-import gzip
 import hashlib
 import io
 import json
@@ -16,7 +15,6 @@ import subprocess
 import tarfile
 import tempfile
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -35,6 +33,14 @@ CONFIGURATION_DIRECTORY = "/etc/internkim"
 STAND_IN_ADMIND_PORT = 8080
 STAND_IN_RELAY_PORT = 8081
 
+# The repository's own shape is `internal/aptrepository`'s to declare. These
+# two names are what the rig has to spell in a URL, and
+# `tools/tests/test_native_install_rig.py` reads the Go source to fail when
+# they drift.
+REPOSITORY_PREFIX = "deb"
+KEYRING_NAME = "internkim-archive-keyring.pgp"
+BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
+
 
 class RigFailure(Exception):
     pass
@@ -49,6 +55,24 @@ def checked(arguments, **keywords):
     if completed.returncode != 0:
         raise RigFailure(f"{' '.join(arguments)} failed: {completed.stderr.strip() or completed.stdout.strip()}")
     return completed
+
+
+def internkim_command():
+    """The dev CLI, built from this checkout because the repository it renders
+    has to be the one this branch publishes.
+
+    `make build` writes ./internkim at the repository root; the rig builds its
+    own copy instead so that running it never depends on a build step someone
+    remembered, and never overwrites one someone is using.
+    """
+    if BUILT_COMMAND_PATH.exists():
+        return BUILT_COMMAND_PATH
+    BUILT_COMMAND_PATH.parent.mkdir(parents=True, exist_ok=True)
+    checked(
+        ["go", "build", "-o", str(BUILT_COMMAND_PATH), "./cmd/internkim"],
+        cwd=str(REPOSITORY_ROOT),
+    )
+    return BUILT_COMMAND_PATH
 
 
 def read_archive_member(archive_path, wanted_name):
@@ -120,18 +144,33 @@ def parse_control_paragraph(text):
 
 
 class Release:
-    """An apt repository on this Mac, served to the guest over HTTP."""
+    """An apt repository on this Mac, served to the guest over HTTP.
+
+    The repository itself is built by `internkim release apt`, which is what
+    publishes it to R2 for real. The rig substitutes the address it is served
+    from and nothing else, so what a guest installs from here is what a
+    customer installs from.
+    """
 
     def __init__(self, directory):
         self.directory = Path(directory)
-        self.repository_directory = self.directory / "deb"
+        self.repository_directory = self.directory / REPOSITORY_PREFIX
+        self.staging_directory = self.directory.with_name(self.directory.name + "-packages")
         self.keyring_directory = Path(tempfile.mkdtemp(prefix="/tmp/ikrig-"))
-        self.public_keyring_path = self.directory / "internkim-archive-keyring.pgp"
+        self.archive_key_path = self.keyring_directory / "archive-key.asc"
+        self.public_keyring_path = self.repository_directory / KEYRING_NAME
         self.published = []
+        self.served = []
         self.server = None
         self.port = None
 
     def generate_signing_key(self):
+        """A throwaway key, named so that nothing mistakes it for the archive key.
+
+        The real key's home is an open decision. The rig needs a key only so
+        that apt has a signature to check, and it destroys this one on the way
+        out.
+        """
         if shutil.which("gpg") is None:
             raise RigFailure(
                 "gpg is not on PATH; the rig signs its repository because an unsigned one would "
@@ -140,91 +179,91 @@ class Release:
         self.keyring_directory.chmod(0o700)
         checked(
             [
-                "gpg", "--homedir", str(self.keyring_directory), "--batch", "--yes",
-                "--passphrase", "", "--quick-generate-key",
-                "InternKim Install Rig <rig@invalid.internkim.test>", "default", "default", "never",
+                "gpg", "--homedir", str(self.keyring_directory), "--batch", "--yes", "--no-tty",
+                "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
+                "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>", "default", "default", "never",
             ]
         )
-        exported = subprocess.run(
-            ["gpg", "--homedir", str(self.keyring_directory), "--batch", "--export"],
-            capture_output=True,
+        exported = checked(
+            [
+                "gpg", "--homedir", str(self.keyring_directory), "--batch", "--no-tty",
+                "--pinentry-mode", "loopback", "--passphrase", "", "--armor", "--export-secret-keys",
+            ]
         )
-        if not exported.stdout:
-            raise RigFailure(f"gpg exported an empty keyring: {exported.stderr.decode()}")
-        self.public_keyring_path.write_bytes(exported.stdout)
+        self.archive_key_path.write_text(exported.stdout)
+        self.archive_key_path.chmod(0o600)
 
-    def publish(self, package_path):
-        pool = self.repository_directory / "pool" / COMPONENT / PACKAGE_NAME[0] / PACKAGE_NAME
-        pool.mkdir(parents=True, exist_ok=True)
-        destination = pool / Path(package_path).name
+    def publish(self, package_path, suite=SUITE):
+        self.staging_directory.mkdir(parents=True, exist_ok=True)
+        destination = self.staging_directory / Path(package_path).name
         shutil.copyfile(package_path, destination)
         self.published.append(destination)
-        self.rebuild_indices()
+        self.rebuild(suite)
         return destination
 
-    def rebuild_indices(self):
-        binary_directory = self.repository_directory / "dists" / SUITE / COMPONENT / f"binary-{ARCHITECTURE}"
-        binary_directory.mkdir(parents=True, exist_ok=True)
-        paragraphs = []
-        for package_path in sorted(self.published):
-            fields = package_fields(package_path)
-            payload = package_path.read_bytes()
-            relative = package_path.relative_to(self.repository_directory)
-            lines = [f"{name}: {value}" for name, value in fields.items() if name != "Description"]
-            lines += [
-                f"Filename: {relative}",
-                f"Size: {len(payload)}",
-                f"MD5sum: {hashlib.md5(payload).hexdigest()}",
-                f"SHA256: {hashlib.sha256(payload).hexdigest()}",
-                f"Description: {fields.get('Description', PACKAGE_NAME)}",
-            ]
-            paragraphs.append("\n".join(lines))
-        packages = ("\n\n".join(paragraphs) + "\n").encode()
-        (binary_directory / "Packages").write_bytes(packages)
-        (binary_directory / "Packages.gz").write_bytes(gzip.compress(packages, mtime=0))
-        self.write_release()
-
-    def write_release(self):
-        suite_directory = self.repository_directory / "dists" / SUITE
-        header = [
-            "Origin: InternKim",
-            "Label: InternKim",
-            f"Suite: {SUITE}",
-            f"Codename: {SUITE}",
-            f"Architectures: {ARCHITECTURE}",
-            f"Components: {COMPONENT}",
-            f"Date: {datetime.now(timezone.utc).strftime('%a, %d %b %Y %H:%M:%S UTC')}",
-            "Description: the rig's stand-in for updates.intern.kim",
-        ]
-        indices = sorted(
-            path for path in suite_directory.rglob("*") if path.is_file() and path.name not in ("Release", "InRelease", "Release.gpg")
-        )
-        for algorithm, digest in (("MD5Sum", hashlib.md5), ("SHA256", hashlib.sha256)):
-            header.append(f"{algorithm}:")
-            for path in indices:
-                payload = path.read_bytes()
-                header.append(f" {digest(payload).hexdigest()} {len(payload)} {path.relative_to(suite_directory)}")
-        release_path = suite_directory / "Release"
-        release_path.write_text("\n".join(header) + "\n")
-        in_release_path = suite_directory / "InRelease"
-        in_release_path.unlink(missing_ok=True)
+    def rebuild(self, suite=SUITE):
+        """Render the repository with the command that publishes it for real."""
         checked(
             [
-                "gpg", "--homedir", str(self.keyring_directory), "--batch", "--yes",
-                "--clearsign", "--output", str(in_release_path), str(release_path),
-            ]
+                str(internkim_command()), "release", "apt",
+                "--suite", suite,
+                "--package-directory", str(self.staging_directory),
+                "--signing-key", str(self.archive_key_path),
+                "--output", str(self.directory),
+            ],
+            cwd=str(REPOSITORY_ROOT),
         )
 
     def serve(self):
+        """Serve the repository the way `workers/release-registry` serves it.
+
+        The worker answers GET and HEAD from R2 and sets etag and
+        content-length; it passes no conditional headers to R2 and so never
+        answers 304. Dropping them here is what makes the rig's server
+        wrong in the same way, rather than kinder than production.
+
+        Every response is recorded, because what `apt-get update` costs
+        against a server that cannot answer 304 is a number rather than an
+        opinion.
+        """
         import functools
         import http.server
         import threading
+
+        served = self.served
 
         class QuietHandler(http.server.SimpleHTTPRequestHandler):
             def send_head(self):
                 del self.headers["If-Modified-Since"]
                 del self.headers["If-None-Match"]
+                del self.headers["Range"]
                 return super().send_head()
+
+            def send_response(self, code, message=None):
+                self.served_status = code
+                self.served_length = 0
+                return super().send_response(code, message)
+
+            def send_header(self, keyword, value):
+                if keyword.lower() == "content-length":
+                    self.served_length = int(value)
+                return super().send_header(keyword, value)
+
+            def end_headers(self):
+                # Recorded here rather than from log_request, which runs inside
+                # send_response and so before Content-Length has been set.
+                served.append(
+                    {
+                        "method": self.command,
+                        "path": self.path,
+                        "status": getattr(self, "served_status", 0),
+                        "bytes": self.served_length if self.command == "GET" else 0,
+                    }
+                )
+                return super().end_headers()
+
+            def log_request(self, code="-", size=0):
+                pass
 
             def log_message(self, format, *arguments):
                 pass
