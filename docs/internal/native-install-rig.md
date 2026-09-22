@@ -109,11 +109,12 @@ reads, and the reason that state is the thing being judged.
 |---|---|---|
 | the published one-liner leaves the package installed | `dpkg-query -W internkim` after running `web/static/install.sh host` as published | dpkg's database is what `apt upgrade` and `apt remove` act on; a shell script's exit code says the script ended |
 
-This fails today, and the reason is in the output: `install.sh` still fetches a
-bare binary and has no Debian branch, so the 404 it reports is honest. When it
-does not reach the package, the rig performs §6's documented sequence itself —
-keyring, deb822 source, `apt-get update`, `apt-get install` — so that steps 2
-to 4 still have something to judge, and step 1 stays failed.
+This passes. `install.sh` finds `apt-get`, installs the keyring, writes the
+deb822 source and runs `apt-get install internkim`, so what the rig reads out of
+dpkg is what the published one-liner put there. The fallback stays: when the
+script does not reach the package, the rig performs §6's documented sequence
+itself — keyring, deb822 source, `apt-get update`, `apt-get install` — so that
+steps 2 to 4 still have something to judge, and step 1 stays failed.
 
 ### Step 2 · the machine is in the state the package manager would have left it
 
