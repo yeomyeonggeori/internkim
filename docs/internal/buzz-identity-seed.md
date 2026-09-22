@@ -36,8 +36,8 @@ The seed has to survive across machines, restarts, and sessions, and one seed a
 reader can find beats two a reader has to reconcile: a second local copy that
 disagrees derives identities nobody can sign in as, and it does so silently.
 
-- **Local dev / Mac:** `INTERNKIM_BUZZ_KEY_SEED` in the repository `.env`
-  (gitignored), which the CLI loads by itself. Point admind at a file written
+- **Local dev / Mac:** `INTERNKIM_BUZZ_KEY_SEED` in the operating system's
+  vault, which the CLI hands itself through `monkeys run`. Point admind at a file written
   from it with `-buzz-key-seed-path`, and pass the same value to
   `buzz-migrate -key-seed "$INTERNKIM_BUZZ_KEY_SEED"`.
 - **Device (Jetson):** the service secrets directory

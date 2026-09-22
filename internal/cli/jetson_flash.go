@@ -557,8 +557,8 @@ func generateConsolePassword() (string, error) {
 }
 
 func saveConsolePassword(password string) error {
-	if errorValue := updateEnvFile("INTERNKIM_CONSOLE_PASSWORD", password); errorValue != nil {
-		return fmt.Errorf("save console password to .env: %w", errorValue)
+	if errorValue := rememberInVault("INTERNKIM_CONSOLE_PASSWORD", password); errorValue != nil {
+		return fmt.Errorf("save the console password to the vault: %w", errorValue)
 	}
 	return nil
 }

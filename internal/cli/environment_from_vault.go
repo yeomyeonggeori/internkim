@@ -30,11 +30,6 @@ const (
 	vaultInjectedMarker = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
 )
 
-func loadEnvironment() {
-	reExecuteWithVaultEnvironment()
-	loadEnvFile()
-}
-
 func reExecuteWithVaultEnvironment() {
 	monkeysPath, shouldRun := plannedVaultRun()
 	if !shouldRun {
@@ -151,4 +146,25 @@ func splitAndTrim(value, separator string) []string {
 		}
 	}
 	return parts
+}
+
+// A credential the CLI generates has the same home as one it reads, so it goes
+// back into the vault rather than into a file beside the checkout.
+func rememberInVault(name, value string) error {
+	monkeysPath := vaultCommandPath()
+	if monkeysPath == "" {
+		return fmt.Errorf("monkeys is not installed, and the vault is where %s lives", name)
+	}
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		return errorValue
+	}
+	command := exec.Command(monkeysPath, "remember", vaultManifestProfileMark+vaultProfile, name)
+	command.Dir = repositoryRootPath
+	command.Stdin = strings.NewReader(value)
+	output, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return fmt.Errorf("monkeys remember %s: %w: %s", name, errorValue, strings.TrimSpace(string(output)))
+	}
+	return nil
 }

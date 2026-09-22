@@ -201,13 +201,18 @@ the device state file keeps only a reference to it.
 
 ### Where operator secrets live
 
-Operator secrets are written in `.env`, which git ignores, and read from there.
-Copying one into a second file under `.local/` gave the value two homes, one of
-which nobody remembers to rotate.
+Operator secrets live in the operating system's vault. `internkim`
+re-executes itself through `monkeys run` to be handed them, so no file beside
+the checkout holds one and nothing is exported by hand. Copying one into a
+second file under `.local/` gave the value two homes, one of which nobody
+remembers to rotate.
 
-`.env.example` is the list of names, with fake values. It is what to copy when
-setting up a second machine, and where to add a name when the code starts
-reading one.
+`.monkeys` is the list of names and `docs/internal/environment.json` says what
+each one is for, which `tools/verify-environment-declarations` keeps in step.
+On a second machine `monkeys doctor` names what the vault still lacks, and a
+human types each value into `monkeys remember @cli <name>`. A value that is not
+secret is a `NAME=value` line in `.monkeys` instead, because monkeys redacts a
+remembered value wherever it appears in a command's output.
 
 ## The pieces
 
@@ -373,8 +378,8 @@ R2 publishes a stable channel for several devices to pull. The bucket is
 carrying the right `X-INTERNKIM-RELEASE-TOKEN`. An untokened download must be a
 401.
 
-The same token goes in two places: `INTERNKIM_RELEASE_DOWNLOAD_TOKEN` in `.env`,
-and the Worker's secret.
+The same token goes in two places: `INTERNKIM_RELEASE_DOWNLOAD_TOKEN` in the
+vault, and the Worker's secret.
 
 ```bash
 openssl rand -base64 32
@@ -392,10 +397,11 @@ adds what is missing and deletes nothing.
 
 Publishing from a development machine with a Wrangler OAuth session needs the
 bucket and base URL. `INTERNKIM_RELEASE_R2_ACCOUNT_ID` falls back to
-`CLOUDFLARE_ACCOUNT_ID`. Everything the CLI reads comes from `.env`, which it
-loads itself, so nothing here needs exporting by hand.
+`CLOUDFLARE_ACCOUNT_ID`. Everything the CLI reads comes from the vault, which
+it hands itself through `monkeys run`, so nothing here needs exporting by hand.
+None of these three is a secret, so they are plain lines in `.monkeys`:
 
-```bash
+```
 INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
 INTERNKIM_RELEASE_R2_PUBLISHER=wrangler
 INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.<zone>
