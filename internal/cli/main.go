@@ -146,7 +146,7 @@ func resolveRepositoryRootPath() (string, error) {
 }
 
 func Main() {
-	loadEnvFile()
+	loadEnvironment()
 	if len(os.Args) < 2 {
 		printUsage()
 		return

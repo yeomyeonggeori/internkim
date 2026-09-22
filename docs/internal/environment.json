@@ -423,6 +423,10 @@
     "process": "tools/e2e-crud",
     "description": "forwarded to tools/e2e-crud-remote.sh's setup step to skip the global admind/entity reset"
   },
+  "INTERNKIM_ENVIRONMENT_FROM_VAULT": {
+    "process": "cli",
+    "description": "set by the CLI on the run it starts through `monkeys run`, so that run knows the vault environment already arrived and does not start another"
+  },
   "INTERNKIM_FLASH_CACHE_DIR": {
     "process": "device",
     "description": "override cache directory for Jetson image downloads during internal/cli's flash flow"
