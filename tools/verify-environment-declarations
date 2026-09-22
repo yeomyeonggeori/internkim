@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-"""Fail when a read environment variable is not declared, or a declared one has
-no reader.
+"""Fail when a read environment variable is not declared, a declared one has
+no reader, or the vault manifest names one the declaration file does not.
+
+The manifest (`.monkeys`) is a third list of environment variable names, beside
+the reads this script finds in the code and the declarations it checks them
+against. A name in it that nothing declares is a name the vault is asked for
+and no process here reads, so the manifest is checked against the same
+declaration file the code is.
 
 Scans exact syntax only: Go's os.Getenv and os.LookupEnv, TypeScript and
 Svelte's process.env dot and bracket forms plus env/environment dot access
@@ -36,6 +42,7 @@ import sys
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DECLARATIONS_PATH = REPOSITORY_ROOT / "docs" / "internal" / "environment.json"
+VAULT_MANIFEST_PATH = REPOSITORY_ROOT / ".monkeys"
 
 EXCLUDED_DIRECTORY_NAMES = {"node_modules", ".dependency", ".local", ".artifacts", ".git"}
 
@@ -274,6 +281,31 @@ def collect_reads():
     return reads
 
 
+def vault_manifest_names():
+    """Every environment variable name the vault manifest carries, by profile.
+
+    A manifest names the project on its first `+` line, opens a profile with an
+    `@` line that may list several, and carries one name per line below it —
+    bare for a secret the vault holds, `NAME=value` for a value that is not
+    secret and lives in the file itself. Both are names the environment carries,
+    so both are checked.
+    """
+    if not VAULT_MANIFEST_PATH.exists():
+        return {}
+    names = {}
+    open_profiles = []
+    for line in VAULT_MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("+"):
+            continue
+        if line.startswith("@"):
+            open_profiles = [part.strip() for part in line[1:].split(",") if part.strip()]
+            continue
+        name = line.split("=", 1)[0].strip()
+        names.setdefault(name, []).extend(open_profiles)
+    return names
+
+
 def read_text(absolute_path):
     try:
         return absolute_path.read_text(encoding="utf-8")
@@ -296,12 +328,16 @@ def check():
     for read in reads:
         read_names.setdefault(read.name, []).append(read.location())
 
+    manifest_names = vault_manifest_names()
+
     undeclared = sorted(set(read_names) - set(declarations))
     unread = sorted(set(declarations) - set(read_names))
+    undeclared_in_manifest = sorted(set(manifest_names) - set(declarations))
 
-    if not undeclared and not unread:
+    if not undeclared and not unread and not undeclared_in_manifest:
         print(f"ok   {len(read_names)} environment variables read, all declared in "
-              f"{DECLARATIONS_PATH.relative_to(REPOSITORY_ROOT)}")
+              f"{DECLARATIONS_PATH.relative_to(REPOSITORY_ROOT)}; "
+              f"{len(manifest_names)} in {VAULT_MANIFEST_PATH.name} declared there too")
         return 0
 
     for name in undeclared:
@@ -311,10 +347,15 @@ def check():
     for name in unread:
         print(f"FAIL unread declaration: {name} ({declarations[name]['process']}: "
               f"{declarations[name]['description']})", file=sys.stderr)
+    for name in undeclared_in_manifest:
+        profiles = ", ".join("@" + profile for profile in manifest_names[name]) or "no profile"
+        print(f"FAIL undeclared in {VAULT_MANIFEST_PATH.name}: {name} ({profiles})", file=sys.stderr)
     print(
-        f"\n{len(undeclared)} read with no declaration, {len(unread)} declared with no reader.\n"
+        f"\n{len(undeclared)} read with no declaration, {len(unread)} declared with no reader, "
+        f"{len(undeclared_in_manifest)} in {VAULT_MANIFEST_PATH.name} with no declaration.\n"
         f"Declare a read variable in {DECLARATIONS_PATH.relative_to(REPOSITORY_ROOT)}; "
-        "remove a declaration nothing reads.",
+        "remove a declaration nothing reads; take a name nothing here reads out of "
+        f"{VAULT_MANIFEST_PATH.name}.",
         file=sys.stderr,
     )
     return 1
