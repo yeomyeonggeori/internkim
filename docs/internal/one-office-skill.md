@@ -91,8 +91,8 @@ For `paperwork` the way out does not exist as stated. `resolve_font` raises
 whenever no candidate survives (`render_paperwork.py:114`), Korean or not, so
 removing DejaVu costs it every English offer letter and NDA on a font-less
 host. The declaration costs it the same documents today, earlier and more
-legibly, so this is not a regression against `main`; it is a reason the
-declaration is not obviously wrong for `paperwork`. Making `paperwork` behave
+legibly, so this is no regression against `main`, and it is a reason the
+declaration suits `paperwork`. Making `paperwork` behave
 like `document` means giving it a Latin path it has never had, which is a
 change to the letterhead renderer, not to a font list.
 
@@ -282,9 +282,8 @@ test with one that asks whether the resolved font covers the text, delete both
 `TestTheFontTheHostImageGuaranteesIsOneTheDeclarationsAccept` at the candidate
 list, and close #1936's blocked half by moving `is_embeddable_font` and
 `cached_font_paths` into `skill_runtime.py`. `paperwork` needs a Latin path
-before its declaration can go; until it has one, leaving that declaration in
-place is the honest state, and it is a second reason `paperwork` stays outside
-`office`.
+before its declaration can go. Until it has one the declaration stays, which
+is a second reason `paperwork` sits outside `office`.
 
 Then merge `document`, `pdf` and `spreadsheet` into `office`, moving their
 script directories under it so the six runtime copies become four and
@@ -297,11 +296,10 @@ Leave `paperwork`, `dataroom`, `presentation` and `website` as they are. Each
 is out for a reason the routing table cannot absorb: a reference catalog, a
 filing archive, a browser dependency, a served URL.
 
-Each claim above was checked by running something. The font table came from
-driving the three scripts against controlled candidate lists; the size table
-from measuring the files; the test table from reading what each test stats.
-The two claims not yet checked are named as such: the NUL-interleaving
-extraction failure needs confirming against NanumGothic on the Debian image,
-and whether `capabilityd` ever offers a partial tool set — which decides how
-sharp the tool-reference union really is — needs a host where one of the eight
-is missing.
+Two claims here were read and not run, and both are load-bearing enough to
+check before acting. The NUL-interleaving extraction failure was observed
+only against `AppleSDGothicNeo.ttc`; run it against NanumGothic on the Debian
+image. And whether `capabilityd` ever offers a partial tool set decides how
+sharp the tool-reference union is; that takes a host where one of the eight
+is missing. Everything else in the three tables came from driving the scripts,
+measuring the files, or reading what each test stats.
