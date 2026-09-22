@@ -3,6 +3,7 @@ import functools
 import http.server
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import threading
@@ -12,6 +13,7 @@ import unittest
 repository_root = Path(__file__).resolve().parents[2]
 install_script = repository_root / "web/static/install.sh"
 companion_address = repository_root / "web/static/companion/install.sh"
+formula_source = repository_root / "internal/runtime/blueclaw/company_host_formula.go"
 keyring_path = "/usr/share/keyrings/internkim-archive-keyring.pgp"
 apt_source_path = "/etc/apt/sources.list.d/internkim.sources"
 published_keyring = b"-----BEGIN PGP PUBLIC KEY BLOCK-----\nnot a real key\n"
@@ -20,6 +22,25 @@ published_keyring = b"-----BEGIN PGP PUBLIC KEY BLOCK-----\nnot a real key\n"
 # see it, and its destination is always the last argument. Rewriting that one
 # argument under a sandbox is what lets this test read what the script wrote to
 # /etc and /usr/share without the test machine having either path touched.
+def default_of(setting):
+    """What the script falls back to when its override variable is unset."""
+    match = re.search(rf'^{setting}="\$\{{[A-Z_]+:-([^}}"]+)\}}"', install_script.read_text(), re.MULTILINE)
+    if match is None:
+        raise AssertionError(f"install.sh no longer sets {setting} from an override with a default")
+    return match.group(1)
+
+
+def declared_tap():
+    source = formula_source.read_text()
+    parts = []
+    for name in ("HomebrewTapOwner", "HomebrewTapName"):
+        match = re.search(rf'^\t{name}\s*=\s*"([^"]+)"', source, re.MULTILINE)
+        if match is None:
+            raise AssertionError(f"internal/runtime/blueclaw no longer declares {name}")
+        parts.append(match.group(1))
+    return "/".join(parts)
+
+
 install_shim = """#!/usr/bin/env python3
 import os
 import shutil
@@ -170,6 +191,13 @@ class InstallScriptTests(unittest.TestCase):
                     installed = bin_dir / f"internkim-{product}"
                     self.assertEqual(installed.read_bytes(), published_binary(f"internkim-{product}-{expected}"))
 
+    def test_the_tap_the_script_adds_is_the_one_the_formula_is_published_to(self):
+        """`internal/runtime/blueclaw` declares the tap and renders the formula
+        that lives in it. A literal here would be a second declaration, and a
+        machine that adds a tap the formula was never committed to installs
+        nothing."""
+        self.assertEqual(default_of("homebrew_tap"), declared_tap())
+
     def test_a_mac_with_homebrew_installs_the_formula_from_the_tap(self):
         """The published one line has to leave a registered Homebrew install, or
         `brew upgrade` and `brew uninstall` have nothing to act on afterwards."""
@@ -182,7 +210,7 @@ class InstallScriptTests(unittest.TestCase):
             "host", base_url, machine=("Darwin", "arm64"), shims=[str(brew)])
         self.assertEqual(completed.returncode, 0, completed.stderr)
         ran = log_path.read_text().splitlines()
-        self.assertEqual(ran[0], "brew tap yeomyeonggeori/internkim")
+        self.assertEqual(ran[0], f"brew tap {default_of('homebrew_tap')}")
         self.assertEqual(ran[1], "brew install internkim")
         self.assertIn("sudo internkim install", completed.stdout)
         self.assertFalse((bin_dir / "internkim-host").exists(), "a Mac with Homebrew should get the formula, not a bare binary")

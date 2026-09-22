@@ -23,7 +23,7 @@ keyring_path="/usr/share/keyrings/internkim-archive-keyring.pgp"
 keyring_url="${INTERNKIM_INSTALL_KEYRING_URL:-$repository_url/internkim-archive-keyring.pgp}"
 apt_source_path="/etc/apt/sources.list.d/internkim.sources"
 apt_component="main"
-homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/internkim}"
+homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
 
 stop() {
   echo "$1" >&2
