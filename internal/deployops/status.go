@@ -318,14 +318,12 @@ func formatStatus(status TargetStatus) string {
 var cloudflareAccessTokenMutex sync.Mutex
 var cloudflareAccessTokenByHost = map[string]string{}
 
-const cloudflareAccessServiceTokenPath = ".local/secrets/cloudflare-access-service-token.json"
-
 // A deploy that runs unattended cannot answer a browser login. The service
-// token, provisioned by tools/provision-cloudflare-ssh-service-token into one
-// 0600 file, authenticates without one and lasts a year; the day-lived
-// cloudflared login token serves only an operator who holds no service token.
+// token, provisioned by tools/provision-cloudflare-ssh-service-token,
+// authenticates without one and lasts a year; the day-lived cloudflared login
+// token serves only an operator who holds no service token.
 func AttachCloudflareAccess(request *http.Request) {
-	if clientID, clientSecret := cloudflareAccessServiceToken(cloudflareAccessServiceTokenPath); clientID != "" && clientSecret != "" {
+	if clientID, clientSecret := cloudflareAccessServiceToken(); clientID != "" && clientSecret != "" {
 		request.Header.Set("CF-Access-Client-Id", clientID)
 		request.Header.Set("CF-Access-Client-Secret", clientSecret)
 		return
@@ -337,19 +335,13 @@ func AttachCloudflareAccess(request *http.Request) {
 	request.AddCookie(&http.Cookie{Name: "CF_Authorization", Value: token})
 }
 
-func cloudflareAccessServiceToken(path string) (string, string) {
-	document, errorValue := os.ReadFile(path)
-	if errorValue != nil {
-		return "", ""
-	}
-	var held struct {
-		ClientID     string `json:"clientID"`
-		ClientSecret string `json:"clientSecret"`
-	}
-	if json.Unmarshal(document, &held) != nil {
-		return "", ""
-	}
-	return strings.TrimSpace(held.ClientID), strings.TrimSpace(held.ClientSecret)
+// The token's one home is the vault, which `monkeys run` opens into this
+// process's environment. It lived in a file under `.local/` as well until the
+// two halves disagreed, which nothing noticed: the stale half authenticated
+// against nothing and the deploy fell back to the browser login.
+func cloudflareAccessServiceToken() (string, string) {
+	return strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_ID")),
+		strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET"))
 }
 
 func cloudflareAccessToken(applicationURL string) string {

@@ -327,6 +327,14 @@
     "process": "cli, tools/mirror-local",
     "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file"
   },
+  "INTERNKIM_CF_ACCESS_CLIENT_ID": {
+    "process": "cli, tools/cloudflared-access-ssh",
+    "description": "the client id half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault and handed to a command by `monkeys run`; an unattended deploy and the ssh ProxyCommand authenticate with it where an operator would answer a browser login"
+  },
+  "INTERNKIM_CF_ACCESS_CLIENT_SECRET": {
+    "process": "cli, tools/cloudflared-access-ssh",
+    "description": "the client secret half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault beside its client id"
+  },
   "INTERNKIM_COMPANY_HOST_IMAGE_REPOSITORY": {
     "process": "internkim release host-image",
     "description": "the registry repository the company server image is pushed to; its tag is what internkim release host stamps into every host build"

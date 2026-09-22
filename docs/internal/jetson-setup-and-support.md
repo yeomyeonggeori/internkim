@@ -163,7 +163,9 @@ tar xzf internkim-state.tar.gz -C ~ --keep-old-files
 
 이후 `./internkim ssh --node <node-id>` 그대로 사용 가능.
 
-> **참고:** `.env` 파일(Cloudflare Access 토큰 등)은 팀 공유이므로 따로 받을 필요 없다.
+> **참고:** Cloudflare Access 토큰을 비롯한 운영 비밀은 그 기계의 OS 금고에 있다.
+> 새 기계에서는 `monkeys doctor`가 무엇이 없는지 알려주고, 사람이 하나씩
+> `monkeys remember <name>`에 입력한다.
 
 ---
 
