@@ -12,7 +12,6 @@ judges a transcript of what the install printed.
 import argparse
 import contextlib
 import json
-import re
 import shutil
 import sys
 import tempfile
@@ -42,9 +41,11 @@ from native_install_rig import (  # noqa: E402
     COMPANY_CONDITION_PATH,
     CompanyPlane,
     Machine,
+    build_identity_reported,
+    install_the_company,
+    installed_units,
     Release,
     RigFailure,
-    SHARE_PATH,
     answered,
     build_stand_in_package,
     install_attempt_on_another_suite,
@@ -54,17 +55,9 @@ from native_install_rig import (  # noqa: E402
 
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
-CONNECTION_FILE_NAME = "internkim-host.json"
-MODEL_KEY_FILE_NAME = "rig-model-key"
 RELAY_UNIT_NAME = "internkim-relay.service"
 DOCUMENT_INTERPRETER_PACKAGE = "python3"
 COMPANY_CALL_CAPABILITY = "person.people.list"
-
-# The guest is given a company whose agent never reaches a model provider. Step 5
-# judges whether a message crosses the gateway and reaches the company's store,
-# which no model is asked about; a key that could buy tokens has no business in a
-# disposable guest.
-RIG_MODEL_KEY = "sk-or-v1-this-rig-never-reaches-a-model-provider"
 PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
 PLANTED_SECRET = "0123456789abcdef" * 4
 
@@ -480,10 +473,7 @@ class Rig:
         )
 
     def units(self):
-        listed = self.machine.shell(
-            f"dpkg-query -L {PACKAGE_NAME} 2>/dev/null | grep -E '^/(lib|usr/lib)/systemd/system/.*\\.service$' | xargs -r -n1 basename | sort -u"
-        )
-        return [name for name in listed.stdout.split() if name]
+        return installed_units(self.machine)
 
     def observe_services(self, step):
         unit_names = self.units()
@@ -706,15 +696,7 @@ class Rig:
         """Everything a person does between downloading the file and a running box."""
         connection = plane.connection_document()
         self.company_id = connection["company"]["id"]
-        share = self.machine.share_directory
-        (share / CONNECTION_FILE_NAME).write_text(json.dumps(connection, indent=2))
-        (share / MODEL_KEY_FILE_NAME).write_text(RIG_MODEL_KEY + "\n")
-        installed = self.machine.shell(
-            f"set -eu\n"
-            f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
-            f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
-            timeout_seconds=1800,
-        )
+        installed = install_the_company(self.machine, connection)
         pointed = self.machine.shell(
             f"readlink -f {STATE_DIRECTORY}/current 2>/dev/null; "
             f"test -s {COMPANY_CONDITION_PATH} && echo condition-met"
@@ -771,13 +753,7 @@ class Rig:
         )
 
     def build_identity_the_guest_reports(self):
-        port, path = REVISION_PROBE
-        reported = self.machine.shell(f"curl -s --max-time 10 http://127.0.0.1:{port}{path}")
-        found = {}
-        for name in ("admindBuildID", "gitRevision"):
-            match = re.search(r'"' + name + r'"\s*:\s*"([^"]*)"', reported.stdout)
-            found[name] = match.group(1) if match else ""
-        return found
+        return build_identity_reported(self.machine)
 
     def observe_the_processes_moved(self, step, before, after):
         port, path = REVISION_PROBE
