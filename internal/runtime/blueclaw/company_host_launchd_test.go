@@ -160,6 +160,22 @@ func TestEveryLaunchDaemonCarriesTheLabelItsFileNames(t *testing.T) {
 	}
 }
 
+// launchd starts a daemon with /usr/bin:/bin:/usr/sbin:/sbin. Every program the
+// bundle shells out to — psql, redis-cli, git, jq, and the bun and uv the keg
+// carries — is outside that, so a daemon without a PATH of its own finds none of
+// them and fails at the first shell-out rather than at start.
+func TestEveryDaemonIsGivenAPathThatHoldsWhatItShellsOutTo(t *testing.T) {
+	layout := MacCompanyHostLayout(testHomebrewPrefix)
+	for _, daemon := range launchDaemonsForTest(t) {
+		if !strings.Contains(daemon.Contents, "<key>PATH</key>") {
+			t.Fatalf("%s is started with launchd's own PATH, which holds neither Homebrew nor this package", daemon.FileName())
+		}
+		if !strings.Contains(daemon.Contents, escapePlistText(layout.SearchPath)) {
+			t.Fatalf("%s carries a PATH that is not the layout's:\n%s", daemon.FileName(), daemon.Contents)
+		}
+	}
+}
+
 // The agent is the one service that runs unprivileged, and on launchd UserName
 // applies only in the privileged system domain. A plist that lost it would run
 // the agent as root and the POSIX boundary would be gone with it.
@@ -192,5 +208,16 @@ func TestTheMacLayoutPutsTheWorkspaceWhereAMacCanHaveOne(t *testing.T) {
 		if !strings.HasPrefix(path, testHomebrewPrefix+"/") {
 			t.Fatalf("%s is outside the Homebrew prefix, so `brew uninstall` would leave it behind", path)
 		}
+	}
+	// A program a plist names has to survive an upgrade that replaces the keg,
+	// which the opt link does and the Cellar path does not. It must also not be
+	// the prefix's own bin: the package vendors bun, uv and agent-browser, and
+	// Homebrew has a formula for each of those names, so a keg that put them
+	// there could not be linked at all.
+	if !strings.HasPrefix(layout.BinaryRoot, testHomebrewPrefix+"/opt/") {
+		t.Fatalf("the programs are at %s, which an upgrade moves", layout.BinaryRoot)
+	}
+	if strings.HasPrefix(layout.BinaryRoot, testHomebrewPrefix+"/bin") {
+		t.Fatalf("the programs are in the prefix's bin, where bun, uv and agent-browser collide with their own formulas")
 	}
 }

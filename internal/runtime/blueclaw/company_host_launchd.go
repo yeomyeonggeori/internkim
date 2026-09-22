@@ -70,7 +70,7 @@ func CompanyHostLaunchDaemonLabel(serviceName string) string {
 func CompanyHostLaunchDaemons(layout CompanyHostLayout, environmentFiles map[string]string) ([]CompanyHostLaunchDaemon, error) {
 	daemons := []CompanyHostLaunchDaemon{}
 	for _, service := range CompanyHostServices(layout) {
-		daemon, errorValue := companyHostLaunchDaemon(service, environmentFiles)
+		daemon, errorValue := companyHostLaunchDaemon(layout, service, environmentFiles)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -79,10 +79,17 @@ func CompanyHostLaunchDaemons(layout CompanyHostLayout, environmentFiles map[str
 	return daemons, nil
 }
 
-func companyHostLaunchDaemon(service CompanyHostService, environmentFiles map[string]string) (CompanyHostLaunchDaemon, error) {
+func companyHostLaunchDaemon(layout CompanyHostLayout, service CompanyHostService, environmentFiles map[string]string) (CompanyHostLaunchDaemon, error) {
 	environment, errorValue := companyHostServiceEnvironment(service, environmentFiles)
 	if errorValue != nil {
 		return CompanyHostLaunchDaemon{}, errorValue
+	}
+	// launchd starts a daemon with /usr/bin:/bin:/usr/sbin:/sbin and nothing
+	// else, so psql, redis-cli, git, jq, bun and uv are all absent from a
+	// service that shells out to them. systemd's default is no better; it costs
+	// nothing on Debian because everything the bundle runs is in /usr/bin.
+	if _, isSet := environment["PATH"]; !isSet && layout.SearchPath != "" {
+		environment["PATH"] = layout.SearchPath
 	}
 	command, errorValue := resolveCommandReferences(service, environment)
 	if errorValue != nil {

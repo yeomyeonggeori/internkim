@@ -33,6 +33,13 @@ type CompanyHostLayout struct {
 	// AgentHomePath is the home directory of the unprivileged account the agent
 	// runs as. /home is an autofs mount point on macOS, so it is not one there.
 	AgentHomePath string
+	// SearchPath is the PATH the services are given, for a supervisor that does
+	// not inherit a useful one. Empty means the supervisor's own default is
+	// already right, which on Debian it is: everything the bundle shells out to
+	// is in /usr/bin. launchd's default is /usr/bin:/bin:/usr/sbin:/sbin, which
+	// holds neither Homebrew's prefix nor this package's own tree, so a service
+	// that shells out to psql, git, jq, bun or uv would find none of them.
+	SearchPath string
 }
 
 // The macOS workspace is a sibling of the state root rather than a child, for
@@ -65,13 +72,34 @@ func DebianCompanyHostLayout() CompanyHostLayout {
 // is Homebrew's own answer rather than a literal, because it is /opt/homebrew on
 // Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody
 // chose.
+//
+// Everything sits under <prefix>/opt/internkim, the link Homebrew repoints at
+// the current keg, so an upgrade that replaces the keg does not move a path a
+// plist names. It is libexec rather than bin for a reason `brew link` gives out
+// loud: the package vendors bun, uv and agent-browser, Homebrew has a formula
+// for each of those names, and a keg that put them in bin could not be linked at
+// all — "Target /opt/homebrew/bin/agent-browser is a symlink belonging to
+// agent-browser". Only `internkim` is a command a person types, and it is the
+// only thing the keg puts in bin. Homebrew does not link libexec into the
+// prefix, which is how a formula ships a private tree without scattering
+// "skills" and "migrations" into a directory every other formula shares.
+//
+// The setuid helper is in that tree rather than copied out of it, so a `brew
+// upgrade` that replaces the keg drops the bit and the agent fails loudly until
+// `sudo internkim install` is run again, instead of a new agent quietly running
+// an old helper.
 func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 	prefix := strings.TrimRight(homebrewPrefix, "/")
+	keg := prefix + "/opt/" + CompanyPackageName
 	return CompanyHostLayout{
-		Name:          "macOS",
-		BinaryRoot:    prefix + "/bin",
-		HelperRoot:    prefix + "/libexec/internkim",
-		LibraryRoot:   prefix + "/share/internkim",
+		Name:        "macOS",
+		BinaryRoot:  keg + "/libexec",
+		HelperRoot:  keg + "/libexec",
+		LibraryRoot: keg + "/libexec",
+		SearchPath: strings.Join([]string{
+			keg + "/libexec", prefix + "/bin", prefix + "/sbin",
+			"/usr/bin", "/bin", "/usr/sbin", "/sbin",
+		}, ":"),
 		WorkspacePath: macCompanyHostWorkspacePath,
 		RunPath:       macCompanyHostRunPath,
 		AgentHomePath: macBlueclawHomePath,
@@ -108,7 +136,14 @@ func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 }
 
 func (layout CompanyHostLayout) DocumentVirtualEnvironmentPath() string {
-	return layout.LibraryRoot + "/document-venv"
+	return layout.LibraryRoot + "/" + documentVirtualEnvironmentDirectoryName
+}
+
+// DocumentRequirementsPath is the resolved requirement list the package carries,
+// so a Mac whose Homebrew prefix no bottle was built for can resolve the
+// interpreter again against the same list.
+func (layout CompanyHostLayout) DocumentRequirementsPath() string {
+	return layout.LibraryRoot + "/" + documentRequirementsFileName
 }
 
 func (layout CompanyHostLayout) DocumentPythonPath() string {

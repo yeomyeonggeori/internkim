@@ -167,13 +167,16 @@ var hostDependencies = []HostDependency{
 	},
 	{
 		DebianPackage:       "python3",
-		HomebrewFormula:     "python@3.13",
 		ProgramsTheHostRuns: []string{"python3"},
+		// See company_host_mac_interpreter.go: Homebrew's python@3.13 bottle
+		// for macOS 26 cannot load pyexpat on 26.1, so the keg carries a
+		// pinned relocatable CPython instead of depending on one.
+		WhatAnswersItOnAMac: "the package carries a pinned relocatable CPython, because Homebrew's python@3.13 cannot load pyexpat on macOS 26.1",
 		NeededBy:            []HostPart{HostPartDocumentSkills},
 	},
 	{
 		DebianPackage:       "python3-venv",
-		WhatAnswersItOnAMac: "Homebrew's python@3.13 carries venv",
+		WhatAnswersItOnAMac: "the interpreter the package carries has venv in it",
 		NeededBy:            []HostPart{HostPartDocumentSkills},
 	},
 	{
