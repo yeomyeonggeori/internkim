@@ -40,12 +40,12 @@ the nearest neighbour and is not a precedent: it is an HMAC secret with no
 public half, so it answers neither how a verification key is distributed nor
 what happens when one is withdrawn.
 
-The archive key takes the second shape. `INTERNKIM_APT_SIGNING_KEY_PATH` names
-an exported OpenPGP secret key, `internkim release apt` imports it into a gpg
-homedir it creates and destroys around the run, and the key's bytes never
-enter an environment variable or the process table. That much is built and is
-independent of the decision below, because every option here is a different
-answer to what that path points at.
+The archive key takes the second shape at the point it meets gpg.
+`internkim release apt` resolves the key to a mode-0600 file, imports that into
+a gpg homedir it creates and destroys around the run, and removes the file
+afterwards. That much is built and is independent of the decision below,
+because every option here is a different answer to where the bytes come from
+before that file is written.
 
 ## The options
 
@@ -82,19 +82,37 @@ proves the mechanism against a throwaway key rather than the real one.
 
 ## Recommendation
 
-**(c), with (a) as the deliberate interim.**
+**(c), with (b) as the deliberate interim.**
 
-The asymmetry decides it. The key's blast radius is root on every customer
-machine and its rotation story is a site visit, which is the profile hardware
-exists for; the difference in what it costs to use is one device in a drawer.
-Option (b) is a smaller version of the same protection and inherits the same
-extraction risk, so it is not worth adding a dependency for.
+The asymmetry decides the destination. The key's blast radius is root on every
+customer machine and its rotation story is a site visit, which is the profile
+hardware exists for; the difference in what it costs to use is one device in a
+drawer.
 
-The interim matters because (c) cannot be adopted the day it is chosen: the
-token has to arrive, and the key has to be generated on it rather than
-generated and copied to it, or the copy is what leaked. Until then a file
-under `.local/secrets/` on one machine, used to publish only the `testing`
-suite, is enough to keep building. The `stable` suite waits for the hardware.
+The interim was first written as (a), on the argument that (b) protects against
+the same extraction and was not worth a dependency for. The dependency turned
+out to be already installed: `monkeys` is on this machine, its manifest commits
+key *names* rather than values, and the vault is somewhere a loose file is not.
+Against a laptop that is lost or a backup that is too broad, which is what
+actually happens to an interim, the vault wins, and it costs one word on a
+command line. The argument against (b) was right about what it protects against
+and wrong about what it cost.
+
+Neither interim closes the gap (c) exists for. A key the signing machine can
+read is a key malware running as that user can read, whichever store holds it.
+That is why the interim publishes only the `testing` suite; the `stable` suite
+waits for the hardware.
+
+`internkim release apt` therefore takes the key from `INTERNKIM_APT_SIGNING_KEY`
+in the environment `monkeys run` provides, and immediately stops it being an
+environment value: it writes the key to a mode-0600 file in a private
+directory, unsets the variable so nothing it starts inherits it, hands gpg the
+path, and removes the file when the run ends. This repository's convention is
+that secrets reach programs as paths, because an environment value is readable
+from the process table by anything running as that user. A signing run lasts
+seconds rather than a daemon's lifetime, so the exposure is smaller, but the
+shape stays the same as everything else here. That function is also the seam
+(c) replaces: a token changes what it hands gpg, and nothing above it.
 
 Two things should be settled at the same time as the key, because they are
 much cheaper before the first customer than after:
@@ -115,4 +133,34 @@ much cheaper before the first customer than after:
 key generated per run, with the user ID `InternKim Install Rig TEST KEY
 <rig@invalid.internkim.test>`, held in a homedir under `/tmp` that is removed
 when the run ends. It is not in the repository, it is not reused between runs,
-and nothing published from it has left this machine.
+and nothing published from it has left this machine. No real signing key has
+been generated; generating one is the decision above rather than a step that
+was skipped.
+
+The vault path is exercised rather than assumed.
+`tools/test-apt-repository --through-the-vault` puts that same throwaway key
+into the vault under the real name, publishes with the real invocation, and
+verifies the signature on what came out:
+
+```
+$ tools/test-apt-repository --through-the-vault
+stored a throwaway key in the vault as INTERNKIM_APT_SIGNING_KEY
+signed suite testing with 95AD6BE3A47385DD583A30E36AC70C0EF66B374B
+wrote 9 objects to /var/folders/…/apt-vault-hi4_0ium/release
+gpg: Good signature from "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>" [ultimate]
+removed the throwaway key from the vault
+```
+
+It uses the real name because a rehearsal under a different name would not
+exercise what a person runs. `monkeys remember` overwrites, so it refuses to
+start when that name already holds a key, and it forgets what it stored on
+every path out including a failure.
+
+Two invariants are tests rather than prose.
+`TestTheArchiveSigningKeyComesFromTheVaultAlone` fails if a file under
+`.local/secrets/` can supply the key, which is how option (a) would come back
+as a fallback and give the key two homes;
+`TestMaterialisingTheKeyTakesItOutOfTheEnvironment` fails if the value is still
+in the environment after the file is written, which is what a child process
+would otherwise inherit. There is no `--signing-key` flag, and
+`test_no_flag_offers_the_signing_key_a_second_home` fails if one comes back.

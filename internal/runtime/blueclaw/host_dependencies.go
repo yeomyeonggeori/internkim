@@ -1,6 +1,10 @@
 package blueclaw
 
-import "strings"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // HostPart is who in the company host needs a dependency. The agent image
 // carries what the entrypoint, the daemons and the bundled skills reach for; a
@@ -217,11 +221,29 @@ func HostImageDebianPackages() []string {
 	return HostDebianPackagesFor(HostPartEntrypoint, HostPartAgent, HostPartDocumentSkills)
 }
 
+// DocumentInterpreterPackage is the distribution's python3, which is also the
+// interpreter the package's own document venv is resolved against.
+const DocumentInterpreterPackage = "python3"
+
 // HostDebianDependsLine is the whole host, as a .deb control field.
-func HostDebianDependsLine() string {
+//
+// documentInterpreterVersion is the full version the package's document venv
+// reports, and it bounds python3 to that minor version alone: the venv's
+// site-packages are wheels built for one operating system, one processor and
+// one Python minor version, and an interpreter outside the bound imports none
+// of them. An empty version leaves python3 unbounded, which is what a path that
+// ships no venv wants.
+func HostDebianDependsLine(documentInterpreterVersion string) string {
+	minimum, below, isBounded := documentInterpreterBound(documentInterpreterVersion)
 	constrained := []string{}
 	for _, dependency := range hostDependencies {
 		if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential {
+			continue
+		}
+		if dependency.DebianPackage == DocumentInterpreterPackage && isBounded {
+			constrained = append(constrained,
+				DocumentInterpreterPackage+" (>= "+minimum+")",
+				DocumentInterpreterPackage+" (<< "+below+")")
 			continue
 		}
 		if dependency.DebianMinimumVersion == "" {
@@ -232,6 +254,25 @@ func HostDebianDependsLine() string {
 			dependency.DebianPackage+" (>= "+dependency.DebianMinimumVersion+")")
 	}
 	return strings.Join(constrained, ", ")
+}
+
+// documentInterpreterBound reads 3.13.5 as "3.13 or newer, below 3.14". The
+// version is the venv's own answer rather than a literal anybody maintains, so
+// the package cannot claim a python3 it was not resolved against.
+func documentInterpreterBound(version string) (string, string, bool) {
+	parts := strings.Split(strings.TrimSpace(version), ".")
+	if len(parts) < 2 {
+		return "", "", false
+	}
+	major, errorValue := strconv.Atoi(parts[0])
+	if errorValue != nil {
+		return "", "", false
+	}
+	minor, errorValue := strconv.Atoi(parts[1])
+	if errorValue != nil {
+		return "", "", false
+	}
+	return fmt.Sprintf("%d.%d", major, minor), fmt.Sprintf("%d.%d", major, minor+1), true
 }
 
 // HostHomebrewDependencies is the same list as a formula sees it, which is a

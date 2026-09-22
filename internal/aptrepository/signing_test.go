@@ -97,29 +97,104 @@ func TestTheSignatureVerifiesAgainstThePublishedKeyring(t *testing.T) {
 }
 
 func TestASigningKeyWithNoFileIsNamedRatherThanGuessedAt(t *testing.T) {
-	if _, errorValue := NewGPGSigner(""); errorValue == nil || !strings.Contains(errorValue.Error(), SigningKeyPathVariable) {
-		t.Fatalf("an absent key path gave %v, wanted the variable that names one", errorValue)
+	if _, errorValue := NewGPGSigner(""); errorValue == nil || !strings.Contains(errorValue.Error(), SigningKeyVariable) {
+		t.Fatalf("an absent key path gave %v, wanted the name that holds one", errorValue)
 	}
 	if _, errorValue := NewGPGSigner(filepath.Join(t.TempDir(), "absent.asc")); errorValue == nil {
 		t.Fatal("a key path pointing at nothing was accepted")
 	}
 }
 
-// The private half is what lets anyone install software as root on a
-// customer's machine, so it has one home and the tree is not it.
-func TestTheDefaultSigningKeyPathIsOutsideTheTree(t *testing.T) {
-	path := DefaultSigningKeyPath("/repository")
-	if path != "/repository/.local/secrets/apt-archive-signing-key.asc" {
-		t.Fatalf("the default key path is %s", path)
+// The private half is what lets anyone install software as root on a customer's
+// machine. It has one home, the operating system's vault, and what reaches gpg is a
+// file this process wrote and removes rather than a value any child can read out of
+// its own environment.
+func TestTheSigningKeyReachesGPGAsAPrivateFileAndLeavesNoEnvironmentValue(t *testing.T) {
+	t.Setenv(SigningKeyVariable, "  -----BEGIN PGP PRIVATE KEY BLOCK-----  ")
+
+	keyPath, remove, errorValue := MaterialiseSigningKey()
+	if errorValue != nil {
+		t.Fatalf("materialise the signing key: %v", errorValue)
 	}
-	if SigningKeyPathVariable != "INTERNKIM_APT_SIGNING_KEY_PATH" {
-		t.Fatalf("the signing key is configured by %s, which is not a path", SigningKeyPathVariable)
+	defer remove()
+
+	if held := os.Getenv(SigningKeyVariable); held != "" {
+		t.Fatalf("%s still holds a value after the key was written, so every child inherits it", SigningKeyVariable)
+	}
+	information, errorValue := os.Stat(keyPath)
+	if errorValue != nil {
+		t.Fatalf("stat the materialised key: %v", errorValue)
+	}
+	if information.Mode().Perm() != 0o600 {
+		t.Fatalf("the materialised key is mode %o, wanted 600", information.Mode().Perm())
+	}
+	written, errorValue := os.ReadFile(keyPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.TrimSpace(string(written)) != "-----BEGIN PGP PRIVATE KEY BLOCK-----" {
+		t.Fatalf("the materialised key holds %q", string(written))
+	}
+
+	remove()
+	if _, errorValue := os.Stat(keyPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("the materialised key survived the run: %v", errorValue)
+	}
+}
+
+func TestASigningKeyTheVaultDoesNotHoldNamesWhatToRun(t *testing.T) {
+	t.Setenv(SigningKeyVariable, "")
+
+	_, _, errorValue := MaterialiseSigningKey()
+	if errorValue == nil {
+		t.Fatal("a release with no signing key was allowed to start")
+	}
+	for _, named := range []string{"monkeys run", SigningKeyVariable} {
+		if !strings.Contains(errorValue.Error(), named) {
+			t.Fatalf("the refusal is %q and does not name %q", errorValue.Error(), named)
+		}
 	}
 }
 
 func TestTheConfiguredVariableIsTheOneThatIsRead(t *testing.T) {
-	t.Setenv(SigningKeyPathVariable, "  /somewhere/archive-key.asc  ")
-	if read := SigningKeyPath(); read != "/somewhere/archive-key.asc" {
-		t.Fatalf("SigningKeyPath read %q; it does not read %s", read, SigningKeyPathVariable)
+	t.Setenv(SigningKeyVariable, "  a-key  ")
+	keyPath, remove, errorValue := MaterialiseSigningKey()
+	if errorValue != nil {
+		t.Fatalf("MaterialiseSigningKey does not read %s: %v", SigningKeyVariable, errorValue)
+	}
+	remove()
+	if keyPath == "" {
+		t.Fatalf("MaterialiseSigningKey read %s and wrote nowhere", SigningKeyVariable)
+	}
+	if SigningKeyVariable != "INTERNKIM_APT_SIGNING_KEY" {
+		t.Fatalf("the signing key is held under %s", SigningKeyVariable)
+	}
+}
+
+// The vault hands the key over as an environment value; this is where it stops
+// being one. A child process this release starts — gpg, or anything gpg starts —
+// inherits the environment, and the process table is readable by anything
+// running as this user.
+func TestMaterialisingTheKeyTakesItOutOfTheEnvironment(t *testing.T) {
+	t.Setenv(SigningKeyVariable, "the-key-the-vault-handed-over")
+
+	keyPath, remove, errorValue := MaterialiseSigningKey()
+	if errorValue != nil {
+		t.Fatalf("materialise the signing key: %v", errorValue)
+	}
+
+	if leftBehind := os.Getenv(SigningKeyVariable); leftBehind != "" {
+		t.Fatalf("%s still holds %q after the key was written to a file", SigningKeyVariable, leftBehind)
+	}
+	information, errorValue := os.Stat(keyPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if mode := information.Mode().Perm(); mode != 0o600 {
+		t.Fatalf("the signing key file is mode %o, not 600", mode)
+	}
+	remove()
+	if _, errorValue := os.Stat(keyPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("the signing key file outlived the run: %v", errorValue)
 	}
 }

@@ -217,11 +217,21 @@ from a Mac. Three facts follow, and none of them is a detail:
   same eleven wheels in forty seconds. A machine with neither cannot build the
   package, and `internkim release deb` says which of the two it wants instead
   of shipping a package with no interpreter in it.
-- The venv holds `lib/python3.13`, which is trixie's Python. The package's
-  `Depends: python3` names no version, so installing this package on a suite
-  carrying a different Python minor version gives a venv whose site-packages
-  that interpreter will not import. The package is built for one suite at a
-  time, and `internkim release deb` has no way to say so yet.
+- The venv holds `lib/python3.13`, which is trixie's Python, so the package is
+  built for one Debian suite at a time and says which. `HostDebianDependsLine`
+  takes the version out of the venv's own `pyvenv.cfg` and renders
+  `python3 (>= 3.13), python3 (<< 3.14)`, so the bound and the wheels cannot
+  disagree about what the package carries. On bookworm, whose python3 is
+  3.11.2, apt refuses by name:
+
+  ```
+  internkim : Depends: python3 (>= 3.13) but 3.11.2-1+b1 is to be installed
+  E: Unable to correct problems, you have held broken packages.
+  ```
+
+  Without it the install succeeds and the failure moves to first use, as an
+  `ImportError` from `lxml.etree` — a C extension built for 3.13 — a long way
+  from anything that names the cause.
 - It adds about 110 MB to a package that was already 217 MB.
 
 The device path resolves the same venv on the machine instead, in
@@ -387,6 +397,21 @@ names no hostname. The layout is suite `stable`, component `main`,
 architectures `arm64` and `amd64`, with a `testing` suite for release
 candidates.
 
+`stable` and `testing` here are how far a build is trusted, which is a
+different axis from Debian's own suites, and today the second axis has one
+value: every package is built on trixie and refuses to install anywhere else.
+When bookworm is supported, a build exists per Debian suite and the two axes
+have to compose. Apt gives no way to fold them into one name, because a
+machine's `sources.list` line names one suite and apt picks the newest
+candidate in it; two builds of the same version under one suite would let it
+choose the wrong one. So the Debian suite belongs in the suite name —
+`trixie-stable`, `bookworm-testing` — and `install.sh` reads
+`/etc/os-release` to write the line. The alternative, a component per Debian
+suite, does not work: `Signed-By` and suite are what apt pins, and a component
+is not something it will refuse to cross. Nothing needs building until there
+is a second suite to build for; what this fixes is the name, which is
+expensive to change once machines have it written down.
+
 The worker answers `GET` and `HEAD`, sets `etag` and `content-length`, and
 passes no conditional header to R2, so it never answers `304`. Measured
 against a Debian 13 guest by `tools/test-apt-repository`, that costs one full
@@ -426,10 +451,14 @@ that `internal/cli/one_home_for_each_credential_test.go` exists to forbid. The
 rendering is a pure function of the set of `.deb` files, so republishing is
 idempotent and two machines cutting the same release produce the same bytes.
 
-Where the private half of the signing key lives is
-[an open decision](./apt-archive-signing-key.md). Everything that needs it
-takes it from one path, `INTERNKIM_APT_SIGNING_KEY_PATH`, so settling it is a
-change to what that path names.
+The private half of the signing key lives in the operating system's vault,
+under `INTERNKIM_APT_SIGNING_KEY`, and reaches a release through
+`monkeys run internkim release apt`. What reaches gpg is still a path:
+`MaterialiseSigningKey` writes the value to a mode-0600 file, takes it out of
+this process's environment so nothing it starts inherits it, and removes the
+file when the run ends. That seam is the one function a hardware token would
+replace, and [`apt-archive-signing-key.md`](./apt-archive-signing-key.md) is
+why a token is still where this is headed.
 
 The Homebrew formula needs a macOS builder for `buzz-relay`, which a Mac runs
 natively in two minutes with the same clone, the same two patches and the same

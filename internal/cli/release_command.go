@@ -103,7 +103,10 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
 	fmt.Println("Environment for apt:")
-	fmt.Println("  INTERNKIM_APT_SIGNING_KEY_PATH names the exported archive signing key; --signing-key overrides it")
+	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_APT_SIGNING_KEY:")
+	fmt.Println("    monkeys run internkim release apt --suite testing")
+	fmt.Println("  there is no flag that names a key on disk: the vault is the key's one home,")
+	fmt.Println("  and the rigs put their own throwaway key in the same variable")
 }
 
 func runReleasePublish(arguments []string) error {

@@ -168,6 +168,12 @@ class DependencyReadingTests(unittest.TestCase):
             rig.dependency_names(rig.package_fields(package)["Depends"]), ["python3", "ca-certificates"]
         )
 
+    def test_a_name_bounded_from_both_sides_is_asked_for_once(self):
+        self.assertEqual(
+            rig.dependency_names("python3 (>= 3.13), python3 (<< 3.14), ca-certificates"),
+            ["python3", "ca-certificates"],
+        )
+
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
         self.assertEqual(
             rig.dependency_names("postgresql (>= 14), chromium | chromium-browser, jq"),
@@ -285,3 +291,21 @@ class StandInDeclinesTests(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(control), mode="r:*") as archive:
             conffiles = archive.extractfile("./conffiles").read().decode()
         self.assertEqual(conffiles.strip(), rig.CONFFILE_PATH)
+
+
+class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
+    """The rig names the vault variable in Python and the CLI names it in Go.
+
+    Two hand-kept copies of one name is the defect this repository keeps
+    finding, so the Go constant is the canonical one and this reads it.
+    """
+
+    def test_the_rig_names_the_same_signing_key_variable(self):
+        source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "signing.go").read_text()
+        declared = re.search(r'SigningKeyVariable\s*=\s*"([^"]+)"', source)
+        self.assertIsNotNone(declared, "aptrepository.SigningKeyVariable is not declared as a literal")
+        self.assertEqual(declared.group(1), rig.SIGNING_KEY_VARIABLE)
+
+    def test_no_flag_offers_the_signing_key_a_second_home(self):
+        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_apt.go").read_text()
+        self.assertNotIn("--signing-key", source)
