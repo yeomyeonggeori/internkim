@@ -20,7 +20,7 @@ build-companion:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-companion ./cmd/internkim-companion
 
 build-company-host:
-	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -ldflags "-X gitlab.com/eastriver/internkim/internal/companyhost.AgentImage=$(COMPANY_HOST_IMAGE)" -o internkim-host ./cmd/internkim-host
+	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-host ./cmd/internkim-host
 
 build-company-host-image:
 	docker build --tag $(COMPANY_HOST_IMAGE)-base --file host/Dockerfile .

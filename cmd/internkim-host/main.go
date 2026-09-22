@@ -8,26 +8,47 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/companyhost"
 	"golang.org/x/term"
 )
 
-type systemCommands struct{}
+// thisComputer is the company host's own machine. Every command it runs is one
+// the installer names; nothing here decides anything.
+type thisComputer struct{}
 
-func (systemCommands) Run(name string, arguments []string, environment []string, output io.Writer) error {
+func (thisComputer) Run(name string, arguments []string, environment []string, output io.Writer) error {
 	command := exec.Command(name, arguments...)
-	command.Env = environment
+	if environment != nil {
+		command.Env = append(os.Environ(), environment...)
+	}
 	command.Stdout = output
 	command.Stderr = output
 	return command.Run()
 }
 
-func (systemCommands) Output(name string, arguments []string) (string, error) {
+// Output answers with what the command printed, and with an error carrying what
+// it complained about, because a failure a person has to act on is in the
+// program's own words rather than in an exit status.
+func (thisComputer) Output(name string, arguments []string) (string, error) {
 	command := exec.Command(name, arguments...)
-	document, errorValue := command.Output()
-	return string(document), errorValue
+	document, errorValue := command.CombinedOutput()
+	if errorValue != nil {
+		return string(document), fmt.Errorf("%s: %s", errorValue, strings.TrimSpace(string(document)))
+	}
+	return string(document), nil
+}
+
+func (thisComputer) CarriesProgram(programName string) error {
+	_, errorValue := exec.LookPath(programName)
+	return errorValue
+}
+
+func (thisComputer) CarriesFile(path string) error {
+	_, errorValue := os.Stat(path)
+	return errorValue
 }
 
 type installArguments struct {
@@ -37,8 +58,9 @@ type installArguments struct {
 }
 
 func main() {
+	command := filepath.Base(os.Args[0])
 	if len(os.Args) < 2 || os.Args[1] != "install" {
-		fmt.Fprintln(os.Stderr, "Usage: internkim-host install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]")
+		fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
 		os.Exit(1)
 	}
 	if errorValue := runInstall(os.Args[2:]); errorValue != nil {
@@ -78,6 +100,9 @@ func runInstall(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
+		return errorValue
+	}
 	modelKey, errorValue := readModelKeyFile(parsed.ModelKeyPath)
 	if errorValue != nil {
 		return errorValue
@@ -87,12 +112,12 @@ func runInstall(arguments []string) error {
 		StateDirectoryPath: parsed.StateDirectoryPath,
 		ModelKey:           modelKey,
 		PromptForModelKey:  func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
-	}, systemCommands{}, os.Stdout)
+	}, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
 	}
 	fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", installation.Connection.AppURL)
-	fmt.Printf("Private settings: %s\nDocker restarts the server when Docker starts. Keep this computer awake.\n", installation.StateDirectoryPath)
+	fmt.Printf("Private settings: %s\nsystemd starts the server when this computer starts. Keep it awake.\n", installation.StateDirectoryPath)
 	return nil
 }
 

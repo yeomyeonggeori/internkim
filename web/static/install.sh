@@ -1,11 +1,112 @@
 #!/bin/sh
 set -eu
 
+# The front door onto the package rather than a second installer. On a Debian
+# machine `host` means apt: the keyring, a deb822 source naming it, and
+# `apt-get install internkim`, so the box ends in the state it would have
+# reached had the person typed those commands themselves and `apt upgrade` and
+# `apt remove` work on it afterwards. Everywhere else, and for `companion`
+# always, the published binary is fetched against its checksum.
+
 product="${1:-}"
 case "$product" in
   companion|host) ;;
   *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- <companion|host>" >&2; exit 1 ;;
 esac
+
+package_name="internkim"
+repository_url="${INTERNKIM_INSTALL_REPOSITORY_URL:-https://updates.intern.kim/deb}"
+keyring_path="/usr/share/keyrings/internkim-archive-keyring.pgp"
+keyring_url="${INTERNKIM_INSTALL_KEYRING_URL:-$repository_url/internkim-archive-keyring.pgp}"
+apt_source_path="/etc/apt/sources.list.d/internkim.sources"
+apt_suite="${INTERNKIM_INSTALL_SUITE:-stable}"
+apt_component="main"
+
+stop() {
+  echo "$1" >&2
+  exit 1
+}
+
+privileged() {
+  if [ "$(id -u)" = 0 ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+require_administrator() {
+  if [ "$(id -u)" = 0 ]; then
+    return 0
+  fi
+  command -v sudo >/dev/null 2>&1 || stop \
+"Installing a package needs administrator rights and this machine has no sudo.
+Run the same command as root:
+  curl -fsSL https://intern.kim/install.sh | sh -s -- host"
+  sudo -v || stop "sudo refused this account. Run the same command as root."
+}
+
+install_the_package() {
+  require_administrator
+  debian_architecture="$(dpkg --print-architecture)"
+  case "$debian_architecture" in
+    arm64|amd64) ;;
+    *) stop "The company host is published for arm64 and amd64, and this machine is $debian_architecture." ;;
+  esac
+
+  package_work_dir="$(mktemp -d)"
+  trap 'rm -rf "$package_work_dir"' EXIT
+
+  curl -fsSL "$keyring_url" -o "$package_work_dir/keyring.pgp" || stop \
+"Could not fetch the package signing key from $keyring_url.
+Check that this machine can reach that address, then run the same command again.
+Nothing on this machine was changed."
+  [ -s "$package_work_dir/keyring.pgp" ] || stop \
+"$keyring_url served an empty signing key, so apt would refuse every package it
+signs. Nothing on this machine was changed; try again, and report it if it
+happens twice."
+
+  # /usr/share/keyrings, never apt-key: a key in the legacy keyring signs every
+  # repository on the machine rather than only this one.
+  privileged install -d -m 0755 /usr/share/keyrings
+  privileged install -m 0644 "$package_work_dir/keyring.pgp" "$keyring_path"
+
+  printf '%s\n' \
+    "Types: deb" \
+    "URIs: $repository_url" \
+    "Suites: $apt_suite" \
+    "Components: $apt_component" \
+    "Architectures: $debian_architecture" \
+    "Signed-By: $keyring_path" \
+    > "$package_work_dir/internkim.sources"
+  privileged install -d -m 0755 /etc/apt/sources.list.d
+  privileged install -m 0644 "$package_work_dir/internkim.sources" "$apt_source_path"
+
+  privileged apt-get update || stop \
+"apt-get update failed, and its own output is above.
+If the failure names $repository_url this machine cannot reach the package
+repository; if it names another address, that source was already failing and
+this install did not cause it.
+Undo what this script wrote with:
+  sudo rm -f $apt_source_path $keyring_path"
+
+  privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$package_name" || stop \
+"apt-get install $package_name failed, and its own output above names what it
+could not resolve. A dependency apt cannot find usually means this release of
+Debian or Ubuntu does not carry it; send that line when you report this.
+Undo what this script wrote with:
+  sudo rm -f $apt_source_path $keyring_path"
+
+  echo
+  echo "Installed $package_name. Every service stays idle until this box has a company."
+  echo "Give it one with the connection file you downloaded from company setup:"
+  echo "  sudo internkim install ~/Downloads/internkim-host.json"
+}
+
+if [ "$product" = host ] && command -v apt-get >/dev/null 2>&1; then
+  install_the_package
+  exit 0
+fi
 
 binary="internkim-$product"
 release_url="${INTERNKIM_INSTALL_RELEASE_URL:-https://updates.intern.kim/$product/latest}"
@@ -54,8 +155,9 @@ esac
 
 if [ "$product" = "host" ]; then
   echo
-  echo "Next, install your company server with the connection file you downloaded:"
-  echo "  internkim-host install ~/Downloads/internkim-host.json"
+  echo "This machine has no apt, so the company host arrived as one binary rather than"
+  echo "a package. Install the company server with the connection file you downloaded:"
+  echo "  sudo $binary_path install ~/Downloads/internkim-host.json"
   exit 0
 fi
 
