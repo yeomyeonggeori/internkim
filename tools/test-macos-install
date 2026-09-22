@@ -9,8 +9,9 @@ to run until you agree in as many words, and everything it does has an undo.
 
 By default it stands a throwaway tap up against the bottle
 `internkim release brew` left in .artifacts, which judges the builder.
-`--published` judges instead what a person gets: the tap on GitHub and the
-bottle `updates.intern.kim` serves, with no address substituted anywhere.
+`--published` judges instead what a person gets: `install.sh` itself, run
+against the tap on GitHub and the bottle `updates.intern.kim` serves, with no
+address substituted anywhere.
 
 What it can judge, and does:
 
@@ -119,11 +120,13 @@ def what_this_will_change(artifact_directory, with_company, published):
     if published:
         owner, _, name = published_tap().partition("/")
         changes = [
+            "run web/static/install.sh, which is what the published one line runs",
             f"add the {published_tap()} tap, cloning github.com/{owner}/homebrew-{name}",
+            f"trust {published_tap()}/{PACKAGE_NAME}, which brew records in ~/.homebrew/trust.json",
             f"install the {PACKAGE_NAME} formula it carries into {homebrew_prefix()}/Cellar",
             f"link {homebrew_prefix()}/bin/{PACKAGE_NAME}",
             "pour the bottle the formula's root_url names, over the network",
-            "uninstall the formula and remove the tap when it finishes",
+            "untrust it, uninstall the formula and remove the tap when it finishes",
         ]
         return changes + what_a_company_would_change(with_company)
     changes = [
@@ -192,21 +195,24 @@ def install_the_formula(artifact_directory):
         )
 
 
-def install_from_the_published_tap():
-    """Install what a person installs.
+def install_through_the_one_line():
+    """Install the way a person installs.
 
-    The tap is cloned from GitHub and the bottle is fetched from the address the
-    published formula names. Nothing here is substituted, which is the whole
-    difference from the run above: what it judges is the release rather than the
-    machine that built it.
+    What runs is `install.sh` itself, which is the front door onto the package
+    rather than a second installer: it adds the tap, opens Homebrew's trust
+    gate for the one formula, and installs it. The tap is cloned from GitHub and
+    the bottle is fetched from the address the published formula names, so
+    nothing here is substituted. That is the whole difference from the run
+    above, which judges the machine that built the bottle rather than the
+    release.
+
+    The script is this checkout's rather than the one intern.kim serves, which
+    is what a deploy makes the same.
     """
-    tap = published_tap()
-    added = run(["brew", "tap", tap], check=False)
-    if added.returncode != 0:
-        raise RigFailure(f"`brew tap {tap}` failed, so the tap is not reachable:\n{added.stdout}")
-    installed = brew("install", PACKAGE_NAME, check=False)
+    script = REPOSITORY_ROOT / "web/static/install.sh"
+    installed = run(["sh", str(script), "host"], check=False)
     if installed.returncode != 0:
-        raise RigFailure(f"`brew install {PACKAGE_NAME}` from {tap} failed:\n{installed.stdout}")
+        raise RigFailure(f"`sh install.sh host` failed:\n{installed.stdout}")
     if "Pouring" not in installed.stdout:
         raise RigFailure(
             "the formula was built from source rather than poured, so this run says nothing about the "
@@ -392,6 +398,8 @@ def undo(with_company):
     if tap_owner_directory().exists():
         shutil.rmtree(tap_owner_directory(), ignore_errors=True)
         removed.append("the rig's tap")
+    if brew("untrust", "--formula", f"{published_tap()}/{PACKAGE_NAME}", check=False).returncode == 0:
+        removed.append(f"{published_tap()}/{PACKAGE_NAME} from brew's trust file")
     if brew("untap", published_tap(), check=False).returncode == 0:
         removed.append(f"the {published_tap()} tap")
     for name in removed:
@@ -408,8 +416,8 @@ def main():
     parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACT_DIRECTORY,
                         help="where `internkim release brew` put the bottle and the formula")
     parser.add_argument("--published", action="store_true",
-                        help="install from the tap on GitHub and the bottle on updates.intern.kim, "
-                             "rather than from a throwaway tap standing on --artifacts")
+                        help="run install.sh against the tap on GitHub and the bottle on "
+                             "updates.intern.kim, rather than standing a throwaway tap on --artifacts")
     parser.add_argument("--yes-change-this-mac", action="store_true",
                         help="agree to the changes printed above. Without it this run prints them and stops")
     parser.add_argument("--install-the-company", type=Path, metavar="CONNECTION.JSON",
@@ -442,7 +450,7 @@ def main():
     passed = []
     try:
         if arguments.published:
-            install_from_the_published_tap()
+            install_through_the_one_line()
         else:
             install_the_formula(arguments.artifacts)
         passed.append(step_one_the_bottle_poured_and_homebrew_records_it())
@@ -463,6 +471,7 @@ def main():
         return 1
 
     if arguments.published:
+        brew("untrust", "--formula", f"{published_tap()}/{PACKAGE_NAME}", check=False)
         brew("untap", published_tap(), check=False)
     else:
         shutil.rmtree(tap_owner_directory(), ignore_errors=True)

@@ -133,16 +133,33 @@ install_through_homebrew() {
 "brew tap $homebrew_tap failed, and its own output is above.
 Nothing on this machine was changed."
 
+  trust_the_formula
+
   brew install "$package_name" || stop \
 "brew install $package_name failed, and its own output above names what it could
 not resolve.
 Undo what this script did with:
-  brew untap $homebrew_tap"
+  brew untrust --formula $homebrew_tap/$package_name && brew untap $homebrew_tap"
 
   echo
   echo "Installed $package_name. Every service stays idle until this box has a company."
   echo "Give it one with the connection file you downloaded from company setup:"
   echo "  sudo internkim install ~/Downloads/internkim-host.json"
+}
+
+# Homebrew 7 refuses to load a formula from a tap nobody has trusted, and the
+# variable that turned that off is deprecated, so `brew trust` is the way. This
+# trusts the one formula rather than the whole tap: a second formula published
+# here is a second decision. Older Homebrew has no such command and no such
+# gate, which is why this asks before it runs it.
+trust_the_formula() {
+  brew trust --help >/dev/null 2>&1 || return 0
+  echo "Trusting $homebrew_tap/$package_name, which is what lets brew load a formula that is not its own."
+  brew trust --formula "$homebrew_tap/$package_name" || stop \
+"brew trust --formula $homebrew_tap/$package_name failed, and brew will not load
+the formula until it succeeds.
+Undo what this script did with:
+  brew untap $homebrew_tap"
 }
 
 if [ "$product" = host ] && command -v apt-get >/dev/null 2>&1; then

@@ -210,10 +210,36 @@ class InstallScriptTests(unittest.TestCase):
             "host", base_url, machine=("Darwin", "arm64"), shims=[str(brew)])
         self.assertEqual(completed.returncode, 0, completed.stderr)
         ran = log_path.read_text().splitlines()
-        self.assertEqual(ran[0], f"brew tap {default_of('homebrew_tap')}")
-        self.assertEqual(ran[1], "brew install internkim")
+        tap = default_of("homebrew_tap")
+        self.assertEqual(ran[0], f"brew tap {tap}")
+        self.assertEqual(ran[1], "brew trust --help")
+        self.assertEqual(ran[2], f"brew trust --formula {tap}/internkim")
+        self.assertEqual(ran[3], "brew install internkim")
         self.assertIn("sudo internkim install", completed.stdout)
         self.assertFalse((bin_dir / "internkim-host").exists(), "a Mac with Homebrew should get the formula, not a bare binary")
+
+    def test_a_homebrew_with_no_trust_gate_is_not_asked_to_trust_anything(self):
+        """`brew trust` arrived in Homebrew 7, and a Mac carrying an older one
+        has no gate to open. Asking it anyway would stop an install that was
+        about to work."""
+        base_url = self.serve()
+        log_path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "brew.log"
+        brew = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (brew / "brew").write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "brew $*" >> "{log_path}"\n'
+            'if [ "$1" = trust ]; then echo "Error: Unknown command: trust" >&2; exit 1; fi\n'
+        )
+        (brew / "brew").chmod(0o755)
+        completed, _ = self.run_install(
+            "host", base_url, machine=("Darwin", "arm64"), shims=[str(brew)])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        ran = log_path.read_text().splitlines()
+        self.assertEqual(ran, [
+            f"brew tap {default_of('homebrew_tap')}",
+            "brew trust --help",
+            "brew install internkim",
+        ])
 
     def test_a_mac_with_homebrew_is_never_offered_the_bare_binary(self):
         """A bare binary on a Mac is a company host with no database, no cache
