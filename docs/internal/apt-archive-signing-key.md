@@ -5,8 +5,9 @@ apt repository's signing key "lives in the release CI secret store". There is
 no CI in this repository and releases are cut by hand, so that store does not
 exist. This is what the repository can actually offer, and what it costs.
 
-Nothing here has been decided and no key has been generated. Everything built
-so far runs against a throwaway key whose user ID says so.
+The decision below was taken and the key exists. What it is, and what replacing
+it costs, is the last section; the rest of this document is the reasoning that
+chose it, kept because the hardware-token step has not been taken yet.
 
 ## What the key is
 
@@ -127,15 +128,61 @@ much cheaper before the first customer than after:
   and kept offline, turns rotation from a site visit into a `Signed-By:` that
   already names both.
 
+## The key that exists
+
+```
+InternKim Archive Signing Key <support@intern.kim>
+RSA 4096, sign-only, no passphrase
+BC8C 0D89 911E 0A78 A184 14F1 7351 8E28 F70E 2655
+created 2026-09-22, expires 2029-09-21
+```
+
+It lives in the vault as `INTERNKIM_APT_SIGNING_KEY` and nowhere else. The
+homedir it was generated in was destroyed, and with it the revocation
+certificate gpg wrote there; `gpg --gen-revoke` makes another from the secret
+key whenever one is wanted, so what was discarded is a convenience rather than
+the ability to revoke. The public half is published at
+`deb/internkim-archive-keyring.pgp` and is not committed to this repository, so
+the second of the two things this document says to settle with the key is still
+open.
+
+The address is the one the package already carries as its `Maintainer` rather
+than a new one, because an archive key's user ID is read by a person deciding
+whether to trust what it signed, and a second address would be one more thing
+to recognise.
+
+It signs `trixie-testing`, which is the only suite published. `trixie-stable`
+is what an install follows and nothing has been published to it, which is the
+interim this document argues for: the key a laptop can read signs the suite no
+customer machine looks at.
+
+**Expiry.** Three years was chosen over none. A key with no expiry is a key
+nobody rotates, and today the cost of an expiry is nothing, because no machine
+has the keyring written down. It will not be nothing later: on the day it
+lapses, every installed machine refuses updates until its
+`/usr/share/keyrings/internkim-archive-keyring.pgp` is replaced, and apt is the
+channel that would have carried the replacement. What turns that from a site
+visit into a `Signed-By` naming two keys is a successor generated now, signed
+by this one and kept offline. That has not been done.
+
+**Replacing it.** Generate the new key, `monkeys remember
+INTERNKIM_APT_SIGNING_KEY` over the old value, and republish every suite —
+`internkim release apt` exports the public half beside the repository from
+whatever key it just signed with, so one publish moves both halves together.
+That is the whole procedure while no machine trusts the old key. Once one does,
+the same two commands leave it unable to update, because the keyring it holds
+is the old key and the only thing that would deliver the new one is the
+repository the old key no longer signs. Nothing in this repository closes that
+gap today.
+
 ## What is built, and against what
 
-`internkim release apt` and `tools/test-apt-repository` work today against a
-key generated per run, with the user ID `InternKim Install Rig TEST KEY
-<rig@invalid.internkim.test>`, held in a homedir under `/tmp` that is removed
-when the run ends. It is not in the repository, it is not reused between runs,
-and nothing published from it has left this machine. No real signing key has
-been generated; generating one is the decision above rather than a step that
-was skipped.
+`tools/test-apt-repository` runs against a key generated per run, with the user
+ID `InternKim Install Rig TEST KEY <rig@invalid.internkim.test>`, held in a
+homedir under `/tmp` that is removed when the run ends. It is not in the
+repository and is not reused between runs.
+`tools/test-published-apt-repository` is the one that reaches the archive key,
+because it installs from what was published rather than from what it built.
 
 The vault path is exercised rather than assumed.
 `tools/test-apt-repository --through-the-vault` puts that same throwaway key
@@ -145,7 +192,7 @@ verifies the signature on what came out:
 ```
 $ tools/test-apt-repository --through-the-vault
 stored a throwaway key in the vault as INTERNKIM_APT_SIGNING_KEY
-signed suite testing with 95AD6BE3A47385DD583A30E36AC70C0EF66B374B
+signed suite trixie-testing with 95AD6BE3A47385DD583A30E36AC70C0EF66B374B
 wrote 9 objects to /var/folders/…/apt-vault-hi4_0ium/release
 gpg: Good signature from "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>" [ultimate]
 removed the throwaway key from the vault
@@ -154,7 +201,10 @@ removed the throwaway key from the vault
 It uses the real name because a rehearsal under a different name would not
 exercise what a person runs. `monkeys remember` overwrites, so it refuses to
 start when that name already holds a key, and it forgets what it stored on
-every path out including a failure.
+every path out including a failure. Now that the name holds the archive key it
+refuses on the first check, which is what that check is for: it will not run
+again until the archive key is taken out of the vault, and taking it out to run
+a rig is not a thing to do.
 
 Two invariants are tests rather than prose.
 `TestTheArchiveSigningKeyComesFromTheVaultAlone` fails if a file under

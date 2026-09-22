@@ -49,6 +49,25 @@ repository that is trusted:
 tools/test-apt-repository
 ```
 
+Both of those judge a repository this Mac stood up. The one that judges the
+repository a customer would reach is a third:
+
+```
+tools/test-published-apt-repository --suite trixie-testing
+tools/test-published-apt-repository --suite trixie-testing --disturb-published-objects
+```
+
+It substitutes no address: the guest runs
+`curl -fsSL https://intern.kim/install.sh | sh -s -- host`, so the script comes
+from the site and the keyring and the packages from the worker, signed by the
+archive key rather than one generated for the run. The flag is what writes —
+two of the three refusals need the published repository to be wrong, and the
+only place it can be wrong is the bucket, so the suite's signatures are taken
+away and put back and the `.deb` is replaced by a same-length tampered copy and
+put back. Each restore is read back off the wire rather than assumed. Without
+the flag those two observations are recorded as not made, and the run fails
+rather than passing on the ones it could take.
+
 It stands up the same kind of guest and shows the refusals — an unsigned
 repository, a signature by a key the keyring does not hold, and a package
 whose bytes no longer match the signed index.
@@ -347,11 +366,18 @@ from `archive.raspberrypi.com`.
 
 The Homebrew path has a rig of its own, and it is a different kind of rig.
 
-The third used to be whether `apt upgrade` works against R2. The worker now
-serves a `deb/` prefix and the repository the rig serves is rendered by
-`internkim release apt`, the command that uploads it, so what is untested is
-narrower: R2 and the Workers runtime in front of it, rather than the
-repository. A deploy is what closes that, and no deploy has happened.
+The third used to be whether `apt upgrade` works against R2. That closed on
+2026-09-22: the `trixie-testing` suite was published, the worker was deployed
+with `deb/` in its public prefixes, and a guest that had never heard of us ran
+the published line and ended with the package installed from it. The three
+refusals were taken against the published repository as well, the tampered one
+by replacing the object in the bucket, so what apt receives out of R2 has been
+watched both matching the signed index and failing to.
+
+What has still never been published is `trixie-stable`, which is the suite
+`install.sh` writes when nothing overrides it. A machine that runs the line
+today gets a `404` on a suite nobody has filled, and that waits on the `stable`
+key rather than on anything here.
 
 ## The macOS rig, and why it is not this one
 
