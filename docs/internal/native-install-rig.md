@@ -229,7 +229,7 @@ One assertion is owed, and the rig prints it on every run:
 
 | Observation | Reads | Why it waits |
 |---|---|---|
-| a message posted in the browser reaches the guest's messenger, and the answer comes back through the same socket | the message in the guest's own messenger store, and the browser's answer to the call that posted it | the host cannot authenticate to the gateway on a local plane, for the reason below |
+| a message posted in the browser reaches the guest's messenger, and the answer comes back through the same socket | the message in the guest's own messenger store, and the browser's answer to the call that posted it | the rig still signs the host token `HS256`, which the gateway refuses; see below |
 
 The guest gets four cores and 4 GB, which is what the smallest appliance has.
 Step 5 is the first thing here that has PostgreSQL, Redis, the S3 server, the
@@ -289,47 +289,43 @@ carrying a seeded member's token as the `internkim.bearer.` subprotocol answers
 `101`: the signature verified, the issuer matched, and the member's row was read
 under row level security.
 
-### The one thing no local plane can do
+### The host token the rig signs today
 
 The company host authenticates to the gateway with a token the app mints.
-`POST /api/agent/host-session` signs it with `SUPABASE_JWT_SIGNING_KEY`, which on
-a local stack is that stack's shared secret written as an `oct` JWK, so the token
-is `HS256`. The gateway verifies `ES256` and `RS256` against a published key set,
-and a handshake to `/company/<id>/host` answers
+`POST /api/agent/host-session` signs it with `SUPABASE_JWT_SIGNING_KEY`, which
+`signing_key_of_secret` sets to the local stack's shared secret written as an
+`oct` JWK, so the token is `HS256`. The gateway verifies `ES256` and `RS256`
+against a published key set, and a handshake to `/company/<id>/host` answers
 `401 the token is signed with HS256`. What the guest shows is the other side of
 the same fact: `internkim-relay` dials, is refused, and retries, and the gateway
 answers `server_offline` to anything asked of that company.
 
-Production does not have this problem because
-`web/scripts/issue-record-signing-key.ts` mints an `ES256` key and registers it
-with the Supabase project through the management API, so the project's own key
-set publishes it and PostgREST accepts the same token the gateway does. A local
-stack has no management API to register a key against. Giving the app a key of
-its own would trade one refusal for another: PostgREST would then refuse the
-relay's own reads, because it verifies against the key set the local stack
-publishes and that key is not in it. The only value that satisfies both ends is
-the local stack's own signing key, and the CLI publishes only its public half.
+This section used to say no local plane could do better, on the grounds that the
+CLI publishes only the public half of its signing key.
+[`local-plane-host-handshake.md`](./local-plane-host-handshake.md) shows that it
+publishes the private half too, in the auth container's `GOTRUE_JWT_KEYS`, and
+that signing the host token with that key answers `101` on the same gateway
+while still reading through PostgREST. That document names what the rig has to
+change to get there.
 
 `GATEWAY_SERVER_KEY` reaches `/company/<id>/server` with no token at all, and is
 how `tools/verify-personal-settings.ts` drives a relay. `internkim install` never
 writes it. A rig reaching for it would assert a handshake the installed box does
 not perform, which is a green light for something untested.
 
-**So the host's own handshake, and the message round trip that depends on it,
-are first exercised against the real plane, once, by a person.** That is a limit
-on what any local rig can promise, and the goal has to carry it rather than
-assume it away.
-
 ### Where the rig's judgement stops
 
-Three things stay a person's reading, once, against the real plane, with a
+Two things stay a person's reading, once, against the real plane, with a
 company that is kept rather than created for a test:
 
-- the host's gateway handshake, and the message round trip that depends on it
 - the hostname resolving, and the connection file downloading from a real
   browser session
 - the passkey path, which local GoTrue does not serve at all
   (`/auth/v1/passkeys` is 404 there)
+
+The host's own handshake was a third until it was run locally; what a local run
+still cannot show about it is listed in
+[`local-plane-host-handshake.md`](./local-plane-host-handshake.md).
 
 Residue from a run: an `agent` row named `company-computer` on the local
 Supabase, which the rig deletes when it finishes, and the guest, which every run
