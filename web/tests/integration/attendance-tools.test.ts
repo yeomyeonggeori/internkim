@@ -13,6 +13,7 @@ const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
 const slug = `attendance-tools-${Date.now()}`;
 const now = new Date();
+const companyTimeZone = 'Asia/Seoul';
 
 let companyID = '';
 let sampleID = '';
@@ -29,13 +30,14 @@ async function signedInMember(memberID: string, email: string): Promise<ReturnTy
 }
 
 function dayShiftedBy(days: number): string {
-	return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+	const shifted = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+	return shifted.toLocaleDateString('en-CA', { timeZone: companyTimeZone });
 }
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
 		client,
-		{ name: 'Attendance Tools Test', slug, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' },
+		{ name: 'Attendance Tools Test', slug, country: 'KR', locale: 'ko', timezone: companyTimeZone },
 		`${slug}-admin@example.test`
 	);
 	companyID = provisioned.companyID;
