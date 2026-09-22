@@ -338,12 +338,23 @@ and hands the work over:
   ends in the state it would have reached by typing those commands, so
   `apt upgrade` and `apt remove` work and nothing was installed behind dpkg's
   back. `apt-key` is not used; Debian's third-party guidance forbids it.
-- **macOS with Homebrew**: `brew tap yeomyeonggeori/internkim` and `brew install
+- **macOS with Homebrew**: `brew tap yeomyeonggeori/tap` and `brew install
   internkim`, with the formula's `bottle do root_url` pointing at
   `updates.intern.kim` so the bottle comes from our own host. The tap is a git
   repository and the bottle is not, which is why they live in different places:
-  `github.com/yeomyeonggeori/homebrew-internkim` carries the rendered
+  `github.com/yeomyeonggeori/homebrew-tap` carries the rendered
   `Formula/internkim.rb`, and the release registry serves `brew/` beside `deb/`.
+  The tap is named for the organisation and holds one formula per product, so
+  the companion becomes `Formula/internkim-companion.rb` in the same tap and a
+  person adds one tap ever. `tools/tests/test_install_script.py` reads the tap
+  out of `internal/runtime/blueclaw` and fails when `install.sh` names another.
+  Between the two commands sits a third: Homebrew 7 refuses to load a formula
+  from a tap nobody trusted, and `$HOMEBREW_NO_REQUIRE_TAP_TRUST` is deprecated
+  with a removal announced, so `install.sh` runs
+  `brew trust --formula yeomyeonggeori/tap/internkim` and says that it did. It
+  trusts the one formula, leaving a second formula published here a second
+  decision, and it asks `brew trust --help` first because a Homebrew without
+  the command has no gate to open.
   `internkim release brew` builds both tarballs on the Mac they are for and
   renders the formula from `internal/runtime/blueclaw`, so the `depends_on`
   lines and the `.deb`'s `Depends:` come from one declaration.
