@@ -25,6 +25,11 @@ const (
 	// the packages.
 	KeyringName = "internkim-archive-keyring.pgp"
 
+	// DebianSuite is the Debian release the package is built against, and the
+	// only one a build exists for. It is half of every suite name, and the
+	// image `internkim release deb` resolves the document interpreter in.
+	DebianSuite = "trixie"
+
 	origin = "InternKim"
 	label  = "InternKim"
 )
@@ -34,9 +39,16 @@ const (
 // is told about and then cannot fetch an index for is a broken repository.
 var Architectures = []string{"amd64", "arm64"}
 
-// Suites are the published suites: `stable` is what an install follows, and
-// `testing` carries release candidates.
-var Suites = []string{"stable", "testing"}
+// Suites are the published suites. A name carries two axes: how far a build is
+// trusted, where `stable` is what an install follows and `testing` carries
+// release candidates, and the Debian release it was built against. Apt gives no
+// way to fold them into one name — a machine's source line names one suite and
+// apt takes the newest candidate in it — so the Debian release is spelled in
+// the suite, and `install.sh` reads /etc/os-release to write the line.
+var Suites = []string{DebianSuite + "-stable", DebianSuite + "-testing"}
+
+// DefaultSuite is what an install follows when nothing asks for another.
+var DefaultSuite = DebianSuite + "-stable"
 
 const Component = "main"
 

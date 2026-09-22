@@ -22,7 +22,6 @@ repository_url="${INTERNKIM_INSTALL_REPOSITORY_URL:-https://updates.intern.kim/d
 keyring_path="/usr/share/keyrings/internkim-archive-keyring.pgp"
 keyring_url="${INTERNKIM_INSTALL_KEYRING_URL:-$repository_url/internkim-archive-keyring.pgp}"
 apt_source_path="/etc/apt/sources.list.d/internkim.sources"
-apt_suite="${INTERNKIM_INSTALL_SUITE:-stable}"
 apt_component="main"
 homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/internkim}"
 
@@ -52,6 +51,25 @@ Run the same command as root:
 
 install_the_package() {
   require_administrator
+  apt_suite="${INTERNKIM_INSTALL_SUITE:-}"
+  # A suite name carries both how far a build is trusted and the Debian release
+  # it was built against, because apt pins on the suite and then takes the
+  # newest candidate inside it. The release half is this machine's own, so the
+  # box follows the build made for it rather than one made for a Debian it is
+  # not running.
+  if [ -z "$apt_suite" ]; then
+    debian_codename=""
+    if [ -r /etc/os-release ]; then
+      debian_codename="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
+    fi
+    [ -n "$debian_codename" ] || stop \
+"/etc/os-release names no VERSION_CODENAME, so this script cannot tell which
+Debian release to ask apt for. Put the suite for this machine's release in
+INTERNKIM_INSTALL_SUITE, which is trixie-stable on Debian 13, and run the same
+command again."
+    apt_suite="$debian_codename-stable"
+  fi
+
   debian_architecture="$(dpkg --print-architecture)"
   case "$debian_architecture" in
     arm64|amd64) ;;

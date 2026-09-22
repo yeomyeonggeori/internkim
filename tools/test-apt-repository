@@ -39,6 +39,7 @@ from native_install_rig import (  # noqa: E402
     SUITE,
     Machine,
     Release,
+    TESTING_SUITE,
     RigFailure,
     build_stand_in_package,
     checked,
@@ -393,7 +394,7 @@ def publish_through_the_vault():
         published = subprocess.run(
             [
                 monkeys, "run", str(internkim_command()), "release", "apt",
-                "--suite", "testing",
+                "--suite", TESTING_SUITE,
                 "--package-directory", str(release.staging_directory),
                 "--output", str(release.directory),
             ],
@@ -405,7 +406,7 @@ def publish_through_the_vault():
 
         verified = subprocess.run(
             ["gpg", "--homedir", str(release.keyring_directory), "--verify",
-             str(release.directory / REPOSITORY_PREFIX / "dists/testing/InRelease")],
+             str(release.directory / REPOSITORY_PREFIX / "dists" / TESTING_SUITE / "InRelease")],
             capture_output=True, text=True,
         )
         good = [line.strip() for line in verified.stderr.splitlines() if "Good signature" in line]

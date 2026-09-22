@@ -49,6 +49,25 @@ repository that is trusted:
 tools/test-apt-repository
 ```
 
+Both of those judge a repository this Mac stood up. The one that judges the
+repository a customer would reach is a third:
+
+```
+tools/test-published-apt-repository --suite trixie-testing
+tools/test-published-apt-repository --suite trixie-testing --disturb-published-objects
+```
+
+It substitutes no address: the guest runs
+`curl -fsSL https://intern.kim/install.sh | sh -s -- host`, so the script comes
+from the site and the keyring and the packages from the worker, signed by the
+archive key rather than one generated for the run. The flag is what writes —
+two of the three refusals need the published repository to be wrong, and the
+only place it can be wrong is the bucket, so the suite's signatures are taken
+away and put back and the `.deb` is replaced by a same-length tampered copy and
+put back. Each restore is read back off the wire rather than assumed. Without
+the flag those two observations are recorded as not made, and the run fails
+rather than passing on the ones it could take.
+
 It stands up the same kind of guest and shows the refusals — an unsigned
 repository, a signature by a key the keyring does not hold, and a package
 whose bytes no longer match the signed index.
@@ -323,35 +342,88 @@ A green run says the package installs, upgrades and removes correctly on an
 arm64 Debian 13 guest under a 4 KB-page kernel with plenty of memory and a
 virtual disk. The appliance is none of those things in three ways.
 
-**Page size.** Raspberry Pi OS for CM5 may ship a 16 KB page-size kernel. The
-guest here reports 4096 and runs the repository's own
-`Image-6.1.68-kvm`, so nothing in this rig exercises a 16 KB page. Binaries
-linked with a 4 KB maximum page alignment fail to load there, and the Go
-toolchain, `moli`, `agent-browser` and the vendored S3 server are each capable
-of it independently.
+**Page size.** Raspberry Pi OS for CM5 ships a 16 KB page-size kernel, and has
+since the Pi 5 launched: `bcm2712_defconfig` sets `CONFIG_ARM64_16K_PAGES=y`
+and the firmware loads `kernel_2712.img` on a CM5 unless told otherwise, so
+`getconf PAGE_SIZE` there says 16384. The guest here says 4096 and runs the
+repository's own `Image-6.1.68-kvm`, so nothing in this rig exercises the page
+size the board will have. `kernel=kernel8.img` in `/boot/firmware/config.txt`
+falls back to the 4 KB kernel, which the 64-bit image already installs; a
+Raspberry Pi engineer puts the cost at about 7% on random memory access, and
+nothing else is documented as lost.
 
-**Memory.** The guest has 4 GB, which is the 4 GB CM5 variant's whole ceiling,
-and step 5 holds PostgreSQL, Redis, the S3 server, the messenger and the agent
-in it at once without a unit dying. What is still unmeasured is the same box
-under load and with Chromium resident, which is what a document skill adds. The
-installed package is 295 MB for `arm64`, 110 MB of which is the document
-interpreter.
+Half of that risk is now a measurement. A binary whose
+largest `PT_LOAD` alignment is 4 KB cannot be mapped by a kernel with a larger
+page, and every arm64 binary the package ships aligns to 64 KB: the Go
+binaries, `moli`, `agent-browser`, `bun`, `uv` and `versitygw`. Nothing we ship
+will fail to *load*. Read it with:
+
+```
+python3 - <<'EOF'
+import struct, sys
+from pathlib import Path
+data = Path(sys.argv[1]).read_bytes()
+offset, size, count = struct.unpack_from("<Q", data, 32)[0], *struct.unpack_from("<HH", data, 54)
+print(hex(max(struct.unpack_from("<Q", data, offset + index * size + 48)[0]
+              for index in range(count)
+              if struct.unpack_from("<I", data, offset + index * size)[0] == 1)))
+EOF
+```
+
+What is left is what loading does not answer: a program that maps fine and then
+assumes 4 KB while running.
+
+- **`bun` is the open one.** Upstream tracks non-4 KB page support in
+  oven-sh/bun#17627 and the "manually check it works on 16k" box is unticked,
+  with 64 KB still reported crashing. Nobody has said it works on a Pi 5 and
+  nobody has said it does not.
+- **Chromium's version of this is fixed and we are past it.** A V8 change
+  assuming 4 KB crashed every renderer about thirty seconds in on 16 KB
+  machines (Debian #1089647); the fix is in Chromium 134, and Raspberry Pi OS
+  trixie ships 153.
+- **Go is page-size agnostic.** The runtime reads the page size out of
+  `AT_PAGESZ` and accepts anything up to 512 KB. What breaks in cgo programs is
+  the C allocator, and `jemalloc` and `hardened_malloc` are both on Raspberry
+  Pi's own incompatibility list.
+
+**Memory.** The guest has 4 GB, and step 5 holds PostgreSQL, Redis, the S3
+server, the messenger and the agent in it at once without a unit dying. The CM5
+comes in 2, 4, 8 and 16 GB, so 4 GB is the second-smallest board rather than
+the floor; a 2 GB one has about 1.9 GB after the CMA pool and has never been
+measured. Also unmeasured is the same box under load with Chromium resident,
+which is what a document skill adds. The installed package is 295 MB for
+`arm64`, 110 MB of which is the document interpreter.
 
 **Storage.** The appliance boots from a microSD. Write endurance, sustained
 throughput during `apt-get install`, and the behaviour of a Postgres cluster
 under `fsync` on that medium have no counterpart on a Mac's NVMe.
 
-Beyond the hardware, one thing is out of reach by construction: the Raspberry
-Pi OS `chromium-browser` name, which differs from Debian's `chromium` and comes
-from `archive.raspberrypi.com`.
+Beyond the hardware, the package's dependencies come from two archives.
+Raspberry Pi OS renamed `chromium-browser` to `chromium` in its
+2024-10-22 release and now serves `chromium` from `archive.raspberrypi.com` at
+a `+rpt1` version that outranks Debian's, leaving `chromium-browser` as an
+empty transitional package. So the name this package depends on is the right
+one, and what it resolves to on the board is Raspberry Pi's build, not Debian's. `postgresql-contrib` and `fonts-nanum` come from Debian unchanged.
 
 The Homebrew path has a rig of its own, and it is a different kind of rig.
 
-The third used to be whether `apt upgrade` works against R2. The worker now
-serves a `deb/` prefix and the repository the rig serves is rendered by
-`internkim release apt`, the command that uploads it, so what is untested is
-narrower: R2 and the Workers runtime in front of it, rather than the
-repository. A deploy is what closes that, and no deploy has happened.
+The third used to be whether apt works against R2 at all. On 2026-09-22 the
+`trixie-testing` suite was published, the worker was deployed with `deb/` in
+its public prefixes, and a guest that had never heard of us ran the published
+line and ended with the package installed from it. The three refusals were
+taken against the published repository as well, the tampered one by replacing
+the object in the bucket, so what apt receives out of R2 has been watched both
+matching the signed index and failing to.
+
+What that run did not take is an upgrade: one version was published and
+installed, and no second version has ever replaced a first through the
+published repository. `tools/test-native-install` takes that step against a
+repository this Mac serves, which leaves the R2 half of it still unwatched.
+
+What has still never been published is `trixie-stable`, which is the suite
+`install.sh` writes when nothing overrides it. A machine that runs the line
+today gets a `404` on a suite nobody has filled, and that waits on the `stable`
+key rather than on anything here.
 
 ## The macOS rig, and why it is not this one
 

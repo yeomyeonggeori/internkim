@@ -34,11 +34,11 @@ describe('Release Registry Worker', () => {
 
 	test('serves the apt repository without a token, because apt carries none', async () => {
 		const bucket = new MemoryR2Bucket({
-			'deb/dists/stable/InRelease': 'Origin: InternKim',
+			'deb/dists/trixie-testing/InRelease': 'Origin: InternKim',
 			'deb/pool/main/i/internkim/internkim_1.0.0_arm64.deb': 'package'
 		});
 
-		for (const objectKey of ['deb/dists/stable/InRelease', 'deb/pool/main/i/internkim/internkim_1.0.0_arm64.deb']) {
+		for (const objectKey of ['deb/dists/trixie-testing/InRelease', 'deb/pool/main/i/internkim/internkim_1.0.0_arm64.deb']) {
 			const response = await handleReleaseRegistryRequest(new Request(`https://updates.example.test/${objectKey}`), {
 				RELEASE_BUCKET: bucket as unknown as R2Bucket,
 				RELEASE_DOWNLOAD_TOKEN: 'download-token'

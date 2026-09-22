@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/aptrepository"
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
@@ -109,7 +110,7 @@ func printReleaseUsage() {
 	fmt.Println()
 	fmt.Println("Environment for apt:")
 	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_APT_SIGNING_KEY:")
-	fmt.Println("    monkeys run internkim release apt --suite testing")
+	fmt.Printf("    monkeys run internkim release apt --suite %s\n", aptrepository.DebianSuite+"-testing")
 	fmt.Println("  there is no flag that names a key on disk: the vault is the key's one home,")
 	fmt.Println("  and the rigs put their own throwaway key in the same variable")
 }
