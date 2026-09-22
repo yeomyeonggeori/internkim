@@ -747,6 +747,38 @@
     "process": "relay diagnostics",
     "description": "the Realtime topic host/relay/measure-broadcast-ceiling.ts binary-searches the broadcast size ceiling against; defaults to \"size-probe\""
   },
+  "MEMBER_SESSION_ANSWER_TIMEOUT_MS": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "how long the native-install rig's member session waits for a result frame after asking a capability; defaults to 60000"
+  },
+  "MEMBER_SESSION_COMPANY_ID": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the company the member session opens its gateway socket against, from tools/native_install_rig.py's planted company"
+  },
+  "MEMBER_SESSION_EMAIL": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the member email the native-install rig signs in with through GoTrue for step 5's round trip"
+  },
+  "MEMBER_SESSION_GATEWAY_URL": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the connection gateway URL the member session opens its websocket against"
+  },
+  "MEMBER_SESSION_MESSAGE": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the message text the native-install rig's member session asks the company to post"
+  },
+  "MEMBER_SESSION_PASSWORD": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the member password the native-install rig signs in with through GoTrue for step 5's round trip"
+  },
+  "MEMBER_SESSION_PROJECT_URL": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the Supabase project URL the member session signs in against"
+  },
+  "MEMBER_SESSION_PUBLISHABLE_KEY": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the Supabase publishable key the member session's sign-in call carries as apikey"
+  },
   "MESSENGER_PLATFORM": {
     "process": "relay, host",
     "description": "which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it"

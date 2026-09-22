@@ -45,6 +45,32 @@ CONFIGURATION_DIRECTORY = "/etc/internkim"
 # protocol identity and no revision at all, which is why an upgrade cannot be
 # judged from port 8080. `tools/tests/test_native_install_rig.py` reads the Go
 # constants and fails when these drift from them.
+#
+# `internal/runtime/blueclaw/blueclaw_contract.go`'s BuzzRelayHealthPort names
+# a second port, 3001, and a naive reading of that name suggests it is the
+# relay's "real" health check and 3000 (the bind address) is not. Read
+# against the relay's own router (`.dependency/buzz-relay/src/crates/buzz-relay/
+# src/router.rs`), both ports register the identical `readiness_handler`:
+# same Postgres ping, same Redis ping, same community-deletion-fence catalog
+# check. 3001 exists only because the compose file this package replaced
+# polled a health-only router on 8081; nothing about it is a deeper check.
+# Switching this probe to 3001 would therefore change nothing.
+#
+# That check was tested directly against the pinned buzz-relay build
+# (`tools/prepare-buzz-relay`'s pinned revision) in the exact state this
+# probe exists to catch: a bind-address /_readiness answering while the
+# messenger cannot register a person or store a message. A `buzz` database
+# with zero tables never gets that far — the relay either refuses to start
+# (BUZZ_AUTO_MIGRATE unset, this build's default) or runs every migration to
+# completion before it opens a port (BUZZ_AUTO_MIGRATE=1, what the packaged
+# unit sets). Breaking an already-serving instance by dropping the tables a
+# person or a message actually needs (`users`, `events`, `relay_members`) —
+# even by dropping and recreating the whole database out from under a relay
+# process that is never restarted — makes /_readiness answer 503 on both
+# 3000 and 3001, because the deletion-fence validation covers the full set
+# of community-scoped tables, not just the three it names. Neither port is
+# the blind spot for a schema that cannot serve a message; whatever answered
+# 200 in that state left no reproduction this probe could see.
 MESSENGER_READINESS = (3000, "/_readiness")
 AGENT_HEALTH = (8080, "/admin/api/health")
 ADMIN_GATEWAY_HEALTH = (18080, "/admin/api/health")
