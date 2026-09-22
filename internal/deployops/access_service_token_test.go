@@ -1,25 +1,38 @@
 package deployops
 
 import (
-	"os"
-	"path/filepath"
+	"net/http"
 	"testing"
 )
 
-func TestCloudflareAccessServiceTokenReadsTheHeldFile(t *testing.T) {
-	tokenPath := filepath.Join(t.TempDir(), "token.json")
-	if errorValue := os.WriteFile(tokenPath, []byte(`{"clientID":" id.access ","clientSecret":" secret "}`), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	clientID, clientSecret := cloudflareAccessServiceToken(tokenPath)
+func TestCloudflareAccessServiceTokenComesFromTheEnvironment(t *testing.T) {
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_ID", " id.access ")
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET", " secret ")
+	clientID, clientSecret := cloudflareAccessServiceToken()
 	if clientID != "id.access" || clientSecret != "secret" {
-		t.Fatalf("expected the held credentials trimmed, got %q %q", clientID, clientSecret)
+		t.Fatalf("expected the vault's credentials trimmed, got %q %q", clientID, clientSecret)
 	}
 }
 
-func TestCloudflareAccessServiceTokenAbsentFileYieldsNothing(t *testing.T) {
-	clientID, clientSecret := cloudflareAccessServiceToken(filepath.Join(t.TempDir(), "missing.json"))
+func TestCloudflareAccessServiceTokenAbsentFromTheEnvironmentYieldsNothing(t *testing.T) {
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_ID", "")
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "")
+	clientID, clientSecret := cloudflareAccessServiceToken()
 	if clientID != "" || clientSecret != "" {
-		t.Fatal("a missing file must yield no credential, so the login-token path serves instead")
+		t.Fatal("an empty environment must yield no credential, so the login-token path serves instead")
+	}
+}
+
+func TestAttachCloudflareAccessSendsTheServiceTokenHeaders(t *testing.T) {
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_ID", "id.access")
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "secret")
+	request, errorValue := http.NewRequest(http.MethodGet, "https://example.test/admin/api/health", nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	AttachCloudflareAccess(request)
+	if request.Header.Get("CF-Access-Client-Id") != "id.access" ||
+		request.Header.Get("CF-Access-Client-Secret") != "secret" {
+		t.Fatal("the request went out without the service token the environment held")
 	}
 }

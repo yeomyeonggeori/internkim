@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"gitlab.com/eastriver/internkim/internal/aptrepository"
+	"gitlab.com/eastriver/internkim/internal/deployops"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
 
@@ -80,6 +82,27 @@ func TestTheArchiveSigningKeyComesFromTheVaultAlone(t *testing.T) {
 	}
 	if strings.TrimSpace(string(written)) != "key-from-the-vault" {
 		t.Fatalf("the signing key resolved to %q", strings.TrimSpace(string(written)))
+	}
+}
+
+// The Access service token authenticates every unattended deploy. It had a
+// second home, a file under `.local/secrets`, and the two halves drifted
+// without anything saying so: the stale one authenticated against nothing and
+// the deploy quietly fell back to the browser login nobody was there to answer.
+func TestTheAccessServiceTokenComesFromTheVaultAlone(t *testing.T) {
+	writeDecoyLocalSecret(t, "cloudflare-access-service-token.json",
+		`{"clientID":"id-from-the-file.access","clientSecret":"secret-from-the-file"}`)
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_ID", "")
+	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "")
+
+	request, errorValue := http.NewRequest(http.MethodGet, "https://example.test/admin/", nil)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	deployops.AttachCloudflareAccess(request)
+	if request.Header.Get("CF-Access-Client-Id") != "" {
+		t.Fatalf("the service token resolved to %q from a file beside the checkout",
+			request.Header.Get("CF-Access-Client-Id"))
 	}
 }
 
