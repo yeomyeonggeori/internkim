@@ -69,6 +69,16 @@ const (
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 
+	// The state root has one mode and every writer takes it from here. It is
+	// 0700 root:root because a company's identity on the plane and the seed that
+	// signs a message under a person's own name sit under it, and because
+	// nothing unprivileged has business inside: the one service that runs as an
+	// ordinary account keeps its state in a sibling directory, which is what
+	// CompanyHostRelayStateDirectoryName is for. The package creates it, the
+	// prepare service re-creates it, and `internkim install` creates it on a box
+	// that never saw a package; all three name this.
+	CompanyHostStateRootMode = 0o700
+
 	// The one file an operator is expected to open. Every value in it is the
 	// default the unit would use anyway, and it is the single place the object
 	// store is named: BUZZ_S3_ENDPOINT, BUZZ_S3_BUCKET and BUZZ_S3_REGION point
@@ -118,7 +128,7 @@ func (unit CompanyPackageUnit) InstalledPath() string {
 // failure it cannot explain.
 func CompanyPackageUnits() []CompanyPackageUnit {
 	return []CompanyPackageUnit{
-		{Name: RelayServiceName, Contents: relayServiceUnit(CompanyPackageBinaryPath(RelayName))},
+		{Name: RelayServiceName, Contents: relayServiceUnit(CompanyPackageBinaryPath(RelayName), CompanyHostRelayStateDirectoryName)},
 		{Name: CompanyHostPrepareServiceName, Contents: companyHostPrepareUnit()},
 		{Name: BuzzMediaServiceName, Contents: companyHostBuzzMediaUnit()},
 		{Name: BuzzRelayServiceName, Contents: companyHostBuzzRelayUnit()},
@@ -437,7 +447,7 @@ install -o root -g %[3]s -m 0440 %[2]s %[6]s
 [ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
 install -d -o %[3]s -g %[3]s -m 0750 %[9]s
 install -d -o %[3]s -g %[3]s -m 0750 %[10]s
-install -d -o root -g root -m 0755 %[11]s
+install -d -o root -g root -m %[24]s %[11]s
 install -d -o %[3]s -g %[3]s -m 0755 %[12]s
 install -d -o %[3]s -g %[3]s -m 0755 %[12]s/.blueclaw
 
@@ -488,5 +498,6 @@ fi
 		CompanyPackageBinaryPath(CapabilitydName),
 		CompanyHostPolicyOverridePath,
 		CompanyHostPolicyDocument,
-		CompanyHostPOSIXHelperPath)
+		CompanyHostPOSIXHelperPath,
+		fmt.Sprintf("%04o", CompanyHostStateRootMode))
 }

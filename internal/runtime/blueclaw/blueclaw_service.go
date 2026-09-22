@@ -158,7 +158,13 @@ WantedBy=multi-user.target
 }
 
 func BuzzRelayHealthCheckCommand() string {
-	return "curl --max-time 5 -fsS http://" + BuzzRelayBindAddress + "/_readiness >/dev/null && echo ok || echo no"
+	return "curl --max-time 5 -fsS " + BuzzRelayReadinessURL() + " >/dev/null && echo ok || echo no"
+}
+
+// BuzzRelayReadinessURL is the one address anything asking "is the messenger
+// ready" asks, on the device and on the packaged host alike.
+func BuzzRelayReadinessURL() string {
+	return "http://" + BuzzRelayBindAddress + BuzzRelayReadinessPath
 }
 
 func ChatdServiceUnit(relayPublicURL string) string {

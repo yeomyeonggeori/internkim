@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -14,6 +15,10 @@ import (
 // ConditionPathExists over a file `internkim install` writes, so starting them before
 // a company exists is a no-op systemd records as an unmet condition. The last lines
 // say what to type next.
+// companyHostStateRootMode is the one mode the state root has, as the shell
+// spells it. Everything that creates that directory reads the same constant.
+var companyHostStateRootMode = fmt.Sprintf("%04o", blueclaw.CompanyHostStateRootMode)
+
 func debPostInstallScript() string {
 	helperPath := blueclaw.CompanyHostPOSIXHelperPath
 	return debScriptHeader() + strings.Join([]string{
@@ -27,8 +32,8 @@ func debPostInstallScript() string {
 		debSystemUser(blueclaw.BlueclawUser, blueclaw.BlueclawHomePath, "the agent runs as"),
 		debSystemUser(blueclaw.RelayUserName, "", "the relay runs as"),
 		debOwnedDirectory(blueclaw.BlueclawHomePath, blueclaw.BlueclawUser, "0750"),
-		debOwnedDirectory(blueclaw.CompanyHostStateRoot, "root", "0700"),
-		debOwnedDirectory(blueclaw.CompanyHostCompaniesRoot, "root", "0700"),
+		debOwnedDirectory(blueclaw.CompanyHostStateRoot, "root", companyHostStateRootMode),
+		debOwnedDirectory(blueclaw.CompanyHostCompaniesRoot, "root", companyHostStateRootMode),
 		debOwnedDirectory(blueclaw.CompanyHostConfigurationRoot, "root", "0755"),
 		`# The helper is what lets the unprivileged agent act as the person who asked;`,
 		`# an install that leaves it unprivileged has an agent that can read nothing.`,

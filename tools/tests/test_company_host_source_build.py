@@ -1,7 +1,16 @@
+"""What a person gets when they build the company host from this checkout and run it.
+
+The compose stack this file used to test is gone: `internkim install` writes
+systemd units and a private state directory where it used to write
+`compose.yaml` and `compose.env`, so there is no `docker compose config` left to
+read the pair back. What is worth keeping is the end of that build — that the
+binary `make` produces is the command a person types, and that the first thing
+it does when they type it without privilege is say so and write nothing.
+"""
+
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -9,7 +18,6 @@ import unittest
 
 repository_root = Path(__file__).resolve().parents[2]
 built_binary = repository_root / "internkim-host"
-image = "internkim-company-host:source-build-test"
 
 
 def connection_document():
@@ -27,7 +35,7 @@ class CompanyHostSourceBuildTests(unittest.TestCase):
     def build(self):
         self.addCleanup(built_binary.unlink, missing_ok=True)
         subprocess.run(
-            ["make", "build-company-host", f"COMPANY_HOST_IMAGE={image}"],
+            ["make", "build-company-host"],
             cwd=repository_root,
             check=True,
             capture_output=True,
@@ -35,27 +43,14 @@ class CompanyHostSourceBuildTests(unittest.TestCase):
         )
         return built_binary
 
-    def docker_shim(self, directory):
-        binary_directory = directory / "bin"
-        binary_directory.mkdir()
-        shim = binary_directory / "docker"
-        shim.write_text(
-            "#!/bin/sh\n"
-            'if [ "$1" = "info" ]; then echo linux; exit 0; fi\n'
-            'if [ "$1" = "compose" ] && [ "$2" = "version" ]; then echo v2; exit 0; fi\n'
-            f'echo "docker $*" >> "{directory}/docker.log"\n'
-        )
-        shim.chmod(0o755)
-        return str(binary_directory)
-
-    def install_into(self, directory_name="state"):
+    def run_install(self):
         binary = self.build()
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         connection = directory / "internkim-host.json"
         connection.write_text(json.dumps(connection_document()))
         model_key = directory / "model-key"
         model_key.write_text("sk-or-example\n")
-        state = directory / directory_name
+        state = directory / "state"
         completed = subprocess.run(
             [
                 str(binary), "install", str(connection),
@@ -64,40 +59,22 @@ class CompanyHostSourceBuildTests(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
-            env={**os.environ, "PATH": self.docker_shim(directory) + os.pathsep + os.environ["PATH"]},
         )
-        return completed, directory, state
+        return completed, state
 
-    def test_a_build_from_source_installs_against_a_locally_built_image(self):
-        completed, directory, state = self.install_into()
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn(f"HOST_IMAGE='{image}'", (state / "compose.env").read_text())
-        self.assertIn("up --detach --wait", (directory / "docker.log").read_text())
+    def test_the_build_produces_the_command_the_package_installs(self):
+        binary = self.build()
+        completed = subprocess.run([str(binary)], capture_output=True, text=True)
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("install <internkim-host.json>", completed.stderr)
 
-    @unittest.skipUnless(shutil.which("docker"), "the docker CLI is what reads the pair this test is about")
-    def test_compose_reads_back_every_value_the_installer_wrote(self):
-        completed, _, state = self.install_into("state with 'quotes' and $dollars")
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-
-        configured = subprocess.run(
-            [
-                "docker", "compose",
-                "--env-file", str(state / "compose.env"),
-                "--file", str(state / "compose.yaml"),
-                "config",
-            ],
-            capture_output=True,
-            text=True,
-            env={**os.environ, "DOCKER_HOST": "unix:///nonexistent"},
-        )
-        self.assertEqual(configured.returncode, 0, configured.stderr)
-
-        read_back = configured.stdout.replace("$$", "$")
-        self.assertIn(str(state), read_back)
-        self.assertIn(image, read_back)
-        for name in ("postgres-password", "media-access-key", "media-secret-key"):
-            kept = (state / "secrets" / name).read_text().strip()
-            self.assertIn(kept, read_back)
+    @unittest.skipIf(os.geteuid() == 0, "root would install a company on this machine rather than refuse")
+    def test_an_install_without_privilege_refuses_before_writing_anything(self):
+        completed, state = self.run_install()
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("needs root", completed.stderr)
+        self.assertIn("sudo", completed.stderr)
+        self.assertFalse(state.exists(), "the refusal left a half-written company behind")
 
 
 if __name__ == "__main__":

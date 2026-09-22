@@ -61,8 +61,8 @@ func companyHostProbes() []serviceProbe {
 		{
 			Service:     "the messenger",
 			UnitName:    blueclaw.BuzzRelayServiceName + ".service",
-			Command:     curlCommand("http://127.0.0.1:" + blueclaw.BuzzRelayHealthPort + "/_readiness"),
-			WhenSilent:  "the messenger is not ready on 127.0.0.1:" + blueclaw.BuzzRelayHealthPort,
+			Command:     curlCommand(blueclaw.BuzzRelayReadinessURL()),
+			WhenSilent:  "the messenger is not ready at " + blueclaw.BuzzRelayReadinessURL(),
 			WhatItCosts: "it is what people sign in to, and it stays up even when the agent does not",
 		},
 		{

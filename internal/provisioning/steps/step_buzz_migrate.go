@@ -140,10 +140,10 @@ su - postgres -c "dropdb --if-exists ` + blueclaw.BuzzRelayDatabaseName + ` && c
 systemctl daemon-reload
 systemctl start ` + blueclaw.BuzzRelayServiceName + `
 for attempt in $(seq 1 30); do
-  curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break
+  curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null 2>&1 && break
   sleep 1
 done
-curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null
+curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null
 echo "` + buzzMigrateWipeMarker + ` buzz DB wiped, relay in import mode (membership off, limits relaxed), ready"`
 }
 
