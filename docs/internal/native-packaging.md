@@ -366,8 +366,10 @@ Where the private half of the signing key lives is
 takes it from one path, `INTERNKIM_APT_SIGNING_KEY_PATH`, so settling it is a
 change to what that path names.
 
-Rust cannot cross-compile to macOS without an Apple SDK, so the Homebrew
-formula needs a macOS builder for `buzz-relay` that has never been run.
+The Homebrew formula needs a macOS builder for `buzz-relay`, which a Mac runs
+natively in two minutes with the same clone, the same two patches and the same
+cargo line; [`the-company-host-on-macos.md`](./the-company-host-on-macos.md)
+carries the build and what it linked against.
 
 ## 7. Which mechanisms survive
 
@@ -475,8 +477,11 @@ URL `step_buzz_media.go` fetched answered 410 Gone while nothing noticed.
   install has.
 - ~~**Whether Supabase Storage can hold the media.**~~ Not safely: its S3
   endpoint answers `?versions` with a plain `ListBucketResult`.
-- **A macOS `buzz-relay`.** Never built. Until it is, the Homebrew formula
-  either ships without the bundled messenger or does not ship.
+- ~~**A macOS `buzz-relay`.**~~ Built and run on darwin/arm64, against
+  Homebrew's PostgreSQL and Redis, to a ready readiness probe. What the Homebrew
+  path loses instead is `chromium`, whose cask was disabled upstream on
+  2026-09-01 for failing Gatekeeper, the helper's setuid bit, and eight of the
+  nine units; [`the-company-host-on-macos.md`](./the-company-host-on-macos.md).
 - **Whether Valkey serves the relay.** Wire-compatible, untested here.
 - **The device rootfs's fonts.** #1908 records that it installs
   `fonts-noto-cjk` under `opentype/noto/` and carries the same
