@@ -114,17 +114,18 @@ class InstallScriptTests(unittest.TestCase):
         return completed, Path(environment["INTERNKIM_INSTALL_BIN_DIR"])
 
     def path_without_a_package_manager(self):
-        """A PATH on which the script cannot find apt-get.
+        """A PATH on which the script can find neither apt-get nor brew.
 
-        `host` reaches for the package manager whenever one is there, so the
+        `host` reaches for a package manager whenever one is there, so the
         direct-download path these tests read is what a machine without one
-        takes. On this Mac that is every PATH; on a Debian build machine it is
-        not, and a test that passed only where it was written proves nothing.
+        takes. On this Mac that means hiding brew; on a Debian build machine it
+        means hiding apt-get, and a test that passed only where it was written
+        proves nothing.
         """
         return os.pathsep.join(
             directory
             for directory in os.environ["PATH"].split(os.pathsep)
-            if directory and not (Path(directory) / "apt-get").exists()
+            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "brew"))
         )
 
     def forget_checksum_line(self, base_url, product, binary_name):
@@ -168,6 +169,51 @@ class InstallScriptTests(unittest.TestCase):
                     self.assertEqual(completed.returncode, 0, completed.stderr)
                     installed = bin_dir / f"internkim-{product}"
                     self.assertEqual(installed.read_bytes(), published_binary(f"internkim-{product}-{expected}"))
+
+    def test_a_mac_with_homebrew_installs_the_formula_from_the_tap(self):
+        """The published one line has to leave a registered Homebrew install, or
+        `brew upgrade` and `brew uninstall` have nothing to act on afterwards."""
+        base_url = self.serve()
+        log_path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "brew.log"
+        brew = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (brew / "brew").write_text(recording_shim("brew", log_path))
+        (brew / "brew").chmod(0o755)
+        completed, bin_dir = self.run_install(
+            "host", base_url, machine=("Darwin", "arm64"), shims=[str(brew)])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        ran = log_path.read_text().splitlines()
+        self.assertEqual(ran[0], "brew tap yeomyeonggeori/internkim")
+        self.assertEqual(ran[1], "brew install internkim")
+        self.assertIn("sudo internkim install", completed.stdout)
+        self.assertFalse((bin_dir / "internkim-host").exists(), "a Mac with Homebrew should get the formula, not a bare binary")
+
+    def test_a_mac_with_homebrew_is_never_offered_the_bare_binary(self):
+        """A bare binary on a Mac is a company host with no database, no cache
+        and nothing brew knows about, which is the state this branch exists to
+        avoid."""
+        base_url = self.serve()
+        log_path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "brew.log"
+        brew = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        # The tap succeeds and the install fails, which is the case whose undo
+        # is not obvious: the machine now carries a tap nobody asked for.
+        (brew / "brew").write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "brew $*" >> "{log_path}"\n'
+            'if [ "$1" = install ]; then exit 1; fi\n'
+        )
+        (brew / "brew").chmod(0o755)
+        completed, bin_dir = self.run_install(
+            "host", base_url, machine=("Darwin", "arm64"), shims=[str(brew)])
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("brew untap", completed.stderr)
+        self.assertFalse((bin_dir / "internkim-host").exists())
+
+    def test_a_mac_without_homebrew_is_told_where_to_get_it(self):
+        base_url = self.serve()
+        completed, bin_dir = self.run_install("host", base_url, machine=("Darwin", "arm64"))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("https://brew.sh", completed.stdout)
+        self.assertTrue((bin_dir / "internkim-host").exists())
 
     def test_refuses_a_machine_with_no_published_build(self):
         base_url = self.serve()

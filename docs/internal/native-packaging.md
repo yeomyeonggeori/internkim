@@ -338,9 +338,15 @@ and hands the work over:
   ends in the state it would have reached by typing those commands, so
   `apt upgrade` and `apt remove` work and nothing was installed behind dpkg's
   back. `apt-key` is not used; Debian's third-party guidance forbids it.
-- **macOS with Homebrew**: `brew tap` the company tap and `brew install
+- **macOS with Homebrew**: `brew tap yeomyeonggeori/internkim` and `brew install
   internkim`, with the formula's `bottle do root_url` pointing at
-  `updates.intern.kim` so the bottle comes from our own host.
+  `updates.intern.kim` so the bottle comes from our own host. The tap is a git
+  repository and the bottle is not, which is why they live in different places:
+  `github.com/yeomyeonggeori/homebrew-internkim` carries the rendered
+  `Formula/internkim.rb`, and the release registry serves `brew/` beside `deb/`.
+  `internkim release brew` builds both tarballs on the Mac they are for and
+  renders the formula from `internal/runtime/blueclaw`, so the `depends_on`
+  lines and the `.deb`'s `Depends:` come from one declaration.
 - **Anything else, and macOS without Homebrew**: the unpackaged path below.
 
 **What the unpackaged path shares.** The binaries are the same files the `.deb`
@@ -460,10 +466,12 @@ file when the run ends. That seam is the one function a hardware token would
 replace, and [`apt-archive-signing-key.md`](./apt-archive-signing-key.md) is
 why a token is still where this is headed.
 
-The Homebrew formula needs a macOS builder for `buzz-relay`, which a Mac runs
-natively in two minutes with the same clone, the same two patches and the same
-cargo line; [`the-company-host-on-macos.md`](./the-company-host-on-macos.md)
-carries the build and what it linked against.
+The Homebrew formula needs a macOS builder for `buzz-relay`, and
+`tools/prepare-buzz-relay --target darwin-arm64` is it: the same clone, the same
+two patches and the same cargo line, on the host instead of in a container,
+in two minutes. [`the-company-host-on-macos.md`](./the-company-host-on-macos.md)
+carries that build, what it linked against, and the five things Homebrew decided
+about the keg's shape.
 
 ## 7. Which mechanisms survive
 

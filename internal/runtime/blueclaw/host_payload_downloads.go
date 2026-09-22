@@ -46,28 +46,52 @@ const (
 	uvVersion            = "0.11.11"
 )
 
-// hostPayloadMachineByDebianArchitecture maps what dpkg calls an architecture to what
-// `uname -m` calls it. The package is built per Debian architecture and the device's
-// provisioning step asks the board, so both names address the same pins.
-var hostPayloadMachineByDebianArchitecture = map[string]string{
-	"arm64": "aarch64",
-	"amd64": "x86_64",
+// The machines this release pins a binary for. A target names the operating
+// system as well as the architecture, because four of the five programs publish
+// a differently named asset per platform and one of them capitalises it
+// differently too.
+const (
+	HostPayloadLinuxArm64  = "linux-arm64"
+	HostPayloadLinuxAmd64  = "linux-amd64"
+	HostPayloadDarwinArm64 = "darwin-arm64"
+)
+
+// hostPayloadTargetByDebianArchitecture maps what dpkg calls an architecture to
+// the target that carries its pins. The .deb is built per Debian architecture
+// and there is no Debian package for a Mac, so this covers the Linux ones alone.
+var hostPayloadTargetByDebianArchitecture = map[string]string{
+	"arm64": HostPayloadLinuxArm64,
+	"amd64": HostPayloadLinuxAmd64,
 }
 
-var hostPayloadDownloadsByDebianArchitecture = map[string][]HostPayloadDownload{
-	"arm64": {
+// hostPayloadMachineByTarget maps a target to what `uname -m` calls it on the
+// board the device's provisioning step asks.
+var hostPayloadMachineByTarget = map[string]string{
+	HostPayloadLinuxArm64: "aarch64",
+	HostPayloadLinuxAmd64: "x86_64",
+}
+
+var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
+	HostPayloadLinuxArm64: {
 		deviceBrowserPayload("aarch64-unknown-linux-gnu", "76abe24ad32a42e190dd09d3a475f57b91cda66cd8cbf547f602f3aa28963a7b"),
 		agentBrowserPayload("agent-browser-linux-arm64", "87fd2efb67995fc433569f0383260bfee44a785d6d45ca07c77179c45b70de18"),
-		mediaServerPayload("arm64", "b34051d33f5a9c457f790896acb7bd7d7e15ad8d92efb70616b924f37e401910"),
-		bunPayload("aarch64", "54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"),
+		mediaServerPayload("Linux", "arm64", "b34051d33f5a9c457f790896acb7bd7d7e15ad8d92efb70616b924f37e401910"),
+		bunPayload("linux-aarch64", "54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"),
 		packageResolverPayload("aarch64-unknown-linux-gnu", "155fe4d3b3cb4bfce118ab4b1380f71515ae874d13d9858171b4f9c26e16684d"),
 	},
-	"amd64": {
+	HostPayloadLinuxAmd64: {
 		deviceBrowserPayload("x86_64-unknown-linux-gnu", "7128ca9b9f7e7bb5ab58b1c6cbf0910a2e22008f4662ea87bd6b8ab8493e3181"),
 		agentBrowserPayload("agent-browser-linux-x64", "243f6e01c4b7dea53ad07d9754df99033c614582d5c685c529a1cb81cafc3ab1"),
-		mediaServerPayload("x86_64", "2ba2c734d10d2c4e651d03182cb4b246656bc735a2f282db7b0b73fba6073467"),
-		bunPayload("x64", "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"),
+		mediaServerPayload("Linux", "x86_64", "2ba2c734d10d2c4e651d03182cb4b246656bc735a2f282db7b0b73fba6073467"),
+		bunPayload("linux-x64", "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"),
 		packageResolverPayload("x86_64-unknown-linux-gnu", "a767848254391855c96df271e9ca8b7f72dd172d310460447853d25d907b9ae0"),
+	},
+	HostPayloadDarwinArm64: {
+		deviceBrowserPayload("aarch64-apple-darwin", "8ce3bff3d003b4e04b366908ad14656456e1bf347b2be251b734cf1d60d654a6"),
+		agentBrowserPayload("agent-browser-darwin-arm64", "b639605f496b629ebb2cdab30f1e070e004efd945b9cd0baf1981acfab64a151"),
+		mediaServerPayload("Darwin", "arm64", "4953096f65a9c0d62ab184fb6b2ba7c2435229205cf00a56cb62cd4bf6b216ca"),
+		bunPayload("darwin-aarch64", "90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f"),
+		packageResolverPayload("aarch64-apple-darwin", "3a185bf8f46a7b7c8b910d111825907b1638d0ae503cb3c333ae205772354046"),
 	},
 }
 
@@ -94,8 +118,8 @@ func agentBrowserPayload(assetName string, checksum string) HostPayloadDownload 
 	}
 }
 
-func mediaServerPayload(releaseTarget string, checksum string) HostPayloadDownload {
-	assetName := fmt.Sprintf("versitygw_v%s_Linux_%s.tar.gz", BuzzMediaVersion, releaseTarget)
+func mediaServerPayload(operatingSystem string, releaseTarget string, checksum string) HostPayloadDownload {
+	assetName := fmt.Sprintf("versitygw_v%s_%s_%s.tar.gz", BuzzMediaVersion, operatingSystem, releaseTarget)
 	return HostPayloadDownload{
 		ProgramName:                BuzzMediaProgramName,
 		Version:                    BuzzMediaVersion,
@@ -109,8 +133,8 @@ func mediaServerPayload(releaseTarget string, checksum string) HostPayloadDownlo
 
 // bun publishes a zip rather than a tarball, which is the only reason anything that
 // opens these archives has to ask what kind it is holding.
-func bunPayload(machineName string, checksum string) HostPayloadDownload {
-	assetName := "bun-linux-" + machineName + ".zip"
+func bunPayload(platformName string, checksum string) HostPayloadDownload {
+	assetName := "bun-" + platformName + ".zip"
 	return HostPayloadDownload{
 		ProgramName:                BunProgramName,
 		Version:                    bunVersion,
@@ -139,18 +163,40 @@ func packageResolverPayload(targetTriple string, checksum string) HostPayloadDow
 // architecture nobody publishes for is an error rather than an empty list, because a
 // box that installed none of these answers and does nothing.
 func HostPayloadDownloads(debianArchitecture string) ([]HostPayloadDownload, error) {
-	downloads, isPublished := hostPayloadDownloadsByDebianArchitecture[debianArchitecture]
+	target, isPublished := hostPayloadTargetByDebianArchitecture[debianArchitecture]
 	if !isPublished {
 		return nil, fmt.Errorf(
 			"no vendored binary is pinned for %s; the architectures are %v",
-			debianArchitecture, hostPayloadArchitectures())
+			debianArchitecture, hostPayloadDebianArchitectures())
+	}
+	return HostPayloadDownloadsForTarget(target)
+}
+
+// HostPayloadDownloadsForTarget is the same five programs for a machine named by
+// operating system as well as architecture, which is what the Homebrew release
+// asks for: the Darwin assets are named differently from the Linux ones and one
+// of them capitalises the platform.
+func HostPayloadDownloadsForTarget(target string) ([]HostPayloadDownload, error) {
+	downloads, isPublished := hostPayloadDownloadsByTarget[target]
+	if !isPublished {
+		return nil, fmt.Errorf(
+			"no vendored binary is pinned for %s; the targets are %v", target, hostPayloadTargets())
 	}
 	return append([]HostPayloadDownload(nil), downloads...), nil
 }
 
-func hostPayloadArchitectures() []string {
+func hostPayloadTargets() []string {
+	targets := []string{}
+	for target := range hostPayloadDownloadsByTarget {
+		targets = append(targets, target)
+	}
+	sort.Strings(targets)
+	return targets
+}
+
+func hostPayloadDebianArchitectures() []string {
 	architectures := []string{}
-	for architecture := range hostPayloadDownloadsByDebianArchitecture {
+	for architecture := range hostPayloadTargetByDebianArchitecture {
 		architectures = append(architectures, architecture)
 	}
 	sort.Strings(architectures)
@@ -159,11 +205,11 @@ func hostPayloadArchitectures() []string {
 
 // hostPayloadDownloadFor finds one program's pin by the name `uname -m` reports.
 func hostPayloadDownloadFor(machine string, programName string) (HostPayloadDownload, bool) {
-	for architecture, itsMachine := range hostPayloadMachineByDebianArchitecture {
+	for target, itsMachine := range hostPayloadMachineByTarget {
 		if itsMachine != machine {
 			continue
 		}
-		for _, download := range hostPayloadDownloadsByDebianArchitecture[architecture] {
+		for _, download := range hostPayloadDownloadsByTarget[target] {
 			if download.ProgramName == programName {
 				return download, true
 			}
@@ -210,8 +256,11 @@ func BuzzMediaBucketPath() string {
 // messages that have to say what was expected.
 func BuzzMediaPublishedMachines() []string {
 	machines := []string{}
-	for _, architecture := range hostPayloadArchitectures() {
-		machine := hostPayloadMachineByDebianArchitecture[architecture]
+	for _, target := range hostPayloadTargets() {
+		machine, isALinuxBoard := hostPayloadMachineByTarget[target]
+		if !isALinuxBoard {
+			continue
+		}
 		if _, isPublished := hostPayloadDownloadFor(machine, BuzzMediaProgramName); isPublished {
 			machines = append(machines, machine)
 		}

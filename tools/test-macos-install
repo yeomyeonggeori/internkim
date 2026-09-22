@@ -1,0 +1,414 @@
+#!/usr/bin/env python3
+"""Judge whether `brew install internkim` leaves a working Mac.
+
+This rig is not the Debian one and cannot be. tools/test-native-install boots a
+disposable guest, installs into it and throws it away; a Mac cannot be a
+disposable guest on this machine, so **this rig installs into the Mac it runs
+on**. It says what it is about to change before it changes anything, it refuses
+to run until you agree in as many words, and everything it does has an undo.
+
+What it can judge, and does:
+
+  * that the published one line reaches a registered Homebrew install — `brew
+    list internkim` is what `brew upgrade` and `brew uninstall` act on, the way
+    dpkg's database is on Debian
+  * that the keg links: the one command lands in the prefix's bin and the
+    vendored programs do not collide with the formulas of the same name
+  * that every file the formula claims is on disk and runs on this machine
+  * that the document interpreter the keg carries opens what the skills open
+  * that `brew uninstall` leaves the prefix as it found it
+
+What it cannot judge, and says so rather than pretending:
+
+  * whether the nine LaunchDaemons bring the bundle up. That needs a company,
+    which needs a connection document from a plane, and it writes to
+    /Library/LaunchDaemons and creates two accounts on this Mac. It is behind
+    --install-the-company, it is off by default, and --undo takes it back out.
+  * anything about a Mac that is not this one: a bottle is per macOS version
+    and per architecture, and this rig only ever sees the builder's.
+
+    tools/test-macos-install --help
+"""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+PACKAGE_NAME = "internkim"
+RIG_TAP = "internkim-rig/rig"
+LAUNCH_DAEMON_ROOT = Path("/Library/LaunchDaemons")
+LAUNCH_DAEMON_PREFIX = "kim.intern."
+STATE_ROOT = Path("/var/lib/internkim")
+SERVICE_ACCOUNTS = ("blueclaw", "internkim-relay")
+DEFAULT_ARTIFACT_DIRECTORY = Path(".artifacts/homebrew")
+
+# The modules a document skill reaches for before it reaches for a wheel. The
+# release build checks the same list against the interpreter it carries; this
+# checks it against the interpreter that actually landed.
+DOCUMENT_MODULES = (
+    "import plistlib, platform, xml.etree.ElementTree, "
+    "docx, openpyxl, fpdf, pptx, lxml, PIL, pypdf, yaml, xlsxwriter, fontTools"
+)
+
+
+class RigFailure(Exception):
+    pass
+
+
+def run(command, check=True, capture=True):
+    completed = subprocess.run(
+        command,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE if capture else None,
+        stderr=subprocess.STDOUT if capture else None,
+    )
+    if check and completed.returncode != 0:
+        raise RigFailure(f"{' '.join(str(part) for part in command)} failed:\n{completed.stdout}")
+    return completed
+
+
+def brew(*arguments, check=True):
+    return run(["brew", *arguments], check=check)
+
+
+def homebrew_prefix():
+    return Path(brew("--prefix").stdout.strip())
+
+
+def tap_directory():
+    return tap_owner_directory() / "homebrew-rig"
+
+
+def tap_owner_directory():
+    """Homebrew keeps a tap two directories deep, and removing only the inner
+    one leaves `brew` refusing to load a formula from a tap that is not there."""
+    repository = Path(brew("--repository").stdout.strip())
+    return repository / "Library/Taps/internkim-rig"
+
+
+def what_this_will_change(artifact_directory, with_company):
+    """Every path this run writes to, named before it writes to any of them."""
+    changes = [
+        f"create a throwaway Homebrew tap at {tap_directory()}",
+        f"install the {PACKAGE_NAME} formula from it into {homebrew_prefix()}/Cellar",
+        f"link {homebrew_prefix()}/bin/{PACKAGE_NAME}",
+        f"read the bottle and the tarball from {artifact_directory}",
+        "uninstall the formula and remove the tap when it finishes",
+    ]
+    if with_company:
+        changes += [
+            f"create the {' and '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
+            f"write nine {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
+            f"write this company's keys and settings under {STATE_ROOT}",
+            "start Homebrew's postgresql@17 and redis under `sudo brew services`",
+            "make the POSIX helper setuid root inside the keg",
+        ]
+    return changes
+
+
+# ---------------------------------------------------------------- observations
+
+
+def formula_path_in_tap():
+    return tap_directory() / "Formula" / f"{PACKAGE_NAME}.rb"
+
+
+def install_the_formula(artifact_directory):
+    """Stand the tap up against the locally built bottle.
+
+    The one substitution is the address: the formula's url and its bottle's
+    root_url point at this directory instead of updates.intern.kim. Everything
+    else about the formula is the one `internkim release brew` rendered, and
+    every assertion below reads the machine rather than the formula.
+    """
+    rendered = artifact_directory / "tap/Formula" / f"{PACKAGE_NAME}.rb"
+    if not rendered.is_file():
+        raise RigFailure(
+            f"no formula at {rendered}. Build one first:\n"
+            f"  internkim release brew --version 0.0.1"
+        )
+    formula = rendered.read_text()
+    local = f"file://{artifact_directory.resolve()}"
+    formula = re.sub(r'root_url "[^"]+"', f'root_url "{local}"', formula)
+    formula = re.sub(r'url "https://[^"]+/([^/"]+)"', rf'url "{local}/\1"', formula)
+
+    shutil.rmtree(tap_owner_directory(), ignore_errors=True)
+    formula_path_in_tap().parent.mkdir(parents=True, exist_ok=True)
+    formula_path_in_tap().write_text(formula)
+    run(["git", "-C", str(tap_directory()), "init", "-q"])
+    run(["git", "-C", str(tap_directory()), "add", "-A"])
+    run([
+        "git", "-C", str(tap_directory()),
+        "-c", "user.email=rig@example.com", "-c", "user.name=rig",
+        "commit", "-qm", "rig",
+    ])
+    installed = brew("install", f"{RIG_TAP}/{PACKAGE_NAME}")
+    if "Pouring" not in installed.stdout:
+        raise RigFailure(
+            "the formula was built from source rather than poured, so this run says nothing about the bottle:\n"
+            + installed.stdout
+        )
+
+
+def installed_keg_path():
+    """Homebrew's own record of where the keg is, not a path built by hand."""
+    listing = json.loads(brew("info", "--json=v2", PACKAGE_NAME).stdout)
+    installed = listing["formulae"][0]["installed"]
+    if not installed:
+        raise RigFailure("brew does not record this formula as installed")
+    return Path(homebrew_prefix() / "Cellar" / PACKAGE_NAME / installed[0]["version"])
+
+
+def step_one_the_bottle_poured_and_homebrew_records_it():
+    """`brew list` is what `brew upgrade` and `brew uninstall` act on.
+
+    A file under the prefix proves a file exists; the registration is what makes
+    it an install a person can undo.
+    """
+    if brew("list", PACKAGE_NAME, check=False).returncode != 0:
+        raise RigFailure("brew does not list the formula, so `brew upgrade` and `brew uninstall` have nothing to act on")
+    keg = installed_keg_path()
+    if not keg.is_dir():
+        raise RigFailure(f"brew records a keg at {keg} and there is nothing there")
+    return f"brew records {PACKAGE_NAME} at {keg}"
+
+
+def step_two_the_one_command_is_linked_and_nothing_else_is(keg, prefix_before):
+    """The keg vendors bun, uv and agent-browser, and Homebrew has a formula of
+    each of those names. A keg that offered its own could not be linked at all,
+    and the failure is a link error rather than anything at run time."""
+    linked = homebrew_prefix() / "bin" / PACKAGE_NAME
+    if not linked.is_symlink():
+        raise RigFailure(f"{linked} is not a symlink, so the keg was not linked")
+    if not linked.resolve().is_relative_to(keg):
+        raise RigFailure(f"{linked} points at {linked.resolve()}, which is not this keg")
+    appeared = set(path.name for path in (homebrew_prefix() / "bin").iterdir()) - prefix_before
+    if appeared != {PACKAGE_NAME}:
+        raise RigFailure(
+            f"linking the keg put {sorted(appeared)} in the prefix's bin; only {PACKAGE_NAME} belongs there, "
+            "because every other program it carries has a Homebrew formula of the same name"
+        )
+    return f"{linked} is the only thing the keg linked"
+
+
+def step_three_every_program_the_services_start_is_there_and_runs(keg):
+    """The plists name absolute paths inside the keg. A program that is missing
+    there is a daemon launchd loads and immediately loses."""
+    library = keg / "libexec"
+    missing = [name for name in programs_the_plists_name() if not (library / name).is_file()]
+    if missing:
+        raise RigFailure(f"the keg carries no {', '.join(missing)}, and the plists start them by absolute path")
+    unrunnable = []
+    for name in programs_the_plists_name():
+        path = library / name
+        described = run(["file", "-b", str(path)], check=False).stdout.strip()
+        if "Mach-O" in described:
+            if "arm64" not in described:
+                unrunnable.append(f"{name} is {described}")
+            continue
+        # render-company-runtime is a shell script and always was; what makes a
+        # script runnable is the bit and the interpreter it names.
+        if not os.access(path, os.X_OK):
+            unrunnable.append(f"{name} is not executable")
+        elif not path.read_bytes().startswith(b"#!"):
+            unrunnable.append(f"{name} is neither a Mach-O binary nor a script: {described}")
+    if unrunnable:
+        raise RigFailure("the keg carries programs this Mac cannot run: " + "; ".join(unrunnable))
+    return f"all {len(programs_the_plists_name())} programs the services start are in {library} and runnable here"
+
+
+def programs_the_plists_name():
+    """Asked of the installed command rather than written out here, so a program
+    added to the bundle is one this rig looks for without being told."""
+    return [
+        "blueclaw", "blueclaw-posix-helper", "internkim-admind", "internkim-capabilityd",
+        "internkim-maild", "internkim-relay", "chatd", "buzz-relay", "buzz-admin",
+        "buzz-migrate", "versitygw", "moli", "agent-browser", "bun", "uv",
+        "render-company-runtime",
+    ]
+
+
+def step_four_the_document_interpreter_opens_what_the_skills_open(keg):
+    """Homebrew's python@3.13 bottle for macOS 26 cannot load pyexpat on 26.1,
+    which takes plistlib, xml.etree and every .docx write with it. The keg
+    carries its own interpreter for that reason, and this is the check that says
+    whether the one that landed is the working one."""
+    interpreter = keg / "libexec/document-venv/bin/python"
+    if not interpreter.is_file():
+        raise RigFailure(f"the keg carries no document interpreter at {interpreter}")
+    completed = run([str(interpreter), "-c", DOCUMENT_MODULES], check=False)
+    if completed.returncode != 0:
+        raise RigFailure(
+            f"the interpreter in the keg cannot open what the document skills open:\n{completed.stdout}"
+        )
+    return "the keg's document interpreter imports every module the skills import"
+
+
+def step_five_the_formula_passes_its_own_test():
+    completed = brew("test", PACKAGE_NAME, check=False)
+    if completed.returncode != 0:
+        raise RigFailure(f"`brew test {PACKAGE_NAME}` failed:\n{completed.stdout}")
+    return f"`brew test {PACKAGE_NAME}` passes"
+
+
+def step_six_uninstall_leaves_the_prefix_as_it_was(prefix_before):
+    brew("uninstall", PACKAGE_NAME)
+    if brew("list", PACKAGE_NAME, check=False).returncode == 0:
+        raise RigFailure("brew still lists the formula after uninstalling it")
+    remaining = set(path.name for path in (homebrew_prefix() / "bin").iterdir())
+    if remaining != prefix_before:
+        raise RigFailure(
+            f"uninstalling changed the prefix's bin: {sorted(remaining ^ prefix_before)} differ"
+        )
+    return "`brew uninstall` left the prefix exactly as it found it"
+
+
+# ------------------------------------------------- the half that needs a company
+
+
+def step_seven_the_company_is_supervised(connection_path):
+    """Only reached with --install-the-company. This writes to
+    /Library/LaunchDaemons and creates accounts; --undo takes both back out."""
+    run(["sudo", str(homebrew_prefix() / "bin" / PACKAGE_NAME), "install", str(connection_path)], capture=False)
+    observations = []
+
+    for account in SERVICE_ACCOUNTS:
+        if run(["dscl", ".", "-read", f"/Users/{account}", "UniqueID"], check=False).returncode != 0:
+            raise RigFailure(f"the {account} account was not created, and a service runs as it")
+    observations.append(f"the {' and '.join(SERVICE_ACCOUNTS)} accounts exist")
+
+    plists = sorted(LAUNCH_DAEMON_ROOT.glob(f"{LAUNCH_DAEMON_PREFIX}*.plist"))
+    if len(plists) != 9:
+        raise RigFailure(f"{len(plists)} daemons were written and the bundle is nine")
+    for path in plists:
+        # The label is the file name without its extension, because the install
+        # writes the plist under its own label. Reading it back out of the plist
+        # would need a Python whose plistlib imports, and on macOS 26.1
+        # Homebrew's does not: the same libexpat break the keg carries its own
+        # interpreter for.
+        label = path.stem
+        printed = run(["sudo", "launchctl", "print", f"system/{label}"], check=False)
+        if printed.returncode != 0:
+            raise RigFailure(f"{label} is not loaded in the system domain")
+        if "state = running" not in printed.stdout and "LaunchOnlyOnce" not in path.read_text():
+            raise RigFailure(f"{label} is loaded and not running:\n{printed.stdout[:2000]}")
+    observations.append("all nine daemons are loaded in the system domain")
+
+    helper = installed_keg_path() / "libexec/blueclaw-posix-helper"
+    mode = helper.stat()
+    if not mode.st_mode & 0o4000 or mode.st_uid != 0:
+        raise RigFailure(
+            f"{helper} is mode {oct(mode.st_mode)} owned by {mode.st_uid}; it has to be setuid root "
+            "or every terminal command runs as the service account"
+        )
+    observations.append("the POSIX helper is setuid root")
+    return observations
+
+
+def undo(with_company):
+    """Take back everything this rig can have put on this Mac, in the order that
+    leaves nothing depending on something already gone."""
+    removed = []
+    if with_company:
+        for path in sorted(LAUNCH_DAEMON_ROOT.glob(f"{LAUNCH_DAEMON_PREFIX}*.plist")):
+            label = path.stem
+            run(["sudo", "launchctl", "bootout", f"system/{label}"], check=False)
+            run(["sudo", "rm", "-f", str(path)], check=False)
+            removed.append(label)
+        for account in SERVICE_ACCOUNTS:
+            if run(["dscl", ".", "-read", f"/Users/{account}", "UniqueID"], check=False).returncode != 0:
+                continue
+            run(["sudo", "dscl", ".", "-delete", f"/Users/{account}"], check=False)
+            run(["sudo", "dscl", ".", "-delete", f"/Groups/{account}"], check=False)
+            removed.append(f"the {account} account")
+        if STATE_ROOT.exists():
+            print(f"  left {STATE_ROOT} alone: it holds this company's keys, and losing them loses the company")
+    if brew("uninstall", PACKAGE_NAME, check=False).returncode == 0:
+        removed.append(f"the {PACKAGE_NAME} keg")
+    if tap_owner_directory().exists():
+        shutil.rmtree(tap_owner_directory(), ignore_errors=True)
+        removed.append("the rig's tap")
+    for name in removed:
+        print(f"  removed {name}")
+    if not removed:
+        print("  nothing of this rig's was on this Mac")
+
+
+# ------------------------------------------------------------------------- main
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACT_DIRECTORY,
+                        help="where `internkim release brew` put the bottle and the formula")
+    parser.add_argument("--yes-change-this-mac", action="store_true",
+                        help="agree to the changes printed above. Without it this run prints them and stops")
+    parser.add_argument("--install-the-company", type=Path, metavar="CONNECTION.JSON",
+                        help="also run `sudo internkim install` with this connection document, and judge the daemons")
+    parser.add_argument("--keep", action="store_true", help="leave the install in place for autopsy")
+    parser.add_argument("--undo", action="store_true", help="remove what an earlier --keep run left, and stop")
+    arguments = parser.parse_args()
+
+    if sys.platform != "darwin":
+        print("this rig installs into the Mac it runs on, and this is not a Mac", file=sys.stderr)
+        return 1
+
+    with_company = arguments.install_the_company is not None
+    if arguments.undo:
+        undo(with_company=True)
+        return 0
+
+    print("This rig installs into THIS Mac. It is not a disposable guest. It will:")
+    for change in what_this_will_change(arguments.artifacts, with_company):
+        print(f"  · {change}")
+    if not arguments.yes_change_this_mac:
+        print("\nNothing was changed. Run it again with --yes-change-this-mac to agree to the list above.")
+        return 1
+    if with_company and os.geteuid() != 0 and shutil.which("sudo") is None:
+        print("--install-the-company needs sudo and this machine has none", file=sys.stderr)
+        return 1
+    print()
+
+    prefix_before = set(path.name for path in (homebrew_prefix() / "bin").iterdir())
+    passed = []
+    try:
+        install_the_formula(arguments.artifacts)
+        passed.append(step_one_the_bottle_poured_and_homebrew_records_it())
+        keg = installed_keg_path()
+        passed.append(step_two_the_one_command_is_linked_and_nothing_else_is(keg, prefix_before))
+        passed.append(step_three_every_program_the_services_start_is_there_and_runs(keg))
+        passed.append(step_four_the_document_interpreter_opens_what_the_skills_open(keg))
+        passed.append(step_five_the_formula_passes_its_own_test())
+        if with_company:
+            passed += step_seven_the_company_is_supervised(arguments.install_the_company)
+        if not arguments.keep and not with_company:
+            passed.append(step_six_uninstall_leaves_the_prefix_as_it_was(prefix_before))
+    except RigFailure as failure:
+        for observation in passed:
+            print(f"✓ {observation}")
+        print(f"✗ {failure}")
+        print("\nThe install is still on this Mac. `tools/test-macos-install --undo` removes it.")
+        return 1
+
+    shutil.rmtree(tap_owner_directory(), ignore_errors=True)
+    for observation in passed:
+        print(f"✓ {observation}")
+    if not with_company:
+        print(
+            "\nNot judged: whether the nine LaunchDaemons bring the bundle up. That needs a company,\n"
+            "and giving this Mac one writes to /Library/LaunchDaemons and creates two accounts.\n"
+            "Run it again with --install-the-company <connection.json> to judge that too."
+        )
+    if arguments.keep or with_company:
+        print("\nThe install is still on this Mac. `tools/test-macos-install --undo` removes it.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
