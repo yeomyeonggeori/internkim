@@ -492,11 +492,13 @@ URL `step_buzz_media.go` fetched answered 410 Gone while nothing noticed.
   2026-09-01 for failing Gatekeeper, the helper's setuid bit, and eight of the
   nine units; [`the-company-host-on-macos.md`](./the-company-host-on-macos.md).
 - **Whether Valkey serves the relay.** Wire-compatible, untested here.
-- **The device rootfs's fonts.** #1908 records that it installs
-  `fonts-noto-cjk` under `opentype/noto/` and carries the same
-  `export_document.py` gap, and that its builtin-skills venv declares neither
-  `docxtpl` nor `pyyaml`. Frozen there, and it becomes this package's problem
-  the day a Jetson installs it.
+- **The device rootfs's builtin-skills venv.** It declares neither `docxtpl`
+  nor `pyyaml`. Frozen there, and it becomes this package's problem the day a
+  Jetson installs it. The font half of what #1908 recorded here is settled:
+  the rootfs installs `fonts-noto-cjk` under `opentype/noto/` and no
+  `fonts-nanum`, which is the one Korean font `export_document.py` could not
+  see, and internkim-plugin#30 gave all three font-embedding skills one list
+  that names that path.
 - **The Raspberry Pi OS Chromium name.** `archive.raspberrypi.com` returned
   403 to an anonymous fetch, so `chromium-browser`'s current version there is
   from forum reports rather than the index.
