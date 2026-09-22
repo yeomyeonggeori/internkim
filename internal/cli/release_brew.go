@@ -124,8 +124,8 @@ func runReleaseBrew(arguments []string) error {
 	if !argumentsCarry(arguments, "--publish") {
 		fmt.Fprintf(os.Stdout,
 			"\nNothing was published. `internkim release brew --publish` puts the two tarballs under %s/,\n"+
-				"and the formula is committed to the %s tap by hand.\n",
-			blueclaw.HomebrewReleasePrefix, blueclaw.HomebrewTap())
+				"and the formula is committed by hand to %s, which is what `brew tap %s` clones.\n",
+			blueclaw.HomebrewReleasePrefix, blueclaw.HomebrewTapRepositoryURL(), blueclaw.HomebrewTap())
 		return nil
 	}
 	publisher, errorValue := releasePublisherFromEnvironment(repositoryRootPath)

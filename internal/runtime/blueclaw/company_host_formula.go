@@ -28,8 +28,14 @@ const (
 	// convention turns them into github.com/<owner>/homebrew-<name>, which is
 	// where the formula lives; the bottle comes from our own host through
 	// root_url below, which is the part that matters.
+	//
+	// The tap is named after the organisation and not after this product,
+	// because one tap holds every formula the organisation publishes: the
+	// companion is a second formula in the same tap rather than a second tap
+	// for a person to add. charmbracelet/tap, supabase/tap and mobile-dev-inc/tap
+	// are all this shape.
 	HomebrewTapOwner = "yeomyeonggeori"
-	HomebrewTapName  = "internkim"
+	HomebrewTapName  = "tap"
 
 	// HomebrewReleasePrefix is the object prefix the release registry serves
 	// the tarballs under, beside deb/, companion/ and host/.
@@ -41,6 +47,12 @@ const (
 // HomebrewTap is what a person types.
 func HomebrewTap() string {
 	return HomebrewTapOwner + "/" + HomebrewTapName
+}
+
+// HomebrewTapRepositoryURL is the repository `brew tap` clones, and the one
+// place the rendered formula is committed to.
+func HomebrewTapRepositoryURL() string {
+	return "https://github.com/" + HomebrewTapOwner + "/homebrew-" + HomebrewTapName
 }
 
 // HomebrewBottleRootURL is where a bottle is fetched from. Homebrew appends
