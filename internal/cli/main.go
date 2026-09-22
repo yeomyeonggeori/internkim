@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/fleetdomain"
@@ -34,68 +33,12 @@ type config struct {
 }
 
 func loadConfig() config {
-	loadEnvFile()
 	domain := envOr("INTERNKIM_DOMAIN", envOr("CLOUDFLARE_DOMAIN", fleetdomain.Default()))
 	return config{
 		APIBaseURL:     envOr("INTERNKIM_API_URL", fleetdomain.Subdomain("api", domain)),
 		RegisterSecret: envOr("INTERNKIM_REGISTER_SECRET", ""),
 		CFDomain:       domain,
 	}
-}
-
-func updateEnvFile(key, value string) error {
-	const path = ".env"
-	data, _ := os.ReadFile(path)
-	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
-	prefix := key + "="
-	updated := false
-	for index, line := range lines {
-		if strings.HasPrefix(line, prefix) {
-			lines[index] = prefix + value
-			updated = true
-			break
-		}
-	}
-	if !updated {
-		lines = append(lines, prefix+value)
-	}
-	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
-}
-
-func loadEnvFile() {
-	for _, path := range []string{".env", "../.env"} {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		for _, line := range strings.Split(string(data), "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			if k, v, ok := strings.Cut(line, "="); ok {
-				k = strings.TrimSpace(k)
-				v = normalizeEnvValue(v)
-				if os.Getenv(k) == "" {
-					os.Setenv(k, v)
-				}
-			}
-		}
-	}
-}
-
-func normalizeEnvValue(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) < 2 {
-		return value
-	}
-	if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
-		return strings.Trim(value, `"`)
-	}
-	if strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`) {
-		return strings.Trim(value, `'`)
-	}
-	return value
 }
 
 func currentExecutableFingerprint() string {
@@ -146,7 +89,7 @@ func resolveRepositoryRootPath() (string, error) {
 }
 
 func Main() {
-	loadEnvFile()
+	reExecuteWithVaultEnvironment()
 	if len(os.Args) < 2 {
 		printUsage()
 		return

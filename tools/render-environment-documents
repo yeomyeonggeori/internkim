@@ -23,65 +23,6 @@ DECLARATIONS_PATH = REPOSITORY_ROOT / "docs" / "internal" / "environment.json"
 LAUNCHAGENT_PATH = REPOSITORY_ROOT / "host" / "relay" / "launchagent.plist.template"
 DOCKER_COMPOSE_PATH = REPOSITORY_ROOT / "host" / "docker-compose.yml"
 README_PATH = REPOSITORY_ROOT / "host" / "README.md"
-ENV_EXAMPLE_PATH = REPOSITORY_ROOT / ".env.example"
-
-# .env.example is the repository-root `.env` the CLI loads and a bun script or
-# a wrangler deploy is handed — not `web/.env`/`web/.dev.vars` (their own
-# files), not a device's or a host box's settings (host/README.md covers
-# those), and not a test harness's own e2e/tools knobs. No single `process`
-# value draws that line — SUPABASE_URL alone is "relay, host, web, connection-
-# gateway worker, web scripts" — so this is the one place in this script that
-# groups by hand instead of by the declaration's `process` field. Every name
-# below is still checked against the declaration file, so a removed or
-# renamed one is still caught; only the section title is curated here rather
-# than derived — what each variable is comes from the declaration file, one
-# comment line per variable, so it cannot say something the declaration does
-# not.
-ENV_EXAMPLE_GROUPS = [
-    ("Central plane", ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY"]),
-    (
-        "Web app runtime",
-        ["CLOUDFLARE_DOMAIN", "GATEWAY_URL", "GATEWAY_ADMIN_TOKEN", "VAPID_PUBLIC_KEY", "INTERNKIM_REGISTER_SECRET"],
-    ),
-    ("Cloudflare", ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"]),
-    (
-        "Release publishing",
-        [
-            "INTERNKIM_RELEASE_R2_BUCKET",
-            "INTERNKIM_RELEASE_R2_PUBLISHER",
-            "INTERNKIM_RELEASE_PUBLIC_BASE_URL",
-            "INTERNKIM_RELEASE_R2_ACCESS_KEY_ID",
-            "INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY",
-            "INTERNKIM_RELEASE_DOWNLOAD_TOKEN",
-            "INTERNKIM_RELEASE_SIGNING_KEY",
-        ],
-    ),
-    (
-        "Fleet and devices",
-        [
-            "INTERNKIM_DOMAIN",
-            "INTERNKIM_API_URL",
-            "INTERNKIM_FLEET_SECRET",
-            "INTERNKIM_CONSOLE_PASSWORD",
-            "INTERNKIM_ADMIN_EMAIL",
-            "INTERNKIM_BUZZ_KEY_SEED",
-        ],
-    ),
-    ("Models", ["OPENROUTER_API_KEY"]),
-]
-
-ENV_EXAMPLE_HEADER = """# Copy to .env at the repository root. Every value here is fake.
-#
-# The internkim CLI loads ./.env then ../.env by itself. Everything else is
-# handed the file:
-#
-#   set -a && . .env && set +a
-#
-# which is what a bun script under web/ and a wrangler deploy both need.
-#
-# Device and host settings are not here. A device gets them from provisioning,
-# and a company's own host box is documented in host/README.md.
-"""
 
 
 def comment(comment_start, comment_end, body):
@@ -178,47 +119,10 @@ def render_readme_table(declarations):
     return replace_marked_region(text, "<!--", "-->", body)
 
 
-def existing_env_example_values(text):
-    values = {}
-    for match in re.finditer(r"^([A-Z_][A-Z0-9_]*)=(.*)$", text, re.MULTILINE):
-        values[match.group(1)] = match.group(2)
-    return values
-
-
-def placeholder_value(name):
-    if name.endswith(("_URL", "_JSONRPC_URL")):
-        return "https://example.test"
-    if name.endswith(("_EMAIL",)):
-        return "ops@example.test"
-    return f"{name.lower().replace('_', '-')}-0000"
-
-
-def render_env_example(declarations):
-    declared_names = {name for _, names in ENV_EXAMPLE_GROUPS for name in names}
-    missing = declared_names - set(declarations)
-    if missing:
-        raise SystemExit(f".env.example names undeclared: {', '.join(sorted(missing))}")
-
-    text = ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
-    known_values = existing_env_example_values(text)
-
-    sections = []
-    for title, names in ENV_EXAMPLE_GROUPS:
-        lines = [f"# --- {title} " + "-" * max(1, 76 - len(title))]
-        for name in names:
-            value = known_values.get(name, placeholder_value(name))
-            lines.append(f"# {declarations[name]['description']}")
-            lines.append(f"{name}={value}")
-        sections.append("\n".join(lines))
-    body = "\n\n".join(sections) + "\n"
-    return ENV_EXAMPLE_HEADER + "\n" + body
-
-
 TARGETS = [
     ("host/relay/launchagent.plist.template", LAUNCHAGENT_PATH, render_launchagent),
     ("host/docker-compose.yml", DOCKER_COMPOSE_PATH, render_docker_compose),
     ("host/README.md", README_PATH, render_readme_table),
-    (".env.example", ENV_EXAMPLE_PATH, render_env_example),
 ]
 
 

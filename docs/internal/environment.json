@@ -247,6 +247,10 @@
     "process": "companion, tools",
     "description": "the invoking user's home directory (standard POSIX/Windows variable), read to locate default browser, SSH and cache paths"
   },
+  "HOMEBREW_PREFIX": {
+    "process": "cli",
+    "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
+  },
   "INTERNKIM_ADMIN_EMAIL": {
     "process": "cli, web e2e tests",
     "description": "the console/admin sign-in email the CLI's setup flow and the CRUD/delete/matrix e2e specs use"
@@ -423,6 +427,10 @@
     "process": "tools/e2e-crud",
     "description": "forwarded to tools/e2e-crud-remote.sh's setup step to skip the global admind/entity reset"
   },
+  "INTERNKIM_ENVIRONMENT_FROM_VAULT": {
+    "process": "cli",
+    "description": "set by the CLI on the run it starts through `monkeys run`, so that run knows the vault environment already arrived and does not start another"
+  },
   "INTERNKIM_FLASH_CACHE_DIR": {
     "process": "device",
     "description": "override cache directory for Jetson image downloads during internal/cli's flash flow"
@@ -443,9 +451,21 @@
     "process": "install script",
     "description": "the directory web/static/install.sh puts the downloaded binary in; defaults to ~/.local/bin"
   },
+  "INTERNKIM_INSTALL_HOMEBREW_TAP": {
+    "process": "install script",
+    "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
+  },
+  "INTERNKIM_INSTALL_KEYRING_URL": {
+    "process": "install script",
+    "description": "where web/static/install.sh fetches the archive signing key it installs as the source's Signed-By; defaults to the keyring beside the repository"
+  },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
     "description": "the release registry prefix web/static/install.sh downloads from; defaults to https://updates.intern.kim/<product>/latest"
+  },
+  "INTERNKIM_INSTALL_REPOSITORY_URL": {
+    "process": "install script",
+    "description": "the apt repository web/static/install.sh registers; defaults to https://updates.intern.kim/deb"
   },
   "INTERNKIM_INSTALL_SCRIPT_URL": {
     "process": "install script",
@@ -586,6 +606,10 @@
   "INTERNKIM_TEST_MOLI": {
     "process": "go tests",
     "description": "the moli executable internal/browser/device_browsers_test.go launches to prove a device browser serves the DevTools Protocol and stops; unset skips that test"
+  },
+  "INTERNKIM_TEST_SANDBOX": {
+    "process": "cli tests",
+    "description": "the directory tools/tests/test_install_script.py rewrites install(1)'s destination into, so the script's writes to /etc and /usr/share can be read without the test machine having either path touched"
   },
   "INTERNKIM_TOKEN": {
     "process": "web plane tests",
@@ -766,6 +790,10 @@
   "PLAYWRIGHT_START_WEB_SERVER": {
     "process": "web e2e tests",
     "description": "when \"1\", web/playwright.config.ts starts its own dev server instead of expecting one already running"
+  },
+  "POSIX_HELPER_PATH": {
+    "process": "tools/render-company-runtime",
+    "description": "the blueclaw POSIX helper the rendered runtime document names; defaults to /usr/local/bin/blueclaw-posix-helper, which is the device path rather than the package's"
   },
   "PROGRAMFILES": {
     "process": "companion",

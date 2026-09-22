@@ -14,7 +14,7 @@
 
 - JetPack OS가 설치된 젯슨 + SSD
 - Mac에 `internkim` CLI 빌드 완료 (`make build`)
-- `.env` — `INTERNKIM_API_URL`, `INTERNKIM_REGISTER_SECRET` 등
+- 금고(`monkeys`)에 `INTERNKIM_REGISTER_SECRET` 등 `.monkeys`가 나열한 이름들 (`monkeys doctor`로 확인)
 - 고객사 프로파일명 (`--profile`)
 - WiFi 사용 환경이면 SSID + 비밀번호 (이더넷 환경이면 불필요)
 
