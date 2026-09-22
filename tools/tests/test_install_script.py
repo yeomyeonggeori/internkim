@@ -1,4 +1,5 @@
 import hashlib
+import shutil
 import functools
 import http.server
 import os
@@ -365,7 +366,7 @@ class InstallScriptTests(unittest.TestCase):
     # one is named here instead. What the script derives when the file is there
     # is the guest's to answer, in `tools/test-apt-repository`; what it does
     # when the file is not is the test below.
-    def run_install_on_debian(self, base_url, shims, product="host", suite="trixie-stable"):
+    def run_install_on_debian(self, base_url, shims, product="host", suite="trixie-stable", shims_first=None):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
         environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
@@ -373,7 +374,10 @@ class InstallScriptTests(unittest.TestCase):
         environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
         if suite:
             environment["INTERNKIM_INSTALL_SUITE"] = suite
-        environment["PATH"] = os.pathsep.join([shims, self.uname_shim("Linux", "aarch64"), environment["PATH"]])
+        directories = [shims, self.uname_shim("Linux", "aarch64"), environment["PATH"]]
+        if shims_first:
+            directories.insert(0, shims_first)
+        environment["PATH"] = os.pathsep.join(directories)
         completed = subprocess.run(
             ["sh", str(install_script), product],
             capture_output=True,
@@ -454,6 +458,65 @@ class InstallScriptTests(unittest.TestCase):
         completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
         self.assertEqual(completed.returncode, 1)
         self.assertIn("signing key", completed.stderr)
+        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
+        self.assertNotIn("apt-get", self.apt_log.read_text())
+
+    def unreachable_suite_index(self):
+        """A curl that serves everything but the suite's index, which is the
+        network dropping between fetching the key and asking for the suite.
+        The two requests go to one host, so nothing else can tell the
+        repository being out of reach apart from the suite being absent."""
+        real_curl = shutil.which("curl")
+        self.assertIsNotNone(real_curl, "this machine has no curl to pass the other fetches through to")
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        shim = directory / "curl"
+        shim.write_text(
+            "#!/bin/sh\n"
+            'for argument in "$@"; do\n'
+            '  case "$argument" in\n'
+            '    */dists/*) echo "curl: (7) Failed to connect" >&2; exit 7 ;;\n'
+            "  esac\n"
+            "done\n"
+            f'exec {real_curl} "$@"\n'
+        )
+        shim.chmod(0o755)
+        return str(directory)
+
+    def test_a_suite_the_repository_publishes_is_installed_from(self):
+        """The probe stands between every Debian install and apt, so a suite
+        that is served has to pass it untouched."""
+        base_url = self.publish_repository(self.serve())
+        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("apt-get install -y internkim", self.apt_log.read_text())
+
+    def test_a_suite_the_repository_does_not_publish_is_named_rather_than_left_to_apt(self):
+        """apt reports a missing suite as the whole source failing, which reads
+        as this machine or this address being wrong. Both are fine; the suite
+        is the thing nobody published, and only this script knows that before
+        apt is asked."""
+        base_url = self.publish_keyring(self.serve())
+        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("trixie-stable", completed.stderr)
+        self.assertIn(f"{base_url}/deb/dists/trixie-stable/InRelease", completed.stderr)
+        self.assertIn("404", completed.stderr)
+        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists(),
+                         "no source list is written for a suite that is not there")
+        self.assertFalse((self.sandbox / keyring_path.lstrip("/")).exists(),
+                         "nor the key that would only ever verify it")
+        self.assertNotIn("apt-get", self.apt_log.read_text(), "and apt is never asked")
+
+    def test_a_repository_out_of_reach_is_not_reported_as_an_unpublished_suite(self):
+        """Telling someone their Debian release was never built for, when the
+        truth is that their network is down, is a worse error than the one this
+        probe exists to fix."""
+        base_url = self.publish_repository(self.serve())
+        completed, _ = self.run_install_on_debian(
+            base_url, self.debian_machine(), shims_first=self.unreachable_suite_index())
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("Could not reach", completed.stderr)
+        self.assertNotIn("publishes nothing", completed.stderr)
         self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
         self.assertNotIn("apt-get", self.apt_log.read_text())
 
