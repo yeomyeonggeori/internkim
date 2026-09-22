@@ -348,24 +348,38 @@ touched.
 ## What this rig cannot catch
 
 A green run says the package installs, upgrades and removes correctly on an
-arm64 Debian 13 guest under a 4 KB-page kernel with plenty of memory and a
-virtual disk. The appliance is none of those things in three ways.
+arm64 Debian 13 guest with 4 GB of memory and a virtual disk, under a 4 KB-page
+kernel unless `--kernel` names another. The appliance differs from that guest
+in three ways.
 
 **Page size.** Raspberry Pi OS for CM5 ships a 16 KB page-size kernel, and has
 since the Pi 5 launched: `bcm2712_defconfig` sets `CONFIG_ARM64_16K_PAGES=y`
-and the firmware loads `kernel_2712.img` on a CM5 unless told otherwise, so
-`getconf PAGE_SIZE` there says 16384. The guest here says 4096 and runs the
-repository's own `Image-6.1.68-kvm`, so nothing in this rig exercises the page
-size the board will have. `kernel=kernel8.img` in `/boot/firmware/config.txt`
-falls back to the 4 KB kernel, which the 64-bit image already installs; a
-Raspberry Pi engineer puts the cost at about 7% on random memory access, and
-nothing else is documented as lost.
+and `CONFIG_ARM64_VA_BITS_47=y`, and the firmware loads `kernel_2712.img` on a
+CM5 unless told otherwise, so `getconf PAGE_SIZE` there says 16384. The
+default guest says 4096. Apple silicon runs 16 KB pages natively, so the same
+rig takes the board's page size on a Mac:
 
-Half of that risk is now a measurement. A binary whose
-largest `PT_LOAD` alignment is 4 KB cannot be mapped by a kernel with a larger
-page, and every arm64 binary the package ships aligns to 64 KB: the Go
-binaries, `moli`, `agent-browser`, `bun`, `uv` and `versitygw`. Nothing we ship
-will fail to *load*. Read it with:
+```
+INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE=16k tools/prepare-container-kernel
+tools/with-local-plane tools/test-native-install \
+  --kernel .dependency/container-kernel/Image-6.1.68-16k-kvm
+```
+
+That kernel is the container kernel with the page size and address width of
+`bcm2712_defconfig`. On 2026-09-23 all five steps passed under it with packages
+built from `main` at `2d91f1d71`, so a member's message crossed the guest's
+`internkim-relay` and `chatd` and came back on 16 KB pages. Both are
+`bun build --compile` binaries carrying Bun 1.3.10. That runtime, and the
+1.4.2 the package ships as `/usr/bin/bun`, each also ran 90 seconds of JIT
+tiering, heap churn, 64 MB `ArrayBuffer`s, `bun:sqlite`, HTTP, WebSocket and a
+`Worker` on the same kernel without a fault, under
+`bun run tools/probe-bun-page-size.ts 90000`. The Chromium crash on 16 KB pages
+arrived about thirty seconds in, which is why the loop runs longer than that.
+
+Loading was measured before that. A binary whose largest `PT_LOAD` alignment is
+4 KB cannot be mapped by a kernel with a larger page, and every arm64 binary
+the package ships aligns to 64 KB: the Go binaries, `moli`, `agent-browser`,
+`bun`, `uv` and `versitygw`. Read it with:
 
 ```
 python3 - <<'EOF'
@@ -379,21 +393,23 @@ print(hex(max(struct.unpack_from("<Q", data, offset + index * size + 48)[0]
 EOF
 ```
 
-What is left is what loading does not answer: a program that maps fine and then
-assumes 4 KB while running.
+What the 16 KB run leaves open:
 
-- **`bun` is the open one.** Upstream tracks non-4 KB page support in
-  oven-sh/bun#17627 and the "manually check it works on 16k" box is unticked,
-  with 64 KB still reported crashing. Nobody has said it works on a Pi 5 and
-  nobody has said it does not.
-- **Chromium's version of this is fixed and we are past it.** A V8 change
-  assuming 4 KB crashed every renderer about thirty seconds in on 16 KB
-  machines (Debian #1089647); the fix is in Chromium 134, and Raspberry Pi OS
-  trixie ships 153.
+- **Chromium never ran.** Step 5 renders no document. A V8 change assuming
+  4 KB crashed every renderer about thirty seconds in on 16 KB machines
+  (Debian #1089647); the fix is in Chromium 134, and Raspberry Pi OS trixie
+  ships 153 from Raspberry Pi's own archive.
+- **A Bun upgrade is a new question.** Upstream still tracks non-4 KB pages in
+  oven-sh/bun#17627 with 64 KB reported crashing, so the run above holds for
+  1.3.10 and 1.4.2 only.
 - **Go is page-size agnostic.** The runtime reads the page size out of
   `AT_PAGESZ` and accepts anything up to 512 KB. What breaks in cgo programs is
   the C allocator, and `jemalloc` and `hardened_malloc` are both on Raspberry
   Pi's own incompatibility list.
+
+`kernel=kernel8.img` in `/boot/firmware/config.txt` remains the fallback to a
+4 KB kernel, which the 64-bit image already installs; a Raspberry Pi engineer
+puts the cost at about 7% on random memory access.
 
 **Memory.** The guest has 4 GB, and step 5 holds PostgreSQL, Redis, the S3
 server, the messenger and the agent in it at once without a unit dying. The CM5

@@ -593,17 +593,18 @@ PRESEEDED_PACKAGES = ("systemd", "systemd-sysv", "curl", "ca-certificates")
 class Machine:
     """One disposable arm64 Debian guest, created and destroyed by this rig alone."""
 
-    def __init__(self, name, share_directory, container_binary="container"):
+    def __init__(self, name, share_directory, container_binary="container", kernel_image_path=KERNEL_IMAGE_PATH):
         self.name = name
         self.share_directory = Path(share_directory)
         self.container_binary = container_binary
+        self.kernel_image_path = Path(kernel_image_path)
         self.created = False
 
     def preflight(self):
         if shutil.which(self.container_binary) is None:
             raise RigFailure("the `container` CLI is not on PATH; this rig uses the same runtime the local fleet does")
-        if not KERNEL_IMAGE_PATH.exists():
-            raise RigFailure(f"{KERNEL_IMAGE_PATH} is missing; run `make prepare-container-kernel`")
+        if not self.kernel_image_path.exists():
+            raise RigFailure(f"{self.kernel_image_path} is missing; run `make prepare-container-kernel`")
         for existing in self.list_containers():
             if existing.get("configuration", {}).get("id") == self.name:
                 raise RigFailure(f"a container named {self.name} already exists; the rig refuses to adopt one it did not create")
@@ -629,7 +630,7 @@ class Machine:
                 "--memory", f"{memory_mebibytes}M",
                 "--tmpfs", "/run",
                 "--tmpfs", "/run/lock",
-                "--kernel", str(KERNEL_IMAGE_PATH),
+                "--kernel", str(self.kernel_image_path),
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
                 BASE_IMAGE,
                 "sh", "-c", BOOTSTRAP_SCRIPT,
