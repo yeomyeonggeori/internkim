@@ -44,6 +44,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -417,22 +418,43 @@ class PublishedTrial:
             "below would move files nothing is running",
         )
 
+    READINESS_DEADLINE_SECONDS = 300
+
     def the_services_are_up(self, when):
+        """Every readiness endpoint, given a deadline rather than a single look.
+
+        A restarted unit is not serving the instant `apt-get upgrade` returns,
+        and curl answers 000 for a port nothing listens on and for a port whose
+        process is still coming up. One probe cannot tell those apart, so this
+        waits and records how long each endpoint took: a service that answers at
+        40 seconds and one that never answers are different findings.
+        """
         units = installed_units(self.machine)
-        probes = "; ".join(
-            f"printf '%s %s\\n' {port}{path} "
-            f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
-            for port, path in READINESS_PROBES
-        )
-        answers = self.machine.shell(probes)
+        started = time.monotonic()
+        pending = list(READINESS_PROBES)
+        took = {}
+        while pending and time.monotonic() - started < self.READINESS_DEADLINE_SECONDS:
+            for port, path in list(pending):
+                answered = self.machine.shell(
+                    f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 "
+                    f"http://127.0.0.1:{port}{path}"
+                )
+                if answered.stdout.strip() == "200":
+                    took[f"{port}{path}"] = round(time.monotonic() - started)
+                    pending.remove((port, path))
+            if pending:
+                time.sleep(5)
+        waited = round(time.monotonic() - started)
+        answered_in = "\n".join(f"{endpoint} answered 200 after {seconds}s" for endpoint, seconds in sorted(took.items()))
+        never = "\n".join(f"{port}{path} never answered 200 within {waited}s" for port, path in pending)
         self.judgement.record(
             f"the services answer their readiness endpoints {when}",
-            bool(units)
-            and bool(answers.stdout.strip())
-            and all(line.split()[-1] == "200" for line in answers.stdout.splitlines() if line.strip()),
-            f"{len(units)} units installed\n" + (answers.stdout.strip() or "nothing answered"),
+            bool(units) and not pending,
+            f"{len(units)} units installed\n" + "\n".join(part for part in (answered_in, never) if part),
             "systemd reports active for a process that answers a socket while refusing all work, "
-            "and an upgrade judged against a machine that was not serving before it proves nothing",
+            "and an upgrade judged against a machine that was not serving before it proves nothing. "
+            "The seconds are part of the observation: a restart that takes a minute and a unit that "
+            "never comes back both answer 000 to one probe",
         )
 
     def the_running_build_is(self, version, when):
