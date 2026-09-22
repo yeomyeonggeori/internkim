@@ -92,10 +92,6 @@ SIGNATURE_NAMES = ("InRelease", "Release.gpg")
 # does not; apt and curl do, which is why they are served and this was not.
 RIG_USER_AGENT = "internkim-published-apt-rig/1"
 
-# The monkeys profile this repository keeps its credentials under.
-VAULT_PROFILE = "cli"
-
-
 class Judgement:
     def __init__(self):
         self.results = []
@@ -138,7 +134,7 @@ def run_through_the_vault():
     doctor = subprocess.run(
         [monkeys, "doctor", "--short"], cwd=str(REPOSITORY_ROOT), capture_output=True, text=True,
     )
-    gap = [line for line in doctor.stdout.splitlines() if line.startswith(f"missing @{VAULT_PROFILE}:")]
+    gap = [line for line in doctor.stdout.splitlines() if line.startswith("missing @")]
     if gap:
         print(f"{FAIL} the vault has a gap, so the environment is whatever was already set: {gap[0]}", file=sys.stderr)
         return
@@ -147,7 +143,7 @@ def run_through_the_vault():
     # buffers stdout when it is. A watcher then reads an empty log for the whole
     # run and cannot tell a slow step from a dead one.
     os.execvpe(monkeys, [
-        "monkeys", "run", f"@{VAULT_PROFILE}",
+        "monkeys", "run",
         sys.executable, "-u", str(Path(__file__).resolve()), *sys.argv[1:],
     ], os.environ)
 
@@ -157,7 +153,7 @@ def repository_setting(name):
     if not value:
         raise RigFailure(
             f"{name} did not arrive from the vault, and the bucket is named by it; "
-            f"`monkeys doctor` says what the @{VAULT_PROFILE} profile lacks"
+            "`monkeys doctor` says what the profile lacks"
         )
     return value
 

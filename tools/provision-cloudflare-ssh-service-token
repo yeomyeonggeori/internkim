@@ -1,31 +1,58 @@
 #!/usr/bin/env python3
+"""Create the Access service token an unattended deploy authenticates with.
+
+Every credential here has one home, the operating system's vault, and this
+script is handed them by being the command `monkeys run` starts. The token it
+creates goes back the same way, piped into `monkeys remember` without passing
+through anything that prints.
+"""
 import json
 import os
 import pathlib
+import shutil
+import subprocess
 import sys
 import urllib.request
 
 repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
-secretsDirectory = repositoryRoot / ".local" / "secrets"
-serviceTokenPath = secretsDirectory / "cloudflare-access-service-token.json"
 serviceTokenName = "internkim-cli-ssh"
+clientIDVariable = "INTERNKIM_CF_ACCESS_CLIENT_ID"
+clientSecretVariable = "INTERNKIM_CF_ACCESS_CLIENT_SECRET"
 sshApplicationDomainSuffix = ".ssh." if len(sys.argv) < 2 else sys.argv[1]
 
 
-# The token is written in one place, .env, and read from there. A copy of it
-# under .local was a second thing to rotate and the first to go stale.
-def apiTokenFromEnvironment():
-    given = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
-    if given:
-        return given
-    for line in (repositoryRoot / ".env").read_text().splitlines():
-        name, separator, value = line.partition("=")
-        if separator and name.strip() == "CLOUDFLARE_API_TOKEN":
-            return value.strip().strip("'\"")
-    raise SystemExit("set CLOUDFLARE_API_TOKEN, in the environment or in .env")
+def monkeysCommandPath():
+    monkeys = shutil.which("monkeys") or str(pathlib.Path.home() / ".local/bin/monkeys")
+    if not pathlib.Path(monkeys).exists():
+        raise SystemExit("monkeys is not installed, and the vault is where this token lives")
+    return monkeys
 
 
-apiToken = apiTokenFromEnvironment()
+def runThroughTheVault():
+    if os.environ.get("INTERNKIM_ENVIRONMENT_FROM_VAULT"):
+        return
+    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "1"
+    os.execvpe(monkeysCommandPath(), [
+        "monkeys", "run", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
+    ], os.environ)
+
+
+def rememberInVault(name, value):
+    completed = subprocess.run(
+        [monkeysCommandPath(), "remember", name], cwd=str(repositoryRoot),
+        input=value, capture_output=True, text=True,
+    )
+    if completed.returncode != 0:
+        raise SystemExit(f"monkeys remember {name}: {completed.stderr.strip()}")
+    print(f"  {name} remembered in the vault")
+
+
+runThroughTheVault()
+
+apiToken = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+if not apiToken:
+    raise SystemExit("CLOUDFLARE_API_TOKEN did not arrive from the vault; "
+                     "`monkeys doctor` says what the profile lacks")
 base = "https://api.cloudflare.com/client/v4"
 
 
@@ -43,20 +70,19 @@ def call(method, path, body=None):
 def ensureServiceToken(account):
     existing = [token for token in (call("GET", f"/accounts/{account}/access/service_tokens?per_page=50") or [])
                 if token.get("name") == serviceTokenName]
-    if existing and serviceTokenPath.exists():
+    vaultHoldsTheToken = bool(os.environ.get(clientIDVariable, "").strip()
+                              and os.environ.get(clientSecretVariable, "").strip())
+    if existing and vaultHoldsTheToken:
         print(f"service token {serviceTokenName} already provisioned")
         return existing[0]["id"], None
     if existing:
-        raise SystemExit(f"service token {serviceTokenName} exists but its secret file is missing; "
-                         f"rotate it via POST /access/service_tokens/{existing[0]['id']}/refresh or delete and rerun")
+        raise SystemExit(f"service token {serviceTokenName} exists but the vault does not hold it; "
+                         f"rotate it via POST /access/service_tokens/{existing[0]['id']}/rotate or delete and rerun")
     created = call("POST", f"/accounts/{account}/access/service_tokens",
                    {"name": serviceTokenName, "duration": "8760h"})
-    serviceTokenPath.write_text(json.dumps({
-        "clientID": created["client_id"],
-        "clientSecret": created["client_secret"],
-    }))
-    serviceTokenPath.chmod(0o600)
-    print(f"service token created: {created['id'][:8]} | secret saved to {serviceTokenPath}")
+    print(f"service token created: {created['id'][:8]}")
+    rememberInVault(clientIDVariable, created["client_id"])
+    rememberInVault(clientSecretVariable, created["client_secret"])
     return created["id"], created
 
 

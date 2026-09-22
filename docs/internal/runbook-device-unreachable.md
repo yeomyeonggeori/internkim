@@ -45,19 +45,20 @@ The tell is the asymmetry in the first table row. A device problem takes admin
 HTTPS and SSH down together; a missing credential on your side takes only the
 one you are using.
 
-The credential is the Access **service token**, one file that lasts a year and
-needs no browser. Everything that reaches a device from this machine reads it
-from there: `tools/cloudflared-access-ssh` (the `ProxyCommand` in
-`~/.ssh/config`, see the README), `internkim deploy`, `internkim status`, and
-any script that calls Admin HTTPS with the `CF-Access-Client-Id` /
-`CF-Access-Client-Secret` headers.
+The credential is the Access **service token**, which lasts a year and needs no
+browser. It lives in the operating system's vault, and everything that reaches a
+device from this machine is handed it by `monkeys run`:
+`tools/cloudflared-access-ssh` (the `ProxyCommand` in `~/.ssh/config`, see the
+README), `internkim deploy`, `internkim status`, and any script that calls Admin
+HTTPS with the `CF-Access-Client-Id` / `CF-Access-Client-Secret` headers.
 
 ```bash
-ls -l .local/secrets/cloudflare-access-service-token.json   # from the repository root
-grep -A1 'Host device-\*' ~/.ssh/config                       # ProxyCommand names the wrapper
+monkeys doctor --short                                  # names what the vault lacks
+grep -A1 'Host device-\*' ~/.ssh/config                  # ProxyCommand names the wrapper
 ```
 
-No file, or a `ProxyCommand` that still runs bare `cloudflared access ssh`:
+Nothing in the vault, or a `ProxyCommand` that still runs bare
+`cloudflared access ssh`:
 
 ```bash
 tools/provision-cloudflare-ssh-service-token          # creates the token, attaches the policy

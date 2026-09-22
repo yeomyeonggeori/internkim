@@ -253,7 +253,7 @@ func liveOpenRouterBackendFromEnv(t *testing.T) (OpenRouterBackend, string) {
 	apiKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
 	if apiKey == "" {
 		t.Skip("OPENROUTER_API_KEY is required for the live OpenRouter test, and the vault holds it: " +
-			"monkeys run @cli go test ./internal/llmbackend -run LiveOpenRouter")
+			"monkeys run go test ./internal/llmbackend -run LiveOpenRouter")
 	}
 	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
 	if errorValue := os.WriteFile(keyPath, []byte(apiKey), 0o600); errorValue != nil {
