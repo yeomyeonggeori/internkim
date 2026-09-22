@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, test } from 'bun:test';
 import { fullPublicAPIPermission } from '../../../src/lib/public-api-permission';
@@ -65,6 +66,13 @@ function companyHostMember(data: HostData): CallingMember {
 	};
 }
 
+function fixtureCompanyID(): string {
+	const seed = readFileSync(new URL('../../../../supabase/seed.dev.sql', import.meta.url), 'utf8');
+	const found = seed.match(/'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',\n\s*'예시회사'/);
+	if (!found) throw new Error('the development seed no longer names the fixture company before its name');
+	return found[1];
+}
+
 const environment = {
 	SUPABASE_URL: projectURL,
 	SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
@@ -121,6 +129,18 @@ describe('company host setup', () => {
 
 		expect(configuration.agentKey).toMatch(/^[a-f0-9]{64}$/);
 		expect(data.agentWrites).toBe(1);
+	});
+
+	test('accepts a company id the record holds that is not a version 4 uuid', async () => {
+		const seededCompanyID = fixtureCompanyID();
+		const data: HostData = {
+			company: { id: seededCompanyID, name: '예시회사', slug: 'example-co' },
+			agentWrites: 0
+		};
+
+		const configuration = await createHostConfiguration(companyHostMember(data), environment, appURL, false);
+
+		expect(configuration.company.id).toBe(seededCompanyID);
 	});
 
 	test('rejects an injected company field from the strict host schema', async () => {

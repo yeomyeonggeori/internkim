@@ -9,7 +9,7 @@ export const hostSetupRequestSchema = z.object({
 export const hostConfigurationSchema = z.object({
 	schemaVersion: z.literal(1),
 	appURL: z.string().url(),
-	company: z.object({ id: z.string().uuid(), name: z.string(), slug: z.string() }).strict(),
+	company: z.object({ id: z.guid(), name: z.string(), slug: z.string() }).strict(),
 	centralPlane: z.object({ projectURL: z.string().url(), publishableKey: z.string().min(1) }).strict(),
 	gatewayURL: z.string().url(),
 	agentKey: z.string().regex(/^[a-f0-9]{64}$/)
