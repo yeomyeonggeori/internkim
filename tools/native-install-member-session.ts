@@ -1,0 +1,162 @@
+// One member's half of the native-install rig's step 5, over the wire the
+// browser uses and no other. It signs in through GoTrue with a password,
+// carries the access token to the connection gateway as the
+// `internkim.bearer.` subprotocol a browser is forced to use, and then asks the
+// company the same two calls `web/src/lib/messenger/messenger-api.ts` asks to
+// put a message in a conversation.
+//
+// What it observes is printed as one JSON document on stdout, so the rig reads
+// what happened rather than an exit code. The gateway's admin token and the
+// server key are deliberately absent: this session authenticates the way a
+// person does, and every answer it receives came back over the socket the
+// guest's own relay is holding.
+
+type Frame = Record<string, unknown>;
+
+type Answer = { status: number; body: unknown };
+
+const settings = {
+	projectURL: required('MEMBER_SESSION_PROJECT_URL'),
+	publishableKey: required('MEMBER_SESSION_PUBLISHABLE_KEY'),
+	gatewayURL: required('MEMBER_SESSION_GATEWAY_URL'),
+	companyID: required('MEMBER_SESSION_COMPANY_ID'),
+	email: required('MEMBER_SESSION_EMAIL'),
+	password: required('MEMBER_SESSION_PASSWORD'),
+	messageText: required('MEMBER_SESSION_MESSAGE'),
+	answerTimeoutMilliseconds: Number(process.env.MEMBER_SESSION_ANSWER_TIMEOUT_MS ?? 60_000)
+};
+
+function required(name: string): string {
+	const value = process.env[name]?.trim();
+	if (!value) throw new Error(`set ${name}`);
+	return value;
+}
+
+async function signIn(): Promise<{ accessToken: string; algorithm: string }> {
+	const response = await fetch(`${settings.projectURL}/auth/v1/token?grant_type=password`, {
+		method: 'POST',
+		headers: { apikey: settings.publishableKey, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ email: settings.email, password: settings.password })
+	});
+	const document = (await response.json()) as { access_token?: string };
+	if (!response.ok || !document.access_token) {
+		throw new Error(`${settings.email} could not sign in: ${response.status} ${JSON.stringify(document)}`);
+	}
+	return { accessToken: document.access_token, algorithm: algorithmOf(document.access_token) };
+}
+
+function algorithmOf(token: string): string {
+	const header = JSON.parse(Buffer.from(token.split('.')[0] ?? '', 'base64url').toString()) as {
+		alg?: string;
+	};
+	return header.alg ?? '';
+}
+
+class MemberConnection {
+	private readonly waiting = new Map<string, (answer: Answer) => void>();
+	readonly delivered: Frame[] = [];
+	private presence: Frame | null = null;
+
+	private constructor(private readonly socket: WebSocket) {}
+
+	static async open(accessToken: string): Promise<MemberConnection> {
+		const url = `${settings.gatewayURL.replace(/\/+$/, '')}/company/${encodeURIComponent(settings.companyID)}/client`;
+		const socket = new WebSocket(url, [`internkim.bearer.${accessToken}`]);
+		const connection = new MemberConnection(socket);
+		socket.addEventListener('message', (message) => connection.receive(message.data));
+		await new Promise<void>((resolve, reject) => {
+			const refuse = setTimeout(
+				() => reject(new Error('the gateway never opened the member socket')),
+				30_000
+			);
+			socket.addEventListener('open', () => {
+				clearTimeout(refuse);
+				resolve();
+			});
+			socket.addEventListener('error', () => {
+				clearTimeout(refuse);
+				reject(new Error('the gateway refused the member socket'));
+			});
+		});
+		return connection;
+	}
+
+	private receive(data: unknown): void {
+		if (typeof data !== 'string') return;
+		let frame: Frame;
+		try {
+			frame = JSON.parse(data) as Frame;
+		} catch {
+			return;
+		}
+		if (frame.kind === 'presence') {
+			this.presence = frame;
+			return;
+		}
+		if (frame.kind === 'deliver') {
+			this.delivered.push(frame);
+			return;
+		}
+		if (frame.kind !== 'result' || typeof frame.requestID !== 'string') return;
+		const settle = this.waiting.get(frame.requestID);
+		if (!settle) return;
+		this.waiting.delete(frame.requestID);
+		settle({ status: typeof frame.status === 'number' ? frame.status : 0, body: frame.body });
+	}
+
+	// The gateway sends this unasked the moment the socket is accepted, and it
+	// is the only thing on the wire that tells a member whether the company's
+	// own machine is holding the other half.
+	async whetherTheHostIsConnected(): Promise<Frame> {
+		const deadline = Date.now() + 10_000;
+		while (Date.now() < deadline) {
+			if (this.presence) return this.presence;
+			await Bun.sleep(100);
+		}
+		throw new Error('the gateway sent no presence frame');
+	}
+
+	ask(capability: string, body: Record<string, unknown> = {}): Promise<Answer> {
+		const requestID = crypto.randomUUID();
+		const answered = new Promise<Answer>((resolve) => {
+			this.waiting.set(requestID, resolve);
+			setTimeout(() => {
+				if (!this.waiting.delete(requestID)) return;
+				resolve({ status: 0, body: { error: `${capability} was never answered` } });
+			}, settings.answerTimeoutMilliseconds);
+		});
+		this.socket.send(JSON.stringify({ kind: 'call', requestID, capability, body }));
+		return answered;
+	}
+
+	close(): void {
+		this.socket.close();
+	}
+}
+
+function answerField(answer: Answer, name: string): string {
+	const held = (answer.body as Record<string, unknown> | null)?.[name];
+	return typeof held === 'string' ? held : '';
+}
+
+const session = await signIn();
+const connection = await MemberConnection.open(session.accessToken);
+const presence = await connection.whetherTheHostIsConnected();
+
+const conversation = await connection.ask('person.dm.ensure', { counterpartExternalIDs: [] });
+const conversationID = answerField(conversation, 'id');
+const sent = await connection.ask('person.message.send', {
+	conversationID,
+	body: settings.messageText
+});
+connection.close();
+
+console.log(
+	JSON.stringify({
+		tokenAlgorithm: session.algorithm,
+		presence,
+		conversation: { status: conversation.status, id: conversationID, body: conversation.body },
+		sent: { status: sent.status, messageID: answerField(sent, 'id'), body: sent.body },
+		delivered: connection.delivered
+	})
+);

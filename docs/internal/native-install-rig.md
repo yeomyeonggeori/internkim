@@ -19,11 +19,19 @@ internkim release deb --architecture arm64 --version 0.0.6
 tools/with-local-plane tools/test-native-install
 ```
 
+The two `release deb` runs use the CLI at the repository root, and the unit
+files come out of that binary rather than out of the source tree, so a change
+under `internal/runtime/blueclaw` needs `make build` before them or the package
+carries the units the last build rendered.
+
 Two versions, because step 3 has to have somewhere to upgrade to. The lock is
 step 5's: it gives the guest a company off this Mac's local plane, and a reset
-from another worktree mid-run takes that company away. With no package under
-`.artifacts/native-package` the rig exits 1 and says so. To exercise the rig's
-own machinery without building one, point it at a stand-in it builds itself:
+from another worktree mid-run takes that company away. The stack has to be up
+for a second reason: the app signs the host's token with the `ES256` key the
+auth container holds, and a stopped stack leaves the rig with nothing to sign
+with. With no package under `.artifacts/native-package` the rig exits 1 and says
+so. To exercise the rig's own machinery without building one, point it at a
+stand-in it builds itself:
 
 ```
 tools/test-native-install --stand-in
@@ -222,14 +230,20 @@ it to `internkim install` in the guest. What it then reads:
 | the box takes the company the plane issued it | the target of `/var/lib/internkim/current` and the file every unit's `ConditionPathExists` names | `internkim install` printing its five steps is the installer's account of its own run; this is the state the units read before they will start |
 | every unit is running and is not restarting in a loop | `ActiveState` and `NRestarts` per unit | a unit that dies and is restarted reports active for most of every second, so `is-active` alone cannot tell a running service from one that keeps dying |
 | the services answer their readiness endpoints | an HTTP GET inside the guest to `127.0.0.1:3000/_readiness`, `:8080/admin/api/health` and `:18080/admin/api/health` | systemd reports active for a process that answers a socket while refusing all work, which is how [postmortem 0002](./postmortem/0002-a-running-process-kept-a-config-that-was-gone.md) stayed green for forty minutes |
-| the message path is open as far as the socket the host cannot yet hold | the gateway's answer to `person.people.list` for this company, and how many times `internkim-relay` has dialled the gateway | a message typed in a browser reaches the guest through that socket and no other way. The section below is why it cannot open on a local plane; asserting the refusal keeps the limit on screen and makes this fail on the day it stops being true |
+| the guest's relay is holding the gateway socket, on a token it obtained itself | whether `GATEWAY_SERVER_KEY` is in the environment of the running `internkim-relay`, and how many times it has reported the gateway connected | a relay handed a server key reaches `/company/<id>/server` with no token at all, which is not the handshake an installed box performs. The line the relay prints on `open` is reached only after the gateway verified the token the app minted for it at `POST /api/agent/host-session` |
+| a member signing in through the browser path sees the host as connected | the presence frame the gateway sends unasked on the member's own websocket, opened with their GoTrue access token as the `internkim.bearer.` subprotocol | a browser cannot put a header on a websocket handshake, so this is the wire a person is actually on, and presence is the gateway's own account of whether the company's machine is holding the other half |
+| the message reaches the messenger inside the guest | the row the message id names in the guest's own event store, read with `psql` through the credentials the box wrote for its relay | the answer the member received is the company's account of its own run. This is the store the company's machine keeps, read on the machine, by a path that did not write it |
+| the answer comes back through the same socket to the member | the result frame the member's websocket received for the call that posted the message | a message the company stored and never answered for is a person watching a spinner, and the frame is what tells them it landed |
 | the running processes moved to the new build | the `admindBuildID` and `gitRevision` `:18080/admin/api/health` reports, read before step 3's upgrade and again after it | an upgrade that replaces a binary without restarting the unit leaves the old process serving, and dpkg's version and the file's mtime both move anyway. Two packages cut from one tree carry one revision, so the build id is the package version and the revision says which source it was. It caught two things on its first run: `internkim release deb` stamped neither field, so every packaged `admind` answered `unknown`; and the package's `postinst` ran `deb-systemd-invoke start`, which is a no-op for a unit already running, so the upgrade unpacked new binaries and left the old processes serving them |
 
-One assertion is owed, and the rig prints it on every run:
-
-| Observation | Reads | Why it waits |
-|---|---|---|
-| a message posted in the browser reaches the guest's messenger, and the answer comes back through the same socket | the message in the guest's own messenger store, and the browser's answer to the call that posted it | the rig still signs the host token `HS256`, which the gateway refuses; see below |
+Before it asks a member to say anything, the step waits for two things the box
+converges on after `internkim install` returns: `chatd` answering on
+`127.0.0.1:18090`, and the member's own key in the messenger's roster. Both are
+readings of the machine rather than a pause, so a box that never gets there
+fails with what it was still missing on screen. The second is what caught
+`relation "communities" does not exist`: admind's first membership pass runs
+while the messenger is still applying its own migrations, every grant fails, and
+nothing used to ask again.
 
 The guest gets four cores and 4 GB, which is what the smallest appliance has.
 Step 5 is the first thing here that has PostgreSQL, Redis, the S3 server, the
@@ -278,9 +292,11 @@ the member who signs in, the agent key and the connection document are the ones
 the app really issues.
 
 The record's address is written twice on purpose. The gateway checks a token's
-issuer, and GoTrue stamps the address it was configured with rather than the one
-the caller reached it on, so the gateway is told the record's loopback address
-and the guest is told one it can route to.
+issuer against one address, and GoTrue stamps the address it was configured with
+rather than the one the caller reached it on. The app signs the host's token
+with its own, so all three have to agree: the gateway and the app are told the
+record's loopback address, and the connection document the guest is handed
+carries one the guest can route to.
 
 **The browser's half works.** The local stack's GoTrue signs access tokens
 `ES256` and publishes the key at `/auth/v1/.well-known/jwks.json`, which is
@@ -289,29 +305,26 @@ carrying a seeded member's token as the `internkim.bearer.` subprotocol answers
 `101`: the signature verified, the issuer matched, and the member's row was read
 under row level security.
 
-### The host token the rig signs today
+### The host token
 
 The company host authenticates to the gateway with a token the app mints.
-`POST /api/agent/host-session` signs it with `SUPABASE_JWT_SIGNING_KEY`, which
-`signing_key_of_secret` sets to the local stack's shared secret written as an
-`oct` JWK, so the token is `HS256`. The gateway verifies `ES256` and `RS256`
-against a published key set, and a handshake to `/company/<id>/host` answers
-`401 the token is signed with HS256`. What the guest shows is the other side of
-the same fact: `internkim-relay` dials, is refused, and retries, and the gateway
-answers `server_offline` to anything asked of that company.
+`POST /api/agent/host-session` signs it with `SUPABASE_JWT_SIGNING_KEY`, and the
+gateway verifies `ES256` and `RS256` against the key set the record publishes.
+`local_plane_signing_key` reads the `ES256` key out of the auth container's
+`GOTRUE_JWT_KEYS`, which is the private half of the key GoTrue publishes at
+`/auth/v1/.well-known/jwks.json` and hands PostgREST, Realtime and Storage. So
+the guest's relay dials `/company/<id>/host`, the gateway verifies the token
+against the published key, and the same token still reads through row level
+security. [`local-plane-host-handshake.md`](./local-plane-host-handshake.md) is
+the investigation that found the key and ran the two calls in the relay's order.
 
-This section used to say no local plane could do better, on the grounds that the
-CLI publishes only the public half of its signing key.
-[`local-plane-host-handshake.md`](./local-plane-host-handshake.md) shows that it
-publishes the private half too, in the auth container's `GOTRUE_JWT_KEYS`, and
-that signing the host token with that key answers `101` on the same gateway
-while still reading through PostgREST. That document names what the rig has to
-change to get there.
-
+Two levers reach the gateway without that token, and neither is used here.
 `GATEWAY_SERVER_KEY` reaches `/company/<id>/server` with no token at all, and is
-how `tools/verify-personal-settings.ts` drives a relay. `internkim install` never
-writes it. A rig reaching for it would assert a handshake the installed box does
-not perform, which is a green light for something untested.
+how `tools/verify-personal-settings.ts` drives a relay; `internkim install` never
+writes it, and the rig reads the running relay's environment to show it is not
+there. `GATEWAY_ADMIN_TOKEN` reaches `/company/<id>/call` as the plane rather
+than as a member. A rig reaching for either would assert a handshake the
+installed box does not perform, which is a green light for something untested.
 
 ### Where the rig's judgement stops
 
@@ -323,8 +336,8 @@ company that is kept rather than created for a test:
 - the passkey path, which local GoTrue does not serve at all
   (`/auth/v1/passkeys` is 404 there)
 
-The host's own handshake was a third until it was run locally; what a local run
-still cannot show about it is listed in
+The host's own handshake was a third until the guest's relay performed it here;
+what a local run still cannot show about it is listed in
 [`local-plane-host-handshake.md`](./local-plane-host-handshake.md).
 
 Residue from a run: an `agent` row named `company-computer` on the local

@@ -2,6 +2,7 @@ import gzip
 import importlib.machinery
 import importlib.util
 import io
+import json
 import subprocess
 import sys
 import tarfile
@@ -273,6 +274,43 @@ class AddressesTheRigSpellsTests(unittest.TestCase):
         self.assertEqual(rig.CONFFILE_PATH, self.package("CompanyHostSettingsPath"))
         self.assertEqual(rig.COMPANY_CONDITION_PATH, self.package("CompanyHostEnvironmentPath"))
 
+    def test_the_messenger_store_is_read_through_the_file_the_install_writes(self):
+        self.assertEqual(rig.MESSENGER_DATABASE_PATH, self.package("CompanyHostBuzzDatabasePath"))
+
+    def test_the_bridge_is_asked_where_its_unit_makes_it_answer(self):
+        port, path = rig.MESSENGER_BRIDGE
+        self.assertEqual(f"http://127.0.0.1:{port}", self.package("CompanyHostChatdEndpoint"))
+        self.assertEqual(path, self.contract("ChatdHealthPath"))
+
+
+class TheSigningKeyIsTheOneTheStackPublishes(unittest.TestCase):
+    """The app's key has to be the private half of what every verifier holds.
+
+    A key derived from the shared secret satisfies nothing that reads a key set,
+    which is what kept the host's handshake from opening and step 5 from
+    carrying a message. Skipped when no stack is up; there is no local key to
+    read without one.
+    """
+
+    def signing_key(self):
+        try:
+            return json.loads(rig.local_plane_signing_key())
+        except rig.RigFailure as refusal:
+            self.skipTest(str(refusal))
+
+    def test_the_definition_emits_a_private_key_a_token_can_be_signed_with(self):
+        key = self.signing_key()
+        self.assertEqual(key["kty"], "EC")
+        self.assertEqual(key["alg"], "ES256")
+        self.assertIn("d", key)
+
+    def test_that_key_is_the_one_the_record_publishes(self):
+        key = self.signing_key()
+        address = rig.local_plane_settings()["API_URL"] + "/auth/v1/.well-known/jwks.json"
+        with urllib.request.urlopen(address, timeout=10) as answered:
+            published = json.loads(answered.read())
+        self.assertIn(key["kid"], [held["kid"] for held in published["keys"]])
+
 
 class StandInDeclinesTests(unittest.TestCase):
     """The stand-in has to decline to start for the same reason the package does."""
@@ -319,3 +357,9 @@ class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
     def test_no_flag_offers_the_signing_key_a_second_home(self):
         source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_apt.go").read_text()
         self.assertNotIn("--signing-key", source)
+
+    def test_the_rig_names_the_marker_that_keeps_the_vault_out_of_its_run(self):
+        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "environment_from_vault.go").read_text()
+        declared = re.search(r'vaultInjectedMarker\s*=\s*"([^"]+)"', source)
+        self.assertIsNotNone(declared, "the CLI no longer declares vaultInjectedMarker as a literal")
+        self.assertEqual(declared.group(1), rig.VAULT_INJECTED_MARKER)

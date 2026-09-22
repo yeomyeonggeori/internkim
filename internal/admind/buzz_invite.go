@@ -310,6 +310,7 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 		return
 	}
 	derivedLinks := map[string]string{}
+	var derivedPubkeys []string
 	for _, email := range service.allMemberEmails(ctx) {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
@@ -320,6 +321,7 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 			continue
 		}
 		derivedLinks[pubkey] = email
+		derivedPubkeys = append(derivedPubkeys, pubkey)
 	}
 	if len(derivedLinks) == 0 {
 		return
@@ -338,13 +340,13 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 		store.save()
 	}
 	store.mutex.Unlock()
-	if len(newlyLinked) == 0 {
-		return
+	if len(newlyLinked) > 0 {
+		service.writeBuzzAccountLinksFile()
 	}
-	service.writeBuzzAccountLinksFile()
-	for _, pubkey := range newlyLinked {
-		service.grantRelayMembership(ctx, pubkey)
-	}
+	// Everyone derived, not only whoever was new this pass: the link is written
+	// once and the grant it used to carry could fail, which left the person
+	// named and locked out with nothing scheduled to notice.
+	service.letOntoTheRelay(ctx, derivedPubkeys)
 }
 
 func (service *Service) linkClaimedBuzzMembers(ctx context.Context) {

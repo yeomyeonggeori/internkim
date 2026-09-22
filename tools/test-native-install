@@ -15,7 +15,7 @@ import json
 import shutil
 import sys
 import tempfile
-import urllib.parse
+import time
 import uuid
 from pathlib import Path
 
@@ -39,6 +39,8 @@ from native_install_rig import (  # noqa: E402
     STATE_DIRECTORY,
     SUITE,
     COMPANY_CONDITION_PATH,
+    MESSENGER_BRIDGE,
+    MESSENGER_DATABASE_PATH,
     CompanyPlane,
     Machine,
     build_identity_reported,
@@ -46,7 +48,6 @@ from native_install_rig import (  # noqa: E402
     installed_units,
     Release,
     RigFailure,
-    answered,
     build_stand_in_package,
     install_attempt_on_another_suite,
     dependency_names,
@@ -57,9 +58,48 @@ from native_install_rig import (  # noqa: E402
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 RELAY_UNIT_NAME = "internkim-relay.service"
 DOCUMENT_INTERPRETER_PACKAGE = "python3"
-COMPANY_CALL_CAPABILITY = "person.people.list"
 PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
 PLANTED_SECRET = "0123456789abcdef" * 4
+
+# Whether the relay dialled /company/<id>/host or /company/<id>/server is not
+# something either endpoint says out loud, and only the first is a handshake an
+# installed box performs. The environment of the running process is where the
+# difference lives: with GATEWAY_SERVER_KEY set the relay takes the server door,
+# which needs no token at all.
+HOST_SOCKET_COMMAND = r"""
+pid="$(systemctl show %(unit)s -p MainPID --value 2>/dev/null)"
+printf 'serverkey=%%s\n' "$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null | grep -c '^GATEWAY_SERVER_KEY=' || true)"
+printf 'connected=%%s\n' "$(journalctl -u %(unit)s --no-pager -n 500 2>/dev/null | grep -c 'gateway connected for company %(company)s' || true)"
+"""
+
+# The messenger keeps its own store on the company's machine, and a message that
+# crossed the gateway is a row in it. Read with the credentials the box wrote for
+# the relay, by a path that did not write the row.
+MESSENGER_STORE_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
+[ -n "$url" ] || { echo "no DATABASE_URL in %(path)s"; exit 0; }
+found="$(psql "$url" -tAc "select encode(pubkey,'hex') || ' ' || content from events where kind = 9 and encode(id,'hex') = '%(message)s'" 2>&1)"
+printf '%%s\n' "$found"
+case "$found" in
+  *ERROR*|"") psql "$url" -tAc "select current_database() || ' as ' || current_user" 2>&1
+              psql "$url" -tAc "select table_schema || '.' || table_name from information_schema.tables where table_name in ('events','relay_members','channels')" 2>&1 ;;
+esac
+"""
+
+# Whether the messenger will take anything this person signs. admind derives
+# each member's key and puts it in the relay's roster, once at boot and again
+# whenever the directory changes, so a box seconds old has a member the
+# messenger does not know yet.
+RELAY_ROSTER_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
+[ -n "$url" ] || { echo "roster=no-database-url"; exit 0; }
+printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members where lower(pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
+"""
+
+BRIDGE_COMMAND = (
+    "printf 'bridge=%(port)s%(path)s=%%s\\n' "
+    "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
+)
 
 SNAPSHOT_COMMAND = r"""
 find / -xdev \
@@ -175,7 +215,6 @@ class Step:
         self.number = number
         self.name = name
         self.observations = []
-        self.owed = []
         self.blocked_because = None
 
     def observe(self, name, observes, not_a_proxy):
@@ -185,16 +224,6 @@ class Step:
 
     def block(self, reason):
         self.blocked_because = reason
-        return self
-
-    def owe(self, name, observes, why_it_waits):
-        """An assertion this step will make, recorded before it can be made.
-
-        Some of what the rig judges cannot be judged on a box with no company,
-        and deleting those assertions would quietly narrow what the rig claims.
-        They are listed here instead, so a run says what it has not yet asked.
-        """
-        self.owed.append((name, observes, why_it_waits))
         return self
 
     @property
@@ -221,6 +250,7 @@ class Rig:
         self.plane = None
         self.company_id = ""
         self.package_under_test = None
+        self.message_text = f"native install rig {uuid.uuid4().hex}"
 
     def step(self, number, name):
         step = Step(number, name)
@@ -773,46 +803,111 @@ class Rig:
             f"before {json.dumps(before)}\nafter  {json.dumps(after)}",
         )
 
-    def observe_the_message_path(self, step, plane):
-        """How far a message typed in a browser gets, and where it stops.
+    def observe_the_host_holds_the_gateway_socket(self, step):
+        """Whether the guest's own relay is on the other end of the wire.
 
-        The gateway answers `server_offline` until the guest's relay holds a
-        socket to it, and on a local plane it never can: the app signs the
-        host's token HS256 and the gateway verifies ES256. So what this asserts
-        is the path up to that socket — the relay running and dialling, the
-        gateway reachable from the guest, the company addressed correctly — and
-        the refusal itself, which is recorded rather than worked around. It
-        fails the day the handshake starts working, which is when the owed
-        assertion below replaces it.
+        Two readings, because either alone is true on a box the other would
+        fail: a relay with a server key is connected without ever minting a
+        token, and a relay with neither is unconnected with nothing to show.
         """
-        status, document = answered(
-            f"{plane.gateway_http_url}/company/{urllib.parse.quote(self.company_id)}/call",
-            {"Authorization": f"Bearer {plane.admin_token}", "Content-Type": "application/json"},
-            json.dumps({"requestID": str(uuid.uuid4()), "capability": COMPANY_CALL_CAPABILITY}).encode(),
-            "POST",
-            timeout_seconds=45,
+        connecting = self.wait_in_the_guest(
+            HOST_SOCKET_COMMAND % {"unit": RELAY_UNIT_NAME, "company": self.company_id},
+            lambda reported: "connected=0" not in reported,
         )
-        answer = json.loads(document) if document else {}
-        dialled = self.machine.shell(
-            f"journalctl -u {RELAY_UNIT_NAME} --no-pager -n 200 2>/dev/null"
-            f" | grep -c 'gateway connection for {self.company_id}'; true"
+        reported = dict(
+            line.split("=", 1) for line in connecting.stdout.split() if "=" in line
         )
         step.observe(
-            "the message path is open as far as the socket the host cannot yet hold",
-            f"the gateway's answer to {COMPANY_CALL_CAPABILITY} for this company, and how many "
-            f"times {RELAY_UNIT_NAME} has dialled the gateway",
-            "a message typed in a browser reaches the guest through that socket and no other way. "
-            "On a local plane the host's token is HS256 and the gateway verifies ES256, so the "
-            "socket cannot open and the gateway answers server_offline; asserting that, rather "
-            "than deleting the question, keeps the limit on screen and makes this fail on the day "
-            "it stops being true",
+            "the guest's relay is holding the gateway socket, on a token it obtained itself",
+            f"whether GATEWAY_SERVER_KEY is in the environment of the running {RELAY_UNIT_NAME}, "
+            "and how many times it has reported the gateway connected",
+            "a relay handed a server key reaches /company/<id>/server with no token at all, which "
+            "is not the handshake an installed box performs; and the line it prints on open is "
+            "reached only after the gateway verified the token the app minted for it",
         ).record(
-            status == 200
-            and answer.get("body", {}).get("error") == "server_offline"
-            and int(dialled.stdout.split()[0] or 0) > 0,
-            f"the gateway answered {status} {json.dumps(answer)[:200]}\n"
+            reported.get("serverkey") == "0" and int(reported.get("connected") or 0) > 0,
+            "\n".join(f"{name}={value}" for name, value in sorted(reported.items()))
+            + "\n"
             + self.relay_reported_of_the_gateway(),
         )
+
+    def observe_the_member_round_trip(self, step, plane):
+        """A person signs in, says something, and the company answers.
+
+        Everything here goes over the member's own websocket to the gateway,
+        authenticated with the access token GoTrue issued them, and is answered
+        over the socket the guest's relay is holding. No admin token, no server
+        key: the two levers that would reach the company without the handshake
+        the installed box performs.
+        """
+        member_id = plane.member_identity(self.company_id)
+        messenger_identity = (
+            plane.wait_until_the_member_holds_a_messenger_credential(member_id) if member_id else ""
+        )
+        bridge_port, bridge_path = MESSENGER_BRIDGE
+        bridge = self.wait_in_the_guest(
+            BRIDGE_COMMAND % {"port": bridge_port, "path": bridge_path},
+            lambda reported: reported.strip().endswith("=200"),
+        )
+        roster = self.wait_in_the_guest(
+            RELAY_ROSTER_COMMAND
+            % {"path": MESSENGER_DATABASE_PATH, "pubkey": messenger_identity or "nobody"},
+            lambda reported: "roster=yes" in reported,
+            timeout_seconds=600,
+        )
+        session = plane.member_session(self.company_id, self.message_text)
+        presence = session.get("presence") or {}
+        sent = session.get("sent") or {}
+
+        step.observe(
+            "a member signing in through the browser path sees the host as connected",
+            "the presence frame the gateway sends unasked on a member's own websocket, opened "
+            f"with {plane.administrator_email}'s GoTrue access token as the internkim.bearer. subprotocol",
+            "a browser cannot put a header on a websocket handshake, so this is the wire a person "
+            "is actually on; and presence is the gateway's own account of whether the company's "
+            "machine is holding the other half",
+        ).record(
+            presence.get("isServerConnected") is True,
+            f"token alg {session.get('tokenAlgorithm') or 'none'}\n"
+            + json.dumps({"presence": presence, "conversation": session.get("conversation")})[:400]
+            + (f"\n{session['refused']}" if session.get("refused") else ""),
+        )
+
+        message_id = sent.get("messageID") or ""
+        stored = self.machine.shell(
+            MESSENGER_STORE_COMMAND
+            % {"path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"}
+        )
+        step.observe(
+            "the message reaches the messenger inside the guest",
+            f"the row the message id names in the guest's own event store, read with psql through "
+            f"{MESSENGER_DATABASE_PATH}",
+            "the answer the member received is the company's account of its own run; this is the "
+            "store the company's machine keeps, read on the machine, by a path that did not write it",
+        ).record(
+            bool(message_id) and self.message_text in stored.stdout,
+            (stored.stdout.strip() or "the store holds no such message")[-400:],
+        )
+
+        step.observe(
+            "the answer comes back through the same socket to the member",
+            "the result frame the member's websocket received for the call that posted the message",
+            "a message the company stored and never answered for is a person watching a spinner; "
+            "the frame is what tells them it landed",
+        ).record(
+            sent.get("status") == 200 and bool(message_id),
+            f"the messenger knows this member as {messenger_identity or 'nobody'}; "
+            f"{roster.stdout.strip()}; {bridge.stdout.strip()}\n"
+            + json.dumps({"status": sent.get("status"), "messageID": message_id, "body": sent.get("body")})[:500],
+        )
+
+    def wait_in_the_guest(self, script, is_ready, timeout_seconds=300):
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            reading = self.machine.shell(script)
+            if is_ready(reading.stdout) or time.monotonic() > deadline:
+                return reading
+            time.sleep(5)
 
     def relay_reported_of_the_gateway(self):
         reported = self.machine.shell(
@@ -837,10 +932,6 @@ class Rig:
                 if observation.detail:
                     for detail_line in observation.detail.splitlines():
                         lines.append(f"        | {detail_line}")
-            for name, observes, why_it_waits in step.owed:
-                lines.append(f"    · {name}")
-                lines.append(f"        will observe: {observes}")
-                lines.append(f"        waits on: {why_it_waits}")
         return "\n".join(lines)
 
     def verdict(self):
@@ -921,10 +1012,9 @@ def main():
                 rig.plane.start()
                 rig.give_the_guest_a_company(step_five, rig.plane)
                 rig.observe_running_services(step_five)
-                rig.observe_the_message_path(step_five, rig.plane)
+                rig.observe_the_host_holds_the_gateway_socket(step_five)
+                rig.observe_the_member_round_trip(step_five, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
-            for name, observes, why_it_waits in owed_until_the_host_can_hold_the_socket():
-                step_five.owe(name, observes, why_it_waits)
 
             step_three = rig.step(3, "apt upgrade moves it to a newer version")
             rig.run_step_three(step_three, packages)
@@ -960,26 +1050,6 @@ def main():
         passed = rig.verdict()
         print(f"{'✓' if passed else '✗'} native install rig")
         return 0 if passed else 1
-
-
-# The one assertion step 5 cannot make. The host authenticates to the gateway with
-# a token the app mints, the app signs it with the local stack's shared secret, and
-# the gateway verifies against a published key set; no local plane can hold both
-# ends of that. docs/internal/native-install-rig.md carries the whole reason.
-def owed_until_the_host_can_hold_the_socket():
-    return [
-        (
-            "a message posted in the browser reaches the guest's messenger, and the answer "
-            "comes back through the same socket",
-            "the message in the guest's own messenger store, and the browser's answer to the "
-            "call that posted it",
-            "the host's token is signed HS256 by the app and the gateway verifies ES256 and "
-            "RS256 against the key set the record publishes. Production registers the app's "
-            "own key with the project; a local stack has no way to. So the host's handshake, "
-            "and the round trip that depends on it, are first exercised against the real plane, "
-            "once, by a person",
-        ),
-    ]
 
 
 if __name__ == "__main__":
