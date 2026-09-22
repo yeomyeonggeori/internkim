@@ -7,6 +7,11 @@ disposable guest on this machine, so **this rig installs into the Mac it runs
 on**. It says what it is about to change before it changes anything, it refuses
 to run until you agree in as many words, and everything it does has an undo.
 
+By default it stands a throwaway tap up against the bottle
+`internkim release brew` left in .artifacts, which judges the builder.
+`--published` judges instead what a person gets: the tap on GitHub and the
+bottle `updates.intern.kim` serves, with no address substituted anywhere.
+
 What it can judge, and does:
 
   * that the published one line reaches a registered Homebrew install — `brew
@@ -26,6 +31,8 @@ What it cannot judge, and says so rather than pretending:
     --install-the-company, it is off by default, and --undo takes it back out.
   * anything about a Mac that is not this one: a bottle is per macOS version
     and per architecture, and this rig only ever sees the builder's.
+  * whether `brew upgrade` moves a Mac from one published version to the next.
+    That needs two versions in the tap, and one run of this sees one.
 
     tools/test-macos-install --help
 """
@@ -39,6 +46,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_NAME = "internkim"
 RIG_TAP = "internkim-rig/rig"
 LAUNCH_DAEMON_ROOT = Path("/Library/LaunchDaemons")
@@ -92,8 +100,32 @@ def tap_owner_directory():
     return repository / "Library/Taps/internkim-rig"
 
 
-def what_this_will_change(artifact_directory, with_company):
+def published_tap():
+    """The tap the published one line adds.
+
+    Read from the script a person's machine runs rather than written here.
+    `tools/tests/test_install_script.py` is what holds that script to the tap
+    `internal/runtime/blueclaw` declares and publishes the formula to.
+    """
+    script = (REPOSITORY_ROOT / "web/static/install.sh").read_text()
+    named = re.search(r'^homebrew_tap="\$\{[A-Z_]+:-([^}"]+)\}"', script, re.MULTILINE)
+    if named is None:
+        raise RigFailure("web/static/install.sh no longer names a Homebrew tap")
+    return named.group(1)
+
+
+def what_this_will_change(artifact_directory, with_company, published):
     """Every path this run writes to, named before it writes to any of them."""
+    if published:
+        owner, _, name = published_tap().partition("/")
+        changes = [
+            f"add the {published_tap()} tap, cloning github.com/{owner}/homebrew-{name}",
+            f"install the {PACKAGE_NAME} formula it carries into {homebrew_prefix()}/Cellar",
+            f"link {homebrew_prefix()}/bin/{PACKAGE_NAME}",
+            "pour the bottle the formula's root_url names, over the network",
+            "uninstall the formula and remove the tap when it finishes",
+        ]
+        return changes + what_a_company_would_change(with_company)
     changes = [
         f"create a throwaway Homebrew tap at {tap_directory()}",
         f"install the {PACKAGE_NAME} formula from it into {homebrew_prefix()}/Cellar",
@@ -101,15 +133,19 @@ def what_this_will_change(artifact_directory, with_company):
         f"read the bottle and the tarball from {artifact_directory}",
         "uninstall the formula and remove the tap when it finishes",
     ]
-    if with_company:
-        changes += [
-            f"create the {' and '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
-            f"write nine {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
-            f"write this company's keys and settings under {STATE_ROOT}",
-            "start Homebrew's postgresql@17 and redis under `sudo brew services`",
-            "make the POSIX helper setuid root inside the keg",
-        ]
-    return changes
+    return changes + what_a_company_would_change(with_company)
+
+
+def what_a_company_would_change(with_company):
+    if not with_company:
+        return []
+    return [
+        f"create the {' and '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
+        f"write nine {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
+        f"write this company's keys and settings under {STATE_ROOT}",
+        "start Homebrew's postgresql@17 and redis under `sudo brew services`",
+        "make the POSIX helper setuid root inside the keg",
+    ]
 
 
 # ---------------------------------------------------------------- observations
@@ -153,6 +189,28 @@ def install_the_formula(artifact_directory):
         raise RigFailure(
             "the formula was built from source rather than poured, so this run says nothing about the bottle:\n"
             + installed.stdout
+        )
+
+
+def install_from_the_published_tap():
+    """Install what a person installs.
+
+    The tap is cloned from GitHub and the bottle is fetched from the address the
+    published formula names. Nothing here is substituted, which is the whole
+    difference from the run above: what it judges is the release rather than the
+    machine that built it.
+    """
+    tap = published_tap()
+    added = run(["brew", "tap", tap], check=False)
+    if added.returncode != 0:
+        raise RigFailure(f"`brew tap {tap}` failed, so the tap is not reachable:\n{added.stdout}")
+    installed = brew("install", PACKAGE_NAME, check=False)
+    if installed.returncode != 0:
+        raise RigFailure(f"`brew install {PACKAGE_NAME}` from {tap} failed:\n{installed.stdout}")
+    if "Pouring" not in installed.stdout:
+        raise RigFailure(
+            "the formula was built from source rather than poured, so this run says nothing about the "
+            "published bottle:\n" + installed.stdout
         )
 
 
@@ -334,6 +392,8 @@ def undo(with_company):
     if tap_owner_directory().exists():
         shutil.rmtree(tap_owner_directory(), ignore_errors=True)
         removed.append("the rig's tap")
+    if brew("untap", published_tap(), check=False).returncode == 0:
+        removed.append(f"the {published_tap()} tap")
     for name in removed:
         print(f"  removed {name}")
     if not removed:
@@ -347,6 +407,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACT_DIRECTORY,
                         help="where `internkim release brew` put the bottle and the formula")
+    parser.add_argument("--published", action="store_true",
+                        help="install from the tap on GitHub and the bottle on updates.intern.kim, "
+                             "rather than from a throwaway tap standing on --artifacts")
     parser.add_argument("--yes-change-this-mac", action="store_true",
                         help="agree to the changes printed above. Without it this run prints them and stops")
     parser.add_argument("--install-the-company", type=Path, metavar="CONNECTION.JSON",
@@ -365,7 +428,7 @@ def main():
         return 0
 
     print("This rig installs into THIS Mac. It is not a disposable guest. It will:")
-    for change in what_this_will_change(arguments.artifacts, with_company):
+    for change in what_this_will_change(arguments.artifacts, with_company, arguments.published):
         print(f"  · {change}")
     if not arguments.yes_change_this_mac:
         print("\nNothing was changed. Run it again with --yes-change-this-mac to agree to the list above.")
@@ -378,7 +441,10 @@ def main():
     prefix_before = set(path.name for path in (homebrew_prefix() / "bin").iterdir())
     passed = []
     try:
-        install_the_formula(arguments.artifacts)
+        if arguments.published:
+            install_from_the_published_tap()
+        else:
+            install_the_formula(arguments.artifacts)
         passed.append(step_one_the_bottle_poured_and_homebrew_records_it())
         keg = installed_keg_path()
         passed.append(step_two_the_one_command_is_linked_and_nothing_else_is(keg, prefix_before))
@@ -396,7 +462,10 @@ def main():
         print("\nThe install is still on this Mac. `tools/test-macos-install --undo` removes it.")
         return 1
 
-    shutil.rmtree(tap_owner_directory(), ignore_errors=True)
+    if arguments.published:
+        brew("untap", published_tap(), check=False)
+    else:
+        shutil.rmtree(tap_owner_directory(), ignore_errors=True)
     for observation in passed:
         print(f"✓ {observation}")
     if not with_company:
