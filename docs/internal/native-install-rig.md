@@ -179,9 +179,11 @@ for what `internkim install` writes when a person sets their company up.
 
 ### Step 5 · a person signs in and exchanges a message
 
-Not run. The next section is the decision it waits on. Three assertions wait
-with it, and the rig prints them on every run, so a run says what it has not
-yet asked:
+Not run. The company it needs is settled and the plane that issues one works;
+what is not settled is the package, which refuses a company at the first thing
+it checks. The next section is that refusal and the one behind it. Three
+assertions wait with them, and the rig prints them on every run, so a run says
+what it has not yet asked:
 
 | Observation | Reads | Why it waits |
 |---|---|---|
@@ -189,11 +191,13 @@ yet asked:
 | the services answer their readiness endpoints | an HTTP GET inside the guest to `127.0.0.1:3000/_readiness`, `:8080/admin/api/health` and `:18080/admin/api/health` | `systemctl is-active` reports active for a process that answers HTTP while refusing all work, which is how [postmortem 0002](./postmortem/0002-a-running-process-kept-a-config-that-was-gone.md) stayed green for forty minutes |
 | the running processes moved | the `gitRevision` `:18080/admin/api/health` reports, before and after an upgrade | dpkg's version and the file's mtime move whether or not the unit restarted |
 
-## Step 5, and what it would cost
+## Step 5, and what it stands on
 
 Signing in and exchanging a message needs a company, a connection document, and
 a gateway between the browser and the guest. Where that company comes from is
-the decision, and the answer is the local plane.
+settled: the local plane. Everything below was measured against one, on an
+arm64 Debian 13 guest carrying `internkim_0.0.3_arm64.deb` installed from the
+rig's own repository.
 
 **A company on the production plane is not available to this rig.** Creating
 one writes a `company` row, a `member` row that permanently binds the founding
@@ -208,8 +212,7 @@ continues when an account will not delete. AGENTS.md's runtime hygiene rules
 close the question before the residue does: agent test requests run only in a
 disposable local fleet with an isolated database, workspace and identities.
 
-**The cheapest honest version runs entirely on the local plane**, and most of
-it is already built:
+**The local plane carries the rest, and most of it is already built.**
 
 1. `supabase db reset` seeds the fixture company `example-co` with four
    confirmed accounts. `member1@example.com` / `seed-password` is an active
@@ -218,33 +221,85 @@ it is already built:
    Supabase and issues an agent key. It needs one addition: `GATEWAY_URL` in
    the environment it hands the dev server, without which
    `createHostConfiguration` answers 503.
-3. The connection gateway has to be running. `workers/connection-gateway/` is a
-   Cloudflare Worker with a Durable Object and has no `dev` script; a
-   `wrangler dev` on 8787 against the local Supabase is the one genuinely new
-   piece. `internal/companyhost/connection.go` already accepts `http://` and
-   `ws://`, so no validator has to be loosened for this.
+3. The connection gateway runs locally and nothing new has to be written to run
+   it. `tools/verify-personal-settings.ts` renders
+   `workers/connection-gateway/wrangler.jsonc` into a config naming
+   `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GATEWAY_ADMIN_TOKEN`, then
+   runs `bunx wrangler dev --local --persist-to …` against it; the Durable
+   Object lives in `workerd`'s local storage. `internal/companyhost/connection.go`
+   still accepts `http://` for `appURL` and `centralPlane.projectURL` and `ws://`
+   for `gatewayURL`, so no validator has to be loosened.
 4. `POST /api/company/host-setup` as the signed-in fixture admin produces a
    real `internkim-host.json`, which the guest installs.
 5. `web/tests/e2e/central-plane-sign-in.ts` already drives the sign-in form. A
    new spec opens `/messenger/`, sends a message, and waits for the reply.
 
-Residue: rows in a local Supabase container, erased by the next reset. No
-production account, hostname or DNS record is touched.
+**The browser's half already works.** The local stack's GoTrue signs access
+tokens `ES256` and publishes the key at `/auth/v1/.well-known/jwks.json`, which
+is where the gateway reads it. A handshake to `/company/<fixture id>/client`
+carrying a seeded member's token as the `internkim.bearer.` subprotocol answers
+`101`: the signature verified, the issuer matched, and the member's row was read
+under row level security.
 
-**Where the rig's judgement stops.** The rig can assert the pipe end to end
-without a person: the relay holds an open socket to the gateway, a message
-posted in the browser arrives in the guest's messenger database, and a reply
-comes back out through the same socket. What it cannot assert is the first-run
-experience of a real company — the hostname resolving, the connection file
-downloading from a real browser session, and the passkey path, which local
-GoTrue does not serve at all (`/auth/v1/passkeys` is 404 there). Those stay a
-person's reading, once, against the real plane, with a company that is kept
-rather than created for a test.
+### What stops it
+
+**The package ships no `bun` and no `uv`.** `internkim install` refuses at
+`1/5 Checking what this computer already has`, naming both. The declaration in
+`internal/runtime/blueclaw/host_dependencies.go` marks five programs
+`ArrivesAsPayload`; the pins in `host_payload_downloads.go` cover three, `moli`,
+`agent-browser` and `versitygw`. `/opt/internkim` holds the skills and the
+runtime template and no `document-venv`, which is the same gap seen from the
+other end, because `uv` is what builds it. `host/Dockerfile` fetches both with
+their own installers, so the container host runs while the packaged host cannot
+be given a company. No test stands between the two lists, and the first thing
+that reads them together is a person's install. Closing it is a pin for each
+program beside the other three, an unzip step for bun's archive (`unzip` is
+already on the `Depends:` line), the virtualenv built at package build time, and
+a test that every `ArrivesAsPayload` program has a pin.
+
+**The company host cannot authenticate to the gateway on a local plane.**
+`POST /api/agent/host-session` signs the host's token with
+`SUPABASE_JWT_SIGNING_KEY`, which locally is the stack's shared secret written
+as an `oct` JWK, so the token is `HS256`. The gateway verifies `ES256` and
+`RS256` against a published key set, and a handshake to `/company/<id>/host`
+answers `401 the token is signed with HS256`. Production is different because
+`web/scripts/issue-record-signing-key.ts` mints an `ES256` key and registers it
+with the Supabase project, so the project's own key set publishes it and
+PostgREST accepts the same token. A local stack has no management API to
+register a key against, and a key it does not publish is a key PostgREST refuses
+too, so the relay's own reads would break with the handshake fixed that way.
+`GATEWAY_SERVER_KEY` reaches `/company/<id>/server` with no token at all and is
+how `tools/verify-personal-settings.ts` drives a relay, but `internkim install`
+never writes it, so a rig using it would assert a handshake the installed box
+does not perform.
+
+**One that is fixed.** The connection document's company id was checked with
+zod 4's `z.uuid()`, which requires the version and variant nibbles RFC 4122
+fixes. `000000cc-0000-0000-0000-000000000001` is a value the `uuid` column holds
+and `uuid.Parse` accepts, so `POST /api/company/host-setup` answered
+`503 the company computer connection is not configured` for the only company a
+local plane has. It is `z.guid()` now, which is what a value read back out of
+that column is, and `web/tests/unit/server/company-host-setup.test.ts` reads the
+id out of `supabase/seed.dev.sql` so the two cannot drift apart again.
+
+Residue from the run that measured this: rows in a local Supabase container,
+erased by the next reset. No production account, hostname or DNS record was
+touched.
+
+**Where the rig's judgement stops.** Once the two refusals above are gone, the
+rig can assert the pipe end to end without a person: the relay holds an open
+socket to the gateway, a message posted in the browser arrives in the guest's
+messenger database, and a reply comes back out through the same socket. What it
+cannot assert is the first-run experience of a real company: the hostname
+resolving, the connection file downloading from a real browser session, and the
+passkey path, which local GoTrue does not serve at all (`/auth/v1/passkeys` is
+404 there). Those stay a person's reading, once, against the real plane, with a
+company that is kept rather than created for a test.
 
 Until step 5 is built, "the service is doing its job" is bounded by what step 2
 can see: the endpoint answers, it reports the revision that was just installed,
 and the unit has not restarted. A task that a message turned into is the real
-proof, and it is on the other side of this decision.
+proof, and it is on the other side of the two refusals.
 
 ## What this rig cannot catch
 
