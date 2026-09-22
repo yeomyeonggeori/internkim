@@ -88,14 +88,14 @@ async function commandOutput(command: string[], cwd = repositoryRoot): Promise<s
 	return output.trim();
 }
 
-async function localPlaneSigningKey(jwtSecret: string): Promise<string> {
+async function localPlaneSigningKey(): Promise<string> {
 	return commandOutput([
 		'sh',
 		'-c',
-		'. "$1" && signing_key_of_secret "$2"',
+		'. "$1" && local_plane_signing_key "$2"',
 		'sh',
 		join(repositoryRoot, 'web/scripts/local-plane-signing-key.sh'),
-		jwtSecret
+		repositoryRoot
 	]);
 }
 
@@ -167,9 +167,8 @@ async function main(): Promise<number> {
 	);
 	const supabaseEnvironment = environmentFrom(await commandOutput(['supabase', 'status', '-o', 'env']));
 	const planeSecretKey = supabaseEnvironment.SECRET_KEY;
-	const planeJWTSecret = supabaseEnvironment.JWT_SECRET;
-	if (!planeSecretKey || !planeJWTSecret) throw new Error('the local plane named no SECRET_KEY or JWT_SECRET, so the company app cannot reach it');
-	const planeSigningKey = await localPlaneSigningKey(planeJWTSecret);
+	if (!planeSecretKey) throw new Error('the local plane named no SECRET_KEY, so the company app cannot reach it');
+	const planeSigningKey = await localPlaneSigningKey();
 
 	start(
 		'the connection gateway',

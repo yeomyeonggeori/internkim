@@ -41,7 +41,7 @@ if ! supabase status >/dev/null 2>&1; then
   supabase start >/dev/null
 fi
 
-eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY|JWT_SECRET)=')"
+eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
 . "$repositoryRoot/web/scripts/local-plane-signing-key.sh"
 
 recordServes() {
@@ -88,7 +88,7 @@ fi
   SUPABASE_URL="$API_URL" \
   SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
   SUPABASE_SECRET_KEY="$SECRET_KEY" \
-  SUPABASE_JWT_SIGNING_KEY="$(signing_key_of_secret "$JWT_SECRET")" \
+  SUPABASE_JWT_SIGNING_KEY="$(local_plane_signing_key "$repositoryRoot")" \
   VITE_ADMIND_TARGET="http://127.0.0.1:$adminPort" \
   nohup bunx vite dev --host 127.0.0.1 --port "$appPort" --strictPort > "$appLogPath" 2>&1 < /dev/null &
   echo $! > "$appPIDPath"

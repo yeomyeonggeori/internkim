@@ -108,23 +108,23 @@ The middle row is the cost the older document feared, and it is real: a key the
 app mints for itself is a key nothing local verifies. The cost only applies to a
 key the stack does not already hold.
 
-## What would change
+## What changed
 
-`signing_key_of_secret` in `web/scripts/local-plane-signing-key.sh` is the one
+`local_plane_signing_key` in `web/scripts/local-plane-signing-key.sh` is the one
 definition, sourced by `web/scripts/test-integration.sh`,
 `web/scripts/e2e-central.sh`, `web/scripts/e2e-organization-central.sh`,
 `tools/start-local-fleet-central-plane` and `tools/verify-personal-settings.ts`.
-`tools/native_install_rig.py` keeps a Python copy of the same three lines, which
-is a second hand-kept copy of one rule and should collapse into the first.
+`tools/native_install_rig.py` calls that same definition through `sh` instead of
+keeping a copy of it.
 
-The replacement reads the running stack rather than deriving anything from
-`JWT_SECRET`: take `GOTRUE_JWT_KEYS` from `supabase_auth_<project_id>` and emit
-its first entry. Reading it beats hardcoding the constant, because a CLI upgrade
-that changes the key then changes nothing else.
+It reads the running stack rather than deriving anything from `JWT_SECRET`: it
+takes `GOTRUE_JWT_KEYS` from `supabase_auth_<project_id>` and emits its first
+entry. Reading it beats hardcoding the constant, because a CLI upgrade that
+changes the key then changes nothing else.
 
-The rig's step 5 table can then stop saying the message round trip waits, and
-`native-install-rig.md`'s "The one thing no local plane can do" becomes a
-smaller claim about what remains.
+`native-install-rig.md`'s step 5 no longer owes the message round trip. It is
+made by the guest's own `internkim-relay`, holding the gateway socket on a token
+it obtained itself, with a seeded member signing in through the browser path.
 
 ## What a green local run would and would not cover
 
@@ -139,10 +139,10 @@ Covered, and not covered before:
 Not covered, and unchanged by any of this:
 
 - **The guest's relay was not the host in these probes.** A test script held the
-  host socket and answered the routed call. Running the real `internkim-relay`
-  needs the Debian package and the arm64 guest the rig builds, which was outside
-  this investigation. The authentication it performs is byte-for-byte what was
-  run here; its messenger is not.
+  host socket and answered the routed call. `tools/test-native-install` step 5
+  closed that afterwards: the Debian package's own `internkim-relay`, in the
+  arm64 guest, holds the socket and answers a member's message out of the
+  messenger beside it.
 - **Hostname resolution and the browser download of the connection document.**
   The rig substitutes an address the guest can route to.
 - **Passkeys.** Local GoTrue answers `404` at `/auth/v1/passkeys`.

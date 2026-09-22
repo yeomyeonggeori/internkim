@@ -6,7 +6,6 @@ arm64 Debian guest. The assertions that read the guest live in
 a machine and something to install on it.
 """
 
-import base64
 import hashlib
 import io
 import json
@@ -52,6 +51,12 @@ ADMIN_GATEWAY_HEALTH = (18080, "/admin/api/health")
 READINESS_PROBES = (MESSENGER_READINESS, AGENT_HEALTH, ADMIN_GATEWAY_HEALTH)
 REVISION_PROBE = ADMIN_GATEWAY_HEALTH
 
+# The bridge every message a person sends passes through on its way to the
+# messenger. It is not in READINESS_PROBES because nothing else in step 5 waits
+# on it; the member round trip does, because a call that reaches it before it
+# listens is answered `did not answer` and says nothing about the product.
+MESSENGER_BRIDGE = (18090, "/healthz")
+
 # The package's one configuration file dpkg protects, and the file every unit
 # waits on. Section 5 of the plan makes runtime.json an optional override the
 # package does not ship, so editing that would say nothing about whether dpkg
@@ -71,6 +76,7 @@ KEYRING_NAME = "internkim-archive-keyring.pgp"
 # aptrepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
 # reads that constant and fails if this drifts from it.
 SIGNING_KEY_VARIABLE = "INTERNKIM_APT_SIGNING_KEY"
+VAULT_INJECTED_MARKER = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
 BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
 
 
@@ -250,7 +256,15 @@ class Release:
                 "--output", str(self.directory),
             ],
             cwd=str(REPOSITORY_ROOT),
-            environment={SIGNING_KEY_VARIABLE: self.archive_key_path.read_text()},
+            environment={
+                SIGNING_KEY_VARIABLE: self.archive_key_path.read_text(),
+                # The CLI re-executes itself under `monkeys run` to be handed the
+                # names in `.monkeys`, and what the vault holds replaces what the
+                # caller set. This rig signs a throwaway repository with a
+                # throwaway key on purpose, and must not be handed the archive key
+                # a customer's apt trusts, so it says the values already arrived.
+                VAULT_INJECTED_MARKER: "1",
+            },
         )
 
     def serve(self):
@@ -685,6 +699,7 @@ def install_attempt_on_another_suite(package_path, container_binary="container")
 # ------------------------------------------------------- what a person does next
 
 CONNECTION_FILE_NAME = "internkim-host.json"
+MESSENGER_DATABASE_PATH = f"{STATE_DIRECTORY}/current/secrets/buzz-database.env"
 MODEL_KEY_FILE_NAME = "rig-model-key"
 
 # The guest is given a company whose agent never reaches a model provider. What
@@ -737,8 +752,28 @@ def installed_units(machine):
 CENTRAL_TEST_UTILITIES_PATH = REPOSITORY_ROOT / "web" / "tests" / "e2e" / "central-test-utils.ts"
 GATEWAY_WORKER_PATH = REPOSITORY_ROOT / "workers" / "connection-gateway"
 COMPANY_COMPUTER_AGENT_NAME = "company-computer"
+MEMBER_SESSION_SCRIPT = REPOSITORY_ROOT / "tools" / "native-install-member-session.ts"
+MESSENGER_CREDENTIAL_KIND_SCHEMA = (
+    REPOSITORY_ROOT
+    / "pkg"
+    / "capabilityprotocol"
+    / "generated"
+    / "json-schema"
+    / "messenger-identity-credential-kind.schema.json"
+)
 HOST_SETUP_PATH = "/api/company/host-setup"
 SIGN_IN_PATH = "/auth/v1/token?grant_type=password"
+
+
+def messenger_credential_kind():
+    """What the record calls the credential the box derives for each member.
+
+    Read from the protocol's own schema rather than spelled here, because chatd
+    and admind both take it from there and a third spelling would be the one
+    that drifts.
+    """
+    schema = json.loads(MESSENGER_CREDENTIAL_KIND_SCHEMA.read_text())
+    return schema["enum"][0]
 
 
 def seeded_administrator():
@@ -776,19 +811,27 @@ def local_plane_settings():
         name, separator, value = line.partition("=")
         if separator:
             settings[name.strip()] = value.strip().strip('"')
-    for required in ("API_URL", "PUBLISHABLE_KEY", "SECRET_KEY", "JWT_SECRET"):
+    for required in ("API_URL", "PUBLISHABLE_KEY", "SECRET_KEY"):
         if not settings.get(required):
             raise RigFailure(f"the local plane named no {required}")
     return settings
 
 
-def signing_key_of_secret(secret):
-    """The local stack signs with one shared secret; this is it as an oct JWK.
+SIGNING_KEY_SCRIPT = REPOSITORY_ROOT / "web" / "scripts" / "local-plane-signing-key.sh"
 
-    web/scripts/local-plane-signing-key.sh writes the same value for the fleet.
-    """
-    encoded = base64.urlsafe_b64encode(secret.encode()).decode().rstrip("=")
-    return json.dumps({"kty": "oct", "k": encoded})
+
+def local_plane_signing_key():
+    """The key the app signs the host's token with, from the one definition of it."""
+    completed = run(
+        ["sh", "-c", '. "$1" && local_plane_signing_key "$2"', "sh", str(SIGNING_KEY_SCRIPT), str(REPOSITORY_ROOT)],
+        cwd=REPOSITORY_ROOT,
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        raise RigFailure(
+            "the local plane published no signing key, so the app cannot mint a token the "
+            f"gateway verifies: {completed.stderr.strip() or 'nothing was said'}"
+        )
+    return completed.stdout.strip()
 
 
 def answered(url, headers=None, body=None, method="GET", timeout_seconds=10):
@@ -811,6 +854,12 @@ class CompanyPlane:
     reaches them at the address its own default route names. That address is the
     only substitution: the company, the member who signs in, the agent key and
     the connection document are the ones the app really issues.
+
+    The record's address is the one thing written twice. Every token the gateway
+    verifies has to carry the issuer the gateway was configured with, and GoTrue
+    stamps the address it was started on rather than the one the caller reached
+    it at. So the app and the gateway are both told that address, and the
+    connection document the guest is handed carries one the guest can route to.
     """
 
     def __init__(self, working_directory, guest_reachable_address):
@@ -818,7 +867,11 @@ class CompanyPlane:
         self.working_directory.mkdir(parents=True, exist_ok=True)
         self.address = guest_reachable_address
         self.settings = local_plane_settings()
+        self.signing_key = local_plane_signing_key()
         self.administrator_email, self.administrator_password = seeded_administrator()
+        # The app holds this to make its own calls to a company, and no
+        # assertion here uses it: a call carrying it reaches the company as the
+        # plane rather than as a member, which is not the wire a person is on.
         self.admin_token = secrets.token_hex(16)
         self.gateway_port = free_port()
         self.application_port = free_port()
@@ -881,10 +934,10 @@ class CompanyPlane:
             ],
             REPOSITORY_ROOT / "web",
             {
-                "SUPABASE_URL": self.project_url,
+                "SUPABASE_URL": self.settings["API_URL"],
                 "SUPABASE_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
                 "SUPABASE_SECRET_KEY": self.settings["SECRET_KEY"],
-                "SUPABASE_JWT_SIGNING_KEY": signing_key_of_secret(self.settings["JWT_SECRET"]),
+                "SUPABASE_JWT_SIGNING_KEY": self.signing_key,
                 "GATEWAY_URL": self.gateway_url,
                 "GATEWAY_ADMIN_TOKEN": self.admin_token,
             },
@@ -934,7 +987,13 @@ class CompanyPlane:
         return json.loads(document)["access_token"]
 
     def connection_document(self):
-        """What a person downloads from company setup, issued to this guest."""
+        """What a person downloads from company setup, issued to this guest.
+
+        With the record's address put back to one the guest can route to. The
+        app signs the host's token with the issuer it was started on, which is
+        the issuer the gateway checks, so it cannot be started on the guest's
+        address; and the guest cannot reach the record at loopback.
+        """
         status, document = answered(
             self.application_url + HOST_SETUP_PATH,
             {"Authorization": "Bearer " + self.administrator_session(), "Content-Type": "application/json"},
@@ -946,7 +1005,76 @@ class CompanyPlane:
             raise RigFailure(
                 f"company setup answered {status} instead of a connection document: {document[:300]!r}"
             )
-        return json.loads(document)
+        issued = json.loads(document)
+        issued["centralPlane"]["projectURL"] = self.project_url
+        return issued
+
+    def member_session(self, company_id, message_text):
+        """What a member does in a browser: sign in, open the wire, say something.
+
+        Run in its own process because the browser's half of this wire is a
+        websocket carrying the access token as a subprotocol, which is the shape
+        `web/src/lib/host-bridge.ts` uses and the shape the gateway insists on.
+        Nothing here holds the gateway's admin token or a server key.
+        """
+        completed = run(
+            ["bun", "run", str(MEMBER_SESSION_SCRIPT)],
+            cwd=REPOSITORY_ROOT,
+            environment={
+                "MEMBER_SESSION_PROJECT_URL": self.settings["API_URL"],
+                "MEMBER_SESSION_PUBLISHABLE_KEY": self.settings["PUBLISHABLE_KEY"],
+                "MEMBER_SESSION_GATEWAY_URL": self.gateway_url,
+                "MEMBER_SESSION_COMPANY_ID": company_id,
+                "MEMBER_SESSION_EMAIL": self.administrator_email,
+                "MEMBER_SESSION_PASSWORD": self.administrator_password,
+                "MEMBER_SESSION_MESSAGE": message_text,
+            },
+            timeout=300,
+        )
+        for line in reversed(completed.stdout.splitlines()):
+            if line.startswith("{"):
+                return json.loads(line)
+        return {"refused": (completed.stderr.strip() or completed.stdout.strip() or "the member session said nothing")[-900:]}
+
+    def member_identity(self, company_id):
+        """The member row the seeded address belongs to on this company."""
+        status, document = self.read_record(
+            f"/rest/v1/member?select=id&company_id=eq.{company_id}"
+            f"&email=eq.{urllib.parse.quote(self.administrator_email)}"
+        )
+        rows = json.loads(document) if status == 200 and document else []
+        return rows[0]["id"] if rows else ""
+
+    def wait_until_the_member_holds_a_messenger_credential(self, member_id, timeout_seconds=300):
+        """admind derives each member's messenger key and records it here.
+
+        The answer is the member's identity on the messenger, which is what the
+        guest's own roster has to know them by. A member with no credential is
+        refused by the relay with 409, so waiting for the record to hold one is
+        waiting for a precondition rather than retrying a failure.
+        """
+        kind = messenger_credential_kind()
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            status, document = self.read_record(
+                f"/rest/v1/credential?select=external_id&kind=eq.{urllib.parse.quote(kind)}"
+                f"&member_id=eq.{member_id}"
+            )
+            rows = json.loads(document) if status == 200 and document else []
+            if rows and rows[0].get("external_id"):
+                return rows[0]["external_id"]
+            if time.monotonic() > deadline:
+                return ""
+            time.sleep(5)
+
+    def read_record(self, path):
+        return answered(
+            self.settings["API_URL"] + path,
+            {
+                "apikey": self.settings["SECRET_KEY"],
+                "Authorization": "Bearer " + self.settings["SECRET_KEY"],
+            },
+        )
 
     def forget_the_company_computer(self, company_id):
         """Take back the agent row the connection document wrote."""
