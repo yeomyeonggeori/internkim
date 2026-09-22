@@ -341,13 +341,56 @@ interpreter.
 throughput during `apt-get install`, and the behaviour of a Postgres cluster
 under `fsync` on that medium have no counterpart on a Mac's NVMe.
 
-Beyond the hardware, two things are out of reach by construction: the
-Raspberry Pi OS `chromium-browser` name, which differs from Debian's `chromium`
-and comes from `archive.raspberrypi.com`, and anything about the Homebrew path,
-which needs a macOS builder for `buzz-relay` that has never been run.
+Beyond the hardware, one thing is out of reach by construction: the Raspberry
+Pi OS `chromium-browser` name, which differs from Debian's `chromium` and comes
+from `archive.raspberrypi.com`.
+
+The Homebrew path has a rig of its own, and it is a different kind of rig.
 
 The third used to be whether `apt upgrade` works against R2. The worker now
 serves a `deb/` prefix and the repository the rig serves is rendered by
 `internkim release apt`, the command that uploads it, so what is untested is
 narrower: R2 and the Workers runtime in front of it, rather than the
 repository. A deploy is what closes that, and no deploy has happened.
+
+## The macOS rig, and why it is not this one
+
+```
+internkim release brew --version 0.0.1
+tools/test-macos-install --yes-change-this-mac
+```
+
+A Mac cannot be a disposable guest on the Mac that would host it, so
+`tools/test-macos-install` **installs into the machine it runs on**. That is the
+whole difference, and everything about the rig follows from it: it prints every
+path it will touch before it touches one, it stops unless
+`--yes-change-this-mac` is given, and `--undo` takes back what it left.
+
+What it reads is Homebrew's own state rather than the install's output.
+
+| Observation | Reads | Why that |
+|---|---|---|
+| the bottle poured, rather than being built from source | `Pouring` in `brew install`'s output, and `poured_from_bottle` in the keg's receipt | a source build exercises the formula's `install` and says nothing about the bottle, which is what every Mac but the builder's will get |
+| Homebrew records the install | `brew list internkim`, and `brew info --json=v2` for where the keg is | a file under the prefix proves a file exists; the registration is what `brew upgrade` and `brew uninstall` act on |
+| one command is linked and nothing else is | the contents of `<prefix>/bin` before and after | the keg vendors `bun`, `uv` and `agent-browser` and Homebrew has a formula of each of those names, so a keg that offered its own could not be linked at all |
+| every program the plists start is there and this Mac can run it | `file` on each, and the executable bit on the one that is a script | a plist names an absolute path, and a daemon whose program is missing is one launchd loads and immediately loses |
+| the document interpreter opens what the skills open | the venv's own python importing the list | Homebrew's `python@3.13` cannot load `pyexpat` on macOS 26.1, and losing it is silent until somebody asks for a document |
+| the formula passes its own test | `brew test internkim` | the `test do` block is what a person running `brew test` gets, and a formula whose test does not pass is one nobody can check |
+| uninstalling leaves the prefix as it was | `<prefix>/bin` compared against the snapshot | a package manager that cannot undo itself is worse than no package manager |
+
+### Where it stops
+
+The nine LaunchDaemons are behind `--install-the-company <connection.json>`,
+and that has not been run. It needs a company, which needs a connection document
+from a plane, and it writes `/Library/LaunchDaemons`, creates two accounts in
+this Mac's directory service and makes the POSIX helper setuid root. Those
+assertions exist — the accounts, the nine labels loaded in the `system` domain,
+the setuid bit — and they are judged only when somebody chooses to give this Mac
+a company. `--undo` boots the daemons out, removes the plists and deletes the
+accounts, and leaves `/var/lib/internkim` alone because it holds the company's
+keys.
+
+Two things no run of this rig can reach. A bottle is per macOS version and per
+architecture, so a green run says `arm64_tahoe` on the builder's own release of
+macOS and nothing about any other. And `brew upgrade` is untested: it needs two
+published versions, and nothing has been published.
