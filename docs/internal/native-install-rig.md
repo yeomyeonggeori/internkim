@@ -342,11 +342,17 @@ A green run says the package installs, upgrades and removes correctly on an
 arm64 Debian 13 guest under a 4 KB-page kernel with plenty of memory and a
 virtual disk. The appliance is none of those things in three ways.
 
-**Page size.** Raspberry Pi OS for CM5 may ship a 16 KB page-size kernel. The
-guest here reports 4096 and runs the repository's own `Image-6.1.68-kvm`, so
-nothing in this rig exercises a 16 KB page.
+**Page size.** Raspberry Pi OS for CM5 ships a 16 KB page-size kernel, and has
+since the Pi 5 launched: `bcm2712_defconfig` sets `CONFIG_ARM64_16K_PAGES=y`
+and the firmware loads `kernel_2712.img` on a CM5 unless told otherwise, so
+`getconf PAGE_SIZE` there says 16384. The guest here says 4096 and runs the
+repository's own `Image-6.1.68-kvm`, so nothing in this rig exercises the page
+size the board will have. `kernel=kernel8.img` in `/boot/firmware/config.txt`
+falls back to the 4 KB kernel, which the 64-bit image already installs; a
+Raspberry Pi engineer puts the cost at about 7% on random memory access, and
+nothing else is documented as lost.
 
-Half of that risk is now a measurement rather than a worry. A binary whose
+Half of that risk is now a measurement. A binary whose
 largest `PT_LOAD` alignment is 4 KB cannot be mapped by a kernel with a larger
 page, and every arm64 binary the package ships aligns to 64 KB: the Go
 binaries, `moli`, `agent-browser`, `bun`, `uv` and `versitygw`. Nothing we ship
@@ -365,25 +371,39 @@ EOF
 ```
 
 What is left is what loading does not answer: a program that maps fine and then
-assumes 4 KB at runtime. `bun` embeds JavaScriptCore and the document skills
-drive Chromium, which are the two that have historically carried such an
-assumption; Chromium is the distribution's package rather than ours, and on
-Raspberry Pi OS it is the distribution's own build for that kernel.
+assumes 4 KB while running.
 
-**Memory.** The guest has 4 GB, which is the 4 GB CM5 variant's whole ceiling,
-and step 5 holds PostgreSQL, Redis, the S3 server, the messenger and the agent
-in it at once without a unit dying. What is still unmeasured is the same box
-under load and with Chromium resident, which is what a document skill adds. The
-installed package is 295 MB for `arm64`, 110 MB of which is the document
-interpreter.
+- **`bun` is the open one.** Upstream tracks non-4 KB page support in
+  oven-sh/bun#17627 and the "manually check it works on 16k" box is unticked,
+  with 64 KB still reported crashing. Nobody has said it works on a Pi 5 and
+  nobody has said it does not.
+- **Chromium's version of this is fixed and we are past it.** A V8 change
+  assuming 4 KB crashed every renderer about thirty seconds in on 16 KB
+  machines (Debian #1089647); the fix is in Chromium 134, and Raspberry Pi OS
+  trixie ships 153.
+- **Go is page-size agnostic.** The runtime reads the page size out of
+  `AT_PAGESZ` and accepts anything up to 512 KB. What breaks in cgo programs is
+  the C allocator, and `jemalloc` and `hardened_malloc` are both on Raspberry
+  Pi's own incompatibility list.
+
+**Memory.** The guest has 4 GB, and step 5 holds PostgreSQL, Redis, the S3
+server, the messenger and the agent in it at once without a unit dying. The CM5
+comes in 2, 4, 8 and 16 GB, so 4 GB is the second-smallest board rather than
+the floor; a 2 GB one has about 1.9 GB after the CMA pool and has never been
+measured. Also unmeasured is the same box under load with Chromium resident,
+which is what a document skill adds. The installed package is 295 MB for
+`arm64`, 110 MB of which is the document interpreter.
 
 **Storage.** The appliance boots from a microSD. Write endurance, sustained
 throughput during `apt-get install`, and the behaviour of a Postgres cluster
 under `fsync` on that medium have no counterpart on a Mac's NVMe.
 
-Beyond the hardware, one thing is out of reach by construction: the Raspberry
-Pi OS `chromium-browser` name, which differs from Debian's `chromium` and comes
-from `archive.raspberrypi.com`.
+Beyond the hardware, the package's dependencies come from two archives.
+Raspberry Pi OS renamed `chromium-browser` to `chromium` in its
+2024-10-22 release and now serves `chromium` from `archive.raspberrypi.com` at
+a `+rpt1` version that outranks Debian's, leaving `chromium-browser` as an
+empty transitional package. So the name this package depends on is the right
+one, and what it resolves to on the board is Raspberry Pi's build, not Debian's. `postgresql-contrib` and `fonts-nanum` come from Debian unchanged.
 
 The Homebrew path has a rig of its own, and it is a different kind of rig.
 
