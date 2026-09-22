@@ -576,12 +576,20 @@ class Machine:
         script_path = self.share_directory / "scripts" / f"step-{hashlib.sha256(script.encode()).hexdigest()[:16]}.sh"
         script_path.parent.mkdir(parents=True, exist_ok=True)
         script_path.write_text("set -o pipefail\n" + script)
-        return subprocess.run(
-            [self.container_binary, "exec", self.name, "bash", f"{SHARE_PATH}/scripts/{script_path.name}"],
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-        )
+        try:
+            return subprocess.run(
+                [self.container_binary, "exec", self.name, "bash", f"{SHARE_PATH}/scripts/{script_path.name}"],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as expired:
+            # A raw TimeoutExpired escapes the driver's own handling and leaves
+            # the guest and its several gigabytes behind. A RigFailure is what
+            # the driver knows how to clean up after.
+            raise RigFailure(
+                f"the guest did not answer within {timeout_seconds}s: {script.strip().splitlines()[0]}"
+            ) from expired
 
     def checked_shell(self, script, **keywords):
         completed = self.shell(script, **keywords)
