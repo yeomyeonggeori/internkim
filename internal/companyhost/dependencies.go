@@ -14,6 +14,10 @@ import (
 // read here and the gap is named instead of installed. The gap between the two
 // paths is this message.
 
+// The one program whose presence decides whether this repository knows the
+// command that installs the rest.
+const debianPackageManager = "apt-get"
+
 type missingPiece struct {
 	What          string
 	DebianPackage string
@@ -24,7 +28,7 @@ func requireWhatTheCompanyHostRuns(machine Machine) error {
 	if len(missing) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%s", refusalNaming(missing))
+	return fmt.Errorf("%s", refusalNaming(missing, machine.CarriesProgram(debianPackageManager) == nil))
 }
 
 func whatThisComputerIsMissing(machine Machine) []missingPiece {
@@ -57,11 +61,13 @@ func whatCarries(dependency blueclaw.HostDependency) string {
 	return dependency.DebianPackage
 }
 
-// A person reads one command, not a list of twelve names to look up. What the
-// distribution carries becomes one apt-get line; what only our own package
-// carries cannot, and says so, because `apt-get install internkim` is what put
-// this program on the machine in the first place.
-func refusalNaming(missing []missingPiece) string {
+// A person reads one command, not a list of twelve names to look up. The command
+// is offered only where this repository knows it is the right one: on a machine
+// with apt, the names are Debian's and the line is apt's. Anywhere else the
+// missing pieces are named by what they are, because a Debian package name is
+// the wrong name on a machine that does not use Debian packages, and advice a
+// person cannot follow is worse than no advice.
+func refusalNaming(missing []missingPiece, thisMachineHasApt bool) string {
 	fromTheDistribution := []string{}
 	fromOurPackage := []string{}
 	for _, piece := range missing {
@@ -69,7 +75,11 @@ func refusalNaming(missing []missingPiece) string {
 			fromOurPackage = append(fromOurPackage, piece.What)
 			continue
 		}
-		fromTheDistribution = append(fromTheDistribution, piece.DebianPackage)
+		if thisMachineHasApt {
+			fromTheDistribution = append(fromTheDistribution, piece.DebianPackage)
+			continue
+		}
+		fromTheDistribution = append(fromTheDistribution, piece.What)
 	}
 	lines := []string{"this computer is missing what the company server runs on:"}
 	if len(fromOurPackage) > 0 {
@@ -78,12 +88,18 @@ func refusalNaming(missing []missingPiece) string {
 				" belong to the "+blueclaw.CompanyPackageName+" package and are not on this machine.",
 			"  Install it with: curl -fsSL https://intern.kim/install.sh | sh -s -- host")
 	}
-	if len(fromTheDistribution) > 0 {
-		lines = append(lines,
-			"  Your distribution carries the rest. Install them, then run this again:",
-			"    sudo apt-get install "+strings.Join(sortedAndUnique(fromTheDistribution), " "))
+	if len(fromTheDistribution) == 0 {
+		return strings.Join(lines, "\n")
 	}
-	return strings.Join(lines, "\n")
+	if thisMachineHasApt {
+		return strings.Join(append(lines,
+			"  Your distribution carries the rest. Install them, then run this again:",
+			"    sudo apt-get install "+strings.Join(sortedAndUnique(fromTheDistribution), " ")), "\n")
+	}
+	return strings.Join(append(lines,
+		"  The rest are missing and this machine has no apt to name them for:",
+		"    "+strings.Join(sortedAndUnique(fromTheDistribution), ", "),
+		"  Install them however this machine installs software, then run this again."), "\n")
 }
 
 func sortedAndUnique(values []string) []string {

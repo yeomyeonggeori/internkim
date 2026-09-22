@@ -1131,7 +1131,7 @@ Environment=BUZZ_MEDIA_UPLOADS_PER_MINUTE=1000000
 DROPIN
 systemctl daemon-reload
 systemctl restart ` + blueclaw.BuzzRelayServiceName + `
-for attempt in $(seq 1 30); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+for attempt in $(seq 1 30); do curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null 2>&1 && break; sleep 1; done
 echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|WS_EVENTS' || true
 echo "relay permissive via drop-in — scheduling admind restart to resync member membership"
 systemd-run --on-active=3sec --unit=internkim-membership-admind-restart systemctl restart internkim-admind
@@ -1149,7 +1149,7 @@ set -e
 rm -f /etc/systemd/system/` + blueclaw.BuzzRelayServiceName + `.service.d/membership-recover.conf
 systemctl daemon-reload
 systemctl restart ` + blueclaw.BuzzRelayServiceName + `
-for attempt in $(seq 1 30); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+for attempt in $(seq 1 30); do curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null 2>&1 && break; sleep 1; done
 echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|WS_EVENTS' || true
 `)
 }
@@ -1167,7 +1167,7 @@ cat "$BACKUP" | su - postgres -c "psql -q -d ` + blueclaw.BuzzRelayDatabaseName 
 rm -f /etc/systemd/system/` + blueclaw.BuzzRelayServiceName + `.service.d/membership-recover.conf
 systemctl daemon-reload
 systemctl start ` + blueclaw.BuzzRelayServiceName + `
-for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+for attempt in $(seq 1 40); do curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null 2>&1 && break; sleep 1; done
 systemctl start ` + blueclaw.ChatdServiceName + `
 echo "restored from snapshot; relay+chatd started"
 su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"SELECT count(*) FROM events WHERE kind=9\"" | sed 's/^/kind9 events: /'
@@ -1383,7 +1383,7 @@ func buzzRelayRestartCommand() string {
 	return strings.TrimSpace(`
 set -e
 systemctl restart ` + blueclaw.BuzzRelayServiceName + `
-for attempt in $(seq 1 40); do curl -fsS --max-time 3 http://` + blueclaw.BuzzRelayBindAddress + `/_readiness >/dev/null 2>&1 && break; sleep 1; done
+for attempt in $(seq 1 40); do curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null 2>&1 && break; sleep 1; done
 systemctl restart ` + blueclaw.ChatdServiceName + `
 systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p ActiveState,SubState,ExecMainStartTimestamp
 systemctl show ` + blueclaw.ChatdServiceName + ` -p ActiveState,SubState

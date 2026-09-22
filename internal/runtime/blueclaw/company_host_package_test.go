@@ -1,6 +1,7 @@
 package blueclaw
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -66,9 +67,12 @@ func TestTheObjectStoreIsNamedOnlyWhereAnOperatorCanChangeIt(t *testing.T) {
 	}
 }
 
-// The relay is the one service whose device unit and packaged unit are the same unit.
-// Anything else in it differing means the renderer grew a second definition.
-func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagePath(t *testing.T) {
+// The relay is the one service whose device unit and packaged unit are the same
+// unit. They differ in two values of one declaration: the binary path dpkg is
+// allowed to write, and the state directory an unprivileged account can reach on
+// a host whose state root is 0700. Anything else differing means the renderer
+// grew a second definition.
+func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesTwoValues(t *testing.T) {
 	packaged := ""
 	for _, unit := range CompanyPackageUnits() {
 		if unit.Name == RelayServiceName {
@@ -79,8 +83,12 @@ func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagePath(t *testing.T) {
 		t.Fatal("the package installs no relay unit, and the relay is what keeps the screen alive when the agent is down")
 	}
 	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, CompanyPackageBinaryPath(RelayName))
+	expected = strings.ReplaceAll(expected,
+		RelayStateDirectoryPath(RelayStateDirectoryName), RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName))
+	expected = strings.ReplaceAll(expected,
+		"StateDirectory="+RelayStateDirectoryName, "StateDirectory="+CompanyHostRelayStateDirectoryName)
 	if packaged != expected {
-		t.Fatalf("the packaged relay unit differs from the device one by more than its binary path:\n%s", packaged)
+		t.Fatalf("the packaged relay unit differs from the device one by more than those two values:\n%s", packaged)
 	}
 }
 
@@ -162,4 +170,43 @@ func TestTheBucketIsADirectoryUnderTheGatewayRoot(t *testing.T) {
 				CompanyHostMediaRootPath)
 		}
 	}
+}
+
+// The state root is 0700 root:root, which means no unprivileged account can
+// traverse it. A unit that runs as an ordinary account and keeps its state
+// inside it would be given a directory it cannot open, and nothing would say so
+// until a real company existed. The relay is the unit this catches.
+func TestNoUnprivilegedUnitKeepsItsStateInsideTheCompanyTree(t *testing.T) {
+	for _, unit := range CompanyPackageUnits() {
+		account := settingOf(unit.Contents, "User")
+		stateDirectory := settingOf(unit.Contents, "StateDirectory")
+		if account == "" || account == "root" || stateDirectory == "" {
+			continue
+		}
+		path := RelayStateDirectoryPath(stateDirectory)
+		if strings.HasPrefix(path, CompanyHostStateRoot+"/") {
+			t.Fatalf(
+				"%s runs as %s and keeps its state at %s, inside %s, which is %04o root:root; it could not open its own directory",
+				unit.Name, account, path, CompanyHostStateRoot, CompanyHostStateRootMode)
+		}
+	}
+}
+
+// Three things create the state root: the package, the prepare service, and
+// `internkim install` on a box that never saw a package. One mode, read from one
+// constant, or the first company to arrive silently changes it.
+func TestThePrepareServiceCreatesTheStateRootWithTheModeThePackageGivesIt(t *testing.T) {
+	expected := fmt.Sprintf("install -d -o root -g root -m %04o %s", CompanyHostStateRootMode, CompanyHostStateRoot)
+	if !strings.Contains(CompanyHostPrepareScript(), expected) {
+		t.Fatalf("the prepare service does not create the state root as %q, so a company changes its mode", expected)
+	}
+}
+
+func settingOf(unitContents string, name string) string {
+	for _, line := range strings.Split(unitContents, "\n") {
+		if value, found := strings.CutPrefix(line, name+"="); found {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

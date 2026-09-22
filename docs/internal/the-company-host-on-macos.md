@@ -367,7 +367,28 @@ Whether that is `brew install internkim` in the sense the goal meant is a
 judgment the goal has to make. It is one line, and the line is followed by a
 second one.
 
-## 7. What was not determined
+## 7. What `internkim install` would have to grow
+
+That second line exists. `internal/companyhost` is the verb this section hands
+the work to, and it was written against Debian. Four of its five steps reach for
+something macOS does not have, and one already works everywhere. This is the
+whole list, so the macOS arm is a known quantity instead of a discovery.
+
+| Step | What it does on Linux | What macOS needs |
+|---|---|---|
+| preflight | reads `HostDependencies()` and, on a machine with `apt-get`, prints the `apt-get install` line for what is missing | the declaration's Homebrew names, and a `brew install` line. The preflight already refuses to print an apt command on a machine without apt, so what it prints today on a Mac is the list of missing programs and no command |
+| accounts | `addgroup --system` and `adduser --system` for `blueclaw` and `internkim` | `dscl` and `dseditgroup`, which §4 records the helper already reaching for |
+| the company's files | writes them and `chown`s two to the relay's account | nothing, except the paths: `/var/lib/internkim` and `/etc/internkim` are FHS, and a Homebrew install has a prefix |
+| databases | `runuser -u postgres -- psql`, because Debian's cluster runs as `postgres` and authenticates by peer | nothing of the sort: `brew install postgresql@17` runs the server as the person who installed it, so `psql` connects directly. The SQL is the same SQL |
+| supervision | `systemctl daemon-reload`, `enable`, `restart`, and `systemctl enable --now postgresql redis-server` | `launchctl bootstrap` against the nine LaunchDaemons, and `brew services start postgresql@17 redis`. The unit contents come from the same renderers either way; what differs is the format and the verb |
+| the wait | six probes over `pg_isready`, `redis-cli` and `curl`, each with its own failure sentence | nothing. Every one of those programs is on a Mac that has the dependencies, the addresses are loopback and identical, and §5 says this polling is the only thing standing where systemd's ordering stood |
+
+The shape that falls out is the one `cmd/internkim-companion/service.go` already
+uses: a `backgroundService` interface with `service_launchd.go` and
+`service_systemd.go` behind it. Four of the six rows above are one file's worth
+of difference, and the middle two are none.
+
+## 8. What was not determined
 
 - **Whether launchd plists rendered from the unit renderers actually bring the
   bundle up.** Nothing was rendered and nothing was loaded. Ordering is the

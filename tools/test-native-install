@@ -10,11 +10,9 @@ judges a transcript of what the install printed.
 """
 
 import argparse
-import json
 import shutil
 import sys
 import tempfile
-import time
 import uuid
 from pathlib import Path
 
@@ -24,8 +22,12 @@ from native_install_rig import (  # noqa: E402
     APT_SOURCE_PATH,
     ARCHITECTURE,
     COMPONENT,
+    CONFFILE_EDIT,
+    CONFFILE_PATH,
     KEYRING_NAME,
+    READINESS_PROBES,
     REPOSITORY_PREFIX,
+    REVISION_PROBE,
     CONFIGURATION_DIRECTORY,
     KEYRING_PATH,
     PACKAGE_NAME,
@@ -73,6 +75,40 @@ MERGED_USR_ALIASES = [("/lib/", "/usr/lib/"), ("/bin/", "/usr/bin/"), ("/sbin/",
 
 APT_PROGRESS = ("(Reading database", "Selecting previously", "Adding 'diversion")
 
+# What systemd reports for a unit that refused to start because its condition is
+# unmet: it declined, it is not running, nothing failed, and nothing retried.
+DECLINED_STATE = "no/inactive/success/0"
+
+UNIT_STATE_COMMAND = r"""
+for unit in %s; do
+  printf '%%s=%%s/%%s/%%s/%%s\n' "$unit" \
+    "$(systemctl show -p ConditionResult --value "$unit")" \
+    "$(systemctl show -p ActiveState --value "$unit")" \
+    "$(systemctl show -p Result --value "$unit")" \
+    "$(systemctl show -p NRestarts --value "$unit")"
+done
+"""
+
+# A dependency apt honoured is not always a package dpkg holds. postgresql-contrib
+# is a real package on bookworm, jammy and noble and a pure virtual name on
+# trixie, where `postgresql` provides it; asking only dpkg's status would call an
+# honoured line missing.
+DEPENDENCY_SATISFACTION_COMMAND = r"""
+provided="$(dpkg-query -W -f '${Status}\t${Provides}\n' 2>/dev/null \
+  | grep '^install ok installed' | cut -f2 | tr ',' '\n' | sed 's/ *(.*//' | tr -d ' ' | sort -u)"
+for name in %s; do
+  if dpkg-query -W -f '${Status}' "$name" 2>/dev/null | grep -q 'install ok installed'; then
+    continue
+  fi
+  if printf '%%s\n' "$provided" | grep -qx "$name"; then
+    echo "PROVIDED $name"
+    continue
+  fi
+  echo "$name"
+done
+true
+"""
+
 
 def without_apt_noise(text):
     return "\n".join(
@@ -115,6 +151,7 @@ class Step:
         self.number = number
         self.name = name
         self.observations = []
+        self.owed = []
         self.blocked_because = None
 
     def observe(self, name, observes, not_a_proxy):
@@ -124,6 +161,16 @@ class Step:
 
     def block(self, reason):
         self.blocked_because = reason
+        return self
+
+    def owe(self, name, observes, why_it_waits):
+        """An assertion this step will make, recorded before it can be made.
+
+        Some of what the rig judges cannot be judged on a box with no company,
+        and deleting those assertions would quietly narrow what the rig claims.
+        They are listed here instead, so a run says what it has not yet asked.
+        """
+        self.owed.append((name, observes, why_it_waits))
         return self
 
     @property
@@ -330,18 +377,24 @@ class Rig:
             policy.stdout.strip()[-800:],
         )
 
-        missing = self.machine.shell(
-            "for name in " + " ".join(self.dependencies or ["true"]) + "; do "
-            "dpkg-query -W -f '${Status}' \"$name\" 2>/dev/null | grep -q 'install ok installed' || echo \"$name\"; "
-            "done; true"
-        )
+        satisfied = self.machine.shell(DEPENDENCY_SATISFACTION_COMMAND % " ".join(self.dependencies or ["true"]))
+        provided = [line.split(None, 1)[1] for line in satisfied.stdout.split("\n") if line.startswith("PROVIDED ")]
+        missing = [line for line in satisfied.stdout.split() if line and not line.startswith("PROVIDED") and line not in provided]
         step.observe(
-            "everything the package declares a dependency on is installed",
-            "`dpkg-query -W` for each name in the package's own Depends: field",
+            "everything the package declares a dependency on is installed or provided",
+            "`dpkg-query -W` for each name in the package's own Depends: field, and the "
+            "Provides: of every installed package for the names dpkg does not record",
             "the plan's §3 makes fonts-nanum and chromium hard dependencies because without them "
             "a skill is withheld from the prompt and the Korean silently leaves the PDF; reading "
-            "the field back off the machine is what shows apt honoured the line",
-        ).record(not missing.stdout.strip(), missing.stdout.strip() or ", ".join(self.dependencies))
+            "the field back off the machine is what shows apt honoured the line. A name can be "
+            "honoured without being recorded: postgresql-contrib is a real package on bookworm, "
+            "jammy and noble and purely virtual on trixie, where postgresql provides it and dpkg "
+            "never holds the name",
+        ).record(
+            not missing,
+            " ".join(missing) or ", ".join(self.dependencies)
+            + (f"\nsatisfied by a Provides: {', '.join(provided)}" if provided else ""),
+        )
 
         unowned = self.unowned_paths(baseline)
         step.observe(
@@ -397,67 +450,19 @@ class Rig:
             " ".join(f"{name}={state}" for name, state in zip(unit_names, enabled.stdout.split())),
         )
 
-        active = self.machine.shell(
-            f"systemctl is-active {' '.join(unit_names)} 2>&1; "
-            f"systemctl show -p NRestarts --value {' '.join(unit_names)}"
-        )
-        lines = active.stdout.split()
-        states = lines[: len(unit_names)]
-        restarts = lines[len(unit_names) :]
+        declined = self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names))
+        states = dict(line.split("=", 1) for line in declined.stdout.split() if "=" in line)
         step.observe(
-            "every unit is running and is not restarting in a loop",
-            "`systemctl is-active` plus NRestarts for each unit",
-            "a crash-looping unit reports active for most of every second, so is-active alone "
-            "cannot tell a running service from one that keeps dying",
+            "every unit declined to start rather than failing to",
+            "ConditionResult, ActiveState, Result and NRestarts for each unit dpkg lists",
+            "this box has the package and no company, and the plan's §2 says that is exactly "
+            "when every unit stays inactive: each one carries ConditionPathExists over a file "
+            "`internkim install` writes. Inactive-because-it-declined and inactive-because-it-died "
+            "are different machine states, and only these four fields together tell them apart",
         ).record(
-            all(state == "active" for state in states) and all(count == "0" for count in restarts),
-            " ".join(f"{name}={state}/{count}" for name, state, count in zip(unit_names, states, restarts)),
+            bool(states) and all(state == DECLINED_STATE for state in states.values()),
+            "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
         )
-
-        probes = self.readiness_probes()
-        if not probes:
-            step.observe(
-                "the services answer their readiness endpoints",
-                "an HTTP request from inside the guest to each endpoint the plan names",
-                "",
-            ).record(False, "no readiness endpoint answered on 8080 or 8081")
-            return
-        answers = self.machine.shell(
-            "; ".join(
-                f"printf '%s ' {path}; curl -fsS --max-time 5 http://127.0.0.1:{port}{path} || echo UNANSWERED"
-                for port, path in probes
-            )
-        )
-        step.observe(
-            "the services answer their readiness endpoints with the revision just installed",
-            "an HTTP GET from inside the guest to /_readiness on 8081 and /admin/api/health on 8080",
-            "`systemctl is-active` reports active for a process that answers HTTP while refusing "
-            "all work, which is how a half-deploy stayed green for forty minutes; the endpoint is "
-            "the narrowest thing the machine can be asked without a company on it, and the "
-            "document says where that bound stops",
-        ).record("UNANSWERED" not in answers.stdout and answers.returncode == 0, answers.stdout.strip()[-500:])
-
-    def readiness_probes(self):
-        candidates = [(8081, "/_readiness"), (8080, "/admin/api/health")]
-        answering = []
-        for port, path in candidates:
-            for _ in range(20):
-                probe = self.machine.shell(f"curl -fsS --max-time 3 http://127.0.0.1:{port}{path} >/dev/null")
-                if probe.returncode == 0:
-                    answering.append((port, path))
-                    break
-                time.sleep(2)
-        return answering
-
-    def running_revisions(self):
-        answers = {}
-        for port, path in self.readiness_probes():
-            probe = self.machine.shell(f"curl -fsS --max-time 5 http://127.0.0.1:{port}{path}")
-            try:
-                answers[port] = json.loads(probe.stdout)
-            except json.JSONDecodeError:
-                answers[port] = {"raw": probe.stdout.strip()}
-        return answers
 
     def unowned_paths(self, baseline):
         appeared = sorted(self.snapshot() - baseline)
@@ -487,7 +492,6 @@ class Rig:
                 f"an upgrade needs two versions of {PACKAGE_NAME} to move between; "
                 f"{len(packages)} was found"
             )
-        before = self.running_revisions()
         self.release.publish(packages[1])
         newer = package_fields(packages[1])["Version"]
 
@@ -521,26 +525,14 @@ class Rig:
             "the machine's",
         ).record(recorded.stdout.strip() == newer, recorded.stdout.strip())
 
-        after = self.running_revisions()
-        moved = bool(before) and bool(after) and any(
-            after.get(port, {}).get("gitRevision") != answer.get("gitRevision")
-            for port, answer in before.items()
-        )
+        edited = self.machine.shell(f"cat {CONFFILE_PATH} 2>/dev/null")
         step.observe(
-            "the running processes moved to the new build, not just the files on disk",
-            "the gitRevision each service reports on its health endpoint, before and after",
-            "an upgrade that replaces the binary without restarting the unit leaves the old "
-            "process serving; dpkg's version and the file's mtime both move anyway, so only the "
-            "running process can say it happened",
-        ).record(moved, f"before={json.dumps(before)} after={json.dumps(after)}")
-
-        edited = self.machine.shell(f"cat {CONFIGURATION_DIRECTORY}/runtime.json 2>/dev/null")
-        step.observe(
-            "a local edit to a shipped configuration file survived the upgrade",
-            f"the contents of {CONFIGURATION_DIRECTORY}/runtime.json, edited before the upgrade",
-            "the plan calls these conffiles so an administrator's edits survive; only reading the "
-            "file after dpkg has run can show whether they did",
-        ).record("edited-by-the-rig" in edited.stdout, edited.stdout.strip()[:300])
+            "a local edit to the shipped configuration file survived the upgrade",
+            f"the contents of {CONFFILE_PATH}, edited before the upgrade",
+            "this is the package's one conffile; the plan's §5 makes runtime.json an optional "
+            "override the package does not ship, so editing that would say nothing about whether "
+            "dpkg preserved an operator's work",
+        ).record(CONFFILE_EDIT in edited.stdout, edited.stdout.strip()[-300:])
         return step
 
     def plant_state(self):
@@ -549,9 +541,7 @@ class Rig:
             f"install -d -m 0700 {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets\n"
             f"printf '%s\\n' '{PLANTED_SECRET}' > {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key\n"
             f"chmod 0600 {STATE_DIRECTORY}/companies/{PLANTED_COMPANY_ID}/secrets/agent-key\n"
-            f"if [ -f {CONFIGURATION_DIRECTORY}/runtime.json ]; then\n"
-            f"  printf '%s\\n' '{{\"edited-by-the-rig\": true}}' > {CONFIGURATION_DIRECTORY}/runtime.json\n"
-            f"fi\n"
+            f"printf '%s\\n' '{CONFFILE_EDIT}' >> {CONFFILE_PATH}\n"
         )
 
     def run_step_four(self, step):
@@ -668,6 +658,10 @@ class Rig:
                 if observation.detail:
                     for detail_line in observation.detail.splitlines():
                         lines.append(f"        | {detail_line}")
+            for name, observes, why_it_waits in step.owed:
+                lines.append(f"    · {name}")
+                lines.append(f"        will observe: {observes}")
+                lines.append(f"        waits on: {why_it_waits}")
         return "\n".join(lines)
 
     def verdict(self):
@@ -735,6 +729,8 @@ def main():
                 "not run: it needs a company, and docs/internal/native-install-rig.md settles "
                 "where that company may come from before one is created"
             )
+            for name, observes, why_it_waits in owed_until_a_company_exists():
+                step_five.owe(name, observes, why_it_waits)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep and rig.machine:
@@ -754,6 +750,36 @@ def main():
         passed = rig.verdict()
         print(f"{'✓' if passed else '✗'} native install rig")
         return 0 if passed else 1
+
+
+# Everything the rig cannot ask a box that has the package and no company. These
+# are the assertions steps 2 and 3 used to make against a stand-in whose units
+# had no conditions; the real package declines to start until `internkim install`
+# gives it a company, so they belong to the step that creates one.
+def owed_until_a_company_exists():
+    endpoints = ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES)
+    revision_port, revision_path = REVISION_PROBE
+    return [
+        (
+            "every unit is running and is not restarting in a loop",
+            "`systemctl is-active` plus NRestarts for each unit, once a company exists",
+            "a crash-looping unit reports active for most of every second, so is-active alone "
+            "cannot tell a running service from one that keeps dying",
+        ),
+        (
+            "the services answer their readiness endpoints",
+            f"an HTTP GET from inside the guest to {endpoints}",
+            "`systemctl is-active` reports active for a process that answers HTTP while refusing "
+            "all work, which is how a half-deploy stayed green for forty minutes",
+        ),
+        (
+            "the running processes moved to the new build, not just the files on disk",
+            f"the gitRevision 127.0.0.1:{revision_port}{revision_path} reports, before and after an upgrade",
+            "an upgrade that replaces the binary without restarting the unit leaves the old "
+            "process serving, and dpkg's version and the file's mtime both move anyway. Only the "
+            "admin gateway's health answer carries a revision; blueclaw's carries none",
+        ),
+    ]
 
 
 if __name__ == "__main__":

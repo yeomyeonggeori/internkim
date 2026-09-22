@@ -229,8 +229,8 @@ func debContentsFor(packaged []debPackagedFile) files.Contents {
 // `mc mb` used to do.
 func debOwnedDirectories() []debPackagedFile {
 	return []debPackagedFile{
-		{Destination: blueclaw.CompanyHostStateRoot, Mode: 0o700},
-		{Destination: blueclaw.CompanyHostCompaniesRoot, Mode: 0o700},
+		{Destination: blueclaw.CompanyHostStateRoot, Mode: blueclaw.CompanyHostStateRootMode},
+		{Destination: blueclaw.CompanyHostCompaniesRoot, Mode: blueclaw.CompanyHostStateRootMode},
 		{Destination: blueclaw.CompanyHostMediaRootPath, Mode: 0o750},
 		{Destination: blueclaw.CompanyHostMediaBucketPath, Mode: 0o750},
 		{Destination: blueclaw.CompanyHostConfigurationRoot, Mode: 0o755},
