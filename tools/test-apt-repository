@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
+    REPOSITORY_ROOT,
+    internkim_command,
     COMPONENT,
     APT_SOURCE_PATH,
     KEYRING_NAME,
@@ -342,12 +344,97 @@ class RepositoryTrial:
         print(f"{passed}/{len(self.judgement.results)} observations held · {destination}")
 
 
+SIGNING_KEY_NAME = "INTERNKIM_APT_SIGNING_KEY"
+
+
+def vault_holds_a_key(monkeys):
+    looked = subprocess.run(
+        [monkeys, "preview", SIGNING_KEY_NAME], capture_output=True, text=True, cwd=str(REPOSITORY_ROOT)
+    )
+    return "is not stored" not in looked.stdout + looked.stderr
+
+
+def publish_through_the_vault():
+    """Cut a release the way a person does, with `monkeys run` really in it.
+
+    The key is the rig's throwaway one, whose user ID says so, and it goes in
+    under the real name because the point is to exercise the real invocation
+    rather than a rehearsal of it. That is only safe while the name is free —
+    `monkeys remember` overwrites — so this refuses to run rather than stand on
+    a real archive key, and forgets what it stored on every path out.
+    """
+    monkeys = shutil.which("monkeys") or str(Path.home() / ".local/bin/monkeys")
+    if not Path(monkeys).exists():
+        raise RigFailure("monkeys is not installed, and it is where the archive signing key lives")
+    if vault_holds_a_key(monkeys):
+        raise RigFailure(
+            f"{SIGNING_KEY_NAME} already holds a key and storing one here overwrites it, so this "
+            "will not run. The real archive key is not something to keep beside a rig."
+        )
+
+    working_directory = Path(tempfile.mkdtemp(prefix="apt-vault-"))
+    release = Release(working_directory / "release")
+    release.directory.mkdir(parents=True, exist_ok=True)
+    release.generate_signing_key()
+    package = build_stand_in_package(working_directory / "stand-in", "1.0.0", "vaultrevision1")
+    release.staging_directory.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(package, release.staging_directory / package.name)
+
+    stored = subprocess.run(
+        [monkeys, "remember", SIGNING_KEY_NAME],
+        input=release.archive_key_path.read_text(), text=True, capture_output=True,
+        cwd=str(REPOSITORY_ROOT),
+    )
+    if stored.returncode != 0:
+        raise RigFailure(f"the vault would not take the test key: {stored.stderr.strip()}")
+    print(f"stored a throwaway key in the vault as {SIGNING_KEY_NAME}")
+
+    try:
+        published = subprocess.run(
+            [
+                monkeys, "run", str(internkim_command()), "release", "apt",
+                "--suite", "testing",
+                "--package-directory", str(release.staging_directory),
+                "--output", str(release.directory),
+            ],
+            capture_output=True, text=True, cwd=str(REPOSITORY_ROOT),
+        )
+        if published.returncode != 0:
+            raise RigFailure(f"publishing through the vault failed: {published.stderr.strip() or published.stdout.strip()}")
+        print(published.stdout.strip())
+
+        verified = subprocess.run(
+            ["gpg", "--homedir", str(release.keyring_directory), "--verify",
+             str(release.directory / REPOSITORY_PREFIX / "dists/testing/InRelease")],
+            capture_output=True, text=True,
+        )
+        good = [line.strip() for line in verified.stderr.splitlines() if "Good signature" in line]
+        if not good:
+            raise RigFailure(f"the published Release does not verify: {verified.stderr.strip()}")
+        print(good[0])
+    finally:
+        subprocess.run([monkeys, "forget", SIGNING_KEY_NAME], capture_output=True, text=True,
+                       cwd=str(REPOSITORY_ROOT))
+        if vault_holds_a_key(monkeys):
+            print(f"{FAIL} {SIGNING_KEY_NAME} is still in the vault; remove it by hand")
+        else:
+            print("removed the throwaway key from the vault")
+        shutil.rmtree(working_directory, ignore_errors=True)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--keep", action="store_true", help="leave the guest up for autopsy")
     parser.add_argument("--name", default=f"internkim-apt-{uuid.uuid4().hex[:8]}", help="the container's name")
+    parser.add_argument(
+        "--through-the-vault", action="store_true",
+        help="publish through `monkeys run` with a throwaway key, and verify the signature",
+    )
     options = parser.parse_args()
     try:
+        if options.through_the_vault:
+            return publish_through_the_vault()
         return RepositoryTrial(options).run()
     except RigFailure as failure:
         print(f"{FAIL} {failure}")

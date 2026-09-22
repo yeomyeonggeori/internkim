@@ -10,11 +10,15 @@ import (
 	"strings"
 )
 
-// SigningKeyPathVariable names the one home of the private half of the archive
-// key. It is a path rather than the key itself so the key never lands in a
-// process environment, which is the same shape every other server-side secret
-// here takes.
-const SigningKeyPathVariable = "INTERNKIM_APT_SIGNING_KEY_PATH"
+// SigningKeyVariable is the name the operating system's vault holds the private
+// half of the archive key under, and the name `monkeys run` sets when it hands
+// the key to a release. It is the key's one home.
+//
+// What gpg is given is still a path, because a secret this repository hands a
+// program is a file that program opens rather than a value in its environment.
+// MaterialiseSigningKey is the seam between the two, and it is the one function
+// that changes when the key moves to a smartcard.
+const SigningKeyVariable = "INTERNKIM_APT_SIGNING_KEY"
 
 // GPGSigner signs a Release with an exported OpenPGP secret key, in a homedir
 // it creates and destroys around the run.
@@ -22,7 +26,7 @@ const SigningKeyPathVariable = "INTERNKIM_APT_SIGNING_KEY_PATH"
 // Shelling out to gpg rather than signing in-process is what keeps the key's
 // eventual home an open question: a key held by a running gpg-agent, on a
 // smartcard, or exported to a file are all the same call here, and only
-// `SigningKeyPath` changes.
+// MaterialiseSigningKey changes.
 type GPGSigner struct {
 	homeDirectory string
 	fingerprint   string
@@ -32,7 +36,7 @@ type GPGSigner struct {
 // The caller closes it.
 func NewGPGSigner(keyPath string) (*GPGSigner, error) {
 	if strings.TrimSpace(keyPath) == "" {
-		return nil, fmt.Errorf("no signing key: name one in %s", SigningKeyPathVariable)
+		return nil, fmt.Errorf("no signing key: %s is what holds it", SigningKeyVariable)
 	}
 	key, errorValue := os.ReadFile(keyPath)
 	if errorValue != nil {
@@ -164,18 +168,32 @@ func (signer *GPGSigner) run(input []byte, arguments ...string) ([]byte, error) 
 	return signed.Bytes(), nil
 }
 
-// SigningKeyPath is the configured home of the private key, and the one line
-// that changes when that home is decided.
+// MaterialiseSigningKey writes what the vault handed this process to a private
+// file and answers its path, then takes the value out of this process's
+// environment so nothing it starts inherits it. The caller removes the file.
 //
 // The name is spelled here rather than passed as the constant because
 // `tools/verify-environment-declarations` reads the literal at the call site;
 // TestTheConfiguredVariableIsTheOneThatIsRead holds the two together.
-func SigningKeyPath() string {
-	return strings.TrimSpace(os.Getenv("INTERNKIM_APT_SIGNING_KEY_PATH"))
-}
-
-// DefaultSigningKeyPath is where the key sits when nothing names one: beside
-// the other local operator secrets, never in the tree.
-func DefaultSigningKeyPath(repositoryRootPath string) string {
-	return filepath.Join(repositoryRootPath, ".local", "secrets", "apt-archive-signing-key.asc")
+func MaterialiseSigningKey() (string, func(), error) {
+	key := strings.TrimSpace(os.Getenv("INTERNKIM_APT_SIGNING_KEY"))
+	if key == "" {
+		return "", func() {}, fmt.Errorf(
+			"no archive signing key: run this through `monkeys run %s`, which takes it out of "+
+				"the vault for the length of the command", SigningKeyVariable)
+	}
+	if errorValue := os.Unsetenv("INTERNKIM_APT_SIGNING_KEY"); errorValue != nil {
+		return "", func() {}, errorValue
+	}
+	directory, errorValue := makeShortLivedHomeDirectory()
+	if errorValue != nil {
+		return "", func() {}, errorValue
+	}
+	remove := func() { os.RemoveAll(directory) }
+	keyPath := filepath.Join(directory, "archive-signing-key.asc")
+	if errorValue := os.WriteFile(keyPath, []byte(key+"\n"), 0o600); errorValue != nil {
+		remove()
+		return "", func() {}, errorValue
+	}
+	return keyPath, remove, nil
 }

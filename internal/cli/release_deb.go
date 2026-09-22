@@ -120,7 +120,7 @@ func buildDebianPackage(repositoryRootPath string, target debianTarget, version 
 		return "", errorValue
 	}
 	defer os.RemoveAll(stagingPath)
-	contents, errorValue := debPackageContents(repositoryRootPath, target, version, stagingPath, output)
+	contents, documentInterpreterVersion, errorValue := debPackageContents(repositoryRootPath, target, version, stagingPath, output)
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -132,10 +132,10 @@ func buildDebianPackage(repositoryRootPath string, target debianTarget, version 
 		return "", errorValue
 	}
 	packagePath := filepath.Join(outputDirectory, fmt.Sprintf("%s_%s_%s.deb", blueclaw.CompanyPackageName, version, target.DebianArchitecture))
-	return packagePath, writeDebianPackage(debianPackageInformation(target, version, contents, scripts), packagePath)
+	return packagePath, writeDebianPackage(debianPackageInformation(target, version, documentInterpreterVersion, contents, scripts), packagePath)
 }
 
-func debianPackageInformation(target debianTarget, version string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
+func debianPackageInformation(target debianTarget, version string, documentInterpreterVersion string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
 	return &nfpm.Info{
 		Name:        blueclaw.CompanyPackageName,
 		Arch:        target.DebianArchitecture,
@@ -149,7 +149,7 @@ func debianPackageInformation(target debianTarget, version string, contents file
 		Homepage:    blueclaw.CompanyPackageHomepage,
 		License:     debReleaseLicense,
 		Overridables: nfpm.Overridables{
-			Depends:  strings.Split(blueclaw.HostDebianDependsLine(), ", "),
+			Depends:  strings.Split(blueclaw.HostDebianDependsLine(documentInterpreterVersion), ", "),
 			Contents: contents,
 			Scripts:  scripts,
 		},
@@ -173,29 +173,29 @@ func writeDebianPackage(information *nfpm.Info, packagePath string) error {
 	return packager.Package(information, file)
 }
 
-func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {
+func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, string, error) {
 	packaged := []debPackagedFile{}
 	programs, errorValue := buildDebPrograms(repositoryRootPath, target, version, stagingPath, output)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, "", errorValue
 	}
 	packaged = append(packaged, programs...)
 	rendered, errorValue := writeDebRenderedFiles(stagingPath)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, "", errorValue
 	}
 	packaged = append(packaged, rendered...)
 	carried, errorValue := debCarriedTrees(repositoryRootPath)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, "", errorValue
 	}
 	packaged = append(packaged, carried...)
-	documentInterpreter, errorValue := buildDocumentVirtualEnvironment(repositoryRootPath, target, stagingPath, output)
+	documentInterpreter, interpreterVersion, errorValue := buildDocumentVirtualEnvironment(repositoryRootPath, target, stagingPath, output)
 	if errorValue != nil {
-		return nil, errorValue
+		return nil, "", errorValue
 	}
 	packaged = append(packaged, documentInterpreter)
-	return debContentsFor(packaged), nil
+	return debContentsFor(packaged), interpreterVersion, nil
 }
 
 func debContentsFor(packaged []debPackagedFile) files.Contents {
@@ -667,30 +667,30 @@ const (
 	documentVenvBuildRuntime = "container"
 )
 
-func buildDocumentVirtualEnvironment(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) (debPackagedFile, error) {
+func buildDocumentVirtualEnvironment(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) (debPackagedFile, string, error) {
 	if _, errorValue := exec.LookPath(documentVenvBuildRuntime); errorValue != nil {
-		return debPackagedFile{}, fmt.Errorf(
+		return debPackagedFile{}, "", fmt.Errorf(
 			"the document interpreter is resolved inside a %s guest of the target architecture, and `%s` is not on PATH. "+
 				"Build the release on a machine that has it, or on a %s machine of that architecture",
 			documentVenvBuildImage, documentVenvBuildRuntime, target.DebianArchitecture)
 	}
 	workPath := filepath.Join(stagingPath, "document-venv-build")
 	if errorValue := os.MkdirAll(workPath, 0o755); errorValue != nil {
-		return debPackagedFile{}, errorValue
+		return debPackagedFile{}, "", errorValue
 	}
 	requirements, errorValue := documentSkillRequirements(repositoryRootPath)
 	if errorValue != nil {
-		return debPackagedFile{}, errorValue
+		return debPackagedFile{}, "", errorValue
 	}
 	if errorValue := os.WriteFile(filepath.Join(workPath, "requirements.txt"), []byte(requirements), 0o644); errorValue != nil {
-		return debPackagedFile{}, errorValue
+		return debPackagedFile{}, "", errorValue
 	}
 	resolverPath := filepath.Join(stagingPath, blueclaw.PackageResolverName)
 	if _, errorValue := os.Stat(resolverPath); errorValue != nil {
-		return debPackagedFile{}, fmt.Errorf("the package resolver is staged at %s before the interpreter is built: %w", resolverPath, errorValue)
+		return debPackagedFile{}, "", fmt.Errorf("the package resolver is staged at %s before the interpreter is built: %w", resolverPath, errorValue)
 	}
 	if errorValue := os.Link(resolverPath, filepath.Join(workPath, blueclaw.PackageResolverName)); errorValue != nil {
-		return debPackagedFile{}, errorValue
+		return debPackagedFile{}, "", errorValue
 	}
 
 	fmt.Fprintf(output, "  resolving the document interpreter for %s\n", target.DebianArchitecture)
@@ -701,18 +701,40 @@ func buildDocumentVirtualEnvironment(repositoryRootPath string, target debianTar
 	build.Stdout = output
 	build.Stderr = output
 	if errorValue := build.Run(); errorValue != nil {
-		return debPackagedFile{}, fmt.Errorf("resolving the document interpreter for %s: %w", target.DebianArchitecture, errorValue)
+		return debPackagedFile{}, "", fmt.Errorf("resolving the document interpreter for %s: %w", target.DebianArchitecture, errorValue)
 	}
 	builtPath := filepath.Join(workPath, "document-venv")
 	if _, errorValue := os.Stat(filepath.Join(builtPath, "bin", "python")); errorValue != nil {
-		return debPackagedFile{}, fmt.Errorf("the resolved interpreter has no %s/bin/python", builtPath)
+		return debPackagedFile{}, "", fmt.Errorf("the resolved interpreter has no %s/bin/python", builtPath)
 	}
+	interpreterVersion, errorValue := resolvedInterpreterVersion(builtPath)
+	if errorValue != nil {
+		return debPackagedFile{}, "", errorValue
+	}
+	fmt.Fprintf(output, "  the document interpreter is Python %s\n", interpreterVersion)
 	return debPackagedFile{
 		SourcePath:      builtPath,
 		Destination:     blueclaw.CompanyPackageDocumentVenvPath,
 		Mode:            0o755,
 		IsDirectoryTree: true,
-	}, nil
+	}, interpreterVersion, nil
+}
+
+// resolvedInterpreterVersion reads the venv's own account of the Python it was
+// built against, so the version the package's Depends: names cannot disagree
+// with the wheels the package carries.
+func resolvedInterpreterVersion(venvPath string) (string, error) {
+	settings, errorValue := os.ReadFile(filepath.Join(venvPath, "pyvenv.cfg"))
+	if errorValue != nil {
+		return "", fmt.Errorf("read the resolved interpreter's version: %w", errorValue)
+	}
+	for _, line := range strings.Split(string(settings), "\n") {
+		name, value, isAssignment := strings.Cut(line, "=")
+		if isAssignment && strings.TrimSpace(name) == "version_info" {
+			return strings.TrimSpace(value), nil
+		}
+	}
+	return "", fmt.Errorf("%s/pyvenv.cfg names no version_info", venvPath)
 }
 
 func documentVenvBuildScript() string {
