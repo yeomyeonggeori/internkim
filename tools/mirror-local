@@ -8,7 +8,7 @@ set -euo pipefail
 # already running from the normal messenger dev loop.
 #
 # Seed (must match the history importer -key-seed): provide it once, either as
-# INTERNKIM_BUZZ_KEY_SEED in the environment or in the repo .env. It is written
+# INTERNKIM_BUZZ_KEY_SEED in the environment or in the vault. It is written
 # to a local seed file and reused on later runs, so no env is needed after that.
 # The seed is a critical root secret — persist and back it up; an inline env var
 # used for one command is not persisted and is how it gets lost. See
@@ -24,8 +24,13 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-if [[ -f "$repo_root/.env" ]]; then
-  set -a; . "$repo_root/.env"; set +a
+if [[ -z "${INTERNKIM_ENVIRONMENT_FROM_VAULT:-}" ]] && command -v monkeys >/dev/null 2>&1; then
+  vaultGap="$(monkeys doctor --short 2>/dev/null | grep '^missing @cli:' || true)"
+  if [[ -z "$vaultGap" ]]; then
+    export INTERNKIM_ENVIRONMENT_FROM_VAULT=1
+    exec monkeys run @cli "$0" "$@"
+  fi
+  echo "mirror-local: the vault has a gap, so the environment is whatever was already set: $vaultGap" >&2
 fi
 
 listen="127.0.0.1:18080"

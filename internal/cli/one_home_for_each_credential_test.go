@@ -125,3 +125,29 @@ func TestBuzzKeySeedComesFromTheEnvironmentAlone(t *testing.T) {
 		t.Fatalf("buzz key seed resolved to %q with no environment value; a wrong seed derives wrong identities", seed)
 	}
 }
+
+// The CLI's environment came from a dotenv file at the repository root until
+// the values moved into the operating system's vault. Reading one again, from
+// the working directory or the one above it, is how the fallback that carried
+// the migration comes back and gives every one of these credentials a second
+// home.
+func TestTheCLIEnvironmentComesFromTheVaultAlone(t *testing.T) {
+	workingDirectory := t.TempDir()
+	decoy := "INTERNKIM_REGISTER_SECRET=secret-from-the-file\nINTERNKIM_DOMAIN=domain-from-the-file\n"
+	if errorValue := os.WriteFile(filepath.Join(workingDirectory, ".env"), []byte(decoy), 0o600); errorValue != nil {
+		t.Fatalf("write the decoy environment file: %v", errorValue)
+	}
+	t.Chdir(workingDirectory)
+	t.Setenv("INTERNKIM_REGISTER_SECRET", "")
+	t.Setenv("INTERNKIM_DOMAIN", "")
+	t.Setenv("CLOUDFLARE_DOMAIN", "")
+
+	configuration := loadConfig()
+
+	if configuration.RegisterSecret != "" {
+		t.Fatalf("the register secret resolved to %q from a file beside the checkout", configuration.RegisterSecret)
+	}
+	if configuration.CFDomain == "domain-from-the-file" {
+		t.Fatal("the fleet domain was read from a file beside the checkout")
+	}
+}

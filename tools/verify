@@ -328,7 +328,7 @@ GROUPS = [
             "tools/*",
             "host/*",
             "docs/internal/environment.json",
-            ".env.example",
+            ".monkeys",
         ],
         [
             ["tools/verify-environment-declarations"],
