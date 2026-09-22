@@ -95,7 +95,7 @@ class RepositoryTests(unittest.TestCase):
         for version in ("1.0.0", "1.0.1"):
             release.publish(rig.build_stand_in_package(directory / "packages", version, version))
         index = (
-            release.repository_directory / "dists" / "stable" / "main" / "binary-arm64" / "Packages"
+            release.repository_directory / "dists" / rig.SUITE / "main" / "binary-arm64" / "Packages"
         ).read_text()
         self.assertIn("Version: 1.0.0", index)
         self.assertIn("Version: 1.0.1", index)
@@ -105,16 +105,16 @@ class RepositoryTests(unittest.TestCase):
     def test_the_compressed_index_holds_the_same_bytes(self):
         release, directory = self.repository()
         release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
-        binary = release.repository_directory / "dists" / "stable" / "main" / "binary-arm64"
+        binary = release.repository_directory / "dists" / rig.SUITE / "main" / "binary-arm64"
         self.assertEqual(gzip.decompress((binary / "Packages.gz").read_bytes()), (binary / "Packages").read_bytes())
 
     def test_the_release_file_is_signed_and_checksums_the_indices(self):
         release, directory = self.repository()
         release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
-        suite = release.repository_directory / "dists" / "stable"
+        suite = release.repository_directory / "dists" / rig.SUITE
         signed = (suite / "InRelease").read_text()
         self.assertIn("BEGIN PGP SIGNED MESSAGE", signed)
-        self.assertIn("Suite: stable", signed)
+        self.assertIn(f"Suite: {rig.SUITE}", signed)
         for name in ("main/binary-arm64/Packages", "main/binary-arm64/Packages.gz"):
             self.assertIn(name, (suite / "Release").read_text())
 
@@ -124,7 +124,7 @@ class RepositoryTests(unittest.TestCase):
         verified = subprocess.run(
             [
                 "gpg", "--homedir", str(release.keyring_directory), "--batch", "--verify",
-                str(release.repository_directory / "dists" / "stable" / "InRelease"),
+                str(release.repository_directory / "dists" / rig.SUITE / "InRelease"),
             ],
             capture_output=True,
             text=True,
@@ -136,7 +136,7 @@ class RepositoryTests(unittest.TestCase):
         release, directory = self.repository()
         release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
         port = release.serve()
-        address = f"http://127.0.0.1:{port}/deb/dists/stable/InRelease"
+        address = f"http://127.0.0.1:{port}/deb/dists/{rig.SUITE}/InRelease"
         first = urllib.request.urlopen(address)
         request = urllib.request.Request(address, headers={"If-Modified-Since": first.headers["Last-Modified"]})
         self.assertEqual(urllib.request.urlopen(request).status, 200)
@@ -206,6 +206,16 @@ class RepositoryShapeTests(unittest.TestCase):
 
     def test_the_keyring_the_rig_installs_is_the_one_the_builder_exports(self):
         self.assertEqual(rig.KEYRING_NAME, self.declared_in_go("KeyringName"))
+
+    def test_the_debian_release_the_rig_runs_is_the_one_the_suite_name_carries(self):
+        self.assertEqual(rig.DEBIAN_SUITE, self.declared_in_go("DebianSuite"))
+
+    def test_the_suite_the_rig_asks_apt_for_is_one_the_builder_publishes(self):
+        source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "repository.go").read_text()
+        declared = re.search(r"^var DefaultSuite = (.+)$", source, re.MULTILINE)
+        self.assertIsNotNone(declared, "internal/aptrepository no longer declares DefaultSuite")
+        self.assertEqual(declared.group(1).strip(), 'DebianSuite + "-stable"')
+        self.assertEqual(rig.SUITE, rig.DEBIAN_SUITE + "-stable")
 
     def test_the_guest_installs_that_keyring_where_the_source_looks_for_it(self):
         self.assertTrue(rig.KEYRING_PATH.endswith("/" + rig.KEYRING_NAME))

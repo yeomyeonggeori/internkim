@@ -399,24 +399,28 @@ reaches for the package manager when one is present.
 allowlist of public prefixes. `deb/` joined `companion/` and `host/` and that
 is the whole change the worker needed; the route it answers on is still
 rendered from `fleetdomain` at deploy time and its `wrangler.jsonc` still
-names no hostname. The layout is suite `stable`, component `main`,
-architectures `arm64` and `amd64`, with a `testing` suite for release
+names no hostname. The layout is suite `trixie-stable`, component `main`,
+architectures `arm64` and `amd64`, with a `trixie-testing` suite for release
 candidates.
 
-`stable` and `testing` here are how far a build is trusted, which is a
-different axis from Debian's own suites, and today the second axis has one
-value: every package is built on trixie and refuses to install anywhere else.
-When bookworm is supported, a build exists per Debian suite and the two axes
-have to compose. Apt gives no way to fold them into one name, because a
-machine's `sources.list` line names one suite and apt picks the newest
-candidate in it; two builds of the same version under one suite would let it
-choose the wrong one. So the Debian suite belongs in the suite name —
-`trixie-stable`, `bookworm-testing` — and `install.sh` reads
-`/etc/os-release` to write the line. The alternative, a component per Debian
-suite, does not work: `Signed-By` and suite are what apt pins, and a component
-is not something it will refuse to cross. Nothing needs building until there
-is a second suite to build for; what this fixes is the name, which is
-expensive to change once machines have it written down.
+A suite name carries two axes. `stable` and `testing` are how far a build is
+trusted; `trixie` is the Debian release it was built against, and today that
+axis has one value, because every package is built on trixie and refuses to
+install anywhere else. When bookworm is supported, a build exists per Debian
+release and the two axes have to compose. Apt gives no way to fold them into
+one name, because a machine's `sources.list` line names one suite and apt picks
+the newest candidate in it; two builds of the same version under one suite
+would let it choose the wrong one. So the Debian release is spelled in the
+suite — `trixie-stable`, `bookworm-testing` — and `install.sh` reads
+`VERSION_CODENAME` out of `/etc/os-release` to write the line, refusing rather
+than guessing when the file does not name one. The alternative, a component per
+Debian release, does not work: `Signed-By` and suite are what apt pins, and a
+component is not something it will refuse to cross. Nothing needs building
+until there is a second release to build for; what this fixes is the name,
+which is expensive to change once machines have it written down.
+`aptrepository.DebianSuite` is the one place that release is spelled, and the
+image `internkim release deb` resolves the document interpreter in derives from
+it.
 
 The worker answers `GET` and `HEAD`, sets `etag` and `content-length`, and
 passes no conditional header to R2, so it never answers `304`. Measured

@@ -451,6 +451,10 @@
     "process": "install script",
     "description": "the install script web/static/companion/install.sh forwards to; defaults to https://intern.kim/install.sh"
   },
+  "INTERNKIM_INSTALL_SUITE": {
+    "process": "install script",
+    "description": "the apt suite web/static/install.sh writes into the source it installs; defaults to <VERSION_CODENAME>-stable"
+  },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",
     "description": "override URL for the Jetson base image internal/cli/jetson_flash.go downloads"
@@ -858,6 +862,10 @@
   "VAPID_PUBLIC_KEY": {
     "process": "web",
     "description": "the VAPID public key injected into the page for push-notification subscription; the matching private key lives in Supabase Vault, not the environment"
+  },
+  "VERSION_CODENAME": {
+    "process": "install script",
+    "description": "this machine's Debian release name (standard /etc/os-release field), read by web/static/install.sh to name the apt suite built for it"
   },
   "VIRTIOFSD_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",

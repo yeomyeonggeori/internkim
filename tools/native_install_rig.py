@@ -28,9 +28,11 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 KERNEL_IMAGE_PATH = REPOSITORY_ROOT / ".dependency" / "container-kernel" / "Image-6.1.68-kvm"
-BASE_IMAGE = "debian:trixie-slim"
+DEBIAN_SUITE = "trixie"
+BASE_IMAGE = f"debian:{DEBIAN_SUITE}-slim"
 ARCHITECTURE = "arm64"
-SUITE = "stable"
+SUITE = f"{DEBIAN_SUITE}-stable"
+TESTING_SUITE = f"{DEBIAN_SUITE}-testing"
 COMPONENT = "main"
 PACKAGE_NAME = "internkim"
 SHARE_PATH = "/srv/internkim-rig"
@@ -59,7 +61,7 @@ CONFFILE_EDIT = "# edited-by-the-rig"
 COMPANY_CONDITION_PATH = "/var/lib/internkim/current/host.env"
 
 # The repository's own shape is `internal/aptrepository`'s to declare. These
-# two names are what the rig has to spell in a URL, and
+# names are what the rig has to spell in a URL, and
 # `tools/tests/test_native_install_rig.py` reads the Go source to fail when
 # they drift.
 REPOSITORY_PREFIX = "deb"

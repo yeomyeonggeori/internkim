@@ -18,7 +18,7 @@ func runReleaseAPT(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	suite := firstNonEmptyString(commandArgumentValue(arguments, "--suite", ""), "stable")
+	suite := firstNonEmptyString(commandArgumentValue(arguments, "--suite", ""), aptrepository.DefaultSuite)
 	packageDirectory := firstNonEmptyString(
 		commandArgumentValue(arguments, "--package-directory", ""),
 		filepath.Join(repositoryRootPath, debDefaultOutputDirectory),
