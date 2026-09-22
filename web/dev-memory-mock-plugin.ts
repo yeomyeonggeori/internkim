@@ -159,7 +159,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			kind: 'identity',
 			content: '이샘플은 플랫폼 팀 소속이다.',
 			validFrom: '2026-06-17T12:00:00+09:00',
-			reinforcementCount: 1
+			reinforcementCount: 1,
+			triggerPhrases: ['플랫폼 팀에 물어볼 일', '팀 배정 확인']
 		},
 		{
 			factID: 'dev-fact-2',
@@ -169,7 +170,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			kind: 'preference',
 			content: '이샘플은 릴리스 노트를 짧은 한국어 문장으로 받는 것을 선호한다.',
 			validFrom: '2026-07-01T09:30:00+09:00',
-			reinforcementCount: 3
+			reinforcementCount: 3,
+			triggerPhrases: ['릴리스 노트 작성', '배포 공지 문구']
 		},
 		{
 			factID: 'dev-fact-3',
@@ -179,7 +181,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			kind: 'fact',
 			content: '급여 자료는 HR 서클에서만 다룬다.',
 			validFrom: '2026-07-05T14:10:00+09:00',
-			reinforcementCount: 1
+			reinforcementCount: 1,
+			triggerPhrases: ['급여 명세 요청', '인사 자료 열람']
 		},
 		{
 			factID: 'dev-fact-4',
@@ -189,7 +192,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			kind: 'fact',
 			content: '분기 런치 리뷰는 매주 금요일에 진행된다.',
 			validFrom: '2026-06-20T10:00:00+09:00',
-			reinforcementCount: 1
+			reinforcementCount: 1,
+			triggerPhrases: ['금요일 일정 잡기', '런치 리뷰 준비']
 		},
 		{
 			factID: 'dev-fact-5',
@@ -200,7 +204,8 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			content: '이샘플은 2026-09-11까지 휴가 중이다.',
 			validFrom: '2026-09-01T09:00:00+09:00',
 			validUntil: '2026-09-12T00:00:00+09:00',
-			reinforcementCount: 1
+			reinforcementCount: 1,
+			triggerPhrases: []
 		}
 	] as const;
 	return {
@@ -211,7 +216,7 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 			currentLines: ['이샘플은 2026-09-11까지 휴가 중이다.'],
 			builtAt: '2026-09-01T09:05:00+09:00'
 		},
-		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID)).map((fact) => ({ ...fact, circleIDs: [...fact.circleIDs] }))
+		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID)).map((fact) => ({ ...fact, circleIDs: [...fact.circleIDs], triggerPhrases: [...fact.triggerPhrases] }))
 	};
 }
 

@@ -11,7 +11,8 @@ const fact: MemoryFact = {
 	kind: 'fact',
 	content: 'A useful decision',
 	validFrom: '2026-08-01T00:00:00Z',
-	reinforcementCount: 1
+	reinforcementCount: 1,
+	triggerPhrases: []
 };
 const now = Date.parse('2026-09-01T00:00:00Z');
 

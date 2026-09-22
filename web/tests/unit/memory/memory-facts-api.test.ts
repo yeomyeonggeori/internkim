@@ -18,7 +18,8 @@ describe('memory facts api normalizer', () => {
 					validFrom: '2026-09-02T10:00:00Z',
 					validUntil: '0001-01-01T00:00:00Z',
 					reinforcementCount: 2,
-					lastRecalledAt: '0001-01-01T00:00:00Z'
+					lastRecalledAt: '0001-01-01T00:00:00Z',
+					triggerPhrases: ['  회의록 정리  ', '', 7, '발표 자료 준비']
 				},
 				{ factID: 'fact-2', content: 'missing kind and scope', validFrom: '2026-09-02T10:00:00Z' },
 				{ factID: 'fact-3', kind: 'rumour', ownerPersonID: 'person-1', content: 'unknown kind', validFrom: '2026-09-02T10:00:00Z' },
@@ -38,6 +39,7 @@ describe('memory facts api normalizer', () => {
 			circleIDs: ['member'],
 			kind: 'preference',
 			content: '이샘플 prefers bullets',
+			triggerPhrases: ['회의록 정리', '발표 자료 준비'],
 			validFrom: '2026-09-02T10:00:00Z',
 			reinforcementCount: 2
 		});
