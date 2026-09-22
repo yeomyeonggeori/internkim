@@ -13,6 +13,7 @@ site as well. Nothing here substitutes an address.
 
     tools/test-published-apt-repository --suite trixie-testing
     tools/test-published-apt-repository --suite trixie-testing --disturb-published-objects
+    tools/test-published-apt-repository --suite trixie-testing --prove-upgrade <newer.deb>
 
 Two of the three refusals need the repository to be wrong, and the only place
 it can be wrong is the bucket. `--disturb-published-objects` is what writes:
@@ -20,6 +21,19 @@ the suite's signatures are taken away and put back, and the .deb is replaced by
 a same-length copy carrying one flipped byte and then put back. Without the
 flag those two observations are not made, and the run says so rather than
 passing.
+
+`--prove-upgrade` is the other thing that writes, and what it writes is a
+release. The guest installs what the suite carries, is given a company so the
+services are running and can be asked what they are, and only then is the newer
+package published beside the one already there. Then `apt-get upgrade` runs and
+the same services are asked again. dpkg reporting the new version is not the
+claim: a unit that is not restarted serves the old binary while dpkg, the
+file's mtime and apt all say otherwise, so what decides it is the revision the
+running process reports at `admind`'s health endpoint.
+
+The older package is downloaded from the suite and republished beside the newer
+one, so a machine pinned to the version it has does not stop being able to
+fetch it.
 """
 
 import argparse
@@ -30,6 +44,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -39,16 +54,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
+    CONFFILE_EDIT,
+    CONFFILE_PATH,
+    COMPANY_CONDITION_PATH,
     KEYRING_NAME,
     KEYRING_PATH,
     PACKAGE_NAME,
     PRESEEDED_PACKAGES,
+    READINESS_PROBES,
     REPOSITORY_PREFIX,
     REPOSITORY_ROOT,
+    REVISION_PROBE,
     SHARE_PATH,
+    STATE_DIRECTORY,
+    CompanyPlane,
     Machine,
     RigFailure,
     TESTING_SUITE,
+    build_identity_reported,
+    install_the_company,
+    installed_units,
+    internkim_command,
+    package_fields,
+    parse_control_paragraph,
     run,
 )
 
@@ -176,17 +204,50 @@ class PublishedRepository:
     def index(self):
         return self.fetch(f"dists/{self.suite}/main/binary-{ARCHITECTURE}/Packages").decode()
 
-    def pool_path(self):
-        for line in self.index().splitlines():
-            if line.startswith("Filename: "):
-                return line.split(": ", 1)[1]
-        raise RigFailure(f"the published {ARCHITECTURE} index names no package to install")
+    def entries(self):
+        """Every stanza the published index carries, as its fields.
 
-    def signed_digest(self):
-        for line in self.index().splitlines():
-            if line.startswith("SHA256: "):
-                return line.split(": ", 1)[1]
-        raise RigFailure("the published index vouches for no SHA256")
+        A suite holds as many versions as were published into it, and which one
+        a machine has is a question only that machine can answer. So nothing
+        here takes the first stanza for the package: every lookup names a
+        version.
+        """
+        return [
+            parse_control_paragraph(stanza)
+            for stanza in self.index().split("\n\n")
+            if stanza.strip()
+        ]
+
+    def versions(self):
+        return [entry.get("Version", "") for entry in self.entries()]
+
+    def entry(self, version):
+        for entry in self.entries():
+            if entry.get("Version") == version:
+                return entry
+        raise RigFailure(
+            f"the published {ARCHITECTURE} index names no {version}; it names "
+            + (", ".join(self.versions()) or "nothing")
+        )
+
+    def pool_path(self, version):
+        return self.entry(version)["Filename"]
+
+    def signed_digest(self, version):
+        return self.entry(version)["SHA256"]
+
+    def download(self, relative_path, destination):
+        destination = Path(destination)
+        digest = hashlib.sha256()
+        with urllib.request.urlopen(asking_for(f"{self.url}/{relative_path}"), timeout=3600) as answer:
+            with destination.open("wb") as held:
+                while True:
+                    chunk = answer.read(1 << 20)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    held.write(chunk)
+        return destination, digest.hexdigest()
 
     def served_digest(self, pool_path):
         digest = hashlib.sha256()
@@ -223,7 +284,10 @@ class PublishedTrial:
         self.working_directory = None
         self.repository = None
         self.machine = None
+        self.installed_version = None
         self.pool_path = None
+        self.plane = None
+        self.company_id = None
 
     # ---------------------------------------------------------------- setup
 
@@ -291,8 +355,21 @@ class PublishedTrial:
             "same way today and differently later",
         )
 
+    def version_dpkg_records(self):
+        """What the machine says it is holding, which is what every lookup keys on."""
+        recorded = self.machine.shell(f"dpkg-query -W -f '${{Version}}' {PACKAGE_NAME} 2>/dev/null")
+        version = recorded.stdout.strip()
+        if not version:
+            raise RigFailure(f"the guest holds no {PACKAGE_NAME}, so there is nothing to read an index entry for")
+        return version
+
+    def take_the_version_the_guest_holds(self):
+        self.installed_version = self.version_dpkg_records()
+        self.pool_path = self.repository.pool_path(self.installed_version)
+        print(f"the guest holds {self.installed_version}, published at {self.pool_path}\n")
+
     def the_bytes_are_the_signed_ones(self):
-        signed = self.repository.signed_digest()
+        signed = self.repository.signed_digest(self.installed_version)
         served = self.repository.served_digest(self.pool_path)
         pool_name = Path(self.pool_path).name
         in_the_guest = self.machine.shell(
@@ -307,6 +384,280 @@ class PublishedTrial:
             "apt refuses a mismatch, so the install above already implies this; reading the digest "
             "off the wire is the same claim without apt as its own witness",
         )
+
+    # --------------------------------------------------------------- upgrade
+
+    def edit_the_shipped_configuration(self):
+        """An operator's edit, made before the upgrade so the upgrade can lose it."""
+        self.machine.checked_shell(f"set -eu\nprintf '%s\\n' '{CONFFILE_EDIT}' >> {CONFFILE_PATH}\n")
+
+    def give_the_guest_a_company(self):
+        """A box with no company runs nothing, and nothing cannot be asked what it is.
+
+        Every unit the package installs carries ConditionPathExists over a file
+        `internkim install` writes, so until this runs there is no process whose
+        revision an upgrade could be seen to move.
+        """
+        self.plane = CompanyPlane(self.working_directory / "plane", self.machine.host_gateway())
+        self.plane.start()
+        connection = self.plane.connection_document()
+        self.company_id = connection["company"]["id"]
+        installed = install_the_company(self.machine, connection)
+        pointed = self.machine.shell(
+            f"readlink -f {STATE_DIRECTORY}/current 2>/dev/null; "
+            f"test -s {COMPANY_CONDITION_PATH} && echo condition-met"
+        )
+        self.judgement.record(
+            "the box takes the company the plane issued it",
+            self.company_id in pointed.stdout and "condition-met" in pointed.stdout,
+            (pointed.stdout.strip() or "nothing was written")
+            + f"\ninternkim install exited {installed.returncode}"
+            + ("\n" + (installed.stdout + installed.stderr).strip()[-900:] if installed.returncode else ""),
+            "`internkim install` printing its steps is the installer's account of its own run; "
+            "this is the state every unit reads before it will start, and without it the upgrade "
+            "below would move files nothing is running",
+        )
+
+    READINESS_DEADLINE_SECONDS = 300
+
+    def the_services_are_up(self, when):
+        """Every readiness endpoint, given a deadline rather than a single look.
+
+        A restarted unit is not serving the instant `apt-get upgrade` returns,
+        and curl answers 000 for a port nothing listens on and for a port whose
+        process is still coming up. One probe cannot tell those apart, so this
+        waits and records how long each endpoint took: a service that answers at
+        40 seconds and one that never answers are different findings.
+        """
+        units = installed_units(self.machine)
+        started = time.monotonic()
+        pending = list(READINESS_PROBES)
+        took = {}
+        while pending and time.monotonic() - started < self.READINESS_DEADLINE_SECONDS:
+            for port, path in list(pending):
+                answered = self.machine.shell(
+                    f"curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 "
+                    f"http://127.0.0.1:{port}{path}"
+                )
+                if answered.stdout.strip() == "200":
+                    took[f"{port}{path}"] = round(time.monotonic() - started)
+                    pending.remove((port, path))
+            if pending:
+                time.sleep(5)
+        waited = round(time.monotonic() - started)
+        answered_in = "\n".join(f"{endpoint} answered 200 after {seconds}s" for endpoint, seconds in sorted(took.items()))
+        never = "\n".join(f"{port}{path} never answered 200 within {waited}s" for port, path in pending)
+        self.judgement.record(
+            f"the services answer their readiness endpoints {when}",
+            bool(units) and not pending,
+            f"{len(units)} units installed\n" + "\n".join(part for part in (answered_in, never) if part),
+            "systemd reports active for a process that answers a socket while refusing all work, "
+            "and an upgrade judged against a machine that was not serving before it proves nothing. "
+            "The seconds are part of the observation: a restart that takes a minute and a unit that "
+            "never comes back both answer 000 to one probe",
+        )
+
+    def the_running_build_is(self, version, when):
+        reported = build_identity_reported(self.machine)
+        port, path = REVISION_PROBE
+        self.judgement.record(
+            f"the running services report {version} {when}",
+            reported.get("admindBuildID") == version
+            and reported.get("gitRevision") not in ("", "unknown"),
+            f"127.0.0.1:{port}{path} reports {json.dumps(reported)}\nexpected admindBuildID {version}",
+            "dpkg's version, apt's summary and the file's mtime all move for an upgrade that "
+            "unpacked new binaries and left the old processes serving them; the only thing that "
+            "does not is the build id the process itself answers with",
+        )
+        return reported
+
+    def stage_the_published_package(self):
+        """The package the suite already carries, taken off the wire.
+
+        It is republished beside the newer one rather than re-rendered, so what
+        goes back into the pool is the object that was there and a machine
+        holding that version keeps being able to fetch it.
+        """
+        staging = self.working_directory / "packages"
+        staging.mkdir(parents=True, exist_ok=True)
+        name = Path(self.pool_path).name
+        _, digest = self.repository.download(self.pool_path, staging / name)
+        signed = self.repository.signed_digest(self.installed_version)
+        if digest != signed:
+            raise RigFailure(
+                f"what R2 serves for {self.installed_version} is not what the signed index vouches "
+                f"for, so republishing it would publish something the suite never named: "
+                f"{digest} against {signed}"
+            )
+        print(f"staged the published {self.installed_version} from the pool ({digest[:16]}…)\n")
+        return staging
+
+    def say_what_is_about_to_be_written(self, staging, newer_version):
+        """What the bucket holds now, beside what this run is about to put there.
+
+        These indexes exist, which is the difference from the run that created
+        them: every object below is replaced rather than added, and a suite
+        whose Release no longer names a version a machine holds is a machine
+        that cannot fetch its own package.
+        """
+        print("about to publish into the bucket:\n")
+        for relative_path in (
+            f"dists/{self.options.suite}/Release",
+            f"dists/{self.options.suite}/InRelease",
+            f"dists/{self.options.suite}/Release.gpg",
+            f"dists/{self.options.suite}/main/binary-{ARCHITECTURE}/Packages",
+            KEYRING_NAME,
+        ):
+            try:
+                held = self.repository.fetch(relative_path)
+                standing = f"{len(held)} bytes, sha256 {hashlib.sha256(held).hexdigest()[:16]}…"
+            except RigFailure as refused:
+                standing = str(refused)
+            print(f"  {REPOSITORY_PREFIX}/{relative_path}\n      now: {standing}")
+        print(f"\n  the suite's index names: {', '.join(self.repository.versions())}")
+        print(f"  the package directory holds: {', '.join(sorted(path.name for path in staging.glob('*.deb')))}")
+        print(f"  so the index will name: {self.installed_version}, {newer_version}\n")
+
+    def publish_the_newer_package(self, staging):
+        """Cut the release the way a person does, key and all."""
+        monkeys = shutil.which("monkeys") or str(Path.home() / ".local/bin/monkeys")
+        if not Path(monkeys).exists():
+            raise RigFailure("monkeys is not installed, and it is where the archive signing key lives")
+        published = subprocess.run(
+            [
+                monkeys, "run", str(internkim_command()), "release", "apt",
+                "--suite", self.options.suite,
+                "--package-directory", str(staging),
+            ],
+            capture_output=True, text=True, cwd=str(REPOSITORY_ROOT), timeout=5400,
+        )
+        if published.returncode != 0:
+            raise RigFailure(
+                f"publishing to {self.options.suite} failed: "
+                f"{published.stderr.strip() or published.stdout.strip()}"
+            )
+        print(published.stdout.strip() + "\n")
+
+    def both_versions_are_in_the_suite(self, older_version, newer_version):
+        named = self.repository.versions()
+        older_served = self.repository.served_digest(self.repository.pool_path(older_version))
+        self.judgement.record(
+            "the suite names both versions, and the one already installed is still fetchable",
+            set(named) == {older_version, newer_version}
+            and older_served == self.repository.signed_digest(older_version),
+            f"the index names: {', '.join(named)}\n"
+            f"{older_version} in the pool: {older_served}\n"
+            f"the index vouches for:      {self.repository.signed_digest(older_version)}",
+            "a publish that replaces the index rather than adding to it leaves every machine "
+            "holding the older version unable to fetch what it has, which `apt-get install "
+            "--reinstall` and any `apt-get -f install` need",
+        )
+
+    def apt_sees_the_newer_candidate(self, newer_version):
+        self.forget_what_apt_learned()
+        updated = self.update()
+        policy = self.machine.shell(f"apt-cache policy {PACKAGE_NAME}")
+        self.judgement.record(
+            "apt fetches the new indexes and prefers the newer version",
+            updated.returncode == 0 and f"Candidate: {newer_version}" in policy.stdout,
+            (updated.stdout + updated.stderr).strip()[-500:] + "\n\n" + policy.stdout.strip(),
+            "the index carrying a new stanza says the bucket was written; apt taking it as the "
+            "candidate says apt fetched the new Release, checked the archive key's signature on "
+            "it, and checked the index against the digest that Release carries",
+        )
+
+    def upgrade(self, newer_version):
+        upgraded = self.machine.shell(
+            "export DEBIAN_FRONTEND=noninteractive\n"
+            "apt-get upgrade -y </dev/null 2>&1 | tail -30\n",
+            timeout_seconds=5400,
+        )
+        self.judgement.record(
+            "the upgrade finished without asking the administrator a question",
+            "conffile prompt" not in upgraded.stdout and "(Y/I/N/O/D/Z)" not in upgraded.stdout,
+            upgraded.stdout.strip()[-700:],
+            "a package that reships a configuration file the administrator edited stops dpkg at a "
+            "prompt, and an unattended upgrade then halts half-configured with the old process "
+            "still serving; DEBIAN_FRONTEND=noninteractive does not prevent it",
+        )
+        recorded = self.version_dpkg_records()
+        self.judgement.record(
+            "dpkg records the newer version",
+            recorded == newer_version,
+            f"dpkg-query: {recorded}\nexpected:   {newer_version}",
+            "apt printing `1 upgraded` is apt's account of its own run; dpkg's version field is "
+            "the machine's, and it is still not the running process's",
+        )
+        edited = self.machine.shell(f"cat {CONFFILE_PATH} 2>/dev/null")
+        self.judgement.record(
+            "the operator's edit to the shipped configuration file survived",
+            CONFFILE_EDIT in edited.stdout,
+            edited.stdout.strip()[-300:],
+            f"{CONFFILE_PATH} is the package's one conffile; runtime.json is an optional override "
+            "the package does not ship, so editing that would say nothing about what dpkg kept",
+        )
+
+    def the_newer_version_sorts_newer(self, older_version, newer_version):
+        """dpkg's ordering, asked of dpkg, before anything is published.
+
+        `release deb` versions a build `0.0.0+<date>.<short git sha>`. Two
+        builds cut on one day differ only in the sha, and dpkg orders that
+        lexically, so which one apt calls newer follows the sha rather than
+        which commit is later. Half the pairs sort the wrong way, and the
+        symptom is an `apt upgrade` that reports nothing to do.
+        """
+        compared = self.machine.shell(
+            f"dpkg --compare-versions '{newer_version}' gt '{older_version}' && echo newer || echo not-newer"
+        )
+        if "not-newer" in compared.stdout:
+            raise RigFailure(
+                f"dpkg does not order {newer_version} above {older_version}, so apt would offer "
+                "no upgrade. The version is 0.0.0+<date>.<short sha> and the sha does not order; "
+                "this pair sorts the wrong way round"
+            )
+        self.judgement.record(
+            "dpkg orders the newer package above the one the guest holds",
+            True,
+            f"dpkg --compare-versions {newer_version} gt {older_version}: {compared.stdout.strip()}",
+            "the version carries a git sha, which orders lexically rather than by when the commit "
+            "was made, so two builds from one day sort either way; an upgrade proved without "
+            "asking dpkg first would be proving a coin flip",
+        )
+
+    def prove_the_upgrade(self):
+        older_version = self.installed_version
+        newer_version = package_fields(self.options.prove_upgrade)["Version"]
+        if newer_version == older_version:
+            raise RigFailure(
+                f"{self.options.prove_upgrade} carries {newer_version}, which is what the suite "
+                "already publishes; an upgrade needs somewhere to move to"
+            )
+        self.the_newer_version_sorts_newer(older_version, newer_version)
+        self.edit_the_shipped_configuration()
+        self.give_the_guest_a_company()
+        self.the_services_are_up("before the upgrade")
+        before = self.the_running_build_is(older_version, "before the upgrade")
+
+        staging = self.stage_the_published_package()
+        shutil.copyfile(self.options.prove_upgrade, staging / Path(self.options.prove_upgrade).name)
+        self.say_what_is_about_to_be_written(staging, newer_version)
+        self.publish_the_newer_package(staging)
+        self.both_versions_are_in_the_suite(older_version, newer_version)
+
+        self.apt_sees_the_newer_candidate(newer_version)
+        self.upgrade(newer_version)
+        after = self.the_running_build_is(newer_version, "after the upgrade")
+        self.judgement.record(
+            "the running services moved, rather than the files under them",
+            bool(before.get("admindBuildID"))
+            and before.get("admindBuildID") != after.get("admindBuildID"),
+            f"before {json.dumps(before)}\nafter  {json.dumps(after)}",
+            "this is the whole of what the upgrade claim rests on: the same endpoint, asked twice, "
+            "answering with two different builds. A postinst that starts rather than restarts "
+            "leaves these equal while every other signal moves",
+        )
+        self.the_services_are_up("after the upgrade")
+        self.take_the_version_the_guest_holds()
 
     # ------------------------------------------------------------- refusals
 
@@ -451,7 +802,7 @@ class PublishedTrial:
             print("putting the published package back\n")
             package.restore()
             restored = self.repository.served_digest(self.pool_path)
-            signed = self.repository.signed_digest()
+            signed = self.repository.signed_digest(self.installed_version)
             self.judgement.record(
                 "the published package is the signed one again",
                 restored == signed,
@@ -468,12 +819,20 @@ class PublishedTrial:
         self.repository = PublishedRepository(self.options.suite, self.working_directory)
         try:
             print(self.repository.release())
-            self.pool_path = self.repository.pool_path()
-            print(f"the published {ARCHITECTURE} package is {self.pool_path}\n")
+            print(f"the published {ARCHITECTURE} suite names: {', '.join(self.repository.versions())}\n")
             self.start_machine()
             self.guest_has_never_heard_of_us()
             self.the_one_line()
+            self.take_the_version_the_guest_holds()
             self.the_bytes_are_the_signed_ones()
+            if self.options.prove_upgrade:
+                self.prove_the_upgrade()
+            else:
+                self.judgement.missing(
+                    "apt upgrade carries the guest from one published version to the next",
+                    "an upgrade needs a second version in the suite, and putting one there is a "
+                    "release; --prove-upgrade <newer.deb> is what publishes it",
+                )
             self.refusal_wrong_keyring()
             if self.options.disturb_published_objects:
                 self.refusal_unsigned()
@@ -488,6 +847,10 @@ class PublishedTrial:
                     )
             self.write_report()
         finally:
+            if self.plane:
+                if self.company_id:
+                    self.plane.forget_the_company_computer(self.company_id)
+                self.plane.stop()
             if self.machine and not self.options.keep:
                 self.machine.destroy()
             if self.options.keep:
@@ -503,7 +866,9 @@ class PublishedTrial:
             "suite": self.options.suite,
             "repository": self.repository.url,
             "install_line": INSTALL_LINE_URL,
+            "installed_version": self.installed_version,
             "pool_path": self.pool_path,
+            "versions_the_suite_names": self.repository.versions(),
             "results": self.judgement.results,
         }, indent=2) + "\n")
         passed = sum(1 for result in self.judgement.results if result["passed"])
@@ -518,6 +883,10 @@ def main():
     parser.add_argument(
         "--disturb-published-objects", action="store_true",
         help="take the suite's signatures away and tamper with the .deb, putting both back",
+    )
+    parser.add_argument(
+        "--prove-upgrade", metavar="DEB",
+        help="publish this newer package into the suite and carry the guest onto it",
     )
     options = parser.parse_args()
     try:
