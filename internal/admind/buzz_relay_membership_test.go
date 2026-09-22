@@ -55,6 +55,37 @@ func TestAPersonTheDeviceCanNameOnBuzzIsLetOntoTheRelay(t *testing.T) {
 	}
 }
 
+// The messenger migrates its own database while admind is making its first
+// pass, so the first grant answers `relation "communities" does not exist`. The
+// link is written either way, so a pass that only lets in whoever is new lets
+// nobody in ever again, and the person is named and locked out.
+func TestAGrantTheRelayCouldNotTakeIsMadeAgainOnTheNextPass(t *testing.T) {
+	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`, nil), nil
+		}
+		return nil, errors.New("the company directory is not answering")
+	})}
+	service.Configuration.BuzzAccountLinksPath = filepath.Join(t.TempDir(), "buzz-account-links.json")
+
+	service.linkDeterministicBuzzPeople(context.Background())
+	service.linkDeterministicBuzzPeople(context.Background())
+
+	secretHex := service.buzzSecretForEmail(context.Background(), "sample@example.com")
+	pubkey, errorValue := buzzPublicKey(secretHex)
+	if errorValue != nil {
+		t.Fatalf("person pubkey: %v", errorValue)
+	}
+	granted, errorValue := os.ReadFile(grantsPath)
+	if errorValue != nil {
+		t.Fatalf("nobody was let onto the relay at all: %v", errorValue)
+	}
+	if strings.Count(string(granted), pubkey) < 2 {
+		t.Fatalf("a grant the relay could not take must be made again, got %s", strings.TrimSpace(string(granted)))
+	}
+}
+
 func TestRelayMembershipIsGrantedBeforeAnyRoomExists(t *testing.T) {
 	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
 
