@@ -85,9 +85,9 @@ func mediaBinaryInstallCommand(release blueclaw.MediaServerRelease) string {
 set -e
 curl -fsSL -o /tmp/versitygw.tar.gz '` + release.URL + `'
 echo '` + release.SHA256 + `  /tmp/versitygw.tar.gz' | sha256sum -c -
-tar -xzf /tmp/versitygw.tar.gz -C /tmp versitygw
-install -m 0755 /tmp/versitygw ` + blueclaw.BuzzMediaBinaryPath + `
-rm -f /tmp/versitygw.tar.gz /tmp/versitygw`
+tar -xzf /tmp/versitygw.tar.gz -C /tmp '` + release.PathInsideArchive + `'
+install -m 0755 '/tmp/` + release.PathInsideArchive + `' ` + blueclaw.BuzzMediaBinaryPath + `
+rm -rf /tmp/versitygw.tar.gz '/tmp/` + strings.SplitN(release.PathInsideArchive, "/", 2)[0] + `'`
 }
 
 func provisionMediaCredentials(connection BoardConnection) error {

@@ -50,9 +50,9 @@ RUN case "${TARGETARCH}" in \
 	&& chmod 0755 /usr/local/bin/agent-browser \
 	&& curl -fsSL -o /tmp/versitygw.tar.gz "https://github.com/versity/versitygw/releases/download/v${VERSITYGW_VERSION}/versitygw_v${VERSITYGW_VERSION}_Linux_${versitygwTarget}.tar.gz" \
 	&& echo "${versitygwSHA256}  /tmp/versitygw.tar.gz" | sha256sum -c - \
-	&& tar -xzf /tmp/versitygw.tar.gz -C /tmp versitygw \
-	&& install -m 0755 /tmp/versitygw /usr/local/bin/versitygw \
-	&& rm -f /tmp/versitygw.tar.gz /tmp/versitygw
+	&& tar -xzf /tmp/versitygw.tar.gz -C /tmp "versitygw_v${VERSITYGW_VERSION}_Linux_${versitygwTarget}/versitygw" \
+	&& install -m 0755 "/tmp/versitygw_v${VERSITYGW_VERSION}_Linux_${versitygwTarget}/versitygw" /usr/local/bin/versitygw \
+	&& rm -rf /tmp/versitygw.tar.gz "/tmp/versitygw_v${VERSITYGW_VERSION}_Linux_${versitygwTarget}"
 
 COPY --from=go-build /out/blueclaw /opt/blueclaw/bin/blueclaw
 COPY --from=go-build /out/blueclaw-posix-helper /usr/local/bin/blueclaw-posix-helper
