@@ -300,6 +300,7 @@ GROUPS = [
             "tools/test-native-install",
             "tools/test-apt-repository",
             "tools/native_install_rig.py",
+            "tools/native-install-member-session.ts",
             "tools/tests/test_native_install_rig.py",
             "internal/aptrepository/*",
         ],

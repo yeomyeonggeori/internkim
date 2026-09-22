@@ -861,7 +861,7 @@
   },
   "SUPABASE_JWT_SIGNING_KEY": {
     "process": "web, web scripts",
-    "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, registered with the Supabase project by web/scripts/issue-record-signing-key.ts; locally the stack's JWT secret as an oct JWK, which web/scripts/test-integration.sh derives"
+    "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, registered with the Supabase project by web/scripts/issue-record-signing-key.ts; locally the ES256 key the auth container holds in GOTRUE_JWT_KEYS, which web/scripts/local-plane-signing-key.sh reads off the running stack"
   },
   "SUPABASE_PROJECT_REF": {
     "process": "web scripts",

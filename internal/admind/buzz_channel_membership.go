@@ -22,22 +22,93 @@ import (
 // day keeps the drift to a day.
 const memberChannelSyncInterval = 24 * time.Hour
 
+// The messenger applies its own migrations as it starts, and this pass runs
+// while it is still doing that, so its first run grants nobody. Until the
+// roster holds everyone this company named, the pass runs on this clock
+// instead; a box installed a minute ago used to be unable to carry a message
+// from anyone until the next day.
+const memberChannelFirstPassInterval = 30 * time.Second
+
 func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 	if !service.canWriteToBuzzRelay() {
 		return
 	}
 	go func() {
-		ticker := time.NewTicker(memberChannelSyncInterval)
-		defer ticker.Stop()
 		for {
 			service.withinASweepBudget(ctx, service.ensureMemberChannelMembership)
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-time.After(service.intervalUntilTheNextMembershipPass(ctx)):
 			}
 		}
 	}()
+}
+
+func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) time.Duration {
+	stillOutside := service.pubkeysTheRelayMayNotHold(ctx, pubkeysOf(service.everyoneTheRelayShouldHold(ctx)))
+	if len(stillOutside) > 0 {
+		return memberChannelFirstPassInterval
+	}
+	return memberChannelSyncInterval
+}
+
+func pubkeysOf(members []buzzMember) []string {
+	pubkeys := make([]string, 0, len(members))
+	for _, member := range members {
+		pubkeys = append(pubkeys, member.Pubkey)
+	}
+	return pubkeys
+}
+
+// The roster decides who still has to be let in, rather than whoever happened
+// to be new to this pass. A grant that failed used to be made once and never
+// again, and asking costs one query when everyone is already in.
+func (service *Service) letOntoTheRelay(ctx context.Context, pubkeys []string) {
+	for _, pubkey := range service.pubkeysTheRelayMayNotHold(ctx, pubkeys) {
+		service.grantRelayMembership(ctx, pubkey)
+	}
+}
+
+// A roster that cannot be read answers everyone: the grant is idempotent, and a
+// pass that skipped a person because it could not look is the silence this loop
+// exists to end.
+func (service *Service) pubkeysTheRelayMayNotHold(ctx context.Context, pubkeys []string) []string {
+	if len(pubkeys) == 0 {
+		return nil
+	}
+	relay, errorValue := service.buzzDatabase()
+	if errorValue != nil {
+		return pubkeys
+	}
+	lowered := make([]string, 0, len(pubkeys))
+	for _, pubkey := range pubkeys {
+		lowered = append(lowered, strings.ToLower(pubkey))
+	}
+	rows, errorValue := relay.QueryContext(ctx,
+		"SELECT lower(pubkey) FROM relay_members WHERE lower(pubkey) = ANY($1)", pq.Array(lowered))
+	if errorValue != nil {
+		return pubkeys
+	}
+	defer rows.Close()
+	held := map[string]bool{}
+	for rows.Next() {
+		var pubkey string
+		if errorValue := rows.Scan(&pubkey); errorValue != nil {
+			return pubkeys
+		}
+		held[pubkey] = true
+	}
+	if errorValue := rows.Err(); errorValue != nil {
+		return pubkeys
+	}
+	var missing []string
+	for _, pubkey := range pubkeys {
+		if !held[strings.ToLower(pubkey)] {
+			missing = append(missing, pubkey)
+		}
+	}
+	return missing
 }
 
 func (service *Service) grantRelayMembership(ctx context.Context, pubkey string) {
@@ -317,20 +388,29 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 	}
 }
 
+// Everyone this company's messenger has to let in: its people, and the agent,
+// which administers every room the company runs and is what a room with no
+// admin in it still needs once the company account has left.
+func (service *Service) everyoneTheRelayShouldHold(ctx context.Context) []buzzMember {
+	seed := service.buzzKeySeed()
+	if seed == "" {
+		return nil
+	}
+	member := service.memberBuzzMembers(ctx)
+	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
+	if errorValue != nil {
+		return member
+	}
+	return append(member, buzzMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
+}
+
 func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	seed := service.buzzKeySeed()
 	if seed == "" {
 		return
 	}
-	member := service.memberBuzzMembers(ctx)
-	// The agent administers every room the company runs, which is what a room
-	// with no admin in it still needs once the company account has left.
-	if agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject)); errorValue == nil {
-		member = append(member, buzzMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
-	}
-	for _, member := range member {
-		service.grantRelayMembership(ctx, member.Pubkey)
-	}
+	member := service.everyoneTheRelayShouldHold(ctx)
+	service.letOntoTheRelay(ctx, pubkeysOf(member))
 	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil {
 		log.Printf("buzz member membership: channel query failed: %v", errorValue)

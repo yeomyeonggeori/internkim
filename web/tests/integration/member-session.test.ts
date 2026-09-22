@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { createClient } from '@supabase/supabase-js';
-import { importJWK, jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import {
 	addMember,
 	controlPlane,
@@ -89,7 +89,11 @@ test('the session acts as that member and nobody else', async () => {
 
 test('the token is the plane\'s own word about the member and opens no auth session', async () => {
 	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, speakerID);
-	const { payload } = await jwtVerify(session.accessToken, await importJWK(JSON.parse(signingKey), 'HS256'));
+	// Against the key set the record publishes, which is what every reader of
+	// this token verifies it with, rather than against the half it was signed
+	// with.
+	const published = createRemoteJWKSet(new URL(`${projectURL}/auth/v1/.well-known/jwks.json`));
+	const { payload } = await jwtVerify(session.accessToken, published);
 	const { data: member } = await client.from('member').select('user_id').eq('id', speakerID).single();
 
 	expect(payload.sub).toBe(member!.user_id);

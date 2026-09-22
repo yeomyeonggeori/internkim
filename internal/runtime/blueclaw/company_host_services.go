@@ -101,8 +101,16 @@ func companyHostCommonEnvironment() []CompanyHostEnvironmentSource {
 	}
 }
 
+// The shared file first, then what this service alone needs, then the
+// operator's. systemd applies these in the order they are written, so a shared
+// file read last silently overrides a service's own: the messenger and the
+// agent both read DATABASE_URL and they are not the same database, which put
+// the messenger's whole store in the agent's one and left every buzz-admin
+// call reading an empty database.
 func withCommonEnvironment(sources ...CompanyHostEnvironmentSource) []CompanyHostEnvironmentSource {
-	return append(sources, companyHostCommonEnvironment()...)
+	composed := []CompanyHostEnvironmentSource{environmentFile(CompanyHostEnvironmentPath)}
+	composed = append(composed, sources...)
+	return append(composed, optionalEnvironmentFile(CompanyHostSettingsPath))
 }
 
 // CompanyHostServices is the bundle, in start order.
