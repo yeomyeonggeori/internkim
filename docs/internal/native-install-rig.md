@@ -14,12 +14,16 @@ whether the install worked.
 ## Running it
 
 ```
-tools/test-native-install --package-directory .artifacts/native-package
+internkim release deb --architecture arm64 --version 0.0.5
+internkim release deb --architecture arm64 --version 0.0.6
+tools/with-local-plane tools/test-native-install
 ```
 
-With no package there, the rig exits 1 and says so. That is the state today:
-`internkim release deb` is not written and no `.deb` exists. To exercise the
-rig's own machinery, point it at a stand-in it builds itself:
+Two versions, because step 3 has to have somewhere to upgrade to. The lock is
+step 5's: it gives the guest a company off this Mac's local plane, and a reset
+from another worktree mid-run takes that company away. With no package under
+`.artifacts/native-package` the rig exits 1 and says so. To exercise the rig's
+own machinery without building one, point it at a stand-in it builds itself:
 
 ```
 tools/test-native-install --stand-in
@@ -27,12 +31,14 @@ tools/test-native-install --stand-in
 
 The stand-in is a package shaped like §2's, carrying a setuid helper, a
 conffile, two units with readiness endpoints, and maintainer scripts that
-create and keep the state tree. It carries none of the product. Every
-assertion is the same in both modes; only the package under test changes.
+create and keep the state tree. It carries none of the product, so step 5 is
+blocked against it; every other assertion is the same in both modes.
 
 `--keep` leaves the guest up for autopsy, reachable with
-`container exec <name> bash`. `--name` fixes the container's name, which
-otherwise carries a random suffix so two runs never collide.
+`container exec <name> bash`, and keeps the shared directory every command the
+rig runs is written into, without which that guest cannot be driven. `--name`
+fixes the container's name, which otherwise carries a random suffix so two runs
+never collide.
 
 The repository the rig serves is built by `internkim release apt`, which is
 the command that publishes it to R2. Whether apt *trusts* that repository is a
@@ -74,6 +80,14 @@ of the starting state this rig needs.
 Debian 13 trixie is the base because current Raspberry Pi OS is built on it and
 because it is where `postgresql` resolves to 17 and `redis-server` to 8.0.2,
 the versions §1 of the plan reasoned about.
+
+Two things the image does that a machine does not are undone before anything is
+judged. `/etc/resolv.conf` is replaced with a plain file, and
+`/usr/sbin/policy-rc.d` is deleted: the Debian image ships one that denies every
+service action so that building an image starts no daemon. Leaving it in place
+made the package's `prerm` call `deb-systemd-invoke stop`, be refused, and leave
+nine services running with their binaries deleted, which step 4 would have read
+as the package's own behaviour.
 
 **What the guest has before the install:**
 
@@ -179,25 +193,39 @@ for what `internkim install` writes when a person sets their company up.
 
 ### Step 5 · a person signs in and exchanges a message
 
-Not run. The company it needs is settled and the plane that issues one works;
-what is not settled is the package, which refuses a company at the first thing
-it checks. The next section is that refusal and the one behind it. Three
-assertions wait with them, and the rig prints them on every run, so a run says
-what it has not yet asked:
+Run against the real package. The rig starts the company app and the connection
+gateway on this Mac against the local plane, signs in as the seeded
+administrator, downloads the connection document company setup issues, and hands
+it to `internkim install` in the guest. What it then reads:
+
+| Observation | Reads | Why that |
+|---|---|---|
+| the box takes the company the plane issued it | the target of `/var/lib/internkim/current` and the file every unit's `ConditionPathExists` names | `internkim install` printing its five steps is the installer's account of its own run; this is the state the units read before they will start |
+| every unit is running and is not restarting in a loop | `ActiveState` and `NRestarts` per unit | a unit that dies and is restarted reports active for most of every second, so `is-active` alone cannot tell a running service from one that keeps dying |
+| the services answer their readiness endpoints | an HTTP GET inside the guest to `127.0.0.1:3000/_readiness`, `:8080/admin/api/health` and `:18080/admin/api/health` | systemd reports active for a process that answers a socket while refusing all work, which is how [postmortem 0002](./postmortem/0002-a-running-process-kept-a-config-that-was-gone.md) stayed green for forty minutes |
+| the message path is open as far as the socket the host cannot yet hold | the gateway's answer to `person.people.list` for this company, and how many times `internkim-relay` has dialled the gateway | a message typed in a browser reaches the guest through that socket and no other way. The section below is why it cannot open on a local plane; asserting the refusal keeps the limit on screen and makes this fail on the day it stops being true |
+| the running processes moved to the new build | the `admindBuildID` and `gitRevision` `:18080/admin/api/health` reports, read before step 3's upgrade and again after it | an upgrade that replaces a binary without restarting the unit leaves the old process serving, and dpkg's version and the file's mtime both move anyway. Two packages cut from one tree carry one revision, so the build id is the package version and the revision says which source it was. It caught two things on its first run: `internkim release deb` stamped neither field, so every packaged `admind` answered `unknown`; and the package's `postinst` ran `deb-systemd-invoke start`, which is a no-op for a unit already running, so the upgrade unpacked new binaries and left the old processes serving them |
+
+One assertion is owed, and the rig prints it on every run:
 
 | Observation | Reads | Why it waits |
 |---|---|---|
-| every unit is running and is not restarting in a loop | `systemctl is-active` and `NRestarts` per unit | a crash-looping unit reports active most of every second |
-| the services answer their readiness endpoints | an HTTP GET inside the guest to `127.0.0.1:3000/_readiness`, `:8080/admin/api/health` and `:18080/admin/api/health` | `systemctl is-active` reports active for a process that answers HTTP while refusing all work, which is how [postmortem 0002](./postmortem/0002-a-running-process-kept-a-config-that-was-gone.md) stayed green for forty minutes |
-| the running processes moved | the `gitRevision` `:18080/admin/api/health` reports, before and after an upgrade | dpkg's version and the file's mtime move whether or not the unit restarted |
+| a message posted in the browser reaches the guest's messenger, and the answer comes back through the same socket | the message in the guest's own messenger store, and the browser's answer to the call that posted it | the host cannot authenticate to the gateway on a local plane, for the reason below |
+
+The guest gets four cores and 4 GB, which is what the smallest appliance has.
+Step 5 is the first thing here that has PostgreSQL, Redis, the S3 server, the
+messenger and the agent resident at once, so a rig with more memory than the
+product would not be measuring the product. All nine units come up and stay up,
+and all three endpoints answer.
+
+`--stand-in` blocks this step: a package shaped like §2's carries none of the
+services a company would be given to.
 
 ## Step 5, and what it stands on
 
 Signing in and exchanging a message needs a company, a connection document, and
 a gateway between the browser and the guest. Where that company comes from is
-settled: the local plane. Everything below was measured against one, on an
-arm64 Debian 13 guest carrying `internkim_0.0.3_arm64.deb` installed from the
-rig's own repository.
+settled: the local plane.
 
 **A company on the production plane is not available to this rig.** Creating
 one writes a `company` row, a `member` row that permanently binds the founding
@@ -212,94 +240,82 @@ continues when an account will not delete. AGENTS.md's runtime hygiene rules
 close the question before the residue does: agent test requests run only in a
 disposable local fleet with an isolated database, workspace and identities.
 
-**The local plane carries the rest, and most of it is already built.**
+**What the local plane has to be holding.** `supabase db reset` seeds the
+fixture company `example-co` with four confirmed accounts, and the rig signs in
+as the one `web/tests/e2e/central-test-utils.ts` names, which is an active
+administrator because that is what the connection-document route requires. The
+rig reads that address out of the file the browser suite signs in with instead
+of keeping a second copy. Run it under `tools/with-local-plane`, so another
+worktree cannot reset the stack out from under a company this guest is
+installing.
 
-1. `supabase db reset` seeds the fixture company `example-co` with four
-   confirmed accounts. `member1@example.com` / `seed-password` is an active
-   admin, which is what the connection-document route requires.
-2. `tools/start-local-fleet-central-plane` starts the app against that
-   Supabase and issues an agent key. It needs one addition: `GATEWAY_URL` in
-   the environment it hands the dev server, without which
-   `createHostConfiguration` answers 503.
-3. The connection gateway runs locally and nothing new has to be written to run
-   it. `tools/verify-personal-settings.ts` renders
-   `workers/connection-gateway/wrangler.jsonc` into a config naming
-   `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GATEWAY_ADMIN_TOKEN`, then
-   runs `bunx wrangler dev --local --persist-to …` against it; the Durable
-   Object lives in `workerd`'s local storage. `internal/companyhost/connection.go`
-   still accepts `http://` for `appURL` and `centralPlane.projectURL` and `ws://`
-   for `gatewayURL`, so no validator has to be loosened.
-4. `POST /api/company/host-setup` as the signed-in fixture admin produces a
-   real `internkim-host.json`, which the guest installs.
-5. `web/tests/e2e/central-plane-sign-in.ts` already drives the sign-in form. A
-   new spec opens `/messenger/`, sends a message, and waits for the reply.
+The gateway runs under `wrangler dev` with its Durable Object in `workerd`'s
+local storage, from the canonical `workers/connection-gateway/wrangler.jsonc`
+with only `main` and `vars` rewritten, which is what
+`tools/verify-personal-settings.ts` already does for the fleet. It and the app
+both answer on every interface, because the guest reaches them at the address
+its own default route names. That address is the only substitution: the company,
+the member who signs in, the agent key and the connection document are the ones
+the app really issues.
 
-**The browser's half already works.** The local stack's GoTrue signs access
-tokens `ES256` and publishes the key at `/auth/v1/.well-known/jwks.json`, which
-is where the gateway reads it. A handshake to `/company/<fixture id>/client`
+The record's address is written twice on purpose. The gateway checks a token's
+issuer, and GoTrue stamps the address it was configured with rather than the one
+the caller reached it on, so the gateway is told the record's loopback address
+and the guest is told one it can route to.
+
+**The browser's half works.** The local stack's GoTrue signs access tokens
+`ES256` and publishes the key at `/auth/v1/.well-known/jwks.json`, which is
+where the gateway reads it. A handshake to `/company/<fixture id>/client`
 carrying a seeded member's token as the `internkim.bearer.` subprotocol answers
 `101`: the signature verified, the issuer matched, and the member's row was read
 under row level security.
 
-### What stops it
+### The one thing no local plane can do
 
-**The package ships no `bun` and no `uv`.** `internkim install` refuses at
-`1/5 Checking what this computer already has`, naming both. The declaration in
-`internal/runtime/blueclaw/host_dependencies.go` marks five programs
-`ArrivesAsPayload`; the pins in `host_payload_downloads.go` cover three, `moli`,
-`agent-browser` and `versitygw`. `/opt/internkim` holds the skills and the
-runtime template and no `document-venv`, which is the same gap seen from the
-other end, because `uv` is what builds it. `host/Dockerfile` fetches both with
-their own installers, so the container host runs while the packaged host cannot
-be given a company. No test stands between the two lists, and the first thing
-that reads them together is a person's install. Closing it is a pin for each
-program beside the other three, an unzip step for bun's archive (`unzip` is
-already on the `Depends:` line), the virtualenv built at package build time, and
-a test that every `ArrivesAsPayload` program has a pin.
+The company host authenticates to the gateway with a token the app mints.
+`POST /api/agent/host-session` signs it with `SUPABASE_JWT_SIGNING_KEY`, which on
+a local stack is that stack's shared secret written as an `oct` JWK, so the token
+is `HS256`. The gateway verifies `ES256` and `RS256` against a published key set,
+and a handshake to `/company/<id>/host` answers
+`401 the token is signed with HS256`. What the guest shows is the other side of
+the same fact: `internkim-relay` dials, is refused, and retries, and the gateway
+answers `server_offline` to anything asked of that company.
 
-**The company host cannot authenticate to the gateway on a local plane.**
-`POST /api/agent/host-session` signs the host's token with
-`SUPABASE_JWT_SIGNING_KEY`, which locally is the stack's shared secret written
-as an `oct` JWK, so the token is `HS256`. The gateway verifies `ES256` and
-`RS256` against a published key set, and a handshake to `/company/<id>/host`
-answers `401 the token is signed with HS256`. Production is different because
+Production does not have this problem because
 `web/scripts/issue-record-signing-key.ts` mints an `ES256` key and registers it
-with the Supabase project, so the project's own key set publishes it and
-PostgREST accepts the same token. A local stack has no management API to
-register a key against, and a key it does not publish is a key PostgREST refuses
-too, so the relay's own reads would break with the handshake fixed that way.
-`GATEWAY_SERVER_KEY` reaches `/company/<id>/server` with no token at all and is
-how `tools/verify-personal-settings.ts` drives a relay, but `internkim install`
-never writes it, so a rig using it would assert a handshake the installed box
-does not perform.
+with the Supabase project through the management API, so the project's own key
+set publishes it and PostgREST accepts the same token the gateway does. A local
+stack has no management API to register a key against. Giving the app a key of
+its own would trade one refusal for another: PostgREST would then refuse the
+relay's own reads, because it verifies against the key set the local stack
+publishes and that key is not in it. The only value that satisfies both ends is
+the local stack's own signing key, and the CLI publishes only its public half.
 
-**One that is fixed.** The connection document's company id was checked with
-zod 4's `z.uuid()`, which requires the version and variant nibbles RFC 4122
-fixes. `000000cc-0000-0000-0000-000000000001` is a value the `uuid` column holds
-and `uuid.Parse` accepts, so `POST /api/company/host-setup` answered
-`503 the company computer connection is not configured` for the only company a
-local plane has. It is `z.guid()` now, which is what a value read back out of
-that column is, and `web/tests/unit/server/company-host-setup.test.ts` reads the
-id out of `supabase/seed.dev.sql` so the two cannot drift apart again.
+`GATEWAY_SERVER_KEY` reaches `/company/<id>/server` with no token at all, and is
+how `tools/verify-personal-settings.ts` drives a relay. `internkim install` never
+writes it. A rig reaching for it would assert a handshake the installed box does
+not perform, which is a green light for something untested.
 
-Residue from the run that measured this: rows in a local Supabase container,
-erased by the next reset. No production account, hostname or DNS record was
+**So the host's own handshake, and the message round trip that depends on it,
+are first exercised against the real plane, once, by a person.** That is a limit
+on what any local rig can promise, and the goal has to carry it rather than
+assume it away.
+
+### Where the rig's judgement stops
+
+Three things stay a person's reading, once, against the real plane, with a
+company that is kept rather than created for a test:
+
+- the host's gateway handshake, and the message round trip that depends on it
+- the hostname resolving, and the connection file downloading from a real
+  browser session
+- the passkey path, which local GoTrue does not serve at all
+  (`/auth/v1/passkeys` is 404 there)
+
+Residue from a run: an `agent` row named `company-computer` on the local
+Supabase, which the rig deletes when it finishes, and the guest, which every run
+without `--keep` destroys. No production account, hostname or DNS record is
 touched.
-
-**Where the rig's judgement stops.** Once the two refusals above are gone, the
-rig can assert the pipe end to end without a person: the relay holds an open
-socket to the gateway, a message posted in the browser arrives in the guest's
-messenger database, and a reply comes back out through the same socket. What it
-cannot assert is the first-run experience of a real company: the hostname
-resolving, the connection file downloading from a real browser session, and the
-passkey path, which local GoTrue does not serve at all (`/auth/v1/passkeys` is
-404 there). Those stay a person's reading, once, against the real plane, with a
-company that is kept rather than created for a test.
-
-Until step 5 is built, "the service is doing its job" is bounded by what step 2
-can see: the endpoint answers, it reports the revision that was just installed,
-and the unit has not restarted. A task that a message turned into is the real
-proof, and it is on the other side of the two refusals.
 
 ## What this rig cannot catch
 
@@ -314,11 +330,12 @@ linked with a 4 KB maximum page alignment fail to load there, and the Go
 toolchain, `moli`, `agent-browser` and the vendored S3 server are each capable
 of it independently.
 
-**Memory.** The 4 GB CM5 variant's ceiling is unmeasured. The rig gives its
-guest 2 GB and installs a stand-in, so it measures nothing about what happens
-when PostgreSQL, Redis, an S3 server, Chromium and the agent are resident at
-once. The installed size of the real package is likewise unknown; §10 of the
-plan asks for it to be built and weighed.
+**Memory.** The guest has 4 GB, which is the 4 GB CM5 variant's whole ceiling,
+and step 5 holds PostgreSQL, Redis, the S3 server, the messenger and the agent
+in it at once without a unit dying. What is still unmeasured is the same box
+under load and with Chromium resident, which is what a document skill adds. The
+installed package is 295 MB for `arm64`, 110 MB of which is the document
+interpreter.
 
 **Storage.** The appliance boots from a microSD. Write endurance, sustained
 throughput during `apt-get install`, and the behaviour of a Postgres cluster
