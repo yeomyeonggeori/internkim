@@ -52,7 +52,7 @@ func TestConsolePasswordWithoutAnEnvironmentValueIsGeneratedRatherThanReadFromAF
 		t.Fatalf("resolve console password: %v", errorValue)
 	}
 	if resolved == "password-from-the-file" {
-		t.Fatal("console password was read from .local/secrets; .env is its only home")
+		t.Fatal("console password was read from .local/secrets; the vault is its only home")
 	}
 	if len(resolved) != 24 {
 		t.Fatalf("generated console password is %d characters, wanted 24", len(resolved))

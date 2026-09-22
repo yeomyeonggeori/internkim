@@ -46,10 +46,11 @@ disagrees derives identities nobody can sign in as, and it does so silently.
 - **Off-box backup:** keep a copy in the ops password manager / secret vault.
   Nothing reads it, so it cannot drift; losing every copy is unrecoverable.
 
-`tools/mirror-local` reads `INTERNKIM_BUZZ_KEY_SEED` from the environment or the
-repo `.env` and writes it to a seed file **only if the env var is set**. Setting
-it inline for one command (`INTERNKIM_BUZZ_KEY_SEED=… buzz-migrate …`) does NOT
-persist it — that is exactly how a seed gets lost (see below).
+`tools/mirror-local` re-executes itself under `monkeys run` to be handed
+`INTERNKIM_BUZZ_KEY_SEED`, and writes it to a seed file **only if the env var is
+set**. Setting it inline for one command (`INTERNKIM_BUZZ_KEY_SEED=…
+buzz-migrate …`) does NOT persist it — that is exactly how a seed gets lost (see
+below).
 
 ## What losing it costs (real incident)
 
