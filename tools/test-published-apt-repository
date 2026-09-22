@@ -575,6 +575,33 @@ class PublishedTrial:
             "the package does not ship, so editing that would say nothing about what dpkg kept",
         )
 
+    def the_newer_version_sorts_newer(self, older_version, newer_version):
+        """dpkg's ordering, asked of dpkg, before anything is published.
+
+        `release deb` versions a build `0.0.0+<date>.<short git sha>`. Two
+        builds cut on one day differ only in the sha, and dpkg orders that
+        lexically, so which one apt calls newer follows the sha rather than
+        which commit is later. Half the pairs sort the wrong way, and the
+        symptom is an `apt upgrade` that reports nothing to do.
+        """
+        compared = self.machine.shell(
+            f"dpkg --compare-versions '{newer_version}' gt '{older_version}' && echo newer || echo not-newer"
+        )
+        if "not-newer" in compared.stdout:
+            raise RigFailure(
+                f"dpkg does not order {newer_version} above {older_version}, so apt would offer "
+                "no upgrade. The version is 0.0.0+<date>.<short sha> and the sha does not order; "
+                "this pair sorts the wrong way round"
+            )
+        self.judgement.record(
+            "dpkg orders the newer package above the one the guest holds",
+            True,
+            f"dpkg --compare-versions {newer_version} gt {older_version}: {compared.stdout.strip()}",
+            "the version carries a git sha, which orders lexically rather than by when the commit "
+            "was made, so two builds from one day sort either way; an upgrade proved without "
+            "asking dpkg first would be proving a coin flip",
+        )
+
     def prove_the_upgrade(self):
         older_version = self.installed_version
         newer_version = package_fields(self.options.prove_upgrade)["Version"]
@@ -583,6 +610,7 @@ class PublishedTrial:
                 f"{self.options.prove_upgrade} carries {newer_version}, which is what the suite "
                 "already publishes; an upgrade needs somewhere to move to"
             )
+        self.the_newer_version_sorts_newer(older_version, newer_version)
         self.edit_the_shipped_configuration()
         self.give_the_guest_a_company()
         self.the_services_are_up("before the upgrade")
