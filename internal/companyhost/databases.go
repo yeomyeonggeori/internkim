@@ -19,24 +19,17 @@ import (
 
 const databasePreparationVariable = "INTERNKIM_COMPANY_HOST_SQL"
 
-func prepareDatabases(machine Machine, settings companyHostSettings, progress io.Writer) error {
-	if errorValue := startDistributionServices(machine); errorValue != nil {
+func prepareDatabases(platform companyHostPlatform, machine Machine, settings companyHostSettings, progress io.Writer) error {
+	if errorValue := platform.StartTheDatabaseAndTheCache(machine); errorValue != nil {
 		return errorValue
 	}
 	statements := databasePreparationStatements(settings.DatabasePassword)
-	// The password reaches psql through the environment and never through a
-	// command line, which every account on this box can read out of /proc.
-	arguments := []string{
-		"-u", "postgres", "--",
-		"sh", "-c", `printf '%s' "$` + databasePreparationVariable + `" | psql --set ON_ERROR_STOP=1 --quiet --no-psqlrc --dbname postgres`,
-	}
-	environment := []string{databasePreparationVariable + "=" + statements}
-	if errorValue := machine.Run("runuser", arguments, environment, progress); errorValue != nil {
+	if errorValue := platform.RunDatabaseStatements(machine, statements, progress); errorValue != nil {
+		identity := platform.SupervisorIdentityFor(databaseServiceName)
+		explanation := strings.Join(platform.HowToSeeWhyItIsSilent(identity), "\n")
 		return fmt.Errorf(
-			"PostgreSQL would not create the %s role and the %s and %s databases (%w).\n"+
-				"`systemctl status postgresql` says whether the server is running, and\n"+
-				"`journalctl -u postgresql -n 30` says why it is not. Nothing was removed",
-			databaseRoleName, blueclaw.BlueclawDatabaseName, blueclaw.BuzzRelayDatabaseName, errorValue)
+			"PostgreSQL would not create the %s role and the %s and %s databases (%w).\n%s\nNothing was removed",
+			databaseRoleName, blueclaw.BlueclawDatabaseName, blueclaw.BuzzRelayDatabaseName, errorValue, explanation)
 	}
 	return nil
 }

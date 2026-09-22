@@ -31,6 +31,10 @@ type Machine interface {
 type Installation struct {
 	StateDirectoryPath string
 	Connection         Connection
+	// Supervisor is what keeps the server running on this machine, so the
+	// closing sentence names the one this person has rather than the one the
+	// other kind of box has.
+	Supervisor string
 }
 
 type Request struct {
@@ -41,6 +45,14 @@ type Request struct {
 }
 
 func Install(request Request, machine Machine, progress io.Writer) (Installation, error) {
+	platform, errorValue := ThisMachine()
+	if errorValue != nil {
+		return Installation{}, errorValue
+	}
+	return installOn(platform, request, machine, progress)
+}
+
+func installOn(platform companyHostPlatform, request Request, machine Machine, progress io.Writer) (Installation, error) {
 	connection, errorValue := ReadConnection(request.ConnectionPath)
 	if errorValue != nil {
 		return Installation{}, errorValue
@@ -51,31 +63,35 @@ func Install(request Request, machine Machine, progress io.Writer) (Installation
 	}
 
 	fmt.Fprintln(progress, "1/5 Checking what this computer already has…")
-	if errorValue := requireWhatTheCompanyHostRuns(machine); errorValue != nil {
+	if errorValue := requireWhatTheCompanyHostRuns(platform, machine); errorValue != nil {
 		return Installation{}, errorValue
 	}
 
 	fmt.Fprintln(progress, "2/5 Keeping the company's keys and data on this computer…")
-	company, errorValue := prepareCompanyDirectory(machine, directoryPath, connection, request)
+	company, errorValue := prepareCompanyDirectory(platform, machine, directoryPath, connection, request)
 	if errorValue != nil {
 		return Installation{}, errorValue
 	}
 
 	fmt.Fprintln(progress, "3/5 Preparing PostgreSQL…")
-	if errorValue := prepareDatabases(machine, company, progress); errorValue != nil {
+	if errorValue := prepareDatabases(platform, machine, company, progress); errorValue != nil {
 		return Installation{}, errorValue
 	}
 
 	fmt.Fprintln(progress, "4/5 Installing and starting the services…")
-	if errorValue := startServices(machine, progress); errorValue != nil {
+	if errorValue := platform.SuperviseTheBundle(machine, progress); errorValue != nil {
 		return Installation{}, errorValue
 	}
 
 	fmt.Fprintln(progress, "5/5 Waiting for the server to answer…")
-	if errorValue := waitUntilTheServerAnswers(machine, progress); errorValue != nil {
+	if errorValue := waitUntilTheServerAnswers(platform, machine, progress); errorValue != nil {
 		return Installation{}, errorValue
 	}
-	return Installation{StateDirectoryPath: directoryPath, Connection: connection}, nil
+	return Installation{
+		StateDirectoryPath: directoryPath,
+		Connection:         connection,
+		Supervisor:         platform.NameOfItsSupervisor(),
+	}, nil
 }
 
 // RequireAdministrator makes the refusal a sentence rather than a permission
@@ -84,7 +100,7 @@ func RequireAdministrator() error {
 	if os.Geteuid() == 0 {
 		return nil
 	}
-	return fmt.Errorf("installing the company server writes systemd units and a private state directory, so it needs root. Run the same command with sudo")
+	return fmt.Errorf("installing the company server writes service definitions and a private state directory, so it needs root. Run the same command with sudo")
 }
 
 func resolveStateDirectoryPath(requested, companyID string) (string, error) {

@@ -2,6 +2,7 @@ package blueclaw
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -134,279 +135,146 @@ func (unit CompanyPackageUnit) InstalledPath() string {
 // has the package but not yet a company sits inactive rather than restarting into a
 // failure it cannot explain.
 func CompanyPackageUnits() []CompanyPackageUnit {
-	return []CompanyPackageUnit{
-		{Name: RelayServiceName, Contents: relayServiceUnit(CompanyPackageBinaryPath(RelayName), CompanyHostRelayStateDirectoryName)},
-		{Name: CompanyHostPrepareServiceName, Contents: companyHostPrepareUnit()},
-		{Name: BuzzMediaServiceName, Contents: companyHostBuzzMediaUnit()},
-		{Name: BuzzRelayServiceName, Contents: companyHostBuzzRelayUnit()},
-		{Name: CapabilitydServiceName, Contents: companyHostCapabilitydUnit()},
-		{Name: BlueclawServiceName, Contents: companyHostBlueclawUnit()},
-		{Name: AdmindServiceName, Contents: companyHostAdmindUnit()},
-		{Name: CompanyHostMaildServiceName, Contents: companyHostMaildUnit()},
-		{Name: ChatdServiceName, Contents: companyHostChatdUnit()},
+	return CompanyHostSystemdUnits(DebianCompanyHostLayout())
+}
+
+// CompanyHostSystemdUnits renders the bundle for systemd. What each unit runs comes
+// from CompanyHostServices; what only systemd can say about it — the ordering, the
+// condition, the Documentation link — is here, because launchd has no counterpart for
+// any of it.
+func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
+	units := []CompanyPackageUnit{}
+	for _, service := range CompanyHostServices(layout) {
+		if service.Name == RelayServiceName {
+			units = append(units, CompanyPackageUnit{
+				Name:     service.Name,
+				Contents: relayServiceUnit(layout.BinaryPath(RelayName), CompanyHostRelayStateDirectoryName),
+			})
+			continue
+		}
+		units = append(units, CompanyPackageUnit{Name: service.Name, Contents: systemdUnitFor(service)})
 	}
+	return units
 }
 
-// companyHostCommonService is what every unit of the bundle shares: the company's
-// own environment, then the operator's file last so an edited setting wins over a
-// rendered default.
-func companyHostCommonService() string {
-	return "EnvironmentFile=" + CompanyHostEnvironmentPath + "\n" +
-		"EnvironmentFile=-" + CompanyHostSettingsPath + "\n" +
-		"Restart=on-failure\nRestartSec=5\n"
+// companyHostUnitOrdering is systemd's half of the bundle and systemd's alone.
+// launchd.plist(5): "Unlike many bootstrapping daemons, launchd has no explicit
+// dependency model. Interdependencies are expected to be solved through the use of
+// IPC." So none of this crosses to the Mac, and what stands in its place there is the
+// readiness polling internal/companyhost already does on both.
+type companyHostUnitOrdering struct {
+	After            []string
+	Wants            []string
+	Requires         []string
+	BindsTo          []string
+	DocumentationURL string
 }
 
-func companyHostPrepareUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=internkim company host preparation
-Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/docs/internal/native-packaging.md
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=%s
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-EnvironmentFile=%s
-EnvironmentFile=-%s
-ExecStart=%s
-
-[Install]
-WantedBy=multi-user.target
-`, CompanyHostAgentKeyPath, CompanyHostEnvironmentPath, CompanyHostSettingsPath, CompanyPackagePreparePath)
+func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
+	switch serviceName {
+	case CompanyHostPrepareServiceName:
+		return companyHostUnitOrdering{
+			DocumentationURL: "https://github.com/yeomyeonggeori/internkim/blob/main/docs/internal/native-packaging.md",
+		}
+	case BuzzMediaServiceName:
+		return companyHostUnitOrdering{}
+	case BuzzRelayServiceName:
+		return companyHostUnitOrdering{
+			After:   []string{"postgresql.service", "redis-server.service", BuzzMediaServiceName + ".service"},
+			Wants:   []string{"redis-server.service", BuzzMediaServiceName + ".service"},
+			BindsTo: []string{"postgresql.service"},
+		}
+	case CapabilitydServiceName:
+		return companyHostUnitOrdering{
+			After:    []string{CompanyHostPrepareServiceName + ".service"},
+			Requires: []string{CompanyHostPrepareServiceName + ".service"},
+		}
+	case BlueclawServiceName:
+		return companyHostUnitOrdering{
+			After:    []string{"postgresql.service", CompanyHostPrepareServiceName + ".service", CapabilitydServiceName + ".service"},
+			Wants:    []string{CapabilitydServiceName + ".service"},
+			Requires: []string{CompanyHostPrepareServiceName + ".service"},
+			BindsTo:  []string{"postgresql.service"},
+		}
+	case AdmindServiceName:
+		return companyHostUnitOrdering{
+			After:    []string{CompanyHostPrepareServiceName + ".service"},
+			Wants:    []string{BlueclawServiceName + ".service"},
+			Requires: []string{CompanyHostPrepareServiceName + ".service"},
+		}
+	case ChatdServiceName:
+		return companyHostUnitOrdering{
+			After: []string{BuzzRelayServiceName + ".service", AdmindServiceName + ".service", BlueclawServiceName + ".service"},
+		}
+	}
+	return companyHostUnitOrdering{}
 }
 
-// The messenger is the service that must not run without PostgreSQL, and systemd has
-// no health gate: BindsTo stops it when the database unit stops, and Restart=on-failure
-// is what waits for a database that is up but not yet accepting connections.
-func companyHostBuzzRelayUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=Buzz Relay
-After=network-online.target postgresql.service redis-server.service %s.service
-Wants=network-online.target redis-server.service %s.service
-BindsTo=postgresql.service
-ConditionPathExists=%s
+func systemdUnitFor(service CompanyHostService) string {
+	ordering := companyHostOrderingFor(service.Name)
+	unit := &strings.Builder{}
+	unit.WriteString("[Unit]\nDescription=" + service.Description + "\n")
+	if ordering.DocumentationURL != "" {
+		unit.WriteString("Documentation=" + ordering.DocumentationURL + "\n")
+	}
+	unit.WriteString("After=" + strings.Join(append([]string{"network-online.target"}, ordering.After...), " ") + "\n")
+	unit.WriteString("Wants=" + strings.Join(append([]string{"network-online.target"}, ordering.Wants...), " ") + "\n")
+	writeSystemdList(unit, "Requires", ordering.Requires)
+	writeSystemdList(unit, "BindsTo", ordering.BindsTo)
+	unit.WriteString("ConditionPathExists=" + service.WaitsForTheFileAtPath + "\n")
 
-[Service]
-User=root
-EnvironmentFile=%s
-EnvironmentFile=%s
-EnvironmentFile=-%s
-Environment=BUZZ_BIND_ADDR=%s
-Environment=BUZZ_HEALTH_PORT=%s
-Environment=REDIS_URL=%s
-Environment=RELAY_URL=%s
-Environment=BUZZ_AUTO_MIGRATE=1
-Environment=BUZZ_REQUIRE_RELAY_MEMBERSHIP=true
-Environment=BUZZ_DB_POOL_SIZE=50
-%sExecStart=%s
-KillMode=mixed
-TimeoutStopSec=30
-
-[Install]
-WantedBy=multi-user.target
-`,
-		BuzzMediaServiceName,
-		BuzzMediaServiceName,
-		CompanyHostBuzzRelayKeyPath,
-		CompanyHostBuzzRelayKeyPath,
-		CompanyHostBuzzDatabasePath,
-		CompanyHostRelayMediaPath,
-		BuzzRelayBindAddress,
-		BuzzRelayHealthPort,
-		BuzzRelayRedisURL,
-		BuzzRelayLocalURL,
-		companyHostCommonService(),
-		CompanyPackageBinaryPath(BuzzRelayName))
+	unit.WriteString("\n[Service]\n")
+	if service.RunsOnceAndStays {
+		unit.WriteString("Type=oneshot\nRemainAfterExit=yes\n")
+	}
+	if service.Account == "" {
+		unit.WriteString("User=root\n")
+	} else {
+		unit.WriteString("User=" + service.Account + "\nGroup=" + service.Account + "\n")
+	}
+	if service.WorkingDirectory != "" {
+		unit.WriteString("WorkingDirectory=" + service.WorkingDirectory + "\n")
+	}
+	for _, source := range service.Environment {
+		writeSystemdEnvironment(unit, source)
+	}
+	if service.RestartAfterSeconds > 0 {
+		unit.WriteString(systemdRestartSetting(service) + "\nRestartSec=" + strconv.Itoa(service.RestartAfterSeconds) + "\n")
+	}
+	unit.WriteString("ExecStart=" + service.CommandLine() + "\n")
+	if service.StopTimeoutSeconds > 0 {
+		unit.WriteString("KillMode=mixed\nTimeoutStopSec=" + strconv.Itoa(service.StopTimeoutSeconds) + "\n")
+	}
+	unit.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
+	return unit.String()
 }
 
-// The posix backend serves every directory under its root as a bucket, so the bucket
-// is a directory dpkg creates rather than something an S3 client makes. --versioning-dir
-// is absent for the reason BuzzMediaServiceUnit gives.
-func companyHostBuzzMediaUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=Buzz Media Store
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=%s
-
-[Service]
-User=root
-EnvironmentFile=%s
-%sExecStart=%s --port %s --health %s posix %s
-
-[Install]
-WantedBy=multi-user.target
-`,
-		CompanyHostMediaSecretPath,
-		CompanyHostMediaSecretPath,
-		companyHostCommonService(),
-		CompanyPackageBinaryPath(BuzzMediaProgramName),
-		BuzzMediaAddress,
-		BuzzMediaHealthPath,
-		CompanyHostMediaRootPath)
+func systemdRestartSetting(service CompanyHostService) string {
+	if service.RestartsEvenOnACleanExit {
+		return "Restart=always"
+	}
+	return "Restart=on-failure"
 }
 
-func companyHostCapabilitydUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=internkim Capability Daemon
-After=network-online.target %s.service
-Requires=%s.service
-Wants=network-online.target
-ConditionPathExists=%s
-
-[Service]
-User=root
-%sExecStart=%s --socket %s --openrouter-key %s --local-inference-mode remote --blueclaw-url %s --admind-url http://%s --chatd-endpoint %s --chatd-platform ${MESSENGER_PLATFORM} --device-browser %s --device-browser-state-dir %s --device-browser-first-port %s --device-browser-capacity %s --device-browser-user %s
-
-[Install]
-WantedBy=multi-user.target
-`,
-		CompanyHostPrepareServiceName,
-		CompanyHostPrepareServiceName,
-		CompanyHostAgentKeyPath,
-		companyHostCommonService(),
-		CompanyPackageBinaryPath(CapabilitydName),
-		CapabilitySocketPath,
-		CompanyHostModelKeyPath,
-		BlueclawBaseURL,
-		CompanyHostAdmindListenAddress,
-		CompanyHostChatdEndpoint,
-		CompanyPackageBinaryPath(DeviceBrowserName),
-		CompanyHostBrowserStatePath,
-		CompanyHostBrowserFirstPort,
-		CompanyHostBrowserCapacity,
-		BlueclawUser)
+func writeSystemdList(unit *strings.Builder, name string, values []string) {
+	if len(values) == 0 {
+		return
+	}
+	unit.WriteString(name + "=" + strings.Join(values, " ") + "\n")
 }
 
-func companyHostBlueclawUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=Blueclaw
-After=network-online.target postgresql.service %s.service %s.service
-Requires=%s.service
-Wants=network-online.target %s.service
-BindsTo=postgresql.service
-ConditionPathExists=%s
-
-[Service]
-User=%s
-Group=%s
-WorkingDirectory=%s
-Environment=HOME=%s
-Environment=BLUECLAW_BUNDLED_SKILLS_PATH=%s
-%sExecStart=%s -runtime %s -policy %s -acp-socket %s -inbound acp
-KillMode=mixed
-TimeoutStopSec=30
-
-[Install]
-WantedBy=multi-user.target
-`,
-		CompanyHostPrepareServiceName,
-		CapabilitydServiceName,
-		CompanyHostPrepareServiceName,
-		CapabilitydServiceName,
-		CompanyHostRuntimeDocument,
-		BlueclawUser,
-		BlueclawUser,
-		CompanyHostWorkspacePath,
-		BlueclawHomePath,
-		CompanyPackageSkillsPath,
-		companyHostCommonService(),
-		CompanyPackageBinaryPath(BlueclawName),
-		CompanyHostRuntimeDocument,
-		CompanyHostPolicyDocument,
-		CompanyHostACPSocketPath)
-}
-
-// admind reconciles the company's roster onto blueclaw as it starts, so it comes
-// after it: a reconcile against a blueclaw that is not up yet waits two minutes for
-// the next one, and for those two minutes nobody the company knows resolves.
-func companyHostAdmindUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=internkim Admin Gateway
-After=network-online.target %s.service
-Requires=%s.service
-Wants=network-online.target %s.service
-ConditionPathExists=%s
-
-[Service]
-User=root
-%sExecStart=%s -listen %s -capability-socket %s -chatd-endpoint %s -chatd-platform ${MESSENGER_PLATFORM} -blueclaw-url %s -blueclaw-policy %s -buzz-key-seed-path %s -buzz-database-url-path %s -buzz-relay-key-path %s -buzz-admin-command %s -buzz-relay-url %s -buzz-account-links %s -site-scaffold %s/website/assets/scaffold/app -central-plane-app-url ${INTERNKIM_APP_URL} -central-plane-agent-key %s -central-plane-project-url ${SUPABASE_URL} -central-plane-publishable-key ${SUPABASE_PUBLISHABLE_KEY}
-
-[Install]
-WantedBy=multi-user.target
-`,
-		CompanyHostPrepareServiceName,
-		CompanyHostPrepareServiceName,
-		BlueclawServiceName,
-		CompanyHostAgentKeyPath,
-		companyHostCommonService(),
-		CompanyPackageBinaryPath(AdmindName),
-		CompanyHostAdmindListenAddress,
-		CapabilitySocketPath,
-		CompanyHostChatdEndpoint,
-		BlueclawBaseURL,
-		CompanyHostPolicyDocument,
-		CompanyHostIdentitySeedPath,
-		CompanyHostBuzzDatabasePath,
-		CompanyHostBuzzRelayKeyPath,
-		CompanyPackageBinaryPath(BuzzAdminName),
-		BuzzRelayLocalURL,
-		CompanyHostAccountLinksPath,
-		CompanyPackageSkillsPath,
-		CompanyHostAgentKeyPath)
-}
-
-func companyHostMaildUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=internkim Mail Daemon
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=%s
-
-[Service]
-User=root
-%sExecStart=%s -listen %s
-
-[Install]
-WantedBy=multi-user.target
-`, CompanyHostEnvironmentPath, companyHostCommonService(), CompanyPackageBinaryPath(MaildName), CompanyHostMaildListenAddress)
-}
-
-func companyHostChatdUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=Buzz chatd bridge
-After=network-online.target %s.service %s.service %s.service
-Wants=network-online.target
-ConditionPathExists=%s
-
-[Service]
-User=root
-EnvironmentFile=%s
-Environment=CHATD_BLUECLAW_BASE_URL=%s
-Environment=CHATD_BUZZ_RELAY_URL=%s
-Environment=CHATD_LISTEN_PORT=%s
-Environment=CHATD_RELAY_INBOUND_URL=%s
-Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
-Environment=CHATD_ADMIND_BASE_URL=http://%s
-%sExecStart=%s
-
-[Install]
-WantedBy=multi-user.target
-`,
-		BuzzRelayServiceName,
-		AdmindServiceName,
-		BlueclawServiceName,
-		CompanyHostChatdSecretPath,
-		CompanyHostChatdSecretPath,
-		BlueclawBaseURL,
-		BuzzRelayLocalURL,
-		ChatdListenPort,
-		CompanyHostArrivalsInboundURL,
-		CompanyHostAccountLinksPath,
-		CompanyHostAdmindListenAddress,
-		companyHostCommonService(),
-		CompanyPackageBinaryPath(ChatdName))
+func writeSystemdEnvironment(unit *strings.Builder, source CompanyHostEnvironmentSource) {
+	if source.FilePath != "" {
+		prefix := ""
+		if source.IsOptional {
+			prefix = "-"
+		}
+		unit.WriteString("EnvironmentFile=" + prefix + source.FilePath + "\n")
+		return
+	}
+	for _, value := range source.Settings {
+		unit.WriteString("Environment=" + value.Name + "=" + value.Value + "\n")
+	}
 }
 
 // CompanyHostSettingsFile is the shipped conffile. Every value in it is the default
@@ -440,6 +308,13 @@ func CompanyHostSettingsFile() string {
 // It is rendered here rather than kept as a file of its own so the paths it touches
 // are the same constants the units name.
 func CompanyHostPrepareScript() string {
+	return CompanyHostPrepareScriptFor(DebianCompanyHostLayout())
+}
+
+// CompanyHostPrepareScriptFor renders it for one machine's layout. Every program
+// it runs — install, chgrp, chmod, printf, test — is in POSIX and in BSD
+// userland, so the script itself crosses; only the paths move.
+func CompanyHostPrepareScriptFor(layout CompanyHostLayout) string {
 	return fmt.Sprintf(`#!/bin/sh
 set -e
 
@@ -486,25 +361,25 @@ fi
 		CompanyHostEnvironmentPath,
 		CompanyHostAgentKeyPath,
 		BlueclawUser,
-		CompanyHostRunPath,
-		CompanyHostRunSecretsPath,
-		CompanyHostRunAgentKeyPath,
+		layout.RunPath,
+		layout.RunSecretsPath(),
+		layout.RunAgentKeyPath(),
 		CompanyHostModelKeyPath,
-		CompanyHostRunModelKeyPath,
+		layout.RunModelKeyPath(),
 		CompanyHostLogPath,
 		CompanyHostBrowserStatePath,
 		CompanyHostStateRoot,
-		CompanyHostWorkspacePath,
+		layout.WorkspacePath,
 		CompanyHostRuntimeOverridePath,
-		CompanyHostRuntimeDocument,
-		CapabilitySocketPath,
+		layout.RuntimeDocumentPath(),
+		layout.CapabilitySocketPath(),
 		BlueclawBaseURL,
 		CompanyHostChatdEndpoint,
-		CompanyPackageBinaryPath(RenderCompanyRuntimeName),
-		CompanyPackageTemplatePath,
-		CompanyPackageBinaryPath(CapabilitydName),
+		layout.BinaryPath(RenderCompanyRuntimeName),
+		layout.RuntimeTemplatePath(),
+		layout.BinaryPath(CapabilitydName),
 		CompanyHostPolicyOverridePath,
-		CompanyHostPolicyDocument,
-		CompanyHostPOSIXHelperPath,
+		layout.PolicyDocumentPath(),
+		layout.POSIXHelperPath(),
 		fmt.Sprintf("%04o", CompanyHostStateRootMode))
 }
