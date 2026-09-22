@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 )
 
 // The company host as a Homebrew formula. Everything it declares is read from
@@ -29,11 +31,6 @@ const (
 	HomebrewTapOwner = "yeomyeonggeori"
 	HomebrewTapName  = "internkim"
 
-	// HomebrewBottleRootURL is where a bottle is fetched from. Homebrew appends
-	// "<name>-<version>.<tag>.bottle.tar.gz" to it for anything that is not
-	// GitHub Packages (Utils::Bottles.path_resolved_basename).
-	HomebrewBottleRootURL = "https://updates.intern.kim/" + HomebrewReleasePrefix
-
 	// HomebrewReleasePrefix is the object prefix the release registry serves
 	// the tarballs under, beside deb/, companion/ and host/.
 	HomebrewReleasePrefix = "brew"
@@ -44,6 +41,15 @@ const (
 // HomebrewTap is what a person types.
 func HomebrewTap() string {
 	return HomebrewTapOwner + "/" + HomebrewTapName
+}
+
+// HomebrewBottleRootURL is where a bottle is fetched from. Homebrew appends
+// "<name>-<version>.<tag>.bottle.tar.gz" to it for anything that is not GitHub
+// Packages (Utils::Bottles.path_resolved_basename). The zone is asked of
+// fleetdomain rather than written down, which is what lets a company hosting
+// its own releases point the formula at its own address.
+func HomebrewBottleRootURL(zone string) string {
+	return fleetdomain.Subdomain("updates", zone) + "/" + HomebrewReleasePrefix
 }
 
 // HomebrewFormulaFileName is where the formula sits inside the tap.
@@ -88,6 +94,7 @@ type HomebrewFormulaRequest struct {
 	Version          string
 	SourceTarballURL string
 	SourceSHA256     string
+	BottleRootURL    string
 	Bottles          []HomebrewBottle
 }
 
@@ -108,7 +115,7 @@ func HomebrewFormula(request HomebrewFormulaRequest) (string, error) {
 	formula.WriteString("  sha256 " + rubyString(request.SourceSHA256) + "\n")
 	formula.WriteString("  license " + rubyString(companyPackageLicense) + "\n")
 	formula.WriteString("  version " + rubyString(request.Version) + "\n\n")
-	writeHomebrewBottleBlock(formula, request.Bottles)
+	writeHomebrewBottleBlock(formula, request.BottleRootURL, request.Bottles)
 	writeHomebrewDependencies(formula)
 	writeHomebrewInstallBlock(formula)
 	writeHomebrewCaveats(formula)
@@ -128,12 +135,12 @@ const (
 	documentWheelDirectoryName              = "document-wheels"
 )
 
-func writeHomebrewBottleBlock(formula *strings.Builder, bottles []HomebrewBottle) {
+func writeHomebrewBottleBlock(formula *strings.Builder, rootURL string, bottles []HomebrewBottle) {
 	if len(bottles) == 0 {
 		return
 	}
 	formula.WriteString("  bottle do\n")
-	formula.WriteString("    root_url " + rubyString(HomebrewBottleRootURL) + "\n")
+	formula.WriteString("    root_url " + rubyString(rootURL) + "\n")
 	sorted := append([]HomebrewBottle(nil), bottles...)
 	sort.Slice(sorted, func(first, second int) bool { return sorted[first].Tag < sorted[second].Tag })
 	for _, bottle := range sorted {

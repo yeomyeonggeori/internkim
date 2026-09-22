@@ -40,7 +40,12 @@ type MacDocumentInterpreterDownload struct {
 
 const (
 	macDocumentInterpreterVersion = "3.13.15+20260901"
-	macDocumentInterpreterRelease = "20260901"
+
+	// One literal rather than a version spliced into a template, because
+	// tools/verify-vendored-downloads finds the URLs it probes by reading them
+	// out of this package. A URL assembled from pieces is one nobody asks
+	// upstream about, which is exactly the one that dies.
+	macDocumentInterpreterURL = "https://github.com/astral-sh/python-build-standalone/releases/download/20260901/cpython-3.13.15%2B20260901-aarch64-apple-darwin-install_only_stripped.tar.gz"
 
 	// The directory the interpreter lands in inside the keg, and the name the
 	// venv's pyvenv.cfg will point its `home` at.
@@ -52,10 +57,8 @@ const (
 // file is found before a Mac is.
 func MacDocumentInterpreter() MacDocumentInterpreterDownload {
 	return MacDocumentInterpreterDownload{
-		Version: macDocumentInterpreterVersion,
-		URL: "https://github.com/astral-sh/python-build-standalone/releases/download/" +
-			macDocumentInterpreterRelease +
-			"/cpython-3.13.15%2B" + macDocumentInterpreterRelease + "-aarch64-apple-darwin-install_only_stripped.tar.gz",
+		Version:                macDocumentInterpreterVersion,
+		URL:                    macDocumentInterpreterURL,
 		SHA256:                 "d3904bd6a072246e07aa0bdadee9a14e80521e42a943c0848059feb16a2816dc",
 		DirectoryInsideArchive: macDocumentInterpreterDirectoryName,
 	}

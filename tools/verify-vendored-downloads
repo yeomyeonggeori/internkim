@@ -23,11 +23,21 @@ Every URL is derived from the sources that fetch it, so there is no inventory
 to keep in step. Anything carrying a variable this cannot resolve is printed as
 skipped rather than passed over in silence, because a URL nobody probes is
 exactly the one that died.
+
+The pins are the exception to reading source text, and they have to be. A Go
+constant assembled from pieces reads as its first fragment, so the Linux pins
+were only ever probed because `host/Dockerfile` happened to spell the same URLs
+out in full, and the macOS ones would have been probed by nothing at all. So
+this asks the package instead: a throwaway program prints what
+`HostPayloadDownloads` and `MacDocumentInterpreter` resolve to, for every target
+they know.
 """
 
 import itertools
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -106,6 +116,53 @@ def urls_the_host_image_fetches():
     return resolved, skipped
 
 
+PIN_PROGRAM = """package main
+
+import (
+	"fmt"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+)
+
+func main() {
+	for _, target := range []string{
+		blueclaw.HostPayloadLinuxArm64,
+		blueclaw.HostPayloadLinuxAmd64,
+		blueclaw.HostPayloadDarwinArm64,
+	} {
+		downloads, errorValue := blueclaw.HostPayloadDownloadsForTarget(target)
+		if errorValue != nil {
+			panic(errorValue)
+		}
+		for _, download := range downloads {
+			fmt.Println(download.URL)
+		}
+	}
+	fmt.Println(blueclaw.MacDocumentInterpreter().URL)
+}
+"""
+
+
+def urls_the_pins_name():
+    """Ask the package what its pins resolve to, for every target it knows."""
+    directory = REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / "verify_vendored_downloads_tmp"
+    directory.mkdir(parents=True, exist_ok=True)
+    program = directory / "main.go"
+    try:
+        program.write_text(PIN_PROGRAM, encoding="utf-8")
+        completed = subprocess.run(
+            ["go", "run", "./" + str(directory.relative_to(REPOSITORY_ROOT))],
+            cwd=REPOSITORY_ROOT, capture_output=True, text=True,
+        )
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    if completed.returncode != 0:
+        print(f"could not ask the package what its pins are:\n{completed.stderr}", file=sys.stderr)
+        return []
+    origin = "internal/runtime/blueclaw (pins)"
+    return [(line.strip(), origin) for line in completed.stdout.split("\n") if line.strip()]
+
+
 def is_a_web_page(url):
     """A GitHub blob or tree path is something a person opens.
 
@@ -163,7 +220,7 @@ def ask(url):
 def main():
     resolved, skipped = urls_the_host_image_fetches()
     more_resolved, more_skipped = urls_provisioning_fetches()
-    resolved = without_prefixes_of_other_urls(resolved + more_resolved)
+    resolved = without_prefixes_of_other_urls(resolved + more_resolved + urls_the_pins_name())
     skipped += more_skipped
 
     seen = set()

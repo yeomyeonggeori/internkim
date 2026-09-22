@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
@@ -100,10 +101,12 @@ func runReleaseBrew(arguments []string) error {
 	}
 	fmt.Fprintf(os.Stdout, "built %s\n", bottlePath)
 
+	rootURL := blueclaw.HomebrewBottleRootURL(fleetdomain.Default())
 	formula, errorValue := blueclaw.HomebrewFormula(blueclaw.HomebrewFormulaRequest{
 		Version:          version,
-		SourceTarballURL: blueclaw.HomebrewBottleRootURL + "/" + blueclaw.HomebrewSourceTarballName(version),
+		SourceTarballURL: rootURL + "/" + blueclaw.HomebrewSourceTarballName(version),
 		SourceSHA256:     sourceChecksum,
+		BottleRootURL:    rootURL,
 		Bottles:          []blueclaw.HomebrewBottle{{Tag: bottleTag, Cellar: ":any_skip_relocation", SHA256: bottleChecksum}},
 	})
 	if errorValue != nil {
