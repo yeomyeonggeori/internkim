@@ -387,8 +387,19 @@ class InstallScriptTests(unittest.TestCase):
         (self.served_directory / "deb" / "internkim-archive-keyring.pgp").write_bytes(published_keyring)
         return base_url
 
+    def publish_suite(self, base_url, suite="trixie-stable"):
+        """The suite's own signed index, which is what the script asks for to
+        tell a suite this repository does not carry from one it does."""
+        index = self.served_directory / "deb" / "dists" / suite
+        index.mkdir(parents=True, exist_ok=True)
+        (index / "InRelease").write_bytes(b"-----BEGIN PGP SIGNED MESSAGE-----\nSuite: " + suite.encode() + b"\n")
+        return base_url
+
+    def publish_repository(self, base_url, suite="trixie-stable"):
+        return self.publish_suite(self.publish_keyring(base_url), suite)
+
     def test_a_machine_with_apt_gets_the_package_and_not_a_bare_binary(self):
-        base_url = self.publish_keyring(self.serve())
+        base_url = self.publish_repository(self.serve())
         completed, bin_dir = self.run_install_on_debian(base_url, self.debian_machine())
         self.assertEqual(completed.returncode, 0, completed.stderr)
 
@@ -424,7 +435,7 @@ class InstallScriptTests(unittest.TestCase):
         self.assertFalse(self.apt_log.exists(), "the machine was asked nothing before the refusal")
 
     def test_the_key_never_lands_where_it_would_sign_every_repository(self):
-        base_url = self.publish_keyring(self.serve())
+        base_url = self.publish_repository(self.serve())
         completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
         self.assertEqual(completed.returncode, 0, completed.stderr)
         for forbidden in ("etc/apt/trusted.gpg", "etc/apt/trusted.gpg.d"):
@@ -432,14 +443,14 @@ class InstallScriptTests(unittest.TestCase):
         self.assertNotIn("apt-key", self.apt_log.read_text())
 
     def test_a_failed_package_install_says_how_to_undo_what_it_wrote(self):
-        base_url = self.publish_keyring(self.serve())
+        base_url = self.publish_repository(self.serve())
         completed, _ = self.run_install_on_debian(base_url, self.debian_machine(failing_apt_subcommand="install"))
         self.assertEqual(completed.returncode, 1)
         self.assertIn(apt_source_path, completed.stderr)
         self.assertIn(keyring_path, completed.stderr)
 
     def test_a_signing_key_that_cannot_be_fetched_changes_nothing(self):
-        base_url = self.serve()
+        base_url = self.publish_suite(self.serve())
         completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
         self.assertEqual(completed.returncode, 1)
         self.assertIn("signing key", completed.stderr)

@@ -52,6 +52,8 @@ Run the same command as root:
 install_the_package() {
   require_administrator
   apt_suite="${INTERNKIM_INSTALL_SUITE:-}"
+  suite_came_from_this_machine=no
+  debian_codename=""
   # A suite name carries both how far a build is trusted and the Debian release
   # it was built against, because apt pins on the suite and then takes the
   # newest candidate inside it. The release half is this machine's own, so the
@@ -68,6 +70,7 @@ Debian release to ask apt for. Put the suite for this machine's release in
 INTERNKIM_INSTALL_SUITE, which is trixie-stable on Debian 13, and run the same
 command again."
     apt_suite="$debian_codename-stable"
+    suite_came_from_this_machine=yes
   fi
 
   debian_architecture="$(dpkg --print-architecture)"
@@ -87,6 +90,8 @@ Nothing on this machine was changed."
 "$keyring_url served an empty signing key, so apt would refuse every package it
 signs. Nothing on this machine was changed; try again, and report it if it
 happens twice."
+
+  refuse_a_suite_the_repository_does_not_publish
 
   # /usr/share/keyrings, never apt-key: a key in the legacy keyring signs every
   # repository on the machine rather than only this one.
@@ -123,6 +128,45 @@ Undo what this script wrote with:
   echo "Installed $package_name. Every service stays idle until this box has a company."
   echo "Give it one with the connection file you downloaded from company setup:"
   echo "  sudo internkim install ~/Downloads/internkim-host.json"
+}
+
+# A suite nobody published makes `apt-get update` fail on the whole source, and
+# that failure reads as this machine or this address being wrong when neither
+# is. The suite's own index answers it directly, and the answer has two shapes
+# that want different sentences: a status is a suite this repository does not
+# carry, and no status at all is the repository being out of reach. This runs
+# after the signing key has already been fetched, so the repository has served
+# this machine something by the time it is asked.
+refuse_a_suite_the_repository_does_not_publish() {
+  suite_index_url="$repository_url/dists/$apt_suite/InRelease"
+  suite_probe_status=0
+  suite_index_code="$(curl -sSL -o /dev/null -w '%{http_code}' "$suite_index_url")" || suite_probe_status=$?
+
+  case "$suite_index_code" in
+    2??) return 0 ;;
+  esac
+
+  if [ "$suite_probe_status" != 0 ] || [ "$suite_index_code" = 000 ]; then
+    stop \
+"Could not reach $suite_index_url, so whether $apt_suite is published is
+unknown; curl's own reason is above. Check that this machine can reach
+$repository_url and run the same command again.
+Nothing on this machine was changed."
+  fi
+
+  if [ "$suite_came_from_this_machine" = yes ]; then
+    stop \
+"$repository_url publishes nothing at $apt_suite: $suite_index_url answered
+$suite_index_code. That name is this machine's Debian release, $debian_codename,
+and the stable channel, so there is no stable build for this release yet.
+Nothing on this machine was changed."
+  fi
+
+  stop \
+"$repository_url publishes nothing at $apt_suite: $suite_index_url answered
+$suite_index_code. INTERNKIM_INSTALL_SUITE named that suite; check it against
+what the repository publishes.
+Nothing on this machine was changed."
 }
 
 # Homebrew is not run as root. It refuses to be, and the files it writes belong
