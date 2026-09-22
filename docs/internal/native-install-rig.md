@@ -366,13 +366,18 @@ from `archive.raspberrypi.com`.
 
 The Homebrew path has a rig of its own, and it is a different kind of rig.
 
-The third used to be whether `apt upgrade` works against R2. That closed on
-2026-09-22: the `trixie-testing` suite was published, the worker was deployed
-with `deb/` in its public prefixes, and a guest that had never heard of us ran
-the published line and ended with the package installed from it. The three
-refusals were taken against the published repository as well, the tampered one
-by replacing the object in the bucket, so what apt receives out of R2 has been
-watched both matching the signed index and failing to.
+The third used to be whether apt works against R2 at all. On 2026-09-22 the
+`trixie-testing` suite was published, the worker was deployed with `deb/` in
+its public prefixes, and a guest that had never heard of us ran the published
+line and ended with the package installed from it. The three refusals were
+taken against the published repository as well, the tampered one by replacing
+the object in the bucket, so what apt receives out of R2 has been watched both
+matching the signed index and failing to.
+
+What that run did not take is an upgrade: one version was published and
+installed, and no second version has ever replaced a first through the
+published repository. `tools/test-native-install` takes that step against a
+repository this Mac serves, which leaves the R2 half of it still unwatched.
 
 What has still never been published is `trixie-stable`, which is the suite
 `install.sh` writes when nothing overrides it. A machine that runs the line
