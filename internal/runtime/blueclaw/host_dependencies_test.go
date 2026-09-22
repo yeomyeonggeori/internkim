@@ -224,7 +224,7 @@ func TestTheEntrypointNamesTheFilesTheDeclarationDoes(t *testing.T) {
 }
 
 func TestThePackageDependsOnEverythingTheImageInstalls(t *testing.T) {
-	depends := blueclaw.HostDebianDependsLine()
+	depends := blueclaw.HostDebianDependsLine("")
 	for _, packageName := range blueclaw.HostImageDebianPackages() {
 		if !strings.Contains(depends, packageName) {
 			t.Errorf("the image installs %s and the package does not depend on it, so a native install is a host "+

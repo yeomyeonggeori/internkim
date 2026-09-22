@@ -64,6 +64,11 @@ COMPANY_CONDITION_PATH = "/var/lib/internkim/current/host.env"
 # they drift.
 REPOSITORY_PREFIX = "deb"
 KEYRING_NAME = "internkim-archive-keyring.pgp"
+
+# The name the vault holds the archive signing key under. The canonical copy is
+# aptrepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
+# reads that constant and fails if this drifts from it.
+SIGNING_KEY_VARIABLE = "INTERNKIM_APT_SIGNING_KEY"
 BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
 
 
@@ -71,7 +76,11 @@ class RigFailure(Exception):
     pass
 
 
-def run(arguments, **keywords):
+def run(arguments, environment=None, **keywords):
+    """`environment` adds to this process's environment rather than replacing it,
+    which is what `monkeys run` does when it hands a command a secret."""
+    if environment is not None:
+        keywords["env"] = {**os.environ, **environment}
     return subprocess.run(arguments, capture_output=True, text=True, **keywords)
 
 
@@ -145,11 +154,14 @@ def dependency_names(depends_field):
 
     A version constraint is dropped and the first alternative of an `a | b`
     clause is taken, which is the one a Debian machine installs by default.
+
+    A name bounded from both sides, as `python3 (>= 3.13), python3 (<< 3.14)`
+    is, names one package twice; apt is asked for it once.
     """
     names = []
     for clause in depends_field.replace("\n", " ").split(","):
         first = clause.split("|")[0].split()
-        if first:
+        if first and first[0] not in names:
             names.append(first[0])
     return names
 
@@ -233,10 +245,10 @@ class Release:
                 str(internkim_command()), "release", "apt",
                 "--suite", suite,
                 "--package-directory", str(self.staging_directory),
-                "--signing-key", str(self.archive_key_path),
                 "--output", str(self.directory),
             ],
             cwd=str(REPOSITORY_ROOT),
+            environment={SIGNING_KEY_VARIABLE: self.archive_key_path.read_text()},
         )
 
     def serve(self):
@@ -328,7 +340,11 @@ def build_stand_in_package(directory, version, revision):
             "Maintainer: InternKim <nobody@invalid.internkim.test>",
             "Section: admin",
             "Priority: optional",
-            "Depends: python3, ca-certificates",
+            # The real package bounds python3 to the minor version its document
+            # interpreter was resolved against, and the stand-in carries the same
+            # bound so that assertion has something to read. trixie's python3 is
+            # inside it and bookworm's is not, which is the whole point of it.
+            "Depends: python3 (>= 3.13), python3 (<< 3.14), ca-certificates",
             "Description: stand-in for the company host package",
             " Built by tools/test-native-install so the rig can be exercised before",
             " the real package exists. It is not the product.",
@@ -631,6 +647,38 @@ class Machine:
         run([self.container_binary, "rm", "--force", self.name])
         self.created = False
 
+
+# The suite the package was not built for. Its python3 is 3.11 where trixie's is
+# 3.13, which is the difference the document interpreter's wheels cannot cross.
+OTHER_SUITE_IMAGE = "debian:bookworm-slim"
+
+
+def install_attempt_on_another_suite(package_path, container_binary="container"):
+    """Ask a guest of another suite to install this package, and answer what apt said.
+
+    A throwaway `container run` rather than a second Machine: nothing here needs an
+    init, a kernel or a shared directory, because apt refuses before it unpacks
+    anything.
+    """
+    package_path = Path(package_path)
+    script = "\n".join([
+        "set -u",
+        "export DEBIAN_FRONTEND=noninteractive",
+        "apt-get update -qq >/dev/null 2>&1",
+        "apt-get install -y /package/" + package_path.name,
+    ])
+    completed = subprocess.run(
+        [
+            container_binary, "run", "--rm",
+            "--platform", "linux/" + ARCHITECTURE,
+            "--volume", str(package_path.parent) + ":/package",
+            OTHER_SUITE_IMAGE, "sh", "-c", script,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    return completed
 
 # ------------------------------------------------------------------- the plane
 

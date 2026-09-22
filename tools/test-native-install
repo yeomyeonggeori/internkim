@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_rig import (  # noqa: E402
     APT_SOURCE_PATH,
+    OTHER_SUITE_IMAGE,
     ARCHITECTURE,
     COMPONENT,
     CONFFILE_EDIT,
@@ -46,6 +47,7 @@ from native_install_rig import (  # noqa: E402
     SHARE_PATH,
     answered,
     build_stand_in_package,
+    install_attempt_on_another_suite,
     dependency_names,
     package_fields,
 )
@@ -55,6 +57,7 @@ DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 CONNECTION_FILE_NAME = "internkim-host.json"
 MODEL_KEY_FILE_NAME = "rig-model-key"
 RELAY_UNIT_NAME = "internkim-relay.service"
+DOCUMENT_INTERPRETER_PACKAGE = "python3"
 COMPANY_CALL_CAPABILITY = "person.people.list"
 
 # The guest is given a company whose agent never reaches a model provider. Step 5
@@ -224,6 +227,7 @@ class Rig:
         self.dependencies = []
         self.plane = None
         self.company_id = ""
+        self.package_under_test = None
 
     def step(self, number, name):
         step = Step(number, name)
@@ -451,7 +455,29 @@ class Rig:
             modes.stdout.strip(),
         )
 
+        self.observe_the_other_suite_is_refused(step)
         self.observe_services(step)
+
+    def observe_the_other_suite_is_refused(self, step, package_path=None):
+        """The package carries wheels for one Python, and says so in Depends:.
+
+        A guest of a suite with a different python3 is the only place that claim
+        can be read, because apt on this guest satisfied it.
+        """
+        package_path = package_path or self.package_under_test
+        attempt = install_attempt_on_another_suite(package_path)
+        said = (attempt.stdout + attempt.stderr).strip()
+        step.observe(
+            f"a suite whose python3 the interpreter was not resolved against refuses it",
+            f"what apt on a {OTHER_SUITE_IMAGE} guest answers when asked to install this package",
+            "the package's document interpreter is a tree of wheels built for one Python minor "
+            "version, and the only thing that keeps it off a suite carrying another is the bound "
+            "in Depends:. A bound that does not bite reads exactly like one that does from here, "
+            "so it is read where it has to bite",
+        ).record(
+            attempt.returncode != 0 and DOCUMENT_INTERPRETER_PACKAGE in said and "Depends" in said,
+            "\n".join(said.splitlines()[-6:]) or f"apt exited {attempt.returncode} and said nothing",
+        )
 
     def units(self):
         listed = self.machine.shell(
@@ -893,6 +919,7 @@ def main():
         print()
 
         try:
+            rig.package_under_test = packages[0]
             rig.prepare_release(packages)
             rig.start_machine()
             rig.dependencies = rig.install_declared_dependencies(packages[0])

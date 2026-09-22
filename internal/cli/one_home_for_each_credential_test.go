@@ -3,8 +3,10 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"gitlab.com/eastriver/internkim/internal/aptrepository"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
 
@@ -52,6 +54,32 @@ func TestConsolePasswordWithoutAnEnvironmentValueIsGeneratedRatherThanReadFromAF
 	}
 	if len(resolved) != 24 {
 		t.Fatalf("generated console password is %d characters, wanted 24", len(resolved))
+	}
+}
+
+// The archive signing key publishes software every company host installs as root, and
+// its home is the operating system's vault. A file left beside the other local secrets
+// is the shape it used to fall back to, and a fallback means two homes.
+func TestTheArchiveSigningKeyComesFromTheVaultAlone(t *testing.T) {
+	writeDecoyLocalSecret(t, "apt-archive-signing-key.asc", "key-from-the-file")
+	t.Setenv(aptrepository.SigningKeyVariable, "")
+
+	if _, _, errorValue := aptrepository.MaterialiseSigningKey(); errorValue == nil {
+		t.Fatal("a release with nothing in the vault found a signing key anyway")
+	}
+
+	t.Setenv(aptrepository.SigningKeyVariable, "key-from-the-vault")
+	keyPath, remove, errorValue := aptrepository.MaterialiseSigningKey()
+	if errorValue != nil {
+		t.Fatalf("materialise the signing key: %v", errorValue)
+	}
+	defer remove()
+	written, errorValue := os.ReadFile(keyPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if strings.TrimSpace(string(written)) != "key-from-the-vault" {
+		t.Fatalf("the signing key resolved to %q", strings.TrimSpace(string(written)))
 	}
 }
 

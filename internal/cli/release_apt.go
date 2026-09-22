@@ -27,11 +27,11 @@ func runReleaseAPT(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	signingKeyPath := firstNonEmptyString(
-		commandArgumentValue(arguments, "--signing-key", ""),
-		aptrepository.SigningKeyPath(),
-		aptrepository.DefaultSigningKeyPath(repositoryRootPath),
-	)
+	signingKeyPath, removeSigningKey, errorValue := aptrepository.MaterialiseSigningKey()
+	if errorValue != nil {
+		return errorValue
+	}
+	defer removeSigningKey()
 	signer, errorValue := aptrepository.NewGPGSigner(signingKeyPath)
 	if errorValue != nil {
 		return errorValue
