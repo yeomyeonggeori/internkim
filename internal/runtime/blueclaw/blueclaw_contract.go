@@ -120,6 +120,7 @@ const (
 	BuzzRelayArtifactPath                 = ".dependency/buzz-relay"
 	BuzzMediaServiceName                  = "buzz-media"
 	BuzzMediaServicePath                  = "/etc/systemd/system/buzz-media.service"
+	BuzzMediaProgramName                  = "versitygw"
 	BuzzMediaBinaryPath                   = "/usr/local/bin/versitygw"
 	BuzzMediaVersion                      = "1.8.0"
 	BuzzMediaRootPath                     = "/var/lib/buzz-media"
@@ -157,6 +158,8 @@ const (
 	RelayUserName              = "internkim"
 	MaildName                  = "internkim-maild"
 	RenderCompanyRuntimeName   = "render-company-runtime"
+	DeviceBrowserName          = "moli"
+	AgentBrowserName           = "agent-browser"
 	BuzzPremigrateSnapshotPath = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
