@@ -70,4 +70,15 @@
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.reinforcementCount}</dt><dd>{text.reinforcementCountTemplate.replace('{count}', String(fact.reinforcementCount))}</dd></div>
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.lastRecalledAt}</dt><dd>{fact.lastRecalledAt ? memoryDate(fact.lastRecalledAt, text, currentLocale.value) : text.neverRecalled}</dd></div>
 	</dl>
+	<section class="grid gap-2" aria-label={text.triggerPhrases}>
+		<h3 class="text-xs text-muted-foreground">{text.triggerPhrases}</h3>
+		{#if fact.triggerPhrases.length > 0}
+			<div class="flex flex-wrap gap-2">
+				{#each fact.triggerPhrases as phrase (phrase)}<Badge variant="outline">{phrase}</Badge>{/each}
+			</div>
+			<p class="text-xs text-muted-foreground">{text.triggerPhrasesDescription}</p>
+		{:else}
+			<p class="text-sm text-muted-foreground">{text.triggerPhrasesPending}</p>
+		{/if}
+	</section>
 </div>

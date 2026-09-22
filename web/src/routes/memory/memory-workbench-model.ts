@@ -13,7 +13,7 @@ export function filterMemoryFacts(facts: MemoryFact[], query: string): MemoryFac
 }
 
 function searchableMemoryText(fact: MemoryFact): string[] {
-	return [fact.content, fact.kind, ...fact.circleIDs];
+	return [fact.content, fact.kind, ...fact.circleIDs, ...fact.triggerPhrases];
 }
 
 export function memoryAudience(fact: MemoryFact, text: MemoryText): string {
