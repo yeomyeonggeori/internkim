@@ -279,6 +279,10 @@
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
   },
+  "INTERNKIM_APT_SIGNING_KEY_PATH": {
+    "process": "cli",
+    "description": "path to the exported OpenPGP secret key `internkim release apt` signs the Debian repository with; a path so the key never enters a process environment"
+  },
   "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
     "process": "tools/prepare-blueclaw-payload",
     "description": "where the built Blueclaw payload artifact is written; defaults under .dependency/blueclaw-payload"

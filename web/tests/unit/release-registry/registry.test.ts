@@ -32,6 +32,34 @@ describe('Release Registry Worker', () => {
 		expect(bucket.getCalls).toEqual(['channels/stable.json']);
 	});
 
+	test('serves the apt repository without a token, because apt carries none', async () => {
+		const bucket = new MemoryR2Bucket({
+			'deb/dists/stable/InRelease': 'Origin: InternKim',
+			'deb/pool/main/i/internkim/internkim_1.0.0_arm64.deb': 'package'
+		});
+
+		for (const objectKey of ['deb/dists/stable/InRelease', 'deb/pool/main/i/internkim/internkim_1.0.0_arm64.deb']) {
+			const response = await handleReleaseRegistryRequest(new Request(`https://updates.example.test/${objectKey}`), {
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
+				RELEASE_DOWNLOAD_TOKEN: 'download-token'
+			});
+			expect(response.status).toBe(200);
+		}
+	});
+
+	test('keeps the rest of the bucket behind the token', async () => {
+		const bucket = new MemoryR2Bucket({ 'debug/secret': 'secret', 'deb': 'secret' });
+
+		for (const objectKey of ['debug/secret', 'deb']) {
+			const response = await handleReleaseRegistryRequest(new Request(`https://updates.example.test/${objectKey}`), {
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
+				RELEASE_DOWNLOAD_TOKEN: 'download-token'
+			});
+			expect(response.status).toBe(401);
+		}
+		expect(bucket.getCalls).toEqual([]);
+	});
+
 	test('rejects unsafe object keys', async () => {
 		const bucket = new MemoryR2Bucket({ '../secret': 'secret' });
 
