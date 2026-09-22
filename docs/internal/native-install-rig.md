@@ -343,11 +343,32 @@ arm64 Debian 13 guest under a 4 KB-page kernel with plenty of memory and a
 virtual disk. The appliance is none of those things in three ways.
 
 **Page size.** Raspberry Pi OS for CM5 may ship a 16 KB page-size kernel. The
-guest here reports 4096 and runs the repository's own
-`Image-6.1.68-kvm`, so nothing in this rig exercises a 16 KB page. Binaries
-linked with a 4 KB maximum page alignment fail to load there, and the Go
-toolchain, `moli`, `agent-browser` and the vendored S3 server are each capable
-of it independently.
+guest here reports 4096 and runs the repository's own `Image-6.1.68-kvm`, so
+nothing in this rig exercises a 16 KB page.
+
+Half of that risk is now a measurement rather than a worry. A binary whose
+largest `PT_LOAD` alignment is 4 KB cannot be mapped by a kernel with a larger
+page, and every arm64 binary the package ships aligns to 64 KB: the Go
+binaries, `moli`, `agent-browser`, `bun`, `uv` and `versitygw`. Nothing we ship
+will fail to *load*. Read it with:
+
+```
+python3 - <<'EOF'
+import struct, sys
+from pathlib import Path
+data = Path(sys.argv[1]).read_bytes()
+offset, size, count = struct.unpack_from("<Q", data, 32)[0], *struct.unpack_from("<HH", data, 54)
+print(hex(max(struct.unpack_from("<Q", data, offset + index * size + 48)[0]
+              for index in range(count)
+              if struct.unpack_from("<I", data, offset + index * size)[0] == 1)))
+EOF
+```
+
+What is left is what loading does not answer: a program that maps fine and then
+assumes 4 KB at runtime. `bun` embeds JavaScriptCore and the document skills
+drive Chromium, which are the two that have historically carried such an
+assumption; Chromium is the distribution's package rather than ours, and on
+Raspberry Pi OS it is the distribution's own build for that kernel.
 
 **Memory.** The guest has 4 GB, which is the 4 GB CM5 variant's whole ceiling,
 and step 5 holds PostgreSQL, Redis, the S3 server, the messenger and the agent
