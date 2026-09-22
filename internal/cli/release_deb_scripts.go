@@ -15,7 +15,7 @@ import (
 // a company exists is a no-op systemd records as an unmet condition. The last lines
 // say what to type next.
 func debPostInstallScript() string {
-	helperPath := blueclaw.CompanyPackageBinaryPath("blueclaw-posix-helper")
+	helperPath := blueclaw.CompanyHostPOSIXHelperPath
 	return debScriptHeader() + strings.Join([]string{
 		`[ "$1" = configure ] || exit 0`,
 		``,

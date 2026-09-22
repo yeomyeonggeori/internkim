@@ -30,7 +30,7 @@
   "terminal": {
     "mode": "native",
     "workspaceRootPath": "${WORKSPACE_ROOT_PATH}",
-    "posixHelperPath": "/usr/local/bin/blueclaw-posix-helper",
+    "posixHelperPath": "${POSIX_HELPER_PATH}",
     "timeoutSecond": 120,
     "outputMaxBytes": 32768,
     "sessionMaxCount": 4,

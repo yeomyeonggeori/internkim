@@ -18,14 +18,6 @@ const (
 	identitySeedFileName = "buzz-key-seed"
 )
 
-func DefaultStateDirectoryPath(companyID string) (string, error) {
-	home, errorValue := os.UserHomeDir()
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return filepath.Join(home, ".internkim", "companies", companyID), nil
-}
-
 func writePrivateFile(path string, content []byte) error {
 	file, errorValue := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if errorValue != nil {

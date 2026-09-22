@@ -1,15 +1,15 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"os"
 )
 
-const (
-	companyHostBinaryName         = "internkim-host"
-	companyHostAgentImageVariable = "gitlab.com/eastriver/internkim/internal/companyhost.AgentImage"
-)
+// The published internkim-host binary is what a machine with no package manager
+// installs. It carries no image reference any more: the company server is the
+// programs this repository builds, supervised by systemd, and `internkim
+// install` is what starts them.
+const companyHostBinaryName = "internkim-host"
 
 func runReleaseCompanyHost(arguments []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
@@ -17,26 +17,20 @@ func runReleaseCompanyHost(arguments []string) error {
 		return errorValue
 	}
 	releaseID := firstNonEmptyString(commandArgumentValue(arguments, "--release", ""), defaultReleaseID(repositoryRootPath))
-	agentImage := commandArgumentValue(arguments, "--image", "")
 	publisher, errorValue := releasePublisherFromEnvironment(repositoryRootPath)
 	if errorValue != nil {
 		return errorValue
 	}
-	return publishCompanyHostRelease(releaseID, agentImage, publisher, repositoryRootPath, os.Stdout, crossCompileProduct)
+	return publishCompanyHostRelease(releaseID, publisher, repositoryRootPath, os.Stdout, crossCompileProduct)
 }
 
 func publishCompanyHostRelease(
 	releaseID string,
-	agentImage string,
 	publisher releaseObjectPublisher,
 	repositoryRootPath string,
 	output io.Writer,
 	crossCompile func(repositoryRootPath string, product releaseProduct, linkerFlags string) binaryBuilder,
 ) error {
-	if agentImage == "" {
-		return fmt.Errorf("name the company server image with --image; a host build only ever runs the one it was stamped with")
-	}
-	linkerFlags := "-s -w -X " + companyHostAgentImageVariable + "=" + agentImage
-	build := crossCompile(repositoryRootPath, companyHostProduct, linkerFlags)
+	build := crossCompile(repositoryRootPath, companyHostProduct, "-s -w")
 	return publishBinaryRelease(companyHostProduct, releaseID, publisher, build, output)
 }

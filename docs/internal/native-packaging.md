@@ -142,6 +142,15 @@ What it contains: `internkim`, `internkim-capabilityd`, `internkim-admind`,
 `/opt/internkim/skills`, blueclaw's migrations, the runtime template, the
 document virtualenv and the systemd units.
 
+Everything a person types goes in `/usr/bin`. The setuid helper is the
+exception: nobody runs it from a shell, and Debian forbids the `/usr/local`
+path the device image installs it at, so the package puts it at
+`/usr/lib/internkim/blueclaw-posix-helper`. Blueclaw finds it through
+`terminal.posixHelperPath` in the runtime document, which means the template
+cannot name either path. It carries a hole, and `render-company-runtime` fills
+it with whichever installed the helper. A runtime naming a helper that is not
+there loses every shell and file tool and reports `ok` while doing it.
+
 ## 3. Dependencies
 
 `host/Dockerfile` and `host/entrypoint.sh` already worked this list out, #1908

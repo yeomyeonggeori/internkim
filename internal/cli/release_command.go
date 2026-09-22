@@ -87,7 +87,7 @@ func printReleaseUsage() {
 	fmt.Println("  publish     Publish a device release to the stable channel")
 	fmt.Println("  status      Show what the channel points at")
 	fmt.Println("  companion   Build the companion for macOS and Linux and publish it under companion/latest")
-	fmt.Println("  host        Publish the host installer under host/latest, stamped with --image")
+	fmt.Println("  host        Publish the host installer under host/latest, for a machine with no package manager")
 	fmt.Println("  host-image  Build and push the company server image, and print the --image it made")
 	fmt.Println("  deb         Build the company host as a Debian package for arm64 and amd64")
 	fmt.Println("  apt         Sign and publish the Debian repository under deb/, from the .debs release deb built")
