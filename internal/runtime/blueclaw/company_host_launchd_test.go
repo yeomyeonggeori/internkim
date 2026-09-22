@@ -120,6 +120,28 @@ func TestTheOperatorSettingsFileStillWinsOnAMac(t *testing.T) {
 	t.Fatal("no messenger daemon was rendered")
 }
 
+// The messenger and the agent both read DATABASE_URL and they are not the same
+// database. The company's shared file carries the agent's, so a merge that read
+// it after the messenger's own put every message the company ever sent in the
+// agent's database, and left `buzz-admin` reading an empty one: nobody could be
+// let onto the relay, so nobody could send anything.
+func TestTheMessengerKeepsItsOwnDatabase(t *testing.T) {
+	for _, service := range CompanyHostServices(MacCompanyHostLayout(testHomebrewPrefix)) {
+		if service.Name != BuzzRelayServiceName {
+			continue
+		}
+		environment, errorValue := companyHostServiceEnvironment(service, environmentFilesForTest())
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if !strings.HasSuffix(environment["DATABASE_URL"], "/"+BuzzRelayDatabaseName+"?sslmode=disable") {
+			t.Fatalf("the messenger would run on %s", environment["DATABASE_URL"])
+		}
+		return
+	}
+	t.Fatal("no messenger service was declared")
+}
+
 // A plist launchd cannot parse is a daemon that never starts, and `launchctl
 // bootstrap` reports it as one line about the file rather than about the
 // service. plutil is the parser launchd itself uses; where there is no plutil,
