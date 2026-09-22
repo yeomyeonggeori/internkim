@@ -189,10 +189,45 @@ Raspberry Pi OS is the exception to "Pi OS is Debian". It ships its own
 `chromium`, so the appliance's dependency line differs by that one name and
 the package needs either an alternative or a Pi-specific build.
 
-`bun`, `uv`, `moli` and `agent-browser` are packaged by nobody. They are
-payload, pinned by version and sha256 exactly as the Dockerfile pins them now,
-and the venv at `/opt/internkim/document-venv` is built into the package at
-build time, so no customer machine resolves it.
+`bun`, `uv`, `moli`, `agent-browser` and `versitygw` are packaged by nobody.
+They are payload, pinned by version and sha256 in
+`internal/runtime/blueclaw/host_payload_downloads.go`, which is also where the
+image reads its own pins from. Which five is decided by the dependency
+declaration beside it: `TestThePinsCoverExactlyThePayloadProgramsDeclared`
+fails when a program is declared `ArrivesAsPayload` with no pin, and when a pin
+names a program nothing declares. Before that test the two lists had already
+drifted — `bun` and `uv` were declared and never pinned, so the package built
+and installed and `internkim install` refused at its first check, which is the
+only place the disagreement showed.
+
+**What the document interpreter costs the release process.** The venv at
+`/opt/internkim/document-venv` is resolved at package build time, so no
+customer machine resolves a wheel. A wheel is built for one operating system,
+one processor and one Python minor version, and uv resolves against the
+interpreter it is pointed at, so this cannot be done on the machine that
+happens to be building: a Mac resolves macOS wheels, and a venv resolved
+against Python 3.11 does not import under 3.13. `internkim release deb`
+therefore resolves it inside a throwaway `debian:trixie-slim` guest of the
+target architecture, the way `tools/prepare-buzz-relay` compiles a Linux binary
+from a Mac. Three facts follow, and none of them is a detail:
+
+- A release machine needs a container runtime that can give it the target
+  architecture, or it needs to be a Linux machine of that architecture. Apple's
+  `container` gives both: an `amd64` guest on an Apple Silicon Mac resolved the
+  same eleven wheels in forty seconds. A machine with neither cannot build the
+  package, and `internkim release deb` says which of the two it wants instead
+  of shipping a package with no interpreter in it.
+- The venv holds `lib/python3.13`, which is trixie's Python. The package's
+  `Depends: python3` names no version, so installing this package on a suite
+  carrying a different Python minor version gives a venv whose site-packages
+  that interpreter will not import. The package is built for one suite at a
+  time, and `internkim release deb` has no way to say so yet.
+- It adds about 110 MB to a package that was already 217 MB.
+
+The device path resolves the same venv on the machine instead, in
+`internal/cli/setup_flow.go`. That is the other answer to the same question: it
+costs a customer's machine a minute and a network, and it buys immunity from
+both facts above.
 
 ## 4. Supervision
 

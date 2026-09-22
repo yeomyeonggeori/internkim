@@ -120,7 +120,7 @@ func buildDebianPackage(repositoryRootPath string, target debianTarget, version 
 		return "", errorValue
 	}
 	defer os.RemoveAll(stagingPath)
-	contents, errorValue := debPackageContents(repositoryRootPath, target, stagingPath, output)
+	contents, errorValue := debPackageContents(repositoryRootPath, target, version, stagingPath, output)
 	if errorValue != nil {
 		return "", errorValue
 	}
@@ -173,9 +173,9 @@ func writeDebianPackage(information *nfpm.Info, packagePath string) error {
 	return packager.Package(information, file)
 }
 
-func debPackageContents(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) (files.Contents, error) {
+func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {
 	packaged := []debPackagedFile{}
-	programs, errorValue := buildDebPrograms(repositoryRootPath, target, stagingPath, output)
+	programs, errorValue := buildDebPrograms(repositoryRootPath, target, version, stagingPath, output)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -190,6 +190,11 @@ func debPackageContents(repositoryRootPath string, target debianTarget, stagingP
 		return nil, errorValue
 	}
 	packaged = append(packaged, carried...)
+	documentInterpreter, errorValue := buildDocumentVirtualEnvironment(repositoryRootPath, target, stagingPath, output)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	packaged = append(packaged, documentInterpreter)
 	return debContentsFor(packaged), nil
 }
 
@@ -321,11 +326,11 @@ func debBunPrograms() []debBunProgram {
 	}
 }
 
-func buildDebPrograms(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) ([]debPackagedFile, error) {
+func buildDebPrograms(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) ([]debPackagedFile, error) {
 	packaged := []debPackagedFile{}
 	for _, program := range debGoPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
-		if errorValue := crossCompileDebProgram(repositoryRootPath, program, target, builtPath); errorValue != nil {
+		if errorValue := crossCompileDebProgram(repositoryRootPath, program, target, version, builtPath); errorValue != nil {
 			return nil, errorValue
 		}
 		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.DebianArchitecture)
@@ -366,8 +371,12 @@ func buildDebPrograms(repositoryRootPath string, target debianTarget, stagingPat
 	return packaged, nil
 }
 
-func crossCompileDebProgram(repositoryRootPath string, program debGoProgram, target debianTarget, outputPath string) error {
-	command := exec.Command("go", "build", "-trimpath", "-ldflags", "-s -w", "-o", outputPath, program.Package)
+// Two packages built from one tree carry one revision, so the build id is the package
+// version: it is what dpkg moved, and it is what says whether the process answering
+// after an upgrade is the process the upgrade installed.
+func crossCompileDebProgram(repositoryRootPath string, program debGoProgram, target debianTarget, version string, outputPath string) error {
+	stamped := "-s -w " + admindStampFlags(version, releaseBinaryRevision(repositoryRootPath))
+	command := exec.Command("go", "build", "-trimpath", "-ldflags", stamped, "-o", outputPath, program.Package)
 	command.Dir = filepath.Join(repositoryRootPath, program.ModuleRoot)
 	command.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+target.GoArchitecture, "CGO_ENABLED=0")
 	commandOutput, errorValue := command.CombinedOutput()
@@ -477,7 +486,7 @@ func debVendoredPrograms(repositoryRootPath string, target debianTarget, staging
 		}
 		programPath := downloadedPath
 		if download.PathInsideArchive != "" {
-			programPath, errorValue = extractFromGzippedTar(downloadedPath, download.PathInsideArchive, filepath.Join(stagingPath, download.ProgramName))
+			programPath, errorValue = extractProgram(downloadedPath, download.PathInsideArchive, filepath.Join(stagingPath, download.ProgramName))
 			if errorValue != nil {
 				return nil, errorValue
 			}
@@ -540,6 +549,49 @@ func checksumOf(path string) (string, error) {
 	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
+// Upstream decides what kind of archive it publishes, and the file name is where it
+// says so: moli, versitygw and uv ship gzipped tarballs and bun ships a zip.
+func extractProgram(archivePath string, wantedPath string, outputPath string) (string, error) {
+	switch {
+	case strings.HasSuffix(archivePath, ".tar.gz"):
+		return extractFromGzippedTar(archivePath, wantedPath, outputPath)
+	case strings.HasSuffix(archivePath, ".zip"):
+		return extractPinnedFromZip(archivePath, wantedPath, outputPath)
+	}
+	return "", fmt.Errorf("%s is an archive kind this package does not know how to open", archivePath)
+}
+
+// The zip reader this shares with the unpackaged path matches on an entry's own name
+// rather than its path, which is exact here because the archive's bytes were verified
+// against the pin before this opened it.
+func extractPinnedFromZip(archivePath string, wantedPath string, outputPath string) (string, error) {
+	archive, errorValue := os.Open(archivePath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer archive.Close()
+	held, errorValue := archive.Stat()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	if errorValue := extractFromZip(archive, held.Size(), outputPath, filepath.Base(wantedPath)); errorValue != nil {
+		return "", errorValue
+	}
+	return outputPath, nil
+}
+
+func copyProgram(held io.Reader, outputPath string) (string, error) {
+	extracted, errorValue := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer extracted.Close()
+	if _, errorValue := io.Copy(extracted, held); errorValue != nil {
+		return "", errorValue
+	}
+	return outputPath, nil
+}
+
 func extractFromGzippedTar(archivePath string, wantedPath string, outputPath string) (string, error) {
 	file, errorValue := os.Open(archivePath)
 	if errorValue != nil {
@@ -563,15 +615,7 @@ func extractFromGzippedTar(archivePath string, wantedPath string, outputPath str
 		if filepath.Clean(header.Name) != wantedPath {
 			continue
 		}
-		extracted, errorValue := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
-		if errorValue != nil {
-			return "", errorValue
-		}
-		defer extracted.Close()
-		if _, errorValue := io.Copy(extracted, archive); errorValue != nil {
-			return "", errorValue
-		}
-		return outputPath, nil
+		return copyProgram(archive, outputPath)
 	}
 }
 
@@ -608,6 +652,102 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 		IsConfiguration: true,
 	})
 	return packaged, nil
+}
+
+// The document skills import wheels, and a wheel is built for one operating system,
+// one processor and one Python minor version. uv therefore has to resolve this against
+// the machine the package is for rather than the machine the package is built on: a
+// venv resolved on a Mac holds macOS wheels, and one resolved against Python 3.11 does
+// not import under 3.13. So the release builds it inside a throwaway guest of the
+// target architecture running the distribution the package targets, which is also what
+// tools/prepare-buzz-relay does to compile a Linux binary from a Mac. What that costs
+// the release process is written down in docs/internal/native-packaging.md §3.
+const (
+	documentVenvBuildImage   = "debian:trixie-slim"
+	documentVenvBuildRuntime = "container"
+)
+
+func buildDocumentVirtualEnvironment(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) (debPackagedFile, error) {
+	if _, errorValue := exec.LookPath(documentVenvBuildRuntime); errorValue != nil {
+		return debPackagedFile{}, fmt.Errorf(
+			"the document interpreter is resolved inside a %s guest of the target architecture, and `%s` is not on PATH. "+
+				"Build the release on a machine that has it, or on a %s machine of that architecture",
+			documentVenvBuildImage, documentVenvBuildRuntime, target.DebianArchitecture)
+	}
+	workPath := filepath.Join(stagingPath, "document-venv-build")
+	if errorValue := os.MkdirAll(workPath, 0o755); errorValue != nil {
+		return debPackagedFile{}, errorValue
+	}
+	requirements, errorValue := documentSkillRequirements(repositoryRootPath)
+	if errorValue != nil {
+		return debPackagedFile{}, errorValue
+	}
+	if errorValue := os.WriteFile(filepath.Join(workPath, "requirements.txt"), []byte(requirements), 0o644); errorValue != nil {
+		return debPackagedFile{}, errorValue
+	}
+	resolverPath := filepath.Join(stagingPath, blueclaw.PackageResolverName)
+	if _, errorValue := os.Stat(resolverPath); errorValue != nil {
+		return debPackagedFile{}, fmt.Errorf("the package resolver is staged at %s before the interpreter is built: %w", resolverPath, errorValue)
+	}
+	if errorValue := os.Link(resolverPath, filepath.Join(workPath, blueclaw.PackageResolverName)); errorValue != nil {
+		return debPackagedFile{}, errorValue
+	}
+
+	fmt.Fprintf(output, "  resolving the document interpreter for %s\n", target.DebianArchitecture)
+	build := exec.Command(documentVenvBuildRuntime, "run", "--rm",
+		"--platform", "linux/"+target.DebianArchitecture,
+		"--volume", workPath+":/work",
+		documentVenvBuildImage, "sh", "-c", documentVenvBuildScript())
+	build.Stdout = output
+	build.Stderr = output
+	if errorValue := build.Run(); errorValue != nil {
+		return debPackagedFile{}, fmt.Errorf("resolving the document interpreter for %s: %w", target.DebianArchitecture, errorValue)
+	}
+	builtPath := filepath.Join(workPath, "document-venv")
+	if _, errorValue := os.Stat(filepath.Join(builtPath, "bin", "python")); errorValue != nil {
+		return debPackagedFile{}, fmt.Errorf("the resolved interpreter has no %s/bin/python", builtPath)
+	}
+	return debPackagedFile{
+		SourcePath:      builtPath,
+		Destination:     blueclaw.CompanyPackageDocumentVenvPath,
+		Mode:            0o755,
+		IsDirectoryTree: true,
+	}, nil
+}
+
+func documentVenvBuildScript() string {
+	return strings.Join([]string{
+		"set -eu",
+		"export DEBIAN_FRONTEND=noninteractive",
+		"apt-get update -qq >/dev/null",
+		"apt-get install -y -qq --no-install-recommends python3 ca-certificates >/dev/null",
+		"/work/" + blueclaw.PackageResolverName + " venv --python /usr/bin/python3 " + blueclaw.CompanyPackageDocumentVenvPath + " >/dev/null",
+		"/work/" + blueclaw.PackageResolverName + " pip install --quiet --python " + blueclaw.CompanyPackageDocumentPythonPath + " --requirements /work/requirements.txt",
+		"rm -rf /work/document-venv",
+		"cp -a " + blueclaw.CompanyPackageDocumentVenvPath + " /work/document-venv",
+	}, "\n")
+}
+
+// The requirement files the skills already carry are the list, so a skill that declares
+// a new package gets it into the interpreter rather than asking a person for it.
+func documentSkillRequirements(repositoryRootPath string) (string, error) {
+	paths, errorValue := filepath.Glob(filepath.Join(repositoryRootPath, ".dependency/internkim-plugin/skills/*/scripts/requirements.txt"))
+	if errorValue != nil {
+		return "", errorValue
+	}
+	paths = append(paths, filepath.Join(repositoryRootPath, "assets/document-conversion/requirements.txt"))
+	declared := []string{}
+	for _, path := range paths {
+		document, errorValue := os.ReadFile(path)
+		if errorValue != nil {
+			return "", fmt.Errorf("the document interpreter is resolved from %s: %w", path, errorValue)
+		}
+		declared = append(declared, strings.TrimSpace(string(document)))
+	}
+	if len(declared) == 0 {
+		return "", fmt.Errorf("no skill declares a requirements.txt, so the document interpreter would hold nothing")
+	}
+	return strings.Join(declared, "\n") + "\n", nil
 }
 
 // debCarriedTrees are the files the image copies in unchanged. A missing one is a

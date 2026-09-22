@@ -180,6 +180,8 @@ const (
 	RenderCompanyRuntimeName   = "render-company-runtime"
 	DeviceBrowserName          = "moli"
 	AgentBrowserName           = "agent-browser"
+	BunProgramName             = "bun"
+	PackageResolverName        = "uv"
 	BuzzPremigrateSnapshotPath = "/root/.internkim/state/buzz-premigrate.sql"
 )
 

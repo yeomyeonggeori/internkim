@@ -161,11 +161,43 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 	}
 }
 
+// An upgrade that unpacks a new binary and leaves the old process serving is the
+// failure AGENTS.md is written around: dpkg's version, the file's mtime and apt's
+// output all move, and the only thing that did not is the thing that matters. Step 5
+// of the install rig reads the admin gateway's build id across an upgrade and caught
+// this; here is the cheap half.
+func TestConfiguringThePackageRestartsRatherThanStarts(t *testing.T) {
+	script := debPostInstallScript()
+	if strings.Contains(script, "deb-systemd-invoke start ") {
+		t.Fatal("configuring the package starts its units, which is a no-op for a unit already " +
+			"running, so an upgrade leaves the old process serving the new version's files")
+	}
+	if !strings.Contains(script, "deb-systemd-invoke restart ") {
+		t.Fatal("configuring the package neither starts nor restarts its units")
+	}
+}
+
 func TestPreRemoveStopsEveryUnitTheInstallStarted(t *testing.T) {
 	script := debPreRemoveScript()
 	for _, unit := range blueclaw.CompanyPackageUnits() {
 		if !strings.Contains(script, unit.FileName()) {
 			t.Fatalf("removing the package leaves %s running", unit.FileName())
+		}
+	}
+}
+
+// The admin gateway's health answer is the only place an upgrade can be seen to have
+// moved the running process rather than the file on disk, and a package built without
+// these answers `unknown` for both. The install rig asks the guest; this is the cheap
+// tripwire that fails before a twenty-minute run has to.
+func TestThePackagedBinariesCarryABuildIdentity(t *testing.T) {
+	stamped := admindStampFlags("0.0.7", "abc1234")
+	for _, required := range []string{
+		"internal/admind.BuildID=0.0.7",
+		"internal/admind.GitRevision=abc1234",
+	} {
+		if !strings.Contains(stamped, required) {
+			t.Fatalf("a packaged binary built with %q answers `unknown` where %s belongs", stamped, required)
 		}
 	}
 }
