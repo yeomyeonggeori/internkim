@@ -148,24 +148,26 @@ refuse_a_suite_the_repository_does_not_publish() {
 
   if [ "$suite_probe_status" != 0 ] || [ "$suite_index_code" = 000 ]; then
     stop \
-"Could not reach $suite_index_url, so whether $apt_suite is published is
-unknown; curl's own reason is above. Check that this machine can reach
-$repository_url and run the same command again.
+"Could not reach the repository to see whether $apt_suite is published, and
+curl's own reason is above.
+$suite_index_url
+Check that this machine can reach it, then run the same command again.
 Nothing on this machine was changed."
   fi
 
   if [ "$suite_came_from_this_machine" = yes ]; then
     stop \
-"$repository_url publishes nothing at $apt_suite: $suite_index_url answered
-$suite_index_code. That name is this machine's Debian release, $debian_codename,
-and the stable channel, so there is no stable build for this release yet.
+"This repository publishes nothing at $apt_suite, which is the suite name this
+machine's own Debian release, $debian_codename, asks for on the stable channel.
+So there is no stable build for this release yet.
+$suite_index_url answered $suite_index_code.
 Nothing on this machine was changed."
   fi
 
   stop \
-"$repository_url publishes nothing at $apt_suite: $suite_index_url answered
-$suite_index_code. INTERNKIM_INSTALL_SUITE named that suite; check it against
-what the repository publishes.
+"This repository publishes nothing at $apt_suite, which is the suite
+INTERNKIM_INSTALL_SUITE names. Check it against what the repository publishes.
+$suite_index_url answered $suite_index_code.
 Nothing on this machine was changed."
 }
 
