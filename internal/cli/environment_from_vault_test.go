@@ -9,9 +9,8 @@ import (
 
 const exampleManifest = `+internkim
 # the archive key signs what every company host installs as root
-@release
+@production,scripts
 INTERNKIM_APT_SIGNING_KEY
-@cli,scripts
 INTERNKIM_REGISTER_SECRET
 INTERNKIM_DOMAIN
 INTERNKIM_BOARD_PORT=8080
@@ -19,11 +18,25 @@ INTERNKIM_BOARD_PORT=8080
 CLOUDFLARE_API_TOKEN
 `
 
+// Nothing in this repository writes the profile's name but the manifest, so
+// what the manifest declares first is what every `monkeys` call runs under.
+func TestTheProfileIsTheFirstOneTheManifestDeclares(t *testing.T) {
+	if profile := vaultManifestProfile(exampleManifest); profile != "production" {
+		t.Fatalf("the manifest named %q, wanted the first profile it declares", profile)
+	}
+}
+
+func TestAManifestThatDeclaresNoProfileNamesNone(t *testing.T) {
+	if profile := vaultManifestProfile("+internkim\n"); profile != "" {
+		t.Fatalf("a manifest with no profile named %q", profile)
+	}
+}
+
 func TestManifestNamesAreTheBareKeysOfTheProfilesThatListTheName(t *testing.T) {
-	names := vaultManifestNames(exampleManifest, "cli")
-	wanted := []string{"INTERNKIM_REGISTER_SECRET", "INTERNKIM_DOMAIN"}
+	names := vaultManifestNames(exampleManifest, "production")
+	wanted := []string{"INTERNKIM_APT_SIGNING_KEY", "INTERNKIM_REGISTER_SECRET", "INTERNKIM_DOMAIN"}
 	if !slices.Equal(names, wanted) {
-		t.Fatalf("the cli profile read %v, wanted %v", names, wanted)
+		t.Fatalf("the production profile read %v, wanted %v", names, wanted)
 	}
 }
 
@@ -37,25 +50,25 @@ func TestAProfileTheManifestDoesNotOpenHasNoNames(t *testing.T) {
 // from the manifest itself, so asking the vault for it would always come back
 // empty.
 func TestAValueInTheManifestIsNotAskedOfTheVault(t *testing.T) {
-	if names := vaultManifestNames(exampleManifest, "cli"); slices.Contains(names, "INTERNKIM_BOARD_PORT") {
+	if names := vaultManifestNames(exampleManifest, "production"); slices.Contains(names, "INTERNKIM_BOARD_PORT") {
 		t.Fatalf("a manifest value was counted as a vault secret: %v", names)
 	}
 }
 
 func TestTheGapIsTheProfilesOwnMissingLine(t *testing.T) {
-	doctorOutput := "missing @release: INTERNKIM_APT_SIGNING_KEY\nmissing @cli: INTERNKIM_REGISTER_SECRET, INTERNKIM_DOMAIN\n"
-	missing := vaultMissingNames(doctorOutput, "cli")
+	doctorOutput := "missing @scripts: CLOUDFLARE_API_TOKEN\nmissing @production: INTERNKIM_REGISTER_SECRET, INTERNKIM_DOMAIN\n"
+	missing := vaultMissingNames(doctorOutput, "production")
 	wanted := []string{"INTERNKIM_REGISTER_SECRET", "INTERNKIM_DOMAIN"}
 	if !slices.Equal(missing, wanted) {
-		t.Fatalf("the cli gap read %v, wanted %v", missing, wanted)
+		t.Fatalf("the production gap read %v, wanted %v", missing, wanted)
 	}
 }
 
 func TestAProfileWithNoGapReportsNothing(t *testing.T) {
-	if missing := vaultMissingNames("missing @release: INTERNKIM_APT_SIGNING_KEY\n", "cli"); len(missing) != 0 {
+	if missing := vaultMissingNames("missing @scripts: CLOUDFLARE_API_TOKEN\n", "production"); len(missing) != 0 {
 		t.Fatalf("a profile with nothing missing reported %v", missing)
 	}
-	if missing := vaultMissingNames("", "cli"); len(missing) != 0 {
+	if missing := vaultMissingNames("", "production"); len(missing) != 0 {
 		t.Fatalf("an empty doctor report read %v", missing)
 	}
 }
@@ -80,18 +93,18 @@ func TestOutsideARepositoryTheVaultIsNotConsulted(t *testing.T) {
 	}
 }
 
-// A checkout whose manifest opens no cli profile is every commit before the
+// A checkout whose manifest declares no profile is every commit before the
 // values moved: the CLI runs exactly as it did, and nothing is asked of the
 // vault.
-func TestAManifestWithoutTheProfileIsNotConsulted(t *testing.T) {
+func TestAManifestWithoutAProfileIsNotConsulted(t *testing.T) {
 	repositoryRootPath := t.TempDir()
 	writeFile(t, filepath.Join(repositoryRootPath, "go.mod"), "module example.test\n")
-	writeFile(t, filepath.Join(repositoryRootPath, vaultManifestName), "+internkim\n@release\nINTERNKIM_APT_SIGNING_KEY\n")
+	writeFile(t, filepath.Join(repositoryRootPath, vaultManifestName), "+internkim\n")
 	t.Chdir(repositoryRootPath)
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
 
 	if _, shouldRun := plannedVaultRun(); shouldRun {
-		t.Fatal("a manifest with no cli profile planned a run through the vault")
+		t.Fatal("a manifest that declares no profile planned a run through the vault")
 	}
 }
 

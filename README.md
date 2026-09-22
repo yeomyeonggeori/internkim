@@ -210,7 +210,7 @@ remembers to rotate.
 `.monkeys` is the list of names and `docs/internal/environment.json` says what
 each one is for, which `tools/verify-environment-declarations` keeps in step.
 On a second machine `monkeys doctor` names what the vault still lacks, and a
-human types each value into `monkeys remember @cli <name>`. A value that is not
+human types each value into `monkeys remember <name>`. A value that is not
 secret is a `NAME=value` line in `.monkeys` instead, because monkeys redacts a
 remembered value wherever it appears in a command's output.
 

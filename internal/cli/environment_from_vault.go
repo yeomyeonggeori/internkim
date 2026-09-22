@@ -20,9 +20,12 @@ import (
 // Everything here declines rather than fails. No manifest, no monkeys, no
 // profile, or a profile the vault cannot fill yet, and the CLI runs exactly as
 // it would have.
+//
+// The profile is never named here. `monkeys` reads the first profile the
+// manifest declares when a command names none, so `run` and `remember` are
+// given none and the manifest stays the one place the name is written.
 const (
 	vaultManifestName          = ".monkeys"
-	vaultProfile               = "cli"
 	vaultManifestNamespaceMark = "+"
 	vaultManifestProfileMark   = "@"
 	// Set on the re-executed run, and read as a literal at the one place that
@@ -40,7 +43,7 @@ func reExecuteWithVaultEnvironment() {
 		return
 	}
 	arguments := append([]string{
-		filepath.Base(monkeysPath), "run", vaultManifestProfileMark + vaultProfile, executablePath,
+		filepath.Base(monkeysPath), "run", executablePath,
 	}, os.Args[1:]...)
 	errorValue = syscall.Exec(monkeysPath, arguments, append(os.Environ(), vaultInjectedMarker+"=1"))
 	fmt.Fprintf(os.Stderr, "internkim: could not run through the vault: %v\n", errorValue)
@@ -58,20 +61,21 @@ func plannedVaultRun() (string, bool) {
 	if errorValue != nil {
 		return "", false
 	}
-	if len(vaultManifestNames(string(manifest), vaultProfile)) == 0 {
+	profile := vaultManifestProfile(string(manifest))
+	if len(vaultManifestNames(string(manifest), profile)) == 0 {
 		return "", false
 	}
 	monkeysPath := vaultCommandPath()
 	if monkeysPath == "" {
 		fmt.Fprintf(os.Stderr, "internkim: %s lists a @%s profile but monkeys is not installed, "+
-			"so the vault cannot supply it\n", vaultManifestName, vaultProfile)
+			"so the vault cannot supply it\n", vaultManifestName, profile)
 		return "", false
 	}
-	missing := vaultProfileGap(monkeysPath, repositoryRootPath, vaultProfile)
+	missing := vaultProfileGap(monkeysPath, repositoryRootPath, profile)
 	if len(missing) > 0 {
 		fmt.Fprintf(os.Stderr, "internkim: the vault has no %s yet, so the environment is whatever was "+
 			"already set; a human types each into `monkeys remember @%s <name>`\n",
-			strings.Join(missing, ", "), vaultProfile)
+			strings.Join(missing, ", "), profile)
 		return "", false
 	}
 	return monkeysPath, true
@@ -111,6 +115,22 @@ func vaultMissingNames(doctorOutput, profile string) []string {
 		return splitAndTrim(strings.TrimPrefix(line, prefix), ",")
 	}
 	return nil
+}
+
+// The first profile the manifest declares is the one a command that names none
+// runs under, so it is the one this repository means everywhere.
+func vaultManifestProfile(manifest string) string {
+	for _, line := range strings.Split(manifest, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, vaultManifestProfileMark) {
+			continue
+		}
+		opened := splitAndTrim(strings.TrimPrefix(line, vaultManifestProfileMark), ",")
+		if len(opened) > 0 {
+			return opened[0]
+		}
+	}
+	return ""
 }
 
 // A manifest names the project on its first line, opens a profile with an `@`
@@ -159,7 +179,7 @@ func rememberInVault(name, value string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	command := exec.Command(monkeysPath, "remember", vaultManifestProfileMark+vaultProfile, name)
+	command := exec.Command(monkeysPath, "remember", name)
 	command.Dir = repositoryRootPath
 	command.Stdin = strings.NewReader(value)
 	output, errorValue := command.CombinedOutput()
