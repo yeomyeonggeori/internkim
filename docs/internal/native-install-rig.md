@@ -125,12 +125,16 @@ steps 2 to 4 still have something to judge, and step 1 stays failed.
 | the apt source is deb822 and names a keyring that is there | the text of `/etc/apt/sources.list.d/internkim.sources`, and a stat of the path its `Signed-By:` gives | the structure is the real one; only the URI is substituted |
 | no key was added the way Debian forbids | `/etc/apt/trusted.gpg` and `/etc/apt/trusted.gpg.d` | `apt-key` puts a key where it signs every repository; their absence is the only way to see it was not used |
 | apt accepts the repository's signature | `apt-get update` output and `apt-cache policy` | apt refuses an unsigned repository by default, so a candidate appearing is apt's verdict on the keyring |
-| the declared dependencies are installed | `dpkg-query -W` for each name in the package's `Depends:` | §3 makes `fonts-nanum` and `chromium` hard dependencies because without them the Korean silently leaves the PDF and the skill is withheld |
+| the declared dependencies are installed or provided | `dpkg-query -W` for each name in the package's `Depends:`, and the `Provides:` of every installed package for the names dpkg does not record | §3 makes `fonts-nanum` and `chromium` hard dependencies because without them the Korean silently leaves the PDF and the skill is withheld. A name can be honoured without being recorded: `postgresql-contrib` is a real package on bookworm, jammy and noble and a pure virtual name on trixie |
 | nothing was dropped behind dpkg's back | every path that appeared during the install, asked of `dpkg-query -S` | the install's log reports what it meant to write; this reads what is there |
 | the setuid helper and the state tree carry their modes | `stat` of `blueclaw-posix-helper` and `/var/lib/internkim` | the POSIX permission boundary is these bits, and a package built without an explicit mode drops the setuid bit silently |
 | every unit is enabled | `systemctl is-enabled` per unit in dpkg's file list | a unit file under `/lib/systemd/system` says it was copied; the symlink decides whether it returns after a reboot |
-| every unit runs and is not restarting in a loop | `systemctl is-active` and `NRestarts` | a crash-looping unit reports active most of every second |
-| the services answer their readiness endpoints | an HTTP GET inside the guest to `/_readiness` on 8081 and `/admin/api/health` on 8080 | `systemctl is-active` reports active for a process that answers HTTP while refusing all work, which is how [postmortem 0002](./postmortem/0002-a-running-process-kept-a-config-that-was-gone.md) stayed green for forty minutes |
+| every unit declined to start rather than failing to | `ConditionResult`, `ActiveState`, `Result` and `NRestarts` per unit | §2 says a box with the package and no company runs nothing: every unit carries `ConditionPathExists` over a file `internkim install` writes. Inactive because it declined and inactive because it died are different machine states, and only these four fields together tell them apart |
+
+Whether the services *run* is step 5's question, because it is the step that
+gives the guest a company. Asserting it here would be asserting that the package
+starts services it has nothing to run, which is the defect §2 was written to
+avoid.
 
 Three paths appear under `dpkg-query -S` with a second spelling, because `/lib`
 is a symlink to `/usr/lib` on a merged Debian and `find` walks to the target.
@@ -147,12 +151,15 @@ purge leave it.
 | apt sees the newer version as the candidate | `apt-cache policy` after the repository gains a version | a new stanza in `Packages` says the index was written; the candidate line says apt read it |
 | the upgrade finished without asking a question | apt's output, with stdin closed | a package that reships a conffile the administrator edited stops dpkg at a prompt, and `DEBIAN_FRONTEND=noninteractive` does not prevent it |
 | dpkg records the newer version | `dpkg-query -W -f '${Version}'` | apt printing `1 upgraded` is apt's account of its own run |
-| the running processes moved | the `gitRevision` each service reports, before and after | an upgrade that replaces a binary without restarting the unit leaves the old process serving, while dpkg's version and the file's mtime both move anyway |
-| a local edit to a shipped configuration file survived | the contents of `/etc/internkim/runtime.json`, edited before the upgrade | §5 calls these conffiles so an administrator's edits survive |
+| a local edit to the shipped configuration file survived | the contents of `/etc/internkim/company-host.env`, edited before the upgrade | §5 calls it a conffile so an administrator's edits survive. It is the package's only one: §5 makes `runtime.json` an optional override the package does not ship, so editing that would say nothing about what dpkg preserved |
 
-The fourth line is the one AGENTS.md was written around: a release that reports
-`already deployed` and leaves the guest on the old binary. It is also the
-reason the readiness endpoint has to carry a revision rather than a bare `ok`.
+Whether the *running processes* moved is step 5's question for the same reason:
+on a box with no company nothing is running to have moved. That assertion is the
+one AGENTS.md was written around — a release that reports `already deployed` and
+leaves the guest on the old binary — and it is why the endpoint it reads has to
+carry a revision rather than a bare `ok`. Only `admind`'s does. Blueclaw's
+`/admin/api/health` on 8080 carries none, which is a gap in blueclaw and is
+filed there as [blueclaw#411](https://github.com/yeomyeonggeori/blueclaw/issues/411).
 
 ### Step 4 · apt remove and apt purge leave what the plan says they leave
 
@@ -172,7 +179,15 @@ for what `internkim install` writes when a person sets their company up.
 
 ### Step 5 · a person signs in and exchanges a message
 
-Not run. The next section is the decision it waits on.
+Not run. The next section is the decision it waits on. Three assertions wait
+with it, and the rig prints them on every run, so a run says what it has not
+yet asked:
+
+| Observation | Reads | Why it waits |
+|---|---|---|
+| every unit is running and is not restarting in a loop | `systemctl is-active` and `NRestarts` per unit | a crash-looping unit reports active most of every second |
+| the services answer their readiness endpoints | an HTTP GET inside the guest to `127.0.0.1:3000/_readiness`, `:8080/admin/api/health` and `:18080/admin/api/health` | `systemctl is-active` reports active for a process that answers HTTP while refusing all work, which is how [postmortem 0002](./postmortem/0002-a-running-process-kept-a-config-that-was-gone.md) stayed green for forty minutes |
+| the running processes moved | the `gitRevision` `:18080/admin/api/health` reports, before and after an upgrade | dpkg's version and the file's mtime move whether or not the unit restarted |
 
 ## Step 5, and what it would cost
 

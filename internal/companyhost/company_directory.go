@@ -276,10 +276,10 @@ func pointTheUnitsAtThisCompany(directoryPath string) error {
 }
 
 func makePrivateDirectory(path string) error {
-	if errorValue := os.MkdirAll(path, 0o700); errorValue != nil {
+	if errorValue := os.MkdirAll(path, blueclaw.CompanyHostStateRootMode); errorValue != nil {
 		return errorValue
 	}
-	return os.Chmod(path, 0o700)
+	return os.Chmod(path, blueclaw.CompanyHostStateRootMode)
 }
 
 // The package's postinst creates these two accounts; a machine that took the

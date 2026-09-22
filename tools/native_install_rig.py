@@ -30,8 +30,25 @@ APT_SOURCE_PATH = "/etc/apt/sources.list.d/internkim.sources"
 KEYRING_PATH = "/usr/share/keyrings/internkim-archive-keyring.pgp"
 STATE_DIRECTORY = "/var/lib/internkim"
 CONFIGURATION_DIRECTORY = "/etc/internkim"
-STAND_IN_ADMIND_PORT = 8080
-STAND_IN_RELAY_PORT = 8081
+# Where anything asks whether a service is up, and which of those answers
+# carries the revision the running process reports. Only the admin gateway's
+# does: blueclaw's health body names its database, its language model and its
+# protocol identity and no revision at all, which is why an upgrade cannot be
+# judged from port 8080. `tools/tests/test_native_install_rig.py` reads the Go
+# constants and fails when these drift from them.
+MESSENGER_READINESS = (3000, "/_readiness")
+AGENT_HEALTH = (8080, "/admin/api/health")
+ADMIN_GATEWAY_HEALTH = (18080, "/admin/api/health")
+READINESS_PROBES = (MESSENGER_READINESS, AGENT_HEALTH, ADMIN_GATEWAY_HEALTH)
+REVISION_PROBE = ADMIN_GATEWAY_HEALTH
+
+# The package's one configuration file dpkg protects, and the file every unit
+# waits on. Section 5 of the plan makes runtime.json an optional override the
+# package does not ship, so editing that would say nothing about whether dpkg
+# preserved an operator's work.
+CONFFILE_PATH = "/etc/internkim/company-host.env"
+CONFFILE_EDIT = "# edited-by-the-rig"
+COMPANY_CONDITION_PATH = "/var/lib/internkim/current/host.env"
 
 # The repository's own shape is `internal/aptrepository`'s to declare. These
 # two names are what the rig has to spell in a URL, and
@@ -316,20 +333,16 @@ def build_stand_in_package(directory, version, revision):
         ("./usr/bin/internkim", 0o755, f"#!/bin/sh\necho {version}\n".encode()),
         ("./usr/lib/internkim/blueclaw-posix-helper", 0o4755, b"#!/bin/sh\nexit 0\n"),
         ("./usr/lib/internkim/health-server", 0o755, health_server.encode()),
-        (
-            f".{CONFIGURATION_DIRECTORY}/runtime.json",
-            0o644,
-            json.dumps({"standIn": True}, indent=2).encode() + b"\n",
-        ),
+        (f".{CONFFILE_PATH}", 0o644, b"# the stand-in's one conffile\n"),
         (
             "./lib/systemd/system/internkim-admind.service",
             0o644,
-            stand_in_unit("internkim-admind", STAND_IN_ADMIND_PORT, "/admin/api/health").encode(),
+            stand_in_unit("internkim-admind", *ADMIN_GATEWAY_HEALTH).encode(),
         ),
         (
-            "./lib/systemd/system/internkim-relay.service",
+            "./lib/systemd/system/buzz-relay.service",
             0o644,
-            stand_in_unit("internkim-relay", STAND_IN_RELAY_PORT, "/_readiness").encode(),
+            stand_in_unit("buzz-relay", *MESSENGER_READINESS).encode(),
         ),
     ]
 
@@ -361,7 +374,7 @@ def build_stand_in_package(directory, version, revision):
 
     control_entries = [
         ("./control", 0o644, control_fields.encode()),
-        ("./conffiles", 0o644, f"{CONFIGURATION_DIRECTORY}/runtime.json\n".encode()),
+        ("./conffiles", 0o644, f"{CONFFILE_PATH}\n".encode()),
         ("./postinst", 0o755, STAND_IN_POSTINST.encode()),
         ("./prerm", 0o755, STAND_IN_PRERM.encode()),
         ("./postrm", 0o755, STAND_IN_POSTRM.encode()),
@@ -387,11 +400,19 @@ def build_stand_in_package(directory, version, revision):
 
 
 def stand_in_unit(name, port, path):
+    """A unit shaped like the package's: it declines to start until a company exists.
+
+    The real units carry ConditionPathExists over a file `internkim install`
+    writes, so after an install every one of them is inactive. A stand-in
+    without that condition would let the rig assert something no real package
+    does.
+    """
     return "\n".join(
         [
             "[Unit]",
             f"Description={name} (install rig stand-in)",
             "After=network.target",
+            f"ConditionPathExists={COMPANY_CONDITION_PATH}",
             "",
             "[Service]",
             "Type=simple",
@@ -445,8 +466,8 @@ if [ "$1" = configure ]; then
   install -d -m 0700 -o root -g root {STATE_DIRECTORY}
   install -d -m 0700 -o root -g root {STATE_DIRECTORY}/companies
   systemctl daemon-reload
-  systemctl enable --now internkim-relay.service internkim-admind.service
-  systemctl try-restart internkim-relay.service internkim-admind.service
+  systemctl enable buzz-relay.service internkim-admind.service
+  systemctl start buzz-relay.service internkim-admind.service || true
 fi
 exit 0
 """
@@ -455,7 +476,7 @@ exit 0
 STAND_IN_PRERM = """#!/bin/sh
 set -e
 if [ "$1" = remove ] || [ "$1" = deconfigure ]; then
-  systemctl disable --now internkim-admind.service internkim-relay.service || true
+  systemctl disable --now internkim-admind.service buzz-relay.service || true
 fi
 exit 0
 """

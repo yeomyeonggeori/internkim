@@ -164,6 +164,15 @@ Depends: postgresql (>= 14), postgresql-contrib, redis-server,
          libfontconfig1, fonts-nanum, chromium
 ```
 
+`postgresql-contrib` is two different things depending on the suite, and the
+declaration keeps it because three of the four carry it: it is a real,
+dpkg-recorded package on Debian 12 bookworm, Ubuntu 22.04 jammy and Ubuntu 24.04
+noble, and on Debian 13 trixie `postgresql-common` folded the contrib modules
+into the `postgresql` metapackage, which now declares
+`Provides: postgresql-contrib`. apt honours the dependency on all four; dpkg
+records the name on three. Anything verifying the line has to accept a
+`Provides:`, which is what `tools/test-native-install` does.
+
 `fonts-nanum` is in Debian main, and `NanumGothic.ttf` is the single system
 path all three font-embedding skills share; `fonts-noto-cjk` installs under
 `opentype/noto/`, which `export_document.py` does not read. `chromium` sits
@@ -216,9 +225,21 @@ messenger, so the screen stays alive when the agent is down.
 has no equivalent, because `systemctl start` returns when the unit is active
 and a process that answers HTTP while refusing all work still reports active.
 The waiting belongs in `internkim install`, which starts the units and then
-polls the same endpoints the compose health checks poll —
-`/_readiness` on 8081 for the relay, `/admin/api/health` on 8080 for the agent
-— against the 240-second budget `companyhost.composeWaitSeconds` already sets.
+polls the relay's `/_readiness` on `127.0.0.1:3000`, the agent's
+`/admin/api/health` on 8080 and the admin gateway's on 18080, against the same
+240-second budget the compose stack was given. The relay answers `/_readiness`
+twice, on its own bind address and again on the separate health-only router
+`BUZZ_HEALTH_PORT` names; the compose file polled that second one on 8081, and
+that is the only reason two numbers were ever written down. Everything in this
+repository that asks whether the messenger is ready asks the bind address, which
+is loopback where the health router binds every interface, and which is the same
+number on the device and on the packaged host.
+
+Only one of those three answers carries a revision. `admind`'s
+`/admin/api/health` reports `gitRevision`; blueclaw's, on 8080, reports its
+database, its language model and its protocol identity and no revision at all.
+An upgrade that replaces a binary without restarting the unit is invisible to
+every other field, so that is the endpoint an upgrade has to be judged from.
 
 On macOS the same rendering targets launchd. The repository already has the
 shape: `cmd/internkim-companion/service.go` defines a `backgroundService`

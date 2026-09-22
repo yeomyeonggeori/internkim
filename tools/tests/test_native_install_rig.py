@@ -207,3 +207,81 @@ class RepositoryShapeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AddressesTheRigSpellsTests(unittest.TestCase):
+    """Every port and path the rig asks at belongs to `internal/runtime/blueclaw`.
+
+    A Go constant and a Python constant that mean the same thing are two copies,
+    and the second one is how the rig came to poll 8081 for a relay that answers
+    on 3000. These read the canonical ones and fail when they drift.
+    """
+
+    def declared_in_go(self, file_name, name):
+        source = (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / file_name).read_text()
+        match = re.search(rf'^\t{name}\s+=\s*"([^"]+)"', source, re.MULTILINE)
+        self.assertIsNotNone(match, f"internal/runtime/blueclaw no longer declares {name}")
+        return match.group(1)
+
+    def contract(self, name):
+        return self.declared_in_go("blueclaw_contract.go", name)
+
+    def package(self, name):
+        return self.declared_in_go("company_host_package.go", name)
+
+    def test_the_messenger_is_asked_where_its_unit_makes_it_answer(self):
+        port, path = rig.MESSENGER_READINESS
+        self.assertEqual(f"127.0.0.1:{port}", self.contract("BuzzRelayBindAddress"))
+        self.assertEqual(path, self.contract("BuzzRelayReadinessPath"))
+
+    def test_the_agent_is_asked_where_its_runtime_makes_it_listen(self):
+        port, path = rig.AGENT_HEALTH
+        self.assertEqual(f"http://127.0.0.1:{port}", self.contract("BlueclawBaseURL"))
+        self.assertEqual(path, self.contract("BlueclawHealthCheckPath"))
+
+    def test_the_revision_is_read_from_the_one_endpoint_that_carries_it(self):
+        port, path = rig.REVISION_PROBE
+        self.assertEqual(f"127.0.0.1:{port}", self.package("CompanyHostAdmindListenAddress"))
+        self.assertEqual(path, self.contract("BlueclawHealthCheckPath"))
+        blueclaw_health = (
+            rig.REPOSITORY_ROOT / ".dependency" / "blueclaw" / "internal" / "httpserver" / "health_handler.go"
+        )
+        if blueclaw_health.exists():
+            self.assertNotIn(
+                "gitRevision",
+                blueclaw_health.read_text(),
+                "blueclaw's health now carries a revision; the rig can read the agent's own",
+            )
+
+    def test_the_conffile_and_the_condition_are_the_paths_the_package_uses(self):
+        self.assertEqual(rig.CONFFILE_PATH, self.package("CompanyHostSettingsPath"))
+        self.assertEqual(rig.COMPANY_CONDITION_PATH, self.package("CompanyHostEnvironmentPath"))
+
+
+class StandInDeclinesTests(unittest.TestCase):
+    """The stand-in has to decline to start for the same reason the package does."""
+
+    def units(self):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        package = rig.build_stand_in_package(directory, "1.0.0", "one")
+        _, body = rig.read_archive_member(package, "data.tar")
+        with tarfile.open(fileobj=io.BytesIO(body), mode="r:*") as archive:
+            return {
+                member.name: archive.extractfile(member).read().decode()
+                for member in archive.getmembers()
+                if member.name.endswith(".service")
+            }
+
+    def test_every_stand_in_unit_waits_on_the_file_an_install_writes(self):
+        units = self.units()
+        self.assertTrue(units)
+        for name, contents in units.items():
+            self.assertIn(f"ConditionPathExists={rig.COMPANY_CONDITION_PATH}", contents, name)
+
+    def test_the_stand_in_ships_the_conffile_the_package_ships(self):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        package = rig.build_stand_in_package(directory, "1.0.0", "one")
+        _, control = rig.read_archive_member(package, "control.tar")
+        with tarfile.open(fileobj=io.BytesIO(control), mode="r:*") as archive:
+            conffiles = archive.extractfile("./conffiles").read().decode()
+        self.assertEqual(conffiles.strip(), rig.CONFFILE_PATH)

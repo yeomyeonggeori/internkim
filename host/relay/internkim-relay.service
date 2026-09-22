@@ -10,6 +10,7 @@ StartLimitBurst=5
 [Service]
 ExecStart=/usr/local/bin/internkim-relay
 EnvironmentFile=/etc/internkim/relay.env
+Environment=RELAY_STATE_DIR=/var/lib/internkim/relay
 Restart=always
 RestartSec=30s
 User=internkim
