@@ -85,26 +85,38 @@ checkOutSubmodules() {
   echo "checked out submodules"
 }
 
-# The web build imports blueclaw's protocol package, so a worktree without the
-# submodule's workspace dependencies fails at `bun run build` on an unresolved
-# `zod` rather than on anything that names the submodule. They are a few hundred
-# packages out of bun's cache, not gigabytes, so each worktree installs its own
-# against the revision it has checked out.
-installSubmoduleDependencies() {
-  submodulePath="$repositoryRoot/.dependency/blueclaw"
-  if [ ! -f "$submodulePath/package.json" ]; then
-    echo "skipped .dependency/blueclaw dependencies (no package.json)"
+# Every bun workspace a worktree has to install for itself. They come out of
+# bun's cache in seconds and are a few hundred packages rather than gigabytes,
+# so sharing them across worktrees would buy nothing and pin every worktree to
+# one revision's lockfile. The web build imports blueclaw's protocol package, so
+# a worktree missing the submodule's install fails at `bun run build` on an
+# unresolved `zod` rather than on anything that names the submodule; the web and
+# gateway installs are what `bun test`, `bun run check` and `wrangler dev` need
+# before they will start at all.
+bunWorkspaces=".dependency/blueclaw web workers/connection-gateway"
+
+installBunWorkspace() {
+  relativePath="$1"
+  workspacePath="$repositoryRoot/$relativePath"
+  if [ ! -f "$workspacePath/package.json" ]; then
+    echo "skipped $relativePath dependencies (no package.json)"
     return
   fi
   if ! command -v bun >/dev/null 2>&1; then
-    echo "skipped .dependency/blueclaw dependencies (bun is not installed)"
+    echo "skipped $relativePath dependencies (bun is not installed)"
     return
   fi
-  if ! (cd "$submodulePath" && bun install --frozen-lockfile >/dev/null 2>&1); then
-    echo "skipped .dependency/blueclaw dependencies (bun install failed)"
+  if ! (cd "$workspacePath" && bun install --frozen-lockfile >/dev/null 2>&1); then
+    echo "skipped $relativePath dependencies (bun install failed)"
     return
   fi
-  echo "installed .dependency/blueclaw dependencies"
+  echo "installed $relativePath dependencies"
+}
+
+installBunWorkspaces() {
+  for relativePath in $bunWorkspaces; do
+    installBunWorkspace "$relativePath"
+  done
 }
 
 syncSharedDependencyArtifacts() {
@@ -153,4 +165,4 @@ syncRootMatches "*.token.enc"
 syncRootMatches "*.key"
 syncSharedDependencyArtifacts
 checkOutSubmodules
-installSubmoduleDependencies
+installBunWorkspaces

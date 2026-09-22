@@ -149,27 +149,27 @@ var hostDependencies = []HostDependency{
 	},
 	{
 		ArrivesAsPayload:    true,
-		ProgramsTheHostRuns: []string{"bun"},
+		ProgramsTheHostRuns: []string{BunProgramName},
 		NeededBy:            []HostPart{HostPartAgent, HostPartDocumentSkills},
 	},
 	{
 		ArrivesAsPayload:    true,
-		ProgramsTheHostRuns: []string{"uv"},
+		ProgramsTheHostRuns: []string{PackageResolverName},
 		NeededBy:            []HostPart{HostPartDocumentSkills},
 	},
 	{
 		ArrivesAsPayload:    true,
-		ProgramsTheHostRuns: []string{"moli"},
+		ProgramsTheHostRuns: []string{DeviceBrowserName},
 		NeededBy:            []HostPart{HostPartEntrypoint},
 	},
 	{
 		ArrivesAsPayload:    true,
-		ProgramsTheHostRuns: []string{"agent-browser"},
+		ProgramsTheHostRuns: []string{AgentBrowserName},
 		NeededBy:            []HostPart{HostPartEntrypoint},
 	},
 	{
 		ArrivesAsPayload:    true,
-		ProgramsTheHostRuns: []string{"versitygw"},
+		ProgramsTheHostRuns: []string{BuzzMediaProgramName},
 		NeededBy:            []HostPart{HostPartMessenger},
 	},
 }
@@ -261,6 +261,21 @@ func hostProgramsNeededBy(parts ...HostPart) []string {
 		}
 	}
 	return programs
+}
+
+// HostProgramsThatArriveAsPayload names every program the package carries because no
+// package manager has one. host_payload_downloads.go pins each of them, and
+// TestThePinsCoverExactlyThePayloadProgramsDeclared reads both lists so that a program
+// added here and nowhere else fails at build time rather than at a person's install.
+func HostProgramsThatArriveAsPayload() []string {
+	names := []string{}
+	for _, dependency := range hostDependencies {
+		if !dependency.ArrivesAsPayload {
+			continue
+		}
+		names = append(names, dependency.ProgramsTheHostRuns...)
+	}
+	return names
 }
 
 // HostProgramsThePackageShips are the company host's own binaries, which the
