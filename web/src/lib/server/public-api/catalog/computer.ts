@@ -47,7 +47,7 @@ export const computerToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Local,
     privacyClass: "user_browser",
     policyResource: "tool:computer_task",
-    description: "Carry out a goal in the requester's own companion browser. A decision model reads the page, picks one safe action at a time from what is actually on screen, and stops when the goal is reached, cannot be reached, or no safe step remains. State the goal as the outcome to reach and put any text to type in inputs. The browser is a persistent profile of the companion's own, so sign-ins made there stay for later tasks but the requester's personal browser is never touched. Read the returned page and outcome before telling the requester what was done.",
+    description: "Carry out a goal on the requester's own computer, in their companion browser. A decision model reads the page, picks one safe action at a time from what is actually on screen, and stops when the goal is reached, cannot be reached, or no safe step remains. State the goal as the outcome to reach and put any text to type in inputs. The browser is a persistent profile of the companion's own, so sign-ins made there stay for later tasks but the requester's personal browser is never touched. Read the returned page and outcome before telling the requester what was done.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
     inputSchema: computerTaskInputSchema,

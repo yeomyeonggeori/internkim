@@ -110,6 +110,15 @@ def verb_of(tool_name):
     return tool_name.rsplit("_", 1)[-1]
 
 
+def description_mentions(word, lowered):
+    inflected = rf"\b{re.escape(word)}(s|es|d|ed|ing)?\b"
+    if re.search(inflected, lowered):
+        return True
+    if word.endswith("y"):
+        return re.search(rf"\b{re.escape(word[:-1])}ies\b", lowered) is not None
+    return False
+
+
 def words_missing_from_description(tool_name, description):
     lowered = description.lower()
     missing = []
@@ -118,7 +127,7 @@ def words_missing_from_description(tool_name, description):
             continue
         if len(word) < 4:
             continue
-        if not re.search(rf"\b{re.escape(word)}s?\b", lowered):
+        if not description_mentions(word, lowered):
             missing.append(word)
     return missing
 

@@ -2385,7 +2385,7 @@
         "mode": "success",
         "targetKind": "task_vocabulary"
       },
-      "description": "Set the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.",
+      "description": "Set the task vocabulary: the business and task type labels this company files work under. Each list is written at once, so read registeredLabels from a task_list result first and send it back with what changes. A label a task still carries cannot be dropped. This is an administrator’s.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3330,7 +3330,7 @@
         "state": "ok"
       },
       "canonicalName": "team_list",
-      "description": "Every organization in the company, in the order the organization chart shows them, each with the organization it sits under and how many people belong to it. Call this before naming an organization in another call, and when an organization hint was refused with candidates to choose between.",
+      "description": "Every team in the company — the organizations the organization chart holds — in the order it shows them, each with the organization it sits under and how many people belong to it. Call this before naming an organization in another call, and when an organization hint was refused with candidates to choose between.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -3487,7 +3487,7 @@
         "state": "ok"
       },
       "canonicalName": "team_add",
-      "description": "Create one organization, optionally under another one. Only an administrator edits the organization chart. Creating an organization puts nobody in it; person_update moves people.",
+      "description": "Create one team, an organization on the chart, optionally under another one. Only an administrator edits the organization chart. Creating an organization puts nobody in it; person_update moves people.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3654,7 +3654,7 @@
         "state": "ok"
       },
       "canonicalName": "team_update",
-      "description": "Rename one organization, move it under another one, or change where it sits among its siblings. Only the fields the call names change, and only an administrator edits the organization chart. Moving an organization under one of its own descendants is refused.",
+      "description": "Rename one team, move that organization under another one, or change where it sits among its siblings. Only the fields the call names change, and only an administrator edits the organization chart. Moving an organization under one of its own descendants is refused.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3828,7 +3828,7 @@
         "state": "ok"
       },
       "canonicalName": "team_delete",
-      "description": "Remove one organization from the organization chart. Everybody who belonged to it keeps their directory entry and belongs to no organization until somebody moves them. An organization with organizations under it is refused; remove or move those first. Requires approval; this action is irreversible.",
+      "description": "Remove one team from the organization chart, so that organization is gone. Everybody who belonged to it keeps their directory entry and belongs to no organization until somebody moves them. An organization with organizations under it is refused; remove or move those first. Requires approval; this action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -6596,7 +6596,7 @@
         "mode": "success",
         "targetKind": "leave"
       },
-      "description": "Come back to work before the leave was due to end. The leave the requester is on stops at this moment, the entitlement it no longer spends comes back to them, and they are clocked in. Use it when somebody who is away says they are back; clocking in on an ordinary day is attendance_add. It is the requester's own leave and nobody else's. shortened is false when no leave was covering the moment, and they are clocked in either way.",
+      "description": "Return to work early, before the leave was due to end. The leave the requester is on stops at this moment, the entitlement it no longer spends comes back to them, and they are clocked in. Use it when somebody who is away says they are back; clocking in on an ordinary day is attendance_add. It is the requester's own leave and nobody else's. shortened is false when no leave was covering the moment, and they are clocked in either way.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -7116,7 +7116,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_add",
-      "description": "Write a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
+      "description": "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -7648,7 +7648,7 @@
         "state": "ok"
       },
       "canonicalName": "message_context",
-      "description": "Return the exact current messenger conversation, thread, requester, and bot identities.",
+      "description": "Return the conversation the message arrived in, exactly as the messenger holds it, with its thread, requester, and bot identities.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11260,7 +11260,7 @@
         "state": "ok"
       },
       "canonicalName": "computer_task",
-      "description": "Carry out a goal in the requester's own companion browser. A decision model reads the page, picks one safe action at a time from what is actually on screen, and stops when the goal is reached, cannot be reached, or no safe step remains. State the goal as the outcome to reach and put any text to type in inputs. The browser is a persistent profile of the companion's own, so sign-ins made there stay for later tasks but the requester's personal browser is never touched. Read the returned page and outcome before telling the requester what was done.",
+      "description": "Carry out a goal on the requester's own computer, in their companion browser. A decision model reads the page, picks one safe action at a time from what is actually on screen, and stops when the goal is reached, cannot be reached, or no safe step remains. State the goal as the outcome to reach and put any text to type in inputs. The browser is a persistent profile of the companion's own, so sign-ins made there stay for later tasks but the requester's personal browser is never touched. Read the returned page and outcome before telling the requester what was done.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -13605,7 +13605,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_update",
-      "description": "Update a registered document's file path, title, counterpart, summary, or where it sits in the data room: its domain, clearance, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when a submission is raised into its domain. Raising a clearance is refused above the requester's own.",
+      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its domain, clearance, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when a submission is raised into its domain. Raising a clearance is refused above the requester's own.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14225,7 +14225,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_upload",
-      "description": "Ask for a place in the data room to put one file. Answers the storagePath the file will sit at, keyed by its clearance and SHA-256, and a signed URL to PUT the bytes to; the record's own policy decides whether the requester may write at that clearance, so a refusal here is the clearance rule. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
+      "description": "Ask for a place in the company data room to put one file. Answers the storagePath the file will sit at, keyed by its clearance and SHA-256, and a signed URL to PUT the bytes to; the record's own policy decides whether the requester may write at that clearance, so a refusal here is the clearance rule. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14336,7 +14336,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_download",
-      "description": "Fetch a document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; a document above the requester's clearance does not exist for them, so it is refused as not found. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; a document above the requester's clearance does not exist for them, so it is refused as not found. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17647,7 +17647,7 @@
         "state": "ok"
       },
       "canonicalName": "crm_contact_list",
-      "description": "The people this company deals with at other organizations, with how to reach them — 'who do we talk to at ABC'. Colleagues are person_list's.",
+      "description": "The contacts this company deals with at other organizations — the people it talks to — with how to reach them — 'who do we talk to at ABC'. Colleagues are person_list's.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17907,7 +17907,7 @@
         "mode": "success",
         "targetKind": "crm_contact"
       },
-      "description": "Add a person at an organization this company already holds, which crm_organization_add creates when it does not.",
+      "description": "Add a contact, a person at an organization this company already holds, which crm_organization_add creates when it does not.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -18195,7 +18195,7 @@
         "mode": "success",
         "targetKind": "crm_contact"
       },
-      "description": "Change what this company holds about a person, including moving them to another organization; only the fields the call names change.",
+      "description": "Change what this company holds about a contact, including moving that person to another organization; only the fields the call names change.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -18489,7 +18489,7 @@
         "mode": "success",
         "targetKind": "crm_contact"
       },
-      "description": "Put a person away, so they leave the CRM screens while everything recorded against them stays, as when somebody leaves the organization.",
+      "description": "Put a contact away, so that person leaves the CRM screens while everything recorded against them stays, as when somebody leaves the organization.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -20520,7 +20520,7 @@
         "state": "ok"
       },
       "canonicalName": "crm_activity_list",
-      "description": "The work recorded against the organizations and deals this company holds, newest first, with the labels and colours the CRM screens draw it in. The same rows task_list answers, shaped for the CRM.",
+      "description": "The activity recorded against the organizations and deals this company holds, newest first, with the labels and colours the CRM screens draw it in. The same rows task_list answers, shaped for the CRM.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -21445,7 +21445,7 @@
         "state": "ok"
       },
       "canonicalName": "crm_vocabulary_get",
-      "description": "The words this company runs its CRM in: the organization types it sorts relationships by, the pipelines it runs deals through, and the stages a deal can stand at with what each one means.",
+      "description": "The CRM vocabulary, the words this company runs its CRM in: the organization types it sorts relationships by, the pipelines it runs deals through, and the stages a deal can stand at with what each one means.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -21643,7 +21643,7 @@
         "mode": "success",
         "targetKind": "crm_vocabulary"
       },
-      "description": "Set the organization types and pipelines this company runs its CRM in. Both lists are written at once, so read crm_vocabulary_get first and send it back with what changes. The stages are the product’s and are not set here. This is an administrator’s.",
+      "description": "Set the CRM vocabulary: the organization types and pipelines this company runs its CRM in. Both lists are written at once, so read crm_vocabulary_get first and send it back with what changes. The stages are the product’s and are not set here. This is an administrator’s.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -21982,7 +21982,7 @@
         "state": "ok"
       },
       "canonicalName": "company_settings_get",
-      "description": "What the company is set to: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+      "description": "The company settings: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -22188,7 +22188,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Change what the company is set to. Only the fields the call names change. This is an administrator's, and it is company-wide: the time zone and the language decide what every colleague sees, so put it to the requester before calling.",
+      "description": "Change the company settings. Only the fields the call names change. This is an administrator's, and it is company-wide: the time zone and the language decide what every colleague sees, so put it to the requester before calling.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -23231,7 +23231,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_work_policy_get",
-      "description": "The hours this company works: the policy in force and every earlier one with the day it took effect, so a past day is judged by the policy of that day. Use this to answer 'what are our working hours', 'is Saturday a working day', or 'when did the four-day week start'. people carries the work hours and daily minimum held for one colleague where they differ from the company's.",
+      "description": "The hours this company works, which attendance is judged against: the policy in force and every earlier one with the day it took effect, so a past day is judged by the policy of that day. Use this to answer 'what are our working hours', 'is Saturday a working day', or 'when did the four-day week start'. people carries the work hours and daily minimum held for one colleague where they differ from the company's.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -23629,7 +23629,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Set the hours this company works from today on. The earlier policies stay, each with the day it took effect, so nothing already worked is re-judged. The whole policy is written at once, so read attendance_work_policy_get first and send it back with the fields that change. This is an administrator's and it is company-wide.",
+      "description": "Set the hours this company works, which attendance is judged against, from today on. The earlier policies stay, each with the day it took effect, so nothing already worked is re-judged. The whole policy is written at once, so read attendance_work_policy_get first and send it back with the fields that change. This is an administrator's and it is company-wide.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -24108,7 +24108,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_leave_policy_get",
-      "description": "The leave this company offers: every type with whether it is paid, how much it grants and in what portions of a day it may be taken, and the day the leave year starts. Use this to answer 'what leave can I take' or 'is sick leave paid'. The type names are what leave_request's kind takes.",
+      "description": "The leave policy this company offers, which attendance and time off are judged against: every type with whether it is paid, how much it grants and in what portions of a day it may be taken, and the day the leave year starts. Use this to answer 'what leave can I take' or 'is sick leave paid'. The type names are what leave_request's kind takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -24400,7 +24400,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Set the leave this company offers. The whole policy is written at once, so read attendance_leave_policy_get first and send it back with the types that change. A type left out that somebody has already taken leave under is kept, deactivated, because the leave rows point at it. This is an administrator's and it is company-wide.",
+      "description": "Set the leave this company offers, which attendance and time off are judged against. The whole policy is written at once, so read attendance_leave_policy_get first and send it back with the types that change. A type left out that somebody has already taken leave under is kept, deactivated, because the leave rows point at it. This is an administrator's and it is company-wide.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -25004,7 +25004,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_get",
-      "description": "What the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused.",
+      "description": "The notification settings: what the requester is told about, category by category, and the conversations they have muted. The kinds of thing a person is told about: message for something somebody wrote them, task for work assigned to them, approval for something waiting on their decision, attendance for their own clock, leave for the requests colleagues send, calendar for an event about to start, and mail for a new message in a connected mailbox. A category the requester may not choose is answered with isChoosable false, so a change to it would be refused.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -25121,7 +25121,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_set",
-      "description": "Change which categories of notice the requester is told about at all, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
+      "description": "Change the notification settings: which categories of notice the requester is told about at all, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -25512,7 +25512,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_connection_start",
-      "description": "Start the email account connection flow and return setup instructions for the requester. Requires the user to be present (RequiresUserPresence=true). Only call this when mail_connection_status reports mail is not connected.",
+      "description": "Start the mail account connection flow and return setup instructions for the requester. Requires the user to be present (RequiresUserPresence=true). Only call this when mail_connection_status reports mail is not connected.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -25604,7 +25604,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_connection_status",
-      "description": "Check whether the requester's email account is connected. Call this before any mail read or write operation when you are unsure if mail is set up.",
+      "description": "Check the mail connection: whether the requester's email account is connected. Answers this when a mail call has failed for want of an account, or when none has been made yet.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -25918,7 +25918,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_message_list",
-      "description": "List emails in a mailbox folder with optional pagination. Use this to browse recent messages; use mail_message_search when you need to find by keyword or subject.",
+      "description": "List the mail in a mailbox folder, one page of messages at a time. Use this to browse recent email; use mail_message_search when you need to find by keyword or subject.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -26104,7 +26104,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_message_mark",
-      "description": "Set the read (seen) or starred (flagged) status of an email. The UID and mailbox must come from a prior list or search result. Omit a flag field to leave it unchanged.",
+      "description": "Set the read (seen) or starred (flagged) status of one mail message. The UID and mailbox must come from a prior list or search result. Omit a flag field to leave it unchanged.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -26213,7 +26213,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_message_move",
-      "description": "Move an email to a different mailbox folder (e.g. Archive, Trash). The UID and mailbox must come from a prior list or search result. Use this to archive or sort messages.",
+      "description": "Move one mail message to a different mailbox folder (e.g. Archive, Trash). The UID and mailbox must come from a prior list or search result. Use this to archive or sort messages.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -26315,7 +26315,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_message_read",
-      "description": "Fetch the full content of a single email by its mailbox name and UID. The UID must come from a prior mail_message_list or mail_message_search result — never invent a UID.",
+      "description": "Fetch the full content of a single mail message by its mailbox name and UID. The UID must come from a prior mail_message_list or mail_message_search result — never invent a UID.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -26471,7 +26471,7 @@
         "state": "ok"
       },
       "canonicalName": "mail_message_search",
-      "description": "Search emails by keyword, sender, or subject. Returns matching messages with their UIDs for use with mail.message.read. Do not put pagination cursors in the query field.",
+      "description": "Search mail messages by keyword, sender, or subject. Returns matching messages with their UIDs for use with mail.message.read. Do not put pagination cursors in the query field.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -26669,7 +26669,7 @@
         "mode": "success",
         "targetKind": "email"
       },
-      "description": "Send an email from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
+      "description": "Send an email message from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
