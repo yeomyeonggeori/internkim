@@ -28,6 +28,7 @@ from native_install_rig import (  # noqa: E402
     COMPONENT,
     CONFFILE_EDIT,
     CONFFILE_PATH,
+    KERNEL_IMAGE_PATH,
     KEYRING_NAME,
     READINESS_PROBES,
     REPOSITORY_PREFIX,
@@ -287,7 +288,7 @@ class Rig:
     def start_machine(self):
         share = self.working_directory / "share"
         (share / "scripts").mkdir(parents=True, exist_ok=True)
-        self.machine = Machine(self.options.name, share)
+        self.machine = Machine(self.options.name, share, kernel_image_path=self.options.kernel)
         self.machine.preflight()
         self.machine.create()
         self.machine.wait_until_running()
@@ -961,6 +962,11 @@ def main():
     )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
+    parser.add_argument(
+        "--kernel",
+        default=str(KERNEL_IMAGE_PATH),
+        help="the guest kernel; INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE=16k tools/prepare-container-kernel builds the CM5's page size (default: %(default)s)",
+    )
     options = parser.parse_args()
 
     rig = Rig(options)
