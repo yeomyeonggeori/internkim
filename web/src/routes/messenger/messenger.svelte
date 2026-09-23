@@ -401,6 +401,7 @@
 						isGroup={activeConversation?.kind === 'group'}
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
+						isWithTheAgent={activeConversation?.isWithTheAgent === true}
 					/>
 				{/key}
 			</div>

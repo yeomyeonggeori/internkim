@@ -38,6 +38,7 @@ type ChannelSummary = {
 	counterpart?: MessengerPerson;
 	members?: ChannelMember[];
 	myRole?: ChannelRole;
+	isWithTheAgent: boolean;
 	description?: string;
 	platform?: string;
 	webURL?: string;
@@ -163,6 +164,7 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 				? undefined
 				: membersOf(channel, people, messengerNames, agentExternalID),
 			myRole: channel.isDirect ? undefined : roleOfViewer(channel, people, viewer),
+			isWithTheAgent: channel.isWithTheAgent === true,
 			description: channel.description,
 			platform: channel.platform,
 			webURL: channel.webURL

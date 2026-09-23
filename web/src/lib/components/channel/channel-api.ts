@@ -143,6 +143,7 @@ export type ChannelSummary = {
 	counterpart?: { memberID?: string; externalID?: string };
 	members?: ChannelMember[];
 	myRole?: ChannelRole;
+	isWithTheAgent?: boolean;
 	description?: string;
 	platform?: string;
 	webURL?: string;
