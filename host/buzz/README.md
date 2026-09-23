@@ -119,11 +119,37 @@ starting over.
 `cmd/buzz-migrate` derives every person's key and every channel id from it, so a
 second import under a different seed does not update the first: it derives
 different channel ids and lands a complete duplicate set of channels beside the
-originals. That is what happened to this company's first import — 광장, 근태,
-업무, 오토케팀 and 공지사항 each exist twice, one copy holding a few days more
-than the other. `docs/internal/buzz-identity-seed.md` has the derivation and
-what else consumes the same seed.
+originals.
 
 `buzz-admin` is the linux binary the relay ships with, wrapped so a mac runs it
 in a container on the stack's network. The importer shells out to it to register
 each imported author as a relay member.
+
+## The identity seed
+
+The Buzz key seed is a root secret. `internal/buzzidentity` derives everything
+from it and nothing else:
+
+- a person's secret key is `sha256(seed + "|secret|" + lower(trim(email)))`
+- a mirrored channel's id is `sha256(seed + "|channel|" + sourceChannelID)`,
+  shaped as a UUID
+
+Every consumer must hold the same seed: the importer (`-key-seed-path`), `admind`
+(`-buzz-key-seed-path`, a file), and chatd's mirror, which repeats the formulas
+in TypeScript and is held to them by a cross-language test. A mismatch is
+silent. History signed under one seed belongs to keys a person signing in under
+another seed never derives, so they cannot see or own it.
+
+- Keep it in one place a reader can find: `INTERNKIM_BUZZ_KEY_SEED` in the
+  vault on a development machine, the service secrets directory on a device,
+  and a copy in the operations vault off the box. A second local copy that
+  disagrees derives identities nobody can sign in as.
+- Never set it inline for one command. `tools/mirror-local` writes it to a seed
+  file only when the variable is set, and an inline value is not persisted
+  anywhere, so losing every copy leaves imported history unownable.
+- Never swap the seed to rotate. It re-keys everybody at once and detaches all
+  existing history; one person is rotated through the identity version
+  (`buzz-admin-reset`).
+- Retire it only after every member has claimed and sealed their key on their
+  own device. After that the server no longer derives, and so cannot
+  impersonate, anybody.

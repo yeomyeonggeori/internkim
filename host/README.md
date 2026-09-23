@@ -48,8 +48,7 @@ told what is wrong with it.
 
 ## The relay
 
-`docs/internal/saas-design.md` §6 has the shape; the part that matters here is
-that the relay **depends on nothing else in this bundle**. It never speaks to
+The relay **depends on nothing else in this bundle**. It never speaks to
 blueclaw, chatd, capabilityd or Postgres — only Supabase, the central
 plane and the tenant's messenger. So `entrypoint.sh` starts it **first**, before
 the postgres wait: the agent can be down and the messenger screen still answers.
@@ -208,9 +207,9 @@ INTERNKIM_RELAY_ENV=<relay.env> INTERNKIM_RELAY_AGENT_KEY=<agent key> \
 ```
 
 The unit carries `ConditionPathExists`, so a device with no settings leaves it
-stopped. A component the device has never installed takes two deploys;
-[docs/internal/device/deploying-a-device.md](../docs/internal/device/deploying-a-device.md)
-says why.
+stopped. A component the device has never installed takes two deploys: the
+release is applied by the `admind` already running, so the first deploy installs
+the new `admind` and skips the component it does not know yet.
 
 ## What it holds
 
@@ -218,7 +217,7 @@ The host's Postgres keeps the agent's working memory: raw events, conversations,
 the task-run ledger, memory, and the workspace. The record — people, attendance,
 leave, tasks — lives centrally. Losing the box therefore loses the agent's memory
 and history but not the company's data, and **backing that up is the customer's
-job** (`docs/internal/saas-design.md` §7.1).
+job**.
 
 ## Configuration
 

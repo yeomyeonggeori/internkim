@@ -174,7 +174,7 @@ func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 	switch serviceName {
 	case CompanyHostPrepareServiceName:
 		return companyHostUnitOrdering{
-			DocumentationURL: "https://github.com/yeomyeonggeori/internkim/blob/main/docs/internal/native-packaging.md",
+			DocumentationURL: "https://docs.intern.kim/running-the-host/",
 		}
 	case BuzzMediaServiceName:
 		return companyHostUnitOrdering{}

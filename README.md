@@ -19,7 +19,7 @@ publishes reaches it as a shortlist settled once per plan step.
 The agent reads `identity.json` and `soul.json` in its runtime workspace, and
 each person's preferences from their own `user.json`. Administration publishes
 agent documents to Blueclaw and checks its acknowledgment. Contributor details
-are in [persona delivery and recovery](docs/internal/persona-and-recovery.md).
+are in [blueclaw's documentation](https://blueclaw.intern.kim).
 
 ## How it is put together
 
@@ -49,11 +49,11 @@ The relay depends on nothing else in the bundle. It speaks to Supabase, the
 central plane and the company's messenger, and never to blueclaw, chatd,
 capabilityd or Postgres. `host/entrypoint.sh` therefore starts it first:
 the agent can be down while the messenger screen still answers. `host/README.md`
-has what the box needs and which parts are optional; `docs/internal/saas-design.md`
-§2 and §6 have the design.
+has what the box needs and which parts are optional;
+[Architecture](https://docs.intern.kim/architecture/) has the design.
 
 The schema of record is `supabase/migrations`, explained in
-`docs/internal/core-schema.md`. Row level security is the access boundary. A read
+[What the tables mean](https://docs.intern.kim/record/schema/). Row level security is the access boundary. A read
 on somebody's behalf uses their own token; the service key is for what security
 cannot reach, and it never leaves a server route.
 
@@ -123,8 +123,8 @@ device is not on it.
 
 No account stands for somebody else. Each person's work on the messenger uses a
 credential that person owns, and the browser puts it in the call as `actor`.
-`docs/internal/every-credential-is-its-owners.md` has the rule, the places it is
-still broken, and the order of change that closes them.
+[Architecture](https://docs.intern.kim/architecture/#how-the-chat-screen-gets-answered)
+says how a member registers one.
 
 ### The workspace boundary is POSIX
 
@@ -203,7 +203,7 @@ the checkout holds one and nothing is exported by hand. Copying one into a
 second file under `.local/` gave the value two homes, one of which nobody
 remembers to rotate.
 
-`.monkeys` is the list of names and `docs/internal/environment.json` says what
+`.monkeys` is the list of names and `tools/environment.json` says what
 each one is for, which `tools/verify-environment-declarations` keeps in step.
 On a second machine `monkeys doctor` names what the vault still lacks, and a
 human types each value into `monkeys remember <name>`. A value that is not
@@ -226,8 +226,8 @@ remembered value wherever it appears in a command's output.
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
 | **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
 
-[Agent memory](docs/internal/memory-redesign.md) is one Postgres store of episodes,
-extracted facts and per-person profiles, read through the requester's own clearance.
+Agent memory stays on the host with the agent, kept by
+[bluememo](https://bluememo.intern.kim).
 
 ## Running it
 
@@ -539,9 +539,9 @@ curl -fsSL https://intern.kim/install.sh | sh -s -- host
 internkim-host install ~/Downloads/internkim-host.json
 ```
 
-None has been published, and none will be from the stamped-image path:
-`docs/internal/native-packaging.md` retires it for apt and Homebrew packages, so
-`/settings/setup` and the quickstart send people to the build below instead.
+None has been published, and none will be from the stamped-image path, which
+apt and Homebrew packages replace, so `/settings/setup` and the quickstart send
+people to the build below instead.
 
 Self-hosting builds both halves here and pulls nothing from a registry of ours.
 `make build-company-host-image` builds the company server image on this machine
@@ -554,10 +554,7 @@ make build-company-host-image build-company-host
 ```
 
 Every host binary runs exactly the company server image it was stamped with,
-and refuses to install carrying none. What publishing such a build involved,
-and the registry it then depended on for as long as it lived, is recorded in
-[`docs/internal/native-packaging.md`](docs/internal/native-packaging.md) with
-the rest of the mechanism it retires.
+and refuses to install carrying none.
 
 `https://intern.kim/companion/install.sh` still answers: admind on a device that
 has not been redeployed prints that address, and the file there forwards to
@@ -689,7 +686,7 @@ behind them; `ls cmd internal` answers what exists today. The rest:
 | `host/` | `entrypoint.sh` is the boot order for the company computer's bundle, `relay/` its link to the plane |
 | `assets/blueclaw-workspace/` | the agent's own AGENTS.md, skills and helpers |
 | `workers/` | the Cloudflare workers |
-| `docs/` | the pages the docs site publishes; `docs/internal/` is what a contributor reads |
+| `docs/` | the pages docs.intern.kim publishes, and `docs/web/` the site that serves them |
 | `lab/` | VM lab configuration and scripts |
 | `tools/` | development helpers, `tools/verify` among them |
 | `.dependency/blueclaw/` | the agent submodule |
