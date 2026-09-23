@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the relay's and the plane's settings, as `docs/internal/environment.json`
+"""Render the relay's and the plane's settings, as `tools/environment.json`
 declares them, into the documents that list them by hand: the launchagent
 template's environment block, host/docker-compose.yml's environment list, and
 a settings table in host/README.md. Each generated region sits between a
@@ -8,7 +8,7 @@ is the file's own hand-maintained content and is left untouched.
 
 Run with --check to fail when a file's generated region does not match what
 regeneration would produce, instead of writing it. tools/verify runs --check;
-run this script with no arguments after editing docs/internal/environment.json
+run this script with no arguments after editing tools/environment.json
 to bring the documents back in line.
 """
 
@@ -18,7 +18,7 @@ import re
 import sys
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DECLARATIONS_PATH = REPOSITORY_ROOT / "docs" / "internal" / "environment.json"
+DECLARATIONS_PATH = REPOSITORY_ROOT / "tools" / "environment.json"
 
 LAUNCHAGENT_PATH = REPOSITORY_ROOT / "host" / "relay" / "launchagent.plist.template"
 DOCKER_COMPOSE_PATH = REPOSITORY_ROOT / "host" / "docker-compose.yml"
@@ -33,7 +33,7 @@ def markers(comment_start, comment_end):
     start = comment(
         comment_start,
         comment_end,
-        "BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents",
+        "BEGIN GENERATED from tools/environment.json — edit that file, then run tools/render-environment-documents",
     )
     end = comment(comment_start, comment_end, "END GENERATED")
     return start, end

@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 const testEnvironmentPath = join(repositoryRoot, 'web', '.env.test');
-const declarationsPath = join(repositoryRoot, 'docs', 'internal', 'environment.json');
+const declarationsPath = join(repositoryRoot, 'tools', 'environment.json');
 
 function namesIn(environmentFileText: string): string[] {
 	return environmentFileText
@@ -16,7 +16,7 @@ function namesIn(environmentFileText: string): string[] {
 }
 
 describe('web/.env.test', () => {
-	test('names only variables docs/internal/environment.json declares', () => {
+	test('names only variables tools/environment.json declares', () => {
 		if (!existsSync(testEnvironmentPath)) {
 			// Gitignored local state (AGENTS.md: it blanks the central plane so
 			// unit tests cannot reach it) — nothing to check when a developer or
@@ -28,7 +28,7 @@ describe('web/.env.test', () => {
 		const undeclared = names.filter((name) => !(name in declarations));
 		expect(
 			undeclared,
-			`web/.env.test names ${undeclared.join(', ')}, which docs/internal/environment.json does not declare — ` +
+			`web/.env.test names ${undeclared.join(', ')}, which tools/environment.json does not declare — ` +
 				'a variable no reader has is not one a test file should blank'
 		).toEqual([]);
 	});

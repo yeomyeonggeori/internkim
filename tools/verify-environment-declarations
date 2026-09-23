@@ -41,7 +41,7 @@ import subprocess
 import sys
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DECLARATIONS_PATH = REPOSITORY_ROOT / "docs" / "internal" / "environment.json"
+DECLARATIONS_PATH = REPOSITORY_ROOT / "tools" / "environment.json"
 VAULT_MANIFEST_PATH = REPOSITORY_ROOT / ".monkeys"
 
 EXCLUDED_DIRECTORY_NAMES = {"node_modules", ".dependency", ".local", ".artifacts", ".git"}

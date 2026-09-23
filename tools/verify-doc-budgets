@@ -6,7 +6,7 @@ import pathlib
 import sys
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-MANIFEST_PATH = REPOSITORY_ROOT / "docs" / "internal" / "doc-budgets.json"
+MANIFEST_PATH = REPOSITORY_ROOT / "tools" / "doc-budgets.json"
 
 
 def main():
@@ -27,7 +27,7 @@ def main():
     for failure in failures:
         print(f"FAIL {failure}", file=sys.stderr)
     print(
-        "\nRelocate, condense, or raise the ceiling in docs/internal/doc-budgets.json "
+        "\nRelocate, condense, or raise the ceiling in tools/doc-budgets.json "
         "and say why in the pull request.",
         file=sys.stderr,
     )
