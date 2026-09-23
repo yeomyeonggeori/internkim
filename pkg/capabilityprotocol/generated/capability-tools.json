@@ -189,7 +189,7 @@
         "mode": "success",
         "targetKind": "schedule"
       },
-      "description": "Schedule a task the agent runs later, once or repeatedly. The schedule answers in the conversation it was asked in, so it can only be created from one. Use schedule_update to change an existing schedule.",
+      "description": "Schedule a reminder or a recurring alert: work the agent does later, once at a time you name or on a repeat. It arrives in the conversation it was asked in, so it can only be created from one. Use schedule_update to change one that already exists.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -518,7 +518,7 @@
         "mode": "success",
         "targetKind": "schedule"
       },
-      "description": "Change explicit fields on a schedule the requester created. Use schedule_list first when neither the schedule ID nor its current description is known. At least one field to change is required.",
+      "description": "Change explicit fields on a reminder or recurring alert the requester set up, including how often it repeats and when it next arrives. Use schedule_list first when neither the schedule ID nor its current description is known. At least one field to change is required.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -853,7 +853,7 @@
         "mode": "success",
         "targetKind": "schedule"
       },
-      "description": "Stop schedules the requester created. Use schedule_list first when neither the schedule IDs nor their current descriptions are known. A cancelled schedule never runs again; schedule_create makes a new one.",
+      "description": "Stop a reminder or recurring alert the requester set up, so it stops arriving. Use schedule_list first when neither the schedule IDs nor their current descriptions are known. A cancelled schedule never runs again; schedule_create makes a new one. Silencing a whole category of notice instead is notification_settings_set's.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -25121,7 +25121,7 @@
         "state": "ok"
       },
       "canonicalName": "notification_settings_set",
-      "description": "Change what the requester is told about. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
+      "description": "Change which categories of notice the requester is told about at all, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
