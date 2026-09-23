@@ -18,13 +18,19 @@
 		return entry.event.id ?? `${entry.event.name}-${entry.index}`;
 	}
 
+	const hasSeveralRuns = $derived(Math.max(...sections.map((section) => section.turnNumber)) > 1);
+
 	function sectionTitle(section: LedgerSection): string {
-		return section.turnNumber === 0 ? text.intakeSection : text.turnSection.replace('{number}', String(section.turnNumber));
+		if (section.turnNumber === 0) return text.intakeDecisionTitle;
+		if (!hasSeveralRuns) return text.runSection;
+		return text.numberedRunSection.replace('{number}', String(section.turnNumber));
 	}
 
-	function stepTitle(step: LedgerStep): string {
-		const subject = step.toolName ?? (step.action === 'finish' ? text.replyStep : step.action || text.stepModelCall);
-		return `${step.number}. ${subject}`;
+	function stepSubject(step: LedgerStep): { label: string; isIdentifier: boolean } {
+		if (step.toolName) return { label: step.toolName, isIdentifier: true };
+		if (step.action === 'finish') return { label: text.replyStep, isIdentifier: false };
+		if (step.action) return { label: step.action, isIdentifier: true };
+		return { label: text.stepModelCall, isIdentifier: false };
 	}
 
 	function isFailedEntry(entry: LedgerEntry): boolean {
@@ -77,9 +83,18 @@
 				{@const background = step.entries.filter((entry) => !isProminentEvent(entry.event))}
 				<div class="flex flex-col gap-1">
 					{#if step.number > 0}
-						<h4 class="text-sm font-medium">{stepTitle(step)}</h4>
+						{@const subject = stepSubject(step)}
+						<h4 class="flex items-center gap-2 text-sm font-medium">
+							<span
+								class="flex size-5 shrink-0 items-center justify-center rounded-full border text-xs font-normal text-muted-foreground tabular-nums"
+								aria-label={text.stepNumber.replace('{number}', String(step.number))}
+							>
+								{step.number}
+							</span>
+							{#if subject.isIdentifier}<code>{subject.label}</code>{:else}{subject.label}{/if}
+						</h4>
 					{/if}
-					<div class={step.number > 0 ? 'border-l pl-4' : ''}>
+					<div class={step.number > 0 ? 'ml-2.5 border-l pl-5' : ''}>
 						{#each prominent as entry (entry.index)}
 							{@render prominentEntry(entry)}
 						{/each}
