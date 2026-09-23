@@ -2,6 +2,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import DecisionTable from './decision-table.svelte';
 	import ExchangeView from './exchange-view.svelte';
+	import FactList, { type Fact } from './fact-list.svelte';
 	import { decisionMessageKeys, decisionRows, fetchLLMCallExchange, type Exchange, type LLMCallRecord } from './llm-calls';
 	import type { TasksText } from './text';
 
@@ -10,11 +11,16 @@
 	let exchangeRequest: Promise<Exchange> | undefined;
 
 	const messageKeys = $derived(decisionMessageKeys(record));
-	const facts = $derived([record.model, record.provider, tokenSummary()].filter(Boolean).join(' · '));
+	const facts = $derived(callFacts());
 
-	function tokenSummary(): string {
-		if (record.promptTokens === 0 && record.completionTokens === 0) return '';
-		return text.tokenFlow.replace('{prompt}', record.promptTokens.toLocaleString()).replace('{completion}', record.completionTokens.toLocaleString());
+	function callFacts(): Fact[] {
+		const facts: Fact[] = [];
+		if (record.model) facts.push({ label: text.factModel, value: record.model, isIdentifier: true });
+		if (record.provider) facts.push({ label: text.factProvider, value: record.provider, isIdentifier: true });
+		if (record.promptTokens > 0 || record.completionTokens > 0) {
+			facts.push({ label: text.factTokens, value: `${record.promptTokens.toLocaleString()} → ${record.completionTokens.toLocaleString()}` });
+		}
+		return facts;
 	}
 
 	function exchangeOnce(llmCallID: string): Promise<Exchange> {
@@ -39,7 +45,7 @@
 	</div>
 {/each}
 {#if !llmCallID}
-	<p class="text-xs text-muted-foreground">{facts}</p>
+	<FactList {facts} />
 {:else}
 	{#await exchangeOnce(llmCallID)}
 		<Skeleton class="h-24 w-full" />

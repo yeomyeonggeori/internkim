@@ -1,21 +1,23 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import { CopyButton } from '$lib/components/ui/copy-button';
+	import FactList, { type Fact } from './fact-list.svelte';
 	import type { Exchange, ExchangeMessage } from './llm-calls';
 	import RawDocument from './raw-document.svelte';
 	import type { TasksText } from './text';
 
-	let { exchange, callFacts, text }: { exchange: Exchange; callFacts: string; text: TasksText } = $props();
+	let { exchange, callFacts, text }: { exchange: Exchange; callFacts: Fact[]; text: TasksText } = $props();
 
 	const stateDocument = $derived(exchange.decisionState === undefined ? '' : JSON.stringify(exchange.decisionState, undefined, 2));
-	const facts = $derived(
-		[
-			callFacts,
-			exchange.seed === undefined ? '' : `${text.seedLabel} ${exchange.seed}`,
-			exchange.servedBy ? `${text.servedBy} ${exchange.servedBy}` : '',
-			exchange.toolNames.length > 0 ? text.toolsOffered.replace('{count}', String(exchange.toolNames.length)) : ''
-		].filter(Boolean)
-	);
+	const facts = $derived([...callFacts, ...exchangeFacts()]);
+
+	function exchangeFacts(): Fact[] {
+		const facts: Fact[] = [];
+		if (exchange.servedBy) facts.push({ label: text.servedBy, value: exchange.servedBy });
+		if (exchange.seed !== undefined) facts.push({ label: text.seedLabel, value: String(exchange.seed) });
+		if (exchange.toolNames.length > 0) facts.push({ label: text.toolsOffered, value: text.countValue.replace('{count}', String(exchange.toolNames.length)) });
+		return facts;
+	}
 	const copyableDocuments = $derived(
 		[
 			{ label: text.requestAsSent, document: exchange.request },
@@ -57,7 +59,7 @@
 {/snippet}
 
 <div class="flex flex-col gap-4">
-	<p class="text-xs text-muted-foreground">{facts.join(' · ')}</p>
+	<FactList {facts} />
 	{#each exchange.messages as message, index (index)}
 		{@render transcriptEntry(roleLabel(message.role), message)}
 	{/each}

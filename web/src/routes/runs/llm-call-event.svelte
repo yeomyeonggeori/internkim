@@ -14,10 +14,16 @@
 		createdAt,
 		text
 	}: { value: string; isOpen: boolean; llmCallID?: string; record: LLMCallRecord; createdAt?: string; text: TasksText } = $props();
-
-	const meta = $derived([formatLatency(record.latencyMs), record.costUSD > 0 ? formatCostUSD(record.costUSD) : ''].filter(Boolean).join(' · '));
 </script>
 
-<TimelineEvent {value} title={`llm.call · ${record.schemaName || record.kind}`} {meta} {createdAt} isFailed={record.isError} {isOpen}>
+<TimelineEvent
+	{value}
+	title={`llm.call · ${record.schemaName || record.kind}`}
+	duration={formatLatency(record.latencyMs)}
+	cost={record.costUSD > 0 ? formatCostUSD(record.costUSD) : ''}
+	{createdAt}
+	isFailed={record.isError}
+	{isOpen}
+>
 	<LLMCallDetail {llmCallID} {record} {text} />
 </TimelineEvent>

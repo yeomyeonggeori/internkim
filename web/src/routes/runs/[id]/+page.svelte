@@ -21,6 +21,7 @@
 	import RawDocument from '../raw-document.svelte';
 	import RawLedgerView from '../raw-ledger-view.svelte';
 	import { filterLedger, groupLedger } from '../raw-ledger';
+	import FactList, { type Fact } from '../fact-list.svelte';
 	import IntakeDecisionStep from '../intake-decision-step.svelte';
 	import TaskStep from '../task-step.svelte';
 	import { buildTaskStory } from '../task-story';
@@ -62,6 +63,7 @@
 	const summary = $derived(detail ? summarizeTimeline(detail.taskEvents) : undefined);
 	const story = $derived(buildTaskStory(detail?.taskEvents ?? []));
 	const runDuration = $derived(detail ? formatDuration(Date.parse(detail.taskRun.updatedAt ?? '') - Date.parse(detail.taskRun.createdAt ?? '')) : '');
+	const runFacts = $derived(factsOf(summary, runDuration));
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
 	const ledgerSections = $derived(detail ? filterLedger(groupLedger(detail.taskEvents), isEventShown) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
@@ -140,13 +142,16 @@
 		openStepValues = [...untrack(() => openStepValues), ...newlyFailedKeys];
 	});
 
-	function summaryLine(timelineSummary: TimelineSummary): string {
-		return text.summaryLine
-			.replace('{calls}', timelineSummary.llmCallCount.toLocaleString())
-			.replace('{latency}', formatLatency(timelineSummary.llmLatencyMS))
-			.replace('{tokens}', timelineSummary.llmTotalTokens.toLocaleString())
-			.replace('{cost}', formatCostUSD(timelineSummary.llmCostUSD))
-			.replace('{tools}', timelineSummary.toolCallCount.toLocaleString());
+	function factsOf(timelineSummary: TimelineSummary | undefined, duration: string): Fact[] {
+		const facts: Fact[] = duration ? [{ label: text.factDuration, value: duration }] : [];
+		if (!timelineSummary) return facts;
+		return [
+			...facts,
+			{ label: text.factModelCalls, value: text.modelCallsValue.replace('{count}', timelineSummary.llmCallCount.toLocaleString()).replace('{latency}', formatLatency(timelineSummary.llmLatencyMS)) },
+			{ label: text.factTotalTokens, value: timelineSummary.llmTotalTokens.toLocaleString() },
+			{ label: text.factCost, value: formatCostUSD(timelineSummary.llmCostUSD) },
+			{ label: text.factToolCalls, value: text.timesValue.replace('{count}', timelineSummary.toolCallCount.toLocaleString()) }
+		];
 	}
 
 	$effect(() => {
@@ -214,21 +219,17 @@
 					<span aria-hidden="true">·</span>
 				{/if}
 				<span>{formatTaskTimestamp(detail.taskRun.createdAt)}</span>
-				{#if runDuration}
-					<span aria-hidden="true">·</span>
-					<span>{runDuration}</span>
-				{/if}
 			</div>
 			<h1 class="line-clamp-3 text-lg leading-snug font-semibold">{detail.taskRun.prompt || detail.taskRun.taskRunID}</h1>
-			{#if summary}
-				<p class="text-xs text-muted-foreground tabular-nums">{summaryLine(summary)}</p>
-			{/if}
 			{#if detail.taskRun.failureReason}
 				<p class="text-sm text-destructive">{detail.taskRun.failureReason}</p>
 			{/if}
 			{#if detail.taskRun.result}
 				<p class="mt-2 rounded-lg bg-muted/50 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">{detail.taskRun.result}</p>
 			{/if}
+			<div class="mt-2">
+				<FactList facts={runFacts} />
+			</div>
 			{#if pendingApproval}
 				<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
 			{/if}
