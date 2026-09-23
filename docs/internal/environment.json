@@ -355,6 +355,10 @@
     "process": "tools/prepare-container-kernel",
     "description": "where the built container kernel artifact is written; defaults under .dependency/container-kernel"
   },
+  "INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE": {
+    "process": "tools/prepare-container-kernel",
+    "description": "the page size the container kernel is built for, 4k or 16k; defaults to \"4k\""
+  },
   "INTERNKIM_CONTAINER_KERNEL_VERSION": {
     "process": "tools/prepare-container-kernel",
     "description": "the kernel version built for the Apple Container VM; defaults to 6.1.68"
