@@ -411,13 +411,37 @@ What the 16 KB run leaves open:
 4 KB kernel, which the 64-bit image already installs; a Raspberry Pi engineer
 puts the cost at about 7% on random memory access.
 
-**Memory.** The guest has 4 GB, and step 5 holds PostgreSQL, Redis, the S3
-server, the messenger and the agent in it at once without a unit dying. The CM5
-comes in 2, 4, 8 and 16 GB, so 4 GB is the second-smallest board rather than
-the floor; a 2 GB one has about 1.9 GB after the CMA pool and has never been
-measured. Also unmeasured is the same box under load with Chromium resident,
-which is what a document skill adds. The installed package is 295 MB for
-`arm64`, 110 MB of which is the document interpreter.
+**Memory.** The guest has 4 GB, and the CM5 comes in 2, 4, 8 and 16 GB; a
+2 GB board has about 1.9 GB after the CMA pool. `tools/measure-company-host-memory`
+installs the package on one guest per size, gives it a company, lets it idle,
+renders a deck through Chromium, writes a docx, and sends a member's message,
+while a sampler reads every cgroup every two seconds.
+
+On 2026-09-23 it ran the published `0.0.0+20260923.e15a98f06b85` under the
+16 KB kernel with no swap at 4096, 3072, 2560, 2048 and 1900 MiB. Every size
+finished every phase: the deck rendered, the docx validated, the message came
+back, and no unit was killed.
+
+| Guest | Least available, idle | Least available, Chromium rendering |
+|---|---|---|
+| 4096 MiB | 2911 MiB | 2502 MiB |
+| 3072 MiB | 2074 MiB | 1763 MiB |
+| 2560 MiB | 1647 MiB | 1207 MiB |
+| 2048 MiB | 1297 MiB | 913 MiB |
+| 1900 MiB | 1153 MiB | 702 MiB |
+
+`MemAvailable` overstates what the box holds, because most of what it leaves
+out is page cache. At idle on 3 GB the services' anonymous memory came to
+221 MiB in total: PostgreSQL 83, `internkim-relay` 30, `chatd` 21, `buzz-media`
+17, `admind` 16, `capabilityd` 9, `buzz-relay` 8, `blueclaw` 8, Redis 5. The
+kernel took about 310 MiB more, and file cache filled the rest. The two Bun
+processes are the largest single cost by resident size, 67 and 58 MiB, since
+each carries its own JavaScript runtime.
+
+The board does better than these guests on one count: Raspberry Pi OS trixie
+swaps to zram through `rpi-swap`, sized to RAM, and the guests had no swap at
+all. The installed package is 295 MB for `arm64`, 110 MB of which is the
+document interpreter.
 
 **Storage.** The appliance boots from a microSD. Write endurance, sustained
 throughput during `apt-get install`, and the behaviour of a Postgres cluster

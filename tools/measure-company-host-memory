@@ -1,0 +1,698 @@
+#!/usr/bin/env python3
+"""What a company host needs in memory, measured on a guest sized down step by step.
+
+`tools/test-native-install` judges whether the package installs, upgrades and
+removes. This asks a different question of the same machine: how much memory the
+installed company host holds, and where it stops working as that memory falls.
+It boots one guest per size, installs the package through the same apt
+repository the rig serves, gives it a company off the local plane, and then
+reads the guest's own cgroups while it sits idle, while it renders a deck
+through Chromium, while it writes a document, and while a member's message
+crosses the gateway.
+
+Nothing here is a pass or a fail. Every size produces a row, including the sizes
+where a service dies, because which service dies first is the answer.
+
+    tools/with-local-plane tools/measure-company-host-memory --memory-mebibytes 4096 --memory-mebibytes 2048
+"""
+
+import argparse
+import json
+import shutil
+import sys
+import time
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from native_install_rig import (  # noqa: E402
+    ARCHITECTURE,
+    KERNEL_IMAGE_PATH,
+    KEYRING_NAME,
+    MESSENGER_BRIDGE,
+    MESSENGER_DATABASE_PATH,
+    PACKAGE_NAME,
+    READINESS_PROBES,
+    REPOSITORY_PREFIX,
+    REPOSITORY_ROOT,
+    SHARE_PATH,
+    STATE_DIRECTORY,
+    CompanyPlane,
+    Machine,
+    Release,
+    RigFailure,
+    install_the_company,
+    installed_units,
+)
+
+
+DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
+
+# Where the package puts the two things the workload reaches for. Spelled in
+# internal/runtime/blueclaw/company_host_package.go, and read from the guest
+# rather than from Go because this tool never builds the package.
+SKILLS_PATH = "/opt/internkim/skills"
+DOCUMENT_PYTHON_PATH = "/opt/internkim/document-venv/bin/python"
+
+# Whether the guest's messenger knows the member yet, read the way the install
+# rig reads it: through the credentials the box wrote for its own relay.
+ROSTER_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
+[ -n "$url" ] || { echo "roster=no-database-url"; exit 0; }
+printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members where lower(pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
+"""
+# The connection budget in internal/runtime/blueclaw/postgres_connections.go is
+# divided against what the server allows, and what a service holds is not what
+# it was permitted. Both are readings the server itself takes.
+POSTGRES_BUDGET_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
+[ -n "$url" ] || { echo "no DATABASE_URL"; exit 0; }
+psql "$url" -tAc "select 'max_connections=' || setting from pg_settings where name = 'max_connections'" 2>&1
+psql "$url" -tAc "select 'shared_buffers=' || setting || ' ' || unit from pg_settings where name = 'shared_buffers'" 2>&1
+psql "$url" -tAc "select 'backends=' || count(*) from pg_stat_activity where backend_type = 'client backend'" 2>&1
+psql "$url" -tAc "select 'held: ' || database || ' ' || condition || ' x' || held from (select coalesce(datname, '?') as database, coalesce(state, 'none') as condition, count(*) as held from pg_stat_activity where backend_type = 'client backend' group by 1, 2) counted order by 1" 2>&1
+"""
+
+DEFAULT_SIZES = (4096, 3072, 2560, 2048, 1900)
+MEASUREMENT_DIRECTORY = REPOSITORY_ROOT / ".artifacts" / "company-host-memory"
+
+# The Debian units the package leans on. They are not in dpkg's file list for
+# this package and they hold a large part of what the box costs, so a reading
+# that left them out would name a smaller machine than the one that runs.
+BORROWED_UNITS = ("postgresql.service", "redis-server.service")
+
+# Long enough after the last unit answers that the migrations, the first
+# membership pass and the relay's first connection are behind it. A reading
+# taken while the box is still converging is a reading of the convergence.
+IDLE_SETTLE_SECONDS = 120
+
+SAMPLER_PATH = f"{SHARE_PATH}/sampler.py"
+SAMPLE_LOG_NAME = "samples.jsonl"
+
+# The sampler writes to the guest's own disk and is copied across at each phase
+# boundary. Writing every sample straight into the shared directory made the
+# sampler itself the slow thing being measured: a 6 KB line every two seconds
+# over virtio-fs arrived about once every thirty.
+GUEST_SAMPLE_PATH = "/var/tmp/company-host-memory.jsonl"
+
+SAMPLER_SOURCE = r'''
+import json, os, sys, time
+
+CGROUP_ROOT = "/sys/fs/cgroup"
+PAGE_KIBIBYTES = os.sysconf("SC_PAGE_SIZE") // 1024
+
+
+def meminfo():
+    held = {}
+    for line in open("/proc/meminfo"):
+        name, _, value = line.partition(":")
+        held[name] = int(value.split()[0])
+    return {
+        name: held.get(name, 0)
+        for name in ("MemTotal", "MemFree", "MemAvailable", "Cached", "Buffers",
+                     "SwapTotal", "SwapFree", "Shmem", "Dirty", "AnonPages")
+    }
+
+
+def reading_of(path):
+    try:
+        return int(open(path).read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def fields_of(path):
+    held = {}
+    try:
+        for line in open(path):
+            name, _, value = line.partition(" ")
+            held[name] = int(value)
+    except (OSError, ValueError):
+        pass
+    return held
+
+
+def cgroups():
+    held = {}
+    for directory, subdirectories, _ in os.walk(CGROUP_ROOT):
+        name = os.path.relpath(directory, CGROUP_ROOT)
+        if name == "." or not name.endswith((".service", ".slice", ".scope")):
+            continue
+        current = reading_of(os.path.join(directory, "memory.current"))
+        if current is None:
+            continue
+        statistics = fields_of(os.path.join(directory, "memory.stat"))
+        events = fields_of(os.path.join(directory, "memory.events"))
+        held[name] = {
+            "current": current,
+            "peak": reading_of(os.path.join(directory, "memory.peak")),
+            "anon": statistics.get("anon", 0),
+            "file": statistics.get("file", 0),
+            "kernel": statistics.get("kernel", 0),
+            "slab": statistics.get("slab", 0),
+            "shmem": statistics.get("shmem", 0),
+            "pgmajfault": statistics.get("pgmajfault", 0),
+            "oom_kill": events.get("oom_kill", 0),
+            "max": events.get("max", 0),
+        }
+    return held
+
+
+def processes():
+    held = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            statistics = open("/proc/%s/stat" % entry).read()
+            command = open("/proc/%s/comm" % entry).read().strip()
+        except OSError:
+            continue
+        after = statistics.rpartition(") ")[2].split()
+        if len(after) < 22:
+            continue
+        held.append({"pid": int(entry), "comm": command,
+                     "rss": int(after[21]) * PAGE_KIBIBYTES})
+    held.sort(key=lambda row: row["rss"], reverse=True)
+    return held[:12]
+
+
+destination = open(sys.argv[1], "a", buffering=1)
+while True:
+    destination.write(json.dumps({
+        "at": time.time(),
+        "meminfo": meminfo(),
+        "cgroups": cgroups(),
+        "processes": processes(),
+    }) + "\n")
+    time.sleep(2)
+'''
+
+DECK_SOURCE = """<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<title>deck</title>
+<!-- design-source: DESIGN.md -->
+<style>section{width:1600px;height:900px;font-family:sans-serif;padding:80px}</style>
+</head><body>
+<section><h1>2 GB</h1><p>A board that has never been measured.</p></section>
+<section><h2>What the box holds</h2><ul><li>PostgreSQL</li><li>Redis</li><li>the messenger</li><li>the agent</li></ul></section>
+<section><h2>한글도 한 장</h2><p>나눔고딕이 없으면 글자가 조용히 사라진다.</p></section>
+</body></html>
+"""
+
+DOCUMENT_SOURCE = """# 메모리 측정 보고서
+
+CM5 보드의 메모리 여유를 재는 중이다.
+
+| 서비스 | 하는 일 |
+| --- | --- |
+| PostgreSQL | 회사의 기록 |
+| Redis | 메신저의 큐 |
+| blueclaw | 에이전트 |
+
+문서 기술이 이 파일을 만드는 동안 상주 메모리가 얼마나 늘어나는지가 질문이다.
+"""
+
+
+def now():
+    return time.time()
+
+
+class Reading:
+    """One guest, one memory size, and everything that was read on it."""
+
+    def __init__(self, memory_mebibytes):
+        self.memory_mebibytes = memory_mebibytes
+        self.phases = []
+        self.notes = []
+        self.units = []
+        self.samples = []
+        self.stopped_at = ""
+
+    def phase(self, name, started, ended, detail=None):
+        self.phases.append({
+            "name": name,
+            "started": started,
+            "ended": ended,
+            "detail": detail or {},
+        })
+
+    def note(self, text):
+        self.notes.append(text)
+
+    def as_record(self):
+        return {
+            "memoryMebibytes": self.memory_mebibytes,
+            "units": self.units,
+            "phases": self.phases,
+            "notes": self.notes,
+            "stoppedAt": self.stopped_at,
+            "samples": self.samples,
+        }
+
+
+class Measurement:
+    def __init__(self, options):
+        self.options = options
+        self.working_directory = None
+        self.release = None
+        self.plane = None
+        self.readings = []
+        self.company_id = ""
+
+
+    def packages_under_test(self):
+        directory = Path(self.options.package_directory)
+        if not directory.is_absolute():
+            directory = Path.cwd() / directory
+        found = sorted(directory.glob(f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb")) if directory.exists() else []
+        return found
+
+    def prepare_release(self, package_path):
+        self.release = Release(self.working_directory / "release")
+        self.release.directory.mkdir(parents=True, exist_ok=True)
+        self.release.generate_signing_key()
+        shutil.copyfile(REPOSITORY_ROOT / "web" / "static" / "install.sh", self.release.directory / "install.sh")
+        self.release.publish(package_path)
+        self.release.serve()
+
+
+    def measure(self, memory_mebibytes, package_path):
+        reading = Reading(memory_mebibytes)
+        share = self.working_directory / f"share-{memory_mebibytes}"
+        (share / "scripts").mkdir(parents=True, exist_ok=True)
+        machine = Machine(
+            f"{self.options.name_prefix}-{memory_mebibytes}-{uuid.uuid4().hex[:6]}",
+            share,
+            kernel_image_path=self.options.kernel,
+        )
+        machine.preflight()
+        try:
+            self.run_the_guest(reading, machine, share, memory_mebibytes, package_path)
+        except RigFailure as failure:
+            reading.note(f"the run stopped: {failure}")
+            if not reading.stopped_at:
+                reading.stopped_at = "the guest stopped answering"
+            self.collect(reading, machine, share, best_effort=True)
+        finally:
+            if self.options.keep:
+                reading.note(f"the guest is still up: container exec {machine.name} bash")
+            else:
+                machine.destroy()
+        self.readings.append(reading)
+        return reading
+
+    def run_the_guest(self, reading, machine, share, memory_mebibytes, package_path):
+        started = now()
+        machine.create(memory_mebibytes=memory_mebibytes)
+        machine.wait_until_running()
+        self.give_it_swap(machine, reading)
+        self.start_sampler(machine, share)
+        reading.phase("boot", started, now())
+
+        if self.plane is None:
+            self.plane = CompanyPlane(self.working_directory / "plane", machine.host_gateway())
+            self.plane.start()
+
+        started = now()
+        installed = self.install_the_package(machine)
+        reading.phase("install the package", started, now(), {
+            "exit": installed.returncode,
+            "said": (installed.stdout + installed.stderr).strip()[-600:] if installed.returncode else "",
+        })
+        if installed.returncode != 0:
+            reading.stopped_at = "the package would not install"
+            self.collect(reading, machine, share)
+            return
+
+        reading.units = list(installed_units(machine)) + list(BORROWED_UNITS)
+        self.carry_samples(machine, share)
+
+        started = now()
+        connection = self.plane.connection_document()
+        self.company_id = connection["company"]["id"]
+        given = install_the_company(machine, connection)
+        pointed = machine.shell(f"readlink -f {STATE_DIRECTORY}/current 2>/dev/null")
+        reading.phase("install the company", started, now(), {
+            "exit": given.returncode,
+            "current": pointed.stdout.strip(),
+            "said": (given.stdout + given.stderr).strip()[-900:] if given.returncode else "",
+        })
+        if self.company_id not in pointed.stdout:
+            reading.stopped_at = "the box never took the company"
+            self.collect(reading, machine, share)
+            return
+
+        started = now()
+        ready = self.wait_until_ready(machine)
+        reading.phase("the services come up", started, now(), ready)
+        if not ready["everyProbeAnswered"]:
+            reading.stopped_at = "not every service answered its readiness endpoint"
+
+        started = now()
+        time.sleep(IDLE_SETTLE_SECONDS)
+        reading.phase("idle", started, now())
+
+        self.carry_samples(machine, share)
+
+        started = now()
+        rendered = self.render_a_deck(machine)
+        reading.phase("the deck renderer starts Chromium", started, now(), rendered)
+        self.carry_samples(machine, share)
+
+        started = now()
+        written = self.write_a_document(machine)
+        reading.phase("the document skill writes a docx", started, now(), written)
+        self.carry_samples(machine, share)
+
+        started = now()
+        crossed = self.a_member_says_something(machine)
+        reading.phase("a member's message crosses the gateway", started, now(), crossed)
+
+        self.collect(reading, machine, share)
+
+
+    def give_it_swap(self, machine, reading):
+        """Raspberry Pi OS trixie ships rpi-swap, zram sized to RAM, and this guest ships none.
+
+        Without it a box that runs out of memory is killed rather than slowed,
+        which is only half of what a board does. The size is the one a person
+        would find on the board.
+        """
+        if not self.options.swap_mebibytes:
+            reading.note("no swap: a guest that runs out of memory here is killed, not slowed")
+            return
+        swapped = machine.shell(
+            f"set -eu\n"
+            f"fallocate -l {self.options.swap_mebibytes}M /swapfile "
+            f"|| dd if=/dev/zero of=/swapfile bs=1M count={self.options.swap_mebibytes}\n"
+            "chmod 600 /swapfile\n"
+            "mkswap /swapfile >/dev/null\n"
+            "swapon /swapfile\n"
+            "grep -E 'SwapTotal' /proc/meminfo\n"
+        )
+        reading.note(f"swap: {swapped.stdout.strip() or swapped.stderr.strip()}")
+
+    def start_sampler(self, machine, share):
+        """The reader runs inside the guest, in python3, before the package does.
+
+        A bare Debian image has no python3, and the package's own `Depends:`
+        names it, so putting it there first adds nothing the install would not
+        have added. What it does add is the sampler's own process, which every
+        reading below carries and which `sampler.py` is the only thing running.
+        """
+        (share / "sampler.py").write_text(SAMPLER_SOURCE)
+        machine.checked_shell(
+            "set -eu\n"
+            "export DEBIAN_FRONTEND=noninteractive\n"
+            "apt-get update -qq\n"
+            "apt-get install -y -qq --no-install-recommends python3\n"
+            f"setsid nohup python3 {SAMPLER_PATH} {GUEST_SAMPLE_PATH} >/dev/null 2>&1 &\n"
+            "sleep 6\n"
+            f"test -s {GUEST_SAMPLE_PATH}\n",
+            timeout_seconds=900,
+        )
+
+    def carry_samples(self, machine, share):
+        """Bring what the sampler has written across, so a guest that dies later
+        still leaves the readings taken before it did."""
+        machine.shell(f"cp {GUEST_SAMPLE_PATH} {SHARE_PATH}/{SAMPLE_LOG_NAME} 2>/dev/null; true")
+        return share / SAMPLE_LOG_NAME
+
+    def collect(self, reading, machine, share, best_effort=False):
+        sample_path = self.carry_samples(machine, share)
+        if sample_path.exists():
+            reading.samples = [
+                json.loads(line) for line in sample_path.read_text().splitlines() if line.strip()
+            ]
+        died = machine.shell(
+            "journalctl -k --no-pager 2>/dev/null | grep -i -e 'Out of memory' -e 'oom-kill' | tail -40; true"
+        )
+        if died.stdout.strip():
+            reading.note("the kernel's own account:\n" + died.stdout.strip()[-2000:])
+        occupied = machine.shell(
+            "df -h / | tail -1; "
+            f"dpkg-query -W -f '${{Installed-Size}}\\n' {PACKAGE_NAME} 2>/dev/null; true"
+        )
+        if occupied.stdout.strip():
+            reading.note("the disk, and dpkg's account of the package in KiB:\n" + occupied.stdout.strip())
+        held = machine.shell(POSTGRES_BUDGET_COMMAND % {"path": MESSENGER_DATABASE_PATH})
+        if held.stdout.strip():
+            reading.note("what postgres was configured to hold, and what it held:\n" + held.stdout.strip())
+        states = machine.shell(
+            "systemctl list-units --type=service --all --no-legend --no-pager "
+            "--plain 2>/dev/null | awk '{print $1\"=\"$3\"/\"$4}'; true"
+        )
+        if states.stdout.strip():
+            reading.note("systemd's account:\n" + states.stdout.strip())
+        if best_effort:
+            return
+
+    def install_the_package(self, machine):
+        gateway = machine.host_gateway()
+        base = f"http://{gateway}:{self.release.port}"
+        repository = f"{base}/{REPOSITORY_PREFIX}"
+        return machine.shell(
+            "set -eu\n"
+            f"export INTERNKIM_INSTALL_RELEASE_URL={base}/{PACKAGE_NAME}\n"
+            f"export INTERNKIM_INSTALL_REPOSITORY_URL={repository}\n"
+            f"export INTERNKIM_INSTALL_KEYRING_URL={repository}/{KEYRING_NAME}\n"
+            f"curl -fsSL {base}/install.sh | sh -s -- host\n",
+            timeout_seconds=2400,
+        )
+
+    def wait_until_ready(self, machine, timeout_seconds=900):
+        probes = "; ".join(
+            f"printf '%s=%s\\n' {port}{path} "
+            f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
+            for port, path in READINESS_PROBES + (MESSENGER_BRIDGE,)
+        )
+        deadline = now() + timeout_seconds
+        answers = {}
+        while True:
+            reading = machine.shell(probes)
+            answers = dict(
+                line.split("=", 1) for line in reading.stdout.split() if "=" in line
+            )
+            if answers and all(value == "200" for value in answers.values()):
+                break
+            if now() > deadline:
+                break
+            time.sleep(10)
+        return {
+            "probes": answers,
+            "everyProbeAnswered": bool(answers) and all(value == "200" for value in answers.values()),
+        }
+
+
+    def render_a_deck(self, machine):
+        """The deck renderer, which is what starts Chromium on this box.
+
+        `skills/presentation/scripts/build.sh` with a review format is the
+        command the skill's own instructions give, and the browser it launches
+        through playwright-core is the `chromium` the package depends on.
+        """
+        (machine.share_directory / "slides.html").write_text(DECK_SOURCE)
+        return self.said(machine.shell(
+            "set -u\n"
+            "install -d /var/tmp/deck\n"
+            f"cp {SHARE_PATH}/slides.html /var/tmp/deck/slides.html\n"
+            "cd /var/tmp/deck\n"
+            "export SRC=slides.html NAME=deck FORMATS=review\n"
+            f"bash {SKILLS_PATH}/presentation/scripts/build.sh 2>&1 | tail -40\n"
+            "ls -la /var/tmp/deck/build/review 2>&1 | tail -8\n"
+            "echo \"render-source=$(cat /var/tmp/deck/build/review/render-source* 2>/dev/null | tr -d '\\n')\"\n",
+            timeout_seconds=2400,
+        ))
+
+    def write_a_document(self, machine):
+        """The document skill, run under the interpreter the package carries.
+
+        The skills reach their wheels through that interpreter and not through
+        Debian's python3, so naming it here is what the box does rather than a
+        shortcut around a bootstrap.
+        """
+        (machine.share_directory / "report.md").write_text(DOCUMENT_SOURCE)
+        return self.said(machine.shell(
+            "set -u\n"
+            "install -d /var/tmp/documents\n"
+            f"cp {SHARE_PATH}/report.md /var/tmp/documents/report.md\n"
+            "cd /var/tmp/documents\n"
+            f"skills={SKILLS_PATH}/document/scripts\n"
+            f"{DOCUMENT_PYTHON_PATH} $skills/skill_runtime.py python $skills/export_document.py "
+            "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20\n"
+            f"{DOCUMENT_PYTHON_PATH} $skills/skill_runtime.py python $skills/validate_docx.py "
+            "/var/tmp/documents/report.docx 2>&1 | tail -20\n"
+            "ls -la /var/tmp/documents 2>&1 | tail -6\n",
+            timeout_seconds=1800,
+        ))
+
+    def a_member_says_something(self, machine):
+        """A member signs in, says something, and the company answers.
+
+        The guest's messenger has to know the member before it will take
+        anything they sign, and admind puts them in the relay's roster after
+        the box is already answering. Waiting for that is waiting for a
+        precondition rather than retrying a failure.
+        """
+        member_id = self.plane.member_identity(self.company_id)
+        messenger_identity = (
+            self.plane.wait_until_the_member_holds_a_messenger_credential(member_id) if member_id else ""
+        )
+        roster = self.wait_in_the_guest(
+            machine,
+            ROSTER_COMMAND % {"path": MESSENGER_DATABASE_PATH, "pubkey": messenger_identity or "nobody"},
+            lambda reported: "roster=yes" in reported,
+        )
+        text = f"memory measurement {uuid.uuid4().hex}"
+        session = self.plane.member_session(self.company_id, text)
+        sent = session.get("sent") or {}
+        presence = session.get("presence") or {}
+        return {
+            "isServerConnected": presence.get("isServerConnected"),
+            "status": sent.get("status"),
+            "messageID": sent.get("messageID", ""),
+            "roster": roster.stdout.strip(),
+            "refused": session.get("refused", "")[:400],
+        }
+
+    @staticmethod
+    def wait_in_the_guest(machine, script, is_ready, timeout_seconds=600):
+        deadline = now() + timeout_seconds
+        while True:
+            reading = machine.shell(script)
+            if is_ready(reading.stdout) or now() > deadline:
+                return reading
+            time.sleep(5)
+
+    @staticmethod
+    def said(completed):
+        return {
+            "exit": completed.returncode,
+            "said": (completed.stdout + completed.stderr).strip()[-1500:],
+        }
+
+
+    def summarize(self, reading):
+        """What the samples say, phase by phase, in the shape the report needs."""
+        lines = []
+        for phase in reading.phases:
+            inside = [
+                sample for sample in reading.samples
+                if phase["started"] <= sample["at"] <= phase["ended"]
+            ]
+            if not inside:
+                continue
+            least_available = min(sample["meminfo"]["MemAvailable"] for sample in inside)
+            total = inside[0]["meminfo"]["MemTotal"]
+            lines.append(
+                f"   {phase['name']}: least available {least_available // 1024} MiB of {total // 1024} MiB"
+            )
+            for name, held in sorted(
+                self.peak_by_unit(inside).items(), key=lambda pair: -pair[1]["anon"]
+            )[:6]:
+                lines.append(
+                    f"      {name}: anon {held['anon'] // 1048576} MiB, holding {held['current'] // 1048576} MiB"
+                )
+        killed = self.killed_units(reading.samples)
+        if killed:
+            lines.append("   the kernel killed something in: " + ", ".join(killed))
+        return "\n".join(lines)
+
+    @staticmethod
+    def peak_by_unit(samples):
+        peaks = {}
+        for sample in samples:
+            for name, held in sample["cgroups"].items():
+                if not name.endswith(".service"):
+                    continue
+                short = name.rsplit("/", 1)[-1]
+                if held["anon"] > peaks.get(short, {"anon": -1})["anon"]:
+                    peaks[short] = held
+        return peaks
+
+    @staticmethod
+    def killed_units(samples):
+        if not samples:
+            return []
+        killed = []
+        for name, held in samples[-1]["cgroups"].items():
+            if name.endswith(".service") and held.get("oom_kill"):
+                killed.append(f"{name.rsplit('/', 1)[-1]} ({held['oom_kill']})")
+        return killed
+
+    def write_record(self):
+        MEASUREMENT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        path = MEASUREMENT_DIRECTORY / f"{time.strftime('%Y%m%dT%H%M%S')}.json"
+        path.write_text(json.dumps({
+            "architecture": ARCHITECTURE,
+            "readings": [reading.as_record() for reading in self.readings],
+        }, indent=2))
+        return path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--package-directory", default=str(DEFAULT_PACKAGE_DIRECTORY))
+    parser.add_argument(
+        "--memory-mebibytes", type=int, action="append", dest="sizes",
+        help="one guest per size, in the order given (default: %s)" % ", ".join(str(size) for size in DEFAULT_SIZES),
+    )
+    parser.add_argument(
+        "--swap-mebibytes", type=int, default=0,
+        help="give each guest a swapfile of this size; the board itself swaps to zram through rpi-swap",
+    )
+    parser.add_argument("--name-prefix", default=f"internkim-memory-{uuid.uuid4().hex[:6]}")
+    parser.add_argument("--keep", action="store_true", help="leave each guest up for autopsy")
+    parser.add_argument(
+        "--kernel",
+        default=str(KERNEL_IMAGE_PATH),
+        help="the guest kernel; the CM5's 16 KB pages come from INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE=16k tools/prepare-container-kernel",
+    )
+    options = parser.parse_args()
+    options.sizes = options.sizes or list(DEFAULT_SIZES)
+
+    measurement = Measurement(options)
+    working = Path(MEASUREMENT_DIRECTORY) / ("run-" + time.strftime("%Y%m%dT%H%M%S"))
+    working.mkdir(parents=True, exist_ok=True)
+    measurement.working_directory = working
+
+    packages = measurement.packages_under_test()
+    if not packages:
+        print(
+            f"✗ no {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}; "
+            "`internkim release deb --architecture arm64` builds one",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"the package:  {packages[0].name}")
+    print(f"the sizes:    {', '.join(str(size) + ' MiB' for size in options.sizes)}")
+    print(f"the kernel:   {options.kernel}")
+    print(f"the workings: {working}")
+    print()
+
+    try:
+        measurement.prepare_release(packages[0])
+        for size in options.sizes:
+            print(f"── {size} MiB ──", flush=True)
+            reading = measurement.measure(size, packages[0])
+            print(measurement.summarize(reading), flush=True)
+            if reading.stopped_at:
+                print(f"   stopped at: {reading.stopped_at}", flush=True)
+    finally:
+        if measurement.plane:
+            if measurement.company_id:
+                measurement.plane.forget_the_company_computer(measurement.company_id)
+            measurement.plane.stop()
+        if measurement.release:
+            measurement.release.stop()
+        path = measurement.write_record()
+        print()
+        print(f"what was read: {path}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
