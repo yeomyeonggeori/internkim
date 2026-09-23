@@ -12,6 +12,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import PersonNameCell from '$lib/components/person-name-cell.svelte';
 	import { goto } from '$app/navigation';
@@ -24,6 +25,7 @@
 	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './runs-view';
 	import { tasksText } from './text';
 	import RetryTaskButton from './retry-task-button.svelte';
+	import InboundMessages from './inbound-messages.svelte';
 
 	const text = createPageText(tasksText);
 	const taskPageSize = 15;
@@ -39,6 +41,7 @@
 	let actionError = $state('');
 	let isLoading = $state(false);
 	let isAdmin = $state(false);
+	let selectedView = $state('tasks');
 	let deletingTaskRunIDs = $state<Set<string>>(new Set());
 	let taskPageCount = $derived(Math.max(1, Math.ceil(totalTaskRunCount / taskPageSize)));
 	let hasNextTaskPage = $derived(taskPageIndex + 1 < taskPageCount);
@@ -206,6 +209,17 @@
 </svelte:head>
 
 <main class="grid min-h-full w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+	{#if isAdmin}
+		<Tabs.Root bind:value={selectedView}>
+			<Tabs.List>
+				<Tabs.Trigger value="tasks">{text.viewTasks}</Tabs.Trigger>
+				<Tabs.Trigger value="inbound">{text.viewInbound}</Tabs.Trigger>
+			</Tabs.List>
+		</Tabs.Root>
+	{/if}
+	{#if isAdmin && selectedView === 'inbound'}
+		<InboundMessages {text} />
+	{:else}
 	<section class="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 			<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>
@@ -437,5 +451,6 @@
 				ariaLabel={text.paginationLabel}
 			/>
 		</div>
+	{/if}
 	{/if}
 </main>

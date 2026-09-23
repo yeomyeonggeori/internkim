@@ -72,8 +72,17 @@ export function createDevTasksMockResponse(
 	if (request.method === 'GET' && request.pathname === '/runs/api') {
 		return { status: 200, body: paginatedTaskRuns(state.taskRuns, request.searchParams) };
 	}
-	if (request.method === 'GET' && request.pathname === '/runs/api/run-detail') {
+	if (request.method === 'GET' && request.pathname === '/runs/api/detail') {
 		return taskDetailResponse(state, request.searchParams);
+	}
+	if (request.method === 'GET' && request.pathname === '/runs/api/llm-call') {
+		return { status: 200, body: devLLMCallExchange(request.searchParams.get('id') ?? '') };
+	}
+	if (request.method === 'GET' && request.pathname === '/runs/api/inbound') {
+		return { status: 200, body: devInboundMessages(state.taskRuns) };
+	}
+	if (request.method === 'GET' && request.pathname === '/runs/api/turn-input') {
+		return { status: 200, body: devTurnInput() };
 	}
 	if (request.method === 'DELETE' && request.pathname.startsWith('/runs/api/')) {
 		return deleteTaskRunResponse(state, request.pathname);
@@ -89,7 +98,10 @@ export function createDevTasksMockResponse(
 
 function shouldHandleDevTasksMockRequest(method: string, pathname: string): boolean {
 	if (method === 'GET' && pathname === '/runs/api') return true;
-	if (method === 'GET' && pathname === '/runs/api/run-detail') return true;
+	if (method === 'GET' && pathname === '/runs/api/detail') return true;
+	if (method === 'GET' && pathname === '/runs/api/llm-call') return true;
+	if (method === 'GET' && pathname === '/runs/api/inbound') return true;
+	if (method === 'GET' && pathname === '/runs/api/turn-input') return true;
 	if (method === 'DELETE' && pathname.startsWith('/runs/api/')) return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/tasks') return true;
 	if (method === 'GET' && pathname === '/admin/api/diagnostics/service-logs') return true;
@@ -133,7 +145,7 @@ function deleteTaskRunResponse(state: DevTasksMockState, pathname: string): DevM
 	return { status: 200, body: { status: 'deleted', taskRunID } };
 }
 
-function createDevTaskDetail(taskRun: TaskRunSummary): TaskDetail {
+function createDevTaskDetail(taskRun: TaskRunSummary): Omit<TaskDetail, 'taskEvents'> & { taskEvents: WireTaskEvent[] } {
 	return {
 		taskRun: {
 			...taskRun,
@@ -146,9 +158,11 @@ function createDevTaskDetail(taskRun: TaskRunSummary): TaskDetail {
 	};
 }
 
-function createDevTaskEvents(taskRun: TaskRunSummary): TaskEvent[] {
+function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 	return [
 		taskEvent('task.created', taskRun.prompt ?? '', taskRun.createdAt),
+		taskEvent('llm.call', devDecisionRecord(['dev-message-001']), taskRun.createdAt, `${taskRun.taskRunID}-decision`),
+		taskEvent('task.turn_input', { $part: '0'.repeat(64) }, taskRun.createdAt, `${taskRun.taskRunID}-turn-input`),
 		taskEvent('llm.call', {
 			kind: 'structured',
 			schemaName: 'bluecollar_agent_turn_action',
@@ -160,8 +174,9 @@ function createDevTaskEvents(taskRun: TaskRunSummary): TaskEvent[] {
 			promptTokens: 34170,
 			completionTokens: 268,
 			totalTokens: 34438,
-			costUSD: taskRun.llmCostUSD ?? 0.0089445
-		}, taskRun.createdAt),
+			costUSD: taskRun.llmCostUSD ?? 0.0089445,
+			seed: 1234567
+		}, taskRun.createdAt, `${taskRun.taskRunID}-turn`),
 		taskEvent('agent.action', {
 			action: 'continue',
 			toolName: 'site_serve',
@@ -205,8 +220,11 @@ function createDevTaskEvents(taskRun: TaskRunSummary): TaskEvent[] {
 	];
 }
 
-function taskEvent(name: string, body: unknown, createdAt?: string): TaskEvent {
+type WireTaskEvent = Omit<TaskEvent, 'id'> & { taskEventID?: string };
+
+function taskEvent(name: string, body: unknown, createdAt?: string, taskEventID?: string): WireTaskEvent {
 	return {
+		taskEventID,
 		name,
 		body: typeof body === 'string' ? body : JSON.stringify(body),
 		createdAt
@@ -313,4 +331,80 @@ function positiveIntegerFromSearch(searchParams: URLSearchParams, key: string, f
 	const value = Number(searchParams.get(key));
 	if (!Number.isFinite(value) || value < 0) return fallback;
 	return Math.floor(value);
+}
+
+function devDecisionRecord(decidedMessageIDs: string[]) {
+	return {
+		kind: 'decision',
+		transport: 'decisions',
+		model: 'z-ai/glm-5.3-flash',
+		latencyMs: 812,
+		costUSD: 0.00021,
+		decidedMessageIDs,
+		decisionAnswers: {
+			'm1.target': { type: 'choice', choice: 'room', probabilities: { bot: 0.08, human: 0.21, room: 0.71 } },
+			'm1.shouldRespond': { type: 'noul', noul: 0.06 },
+			'm1.reaction': { type: 'choice', choice: 'react', probabilities: { react: 0.62, none: 0.38 } },
+			'm1.reactionEmoji': { type: 'choice', choice: 'tada', probabilities: { tada: 0.71, thumbsup: 0.22, eyes: 0.07 } },
+			'm1.duty': { type: 'choice', choice: 'none', probabilities: { none: 0.97 } }
+		},
+		decisionDraws: { 'm1.reaction': 0.81 }
+	};
+}
+
+function devLLMCallExchange(llmCallID: string) {
+	if (llmCallID.endsWith('-decision')) {
+		return {
+			request: JSON.stringify({
+				model: 'z-ai/glm-5.3-flash',
+				state: { messages: [{ messageID: 'dev-message-001', senderName: '박예시', prompt: '다음 주 출시 확정됐어요!' }], conversationType: 'channel' },
+				questions: { 'm1.target': {}, 'm1.shouldRespond': {}, 'm1.reaction': {}, 'm1.reactionEmoji': {}, 'm1.duty': {} }
+			}),
+			response: JSON.stringify({ model: 'z-ai/glm-5.3-flash', provider: 'Example', answers: {} }),
+			input: JSON.stringify({ conversationType: 'channel', messages: [{ id: 'dev-message-001', senderName: '박예시', text: '다음 주 출시 확정됐어요!' }] })
+		};
+	}
+	return {
+		request: JSON.stringify({
+			model: 'google/gemini-3.1-flash-lite',
+			messages: [
+				{ role: 'system', content: '당신은 회사의 에이전트 김인턴입니다. 요청을 끝까지 처리하고, 한 일을 증거로 남깁니다.' },
+				{ role: 'user', content: [{ type: 'text', text: '귤 소개 사이트 만들어줘' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw0KGgo' } }] }
+			],
+			tools: ['site_serve', 'file_read', 'file_write', 'message_send'].map((name) => ({ type: 'function', function: { name, parameters: {} } })),
+			response_format: { type: 'json_schema', json_schema: { name: 'bluecollar_agent_turn_action', schema: { type: 'object' } } },
+			seed: 1234567
+		}),
+		response: JSON.stringify({
+			provider: 'Google',
+			choices: [{
+				finish_reason: 'tool_calls',
+				message: {
+					role: 'assistant',
+					reasoning: '사이트 생성 요청이므로 site_serve를 호출한다.',
+					tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'site_serve', arguments: '{"title":"맛있는 귤 세상","slug":"tasty-tangerine"}' } }]
+				}
+			}]
+		})
+	};
+}
+
+function devTurnInput() {
+	return {
+		RequesterName: '이샘플',
+		ConversationType: 'dm',
+		Prompt: '귤 소개 사이트 만들어줘',
+		ToolSet: { toolNames: ['file_read', 'file_write', 'message_send', 'site_serve'] },
+		TurnStartedAt: '2026-06-17T01:00:00Z'
+	};
+}
+
+function devInboundMessages(taskRuns: TaskRunSummary[]) {
+	const receivedAt = (minutesAgo: number) => new Date(Date.UTC(2026, 5, 17, 1, 0, 0) - minutesAgo * 60 * 1000).toISOString();
+	return [
+		{ externalMessageID: 'dev-message-001', conversationID: 'channel-general', senderName: '박예시', promptPreview: '다음 주 출시 확정됐어요!', connectorStatus: 'succeeded', ingestedAt: receivedAt(2), result: { handled: true, ignored: true, reason: 'addressing_room dutyMatch=false' }, decision: devDecisionRecord(['dev-message-001']) },
+		{ externalMessageID: 'dev-message-002', conversationID: 'channel-general', senderName: '이샘플', promptPreview: '@김인턴 회의록 정리해줘', connectorStatus: 'succeeded', ingestedAt: receivedAt(5), result: { handled: true, taskRunID: taskRuns[0]?.taskRunID } },
+		{ externalMessageID: 'dev-message-003', conversationID: 'channel-general', senderName: '최견본', promptPreview: '다들 고생 많았어요, 오늘 회식 있습니다', connectorStatus: 'succeeded', ingestedAt: receivedAt(9), result: { handled: true, ignored: true, reason: 'addressing_react_only' }, decision: { ...devDecisionRecord(['dev-message-003']), decisionDraws: { 'm1.reaction': 0.12 } } },
+		{ externalMessageID: 'dev-message-004', conversationID: 'channel-general', senderName: '박예시', promptPreview: '점심 뭐 먹지', connectorStatus: 'pending', ingestedAt: receivedAt(12), result: {} }
+	];
 }

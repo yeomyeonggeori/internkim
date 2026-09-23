@@ -75,7 +75,7 @@ func TestStructuredLLMFailurePersistsProviderExchanges(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	var evidence struct {
-		Exchanges llmbackend.FailureCaptureSnapshot `json:"exchanges"`
+		Exchanges llmbackend.ExchangeCaptureSnapshot `json:"exchanges"`
 	}
 	if errorValue := json.Unmarshal(document, &evidence); errorValue != nil {
 		t.Fatal(errorValue)
@@ -110,7 +110,7 @@ func TestStructuredLLMFailurePersistsProviderExchanges(t *testing.T) {
 	}
 }
 
-func TestStructuredLLMSuccessDoesNotWriteFailureEvidence(t *testing.T) {
+func TestStructuredLLMSuccessAnswersWithItsWireExchangeAndNoEvidence(t *testing.T) {
 	providerServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		responseWriter.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(responseWriter, `{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)
@@ -140,5 +140,18 @@ func TestStructuredLLMSuccessDoesNotWriteFailureEvidence(t *testing.T) {
 	evidenceFiles, errorValue := filepath.Glob(filepath.Join(llmbackend.FailureEvidenceDirectory(workspacePath), "*.json"))
 	if errorValue != nil || len(evidenceFiles) != 0 {
 		t.Fatalf("expected no evidence files, files=%v error=%v", evidenceFiles, errorValue)
+	}
+	var answer struct {
+		Content      string                  `json:"content"`
+		WireExchange llmbackend.WireExchange `json:"wireExchange"`
+	}
+	if errorValue := json.Unmarshal(responseRecorder.Body.Bytes(), &answer); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if answer.Content == "" || !strings.HasPrefix(answer.WireExchange.Endpoint, providerServer.URL) {
+		t.Fatalf("expected the answer beside the exchange that produced it, got %s", responseRecorder.Body.String())
+	}
+	if !strings.Contains(answer.WireExchange.Request, `"router-model"`) || !strings.Contains(answer.WireExchange.Response, `{\"reply\":\"ok\"}`) {
+		t.Fatalf("expected the provider's own request and response bytes, got %+v", answer.WireExchange)
 	}
 }

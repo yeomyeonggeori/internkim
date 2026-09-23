@@ -55,7 +55,7 @@ describe('dev tasks mock plugin', () => {
 		const state = createDevTasksMockState('admin@example.com');
 		const response = await createDevTasksMockResponse(state, {
 			method: 'GET',
-			pathname: '/runs/api/run-detail',
+			pathname: '/runs/api/detail',
 			searchParams: new URLSearchParams('taskRunID=dev-task-run-001')
 		});
 

@@ -2,7 +2,8 @@
 	import { page } from '$app/state';
 	import { taskListPathOf } from '$lib/app-shell';
 	import { displayPersonName } from '$lib/person-name.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
+	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { CopyButton } from '$lib/components/ui/copy-button';
@@ -22,6 +23,9 @@
 	import { onDestroy } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
 	import RetryTaskButton from '../retry-task-button.svelte';
+	import LLMCallEvent from '../llm-call-event.svelte';
+	import TurnInputEvent from '../turn-input-event.svelte';
+	import { readLLMCallRecord } from '../llm-calls';
 	import {
 		eventLane,
 		fetchServiceLogs,
@@ -335,20 +339,30 @@
 							<div class="flex flex-col gap-3">
 								{#each visibleTaskEvents as taskEvent, index (`${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`)}
 									{@const lane = eventLane(taskEvent.name)}
-									<article class={`overflow-hidden rounded-lg border ${eventLaneClass(lane)}`}>
-										<div class="flex flex-col gap-2 px-3 py-3">
-											<div class="flex min-w-0 flex-wrap items-center gap-2">
-												<Badge variant={eventLaneBadgeVariant(lane)}>{eventLaneLabel(lane)}</Badge>
-												<code class="min-w-0 flex-1 truncate text-xs">{taskEvent.name}</code>
-												<span class="text-xs whitespace-nowrap text-muted-foreground">{formatTaskTimestamp(taskEvent.createdAt)}</span>
-												<CopyButton text={taskEventShareText(taskEvent, index + 1)} variant="ghost" size="sm">
-													<span>{text.copyEvent}</span>
-												</CopyButton>
+									{@const llmCallRecord = lane === 'llm' ? readLLMCallRecord(taskEvent.body) : undefined}
+									{#if llmCallRecord}
+										<LLMCallEvent llmCallID={taskEvent.id} record={llmCallRecord} createdAt={taskEvent.createdAt} {text} />
+									{:else if taskEvent.name === 'task.turn_input' && taskEvent.id}
+										<TurnInputEvent taskEventID={taskEvent.id} createdAt={taskEvent.createdAt} {text} />
+									{:else}
+										<Collapsible.Root class={`overflow-hidden rounded-lg border ${eventLaneClass(lane)}`}>
+											<div class="flex flex-col gap-2 px-3 py-3">
+												<div class="flex min-w-0 flex-wrap items-center gap-2">
+													<Badge variant={eventLaneBadgeVariant(lane)}>{eventLaneLabel(lane)}</Badge>
+													<code class="min-w-0 flex-1 truncate text-xs">{taskEvent.name}</code>
+													<span class="text-xs whitespace-nowrap text-muted-foreground">{formatTaskTimestamp(taskEvent.createdAt)}</span>
+													<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'xs' })}>{text.rawJSON}</Collapsible.Trigger>
+													<CopyButton text={taskEventShareText(taskEvent, index + 1)} variant="ghost" size="sm">
+														<span>{text.copyEvent}</span>
+													</CopyButton>
+												</div>
+												<p class="line-clamp-2 text-xs break-words text-muted-foreground">{taskEventPreview(taskEvent)}</p>
 											</div>
-											<p class="line-clamp-2 text-xs break-words text-muted-foreground">{taskEventPreview(taskEvent)}</p>
-										</div>
-										<pre class="max-h-80 overflow-auto border-t bg-background/70 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{formatEventBody(taskEvent.body)}</pre>
-									</article>
+											<Collapsible.Content>
+												<pre class="max-h-80 overflow-auto border-t bg-background/70 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{formatEventBody(taskEvent.body)}</pre>
+											</Collapsible.Content>
+										</Collapsible.Root>
+									{/if}
 								{/each}
 							</div>
 						{/if}

@@ -16,7 +16,7 @@ func FailureEvidenceDirectory(workspacePath string) string {
 	return filepath.Join(workspacePath, ".blueclaw", "llm-failures")
 }
 
-func WriteFailureEvidence(workspacePath string, request any, capture *FailureCapture) (string, error) {
+func WriteFailureEvidence(workspacePath string, request any, capture *ExchangeCapture) (string, error) {
 	directoryPath := FailureEvidenceDirectory(workspacePath)
 	if errorValue := os.MkdirAll(directoryPath, 0700); errorValue != nil {
 		return "", errorValue
@@ -27,9 +27,9 @@ func WriteFailureEvidence(workspacePath string, request any, capture *FailureCap
 	}
 	identifier := hex.EncodeToString(identifierBytes)
 	document, errorValue := json.Marshal(struct {
-		CreatedAt time.Time              `json:"createdAt"`
-		Request   any                    `json:"request"`
-		Exchanges FailureCaptureSnapshot `json:"exchanges"`
+		CreatedAt time.Time               `json:"createdAt"`
+		Request   any                     `json:"request"`
+		Exchanges ExchangeCaptureSnapshot `json:"exchanges"`
 	}{time.Now().UTC(), request, capture.Snapshot()})
 	if errorValue != nil {
 		return "", errorValue

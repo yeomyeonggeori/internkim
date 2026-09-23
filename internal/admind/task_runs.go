@@ -67,6 +67,12 @@ func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, reque
 		service.proxyScopedTaskApproval(responseWriter, request, viewerEmail, isViewerAdmin)
 	case "/runs/api/retry":
 		service.proxyScopedTaskRetry(responseWriter, request, viewerEmail, isViewerAdmin)
+	case "/runs/api/llm-call":
+		service.proxyAdminOnlyRunsRead(responseWriter, request, isViewerAdmin, "/admin/api/run/llm-call", "id")
+	case "/runs/api/turn-input":
+		service.proxyAdminOnlyRunsRead(responseWriter, request, isViewerAdmin, "/admin/api/run/turn-input", "id")
+	case "/runs/api/inbound":
+		service.proxyAdminOnlyRunsRead(responseWriter, request, isViewerAdmin, "/admin/api/connector/events", "conversationID", "messageID", "limit")
 	default:
 		if request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/runs/api/") {
 			service.proxyScopedTaskDelete(responseWriter, request, viewerEmail, isViewerAdmin)
@@ -193,6 +199,29 @@ func (service *Service) proxyScopedTaskDetail(responseWriter http.ResponseWriter
 	}
 	inlineLLMFailureEvidence(service.Configuration.BlueclawWorkspacePath, detail, isViewerAdmin)
 	service.writeJSON(responseWriter, detail)
+}
+
+func (service *Service) proxyAdminOnlyRunsRead(responseWriter http.ResponseWriter, request *http.Request, isViewerAdmin bool, blueclawPath string, forwardedNames ...string) {
+	if request.Method != http.MethodGet {
+		http.NotFound(responseWriter, request)
+		return
+	}
+	if !isViewerAdmin {
+		http.Error(responseWriter, "only an admin can read what the agent was sent", http.StatusForbidden)
+		return
+	}
+	query := url.Values{}
+	for _, name := range forwardedNames {
+		if value := strings.TrimSpace(request.URL.Query().Get(name)); value != "" {
+			query.Set(name, value)
+		}
+	}
+	var answer any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, blueclawPath+"?"+query.Encode(), nil, &answer); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, answer)
 }
 
 func scopedTaskDetailPath(taskRunID string, viewerEmail string, isViewerAdmin bool) string {

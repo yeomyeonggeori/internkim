@@ -56,7 +56,7 @@ func TestOpenRouterLiveSyntheticTruncationUsesActualFallback(t *testing.T) {
 		}
 		return baseTransport.RoundTrip(request)
 	})}
-	capturedClient, capture := NewFailureCapture(injectedClient)
+	capturedClient, capture := NewExchangeCapture(injectedClient)
 	backend.HTTPClient = capturedClient
 	request := buildLiveTruncationRequest()
 	t.Cleanup(func() {

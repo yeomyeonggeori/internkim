@@ -19,7 +19,7 @@ func TestTaskDetailInlinesExactLLMFailureEvidenceForAdmin(t *testing.T) {
 		_, _ = responseWriter.Write([]byte(`{"answer":"synthetic provider response"}`))
 	}))
 	defer exchangeServer.Close()
-	capturedClient, capture := llmbackend.NewFailureCapture(nil)
+	capturedClient, capture := llmbackend.NewExchangeCapture(nil)
 	response, errorValue := capturedClient.Post(exchangeServer.URL, "application/json", strings.NewReader(`{"prompt":"synthetic provider request"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -73,7 +73,7 @@ func TestTaskDetailInlinesExactLLMFailureEvidenceForAdmin(t *testing.T) {
 
 func TestTaskDetailReportsCorruptedLLMFailureEvidence(t *testing.T) {
 	workspacePath := t.TempDir()
-	_, capture := llmbackend.NewFailureCapture(nil)
+	_, capture := llmbackend.NewExchangeCapture(nil)
 	identifier, errorValue := llmbackend.WriteFailureEvidence(workspacePath, map[string]string{"prompt": "private request"}, capture)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -117,7 +117,7 @@ func TestTaskDetailIgnoresFailureReasonsWithoutEvidenceMarker(t *testing.T) {
 
 func TestTaskDetailDoesNotInlineLLMFailureEvidenceForNonAdmin(t *testing.T) {
 	workspacePath := t.TempDir()
-	_, capture := llmbackend.NewFailureCapture(nil)
+	_, capture := llmbackend.NewExchangeCapture(nil)
 	identifier, errorValue := llmbackend.WriteFailureEvidence(workspacePath, map[string]string{"prompt": "private request"}, capture)
 	if errorValue != nil {
 		t.Fatal(errorValue)

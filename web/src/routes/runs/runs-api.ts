@@ -17,6 +17,7 @@ export type TaskRunSummary = {
 };
 
 export type TaskEvent = {
+	id?: string;
 	name: string;
 	body: string;
 	createdAt?: string;
@@ -293,6 +294,7 @@ function readTaskEvents(entries: unknown): TaskEvent[] {
 		if (!record || typeof record.name !== 'string') return [];
 		return [
 			{
+				id: typeof record.taskEventID === 'string' ? record.taskEventID : undefined,
 				name: record.name,
 				body: typeof record.body === 'string' ? record.body : '',
 				createdAt: typeof record.createdAt === 'string' ? record.createdAt : undefined
