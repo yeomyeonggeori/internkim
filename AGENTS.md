@@ -8,12 +8,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - This document describes the central plane: a company the customer signs into,
   with the agent running on a computer they bring. On 2026-09-02 the device path
   was frozen: Jetson, OTA, the cloud-hypervisor guest, vsock. It keeps working
-  and keeps getting bug fixes, and no new design is implemented against it. Its
-  rules moved to [docs/internal/device/](docs/internal/device/), which a section
-  here links to where the two paths still meet. Mattermost is not part of the
-  freeze: it is being removed.
+  and keeps getting bug fixes, and no new design is implemented against it.
+  `docs/device.mdx` describes it, and "Deploying" below keeps the rules for
+  shipping to one. Mattermost is not part of the freeze: it is being removed.
 - Prefer existing codebase patterns over new abstractions.
-- [Persona](docs/internal/persona-and-recovery.md)
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
 - In new agent worktrees, run
@@ -54,10 +52,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   one undoes that. Fixtures, seeds, and documentation use sample names
   (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
   the database.
-- A new document goes in `docs/internal/`. `docs/` is what a docs site
-  publishes, `docs/private/` is gitignored and holds what nobody needs to open
-  again. `docs/internal/README.md` has the rule and the one constraint: a
-  document that tracked code links to cannot be private.
+- New documentation is public: a page under `docs/` with its `.ko.mdx` sibling
+  (`docs/web/README.md` says how one is registered), or the owning library's
+  `DOCS.md`. `docs/private/` is gitignored throwaway notes; nothing tracked
+  links there.
 
 ## Working on this repository
 
@@ -159,7 +157,7 @@ committing.
   an inventory of what exists is copied from its source or linked, never
   retyped, because a retyped one drifts silently.
 
-Standing documents carry word ceilings in `docs/internal/doc-budgets.json`,
+Standing documents carry word ceilings in `tools/doc-budgets.json`,
 enforced by `tools/verify-doc-budgets`. A red ceiling is fixed by moving
 what belongs elsewhere, then by condensing, and only then by raising the number
 with a reason in the pull request. A ceiling too low for what the document must
@@ -337,7 +335,6 @@ and delete the duplicates.
   as state transitions, approval, cancellation, effects, and evidence.
 - Keep default tests deterministic. Model evaluations require `llmeval`; preserve
   live request, response, routing, tool, timing, and artifact evidence.
-  [Test boundaries](docs/internal/persona-and-recovery.md) define the split.
 - Each gate answers one question, and naming which keeps the slow one from
   becoming a ritual nobody runs:
 
@@ -363,13 +360,11 @@ and delete the duplicates.
   `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
   public API the way an outside client does, then reads the recipient's
   own Buzz inbox for it.
-- The fleet VM is the Linux gate for both paths, and how to drive it is
-  [docs/internal/device/the-local-fleet.md](docs/internal/device/the-local-fleet.md):
-  a run starts a local central plane and joins the VM to it, so the `buzz-*`
-  scenarios above are plane work even though the VM they run in is device
-  machinery. OTA and the guest's ext4 workspace are the frozen half, and the
-  rest of that path is
-  [docs/internal/device/](docs/internal/device/).
+- The fleet VM is the Linux gate for both paths: a run starts a local central
+  plane and joins the VM to it, so the `buzz-*` scenarios above are plane work
+  even though the VM they run in is device machinery.
+  `./internkim dev fleet reprovision` pushes the working tree onto it, but the
+  guest skips a Blueclaw SHA it already has: commit a Blueclaw Go change first.
 
 ## Blueclaw Skill Size Budget
 
@@ -455,7 +450,7 @@ and delete the duplicates.
 
 ## Central Plane (Supabase)
 
-- **Read `docs/internal/saas-design.md` §2 and §6 before shaping anything that
+- **Read `docs/architecture.mdx` and `docs/what-lives-where.mdx` before shaping anything that
   spans the browser, the central plane and the customer's machine.** The shape
   is: a daemon on a company computer that stays on — any hardware, Jetson or
   Mac Studio or a laptop — and users on *other* networks
@@ -471,7 +466,7 @@ and delete the duplicates.
   `-` is the live state and `+` is what you are sending; read it before trusting
   a green exit.
 - The company web app runs on Supabase, not on a device. `supabase/migrations`
-  is the schema of record and `docs/internal/core-schema.md` explains it. Never edit an
+  is the schema of record and `docs/record/schema.mdx` explains it. Never edit an
   applied migration; add the next one.
 - Local loop, in this order: `supabase db reset` (schema plus fixtures),
   `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
@@ -570,17 +565,18 @@ and delete the duplicates.
   or already contains `origin/main` HEAD (`git merge-base --is-ancestor
   origin/main HEAD`), including the `.dependency/blueclaw` submodule pointer
   (`git -C .dependency/blueclaw merge-base --is-ancestor origin/main HEAD`).
-  An agent that merges work to `main` and then checks out back to its prior
-  feature branch before building will silently ship that stale branch's code
-  to every component — the deploy tool reports success because it uploaded and
-  applied *something*, not because it applied the intended commit. Verify the
-  actually-running binary's revision after deploy (e.g. grep a string unique to
-  the change in the deployed binary, or check the release ID's embedded git SHA
-  against `git rev-parse HEAD`) rather than trusting a green exit code alone.
-- Everything about deploying a device — OTA releases, `setup`, the two-deploy
-  rule, the local LLM — is [docs/internal/device/deploying-a-device.md](docs/internal/device/deploying-a-device.md).
-  A company on the central plane is deployed by
-  [README.md](README.md)'s "The company web app".
+  Building from a stale branch ships its code everywhere and still reports
+  success. After deploy, grep the running binary for a string unique to the
+  change, or check the release ID's embedded SHA against `git rev-parse HEAD`.
+- A company on the central plane is deployed by
+  [README.md](README.md)'s "The company web app". The rest is the device.
+- The running `admind` applies a device release, so a new component takes two
+  deploys, `admind` first; a release it cannot accept is escaped with
+  `./internkim setup --only admind --force`.
+- Ship `capabilityd`, `blueclawPayload` and `admind` together for any contract
+  or config change; an unknown component name is dropped silently.
+- A green `systemctl` is not a working agent: look for a run newer than the
+  deploy in `internkim task list`.
 - `tools/deploy-main` ships `origin/main` to the device as one operation; it
   refuses a dirty tree, a device ahead of this tree, or a second run.
 
@@ -693,8 +689,6 @@ again.
 
 ## Code style
 
-Naming, function shape, error handling, and the TypeScript rules live in
-[docs/internal/code-style.md](docs/internal/code-style.md).
-
-Tool names and parameters follow
-[docs/internal/tool-naming.md](docs/internal/tool-naming.md).
+Full names, no abbreviations, small functions with guard clauses, no comment
+the code could say; in TypeScript no `any`, `as` or `!`. Tool names follow
+`docs/tools/index.mdx`, enforced by `tools/verify-tool-naming`.

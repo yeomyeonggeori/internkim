@@ -661,8 +661,7 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 // venv resolved on a Mac holds macOS wheels, and one resolved against Python 3.11 does
 // not import under 3.13. So the release builds it inside a throwaway guest of the
 // target architecture running the distribution the package targets, which is also what
-// tools/prepare-buzz-relay does to compile a Linux binary from a Mac. What that costs
-// the release process is written down in docs/internal/native-packaging.md §3.
+// tools/prepare-buzz-relay does to compile a Linux binary from a Mac.
 const (
 	documentVenvBuildImage   = "debian:" + aptrepository.DebianSuite + "-slim"
 	documentVenvBuildRuntime = "container"

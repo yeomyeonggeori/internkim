@@ -776,7 +776,7 @@ class Rig:
             "an HTTP GET inside the guest to "
             + ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES),
             "systemd reports active for a process that answers a socket while refusing all work, "
-            "which is how postmortem 0002 stayed green for forty minutes",
+            "so a green service table says nothing about whether work is being taken",
         ).record(
             bool(answers.stdout.strip())
             and all(line.split()[-1] == "200" for line in answers.stdout.splitlines() if line.strip()),
@@ -979,8 +979,7 @@ def main():
             print(
                 f"✗ native install rig\n"
                 f"    No {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}.\n"
-                f"    The package does not exist yet; docs/internal/native-packaging.md §6 is the\n"
-                f"    plan for building it, and `internkim release deb` is the command that will.\n"
+                f"    Build it with `internkim release deb`.\n"
                 f"    To exercise the rig itself against a stand-in, pass --stand-in.",
                 file=sys.stderr,
             )
