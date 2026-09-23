@@ -74,10 +74,7 @@
 <Accordion.Root type="multiple" bind:value={openValues} class="flex flex-col gap-8">
 	{#each sections as section (section.turnNumber)}
 		<section class="flex flex-col gap-4">
-			<h3 class="flex items-baseline gap-2 border-b pb-2 text-base font-semibold">
-				{sectionTitle(section)}
-				<span class="text-xs font-normal text-muted-foreground tabular-nums">{formatEventClock(section.steps[0]?.entries[0]?.event.createdAt)}</span>
-			</h3>
+			<h3 class="border-b pb-2 text-base font-semibold">{sectionTitle(section)}</h3>
 			{#each section.steps as step (step.number)}
 				{@const prominent = step.entries.filter((entry) => isProminentEvent(entry.event))}
 				{@const background = step.entries.filter((entry) => !isProminentEvent(entry.event))}

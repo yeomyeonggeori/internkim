@@ -14,7 +14,7 @@
 
 	function tokenSummary(): string {
 		if (record.promptTokens === 0 && record.completionTokens === 0) return '';
-		return `${record.promptTokens.toLocaleString()} → ${record.completionTokens.toLocaleString()}`;
+		return text.tokenFlow.replace('{prompt}', record.promptTokens.toLocaleString()).replace('{completion}', record.completionTokens.toLocaleString());
 	}
 
 	function exchangeOnce(llmCallID: string): Promise<Exchange> {

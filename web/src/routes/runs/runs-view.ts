@@ -79,7 +79,7 @@ export function formatTaskTimestamp(value?: string): string {
 	if (!value) return '';
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) return value;
-	return parsed.toLocaleString();
+	return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 export function formatDuration(durationMS?: number): string {

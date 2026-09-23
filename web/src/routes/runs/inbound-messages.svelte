@@ -8,6 +8,7 @@
 	import { onMount } from 'svelte';
 	import DecisionTable from './decision-table.svelte';
 	import { decisionRows, fetchInboundMessages, messageKeyOf, type InboundMessage, type InboundOutcome } from './llm-calls';
+	import { glyphOfEmojiName } from '$lib/messenger/emoji-glyph';
 	import { formatTaskTimestamp } from './runs-view';
 	import type { TasksText } from './text';
 
@@ -60,6 +61,10 @@
 			.replace('{draw}', inboundMessage.reactionDraw?.toFixed(2) ?? '—');
 	}
 
+	function reactionGlyph(emojiName: string): string {
+		return glyphOfEmojiName(emojiName) ?? `:${emojiName}:`;
+	}
+
 	function toggleDecision(messageID: string) {
 		openMessageID = openMessageID === messageID ? '' : messageID;
 	}
@@ -80,7 +85,7 @@
 		</a>
 	{:else}
 		<Badge variant={outcomeVariant(inboundMessage.outcome)} title={inboundMessage.ignoreReason}>
-			{inboundMessage.reactionEmoji && inboundMessage.outcome === 'reacted' ? `${outcomeLabel(inboundMessage.outcome)} · :${inboundMessage.reactionEmoji}:` : outcomeLabel(inboundMessage.outcome)}
+			{inboundMessage.reactionEmoji && inboundMessage.outcome === 'reacted' ? `${outcomeLabel(inboundMessage.outcome)} ${reactionGlyph(inboundMessage.reactionEmoji)}` : outcomeLabel(inboundMessage.outcome)}
 		</Badge>
 	{/if}
 {/snippet}

@@ -220,28 +220,24 @@
 	{#if isAdmin && selectedView === 'inbound'}
 		<InboundMessages {text} />
 	{:else}
-	<section class="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-			<Badge variant="secondary">{totalTaskRunCount.toLocaleString()} {text.taskCount}</Badge>
-			<span>{taskPaginationSummary()}</span>
+	{#if dailyCostRows.length > 0}
+	<section class="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3">
+		<p class="text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
+		<div class="min-w-0 overflow-x-auto">
+			<Table.Root class="min-w-[460px]">
+				<Table.Body>
+					{#each dailyCostRows as summary (summary.date)}
+						<Table.Row class="border-0 hover:bg-transparent">
+							<Table.Cell class="h-7 py-0 pl-0 text-xs text-muted-foreground">{formatCostDate(summary.date)}</Table.Cell>
+							<Table.Cell class="h-7 py-0 text-right text-sm font-medium tabular-nums">{formatCostUSD(summary.costUSD)}</Table.Cell>
+							<Table.Cell class="h-7 py-0 pr-0 text-right text-xs text-muted-foreground">{dailyCostMeta(summary)}</Table.Cell>
+						</Table.Row>
+					{/each}
+				</Table.Body>
+			</Table.Root>
 		</div>
-		{#if dailyCostRows.length > 0}
-			<div class="min-w-0 overflow-x-auto">
-				<Table.Root class="min-w-[460px]">
-					<Table.Body>
-						{#each dailyCostRows as summary (summary.date)}
-							<Table.Row class="border-0 hover:bg-transparent">
-								<Table.Cell class="h-7 py-0 pl-0 text-xs text-muted-foreground">{formatCostDate(summary.date)}</Table.Cell>
-								<Table.Cell class="h-7 py-0 text-right text-sm font-medium tabular-nums">{formatCostUSD(summary.costUSD)}</Table.Cell>
-								<Table.Cell class="h-7 py-0 pr-0 text-right text-xs text-muted-foreground">{dailyCostMeta(summary)}</Table.Cell>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
-				<p class="mt-1 text-right text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
-			</div>
-		{/if}
 	</section>
+	{/if}
 
 	<div class="flex flex-wrap items-center justify-between gap-3">
 		<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
