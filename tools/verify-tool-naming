@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""Fail when a tool we own is named against docs/internal/tool-naming.md.
+
+A tool's name is the only part of it a model sees before deciding to call it.
+When the name uses a different word than its own description, the model learns
+one vocabulary and the runtime answers to another: it asks for a tool that does
+not exist and is told nothing matches, while the tool sits in the catalog.
+
+External MCP servers name their own tools and are not read here.
+"""
+
+import json
+import pathlib
+import re
+import sys
+
+import tool_name_sources as sources
+
+DEBT_PATH = pathlib.Path(__file__).resolve().parent.parent / "docs" / "internal" / "tool-naming-debt.json"
+
+CANONICAL_VERBS = {"add", "list", "get", "update", "delete", "search"}
+
+VERBS_BY_EXCEPTION = {
+    "ask_input": "the ask_ family names the kind of asking, and ask is already the verb",
+    "memory_remember": "remember is what the domain calls the act, and add would lose that",
+    "memory_forget": "forget is the domain's word, and unlike delete it may leave a trace",
+    "crm_opportunity_move": "moves a deal between stages, which is neither an update of named fields nor a delete",
+    "mail_message_move": "moves a message between mailboxes",
+    "mail_message_mark": "marks read or unread without changing the message",
+    "mail_message_read": "fetches one message body, which get would suggest is a record lookup",
+    "mail_message_send": "send is the act, and the domain's own word",
+    "mail_connection_start": "starts an authorization flow rather than creating a record",
+    "mail_connection_status": "reports a live connection, not a stored record",
+    "message_send": "send is the act, and the domain's own word",
+    "message_context": "answers the conversation around one message",
+    "person_invite": "sends an invitation, which no record-level verb describes",
+    "leave_request": "request is the domain's word for asking for leave",
+    "leave_decide": "decide is the domain's word for approving or refusing",
+    "leave_balance": "answers a computed balance, not a stored record",
+    "leave_return_early": "the domain's word for coming back before the leave ends",
+    "leave_grant_set": "writes a grant block whole",
+    "schedule_create": "create is this namespace's settled word",
+    "schedule_cancel": "cancel is the domain's word for stopping a schedule",
+    "company_metric_record": "record is the domain's word for entering a measurement",
+    "company_document_register": "registers a file already in the data room",
+    "company_document_upload": "asks for a place to put a file, not a record write",
+    "company_document_download": "answers bytes, not a record",
+    "crm_activity_save": "saves an activity entry the CRM screens own",
+    "crm_contact_archive": "archiving keeps the record and is not a delete",
+    "crm_opportunity_archive": "archiving keeps the record and is not a delete",
+    "crm_organization_archive": "archiving keeps the record and is not a delete",
+    "conversation_mute": "mute is the domain's word",
+    "conversation_unmute": "unmute is the domain's word",
+    "site_serve": "serve is the act, and the domain's own word",
+    "site_unserve": "unserve is the act, and the domain's own word",
+    "web_fetch": "fetches a page rather than reading a record",
+    "web_search": "search over the web, not over our records",
+    "image_generate": "generate is the act",
+    "artifact_review": "review is the act",
+    "computer_task": "hands one task to the companion computer",
+    "task_vocabulary_set": "writes a vocabulary block whole",
+    "crm_vocabulary_set": "writes a vocabulary block whole",
+    "company_info_set": "writes a settings block whole",
+    "company_settings_update": "changes named settings fields",
+    "notification_settings_set": "writes a settings block whole",
+    "notification_settings_get": "reads a settings block",
+    "attendance_work_policy_set": "writes a policy block whole",
+    "attendance_work_policy_get": "reads a policy block",
+    "attendance_leave_policy_set": "writes a policy block whole",
+    "attendance_leave_policy_get": "reads a policy block",
+    "crm_vocabulary_get": "reads a vocabulary block",
+    "company_settings_get": "reads a settings block",
+    "company_info_get": "reads a settings block",
+    "browser_open": "drives a browser rather than touching a record",
+    "browser_click": "drives a browser rather than touching a record",
+    "browser_fill": "drives a browser rather than touching a record",
+    "browser_press": "drives a browser rather than touching a record",
+    "browser_select": "drives a browser rather than touching a record",
+    "browser_wait": "drives a browser rather than touching a record",
+    "browser_snapshot": "drives a browser rather than touching a record",
+    "browser_screenshot": "drives a browser rather than touching a record",
+}
+
+WORDS_BY_EXCEPTION = {
+    "sha256": "the standard name of the algorithm",
+    "crm": "the namespace, which the descriptions spell out as the customer record",
+    "computer": "names the companion machine the task is handed to",
+}
+
+ABBREVIATIONS = {
+    "ref": "reference",
+    "uid": "identifier",
+    "cfg": "configuration",
+    "config": "configuration",
+    "desc": "description",
+    "msg": "message",
+    "num": "number",
+    "idx": "index",
+    "src": "source",
+    "dst": "destination",
+    "params": "parameters",
+    "opts": "options",
+}
+
+CAMEL_CASE = re.compile(r"[a-z][a-z0-9]*([A-Z][a-z0-9]*)*$")
+GRAMMATICAL = {"to", "of", "by", "in", "on", "at", "for", "the", "a", "an"}
+
+
+def verb_of(tool_name):
+    return tool_name.rsplit("_", 1)[-1]
+
+
+def words_missing_from_description(tool_name, description):
+    lowered = description.lower()
+    missing = []
+    for word in tool_name.split("_")[:-1]:
+        if word in GRAMMATICAL or word in WORDS_BY_EXCEPTION:
+            continue
+        if len(word) < 4:
+            continue
+        if not re.search(rf"\b{re.escape(word)}s?\b", lowered):
+            missing.append(word)
+    return missing
+
+
+def input_schema_of(tool):
+    schema = tool.get("inputSchema") or {}
+    if isinstance(schema, str):
+        schema = json.loads(schema)
+    return schema
+
+
+def parameter_faults(tool_name, schema):
+    for parameter in (schema.get("properties") or {}):
+        if parameter in WORDS_BY_EXCEPTION:
+            continue
+        if not CAMEL_CASE.fullmatch(parameter):
+            yield parameter, f"{tool_name}.{parameter} is not camelCase"
+        for token in re.findall(r"[a-z]+|[A-Z][a-z]*", parameter):
+            spelled = ABBREVIATIONS.get(token.lower())
+            if spelled:
+                yield parameter, f"{tool_name}.{parameter} abbreviates {token}; say {spelled}"
+
+
+def accepted_debt():
+    document = json.loads(DEBT_PATH.read_text())
+    accepted = {("vocabulary", entry["tool"], word) for entry in document["vocabulary"] for word in entry["words"]}
+    accepted |= {("parameter", entry["tool"], entry["parameter"]) for entry in document["abbreviations"]}
+    accepted |= {("verb", entry["tool"], entry["verb"]) for entry in document["verbs"]}
+    return accepted
+
+
+def shape_faults(tool_name):
+    if not re.fullmatch(r"[a-z][a-z0-9]*(_[a-z0-9]+){1,3}", tool_name):
+        yield ("shape", tool_name, tool_name), f"{tool_name} is not <namespace>_<subject>_<verb>"
+    verb = verb_of(tool_name)
+    if verb not in CANONICAL_VERBS and tool_name not in VERBS_BY_EXCEPTION:
+        yield ("verb", tool_name, verb), (
+            f"{tool_name} ends in {verb}, which is not one of {', '.join(sorted(CANONICAL_VERBS))};"
+            f" rename it, or add it to VERBS_BY_EXCEPTION with the reason it needs its own word"
+        )
+
+
+def observed_faults(tool_name, description, schema):
+    yield from shape_faults(tool_name)
+    if not description:
+        yield None, f"{tool_name} has no description, so a model meets it as a name alone"
+        return
+    for word in words_missing_from_description(tool_name, description):
+        yield ("vocabulary", tool_name, word), (
+            f"{tool_name} is named {word} but its description never says it,"
+            f" so a reader learns one word and the tool answers to another"
+        )
+    for parameter, fault in parameter_faults(tool_name, schema):
+        yield ("parameter", tool_name, parameter), fault
+
+
+def model_visible_tools():
+    tools = [tool for tool in sources.catalog_tools() if tool.get("modelVisibility") != "hidden"]
+    if len(tools) < 60:
+        raise SystemExit(f"read only {len(tools)} catalog tools, so this check is reading the wrong place")
+    return tools
+
+
+def stale_exception_faults(tool_names):
+    for tool_name in sorted(set(VERBS_BY_EXCEPTION) - tool_names):
+        yield f"VERBS_BY_EXCEPTION lists {tool_name}, which no tool answers to; remove the entry"
+
+
+def paid_debt_faults(paid):
+    for kind, tool_name, token in sorted(paid):
+        subject = f"{tool_name}.{token}" if kind == "parameter" else f"{tool_name} against {token}"
+
+        yield f"{subject} reads right now; drop it from {DEBT_PATH.name}"
+
+
+def main():
+    tools = model_visible_tools()
+    accepted = accepted_debt()
+    local_tool_names = sources.blueclaw_local_tool_names()
+    observed = [
+        (key, fault)
+        for tool in tools
+        for key, fault in observed_faults(
+            sources.model_name_of(tool), (tool.get("description") or "").strip(), input_schema_of(tool)
+        )
+    ]
+    observed += [(key, fault) for name in sorted(local_tool_names) for key, fault in shape_faults(name)]
+
+    faults = [fault for key, fault in observed if key not in accepted]
+    faults += stale_exception_faults({sources.model_name_of(tool) for tool in tools} | local_tool_names)
+    faults += paid_debt_faults(accepted - {key for key, _ in observed})
+
+    for fault in faults:
+        print(fault, file=sys.stderr)
+    if faults:
+        print(f"\n{len(faults)} naming faults; docs/internal/tool-naming.md is the convention", file=sys.stderr)
+        return 1
+    print(
+        f"ok {len(tools)} catalog and {len(local_tool_names)} local tools named against"
+        f" docs/internal/tool-naming.md, {len(accepted)} accepted faults left to pay down"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,286 @@
+{
+  "note": "Tools whose name uses a word their own description never says. docs/internal/tool-naming.md explains why that misleads a model. Entries leave this file when the tool or its description is fixed; nothing may be added.",
+  "vocabulary": [
+    {
+      "tool": "attendance_add",
+      "words": [
+        "attendance"
+      ]
+    },
+    {
+      "tool": "attendance_leave_policy_get",
+      "words": [
+        "attendance",
+        "policy"
+      ]
+    },
+    {
+      "tool": "attendance_leave_policy_set",
+      "words": [
+        "attendance"
+      ]
+    },
+    {
+      "tool": "attendance_work_policy_get",
+      "words": [
+        "attendance"
+      ]
+    },
+    {
+      "tool": "attendance_work_policy_set",
+      "words": [
+        "attendance"
+      ]
+    },
+    {
+      "tool": "company_document_download",
+      "words": [
+        "company"
+      ]
+    },
+    {
+      "tool": "company_document_update",
+      "words": [
+        "company"
+      ]
+    },
+    {
+      "tool": "company_document_upload",
+      "words": [
+        "company"
+      ]
+    },
+    {
+      "tool": "company_info_set",
+      "words": [
+        "info"
+      ]
+    },
+    {
+      "tool": "company_settings_get",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "tool": "company_settings_update",
+      "words": [
+        "settings"
+      ]
+    },
+    {
+      "tool": "crm_activity_list",
+      "words": [
+        "activity"
+      ]
+    },
+    {
+      "tool": "crm_contact_add",
+      "words": [
+        "contact"
+      ]
+    },
+    {
+      "tool": "crm_contact_archive",
+      "words": [
+        "contact"
+      ]
+    },
+    {
+      "tool": "crm_contact_list",
+      "words": [
+        "contact"
+      ]
+    },
+    {
+      "tool": "crm_contact_update",
+      "words": [
+        "contact"
+      ]
+    },
+    {
+      "tool": "crm_opportunity_add",
+      "words": [
+        "opportunity"
+      ]
+    },
+    {
+      "tool": "crm_opportunity_archive",
+      "words": [
+        "opportunity"
+      ]
+    },
+    {
+      "tool": "crm_opportunity_list",
+      "words": [
+        "opportunity"
+      ]
+    },
+    {
+      "tool": "crm_opportunity_move",
+      "words": [
+        "opportunity"
+      ]
+    },
+    {
+      "tool": "crm_opportunity_update",
+      "words": [
+        "opportunity"
+      ]
+    },
+    {
+      "tool": "crm_vocabulary_get",
+      "words": [
+        "vocabulary"
+      ]
+    },
+    {
+      "tool": "crm_vocabulary_set",
+      "words": [
+        "vocabulary"
+      ]
+    },
+    {
+      "tool": "leave_return_early",
+      "words": [
+        "return"
+      ]
+    },
+    {
+      "tool": "mail_connection_status",
+      "words": [
+        "connection"
+      ]
+    },
+    {
+      "tool": "mail_message_list",
+      "words": [
+        "mail"
+      ]
+    },
+    {
+      "tool": "mail_message_mark",
+      "words": [
+        "mail",
+        "message"
+      ]
+    },
+    {
+      "tool": "mail_message_move",
+      "words": [
+        "mail"
+      ]
+    },
+    {
+      "tool": "mail_message_read",
+      "words": [
+        "mail",
+        "message"
+      ]
+    },
+    {
+      "tool": "mail_message_send",
+      "words": [
+        "message"
+      ]
+    },
+    {
+      "tool": "message_context",
+      "words": [
+        "message"
+      ]
+    },
+    {
+      "tool": "notification_settings_get",
+      "words": [
+        "notification",
+        "settings"
+      ]
+    },
+    {
+      "tool": "notification_settings_set",
+      "words": [
+        "notification",
+        "settings"
+      ]
+    },
+    {
+      "tool": "schedule_list",
+      "words": [
+        "schedule"
+      ]
+    },
+    {
+      "tool": "task_vocabulary_set",
+      "words": [
+        "vocabulary"
+      ]
+    },
+    {
+      "tool": "team_add",
+      "words": [
+        "team"
+      ]
+    },
+    {
+      "tool": "team_delete",
+      "words": [
+        "team"
+      ]
+    },
+    {
+      "tool": "team_list",
+      "words": [
+        "team"
+      ]
+    },
+    {
+      "tool": "team_update",
+      "words": [
+        "team"
+      ]
+    }
+  ],
+  "abbreviations": [
+    {
+      "tool": "browser_click",
+      "parameter": "ref"
+    },
+    {
+      "tool": "browser_fill",
+      "parameter": "ref"
+    },
+    {
+      "tool": "browser_select",
+      "parameter": "ref"
+    },
+    {
+      "tool": "browser_wait",
+      "parameter": "ref"
+    },
+    {
+      "tool": "mail_message_mark",
+      "parameter": "uid"
+    },
+    {
+      "tool": "mail_message_move",
+      "parameter": "uid"
+    },
+    {
+      "tool": "mail_message_read",
+      "parameter": "uid"
+    }
+  ],
+  "verbs": [
+    {
+      "tool": "persona_read",
+      "verb": "read",
+      "says": "get"
+    },
+    {
+      "tool": "skill_remove",
+      "verb": "remove",
+      "says": "delete"
+    }
+  ]
+}
