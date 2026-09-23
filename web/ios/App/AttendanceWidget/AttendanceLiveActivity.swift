@@ -22,7 +22,7 @@ struct AttendanceLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    WorkedSince(start: context.state.startedMoment, isCompact: false)
+                    WorkedSince(start: context.state.countingFrom, isCompact: false)
                         .font(.title3.monospacedDigit().weight(.medium))
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: 110)
@@ -33,7 +33,7 @@ struct AttendanceLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "bolt.fill").foregroundStyle(.purple)
             } compactTrailing: {
-                WorkedSince(start: context.state.startedMoment, isCompact: true)
+                WorkedSince(start: context.state.countingFrom, isCompact: true)
                     .monospacedDigit()
                     .frame(maxWidth: 56)
             } minimal: {
@@ -63,7 +63,7 @@ private struct AttendanceLockScreenView: View {
             }
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
-                    WorkedSince(start: state.startedMoment, isCompact: false)
+                    WorkedSince(start: state.countingFrom, isCompact: false)
                         .font(.system(size: 28, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white)
                     Text(clockedInLine(state))

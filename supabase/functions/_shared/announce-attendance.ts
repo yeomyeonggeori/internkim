@@ -42,7 +42,7 @@ export async function announceClock(
 		icon: announcerPicture
 	};
 	const ownAlert = { title: clocked.kind === 'clock_in' ? '출근' : '퇴근', body: notification.body };
-	await showClockOnOwnPhones(record, memberID, clocked, ownAlert, pushKeys, nowInSeconds);
+	await showClockOnOwnPhones(record, memberID, clocked, ownAlert, pushKeys, nowInSeconds, companyZoneOf(announcer));
 	await refreshOwnWidgets(record, memberID, clocked.kind, pushKeys, nowInSeconds);
 	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
@@ -106,6 +106,12 @@ async function memberOf(record: SupabaseClient, memberID: string): Promise<Membe
 		.single<Member>();
 	if (error) throw new Error(error.message);
 	return data;
+}
+
+export function companyZoneOf(member: Member): string {
+	const timeZone = member.company?.timezone ?? '';
+	if (!timeZone) throw new Error(`member ${member.id} belongs to no company with a time zone`);
+	return timeZone;
 }
 
 export function zoneOf(member: Member): string {
