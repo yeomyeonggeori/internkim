@@ -88,10 +88,37 @@ struct AttendanceProvider: AppIntentTimelineProvider {
     private func read(at now: Date, chosen: String?) async -> AttendanceEntry {
         do {
             let api = try AttendanceAPI.held()
-            let settings = try await api.settings()
+            let origin = api.credential.origin
+            let cache = AttendanceWidgetCache.held(origin: origin)
+
+            let settings: CompanySettings
+            if let cached = cache.settings, AttendanceWidgetCache.settingsAreFresh(fetchedAt: cache.settingsFetchedAt, now: now) {
+                settings = cached
+            } else {
+                let fetched = try await api.settings()
+                AttendanceWidgetCache.amend(origin: origin) {
+                    $0.settings = fetched
+                    $0.settingsFetchedAt = now
+                }
+                settings = fetched
+            }
             let zone = settings.companyTimeZone
-            let listed = try await api.since(yesterdayOf: now, in: zone)
-            let today = AttendanceToday.of(rows: listed.attendance, today: CompanyClock.day(of: now, in: zone), now: now)
+
+            let rows: [AttendanceRow]
+            if let shown = AttendanceWidgetCache.rowsShown(
+                cachedRows: cache.rows,
+                pending: cache.pending,
+                rowsTrustedUntil: cache.rowsTrustedUntil,
+                now: now
+            ) {
+                rows = shown
+            } else {
+                let listed = try await api.since(yesterdayOf: now, in: zone).attendance
+                AttendanceWidgetCache.amend(origin: origin) { $0.rows = listed }
+                rows = listed
+            }
+
+            let today = AttendanceToday.of(rows: rows, today: CompanyClock.day(of: now, in: zone), now: now)
             return AttendanceEntry(
                 date: now,
                 today: today,
