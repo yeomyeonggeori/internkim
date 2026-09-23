@@ -12,21 +12,33 @@ describe('the Live Activity a clock leaves on its own phones', () => {
 		const changes = activityChangesFor(
 			{ kind: 'clock_in', location: '사무실', occurred_at: '2026-09-17T00:02:00Z' },
 			[starter],
-			alert
+			alert,
+			0
 		);
 		expect(changes).toEqual([
 			{
 				device: starter,
-				change: { event: 'start', state: { startedAt: 1789603320, location: '사무실' }, alert }
+				change: { event: 'start', state: { startedAt: 1789603320, earlierMinutes: 0, location: '사무실' }, alert }
 			}
 		]);
+	});
+
+	test('a second shift starts the count at what the day already holds, not at zero', () => {
+		const [{ change }] = activityChangesFor(
+			{ kind: 'clock_in', location: '사무실', occurred_at: '2026-09-17T05:02:00Z' },
+			[starter],
+			alert,
+			300
+		);
+		expect(change.state).toEqual({ startedAt: 1789621320, earlierMinutes: 300, location: '사무실' });
 	});
 
 	test('a clock-in while one is known to run ends it before starting a fresh one, since the person may have cleared it', () => {
 		const changes = activityChangesFor(
 			{ kind: 'clock_in', location: '재택', occurred_at: '2026-09-17T04:00:00Z' },
 			[starter, running],
-			alert
+			alert,
+			0
 		);
 		expect(changes.map(({ device, change }) => [device.address, change.event])).toEqual([
 			['activity-token', 'end'],
@@ -38,20 +50,21 @@ describe('the Live Activity a clock leaves on its own phones', () => {
 		const changes = activityChangesFor(
 			{ kind: 'clock_out', location: null, occurred_at: '2026-09-17T09:00:00Z' },
 			[starter, running],
-			alert
+			alert,
+			0
 		);
 		expect(changes.map(({ device, change }) => [device.address, change.event])).toEqual([['activity-token', 'end']]);
 	});
 
 	test('a clock-out with nothing running asks nothing of any phone', () => {
 		expect(
-			activityChangesFor({ kind: 'clock_out', location: null, occurred_at: '2026-09-17T09:00:00Z' }, [starter], alert)
+			activityChangesFor({ kind: 'clock_out', location: null, occurred_at: '2026-09-17T09:00:00Z' }, [starter], alert, 0)
 		).toEqual([]);
 	});
 });
 
 describe('the Live Activity payload', () => {
-	const state = { startedAt: 1789603320, location: '사무실' };
+	const state = { startedAt: 1789603320, earlierMinutes: 0, location: '사무실' };
 
 	test('a start names the attributes the app declared and says why it appeared', () => {
 		expect(liveActivityPayload({ event: 'start', state, alert }, 1789603330)).toEqual({

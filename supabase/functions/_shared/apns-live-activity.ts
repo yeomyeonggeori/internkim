@@ -4,7 +4,7 @@ import type { PushOutcome } from './push-vocabulary.ts';
 
 export const attendanceActivityAttributesType = 'AttendanceActivityAttributes';
 
-export type AttendanceActivityState = { startedAt: number; location: string };
+export type AttendanceActivityState = { startedAt: number; earlierMinutes: number; location: string };
 
 export type AttendanceActivityChange =
 	| { event: 'start'; state: AttendanceActivityState; alert: { title: string; body: string } }
