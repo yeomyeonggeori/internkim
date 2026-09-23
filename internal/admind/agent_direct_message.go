@@ -196,10 +196,11 @@ func (service *Service) ensureAgentDirectMessageChannel(ctx context.Context, act
 }
 
 type agentConversationSummary struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	AvatarURL string `json:"avatarURL,omitempty"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Kind           string `json:"kind"`
+	AvatarURL      string `json:"avatarURL,omitempty"`
+	IsWithTheAgent bool   `json:"isWithTheAgent,omitempty"`
 }
 
 type agentConversationsResponse struct {
