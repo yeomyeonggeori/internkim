@@ -25,10 +25,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 if [[ -z "${INTERNKIM_ENVIRONMENT_FROM_VAULT:-}" ]] && command -v monkeys >/dev/null 2>&1; then
-  vaultGap="$(monkeys doctor --short 2>/dev/null | grep '^missing @' || true)"
+  vaultGap="$(monkeys doctor --short 2>/dev/null | grep '^missing @production:' || true)"
   if [[ -z "$vaultGap" ]]; then
-    export INTERNKIM_ENVIRONMENT_FROM_VAULT=1
-    exec monkeys run "$0" "$@"
+    export INTERNKIM_ENVIRONMENT_FROM_VAULT=production
+    exec monkeys run @production "$0" "$@"
   fi
   echo "mirror-local: the vault has a gap, so the environment is whatever was already set: $vaultGap" >&2
 fi

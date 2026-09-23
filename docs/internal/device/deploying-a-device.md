@@ -80,7 +80,7 @@ existing device working. A company on the central plane is deployed by
   workspace blueclaw typechecks and tests; nothing in this repository reads it.
 - After changing Go setup, provisioning, runtime, or service code, run
   `make build` before deployment.
-- Prefer `./internkim deploy --components <components>` for normal device
+- Prefer `./internkim @production deploy --components <components>` for normal device
   deployment. It uses the OTA release apply engine over Admin HTTPS.
 - Use the smallest deploy component set that matches the change.
 - `deploy` is fleet-aware: with a populated `.local/ops/targets.json` (gitignored)
@@ -102,13 +102,13 @@ existing device working. A company on the central plane is deployed by
   CUDA, or Jetson model runtime work that is not part of an intended local-LLM change.
 - For Admin/Task web UI-only changes on a device, rebuild the board UI first:
   run `cd web && bun install` when dependencies may have changed, then
-  `cd web && bun run build:board`, then `./internkim deploy --components web`
+  `cd web && bun run build:board`, then `./internkim @production deploy --components web`
   from the repository root. The OTA web deploy packages the pre-built
   `build/board-ui` directory and does not rebuild it for you.
 - For a small `internkim-admind` change, use `make build` and
-  `./internkim deploy --components admind`.
+  `./internkim @production deploy --components admind`.
 - For a small `internkim-capabilityd` change, use `make build` and
-  `./internkim deploy --components capabilityd`.
+  `./internkim @production deploy --components capabilityd`.
 - For Blueclaw-only agent-loop, prompt, skill, policy, or schedule/runtime
   logic, deploy only the Blueclaw payload or related component.
 - `deploy --components blueclawPayload` ships the **pre-built artifact** at
@@ -128,7 +128,7 @@ existing device working. A company on the central plane is deployed by
   works.
 - Use targeted checks before full verify suites.
 - `tools/deploy-main` is how a device is deployed: it turns the four build
-  steps and `./internkim deploy` into one operation, "ship origin/main to the
+  steps and `./internkim @production deploy` into one operation, "ship origin/main to the
   device". It refuses when `git fetch origin` fails, when the working tree is
   dirty or HEAD is not `origin/main`, and when the device's current revision
   is not an ancestor of `origin/main`. After a history rewrite, it also accepts

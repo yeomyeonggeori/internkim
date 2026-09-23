@@ -89,7 +89,9 @@ func resolveRepositoryRootPath() (string, error) {
 }
 
 func Main() {
-	reExecuteWithVaultEnvironment()
+	requestedProfile, arguments := splitVaultProfileArgument(os.Args[1:])
+	os.Args = append(os.Args[:1], arguments...)
+	reExecuteWithVaultEnvironment(requestedProfile)
 	if len(os.Args) < 2 {
 		printUsage()
 		return

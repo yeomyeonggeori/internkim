@@ -149,7 +149,7 @@ func TestASigningKeyTheVaultDoesNotHoldNamesWhatToRun(t *testing.T) {
 	if errorValue == nil {
 		t.Fatal("a release with no signing key was allowed to start")
 	}
-	for _, named := range []string{"monkeys run", SigningKeyVariable} {
+	for _, named := range []string{"internkim @production release apt", SigningKeyVariable} {
 		if !strings.Contains(errorValue.Error(), named) {
 			t.Fatalf("the refusal is %q and does not name %q", errorValue.Error(), named)
 		}

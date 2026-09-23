@@ -31,15 +31,15 @@ def monkeysCommandPath():
 def runThroughTheVault():
     if os.environ.get("INTERNKIM_ENVIRONMENT_FROM_VAULT"):
         return
-    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "1"
+    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "production"
     os.execvpe(monkeysCommandPath(), [
-        "monkeys", "run", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
+        "monkeys", "run", "@production", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
     ], os.environ)
 
 
 def rememberInVault(name, value):
     completed = subprocess.run(
-        [monkeysCommandPath(), "remember", name], cwd=str(repositoryRoot),
+        [monkeysCommandPath(), "remember", "@production", name], cwd=str(repositoryRoot),
         input=value, capture_output=True, text=True,
     )
     if completed.returncode != 0:

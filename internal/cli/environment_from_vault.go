@@ -21,20 +21,31 @@ import (
 // profile, or a profile the vault cannot fill yet, and the CLI runs exactly as
 // it would have.
 //
-// The profile is never named here. `monkeys` reads the first profile the
-// manifest declares when a command names none, so `run` and `remember` are
-// given none and the manifest stays the one place the name is written.
+// The profile is chosen by a leading `@profile` argument, the way `monkeys`
+// itself takes one, and is otherwise the first the manifest declares. monkeys
+// puts `test` first so that the default is the harmless one, and production is
+// something a person says: `internkim @production deploy`. The re-executed run
+// is always told the profile, because monkeys hands the command it starts no
+// word of which one it read.
 const (
 	vaultManifestName          = ".monkeys"
 	vaultManifestNamespaceMark = "+"
 	vaultManifestProfileMark   = "@"
-	// Set on the re-executed run, and read as a literal at the one place that
-	// reads it so the declaration scan can see the read.
+	// Set on the re-executed run to the profile it was handed, and read as a
+	// literal at the one place that reads it so the declaration scan can see
+	// the read.
 	vaultInjectedMarker = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
 )
 
-func reExecuteWithVaultEnvironment() {
-	monkeysPath, shouldRun := plannedVaultRun()
+func splitVaultProfileArgument(arguments []string) (string, []string) {
+	if len(arguments) == 0 || !strings.HasPrefix(arguments[0], vaultManifestProfileMark) {
+		return "", arguments
+	}
+	return strings.TrimPrefix(arguments[0], vaultManifestProfileMark), arguments[1:]
+}
+
+func reExecuteWithVaultEnvironment(requestedProfile string) {
+	plan, shouldRun := plannedVaultRun(requestedProfile)
 	if !shouldRun {
 		return
 	}
@@ -43,42 +54,66 @@ func reExecuteWithVaultEnvironment() {
 		return
 	}
 	arguments := append([]string{
-		filepath.Base(monkeysPath), "run", executablePath,
+		filepath.Base(plan.monkeysPath), "run", vaultManifestProfileMark + plan.profile, executablePath,
 	}, os.Args[1:]...)
-	errorValue = syscall.Exec(monkeysPath, arguments, append(os.Environ(), vaultInjectedMarker+"=1"))
+	errorValue = syscall.Exec(plan.monkeysPath, arguments, append(os.Environ(), vaultInjectedMarker+"="+plan.profile))
 	fmt.Fprintf(os.Stderr, "internkim: could not run through the vault: %v\n", errorValue)
 }
 
-func plannedVaultRun() (string, bool) {
+type vaultRun struct {
+	monkeysPath string
+	profile     string
+}
+
+func plannedVaultRun(requestedProfile string) (vaultRun, bool) {
 	if os.Getenv("INTERNKIM_ENVIRONMENT_FROM_VAULT") != "" {
-		return "", false
+		return vaultRun{}, false
 	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
-		return "", false
+		return vaultRun{}, false
 	}
 	manifest, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, vaultManifestName))
 	if errorValue != nil {
-		return "", false
+		return vaultRun{}, false
 	}
-	profile := vaultManifestProfile(string(manifest))
+	profile, errorValue := chosenVaultProfile(string(manifest), requestedProfile)
+	if errorValue != nil {
+		fmt.Fprintf(os.Stderr, "internkim: %v\n", errorValue)
+		os.Exit(2)
+	}
 	if len(vaultManifestNames(string(manifest), profile)) == 0 {
-		return "", false
+		return vaultRun{}, false
 	}
 	monkeysPath := vaultCommandPath()
 	if monkeysPath == "" {
 		fmt.Fprintf(os.Stderr, "internkim: %s lists a @%s profile but monkeys is not installed, "+
 			"so the vault cannot supply it\n", vaultManifestName, profile)
-		return "", false
+		return vaultRun{}, false
 	}
 	missing := vaultProfileGap(monkeysPath, repositoryRootPath, profile)
 	if len(missing) > 0 {
 		fmt.Fprintf(os.Stderr, "internkim: the vault has no %s yet, so the environment is whatever was "+
 			"already set; a human types each into `monkeys remember @%s <name>`\n",
 			strings.Join(missing, ", "), profile)
-		return "", false
+		return vaultRun{}, false
 	}
-	return monkeysPath, true
+	return vaultRun{monkeysPath: monkeysPath, profile: profile}, true
+}
+
+func chosenVaultProfile(manifest, requestedProfile string) (string, error) {
+	declared := vaultManifestProfiles(manifest)
+	if requestedProfile == "" {
+		if len(declared) == 0 {
+			return "", nil
+		}
+		return declared[0], nil
+	}
+	if !slices.Contains(declared, requestedProfile) {
+		return "", fmt.Errorf("%s declares no @%s profile; it declares @%s",
+			vaultManifestName, requestedProfile, strings.Join(declared, ", @"))
+	}
+	return requestedProfile, nil
 }
 
 func vaultCommandPath() string {
@@ -117,20 +152,20 @@ func vaultMissingNames(doctorOutput, profile string) []string {
 	return nil
 }
 
-// The first profile the manifest declares is the one a command that names none
-// runs under, so it is the one this repository means everywhere.
-func vaultManifestProfile(manifest string) string {
+func vaultManifestProfiles(manifest string) []string {
+	declared := []string{}
 	for _, line := range strings.Split(manifest, "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, vaultManifestProfileMark) {
 			continue
 		}
-		opened := splitAndTrim(strings.TrimPrefix(line, vaultManifestProfileMark), ",")
-		if len(opened) > 0 {
-			return opened[0]
+		for _, profile := range splitAndTrim(strings.TrimPrefix(line, vaultManifestProfileMark), ",") {
+			if !slices.Contains(declared, profile) {
+				declared = append(declared, profile)
+			}
 		}
 	}
-	return ""
+	return declared
 }
 
 // A manifest names the project on its first line, opens a profile with an `@`
@@ -169,17 +204,21 @@ func splitAndTrim(value, separator string) []string {
 }
 
 // A credential the CLI generates has the same home as one it reads, so it goes
-// back into the vault rather than into a file beside the checkout.
+// back into the vault, into the profile this run was handed.
 func rememberInVault(name, value string) error {
 	monkeysPath := vaultCommandPath()
 	if monkeysPath == "" {
 		return fmt.Errorf("monkeys is not installed, and the vault is where %s lives", name)
 	}
+	if os.Getenv("INTERNKIM_ENVIRONMENT_FROM_VAULT") == "" {
+		return fmt.Errorf("this run was not handed a vault profile, so there is no profile to keep %s in; "+
+			"run it as `internkim @<profile> …`", name)
+	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
 	}
-	command := exec.Command(monkeysPath, "remember", name)
+	command := exec.Command(monkeysPath, "remember", vaultManifestProfileMark+os.Getenv("INTERNKIM_ENVIRONMENT_FROM_VAULT"), name)
 	command.Dir = repositoryRootPath
 	command.Stdin = strings.NewReader(value)
 	output, errorValue := command.CombinedOutput()

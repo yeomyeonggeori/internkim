@@ -113,10 +113,10 @@ sudo systemctl restart cloudflared-node-ssh
 
 ```bash
 # 특정 컴포넌트만 배포 (가장 흔한 경우)
-./internkim deploy --components admind
-./internkim deploy --components capabilityd
-./internkim deploy --components blueclaw
-./internkim deploy --components web
+./internkim @production deploy --components admind
+./internkim @production deploy --components capabilityd
+./internkim @production deploy --components blueclaw
+./internkim @production deploy --components web
 
 # 전체 릴리즈 채널 발행 (디바이스가 자동 수신)
 ./internkim release publish --channel stable
@@ -140,7 +140,7 @@ sudo systemctl restart cloudflared-node-ssh
 
 ## 5. 다른 Mac에서 설치한 젯슨에 내 Mac으로 재연결하기
 
-설치(setup)를 다른 컴퓨터에서 실행했을 경우, 내 Mac에는 해당 디바이스 state가 없다. `./internkim ssh`, `./internkim deploy`, `./internkim recover` 모두 이 state를 참조하므로 복사가 필요하다.
+설치(setup)를 다른 컴퓨터에서 실행했을 경우, 내 Mac에는 해당 디바이스 state가 없다. `./internkim ssh`, `./internkim @production deploy`, `./internkim recover` 모두 이 state를 참조하므로 복사가 필요하다.
 
 ### 전달받아야 할 것
 
@@ -199,7 +199,7 @@ Mattermost + Blueclaw가 동작 중이면 관리자 채널에서 `shell`, `file_
 
 | 상황 | 수단 | SSH 필요 |
 |------|------|---------|
-| 소프트웨어 업데이트 | `./internkim deploy` | 불필요 |
+| 소프트웨어 업데이트 | `./internkim @production deploy` | 불필요 |
 | 서비스 재기동/로그 | `./internkim recover` | 불필요 |
 | WiFi 변경 (admin UI) | admin 네트워크 탭 | 불필요 |
 | 채팅 기반 진단 | 김인턴 관리자 채널 | 불필요 |
