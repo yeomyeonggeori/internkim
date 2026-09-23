@@ -1,0 +1,77 @@
+---
+title: Notifications
+description: What pushes to whom, the two switches a person holds, and the one key pair a deployment sets once.
+---
+
+A member turns notifications on for one device, and the plane pushes to it.
+There is no notification inbox and no unread count. The thing a notification
+is about stays where it always was, so a missed push costs only the
+interruption.
+
+## What sends what [#categories]
+
+| Category | Sent when | Reaches |
+|---|---|---|
+| `message` | the relay sees a message addressed to someone | those addressed |
+| `attendance` | a member clocks in or out | everyone else in the company |
+| `leave` | a member asks for leave | the administrators, minus the asker |
+| `task` | a task moves between statuses | the requester and the participants, minus whoever moved it |
+| `calendar` | an event's reminder lead time is reached | the members on that event |
+| `approval` | an agent run needs a person | the requester |
+| `mail` | new mail arrives | the account's owner |
+
+The first five come from the central plane and need nothing else installed.
+`approval` and `mail` come from the company's computer, because the agent's
+runs and the mailbox are things only it can see. Every category is on by
+default except `mail`.
+
+Two switches decide whether a push is sent, and both belong to the person: the
+category switch in their settings, and whether they muted that conversation.
+The first message in a conversation gives everyone in it an unmuted row in
+`notification`, and muting flips that row. A member with no device subscribed
+is never reached at all, which is the state everyone starts in.
+
+## The key pair [#keys]
+
+Web push is signed, so the plane holds a VAPID pair in its vault. Replacing
+the pair silently unsubscribes every device that holds the old one, so it is
+set once. Founding a company sets it: `POST /api/company` calls the
+`setup-vapid` edge function with the founder's token and reports the outcome as
+`notifications`. An administrator can make the same call by hand for a
+deployment founded before that existed.
+
+`setup-vapid` never replaces a standing pair and answers `{"stored":false}`
+when one is kept. When the vault holds no pair but web-push devices are
+already subscribed, it refuses with `409`, since a fresh pair would sign every
+send with a key no device accepts. A deployment in that state adopts the pair its
+devices already carry with `public.vapid_keys_keep`, called with the service
+key. The edge functions that send answer `503` while any of the three values
+is missing.
+
+## Reminders run on a schedule [#reminders]
+
+Every other notification is sent by the request that caused it. A calendar
+reminder has no such request, so `pg_cron` runs
+`announce_event_reminders()` every minute and posts the events that are due to
+the `announce-event-reminder` edge function. An event with no lead time
+reminds nobody. The hourly question about shifts nobody closed runs the same
+way.
+
+Both read an address and a key from the vault, which the founding call also
+sets. By hand, an administrator posts to the `setup-digest-key` edge function.
+With neither stored, the schedule sends nothing and raises nothing, so a
+self-hosted install that is not set up yet stays quiet.
+
+## What the platforms do differently [#platforms]
+
+| | Safari, any Apple device | Android Chrome | Desktop Chrome |
+|---|---|---|---|
+| Needs installing first | on iOS, to the home screen | no | no |
+| Custom notification icon | ignored, the app icon is used | shown | shown |
+| Its own entry in system settings | yes | when installed as a WebAPK | no, it is Chrome's |
+| What the notification is labelled | the installed name | the installed name | Chrome, then the origin |
+
+WebKit drops the icon a notification carries, so the sender's name leads the
+body text. An Android phone that shows notifications only when the app is
+opened has put Chrome to sleep: the push arrived and waited, and battery
+optimisation for Chrome is what holds it.

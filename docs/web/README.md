@@ -5,12 +5,22 @@ built as a static site and deployed to Cloudflare Pages.
 
 The content is the directory above this one. `docs/` holds the pages and this
 directory holds the site that serves them, so a change to the product and the
-change to what the product's documentation says happen in one commit. `docs/internal/` and `docs/private/` are not reachable
-from here: `app/lib/source.ts` names the sections that publish, and adding a
-public section means adding it there.
+change to what the product's documentation says happen in one commit.
+`app/lib/source.ts` names the sections that publish, and a new section is added
+there and in the matching list in `react-router.config.ts`;
+`app/lib/published-sections.test.ts` fails when the two disagree. Anything else
+under `docs/`, including the gitignored `docs/private/`, is not reachable from
+here whatever its extension. A new page is registered in the `meta.json` of its
+directory and in `meta.ko.json` beside it.
 
 English is the default language and lives at `/docs/...`. Korean lives at
-`/ko/docs/...`, in sibling files named `<page>.ko.mdx`.
+`/ko/docs/...`, in sibling files named `<page>.ko.mdx`, and every English page
+changes together with its Korean one.
+
+A page is public the moment it merges. Before adding one, check that it says
+what a stranger needs, that it names no customer and no real person, and that it
+carries no key, fingerprint, incident or cost. The prose rules in `AGENTS.md`
+apply.
 
 ```bash
 bun install

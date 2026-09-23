@@ -89,6 +89,48 @@ MCP로 부르고, 디바이스 경로에서는 `internkim-capabilityd`를 거쳐
 `GET /api/v1/tools`가 답하고, 지금 무엇을 실행할 수 있는지는 `?live=true`로
 회사 컴퓨터에 묻습니다.
 
+## 도구 이름 짓는 법 [#naming]
+
+모델이 도구를 부를지 정하기 전에 보는 것은 이름뿐입니다. 그래서 internkim이
+가진 도구는 한 가지 모양을 따르고, 이를 어기는 변경은
+`tools/verify-tool-naming`이 실패시킵니다.
+
+```
+<namespace>_<subject>_<verb>        crm_opportunity_move
+<namespace>_<verb>                  task_add
+```
+
+네임스페이스는 디스크립터의 `namespace`와 같습니다. 네임스페이스가 이미
+대상을 말하면 대상은 뺍니다. 그래서 `event_add`와 `crm_contact_add`가 둘 다
+맞습니다. 동사는 맨 뒤에 옵니다.
+
+| 동사 | 뜻 | 대신 쓰지 않는 말 |
+|---|---|---|
+| `add` | 새 레코드를 만든다 | create, register, save |
+| `list` | 걸러낸 여러 레코드 | index, fetch |
+| `get` | 레코드 하나, 또는 설정 묶음 하나 | read, show |
+| `update` | 레코드에서 이름 붙인 필드를 바꾼다 | edit, modify, patch |
+| `delete` | 레코드를 없앤다 | remove, destroy |
+| `search` | 질의로 순위를 매긴 여러 레코드 | find, lookup |
+
+다른 동사는 그 행위가 이 가운데 어느 것도 아니고 그 분야에 고유한 말이 있을
+때만 씁니다. `crm_opportunity_move`는 거래를 단계 사이로 옮기고,
+`person_invite`는 초대장을 보냅니다. `set`은 설정 묶음을 통째로 쓰는 경우에만
+씁니다. 거기서 `update`라고 하면 이름을 대지 않은 필드가 남는다고 오해하게
+됩니다.
+
+이름에 들어간 단어는 모두 그 도구의 설명에도 나옵니다. 그래야 모델이
+설명에서 배운 단어로 도구에 닿습니다. 파라미터는 줄이지 않은 camelCase이고,
+몇몇은 어디서나 같은 뜻입니다. `<thing>Hint`는 서버가 해석하는 자연스러운
+지칭, `limit`은 답의 최대 개수, `query`는 `search`가 순위를 매기는 기준,
+`scope`는 누구의 레코드를 읽는지, `startsAt`과 `endsAt`은 RFC 3339 시각,
+`date`는 회사 시간대의 `YYYY-MM-DD` 날짜, `reason`은 기록을 손으로 쓴
+이유입니다.
+
+에이전트의 커널 도구(`bash`, `read`, `write`, `edit`, `plan`, `equip`)는
+예외입니다. 다른 코딩 에이전트가 쓰는 이름을 그대로 써서, 모델이 첫 턴에
+알아봅니다. 외부 MCP 서버의 도구는 그 서버가 붙인 이름을 씁니다.
+
 ## 어디에 구현되어 있나 [#implementation]
 
 ```mermaid

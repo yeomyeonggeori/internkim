@@ -60,6 +60,12 @@ hosts the API. Self-hosted Supabase ships the same
 Postgres, the same row level security, and the vault extension the schema
 uses.
 
+Plain Postgres without the rest of Supabase is a different promise. The app
+reads and writes the record directly because Supabase supplies accounts and
+sessions (GoTrue), a data API (PostgREST), row level security keyed on
+`auth.uid()`, and the signing keys the plane mints member and host tokens with.
+Each of those would have to be written again.
+
 ## The host
 
 One computer that stays on. A Linux server, a Mac that does not sleep, a box
