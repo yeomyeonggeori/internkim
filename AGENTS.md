@@ -579,8 +579,8 @@ and delete the duplicates.
   against `git rev-parse HEAD`) rather than trusting a green exit code alone.
 - Everything about deploying a device — OTA releases, `setup`, the two-deploy
   rule, the local LLM — is [docs/internal/device/deploying-a-device.md](docs/internal/device/deploying-a-device.md).
-  A company on the central plane is deployed by `web/scripts/deploy-pages.ts`;
-  see SaaS Web Deployment.
+  A company on the central plane is deployed by
+  [README.md](README.md)'s "The company web app".
 - `tools/deploy-main` ships `origin/main` to the device as one operation; it
   refuses a dirty tree, a device ahead of this tree, or a second run.
 
