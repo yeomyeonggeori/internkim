@@ -1,5 +1,5 @@
 {
-	"note": "Tools whose name uses a word their own description never says. docs/internal/tool-naming.md explains why that misleads a model. Entries leave this file when the tool or its description is fixed; nothing may be added.",
+	"note": "Tools whose name uses a word their own description never says. https://docs.intern.kim/tools/#naming explains why that misleads a model. Entries leave this file when the tool or its description is fixed; nothing may be added.",
 	"vocabulary": [
 		{
 			"tool": "company_info_set",

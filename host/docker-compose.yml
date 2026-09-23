@@ -37,7 +37,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${HOST_POSTGRES_USER:-blueclaw}:${HOST_POSTGRES_PASSWORD:-blueclaw_dev}@127.0.0.1:${HOST_POSTGRES_PORT:-5433}/${HOST_POSTGRES_DB:-blueclaw}?sslmode=disable
-      # BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents
+      # BEGIN GENERATED from tools/environment.json — edit that file, then run tools/render-environment-documents
       ADMIND_BASE_URL: ${ADMIND_BASE_URL:-}
       ADMIND_PORT: ${ADMIND_PORT:-}
       ADMIND_SOCKET_PATH: ${ADMIND_SOCKET_PATH:-}

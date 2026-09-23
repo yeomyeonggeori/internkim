@@ -18,7 +18,7 @@
     <string>HOME_DIR/Library/Logs/internkim-relay.log</string>
     <key>EnvironmentVariables</key>
     <dict>
-        <!-- BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents -->
+        <!-- BEGIN GENERATED from tools/environment.json — edit that file, then run tools/render-environment-documents -->
         <key>ADMIND_BASE_URL</key>
         <string>ADMIND_BASE_URL_VALUE</string>
         <key>ADMIND_SOCKET_PATH</key>

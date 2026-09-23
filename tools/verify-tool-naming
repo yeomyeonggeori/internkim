@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when a tool we own is named against docs/internal/tool-naming.md.
+"""Fail when a tool we own is named against https://docs.intern.kim/tools/#naming.
 
 A tool's name is the only part of it a model sees before deciding to call it.
 When the name uses a different word than its own description, the model learns
@@ -16,7 +16,7 @@ import sys
 
 import tool_name_sources as sources
 
-DEBT_PATH = pathlib.Path(__file__).resolve().parent.parent / "docs" / "internal" / "tool-naming-debt.json"
+DEBT_PATH = pathlib.Path(__file__).resolve().parent / "tool-naming-debt.json"
 
 CANONICAL_VERBS = {"add", "list", "get", "update", "delete", "search"}
 
@@ -223,11 +223,11 @@ def main():
     for fault in faults:
         print(fault, file=sys.stderr)
     if faults:
-        print(f"\n{len(faults)} naming faults; docs/internal/tool-naming.md is the convention", file=sys.stderr)
+        print(f"\n{len(faults)} naming faults; https://docs.intern.kim/tools/#naming is the convention", file=sys.stderr)
         return 1
     print(
         f"ok {len(tools)} catalog and {len(local_tool_names)} local tools named against"
-        f" docs/internal/tool-naming.md, {len(accepted)} accepted faults left to pay down"
+        f" https://docs.intern.kim/tools/#naming, {len(accepted)} accepted faults left to pay down"
     )
     return 0
 
