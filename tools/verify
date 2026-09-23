@@ -87,11 +87,15 @@ GROUPS = [
             "pkg/capabilityprotocol/*",
             "tools/tool_name_sources.py",
             "tools/verify-tool-name-collisions",
+            "tools/verify-tool-naming",
             "tools/tests/test_verify_tool_name_collisions.py",
+            "docs/internal/tool-naming.md",
+            "docs/internal/tool-naming-debt.json",
         ],
         [
             ["tools/verify-skill-tool-references"],
             ["tools/verify-tool-name-collisions"],
+            ["tools/verify-tool-naming"],
             [
                 "python3",
                 "-m",

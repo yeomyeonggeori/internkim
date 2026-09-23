@@ -695,3 +695,6 @@ again.
 
 Naming, function shape, error handling, and the TypeScript rules live in
 [docs/internal/code-style.md](docs/internal/code-style.md).
+
+Tool names and parameters follow
+[docs/internal/tool-naming.md](docs/internal/tool-naming.md).
