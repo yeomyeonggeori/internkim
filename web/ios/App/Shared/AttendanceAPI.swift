@@ -1,6 +1,6 @@
 import Foundation
 
-struct AttendanceRow: Decodable {
+struct AttendanceRow: Codable {
     let eventID: String
     let kind: String
     let date: String
@@ -14,17 +14,25 @@ struct AttendanceList: Decodable {
     let attendance: [AttendanceRow]
 }
 
+struct AttendanceEvent: Decodable {
+    let id: String
+    let kind: String
+    let occurredAt: String
+    let location: String?
+}
+
 struct AttendanceWrite: Decodable {
     let status: String
     let eventID: String?
+    let event: AttendanceEvent?
 }
 
-struct WorkLocation: Decodable, Equatable {
+struct WorkLocation: Codable, Equatable {
     let name: String
     let color: String?
 }
 
-struct CompanySettings: Decodable {
+struct CompanySettings: Codable {
     let timeZone: String
     let workLocations: [WorkLocation]
 

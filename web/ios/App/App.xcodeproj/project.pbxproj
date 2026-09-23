@@ -54,6 +54,9 @@
 		7A11C0DE0000000000000219 /* AttendanceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */; };
 		7A11C0DE000000000000021B /* AttendanceActivityStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000021A /* AttendanceActivityStateTests.swift */; };
 		7A11C0DE0000000000000218 /* AttendanceWorkplaceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */; };
+		7A11C0DE0000000000000302 /* AttendanceWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */; };
+		7A11C0DE0000000000000303 /* AttendanceWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */; };
+		7A11C0DE0000000000000305 /* AttendanceWidgetCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000304 /* AttendanceWidgetCacheTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -134,6 +137,8 @@
 		7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWorkplaceEntity.swift; sourceTree = "<group>"; };
 		7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceDefaultWorkplace.swift; sourceTree = "<group>"; };
 		7A11C0DE000000000000011C /* AttendanceDefaultWorkplaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceDefaultWorkplaceTests.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetCache.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000304 /* AttendanceWidgetCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetCacheTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -252,6 +257,7 @@
 				7A11C0DE000000000000010E /* AttendanceActivityAttributes.swift */,
 				7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */,
 				7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */,
+				7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -282,6 +288,7 @@
 				7A11C0DE0000000000000202 /* attendance-today-cases.json */,
 				7A11C0DE000000000000011C /* AttendanceDefaultWorkplaceTests.swift */,
 				7A11C0DE000000000000021A /* AttendanceActivityStateTests.swift */,
+				7A11C0DE0000000000000304 /* AttendanceWidgetCacheTests.swift */,
 			);
 			path = AttendanceWidgetTests;
 			sourceTree = "<group>";
@@ -488,6 +495,7 @@
 				7A11C0DE000000000000012B /* AttendanceLiveActivity.swift in Sources */,
 				7A11C0DE000000000000012F /* AttendanceWorkplaceEntity.swift in Sources */,
 				7A11C0DE0000000000000130 /* AttendanceDefaultWorkplace.swift in Sources */,
+				7A11C0DE0000000000000302 /* AttendanceWidgetCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -504,6 +512,8 @@
 				7A11C0DE0000000000000218 /* AttendanceWorkplaceEntity.swift in Sources */,
 				7A11C0DE0000000000000219 /* AttendanceActivityAttributes.swift in Sources */,
 				7A11C0DE000000000000021B /* AttendanceActivityStateTests.swift in Sources */,
+				7A11C0DE0000000000000303 /* AttendanceWidgetCache.swift in Sources */,
+				7A11C0DE0000000000000305 /* AttendanceWidgetCacheTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
