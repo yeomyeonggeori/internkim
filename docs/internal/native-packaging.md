@@ -474,7 +474,7 @@ idempotent and two machines cutting the same release produce the same bytes.
 
 The private half of the signing key lives in the operating system's vault,
 under `INTERNKIM_APT_SIGNING_KEY`, and reaches a release through
-`monkeys run internkim release apt`. What reaches gpg is still a path:
+`internkim @production release apt`. What reaches gpg is still a path:
 `MaterialiseSigningKey` writes the value to a mode-0600 file, takes it out of
 this process's environment so nothing it starts inherits it, and removes the
 file when the run ends. That seam is the one function a hardware token would

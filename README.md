@@ -351,8 +351,8 @@ direct-upload route, and for systemd repair.
 
 ```bash
 make build
-./internkim deploy --components capabilityd
-./internkim deploy --components admind,capabilityd
+./internkim @production deploy --components capabilityd
+./internkim @production deploy --components admind,capabilityd
 ```
 
 Omitting `--components` builds the whole release set, which needs the board UI
@@ -361,7 +361,7 @@ and the blueclaw payload built first.
 ```bash
 cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
-./internkim deploy
+./internkim @production deploy
 ```
 
 A device records one manifest as its current release instead of tracking each
