@@ -2,15 +2,14 @@
 	import { page } from '$app/state';
 	import { taskListPathOf } from '$lib/app-shell';
 	import { displayPersonName } from '$lib/person-name.svelte';
-	import { Button, buttonVariants } from '$lib/components/ui/button';
-	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { Button } from '$lib/components/ui/button';
+	import * as Accordion from '$lib/components/ui/accordion';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Input } from '$lib/components/ui/input';
-	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -24,6 +23,8 @@
 	import ApprovalDecision from '../approval-decision.svelte';
 	import RetryTaskButton from '../retry-task-button.svelte';
 	import LLMCallEvent from '../llm-call-event.svelte';
+	import RawDocument from '../raw-document.svelte';
+	import TimelineEvent from '../timeline-event.svelte';
 	import TurnInputEvent from '../turn-input-event.svelte';
 	import { readLLMCallRecord } from '../llm-calls';
 	import {
@@ -35,14 +36,13 @@
 		pendingApprovalOf,
 		summarizeTimeline,
 		taskDetailShareText,
-		taskEventShareText,
 		type EventLane,
 		type TaskDetail,
 		type TaskEvent,
 		type TimelineSummary
 	} from '../runs-api';
 	import {
-		eventLaneClass,
+		formatElapsed,
 		formatLatency,
 		formatTaskTimestamp,
 		taskStatusBadgeVariant,
@@ -67,9 +67,7 @@
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
 	const visibleTaskEvents = $derived(detail ? filterTaskEvents(detail.taskEvents) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
-	const visibleEventsShareText = $derived(detail ? taskDetailShareText(detail, { events: visibleTaskEvents, title: 'Visible Task Events' }) : '');
 	const eventLaneFilters = $derived(detail ? buildEventLaneFilters(detail.taskEvents) : []);
-	const timelineSummaryRows = $derived(summary && detail ? buildTimelineSummaryRows(summary, detail.taskEvents.length) : []);
 	const taskListPath = $derived(taskListPathOf(page.url.pathname));
 
 	async function load(taskRunID: string, generation: number) {
@@ -125,15 +123,26 @@
 				result.all += 1;
 				return result;
 			},
-			{ all: 0, llm: 0, tool: 0, failure: 0, control: 0 }
+			{ all: 0, llm: 0, tool: 0, failure: 0, other: 0 }
 		);
 		return [
 			{ value: 'all', label: text.allEvents, count: counts.all },
 			{ value: 'llm', label: text.laneLLM, count: counts.llm },
 			{ value: 'tool', label: text.laneTool, count: counts.tool },
 			{ value: 'failure', label: text.laneFailure, count: counts.failure },
-			{ value: 'control', label: text.laneControl, count: counts.control }
-		];
+			{ value: 'other', label: text.laneOther, count: counts.other }
+		].filter((filter) => filter.value === 'all' || filter.count > 0);
+	}
+
+	let openEventValues = $state<string[]>([]);
+
+	function summaryLine(timelineSummary: TimelineSummary): string {
+		return text.summaryLine
+			.replace('{calls}', timelineSummary.llmCallCount.toLocaleString())
+			.replace('{latency}', formatLatency(timelineSummary.llmLatencyMS))
+			.replace('{tokens}', timelineSummary.llmTotalTokens.toLocaleString())
+			.replace('{cost}', formatCostUSD(timelineSummary.llmCostUSD))
+			.replace('{tools}', timelineSummary.toolCallCount.toLocaleString());
 	}
 
 	function eventLaneLabel(lane: EventLane): string {
@@ -145,33 +154,12 @@
 			case 'failure':
 				return text.laneFailure;
 			default:
-				return text.laneControl;
+				return text.laneOther;
 		}
 	}
 
-	function eventLaneBadgeVariant(lane: EventLane) {
-		if (lane === 'failure') return 'destructive';
-		if (lane === 'tool') return 'secondary';
-		if (lane === 'llm') return 'outline';
-		return 'ghost';
-	}
 
-	function taskEventPreview(taskEvent: TaskEvent): string {
-		const compactBody = formatEventBody(taskEvent.body).replace(/\s+/g, ' ').trim();
-		if (compactBody.length <= 180) return compactBody;
-		return `${compactBody.slice(0, 180)}...`;
-	}
 
-	function buildTimelineSummaryRows(timelineSummary: TimelineSummary, eventCount: number) {
-		return [
-			{ label: text.eventCount, value: eventCount.toLocaleString() },
-			{ label: text.llmCalls, value: timelineSummary.llmCallCount.toLocaleString() },
-			{ label: text.llmLatency, value: formatLatency(timelineSummary.llmLatencyMS) },
-			{ label: text.llmTokens, value: timelineSummary.llmTotalTokens.toLocaleString() },
-			{ label: text.llmCost, value: formatCostUSD(timelineSummary.llmCostUSD) },
-			{ label: text.toolCalls, value: timelineSummary.toolCallCount.toLocaleString() }
-		];
-	}
 
 	$effect(() => {
 		const taskRunID = page.params.id ?? '';
@@ -203,9 +191,7 @@
 				{#if detail.taskRun.status === 'failed'}
 					<RetryTaskButton taskRunID={detail.taskRun.taskRunID} label={text.retryTask} pendingLabel={text.retryingTask} successMessage={text.retrySuccess} errorMessage={text.retryError} />
 				{/if}
-				<CopyButton text={taskShareText} variant="outline" size="sm">
-					<span>{text.copyForAI}</span>
-				</CopyButton>
+				<CopyButton text={taskShareText} />
 			</div>
 		{/if}
 	</div>
@@ -221,65 +207,27 @@
 		</section>
 	{:else}
 		{@const StatusIcon = taskStatusIcon(detail.taskRun.status)}
-		<section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-			<Card.Root>
-				<Card.Header class="gap-3">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<Badge variant={taskStatusBadgeVariant(detail.taskRun.status)}>
-							<StatusIcon />
-							{taskStatusLabel(detail.taskRun.status, text)}
-						</Badge>
-						<code class="truncate rounded-md bg-muted px-2 py-1 text-xs">{detail.taskRun.taskRunID}</code>
-					</div>
-					<Card.Title class="text-lg">{text.taskSummaryTitle}</Card.Title>
-					<Card.Description>{detail.taskRun.prompt || '—'}</Card.Description>
-				</Card.Header>
-				<Card.Content class="flex flex-col gap-4">
-					<div class="grid gap-3 md:grid-cols-2">
-						<div class="flex flex-col gap-1">
-							<span class="text-xs text-muted-foreground">{text.createdAt}</span>
-							<span class="text-sm">{formatTaskTimestamp(detail.taskRun.createdAt)}</span>
-						</div>
-						<div class="flex flex-col gap-1">
-							<span class="text-xs text-muted-foreground">{text.updatedAt}</span>
-							<span class="text-sm">{formatTaskTimestamp(detail.taskRun.updatedAt)}</span>
-						</div>
-						{#if detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}
-							<div class="flex flex-col gap-1 md:col-span-2">
-								<span class="text-xs text-muted-foreground">{text.requesterLabel}</span>
-								<span class="text-sm">{displayPersonName(detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID)}</span>
-							</div>
-						{/if}
-					</div>
-					{#if pendingApproval}
-						<Separator />
-						<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
-					{/if}
-					{#if detail.taskRun.failureReason}
-						<Separator />
-						<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-							<span class="font-medium">{text.failureReasonLabel}:</span>
-							{detail.taskRun.failureReason}
-						</div>
-					{/if}
-				</Card.Content>
-			</Card.Root>
-
+		<section class="flex flex-col gap-2">
+			<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+				<Badge variant={taskStatusBadgeVariant(detail.taskRun.status)}>
+					<StatusIcon />
+					{taskStatusLabel(detail.taskRun.status, text)}
+				</Badge>
+				{#if detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}
+					<span>{displayPersonName(detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID)}</span>
+					<span aria-hidden="true">·</span>
+				{/if}
+				<span>{formatTaskTimestamp(detail.taskRun.createdAt)}</span>
+			</div>
+			<h1 class="line-clamp-3 text-lg leading-snug font-semibold">{detail.taskRun.prompt || detail.taskRun.taskRunID}</h1>
 			{#if summary}
-				<Card.Root size="sm">
-					<Card.Content class="px-0 py-0">
-						<Table.Root>
-							<Table.Body>
-								{#each timelineSummaryRows as row (row.label)}
-									<Table.Row>
-										<Table.Cell class="h-9 py-0 text-xs text-muted-foreground">{row.label}</Table.Cell>
-										<Table.Cell class="h-9 py-0 text-right text-sm font-medium tabular-nums">{row.value}</Table.Cell>
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</Card.Content>
-				</Card.Root>
+				<p class="text-xs text-muted-foreground tabular-nums">{summaryLine(summary)}</p>
+			{/if}
+			{#if detail.taskRun.failureReason}
+				<p class="text-sm text-destructive">{detail.taskRun.failureReason}</p>
+			{/if}
+			{#if pendingApproval}
+				<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
 			{/if}
 		</section>
 
@@ -299,75 +247,42 @@
 				</UnderlineTabs.Trigger>
 			</UnderlineTabs.List>
 
-			<UnderlineTabs.Content value="timeline" class="min-w-0">
-				<Card.Root>
-					<Card.Header class="gap-3">
-						<div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
-							<div>
-								<Card.Title>{text.timelineTitle}</Card.Title>
-								<Card.Description>
-									{text.visibleEvents.replace('{count}', String(visibleTaskEvents.length)).replace('{total}', String(detail.taskEvents.length))}
-								</Card.Description>
-							</div>
-							<CopyButton text={visibleEventsShareText} variant="outline" size="sm" disabled={visibleTaskEvents.length === 0}>
-								<span>{text.copyVisibleEvents}</span>
-							</CopyButton>
-						</div>
-						<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-							<UnderlineTabs.Root bind:value={selectedEventLane} class="min-w-0">
-								<UnderlineTabs.List class="max-w-full overflow-x-auto">
-									{#each eventLaneFilters as filter (filter.value)}
-										<UnderlineTabs.Trigger value={filter.value} class="gap-1">
-											{filter.label}
-											<Badge variant="secondary" class="h-4 px-1.5 text-[10px]">{filter.count}</Badge>
-										</UnderlineTabs.Trigger>
-									{/each}
-								</UnderlineTabs.List>
-							</UnderlineTabs.Root>
-							<label class="relative min-w-0 lg:w-80">
-								<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-								<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
-							</label>
-						</div>
-					</Card.Header>
-					<Card.Content>
-						{#if visibleTaskEvents.length === 0}
-							<div class="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-								{text.noMatchingEvents}
-							</div>
-						{:else}
-							<div class="flex flex-col gap-3">
-								{#each visibleTaskEvents as taskEvent, index (`${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`)}
-									{@const lane = eventLane(taskEvent.name)}
-									{@const llmCallRecord = lane === 'llm' ? readLLMCallRecord(taskEvent.body) : undefined}
-									{#if llmCallRecord}
-										<LLMCallEvent llmCallID={taskEvent.id} record={llmCallRecord} createdAt={taskEvent.createdAt} {text} />
-									{:else if taskEvent.name === 'task.turn_input' && taskEvent.id}
-										<TurnInputEvent taskEventID={taskEvent.id} createdAt={taskEvent.createdAt} {text} />
-									{:else}
-										<Collapsible.Root class={`overflow-hidden rounded-lg border ${eventLaneClass(lane)}`}>
-											<div class="flex flex-col gap-2 px-3 py-3">
-												<div class="flex min-w-0 flex-wrap items-center gap-2">
-													<Badge variant={eventLaneBadgeVariant(lane)}>{eventLaneLabel(lane)}</Badge>
-													<code class="min-w-0 flex-1 truncate text-xs">{taskEvent.name}</code>
-													<span class="text-xs whitespace-nowrap text-muted-foreground">{formatTaskTimestamp(taskEvent.createdAt)}</span>
-													<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'xs' })}>{text.rawJSON}</Collapsible.Trigger>
-													<CopyButton text={taskEventShareText(taskEvent, index + 1)} variant="ghost" size="sm">
-														<span>{text.copyEvent}</span>
-													</CopyButton>
-												</div>
-												<p class="line-clamp-2 text-xs break-words text-muted-foreground">{taskEventPreview(taskEvent)}</p>
-											</div>
-											<Collapsible.Content>
-												<pre class="max-h-80 overflow-auto border-t bg-background/70 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{formatEventBody(taskEvent.body)}</pre>
-											</Collapsible.Content>
-										</Collapsible.Root>
-									{/if}
-								{/each}
-							</div>
-						{/if}
-					</Card.Content>
-				</Card.Root>
+			<UnderlineTabs.Content value="timeline" class="flex min-w-0 flex-col gap-3">
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<Tabs.Root bind:value={selectedEventLane}>
+						<Tabs.List>
+							{#each eventLaneFilters as filter (filter.value)}
+								<Tabs.Trigger value={filter.value}>{filter.label}</Tabs.Trigger>
+							{/each}
+						</Tabs.List>
+					</Tabs.Root>
+					<label class="relative min-w-0 sm:w-64">
+						<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
+					</label>
+				</div>
+				{#if visibleTaskEvents.length === 0}
+					<p class="py-8 text-center text-sm text-muted-foreground">{text.noMatchingEvents}</p>
+				{:else}
+					<Accordion.Root type="multiple" bind:value={openEventValues} class="border-t">
+						{#each visibleTaskEvents as taskEvent, index (`${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`)}
+							{@const lane = eventLane(taskEvent.name)}
+							{@const llmCallRecord = lane === 'llm' ? readLLMCallRecord(taskEvent.body) : undefined}
+							{@const value = taskEvent.id ?? `${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`}
+							{@const isOpen = openEventValues.includes(value)}
+							{@const elapsed = formatElapsed(detail.taskRun.createdAt, taskEvent.createdAt)}
+							{#if llmCallRecord}
+								<LLMCallEvent {value} {isOpen} {elapsed} llmCallID={taskEvent.id} record={llmCallRecord} {text} />
+							{:else if taskEvent.name === 'task.turn_input' && taskEvent.id}
+								<TurnInputEvent {value} {isOpen} {elapsed} taskEventID={taskEvent.id} {text} />
+							{:else}
+								<TimelineEvent {value} {isOpen} {elapsed} {lane} laneLabel={eventLaneLabel(lane)} title={taskEvent.name}>
+									<RawDocument document={formatEventBody(taskEvent.body)} />
+								</TimelineEvent>
+							{/if}
+						{/each}
+					</Accordion.Root>
+				{/if}
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="brief">

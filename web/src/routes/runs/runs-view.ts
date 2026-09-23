@@ -75,24 +75,19 @@ export function taskStatusLabel(status: string, text: TasksText): string {
 	}
 }
 
-export function eventLaneClass(lane: EventLane): string {
-	switch (lane) {
-		case 'llm':
-			return 'border-info/40 bg-info/5';
-		case 'tool':
-			return 'border-success/40 bg-success/5';
-		case 'failure':
-			return 'border-destructive/40 bg-destructive/5';
-		default:
-			return 'border-border bg-muted/20';
-	}
-}
-
 export function formatTaskTimestamp(value?: string): string {
 	if (!value) return '';
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) return value;
 	return parsed.toLocaleString();
+}
+
+export function formatElapsed(startedAt?: string, at?: string): string {
+	const elapsedMS = Date.parse(at ?? '') - Date.parse(startedAt ?? '');
+	if (!Number.isFinite(elapsedMS) || elapsedMS < 0) return '';
+	const elapsedSeconds = elapsedMS / 1000;
+	if (elapsedSeconds < 60) return `+${elapsedSeconds.toFixed(1)}s`;
+	return `+${Math.floor(elapsedSeconds / 60)}m ${Math.round(elapsedSeconds % 60)}s`;
 }
 
 export function formatLatency(latencyMS: number): string {
