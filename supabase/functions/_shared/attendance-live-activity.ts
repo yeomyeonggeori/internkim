@@ -4,6 +4,7 @@ import {
 	type AttendanceActivityChange,
 	type AttendanceActivityState
 } from './apns-live-activity.ts';
+import { closedWorkedMinutesOn, companyDayOf } from './attendance-worked-time.ts';
 import type { PushKeys } from './push-keys.ts';
 
 export const activityStartKind = 'apns-activity-start';
@@ -16,12 +17,14 @@ type ActivityDevice = { kind: string; address: string };
 export function activityChangesFor(
 	clocked: ClockedForActivity,
 	devices: ActivityDevice[],
-	alert: { title: string; body: string }
+	alert: { title: string; body: string },
+	earlierMinutes: number
 ): { device: ActivityDevice; change: AttendanceActivityChange }[] {
 	const running = devices.filter((device) => device.kind === activityKind);
 	const starters = devices.filter((device) => device.kind === activityStartKind);
 	const state: AttendanceActivityState = {
 		startedAt: Math.floor(new Date(clocked.occurred_at).getTime() / 1000),
+		earlierMinutes: Math.max(0, Math.round(earlierMinutes)),
 		location: (clocked.location ?? '').trim()
 	};
 
@@ -40,7 +43,8 @@ export async function showClockOnOwnPhones(
 	clocked: ClockedForActivity,
 	alert: { title: string; body: string },
 	pushKeys: PushKeys,
-	nowInSeconds: number
+	nowInSeconds: number,
+	companyTimeZone: string
 ): Promise<number> {
 	if (!pushKeys.apns) return 0;
 	const { data, error } = await record
@@ -51,8 +55,14 @@ export async function showClockOnOwnPhones(
 		.returns<ActivityDevice[]>();
 	if (error) throw new Error(error.message);
 
+	const listening = data ?? [];
+	if (listening.length === 0) return 0;
+
+	const earlierMinutes =
+		clocked.kind === 'clock_in' ? await minutesWorkedBefore(record, memberID, clocked, companyTimeZone) : 0;
+
 	let reached = 0;
-	for (const { device, change } of activityChangesFor(clocked, data ?? [], alert)) {
+	for (const { device, change } of activityChangesFor(clocked, listening, alert, earlierMinutes)) {
 		const outcome = await sendLiveActivity(device.address, change, pushKeys.apns, nowInSeconds);
 		if (outcome === 'delivered') reached += 1;
 		if (outcome === 'gone' || change.event === 'end') await forgetActivityDevice(record, device);
@@ -63,4 +73,25 @@ export async function showClockOnOwnPhones(
 async function forgetActivityDevice(record: SupabaseClient, device: ActivityDevice): Promise<void> {
 	const { error } = await record.from('push_device').delete().eq('kind', device.kind).eq('address', device.address);
 	if (error) throw new Error(error.message);
+}
+
+async function minutesWorkedBefore(
+	record: SupabaseClient,
+	memberID: string,
+	clocked: ClockedForActivity,
+	companyTimeZone: string
+): Promise<number> {
+	const clockedAt = new Date(clocked.occurred_at);
+	const from = new Date(clockedAt.getTime() - 2 * 24 * 60 * 60 * 1000);
+	const { data, error } = await record
+		.from('attendance')
+		.select('kind, occurred_at')
+		.eq('member_id', memberID)
+		.is('deleted_at', null)
+		.gte('occurred_at', from.toISOString())
+		.lte('occurred_at', clockedAt.toISOString())
+		.order('occurred_at')
+		.returns<{ kind: string; occurred_at: string }[]>();
+	if (error) throw new Error(error.message);
+	return closedWorkedMinutesOn(companyDayOf(clockedAt, companyTimeZone), data ?? [], companyTimeZone);
 }
