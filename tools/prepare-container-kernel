@@ -5,7 +5,13 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifact_directory="${INTERNKIM_CONTAINER_KERNEL_DIR:-$repository_root/.dependency/container-kernel}"
 kernel_version="${INTERNKIM_CONTAINER_KERNEL_VERSION:-6.1.68}"
 kernel_config_reference="${INTERNKIM_CONTAINER_KERNEL_CONFIG_REF:-main}"
-kernel_image_path="$artifact_directory/Image-$kernel_version-kvm"
+page_size="${INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE:-4k}"
+case "$page_size" in
+  4k) image_name="Image-$kernel_version-kvm" ;;
+  16k) image_name="Image-$kernel_version-16k-kvm" ;;
+  *) echo "INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE must be 4k or 16k, not $page_size" >&2; exit 1 ;;
+esac
+kernel_image_path="$artifact_directory/$image_name"
 
 if [ -s "$kernel_image_path" ] && [ "${1:-}" != "--force" ]; then
   echo "$kernel_image_path"
@@ -29,7 +35,7 @@ default_cache_directory() {
 }
 
 cache_directory="$(default_cache_directory)"
-cache_image_path="$cache_directory/Image-$kernel_version-kvm"
+cache_image_path="$cache_directory/$image_name"
 
 install_kernel_image() {
   local source_path="$1"
@@ -51,7 +57,7 @@ if command -v git >/dev/null 2>&1 && [ "${1:-}" != "--force" ]; then
     case "$line" in
       worktree\ *)
         worktree_root="${line#worktree }"
-        candidate_path="$worktree_root/.dependency/container-kernel/Image-$kernel_version-kvm"
+        candidate_path="$worktree_root/.dependency/container-kernel/$image_name"
         if [ -s "$candidate_path" ]; then
           install_kernel_image "$candidate_path"
         fi
@@ -80,6 +86,15 @@ curl -fsSL -o "$stage_directory/config-arm64" \
   "https://raw.githubusercontent.com/apple/containerization/$kernel_config_reference/kernel/config-arm64"
 grep -q '^CONFIG_VIRTUALIZATION=y' "$stage_directory/config-arm64"
 grep -q '^CONFIG_KVM=y' "$stage_directory/config-arm64"
+if [ "$page_size" = "16k" ]; then
+  # Raspberry Pi's arch/arm64/configs/bcm2712_defconfig, the CM5 kernel.
+  sed -i.original \
+    -e 's/^CONFIG_ARM64_4K_PAGES=y/# CONFIG_ARM64_4K_PAGES is not set/' \
+    -e 's/^# CONFIG_ARM64_16K_PAGES is not set/CONFIG_ARM64_16K_PAGES=y/' \
+    -e '/^CONFIG_ARM64_VA_BITS/d' -e '/^CONFIG_PGTABLE_LEVELS/d' \
+    "$stage_directory/config-arm64"
+  echo "CONFIG_ARM64_VA_BITS_47=y" >> "$stage_directory/config-arm64"
+fi
 
 cat > "$stage_directory/build-kernel.sh" <<BUILD
 #!/bin/sh
