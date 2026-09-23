@@ -3,9 +3,9 @@
 	import TimelineEvent from './timeline-event.svelte';
 	import TurnInputDetail from './turn-input-detail.svelte';
 
-	let { value, isOpen, taskEventID, elapsed, text }: { value: string; isOpen: boolean; taskEventID: string; elapsed: string; text: TasksText } = $props();
+	let { value, isOpen, taskEventID, createdAt, text }: { value: string; isOpen: boolean; taskEventID: string; createdAt?: string; text: TasksText } = $props();
 </script>
 
-<TimelineEvent {value} lane="other" laneLabel={text.laneOther} title="task.turn_input" {elapsed} {isOpen}>
+<TimelineEvent {value} title="task.turn_input" {createdAt} {isOpen}>
 	<TurnInputDetail {taskEventID} {text} />
 </TimelineEvent>

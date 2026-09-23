@@ -171,6 +171,7 @@ function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 		taskEvent('task.created', taskRun.prompt ?? '', at(0)),
 		taskEvent('llm.call', devDecisionRecord(['dev-message-001']), at(0.8), `${taskRun.taskRunID}-decision`),
 		taskEvent('task.turn_input', { $part: '0'.repeat(64) }, at(1.1), `${taskRun.taskRunID}-turn-input`),
+		taskEvent('agent.launch_step.result', { step: 1, status: 'launched' }, at(1.2)),
 		taskEvent('llm.call', {
 			kind: 'structured',
 			schemaName: 'bluecollar_agent_turn_action',

@@ -87,9 +87,10 @@ export function formatDuration(durationMS?: number): string {
 	return formatLatency(durationMS);
 }
 
-export function formatElapsed(startedAt?: string, at?: string): string {
-	const duration = formatDuration(Date.parse(at ?? '') - Date.parse(startedAt ?? ''));
-	return duration ? `+${duration}` : '';
+export function formatEventClock(value?: string): string {
+	const parsed = new Date(value ?? '');
+	if (Number.isNaN(parsed.getTime())) return '';
+	return parsed.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, fractionalSecondDigits: 3 });
 }
 
 export function formatLatency(latencyMS: number): string {

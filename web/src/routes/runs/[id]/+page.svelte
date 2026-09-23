@@ -18,14 +18,12 @@
 	import { onDestroy, untrack } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
 	import RetryTaskButton from '../retry-task-button.svelte';
-	import LLMCallEvent from '../llm-call-event.svelte';
 	import RawDocument from '../raw-document.svelte';
-	import TimelineEvent from '../timeline-event.svelte';
-	import TurnInputEvent from '../turn-input-event.svelte';
+	import RawLedgerView from '../raw-ledger-view.svelte';
+	import { filterLedger, groupLedger } from '../raw-ledger';
 	import IntakeDecisionStep from '../intake-decision-step.svelte';
 	import TaskStep from '../task-step.svelte';
 	import { buildTaskStory } from '../task-story';
-	import { readLLMCallRecord } from '../llm-calls';
 	import {
 		eventLane,
 		fetchServiceLogs,
@@ -35,14 +33,12 @@
 		pendingApprovalOf,
 		summarizeTimeline,
 		taskDetailShareText,
-		type EventLane,
 		type TaskDetail,
 		type TaskEvent,
 		type TimelineSummary
 	} from '../runs-api';
 	import {
 		formatDuration,
-		formatElapsed,
 		formatLatency,
 		formatTaskTimestamp,
 		taskStatusBadgeVariant,
@@ -67,7 +63,7 @@
 	const story = $derived(buildTaskStory(detail?.taskEvents ?? []));
 	const runDuration = $derived(detail ? formatDuration(Date.parse(detail.taskRun.updatedAt ?? '') - Date.parse(detail.taskRun.createdAt ?? '')) : '');
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
-	const visibleTaskEvents = $derived(detail ? filterTaskEvents(detail.taskEvents) : []);
+	const ledgerSections = $derived(detail ? filterLedger(groupLedger(detail.taskEvents), isEventShown) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
 	const eventLaneFilters = $derived(detail ? buildEventLaneFilters(detail.taskEvents) : []);
 	const taskListPath = $derived(taskListPathOf(page.url.pathname));
@@ -107,14 +103,11 @@
 		}
 	}
 
-	function filterTaskEvents(taskEvents: TaskEvent[]): TaskEvent[] {
+	function isEventShown(taskEvent: TaskEvent): boolean {
 		const query = eventSearchQuery.trim().toLowerCase();
-		return taskEvents.filter((taskEvent) => {
-			const lane = eventLane(taskEvent.name);
-			if (selectedEventLane !== 'all' && selectedEventLane !== lane) return false;
-			if (!query) return true;
-			return `${taskEvent.name}\n${formatEventBody(taskEvent.body)}`.toLowerCase().includes(query);
-		});
+		if (selectedEventLane !== 'all' && selectedEventLane !== eventLane(taskEvent.name)) return false;
+		if (!query) return true;
+		return `${taskEvent.name}\n${formatEventBody(taskEvent.body)}`.toLowerCase().includes(query);
 	}
 
 	function buildEventLaneFilters(taskEvents: TaskEvent[]) {
@@ -136,8 +129,8 @@
 		].filter((filter) => filter.value === 'all' || filter.count > 0);
 	}
 
-	let openEventValues = $state<string[]>([]);
 	let openStepValues = $state<string[]>([]);
+
 	const openedFailedStepKeys = new Set<string>();
 
 	$effect(() => {
@@ -155,22 +148,6 @@
 			.replace('{cost}', formatCostUSD(timelineSummary.llmCostUSD))
 			.replace('{tools}', timelineSummary.toolCallCount.toLocaleString());
 	}
-
-	function eventLaneLabel(lane: EventLane): string {
-		switch (lane) {
-			case 'llm':
-				return text.laneLLM;
-			case 'tool':
-				return text.laneTool;
-			case 'failure':
-				return text.laneFailure;
-			default:
-				return text.laneOther;
-		}
-	}
-
-
-
 
 	$effect(() => {
 		const taskRunID = page.params.id ?? '';
@@ -285,27 +262,10 @@
 						<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
 					</label>
 				</div>
-				{#if visibleTaskEvents.length === 0}
+				{#if ledgerSections.length === 0}
 					<p class="py-8 text-center text-sm text-muted-foreground">{text.noMatchingEvents}</p>
 				{:else}
-					<Accordion.Root type="multiple" bind:value={openEventValues} class="border-t">
-						{#each visibleTaskEvents as taskEvent, index (`${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`)}
-							{@const lane = eventLane(taskEvent.name)}
-							{@const llmCallRecord = lane === 'llm' ? readLLMCallRecord(taskEvent.body) : undefined}
-							{@const value = taskEvent.id ?? `${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`}
-							{@const isOpen = openEventValues.includes(value)}
-							{@const elapsed = formatElapsed(detail.taskRun.createdAt, taskEvent.createdAt)}
-							{#if llmCallRecord}
-								<LLMCallEvent {value} {isOpen} {elapsed} llmCallID={taskEvent.id} record={llmCallRecord} {text} />
-							{:else if taskEvent.name === 'task.turn_input' && taskEvent.id}
-								<TurnInputEvent {value} {isOpen} {elapsed} taskEventID={taskEvent.id} {text} />
-							{:else}
-								<TimelineEvent {value} {isOpen} {elapsed} {lane} laneLabel={eventLaneLabel(lane)} title={taskEvent.name}>
-									<RawDocument document={formatEventBody(taskEvent.body)} />
-								</TimelineEvent>
-							{/if}
-						{/each}
-					</Accordion.Root>
+					<RawLedgerView sections={ledgerSections} {text} />
 				{/if}
 			</UnderlineTabs.Content>
 

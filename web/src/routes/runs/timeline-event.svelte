@@ -1,49 +1,37 @@
 <script lang="ts">
 	import * as Accordion from '$lib/components/ui/accordion';
-	import CircleSmallIcon from '@lucide/svelte/icons/circle-small';
-	import SparklesIcon from '@lucide/svelte/icons/sparkles';
-	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
-	import WrenchIcon from '@lucide/svelte/icons/wrench';
 	import type { Snippet } from 'svelte';
-	import type { EventLane } from './runs-api';
+	import { formatEventClock } from './runs-view';
 
 	let {
 		value,
-		lane,
-		laneLabel,
 		title,
 		meta = '',
-		elapsed,
+		createdAt,
+		isFailed = false,
 		isOpen,
 		children
 	}: {
 		value: string;
-		lane: EventLane;
-		laneLabel: string;
 		title: string;
 		meta?: string;
-		elapsed: string;
+		createdAt?: string;
+		isFailed?: boolean;
 		isOpen: boolean;
 		children: Snippet;
 	} = $props();
 
-	const laneIcons = { llm: SparklesIcon, tool: WrenchIcon, failure: TriangleAlertIcon, other: CircleSmallIcon };
-	const LaneIcon = $derived(laneIcons[lane]);
+	const details = $derived([formatEventClock(createdAt), meta].filter(Boolean).join(' · '));
 </script>
 
 <Accordion.Item {value}>
-	<Accordion.Trigger class="items-center gap-3 px-3">
-		<span title={laneLabel} class="shrink-0">
-			<LaneIcon aria-hidden="true" class="size-4 {lane === 'failure' ? 'text-destructive' : 'text-muted-foreground'}" />
-			<span class="sr-only">{laneLabel}</span>
+	<Accordion.Trigger>
+		<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+			<code class="truncate text-xs font-normal {isFailed ? 'text-destructive' : ''}">{title}</code>
+			<span class="text-xs font-normal text-muted-foreground tabular-nums">{details}</span>
 		</span>
-		<code class="min-w-0 flex-1 truncate text-xs font-normal">{title}</code>
-		{#if meta}
-			<span class="hidden shrink-0 text-xs font-normal text-muted-foreground tabular-nums sm:inline">{meta}</span>
-		{/if}
-		<span class="w-14 shrink-0 text-right text-xs font-normal text-muted-foreground tabular-nums">{elapsed}</span>
 	</Accordion.Trigger>
-	<Accordion.Content class="flex flex-col gap-3 px-3">
+	<Accordion.Content class="flex flex-col gap-3">
 		{#if isOpen}
 			{@render children()}
 		{/if}

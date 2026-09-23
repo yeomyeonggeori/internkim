@@ -11,21 +11,13 @@
 		isOpen,
 		llmCallID,
 		record,
-		elapsed,
+		createdAt,
 		text
-	}: { value: string; isOpen: boolean; llmCallID?: string; record: LLMCallRecord; elapsed: string; text: TasksText } = $props();
+	}: { value: string; isOpen: boolean; llmCallID?: string; record: LLMCallRecord; createdAt?: string; text: TasksText } = $props();
 
 	const meta = $derived([formatLatency(record.latencyMs), record.costUSD > 0 ? formatCostUSD(record.costUSD) : ''].filter(Boolean).join(' · '));
 </script>
 
-<TimelineEvent
-	{value}
-	lane={record.isError ? 'failure' : 'llm'}
-	laneLabel={record.isError ? text.laneFailure : text.laneLLM}
-	title={record.schemaName || record.kind}
-	{meta}
-	{elapsed}
-	{isOpen}
->
+<TimelineEvent {value} title={`llm.call · ${record.schemaName || record.kind}`} {meta} {createdAt} isFailed={record.isError} {isOpen}>
 	<LLMCallDetail {llmCallID} {record} {text} />
 </TimelineEvent>
