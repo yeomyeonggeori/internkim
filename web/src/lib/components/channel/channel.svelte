@@ -8,8 +8,8 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import SvelteMarkdown from '@humanspeak/svelte-markdown';
-	import ChannelCode from './channel-code.svelte';
+	import ChannelMessageBody from './channel-message-body.svelte';
+	import MentionPopup from './mention-popup.svelte';
 	import ChannelLinkPreview from './channel-link-preview.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
@@ -36,6 +36,9 @@
 		pictureAddressesOf
 	} from './channel-attachments';
 	import { messageActionsFor } from './channel-message-actions';
+	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
+	import { mentionKeyAction } from '$lib/messenger/mention-draft';
+	import { createMentionPicker, mentionLabelsOf, type MentionPicker } from '$lib/messenger/mention-picker.svelte';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
 	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
@@ -57,15 +60,25 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
-	import { onDestroy, onMount, type Snippet } from 'svelte';
+	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
-	let { isActive = true, threadLayout = 'sheet', channelId, showSenderNames = false, canModerate = false }: {
+	let {
+		isActive = true,
+		threadLayout = 'sheet',
+		channelId,
+		showSenderNames = false,
+		canModerate = false,
+		participants = [],
+		isGroup = false
+	}: {
 		isActive?: boolean;
 		threadLayout?: 'sheet' | 'inline';
 		channelId?: string;
 		showSenderNames?: boolean;
 		canModerate?: boolean;
+		participants?: MentionPerson[];
+		isGroup?: boolean;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -88,6 +101,12 @@
 	let currentUserImage = $state('');
 	let isAgentWorking = $state(false);
 	let composerValue = $state('');
+	let composerElement = $state<HTMLTextAreaElement | null>(null);
+	let threadComposerElement = $state<HTMLTextAreaElement | null>(null);
+	const canMention = $derived(canChangeMessages() && participants.length > 0);
+	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
+	const mentions = createMentionPicker(() => participants, () => isGroup);
+	const threadMentions = createMentionPicker(() => participants, () => isGroup);
 	let isSending = $state(false);
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
@@ -399,11 +418,19 @@
 		const trimmedReply = threadComposer.trim();
 		const outgoingAttachments = threadPendingAttachments.map((pending) => pending.attachment);
 		if ((!trimmedReply && outgoingAttachments.length === 0) || isThreadSending || !openThreadRoot) return;
+		const outgoingMentions = threadMentions.mentionsIn(trimmedReply);
 		isThreadSending = true;
 		threadComposer = '';
+		threadMentions.forget();
 		clearThreadAttachments();
 		try {
-			await sendChannelMessage(trimmedReply, outgoingAttachments, channelId, openThreadRoot.id);
+			await sendChannelMessage(
+				trimmedReply,
+				outgoingAttachments,
+				channelId,
+				openThreadRoot.id,
+				outgoingMentions
+			);
 			await loadConversation();
 		} catch {
 			loadFailed = true;
@@ -413,6 +440,7 @@
 	}
 
 	function handleThreadKeydown(event: KeyboardEvent) {
+		if (handledByMentions(threadMentions, threadComposerElement, (written) => (threadComposer = written), event)) return;
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
 		event.preventDefault();
 		if (!(event.currentTarget instanceof HTMLElement)) return;
@@ -455,8 +483,10 @@
 		const trimmedMessage = composerValue.trim();
 		const outgoingAttachments = pendingAttachments.map((pending) => pending.attachment);
 		if ((!trimmedMessage && outgoingAttachments.length === 0) || isSending) return;
+		const outgoingMentions = mentions.mentionsIn(trimmedMessage);
 		isSending = true;
 		composerValue = '';
+		mentions.forget();
 		const attachmentSummary = pendingAttachments.map((pending) => pending.attachment.filename).join(', ');
 		clearAttachments();
 		messages = [
@@ -470,7 +500,7 @@
 		];
 		scrollContainer?.scrollTo({ top: 0 });
 		try {
-			await sendChannelMessage(trimmedMessage, outgoingAttachments, channelId);
+			await sendChannelMessage(trimmedMessage, outgoingAttachments, channelId, undefined, outgoingMentions);
 			isAgentWorking = true;
 			await loadConversation();
 		} catch {
@@ -561,7 +591,45 @@
 		}
 	}
 
+	function refreshMentions(picker: MentionPicker, element: HTMLTextAreaElement | null): void {
+		if (!canMention || !element) return picker.close();
+		picker.reopen(element.value, element.selectionStart ?? element.value.length);
+	}
+
+	async function takeMention(
+		picker: MentionPicker,
+		element: HTMLTextAreaElement | null,
+		write: (text: string) => void,
+		candidate?: MentionCandidate
+	): Promise<void> {
+		if (!element) return;
+		const written = picker.take(element.value, element.selectionStart ?? element.value.length, candidate);
+		if (!written) return;
+		write(written.text);
+		await tick();
+		element.focus();
+		element.setSelectionRange(written.cursor, written.cursor);
+	}
+
+	function handledByMentions(
+		picker: MentionPicker,
+		element: HTMLTextAreaElement | null,
+		write: (text: string) => void,
+		event: KeyboardEvent
+	): boolean {
+		if (!picker.isOpen) return false;
+		const action = mentionKeyAction(event.key, event.isComposing);
+		if (!action) return false;
+		event.preventDefault();
+		if (action === 'close') picker.close();
+		else if (action === 'down') picker.moveBy(1);
+		else if (action === 'up') picker.moveBy(-1);
+		else void takeMention(picker, element, write);
+		return true;
+	}
+
 	function handleComposerKeydown(event: KeyboardEvent) {
+		if (handledByMentions(mentions, composerElement, (written) => (composerValue = written), event)) return;
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
 		event.preventDefault();
 		if (!(event.currentTarget instanceof HTMLElement)) return;
@@ -763,10 +831,11 @@
 		>
 			<Bubble.Content>
 				<div class="chat-markdown prose prose-sm dark:prose-invert max-w-none">
-					<SvelteMarkdown
+					<ChannelMessageBody
 						source={applyCustomEmoji(bodyText, message.customEmoji, customEmoji.nameToURL)}
-						options={{ breaks: true, gfm: true }}
-						renderers={{ code: ChannelCode }}
+						mentionLabels={mentionLabelsOf(message.mentions, (externalID) =>
+							nameByExternalID.get(externalID)
+						)}
 					/>
 				</div>
 			</Bubble.Content>
@@ -912,7 +981,7 @@
 			{/if}
 		</div>
 	</div>
-	<form onsubmit={submitThreadReply} class="border-t p-3">
+	<form onsubmit={submitThreadReply} class="relative border-t p-3">
 		<input bind:this={threadFileInput} type="file" multiple class="hidden" onchange={handleThreadFilesSelected} />
 		{#if threadPendingAttachments.length > 0}
 			<Attachment.Group class="mb-2">
@@ -949,13 +1018,37 @@
 				{/each}
 			</Attachment.Group>
 		{/if}
+		{#if threadMentions.isOpen}
+			<MentionPopup
+				name="thread"
+				rows={threadMentions.rows}
+				active={threadMentions.active}
+				listLabel={text.mentionList}
+				everyoneLabel={text.mentionEveryone}
+				onPick={(candidate) =>
+					void takeMention(
+						threadMentions,
+						threadComposerElement,
+						(written) => (threadComposer = written),
+						candidate
+					)}
+			/>
+		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={threadComposer}
+				bind:ref={threadComposerElement}
+				role="combobox"
+				aria-autocomplete="list"
+				aria-expanded={threadMentions.isOpen}
+				aria-controls="mention-list-thread"
+				aria-activedescendant={threadMentions.isOpen ? `mention-row-thread-${threadMentions.active}` : undefined}
 				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.threadComposerPlaceholder}
 				aria-label={text.threadComposerPlaceholder}
 				rows={1}
 				onkeydown={handleThreadKeydown}
+				oninput={() => refreshMentions(threadMentions, threadComposerElement)}
+				onblur={() => threadMentions.close()}
 				disabled={messageInputDisabled}
 			/>
 			<InputGroup.Addon align="block-end" class="pt-1">
@@ -1064,7 +1157,7 @@
 			</div>
 		{/if}
 	</div>
-	<form onsubmit={submitMessage} class="border-t p-3">
+	<form onsubmit={submitMessage} class="relative border-t p-3">
 		<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
 		{#if pendingAttachments.length > 0}
 			<Attachment.Group class="mb-2">
@@ -1101,13 +1194,32 @@
 				{/each}
 			</Attachment.Group>
 		{/if}
+		{#if mentions.isOpen}
+			<MentionPopup
+				name="conversation"
+				rows={mentions.rows}
+				active={mentions.active}
+				listLabel={text.mentionList}
+				everyoneLabel={text.mentionEveryone}
+				onPick={(candidate) =>
+					void takeMention(mentions, composerElement, (written) => (composerValue = written), candidate)}
+			/>
+		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={composerValue}
+				bind:ref={composerElement}
+				role="combobox"
+				aria-autocomplete="list"
+				aria-expanded={mentions.isOpen}
+				aria-controls="mention-list-conversation"
+				aria-activedescendant={mentions.isOpen ? `mention-row-conversation-${mentions.active}` : undefined}
 				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.composerPlaceholder}
 				aria-label={text.composerPlaceholder}
 				rows={2}
 				onkeydown={handleComposerKeydown}
+				oninput={() => refreshMentions(mentions, composerElement)}
+				onblur={() => mentions.close()}
 				disabled={messageInputDisabled}
 			/>
 			<InputGroup.Addon align="block-end" class="pt-1">
