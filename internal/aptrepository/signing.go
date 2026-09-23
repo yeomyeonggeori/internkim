@@ -179,8 +179,8 @@ func MaterialiseSigningKey() (string, func(), error) {
 	key := strings.TrimSpace(os.Getenv("INTERNKIM_APT_SIGNING_KEY"))
 	if key == "" {
 		return "", func() {}, fmt.Errorf(
-			"no archive signing key: run this through `monkeys run %s`, which takes it out of "+
-				"the vault for the length of the command", SigningKeyVariable)
+			"no archive signing key: run this as `internkim @production release apt`, which hands it %s "+
+				"out of the vault for the length of the command", SigningKeyVariable)
 	}
 	if errorValue := os.Unsetenv("INTERNKIM_APT_SIGNING_KEY"); errorValue != nil {
 		return "", func() {}, errorValue

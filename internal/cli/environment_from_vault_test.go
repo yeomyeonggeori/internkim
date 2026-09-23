@@ -8,6 +8,8 @@ import (
 )
 
 const exampleManifest = `+internkim
+@test
+OPENROUTER_API_KEY
 # the archive key signs what every company host installs as root
 @production,scripts
 INTERNKIM_APT_SIGNING_KEY
@@ -18,17 +20,48 @@ INTERNKIM_BOARD_PORT=8080
 CLOUDFLARE_API_TOKEN
 `
 
-// Nothing in this repository writes the profile's name but the manifest, so
-// what the manifest declares first is what every `monkeys` call runs under.
-func TestTheProfileIsTheFirstOneTheManifestDeclares(t *testing.T) {
-	if profile := vaultManifestProfile(exampleManifest); profile != "production" {
-		t.Fatalf("the manifest named %q, wanted the first profile it declares", profile)
+func TestWithNoProfileArgumentTheFirstDeclaredProfileIsChosen(t *testing.T) {
+	profile, errorValue := chosenVaultProfile(exampleManifest, "")
+	if errorValue != nil || profile != "test" {
+		t.Fatalf("chose %q (%v), wanted the first profile the manifest declares", profile, errorValue)
 	}
 }
 
-func TestAManifestThatDeclaresNoProfileNamesNone(t *testing.T) {
-	if profile := vaultManifestProfile("+internkim\n"); profile != "" {
-		t.Fatalf("a manifest with no profile named %q", profile)
+func TestAProfileArgumentChoosesThatProfile(t *testing.T) {
+	profile, errorValue := chosenVaultProfile(exampleManifest, "production")
+	if errorValue != nil || profile != "production" {
+		t.Fatalf("chose %q (%v), wanted production", profile, errorValue)
+	}
+}
+
+func TestAProfileTheManifestDoesNotDeclareIsRefused(t *testing.T) {
+	if _, errorValue := chosenVaultProfile(exampleManifest, "prodution"); errorValue == nil {
+		t.Fatal("a misspelled profile was accepted and would have run with no vault values")
+	}
+}
+
+func TestAManifestThatDeclaresNoProfileChoosesNone(t *testing.T) {
+	profile, errorValue := chosenVaultProfile("+internkim\n", "")
+	if errorValue != nil || profile != "" {
+		t.Fatalf("a manifest with no profile chose %q (%v)", profile, errorValue)
+	}
+}
+
+func TestTheDeclaredProfilesAreListedOnceInOrder(t *testing.T) {
+	wanted := []string{"test", "production", "scripts"}
+	if declared := vaultManifestProfiles(exampleManifest); !slices.Equal(declared, wanted) {
+		t.Fatalf("declared %v, wanted %v", declared, wanted)
+	}
+}
+
+func TestALeadingProfileArgumentIsTakenOffTheCommand(t *testing.T) {
+	profile, rest := splitVaultProfileArgument([]string{"@production", "deploy", "--components", "web"})
+	if profile != "production" || !slices.Equal(rest, []string{"deploy", "--components", "web"}) {
+		t.Fatalf("split into %q and %v", profile, rest)
+	}
+	profile, rest = splitVaultProfileArgument([]string{"deploy", "@production"})
+	if profile != "" || !slices.Equal(rest, []string{"deploy", "@production"}) {
+		t.Fatalf("a profile after the command was taken as the vault profile: %q, %v", profile, rest)
 	}
 }
 
@@ -88,7 +121,7 @@ func TestOutsideARepositoryTheVaultIsNotConsulted(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
 
-	if _, shouldRun := plannedVaultRun(); shouldRun {
+	if _, shouldRun := plannedVaultRun(""); shouldRun {
 		t.Fatal("a directory that is not a checkout planned a run through the vault")
 	}
 }
@@ -103,7 +136,7 @@ func TestAManifestWithoutAProfileIsNotConsulted(t *testing.T) {
 	t.Chdir(repositoryRootPath)
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
 
-	if _, shouldRun := plannedVaultRun(); shouldRun {
+	if _, shouldRun := plannedVaultRun(""); shouldRun {
 		t.Fatal("a manifest that declares no profile planned a run through the vault")
 	}
 }
@@ -116,7 +149,7 @@ func TestTheReExecutedRunDoesNotRunThroughTheVaultAgain(t *testing.T) {
 	t.Chdir(repositoryRootPath)
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "1")
 
-	if _, shouldRun := plannedVaultRun(); shouldRun {
+	if _, shouldRun := plannedVaultRun(""); shouldRun {
 		t.Fatal("the run that already has the vault environment planned another one")
 	}
 }

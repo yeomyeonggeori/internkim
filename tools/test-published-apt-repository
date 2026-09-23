@@ -134,16 +134,16 @@ def run_through_the_vault():
     doctor = subprocess.run(
         [monkeys, "doctor", "--short"], cwd=str(REPOSITORY_ROOT), capture_output=True, text=True,
     )
-    gap = [line for line in doctor.stdout.splitlines() if line.startswith("missing @")]
+    gap = [line for line in doctor.stdout.splitlines() if line.startswith("missing @production:")]
     if gap:
         print(f"{FAIL} the vault has a gap, so the environment is whatever was already set: {gap[0]}", file=sys.stderr)
         return
-    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "1"
+    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "production"
     # -u because this rig's output is usually redirected to a file, and python
     # buffers stdout when it is. A watcher then reads an empty log for the whole
     # run and cannot tell a slow step from a dead one.
     os.execvpe(monkeys, [
-        "monkeys", "run",
+        "monkeys", "run", "@production",
         sys.executable, "-u", str(Path(__file__).resolve()), *sys.argv[1:],
     ], os.environ)
 

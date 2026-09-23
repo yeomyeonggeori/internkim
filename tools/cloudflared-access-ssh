@@ -42,11 +42,11 @@ def runThroughTheVault():
     doctor = subprocess.run(
         [monkeys, "doctor", "--short"], cwd=str(repositoryRoot), capture_output=True, text=True,
     )
-    if any(line.startswith("missing @") for line in doctor.stdout.splitlines()):
+    if any(line.startswith("missing @production:") for line in doctor.stdout.splitlines()):
         return
-    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "1"
+    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "production"
     os.execvpe(monkeys, [
-        "monkeys", "run", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
+        "monkeys", "run", "@production", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
     ], os.environ)
 
 

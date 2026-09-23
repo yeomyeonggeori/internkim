@@ -102,7 +102,6 @@ KEYRING_NAME = "internkim-archive-keyring.pgp"
 # aptrepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
 # reads that constant and fails if this drifts from it.
 SIGNING_KEY_VARIABLE = "INTERNKIM_APT_SIGNING_KEY"
-VAULT_INJECTED_MARKER = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
 BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
 
 
@@ -284,12 +283,6 @@ class Release:
             cwd=str(REPOSITORY_ROOT),
             environment={
                 SIGNING_KEY_VARIABLE: self.archive_key_path.read_text(),
-                # The CLI re-executes itself under `monkeys run` to be handed the
-                # names in `.monkeys`, and what the vault holds replaces what the
-                # caller set. This rig signs a throwaway repository with a
-                # throwaway key on purpose, and must not be handed the archive key
-                # a customer's apt trusts, so it says the values already arrived.
-                VAULT_INJECTED_MARKER: "1",
             },
         )
 

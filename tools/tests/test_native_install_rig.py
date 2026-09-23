@@ -358,8 +358,16 @@ class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
         source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_apt.go").read_text()
         self.assertNotIn("--signing-key", source)
 
-    def test_the_rig_names_the_marker_that_keeps_the_vault_out_of_its_run(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "environment_from_vault.go").read_text()
-        declared = re.search(r'vaultInjectedMarker\s*=\s*"([^"]+)"', source)
-        self.assertIsNotNone(declared, "the CLI no longer declares vaultInjectedMarker as a literal")
-        self.assertEqual(declared.group(1), rig.VAULT_INJECTED_MARKER)
+    def test_the_profile_the_rig_runs_under_leaves_its_signing_key_alone(self):
+        manifest = (rig.REPOSITORY_ROOT / ".monkeys").read_text().splitlines()
+        profiles = [line.strip()[1:].split(",") for line in manifest if line.strip().startswith("@")]
+        self.assertTrue(profiles, ".monkeys declares no profile")
+        default_profile = profiles[0][0].strip()
+        declared, is_open = [], False
+        for line in (line.strip() for line in manifest):
+            if line.startswith("@"):
+                is_open = default_profile in [name.strip() for name in line[1:].split(",")]
+            elif is_open and line and "=" not in line and not line.startswith(("#", "+")):
+                declared.append(line)
+        self.assertNotIn(rig.SIGNING_KEY_VARIABLE, declared,
+                         f"@{default_profile} would hand the rig's CLI the vault's signing key over its throwaway one")
