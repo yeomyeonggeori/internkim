@@ -91,6 +91,47 @@ and `browser_open` requires you to be present. Tools from configured
 meet the same gate. `GET /api/v1/tools` answers the base set your token
 reaches; `?live=true` asks the company's computer what it can run right now.
 
+## How tools are named [#naming]
+
+A tool's name is the only part of it a model sees before deciding to call it,
+so the tools internkim owns follow one shape, and `tools/verify-tool-naming`
+fails a change that breaks it:
+
+```
+<namespace>_<subject>_<verb>        crm_opportunity_move
+<namespace>_<verb>                  task_add
+```
+
+The namespace matches the descriptor's `namespace`. The subject is dropped when
+the namespace already names it, which is why `event_add` and `crm_contact_add`
+are both right. The verb comes last.
+
+| Verb | Means | Instead of |
+|---|---|---|
+| `add` | bring a new record into being | create, register, save |
+| `list` | several records, filtered | index, fetch |
+| `get` | one record, or one settings block | read, show |
+| `update` | change the named fields of a record | edit, modify, patch |
+| `delete` | remove a record | remove, destroy |
+| `search` | several records, ranked by a query | find, lookup |
+
+Another verb is allowed only when the act is none of these and the domain has
+its own word for it: `crm_opportunity_move` moves a deal between stages, and
+`person_invite` sends an invitation. `set` is kept for a settings block written
+whole, where `update` would suggest that unnamed fields survive.
+
+Every word in a name appears in the tool's own description, so the word a model
+learns from the description reaches the tool. Parameters are camelCase and
+spelled out, and a few carry a fixed meaning everywhere: `<thing>Hint` is a
+natural reference resolved server-side, `limit` caps the answer, `query` is
+what a `search` ranks against, `scope` says whose records a call reads,
+`startsAt` and `endsAt` are RFC 3339 instants, `date` is a `YYYY-MM-DD` day in
+the company's zone, and `reason` is why a record was written by hand.
+
+The agent's kernel tools (`bash`, `read`, `write`, `edit`, `plan`, `equip`) are
+exempt. They carry the names other coding agents use, so a model recognizes
+them on its first turn. Tools from outside MCP servers keep their own names.
+
 ## Where this is implemented [#implementation]
 
 ```mermaid

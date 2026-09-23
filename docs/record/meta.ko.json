@@ -1,4 +1,4 @@
 {
   "title": "레코드",
-  "pages": ["index", "rpc", "edge-functions", "scheduled"]
+  "pages": ["index", "schema", "rpc", "edge-functions", "scheduled"]
 }

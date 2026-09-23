@@ -389,6 +389,17 @@ What "serves it" means depends on the capability, and each branch is in
 - **Link previews** (`asset.link`) the relay builds itself, storing the
   preview image in Supabase Storage so the answer stays small.
 
+No account in the running system stands for somebody else. Every member's work
+on the messenger is done with a credential that member registered, and nothing
+keeps an administrator session to act on anyone's behalf: the relay, the
+connector and the company's connection record hold no messenger account of
+their own. A member registers theirs from the app, through the same gateway
+socket that names them on every other call. What a person hands over is the
+messenger's to say. `person.credential.requirement` answers whether it wants a
+sign-in, a secret or a redirect and which fields to draw, and
+`person.credential.issue` turns the answers into a durable credential, proving
+it works before anything is stored.
+
 An answer larger than the byte ceiling is refused with a `413` naming the
 size, because the transport would otherwise drop it silently; the ceiling and
 its default are in [Running the host](/docs/running-the-host#how-big-an-answer-may-be).

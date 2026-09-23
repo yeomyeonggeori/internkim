@@ -72,6 +72,19 @@ outside, is their own act and is logged as one. No system can stop a cleared
 person from passing on what they read; the ledger, which names each document a
 task touched, is what answers the question afterwards.
 
+## The ways around the question [#around]
+
+Row level security answers who may read a document. These are the ways a
+document could leave its clearance without going through that question, and
+what closes each.
+
+| Way around | What closes it |
+|---|---|
+| a stale or forged clearance | the policy reads the member's own row on every query, so there is nothing to reload |
+| a copy or a successor pointing elsewhere | `supersedes` and `published_from` are foreign keys inside the company, and only a member who can read a row can change it |
+| a download link passed on | a signed URL lasts ten minutes, and it is issued only after the storage policy checked the clearance in its path |
+| a list that counts what one cannot read | a list is built from the rows the reader's session returns, so a hidden domain is absent from the count too |
+
 ## An external data room [#external]
 
 An investor, a law firm or an acquirer doing due diligence receives an export:
