@@ -89,8 +89,7 @@ GROUPS = [
             "tools/verify-tool-name-collisions",
             "tools/verify-tool-naming",
             "tools/tests/test_verify_tool_name_collisions.py",
-            "docs/internal/tool-naming.md",
-            "docs/internal/tool-naming-debt.json",
+            "tools/tool-naming-debt.json",
         ],
         [
             ["tools/verify-skill-tool-references"],
@@ -321,7 +320,7 @@ GROUPS = [
     ),
     Group(
         "doc-budgets",
-        ["*.md", "docs/*", "tools/verify-doc-budgets"],
+        ["*.md", "tools/doc-budgets.json", "tools/verify-doc-budgets"],
         [["tools/verify-doc-budgets"]],
     ),
     Group(
@@ -332,7 +331,7 @@ GROUPS = [
             "*.sh",
             "tools/*",
             "host/*",
-            "docs/internal/environment.json",
+            "tools/environment.json",
             ".monkeys",
         ],
         [

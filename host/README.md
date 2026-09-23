@@ -118,7 +118,7 @@ messenger being read at all.
 `ANSWER_BYTE_CEILING` above. Every setting the relay and the host bundle
 read, whether required or optional, in one table:
 
-<!-- BEGIN GENERATED from docs/internal/environment.json — edit that file, then run tools/render-environment-documents -->
+<!-- BEGIN GENERATED from tools/environment.json — edit that file, then run tools/render-environment-documents -->
 | Name | Used by | What it is |
 | --- | --- | --- |
 | `ADMIND_BASE_URL` | relay | admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080 |
