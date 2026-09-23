@@ -150,10 +150,18 @@
 	}
 
 	$effect(() => {
+		if (selectedTab !== 'logs') return;
+		if (serviceLogLines !== undefined || serviceLogsLoading || serviceLogsError !== '') return;
+		void loadServiceLogs();
+	});
+
+	$effect(() => {
 		const taskRunID = page.params.id ?? '';
 		loadGeneration += 1;
 		const generation = loadGeneration;
 		detail = undefined;
+		serviceLogLines = undefined;
+		serviceLogsError = '';
 		if (pollTimer) clearTimeout(pollTimer);
 		void load(taskRunID, generation);
 	});
@@ -274,7 +282,7 @@
 					<p class="text-sm text-muted-foreground">{text.serviceLogsDescription}</p>
 					<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
 						<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
-						{text.serviceLogsLoad}
+						{text.refresh}
 					</Button>
 				</div>
 				{#if serviceLogsError}
