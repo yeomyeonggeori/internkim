@@ -70,7 +70,8 @@
 		showSenderNames = false,
 		canModerate = false,
 		participants = [],
-		isGroup = false
+		isGroup = false,
+		isWithTheAgent = true
 	}: {
 		isActive?: boolean;
 		threadLayout?: 'sheet' | 'inline';
@@ -79,6 +80,7 @@
 		canModerate?: boolean;
 		participants?: MentionPerson[];
 		isGroup?: boolean;
+		isWithTheAgent?: boolean;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -501,7 +503,7 @@
 		scrollContainer?.scrollTo({ top: 0 });
 		try {
 			await sendChannelMessage(trimmedMessage, outgoingAttachments, channelId, undefined, outgoingMentions);
-			isAgentWorking = true;
+			isAgentWorking = isWithTheAgent;
 			await loadConversation();
 		} catch {
 			loadFailed = true;
@@ -581,7 +583,7 @@
 		isSending = true;
 		try {
 			await sendChannelMessage(optionLabel, [], channelId);
-			isAgentWorking = true;
+			isAgentWorking = isWithTheAgent;
 			await loadConversation();
 		} catch {
 			loadFailed = true;
