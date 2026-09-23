@@ -303,16 +303,16 @@ function readNumber(value: unknown): number {
 	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function readString(value: unknown): string | undefined {
+export function readString(value: unknown): string | undefined {
 	return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
-function readRecord(value: unknown): Record<string, unknown> | undefined {
+export function readRecord(value: unknown): Record<string, unknown> | undefined {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
 	return value as Record<string, unknown>;
 }
 
-function parseJSON(document: string): unknown {
+export function parseJSON(document: string): unknown {
 	try {
 		return JSON.parse(document);
 	} catch {

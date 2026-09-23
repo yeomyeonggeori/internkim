@@ -82,12 +82,14 @@ export function formatTaskTimestamp(value?: string): string {
 	return parsed.toLocaleString();
 }
 
+export function formatDuration(durationMS?: number): string {
+	if (durationMS === undefined || !Number.isFinite(durationMS) || durationMS < 100) return '';
+	return formatLatency(durationMS);
+}
+
 export function formatElapsed(startedAt?: string, at?: string): string {
-	const elapsedMS = Date.parse(at ?? '') - Date.parse(startedAt ?? '');
-	if (!Number.isFinite(elapsedMS) || elapsedMS < 0) return '';
-	const elapsedSeconds = elapsedMS / 1000;
-	if (elapsedSeconds < 60) return `+${elapsedSeconds.toFixed(1)}s`;
-	return `+${Math.floor(elapsedSeconds / 60)}m ${Math.round(elapsedSeconds % 60)}s`;
+	const duration = formatDuration(Date.parse(at ?? '') - Date.parse(startedAt ?? ''));
+	return duration ? `+${duration}` : '';
 }
 
 export function formatLatency(latencyMS: number): string {

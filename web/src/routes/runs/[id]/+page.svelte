@@ -13,19 +13,18 @@
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
-	import BotIcon from '@lucide/svelte/icons/bot';
-	import ClipboardListIcon from '@lucide/svelte/icons/clipboard-list';
-	import FileTextIcon from '@lucide/svelte/icons/file-text';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
 	import RetryTaskButton from '../retry-task-button.svelte';
 	import LLMCallEvent from '../llm-call-event.svelte';
 	import RawDocument from '../raw-document.svelte';
 	import TimelineEvent from '../timeline-event.svelte';
 	import TurnInputEvent from '../turn-input-event.svelte';
+	import IntakeDecisionStep from '../intake-decision-step.svelte';
+	import TaskStep from '../task-step.svelte';
+	import { buildTaskStory } from '../task-story';
 	import { readLLMCallRecord } from '../llm-calls';
 	import {
 		eventLane,
@@ -42,6 +41,7 @@
 		type TimelineSummary
 	} from '../runs-api';
 	import {
+		formatDuration,
 		formatElapsed,
 		formatLatency,
 		formatTaskTimestamp,
@@ -54,7 +54,7 @@
 	const text = createPageText(tasksText);
 	let detail = $state<TaskDetail | undefined>(undefined);
 	let loadError = $state('');
-	let selectedTab = $state('timeline');
+	let selectedTab = $state('story');
 	let selectedEventLane = $state('all');
 	let eventSearchQuery = $state('');
 	let serviceLogLines = $state<string[] | undefined>(undefined);
@@ -64,6 +64,8 @@
 	let loadGeneration = 0;
 
 	const summary = $derived(detail ? summarizeTimeline(detail.taskEvents) : undefined);
+	const story = $derived(buildTaskStory(detail?.taskEvents ?? []));
+	const runDuration = $derived(detail ? formatDuration(Date.parse(detail.taskRun.updatedAt ?? '') - Date.parse(detail.taskRun.createdAt ?? '')) : '');
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
 	const visibleTaskEvents = $derived(detail ? filterTaskEvents(detail.taskEvents) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
@@ -135,6 +137,15 @@
 	}
 
 	let openEventValues = $state<string[]>([]);
+	let openStepValues = $state<string[]>([]);
+	const openedFailedStepKeys = new Set<string>();
+
+	$effect(() => {
+		const newlyFailedKeys = story.steps.filter((step) => step.isFailed && !openedFailedStepKeys.has(step.key)).map((step) => step.key);
+		if (newlyFailedKeys.length === 0) return;
+		newlyFailedKeys.forEach((key) => openedFailedStepKeys.add(key));
+		openStepValues = [...untrack(() => openStepValues), ...newlyFailedKeys];
+	});
 
 	function summaryLine(timelineSummary: TimelineSummary): string {
 		return text.summaryLine
@@ -218,6 +229,10 @@
 					<span aria-hidden="true">·</span>
 				{/if}
 				<span>{formatTaskTimestamp(detail.taskRun.createdAt)}</span>
+				{#if runDuration}
+					<span aria-hidden="true">·</span>
+					<span>{runDuration}</span>
+				{/if}
 			</div>
 			<h1 class="line-clamp-3 text-lg leading-snug font-semibold">{detail.taskRun.prompt || detail.taskRun.taskRunID}</h1>
 			{#if summary}
@@ -226,6 +241,9 @@
 			{#if detail.taskRun.failureReason}
 				<p class="text-sm text-destructive">{detail.taskRun.failureReason}</p>
 			{/if}
+			{#if detail.taskRun.result}
+				<p class="mt-2 rounded-lg bg-muted/50 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">{detail.taskRun.result}</p>
+			{/if}
 			{#if pendingApproval}
 				<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
 			{/if}
@@ -233,19 +251,25 @@
 
 		<UnderlineTabs.Root bind:value={selectedTab} class="min-w-0">
 			<UnderlineTabs.List>
-				<UnderlineTabs.Trigger value="timeline">
-					<ClipboardListIcon data-icon="inline-start" />
-					{text.timelineTab}
-				</UnderlineTabs.Trigger>
-				<UnderlineTabs.Trigger value="brief">
-					<FileTextIcon data-icon="inline-start" />
-					{text.briefTab}
-				</UnderlineTabs.Trigger>
-				<UnderlineTabs.Trigger value="logs">
-					<TerminalIcon data-icon="inline-start" />
-					{text.logsTab}
-				</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="story">{text.storyTab}</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="timeline">{text.rawTab}</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="logs">{text.logsTab}</UnderlineTabs.Trigger>
 			</UnderlineTabs.List>
+
+			<UnderlineTabs.Content value="story" class="min-w-0">
+				{#if story.steps.length === 0 && !story.intakeDecision}
+					<p class="py-8 text-center text-sm text-muted-foreground">{text.noSteps}</p>
+				{:else}
+					<Accordion.Root type="multiple" bind:value={openStepValues}>
+						{#if story.intakeDecision}
+							<IntakeDecisionStep decision={story.intakeDecision} isOpen={openStepValues.includes('intake-decision')} {text} />
+						{/if}
+						{#each story.steps as step (step.key)}
+							<TaskStep {step} isOpen={openStepValues.includes(step.key)} {text} />
+						{/each}
+					</Accordion.Root>
+				{/if}
+			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="timeline" class="flex min-w-0 flex-col gap-3">
 				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -285,70 +309,21 @@
 				{/if}
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="brief">
-				<div class="grid gap-4 lg:grid-cols-2">
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>{text.promptLabel}</Card.Title>
-							<Card.Action>
-								<CopyButton text={detail.taskRun.prompt ?? ''} variant="ghost" size="sm" disabled={!detail.taskRun.prompt}>
-									<span>{text.copyPrompt}</span>
-								</CopyButton>
-							</Card.Action>
-						</Card.Header>
-						<Card.Content>
-							<p class="whitespace-pre-wrap text-sm">{detail.taskRun.prompt || '—'}</p>
-						</Card.Content>
-					</Card.Root>
-
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>{text.resultLabel}</Card.Title>
-							<Card.Action>
-								<CopyButton text={detail.taskRun.result ?? ''} variant="ghost" size="sm" disabled={!detail.taskRun.result}>
-									<span>{text.copyResult}</span>
-								</CopyButton>
-							</Card.Action>
-						</Card.Header>
-						<Card.Content>
-							<p class="whitespace-pre-wrap text-sm">{detail.taskRun.result || '—'}</p>
-						</Card.Content>
-					</Card.Root>
+			<UnderlineTabs.Content value="logs" class="flex min-w-0 flex-col gap-3">
+				<div class="flex items-center justify-between gap-3">
+					<p class="text-sm text-muted-foreground">{text.serviceLogsDescription}</p>
+					<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
+						<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
+						{text.serviceLogsLoad}
+					</Button>
 				</div>
-			</UnderlineTabs.Content>
-
-			<UnderlineTabs.Content value="logs">
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>{text.serviceLogsTitle}</Card.Title>
-						<Card.Description>{text.serviceLogsDescription}</Card.Description>
-						<Card.Action>
-							<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
-								<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
-								{text.serviceLogsLoad}
-							</Button>
-						</Card.Action>
-					</Card.Header>
-					<Card.Content>
-						{#if serviceLogsError}
-							<p class="text-sm text-destructive">{serviceLogsError}</p>
-						{:else if serviceLogLines === undefined}
-							<div class="flex items-center gap-2 text-sm text-muted-foreground">
-								<BotIcon />
-								{text.serviceLogsPrompt}
-							</div>
-						{:else if serviceLogLines.length === 0}
-							<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
-						{:else}
-							<div class="flex flex-col gap-2">
-								<CopyButton text={serviceLogLines.join('\n')} variant="outline" size="sm" class="w-fit">
-									<span>{text.copyLogs}</span>
-								</CopyButton>
-								<pre class="max-h-96 overflow-auto rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{serviceLogLines.join('\n')}</pre>
-							</div>
-						{/if}
-					</Card.Content>
-				</Card.Root>
+				{#if serviceLogsError}
+					<p class="text-sm text-destructive">{serviceLogsError}</p>
+				{:else if serviceLogLines !== undefined && serviceLogLines.length === 0}
+					<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
+				{:else if serviceLogLines !== undefined}
+					<RawDocument document={serviceLogLines.join('\n')} />
+				{/if}
 			</UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}

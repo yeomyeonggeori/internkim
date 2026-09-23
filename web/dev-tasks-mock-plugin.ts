@@ -149,6 +149,7 @@ function createDevTaskDetail(taskRun: TaskRunSummary): Omit<TaskDetail, 'taskEve
 	return {
 		taskRun: {
 			...taskRun,
+			updatedAt: secondsAfter(taskRun.createdAt, 11.2),
 			result:
 				taskRun.status === 'completed'
 					? '요청한 작업을 완료했고 게시 URL과 주요 변경 사항을 사용자에게 전달했습니다.'
@@ -158,11 +159,18 @@ function createDevTaskDetail(taskRun: TaskRunSummary): Omit<TaskDetail, 'taskEve
 	};
 }
 
+function secondsAfter(timestamp: string | undefined, seconds: number): string | undefined {
+	if (!timestamp) return undefined;
+	return new Date(Date.parse(timestamp) + seconds * 1000).toISOString();
+}
+
 function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
+	const at = (seconds: number) => secondsAfter(taskRun.createdAt, seconds);
+	const isFailed = taskRun.status === 'failed';
 	return [
-		taskEvent('task.created', taskRun.prompt ?? '', taskRun.createdAt),
-		taskEvent('llm.call', devDecisionRecord(['dev-message-001']), taskRun.createdAt, `${taskRun.taskRunID}-decision`),
-		taskEvent('task.turn_input', { $part: '0'.repeat(64) }, taskRun.createdAt, `${taskRun.taskRunID}-turn-input`),
+		taskEvent('task.created', taskRun.prompt ?? '', at(0)),
+		taskEvent('llm.call', devDecisionRecord(['dev-message-001']), at(0.8), `${taskRun.taskRunID}-decision`),
+		taskEvent('task.turn_input', { $part: '0'.repeat(64) }, at(1.1), `${taskRun.taskRunID}-turn-input`),
 		taskEvent('llm.call', {
 			kind: 'structured',
 			schemaName: 'bluecollar_agent_turn_action',
@@ -176,7 +184,7 @@ function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 			totalTokens: 34438,
 			costUSD: taskRun.llmCostUSD ?? 0.0089445,
 			seed: 1234567
-		}, taskRun.createdAt, `${taskRun.taskRunID}-turn`),
+		}, at(4.6), `${taskRun.taskRunID}-turn`),
 		taskEvent('agent.action', {
 			action: 'continue',
 			toolName: 'site_serve',
@@ -186,7 +194,7 @@ function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 				description: '귤 소개 웹사이트'
 			},
 			reason: '사용자가 사이트 생성을 요청했으므로 사이트 생성 도구를 호출합니다.'
-		}, taskRun.createdAt),
+		}, at(4.7)),
 		taskEvent('tool.site_serve.requested', {
 			observationID: 'obs-006',
 			toolName: 'site_serve',
@@ -195,20 +203,27 @@ function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 				slug: 'tasty-tangerine',
 				audience: '귤을 좋아하는 사람들'
 			}
-		}, taskRun.updatedAt),
-		taskEvent('tool.site_serve.result', {
-			observationID: 'obs-012',
-			tool: 'site_serve',
-			output: {
-				data: {
-					siteID: '0da25b8c036e2cb7a05e3200',
-					slug: 'tangerine-hub',
-					publishedURL: 'https://tangerine-hub.example-device.example.test',
-					status: 'published',
-					tlsStatus: 'active'
+		}, at(4.8)),
+		isFailed
+			? taskEvent('tool.site_serve.result', {
+				observationID: 'obs-012',
+				tool: 'site_serve',
+				output: { content: '게시 서버가 30초 안에 응답하지 않았습니다.' },
+				failure: { kind: 'timeout' }
+			}, at(34.8))
+			: taskEvent('tool.site_serve.result', {
+				observationID: 'obs-012',
+				tool: 'site_serve',
+				output: {
+					data: {
+						siteID: '0da25b8c036e2cb7a05e3200',
+						slug: 'tangerine-hub',
+						publishedURL: 'https://tangerine-hub.example-device.example.test',
+						status: 'published',
+						tlsStatus: 'active'
+					}
 				}
-			}
-		}, taskRun.updatedAt),
+			}, at(9.3)),
 		taskEvent('agent.action', {
 			action: taskRun.status === 'completed' ? 'finish' : 'continue',
 			message: taskRun.status === 'completed'
@@ -216,7 +231,7 @@ function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 				: '작업을 계속 진행합니다.',
 			goalStatus: taskRun.status === 'completed' ? 'satisfied' : 'working',
 			goalSatisfied: taskRun.status === 'completed'
-		}, taskRun.updatedAt)
+		}, at(11.2))
 	];
 }
 
