@@ -1,0 +1,171 @@
+---
+title: What the tables mean
+description: The decisions behind the schema that the column names do not say, and the rules a client has to keep.
+---
+
+`supabase/migrations` is the schema itself, one file per change, and
+`supabase/tests` holds it to what it claims. Read the table list there. This
+page says what the names cannot: why a table is shaped the way it is, why some
+tables are absent, and which rules a caller has to keep because the database
+cannot.
+
+## Naming [#naming]
+
+Tables are singular. Timestamps are `timestamptz` and end in `_at`. Booleans
+start with `is_`. A creation timestamp exists only where something reads it:
+tasks and the CRM records.
+
+## A member exists before an account [#members]
+
+`member` is one person in a company, and `member.user_id` is nullable, so a
+member can be imported with an email address and bound to an account whenever
+one appears.
+
+```
+pending → invited → active
+                ↘ departed    an administrator offboarded them
+                ↘ withdrawn   the account was deleted any other way
+```
+
+Accounts can be deleted or renamed from the Supabase dashboard as well as
+through the API, so three triggers on `auth.users` keep the member honest. An
+insert binds a `pending` member with the same address. A change of address
+carries over to the member. A delete marks the member `withdrawn`, unless the
+API already said `departed`.
+
+The account's address is the source of truth and `member.email` is its
+projection. Changing someone's address is an update of the account, never a
+re-invitation, so `user_id` never moves.
+
+## A task carries events and CRM activity [#tasks]
+
+There is no event table. An event is a task you have to show up for:
+`is_event` requires a start, `is_whole_day` reads the span as dates in the
+company's zone, and `notify_minutes_before` is the reminder's lead time. A
+sixteen-day piece of work has a span and is not an event, which is why the
+calendar index is partial on `is_event`.
+
+There is no recurrence. Each occurrence is its own row, so "everything on my
+plate" is one query.
+
+There is no CRM activity table either. A task with an `organization_id` is the
+activity, and `opportunity_id` and `contact_id` add context. Deferred
+constraints hold every reference a task names to one company and one
+organization.
+
+## Time and its units [#time]
+
+Durations of work are integer minutes. Leave is `numeric` days, because days
+are the unit the law grants and audits leave in, and a company changing its
+standard working day must not move a legal record.
+
+Work hours are a repeating cycle of weeks, `[[7 days], [7 days], …]`. The
+array's length is the cycle's length and a `null` day is a day off.
+`member_work_hours_on(member, day)` does the cycle arithmetic, so no call site
+repeats it.
+
+Time zone, locale, work hours and the minimum working day are set on the
+company and overridden on the member. Read them through the `member_*()`
+functions. A call site that reads the columns loses the fallback. A calendar
+question needs a zone: `member_today(member)` answers the day for
+that person, and nothing reaches for `current_date`.
+
+## Attendance [#attendance]
+
+A trigger keeps attendance a sequence that makes sense. A clock-out with no
+open clock-in is refused. A second clock-in at the same location is refused,
+while one at a different location is moving between sites. A clock-in with no
+location takes the company's first registered work location, and a location
+the company never registered is refused.
+
+Attendance is recorded rather than approved. A member writes, corrects and
+removes their own records from the last three days, and an administrator
+writes anybody's at any age. Every writing call answers
+`{ status, eventID, backdated }`:
+
+| `status` | Meaning |
+|---|---|
+| `added`, `corrected`, `removed` | the record changed |
+| `asked` | a member reached further back than three days; nothing was written, `eventID` is null, and the administrators were told what was wanted |
+
+`asked` is a success. An administrator who agrees writes the record with the
+same tool. `backdated` is true when the moment is older than
+`attendance_backdated_after_minutes()`, and a backdated write does not announce
+an arrival to colleagues.
+
+`attendance_add` with no date and no time clocks the moment of the call. Naming
+a past moment is writing by hand; a reason is kept when given and never
+demanded. `attendance_list` with `handWrittenOnly` returns the rows written or
+moved by hand, and the record keeps the moment a row was moved from, the
+reason, and when it was removed.
+
+## Leave [#leave]
+
+The company's leave policy is a document in
+`company.rules.attendanceLeavePolicy`: the leave types, how the annual type is
+granted, when a grant lapses, what carries over, and when the leave year
+starts. `attendance_leave_policy_save` validates it. Grants and balances are
+computed by the database, so the app and the agent quote one figure.
+
+A row on `leave` is leave given or leave taken, and the sign of `days` says
+which. A grant (`days >= 0`) carries the day it arrived, its origin
+(`accrual`, `manual` or `carryover`) and when it lapses. Leave taken
+(`days < 0`) carries the span and a status of `requested`, `approved` or
+`rejected`. A balance is a sum of the grants still standing, less the approved
+leave that deducts, prorated across leave years when a leave straddles two.
+
+`kind` is free text in the company's own vocabulary, since leave types differ by
+company and by country. Half and quarter days are just fractions of `days`.
+`is_paid` and `is_deducted` vary per row. Whether a type is statutory depends
+on the company's country, so it belongs to the policy. The span and `days`
+legitimately disagree: a Friday to Monday leave spans four days and costs two.
+
+## CRM [#crm]
+
+| Concern | Where it lives |
+|---|---|
+| an outside institution or company | `organization` |
+| an outside person | `contact` |
+| a deal or ongoing case | `opportunity` |
+| an activity, a piece of work, a calendar event | `task` |
+| the organization types and pipelines | `company.crm_vocabulary` |
+
+Every pipeline moves through the same six stages: `waiting`, `in_progress`,
+`review`, `done`, `on_hold`, `lost`. Money is stored in minor units, with the
+amount and its currency present together or not at all. A deal may be in any
+currency the rate provider serves, around a hundred and sixty.
+
+`crm_opportunity_close` settles a deal against the company's base currency. A
+foreign-currency deal closed without a converted amount is refused, and so is
+a lost deal without a written reason. The settled amount is never recomputed.
+A record in use is archived instead of deleted.
+
+## Access [#access]
+
+`member` has no write policy, so nobody can set their own `is_admin`. Creating
+members, binding accounts and granting administration go through the API with
+the service role.
+
+| Table | Read | Write |
+|---|---|---|
+| `company` | its members | its administrators |
+| `member` | its company | the API only |
+| `credential` | the holder; a messenger identity also their colleagues | the holder |
+| `task`, `task_participant` | the company | any member |
+| `attendance` | the company | the member, and administrators |
+| `leave` | the company | requested by the member, decided by an administrator |
+| `push_device` | the owner | the owner |
+| `circle`, `circle_member` | the company | its administrators |
+
+A circle is the unit the asset bucket grants on: a member reads
+`<company>/circle/<circleID>/…` when `circle_member` puts them there. A team
+grants its own `<company>/team/<teamID>/…`. A member sits in one team and any
+number of circles, and a path whose second segment neither defines is denied.
+
+The agent writes as the member it acts for, with that member's token, so it
+needs no policy of its own.
+
+## Migrations [#migrations]
+
+Every change is a new migration. An applied migration is never edited, because
+the hosted record holds real data and cannot be reset to match.

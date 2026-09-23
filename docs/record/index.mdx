@@ -14,10 +14,11 @@ TypeScript above it, so the two drift unless the rule is stated once. It has
 happened: the tool schema demanded a reason `public.attendance_add` does not,
 and the attendance screen was refused before the record ever saw the call.
 
-These pages are generated from a database with every migration applied, so they
-say what is actually there.
+The lists of functions are generated from a database with every migration
+applied, so they say what is actually there.
 
 <Cards>
+  <Card title="What the tables mean" href="/docs/record/schema" description="The decisions behind the schema, and the rules a caller keeps" />
   <Card title="Every RPC" href="/docs/record/rpc" description="Every function PostgREST exposes, and who may call it" />
   <Card title="Edge functions" href="/docs/record/edge-functions" description="The Deno functions beside the record, and which verify a JWT" />
   <Card title="Scheduled work" href="/docs/record/scheduled" description="What pg_cron runs with no caller" />
@@ -41,5 +42,4 @@ table, and it means the function's own body is all that stands between a caller
 and everything it can reach.
 
 The schema of record is `supabase/migrations`, and
-[docs/internal/core-schema.md](https://github.com/yeomyeonggeori/internkim/blob/main/docs/internal/core-schema.md)
-explains the tables.
+[What the tables mean](/docs/record/schema) explains the tables.
