@@ -69,6 +69,11 @@ The rule: **every word in the name appears in the description.** When the
 product has settled on a word, the name uses that word. When the name is right
 and the description drifted, fix the description.
 
+Padding the description with that word is not the remedy: a near-synonym
+clause dilutes the sentence that was carrying the tool, and the selector ranks
+it lower. A word that cannot enter as the sentence's own word means the name
+diverged, so record it in the debt and rename when that is worth its cost.
+
 Short grammatical words (`get`, `set`, `add`, `to`, `of`) are exempt, and so are
 the standard names of algorithms and formats.
 
