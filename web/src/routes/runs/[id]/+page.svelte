@@ -278,8 +278,7 @@
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="logs" class="flex min-w-0 flex-col gap-3">
-				<div class="flex items-center justify-between gap-3">
-					<p class="text-sm text-muted-foreground">{text.serviceLogsDescription}</p>
+				<div class="flex justify-end">
 					<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
 						<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
 						{text.refresh}
