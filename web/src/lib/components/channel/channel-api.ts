@@ -74,12 +74,18 @@ export type ThreadSummary = {
 	participants: ChannelParticipant[];
 };
 
+export type ChannelMentions = {
+	externalIDs: string[];
+	isEveryone: boolean;
+};
+
 export type ChannelMessage = {
 	id: string;
 	threadRootId?: string;
 	sender: ChannelParticipant;
 	text: string;
 	sentAt: string;
+	mentions?: ChannelMentions;
 	isError?: boolean;
 	interaction?: ChannelInteraction;
 	reactions?: ChannelMessageReaction[];
@@ -295,10 +301,11 @@ export async function sendChannelMessage(
 	message: string,
 	attachments: ChannelOutgoingAttachment[] = [],
 	channelID?: string,
-	replyToRootID?: string
+	replyToRootID?: string,
+	mentions?: ChannelMentions
 ): Promise<void> {
 	if (isSupabaseConfigured()) {
-		await bridgeSendMessage(message, channelID, replyToRootID, attachments);
+		await bridgeSendMessage(message, channelID, replyToRootID, attachments, mentions);
 		return;
 	}
 	await sendServerSignedMessage(message, attachments, channelID, replyToRootID);
