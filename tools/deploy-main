@@ -48,7 +48,7 @@ PLAN_STEPS = [
     "(cd web && bun run build:board)",
     "remove .dependency/blueclaw/internal/app/.blueclaw if a build step recreated it",
     "./internkim verify install-addresses, refusing while an address admind prints is unserved or unanswered",
-    "./internkim deploy --components <every component from --help's Available: line>",
+    "./internkim @<vault profile> deploy --components <every component from --help's Available: line>",
     "poll every target's health endpoint until gitRevision matches origin/main, up to 5 minutes",
     "print the before/after revision table",
 ]
@@ -258,11 +258,16 @@ def require_install_addresses_are_served():
         )
 
 
-def run_deploy(components):
-    print(f"$ ./internkim deploy --components {','.join(components)}", flush=True)
-    returncode, output_lines = run_streaming(["./internkim", "deploy", "--components", ",".join(components)])
+def run_deploy(components, vault_profile):
+    profile_argument = ["@" + vault_profile] if vault_profile else []
+    command = ["./internkim", *profile_argument, "deploy", "--components", ",".join(components)]
+    print("$ " + " ".join(command), flush=True)
+    returncode, output_lines = run_streaming(command)
     if returncode != 0:
-        raise Refusal("./internkim deploy exited non-zero")
+        raise Refusal(
+            f"{' '.join(command)} exited non-zero "
+            f"under vault profile {vault_profile or '(none)'}"
+        )
     deploy_lines = [line for line in output_lines if line.startswith("Deploy:")]
     return deploy_lines[-1] if deploy_lines else ""
 
@@ -300,6 +305,11 @@ def print_plan():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", action="store_true", help="print every step and exit without running anything")
+    parser.add_argument(
+        "--vault-profile",
+        default="production",
+        help="the monkeys vault profile the deploy reads its credentials from; empty runs without one",
+    )
     arguments = parser.parse_args()
 
     if arguments.plan:
@@ -315,7 +325,7 @@ def main():
             run_build_steps()
             require_install_addresses_are_served()
             components = every_release_component()
-            deploy_line = run_deploy(components)
+            deploy_line = run_deploy(components, arguments.vault_profile)
             short_sha = short_revision_of_origin_main()
             for target in targets:
                 target["revisionAfter"] = poll_until_revision_matches(target, short_sha)
