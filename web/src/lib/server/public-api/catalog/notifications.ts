@@ -80,7 +80,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'user_notification',
     policyResource: 'tool:notification_settings_set',
-    description: 'Change what the requester is told about. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.',
+    description: 'Change which categories of notice the requester is told about at all, and which conversations are muted. This is the standing preference, not one arriving reminder: a repeating alert the requester set up is stopped with schedule_cancel. Only the categories the call names change, and the whole setting is answered back. A category the requester may not choose is refused by name rather than quietly dropped.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: notificationSettingsSetInputSchema,
