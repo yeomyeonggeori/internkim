@@ -1,4 +1,4 @@
-//   bun run web/scripts/set-pages-secrets.ts --project internkim
+//   monkeys run @production bun run web/scripts/set-pages-secrets.ts --project internkim
 
 import { requiredSetting, setting } from './repository-setting';
 

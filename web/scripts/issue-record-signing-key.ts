@@ -2,13 +2,12 @@
 //
 // Mints the elliptic curve key the web app signs record tokens with, registers
 // it with the Supabase project as a JWT signing key so PostgREST, Storage and
-// Realtime verify those tokens, and keeps the private half in the repository
-// root settings file as SUPABASE_JWT_SIGNING_KEY for set-pages-secrets.ts to
-// carry to Pages.
+// Realtime verify those tokens, and remembers the private half in the vault as
+// SUPABASE_JWT_SIGNING_KEY for set-pages-secrets.ts to carry to Pages.
 
 import { exportJWK, generateKeyPair } from 'jose';
 import { accessToken, projectReference } from './remote-query';
-import { keepSetting, repositorySettingsPath } from './repository-setting';
+import { rememberSetting } from './repository-setting';
 
 type KeyStatus = 'standby' | 'in_use';
 
@@ -43,8 +42,7 @@ async function registerWithSupabase(key: Record<string, unknown>, status: KeySta
 const status = statusOf(argument('status'));
 const key = await privateJWK();
 const registered = await registerWithSupabase(key, status);
-keepSetting('SUPABASE_JWT_SIGNING_KEY', JSON.stringify(key));
+rememberSetting('SUPABASE_JWT_SIGNING_KEY', JSON.stringify(key));
 
 console.log(`signing key ${registered.id} (kid ${key.kid}) is ${status} on project ${projectReference}`);
-console.log(`its private half is SUPABASE_JWT_SIGNING_KEY in ${repositorySettingsPath}`);
-console.log('carry it to Pages with: bun run web/scripts/set-pages-secrets.ts --project internkim');
+console.log('carry it to Pages with: monkeys run @production bun run web/scripts/set-pages-secrets.ts --project internkim');
