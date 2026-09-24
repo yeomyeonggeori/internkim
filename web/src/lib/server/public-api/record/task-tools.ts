@@ -1,4 +1,4 @@
-import { compatibilityOwnerOf } from '$lib/task/central-task';
+import { compatibilityOwnerOf, taskStatus } from '$lib/task/central-task';
 import { personName } from '$lib/person-name';
 import { taskWeekCodeForDateISO } from '$lib/task/task-week-code';
 import {
@@ -178,16 +178,22 @@ export async function taskAdd(context: RecordContext, asked: TaskWritten): Promi
 		: asked;
 	const written = writtenFields(context, input, null);
 	const participantIDs = written.participantIDs ?? [context.requesterID];
+	const status = statusOfAssignedWork(written.status, participantIDs, context.requesterID);
 
 	const tasks = await tasksOfCompany(context.caller, false);
 	const parentTaskID = input.parentTaskHint?.trim() ? taskOfHint(tasks, input.parentTaskHint, 'task').id : null;
 	const duplicate = duplicateJustAdded(context, tasks, participantIDs, asked.title.trim());
 	const saved = duplicate
 		? (await mergedIntoDuplicate(context, duplicate, input)).id
-		: await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs, parentTaskID }));
+		: await saveTask(context.caller, taskWriteArguments(null, { ...written, status, participantIDs, parentTaskID }));
 
 	await writeCRMColumns(context, saved, await crmColumnsWritten(context, input, duplicate ?? null));
 	return answeredTask(context, await taskByID(context, saved));
+}
+
+function statusOfAssignedWork(asked: string | undefined, participantIDs: string[], requesterID: string): string | undefined {
+	if (asked !== undefined || participantIDs.includes(requesterID)) return asked;
+	return taskStatus.requested;
 }
 
 const duplicateWindowMilliseconds = 10 * 60 * 1000;

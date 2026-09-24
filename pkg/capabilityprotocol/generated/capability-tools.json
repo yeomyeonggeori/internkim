@@ -1038,7 +1038,7 @@
             "type": "string"
           },
           "status": {
-            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
+            "description": "Initial task status. Defaults to planned. Work whose participants leave out the requester is added as requested, with the requester as the one who asked; only an administrator may add it in another status.",
             "enum": [
               "planned",
               "in_progress",
@@ -1111,7 +1111,7 @@
             "type": "string"
           },
           "status": {
-            "description": "Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.",
+            "description": "Initial task status. Defaults to planned. Work whose participants leave out the requester is added as requested, with the requester as the one who asked; only an administrator may add it in another status.",
             "enum": [
               "planned",
               "in_progress",
