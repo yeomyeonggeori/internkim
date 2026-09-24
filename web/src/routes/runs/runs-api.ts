@@ -17,6 +17,7 @@ export type TaskRunSummary = {
 };
 
 export type TaskEvent = {
+	id?: string;
 	name: string;
 	body: string;
 	createdAt?: string;
@@ -293,6 +294,7 @@ function readTaskEvents(entries: unknown): TaskEvent[] {
 		if (!record || typeof record.name !== 'string') return [];
 		return [
 			{
+				id: typeof record.taskEventID === 'string' ? record.taskEventID : undefined,
 				name: record.name,
 				body: typeof record.body === 'string' ? record.body : '',
 				createdAt: typeof record.createdAt === 'string' ? record.createdAt : undefined
@@ -301,13 +303,13 @@ function readTaskEvents(entries: unknown): TaskEvent[] {
 	});
 }
 
-export type EventLane = 'llm' | 'tool' | 'failure' | 'control';
+export type EventLane = 'llm' | 'tool' | 'failure' | 'other';
 
 export function eventLane(eventName: string): EventLane {
 	if (eventName === 'llm.call') return 'llm';
 	if (eventName.startsWith('tool.')) return 'tool';
-	if (eventName.startsWith('agent.failure') || eventName === 'agent.recovery_attempt') return 'failure';
-	return 'control';
+	if (eventName === 'task.failed' || eventName.startsWith('agent.failure') || eventName === 'agent.recovery_attempt') return 'failure';
+	return 'other';
 }
 
 export type TimelineSummary = {

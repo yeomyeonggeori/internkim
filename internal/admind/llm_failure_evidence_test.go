@@ -13,7 +13,7 @@ import (
 
 func TestLLMFailureEvidenceRequiresAdminAndPreservesDocument(t *testing.T) {
 	workspacePath := t.TempDir()
-	_, capture := llmbackend.NewFailureCapture(nil)
+	_, capture := llmbackend.NewExchangeCapture(nil)
 	identifier, errorValue := llmbackend.WriteFailureEvidence(workspacePath, map[string]string{"prompt": "private test request"}, capture)
 	if errorValue != nil {
 		t.Fatal(errorValue)

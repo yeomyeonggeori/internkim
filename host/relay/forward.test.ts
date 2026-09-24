@@ -709,6 +709,12 @@ describe('every capability the workspace family names', () => {
 		}
 	});
 
+	test('asks for one call\'s exchange, a turn\'s input and the inbound messages by what the caller named', () => {
+		expect(workspaceCallOf('person.runs.llm_call', { id: 'call-1' }, 'sample@example.test')?.url).toBe('http://internkim/runs/api/llm-call?id=call-1');
+		expect(workspaceCallOf('person.runs.inbound', { limit: 50 }, 'sample@example.test')?.url).toBe('http://internkim/runs/api/inbound?limit=50');
+		expect(workspaceCallOf('person.runs.turn_input', { id: 'event-1' }, 'sample@example.test')?.url).toBe('http://internkim/runs/api/turn-input?id=event-1');
+	});
+
 	test('carries what the caller asked for as a query, and never the actor', () => {
 		const call = workspaceCallOf(
 			'person.runs.detail',

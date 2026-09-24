@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestFailureCapturePreservesRequestAndResponseBodies(t *testing.T) {
+func TestExchangeCapturePreservesRequestAndResponseBodies(t *testing.T) {
 	baseClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		body, errorValue := io.ReadAll(request.Body)
 		if errorValue != nil {
@@ -18,7 +18,7 @@ func TestFailureCapturePreservesRequestAndResponseBodies(t *testing.T) {
 		}
 		return &http.Response{StatusCode: http.StatusBadRequest, Body: io.NopCloser(strings.NewReader("plain response")), Header: make(http.Header), Request: request, ContentLength: int64(len(body))}, nil
 	})}
-	client, capture := NewFailureCapture(baseClient)
+	client, capture := NewExchangeCapture(baseClient)
 	response, errorValue := client.Post("https://secret.example/v1", "application/json", strings.NewReader(`{"prompt":"secret"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -40,7 +40,7 @@ func TestFailureCapturePreservesRequestAndResponseBodies(t *testing.T) {
 	}
 }
 
-func TestFailureCaptureRecordsRetriesAndTransportErrors(t *testing.T) {
+func TestExchangeCaptureRecordsRetriesAndTransportErrors(t *testing.T) {
 	attempt := 0
 	baseClient := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		attempt++
@@ -49,7 +49,7 @@ func TestFailureCaptureRecordsRetriesAndTransportErrors(t *testing.T) {
 		}
 		return nil, errors.New("connection refused")
 	})}
-	client, capture := NewFailureCapture(baseClient)
+	client, capture := NewExchangeCapture(baseClient)
 	for range 2 {
 		request, _ := http.NewRequest(http.MethodPost, "https://secret.example", strings.NewReader("request"))
 		response, _ := client.Do(request)
@@ -67,8 +67,8 @@ func TestFailureCaptureRecordsRetriesAndTransportErrors(t *testing.T) {
 	}
 }
 
-func TestFailureCaptureSnapshotIsSafeDuringConcurrentRequests(t *testing.T) {
-	client, capture := NewFailureCapture(&http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+func TestExchangeCaptureSnapshotIsSafeDuringConcurrentRequests(t *testing.T) {
+	client, capture := NewExchangeCapture(&http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte("ok"))), Header: make(http.Header)}, nil
 	})})
 	var waitGroup sync.WaitGroup

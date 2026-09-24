@@ -295,7 +295,7 @@ func handleLLMRoute[RequestBody any, ResponseBody any](service Service, complete
 			return
 		}
 		capturingService := service
-		capturedClient, capture := llmbackend.NewFailureCapture(capturingService.providerHTTPClient())
+		capturedClient, capture := llmbackend.NewExchangeCapture(capturingService.providerHTTPClient())
 		capturingService.HTTPClient = capturedClient
 		response, errorValue := complete(capturingService, request.Context(), requestBody)
 		capturingService.writeLLMResponse(responseWriter, response, errorValue, requestBody, capture)
