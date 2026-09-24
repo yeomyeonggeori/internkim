@@ -1,5 +1,6 @@
 <script lang="ts">
 	import LLMCallDetail from './llm-call-detail.svelte';
+	import StepSection from './step-section.svelte';
 	import type { LLMCallRecord } from './llm-calls';
 	import { formatCostUSD } from './runs-api';
 	import { formatLatency } from './runs-view';
@@ -23,7 +24,10 @@
 	cost={record.costUSD > 0 ? formatCostUSD(record.costUSD) : ''}
 	{createdAt}
 	isFailed={record.isError}
+	lane="llm"
 	{isOpen}
 >
-	<LLMCallDetail {llmCallID} {record} {text} />
+	<StepSection title={text.stepModelCall} identifier={record.model}>
+		<LLMCallDetail {llmCallID} {record} {text} isModelInHeader />
+	</StepSection>
 </TimelineEvent>

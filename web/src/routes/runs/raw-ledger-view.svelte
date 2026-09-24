@@ -51,7 +51,7 @@
 	{:else if entry.event.name === 'task.turn_input' && entry.event.id}
 		<TurnInputEvent {value} {isOpen} createdAt={entry.event.createdAt} taskEventID={entry.event.id} {text} />
 	{:else}
-		<TimelineEvent {value} {isOpen} title={eventTitle(entry.event)} createdAt={entry.event.createdAt} isFailed={isFailedEntry(entry)}>
+		<TimelineEvent {value} {isOpen} title={eventTitle(entry.event)} lane={eventLane(entry.event.name)} createdAt={entry.event.createdAt} isFailed={isFailedEntry(entry)}>
 			<RawDocument document={formatEventBody(entry.event.body)} />
 		</TimelineEvent>
 	{/if}

@@ -43,7 +43,7 @@
 <Accordion.Item value={step.key}>
 	<Accordion.Trigger class="items-center gap-3">
 		<StatusIcon aria-hidden="true" class="size-4 shrink-0 {step.isFailed ? 'text-destructive' : 'text-muted-foreground'}" />
-		<span class="min-w-0 flex-1 truncate font-normal">{step.title}</span>
+		<span class="min-w-0 flex-1 font-normal {step.kind === 'reply' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate'}">{step.title}</span>
 		{#if step.toolName}
 			<code class="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">{step.toolName}</code>
 		{/if}
@@ -51,9 +51,6 @@
 	</Accordion.Trigger>
 	<Accordion.Content class="flex min-w-0 flex-col gap-3 pb-4 pl-7">
 		{#if isOpen}
-			{#if step.kind === 'reply'}
-				<p class="text-sm whitespace-pre-wrap">{step.title}</p>
-			{/if}
 			{#if hasToolCall}
 				<StepSection title={text.stepToolCall} identifier={step.toolName}>
 					<div class="grid min-w-0 gap-3 md:grid-cols-2">

@@ -6,6 +6,6 @@
 	let { value, isOpen, taskEventID, createdAt, text }: { value: string; isOpen: boolean; taskEventID: string; createdAt?: string; text: TasksText } = $props();
 </script>
 
-<TimelineEvent {value} title="task.turn_input" {createdAt} {isOpen}>
+<TimelineEvent {value} title="task.turn_input" lane="other" {createdAt} {isOpen}>
 	<TurnInputDetail {taskEventID} {text} />
 </TimelineEvent>

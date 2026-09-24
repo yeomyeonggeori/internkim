@@ -72,11 +72,15 @@ export function taskStatusLabel(status: string, text: TasksText): string {
 	}
 }
 
-export function formatTaskTimestamp(value?: string): string {
+export function formatTaskTimestamp(value?: string, now = new Date(), locale?: string): string {
 	if (!value) return '';
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) return value;
-	return parsed.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+	if (parsed.toDateString() === now.toDateString()) return parsed.toLocaleTimeString(locale, time);
+	const day: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', ...time };
+	if (parsed.getFullYear() === now.getFullYear()) return parsed.toLocaleString(locale, day);
+	return parsed.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function formatDuration(durationMS?: number): string {
