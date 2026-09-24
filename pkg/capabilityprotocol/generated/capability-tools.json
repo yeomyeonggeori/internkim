@@ -7157,7 +7157,7 @@
         "additionalProperties": false,
         "properties": {
           "date": {
-            "description": "The day the person actually arrived or left. The day it happened, as yyyy-mm-dd in the company time zone. Omit for today.",
+            "description": "The day the person actually arrived or left. The day it happened, as yyyy-mm-dd in the company time zone. Omit it when only a time is known: the record takes the latest day that time has already come, today or else yesterday.",
             "type": "string"
           },
           "kind": {
@@ -7181,7 +7181,7 @@
             "type": "string"
           },
           "time": {
-            "description": "The time they actually arrived or left. The time of day it happened, as 24-hour HH:MM in the company time zone. Omit for the moment this call is made.",
+            "description": "The time they actually arrived or left. The time of day it happened, as 24-hour HH:MM in the company time zone. Omit it, with date, for the moment this call is made; a date needs a time.",
             "type": "string"
           }
         },
@@ -7192,7 +7192,7 @@
         "additionalProperties": false,
         "properties": {
           "date": {
-            "description": "The day the person actually arrived or left. The day it happened, as yyyy-mm-dd in the company time zone. Omit for today.",
+            "description": "The day the person actually arrived or left. The day it happened, as yyyy-mm-dd in the company time zone. Omit it when only a time is known: the record takes the latest day that time has already come, today or else yesterday.",
             "type": "string"
           },
           "kind": {
@@ -7216,7 +7216,7 @@
             "type": "string"
           },
           "time": {
-            "description": "The time they actually arrived or left. The time of day it happened, as 24-hour HH:MM in the company time zone. Omit for the moment this call is made.",
+            "description": "The time they actually arrived or left. The time of day it happened, as 24-hour HH:MM in the company time zone. Omit it, with date, for the moment this call is made; a date needs a time.",
             "type": "string"
           }
         },

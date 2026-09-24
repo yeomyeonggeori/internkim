@@ -1243,8 +1243,8 @@ export const attendanceListInputSchema = z.strictObject({
 export const attendanceAddInputSchema = z.strictObject({
   personHint: z.string().describe('Name or email of the person the record belongs to. Omit for the requester.').optional(),
   kind: z.enum(WorkspaceAttendanceKind).describe('clock_in for arriving, clock_out for leaving.'),
-  date: z.string().describe(`The day the person actually arrived or left. ${attendanceDayDescription} Omit for today.`).optional(),
-  time: z.string().describe(`The time they actually arrived or left. ${attendanceTimeDescription} Omit for the moment this call is made.`).optional(),
+  date: z.string().describe(`The day the person actually arrived or left. ${attendanceDayDescription} Omit it when only a time is known: the record takes the latest day that time has already come, today or else yesterday.`).optional(),
+  time: z.string().describe(`The time they actually arrived or left. ${attendanceTimeDescription} Omit it, with date, for the moment this call is made; a date needs a time.`).optional(),
   location: z.string().describe('The registered workplace they were at. clock_out does not use it, so omit it there.').optional(),
   reason: attendanceReasonSchema.describe('Why the record is being written by hand, in the requester\'s own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.').optional(),
 });
