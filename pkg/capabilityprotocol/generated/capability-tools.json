@@ -980,7 +980,7 @@
         "mode": "success",
         "targetKind": "task"
       },
-      "description": "Create a new workspace task with typed task fields. Choose its type from the company definitions (empty when none fits) and estimate its size from the work-size rubric without asking the user to classify it. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.",
+      "description": "Create a new workspace task with typed task fields. Never ask the user to classify it: its business, type and size are decided from the company definitions when the user names none. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -992,7 +992,7 @@
         "additionalProperties": false,
         "properties": {
           "business": {
-            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
+            "description": "Only a business the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
             "type": "string"
           },
           "endsAt": {
@@ -1022,7 +1022,7 @@
             "type": "array"
           },
           "size": {
-            "description": "Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.\nXS: Trivial change; Call / 10 minute meeting / handoff / tidy-up / scheduling; Done in a moment.\nS: Low risk change with a narrow blast radius; Half hour meeting / short draft / customer or partner reply / briefing; Several fit in a day.\nM: Small feature / change with real impact; Report / meeting under two hours / external meeting / cross-team alignment / document; Takes a dedicated day.\nL: Mid-size feature / change touching many areas; Important external meeting / mid-size research / proposal draft / policy change; Takes about two days.\nXL: Large feature / complex change / external integration; Restructuring / negotiation / long meeting / workshop; Takes about a week.\nXXL: Milestone; Partnership design / contract structure / service planning / policy overhaul; Must be split into smaller items.",
+            "description": "Only a size the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
             "enum": [
               "XS",
               "S",
@@ -1054,7 +1054,7 @@
             "type": "string"
           },
           "type": {
-            "description": "Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label.",
+            "description": "Only a type the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
             "type": "string"
           }
         },
@@ -1065,7 +1065,7 @@
         "additionalProperties": false,
         "properties": {
           "business": {
-            "description": "Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.",
+            "description": "Only a business the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
             "type": "string"
           },
           "endsAt": {
@@ -1095,7 +1095,7 @@
             "type": "array"
           },
           "size": {
-            "description": "Choose a fixed effort size using the workspace rubric below and your judgment about the work. Estimate it even when the user gives no size; preserve an explicitly requested size. A deadline span is not effort. Calendar events use event_add, which calculates size from their duration.\nXS: Trivial change; Call / 10 minute meeting / handoff / tidy-up / scheduling; Done in a moment.\nS: Low risk change with a narrow blast radius; Half hour meeting / short draft / customer or partner reply / briefing; Several fit in a day.\nM: Small feature / change with real impact; Report / meeting under two hours / external meeting / cross-team alignment / document; Takes a dedicated day.\nL: Mid-size feature / change touching many areas; Important external meeting / mid-size research / proposal draft / policy change; Takes about two days.\nXL: Large feature / complex change / external integration; Restructuring / negotiation / long meeting / workshop; Takes about a week.\nXXL: Milestone; Partnership design / contract structure / service planning / policy overhaul; Must be split into smaller items.",
+            "description": "Only a size the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
             "enum": [
               "XS",
               "S",
@@ -1127,7 +1127,7 @@
             "type": "string"
           },
           "type": {
-            "description": "Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user's language. Never invent a label.",
+            "description": "Only a type the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
             "type": "string"
           }
         },

@@ -59,8 +59,8 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 	if taskType != "" && !containsString(definitions.Types, taskType) {
 		return Task{}, payload, taskValidationError("type is not allowed")
 	}
-	size := firstNonEmpty(strings.ToUpper(strings.TrimSpace(payload.Size)), "M")
-	if !containsTaskSize(definitions.Sizes, size) {
+	size := strings.ToUpper(strings.TrimSpace(payload.Size))
+	if size != "" && !containsTaskSize(definitions.Sizes, size) {
 		return Task{}, payload, taskValidationError("size is not allowed")
 	}
 	now := service.companyDateNow(request.Context())

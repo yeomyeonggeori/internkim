@@ -21,7 +21,9 @@
 
 <div class="flex flex-wrap gap-2">
 	<TaskStatusBadge status={taskDraft.status} label={statusLabel(taskDraft.status)} />
-	<Badge class={sizeBadgeClass(taskDraft.size)}>{taskDraft.size}</Badge>
+	{#if taskDraft.size}
+		<Badge class={sizeBadgeClass(taskDraft.size)}>{taskDraft.size}</Badge>
+	{/if}
 	<Badge class="border-transparent" style={taskDefinitionBadgeStyle(businessColor(taskDraft.business))}>
 		{taskDefinitionLabel(taskDraft.business, text.etcLabel)}
 	</Badge>

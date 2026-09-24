@@ -36,6 +36,7 @@ export type TaskEditorText = {
 	status: string;
 	business: string;
 	etcLabel: string;
+	automaticLabel: string;
 	type: string;
 	size: string;
 	startDate: string;

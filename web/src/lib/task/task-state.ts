@@ -121,12 +121,17 @@ export function writtenTaskOf(task: Task): WrittenTask {
 	};
 }
 
+function withoutUnchosenLabels(written: WrittenTask): WrittenTask {
+	const { business, type, ...chosen } = written;
+	return { ...chosen, ...(business ? { business } : {}), ...(type ? { type } : {}) };
+}
+
 export async function saveTask(task: Task, statusBefore: string | null): Promise<void> {
 	const written = writtenTaskOf(task);
 	if (task.id) {
 		await updateTask(task.id, written);
 	} else {
-		await addTask({ ...written, ...(task.parentTaskID ? { parentTaskHint: task.parentTaskID } : {}) });
+		await addTask({ ...withoutUnchosenLabels(written), ...(task.parentTaskID ? { parentTaskHint: task.parentTaskID } : {}) });
 	}
 	if (statusBefore !== null && statusBefore !== centralStatusFromWord(task.status)) {
 		void announceTaskMoved(task.id);
