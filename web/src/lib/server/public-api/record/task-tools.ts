@@ -17,6 +17,7 @@ import { dayOfInstant, instantWritten, isTheSameMoment, weekWindow } from './day
 import { labelOf } from './labels';
 import { displayNameOf, mentionOf, personOfHint, type RecordPerson } from './people';
 import type { RecordContext } from './company';
+import { missesATaskLabel, withDecidedTaskLabels } from './task-labels';
 import {
 	deleteTask,
 	participantsOfHints,
@@ -170,14 +171,17 @@ function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRo
 	};
 }
 
-export async function taskAdd(context: RecordContext, input: TaskWritten): Promise<AnsweredTask> {
-	if (!input.title?.trim()) throw new Error('a task needs a title');
+export async function taskAdd(context: RecordContext, asked: TaskWritten): Promise<AnsweredTask> {
+	if (!asked.title?.trim()) throw new Error('a task needs a title');
+	const input = missesATaskLabel(asked)
+		? withDecidedTaskLabels(asked, await context.decideTaskLabels({ title: asked.title, note: asked.note ?? '' }))
+		: asked;
 	const written = writtenFields(context, input, null);
 	const participantIDs = written.participantIDs ?? [context.requesterID];
 
 	const tasks = await tasksOfCompany(context.caller, false);
 	const parentTaskID = input.parentTaskHint?.trim() ? taskOfHint(tasks, input.parentTaskHint, 'task').id : null;
-	const duplicate = duplicateJustAdded(context, tasks, participantIDs, input.title.trim());
+	const duplicate = duplicateJustAdded(context, tasks, participantIDs, asked.title.trim());
 	const saved = duplicate
 		? (await mergedIntoDuplicate(context, duplicate, input)).id
 		: await saveTask(context.caller, taskWriteArguments(null, { ...written, participantIDs, parentTaskID }));

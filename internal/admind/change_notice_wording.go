@@ -28,7 +28,7 @@ func (service *Service) generateChangeNoticeSentence(ctx context.Context, facts 
 	}
 	wordingContext, cancel := context.WithTimeout(ctx, changeNoticeWordingTimeout)
 	defer cancel()
-	responseDocument, errorValue := service.callCapabilityStructuredLLM(wordingContext, requestDocument)
+	responseDocument, errorValue := service.callCapabilityLLM(wordingContext, "/v1/llm/structured", requestDocument)
 	if errorValue != nil {
 		return ""
 	}

@@ -3,6 +3,7 @@ import { localeOf, type Locale } from '$lib/i18n/locale';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { leaveKindsOfPolicy, leaveYearStartOfPolicy, type LeaveYearStart, type LeaveKind } from './leave';
 import { peopleOfCompany, type RecordPerson } from './people';
+import type { TaskLabelDecider } from './task-labels';
 
 export type RecordContext = {
 	caller: SupabaseClient;
@@ -15,6 +16,7 @@ export type RecordContext = {
 	leaveYearStart: LeaveYearStart;
 	locale: Locale;
 	now: Date;
+	decideTaskLabels: TaskLabelDecider;
 };
 
 type CompanyRow = {
@@ -29,7 +31,8 @@ export async function recordContextOf(
 	caller: SupabaseClient,
 	accountDirectory: SupabaseClient,
 	requesterID: string,
-	now: Date
+	now: Date,
+	decideTaskLabels: TaskLabelDecider
 ): Promise<RecordContext> {
 	const company = await caller
 		.from('company')
@@ -48,6 +51,7 @@ export async function recordContextOf(
 		leaveKinds: leaveKindsOfPolicy(company.data.rules),
 		leaveYearStart: leaveYearStartOfPolicy(company.data.rules),
 		locale: localeOf(company.data.locale),
-		now
+		now,
+		decideTaskLabels
 	};
 }

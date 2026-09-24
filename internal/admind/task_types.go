@@ -78,11 +78,8 @@ type taskQuickTaskRequest struct {
 }
 
 type inferredTask struct {
-	Category       string   `json:"category"`
-	Type           string   `json:"type"`
 	Content        string   `json:"content"`
 	Goal           string   `json:"goal"`
-	Size           string   `json:"size"`
 	Status         string   `json:"status"`
 	StartDate      string   `json:"startDate"`
 	EndDate        string   `json:"endDate"`

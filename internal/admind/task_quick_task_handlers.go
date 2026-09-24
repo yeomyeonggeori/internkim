@@ -31,7 +31,9 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 		writeTaskRequestError(responseWriter, errorValue)
 		return
 	}
+	decidedLabels := service.decideTaskLabelsAside(request.Context(), taskLabelDraft{Title: prompt}, definitions)
 	inferredTask, errorValue := service.inferTask(request.Context(), prompt, payload.WeekCode, owner, members, definitions)
+	labels := <-decidedLabels
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
@@ -41,11 +43,11 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 	writeRequest := taskWriteRequest{
 		OwnerID:        owner.ID,
 		ParticipantIDs: firstNonEmptySlice(inferredTask.ParticipantIDs, payload.ParticipantIDs, []string{owner.ID}),
-		Category:       inferredTask.Category,
-		Type:           inferredTask.Type,
+		Category:       labels.Business,
+		Type:           labels.Type,
 		Content:        preferExplicitTaskValue(payload.Title, inferredTask.Content),
 		Goal:           inferredTask.Goal,
-		Size:           inferredTask.Size,
+		Size:           labels.Size,
 		Status:         inferredTask.Status,
 		StartDate:      inferredTask.StartDate,
 		EndDate:        preferExplicitTaskValue(payload.EndDate, inferredTask.EndDate),
@@ -62,7 +64,6 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 		writeTaskRequestError(responseWriter, errorValue)
 		return
 	}
-	task.Business = firstNonEmpty(task.Business, defaultTaskBusiness(definitions))
 	if !payload.AllowDuplicate {
 		duplicateTask, reason, found, errorValue := service.findQuickTaskDuplicate(request.Context(), task, members)
 		if errorValue != nil {

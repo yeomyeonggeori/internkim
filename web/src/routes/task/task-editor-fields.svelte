@@ -41,6 +41,7 @@
 
 	let businessSelectValue = $derived(taskDefinitionOptionValue(taskDraft.business));
 	let typeSelectValue = $derived(taskDefinitionOptionValue(taskDraft.type));
+	let unchosenLabel = $derived(taskDraft.id ? text.etcLabel : text.automaticLabel);
 
 	function updateBusiness(value: string): void {
 		taskDraft.business = taskDefinitionValueFromOption(value);
@@ -98,7 +99,7 @@
 			{text.business}
 			<Select.Root type="single" value={businessSelectValue} onValueChange={updateBusiness} disabled={!canEditTask}>
 				<Select.Trigger class="w-full">
-					{taskDefinitionLabel(taskDraft.business, text.etcLabel)}
+					{taskDefinitionLabel(taskDraft.business, unchosenLabel)}
 				</Select.Trigger>
 				<Select.Content>
 					{#each categoryOptions as option (option.value)}
@@ -112,7 +113,7 @@
 		{text.type}
 		<Select.Root type="single" value={typeSelectValue} onValueChange={updateType} disabled={!canEditTask}>
 			<Select.Trigger class="w-full">
-				{taskDefinitionLabel(taskDraft.type, text.etcLabel)}
+				{taskDefinitionLabel(taskDraft.type, unchosenLabel)}
 			</Select.Trigger>
 			<Select.Content>
 				{#each typeOptions as option (option.value)}
@@ -125,7 +126,7 @@
 		{text.size}
 		<Select.Root type="single" bind:value={taskDraft.size} disabled={!canEditTask}>
 			<Select.Trigger class="w-full">
-				{sizeOptions.find((option) => option.value === taskDraft.size)?.label ?? '-'}
+				{sizeOptions.find((option) => option.value === taskDraft.size)?.label ?? (taskDraft.id ? '-' : text.automaticLabel)}
 			</Select.Trigger>
 			<Select.Content>
 				{#each sizeOptions as option (option.value)}

@@ -18,7 +18,7 @@ func (service *Service) inferTask(ctx context.Context, prompt string, weekCode s
 	if errorValue != nil {
 		return inferredTask{}, errorValue
 	}
-	responseDocument, errorValue := service.callCapabilityStructuredLLM(ctx, requestDocument)
+	responseDocument, errorValue := service.callCapabilityLLM(ctx, "/v1/llm/structured", requestDocument)
 	if errorValue != nil {
 		return inferredTask{}, errorValue
 	}
@@ -31,18 +31,7 @@ func (service *Service) inferTask(ctx context.Context, prompt string, weekCode s
 		return inferredTask{}, fmt.Errorf("flow task inference returned invalid JSON: %w", errorValue)
 	}
 	task.Content = firstNonEmpty(strings.TrimSpace(task.Content), prompt)
-	task.Type = strings.TrimSpace(task.Type)
-	task.Size = firstNonEmpty(strings.ToUpper(strings.TrimSpace(task.Size)), "XS")
 	task.Status = firstNonEmpty(cleanTaskStatus(task.Status), defaultTaskStatus())
-	if !containsString(definitions.Types, task.Type) {
-		task.Type = ""
-	}
-	if !containsTaskSize(definitions.Sizes, task.Size) {
-		task.Size = "XS"
-	}
-	if task.Category != "" && !containsString(definitions.Categories, task.Category) {
-		task.Category = ""
-	}
 	if !isAllowedTaskStatus(task.Status) {
 		task.Status = defaultTaskStatus()
 	}
@@ -52,7 +41,7 @@ func (service *Service) inferTask(ctx context.Context, prompt string, weekCode s
 	return task, nil
 }
 
-func (service *Service) callCapabilityStructuredLLM(ctx context.Context, requestDocument []byte) ([]byte, error) {
+func (service *Service) callCapabilityLLM(ctx context.Context, path string, requestDocument []byte) ([]byte, error) {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network string, address string) (net.Conn, error) {
 			_ = network
@@ -62,7 +51,7 @@ func (service *Service) callCapabilityStructuredLLM(ctx context.Context, request
 		},
 	}
 	client := http.Client{Transport: transport}
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, "http://internkim/v1/llm/structured", bytes.NewReader(requestDocument))
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, "http://internkim"+path, bytes.NewReader(requestDocument))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -77,7 +66,7 @@ func (service *Service) callCapabilityStructuredLLM(ctx context.Context, request
 		return nil, readError
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return nil, fmt.Errorf("flow task inference failed: %s", strings.TrimSpace(string(body)))
+		return nil, fmt.Errorf("capabilityd %s failed: %s", path, strings.TrimSpace(string(body)))
 	}
 	return body, nil
 }

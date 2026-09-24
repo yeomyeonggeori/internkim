@@ -1,10 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	createTaskDraft,
 	removeTaskParticipant,
 	toggleTaskParticipantID,
 	updateTaskParticipantIDs
 } from '../../src/routes/task/task-draft';
 import type { TaskMember, Task } from '../../src/routes/task/task-types';
+
+describe('a new task draft', () => {
+	test('leaves business, type and size for the record to decide', () => {
+		const owner: TaskMember = { id: 'member-1', name: '이샘플', email: 'sample@example.com', role: 'member', activeTaskCount: 0, completeTaskCount: 0 };
+		const draft = createTaskDraft(owner, { categories: ['영업'], types: ['문서'], sizes: [] }, '26W39');
+		expect(draft.business).toBeNull();
+		expect(draft.type).toBeNull();
+		expect(draft.size).toBe('');
+	});
+});
 
 describe('flow task participant draft', () => {
 	test('keeps duplicate display names distinct by canonical member ID', () => {

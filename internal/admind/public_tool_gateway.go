@@ -93,6 +93,8 @@ func (service *Service) handlePublicAPI(responseWriter http.ResponseWriter, requ
 		service.handleAgentMessage(responseWriter, request, actor)
 	case request.Method == http.MethodGet && path == "/agent/replies":
 		service.handleAgentReplies(responseWriter, request, actor)
+	case request.Method == http.MethodPost && path == taskLabelsPublicPath:
+		service.answerTaskLabels(responseWriter, request, actor)
 	case request.Method == http.MethodGet && path == "/tools":
 		service.writePublicTools(responseWriter, request, actor)
 	case request.Method == http.MethodGet && strings.HasPrefix(path, "/tools/"):
