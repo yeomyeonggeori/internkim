@@ -1,4 +1,4 @@
-//   bun run web/scripts/show-pages-env.ts --project <name>
+//   monkeys run @production bun run web/scripts/show-pages-env.ts --project <name>
 
 import { requiredSetting } from './repository-setting';
 
