@@ -111,6 +111,15 @@ func (service *Service) proxyBlueclawTaskList(responseWriter http.ResponseWriter
 	service.writeJSON(responseWriter, taskRunResponse)
 }
 
+func (service *Service) proxyBlueclawLearningOverview(responseWriter http.ResponseWriter, request *http.Request) {
+	var overview any
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, "/admin/api/agent-learning/overview", nil, &overview); errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, overview)
+}
+
 func (service *Service) proxyBlueclawTaskDetail(responseWriter http.ResponseWriter, request *http.Request) {
 	taskRunID := strings.TrimSpace(request.URL.Query().Get("taskRunID"))
 	if taskRunID == "" {

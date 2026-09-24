@@ -167,6 +167,8 @@ func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.Response
 		service.proxyBlueclawConnectorEvents(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/tasks":
 		service.proxyBlueclawTaskList(responseWriter, request)
+	case request.Method == http.MethodGet && path == "/diagnostics/learning":
+		service.proxyBlueclawLearningOverview(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/diagnostics/task-detail":
 		service.proxyBlueclawTaskDetail(responseWriter, request)
 	case request.Method == http.MethodGet && path == "/maintenance/attachment-cleanup":
