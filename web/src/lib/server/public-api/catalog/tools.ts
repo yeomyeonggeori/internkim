@@ -381,6 +381,8 @@ const taskSizeDescription = [
   ...taskSizes('en').map((size) => `${size.name}: ${size.developmentExample}; ${size.otherExample}; ${size.note}.`),
 ].join('\n');
 
+const labelsTheRecordDecides = "Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.";
+
 const taskTypeDescription = 'Choose the matching company type from registeredLabels.types in task_list, using the meaning of the work. Read the current definitions when they are not already available. Send an empty string when no type fits; it is stored as null and displayed as Other in the user\'s language. Never invent a label.';
 const workspaceTaskStatusSchema = z.enum(WorkspaceTaskStatus);
 
@@ -427,16 +429,16 @@ export const taskAddInputSchema = z.strictObject({
     "Concise noun-phrase title for the work itself, in the user's language. Keep the user's exact title when they give one; otherwise write one rather than reusing their sentence. People belong in the person fields, not the title.",
   ),
   size: workspaceTaskSizeSchema
-    .describe(taskSizeDescription)
+    .describe(`Only a size the user names. ${labelsTheRecordDecides}`)
     .optional(),
   status: z.enum(WorkspaceTaskInitialStatus)
     .describe('Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.')
     .optional(),
   business: z.string()
-    .describe('Business label, taken from registeredLabels.businesses in a task_list result. Omit when the user names no business; the workspace default applies.')
+    .describe(`Only a business the user names. ${labelsTheRecordDecides}`)
     .optional(),
   type: z.string()
-    .describe(taskTypeDescription)
+    .describe(`Only a type the user names. ${labelsTheRecordDecides}`)
     .optional(),
   startsAt: z.string().describe(`When the work starts. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
   endsAt: z.string().describe(`When the work is due. ${momentDescription} Resolve relative dates from the current date. Omit when the user did not specify one.`).optional(),
@@ -991,7 +993,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_add',
-    description: 'Create a new workspace task with typed task fields. Choose its type from the company definitions (empty when none fits) and estimate its size from the work-size rubric without asking the user to classify it. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.',
+    description: 'Create a new workspace task with typed task fields. Never ask the user to classify it: its business, type and size are decided from the company definitions when the user names none. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.',
     version: '7',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskAddInputSchema,

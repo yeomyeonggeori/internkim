@@ -35,7 +35,7 @@ function coloursOf(entries: NamedColour[]): Record<string, string> {
 	return Object.fromEntries(entries.flatMap((entry) => (entry.color ? [[entry.name, entry.color]] : [])));
 }
 
-export function taskVocabularyOfDefinitions(definitions: TaskDefinitions): TaskVocabulary {
+export function taskVocabularyOfDefinitions(definitions: Omit<TaskDefinitions, 'sizes'>): TaskVocabulary {
 	return {
 		businesses: definitions.categories.map((name) => namedColourFor(name, definitions.categoryColors)),
 		types: definitions.types.map((name) => namedColourFor(name, definitions.typeColors)),

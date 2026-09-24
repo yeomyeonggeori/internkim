@@ -35,7 +35,7 @@ func (service *Service) decideTaskDuplicate(ctx context.Context, task Task, exis
 	if errorValue != nil {
 		return taskDuplicateDecision{}, errorValue
 	}
-	responseDocument, errorValue := service.callCapabilityStructuredLLM(ctx, requestDocument)
+	responseDocument, errorValue := service.callCapabilityLLM(ctx, "/v1/llm/structured", requestDocument)
 	if errorValue != nil {
 		return taskDuplicateDecision{}, errorValue
 	}

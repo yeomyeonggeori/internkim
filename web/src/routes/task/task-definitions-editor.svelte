@@ -3,7 +3,7 @@
 	import { saveTaskDefinitions } from './task-api';
 	import TaskDefinitionsView from './task-definitions-view.svelte';
 	import type { LoadTask } from './task-load-tracker';
-	import type { TaskDefinitions, TaskSizeDefinition, TaskSummary } from './task-types';
+	import type { TaskDefinitions, TaskSummary } from './task-types';
 	import { unknownDefinitionColor } from './task-definition-colors';
 	import { paletteColorAt } from '$lib/color-picker-palette';
 	import { taskText } from './text';
@@ -23,7 +23,6 @@
 
 	let categoryDrafts = $state<string[]>([]);
 	let typeDrafts = $state<string[]>([]);
-	let sizeDrafts = $state<TaskSizeDefinition[]>([]);
 	let categoryColorDrafts = $state<Record<string, string>>({});
 	let typeColorDrafts = $state<Record<string, string>>({});
 	let etcBusinessColorDraft = $state('');
@@ -53,7 +52,6 @@
 		typeColorDrafts = { ...(currentDefinitions.typeColors ?? {}) };
 		etcBusinessColorDraft = currentDefinitions.etcBusinessColor ?? '';
 		etcTypeColorDraft = currentDefinitions.etcTypeColor ?? '';
-		sizeDrafts = currentDefinitions.sizes.map((size) => ({ ...size }));
 	});
 
 	function addCategory(): void {
@@ -131,13 +129,6 @@
 		definitionSaveState = 'saving';
 		definitionErrorMessage = '';
 		try {
-			const sizes = sizeDrafts.map((size) => ({
-				...size,
-				distanceKm: Math.max(1, Number(size.distanceKm) || 1),
-				maxHours: Math.max(1, Number(size.maxHours) || 1),
-				score: Math.max(1, Number(size.distanceKm) || 1),
-				label: `${Math.max(1, Number(size.distanceKm) || 1)}km · ${Math.max(1, Number(size.maxHours) || 1)}h`
-			}));
 			await saveTaskDefinitions(
 				{
 					categories: categoryDrafts,
@@ -145,8 +136,7 @@
 					types: typeDrafts,
 					typeColors: colorsForValues(typeDrafts, typeColorDrafts),
 					...(etcBusinessColorDraft ? { etcBusinessColor: etcBusinessColorDraft } : {}),
-					...(etcTypeColorDraft ? { etcTypeColor: etcTypeColorDraft } : {}),
-					sizes
+					...(etcTypeColorDraft ? { etcTypeColor: etcTypeColorDraft } : {})
 				},
 				text.saveError,
 				text.definitionInUse

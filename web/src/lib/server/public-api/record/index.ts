@@ -81,6 +81,7 @@ import { personInvite, personList, personUpdate } from './people-tools';
 import { taskAdd, taskDelete, taskList, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
+import { leavesTaskLabelsUndecided, type TaskLabelDecider } from './task-labels';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
 import { capabilityToolResultSchema } from '../catalog/tools';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
@@ -194,7 +195,7 @@ export async function previewToolOverTheRecord(
 	if (!preview) return { status: 200, body: { tool: name, target: null } };
 
 	try {
-		const context = await recordContextOf(caller, accountDirectory, requesterID, now);
+		const context = await recordContextOf(caller, accountDirectory, requesterID, now, leavesTaskLabelsUndecided);
 		return { status: 200, body: { tool: name, target: await preview(context, input) } };
 	} catch (refusal) {
 		return refusalAnswer(name, refusal);
@@ -207,13 +208,14 @@ export async function runToolOverTheRecord(
 	requesterID: string,
 	name: string,
 	input: ToolInput,
-	now: Date
+	now: Date,
+	decideTaskLabels: TaskLabelDecider = leavesTaskLabelsUndecided
 ): Promise<ToolAnswer> {
 	const run = toolsOverTheRecord[name];
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
 
 	try {
-		const context = await recordContextOf(caller, accountDirectory, requesterID, now);
+		const context = await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels);
 		const result = await run(context, input);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };

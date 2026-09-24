@@ -41,8 +41,8 @@ export type RecordTaskList = {
 export type WrittenTask = {
 	title: string;
 	status: string;
-	business: string;
-	type: string;
+	business?: string;
+	type?: string;
 	startsAt: string;
 	endsAt: string;
 	participantPersonHints: string[];

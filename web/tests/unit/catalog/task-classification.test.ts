@@ -7,13 +7,15 @@ import {
 } from '../../../src/lib/server/public-api/catalog/tools';
 
 describe('task classification contracts', () => {
-  test('every fixed size is accepted and the model receives its definition', () => {
-    const description = z.toJSONSchema(taskAddInputSchema.shape.size).description ?? '';
+  test('every fixed size is accepted, and the rubric is read only where the model changes a size', () => {
+    const addDescription = z.toJSONSchema(taskAddInputSchema.shape.size).description ?? '';
+    const updateDescription = z.toJSONSchema(taskUpdateInputSchema.shape.size).description ?? '';
     for (const definition of taskSizes('en')) {
       expect(taskAddInputSchema.safeParse({ title: 'Sample work', size: definition.name }).success).toBe(true);
-      expect(description).toContain(definition.developmentExample);
-      expect(description).toContain(definition.otherExample);
-      expect(description).toContain(definition.note);
+      expect(updateDescription).toContain(definition.developmentExample);
+      expect(updateDescription).toContain(definition.otherExample);
+      expect(updateDescription).toContain(definition.note);
+      expect(addDescription).not.toContain(definition.developmentExample);
     }
     expect(taskAddInputSchema.safeParse({ title: 'Sample work', size: 'XXXL' }).success).toBe(false);
   });

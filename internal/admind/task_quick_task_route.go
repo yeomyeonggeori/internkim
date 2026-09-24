@@ -2,7 +2,6 @@ package admind
 
 import (
 	"net/http"
-	"strings"
 )
 
 const (
@@ -30,11 +29,4 @@ func (service *Service) handleQuickTask(responseWriter http.ResponseWriter, requ
 
 func writeTaskRequestError(responseWriter http.ResponseWriter, errorValue error) {
 	http.Error(responseWriter, errorValue.Error(), http.StatusBadRequest)
-}
-
-func defaultTaskBusiness(definitions taskDefinitions) string {
-	if len(definitions.Categories) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(definitions.Categories[0])
 }

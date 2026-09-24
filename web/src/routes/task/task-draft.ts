@@ -15,10 +15,10 @@ export function createTaskDraft(owner: TaskMember, definitions: TaskDefinitions,
 		ownerName: owner.name,
 		participantIDs: [owner.id],
 		participantNames: [owner.name],
-		business: definitions.categories[0] ?? null,
-		type: definitions.types[0] ?? null,
+		business: null,
+		type: null,
 		content: '',
-		size: 'M',
+		size: '',
 		status: 'planned',
 		weekCode
 	};

@@ -9,6 +9,7 @@ import { taskOf } from '../../src/lib/task/task-state';
 import type { RecordTask } from '../../src/lib/task/task-record';
 import { buildTaskChildProgress } from '../../src/routes/task/task-relationships';
 import { heldToTheContract } from './tool-answers';
+import type { DecidedTaskLabels, TaskLabelDraft } from '../../src/lib/server/public-api/record/task-labels';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -76,6 +77,19 @@ async function run(name: string, input: Record<string, unknown> = {}) {
 	return heldToTheContract(name, await runToolOverTheRecord(caller, client, sampleID, name, input, new Date()));
 }
 
+async function runDecidingLabels(
+	name: string,
+	input: Record<string, unknown>,
+	decided: DecidedTaskLabels,
+	drafts: TaskLabelDraft[]
+) {
+	const decideTaskLabels = async (draft: TaskLabelDraft) => {
+		drafts.push(draft);
+		return decided;
+	};
+	return heldToTheContract(name, await runToolOverTheRecord(caller, client, sampleID, name, input, new Date(), decideTaskLabels));
+}
+
 function previewOf(name: string, input: Record<string, unknown>) {
 	return previewToolOverTheRecord(caller, client, sampleID, name, input, new Date());
 }
@@ -117,6 +131,26 @@ describe('person_list', () => {
 });
 
 describe('a task written through the record', () => {
+	test('takes the business, type and size the company decides for labels it leaves out', async () => {
+		const drafts: TaskLabelDraft[] = [];
+		const decided: DecidedTaskLabels = { business: '영업', type: '문서', size: 'L' };
+		const made = resultOf(
+			await runDecidingLabels('task_add', { title: '거래처 제안서 작성', note: '다음 주 발표용' }, decided, drafts)
+		);
+		expect(drafts).toEqual([{ title: '거래처 제안서 작성', note: '다음 주 발표용' }]);
+		expect(made.business).toBe('영업');
+		expect(made.type).toBe('문서');
+		expect(made.size).toBe('L');
+	});
+
+	test('keeps a label the requester named over the decided one', async () => {
+		const decided: DecidedTaskLabels = { business: '영업', type: '문서', size: 'L' };
+		const made = resultOf(await runDecidingLabels('task_add', { title: '사내 위키 정리', size: 'S', business: '개발' }, decided, []));
+		expect(made.size).toBe('S');
+		expect(made.business).toBe('개발');
+		expect(made.type).toBe('문서');
+	});
+
 	test('keeps an omitted estimate valid for the caller’s task', async () => {
 		const made = resultOf(await run('task_add', { title: '분기 보고서 초안' }));
 		expect(made.participantNames).toEqual(['이샘플']);
