@@ -40,6 +40,7 @@
       "modelVisible": true,
       "name": "schedule_list",
       "namespace": "schedule",
+      "namespaceSummary": "Reminders and recurring work done later, once or on a repeat.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -334,6 +335,7 @@
       "modelVisible": true,
       "name": "schedule_create",
       "namespace": "schedule",
+      "namespaceSummary": "Reminders and recurring work done later, once or on a repeat.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -669,6 +671,7 @@
       "modelVisible": true,
       "name": "schedule_update",
       "namespace": "schedule",
+      "namespaceSummary": "Reminders and recurring work done later, once or on a repeat.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -893,6 +896,7 @@
       "modelVisible": true,
       "name": "schedule_cancel",
       "namespace": "schedule",
+      "namespaceSummary": "Reminders and recurring work done later, once or on a repeat.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -1138,6 +1142,7 @@
       "modelVisible": true,
       "name": "task_add",
       "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -1433,6 +1438,7 @@
       "modelVisible": true,
       "name": "task_list",
       "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -2057,6 +2063,7 @@
       "modelVisible": true,
       "name": "task_update",
       "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -2314,6 +2321,7 @@
       "modelVisible": true,
       "name": "task_delete",
       "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -2528,6 +2536,7 @@
       "modelVisible": true,
       "name": "task_vocabulary_set",
       "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -2705,6 +2714,7 @@
       "modelVisible": true,
       "name": "person_list",
       "namespace": "person",
+      "namespaceSummary": "The company directory: who works here, what it holds about them, and inviting someone new.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -3020,6 +3030,7 @@
       "modelVisible": true,
       "name": "person_update",
       "namespace": "person",
+      "namespaceSummary": "The company directory: who works here, what it holds about them, and inviting someone new.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -3242,6 +3253,7 @@
       "modelVisible": true,
       "name": "person_invite",
       "namespace": "person",
+      "namespaceSummary": "The company directory: who works here, what it holds about them, and inviting someone new.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -3355,6 +3367,7 @@
       "modelVisible": true,
       "name": "team_list",
       "namespace": "team",
+      "namespaceSummary": "The organization chart's teams: create, rename, move, and remove.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -3551,6 +3564,7 @@
       "modelVisible": true,
       "name": "team_add",
       "namespace": "team",
+      "namespaceSummary": "The organization chart's teams: create, rename, move, and remove.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -3725,6 +3739,7 @@
       "modelVisible": true,
       "name": "team_update",
       "namespace": "team",
+      "namespaceSummary": "The organization chart's teams: create, rename, move, and remove.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -3863,6 +3878,7 @@
       "modelVisible": true,
       "name": "team_delete",
       "namespace": "team",
+      "namespaceSummary": "The organization chart's teams: create, rename, move, and remove.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -4068,6 +4084,7 @@
       "modelVisible": true,
       "name": "event_add",
       "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -4289,6 +4306,7 @@
       "modelVisible": true,
       "name": "event_list",
       "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -4623,6 +4641,7 @@
       "modelVisible": true,
       "name": "event_update",
       "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -4832,6 +4851,7 @@
       "modelVisible": true,
       "name": "event_delete",
       "namespace": "calendar",
+      "namespaceSummary": "The company calendar: events, and the approved leave that falls in a time window.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -4954,6 +4974,7 @@
       "modelVisible": true,
       "name": "leave_list",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -5269,6 +5290,7 @@
       "modelVisible": true,
       "name": "leave_balance",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -5537,6 +5559,7 @@
       "modelVisible": true,
       "name": "leave_request",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -5797,6 +5820,7 @@
       "modelVisible": true,
       "name": "leave_update",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6011,6 +6035,7 @@
       "modelVisible": true,
       "name": "leave_delete",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6243,6 +6268,7 @@
       "modelVisible": true,
       "name": "leave_decide",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6464,6 +6490,7 @@
       "modelVisible": true,
       "name": "leave_grant_set",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6631,6 +6658,7 @@
       "modelVisible": true,
       "name": "leave_return_early",
       "namespace": "leave",
+      "namespaceSummary": "Leave requests and balances: file, correct, approve, and set yearly entitlements.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -6792,6 +6820,7 @@
       "modelVisible": true,
       "name": "attendance_list",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -7202,6 +7231,7 @@
       "modelVisible": true,
       "name": "attendance_add",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -7454,6 +7484,7 @@
       "modelVisible": true,
       "name": "attendance_update",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -7573,6 +7604,7 @@
       "modelVisible": true,
       "name": "attendance_delete",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -7667,6 +7699,7 @@
       "modelVisible": true,
       "name": "message_context",
       "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -7890,6 +7923,7 @@
       "modelVisible": true,
       "name": "message_search",
       "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -8286,6 +8320,7 @@
       "modelVisible": true,
       "name": "message_send",
       "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -8510,6 +8545,7 @@
       "modelVisible": true,
       "name": "message_update",
       "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -8649,6 +8685,7 @@
       "modelVisible": true,
       "name": "message_delete",
       "namespace": "message",
+      "namespaceSummary": "Messages in the company messenger: read a conversation, search, send, edit, and delete.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -8834,6 +8871,7 @@
       "modelVisible": true,
       "name": "web_search",
       "namespace": "web",
+      "namespaceSummary": "Search the public web and read its pages.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9014,6 +9052,7 @@
       "modelVisible": true,
       "name": "web_fetch",
       "namespace": "web",
+      "namespaceSummary": "Search the public web and read its pages.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9259,6 +9298,7 @@
       "modelVisible": true,
       "name": "site_serve",
       "namespace": "site",
+      "namespaceSummary": "Publish a website built in the workspace, preview it, or take it down.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9412,6 +9452,7 @@
       "modelVisible": true,
       "name": "site_list",
       "namespace": "site",
+      "namespaceSummary": "Publish a website built in the workspace, preview it, or take it down.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9597,6 +9638,7 @@
       "modelVisible": true,
       "name": "site_unserve",
       "namespace": "site",
+      "namespaceSummary": "Publish a website built in the workspace, preview it, or take it down.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9716,6 +9758,7 @@
       "modelVisible": false,
       "name": "document_read",
       "namespace": "document",
+      "namespaceSummary": "Read a document in the workspace as text.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -9855,6 +9898,7 @@
       "modelVisible": false,
       "name": "image_read",
       "namespace": "image",
+      "namespaceSummary": "Look at an image, or generate a new one.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10070,6 +10114,7 @@
       "modelVisible": true,
       "name": "image_generate",
       "namespace": "image",
+      "namespaceSummary": "Look at an image, or generate a new one.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10257,6 +10302,7 @@
       "modelVisible": true,
       "name": "browser_open",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10378,6 +10424,7 @@
       "modelVisible": true,
       "name": "browser_snapshot",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10503,6 +10550,7 @@
       "modelVisible": true,
       "name": "browser_screenshot",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10684,6 +10732,7 @@
       "modelVisible": true,
       "name": "browser_click",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10820,6 +10869,7 @@
       "modelVisible": true,
       "name": "browser_fill",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10938,6 +10988,7 @@
       "modelVisible": true,
       "name": "browser_press",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11062,6 +11113,7 @@
       "modelVisible": true,
       "name": "browser_select",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11178,6 +11230,7 @@
       "modelVisible": true,
       "name": "browser_wait",
       "namespace": "browser",
+      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11368,6 +11421,7 @@
       "modelVisible": true,
       "name": "computer_task",
       "namespace": "computer",
+      "namespaceSummary": "Carry out a goal on the requester's own computer.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11697,6 +11751,7 @@
       "modelVisible": true,
       "name": "artifact_review",
       "namespace": "artifact",
+      "namespaceSummary": "Review rendered output against what it was meant to show.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11901,6 +11956,7 @@
       "modelVisible": true,
       "name": "company_document_list",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -12584,6 +12640,7 @@
       "modelVisible": true,
       "name": "company_document_register",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -13097,6 +13154,7 @@
       "modelVisible": true,
       "name": "company_document_search",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -13753,6 +13811,7 @@
       "modelVisible": true,
       "name": "company_document_update",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14284,6 +14343,7 @@
       "modelVisible": true,
       "name": "company_document_upload",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14368,6 +14428,7 @@
       "modelVisible": true,
       "name": "company_document_download",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14444,6 +14505,7 @@
       "modelVisible": true,
       "name": "company_info_get",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -14897,6 +14959,7 @@
       "modelVisible": true,
       "name": "company_info_set",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15187,6 +15250,7 @@
       "modelVisible": true,
       "name": "company_metric_list",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15564,6 +15628,7 @@
       "modelVisible": true,
       "name": "company_metric_record",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -15832,6 +15897,7 @@
       "modelVisible": true,
       "name": "company_record_add",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16017,6 +16083,7 @@
       "modelVisible": true,
       "name": "company_record_delete",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16198,6 +16265,7 @@
       "modelVisible": true,
       "name": "company_record_list",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16460,6 +16528,7 @@
       "modelVisible": true,
       "name": "company_record_update",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16641,6 +16710,7 @@
       "modelVisible": true,
       "name": "crm_organization_list",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17004,6 +17074,7 @@
       "modelVisible": true,
       "name": "crm_organization_add",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17338,6 +17409,7 @@
       "modelVisible": true,
       "name": "crm_organization_update",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17582,6 +17654,7 @@
       "modelVisible": true,
       "name": "crm_organization_archive",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17682,6 +17755,7 @@
       "modelVisible": true,
       "name": "crm_contact_list",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18006,6 +18080,7 @@
       "modelVisible": true,
       "name": "crm_contact_add",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18300,6 +18375,7 @@
       "modelVisible": true,
       "name": "crm_contact_update",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18524,6 +18600,7 @@
       "modelVisible": true,
       "name": "crm_contact_archive",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18636,6 +18713,7 @@
       "modelVisible": true,
       "name": "crm_opportunity_list",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -19174,6 +19252,7 @@
       "modelVisible": true,
       "name": "crm_opportunity_add",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -19658,6 +19737,7 @@
       "modelVisible": true,
       "name": "crm_opportunity_update",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -20090,6 +20170,7 @@
       "modelVisible": true,
       "name": "crm_opportunity_move",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -20455,6 +20536,7 @@
       "modelVisible": true,
       "name": "crm_opportunity_archive",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -20557,6 +20639,7 @@
       "modelVisible": true,
       "name": "crm_activity_list",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -21201,6 +21284,7 @@
       "modelVisible": true,
       "name": "crm_activity_save",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -21464,6 +21548,7 @@
       "modelVisible": true,
       "name": "crm_vocabulary_get",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -21808,6 +21893,7 @@
       "modelVisible": true,
       "name": "crm_vocabulary_set",
       "namespace": "crm",
+      "namespaceSummary": "Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -22001,6 +22087,7 @@
       "modelVisible": true,
       "name": "company_settings_get",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -22327,6 +22414,7 @@
       "modelVisible": true,
       "name": "company_settings_update",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -22536,6 +22624,7 @@
       "modelVisible": true,
       "name": "company_holiday_list",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -22778,6 +22867,7 @@
       "modelVisible": true,
       "name": "company_holiday_add",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -22963,6 +23053,7 @@
       "modelVisible": true,
       "name": "company_holiday_update",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -23114,6 +23205,7 @@
       "modelVisible": true,
       "name": "company_holiday_delete",
       "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -23250,6 +23342,7 @@
       "modelVisible": true,
       "name": "attendance_work_policy_get",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -23839,6 +23932,7 @@
       "modelVisible": true,
       "name": "attendance_work_policy_set",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -24127,6 +24221,7 @@
       "modelVisible": true,
       "name": "attendance_leave_policy_get",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -24735,6 +24830,7 @@
       "modelVisible": true,
       "name": "attendance_leave_policy_set",
       "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25023,6 +25119,7 @@
       "modelVisible": true,
       "name": "notification_settings_get",
       "namespace": "notification",
+      "namespaceSummary": "What the requester is told about, and which conversations are muted.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25212,6 +25309,7 @@
       "modelVisible": true,
       "name": "notification_settings_set",
       "namespace": "notification",
+      "namespaceSummary": "What the requester is told about, and which conversations are muted.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25345,6 +25443,7 @@
       "modelVisible": true,
       "name": "conversation_mute",
       "namespace": "notification",
+      "namespaceSummary": "What the requester is told about, and which conversations are muted.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25446,6 +25545,7 @@
       "modelVisible": true,
       "name": "conversation_unmute",
       "namespace": "notification",
+      "namespaceSummary": "What the requester is told about, and which conversations are muted.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25537,6 +25637,7 @@
       "modelVisible": true,
       "name": "mail_connection_start",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25623,6 +25724,7 @@
       "modelVisible": true,
       "name": "mail_connection_status",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25816,6 +25918,7 @@
       "modelVisible": true,
       "name": "mail_mailbox_list",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -25952,6 +26055,7 @@
       "modelVisible": true,
       "name": "mail_message_list",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26167,6 +26271,7 @@
       "modelVisible": true,
       "name": "mail_message_mark",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26269,6 +26374,7 @@
       "modelVisible": true,
       "name": "mail_message_move",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26347,6 +26453,7 @@
       "modelVisible": true,
       "name": "mail_message_read",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26512,6 +26619,7 @@
       "modelVisible": true,
       "name": "mail_message_search",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -26759,6 +26867,7 @@
       "modelVisible": true,
       "name": "mail_message_send",
       "namespace": "mail",
+      "namespaceSummary": "The requester's email: connect an account, then read, search, file, and send.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
