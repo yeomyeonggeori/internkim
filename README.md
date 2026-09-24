@@ -268,7 +268,7 @@ that way.
 cd web
 bun install
 bun run build
-bun run scripts/deploy-pages.ts --project internkim --output .svelte-kit/cloudflare --production
+monkeys run @production bun run scripts/deploy-pages.ts --project internkim --output .svelte-kit/cloudflare --production
 ```
 
 `deploy-pages.ts` names no project of its own, so the one that serves every
@@ -381,7 +381,7 @@ vault, and the Worker's secret.
 openssl rand -base64 32
 
 (cd workers/release-registry && ../../web/node_modules/.bin/wrangler secret put RELEASE_DOWNLOAD_TOKEN)
-bun run web/scripts/deploy-worker.ts workers/release-registry --route-subdomain updates
+monkeys run @production bun run web/scripts/deploy-worker.ts workers/release-registry --route-subdomain updates
 ```
 
 `deploy-worker.ts` renders the route as `<subdomain>.<zone>` from the zone

@@ -1,5 +1,5 @@
-//   bun run web/scripts/deploy-pages.ts --project internkim --output web/.svelte-kit/cloudflare
-//   bun run web/scripts/deploy-pages.ts --whoami
+//   monkeys run @production bun run web/scripts/deploy-pages.ts --project internkim --output web/.svelte-kit/cloudflare
+//   monkeys run @production bun run web/scripts/deploy-pages.ts --whoami
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

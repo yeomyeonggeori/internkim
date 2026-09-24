@@ -1,4 +1,4 @@
-//   bun run web/scripts/pages-project-info.ts --project <name>
+//   monkeys run @production bun run web/scripts/pages-project-info.ts --project <name>
 
 import { requiredSetting } from './repository-setting';
 

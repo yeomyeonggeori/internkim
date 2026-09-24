@@ -1,4 +1,4 @@
-//   bun run web/scripts/pages-domains.ts --project <name> [--attach <hostname>] [--detach <hostname>] [--unshadow <hostname>]
+//   monkeys run @production bun run web/scripts/pages-domains.ts --project <name> [--attach <hostname>] [--detach <hostname>] [--unshadow <hostname>]
 
 import { removeRoute, routesShadowing, type WorkersRoute } from './pages-hostnames';
 import { requiredSetting } from './repository-setting';
