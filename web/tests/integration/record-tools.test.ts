@@ -151,6 +151,24 @@ describe('a task written through the record', () => {
 		expect(made.type).toBe('문서');
 	});
 
+	test('records work given only to someone else as requested by the requester', async () => {
+		const made = resultOf(await run('task_add', { title: '거래처 방문 일정 잡기', participantPersonHints: ['박예시'] }));
+		expect(made.status).toBe('requested');
+		expect(made.requesterName).toBe('이샘플');
+		expect(made.participantNames).toEqual(['박예시']);
+	});
+
+	test('keeps work the requester shares as their own', async () => {
+		const made = resultOf(await run('task_add', { title: '분기 목표 합의', participantPersonHints: ['이샘플', '박예시'] }));
+		expect(made.status).toBe('planned');
+		expect(made.requesterID).toBe('');
+	});
+
+	test('refuses a member recording work only someone else holds as already done', async () => {
+		const refused = await run('task_add', { title: '지난주 납품 확인', status: 'completed', participantPersonHints: ['박예시'] });
+		expect(refused.status).toBe(403);
+	});
+
 	test('keeps an omitted estimate valid for the caller’s task', async () => {
 		const made = resultOf(await run('task_add', { title: '분기 보고서 초안' }));
 		expect(made.participantNames).toEqual(['이샘플']);

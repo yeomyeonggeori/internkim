@@ -432,7 +432,7 @@ export const taskAddInputSchema = z.strictObject({
     .describe(`Only a size the user names. ${labelsTheRecordDecides}`)
     .optional(),
   status: z.enum(WorkspaceTaskInitialStatus)
-    .describe('Initial task status. Defaults to planned. The runtime may change delegated tasks to requested.')
+    .describe('Initial task status. Defaults to planned. Work whose participants leave out the requester is added as requested, with the requester as the one who asked; only an administrator may add it in another status.')
     .optional(),
   business: z.string()
     .describe(`Only a business the user names. ${labelsTheRecordDecides}`)
