@@ -7,15 +7,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/modelladder"
 )
-
-// OpenRouter serves decision-only models on its alpha decisions route, not on
-// chat completions. github.com/OpenRouterTeam/go-sdk decisions.go
-const openRouterDecisionsPath = "/api/alpha/decisions"
 
 const (
 	ChoiceQuestionType = "choice"
@@ -181,17 +176,5 @@ func parseDecisionsResponse(responseDocument []byte) (DecisionsResponse, error) 
 }
 
 func (backend OpenRouterBackend) decisionsURL() string {
-	origin := originOf(backend.BaseURL)
-	if origin == "" {
-		origin = originOf(modelladder.Endpoint)
-	}
-	return origin + openRouterDecisionsPath
-}
-
-func originOf(rawURL string) string {
-	parsed, errorValue := url.Parse(strings.TrimSpace(rawURL))
-	if errorValue != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return ""
-	}
-	return parsed.Scheme + "://" + parsed.Host
+	return modelladder.DecisionsURL(backend.BaseURL)
 }
