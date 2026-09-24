@@ -5,7 +5,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Accordion from '$lib/components/ui/accordion';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Input } from '$lib/components/ui/input';
@@ -21,7 +20,8 @@
 	import RawDocument from '../raw-document.svelte';
 	import RawLedgerView from '../raw-ledger-view.svelte';
 	import { filterLedger, groupLedger } from '../raw-ledger';
-	import FactList, { type Fact } from '../fact-list.svelte';
+	import type { Fact } from '../fact-list.svelte';
+	import SummaryFacts from '../summary-facts.svelte';
 	import IntakeDecisionStep from '../intake-decision-step.svelte';
 	import TaskStep from '../task-step.svelte';
 	import { buildTaskStory } from '../task-story';
@@ -42,11 +42,10 @@
 		formatDuration,
 		formatLatency,
 		formatTaskTimestamp,
-		taskStatusBadgeVariant,
-		taskStatusIcon,
 		taskStatusLabel
 	} from '../runs-view';
 	import { tasksText } from '../text';
+	import TaskRunStatus from '../task-run-status.svelte';
 
 	const text = createPageText(tasksText);
 	let detail = $state<TaskDetail | undefined>(undefined);
@@ -147,7 +146,8 @@
 		if (!timelineSummary) return facts;
 		return [
 			...facts,
-			{ label: text.factModelCalls, value: text.modelCallsValue.replace('{count}', timelineSummary.llmCallCount.toLocaleString()).replace('{latency}', formatLatency(timelineSummary.llmLatencyMS)) },
+			{ label: text.factModelCalls, value: text.timesValue.replace('{count}', timelineSummary.llmCallCount.toLocaleString()) },
+			{ label: text.factModelLatency, value: formatLatency(timelineSummary.llmLatencyMS) },
 			{ label: text.factTotalTokens, value: timelineSummary.llmTotalTokens.toLocaleString() },
 			{ label: text.factCost, value: formatCostUSD(timelineSummary.llmCostUSD) },
 			{ label: text.factToolCalls, value: text.timesValue.replace('{count}', timelineSummary.toolCallCount.toLocaleString()) }
@@ -207,13 +207,9 @@
 			<Skeleton class="h-64 w-full" />
 		</section>
 	{:else}
-		{@const StatusIcon = taskStatusIcon(detail.taskRun.status)}
 		<section class="flex flex-col gap-2">
 			<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-				<Badge variant={taskStatusBadgeVariant(detail.taskRun.status)}>
-					<StatusIcon />
-					{taskStatusLabel(detail.taskRun.status, text)}
-				</Badge>
+				<TaskRunStatus status={detail.taskRun.status} label={taskStatusLabel(detail.taskRun.status, text)} class="text-xs" />
 				{#if detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}
 					<span>{displayPersonName(detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID)}</span>
 					<span aria-hidden="true">·</span>
@@ -228,7 +224,7 @@
 				<p class="mt-2 rounded-lg bg-muted/50 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">{detail.taskRun.result}</p>
 			{/if}
 			<div class="mt-2">
-				<FactList facts={runFacts} />
+				<SummaryFacts facts={runFacts} />
 			</div>
 			{#if pendingApproval}
 				<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />

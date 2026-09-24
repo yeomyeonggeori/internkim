@@ -3,7 +3,6 @@
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { page } from '$app/state';
 	import { pendingApprovalsPathOf, taskRunDetailPathOf } from '$lib/app-shell';
-	import { Badge } from '$lib/components/ui/badge';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
@@ -22,7 +21,8 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { onMount } from 'svelte';
 	import { deleteTaskRun, fetchTaskRuns, formatCostUSD, type DailyCostScope, type DailyCostSummary, type TaskRunSummary } from './runs-api';
-	import { taskStatusBadgeVariant, taskStatusIcon, taskStatusLabel, formatTaskTimestamp } from './runs-view';
+	import { taskStatusLabel, formatTaskTimestamp } from './runs-view';
+	import TaskRunStatus from './task-run-status.svelte';
 	import { tasksText } from './text';
 	import RetryTaskButton from './retry-task-button.svelte';
 	import InboundMessages from './inbound-messages.svelte';
@@ -148,12 +148,6 @@
 		return parsed.toLocaleDateString();
 	}
 
-	function dailyCostMeta(summary: DailyCostSummary): string {
-		return text.dailyCostMeta
-			.replace('{tasks}', summary.taskRunCount.toLocaleString())
-			.replace('{calls}', summary.llmCallCount.toLocaleString());
-	}
-
 	function dailyCostScopeLabel(scope: DailyCostScope | undefined): string {
 		if (!scope?.isTruncated) return text.dailyCostScopeAll;
 		return text.dailyCostScopeLimited.replace('{count}', scope.taskRunCount.toLocaleString());
@@ -223,18 +217,17 @@
 	{#if dailyCostRows.length > 0}
 	<section class="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3">
 		<p class="text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
-		<div class="min-w-0 overflow-x-auto">
-			<Table.Root class="min-w-[460px]">
-				<Table.Body>
-					{#each dailyCostRows as summary (summary.date)}
-						<Table.Row class="border-0 hover:bg-transparent">
-							<Table.Cell class="h-7 py-0 pl-0 text-xs text-muted-foreground">{formatCostDate(summary.date)}</Table.Cell>
-							<Table.Cell class="h-7 py-0 text-right text-sm font-medium tabular-nums">{formatCostUSD(summary.costUSD)}</Table.Cell>
-							<Table.Cell class="h-7 py-0 pr-0 text-right text-xs text-muted-foreground">{dailyCostMeta(summary)}</Table.Cell>
-						</Table.Row>
-					{/each}
-				</Table.Body>
-			</Table.Root>
+		<div class="grid w-fit grid-cols-[auto_auto_auto_auto] gap-x-8 gap-y-1 text-sm tabular-nums">
+			<span class="text-xs text-muted-foreground">{text.dailyCostDateColumn}</span>
+			<span class="text-right text-xs text-muted-foreground">{text.columnCost}</span>
+			<span class="text-right text-xs text-muted-foreground">{text.dailyCostTasksColumn}</span>
+			<span class="text-right text-xs text-muted-foreground">{text.dailyCostCallsColumn}</span>
+			{#each dailyCostRows as summary (summary.date)}
+				<span class="text-muted-foreground">{formatCostDate(summary.date)}</span>
+				<span class="text-right font-medium">{formatCostUSD(summary.costUSD)}</span>
+				<span class="text-right">{summary.taskRunCount.toLocaleString()}</span>
+				<span class="text-right">{summary.llmCallCount.toLocaleString()}</span>
+			{/each}
 		</div>
 	</section>
 	{/if}
@@ -280,7 +273,6 @@
 			<Card.Content class="px-0">
 				<div class="divide-y md:hidden" data-task-run-mobile-list>
 					{#each taskRuns as taskRun (taskRun.taskRunID)}
-						{@const StatusIcon = taskStatusIcon(taskRun.status)}
 						<div
 							role="button"
 							tabindex="0"
@@ -299,10 +291,7 @@
 										/>
 									{/if}
 								</div>
-								<Badge variant={taskStatusBadgeVariant(taskRun.status)} class="shrink-0">
-									<StatusIcon />
-									{taskStatusLabel(taskRun.status, text)}
-								</Badge>
+								<TaskRunStatus status={taskRun.status} label={taskStatusLabel(taskRun.status, text)} class="shrink-0" />
 							</div>
 							{#if taskRun.failureReason}
 								<p class="line-clamp-2 text-xs text-destructive">{taskRun.failureReason}</p>
@@ -349,10 +338,10 @@
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>
+								<Table.Head>{text.columnRequest}</Table.Head>
 								{#if isAdmin}
 									<Table.Head class="w-44">{text.columnRequester}</Table.Head>
 								{/if}
-								<Table.Head>{text.columnRequest}</Table.Head>
 								<Table.Head class="w-32">{text.columnStatus}</Table.Head>
 								<Table.Head class="w-28 text-right">{text.columnCost}</Table.Head>
 								<Table.Head class="w-44 text-right">{text.columnUpdated}</Table.Head>
@@ -367,11 +356,6 @@
 									class="cursor-pointer hover:bg-muted/50"
 									onclick={() => openTaskRun(taskRun.taskRunID)}
 								>
-									{#if isAdmin}
-										<Table.Cell class="whitespace-nowrap text-sm">
-											<PersonNameCell name={taskRun.requesterDisplayName ?? ''} personID={taskRun.requesterPersonID ?? ''} />
-										</Table.Cell>
-									{/if}
 									<Table.Cell class="max-w-0">
 										<div class="flex min-w-0 flex-col gap-1">
 											<p class="truncate text-sm font-medium">{taskRun.prompt || '—'}</p>
@@ -382,12 +366,13 @@
 											{/if}
 										</div>
 									</Table.Cell>
+									{#if isAdmin}
+										<Table.Cell class="whitespace-nowrap text-sm text-muted-foreground">
+											<PersonNameCell name={taskRun.requesterDisplayName ?? ''} personID={taskRun.requesterPersonID ?? ''} />
+										</Table.Cell>
+									{/if}
 									<Table.Cell>
-										{@const StatusIcon = taskStatusIcon(taskRun.status)}
-										<Badge variant={taskStatusBadgeVariant(taskRun.status)}>
-											<StatusIcon />
-											{taskStatusLabel(taskRun.status, text)}
-										</Badge>
+										<TaskRunStatus status={taskRun.status} label={taskStatusLabel(taskRun.status, text)} />
 									</Table.Cell>
 									<Table.Cell class="text-right text-xs whitespace-nowrap">
 										{taskRunCostLabel(taskRun)}

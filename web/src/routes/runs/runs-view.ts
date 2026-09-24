@@ -6,7 +6,6 @@ import HourglassIcon from '@lucide/svelte/icons/hourglass';
 import LoaderIcon from '@lucide/svelte/icons/loader';
 import MinusIcon from '@lucide/svelte/icons/minus';
 import XIcon from '@lucide/svelte/icons/x';
-import type { BadgeVariant } from '$lib/components/ui/badge';
 import type { TasksText } from './text';
 import type { EventLane } from './runs-api';
 
@@ -14,17 +13,21 @@ export function shortTaskRunID(taskRunID: string): string {
 	return taskRunID.length > 6 ? taskRunID.slice(0, 6) : taskRunID;
 }
 
-export function taskStatusBadgeVariant(status: string): BadgeVariant {
+export function isTaskStatusNeedingAttention(status: string): boolean {
+	return status === 'failed';
+}
+
+export function taskStatusIconClass(status: string): string {
 	switch (status) {
 		case 'completed':
-			return 'default';
-		case 'failed':
-			return 'destructive';
+			return 'text-success';
 		case 'running':
-		case 'planned':
-			return 'secondary';
+			return 'animate-spin text-muted-foreground [animation-duration:2s]';
+		case 'waiting_user_input':
+		case 'waiting_approval':
+			return 'text-warning-subtle-foreground';
 		default:
-			return 'outline';
+			return 'text-muted-foreground';
 	}
 }
 
