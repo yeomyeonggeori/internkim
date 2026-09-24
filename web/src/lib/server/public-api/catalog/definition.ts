@@ -12,6 +12,7 @@ import {
   resourceEffectContractSchema,
 } from './protocol';
 import { toolInvokeOutcomes } from './contract';
+import { capabilityNamespaceSummaries, type CapabilityNamespace } from './namespaces';
 
 export enum ResourceMutationEffect {
   Created = 'created',
@@ -33,7 +34,7 @@ export type CapabilityResultDefinition = {
 
 type CapabilityToolCommonDefinition = {
   name: string;
-  namespace: string;
+  namespace: CapabilityNamespace;
   answeredBy: CapabilityAnsweredBy;
   privacyClass: string;
   policyResource: string;
@@ -122,6 +123,7 @@ export function buildCapabilityDescriptor(
     name: definition.name,
     canonicalName: definition.name,
     namespace: definition.namespace,
+    namespaceSummary: capabilityNamespaceSummaries[definition.namespace],
     answeredBy: definition.answeredBy,
     modelName: definition.name,
     modelVisibility,
