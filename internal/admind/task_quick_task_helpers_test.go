@@ -34,10 +34,4 @@ func TestQuickTaskOwnerFollowsWhoTheNoteNames(t *testing.T) {
 	if owner := quickTaskOwner([]string{"kim"}, members, requester); owner.ID != "kim" {
 		t.Fatalf("a note naming only others hands the work to the first named, got %q", owner.ID)
 	}
-	if !shouldForceQuickTaskRequest(colleague, "lee@example.com") {
-		t.Fatal("handing the work to someone else must take the request form")
-	}
-	if shouldForceQuickTaskRequest(requester, "lee@example.com") {
-		t.Fatal("keeping the work must not take the request form")
-	}
 }

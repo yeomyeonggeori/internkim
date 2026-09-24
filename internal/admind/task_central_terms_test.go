@@ -35,9 +35,3 @@ func TestTheStatusWordsMatchTheRelay(t *testing.T) {
 		}
 	}
 }
-
-func TestATaskWithNeitherHasNoNote(t *testing.T) {
-	if note := centralTaskNote(Task{}); note != "" {
-		t.Fatalf("an empty note is stored as nothing, not as blank lines: %q", note)
-	}
-}

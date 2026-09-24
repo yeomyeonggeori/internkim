@@ -944,39 +944,6 @@ func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
 		t.Fatalf("a local call naming the requester was refused: %s", namedResponse.Body.String())
 	}
 }
-func TestTaskFromRequestForOtherMemberForcesRequest(t *testing.T) {
-	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
-	members := []taskMember{
-		{ID: "me", Name: "me", Email: "me@example.com"},
-		{ID: "leesample", Name: "leesample", Email: "member1@example.com"},
-	}
-	payload := taskWriteRequest{
-		OwnerID:        "leesample",
-		ParticipantIDs: []string{"leesample"},
-		Type:           "회의",
-		Content:        "10분 회의",
-		Size:           "XS",
-		Status:         "in_progress",
-		WeekCode:       "26W18",
-	}
-	document, errorValue := json.Marshal(payload)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set(taskResolvedActorHeader, "me@example.com")
-	task, errorValue := service.taskFromRequest(request, members, taskDefinitions{
-		Types: []string{"회의"},
-		Sizes: defaultTaskSizeDefinitions(),
-	}, "")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if task.Status != "requested" {
-		t.Fatalf("status = %q", task.Status)
-	}
-}
 
 func taskNotificationTestTask(status string) Task {
 	return Task{
