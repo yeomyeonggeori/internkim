@@ -73,8 +73,8 @@ func TestDecideSendsTypedQuestionsToTheAlphaDecisionsRoute(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	if *requestPath != openRouterDecisionsPath {
-		t.Fatalf("expected the decisions route %q, got %q", openRouterDecisionsPath, *requestPath)
+	if *requestPath != modelladder.DecisionsPath {
+		t.Fatalf("expected the decisions route %q, got %q", modelladder.DecisionsPath, *requestPath)
 	}
 	expectedBody := `{"model":"` + modelladder.DecisionModel + `",` +
 		`"state":{"newestMessage":{"sender":"이샘플","text":"응 진행해"}},` +
@@ -141,9 +141,9 @@ func TestDecideNeedsAStateAndAQuestion(t *testing.T) {
 
 func TestDecisionsRouteSharesTheHostOfTheConfiguredBaseURL(t *testing.T) {
 	cases := map[string]string{
-		"https://openrouter.ai/api/v1/chat/completions": "https://openrouter.ai" + openRouterDecisionsPath,
-		"https://gateway.example/api/v1":                "https://gateway.example" + openRouterDecisionsPath,
-		"":                                              originOf(modelladder.Endpoint) + openRouterDecisionsPath,
+		"https://openrouter.ai/api/v1/chat/completions": "https://openrouter.ai" + modelladder.DecisionsPath,
+		"https://gateway.example/api/v1":                "https://gateway.example" + modelladder.DecisionsPath,
+		"":                                              "https://openrouter.ai" + modelladder.DecisionsPath,
 	}
 	for baseURL, expectedURL := range cases {
 		backend := OpenRouterBackend{BaseURL: baseURL}

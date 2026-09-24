@@ -1,7 +1,10 @@
 // Package modelladder is the only place a model is named.
 package modelladder
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 const (
 	Endpoint = "https://openrouter.ai/api/v1"
@@ -50,6 +53,27 @@ type Rung struct {
 type Document struct {
 	Tiers     map[string][]Rung `json:"tiers"`
 	Embedding Rung              `json:"embedding"`
+	Decision  Rung              `json:"decision"`
+}
+
+// OpenRouter serves decision-only models on its alpha decisions route, not on
+// chat completions. github.com/OpenRouterTeam/go-sdk decisions.go
+const DecisionsPath = "/api/alpha/decisions"
+
+func DecisionsURL(modelEndpoint string) string {
+	origin := originOf(modelEndpoint)
+	if origin == "" {
+		origin = originOf(Endpoint)
+	}
+	return origin + DecisionsPath
+}
+
+func originOf(rawURL string) string {
+	parsed, errorValue := url.Parse(strings.TrimSpace(rawURL))
+	if errorValue != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host
 }
 
 func ModelNames() []string {
@@ -82,6 +106,7 @@ func LanguageModelDocument(endpointURL string, apiKeyPath string) Document {
 	return Document{
 		Tiers:     tiers,
 		Embedding: Rung{Endpoint: reachedEndpoint, Model: EmbeddingModel, APIKeyPath: apiKeyPath},
+		Decision:  Rung{Endpoint: DecisionsURL(reachedEndpoint), Model: DecisionModel, APIKeyPath: apiKeyPath},
 	}
 }
 

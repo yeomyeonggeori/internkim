@@ -89,3 +89,16 @@ func TestEveryTierNamesAReasoningEffortAndNoneTurnsThinkingOff(t *testing.T) {
 		t.Fatal("a tier nobody defined must not be given an effort")
 	}
 }
+
+func TestThePlaneAsksTheDecisionModelBesideTheChatModels(t *testing.T) {
+	cases := map[string]string{
+		"":                               "https://openrouter.ai" + DecisionsPath,
+		"https://gateway.example/api/v1": "https://gateway.example" + DecisionsPath,
+	}
+	for endpointURL, expectedDecisionsURL := range cases {
+		decision := LanguageModelDocument(endpointURL, "/run/example-key").Decision
+		if decision.Endpoint != expectedDecisionsURL || decision.Model != DecisionModel || decision.APIKeyPath != "/run/example-key" {
+			t.Fatalf("model endpoint %q: expected the decision model at %q with the same key, got %+v", endpointURL, expectedDecisionsURL, decision)
+		}
+	}
+}
