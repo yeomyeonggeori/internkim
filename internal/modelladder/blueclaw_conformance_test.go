@@ -60,7 +60,7 @@ func TestOurLadderDecodesTheDocumentBlueclawIsTestedAgainst(t *testing.T) {
 }
 
 func TestWhatWeWriteCarriesTheFieldsBlueclawReads(t *testing.T) {
-	written, errorValue := json.Marshal(LanguageModelDocument("http://127.0.0.1:11434/v1", ""))
+	written, errorValue := json.Marshal(LanguageModelDocument("http://127.0.0.1:11434/v1", "/run/example-key"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -85,8 +85,22 @@ func TestWhatWeWriteCarriesTheFieldsBlueclawReads(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	for _, field := range slices.Sorted(maps.Keys(theirRungs["low"][0])) {
+		if keySourceFields[field] && writesAKeySource(ourRungs["low"][0]) {
+			continue
+		}
 		if _, isWritten := ourRungs["low"][0][field]; !isWritten {
 			t.Fatalf("blueclaw's example spells a rung's field %q and nothing here writes it", field)
 		}
 	}
+}
+
+var keySourceFields = map[string]bool{"apiKeyPath": true, "apiKeyEnvironment": true}
+
+func writesAKeySource(rung map[string]json.RawMessage) bool {
+	for field := range keySourceFields {
+		if _, isWritten := rung[field]; isWritten {
+			return true
+		}
+	}
+	return false
 }
