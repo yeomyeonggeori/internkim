@@ -34,15 +34,6 @@ func (service *Service) taskRequesterEmail(request *http.Request, payload taskQu
 	return strings.ToLower(strings.TrimSpace(service.authenticatedCallerEmail(request)))
 }
 
-func shouldForceQuickTaskRequest(owner taskMember, requesterEmail string) bool {
-	if strings.TrimSpace(requesterEmail) == "" {
-		return false
-	}
-	if strings.EqualFold(owner.Email, requesterEmail) {
-		return false
-	}
-	return true
-}
 
 func preferExplicitTaskValue(explicitValue string, inferredValue string) string {
 	return firstNonEmpty(strings.TrimSpace(explicitValue), inferredValue)

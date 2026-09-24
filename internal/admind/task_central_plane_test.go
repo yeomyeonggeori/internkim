@@ -1,29 +1,26 @@
 package admind
 
 import (
-	"net/http"
-	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
-func TestATaskWrittenWithoutARequesterStaysOnTheDevice(t *testing.T) {
-	service := &Service{}
-	request := httptest.NewRequest(http.MethodPost, quickTaskPath, nil)
+func TestAQuickTaskAsksTaskAddOnlyForWhatItKnows(t *testing.T) {
+	input := taskAddInputOf(Task{Content: "분기 보고서", Status: taskStatusRequested, Size: "M"}, "초안까지", []string{"sample@example.com"})
 
-	if _, answered, _ := service.saveCentralTask(request, Task{Content: "결산"}, nil); answered {
-		t.Fatal("the company writes as the person who asked, so a request naming nobody cannot ask it")
+	want := map[string]any{
+		"title":                  "분기 보고서",
+		"note":                   "초안까지",
+		"size":                   "M",
+		"participantPersonHints": []string{"sample@example.com"},
+	}
+	if !reflect.DeepEqual(input, want) {
+		t.Fatalf("input = %#v, want %#v; the record decides a request and the labels left out", input, want)
 	}
 }
 
-// The company mints the identifier. A task it has never seen carries none, and
-// sending the device's own would ask the company to change a row nobody has.
-func TestOnlyAnIdentifierTheCompanyMintedTravelsBackToIt(t *testing.T) {
-	if identity := centralTaskIdentityOf(Task{ID: "38df3c78-19d9-4b83-995c-eca2b13c44f6"}); identity != "38df3c78-19d9-4b83-995c-eca2b13c44f6" {
-		t.Fatalf("identity = %q", identity)
-	}
-	for _, deviceIdentity := range []string{"", "tool-c808a15bfe125121d09e96cb5aada0b1", "lee-1", "person-sample"} {
-		if identity := centralTaskIdentityOf(Task{ID: deviceIdentity}); identity != "" {
-			t.Fatalf("device identity %q travelled to the company as %q", deviceIdentity, identity)
-		}
+func TestAQuickTaskKeepsAStatusTheNoteGave(t *testing.T) {
+	if status := statusTaskAddTakes(taskStatusCompleted); status != taskStatusCompleted {
+		t.Fatalf("status = %q", status)
 	}
 }

@@ -44,10 +44,6 @@ func (service *Service) taskAndPayloadFromRequest(request *http.Request, members
 		return Task{}, payload, taskValidationError("content is required")
 	}
 	status := firstNonEmpty(cleanTaskStatus(payload.Status), defaultTaskStatus())
-	callerEmail := strings.ToLower(strings.TrimSpace(service.taskActorEmail(request)))
-	if taskID == "" && callerEmail != "" && !service.isTaskAdminEmail(request.Context(), callerEmail) && !strings.EqualFold(owner.Email, callerEmail) {
-		status = taskStatusRequested
-	}
 	if !isAllowedTaskStatus(status) {
 		return Task{}, payload, taskValidationError("status is not allowed")
 	}

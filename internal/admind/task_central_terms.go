@@ -5,7 +5,3 @@ import "strings"
 func taskMemberIdentifier(record adminUserMutation) string {
 	return stableTaskID(strings.ToLower(strings.TrimSpace(record.Email)))
 }
-
-func centralTaskNote(task Task) string {
-	return ""
-}

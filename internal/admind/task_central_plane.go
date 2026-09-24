@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -15,51 +16,49 @@ import (
 // afterwards reconciles.
 var errTaskWriterUnnamed = errors.New("this write names nobody the company knows, and the company keeps the board")
 
-// The company holds the board, so a task is written there as the person who
-// asked and the answer comes back carrying the identifier the company gave it.
-// This is the path an event already takes; a task and an event are one row.
-func (service *Service) saveCentralTask(request *http.Request, task Task, people map[string]adminUserMutation) (Task, bool, error) {
+// A task is added through the record's task_add, so the rules every other
+// path meets (labels, requests, duplicates) are met here too.
+func (service *Service) addTaskThroughTheRecord(request *http.Request, task Task, note string, people map[string]adminUserMutation) (centralplane.RecordToolAnswer, bool, error) {
 	client := service.centralPlane()
 	if client == nil {
-		return Task{}, false, nil
+		return centralplane.RecordToolAnswer{}, false, nil
 	}
 	requesterEmail := service.taskActorEmail(request)
 	if requesterEmail == "" {
-		return Task{}, true, errTaskWriterUnnamed
+		return centralplane.RecordToolAnswer{}, true, errTaskWriterUnnamed
 	}
-	savedID, errorValue := client.SaveTask(request.Context(), centralplane.Task{
-		CentralID:        centralTaskIdentityOf(task),
-		ActorPlatform:    "email",
-		ActorExternalID:  requesterEmail,
-		Title:            task.Content,
-		Status:           cleanTaskStatus(task.Status),
-		Note:             centralTaskNote(task),
-		Business:         task.Business,
-		Type:             task.Type,
-		Size:             task.Size,
-		StartsAt:         task.StartDate,
-		EndsAt:           task.EndDate,
-		WritesDates:      strings.TrimSpace(task.StartDate) != "" || strings.TrimSpace(task.EndDate) != "",
-		ParticipantMails: participantAddresses(task, people),
-	})
+	input, errorValue := json.Marshal(taskAddInputOf(task, note, participantAddresses(task, people)))
 	if errorValue != nil {
-		return Task{}, true, errorValue
+		return centralplane.RecordToolAnswer{}, true, errorValue
 	}
-	saved := task
-	saved.ID = savedID
-	return saved, true, nil
+	answer, errorValue := client.InvokeRecordTool(request.Context(), requesterEmail, "task_add", "invoke", input)
+	return answer, true, errorValue
 }
 
-
-// A task the company already holds carries the identifier the company gave it;
-// one it has never seen carries none. Sending the device's own asks the company
-// to change a row nobody has.
-func centralTaskIdentityOf(task Task) string {
-	identity := strings.TrimSpace(task.ID)
-	if len(identity) == 36 && strings.Count(identity, "-") == 4 {
-		return identity
+func taskAddInputOf(task Task, note string, participantAddresses []string) map[string]any {
+	input := map[string]any{"title": task.Content, "participantPersonHints": participantAddresses}
+	given := map[string]string{
+		"note":     note,
+		"status":   statusTaskAddTakes(task.Status),
+		"business": task.Business,
+		"type":     task.Type,
+		"size":     task.Size,
+		"startsAt": task.StartDate,
+		"endsAt":   task.EndDate,
 	}
-	return ""
+	for name, value := range given {
+		if strings.TrimSpace(value) != "" {
+			input[name] = value
+		}
+	}
+	return input
+}
+
+func statusTaskAddTakes(status string) string {
+	if status == taskStatusRequested || status == taskStatusPlanned {
+		return ""
+	}
+	return status
 }
 
 // A session is issued for a messenger account, which the account directory
