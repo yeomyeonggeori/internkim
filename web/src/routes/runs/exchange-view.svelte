@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import FactList, { type Fact } from './fact-list.svelte';
@@ -6,7 +7,7 @@
 	import RawDocument from './raw-document.svelte';
 	import type { TasksText } from './text';
 
-	let { exchange, callFacts, text }: { exchange: Exchange; callFacts: Fact[]; text: TasksText } = $props();
+	let { exchange, callFacts, text, children }: { exchange: Exchange; callFacts: Fact[]; text: TasksText; children?: Snippet } = $props();
 
 	const stateDocument = $derived(exchange.decisionState === undefined ? '' : JSON.stringify(exchange.decisionState, undefined, 2));
 	const facts = $derived([...callFacts, ...exchangeFacts()]);
@@ -41,31 +42,34 @@
 </script>
 
 {#snippet transcriptEntry(label: string, message: ExchangeMessage)}
-	<div class="flex flex-col gap-1">
-		<span class="text-xs text-muted-foreground">{label}</span>
-		{#if message.reasoning}
-			<pre class="max-h-32 overflow-auto font-sans text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">{message.reasoning}</pre>
-		{/if}
-		{#if message.text}
-			<pre class="max-h-48 overflow-auto font-sans text-sm leading-relaxed whitespace-pre-wrap">{message.text}</pre>
-		{/if}
-		{#if message.imageCount > 0}
-			<Badge variant="outline" class="w-fit">{text.imagesAttached.replace('{count}', String(message.imageCount))}</Badge>
-		{/if}
-		{#each message.toolCalls as toolCall, index (`${toolCall.name}-${index}`)}
-			<pre class="max-h-48 overflow-auto rounded-md bg-muted/40 px-2 py-1.5 text-xs leading-relaxed whitespace-pre-wrap">{toolCall.name} {toolCall.arguments}</pre>
-		{/each}
+	<div class="grid min-w-0 gap-1 border-t pt-3 sm:grid-cols-[5rem_minmax(0,1fr)] sm:gap-3">
+		<span class="text-xs text-muted-foreground sm:pt-0.5">{label}</span>
+		<div class="flex min-w-0 flex-col gap-1.5">
+			{#if message.reasoning}
+				<pre class="max-h-32 overflow-auto font-sans text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">{message.reasoning}</pre>
+			{/if}
+			{#if message.text}
+				<pre class="max-h-48 overflow-auto font-sans text-sm leading-relaxed whitespace-pre-wrap">{message.text}</pre>
+			{/if}
+			{#if message.imageCount > 0}
+				<Badge variant="outline" class="w-fit">{text.imagesAttached.replace('{count}', String(message.imageCount))}</Badge>
+			{/if}
+			{#each message.toolCalls as toolCall, index (`${toolCall.name}-${index}`)}
+				<pre class="max-h-48 overflow-auto rounded-md bg-muted/40 px-2 py-1.5 text-xs leading-relaxed whitespace-pre-wrap">{toolCall.name} {toolCall.arguments}</pre>
+			{/each}
+		</div>
 	</div>
 {/snippet}
 
-<div class="flex flex-col gap-4">
+<div class="flex min-w-0 flex-col gap-3">
 	<FactList {facts} />
+	{@render children?.()}
 	{#each exchange.messages as message, index (index)}
 		{@render transcriptEntry(roleLabel(message.role), message)}
 	{/each}
 	{#if stateDocument}
-		<div class="flex flex-col gap-1">
-			<span class="text-xs text-muted-foreground">{text.decisionState}</span>
+		<div class="grid min-w-0 gap-1 border-t pt-3 sm:grid-cols-[5rem_minmax(0,1fr)] sm:gap-3">
+			<span class="text-xs text-muted-foreground sm:pt-0.5">{text.decisionState}</span>
 			<RawDocument document={stateDocument} />
 		</div>
 	{/if}
@@ -73,7 +77,7 @@
 		{@render transcriptEntry(text.modelAnswered, exchange.answer)}
 	{/if}
 	{#if copyableDocuments.length > 0}
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
 			{#each copyableDocuments as copyable (copyable.label)}
 				<span class="flex items-center">
 					{copyable.label}
