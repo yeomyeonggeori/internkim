@@ -53,9 +53,6 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 		EndDate:        preferExplicitTaskValue(payload.EndDate, inferredTask.EndDate),
 		WeekCode:       payload.WeekCode,
 	}
-	if shouldForceQuickTaskRequest(owner, requesterEmail) {
-		writeRequest.Status = taskStatusRequested
-	}
 	body, _ := json.Marshal(writeRequest)
 	clonedRequest := request.Clone(request.Context())
 	clonedRequest.Body = io.NopCloser(bytes.NewReader(body))
@@ -75,16 +72,18 @@ func (service *Service) createQuickTask(responseWriter http.ResponseWriter, requ
 			return
 		}
 	}
-	saved, answered, saveError := service.saveCentralTask(request, task, service.taskPeopleByID(request.Context()))
+	answer, answered, addError := service.addTaskThroughTheRecord(request, task, inferredTask.Goal, service.taskPeopleByID(request.Context()))
 	if !answered {
 		http.Error(responseWriter, errTaskWriterUnnamed.Error(), http.StatusFailedDependency)
 		return
 	}
-	if saveError != nil {
-		http.Error(responseWriter, saveError.Error(), http.StatusBadGateway)
+	if addError != nil {
+		http.Error(responseWriter, addError.Error(), http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, saved)
+	responseWriter.Header().Set("Content-Type", "application/json")
+	responseWriter.WriteHeader(answer.Status)
+	responseWriter.Write(answer.Body)
 }
 
 func (service *Service) writeQuickTaskDuplicate(responseWriter http.ResponseWriter, task Task, reason string) {
