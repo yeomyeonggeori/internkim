@@ -114,3 +114,36 @@ func TestProxyScopedTaskDeleteForwardsViewerContext(t *testing.T) {
 		t.Fatalf("unexpected response = %#v", body)
 	}
 }
+
+func TestAdminLearningDiagnosticsReadsBlueclawOverview(t *testing.T) {
+	blueclawServer := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet || request.URL.Path != "/admin/api/agent-learning/overview" {
+			t.Fatalf("blueclaw request = %s %s", request.Method, request.URL.String())
+		}
+		responseWriter.Header().Set("Content-Type", "application/json")
+		_, _ = responseWriter.Write([]byte(`{"settings":{"enabled":true,"activeLimit":20},"reviews":[]}`))
+	}))
+	t.Cleanup(blueclawServer.Close)
+
+	service := NewService(Configuration{BlueclawBaseURL: blueclawServer.URL})
+	request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/learning", nil)
+	request.RemoteAddr = "127.0.0.1:40000"
+	responseRecorder := httptest.NewRecorder()
+
+	service.handleAdmin(responseRecorder, request)
+
+	if responseRecorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", responseRecorder.Code, responseRecorder.Body.String())
+	}
+	var body struct {
+		Settings struct {
+			Enabled bool `json:"enabled"`
+		} `json:"settings"`
+	}
+	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&body); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !body.Settings.Enabled {
+		t.Fatalf("overview settings were not forwarded: %s", responseRecorder.Body.String())
+	}
+}
