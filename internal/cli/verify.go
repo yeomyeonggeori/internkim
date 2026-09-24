@@ -354,6 +354,7 @@ curl --silent --show-error --fail http://127.0.0.1:18080/admin/_app/version.json
 echo "checking the paths the company web reaches through the relay"
 ` + verifyRelayActorsScript(blueclaw.InternKimCentralPlaneAgentKeyPath, blueclaw.InternKimCentralPlaneAppURLPath) + `
 ` + verifySkillInventoryScript() + `
+` + verifyAdminOnlyRunsScript() + `
 for relay_path in /memory/api/facts /memory/api/schedules /files/api/roots /files/api/list /runs/api /runs/api/detail /agent/api/buzz-claim /agent/api/buzz-relay-config /persona/api/user /persona/api/soul /persona/api/identity /agent-learning/api/skills /agent-learning/api/skills?includeRetired=true /agent-learning/api/settings /agent-learning/api/soul /agent-learning/api/soul/history /companion/api/mine; do
   relay_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://internkim$relay_path")"
   case "$relay_status" in
@@ -530,6 +531,23 @@ if [ "$skill_admin_status" != "200" ]; then
   echo "the skill inventory answered $skill_admin_status for administrator $relay_admin"
   exit 1
 fi`
+}
+
+func verifyAdminOnlyRunsScript() string {
+	return `for relay_path in /runs/api/llm-call /runs/api/turn-input /runs/api/inbound; do
+  runs_member_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_requester" "http://internkim$relay_path")"
+  if [ "$runs_member_status" != "403" ]; then
+    echo "$relay_path answered $runs_member_status for nonadministrator $relay_requester"
+    exit 1
+  fi
+  runs_admin_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --unix-socket ` + blueclaw.AdmindSocketPath + ` -H "X-INTERNKIM-REQUESTER-EMAIL: $relay_admin" "http://internkim$relay_path")"
+  case "$runs_admin_status" in
+    401|403|404)
+      echo "$relay_path answered $runs_admin_status for administrator $relay_admin"
+      exit 1
+      ;;
+  esac
+done`
 }
 
 // Site tools are named exactly; matching a name prefix silently reclassifies any
