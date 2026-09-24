@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,47 +44,74 @@ type wranglerReleasePublisher struct {
 	publicBaseURL string
 }
 
+type releaseSubcommand struct {
+	name  string
+	flags []string
+	run   func(arguments []string) error
+}
+
+var releaseSubcommands = []releaseSubcommand{
+	{name: "publish", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
+	{name: "status", flags: []string{"--channel"}, run: runReleaseStatus},
+	{name: "companion", flags: []string{"--release"}, run: runReleaseCompanion},
+	{name: "host", flags: []string{"--release"}, run: runReleaseCompanyHost},
+	{name: "host-image", flags: []string{"--release"}, run: runReleaseCompanyHostImage},
+	{name: "deb", flags: []string{"--architecture", "--out", "--version"}, run: runReleaseDeb},
+	{name: "apt", flags: []string{"--suite", "--package-directory", "--output"}, run: runReleaseAPT},
+	{name: "brew", flags: []string{"--out", "--version"}, run: runReleaseBrew},
+}
+
 func runRelease() {
-	if len(os.Args) < 3 || os.Args[2] == "--help" || os.Args[2] == "-h" {
+	if len(os.Args) < 3 || isHelpArgument(os.Args[2]) {
 		printReleaseUsage()
 		return
 	}
-	switch os.Args[2] {
-	case "publish":
-		if errorValue := runReleasePublish(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "status":
-		if errorValue := runReleaseStatus(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "companion":
-		if errorValue := runReleaseCompanion(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "host":
-		if errorValue := runReleaseCompanyHost(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "host-image":
-		if errorValue := runReleaseCompanyHostImage(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "deb":
-		if errorValue := runReleaseDeb(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "apt":
-		if errorValue := runReleaseAPT(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	case "brew":
-		if errorValue := runReleaseBrew(os.Args[3:]); errorValue != nil {
-			fatal(errorValue.Error())
-		}
-	default:
+	subcommand, found := findReleaseSubcommand(os.Args[2])
+	if !found {
 		printReleaseUsage()
+		fatal(fmt.Sprintf("release has no subcommand %q", os.Args[2]))
 	}
+	arguments := os.Args[3:]
+	if slices.ContainsFunc(arguments, isHelpArgument) {
+		printReleaseUsage()
+		return
+	}
+	if errorValue := checkReleaseArguments(subcommand, arguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	if errorValue := subcommand.run(arguments); errorValue != nil {
+		fatal(errorValue.Error())
+	}
+}
+
+func findReleaseSubcommand(name string) (releaseSubcommand, bool) {
+	for _, subcommand := range releaseSubcommands {
+		if subcommand.name == name {
+			return subcommand, true
+		}
+	}
+	return releaseSubcommand{}, false
+}
+
+func isHelpArgument(argument string) bool {
+	return argument == "--help" || argument == "-h"
+}
+
+func checkReleaseArguments(subcommand releaseSubcommand, arguments []string) error {
+	for index := 0; index < len(arguments); index++ {
+		name, _, hasInlineValue := strings.Cut(arguments[index], "=")
+		if !slices.Contains(subcommand.flags, name) {
+			return fmt.Errorf("release %s does not take %q; it takes %s", subcommand.name, arguments[index], strings.Join(subcommand.flags, ", "))
+		}
+		if hasInlineValue {
+			continue
+		}
+		if index+1 == len(arguments) {
+			return fmt.Errorf("release %s %s needs a value", subcommand.name, name)
+		}
+		index++
+	}
+	return nil
 }
 
 func printReleaseUsage() {
