@@ -152,7 +152,7 @@ export async function updateTaskParents(taskIDs: string[], parentTaskID: string)
 }
 
 export async function saveTaskVocabulary(
-	definitions: TaskDefinitions,
+	definitions: Omit<TaskDefinitions, 'sizes'>,
 	messages: { failure: string; inUse: string }
 ): Promise<void> {
 	const vocabulary = taskVocabularyOfDefinitions(definitions);

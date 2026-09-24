@@ -97,7 +97,7 @@ export async function updateTaskParents(taskIDs: string[], parentTaskID: string)
 }
 
 export function saveTaskDefinitions(
-	definitions: TaskDefinitions,
+	definitions: Omit<TaskDefinitions, 'sizes'>,
 	fallbackMessage: string,
 	inUseMessage: string
 ): Promise<void> {

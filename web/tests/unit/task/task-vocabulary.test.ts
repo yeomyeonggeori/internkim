@@ -58,8 +58,7 @@ describe('taskVocabularyOfDefinitions', () => {
 			categories: ['오토케', '태스크포스'],
 			categoryColors: { 오토케: '#111111' },
 			types: ['개발'],
-			typeColors: {},
-			sizes: []
+			typeColors: {}
 		});
 		expect(vocabulary.businesses).toEqual([{ name: '오토케', color: '#111111' }, { name: '태스크포스' }]);
 		expect(vocabulary.types).toEqual([{ name: '개발' }]);
