@@ -123,6 +123,8 @@ func runNamedCommand(name string) {
 		runUsers()
 	case "run":
 		runTaskRun()
+	case "learning":
+		runLearning()
 	case "reset":
 		runReset()
 	case "recover":
@@ -171,6 +173,7 @@ func printUsage() {
 	fmt.Println("  invite   Add/invite an allowed user")
 	fmt.Println("  users    Manage allowed users")
 	fmt.Println("  task     Inspect task runs and failure logs")
+	fmt.Println("  learning Show what the agent's idle-time learning reviewer has done")
 	fmt.Println("  reset    Reset board runtime data")
 	fmt.Println("  recover  Recover narrow device maintenance paths")
 	fmt.Println("  release  Publish and inspect release sets")
