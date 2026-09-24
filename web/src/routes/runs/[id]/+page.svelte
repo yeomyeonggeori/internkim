@@ -3,25 +3,28 @@
 	import { taskListPathOf } from '$lib/app-shell';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
+	import * as Accordion from '$lib/components/ui/accordion';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Card from '$lib/components/ui/card';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Input } from '$lib/components/ui/input';
-	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
-	import BotIcon from '@lucide/svelte/icons/bot';
-	import ClipboardListIcon from '@lucide/svelte/icons/clipboard-list';
-	import FileTextIcon from '@lucide/svelte/icons/file-text';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import ApprovalDecision from '../approval-decision.svelte';
 	import RetryTaskButton from '../retry-task-button.svelte';
+	import RawDocument from '../raw-document.svelte';
+	import RawLedgerView from '../raw-ledger-view.svelte';
+	import { filterLedger, groupLedger } from '../raw-ledger';
+	import type { Fact } from '../fact-list.svelte';
+	import SummaryFacts from '../summary-facts.svelte';
+	import IntakeDecisionStep from '../intake-decision-step.svelte';
+	import TaskStep from '../task-step.svelte';
+	import { buildTaskStory } from '../task-story';
 	import {
 		eventLane,
 		fetchServiceLogs,
@@ -31,26 +34,23 @@
 		pendingApprovalOf,
 		summarizeTimeline,
 		taskDetailShareText,
-		taskEventShareText,
-		type EventLane,
 		type TaskDetail,
 		type TaskEvent,
 		type TimelineSummary
 	} from '../runs-api';
 	import {
-		eventLaneClass,
+		formatDuration,
 		formatLatency,
 		formatTaskTimestamp,
-		taskStatusBadgeVariant,
-		taskStatusIcon,
 		taskStatusLabel
 	} from '../runs-view';
 	import { tasksText } from '../text';
+	import TaskRunStatus from '../task-run-status.svelte';
 
 	const text = createPageText(tasksText);
 	let detail = $state<TaskDetail | undefined>(undefined);
 	let loadError = $state('');
-	let selectedTab = $state('timeline');
+	let selectedTab = $state('story');
 	let selectedEventLane = $state('all');
 	let eventSearchQuery = $state('');
 	let serviceLogLines = $state<string[] | undefined>(undefined);
@@ -60,12 +60,13 @@
 	let loadGeneration = 0;
 
 	const summary = $derived(detail ? summarizeTimeline(detail.taskEvents) : undefined);
+	const story = $derived(buildTaskStory(detail?.taskEvents ?? []));
+	const runDuration = $derived(detail ? formatDuration(Date.parse(detail.taskRun.updatedAt ?? '') - Date.parse(detail.taskRun.createdAt ?? '')) : '');
+	const runFacts = $derived(factsOf(summary, runDuration));
 	const pendingApproval = $derived(detail ? pendingApprovalOf(detail) : undefined);
-	const visibleTaskEvents = $derived(detail ? filterTaskEvents(detail.taskEvents) : []);
+	const ledgerSections = $derived(detail ? filterLedger(groupLedger(detail.taskEvents), isEventShown) : []);
 	const taskShareText = $derived(detail ? taskDetailShareText(detail) : '');
-	const visibleEventsShareText = $derived(detail ? taskDetailShareText(detail, { events: visibleTaskEvents, title: 'Visible Task Events' }) : '');
 	const eventLaneFilters = $derived(detail ? buildEventLaneFilters(detail.taskEvents) : []);
-	const timelineSummaryRows = $derived(summary && detail ? buildTimelineSummaryRows(summary, detail.taskEvents.length) : []);
 	const taskListPath = $derived(taskListPathOf(page.url.pathname));
 
 	async function load(taskRunID: string, generation: number) {
@@ -103,14 +104,11 @@
 		}
 	}
 
-	function filterTaskEvents(taskEvents: TaskEvent[]): TaskEvent[] {
+	function isEventShown(taskEvent: TaskEvent): boolean {
 		const query = eventSearchQuery.trim().toLowerCase();
-		return taskEvents.filter((taskEvent) => {
-			const lane = eventLane(taskEvent.name);
-			if (selectedEventLane !== 'all' && selectedEventLane !== lane) return false;
-			if (!query) return true;
-			return `${taskEvent.name}\n${formatEventBody(taskEvent.body)}`.toLowerCase().includes(query);
-		});
+		if (selectedEventLane !== 'all' && selectedEventLane !== eventLane(taskEvent.name)) return false;
+		if (!query) return true;
+		return `${taskEvent.name}\n${formatEventBody(taskEvent.body)}`.toLowerCase().includes(query);
 	}
 
 	function buildEventLaneFilters(taskEvents: TaskEvent[]) {
@@ -121,59 +119,54 @@
 				result.all += 1;
 				return result;
 			},
-			{ all: 0, llm: 0, tool: 0, failure: 0, control: 0 }
+			{ all: 0, llm: 0, tool: 0, failure: 0, other: 0 }
 		);
 		return [
 			{ value: 'all', label: text.allEvents, count: counts.all },
 			{ value: 'llm', label: text.laneLLM, count: counts.llm },
 			{ value: 'tool', label: text.laneTool, count: counts.tool },
 			{ value: 'failure', label: text.laneFailure, count: counts.failure },
-			{ value: 'control', label: text.laneControl, count: counts.control }
-		];
+			{ value: 'other', label: text.laneOther, count: counts.other }
+		].filter((filter) => filter.value === 'all' || filter.count > 0);
 	}
 
-	function eventLaneLabel(lane: EventLane): string {
-		switch (lane) {
-			case 'llm':
-				return text.laneLLM;
-			case 'tool':
-				return text.laneTool;
-			case 'failure':
-				return text.laneFailure;
-			default:
-				return text.laneControl;
-		}
-	}
+	let openStepValues = $state<string[]>([]);
 
-	function eventLaneBadgeVariant(lane: EventLane) {
-		if (lane === 'failure') return 'destructive';
-		if (lane === 'tool') return 'secondary';
-		if (lane === 'llm') return 'outline';
-		return 'ghost';
-	}
+	const openedFailedStepKeys = new Set<string>();
 
-	function taskEventPreview(taskEvent: TaskEvent): string {
-		const compactBody = formatEventBody(taskEvent.body).replace(/\s+/g, ' ').trim();
-		if (compactBody.length <= 180) return compactBody;
-		return `${compactBody.slice(0, 180)}...`;
-	}
+	$effect(() => {
+		const newlyFailedKeys = story.steps.filter((step) => step.isFailed && !openedFailedStepKeys.has(step.key)).map((step) => step.key);
+		if (newlyFailedKeys.length === 0) return;
+		newlyFailedKeys.forEach((key) => openedFailedStepKeys.add(key));
+		openStepValues = [...untrack(() => openStepValues), ...newlyFailedKeys];
+	});
 
-	function buildTimelineSummaryRows(timelineSummary: TimelineSummary, eventCount: number) {
+	function factsOf(timelineSummary: TimelineSummary | undefined, duration: string): Fact[] {
+		const facts: Fact[] = duration ? [{ label: text.factDuration, value: duration }] : [];
+		if (!timelineSummary) return facts;
 		return [
-			{ label: text.eventCount, value: eventCount.toLocaleString() },
-			{ label: text.llmCalls, value: timelineSummary.llmCallCount.toLocaleString() },
-			{ label: text.llmLatency, value: formatLatency(timelineSummary.llmLatencyMS) },
-			{ label: text.llmTokens, value: timelineSummary.llmTotalTokens.toLocaleString() },
-			{ label: text.llmCost, value: formatCostUSD(timelineSummary.llmCostUSD) },
-			{ label: text.toolCalls, value: timelineSummary.toolCallCount.toLocaleString() }
+			...facts,
+			{ label: text.factModelCalls, value: text.timesValue.replace('{count}', timelineSummary.llmCallCount.toLocaleString()) },
+			{ label: text.factModelLatency, value: formatLatency(timelineSummary.llmLatencyMS) },
+			{ label: text.factTotalTokens, value: timelineSummary.llmTotalTokens.toLocaleString() },
+			{ label: text.factCost, value: formatCostUSD(timelineSummary.llmCostUSD) },
+			{ label: text.factToolCalls, value: text.timesValue.replace('{count}', timelineSummary.toolCallCount.toLocaleString()) }
 		];
 	}
+
+	$effect(() => {
+		if (selectedTab !== 'logs') return;
+		if (serviceLogLines !== undefined || serviceLogsLoading || serviceLogsError !== '') return;
+		void loadServiceLogs();
+	});
 
 	$effect(() => {
 		const taskRunID = page.params.id ?? '';
 		loadGeneration += 1;
 		const generation = loadGeneration;
 		detail = undefined;
+		serviceLogLines = undefined;
+		serviceLogsError = '';
 		if (pollTimer) clearTimeout(pollTimer);
 		void load(taskRunID, generation);
 	});
@@ -199,9 +192,7 @@
 				{#if detail.taskRun.status === 'failed'}
 					<RetryTaskButton taskRunID={detail.taskRun.taskRunID} label={text.retryTask} pendingLabel={text.retryingTask} successMessage={text.retrySuccess} errorMessage={text.retryError} />
 				{/if}
-				<CopyButton text={taskShareText} variant="outline" size="sm">
-					<span>{text.copyForAI}</span>
-				</CopyButton>
+				<CopyButton text={taskShareText} />
 			</div>
 		{/if}
 	</div>
@@ -216,210 +207,87 @@
 			<Skeleton class="h-64 w-full" />
 		</section>
 	{:else}
-		{@const StatusIcon = taskStatusIcon(detail.taskRun.status)}
-		<section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-			<Card.Root>
-				<Card.Header class="gap-3">
-					<div class="flex min-w-0 flex-wrap items-center gap-2">
-						<Badge variant={taskStatusBadgeVariant(detail.taskRun.status)}>
-							<StatusIcon />
-							{taskStatusLabel(detail.taskRun.status, text)}
-						</Badge>
-						<code class="truncate rounded-md bg-muted px-2 py-1 text-xs">{detail.taskRun.taskRunID}</code>
-					</div>
-					<Card.Title class="text-lg">{text.taskSummaryTitle}</Card.Title>
-					<Card.Description>{detail.taskRun.prompt || '—'}</Card.Description>
-				</Card.Header>
-				<Card.Content class="flex flex-col gap-4">
-					<div class="grid gap-3 md:grid-cols-2">
-						<div class="flex flex-col gap-1">
-							<span class="text-xs text-muted-foreground">{text.createdAt}</span>
-							<span class="text-sm">{formatTaskTimestamp(detail.taskRun.createdAt)}</span>
-						</div>
-						<div class="flex flex-col gap-1">
-							<span class="text-xs text-muted-foreground">{text.updatedAt}</span>
-							<span class="text-sm">{formatTaskTimestamp(detail.taskRun.updatedAt)}</span>
-						</div>
-						{#if detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}
-							<div class="flex flex-col gap-1 md:col-span-2">
-								<span class="text-xs text-muted-foreground">{text.requesterLabel}</span>
-								<span class="text-sm">{displayPersonName(detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID)}</span>
-							</div>
-						{/if}
-					</div>
-					{#if pendingApproval}
-						<Separator />
-						<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
-					{/if}
-					{#if detail.taskRun.failureReason}
-						<Separator />
-						<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-							<span class="font-medium">{text.failureReasonLabel}:</span>
-							{detail.taskRun.failureReason}
-						</div>
-					{/if}
-				</Card.Content>
-			</Card.Root>
-
-			{#if summary}
-				<Card.Root size="sm">
-					<Card.Content class="px-0 py-0">
-						<Table.Root>
-							<Table.Body>
-								{#each timelineSummaryRows as row (row.label)}
-									<Table.Row>
-										<Table.Cell class="h-9 py-0 text-xs text-muted-foreground">{row.label}</Table.Cell>
-										<Table.Cell class="h-9 py-0 text-right text-sm font-medium tabular-nums">{row.value}</Table.Cell>
-									</Table.Row>
-								{/each}
-							</Table.Body>
-						</Table.Root>
-					</Card.Content>
-				</Card.Root>
+		<section class="flex flex-col gap-2">
+			<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+				<TaskRunStatus status={detail.taskRun.status} label={taskStatusLabel(detail.taskRun.status, text)} class="text-xs" />
+				{#if detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID}
+					<span>{displayPersonName(detail.taskRun.requesterDisplayName || detail.taskRun.requesterPersonID)}</span>
+					<span aria-hidden="true">·</span>
+				{/if}
+				<span>{formatTaskTimestamp(detail.taskRun.createdAt)}</span>
+			</div>
+			<h1 class="line-clamp-3 text-lg leading-snug font-semibold">{detail.taskRun.prompt || detail.taskRun.taskRunID}</h1>
+			{#if detail.taskRun.failureReason}
+				<p class="text-sm text-destructive">{detail.taskRun.failureReason}</p>
+			{/if}
+			{#if detail.taskRun.result}
+				<p class="mt-2 rounded-lg bg-muted/50 px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">{detail.taskRun.result}</p>
+			{/if}
+			<div class="mt-2">
+				<SummaryFacts facts={runFacts} />
+			</div>
+			{#if pendingApproval}
+				<ApprovalDecision approval={pendingApproval} {text} onDecided={() => void load(page.params.id ?? '', loadGeneration)} />
 			{/if}
 		</section>
 
 		<UnderlineTabs.Root bind:value={selectedTab} class="min-w-0">
 			<UnderlineTabs.List>
-				<UnderlineTabs.Trigger value="timeline">
-					<ClipboardListIcon data-icon="inline-start" />
-					{text.timelineTab}
-				</UnderlineTabs.Trigger>
-				<UnderlineTabs.Trigger value="brief">
-					<FileTextIcon data-icon="inline-start" />
-					{text.briefTab}
-				</UnderlineTabs.Trigger>
-				<UnderlineTabs.Trigger value="logs">
-					<TerminalIcon data-icon="inline-start" />
-					{text.logsTab}
-				</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="story">{text.storyTab}</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="timeline">{text.rawTab}</UnderlineTabs.Trigger>
+				<UnderlineTabs.Trigger value="logs">{text.logsTab}</UnderlineTabs.Trigger>
 			</UnderlineTabs.List>
 
-			<UnderlineTabs.Content value="timeline" class="min-w-0">
-				<Card.Root>
-					<Card.Header class="gap-3">
-						<div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
-							<div>
-								<Card.Title>{text.timelineTitle}</Card.Title>
-								<Card.Description>
-									{text.visibleEvents.replace('{count}', String(visibleTaskEvents.length)).replace('{total}', String(detail.taskEvents.length))}
-								</Card.Description>
-							</div>
-							<CopyButton text={visibleEventsShareText} variant="outline" size="sm" disabled={visibleTaskEvents.length === 0}>
-								<span>{text.copyVisibleEvents}</span>
-							</CopyButton>
-						</div>
-						<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-							<UnderlineTabs.Root bind:value={selectedEventLane} class="min-w-0">
-								<UnderlineTabs.List class="max-w-full overflow-x-auto">
-									{#each eventLaneFilters as filter (filter.value)}
-										<UnderlineTabs.Trigger value={filter.value} class="gap-1">
-											{filter.label}
-											<Badge variant="secondary" class="h-4 px-1.5 text-[10px]">{filter.count}</Badge>
-										</UnderlineTabs.Trigger>
-									{/each}
-								</UnderlineTabs.List>
-							</UnderlineTabs.Root>
-							<label class="relative min-w-0 lg:w-80">
-								<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-								<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
-							</label>
-						</div>
-					</Card.Header>
-					<Card.Content>
-						{#if visibleTaskEvents.length === 0}
-							<div class="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-								{text.noMatchingEvents}
-							</div>
-						{:else}
-							<div class="flex flex-col gap-3">
-								{#each visibleTaskEvents as taskEvent, index (`${taskEvent.name}-${taskEvent.createdAt ?? 'event'}-${index}`)}
-									{@const lane = eventLane(taskEvent.name)}
-									<article class={`overflow-hidden rounded-lg border ${eventLaneClass(lane)}`}>
-										<div class="flex flex-col gap-2 px-3 py-3">
-											<div class="flex min-w-0 flex-wrap items-center gap-2">
-												<Badge variant={eventLaneBadgeVariant(lane)}>{eventLaneLabel(lane)}</Badge>
-												<code class="min-w-0 flex-1 truncate text-xs">{taskEvent.name}</code>
-												<span class="text-xs whitespace-nowrap text-muted-foreground">{formatTaskTimestamp(taskEvent.createdAt)}</span>
-												<CopyButton text={taskEventShareText(taskEvent, index + 1)} variant="ghost" size="sm">
-													<span>{text.copyEvent}</span>
-												</CopyButton>
-											</div>
-											<p class="line-clamp-2 text-xs break-words text-muted-foreground">{taskEventPreview(taskEvent)}</p>
-										</div>
-										<pre class="max-h-80 overflow-auto border-t bg-background/70 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{formatEventBody(taskEvent.body)}</pre>
-									</article>
-								{/each}
-							</div>
+			<UnderlineTabs.Content value="story" class="min-w-0">
+				{#if story.steps.length === 0 && !story.intakeDecision}
+					<p class="py-8 text-center text-sm text-muted-foreground">{text.noSteps}</p>
+				{:else}
+					<Accordion.Root type="multiple" bind:value={openStepValues}>
+						{#if story.intakeDecision}
+							<IntakeDecisionStep decision={story.intakeDecision} isOpen={openStepValues.includes('intake-decision')} {text} />
 						{/if}
-					</Card.Content>
-				</Card.Root>
+						{#each story.steps as step (step.key)}
+							<TaskStep {step} isOpen={openStepValues.includes(step.key)} {text} />
+						{/each}
+					</Accordion.Root>
+				{/if}
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="brief">
-				<div class="grid gap-4 lg:grid-cols-2">
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>{text.promptLabel}</Card.Title>
-							<Card.Action>
-								<CopyButton text={detail.taskRun.prompt ?? ''} variant="ghost" size="sm" disabled={!detail.taskRun.prompt}>
-									<span>{text.copyPrompt}</span>
-								</CopyButton>
-							</Card.Action>
-						</Card.Header>
-						<Card.Content>
-							<p class="whitespace-pre-wrap text-sm">{detail.taskRun.prompt || '—'}</p>
-						</Card.Content>
-					</Card.Root>
-
-					<Card.Root>
-						<Card.Header>
-							<Card.Title>{text.resultLabel}</Card.Title>
-							<Card.Action>
-								<CopyButton text={detail.taskRun.result ?? ''} variant="ghost" size="sm" disabled={!detail.taskRun.result}>
-									<span>{text.copyResult}</span>
-								</CopyButton>
-							</Card.Action>
-						</Card.Header>
-						<Card.Content>
-							<p class="whitespace-pre-wrap text-sm">{detail.taskRun.result || '—'}</p>
-						</Card.Content>
-					</Card.Root>
+			<UnderlineTabs.Content value="timeline" class="flex min-w-0 flex-col gap-3">
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<Tabs.Root bind:value={selectedEventLane}>
+						<Tabs.List>
+							{#each eventLaneFilters as filter (filter.value)}
+								<Tabs.Trigger value={filter.value}>{filter.label}</Tabs.Trigger>
+							{/each}
+						</Tabs.List>
+					</Tabs.Root>
+					<label class="relative min-w-0 sm:w-64">
+						<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+						<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
+					</label>
 				</div>
+				{#if ledgerSections.length === 0}
+					<p class="py-8 text-center text-sm text-muted-foreground">{text.noMatchingEvents}</p>
+				{:else}
+					<RawLedgerView sections={ledgerSections} {text} />
+				{/if}
 			</UnderlineTabs.Content>
 
-			<UnderlineTabs.Content value="logs">
-				<Card.Root>
-					<Card.Header>
-						<Card.Title>{text.serviceLogsTitle}</Card.Title>
-						<Card.Description>{text.serviceLogsDescription}</Card.Description>
-						<Card.Action>
-							<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
-								<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
-								{text.serviceLogsLoad}
-							</Button>
-						</Card.Action>
-					</Card.Header>
-					<Card.Content>
-						{#if serviceLogsError}
-							<p class="text-sm text-destructive">{serviceLogsError}</p>
-						{:else if serviceLogLines === undefined}
-							<div class="flex items-center gap-2 text-sm text-muted-foreground">
-								<BotIcon />
-								{text.serviceLogsPrompt}
-							</div>
-						{:else if serviceLogLines.length === 0}
-							<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
-						{:else}
-							<div class="flex flex-col gap-2">
-								<CopyButton text={serviceLogLines.join('\n')} variant="outline" size="sm" class="w-fit">
-									<span>{text.copyLogs}</span>
-								</CopyButton>
-								<pre class="max-h-96 overflow-auto rounded-lg border bg-muted/30 px-3 py-3 text-xs leading-relaxed whitespace-pre-wrap">{serviceLogLines.join('\n')}</pre>
-							</div>
-						{/if}
-					</Card.Content>
-				</Card.Root>
+			<UnderlineTabs.Content value="logs" class="flex min-w-0 flex-col gap-3">
+				<div class="flex justify-end">
+					<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
+						<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
+						{text.refresh}
+					</Button>
+				</div>
+				{#if serviceLogsError}
+					<p class="text-sm text-destructive">{serviceLogsError}</p>
+				{:else if serviceLogLines !== undefined && serviceLogLines.length === 0}
+					<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
+				{:else if serviceLogLines !== undefined}
+					<RawDocument document={serviceLogLines.join('\n')} />
+				{/if}
 			</UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}

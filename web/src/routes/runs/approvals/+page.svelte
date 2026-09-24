@@ -47,10 +47,7 @@
 
 <main class="flex min-h-full w-full self-start flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<div class="grid gap-1">
-			<h1 class="text-xl font-semibold">{text.approvalsTitle}</h1>
-			<p class="text-sm text-muted-foreground">{text.approvalsDescription}</p>
-		</div>
+		<h1 class="text-xl font-semibold">{text.approvalsTitle}</h1>
 		<div class="flex items-center gap-2">
 			<Button href={taskListPathOf(page.url.pathname)} variant="ghost" size="sm">
 				<ArrowLeftIcon data-icon="inline-start" />

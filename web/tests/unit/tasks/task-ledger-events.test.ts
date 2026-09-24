@@ -39,7 +39,7 @@ describe('the ledger a run detail page renders, read out of a relay answer', () 
 	test('sorts each event into the lane the timeline filters by', () => {
 		const lanes = readTaskDetail(relayAnswer).taskEvents.map((taskEvent) => eventLane(taskEvent.name));
 
-		expect(lanes).toEqual(['llm', 'tool', 'failure', 'control']);
+		expect(lanes).toEqual(['llm', 'tool', 'failure', 'other']);
 	});
 
 	test('counts the calls and the cost the summary strip shows', () => {

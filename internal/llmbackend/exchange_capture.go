@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"io"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 )
 
-type FailureCaptureAttempt struct {
+type ExchangeCaptureAttempt struct {
 	StartedAt        time.Time `json:"startedAt"`
 	DurationMS       int64     `json:"durationMs"`
 	Method           string    `json:"method"`
+	URL              string    `json:"url"`
 	Status           int       `json:"status"`
 	RequestBody      string    `json:"requestBody"`
 	ResponseBody     string    `json:"responseBody"`
@@ -19,44 +21,44 @@ type FailureCaptureAttempt struct {
 	ErrorCategory    string    `json:"errorCategory,omitempty"`
 }
 
-type FailureCaptureSnapshot struct {
-	Attempts []FailureCaptureAttempt `json:"attempts"`
+type ExchangeCaptureSnapshot struct {
+	Attempts []ExchangeCaptureAttempt `json:"attempts"`
 }
 
-type FailureCapture struct {
+type ExchangeCapture struct {
 	mutex    sync.Mutex
-	attempts []FailureCaptureAttempt
+	attempts []ExchangeCaptureAttempt
 }
 
-func NewFailureCapture(client *http.Client) (*http.Client, *FailureCapture) {
+func NewExchangeCapture(client *http.Client) (*http.Client, *ExchangeCapture) {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	capture := &FailureCapture{}
+	capture := &ExchangeCapture{}
 	capturedClient := *client
 	transport := client.Transport
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
-	capturedClient.Transport = failureCaptureTransport{base: transport, capture: capture}
+	capturedClient.Transport = exchangeCaptureTransport{base: transport, capture: capture}
 	return &capturedClient, capture
 }
 
-func (capture *FailureCapture) Snapshot() FailureCaptureSnapshot {
+func (capture *ExchangeCapture) Snapshot() ExchangeCaptureSnapshot {
 	capture.mutex.Lock()
 	defer capture.mutex.Unlock()
-	attempts := append([]FailureCaptureAttempt(nil), capture.attempts...)
-	return FailureCaptureSnapshot{Attempts: attempts}
+	attempts := append([]ExchangeCaptureAttempt(nil), capture.attempts...)
+	return ExchangeCaptureSnapshot{Attempts: attempts}
 }
 
-type failureCaptureTransport struct {
+type exchangeCaptureTransport struct {
 	base    http.RoundTripper
-	capture *FailureCapture
+	capture *ExchangeCapture
 }
 
-func (transport failureCaptureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+func (transport exchangeCaptureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
 	startedAt := time.Now()
-	attempt := transport.capture.startAttempt(startedAt, request.Method)
+	attempt := transport.capture.startAttempt(startedAt, request.Method, endpointOf(request.URL))
 	requestBody, requestError := readRequestBody(request)
 	transport.capture.updateRequestBody(attempt, requestBody)
 	if requestError != nil {
@@ -75,7 +77,7 @@ func (transport failureCaptureTransport) RoundTrip(request *http.Request) (*http
 		transport.capture.setResponseComplete(attempt, true)
 		return response, nil
 	}
-	response.Body = &failureCaptureBody{ReadCloser: response.Body, capture: transport.capture, attempt: attempt, startedAt: startedAt, status: response.StatusCode}
+	response.Body = &exchangeCaptureBody{ReadCloser: response.Body, capture: transport.capture, attempt: attempt, startedAt: startedAt, status: response.StatusCode}
 	return response, nil
 }
 
@@ -96,20 +98,28 @@ func responseStatus(response *http.Response) int {
 	return response.StatusCode
 }
 
-func (capture *FailureCapture) startAttempt(startedAt time.Time, method string) int {
+func endpointOf(requestURL *url.URL) string {
+	endpoint := *requestURL
+	endpoint.User = nil
+	endpoint.RawQuery = ""
+	endpoint.Fragment = ""
+	return endpoint.String()
+}
+
+func (capture *ExchangeCapture) startAttempt(startedAt time.Time, method string, endpoint string) int {
 	capture.mutex.Lock()
 	defer capture.mutex.Unlock()
-	capture.attempts = append(capture.attempts, FailureCaptureAttempt{StartedAt: startedAt.UTC(), Method: method})
+	capture.attempts = append(capture.attempts, ExchangeCaptureAttempt{StartedAt: startedAt.UTC(), Method: method, URL: endpoint})
 	return len(capture.attempts) - 1
 }
 
-func (capture *FailureCapture) updateRequestBody(attempt int, body []byte) {
+func (capture *ExchangeCapture) updateRequestBody(attempt int, body []byte) {
 	capture.mutex.Lock()
 	defer capture.mutex.Unlock()
 	capture.attempts[attempt].RequestBody = string(body)
 }
 
-func (capture *FailureCapture) setErrorCategory(attempt int, category string) {
+func (capture *ExchangeCapture) setErrorCategory(attempt int, category string) {
 	capture.mutex.Lock()
 	defer capture.mutex.Unlock()
 	if capture.attempts[attempt].ErrorCategory == "" {
@@ -117,22 +127,22 @@ func (capture *FailureCapture) setErrorCategory(attempt int, category string) {
 	}
 }
 
-func (capture *FailureCapture) finishAttempt(attempt int, startedAt time.Time, status int) {
+func (capture *ExchangeCapture) finishAttempt(attempt int, startedAt time.Time, status int) {
 	capture.mutex.Lock()
 	defer capture.mutex.Unlock()
 	capture.attempts[attempt].DurationMS = time.Since(startedAt).Milliseconds()
 	capture.attempts[attempt].Status = status
 }
 
-func (capture *FailureCapture) setResponseComplete(attempt int, complete bool) {
+func (capture *ExchangeCapture) setResponseComplete(attempt int, complete bool) {
 	capture.mutex.Lock()
 	defer capture.mutex.Unlock()
 	capture.attempts[attempt].ResponseComplete = complete
 }
 
-type failureCaptureBody struct {
+type exchangeCaptureBody struct {
 	io.ReadCloser
-	capture          *FailureCapture
+	capture          *ExchangeCapture
 	attempt          int
 	startedAt        time.Time
 	status           int
@@ -142,7 +152,7 @@ type failureCaptureBody struct {
 	mutex            sync.Mutex
 }
 
-func (body *failureCaptureBody) Read(destination []byte) (int, error) {
+func (body *exchangeCaptureBody) Read(destination []byte) (int, error) {
 	count, errorValue := body.ReadCloser.Read(destination)
 	body.mutex.Lock()
 	if count > 0 {
@@ -161,13 +171,13 @@ func (body *failureCaptureBody) Read(destination []byte) (int, error) {
 	return count, errorValue
 }
 
-func (body *failureCaptureBody) Close() error {
+func (body *exchangeCaptureBody) Close() error {
 	errorValue := body.ReadCloser.Close()
 	body.finish()
 	return errorValue
 }
 
-func (body *failureCaptureBody) finish() {
+func (body *exchangeCaptureBody) finish() {
 	body.mutex.Lock()
 	defer body.mutex.Unlock()
 	if body.finished {

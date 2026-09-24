@@ -6,7 +6,6 @@ import HourglassIcon from '@lucide/svelte/icons/hourglass';
 import LoaderIcon from '@lucide/svelte/icons/loader';
 import MinusIcon from '@lucide/svelte/icons/minus';
 import XIcon from '@lucide/svelte/icons/x';
-import type { BadgeVariant } from '$lib/components/ui/badge';
 import type { TasksText } from './text';
 import type { EventLane } from './runs-api';
 
@@ -14,17 +13,15 @@ export function shortTaskRunID(taskRunID: string): string {
 	return taskRunID.length > 6 ? taskRunID.slice(0, 6) : taskRunID;
 }
 
-export function taskStatusBadgeVariant(status: string): BadgeVariant {
+export function taskStatusToneClass(status: string): string {
 	switch (status) {
-		case 'completed':
-			return 'default';
 		case 'failed':
-			return 'destructive';
-		case 'running':
-		case 'planned':
-			return 'secondary';
+			return 'text-destructive font-medium';
+		case 'waiting_user_input':
+		case 'waiting_approval':
+			return 'text-warning-subtle-foreground';
 		default:
-			return 'outline';
+			return 'text-muted-foreground';
 	}
 }
 
@@ -75,24 +72,26 @@ export function taskStatusLabel(status: string, text: TasksText): string {
 	}
 }
 
-export function eventLaneClass(lane: EventLane): string {
-	switch (lane) {
-		case 'llm':
-			return 'border-info/40 bg-info/5';
-		case 'tool':
-			return 'border-success/40 bg-success/5';
-		case 'failure':
-			return 'border-destructive/40 bg-destructive/5';
-		default:
-			return 'border-border bg-muted/20';
-	}
-}
-
-export function formatTaskTimestamp(value?: string): string {
+export function formatTaskTimestamp(value?: string, now = new Date(), locale?: string): string {
 	if (!value) return '';
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) return value;
-	return parsed.toLocaleString();
+	const time: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+	if (parsed.toDateString() === now.toDateString()) return parsed.toLocaleTimeString(locale, time);
+	const day: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', ...time };
+	if (parsed.getFullYear() === now.getFullYear()) return parsed.toLocaleString(locale, day);
+	return parsed.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+export function formatDuration(durationMS?: number): string {
+	if (durationMS === undefined || !Number.isFinite(durationMS) || durationMS < 100) return '';
+	return formatLatency(durationMS);
+}
+
+export function formatEventClock(value?: string): string {
+	const parsed = new Date(value ?? '');
+	if (Number.isNaN(parsed.getTime())) return '';
+	return parsed.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, fractionalSecondDigits: 3 });
 }
 
 export function formatLatency(latencyMS: number): string {
