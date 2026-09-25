@@ -8,13 +8,20 @@ const (
 	taskAPIPrefix           = "/task/api"
 	retiredTaskAPIPrefix    = "/flow/api"
 	quickTaskPath           = taskAPIPrefix + "/tasks/quick"
+	taskLabelsPath          = taskAPIPrefix + "/labels"
 	taskResolvedActorHeader = "X-INTERNKIM-RESOLVED-ACTOR-EMAIL"
 )
 
-// A prompt becomes a task through the model on this machine, and the task it
-// infers is written to the record. This is the only task path admind answers.
-func (service *Service) handleQuickTask(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost || request.URL.Path != quickTaskPath {
+func (service *Service) taskAPIHandlers() map[string]http.HandlerFunc {
+	return map[string]http.HandlerFunc{
+		quickTaskPath:  service.createQuickTask,
+		taskLabelsPath: service.answerTaskLabels,
+	}
+}
+
+func (service *Service) handleTaskAPI(responseWriter http.ResponseWriter, request *http.Request) {
+	handler, isAnswered := service.taskAPIHandlers()[request.URL.Path]
+	if request.Method != http.MethodPost || !isAnswered {
 		http.NotFound(responseWriter, request)
 		return
 	}
@@ -24,7 +31,7 @@ func (service *Service) handleQuickTask(responseWriter http.ResponseWriter, requ
 		http.Error(responseWriter, "task access required", http.StatusForbidden)
 		return
 	}
-	service.createQuickTask(responseWriter, request)
+	handler(responseWriter, request)
 }
 
 func writeTaskRequestError(responseWriter http.ResponseWriter, errorValue error) {

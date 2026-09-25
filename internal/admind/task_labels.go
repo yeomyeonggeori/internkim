@@ -31,25 +31,18 @@ type taskLabelDecision struct {
 	Answers map[string]llmbackend.DecisionAnswer `json:"answers"`
 }
 
-const taskLabelsPublicPath = "/task/labels"
-
-func (service *Service) answerTaskLabels(responseWriter http.ResponseWriter, request *http.Request, actor publicToolGatewayActor) {
-	if actorPermissionRank(actor) < publicAPIPermissionRank(publicAPIPermissionWrite) {
-		http.Error(responseWriter, "a task's labels are decided while adding it, which takes write permission", http.StatusForbidden)
-		return
-	}
+func (service *Service) answerTaskLabels(responseWriter http.ResponseWriter, request *http.Request) {
 	var draft taskLabelDraft
 	if errorValue := json.NewDecoder(http.MaxBytesReader(responseWriter, request.Body, recordToolInputCeiling)).Decode(&draft); errorValue != nil {
 		http.Error(responseWriter, "a task's labels are decided from its title and note", http.StatusBadRequest)
 		return
 	}
-	ctx := withTaskActor(request.Context(), actor.Actor.Email)
-	definitions, errorValue := service.readTaskDefinitions(ctx)
+	definitions, errorValue := service.readTaskDefinitions(request.Context())
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
 	}
-	labels, errorValue := service.decideTaskLabels(ctx, draft, definitions)
+	labels, errorValue := service.decideTaskLabels(request.Context(), draft, definitions)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
 		return
