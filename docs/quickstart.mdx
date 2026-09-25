@@ -1,30 +1,27 @@
 ---
 title: Quickstart
 description: Create a company, connect its always-on computer, and invite the first people.
+icon: Rocket
 ---
 
-This is the path for a company using the hosted InternKim service. InternKim
-provides the hosted Supabase control plane and the Cloudflare service behind
-the web app. Your company provides one computer that stays powered on and
-awake. The computer makes outbound connections; it does not need an inbound
-port, a DNS record, or a Cloudflare account.
+This guide sets up a company on the hosted InternKim service. InternKim
+provides the web app and its central services. Your company provides one
+computer that stays powered on and connected to the internet. The host makes
+outbound connections, so it needs no public address or inbound port.
 
 ## Before you begin
 
 Have these ready:
 
 - an email address for the first administrator;
-- a computer that can stay powered on and awake, with an outbound internet
-  connection;
-- Docker with Linux containers and Docker Compose. On macOS, see [Docker
-  Desktop installation](https://docs.docker.com/desktop/setup/install/mac-install/);
-  on Ubuntu, see [Docker Engine installation](https://docs.docker.com/engine/install/ubuntu/);
-- Git and Python 3; and
+- a computer running Debian 13 on arm64 or amd64, or macOS with Homebrew,
+  connected to the internet and kept awake;
+- administrator access to install the host package; and
 - an [OpenRouter API key](https://openrouter.ai/settings/keys) for the agent.
 
-The installer checks Docker Compose and that Docker is using Linux containers.
-The OpenRouter key is entered as a hidden prompt on the company computer.
-Employees do not install anything on their own computers.
+The installer prompts for your OpenRouter API key without showing the
+characters you type. Employees use the web app and do not install the company
+host on their computers.
 
 <Steps>
 
@@ -35,16 +32,12 @@ Employees do not install anything on their own computers.
 Open [the company sign-up page](https://intern.kim/auth/claim?new-company=1)
 and enter the first administrator's email address. Enter the one-time code from
 the email, choose a password, then register a passkey or skip that step. The
-company form opens after that. Enter the company name and address, and leave
-the optional invitation field empty during setup.
-
-![Korean company sign-up screen with a sample administrator address](/images/quickstart/signup-ko.png)
+company form opens after that. Enter the company name and address, and leave the
+optional invitation field blank.
 
 The address becomes the company's path in the web app. Sign in at
 `https://intern.kim/<company-address>`. Invite people after the host is
 connected so their temporary passwords are shown in the setup screen.
-
-![Korean company creation form with sample values](/images/quickstart/company-ko.png)
 
 </Step>
 
@@ -59,50 +52,26 @@ so keep it on that computer and do not commit it or send it in chat.
 
 The setup page provides `Check connection` after installation.
 
-![Korean company setup screen with a successful local connection check](/images/quickstart/setup-ko.png)
-
 </Step>
 
 <Step>
 
 ## Install the company server [#3-install-the-company-server]
 
-There is no installer to download and run yet; the company server is being
-packaged for apt and Homebrew. Until that lands, build both halves on the
-company computer from a checkout of this repository:
+On the company computer, run the installer and then register the connection
+file. The first command installs the package through apt on Debian or Homebrew
+on macOS. The second configures the host services and asks for the OpenRouter
+key.
 
 ```bash
-make build-company-host-image build-company-host
-./internkim-host install ~/Downloads/internkim-host.json
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-Nothing is downloaded from us on this path.
-
-`internkim-host install` checks the connection file, asks for the OpenRouter
-key, and starts the company server with Docker Compose. It stores
-`compose.yaml`, `01-buzz.sql`, `compose.env`, and private keys under
-`~/.internkim/companies/<company-id>`. Running it again keeps every key it
-already generated. When it finishes, open the printed `/settings/setup` address
-and choose `Check connection`.
-
-The company server and its local data stay on this computer. Keep Docker
-running and keep the computer awake. Docker brings the server back when Docker
-starts again.
-
-For routine checks and control, run these commands from the installation
-directory:
-
-```bash
-cd ~/.internkim/companies/<company-id>
-docker compose --env-file compose.env ps
-docker compose --env-file compose.env logs --follow
-docker compose --env-file compose.env stop
-docker compose --env-file compose.env start
-```
-
-Docker Compose finds the stored `compose.yaml` in that directory. `stop` and
-`start` keep the volumes; remove neither the directory nor the volumes when
-you only mean to pause the server.
+The installer registers native services that start with the computer and
+restart after a failure. Keep the computer awake. When installation finishes,
+open the printed `/settings/setup` address and choose `Check connection`. See
+[Running the host](/running-the-host) for service checks and logs.
 
 </Step>
 
@@ -116,8 +85,6 @@ password after each invitation. Hand `https://intern.kim/<company-address>`
 and that password to the person yourself: the page shows them once and mails
 nothing. They can sign in, change the password, and register a passkey.
 
-![Korean invitation dialog with sample values](/images/quickstart/invite-ko.png)
-
 Open the messenger from the setup page and send the agent a first request, for
 example:
 
@@ -125,8 +92,6 @@ example:
 
 Open the reply below your message to see the result. You can also check the new
 item in `Tasks`.
-
-![Agent reply after creating the installation-check task](/images/quickstart/messenger-ko.png)
 
 The agent uses the OpenRouter key entered during installation. People use the
 hosted web app and the company's messenger without installing the server
@@ -141,8 +106,7 @@ locally.
 The connection file is tied to the company. Download a replacement from
 `https://intern.kim/<company-address>/settings/setup` when the existing
 connection must be replaced, then apply it on the new computer. The connection
-file alone does not carry host data. Back up the private installation directory
-and the Docker named volumes before moving the server if its local agent,
-messenger, or media data must come with it.
-Company and member accounts in the hosted service remain, while the old
-connection file stops working after replacement.
+file alone does not carry host data. Back up the host data described in
+[What lives where](/what-lives-where) before moving the server. Company and
+member accounts in the hosted service remain, while the old connection file
+stops working after replacement.

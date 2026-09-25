@@ -1,6 +1,7 @@
 ---
 title: What lives where
 description: If that computer burned down tonight, what has to still be true tomorrow.
+icon: Map
 ---
 
 One question decides it. If that computer burned down tonight, what has to
@@ -28,8 +29,8 @@ the messenger.
 ## The agent's store
 
 The host's own Postgres, defined in `.dependency/blueclaw/migrations/`. It
-needs the `vector` extension, which is why `host/docker-compose.yml` runs
-`pgvector/pgvector:pg17`.
+needs the `vector` extension. The company host package installs and supervises
+Postgres with the rest of the host services.
 
 | | |
 |---|---|

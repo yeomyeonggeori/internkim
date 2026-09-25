@@ -1,4 +1,5 @@
 {
   "title": "Data room",
+  "icon": "FolderOpen",
   "pages": ["index", "layout", "clearance", "metadata", "agent"]
 }

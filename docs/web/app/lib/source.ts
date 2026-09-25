@@ -1,4 +1,5 @@
 import { loader } from 'fumadocs-core/source';
+import { lucideIconsPlugin } from 'fumadocs-core/source/plugins/lucide-icons';
 import { openapiPlugin } from 'fumadocs-openapi/server';
 import { defineDocs } from 'fumadocs-mdx/macro';
 import { i18n } from './i18n';
@@ -28,7 +29,7 @@ export const source = loader({
   i18n,
   source: docs.toFumadocsSource(),
   baseUrl: docsRoute,
-  plugins: [openapiPlugin()],
+  plugins: [openapiPlugin(), lucideIconsPlugin()],
 });
 
 export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {

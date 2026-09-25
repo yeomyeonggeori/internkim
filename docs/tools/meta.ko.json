@@ -1,4 +1,5 @@
 {
   "title": "도구",
+  "icon": "Wrench",
   "pages": ["index", "catalog", "workspace", "reference"]
 }

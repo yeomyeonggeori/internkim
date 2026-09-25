@@ -526,21 +526,23 @@ registry; everything else there needs the download token.
 `./internkim release companion` cross-compiles the four builds and publishes
 them; `make build-companion` builds the host's own.
 
-The same script installs the company host the same way, once a host release
-exists:
+The same installer installs the company host package. Debian 13 arm64 and
+amd64 machines use apt; Macs with Homebrew use the tap:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host
-internkim-host install ~/Downloads/internkim-host.json
+sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-None has been published, and none will be from the stamped-image path, which
-apt and Homebrew packages replace, so `/settings/setup` and the quickstart send
-people to the build below instead.
+The installer adds the package source and installs `internkim`. The second
+command configures the host from the connection file and registers its native
+services. The web app's setup page and the [quickstart](https://docs.intern.kim/quickstart)
+show the same commands.
 
-Self-hosting builds both halves here and pulls nothing from a registry of ours.
-`make build-company-host-image` builds the company server image on this machine
-and `make build-company-host` stamps a binary with it; both take
+To build the company host from source, build both halves here without pulling
+from a registry of ours. `make build-company-host-image` builds the company
+server image on this machine and `make build-company-host` stamps a binary
+with it; both take
 `COMPANY_HOST_IMAGE`, which defaults to `internkim-company-host:local`.
 
 ```bash
