@@ -44,11 +44,11 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 ## 2. 회사 연결 파일 받기
 
 `https://intern.kim/<회사-주소>/settings/setup`을 여세요.
-**연결 파일 받기**를 눌러 `internkim-host.json`을 회사 서버로 쓸 컴퓨터에
+`연결 파일 받기`를 눌러 `internkim-host.json`을 회사 서버로 쓸 컴퓨터에
 저장하세요. 이 파일에는 이 회사의 연결 키가 들어 있으므로 그 컴퓨터에만
 보관하고, 커밋하거나 채팅으로 보내지 마세요.
 
-설정 화면에는 나중에 **연결 확인**이 나타납니다.
+설치 뒤 설정 화면에 `연결 확인`이 나타납니다.
 
 ![로컬 연결 확인이 성공한 한국어 회사 설정 화면](/images/quickstart/setup-ko.png)
 
@@ -69,7 +69,7 @@ make build-company-host-image build-company-host
 그 뒤 Docker Compose로 회사 서버를 시작합니다. `compose.yaml`, `01-buzz.sql`,
 `compose.env`와 비밀 키는 `~/.internkim/companies/<company-id>` 아래에
 저장됩니다. 다시 실행해도 이미 만들어 둔 키는 그대로 둡니다. 끝나면 출력된
-`/settings/setup` 주소를 열어 **연결 확인**을 누르세요.
+`/settings/setup` 주소를 열어 `연결 확인`을 누르세요.
 
 회사 서버와 컴퓨터에 저장되는 로컬 데이터는 이 컴퓨터에 남습니다. Docker를
 실행한 채로 두고 컴퓨터가 잠들지 않게 하세요. Docker가 다시 시작하면
@@ -102,7 +102,7 @@ docker compose --env-file compose.env start
 
 > 내 업무에 설치 확인을 등록해줘.
 
-메시지 아래 답글을 열면 처리 결과를 볼 수 있습니다. **업무**에서도 새 업무를
+메시지 아래 답글을 열면 처리 결과를 볼 수 있습니다. `업무`에서도 새 업무를
 확인하세요.
 
 ![설치 확인 업무를 등록한 뒤 김인턴이 보낸 답글](/images/quickstart/messenger-ko.png)

@@ -14,15 +14,15 @@ company's host without a monitor, a keyboard, or anyone from us touching it.
 
 ## Constraints
 
-- **Every box leaves the factory identical.** No per-box password, sticker, QR
+- Every box leaves the factory identical: no per-box password, sticker, QR
   code, serial registered to a buyer, or key burned in at assembly. Anything
   that differs between two boxes is put there by the person setting it up.
-- **Plugging it in is the whole installation.** Power, and a phone or laptop to
-  finish. A LAN cable skips the Wi-Fi step.
-- **A stranger may get there first.** Someone in radio range can configure an
+- Installation needs power and a phone or laptop to finish. A LAN cable skips
+  the Wi-Fi step.
+- A stranger may get there first: someone in radio range can configure an
   empty box before its owner does. That is acceptable as long as the owner can
   always take it back.
-- **The host stays outbound-only once it belongs to a company**
+- The host makes outbound connections after a company claims it
   ([why](/docs/architecture#why-the-host-has-no-inbound-port)). The setup page
   below is the single listener, it exists only while the box is empty, and it
   closes the moment the box is claimed.
@@ -132,13 +132,13 @@ with no setup page at all.
 
 A company picks one of two ways to pay for inference.
 
-**Bring your own OpenRouter key.** The box calls OpenRouter directly. The
+Bring your own OpenRouter key: the box calls OpenRouter directly. The
 administrator pastes the key at `intern.kim`, the browser encrypts it to the
 box's public key, and the ciphertext travels through the central plane to the
 box, which decrypts it into `/root/.internkim/secrets/openrouter-key`. The
 plane stores and relays a value it cannot read.
 
-**Subscribe.** The box holds no provider key. It calls a model endpoint on the
+Subscribe: the box holds no provider key. It calls a model endpoint on the
 central plane with its session; the endpoint checks that the company's
 subscription is active and within its rate limit, then forwards to OpenRouter
 with our key. That endpoint lives in the web app under `/api/v1`, beside
@@ -173,27 +173,27 @@ company's fleet credential, where it can no longer sign anything.
 
 ## Open questions
 
-- **Matching on the public address.** Boxes and administrators behind one
+- Public-address matching: boxes and administrators behind one
   public address see each other, so a building or a coworking space can list a
   neighbour's empty box. A browser on IPv6 and a box on IPv4 may not match at
   all. What the list shows when nothing matches, and whether a typed code comes
   back for that case, is open.
-- **Setting up from elsewhere.** An administrator who is not on the office
+- Remote setup: an administrator who is not on the office
   network sees no box, so remote setup is not supported.
-- **Button wiring.** That the case button is wired to the CM5 `PWR_BUT` line
+- Button wiring: the case button must connect to the CM5 `PWR_BUT` line
   and arrives as a key event while the system is running.
-- **Key storage.** The CM5 has no TPM, so the private key is a file on the
+- Key storage: the CM5 has no TPM, so the private key is a file on the
   microSD card or SSD. Removing the storage and copying it clones the box's
   identity; reclaiming the company from another box is the recovery.
-- **Race at setup.** Anyone in range between power-on and claim can inject
+- Setup race: anyone in range between power-on and claim can inject
   first. The reset button bounds the damage to the time it takes the owner to
   notice.
-- **A fake `kimmini`.** Someone nearby can broadcast their own `kimmini` with
+- Fake `kimmini`: someone nearby can broadcast their own network with
   the same public password and collect the office Wi-Fi password the user
   types. There is no code left to steal, but a box of theirs announcing from
   the same public address lands in the same list, where an administrator can
   click the wrong one. The tell is that the real box keeps broadcasting, and
   five presses take it back; a company has one host, so connecting the real box
   moves the company to it.
-- **WPA3 access point.** Whether the box's Wi-Fi firmware offers WPA3 in
+- WPA3 access point: whether the box's Wi-Fi firmware offers WPA3 in
   access point mode, with WPA2 as the fallback.

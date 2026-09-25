@@ -21,9 +21,9 @@ control plane issued for the person it is acting for. The one key that could
 bypass this lives on the server side of the control plane, and what it issues
 is a session.
 
-So **the agent has no privileged view.** Acting for someone, it sees what
-that person sees. Acting for an administrator, it sees what an administrator
-sees.
+The agent acts through the member session named by the control plane. It sees
+that member's records; an administrator's session gives it the administrator's
+view.
 
 ## Files and execution
 

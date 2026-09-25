@@ -91,18 +91,18 @@ make build
 
 The rules that repay knowing before anything else:
 
-- **The device's agent component is `blueclawPayload`**, and it ships the
+- The device agent ships as `blueclawPayload`, with the pre-built artifact at
   pre-built artifact at `.dependency/blueclaw-payload/`. Any agent change
   needs `make prepare-blueclaw-payload` first; the deploy fails loudly when
   the artifact's revision does not match the submodule's HEAD.
-- **A component the device has never installed takes two deploys**, because
+- A new component takes two deploys because
   the release is applied by the `admind` already running: deploy `admind`,
   then the component.
-- **A running process holds the configuration it started with.** Shipping
+- A running process keeps the configuration it started with. Shipping
   the writer of a config without the reader leaves the reader on the old
   file until it restarts; ship them in the same release.
-- **`systemctl is-active` is not "doing its job".** After a deploy that
-  touches what the agent reads, check for a task run newer than the deploy.
+- `systemctl is-active` confirms that the unit is running. After a deploy that
+  changes agent input, check for a task run newer than the deploy.
 - `./internkim release publish` pushes a stable channel to R2 for several
   devices to pull with `./internkim update`.
 

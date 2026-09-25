@@ -73,10 +73,7 @@ thing this design avoids for messages and mail.
 
 ## Where the line is still moving
 
-**The workspace screens and agent-published sites** reach the host's
-`admind` over its unix socket: files, memory, runs, skills. They answer only
-while the host is connected, because nothing central holds a copy. Memory is
-meant to stay that way, on the host beside the agent;
-[bluememo](https://bluememo.intern.kim) describes how it is kept. Where the
-files, runs and published sites should answer from when the host is away is
-not decided.
+The workspace screens and agent-published sites reach the host's
+`admind` over its unix socket: files, memory, runs, skills. How the central
+plane should answer those requests remains open in
+`docs/internal/saas-design.md` §11.
