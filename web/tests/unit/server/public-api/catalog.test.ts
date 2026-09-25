@@ -11,6 +11,7 @@ import {
 describe('the permission a tool asks for', () => {
 	test('comes from its side effect class, and an unknown class asks for the most', () => {
 		expect(permissionForTool({ sideEffectClass: 'read' })).toBe('read');
+		expect(permissionForTool({ sideEffectClass: 'computation' })).toBe('read');
 		expect(permissionForTool({ sideEffectClass: 'workspace_write' })).toBe('write');
 		expect(permissionForTool({ sideEffectClass: 'destructive' })).toBe('delete');
 		expect(permissionForTool({ sideEffectClass: 'a class nobody wrote yet' })).toBe('delete');
@@ -18,12 +19,12 @@ describe('the permission a tool asks for', () => {
 });
 
 describe('the tools a permission reaches', () => {
-	test('grow with the rung, and a reading token sees only reading tools', () => {
+	test('grow with the rung, and a reading token sees only tools that change nothing', () => {
 		const reading = toolsReachableBy('read');
 		const writing = toolsReachableBy('write');
 		const deleting = toolsReachableBy('delete');
 
-		expect(reading.every((descriptor) => descriptor.sideEffectClass === 'read')).toBe(true);
+		expect(reading.every((descriptor) => ['read', 'computation'].includes(descriptor.sideEffectClass))).toBe(true);
 		expect(writing.length > reading.length).toBe(true);
 		expect(deleting.length > writing.length).toBe(true);
 		expect(reading.map((descriptor) => descriptor.name)).toContain('task_list');

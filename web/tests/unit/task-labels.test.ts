@@ -29,9 +29,18 @@ describe('task labels the company decides', () => {
 		expect(missesATaskLabel({ business: '영업', type: '문서' })).toBe(true);
 	});
 
+	test('are read from the result of a task_label_get call that succeeded', () => {
+		const labels = { business: '영업', type: '', size: 'M' };
+		expect(decidedTaskLabelsOf({ toolName: 'task_label_get', outcome: 'succeeded', result: labels })).toEqual(labels);
+	});
+
 	test('refuse an answer shaped unlike a decision', () => {
-		expect(decidedTaskLabelsOf({ business: '영업', type: '문서', size: 'HUGE' })).toBeNull();
+		expect(decidedTaskLabelsOf({ outcome: 'succeeded', result: { business: '영업', type: '문서', size: 'HUGE' } })).toBeNull();
+		expect(decidedTaskLabelsOf({ business: '영업', type: '', size: 'M' })).toBeNull();
 		expect(decidedTaskLabelsOf('M')).toBeNull();
-		expect(decidedTaskLabelsOf({ business: '영업', type: '', size: 'M' })).toEqual({ business: '영업', type: '', size: 'M' });
+	});
+
+	test('refuse a task_label_get call that failed', () => {
+		expect(decidedTaskLabelsOf({ outcome: 'failed', result: { business: '', type: '', size: '' } })).toBeNull();
 	});
 });

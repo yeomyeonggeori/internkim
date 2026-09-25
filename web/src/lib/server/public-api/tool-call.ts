@@ -6,6 +6,7 @@ import { callCompany } from '$lib/server/public-api/company-call';
 import { answererOfTool, permissionForTool, toolReachableBy } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { recordRunsTheTool, runToolOverTheRecord } from '$lib/server/public-api/record';
+import { taskLabelGetToolName } from '$lib/server/public-api/catalog/labels';
 import { decidedTaskLabelsOf, type TaskLabelDecider } from '$lib/server/public-api/record/task-labels';
 import { refusalOfToolInput, toolInputRecovered } from '$lib/server/public-api/tool-input';
 import type { CallingMember } from '$lib/server/member-request';
@@ -149,17 +150,15 @@ function attendanceWrittenIn(body: unknown): AttendanceWrite | null {
 	};
 }
 
-const taskLabelsPath = '/task/labels';
-
 function taskLabelsDecidedByTheCompany(environment: Environment, member: CallingMember): TaskLabelDecider {
 	return async (draft) => {
 		const answer = await callCompany(environment, member.companyID, apiRequestCapability, {
 			method: 'POST',
-			path: taskLabelsPath,
+			path: `/tools/${taskLabelGetToolName}/invoke`,
 			query: '',
 			permission: member.permission,
 			requester: member.email,
-			payload: draft
+			payload: { input: draft }
 		}).catch((refusal: unknown) => ({ status: 503, body: refusal }));
 		const decided = answer.status === 200 ? decidedTaskLabelsOf(answer.body) : null;
 		if (!decided) console.warn('task.labels_undecided', { status: answer.status, body: answer.body });
