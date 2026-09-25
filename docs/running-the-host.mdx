@@ -1,169 +1,69 @@
 ---
 title: Running the host
-description: One computer that stays on, its boot order, and the settings it takes.
+description: Install the company host, check its services, and find local data and logs.
+icon: ServerCog
 ---
 
-The host is one computer that stays on. A Linux server, a Mac that does not
-sleep, a small box in a cupboard. It needs an outbound network and nothing
-else from the network.
+The company host runs on arm64 or amd64 Debian 13, or macOS with Homebrew. It
+needs an outbound internet connection and must stay awake. The installer registers native
+services with systemd on Debian or launchd on macOS. The host needs no public
+address, inbound port, or Docker installation.
 
-## The boot order
+## Install
 
-`host/entrypoint.sh` brings the bundle up, and the order is the design:
+Download the connection file from the company setup page, then run:
 
-<Steps>
-<Step>
-The relay starts before anything else, even before Postgres answers. Nothing
-else in the bundle has to be up for it to start, so the chat screen keeps
-answering while everything below is down or restarting, and a message that
-arrives meanwhile waits in its queue until the agent can take it. The
-entrypoint restarts it five seconds after any exit.
-</Step>
-<Step>
-The runtime and roster are prepared next. `tools/render-company-runtime` fills
-`runtime.template.json` with this box's own addresses and writes
-`/run/internkim/runtime.json`; a `runtime.json` mounted at `/etc/blueclaw` is
-read instead. A `policy.json` mounted there seeds `/run/internkim/policy.json`
-rather than being it, because admind rewrites that file whenever the company
-changes, and the boot stops if the file is not writable.
-</Step>
-<Step>
-Wait for the agent's Postgres store at `DATABASE_URL`; memory search uses its
-`vector` extension.
-</Step>
-<Step>
-`internkim-capabilityd` runs on `/run/internkim/capability.sock`. The entrypoint
-waits for that socket and gives up if the daemon dies before it appears; once
-it is up nothing watches it again, and only the agent's own exit brings the
-bundle down. Every model call and every tool that holds a provider credential
-goes through it.
-</Step>
-<Step>
-The agent runs:
-
-```
-blueclaw -runtime /run/internkim/runtime.json -policy /run/internkim/policy.json \
-  -acp-socket /run/internkim/blueclaw-acp.sock -inbound acp
+```bash
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-`-inbound acp` means messages arrive only from the relay, over that socket.
-The admin API stays on `127.0.0.1:8080`, which is what the entrypoint waits
-for. The skills come from `BLUECLAW_BUNDLED_SKILLS_PATH`, which the image fills
-from internkim-plugin.
+The first command installs the package through apt or Homebrew. The second
+configures the company, asks for the OpenRouter API key, and registers the host
+services. They start with the computer and recover after a service exits. When
+installation finishes, open the printed company setup address and choose
+Check connection.
 
-The image's `blueclaw` drops to the `blueclaw` user before it starts, because
-the terminal refuses to run for root. `/root` is closed to that user, so the
-entrypoint copies the agent key and the model key into `/run/internkim/secrets`,
-group `blueclaw`, mode `0440`.
-</Step>
-<Step>
-`internkim-admind` runs on `127.0.0.1:18080`, where the relay routes every
-workspace call to. It comes after the agent because it reconciles the
-company's roster onto it as it starts, and a reconcile against an agent that
-is not up yet waits two minutes for the next one.
-</Step>
-<Step>
-`internkim-maild` runs on `127.0.0.1:18092`. The connector (`chatd`) runs on
-`127.0.0.1:18090`, signs into the messenger as the bot and posts each arriving
-message to the relay's `/inbound`.
-</Step>
-</Steps>
+## Check services
 
-What the box does without: Cloud Hypervisor, a messenger of its own and
-cloudflared. It does carry the setuid POSIX helper, because blueclaw boots to
-`status: ok` without one and then refuses every workspace tool.
+On Debian, systemd shows the host service state and logs:
+
+```bash
+systemctl list-units 'internkim*' 'blueclaw*' 'buzz*'
+systemctl status internkim-relay
+journalctl -u internkim-relay -n 50 --no-pager
+```
+
+On macOS, run `launchctl print system/kim.intern.<service>` to inspect a
+service. Its logs are under `/var/log/internkim/`.
 
 ## Settings
 
-The entrypoint requires six values and passes the rest through:
+The installer writes company connection details and generated credentials to
+the protected host data directory. Most companies do not need to edit these
+files. Optional operator settings go in
+`/etc/internkim/company-host.env`. The generated [host settings
+reference](https://github.com/yeomyeonggeori/internkim/blob/main/host/README.md)
+lists the supported variables and their defaults. Keep API keys and connection
+files out of the settings file.
 
-```
-SUPABASE_URL=https://<project>.supabase.co
-SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
-INTERNKIM_APP_URL=https://intern.kim
-CHATD_BOT_USER_NAME=<the bot's display name>
-MESSENGER_PLATFORM=buzz
-DATABASE_URL=postgres://…
-```
+## Local data
 
-The agent key is never one of these. It is a file at
-`/root/.internkim/secrets/agent-key`, mode `0600`, read by path, so it stays out
-of the process environment where anything reading `/proc` could find it.
-Rotating the file is the whole rotation procedure. The model provider's key
-sits beside it as `openrouter-key`, and capabilityd reads that by path too.
+The computer holds the agent's conversation history, task history, memory,
+workspace files, and messages waiting for delivery. These are separate from
+company records in the hosted service. Review [What lives where](/what-lives-where)
+before backing up or replacing the host.
 
-Then the messenger the company runs:
+## Answer size
 
-```
-CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
-```
+The relay replies with `413` and the byte count when an answer exceeds its
+transport limit. The default ceiling is 3,000,000 bytes; set
+`ANSWER_BYTE_CEILING` to change it. A non-positive value prevents startup.
+Profile-picture limits are derived from this ceiling because base64 encoding
+increases their size.
 
-And the gateway the relay answers through:
+## Network access
 
-```
-GATEWAY_URL=…            GATEWAY_SERVER_KEY=…
-```
-
-<Callout type="warn">
-With the two gateway settings absent the relay starts, logs nothing about it,
-and answers neither the app nor the API. An empty messenger screen with a
-green process table is the symptom.
-</Callout>
-
-Every other setting the relay and the bundle read is in the generated table in
-`host/README.md`, with its default. Put `RELAY_STATE_DIR` on a disk that
-survives a reboot: the queue of messages the agent has not taken yet lives
-there.
-
-Without `admind` a person's memory, files, runs and buzz claim answer `500`.
-A direct message sent under the name of the person who asked for it is signed
-with a seed at `/root/.internkim/secrets/buzz-key-seed`; without that file the
-box still boots, says so, and cannot send one.
-
-A company that chats on Buzz also runs the Buzz stack itself; `host/buzz/`
-carries a compose file that brings up Postgres, Redis, MinIO and the Buzz
-relay on this same machine.
-
-## How big an answer may be
-
-The transport refuses an oversize frame silently, leaving the caller waiting
-forever, so the relay measures every answer first and replies `413` with the
-byte count, which does reach them. The default ceiling is 3,000,000 bytes
-(decimal, a Supabase figure, so `3 * 1024 * 1024` lands 145 KB over), and
-`ANSWER_BYTE_CEILING` overrides it. Anything that is not a positive number
-stops the boot, so a bad value cannot quietly refuse every answer. The
-profile-picture limit is derived from the ceiling, since base64 inflates by a
-third. `host/relay/measure-broadcast-ceiling.ts` settles the real ceiling
-against a project by binary search.
-
-## Keeping it running
-
-Hand the bundle to whatever supervises processes on that computer, so it
-comes back after a crash or a reboot.
-
-| | |
-|---|---|
-| systemd | `host/relay/internkim-relay.service` — settings in `/etc/internkim/relay.env`, `Restart=always` |
-| launchd | `host/relay/launchagent.plist.template` — `KeepAlive` |
-| the bundle | `entrypoint.sh` starts and restarts the relay itself |
-
-A relay that dies without coming back leaves the chat screen empty and stops
-every message from reaching the agent, which is the failure worth guarding
-against.
-
-`make build-relay` compiles the relay into a single `internkim-relay`
-executable, so the box needs no Bun and no `node_modules`; `RELAY_TARGET`
-cross-builds it (`bun-linux-arm64`, `bun-linux-x64`, `bun-darwin-arm64`).
-`make build-maild` does the same for the mail answerer.
-
-## Checking it is really outbound-only
-
-```bash
-ss -ltnp | grep -v '127.0.0.1\|::1'                     # prints nothing
-systemctl list-units | grep -E 'cloudflared|stunnel'    # prints nothing
-```
-
-Administering the box is your own arrangement: a shell on the same network,
-or a `ProxyCommand` in your `~/.ssh/config` from anywhere else. A Cloudflare
-Tunnel is a convenient option there and the one we develop against, and it is
-only that.
+The host opens outbound connections and listens only on local interfaces. To
+administer the computer, use a shell on the same network or a remote access
+method your company controls.

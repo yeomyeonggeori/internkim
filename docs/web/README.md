@@ -24,7 +24,7 @@ apply.
 
 ```bash
 bun install
-bun run dev          # http://localhost:5173/docs
+bun run dev          # http://localhost:5173/
 bun run build        # static output in build/client
 bun run types:check
 ```

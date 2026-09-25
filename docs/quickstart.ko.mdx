@@ -1,12 +1,12 @@
 ---
 title: 빠른 시작
 description: 회사를 만들고 늘 켜 둘 컴퓨터를 연결한 뒤 첫 사람을 초대합니다.
+icon: Rocket
 ---
 
-이 문서는 호스팅된 김인턴을 쓰는 회사의 시작 순서입니다. 호스팅된
-Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 제공합니다.
-회사는 전원이 켜져 있고 잠들지 않는 컴퓨터 한 대를 준비합니다. 이 컴퓨터는
-바깥으로 연결하기만 하므로, 들어오는 포트나 DNS 레코드, Cloudflare 계정은
+이 문서는 호스팅된 김인턴을 쓰는 회사의 시작 순서입니다. 김인턴은 웹 앱과 중앙
+서비스를 제공합니다. 회사는 인터넷에 연결되고 계속 켜져 있을 컴퓨터 한 대를
+준비합니다. 호스트는 바깥으로 연결하기만 하므로 공개 주소나 들어오는 포트가
 필요하지 않습니다.
 
 ## 시작 전에
@@ -14,17 +14,14 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 다음을 준비하세요.
 
 - 첫 관리자가 사용할 이메일 주소
-- 전원이 켜져 있고 잠들지 않으며 인터넷에 연결된 컴퓨터
-- Linux 컨테이너를 쓰는 Docker와 Docker Compose. macOS는 [Docker Desktop
-  설치 안내](https://docs.docker.com/desktop/setup/install/mac-install/), Ubuntu는
-  [Docker Engine 설치 안내](https://docs.docker.com/engine/install/ubuntu/)를
-  보세요.
-- Git과 Python 3
+- arm64 또는 amd64 Debian 13, 혹은 Homebrew를 설치한 macOS 컴퓨터. 인터넷에
+  연결하고 계속 켜 두어야 합니다.
+- 회사 컴퓨터에 패키지를 설치할 관리자 권한
 - 에이전트가 사용할 [OpenRouter API 키](https://openrouter.ai/settings/keys)
 
-설치 프로그램은 Docker Compose와 Docker가 Linux 컨테이너로 실행되는지를
-확인합니다. OpenRouter 키는 회사 컴퓨터에서 숨겨진 입력으로 받습니다.
-직원 컴퓨터에는 아무것도 설치하지 않습니다.
+설치 중 회사 컴퓨터에서 OpenRouter API 키를 입력합니다. 터미널은 입력한 문자를
+화면에 표시하지 않습니다. 직원들은 회사 컴퓨터에 호스트를 설치하지 않고 웹 앱을
+사용합니다.
 
 <Steps>
 
@@ -66,39 +63,19 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 
 ## 회사 서버 설치하기 [#3-회사-서버-설치하기]
 
-아직 내려받아 실행할 설치 프로그램이 없습니다. 회사 서버를 apt와 Homebrew
-패키지로 준비하고 있습니다. 그때까지는 회사 컴퓨터에서 이 저장소를 받아 양쪽을
-직접 빌드하세요.
+회사 컴퓨터에서 설치 프로그램을 실행한 다음 연결 파일을 적용하세요. 첫 명령은
+Debian에서 apt 패키지를, macOS에서 Homebrew 패키지를 설치합니다. 둘째 명령은
+호스트 서비스를 등록하고 OpenRouter 키를 묻습니다.
 
 ```bash
-make build-company-host-image build-company-host
-./internkim-host install ~/Downloads/internkim-host.json
+curl -fsSL https://intern.kim/install.sh | sh -s -- host
+sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-이 경로에서는 우리 쪽에서 아무것도 내려받지 않습니다.
-
-`internkim-host install`은 연결 파일을 확인하고 OpenRouter 키를 먼저 묻습니다.
-그 뒤 Docker Compose로 회사 서버를 시작합니다. `compose.yaml`, `01-buzz.sql`,
-`compose.env`와 비밀 키는 `~/.internkim/companies/<company-id>` 아래에
-저장됩니다. 다시 실행해도 이미 만들어 둔 키는 그대로 둡니다. 끝나면 출력된
-`/settings/setup` 주소를 열어 `연결 확인`을 누르세요.
-
-회사 서버와 컴퓨터에 저장되는 로컬 데이터는 이 컴퓨터에 남습니다. Docker를
-실행한 채로 두고 컴퓨터가 잠들지 않게 하세요. Docker가 다시 시작하면
-Docker가 서버도 다시 시작합니다.
-
-상태 확인과 잠시 멈추거나 다시 시작할 때는 설치 디렉터리에서 실행하세요.
-
-```bash
-cd ~/.internkim/companies/<company-id>
-docker compose --env-file compose.env ps
-docker compose --env-file compose.env logs --follow
-docker compose --env-file compose.env stop
-docker compose --env-file compose.env start
-```
-
-그 디렉터리의 `compose.yaml`을 Docker Compose가 자동으로 찾습니다. `stop`과
-`start`는 볼륨을 유지하므로, 잠시 멈출 때 디렉터리나 볼륨을 지우지 마세요.
+설치 프로그램은 컴퓨터의 서비스 관리자를 통해 호스트를 실행하고, 컴퓨터가
+다시 켜지면 자동으로 시작합니다. 컴퓨터가 잠들지 않게 하세요. 설치가 끝나면
+출력된 `/settings/setup` 주소에서 `연결 확인`을 누르세요. 서비스 상태와 로그는
+[호스트 운영 안내](/ko/running-the-host)를 보세요.
 
 </Step>
 
@@ -135,6 +112,6 @@ docker compose --env-file compose.env start
 연결 파일은 회사에 묶여 있습니다. 기존 연결을 바꿔야 할 때는
 `https://intern.kim/<회사-주소>/settings/setup`에서 새 파일을 받은 뒤
 새 컴퓨터에 적용하세요. 연결 파일만 옮겨서는 호스트 데이터가 따라가지
-않습니다. 로컬 에이전트, 메신저, 미디어 데이터도 옮겨야 한다면 비공개 설치
-디렉터리와 Docker 볼륨을 먼저 백업하세요. 호스팅된 회사와 구성원 계정은
-남지만, 이전 연결 파일은 교체 뒤 작동하지 않습니다.
+않습니다. 로컬 에이전트, 메신저, 미디어 데이터도 옮겨야 한다면
+[호스트에 저장되는 데이터](/ko/what-lives-where)를 먼저 백업하세요.
+호스팅된 회사와 구성원 계정은 남지만, 이전 연결 파일은 교체 뒤 작동하지 않습니다.
