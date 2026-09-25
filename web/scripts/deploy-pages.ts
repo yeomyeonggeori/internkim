@@ -8,6 +8,8 @@ import { domainsOf, hostnamesNotAnswering, hostnamesToAnswerFor } from './pages-
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
 import { ensureProductionSchemaIsCurrent } from './production-schema';
 import { requiredSetting } from './repository-setting';
+import { refusalOfPagesVariables, variablesRequiredOnPages, type HeldVariables } from './pages-variables';
+import declarations from '../../tools/environment.json';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
 
@@ -29,16 +31,17 @@ function treeHas(commit: string): boolean {
 	return runGit('merge-base', '--is-ancestor', commit, 'HEAD').succeeded;
 }
 
-async function readLiveBuildMessage(accountID: string, projectName: string): Promise<string | null> {
+type PagesProject = {
+	canonical_deployment?: { deployment_trigger?: { metadata?: { commit_message?: string } } };
+	deployment_configs?: { production?: { env_vars?: HeldVariables } };
+};
+
+async function readPagesProject(accountID: string, projectName: string): Promise<PagesProject | null> {
 	const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${projectName}`, {
 		headers: { Authorization: `Bearer ${token}` }
 	});
-	const body = (await response.json()) as {
-		success: boolean;
-		result?: { canonical_deployment?: { deployment_trigger?: { metadata?: { commit_message?: string } } } };
-	};
-	if (!body.success) return null;
-	return body.result?.canonical_deployment?.deployment_trigger?.metadata?.commit_message ?? null;
+	const body = (await response.json()) as { success: boolean; result?: PagesProject };
+	return body.success ? (body.result ?? null) : null;
 }
 
 const isProduction = process.argv.includes('--production');
@@ -58,7 +61,10 @@ if (!project || !outputArgument)
 
 if (isProduction) {
 	runGit('fetch', '--quiet', 'origin', 'main');
-	const liveMainCommit = mainCommitOfLiveBuild(await readLiveBuildMessage(accountID, project));
+	const pagesProject = await readPagesProject(accountID, project);
+	const liveMainCommit = mainCommitOfLiveBuild(
+		pagesProject?.canonical_deployment?.deployment_trigger?.metadata?.commit_message ?? null
+	);
 	const refusal = refusalToReplaceProduction({
 		containsOriginMain: treeHas('origin/main'),
 		liveMainCommit,
@@ -67,6 +73,14 @@ if (isProduction) {
 	});
 	if (refusal) {
 		console.error(`refusing to replace production: ${refusal}`);
+		process.exit(1);
+	}
+	const variablesRefusal = refusalOfPagesVariables(
+		variablesRequiredOnPages(declarations),
+		pagesProject?.deployment_configs?.production?.env_vars ?? {}
+	);
+	if (variablesRefusal) {
+		console.error(`refusing to deploy production: ${variablesRefusal}`);
 		process.exit(1);
 	}
 	await ensureProductionSchemaIsCurrent();
