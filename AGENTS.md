@@ -471,9 +471,9 @@ and delete the duplicates.
 - Local loop, in this order: `supabase db reset` (schema plus fixtures),
   `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
   company you can sign into — `member1@example.com` / `seed-password`.
-- One machine has one local stack, so anything that resets it runs under
-  `tools/with-local-plane <command>`, which queues a second worktree behind the
-  first and clears a stopped container a start would collide with.
+- One machine has one local stack, so anything using it, dev servers too, runs
+  under `tools/with-local-plane <command>`. It queues a second worktree behind
+  the first, starts the stack, and stops it after fifteen idle minutes.
   `tools/verify`'s stack groups, `test:integration`, the `test:e2e:*:central`
   scripts, `./internkim dev plane` and `dev fleet run` already do.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
