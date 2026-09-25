@@ -13,14 +13,14 @@ else from the network.
 
 <Steps>
 <Step>
-**The relay**, before anything else, even before Postgres answers. Nothing
+The relay starts before anything else, even before Postgres answers. Nothing
 else in the bundle has to be up for it to start, so the chat screen keeps
 answering while everything below is down or restarting, and a message that
 arrives meanwhile waits in its queue until the agent can take it. The
 entrypoint restarts it five seconds after any exit.
 </Step>
 <Step>
-**The runtime and the roster.** `tools/render-company-runtime` fills
+The runtime and roster are prepared next. `tools/render-company-runtime` fills
 `runtime.template.json` with this box's own addresses and writes
 `/run/internkim/runtime.json`; a `runtime.json` mounted at `/etc/blueclaw` is
 read instead. A `policy.json` mounted there seeds `/run/internkim/policy.json`
@@ -28,18 +28,18 @@ rather than being it, because admind rewrites that file whenever the company
 changes, and the boot stops if the file is not writable.
 </Step>
 <Step>
-**Wait for Postgres** at `DATABASE_URL`, the agent's own store, with the
-`vector` extension memory search uses.
+Wait for the agent's Postgres store at `DATABASE_URL`; memory search uses its
+`vector` extension.
 </Step>
 <Step>
-**`internkim-capabilityd`** on `/run/internkim/capability.sock`. The entrypoint
+`internkim-capabilityd` runs on `/run/internkim/capability.sock`. The entrypoint
 waits for that socket and gives up if the daemon dies before it appears; once
 it is up nothing watches it again, and only the agent's own exit brings the
 bundle down. Every model call and every tool that holds a provider credential
 goes through it.
 </Step>
 <Step>
-**The agent**:
+The agent runs:
 
 ```
 blueclaw -runtime /run/internkim/runtime.json -policy /run/internkim/policy.json \
@@ -57,15 +57,15 @@ entrypoint copies the agent key and the model key into `/run/internkim/secrets`,
 group `blueclaw`, mode `0440`.
 </Step>
 <Step>
-**`internkim-admind`** on `127.0.0.1:18080`, which the relay routes every
+`internkim-admind` runs on `127.0.0.1:18080`, where the relay routes every
 workspace call to. It comes after the agent because it reconciles the
 company's roster onto it as it starts, and a reconcile against an agent that
 is not up yet waits two minutes for the next one.
 </Step>
 <Step>
-**`internkim-maild`** on `127.0.0.1:18092`, then **the connector** (`chatd`)
-on `127.0.0.1:18090`, which signs into the messenger as the bot and posts each
-arriving message to the relay's `/inbound`.
+`internkim-maild` runs on `127.0.0.1:18092`. The connector (`chatd`) runs on
+`127.0.0.1:18090`, signs into the messenger as the bot and posts each arriving
+message to the relay's `/inbound`.
 </Step>
 </Steps>
 

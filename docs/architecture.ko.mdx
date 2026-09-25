@@ -255,11 +255,11 @@ Blueclaw `8857d92a`, Bluecollar `bc91eee6` 기준으로 출시된 것은 다음�
 | 공개 API | 같은 빌드 안의 서버 라우트. 토큰과 MCP 클라이언트에 답함 | `web/src/routes/api/v1/` |
 | 커넥션 게이트웨이 | 회사마다 Durable Object 하나를 두는 Worker. 브라우저 호출과 API 호출을 함께 나름 | `workers/connection-gateway/` |
 
-**기록**은 모든 읽기와 쓰기에 어떤 멤버로서 답하고, 관리자로서 답하는 일은
+기록은 모든 읽기와 쓰기에 어떤 멤버로서 답하고, 관리자로서 답하는 일은
 없습니다. 세션이 어떤 행을 보는지는 데이터베이스 자신이 정합니다. 테이블
 목록은 [무엇이 어디 사는지](/ko/docs/what-lives-where)에 있습니다.
 
-**컨트롤 플레인**은 멤버 혼자서는 할 수 없는 일을 위해 존재합니다. 호출자는
+컨트롤 플레인은 멤버 혼자서는 할 수 없는 일을 위해 존재합니다. 호출자는
 회사의 에이전트 키로 인증하고, 돌아오는 것은 세션입니다.
 `POST /api/agent/session`은 회사가 아는 신원을 멤버 세션으로 바꾸고,
 `POST /api/agent/host-session`은 회사 컴퓨터를 그 자신으로 로그인시킵니다.
@@ -269,7 +269,7 @@ Blueclaw `8857d92a`, Bluecollar `bc91eee6` 기준으로 출시된 것은 다음�
 않습니다. 알림은 프로젝트 자신의 엣지 함수(`supabase/functions/`)가 보내므로,
 모든 멤버의 기기를 읽는 키는 그 회사의 Supabase 안에 머뭅니다.
 
-**앱**이 어느 Supabase 프로젝트에 말을 거는지는 런타임에 정해집니다.
+앱이 어느 Supabase 프로젝트에 말을 거는지는 런타임에 정해집니다.
 `hooks.server.ts`가 값을 `#central-plane` 엘리먼트에 주입하므로, 하나의 빌드가
 모든 회사를 서빙합니다. 화면은 비밀을 쥐지 않습니다. `/api/` 아래 라우트는 쥐고,
 그래서 서버에서 돕니다. 모두가 하나의 주소에서 로그인하고, 존의 다른 모든
@@ -278,7 +278,7 @@ Blueclaw `8857d92a`, Bluecollar `bc91eee6` 기준으로 출시된 것은 다음�
 답합니다. `api.<zone>/v1`과 회사 호스트의 `/api/v1`이 같은 API인 것은 이 예외
 덕분입니다.
 
-**공개 API**에 도구 카탈로그가 삽니다. 모든 도구는
+공개 API에 도구 카탈로그가 삽니다. 모든 도구는
 `web/src/lib/server/public-api/catalog/`에서 한 번만 정의되고, 정의마다 누가
 답하는지를 밝힙니다.
 
@@ -292,7 +292,7 @@ Blueclaw `8857d92a`, Bluecollar `bc91eee6` 기준으로 출시된 것은 다음�
 절들이 보여 주듯 에이전트 자신이 도구에 닿는 길도 이것입니다. 전체 도구는
 [카탈로그](/ko/docs/tools/catalog)에 있습니다.
 
-**커넥션 게이트웨이**는 서로 접속을 받지 않는 브라우저와 호스트가 닿는
+커넥션 게이트웨이는 서로 접속을 받지 않는 브라우저와 호스트가 닿는
 방법입니다. 브라우저는 Supabase 세션 토큰을 실어 `/company/<id>/client`로
 WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 어느 멤버가
 부르는지 해석한 뒤, 소켓을 그 회사의 Durable Object
@@ -330,7 +330,7 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
 | [bluememo](https://github.com/yeomyeonggeori/bluememo) | 장기 기억: 끝난 일에서 뽑아낸 사실, 주인과 서클로 범위가 정해짐 | `.dependency/blueclaw/.dependency/bluememo/` |
 | internkim-plugin | 에이전트가 일의 종류마다 읽어들이는 스킬 | `.dependency/internkim-plugin/` |
 
-**기억**은 Postgres 사실 저장소 하나입니다. 실행이 끝나면 bluememo가 모델을
+기억은 Postgres 사실 저장소 하나입니다. 실행이 끝나면 bluememo가 모델을
 시켜 거기서 원자적인 사실들을 뽑습니다. 새 사실은 옛 사실을 대체하고, 되풀이된
 사실은 기존 사실을 강화하고, 사람은 에이전트에게 사실 하나를 잊으라고 할 수
 있습니다. 사실마다 주인과 공유된 서클이 있고, 회상은 읽는 사람이 볼 수 있는
@@ -338,7 +338,7 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
 Postgres에 `vector` 확장이 있는 이유가 이것입니다. 확장이 없어도 저장소는
 낱말만으로 답합니다.
 
-**모델**의 이름은 `internal/modelladder` 한 곳에만 있습니다. 에이전트는 티어를
+모델의 이름은 `internal/modelladder` 한 곳에 있습니다. 에이전트는 티어를
 요청하고, 키를 쥔 capabilityd가 호출하므로 에이전트는 프로바이더 토큰을 보지
 못합니다.
 
@@ -360,19 +360,19 @@ Postgres에 `vector` 확장이 있는 이유가 이것입니다. 확장이 없�
 "처리한다"가 무엇인지는 capability마다 다르고, 각 분기는
 `host/relay/forward.ts`에 있습니다.
 
-- **메신저 작업**은 커넥터의 `/v1/platform/<platform>/<capability>`로
+- 메신저 작업은 커넥터의 `/v1/platform/<platform>/<capability>`로
   전달됩니다. 그 전에 릴레이가 그 멤버 자신의 메신저 자격증명을 컨트롤
   플레인에서 가져와 `actor`로 붙이므로, 메신저에는 그 멤버 자신의 계정이 그
   일을 하는 것으로 보입니다. 계정을 연결하지 않은 멤버는 `409`를 받고,
   `person.credential.issue`가 계정을 연결하는 호출입니다.
-- **메일**(`person.mail.*`)은 멤버의 메일 계정을 호출마다 가져와
+- `person.mail.*`은 멤버의 메일 계정을 호출마다 가져와
   `internkim-maild`로 갑니다. 메일 비밀번호가 그 컴퓨터에 저장된 채로 남는
   일은 없습니다.
-- **워크스페이스 화면**(`person.memory.*`, `person.files.*`, `person.runs.*`,
+- 워크스페이스 화면(`person.memory.*`, `person.files.*`, `person.runs.*`,
   `person.skills.*`, `person.persona.*`와 그 이웃들)과 공개 API의 회사
   도구(`person.api.request`, `person.api.file`)는 `admind`의 unix 소켓으로
   전달됩니다.
-- **링크 미리보기**(`asset.link`)는 릴레이가 직접 만들고, 미리보기 이미지는
+- 링크 미리보기(`asset.link`)는 릴레이가 만들고, 미리보기 이미지는
   답이 작게 유지되도록 Supabase Storage에 넣습니다.
 
 돌아가는 시스템 안의 어떤 계정도 다른 사람을 대신하지 않습니다. 메신저에서
@@ -407,7 +407,7 @@ Postgres에 `vector` 확장이 있는 이유가 이것입니다. 확장이 없�
    베어러 토큰을 쥐지 않습니다.
 4. 답은 ACP로 돌아오고, 릴레이가 커넥터를 통해 대화에 올립니다.
 
-**승인**도 같은 길로 갑니다. 게이트가 호출을 붙잡으면 blueclaw는 ACP로
+승인도 같은 길로 갑니다. 게이트가 호출을 붙잡으면 blueclaw는 ACP로
 릴레이에게 묻고, 릴레이는 그 질문을 대화에 올리고, 요청자가 그 대화에 쓰는
 다음 메시지가 답입니다. 그 말이 무슨 뜻인지는 blueclaw가 정하고, 동의로 읽을
 수 없는 답은 거절이 됩니다. 릴레이는 열린 질문을 inbound 큐 옆 디스크에 두므로,

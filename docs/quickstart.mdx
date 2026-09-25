@@ -32,7 +32,7 @@ Open [the company sign-up page](https://intern.kim/auth/claim?new-company=1)
 and enter the first administrator's email address. Enter the one-time code from
 the email, choose a password, then register a passkey or skip that step. The
 company form opens after that. Enter the company name and address, and leave
-the optional invitation field blank for now.
+the optional invitation field empty during setup.
 
 ![Korean company sign-up screen with a sample administrator address](/images/quickstart/signup-ko.png)
 
@@ -45,11 +45,11 @@ connected so their temporary passwords are shown in the setup screen.
 ## 2. Download the company connection file
 
 Open `https://intern.kim/<company-address>/settings/setup`. Choose
-**Download connection file** and save `internkim-host.json` to the computer that
+`Download connection file` and save `internkim-host.json` to the computer that
 will run the company server. The file contains this company's connection key,
 so keep it on that computer and do not commit it or send it in chat.
 
-The setup page later provides **Check connection**.
+The setup page provides `Check connection` after installation.
 
 ![Korean company setup screen with a successful local connection check](/images/quickstart/setup-ko.png)
 
@@ -71,7 +71,7 @@ key, and starts the company server with Docker Compose. It stores
 `compose.yaml`, `01-buzz.sql`, `compose.env`, and private keys under
 `~/.internkim/companies/<company-id>`. Running it again keeps every key it
 already generated. When it finishes, open the printed `/settings/setup` address
-and choose **Check connection**.
+and choose `Check connection`.
 
 The company server and its local data stay on this computer. Keep Docker
 running and keep the computer awake. Docker brings the server back when Docker
@@ -108,7 +108,7 @@ example:
 > Add an installation check to my tasks.
 
 Open the reply below your message to see the result. You can also check the new
-item in **Tasks**.
+item in `Tasks`.
 
 ![Agent reply after creating the installation-check task](/images/quickstart/messenger-ko.png)
 
