@@ -59,10 +59,6 @@ function finishing(reply: string): string {
 	});
 }
 
-function aSatisfiedCompletionJudge(): string {
-	return JSON.stringify({ satisfied: true, missingWork: [], reason: '업무를 남겼습니다' });
-}
-
 test('the agent calls a record tool the session named, and the row lands in the record', async () => {
 	const [sender] = plane.people;
 	const title = `평면 점검 ${Date.now()}`;
@@ -70,7 +66,6 @@ test('the agent calls a record tool the session named, and the row lands in the 
 	plane.model.answerNext('bluecollar_turn_router', aRouterDocument({}));
 	plane.model.callNext('task_add', JSON.stringify({ title, type: 'task' }));
 	plane.model.callNext('finish', finishing('업무로 남겼습니다'));
-	plane.model.answerNext('bluecollar_completion_judge', aSatisfiedCompletionJudge());
 
 	const asked = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
