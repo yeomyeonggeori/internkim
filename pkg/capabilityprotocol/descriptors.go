@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 const (
@@ -418,7 +419,8 @@ func validateResultContract(contract *ToolResultContract) error {
 	if errorValue := resolveDescriptorSchema(contract.Schema); errorValue != nil {
 		return fmt.Errorf("resultContract.schema cannot be resolved: %w", errorValue)
 	}
-	if errorValue := validateEvidenceCondition(contract.Schema, contract.EvidenceCondition); errorValue != nil {
+	schema := capabilityschema.SchemaDocumentWithNullAsAbsent(contract.Schema)
+	if errorValue := validateEvidenceCondition(schema, contract.EvidenceCondition); errorValue != nil {
 		return errorValue
 	}
 	seenEffects := map[string]bool{}
@@ -428,11 +430,11 @@ func validateResultContract(contract *ToolResultContract) error {
 		if objectType == "" || effect == "" {
 			return fmt.Errorf("resultContract effect must include objectType and effect")
 		}
-		if errorValue := validateEffectIdentityField(contract.Schema, effectContract); errorValue != nil {
+		if errorValue := validateEffectIdentityField(schema, effectContract); errorValue != nil {
 			return errorValue
 		}
 		if effectContract.When != nil {
-			if errorValue := validateEvidenceCondition(contract.Schema, effectContract.When); errorValue != nil {
+			if errorValue := validateEvidenceCondition(schema, effectContract.When); errorValue != nil {
 				return fmt.Errorf("resultContract effect when condition is invalid: %w", errorValue)
 			}
 		}
@@ -463,7 +465,7 @@ func validateEffectIdentityField(schema json.RawMessage, effectContract Resource
 	if effectContract.When == nil && !schemaRequiresEffectIdentityField(schema, resultField) {
 		return fmt.Errorf("resultContract resultField must name a required string or nonempty unique string array property")
 	}
-	if effectContract.When != nil && !schemaDefinesConditionalEffectIdentityField(schema, resultField) {
+	if effectContract.When != nil && !schemaDefinesEffectIdentityField(schema, resultField) {
 		return fmt.Errorf("resultContract conditional effect resultField must name a string or nonempty unique string array property")
 	}
 	return nil
@@ -539,29 +541,6 @@ func schemaDefinesEffectIdentityField(document json.RawMessage, fieldName string
 	}
 	return property.Type == "string" ||
 		property.Type == "array" && property.Items.Type == "string" && property.MinItems >= 1 && property.UniqueItems
-}
-
-func schemaDefinesConditionalEffectIdentityField(document json.RawMessage, fieldName string) bool {
-	var schema struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-	}
-	if json.Unmarshal(document, &schema) != nil {
-		return false
-	}
-	return schemaDefinesEffectIdentityField(document, fieldName) || schemaIsNullableString(schema.Properties[fieldName])
-}
-
-func schemaIsNullableString(document json.RawMessage) bool {
-	var property struct {
-		AnyOf []struct {
-			Type string `json:"type"`
-		} `json:"anyOf"`
-	}
-	if json.Unmarshal(document, &property) != nil || len(property.AnyOf) != 2 {
-		return false
-	}
-	types := map[string]bool{property.AnyOf[0].Type: true, property.AnyOf[1].Type: true}
-	return types["string"] && types["null"]
 }
 
 func strictSchema(document json.RawMessage) json.RawMessage {

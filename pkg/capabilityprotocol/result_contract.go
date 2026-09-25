@@ -3,6 +3,7 @@ package capabilityprotocol
 import (
 	"encoding/json"
 	"errors"
+	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 	"reflect"
 	"strings"
 )
@@ -11,8 +12,12 @@ func ProjectResourceEffects(contract *ToolResultContract, result json.RawMessage
 	if contract == nil {
 		return nil, errors.New("tool result contract is required")
 	}
-	var document map[string]any
-	if errorValue := json.Unmarshal(result, &document); errorValue != nil {
+	var decoded any
+	if errorValue := json.Unmarshal(result, &decoded); errorValue != nil {
+		return nil, errors.New("tool result must be an object")
+	}
+	document, isObject := jsonschema.DocumentWithNullAsAbsent(decoded).(map[string]any)
+	if !isObject {
 		return nil, errors.New("tool result must be an object")
 	}
 	effects := []ResourceEffect{}
