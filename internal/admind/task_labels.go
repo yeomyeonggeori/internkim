@@ -16,6 +16,8 @@ const largestTaskLabelChoice = 32
 
 const noRegisteredTaskType = "none"
 
+const leastConfidenceToChooseABusiness = 0.6
+
 type taskLabelDraft struct {
 	Title string `json:"title"`
 	Note  string `json:"note"`
@@ -71,18 +73,6 @@ func (service *Service) decideTaskLabels(ctx context.Context, draft taskLabelDra
 	return taskLabelsOfAnswers(decision.Answers, questions), nil
 }
 
-func (service *Service) decideTaskLabelsAside(ctx context.Context, draft taskLabelDraft, definitions taskDefinitions) <-chan taskLabels {
-	decided := make(chan taskLabels, 1)
-	go func() {
-		labels, errorValue := service.decideTaskLabels(ctx, draft, definitions)
-		if errorValue != nil {
-			log.Printf("task.labels_undecided: error=%v", errorValue)
-		}
-		decided <- labels
-	}()
-	return decided
-}
-
 func taskLabelQuestions(definitions taskDefinitions) map[string]llmbackend.DecisionQuestion {
 	questions := map[string]llmbackend.DecisionQuestion{
 		"size": llmbackend.ChoiceQuestion(
@@ -124,7 +114,7 @@ func taskLabelsOfAnswers(answers map[string]llmbackend.DecisionAnswer, questions
 		taskType = ""
 	}
 	return taskLabels{
-		Business: chosenOption(answers, questions, "business"),
+		Business: confidentlyChosenOption(answers, questions, "business"),
 		Type:     taskType,
 		Size:     chosenOption(answers, questions, "size"),
 	}
@@ -145,4 +135,12 @@ func chosenOption(answers map[string]llmbackend.DecisionAnswer, questions map[st
 		return ""
 	}
 	return choice
+}
+
+func confidentlyChosenOption(answers map[string]llmbackend.DecisionAnswer, questions map[string]llmbackend.DecisionQuestion, name string) string {
+	choice, isChosen := answers[name].AsChoice()
+	if !isChosen || choice.Confidence < leastConfidenceToChooseABusiness {
+		return ""
+	}
+	return chosenOption(answers, questions, name)
 }
