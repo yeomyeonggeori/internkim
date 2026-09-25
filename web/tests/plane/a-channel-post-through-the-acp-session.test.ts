@@ -65,10 +65,6 @@ function finishing(reply: string): string {
 	});
 }
 
-function aSatisfiedCompletionJudge(): string {
-	return JSON.stringify({ satisfied: true, missingWork: [], reason: '방에 답을 썼습니다' });
-}
-
 beforeAll(async () => {
 	plane = await aCompanyPlane({ messengerPlatform: 'buzz', inbound: 'acp' });
 }, 180_000);
@@ -82,7 +78,6 @@ test('a message written in a room and addressed to the agent is answered in that
 	plane.model.answerNext('bluecollar_addressing_classification', addressedToTheAgent());
 	plane.model.answerNext('bluecollar_turn_router', aRouterDocument({}));
 	plane.model.callNext('finish', finishing(marker));
-	plane.model.answerNext('bluecollar_completion_judge', aSatisfiedCompletionJudge());
 
 	const asked = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
