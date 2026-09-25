@@ -60,10 +60,6 @@ function aPlanThatNeedsNoClarification(recipientName: string): string {
 	});
 }
 
-function aSatisfiedCompletionJudge(): string {
-	return JSON.stringify({ satisfied: true, missingWork: [], reason: '보낸 기록이 남았습니다' });
-}
-
 function aRouterDocument(fields: Record<string, unknown>): string {
 	return JSON.stringify({
 		route: 'start_task',
@@ -105,7 +101,6 @@ test('a question held across a relay restart is asked once and answered once', a
 	plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
 	plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	plane.model.callNext('finish', finishing('보냈습니다'));
-	plane.model.answerNext('bluecollar_completion_judge', aSatisfiedCompletionJudge());
 
 	const asked = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
