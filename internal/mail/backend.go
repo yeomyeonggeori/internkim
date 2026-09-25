@@ -125,18 +125,18 @@ func (backend StandardBackend) ReadMessage(ctx context.Context, account Account,
 }
 
 func (backend StandardBackend) SendMessage(ctx context.Context, account Account, input MessageSendRequest) (SendResult, error) {
-	messageDocument, recipients, errorValue := createMessageDocument(account, input)
+	message, errorValue := createMessageDocument(account, input)
 	if errorValue != nil {
 		return SendResult{}, errorValue
 	}
-	if errorValue := backend.SendSMTPMessage(account, recipients, messageDocument); errorValue != nil {
+	if errorValue := backend.SendSMTPMessage(account, message.recipients, message.document); errorValue != nil {
 		return SendResult{}, errorValue
 	}
-	result := SendResult{Sent: true}
+	result := SendResult{Sent: true, MessageID: message.messageID}
 	if strings.TrimSpace(account.SentMailbox) == "" {
 		return result, nil
 	}
-	if errorValue := backend.appendSentMessage(account, messageDocument); errorValue != nil {
+	if errorValue := backend.appendSentMessage(account, message.document); errorValue != nil {
 		result.AppendWarning = errorValue.Error()
 		return result, nil
 	}

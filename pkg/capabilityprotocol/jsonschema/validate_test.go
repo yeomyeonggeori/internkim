@@ -113,7 +113,7 @@ func TestResultRejectionNamesTheFieldAndAbsolvesTheCall(t *testing.T) {
 	}
 	message := errorValue.Error()
 	for _, expected := range []string{
-		"result.tasks must be an array, and it is null",
+		"result.tasks is required and is missing",
 		"the same request with different arguments will not change it",
 	} {
 		if !strings.Contains(message, expected) {

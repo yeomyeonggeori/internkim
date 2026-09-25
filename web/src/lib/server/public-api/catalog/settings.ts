@@ -4,9 +4,10 @@ import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
   CapabilitySideEffect,
+  ResourceEffectIdentity,
 } from './protocol';
 
-import type { CapabilityToolDefinition } from './definition';
+import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 const resourceIDSchema = z.string()
   .min(1)
@@ -278,7 +279,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: companySettingsUpdateInputSchema,
     inputIntentSchema: companySettingsUpdateInputIntentSchema,
-    result: { schema: companySettingsResultSchema, effects: [] },
+    result: { schema: companySettingsResultSchema, effects: [{ objectType: 'company_settings', effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_company', targetKind: 'company' },
@@ -307,7 +308,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: companyHolidayAddInputSchema,
     inputIntentSchema: companyHolidayAddInputIntentSchema,
-    result: { schema: companyHolidayResultSchema, effects: [] },
+    result: { schema: companyHolidayResultSchema, effects: [{ objectType: 'company_holiday', effect: ResourceMutationEffect.Created, resultField: 'holidayID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_company', targetKind: 'company' },
   },
@@ -322,7 +323,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: companyHolidayUpdateInputSchema,
     inputIntentSchema: companyHolidayUpdateInputIntentSchema,
-    result: { schema: companyHolidayResultSchema, effects: [] },
+    result: { schema: companyHolidayResultSchema, effects: [{ objectType: 'company_holiday', effect: ResourceMutationEffect.Updated, resultField: 'holidayID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_company', targetKind: 'company' },
   },
@@ -337,7 +338,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: companyHolidayDeleteInputSchema,
     inputIntentSchema: companyHolidayDeleteInputIntentSchema,
-    result: { schema: companyHolidayResultSchema, effects: [] },
+    result: { schema: companyHolidayResultSchema, effects: [{ objectType: 'company_holiday', effect: ResourceMutationEffect.Deleted, resultField: 'holidayID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
   },
@@ -365,7 +366,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceWorkPolicySetInputSchema,
     inputIntentSchema: attendanceWorkPolicySetInputIntentSchema,
-    result: { schema: attendanceWorkPolicySetResultSchema, effects: [] },
+    result: { schema: attendanceWorkPolicySetResultSchema, effects: [{ objectType: 'attendance_work_policy', effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_company', targetKind: 'company' },
@@ -394,7 +395,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceLeavePolicySetInputSchema,
     inputIntentSchema: attendanceLeavePolicySetInputIntentSchema,
-    result: { schema: attendanceLeavePolicyResultSchema, effects: [] },
+    result: { schema: attendanceLeavePolicyResultSchema, effects: [{ objectType: 'attendance_leave_policy', effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_company', targetKind: 'company' },

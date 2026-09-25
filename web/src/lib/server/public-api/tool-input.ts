@@ -1,4 +1,5 @@
 import { capabilityToolInputSchema } from './catalog/tools';
+import { readWithNullAsAbsent } from './null-as-absent';
 import { sentencesOfSchemaRefusal } from './schema-sentences';
 import supersededInputFields from './catalog/superseded-input-fields.json';
 
@@ -21,8 +22,10 @@ function shapeOfTool(name: string): Record<string, FieldSchema> | null {
 // the schema lets be left out, written with nothing in it, is left out — which
 // is what the caller said, in the spelling the schema already understands.
 //
-// A field that must be given is untouched: dropping a blank there would turn
-// "you sent nothing" into "you forgot this", and the caller needs the first.
+// null is a field left out everywhere, as the rest of the protocol reads it. A
+// blank string in a field that must be given is untouched: dropping it would
+// turn "you sent nothing" into "you forgot this", and the caller needs the
+// first.
 function fieldsTheToolLetsBeLeftOut(name: string): Map<string, FieldSchema> {
 	const shape = shapeOfTool(name);
 	if (!shape) return new Map();
@@ -55,14 +58,12 @@ function callUnderTodaysFieldNames(name: string, input: Record<string, unknown>)
 	return asked;
 }
 
-// null is not a value any of these schemas take, so it is always the caller
-// saying nothing. An empty string is one only where the field refuses it: "" is
-// not one of XS|S|M, so it means the size was left out. A field that takes an
-// empty string takes it as a value, and the catalog says what it means on the
-// fields that do — an empty organizationHint takes the work off the
-// organization rather than leaving it where it was.
+// An empty string is nothing only where the field refuses it: "" is not one of
+// XS|S|M, so it means the size was left out. A field that takes an empty string
+// takes it as a value, and the catalog says what it means on the fields that do
+// — an empty organizationHint takes the work off the organization rather than
+// leaving it where it was.
 function saysNothing(value: unknown, field: FieldSchema): boolean {
-	if (value === null) return true;
 	if (typeof value !== 'string' || value.trim() !== '') return false;
 	return !field.safeParse(value).success;
 }
@@ -71,7 +72,10 @@ export function toolInputRecovered(name: string, input: unknown): Record<string,
 	if (input === null || input === undefined) return {};
 	if (typeof input !== 'object' || Array.isArray(input)) return input as Record<string, unknown>;
 	const mayBeLeftOut = fieldsTheToolLetsBeLeftOut(name);
-	const asked = callUnderTodaysFieldNames(name, input as Record<string, unknown>);
+	const schema = capabilityToolInputSchema(name);
+	const named = callUnderTodaysFieldNames(name, input as Record<string, unknown>);
+	const read = schema ? readWithNullAsAbsent(schema, named) : named;
+	const asked = typeof read === 'object' && read !== null ? read : named;
 	return Object.fromEntries(
 		Object.entries(asked).filter(([field, value]) => {
 			const schema = mayBeLeftOut.get(field);

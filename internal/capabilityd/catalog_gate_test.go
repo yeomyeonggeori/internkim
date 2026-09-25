@@ -81,7 +81,7 @@ func gateCases() map[string]catalogGateCase {
 		"schedule_cancel": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
-				admindOverTheSocket: answering(`{"cancelled":[{"scheduleID":"schedule-1","description":"주간 보고"}]}`),
+				admindOverTheSocket: answering(`{"scheduleIDs":["schedule-1"],"cancelled":[{"scheduleID":"schedule-1","description":"주간 보고"}]}`),
 			},
 			input: `{"scheduleHints":["주간 보고"]}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
@@ -449,7 +449,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"attendance_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_update","result":{"status":"corrected","eventID":null,"backdated":false}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_update","result":{"status":"corrected","eventID":"event-1","backdated":false}}`)},
 			input:   `{"eventHint":"이샘플 · clock_in · 2026-09-01 09:02","time":"08:52","reason":"10분 일찍 왔습니다"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
