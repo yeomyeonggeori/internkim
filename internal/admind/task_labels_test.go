@@ -47,7 +47,7 @@ func TestTaskLabelsKeepOnlyOfferedChoices(t *testing.T) {
 	})
 
 	labels := taskLabelsOfAnswers(map[string]llmbackend.DecisionAnswer{
-		"business": {Choice: "Invented business"},
+		"business": {Type: llmbackend.ChoiceQuestionType, Choice: "Invented business", Confidence: confidenceOf(0.9)},
 		"type":     {Choice: noRegisteredTaskType},
 		"size":     {Choice: "M"},
 	}, questions)
@@ -55,6 +55,33 @@ func TestTaskLabelsKeepOnlyOfferedChoices(t *testing.T) {
 	if labels != (taskLabels{Size: "M"}) {
 		t.Fatalf("labels = %+v, want only the offered size", labels)
 	}
+}
+
+func TestTaskLabelsLeaveABusinessEmptyWhenTheChoiceIsAGuess(t *testing.T) {
+	questions := taskLabelQuestions(taskDefinitions{
+		Categories: []string{"Sample business", "Other business"},
+		Sizes:      defaultTaskSizeDefinitions(),
+	})
+	answersWithBusinessConfidence := func(confidence *float64) map[string]llmbackend.DecisionAnswer {
+		return map[string]llmbackend.DecisionAnswer{
+			"business": {Type: llmbackend.ChoiceQuestionType, Choice: "Sample business", Confidence: confidence},
+			"size":     {Type: llmbackend.ChoiceQuestionType, Choice: "S"},
+		}
+	}
+
+	if labels := taskLabelsOfAnswers(answersWithBusinessConfidence(confidenceOf(0.49)), questions); labels != (taskLabels{Size: "S"}) {
+		t.Fatalf("a guessed business was kept: %+v", labels)
+	}
+	if labels := taskLabelsOfAnswers(answersWithBusinessConfidence(nil), questions); labels.Business != "" {
+		t.Fatalf("a business with no confidence was kept: %+v", labels)
+	}
+	if labels := taskLabelsOfAnswers(answersWithBusinessConfidence(confidenceOf(0.6)), questions); labels.Business != "Sample business" {
+		t.Fatalf("a confident business was dropped: %+v", labels)
+	}
+}
+
+func confidenceOf(value float64) *float64 {
+	return &value
 }
 
 func optionsOf(t *testing.T, question llmbackend.DecisionQuestion) map[string]string {
