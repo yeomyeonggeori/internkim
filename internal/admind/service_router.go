@@ -48,7 +48,7 @@ func (service *Service) registerPublicAPIRoutes(multiplexer *http.ServeMux) {
 
 func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/task", service.serveTaskPage)
-	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleQuickTask)
+	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleTaskAPI)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
 	multiplexer.HandleFunc(tellDirectMessagePath, service.handleTellDirectMessage)
 	multiplexer.HandleFunc("/task/", service.serveTaskPage)

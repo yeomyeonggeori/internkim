@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
 	"gitlab.com/eastriver/internkim/internal/llmbackend"
 )
 
@@ -70,14 +69,24 @@ func optionsOf(t *testing.T, question llmbackend.DecisionQuestion) map[string]st
 	return options
 }
 
-func TestTaskLabelsRefuseAReadOnlyCaller(t *testing.T) {
-	service := NewService(Configuration{})
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/task/labels", strings.NewReader(`{"title":"Sample work"}`))
-	recorder := httptest.NewRecorder()
+func TestTaskLabelsAreDecidedOnlyForAMemberTheRequestNames(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	unnamed := httptest.NewRequest(http.MethodPost, taskLabelsPath, strings.NewReader(`{"title":"Sample work"}`))
+	unnamed.RemoteAddr = "198.51.100.10:443"
+	unnamedResponse := httptest.NewRecorder()
 
-	service.answerTaskLabels(recorder, request, publicToolGatewayActor{Actor: capabilities.ActorContext{Scopes: []string{publicAPIPermissionRead}}})
+	service.router().ServeHTTP(unnamedResponse, unnamed)
 
-	if recorder.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want a read-only caller refused", recorder.Code)
+	if unnamedResponse.Code != http.StatusForbidden {
+		t.Fatalf("a call naming nobody = %d %s", unnamedResponse.Code, unnamedResponse.Body.String())
+	}
+
+	named := httptest.NewRequest(http.MethodPost, taskLabelsPath, strings.NewReader(`{"title":"Sample work"}`))
+	named.Header.Set(requesterEmailHeader, "member@example.com")
+	namedResponse := httptest.NewRecorder()
+	service.router().ServeHTTP(namedResponse, arrivingOnTheRequesterSocket(named))
+
+	if namedResponse.Code != http.StatusBadGateway || !strings.Contains(namedResponse.Body.String(), "member@example.com") {
+		t.Fatalf("the definitions were not read as the member: %d %s", namedResponse.Code, namedResponse.Body.String())
 	}
 }

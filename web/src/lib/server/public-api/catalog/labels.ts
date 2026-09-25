@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { WorkspaceTaskSize } from './workspace-task';
 
 export const registeredLabelSchema = z.strictObject({
   name: z.string(),
@@ -31,3 +32,16 @@ export const taskVocabularySetInputSchema = z.strictObject({
 });
 
 export const taskVocabularySetInputIntentSchema = taskVocabularySetInputSchema.partial();
+
+export const taskLabelGetToolName = 'task_label_get';
+
+export const taskLabelGetInputSchema = z.strictObject({
+  title: z.string().min(1).describe('The title of the task being added.'),
+  note: z.string().describe('The note the task is added with. Omit it when there is none.').optional(),
+});
+
+export const taskLabelGetResultSchema = z.strictObject({
+  business: z.string().describe('The registered business this work is for, or an empty string when none was decided.'),
+  type: z.string().describe('The registered type this work is, or an empty string when none fits.'),
+  size: z.union([z.enum(WorkspaceTaskSize), z.literal('')]).describe('The effort size from the company rubric, or an empty string when none was decided.'),
+});

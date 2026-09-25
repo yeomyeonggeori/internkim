@@ -188,6 +188,7 @@ describe('canonical capability tools', () => {
       'site_unserve',
       'task_add',
       'task_delete',
+      'task_label_get',
       'task_list',
       'task_update',
       'task_vocabulary_set',

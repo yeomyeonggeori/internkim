@@ -14,7 +14,14 @@ import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { computerToolDefinitions } from './computer';
 import { crmToolDefinitions } from './crm';
-import { taskLabelVocabularySchema, taskVocabularySetInputIntentSchema, taskVocabularySetInputSchema } from './labels';
+import {
+  taskLabelGetInputSchema,
+  taskLabelGetResultSchema,
+  taskLabelGetToolName,
+  taskLabelVocabularySchema,
+  taskVocabularySetInputIntentSchema,
+  taskVocabularySetInputSchema,
+} from './labels';
 import {
   buildCapabilityCatalog,
   ResourceMutationEffect,
@@ -1084,6 +1091,20 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     result: { schema: taskLabelVocabularySchema, effects: [] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_task', targetKind: 'task_vocabulary' },
+  },
+  {
+    name: taskLabelGetToolName,
+    namespace: 'task',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_task',
+    policyResource: `tool:${taskLabelGetToolName}`,
+    description: "Get the business, type and size labels a new task should carry, decided by the company's model from the task's title and note against the company's registered definitions. A label nothing fits comes back as an empty string.",
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Medium,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: taskLabelGetInputSchema,
+    result: { schema: taskLabelGetResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Computation,
   },
 ];
 

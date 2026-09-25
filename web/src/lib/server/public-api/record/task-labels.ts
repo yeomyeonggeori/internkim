@@ -1,23 +1,23 @@
 import { z } from 'zod';
-import { WorkspaceTaskSize } from '../catalog/workspace-task';
+import { taskLabelGetResultSchema } from '../catalog/labels';
+import { ToolOutcome } from '../catalog/protocol';
 
 export type TaskLabelDraft = { title: string; note: string };
 
-const decidedTaskLabelsSchema = z.object({
-	business: z.string(),
-	type: z.string(),
-	size: z.union([z.enum(WorkspaceTaskSize), z.literal('')])
-});
-
-export type DecidedTaskLabels = z.infer<typeof decidedTaskLabelsSchema>;
+export type DecidedTaskLabels = z.infer<typeof taskLabelGetResultSchema>;
 
 export type TaskLabelDecider = (draft: TaskLabelDraft) => Promise<DecidedTaskLabels | null>;
 
 export const leavesTaskLabelsUndecided: TaskLabelDecider = async () => null;
 
+const answeredTaskLabelsSchema = z.object({
+	outcome: z.literal(ToolOutcome.Succeeded),
+	result: taskLabelGetResultSchema
+});
+
 export function decidedTaskLabelsOf(answer: unknown): DecidedTaskLabels | null {
-	const parsed = decidedTaskLabelsSchema.safeParse(answer);
-	return parsed.success ? parsed.data : null;
+	const parsed = answeredTaskLabelsSchema.safeParse(answer);
+	return parsed.success ? parsed.data.result : null;
 }
 
 type LabelledWrite = { title?: string; note?: string; business?: string; type?: string; size?: string };
