@@ -4,9 +4,10 @@ import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
   CapabilitySideEffect,
+  ResourceEffectIdentity,
 } from './protocol';
 
-import type { CapabilityToolDefinition } from './definition';
+import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 const companyMetricCurrencies = [
   'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR',
@@ -306,7 +307,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentRegisterInputSchema,
     inputIntentSchema: companyDocumentRegisterInputIntentSchema,
-    result: { schema: companyDocumentRegisteredResultSchema, effects: [] },
+    result: { schema: companyDocumentRegisteredResultSchema, effects: [{ objectType: "company_document", effect: ResourceMutationEffect.Created, resultField: "documentID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
   },
@@ -334,7 +335,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentUpdateInputSchema,
     inputIntentSchema: companyDocumentUpdateInputIntentSchema,
-    result: { schema: companyDocumentResultSchema, effects: [] },
+    result: { schema: companyDocumentResultSchema, effects: [{ objectType: "company_document", effect: ResourceMutationEffect.Updated, resultField: "documentID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -388,7 +389,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyInfoSetInputSchema,
     inputIntentSchema: companyInfoSetInputIntentSchema,
-    result: { schema: companyProfileResultSchema, effects: [] },
+    result: { schema: companyProfileResultSchema, effects: [{ objectType: "company_info", effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
   },
@@ -416,7 +417,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyMetricRecordInputSchema,
     inputIntentSchema: companyMetricRecordInputIntentSchema,
-    result: { schema: companyMetricResultSchema, effects: [] },
+    result: { schema: companyMetricResultSchema, effects: [{ objectType: "company_metric", effect: ResourceMutationEffect.Updated, resultField: "metricID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
   },
@@ -431,7 +432,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyRecordAddInputSchema,
     inputIntentSchema: companyRecordAddInputIntentSchema,
-    result: { schema: companyRecordResultSchema, effects: [] },
+    result: { schema: companyRecordResultSchema, effects: [{ objectType: "company_record", effect: ResourceMutationEffect.Created, resultField: "recordID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: "success", action: "write_company", targetKind: "company" },
   },
@@ -446,7 +447,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyRecordDeleteInputSchema,
     inputIntentSchema: companyRecordDeleteInputIntentSchema,
-    result: { schema: companyRecordResultSchema, effects: [] },
+    result: { schema: companyRecordResultSchema, effects: [{ objectType: "company_record", effect: ResourceMutationEffect.Deleted, resultField: "recordID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
   },
@@ -474,7 +475,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyRecordUpdateInputSchema,
     inputIntentSchema: companyRecordUpdateInputIntentSchema,
-    result: { schema: companyRecordResultSchema, effects: [] },
+    result: { schema: companyRecordResultSchema, effects: [{ objectType: "company_record", effect: ResourceMutationEffect.Updated, resultField: "recordID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
 ];

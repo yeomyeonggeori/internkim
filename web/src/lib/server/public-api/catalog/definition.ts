@@ -21,6 +21,7 @@ export enum ResourceMutationEffect {
   Previewed = 'previewed',
   Published = 'published',
   Deleted = 'deleted',
+  Archived = 'archived',
 }
 
 export type CapabilityResultDefinition = {

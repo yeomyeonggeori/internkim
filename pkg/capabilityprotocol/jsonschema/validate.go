@@ -28,6 +28,7 @@ func ValidateInput(schemaDocument json.RawMessage, inputDocument json.RawMessage
 	if errorValue != nil {
 		return errorValue
 	}
+	schemaDocument = SchemaDocumentWithNullAsAbsent(schemaDocument)
 	schema, errorValue := resolveSchema(schemaDocument, "input")
 	if errorValue != nil {
 		return errorValue
@@ -48,6 +49,7 @@ func ValidateResult(schemaDocument json.RawMessage, resultDocument json.RawMessa
 	if errorValue != nil {
 		return ResultCheck{}, errorValue
 	}
+	schemaDocument = SchemaDocumentWithNullAsAbsent(schemaDocument)
 	contract, errorValue := resolveSchema(schemaDocument, "result")
 	if errorValue != nil {
 		return ResultCheck{}, errorValue
@@ -77,7 +79,7 @@ func decodeDocument(document json.RawMessage, subject string) (any, error) {
 	if json.Unmarshal(normalized, &value) != nil {
 		return nil, errors.New("tool " + subject + " is not valid JSON")
 	}
-	return value, nil
+	return DocumentWithNullAsAbsent(value), nil
 }
 
 func resolveSchema(schemaDocument json.RawMessage, subject string) (*googlejsonschema.Resolved, error) {

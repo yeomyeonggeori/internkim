@@ -84,6 +84,7 @@ import { previewOfTool } from './preview';
 import { leavesTaskLabelsUndecided, type TaskLabelDecider } from './task-labels';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
 import { capabilityToolResultSchema } from '../catalog/tools';
+import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
 type ToolInput = Record<string, unknown>;
@@ -241,7 +242,7 @@ export async function runToolOverTheRecord(
 function noteWhereTheAnswerLeftItsContract(name: string, result: unknown): void {
 	const schema = capabilityToolResultSchema(name);
 	if (!schema) return;
-	const parsed = schema.safeParse(result);
+	const parsed = schema.safeParse(readWithNullAsAbsent(schema, result));
 	if (parsed.success) return;
 	console.error(
 		`tool.answer_left_its_contract: tool=${name} ${sentencesOfSchemaRefusal(parsed.error.issues, result, 'result')}`

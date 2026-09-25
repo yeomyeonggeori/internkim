@@ -56,7 +56,7 @@ func (backend *fakeMailBackend) ReadMessage(ctx context.Context, account mail.Ac
 func (backend *fakeMailBackend) SendMessage(ctx context.Context, account mail.Account, input mail.MessageSendRequest) (mail.SendResult, error) {
 	backend.sentAccount = account
 	backend.sentMessage = input
-	return mail.SendResult{Sent: true, AppendedTo: account.SentMailbox}, nil
+	return mail.SendResult{Sent: true, MessageID: "sent-1@example.com", AppendedTo: account.SentMailbox}, nil
 }
 
 func (backend *fakeMailBackend) MoveMessage(ctx context.Context, account mail.Account, mailbox string, uid uint32, targetMailbox string) error {

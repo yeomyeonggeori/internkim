@@ -4,7 +4,7 @@ import { taskAdd, taskUpdate } from './task-tools';
 import { taskOfHint, tasksOfCompany, type TaskRow } from './tasks';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
 import type { RecordContext } from './company';
-import type { CRMActivityListResult, CRMActivityResult } from '../catalog/crm';
+import type { CRMActivityListResult, CRMActivityResult, CRMActivitySaveResult } from '../catalog/crm';
 
 export type CRMActivityListInput = {
 	organizationHint?: string;
@@ -126,7 +126,7 @@ const stageChangeKind = 'stage_change';
 export async function crmActivitySave(
 	context: RecordContext,
 	input: CRMActivitySaveInput
-): Promise<CRMActivityResult> {
+): Promise<CRMActivitySaveResult> {
 	const held = input.activityHint ? await activityRowOfHint(context, input.activityHint) : null;
 	if (!held && !input.organizationHint?.trim()) {
 		throw new Error('an activity names the organization it is with');
@@ -152,7 +152,7 @@ export async function crmActivitySave(
 		const answered = held
 			? await eventUpdate(context, { ...written, ...eventFields(input), eventHint: held.id })
 			: await eventAdd(context, { ...written, ...eventFields(input) });
-		return answeredActivity(await activityByID(context, answered.eventID));
+		return { ...answeredActivity(await activityByID(context, answered.eventID)), isNew: !held };
 	}
 
 	const asATask = {
@@ -163,7 +163,7 @@ export async function crmActivitySave(
 	const answered = held
 		? await taskUpdate(context, { ...asATask, taskHint: held.id })
 		: await taskAdd(context, asATask);
-	return answeredActivity(await activityByID(context, answered.taskID));
+	return { ...answeredActivity(await activityByID(context, answered.taskID)), isNew: !held };
 }
 
 function eventFields(input: CRMActivitySaveInput) {

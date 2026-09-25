@@ -32,9 +32,10 @@ const (
 	AnsweredByCompany = "company"
 	AnsweredByLocal   = "local"
 
-	ResourceEffectIdentityID   ResourceEffectIdentity = "id"
-	ResourceEffectIdentityPath ResourceEffectIdentity = "path"
-	ResourceEffectIdentityURL  ResourceEffectIdentity = "url"
+	ResourceEffectIdentityID        ResourceEffectIdentity = "id"
+	ResourceEffectIdentityPath      ResourceEffectIdentity = "path"
+	ResourceEffectIdentityURL       ResourceEffectIdentity = "url"
+	ResourceEffectIdentitySingleton ResourceEffectIdentity = "singleton"
 )
 
 type ToolOutcome string

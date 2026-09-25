@@ -9,25 +9,31 @@ import (
 	messagemail "github.com/emersion/go-message/mail"
 )
 
-func createMessageDocument(account Account, input MessageSendRequest) ([]byte, []string, error) {
+type composedMessage struct {
+	document   []byte
+	recipients []string
+	messageID  string
+}
+
+func createMessageDocument(account Account, input MessageSendRequest) (composedMessage, error) {
 	from, errorValue := messagemail.ParseAddress(account.FromAddress)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	if strings.TrimSpace(account.DisplayName) != "" {
 		from.Name = account.DisplayName
 	}
 	to, errorValue := parseAddresses(input.To)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	cc, errorValue := parseAddresses(input.CC)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	bcc, errorValue := parseAddresses(input.BCC)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	var header messagemail.Header
 	header.SetAddressList("From", []*messagemail.Address{from})
@@ -35,22 +41,28 @@ func createMessageDocument(account Account, input MessageSendRequest) ([]byte, [
 	header.SetAddressList("Cc", cc)
 	header.SetSubject(input.Subject)
 	header.SetDate(time.Now())
-	_ = header.GenerateMessageID()
+	if errorValue := header.GenerateMessageID(); errorValue != nil {
+		return composedMessage{}, errorValue
+	}
+	messageID, errorValue := header.MessageID()
+	if errorValue != nil {
+		return composedMessage{}, errorValue
+	}
 	var document bytes.Buffer
 	writer, errorValue := messagemail.CreateSingleInlineWriter(&document, header)
 	if errorValue != nil {
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	if _, errorValue := io.WriteString(writer, input.Body); errorValue != nil {
 		_ = writer.Close()
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	if errorValue := writer.Close(); errorValue != nil {
-		return nil, nil, errorValue
+		return composedMessage{}, errorValue
 	}
 	recipients := append(addressStrings(to), addressStrings(cc)...)
 	recipients = append(recipients, addressStrings(bcc)...)
-	return document.Bytes(), recipients, nil
+	return composedMessage{document: document.Bytes(), recipients: recipients, messageID: messageID}, nil
 }
 
 func parseAddresses(values []string) ([]*messagemail.Address, error) {

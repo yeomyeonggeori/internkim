@@ -32,6 +32,7 @@ type MessageDetailResponse struct {
 
 type SendResult struct {
 	Sent          bool   `json:"sent"`
+	MessageID     string `json:"messageID"`
 	AppendedTo    string `json:"appendedTo,omitempty"`
 	AppendWarning string `json:"appendWarning,omitempty"`
 }

@@ -920,9 +920,20 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "scheduleIDs": {
+            "description": "The schedules that were cancelled.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
           }
         },
         "required": [
+          "scheduleIDs",
           "cancelled"
         ],
         "type": "object"
@@ -932,7 +943,14 @@
       "privacyClass": "workspace_schedule",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "schedule",
+            "resultField": "scheduleIDs"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -956,9 +974,20 @@
                 "type": "object"
               },
               "type": "array"
+            },
+            "scheduleIDs": {
+              "description": "The schedules that were cancelled.",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
             }
           },
           "required": [
+            "scheduleIDs",
             "cancelled"
           ],
           "type": "object"
@@ -2609,7 +2638,13 @@
       "privacyClass": "workspace_task",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "task_vocabulary"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -6682,7 +6717,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "leave_grant",
+            "resultField": "personID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -6841,7 +6883,18 @@
       "privacyClass": "workspace_leave",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "leave",
+            "resultField": "leaveID",
+            "when": {
+              "equals": true,
+              "resultField": "shortened"
+            }
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -7435,7 +7488,18 @@
       "privacyClass": "workspace_attendance",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "attendance",
+            "resultField": "eventID",
+            "when": {
+              "equals": "added",
+              "resultField": "status"
+            }
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -7650,7 +7714,18 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "attendance",
+            "resultField": "eventID",
+            "when": {
+              "equals": "corrected",
+              "resultField": "status"
+            }
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -7770,7 +7845,18 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "attendance",
+            "resultField": "eventID",
+            "when": {
+              "equals": "removed",
+              "resultField": "status"
+            }
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -10314,7 +10400,14 @@
       "privacyClass": "workspace_document",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "path",
+            "objectType": "image",
+            "resultField": "path"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -13008,7 +13101,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "company_document",
+            "resultField": "documentID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -14175,7 +14275,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "company_document",
+            "resultField": "documentID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -15214,7 +15321,13 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "company_info"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -15852,7 +15965,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "company_metric",
+            "resultField": "metricID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -16101,7 +16221,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "company_record",
+            "resultField": "recordID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -16288,7 +16415,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "company_record",
+            "resultField": "recordID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -16732,7 +16866,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "company_record",
+            "resultField": "recordID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -17304,7 +17445,14 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "crm_organization",
+            "resultField": "organizationID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -17639,7 +17787,14 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "crm_organization",
+            "resultField": "organizationID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -17815,7 +17970,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "archived",
+            "effectIdentity": "id",
+            "objectType": "crm_organization",
+            "resultField": "recordID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -18300,7 +18462,14 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "crm_contact",
+            "resultField": "contactID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -18595,7 +18764,14 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "crm_contact",
+            "resultField": "contactID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -18761,7 +18937,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "archived",
+            "effectIdentity": "id",
+            "objectType": "crm_contact",
+            "resultField": "recordID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -19542,7 +19725,14 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "crm_opportunity",
+            "resultField": "opportunityID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -20027,7 +20217,14 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "crm_opportunity",
+            "resultField": "opportunityID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -20461,7 +20658,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "crm_opportunity",
+            "resultField": "opportunityID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -20697,7 +20901,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "archived",
+            "effectIdentity": "id",
+            "objectType": "crm_opportunity",
+            "resultField": "recordID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -21443,6 +21654,10 @@
           "isEvent": {
             "type": "boolean"
           },
+          "isNew": {
+            "description": "true when this call wrote a new activity, false when it changed the one activityHint named.",
+            "type": "boolean"
+          },
           "isWholeDay": {
             "type": "boolean"
           },
@@ -21525,7 +21740,8 @@
           "notifyMinutesBefore",
           "location",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "isNew"
         ],
         "type": "object"
       },
@@ -21534,7 +21750,28 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "crm_activity",
+            "resultField": "activityID",
+            "when": {
+              "equals": true,
+              "resultField": "isNew"
+            }
+          },
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "crm_activity",
+            "resultField": "activityID",
+            "when": {
+              "equals": false,
+              "resultField": "isNew"
+            }
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -21560,6 +21797,10 @@
               "type": "string"
             },
             "isEvent": {
+              "type": "boolean"
+            },
+            "isNew": {
+              "description": "true when this call wrote a new activity, false when it changed the one activityHint named.",
               "type": "boolean"
             },
             "isWholeDay": {
@@ -21644,7 +21885,8 @@
             "notifyMinutesBefore",
             "location",
             "createdAt",
-            "updatedAt"
+            "updatedAt",
+            "isNew"
           ],
           "type": "object"
         }
@@ -22108,7 +22350,13 @@
       "privacyClass": "workspace_crm",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "crm_vocabulary"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -22634,7 +22882,13 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "company_settings"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -23053,7 +23307,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "created",
+            "effectIdentity": "id",
+            "objectType": "company_holiday",
+            "resultField": "holidayID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -23239,7 +23500,14 @@
       "privacyClass": "workspace_company",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "company_holiday",
+            "resultField": "holidayID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -23392,7 +23660,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "deleted",
+            "effectIdentity": "id",
+            "objectType": "company_holiday",
+            "resultField": "holidayID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -24195,7 +24470,13 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "attendance_work_policy"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -25093,7 +25374,13 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "attendance_leave_policy"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -25486,7 +25773,13 @@
       "privacyClass": "user_notification",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "notification_settings"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -25604,7 +25897,14 @@
       "privacyClass": "user_notification",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "conversation",
+            "resultField": "conversationID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -25706,7 +26006,14 @@
       "privacyClass": "user_notification",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "conversation",
+            "resultField": "conversationID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -26410,10 +26717,16 @@
           "marked": {
             "const": true,
             "type": "boolean"
+          },
+          "uid": {
+            "description": "The message that was marked.",
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
-          "marked"
+          "marked",
+          "uid"
         ],
         "type": "object"
       },
@@ -26422,7 +26735,14 @@
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "email",
+            "resultField": "uid"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -26430,10 +26750,16 @@
             "marked": {
               "const": true,
               "type": "boolean"
+            },
+            "uid": {
+              "description": "The message that was marked.",
+              "minLength": 1,
+              "type": "string"
             }
           },
           "required": [
-            "marked"
+            "marked",
+            "uid"
           ],
           "type": "object"
         }
@@ -26513,10 +26839,16 @@
           "moved": {
             "const": true,
             "type": "boolean"
+          },
+          "uid": {
+            "description": "The message that was moved, as it was known in the mailbox it left.",
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
-          "moved"
+          "moved",
+          "uid"
         ],
         "type": "object"
       },
@@ -26525,7 +26857,14 @@
       "privacyClass": "workspace_mail",
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "id",
+            "objectType": "email",
+            "resultField": "uid"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -26533,10 +26872,16 @@
             "moved": {
               "const": true,
               "type": "boolean"
+            },
+            "uid": {
+              "description": "The message that was moved, as it was known in the mailbox it left.",
+              "minLength": 1,
+              "type": "string"
             }
           },
           "required": [
-            "moved"
+            "moved",
+            "uid"
           ],
           "type": "object"
         }
@@ -27011,13 +27356,19 @@
             "description": "Mailbox the sent copy was saved to.",
             "type": "string"
           },
+          "messageID": {
+            "description": "The Message-ID header the sent message carries.",
+            "minLength": 1,
+            "type": "string"
+          },
           "sent": {
             "const": true,
             "type": "boolean"
           }
         },
         "required": [
-          "sent"
+          "sent",
+          "messageID"
         ],
         "type": "object"
       },
@@ -27027,7 +27378,14 @@
       "requiresApproval": true,
       "requiresUserPresence": false,
       "resultContract": {
-        "effects": [],
+        "effects": [
+          {
+            "effect": "sent",
+            "effectIdentity": "id",
+            "objectType": "email",
+            "resultField": "messageID"
+          }
+        ],
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
@@ -27040,13 +27398,19 @@
               "description": "Mailbox the sent copy was saved to.",
               "type": "string"
             },
+            "messageID": {
+              "description": "The Message-ID header the sent message carries.",
+              "minLength": 1,
+              "type": "string"
+            },
             "sent": {
               "const": true,
               "type": "boolean"
             }
           },
           "required": [
-            "sent"
+            "sent",
+            "messageID"
           ],
           "type": "object"
         }
