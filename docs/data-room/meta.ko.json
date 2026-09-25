@@ -1,4 +1,5 @@
 {
   "title": "데이터룸",
+  "icon": "FolderOpen",
   "pages": ["index", "layout", "clearance", "metadata", "agent"]
 }

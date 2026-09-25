@@ -107,8 +107,9 @@
 					</div>
 					<div class="grid gap-2 rounded-md border border-dashed p-4">
 						<p class="text-sm font-medium">{text.install}</p>
-						<p class="text-sm text-muted-foreground">{text.installMeantime}</p>
-						<a class="justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/docs/quickstart' : 'https://docs.intern.kim/docs/quickstart'}>{text.guide}</a>
+						<p class="text-sm text-muted-foreground">{text.installDescription}</p>
+						<pre aria-label={text.install} class="max-w-full overflow-x-auto rounded-md bg-muted p-3 text-xs"><code>{text.installCommand}{'\n'}{text.configureCommand}</code></pre>
+						<a class="justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
 					</div>
 					<p class="text-sm text-muted-foreground">{text.installHint}</p>
 				</Card.Content>

@@ -1,6 +1,7 @@
 ---
 title: 무엇이 어디 사는지
 description: 그 컴퓨터가 오늘 밤 불타 없어져도, 내일 여전히 참이어야 하는 것은 무엇인가.
+icon: Map
 ---
 
 질문 하나가 정합니다. 그 컴퓨터가 오늘 밤 불타 없어져도, 내일 여전히 참이어야
@@ -27,8 +28,8 @@ Supabase Storage의 회사 `asset` 버킷에 내용 주소로 복사됩니다. �
 ## 에이전트의 저장소 [#the-agents-store]
 
 호스트 자신의 Postgres이고, `.dependency/blueclaw/migrations/`가 정의합니다.
-`vector` 확장이 필요해서 `host/docker-compose.yml`은
-`pgvector/pgvector:pg17`을 띄웁니다.
+`vector` 확장이 필요합니다. 회사 호스트 패키지가 다른 서비스와 함께
+Postgres를 설치하고 관리합니다.
 
 | | |
 |---|---|
