@@ -21,16 +21,6 @@ export const links: Route.LinksFunction = () => [
   { rel: 'icon', href: '/favicon.png', type: 'image/png', sizes: '32x32' },
   { rel: 'icon', href: '/favicon-192.png', type: 'image/png', sizes: '192x192' },
   { rel: 'icon', href: '/favicon-512.png', type: 'image/png', sizes: '512x512' },
-  { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-  {
-    rel: 'preconnect',
-    href: 'https://fonts.gstatic.com',
-    crossOrigin: 'anonymous',
-  },
-  {
-    rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap',
-  },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
