@@ -442,7 +442,7 @@ export const taskAddInputSchema = z.strictObject({
     .describe('Initial task status. Defaults to planned. Work whose participants leave out the requester is added as requested, with the requester as the one who asked; only an administrator may add it in another status.')
     .optional(),
   business: z.string()
-    .describe(`Only a business the user names. ${labelsTheRecordDecides}`)
+    .describe("The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.")
     .optional(),
   type: z.string()
     .describe(`Only a type the user names. ${labelsTheRecordDecides}`)
@@ -1000,7 +1000,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_task',
     policyResource: 'tool:task_add',
-    description: 'Create a new workspace task with typed task fields. Never ask the user to classify it: its business, type and size are decided from the company definitions when the user names none. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.',
+    description: 'Create a new workspace task with typed task fields. Never ask the user to classify it: send the business when you know it, and the record decides whatever business, type and size is left out from the company definitions. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.',
     version: '7',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskAddInputSchema,
