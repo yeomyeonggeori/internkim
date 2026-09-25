@@ -7,6 +7,10 @@ set -euo pipefail
 scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
 
+if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
+  exec "$repositoryRoot/tools/with-local-plane" "$0" "$@"
+fi
+
 stateRoot=""
 appPort="5183"
 adminPort="18080"
@@ -35,11 +39,6 @@ appLogPath="$stateRoot/central-plane-app.log"
 fixtureCompanyID="000000cc-0000-0000-0000-000000000001"
 
 cd "$repositoryRoot"
-
-if ! supabase status >/dev/null 2>&1; then
-  echo "starting the local record"
-  supabase start >/dev/null
-fi
 
 eval "$(supabase status -o env | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
 . "$repositoryRoot/web/scripts/local-plane-signing-key.sh"

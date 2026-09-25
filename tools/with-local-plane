@@ -13,6 +13,9 @@ fi
 
 repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
 lockPath="/tmp/internkim-local-plane.lock"
+lastUsedPath="/tmp/internkim-local-plane.last-used"
+idleStopLogPath="/tmp/internkim-local-plane.idle-stop.log"
+defaultIdleSeconds=900
 holderPath="${lockPath}.holder.$$"
 weHoldTheLock=0
 
@@ -20,6 +23,7 @@ releaseLock() {
   rm -f "$holderPath"
   if [ "$weHoldTheLock" -eq 1 ]; then
     weHoldTheLock=0
+    scheduleStopWhenIdle
     rm -f "$lockPath"
   fi
 }
@@ -123,8 +127,83 @@ removeStoppedStackContainers() {
   done <<< "$stoppedContainers"
 }
 
+stackIsRunning() {
+  (cd "$repositoryRoot" && supabase status >/dev/null 2>&1)
+}
+
+startDockerWhenDown() {
+  if docker info >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! command -v colima >/dev/null 2>&1; then
+    return 0
+  fi
+  printf 'starting colima for the local plane\n' >&2
+  colima start >&2
+}
+
+startStackWhenDown() {
+  if stackIsRunning; then
+    return 0
+  fi
+  startDockerWhenDown
+  removeStoppedStackContainers
+  printf 'starting the local plane\n' >&2
+  (cd "$repositoryRoot" && supabase start >/dev/null)
+}
+
+scheduleStopWhenIdle() {
+  if ! stackIsRunning; then
+    return 0
+  fi
+  local useToken="$$.$(date +%s)"
+  printf '%s\n' "$useToken" > "$lastUsedPath"
+  env -u LOCAL_PLANE_LOCK_HOLDER nohup "$0" --stop-when-idle "$useToken" \
+    >> "$idleStopLogPath" 2>&1 < /dev/null &
+}
+
+isTheLastUse() {
+  [ "$(sed -n 1p "$lastUsedPath" 2>/dev/null || true)" = "$1" ]
+}
+
+stopColimaWhenNothingElseRuns() {
+  if ! command -v colima >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! colima status >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ -n "$(docker ps --quiet 2>/dev/null || true)" ]; then
+    printf 'leaving colima up: containers outside the local plane still run\n'
+    return 0
+  fi
+  colima stop
+}
+
+stopWhenIdle() {
+  local useToken="$1"
+  local idleSeconds="${2:-$defaultIdleSeconds}"
+  sleep "$idleSeconds" & wait "$!"
+  if ! isTheLastUse "$useToken"; then
+    return 0
+  fi
+  acquireLock
+  if ! isTheLastUse "$useToken"; then
+    return 0
+  fi
+  printf '%s stopping the local plane, unused since %s\n' "$(date '+%F %T')" "$useToken"
+  (cd "$repositoryRoot" && supabase stop)
+  stopColimaWhenNothingElseRuns
+}
+
+if [ "$1" = "--stop-when-idle" ]; then
+  shift
+  stopWhenIdle "$@"
+  exit 0
+fi
+
 acquireLock
-removeStoppedStackContainers
+startStackWhenDown
 
 export LOCAL_PLANE_LOCK_HOLDER="$$"
 "$@"
