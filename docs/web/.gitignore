@@ -7,4 +7,9 @@
 .source
 app/generated/
 .playwright-mcp/
+/public/logo.svg
+/public/favicon.svg
+/public/favicon.png
+/public/favicon-192.png
+/public/favicon-512.png
 .playwright-mcp/

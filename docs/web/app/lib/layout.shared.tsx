@@ -68,7 +68,12 @@ export function baseOptions(locale: string): BaseLayoutProps {
   return {
     i18n: true,
     nav: {
-      title: appName[locale] ?? appName[i18n.defaultLanguage],
+      title: (
+        <span className="flex items-center gap-2">
+          <img src="/logo.svg" alt="" className="size-6" />
+          <span>{appName[locale] ?? appName[i18n.defaultLanguage]}</span>
+        </span>
+      ),
       url: locale === i18n.defaultLanguage ? '/' : `/${locale}`,
     },
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
