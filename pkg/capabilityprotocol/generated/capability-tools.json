@@ -980,7 +980,7 @@
         "mode": "success",
         "targetKind": "task"
       },
-      "description": "Create a new workspace task with typed task fields. Never ask the user to classify it: its business, type and size are decided from the company definitions when the user names none. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.",
+      "description": "Create a new workspace task with typed task fields. Never ask the user to classify it: send the business when you know it, and the record decides whatever business, type and size is left out from the company definitions. Use this to add a todo or assignment for the requester or another team member. Use task_update for existing work.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -992,7 +992,7 @@
         "additionalProperties": false,
         "properties": {
           "business": {
-            "description": "Only a business the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
+            "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
             "type": "string"
           },
           "endsAt": {
@@ -1065,7 +1065,7 @@
         "additionalProperties": false,
         "properties": {
           "business": {
-            "description": "Only a business the user names. Omit it otherwise: the record decides the business, type and size a new task leaves out, from the company's own definitions.",
+            "description": "The company business this work is for, from registeredLabels.businesses in a task_list result, whenever the conversation or the work itself shows which one. Omit it only when that is unknown: the record then decides it from the company's own definitions.",
             "type": "string"
           },
           "endsAt": {
