@@ -209,7 +209,7 @@ export async function runToolOverTheRecord(
 	name: string,
 	input: ToolInput,
 	now: Date,
-	decideTaskLabels: TaskLabelDecider = leavesTaskLabelsUndecided
+	decideTaskLabels: TaskLabelDecider
 ): Promise<ToolAnswer> {
 	const run = toolsOverTheRecord[name];
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
