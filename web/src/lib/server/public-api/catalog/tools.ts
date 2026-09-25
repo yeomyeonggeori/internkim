@@ -1248,7 +1248,7 @@ export const leaveReturnEarlyInputIntentSchema = leaveReturnEarlyInputSchema.par
 
 export const leaveReturnEarlyResultSchema = z.strictObject({
   shortened: z.boolean(),
-  leaveID: z.string().describe('The leave that was cut short. Absent when shortened is false.').optional(),
+  leaveID: z.string().nullable(),
   endsAt: z.string().nullable(),
   days: z.number().nullable(),
 });
@@ -1343,7 +1343,7 @@ export const attendanceListResultSchema = z.strictObject({
 
 export const attendanceWriteResultSchema = z.strictObject({
   status: z.string(),
-  eventID: z.string().describe('The record written. Absent when status is asked.').optional(),
+  eventID: z.string().nullable(),
   backdated: z.boolean(),
 });
 

@@ -6857,8 +6857,14 @@
             ]
           },
           "leaveID": {
-            "description": "The leave that was cut short. Absent when shortened is false.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "shortened": {
             "type": "boolean"
@@ -6866,6 +6872,7 @@
         },
         "required": [
           "shortened",
+          "leaveID",
           "endsAt",
           "days"
         ],
@@ -6913,8 +6920,14 @@
               ]
             },
             "leaveID": {
-              "description": "The leave that was cut short. Absent when shortened is false.",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "shortened": {
               "type": "boolean"
@@ -6922,6 +6935,7 @@
           },
           "required": [
             "shortened",
+            "leaveID",
             "endsAt",
             "days"
           ],
@@ -7449,8 +7463,14 @@
             "type": "object"
           },
           "eventID": {
-            "description": "The record written. Absent when status is asked.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "type": "string"
@@ -7458,6 +7478,7 @@
         },
         "required": [
           "status",
+          "eventID",
           "backdated"
         ],
         "type": "object"
@@ -7526,8 +7547,14 @@
               "type": "object"
             },
             "eventID": {
-              "description": "The record written. Absent when status is asked.",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "status": {
               "type": "string"
@@ -7535,6 +7562,7 @@
           },
           "required": [
             "status",
+            "eventID",
             "backdated"
           ],
           "type": "object"
@@ -7660,8 +7688,14 @@
             "type": "boolean"
           },
           "eventID": {
-            "description": "The record written. Absent when status is asked.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "type": "string"
@@ -7669,6 +7703,7 @@
         },
         "required": [
           "status",
+          "eventID",
           "backdated"
         ],
         "type": "object"
@@ -7699,8 +7734,14 @@
               "type": "boolean"
             },
             "eventID": {
-              "description": "The record written. Absent when status is asked.",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "status": {
               "type": "string"
@@ -7708,6 +7749,7 @@
           },
           "required": [
             "status",
+            "eventID",
             "backdated"
           ],
           "type": "object"
@@ -7777,8 +7819,14 @@
             "type": "boolean"
           },
           "eventID": {
-            "description": "The record written. Absent when status is asked.",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "type": "string"
@@ -7786,6 +7834,7 @@
         },
         "required": [
           "status",
+          "eventID",
           "backdated"
         ],
         "type": "object"
@@ -7816,8 +7865,14 @@
               "type": "boolean"
             },
             "eventID": {
-              "description": "The record written. Absent when status is asked.",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "status": {
               "type": "string"
@@ -7825,6 +7880,7 @@
           },
           "required": [
             "status",
+            "eventID",
             "backdated"
           ],
           "type": "object"

@@ -268,5 +268,30 @@
 		"path": "computer_connect",
 		"reason": "Connecting a computer moves from the agent to Settings → My computer in the web app: admind issues the pairing code to the signed-in member and the page shows the commands, so the tool that relayed them in a direct message goes. computer_connect was answered only by the device's own capabilityd, which ships in the same release as this catalog, and the plane never answered it. A device on an older release keeps the descriptor its own build embeds and its own capabilityd still answers it until it takes this release, when both go together.",
 		"release": "the release cut after this change merges, which drops the descriptor and the capabilityd handler together"
+	},
+	{
+		"path": "schedule_cancel.result.scheduleIDs",
+		"reason": "schedule_cancel now declares the schedules it deletes, and an effect points at a flat list of identities. schedule_cancel is answered by the device's own blueclaw, which ships in the same release as this catalog; the plane never answers it. A device on an older release keeps the descriptor its own build embeds and its own blueclaw answers without the field until it takes this release, when both change together.",
+		"release": "the release cut after the change declaring every write tool's effect merges"
+	},
+	{
+		"path": "mail_message_send.result.messageID",
+		"reason": "mail_message_send now declares the email it sends, identified by the Message-ID it carries. mail_message_send is answered by the device's own admind, which ships in the same release as this catalog; the plane never answers it. A device on an older release keeps the descriptor its own build embeds and its own admind answers without the field until it takes this release, when both change together.",
+		"release": "the release cut after the change declaring every write tool's effect merges"
+	},
+	{
+		"path": "mail_message_mark.result.uid",
+		"reason": "mail_message_mark now declares the email it changed, identified by its uid. mail_message_mark is answered by the device's own admind, which ships in the same release as this catalog; the plane never answers it. A device on an older release keeps the descriptor its own build embeds and its own admind answers without the field until it takes this release, when both change together.",
+		"release": "the release cut after the change declaring every write tool's effect merges"
+	},
+	{
+		"path": "mail_message_move.result.uid",
+		"reason": "mail_message_move now declares the email it moved, identified by its uid. mail_message_move is answered by the device's own admind, which ships in the same release as this catalog; the plane never answers it. A device on an older release keeps the descriptor its own build embeds and its own admind answers without the field until it takes this release, when both change together.",
+		"release": "the release cut after the change declaring every write tool's effect merges"
+	},
+	{
+		"path": "crm_activity_save.result.isNew",
+		"reason": "crm_activity_save now declares whether it created an activity or changed one, and isNew is the condition each effect reads. The plane answers it, so a device on an older release refuses the unknown field: the release carrying this catalog reaches the fleet before the plane is deployed with it.",
+		"release": "the release cut after the change declaring every write tool's effect merges, deployed to the fleet before the plane returns isNew"
 	}
 ]
