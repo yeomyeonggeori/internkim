@@ -404,7 +404,7 @@ and delete the duplicates.
   its code (#1381). Playwright orders spec files alphabetically, so a spec that
   changes shared company state gets a database of its own.
 - When the user asks to run a local web page for them to inspect, prefer the
-  central plane: `supabase db reset` then `bun run dev`, and hand over a real
+  central plane: the local loop below, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
   explicit `VITE_DEV_USER_EMAIL`) is for device-backed screens that have no
   Supabase path yet; with those, verify `/auth/session` returns
@@ -468,9 +468,10 @@ and delete the duplicates.
 - The company web app runs on Supabase, not on a device. `supabase/migrations`
   is the schema of record and `docs/record/schema.mdx` explains it. Never edit an
   applied migration; add the next one.
-- Local loop, in this order: `supabase db reset` (schema plus fixtures),
-  `supabase test db` (pgTAP), `cd web && bun run dev`. The reset alone gives a
-  company you can sign into — `member1@example.com` / `seed-password`.
+- Local loop, in order, under the lock below: `supabase db reset` (schema
+  plus fixtures), `supabase test db` (pgTAP), `cd web && bun run dev`. The reset
+  alone gives a company you can sign into — `member1@example.com` /
+  `seed-password`.
 - One machine has one local stack, so anything using it, dev servers too, runs
   under `tools/with-local-plane <command>`. It queues a second worktree behind
   the first, starts the stack, and stops it after fifteen idle minutes.
