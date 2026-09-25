@@ -31,7 +31,7 @@ computer, which opens no port and needs no tunnel or public hostname.
 ```
 browser, any network
   │
-  ├── Cloudflare Pages ────── the company web app; one build serves every host
+  ├── Cloudflare Pages ────── the company web app and record API; one build serves every host
   │
   └── Supabase ───────────── Postgres, Auth, Realtime
         │
@@ -40,15 +40,15 @@ browser, any network
   the company's computer, outbound connections only
     ├── relay ───────── answers calls, carries messenger arrivals
     ├── blueclaw ────── agent runtime, task ledger, approval, workspace
-    ├── chatd ───────── messenger adapters: Mattermost, Buzz
-    ├── capabilityd ─── calendar, tasks, mail, the model path
+    ├── chatd ───────── Buzz messenger adapter
+    ├── capabilityd ─── model calls, embeddings, mail, site, web and browser tools
     └── Postgres ────── the agent's own store
 ```
 
-The relay depends on nothing else in the bundle. It speaks to Supabase, the
-central plane and the company's messenger, and never to blueclaw, chatd,
-capabilityd or Postgres. `host/entrypoint.sh` therefore starts it first:
-the agent can be down while the messenger screen still answers. `host/README.md`
+The relay connects to Supabase, the central plane and the company's messenger,
+independent of blueclaw, chatd, capabilityd and Postgres. `host/entrypoint.sh`
+starts it first, so the messenger screen stays available while the agent is
+down. `host/README.md`
 has what the box needs and which parts are optional;
 [Architecture](https://docs.intern.kim/architecture/) has the design.
 
@@ -60,12 +60,12 @@ cannot reach, and it never leaves a server route.
 ### The device path
 
 Before the central plane there was one appliance per company: a Jetson Orin Nano
-Super with a virtual-machine guest, Mattermost and an update engine on board. That
-path still ships and still works. Sections below marked **device** describe it.
+Super with a virtual-machine guest, the Buzz relay and an update engine on board.
+That path still ships and works. Sections below marked `device` describe it.
 
 ```
 operator on the same network ── Jetson Orin Nano Super
-                                 ├── Mattermost :8065
+                                 ├── Buzz relay
                                  ├── internkim-admind (127.0.0.1:18080)
                                  ├── internkim-capabilityd
                                  ├── Cloud Hypervisor blueclaw guest
@@ -98,14 +98,14 @@ Host device-*
 
 `cloudflared access login` writes a token that lasts a day, so that line means
 signing in again every morning and it cannot be used by anything unattended. A
-Cloudflare Access **service token** lasts a year and needs no browser:
+A Cloudflare Access service token lasts a year and can authenticate without a browser:
 
 ```bash
 tools/provision-cloudflare-ssh-service-token     # creates it, attaches the policy
 ```
 
-Then point the proxy at the wrapper, which reads the token from the file it was
-written to rather than putting a secret in this config:
+Point the proxy at the wrapper. It reads the token from the file created by the
+script, keeping the credential out of this config:
 
 ```
 Host device-*
@@ -220,9 +220,9 @@ remembered value wherever it appears in a command's output.
 | **internkim-capabilityd** | Holds the OpenRouter key, the local model, messenger and companion credentials, and exposes only a capability API. |
 | **local model** | Generation and embedding both on a resident `llama-server`: gemma-4-E2B QAT with MTP drafting (`--chat-template gemma`) for generation, BGE-M3 Q8 on CPU (`-ngl 0`) for embedding. `internkim-local-llm-runner` (LiteRT) is a legacy fallback. |
 | **blueclaw** | The agent runtime. On a device it runs as a Cloud Hypervisor guest under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json`. |
-| **chatd** | Per-person messenger operations, with Mattermost and Buzz adapters behind one gateway. |
+| **chatd** | Per-person messenger operations through the company's messenger gateway. |
 | **internkim-companion** | One binary on the user's own computer: their signed-in browser, their desktop through the Cua Driver, and later local-only inference. |
-| **Mattermost** | The self-hostable messenger used as the collaboration channel and the entry point for work. |
+| **Buzz** | The company's messenger and the entry point for work, reached from the company app or a messenger client. |
 | **SvelteKit web app** (`web/`) | The company app on Cloudflare Pages, and the operating surfaces served same-origin from a device: `/admin`, `/flow`, `/memory`, `/calendar`, `/mail`, `/attendance`, `/files`, `/ops`. |
 | **workspace assets** (`assets/blueclaw-workspace/`) | AGENTS.md, skills and helpers, installed to the host workspace and mounted into the guest. |
 
@@ -280,10 +280,10 @@ a preview, and each company hostname is attached explicitly through
 
 `api.<zone>` is attached to this same project, because the API is these routes.
 
-Every project variable has to be a **secret**, even the ones that are not
-secret. `wrangler pages deploy` rewrites the plain-text variables from its own
-config and keeps only the secrets, so a plain-text one survives until the next
-deploy — which is usually the deploy that was supposed to start using it.
+Store every Pages project variable as a secret, including values meant to stay
+public. `wrangler pages deploy` rewrites plain-text variables from its own
+config and keeps only secrets. A plain-text value can disappear on the deploy
+that was meant to start using it.
 `scripts/show-pages-env.ts` prints the type of each. `GATEWAY_URL` and
 `GATEWAY_ADMIN_TOKEN` are what let an API call reach a company machine; without
 them an invocation answers `503`, while the catalog and the tokens still work.
@@ -338,12 +338,12 @@ A full setup runs every step in `internal/provisioning/steps/`, in the order
 that package declares: preflight and staging, the binaries and services,
 blueclaw's runtime and config, the Buzz relay with its media store and `chatd`
 adapter, the OpenRouter key and the local model, user sync, and a closing health
-check. Read the directory rather than a list here; `--only` takes the same
-names.
+check. The step names and order live in `internal/provisioning/steps/`;
+`--only` accepts those names.
 
 ### Deploying — device
 
-Everyday deployment goes through the OTA release engine rather than SSH copies.
+Everyday device deployment uses the OTA release engine.
 `internkim deploy` builds a release manifest and component bundles from local
 artifacts, uploads them to Admin HTTPS, and runs the apply engine already on the
 device. SSH stays for first installation, for a device too old to have the
@@ -364,8 +364,8 @@ make prepare-blueclaw-payload
 ./internkim @production deploy
 ```
 
-A device records one manifest as its current release instead of tracking each
-component separately. Direct-upload releases use the same `releaseset.Manifest`,
+A single manifest records a device's current release across its components.
+Direct-upload releases use the same `releaseset.Manifest`,
 checksum verification, staging, install, restart and record flow as R2 releases.
 
 R2 publishes a stable channel for several devices to pull. The bucket is
@@ -449,15 +449,10 @@ own Admin and Web UI and localhost smoke are what get checked. Jetson GPU checks
 report `not applicable`. `./internkim dev fleet up`, `status`, `run --reuse` and
 `reset` are for holding a shared VM open to debug it.
 
-`./internkim test "<prompt>"` raises a disposable fleet, sends the prompt to
-the agent as a person would, and waits for the task to finish. It skips the web
-UI build, prints the bot's final message, and saves attachments under
-`/tmp/internkim-test-<timestamp>/`. Run it with no argument for the flags it
-takes.
+Run the local verification suite with:
 
 ```bash
-./internkim test "make me a report on last month's work as a Word file"
-./internkim test expensive --scenario buzz-attachment
+./internkim test cheap
 ```
 
 The same engine drives the ops console at `http://127.0.0.1:8789/ops`, so the
@@ -478,7 +473,7 @@ After deploying to a real device:
 ```
 
 `verify api` includes the local model, so it fails when the model runtime is
-down even with healthy Mattermost and blueclaw services. `journalctl` on
+down even with healthy Buzz relay and blueclaw services. `journalctl` on
 `internkim-llamacpp` and `internkim-llamacpp-embedding` says which one.
 
 Live LLM end-to-end tests cost money and stay out of `go test ./...`:
@@ -558,8 +553,8 @@ and refuses to install carrying none.
 
 `https://intern.kim/companion/install.sh` still answers: admind on a device that
 has not been redeployed prints that address, and the file there forwards to
-`install.sh` with `companion`. The web app must therefore be deployed before the
-release that changes what admind prints, never after.
+`install.sh` with `companion`. Deploy the web app before the admind release that
+changes the printed address.
 `./internkim verify install-addresses` checks that every address
 `internal/capabilities` names answers 200, and `tools/deploy-main` refuses the
 release when one does not. It separates an address the web app does not serve
