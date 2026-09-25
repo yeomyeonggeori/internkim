@@ -9,6 +9,7 @@ import {
 import { dayOffColor } from '../../src/lib/calendar/day-off-color';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
+import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -201,7 +202,8 @@ async function entriesTheToolAnswers(): Promise<AnsweredEntry[]> {
 			adminID,
 			'event_list',
 			{ startsAt: inDays(-1).toISOString(), endsAt: inDays(7).toISOString() },
-			now
+			now,
+			leavesTaskLabelsUndecided
 		)
 	);
 	expect(answered.status).toBe(200);
@@ -271,7 +273,7 @@ describe('what is on the company calendar', () => {
 				endsAt: inDays(7).toISOString(),
 				personHints: ['이샘플'],
 				limit: 1
-			}, now)
+			}, now, leavesTaskLabelsUndecided)
 		);
 		expect(answered.status).toBe(200);
 		const events = (answered.body as { result: { events: AnsweredEntry[] } }).result.events;
@@ -284,7 +286,7 @@ describe('what is on the company calendar', () => {
 				startsAt: inDays(-1).toISOString(),
 				endsAt: inDays(7).toISOString(),
 				personHints: ['이샘플']
-			}, now)
+			}, now, leavesTaskLabelsUndecided)
 		);
 		expect(allNamed.status).toBe(200);
 		const namedEntries = (allNamed.body as { result: { events: AnsweredEntry[] } }).result.events;

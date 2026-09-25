@@ -9,7 +9,7 @@ import { taskOf } from '../../src/lib/task/task-state';
 import type { RecordTask } from '../../src/lib/task/task-record';
 import { buildTaskChildProgress } from '../../src/routes/task/task-relationships';
 import { heldToTheContract } from './tool-answers';
-import type { DecidedTaskLabels, TaskLabelDraft } from '../../src/lib/server/public-api/record/task-labels';
+import { leavesTaskLabelsUndecided, type DecidedTaskLabels, type TaskLabelDraft } from '../../src/lib/server/public-api/record/task-labels';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -74,7 +74,7 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 async function run(name: string, input: Record<string, unknown> = {}) {
-	return heldToTheContract(name, await runToolOverTheRecord(caller, client, sampleID, name, input, new Date()));
+	return heldToTheContract(name, await runToolOverTheRecord(caller, client, sampleID, name, input, new Date(), leavesTaskLabelsUndecided));
 }
 
 async function runDecidingLabels(
