@@ -193,6 +193,23 @@ if called "colima stop"; then
   fail "colima was stopped under containers that are not the plane"
 fi
 
+movedCheckout="$runDirectory/checkout"
+mkdir -p "$movedCheckout/tools" "$movedCheckout/supabase"
+cp "$withLocalPlane" "$movedCheckout/tools/with-local-plane"
+cp "$repositoryRoot/supabase/config.toml" "$movedCheckout/supabase/config.toml"
+resetFakes docker stack
+printf 'idle\n' > "$lastUsedPath"
+"$movedCheckout/tools/with-local-plane" --stop-when-idle idle 2 > /dev/null 2>&1 &
+idleStopFromTheRemovedCheckout=$!
+until pgrep -P "$idleStopFromTheRemovedCheckout" sleep >/dev/null; do
+  sleep 0.1
+done
+rm -rf "$movedCheckout"
+wait "$idleStopFromTheRemovedCheckout" || true
+if [ -e "$fakeState/stack" ]; then
+  fail "an idle stop left the plane up once the checkout that scheduled it was removed"
+fi
+
 if [ "$failures" -ne 0 ]; then
   printf '%s check(s) failed\n' "$failures" >&2
   exit 1

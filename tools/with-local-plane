@@ -98,12 +98,12 @@ localPlaneProjectIdentifier() {
   sed -n 's/^project_id = "\(.*\)"$/\1/p' "$repositoryRoot/supabase/config.toml"
 }
 
+projectIdentifier="$(localPlaneProjectIdentifier)"
+
 removeStoppedStackContainers() {
   if ! command -v docker >/dev/null 2>&1; then
     return 0
   fi
-  local projectIdentifier
-  projectIdentifier="$(localPlaneProjectIdentifier)"
   if [ -z "$projectIdentifier" ]; then
     return 0
   fi
@@ -127,8 +127,12 @@ removeStoppedStackContainers() {
   done <<< "$stoppedContainers"
 }
 
-stackIsRunning() {
+stackIsServing() {
   (cd "$repositoryRoot" && supabase status >/dev/null 2>&1)
+}
+
+stackHasContainersRunning() {
+  [ -n "$(docker ps --quiet --filter "label=com.supabase.cli.project=$projectIdentifier" 2>/dev/null || true)" ]
 }
 
 startDockerWhenDown() {
@@ -143,7 +147,7 @@ startDockerWhenDown() {
 }
 
 startStackWhenDown() {
-  if stackIsRunning; then
+  if stackIsServing; then
     return 0
   fi
   startDockerWhenDown
@@ -153,7 +157,7 @@ startStackWhenDown() {
 }
 
 scheduleStopWhenIdle() {
-  if ! stackIsRunning; then
+  if ! stackHasContainersRunning; then
     return 0
   fi
   local useToken="$$.$(date +%s)"
@@ -192,7 +196,7 @@ stopWhenIdle() {
     return 0
   fi
   printf '%s stopping the local plane, unused since %s\n' "$(date '+%F %T')" "$useToken"
-  (cd "$repositoryRoot" && supabase stop)
+  (cd / && supabase stop --project-id "$projectIdentifier")
   stopColimaWhenNothingElseRuns
 }
 
