@@ -1,24 +1,49 @@
 ---
-title: internkim Documentation
-description: An AI coworker a company runs itself. What it is, what it can do, and how to call it.
+title: An AI coworker for company operations
+description: Set up the host, understand how InternKim works, or build with the public API.
 ---
 
-internkim is an AI coworker a company runs on its own computer. It reads the
-company's messenger, acts under the identity of the person who asked,
-and keeps its files and its memory on hardware the company owns.
+<div className="internkim-overview">
+  <div className="internkim-overview__intro">
+    InternKim runs on a computer your company controls. People reach it through
+    the web app or the company messenger, and each request keeps the sender's
+    identity and permissions.
+  </div>
 
-<Cards>
-  <Card title="Quickstart" href="/docs/quickstart" description="Create a company and connect the computer that stays on" />
-  <Card title="Understand it" href="/docs/introduction" description="What it is, how it is put together, and who may see what" />
-  <Card title="Build on it" href="/docs/api" description="Tokens, the tools, and the record underneath them" />
-</Cards>
+  <h2 className="internkim-overview__section-title">Choose where to start</h2>
 
-## Three sentences
+  <div className="internkim-overview__paths">
+    <a className="internkim-overview__path" href="/quickstart">
+      <span className="internkim-overview__audience">Company admin</span>
+      <span className="internkim-overview__path-title">Set up a company</span>
+      <div className="internkim-overview__path-description">
+        Create the company, connect its always-on computer, and invite the first
+        people.
+      </div>
+      <span className="internkim-overview__path-action">Open quickstart</span>
+    </a>
 
-A company keeps one computer on. The hardware does not matter.
+    <a className="internkim-overview__path" href="/architecture">
+      <span className="internkim-overview__audience">System overview</span>
+      <span className="internkim-overview__path-title">Understand the system</span>
+      <div className="internkim-overview__path-description">
+        See how the web app, company computer, and agent fit together.
+      </div>
+      <span className="internkim-overview__path-action">Read the architecture</span>
+    </a>
 
-People reach their messenger and their files from any network through the web
-app. No connection is ever made into that computer.
+    <a className="internkim-overview__path" href="/api">
+      <span className="internkim-overview__audience">Developer</span>
+      <span className="internkim-overview__path-title">Build an integration</span>
+      <div className="internkim-overview__path-description">
+        Use API tokens, call agent tools, and read the records those calls
+        create.
+      </div>
+      <span className="internkim-overview__path-action">Explore the API</span>
+    </a>
+  </div>
 
-Nothing the agent does is anonymous. It acts with the permissions of whoever
-asked, and the records it leaves carry that person's name.
+  <div className="internkim-overview__operator-link">
+    Already running InternKim? <a href="/running-the-host">Read the host operations guide.</a>
+  </div>
+</div>

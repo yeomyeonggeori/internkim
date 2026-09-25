@@ -3,6 +3,48 @@
 @import 'fumadocs-ui/css/preset.css';
 @import 'fumadocs-openapi/css/preset.css';
 
+@font-face {
+  font-family: 'Freesentation';
+  src: url('/fonts/Freesentation-4Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Freesentation';
+  src: url('/fonts/Freesentation-5Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Freesentation';
+  src: url('/fonts/Freesentation-6SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Freesentation';
+  src: url('/fonts/Freesentation-7Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Freesentation', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --color-fd-primary: #216db5;
+  --color-fd-primary-foreground: #ffffff;
+}
+
+.dark {
+  --color-fd-primary: #79b8f4;
+  --color-fd-primary-foreground: #102237;
+}
+
 html {
   scrollbar-gutter: stable;
 }
@@ -10,4 +52,97 @@ html {
 html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;
+}
+
+.internkim-overview__intro {
+  max-width: 48rem;
+  margin: 0 0 2rem;
+  color: var(--color-fd-foreground);
+  font-size: 1.125rem;
+  line-height: 1.7;
+}
+
+.internkim-overview__section-title {
+  margin: 0 0 0.9rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.internkim-overview__paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.internkim-overview__path {
+  display: flex;
+  min-height: 12rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 0.625rem;
+  color: var(--color-fd-foreground);
+  background: var(--color-fd-background);
+  text-decoration: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.internkim-overview__path:hover {
+  border-color: var(--color-fd-primary);
+  background: var(--color-fd-muted);
+  text-decoration: none;
+}
+
+.internkim-overview__path:focus-visible {
+  outline: 2px solid var(--color-fd-primary);
+  outline-offset: 3px;
+}
+
+.internkim-overview__audience {
+  color: var(--color-fd-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.internkim-overview__path-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.internkim-overview__path-description {
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.internkim-overview__path-action {
+  margin-top: auto;
+  color: var(--color-fd-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.internkim-overview__operator-link {
+  margin: 1rem 0 0;
+  color: var(--color-fd-muted-foreground);
+}
+
+.internkim-overview__intro > p,
+.internkim-overview__path-description > p,
+.internkim-overview__operator-link > p {
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .internkim-overview__paths {
+    grid-template-columns: 1fr;
+  }
+
+  .internkim-overview__path {
+    min-height: 0;
+  }
 }

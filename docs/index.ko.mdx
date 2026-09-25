@@ -1,24 +1,46 @@
 ---
-title: 김인턴 문서
-description: 회사가 직접 굴리는 AI 동료. 무엇인지, 무엇을 할 수 있는지, 어떻게 부르는지.
+title: 회사가 직접 운영하는 AI 동료
+description: 호스트를 설정하고 시스템 구조를 이해하거나 공개 API로 연동하세요.
 ---
 
-김인턴은 회사가 자기 컴퓨터에서 직접 굴리는 AI 동료입니다. 회사 메신저를 읽고,
-요청한 사람의 신원으로 일하며, 파일과 기억을 회사가 소유한
-하드웨어에 남깁니다.
+<div className="internkim-overview">
+  <div className="internkim-overview__intro">
+    김인턴은 회사가 관리하는 컴퓨터에서 실행됩니다. 구성원은 웹 앱이나 회사
+    메신저로 김인턴을 부르고, 모든 요청은 보낸 사람의 신원과 권한을 따릅니다.
+  </div>
 
-<Cards>
-  <Card title="빠른 시작" href="/ko/docs/quickstart" description="회사를 만들고 늘 켜 둘 컴퓨터를 연결하는 법" />
-  <Card title="이해하기" href="/ko/docs/introduction" description="어떤 물건이고, 어떻게 짜여 있고, 누가 무엇을 볼 수 있는지" />
-  <Card title="그 위에 만들기" href="/ko/docs/api" description="토큰, 도구, 그리고 그 아래의 레코드" />
-</Cards>
+  <h2 className="internkim-overview__section-title">필요한 안내를 고르세요</h2>
 
-## 세 문장 요약 [#three-sentences]
+  <div className="internkim-overview__paths">
+    <a className="internkim-overview__path" href="/ko/quickstart">
+      <span className="internkim-overview__audience">회사 관리자</span>
+      <span className="internkim-overview__path-title">회사 설정하기</span>
+      <div className="internkim-overview__path-description">
+        회사를 만들고 늘 켜 둘 컴퓨터를 연결한 뒤 첫 구성원을 초대합니다.
+      </div>
+      <span className="internkim-overview__path-action">빠른 시작 열기</span>
+    </a>
 
-회사는 켜져 있는 컴퓨터 한 대를 둡니다. 하드웨어는 무엇이든 상관없습니다.
+    <a className="internkim-overview__path" href="/ko/architecture">
+      <span className="internkim-overview__audience">시스템 구조</span>
+      <span className="internkim-overview__path-title">동작 방식 이해하기</span>
+      <div className="internkim-overview__path-description">
+        웹 앱, 회사 컴퓨터, 에이전트가 어떻게 연결되는지 살펴봅니다.
+      </div>
+      <span className="internkim-overview__path-action">구조 살펴보기</span>
+    </a>
 
-사람들은 다른 네트워크에서도 웹 앱을 통해 자기 메신저와 파일에 닿습니다. 그
-컴퓨터로 들어오는 연결은 없습니다.
+    <a className="internkim-overview__path" href="/ko/api">
+      <span className="internkim-overview__audience">개발자</span>
+      <span className="internkim-overview__path-title">연동 만들기</span>
+      <div className="internkim-overview__path-description">
+        API 토큰과 에이전트 도구를 사용하고, 실행 기록을 확인합니다.
+      </div>
+      <span className="internkim-overview__path-action">API 문서 열기</span>
+    </a>
+  </div>
 
-에이전트가 하는 일은 하나도 익명이 아닙니다. 요청한 사람의 권한으로 움직이고,
-남는 기록은 그 사람 이름으로 남습니다.
+  <div className="internkim-overview__operator-link">
+    이미 운영 중인가요? <a href="/ko/running-the-host">호스트 운영 안내를 보세요.</a>
+  </div>
+</div>
