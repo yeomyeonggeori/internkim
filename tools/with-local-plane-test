@@ -4,13 +4,78 @@ set -euo pipefail
 repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
 withLocalPlane="$repositoryRoot/tools/with-local-plane"
 lockPath="$(sed -n 's/^lockPath="\(.*\)"$/\1/p' "$withLocalPlane")"
+lastUsedPath="$(sed -n 's/^lastUsedPath="\(.*\)"$/\1/p' "$withLocalPlane")"
 runDirectory="$(mktemp -d)"
-trap 'rm -rf "$runDirectory"' EXIT
+fakeState="$runDirectory/state"
+fakeBinaries="$runDirectory/bin"
+lastUseBeforeTheTest="$runDirectory/last-use-before-the-test"
 
-if [ -z "$lockPath" ]; then
-  echo "tools/with-local-plane no longer declares a lock path this test can read" >&2
+if [ -z "$lockPath" ] || [ -z "$lastUsedPath" ]; then
+  echo "tools/with-local-plane no longer declares a lock path and a last-used path this test can read" >&2
   exit 1
 fi
+
+idleStopsWaiting() {
+  pgrep -f -- "--stop-when-idle" | sort || true
+}
+
+stopTheIdleStopsThisTestStarted() {
+  comm -13 "$runDirectory/idle-stops-before-the-test" <(idleStopsWaiting) | xargs kill 2>/dev/null || true
+}
+
+restoreTheLastUse() {
+  stopTheIdleStopsThisTestStarted
+  if [ -e "$lastUseBeforeTheTest" ]; then
+    cp "$lastUseBeforeTheTest" "$lastUsedPath"
+  else
+    rm -f "$lastUsedPath"
+  fi
+  rm -rf "$runDirectory"
+}
+
+if [ -e "$lastUsedPath" ]; then
+  cp "$lastUsedPath" "$lastUseBeforeTheTest"
+fi
+idleStopsWaiting > "$runDirectory/idle-stops-before-the-test"
+trap restoreTheLastUse EXIT
+
+mkdir -p "$fakeState" "$fakeBinaries"
+
+cat > "$fakeBinaries/supabase" <<FAKE
+#!/usr/bin/env bash
+echo "supabase \$*" >> "$fakeState/calls"
+case "\$1" in
+  status) [ -e "$fakeState/stack" ] ;;
+  start) [ -e "$fakeState/docker" ] && touch "$fakeState/stack" ;;
+  stop) rm -f "$fakeState/stack" ;;
+esac
+FAKE
+
+cat > "$fakeBinaries/colima" <<FAKE
+#!/usr/bin/env bash
+echo "colima \$*" >> "$fakeState/calls"
+case "\$1" in
+  status) [ -e "$fakeState/docker" ] ;;
+  start) touch "$fakeState/docker" ;;
+  stop) rm -f "$fakeState/docker" "$fakeState/stack" "$fakeState/other" ;;
+esac
+FAKE
+
+cat > "$fakeBinaries/docker" <<FAKE
+#!/usr/bin/env bash
+[ -e "$fakeState/docker" ] || exit 1
+case "\$1 \$*" in
+  info*) exit 0 ;;
+  *status=exited*) exit 0 ;;
+  ps*)
+    [ -e "$fakeState/stack" ] && echo supabase_db_fake
+    [ -e "$fakeState/other" ] && echo other_container
+    exit 0 ;;
+esac
+FAKE
+
+chmod +x "$fakeBinaries"/*
+export PATH="$fakeBinaries:$PATH"
 
 unset LOCAL_PLANE_LOCK_HOLDER
 
@@ -81,9 +146,56 @@ if isAbandoned; then
   fail "the lock outlived a command killed by a signal"
 fi
 
+resetFakes() {
+  rm -f "$fakeState"/*
+  for piece in "$@"; do
+    touch "$fakeState/$piece"
+  done
+}
+
+called() {
+  grep -qx "$1" "$fakeState/calls" 2>/dev/null
+}
+
+resetFakes
+"$withLocalPlane" sh -c "[ -e '$fakeState/stack' ]" 2> /dev/null || fail "a command under the lock ran before the stopped plane was started"
+if ! called "colima start"; then
+  fail "a command under the lock found docker down and did not start colima"
+fi
+useToken="$(sed -n 1p "$lastUsedPath" 2>/dev/null || true)"
+if [ -z "$useToken" ]; then
+  fail "releasing the lock with the plane up recorded no last use"
+elif ! pgrep -f -- "--stop-when-idle $useToken" >/dev/null; then
+  fail "releasing the lock with the plane up left nothing to stop it once idle"
+fi
+
+resetFakes docker stack
+printf 'idle\n' > "$lastUsedPath"
+"$withLocalPlane" --stop-when-idle idle 0
+if [ -e "$fakeState/stack" ] || [ -e "$fakeState/docker" ]; then
+  fail "a plane unused since the last release was not stopped"
+fi
+
+resetFakes docker stack
+printf 'newer\n' > "$lastUsedPath"
+"$withLocalPlane" --stop-when-idle idle 0
+if called "supabase stop"; then
+  fail "a plane used again after the release was stopped anyway"
+fi
+
+resetFakes docker stack other
+printf 'idle\n' > "$lastUsedPath"
+"$withLocalPlane" --stop-when-idle idle 0 > /dev/null
+if [ -e "$fakeState/stack" ]; then
+  fail "an idle plane beside other containers was not stopped"
+fi
+if called "colima stop"; then
+  fail "colima was stopped under containers that are not the plane"
+fi
+
 if [ "$failures" -ne 0 ]; then
   printf '%s check(s) failed\n' "$failures" >&2
   exit 1
 fi
 
-echo "the local plane lock queues concurrent commands"
+echo "the local plane lock queues concurrent commands and stops an idle plane"
