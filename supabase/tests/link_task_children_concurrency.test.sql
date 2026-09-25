@@ -2,15 +2,15 @@ create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
 
 delete from public.task_participant
-where member_id = '44000000-0000-0000-0000-0000000000a1';
+where member_id = '4d000000-0000-0000-0000-0000000000a1';
 delete from public.task
-where company_id = '44000000-0000-0000-0000-0000000000a0';
+where company_id = '4d000000-0000-0000-0000-0000000000a0';
 delete from public.member
-where id = '44000000-0000-0000-0000-0000000000a1';
+where id = '4d000000-0000-0000-0000-0000000000a1';
 delete from public.company
-where id = '44000000-0000-0000-0000-0000000000a0';
+where id = '4d000000-0000-0000-0000-0000000000a0';
 delete from auth.users
-where id = '44000000-0000-0000-0000-000000000001';
+where id = '4d000000-0000-0000-0000-000000000001';
 do $$
 begin
 	if exists (
@@ -51,29 +51,29 @@ grant execute on function public.task_parent_set(uuid, uuid)
 	to task_child_dblink_login;
 
 insert into auth.users (id, email) values
-	('44000000-0000-0000-0000-000000000001', 'race-link@example.test');
+	('4d000000-0000-0000-0000-000000000001', 'race-link@example.test');
 
 insert into public.company (id, name, slug, country, locale, timezone) values
-	('44000000-0000-0000-0000-0000000000a0', 'Race Link', 'race-link', 'KR', 'ko', 'Asia/Seoul');
+	('4d000000-0000-0000-0000-0000000000a0', 'Race Link', 'race-link', 'KR', 'ko', 'Asia/Seoul');
 
 insert into public.member (id, company_id, email, user_id, status) values
 	(
-		'44000000-0000-0000-0000-0000000000a1',
-		'44000000-0000-0000-0000-0000000000a0',
+		'4d000000-0000-0000-0000-0000000000a1',
+		'4d000000-0000-0000-0000-0000000000a0',
 		'race-link@example.test',
-		'44000000-0000-0000-0000-000000000001',
+		'4d000000-0000-0000-0000-000000000001',
 		'active'
 	);
 
 insert into public.task (id, company_id, title, parent_task_id) values
-	('44000000-0000-0000-0000-000000000101', '44000000-0000-0000-0000-0000000000a0', 'Winning parent', null),
-	('44000000-0000-0000-0000-000000000102', '44000000-0000-0000-0000-0000000000a0', 'Challenging parent', null),
-	('44000000-0000-0000-0000-000000000103', '44000000-0000-0000-0000-0000000000a0', 'Contended child', null);
+	('4d000000-0000-0000-0000-000000000101', '4d000000-0000-0000-0000-0000000000a0', 'Winning parent', null),
+	('4d000000-0000-0000-0000-000000000102', '4d000000-0000-0000-0000-0000000000a0', 'Challenging parent', null),
+	('4d000000-0000-0000-0000-000000000103', '4d000000-0000-0000-0000-0000000000a0', 'Contended child', null);
 
 insert into public.task_participant (task_id, member_id) values
-	('44000000-0000-0000-0000-000000000101', '44000000-0000-0000-0000-0000000000a1'),
-	('44000000-0000-0000-0000-000000000102', '44000000-0000-0000-0000-0000000000a1'),
-	('44000000-0000-0000-0000-000000000103', '44000000-0000-0000-0000-0000000000a1');
+	('4d000000-0000-0000-0000-000000000101', '4d000000-0000-0000-0000-0000000000a1'),
+	('4d000000-0000-0000-0000-000000000102', '4d000000-0000-0000-0000-0000000000a1'),
+	('4d000000-0000-0000-0000-000000000103', '4d000000-0000-0000-0000-0000000000a1');
 
 begin;
 select plan(2);
@@ -102,14 +102,14 @@ begin
 	perform extensions.dblink_exec('task_child_holder', $session$
 		do $configure$
 		begin
-			perform set_config('request.jwt.claim.sub', '44000000-0000-0000-0000-000000000001', false);
+			perform set_config('request.jwt.claim.sub', '4d000000-0000-0000-0000-000000000001', false);
 		end;
 		$configure$;
 	$session$);
 	perform extensions.dblink_exec('task_child_challenger', $session$
 		do $configure$
 		begin
-			perform set_config('request.jwt.claim.sub', '44000000-0000-0000-0000-000000000001', false);
+			perform set_config('request.jwt.claim.sub', '4d000000-0000-0000-0000-000000000001', false);
 		end;
 		$configure$;
 	$session$);
@@ -119,8 +119,8 @@ begin
 		do $link$
 		begin
 			perform public.task_parent_set(
-				'44000000-0000-0000-0000-000000000103',
-				'44000000-0000-0000-0000-000000000101'
+				'4d000000-0000-0000-0000-000000000103',
+				'4d000000-0000-0000-0000-000000000101'
 			);
 		end;
 		$link$;
@@ -140,8 +140,8 @@ do $$
 begin
 	perform extensions.dblink_send_query('task_child_challenger', $challenger$
 		select public.task_children_link(
-			'44000000-0000-0000-0000-000000000102',
-			array['44000000-0000-0000-0000-000000000103'::uuid]
+			'4d000000-0000-0000-0000-000000000102',
+			array['4d000000-0000-0000-0000-000000000103'::uuid]
 		);
 	$challenger$);
 
@@ -184,9 +184,9 @@ select is(
 	(
 		select parent_task_id
 		from public.task
-		where id = '44000000-0000-0000-0000-000000000103'
+		where id = '4d000000-0000-0000-0000-000000000103'
 	),
-	'44000000-0000-0000-0000-000000000101'::uuid,
+	'4d000000-0000-0000-0000-000000000101'::uuid,
 	'link task children: a concurrent request cannot overwrite the first committed parent'
 );
 
@@ -201,15 +201,15 @@ select * from finish();
 rollback;
 
 delete from public.task_participant
-where member_id = '44000000-0000-0000-0000-0000000000a1';
+where member_id = '4d000000-0000-0000-0000-0000000000a1';
 delete from public.task
-where company_id = '44000000-0000-0000-0000-0000000000a0';
+where company_id = '4d000000-0000-0000-0000-0000000000a0';
 delete from public.member
-where id = '44000000-0000-0000-0000-0000000000a1';
+where id = '4d000000-0000-0000-0000-0000000000a1';
 delete from public.company
-where id = '44000000-0000-0000-0000-0000000000a0';
+where id = '4d000000-0000-0000-0000-0000000000a0';
 delete from auth.users
-where id = '44000000-0000-0000-0000-000000000001';
+where id = '4d000000-0000-0000-0000-000000000001';
 revoke usage on schema public from task_child_dblink_login;
 revoke execute on function public.task_children_link(uuid, uuid[])
 	from task_child_dblink_login;

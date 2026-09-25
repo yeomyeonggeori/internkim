@@ -2,13 +2,13 @@ create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
 
 delete from public.attendance
-where member_id = '45000000-0000-0000-0000-0000000000a1';
+where member_id = '4c000000-0000-0000-0000-0000000000a1';
 delete from public.member
-where id = '45000000-0000-0000-0000-0000000000a1';
+where id = '4c000000-0000-0000-0000-0000000000a1';
 delete from public.company
-where id = '45000000-0000-0000-0000-0000000000a0';
+where id = '4c000000-0000-0000-0000-0000000000a0';
 delete from auth.users
-where id = '45000000-0000-0000-0000-000000000001';
+where id = '4c000000-0000-0000-0000-000000000001';
 do $$
 begin
 	if exists (
@@ -45,11 +45,11 @@ grant execute on function public.attendance_correct(jsonb, text)
 	to attendance_correction_dblink_login;
 
 insert into auth.users (id, email) values
-	('45000000-0000-0000-0000-000000000001', 'attendance-race@example.test');
+	('4c000000-0000-0000-0000-000000000001', 'attendance-race@example.test');
 
 insert into public.company (id, name, slug, country, locale, timezone, work_locations) values
 	(
-		'45000000-0000-0000-0000-0000000000a0',
+		'4c000000-0000-0000-0000-0000000000a0',
 		'샘플회사',
 		'attendance-race',
 		'KR',
@@ -60,25 +60,25 @@ insert into public.company (id, name, slug, country, locale, timezone, work_loca
 
 insert into public.member (id, company_id, email, user_id, status, is_admin) values
 	(
-		'45000000-0000-0000-0000-0000000000a1',
-		'45000000-0000-0000-0000-0000000000a0',
+		'4c000000-0000-0000-0000-0000000000a1',
+		'4c000000-0000-0000-0000-0000000000a0',
 		'attendance-race@example.test',
-		'45000000-0000-0000-0000-000000000001',
+		'4c000000-0000-0000-0000-000000000001',
 		'active',
 		true
 	);
 
 insert into public.attendance (id, member_id, kind, location, occurred_at) values
 	(
-		'45000000-0000-0000-0000-000000000101',
-		'45000000-0000-0000-0000-0000000000a1',
+		'4c000000-0000-0000-0000-000000000101',
+		'4c000000-0000-0000-0000-0000000000a1',
 		'clock_in',
 		'Office',
 		'2026-08-10 09:00:00+09'
 	),
 	(
-		'45000000-0000-0000-0000-000000000102',
-		'45000000-0000-0000-0000-0000000000a1',
+		'4c000000-0000-0000-0000-000000000102',
+		'4c000000-0000-0000-0000-0000000000a1',
 		'clock_out',
 		null,
 		'2026-08-10 10:00:00+09'
@@ -111,14 +111,14 @@ begin
 	perform extensions.dblink_exec('attendance_correction_holder', $session$
 		do $configure$
 		begin
-			perform set_config('request.jwt.claim.sub', '45000000-0000-0000-0000-000000000001', false);
+			perform set_config('request.jwt.claim.sub', '4c000000-0000-0000-0000-000000000001', false);
 		end;
 		$configure$;
 	$session$);
 	perform extensions.dblink_exec('attendance_correction_challenger', $session$
 		do $configure$
 		begin
-			perform set_config('request.jwt.claim.sub', '45000000-0000-0000-0000-000000000001', false);
+			perform set_config('request.jwt.claim.sub', '4c000000-0000-0000-0000-000000000001', false);
 		end;
 		$configure$;
 	$session$);
@@ -128,7 +128,7 @@ begin
 		do $correct$
 		begin
 			perform public.attendance_correct(
-				'[{"event_id":"45000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"09:50","location":"Office"}]'::jsonb,
+				'[{"event_id":"4c000000-0000-0000-0000-000000000101","local_date":"2026-08-10","local_time":"09:50","location":"Office"}]'::jsonb,
 				'첫 번째 수정'
 			);
 		end;
@@ -149,7 +149,7 @@ do $$
 begin
 	perform extensions.dblink_send_query('attendance_correction_challenger', $challenger$
 		select public.attendance_correct(
-			'[{"event_id":"45000000-0000-0000-0000-000000000102","local_date":"2026-08-10","local_time":"09:20","location":"Office"}]'::jsonb,
+			'[{"event_id":"4c000000-0000-0000-0000-000000000102","local_date":"2026-08-10","local_time":"09:20","location":"Office"}]'::jsonb,
 			'두 번째 수정'
 		);
 	$challenger$);
@@ -193,7 +193,7 @@ select is(
 	(
 		select array_agg(occurred_at order by id)
 		from public.attendance
-		where member_id = '45000000-0000-0000-0000-0000000000a1'
+		where member_id = '4c000000-0000-0000-0000-0000000000a1'
 	),
 	array[
 		'2026-08-10 09:50:00+09'::timestamptz,
@@ -213,13 +213,13 @@ select * from finish();
 rollback;
 
 delete from public.attendance
-where member_id = '45000000-0000-0000-0000-0000000000a1';
+where member_id = '4c000000-0000-0000-0000-0000000000a1';
 delete from public.member
-where id = '45000000-0000-0000-0000-0000000000a1';
+where id = '4c000000-0000-0000-0000-0000000000a1';
 delete from public.company
-where id = '45000000-0000-0000-0000-0000000000a0';
+where id = '4c000000-0000-0000-0000-0000000000a0';
 delete from auth.users
-where id = '45000000-0000-0000-0000-000000000001';
+where id = '4c000000-0000-0000-0000-000000000001';
 revoke usage on schema public from attendance_correction_dblink_login;
 revoke execute on function public.attendance_correct(jsonb, text)
 	from attendance_correction_dblink_login;
