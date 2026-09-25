@@ -17,40 +17,33 @@ access model; [Clearance](/docs/data-room/clearance) walks through it.
 
 ## The seven rules
 
-1. **The folder decides who reads.** Where a document lives is who may read it.
-   There is no per-file permission to set.
-2. **You write the label; the catalog writes itself.** The only thing a person
-   fills in is a document's label: title, kind, date, a one-line summary. The
-   index and the domain catalogs are generated from those labels and checked
-   against them.
-3. **A PDF, an image or a recording always has a text twin.** internkim reads
-   text. A binary is filed together with a sidecar that says what is in it, and
-   the original is opened only when the sidecar cannot answer.
-4. **Nothing is overwritten.** A new version is a new document that says which
-   one it replaces. The old one stays, marked superseded.
-5. **Publishing is a copy that names its source.** Something for the outside
-   world is a copy in the public domain, with the document it was made from
-   written on it.
-6. **A member is one number.** Everyone starts at clearance 1. The first
-   administrator holds 3. An administrator adjusts only the people below them,
-   and only up to their own clearance.
-7. **The record enforces it.** A document is a row in the company record and a
-   file in its storage. One policy compares the reader's clearance with the
-   document's, and nothing else decides.
+1. Access follows the document's folder. Files have no separate permission setting.
+2. People write a document's label: title, kind, date and one-line summary. The
+   index and domain catalogs are generated from those labels and checked against them.
+3. Every PDF, image or recording has a text sidecar that describes its contents.
+   internkim reads the text and opens the original when the sidecar cannot answer.
+4. A new version identifies the document it replaces; earlier versions remain
+   marked as superseded.
+5. Publish outside material as a copy in the public domain that names its source
+   document.
+6. Each member has one clearance number. Members start at 1, the first administrator
+   holds 3, and administrators can adjust lower-clearance members up to their own.
+7. Each document has a record row and a stored file. One policy compares the
+   reader's and document's clearance to decide access.
 
 ## Using it
 
 Ask internkim, in the messenger or the web app's chat screen, the way you would
 ask the colleague who keeps the archive.
 
-- **"Find the lease for the Pangyo office."** It searches the catalogs you are
+- "Find the lease for the Pangyo office." It searches the catalogs you are
   cleared for and answers with the document's title, date and summary, opening
   the file only if the summary is not enough.
-- **"File this."** with an attachment. It derives the text, drafts the label,
+- "File this." with an attachment. It derives the text, drafts the label,
   proposes a domain, and asks you to confirm before anything moves.
-- **"Send me the original."** It delivers the file to you, as a message or into
+- "Send me the original." It delivers the file to you, as a message or into
   your own `artifacts/` folder, and logs the delivery under your name.
-- **"Publish the 2026 deck."** An administrator's request. It copies the deck
+- "Publish the 2026 deck." An administrator's request. It copies the deck
   into the public domain with its source recorded.
 
 A member sees what they are cleared for, and a search does not mention what

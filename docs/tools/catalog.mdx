@@ -24,10 +24,10 @@ each call may see. Updates and deletes take a `taskHint`: the exact task ID or e
 before calling.
 
 `task_list` answers the current week when neither `weekFrom` nor `weekTo` is
-given. Which week a task falls in follows its status rather than its dates
-alone: planned or paused work that has not started yet rolls forward into the
-week being read, so nothing planned is ever out of sight, and completed,
-rejected or stopped work stays in the week it ended in. `query` matches the
+given. Task status determines its listing week: tasks marked `planned` or
+`paused` that have not started roll into the week being read, keeping upcoming
+work visible. Tasks marked `completed`, `rejected` or `stopped` stay in the
+week they ended in. `query` matches the
 title, business, type, owner's name and status, ignoring case and spacing.
 
 Adding the same title for the same owner twice within ten minutes updates the
@@ -70,8 +70,8 @@ caller can update that one instead. There is no way to ask for it twice.
 
 <ToolCatalog namespace="leave" />
 
-Implemented on the central plane in
-`web/src/lib/server/public-api/record/leave-tools.ts`, against the record's
+The central-plane handler in
+`web/src/lib/server/public-api/record/leave-tools.ts` uses the record's
 own `leave` table and its `leave_in_full` and `member_leave_remaining`
 functions, running as the calling member so row level security decides what
 each call may see. The quantity is `days` as a number and the type is the
@@ -84,8 +84,8 @@ spends the entitlement.
 
 <ToolCatalog namespace="attendance" />
 
-Implemented on the central plane in
-`web/src/lib/server/public-api/record/attendance-tools.ts`, against the
+The central-plane handler in
+`web/src/lib/server/public-api/record/attendance-tools.ts` uses the
 record's `attendance` table and its `attendance_add`, `attendance_correct`,
 and `attendance_remove` functions, running as the calling member. Days are
 `yyyy-mm-dd`, times are 24-hour `HH:MM`, and both are read in the company's
@@ -139,7 +139,7 @@ and which write through the writers `task_add` and `event_add` already use.
 
 <ToolCatalog namespace="message" />
 
-Implemented in `internal/capabilityd/platform_message_tool.go` and
+The handler lives in `internal/capabilityd/platform_message_tool.go` and
 `mattermost_tool.go`. `message_search` has two modes: keyword `queries`
 return IDs with a preview around the match, and `messageIDs` returns those
 messages complete. `message_update` edits one exact span of the agent's own
@@ -152,21 +152,21 @@ skip approval.
 
 <ToolCatalog namespace="channel" />
 
-Implemented in `internal/capabilityd/mattermost_tool.go`. Display name,
+The handler lives in `internal/capabilityd/mattermost_tool.go`. Display name,
 header, and membership changes all go through this one gated tool.
 
 ## Web [#web]
 
 <ToolCatalog namespace="web" />
 
-Implemented in `internal/capabilityd/web_tool.go` through OpenRouter's web
-search. Domain allowlists, language, and location narrow the query.
+The handler lives in `internal/capabilityd/web_tool.go` and uses OpenRouter's
+web search. Domain allowlists, language, and location narrow the query.
 
 ## Sites [#site]
 
 <ToolCatalog namespace="site" />
 
-Implemented in `internal/capabilityd/site_tool.go` over admind. The agent
+The handler lives in `internal/capabilityd/site_tool.go` and calls admind. The agent
 builds a site as ordinary files in the workspace, then serves that directory:
 `preview` returns a temporary review URL, `publish` takes the public one. The
 slug is derived from the title on first serve and owned by the server.
@@ -179,16 +179,16 @@ The model reads with one built-in tool, `read`: a workspace path or an
 attachment's exact url from the conversation. Text comes back as text,
 documents (HTML, PDF, DOCX, PPTX, XLSX, and friends) as converted Markdown,
 images as an image the model sees — the runtime picks the modality from the
-content type, so there is nothing to choose. The converters behind it are
-implemented in `internal/capabilityd/file_read_tool.go` (with
-`file_read_helper.py` doing format extraction) and are not exposed to the
-model directly.
+content type, so there is nothing to choose. The converter adapter is in
+`internal/capabilityd/file_read_tool.go`; it uses `file_read_helper.py` for
+format extraction. The model calls the `read` tool, not either adapter
+directly.
 
 ## Browser [#browser]
 
 <ToolCatalog namespace="browser" />
 
-Implemented in `internal/capabilityd/browser_tool.go`. Calls route to the
+The handler lives in `internal/capabilityd/browser_tool.go`. Calls route to the
 companion on the user's own computer when it is connected, with the device
 browser as the other provider. `browser_open` requires the user present, and
 responses carry no cookies, profile paths, or local screenshot paths;
@@ -202,14 +202,14 @@ Login, MFA, and captcha steps are handed to the human.
 Pairing starts in Settings → My computer of the web app: admind issues a
 ten-minute code addressed to the signed-in member
 (`internal/admind/companion_member_routes.go`) and the page shows the install,
-pair and service commands to run. The tool itself is implemented in
+pair and service commands to run. Its handler lives in
 `internal/companion/computer`. The companion opens its own
 persistent browser profile through [Cua Driver](https://cua.ai/driver), and
 for each step asks the device to put the page and a bounded list of candidate
 actions to a decision model (`internal/capabilityd/llm_decide.go`, reached
 over `/_internkim/companion/decisions`). The decision model never sees the
 inference key and can only pick from the actions the companion listed; an
-answer outside that list ends the task. The result names its outcome honestly
+answer outside that list ends the task. The result names its outcome
 (`verified` only when a fresh observation showed the goal reached) and carries
 the final page so the agent can judge for itself.
 
@@ -217,6 +217,6 @@ the final page so the agent can judge for itself.
 
 <ToolCatalog namespace="artifact" />
 
-Implemented in `internal/capabilityd/artifact_review_tool.go`. This is the
+The handler lives in `internal/capabilityd/artifact_review_tool.go`. This is the
 agent's own quality loop: it renders what it built, screenshots it, and asks
 for typed visual issues against the stated intent before delivering.

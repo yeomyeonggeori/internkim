@@ -21,8 +21,8 @@ it, and a script they run finds nothing.
 A new member starts at 1. The first administrator of a company holds 3, and
 promoting someone to administrator sets their clearance to the promoter's.
 
-An administrator may change the clearance of a member who is currently below
-them, to any value up to their own. Three requests are refused however they
+An administrator may change the clearance of a member below them to any value
+up to their own. Three requests are refused however they
 are phrased: raising a peer or a superior, a non-administrator setting anyone's
 clearance, and an administrator lowering themself when it would leave the
 company without a member at 3.
@@ -36,16 +36,15 @@ circle's workspace folder rather than the data room.
 
 Every member may add. Three rules decide what happens.
 
-1. **Into a domain at or below your clearance, the document is filed
-   directly.** internkim drafts the label, you confirm, and it is in place.
-2. **Into a domain above your clearance, the document is a submission.** It is
-   registered at your own clearance with the intended domain written on it,
+1. A document for a domain at or below your clearance is filed directly.
+   internkim drafts the label; you confirm it, and the document is in place.
+2. A document for a higher-clearance domain is submitted. It is registered at
+   your clearance with the intended domain written on it,
    and waits in `inbox/` until a member cleared for that domain raises it. An
    accountant at clearance 1 filing an audit report into finance does exactly
    this, and the finance manager's confirmation is the raise.
-3. **Moving, superseding or handing out a document requires reading it.** The
-   member who moves a document between domains, marks it superseded, or asks
-   for the original must be cleared for it.
+3. You must be able to read a document before moving it, marking it superseded,
+   or requesting its original.
 
 A submission older than seven days in `inbox/` is flagged by the data room's
 check, so a raise nobody made is noticed.
