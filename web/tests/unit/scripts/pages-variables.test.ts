@@ -1,8 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import declarations from '../../../../tools/environment.json';
-import { refusalOfPagesVariables, variablesRequiredOnPages } from '../../../scripts/pages-variables';
+import {
+	refusalOfPagesVariables,
+	requiresPagesRuntimeVariables,
+	variablesRequiredOnPages
+} from '../../../scripts/pages-variables';
 
 describe('the settings a production deploy needs on the Pages project', () => {
+	test('only the static docs project skips company runtime variable checks', () => {
+		expect(requiresPagesRuntimeVariables('internkim')).toBe(true);
+		expect(requiresPagesRuntimeVariables('internkim-docs')).toBe(false);
+		expect(requiresPagesRuntimeVariables('another-pages-project')).toBe(true);
+	});
+
 	test('the declaration file names the gateway token among them', () => {
 		expect(variablesRequiredOnPages(declarations)).toContain('GATEWAY_ADMIN_TOKEN');
 	});
