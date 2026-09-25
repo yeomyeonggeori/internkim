@@ -8,7 +8,12 @@ import { domainsOf, hostnamesNotAnswering, hostnamesToAnswerFor } from './pages-
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
 import { ensureProductionSchemaIsCurrent } from './production-schema';
 import { requiredSetting } from './repository-setting';
-import { refusalOfPagesVariables, variablesRequiredOnPages, type HeldVariables } from './pages-variables';
+import {
+	refusalOfPagesVariables,
+	requiresPagesRuntimeVariables,
+	variablesRequiredOnPages,
+	type HeldVariables
+} from './pages-variables';
 import declarations from '../../tools/environment.json';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
@@ -75,13 +80,15 @@ if (isProduction) {
 		console.error(`refusing to replace production: ${refusal}`);
 		process.exit(1);
 	}
-	const variablesRefusal = refusalOfPagesVariables(
-		variablesRequiredOnPages(declarations),
-		pagesProject?.deployment_configs?.production?.env_vars ?? {}
-	);
-	if (variablesRefusal) {
-		console.error(`refusing to deploy production: ${variablesRefusal}`);
-		process.exit(1);
+	if (requiresPagesRuntimeVariables(project)) {
+		const variablesRefusal = refusalOfPagesVariables(
+			variablesRequiredOnPages(declarations),
+			pagesProject?.deployment_configs?.production?.env_vars ?? {}
+		);
+		if (variablesRefusal) {
+			console.error(`refusing to deploy production: ${variablesRefusal}`);
+			process.exit(1);
+		}
 	}
 	await ensureProductionSchemaIsCurrent();
 }

@@ -4,6 +4,10 @@ export type HeldVariables = Record<string, { type?: string }>;
 
 const secretType = 'secret_text';
 
+export function requiresPagesRuntimeVariables(projectName: string): boolean {
+	return projectName !== 'internkim-docs';
+}
+
 export function variablesRequiredOnPages(declarations: Record<string, Declaration>): string[] {
 	return Object.entries(declarations)
 		.filter(([, declaration]) => declaration.isRequiredOnPages === true)
