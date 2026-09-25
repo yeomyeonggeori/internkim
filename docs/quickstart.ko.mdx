@@ -26,7 +26,11 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 확인합니다. OpenRouter 키는 회사 컴퓨터에서 숨겨진 입력으로 받습니다.
 직원 컴퓨터에는 아무것도 설치하지 않습니다.
 
-## 1. 회사 만들기
+<Steps>
+
+<Step>
+
+## 회사 만들기 [#1-회사-만들기]
 
 [회사 시작 페이지](https://intern.kim/auth/claim?new-company=1)를 열고
 첫 관리자의 이메일 주소를 입력하세요. 이메일로 받은 일회용 코드를 입력하고
@@ -41,7 +45,11 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 
 ![샘플 값이 들어간 한국어 회사 만들기 화면](/images/quickstart/company-ko.png)
 
-## 2. 회사 연결 파일 받기
+</Step>
+
+<Step>
+
+## 회사 연결 파일 받기 [#2-회사-연결-파일-받기]
 
 `https://intern.kim/<회사-주소>/settings/setup`을 여세요.
 `연결 파일 받기`를 눌러 `internkim-host.json`을 회사 서버로 쓸 컴퓨터에
@@ -52,7 +60,11 @@ Supabase 중앙 평면과 웹 앱 뒤의 Cloudflare 서비스는 김인턴이 �
 
 ![로컬 연결 확인이 성공한 한국어 회사 설정 화면](/images/quickstart/setup-ko.png)
 
-## 3. 회사 서버 설치하기
+</Step>
+
+<Step>
+
+## 회사 서버 설치하기 [#3-회사-서버-설치하기]
 
 아직 내려받아 실행할 설치 프로그램이 없습니다. 회사 서버를 apt와 Homebrew
 패키지로 준비하고 있습니다. 그때까지는 회사 컴퓨터에서 이 저장소를 받아 양쪽을
@@ -88,7 +100,11 @@ docker compose --env-file compose.env start
 그 디렉터리의 `compose.yaml`을 Docker Compose가 자동으로 찾습니다. `stop`과
 `start`는 볼륨을 유지하므로, 잠시 멈출 때 디렉터리나 볼륨을 지우지 마세요.
 
-## 4. 사람을 초대하고 첫 메시지 보내기
+</Step>
+
+<Step>
+
+## 사람을 초대하고 첫 메시지 보내기 [#4-사람을-초대하고-첫-메시지-보내기]
 
 연결 확인이 성공한 뒤 `/<회사-주소>/settings/setup`의 초대 영역에서 사람을
 추가하세요. 초대할 때마다 임시 비밀번호가 화면에 한 번 표시되고 메일은
@@ -109,6 +125,10 @@ docker compose --env-file compose.env start
 
 에이전트는 설치 때 입력한 OpenRouter 키를 사용합니다. 사람들은 서버를 각자
 설치하지 않고 호스팅된 웹 앱과 회사 메신저를 사용합니다.
+
+</Step>
+
+</Steps>
 
 ## 컴퓨터를 바꿀 때
 

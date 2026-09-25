@@ -27,21 +27,30 @@ export async function loader({ params }: Route.LoaderArgs) {
 
   return {
     locale,
+    isLandingPage: slugs.length === 0,
     path: page.path,
     markdownUrl: getPageMarkdownUrl(page).url,
     pageTree: await source.serializePageTree(source.getPageTree(locale)),
   };
 }
 
-function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
+function Content({
+  path,
+  markdownUrl,
+  isLandingPage,
+}: {
+  path: string;
+  markdownUrl: string;
+  isLandingPage: boolean;
+}) {
   const page = docs.getPage(path);
   if (!page) throw new Error(`unknown page: ${path}`);
 
-  const { toc } = use(page.load());
+  const { toc: pageToc } = use(page.load());
   const Mdx = page.body;
 
   return (
-    <DocsPage toc={toc}>
+    <DocsPage toc={isLandingPage ? [] : pageToc}>
       <title>{page.title}</title>
       <meta name="description" content={page.description} />
       <DocsTitle>{page.title}</DocsTitle>
@@ -61,11 +70,11 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
 }
 
 export default function Page({ loaderData }: Route.ComponentProps) {
-  const { pageTree, path, markdownUrl, locale } = useFumadocsLoader(loaderData);
+  const { pageTree, path, markdownUrl, locale, isLandingPage } = useFumadocsLoader(loaderData);
 
   return (
     <DocsLayout {...baseOptions(locale)} tree={pageTree}>
-      <Content path={path} markdownUrl={markdownUrl} />
+      <Content path={path} markdownUrl={markdownUrl} isLandingPage={isLandingPage} />
     </DocsLayout>
   );
 }

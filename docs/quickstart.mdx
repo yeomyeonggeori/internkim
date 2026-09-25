@@ -26,7 +26,11 @@ The installer checks Docker Compose and that Docker is using Linux containers.
 The OpenRouter key is entered as a hidden prompt on the company computer.
 Employees do not install anything on their own computers.
 
-## 1. Create the company
+<Steps>
+
+<Step>
+
+## Create the company [#1-create-the-company]
 
 Open [the company sign-up page](https://intern.kim/auth/claim?new-company=1)
 and enter the first administrator's email address. Enter the one-time code from
@@ -42,7 +46,11 @@ connected so their temporary passwords are shown in the setup screen.
 
 ![Korean company creation form with sample values](/images/quickstart/company-ko.png)
 
-## 2. Download the company connection file
+</Step>
+
+<Step>
+
+## Download the company connection file [#2-download-the-company-connection-file]
 
 Open `https://intern.kim/<company-address>/settings/setup`. Choose
 `Download connection file` and save `internkim-host.json` to the computer that
@@ -53,7 +61,11 @@ The setup page provides `Check connection` after installation.
 
 ![Korean company setup screen with a successful local connection check](/images/quickstart/setup-ko.png)
 
-## 3. Install the company server
+</Step>
+
+<Step>
+
+## Install the company server [#3-install-the-company-server]
 
 There is no installer to download and run yet; the company server is being
 packaged for apt and Homebrew. Until that lands, build both halves on the
@@ -92,7 +104,11 @@ Docker Compose finds the stored `compose.yaml` in that directory. `stop` and
 `start` keep the volumes; remove neither the directory nor the volumes when
 you only mean to pause the server.
 
-## 4. Invite people and try the first message
+</Step>
+
+<Step>
+
+## Invite people and try the first message [#4-invite-people-and-try-the-first-message]
 
 After the connection check succeeds, use the invitation section on
 `/<company-address>/settings/setup` to add people. The page shows the temporary
@@ -115,6 +131,10 @@ item in `Tasks`.
 The agent uses the OpenRouter key entered during installation. People use the
 hosted web app and the company's messenger without installing the server
 locally.
+
+</Step>
+
+</Steps>
 
 ## If the computer is replaced
 

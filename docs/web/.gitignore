@@ -12,4 +12,5 @@ app/generated/
 /public/favicon.png
 /public/favicon-192.png
 /public/favicon-512.png
+/public/fonts/
 .playwright-mcp/
