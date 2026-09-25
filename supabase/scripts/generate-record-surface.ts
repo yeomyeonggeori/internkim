@@ -1,11 +1,10 @@
 import { SQL } from 'bun';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { localDatabaseURL } from './local-database-url';
 
 const supabaseDirectory = fileURLToPath(new URL('..', import.meta.url));
 const surfacePath = `${supabaseDirectory}generated/record-surface.json`;
-const databaseURL =
-	process.env.SUPABASE_DB_URL ?? 'postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres';
 
 type RecordFunction = {
 	name: string;
@@ -87,7 +86,7 @@ async function readEdgeFunctions(): Promise<EdgeFunction[]> {
 }
 
 async function readRecordSurface(): Promise<RecordSurface> {
-	const sql = new SQL(databaseURL);
+	const sql = new SQL(localDatabaseURL);
 	try {
 		const functions = await readFunctions(sql);
 		return {

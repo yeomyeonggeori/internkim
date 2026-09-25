@@ -892,7 +892,7 @@
   },
   "SUPABASE_DB_URL": {
     "process": "tooling",
-    "description": "the database supabase/scripts/generate-record-surface.ts reads pg_proc from; defaults to the local Supabase at postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"
+    "description": "the database supabase/scripts/generate-record-surface.ts reads pg_proc from and supabase/tests/concurrency races two sessions against, both through supabase/scripts/local-database-url.ts; defaults to the local Supabase at postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"
   },
   "SUPABASE_JWKS_URL": {
     "process": "connection-gateway worker",

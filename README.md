@@ -234,8 +234,9 @@ Agent memory stays on the host with the agent, kept by
 ### The central plane, locally
 
 ```bash
-supabase db reset      # schema and fixtures
-supabase test db       # pgTAP
+supabase db reset                      # schema and fixtures
+supabase test db                       # pgTAP
+bun test ./supabase/tests/concurrency  # races between two sessions
 cd web && bun run dev
 ```
 

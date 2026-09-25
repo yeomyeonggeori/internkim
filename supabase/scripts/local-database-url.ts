@@ -1,0 +1,2 @@
+export const localDatabaseURL =
+	process.env.SUPABASE_DB_URL ?? 'postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres';

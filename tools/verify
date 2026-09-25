@@ -176,7 +176,11 @@ GROUPS = [
         [
             ["tools/verify-migration-versions"],
             ["bun", "run", "web/scripts/check-supabase-config.ts"],
-            holding_the_local_plane(["supabase", "db", "reset"], ["supabase", "test", "db"]),
+            holding_the_local_plane(
+                ["supabase", "db", "reset"],
+                ["supabase", "test", "db"],
+                ["bun", "test", "./supabase/tests/concurrency"],
+            ),
         ],
         lane="web",
     ),
