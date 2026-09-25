@@ -46,6 +46,9 @@ def main():
     if not base or base == head:
         return 0
 
+    if not is_ancestor(base, "origin/main"):
+        return 0
+
     if not is_ancestor(base, head):
         print(f"{SUBMODULE} would move backwards, {base} -> {head}.", file=sys.stderr)
         print("A rebase drops a pointer bump whose patch already appeared upstream.", file=sys.stderr)
