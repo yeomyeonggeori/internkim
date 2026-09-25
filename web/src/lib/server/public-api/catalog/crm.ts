@@ -6,12 +6,13 @@ import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
   CapabilitySideEffect,
+  ResourceEffectIdentity,
 } from './protocol';
 
 import { taskLabelVocabularySchema } from './labels';
 import { WorkspaceTaskStatus } from './workspace-task';
 
-import type { CapabilityToolDefinition } from './definition';
+import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 const resourceIDSchema = z.string()
   .min(1)
@@ -270,6 +271,10 @@ export const crmActivityResultSchema = z.strictObject({
   updatedAt: z.string(),
 });
 
+export const crmActivitySaveResultSchema = crmActivityResultSchema.extend({
+  isNew: z.boolean().describe('true when this call wrote a new activity, false when it changed the one activityHint named.'),
+});
+
 export const crmActivityListResultSchema = z.strictObject({
   count: z.number().int(),
   activities: z.array(crmActivityResultSchema),
@@ -402,7 +407,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOrganizationAddInputSchema,
     inputIntentSchema: crmOrganizationAddInputIntentSchema,
-    result: { schema: crmOrganizationResultSchema, effects: [] },
+    result: { schema: crmOrganizationResultSchema, effects: [{ objectType: 'crm_organization', effect: ResourceMutationEffect.Created, resultField: 'organizationID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_organization' },
   },
@@ -417,7 +422,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOrganizationUpdateInputSchema,
     inputIntentSchema: crmOrganizationUpdateInputIntentSchema,
-    result: { schema: crmOrganizationResultSchema, effects: [] },
+    result: { schema: crmOrganizationResultSchema, effects: [{ objectType: 'crm_organization', effect: ResourceMutationEffect.Updated, resultField: 'organizationID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_organization' },
   },
@@ -432,7 +437,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOrganizationArchiveInputSchema,
     inputIntentSchema: crmOrganizationArchiveInputIntentSchema,
-    result: { schema: crmArchivedResultSchema, effects: [] },
+    result: { schema: crmArchivedResultSchema, effects: [{ objectType: 'crm_organization', effect: ResourceMutationEffect.Archived, resultField: 'recordID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_organization' },
@@ -461,7 +466,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmContactAddInputSchema,
     inputIntentSchema: crmContactAddInputIntentSchema,
-    result: { schema: crmContactResultSchema, effects: [] },
+    result: { schema: crmContactResultSchema, effects: [{ objectType: 'crm_contact', effect: ResourceMutationEffect.Created, resultField: 'contactID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_contact' },
   },
@@ -476,7 +481,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmContactUpdateInputSchema,
     inputIntentSchema: crmContactUpdateInputIntentSchema,
-    result: { schema: crmContactResultSchema, effects: [] },
+    result: { schema: crmContactResultSchema, effects: [{ objectType: 'crm_contact', effect: ResourceMutationEffect.Updated, resultField: 'contactID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_contact' },
   },
@@ -491,7 +496,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmContactArchiveInputSchema,
     inputIntentSchema: crmContactArchiveInputIntentSchema,
-    result: { schema: crmArchivedResultSchema, effects: [] },
+    result: { schema: crmArchivedResultSchema, effects: [{ objectType: 'crm_contact', effect: ResourceMutationEffect.Archived, resultField: 'recordID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_contact' },
@@ -520,7 +525,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityAddInputSchema,
     inputIntentSchema: crmOpportunityAddInputIntentSchema,
-    result: { schema: crmOpportunityResultSchema, effects: [] },
+    result: { schema: crmOpportunityResultSchema, effects: [{ objectType: 'crm_opportunity', effect: ResourceMutationEffect.Created, resultField: 'opportunityID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
   },
@@ -535,7 +540,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityUpdateInputSchema,
     inputIntentSchema: crmOpportunityUpdateInputIntentSchema,
-    result: { schema: crmOpportunityResultSchema, effects: [] },
+    result: { schema: crmOpportunityResultSchema, effects: [{ objectType: 'crm_opportunity', effect: ResourceMutationEffect.Updated, resultField: 'opportunityID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
   },
@@ -550,7 +555,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityMoveInputSchema,
     inputIntentSchema: crmOpportunityMoveInputIntentSchema,
-    result: { schema: crmOpportunityResultSchema, effects: [] },
+    result: { schema: crmOpportunityResultSchema, effects: [{ objectType: 'crm_opportunity', effect: ResourceMutationEffect.Updated, resultField: 'opportunityID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
@@ -566,7 +571,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmOpportunityArchiveInputSchema,
     inputIntentSchema: crmOpportunityArchiveInputIntentSchema,
-    result: { schema: crmArchivedResultSchema, effects: [] },
+    result: { schema: crmArchivedResultSchema, effects: [{ objectType: 'crm_opportunity', effect: ResourceMutationEffect.Archived, resultField: 'recordID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_opportunity' },
@@ -595,7 +600,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmActivitySaveInputSchema,
     inputIntentSchema: crmActivitySaveInputIntentSchema,
-    result: { schema: crmActivityResultSchema, effects: [] },
+    result: { schema: crmActivitySaveResultSchema, effects: [{ objectType: 'crm_activity', effect: ResourceMutationEffect.Created, resultField: 'activityID', effectIdentity: ResourceEffectIdentity.ID, when: { resultField: 'isNew', equals: true } }, { objectType: 'crm_activity', effect: ResourceMutationEffect.Updated, resultField: 'activityID', effectIdentity: ResourceEffectIdentity.ID, when: { resultField: 'isNew', equals: false } }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_activity' },
   },
@@ -623,7 +628,7 @@ export const crmToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: crmVocabularySetInputSchema,
     inputIntentSchema: crmVocabularySetInputIntentSchema,
-    result: { schema: crmVocabularyResultSchema, effects: [] },
+    result: { schema: crmVocabularyResultSchema, effects: [{ objectType: 'crm_vocabulary', effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_crm', targetKind: 'crm_vocabulary' },
   },
@@ -651,4 +656,5 @@ export type CRMVocabularyResult = z.infer<typeof crmVocabularyResultSchema>;
 export type CRMActivityListInput = z.infer<typeof crmActivityListInputSchema>;
 export type CRMActivitySaveInput = z.infer<typeof crmActivitySaveInputSchema>;
 export type CRMActivityResult = z.infer<typeof crmActivityResultSchema>;
+export type CRMActivitySaveResult = z.infer<typeof crmActivitySaveResultSchema>;
 export type CRMActivityListResult = z.infer<typeof crmActivityListResultSchema>;

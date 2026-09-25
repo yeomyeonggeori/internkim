@@ -230,7 +230,7 @@ export async function leaveReturnEarly(context: RecordContext, input: LeaveRetur
 	const answered = (data ?? {}) as ReturnedEarly;
 	return {
 		shortened: answered.shortened === true,
-		leaveID: answered.leaveID ?? null,
+		...(answered.leaveID ? { leaveID: answered.leaveID } : {}),
 		endsAt: answered.endsAt ? new Date(answered.endsAt).toISOString() : null,
 		days: answered.days === null || answered.days === undefined ? null : Number(answered.days)
 	};

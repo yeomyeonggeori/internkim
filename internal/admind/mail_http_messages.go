@@ -6,6 +6,7 @@ import (
 	"gitlab.com/eastriver/internkim/internal/mail"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -123,7 +124,7 @@ func (service *Service) moveMailMessage(responseWriter http.ResponseWriter, requ
 		logMailCacheFailure("delete moved message", account.ActorEmail, errorValue)
 		service.clearMailCacheBestEffort(request.Context(), account.ActorEmail)
 	}
-	service.writeJSON(responseWriter, map[string]bool{"moved": true})
+	service.writeJSON(responseWriter, map[string]any{"moved": true, "uid": strconv.FormatUint(uint64(uid), 10)})
 }
 
 func (service *Service) markMailMessage(responseWriter http.ResponseWriter, request *http.Request) {
@@ -154,7 +155,7 @@ func (service *Service) markMailMessage(responseWriter http.ResponseWriter, requ
 		logMailCacheFailure("update message flags", account.ActorEmail, errorValue)
 		service.clearMailCacheBestEffort(request.Context(), account.ActorEmail)
 	}
-	service.writeJSON(responseWriter, map[string]bool{"marked": true})
+	service.writeJSON(responseWriter, map[string]any{"marked": true, "uid": strconv.FormatUint(uint64(uid), 10)})
 }
 
 func logMailCacheFailure(operation string, actorEmail string, errorValue error) {

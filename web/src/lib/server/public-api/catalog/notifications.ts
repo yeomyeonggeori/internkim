@@ -4,9 +4,10 @@ import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
   CapabilitySideEffect,
+  ResourceEffectIdentity,
 } from './protocol';
 
-import type { CapabilityToolDefinition } from './definition';
+import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 export const notificationCategories = [
   'message',
@@ -85,7 +86,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: notificationSettingsSetInputSchema,
     inputIntentSchema: notificationSettingsSetInputIntentSchema,
-    result: { schema: notificationSettingsResultSchema, effects: [] },
+    result: { schema: notificationSettingsResultSchema, effects: [{ objectType: 'notification_settings', effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -99,7 +100,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: conversationMuteInputSchema,
     inputIntentSchema: conversationMuteInputIntentSchema,
-    result: { schema: conversationMuteResultSchema, effects: [] },
+    result: { schema: conversationMuteResultSchema, effects: [{ objectType: 'conversation', effect: ResourceMutationEffect.Updated, resultField: 'conversationID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -113,7 +114,7 @@ export const notificationToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: conversationMuteInputSchema,
     inputIntentSchema: conversationMuteInputIntentSchema,
-    result: { schema: conversationMuteResultSchema, effects: [] },
+    result: { schema: conversationMuteResultSchema, effects: [{ objectType: 'conversation', effect: ResourceMutationEffect.Updated, resultField: 'conversationID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
 ];

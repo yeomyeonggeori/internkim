@@ -70,3 +70,28 @@ func TestProjectResourceEffectsHonorsWhenConditions(t *testing.T) {
 		t.Fatal("expected a matched conditional effect with a missing identity to fail closed")
 	}
 }
+
+func TestSingletonEffectNamesTheResourceWithoutAnIdentityField(t *testing.T) {
+	schema := json.RawMessage(`{"type":"object","properties":{"changed":{"type":"boolean"}},"required":["changed"],"additionalProperties":false}`)
+	singleton := ResourceEffectContract{ObjectType: "company settings", Effect: "updated", EffectIdentity: ResourceEffectIdentitySingleton, When: &EvidenceCondition{ResultField: "changed", Equals: json.RawMessage(`true`)}}
+	misdeclared := singleton
+	misdeclared.ResultField = "changed"
+	if errorValue := validateResultContract(&ToolResultContract{Schema: schema, Effects: []ResourceEffectContract{singleton}}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if validateResultContract(&ToolResultContract{Schema: schema, Effects: []ResourceEffectContract{misdeclared}}) == nil {
+		t.Fatal("expected a singleton effect naming a resultField to be refused")
+	}
+	contract := &ToolResultContract{Schema: schema, Effects: []ResourceEffectContract{singleton}}
+	changed, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"changed":true}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(changed) != 1 || changed[0] != (ResourceEffect{ObjectType: "company settings", Effect: "updated"}) {
+		t.Fatalf("unexpected singleton effects: %+v", changed)
+	}
+	unchanged, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"changed":false}`))
+	if errorValue != nil || len(unchanged) != 0 {
+		t.Fatalf("expected no effect when nothing changed, got %+v %v", unchanged, errorValue)
+	}
+}

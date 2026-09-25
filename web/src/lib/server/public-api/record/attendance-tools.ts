@@ -228,7 +228,7 @@ function answeredWrite(written: unknown) {
 	const answer = (written ?? {}) as { status?: string; eventID?: string; backdated?: boolean };
 	return {
 		status: answer.status ?? 'unknown',
-		eventID: answer.eventID ?? null,
+		...(answer.eventID ? { eventID: answer.eventID } : {}),
 		backdated: answer.backdated === true
 	};
 }

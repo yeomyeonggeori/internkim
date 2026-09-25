@@ -4,9 +4,10 @@ import {
   CapabilityAnsweredBy,
   CapabilityEstimatedLatency,
   CapabilitySideEffect,
+  ResourceEffectIdentity,
 } from './protocol';
 
-import type { CapabilityToolDefinition } from './definition';
+import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
 
 const mailConnectionStartInputSchema = z.strictObject({});
 
@@ -131,14 +132,17 @@ const mailMessageReadResultSchema = z.strictObject({
 
 const mailMessageMarkResultSchema = z.strictObject({
   marked: z.literal(true),
+  uid: z.string().min(1).describe("The message that was marked."),
 });
 
 const mailMessageMoveResultSchema = z.strictObject({
   moved: z.literal(true),
+  uid: z.string().min(1).describe("The message that was moved, as it was known in the mailbox it left."),
 });
 
 const mailMessageSendResultSchema = z.strictObject({
   sent: z.literal(true),
+  messageID: z.string().min(1).describe("The Message-ID header the sent message carries."),
   appendedTo: z.string().describe("Mailbox the sent copy was saved to.").optional(),
   appendWarning: z.string().describe("Why the sent copy could not be saved. The message itself was still sent.").optional(),
 });
@@ -210,7 +214,7 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: mailMessageMarkInputSchema,
     inputIntentSchema: mailMessageMarkInputIntentSchema,
-    result: { schema: mailMessageMarkResultSchema, effects: [] },
+    result: { schema: mailMessageMarkResultSchema, effects: [{ objectType: "email", effect: ResourceMutationEffect.Updated, resultField: "uid", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -224,7 +228,7 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: mailMessageMoveInputSchema,
     inputIntentSchema: mailMessageMoveInputIntentSchema,
-    result: { schema: mailMessageMoveResultSchema, effects: [] },
+    result: { schema: mailMessageMoveResultSchema, effects: [{ objectType: "email", effect: ResourceMutationEffect.Updated, resultField: "uid", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -264,7 +268,7 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: mailMessageSendInputSchema,
     inputIntentSchema: mailMessageSendInputIntentSchema,
-    result: { schema: mailMessageSendResultSchema, effects: [] },
+    result: { schema: mailMessageSendResultSchema, effects: [{ objectType: "email", effect: ResourceMutationEffect.Sent, resultField: "messageID", effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.ExternalSend,
     requiresApproval: true,
     completionEvidence: { mode: "success", action: "send_email", targetKind: "email" },

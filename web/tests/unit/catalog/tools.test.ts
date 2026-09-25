@@ -418,18 +418,21 @@ describe('canonical capability tools', () => {
     expect(capabilityToolResultSchema('mail_message_read')?.safeParse({
       uid: 42, mailbox: 'INBOX', subject: 'Invoice', from: 'alice@example.com', to: 'me@example.com', cc: '', date: '2026-09-17T09:00:00Z', body: 'Hello', isRead: true,
     }).success).toBe(true);
-    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: true, appendedTo: 'Sent' }).success).toBe(true);
-    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: false }).success).toBe(false);
+    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: true, messageID: 'sent-1@example.com', appendedTo: 'Sent' }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: true, appendedTo: 'Sent' }).success).toBe(false);
+    expect(capabilityToolResultSchema('mail_message_send')?.safeParse({ sent: false, messageID: 'sent-1@example.com' }).success).toBe(false);
     expect(capabilityToolResultSchema('mail_connection_start')?.safeParse({
       status: 'configuration_required', provider: 'manual', setupURL: 'http://admind.local/mail/',
     }).success).toBe(true);
 
     const sendTool = catalog.tools.find(tool => tool.name === 'mail_message_send');
-    expect(sendTool?.resultContract?.effects).toEqual([]);
+    expect(sendTool?.resultContract?.effects).toEqual([
+      { objectType: 'email', effect: 'sent', resultField: 'messageID', effectIdentity: ResourceEffectIdentity.ID },
+    ]);
     expect(sendTool?.completionEvidence).toEqual({ mode: 'success', action: 'send_email', targetKind: 'email' });
-    expect(capabilityToolResultSchema('mail_message_mark')?.safeParse({ marked: true }).success).toBe(true);
-    expect(capabilityToolResultSchema('mail_message_mark')?.safeParse({ marked: false }).success).toBe(false);
-    expect(capabilityToolResultSchema('mail_message_move')?.safeParse({ moved: true }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_mark')?.safeParse({ marked: true, uid: '42' }).success).toBe(true);
+    expect(capabilityToolResultSchema('mail_message_mark')?.safeParse({ marked: true }).success).toBe(false);
+    expect(capabilityToolResultSchema('mail_message_move')?.safeParse({ moved: true, uid: '42' }).success).toBe(true);
     expect(capabilityToolResultSchema('mail_message_move')?.safeParse({ moved: true, uid: 42 }).success).toBe(false);
   });
 
@@ -618,7 +621,9 @@ describe('canonical capability tools', () => {
     expect(updateTool?.resultContract?.effects).toEqual([
       { objectType: 'schedule', effect: 'updated', resultField: 'scheduleID', effectIdentity: ResourceEffectIdentity.ID },
     ]);
-    expect(cancelTool?.resultContract?.effects).toEqual([]);
+    expect(cancelTool?.resultContract?.effects).toEqual([
+      { objectType: 'schedule', effect: 'deleted', resultField: 'scheduleIDs', effectIdentity: ResourceEffectIdentity.ID },
+    ]);
     expect(createTool?.requiresApproval).toBeUndefined();
     expect(updateTool?.requiresApproval).toBeUndefined();
     expect(cancelTool?.requiresApproval).toBeUndefined();
@@ -1014,6 +1019,26 @@ describe('canonical capability tools', () => {
     expect(imageReadResultSchema.safeParse({ ...imageResult, attachments: [{ ...imageResult.attachments[0], sizeBytes: -1 }] }).success).toBe(false);
     expect(imageReadResultSchema.safeParse({ ...imageResult, attachments: [{ ...imageResult.attachments[0], devicePath: undefined }] }).success).toBe(false);
     expect(imageReadResultSchema.safeParse({ ...imageResult, extra: true }).success).toBe(false);
+  });
+
+  test('says what every write changes, or why it names nothing', () => {
+    const changesNoRecordItCanName: Record<string, string> = {
+      browser_open: 'the companion answers it and reports no effect',
+      browser_click: 'the companion answers it and reports no effect',
+      browser_fill: 'the companion answers it and reports no effect',
+      browser_press: 'the companion answers it and reports no effect',
+      browser_select: 'the companion answers it and reports no effect',
+      computer_task: 'the companion answers it and reports no effect',
+      mail_connection_start: 'it hands back a setup address and writes nothing',
+      company_document_upload: 'it hands back an upload address; company_document_register records the document',
+    };
+    const catalog = buildCapabilityToolCatalog(protocolVersion);
+    const writes = catalog.tools.filter(tool => tool.sideEffectClass !== CapabilitySideEffect.Read
+      && tool.sideEffectClass !== CapabilitySideEffect.Computation);
+
+    const silent = writes.filter(tool => !tool.resultContract?.effects?.length).map(tool => tool.name).sort();
+
+    expect(silent).toEqual(Object.keys(changesNoRecordItCanName).sort());
   });
 
   test('publishes mandatory read result contracts without effects', () => {

@@ -20,6 +20,10 @@ func ProjectResourceEffects(contract *ToolResultContract, result json.RawMessage
 		if !effectConditionMatches(effectContract.When, document) {
 			continue
 		}
+		if effectContract.EffectIdentity == ResourceEffectIdentitySingleton {
+			effects = append(effects, ResourceEffect{ObjectType: strings.TrimSpace(effectContract.ObjectType), Effect: strings.TrimSpace(effectContract.Effect)})
+			continue
+		}
 		identities, errorValue := resultEffectIdentities(document[effectContract.ResultField])
 		if errorValue != nil {
 			return nil, errorValue

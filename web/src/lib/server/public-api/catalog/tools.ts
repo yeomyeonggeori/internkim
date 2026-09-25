@@ -272,6 +272,11 @@ export const scheduleMutationResultSchema = z.strictObject({
 });
 
 export const scheduleCancelResultSchema = z.strictObject({
+  scheduleIDs: z.array(z.string().min(1))
+    .min(1)
+    .refine(identities => new Set(identities).size === identities.length, 'schedule identities are unique')
+    .meta({ uniqueItems: true })
+    .describe('The schedules that were cancelled.'),
   cancelled: z.array(z.strictObject({
     scheduleID: z.string().min(1),
     description: z.string(),
@@ -365,7 +370,15 @@ const scheduleToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: scheduleCancelInputSchema,
     inputIntentSchema: scheduleCancelInputIntentSchema,
-    result: { schema: scheduleCancelResultSchema, effects: [] },
+    result: {
+      schema: scheduleCancelResultSchema,
+      effects: [{
+        objectType: 'schedule',
+        effect: ResourceMutationEffect.Deleted,
+        resultField: 'scheduleIDs',
+        effectIdentity: ResourceEffectIdentity.ID,
+      }],
+    },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_schedule', targetKind: 'schedule' },
   },
@@ -1088,7 +1101,7 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: taskVocabularySetInputSchema,
     inputIntentSchema: taskVocabularySetInputIntentSchema,
-    result: { schema: taskLabelVocabularySchema, effects: [] },
+    result: { schema: taskLabelVocabularySchema, effects: [{ objectType: 'task_vocabulary', effect: ResourceMutationEffect.Updated, effectIdentity: ResourceEffectIdentity.Singleton }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_task', targetKind: 'task_vocabulary' },
   },
@@ -1235,7 +1248,7 @@ export const leaveReturnEarlyInputIntentSchema = leaveReturnEarlyInputSchema.par
 
 export const leaveReturnEarlyResultSchema = z.strictObject({
   shortened: z.boolean(),
-  leaveID: z.string().nullable(),
+  leaveID: z.string().describe('The leave that was cut short. Absent when shortened is false.').optional(),
   endsAt: z.string().nullable(),
   days: z.number().nullable(),
 });
@@ -1330,7 +1343,7 @@ export const attendanceListResultSchema = z.strictObject({
 
 export const attendanceWriteResultSchema = z.strictObject({
   status: z.string(),
-  eventID: z.string().nullable(),
+  eventID: z.string().describe('The record written. Absent when status is asked.').optional(),
   backdated: z.boolean(),
 });
 
@@ -1653,7 +1666,7 @@ const fileToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.High,
     inputSchema: imageGenerateInputSchema,
     inputIntentSchema: imageGenerateInputIntentSchema,
-    result: { schema: imageGenerateResultSchema, effects: [] },
+    result: { schema: imageGenerateResultSchema, effects: [{ objectType: "image", effect: ResourceMutationEffect.Created, resultField: "path", effectIdentity: ResourceEffectIdentity.Path }] },
     sideEffect: CapabilitySideEffect.ExternalWrite,
   },
 ];
@@ -1930,7 +1943,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveGrantSetInputSchema,
     inputIntentSchema: leaveGrantSetInputIntentSchema,
-    result: { schema: leaveGrantSetResultSchema, effects: [] },
+    result: { schema: leaveGrantSetResultSchema, effects: [{ objectType: 'leave_grant', effect: ResourceMutationEffect.Updated, resultField: 'personID', effectIdentity: ResourceEffectIdentity.ID }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
   },
@@ -1945,7 +1958,7 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: leaveReturnEarlyInputSchema,
     inputIntentSchema: leaveReturnEarlyInputIntentSchema,
-    result: { schema: leaveReturnEarlyResultSchema, effects: [] },
+    result: { schema: leaveReturnEarlyResultSchema, effects: [{ objectType: 'leave', effect: ResourceMutationEffect.Updated, resultField: 'leaveID', effectIdentity: ResourceEffectIdentity.ID, when: { resultField: 'shortened', equals: true } }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     completionEvidence: { mode: 'success', action: 'write_leave', targetKind: 'leave' },
   },
@@ -1976,7 +1989,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceAddInputSchema,
     inputIntentSchema: attendanceAddInputIntentSchema,
-    result: { schema: attendanceAddResultSchema, effects: [] },
+    result: { schema: attendanceAddResultSchema, effects: [{ objectType: 'attendance', effect: ResourceMutationEffect.Created, resultField: 'eventID', effectIdentity: ResourceEffectIdentity.ID, when: { resultField: 'status', equals: 'added' } }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
@@ -1990,7 +2003,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceUpdateInputSchema,
     inputIntentSchema: attendanceUpdateInputIntentSchema,
-    result: { schema: attendanceWriteResultSchema, effects: [] },
+    result: { schema: attendanceWriteResultSchema, effects: [{ objectType: 'attendance', effect: ResourceMutationEffect.Updated, resultField: 'eventID', effectIdentity: ResourceEffectIdentity.ID, when: { resultField: 'status', equals: 'corrected' } }] },
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
     requiresApproval: true,
   },
@@ -2005,7 +2018,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceDeleteInputSchema,
     inputIntentSchema: attendanceDeleteInputIntentSchema,
-    result: { schema: attendanceWriteResultSchema, effects: [] },
+    result: { schema: attendanceWriteResultSchema, effects: [{ objectType: 'attendance', effect: ResourceMutationEffect.Deleted, resultField: 'eventID', effectIdentity: ResourceEffectIdentity.ID, when: { resultField: 'status', equals: 'removed' } }] },
     sideEffect: CapabilitySideEffect.Destructive,
     requiresApproval: true,
   },
