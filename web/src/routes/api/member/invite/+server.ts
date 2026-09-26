@@ -1,4 +1,14 @@
-import { addMember, adminCallerOf, asMember, controlPlane, inviteMember, planeCredentialsOf } from '$lib/server/control-plane';
+import {
+	addMember,
+	AddressBelongsToAnotherCompany,
+	adminCallerOf,
+	AlreadyAMember,
+	asMember,
+	controlPlane,
+	inviteMember,
+	planeCredentialsOf
+} from '$lib/server/control-plane';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
@@ -20,10 +30,22 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!name) error(400, 'a name is required');
 
 	const client = controlPlane(plane);
-	const { data: existing } = await client.from('member').select('company_id').eq('email', email).maybeSingle();
-	if (existing && existing.company_id !== caller.companyID) error(409, 'that address belongs to another company');
-
-	const memberID = await addMember(client, caller.companyID, email, { isAdmin: body.isAdmin === true, name });
+	const memberID = await memberAddedAt(client, caller.companyID, email, { isAdmin: body.isAdmin === true, name });
 	const invitation = await inviteMember(client, memberID);
 	return json(invitation);
 };
+
+async function memberAddedAt(
+	client: SupabaseClient,
+	companyID: string,
+	email: string,
+	options: { isAdmin: boolean; name: string }
+): Promise<string> {
+	try {
+		return await addMember(client, companyID, email, options);
+	} catch (refusal) {
+		if (refusal instanceof AddressBelongsToAnotherCompany) error(409, 'that address belongs to another company');
+		if (refusal instanceof AlreadyAMember) error(409, 'that person is already a member of this company');
+		throw refusal;
+	}
+}
