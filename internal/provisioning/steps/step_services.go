@@ -125,7 +125,7 @@ func localLLMServiceUnitsAreSatisfied(context *Context) bool {
 		return true
 	}
 	return strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppServiceName+" 2>/dev/null"), locallm.LlamaCppBinaryPath) &&
-		strings.Contains(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"), locallm.LlamaCppEmbeddingModelPath)
+		locallm.EmbeddingUnitServesCurrentModel(trimmedRun(context, "systemctl cat "+locallm.LlamaCppEmbeddingServiceName+" 2>/dev/null"))
 }
 
 func localLLMServiceUnitsAreReady(context *Context) bool {

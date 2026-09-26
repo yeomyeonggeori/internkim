@@ -32,6 +32,7 @@ type releaseUpdateStatusResponse struct {
 	State         string                `json:"state"`
 	UpdateAllowed bool                  `json:"updateAllowed"`
 	ActiveJob     *Job                  `json:"activeJob,omitempty"`
+	SetupDrift    []string              `json:"setupDrift,omitempty"`
 }
 
 type releaseUpdateSummary struct {
@@ -77,6 +78,7 @@ func (service *Service) writeReleaseUpdateStatus(responseWriter http.ResponseWri
 		State:         releaseUpdateState(current, latest, activeJob),
 		UpdateAllowed: latest != nil && (current == nil || current.ReleaseID != latest.ReleaseID) && activeJob == nil,
 		ActiveJob:     activeJob,
+		SetupDrift:    locallm.SetupDrift(os.ReadFile),
 	}
 	service.writeJSON(responseWriter, response)
 }
