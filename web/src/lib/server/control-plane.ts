@@ -393,9 +393,8 @@ export async function sessionForMember(
 export type AgentKey = { agentID: string; companyID: string; apiKey: string };
 
 // A company holds one agent per name, and revoking does not give the name back.
-// So reissuing writes the new hash onto the row that stands, the way
-// digest_agent_key_keep does; a plain insert answers a duplicate key to anyone
-// who rotates a key twice.
+// So reissuing writes the new hash onto the row that stands; a plain insert
+// answers a duplicate key to anyone who rotates a key twice.
 export async function issueAgentKey(
 	client: SupabaseClient,
 	companyID: string,

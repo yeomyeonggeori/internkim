@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(9);
 
-delete from vault.secrets where name in ('project_url', 'day_digest_agent_key', 'day_digest_app_url');
+delete from vault.secrets where name in ('project_url', 'day_digest_app_url');
 
 select has_function(
   'public',
@@ -19,7 +19,7 @@ select has_function(
 select ok(
   not has_function_privilege('authenticated', 'public.digest_target_keep(text)', 'execute')
     and not has_function_privilege('anon', 'public.digest_target_keep(text)', 'execute'),
-  'no signed-in caller can name the address the reminder carries its key to'
+  'no signed-in caller can name the address the reminder carries its secret to'
 );
 
 select ok(
