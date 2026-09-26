@@ -1,17 +1,22 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Environment } from './agent-request';
-import { keepTheAppAddress } from './digest-app-url';
+import { keepTheAppAddress, keepTheProjectAddress } from './digest-app-url';
 import { askTheProject, type FunctionAnswer } from './project-function';
 import type { CompanyCallTransport } from './public-api/company-call';
 
 export type Outcome = 'stored' | 'kept' | 'failed';
 
-export type NotificationsSetUp = { vapid: Outcome; digest: Outcome; appAddress: Outcome; failures: string[] };
+export type NotificationsSetUp = {
+	vapid: Outcome;
+	projectAddress: Outcome;
+	appAddress: Outcome;
+	failures: string[];
+};
 
 type Attempt = { outcome: Outcome; failure: string };
 
 const pushPairFunction = 'setup-vapid';
-const digestKeyFunction = 'setup-digest-key';
+const projectAddressKeeper = 'digest_target_keep';
 const appAddressKeeper = 'digest_app_url_keep';
 
 export async function setUpNotificationsFor(
@@ -21,16 +26,16 @@ export async function setUpNotificationsFor(
 	plane: SupabaseClient,
 	transport?: CompanyCallTransport
 ): Promise<NotificationsSetUp> {
-	const [vapid, digest, appAddress] = await Promise.all([
+	const [vapid, projectAddress, appAddress] = await Promise.all([
 		keepAPushPairForThem(environment, accessToken, founderEmail, transport),
-		keepADigestKeyForThem(environment, accessToken, transport),
+		keepTheProjectAddressForThem(environment, plane),
 		keepTheAppAddressForThem(environment, plane)
 	]);
 	return {
 		vapid: vapid.outcome,
-		digest: digest.outcome,
+		projectAddress: projectAddress.outcome,
 		appAddress: appAddress.outcome,
-		failures: [vapid.failure, digest.failure, appAddress.failure].filter((failure) => failure !== '')
+		failures: [vapid.failure, projectAddress.failure, appAddress.failure].filter((failure) => failure !== '')
 	};
 }
 
@@ -55,16 +60,12 @@ async function keepAPushPairForThem(
 	}
 }
 
-async function keepADigestKeyForThem(
-	environment: Environment,
-	accessToken: string,
-	transport?: CompanyCallTransport
-): Promise<Attempt> {
+async function keepTheProjectAddressForThem(environment: Environment, plane: SupabaseClient): Promise<Attempt> {
 	try {
-		const answer = await askTheProject(environment, digestKeyFunction, {}, accessToken, transport);
-		return outcomeOf(digestKeyFunction, answer);
+		await keepTheProjectAddress(plane, environment);
+		return { outcome: 'stored', failure: '' };
 	} catch (refusal) {
-		return failed(digestKeyFunction, reasonOf(refusal));
+		return failed(projectAddressKeeper, reasonOf(refusal));
 	}
 }
 

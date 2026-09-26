@@ -1,8 +1,26 @@
 {
   "rpc": [
     {
+      "name": "account_of_address",
+      "arguments": "address text",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "announce_event_reminders",
       "arguments": "",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "apns_key_keep",
+      "arguments": "new_key_id text, new_team_id text, new_bundle_id text, new_private_key text, new_environment text DEFAULT 'production'::text",
       "returns": "void",
       "security": "definer",
       "callableBy": [
@@ -19,9 +37,31 @@
       ]
     },
     {
+      "name": "asset_clearance",
+      "arguments": "object_name text",
+      "returns": "smallint",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "asset_company",
       "arguments": "object_name text",
       "returns": "uuid",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_dataroom_writer_may_write",
+      "arguments": "object_name text",
+      "returns": "boolean",
       "security": "invoker",
       "callableBy": [
         "anon",
@@ -281,6 +321,15 @@
       ]
     },
     {
+      "name": "complete_parent_when_children_are_done",
+      "arguments": "parent_id uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "complete_tasks_past_their_end",
       "arguments": "",
       "returns": "void",
@@ -330,16 +379,6 @@
       ]
     },
     {
-      "name": "digest_agent_key_keep",
-      "arguments": "",
-      "returns": "boolean",
-      "security": "definer",
-      "callableBy": [
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
       "name": "digest_app_url_keep",
       "arguments": "new_app_url text",
       "returns": "boolean",
@@ -352,6 +391,24 @@
       "name": "digest_target_keep",
       "arguments": "new_project_url text",
       "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "fcm_key_keep",
+      "arguments": "new_project_id text, new_client_email text, new_private_key text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "is_a_scheduled_job",
+      "arguments": "presented text",
+      "returns": "boolean",
       "security": "definer",
       "callableBy": [
         "service_role"
@@ -423,6 +480,16 @@
       ]
     },
     {
+      "name": "leave_accrue_due",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "leave_balances",
       "arguments": "target_year integer",
       "returns": "jsonb",
@@ -434,7 +501,7 @@
     },
     {
       "name": "leave_days_in_year",
-      "arguments": "starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer",
+      "arguments": "starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer, year_start_month integer DEFAULT 1, year_start_day integer DEFAULT 1",
       "returns": "numeric",
       "security": "invoker",
       "callableBy": [
@@ -539,6 +606,16 @@
       ]
     },
     {
+      "name": "member_picture_keep",
+      "arguments": "picture_path text",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "member_secret_name",
       "arguments": "target_member uuid, target_kind text",
       "returns": "text",
@@ -611,6 +688,16 @@
       "security": "invoker",
       "callableBy": [
         "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "my_clearance",
+      "arguments": "",
+      "returns": "smallint",
+      "security": "definer",
+      "callableBy": [
         "authenticated",
         "service_role"
       ]
@@ -724,6 +811,15 @@
       ]
     },
     {
+      "name": "push_keys_read",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "read_company_secret",
       "arguments": "secret_id uuid",
       "returns": "text",
@@ -736,6 +832,15 @@
       "name": "read_member_secret",
       "arguments": "target_member uuid, target_kind text",
       "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "reopen_parent_for_an_unfinished_child",
+      "arguments": "parent_id uuid",
+      "returns": "void",
       "security": "definer",
       "callableBy": [
         "service_role"
@@ -836,6 +941,15 @@
       ]
     },
     {
+      "name": "vault_secret_keep",
+      "arguments": "secret_name text, secret_value text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "work_location_names",
       "arguments": "company_id uuid",
       "returns": "text[]",
@@ -878,14 +992,22 @@
   ],
   "triggerFunctions": [
     "abandon_the_profile_image",
+    "administrator_starts_at_full_clearance",
     "announce_task_write",
     "bind_member_to_new_user",
     "derive_task_status_from_dates",
     "enforce_crm_reference_consistency",
+    "follow_children_completion",
     "guard_task_authority_shape",
     "guard_task_status_against_dates",
+    "leave_granted_to_a_new_member",
+    "leave_grants_restart_when_the_opening_rule_changes",
+    "leave_stays_within_its_units",
+    "leave_stays_within_its_usage_limit",
     "leave_under_autonomous_work_is_taken_not_asked",
     "lock_task_requester",
+    "member_leave_days_follow_the_leave",
+    "member_leave_days_follow_the_leave_policy",
     "order_time_range",
     "record_opportunity_stage_change",
     "refuse_a_second_copy_of_an_event",
@@ -918,10 +1040,6 @@
     },
     {
       "name": "notify-test",
-      "verifyJWT": true
-    },
-    {
-      "name": "setup-digest-key",
       "verifyJWT": true
     },
     {

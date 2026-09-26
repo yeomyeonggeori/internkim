@@ -7,9 +7,13 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 
 | Name | Arguments | Returns | Security | Callable by |
 | --- | --- | --- | --- | --- |
+| `account_of_address` | `address text` | `uuid` | definer | service_role |
 | `announce_event_reminders` | — | `void` | definer | service_role |
+| `apns_key_keep` | `new_key_id text, new_team_id text, new_bundle_id text, new_private_key text, new_environment text DEFAULT 'production'::text` | `void` | definer | service_role |
 | `ask_about_shifts_nobody_closed` | — | `void` | definer | service_role |
+| `asset_clearance` | `object_name text` | `smallint` | invoker | anon, authenticated, service_role |
 | `asset_company` | `object_name text` | `uuid` | invoker | anon, authenticated, service_role |
+| `asset_dataroom_writer_may_write` | `object_name text` | `boolean` | invoker | anon, authenticated, service_role |
 | `asset_reader_may_read` | `object_name text` | `boolean` | invoker | anon, authenticated, service_role |
 | `asset_scope` | `object_name text` | `text` | invoker | anon, authenticated, service_role |
 | `asset_segment` | `object_name text, segment_index integer` | `text` | invoker | anon, authenticated, service_role |
@@ -36,22 +40,25 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_team` | `target_team uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
+| `complete_parent_when_children_are_done` | `parent_id uuid` | `void` | definer | service_role |
 | `complete_tasks_past_their_end` | — | `void` | definer | service_role |
 | `conversation_mute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
 | `conversation_unmute` | `conversation text` | `void` | definer | anon, authenticated, service_role |
 | `crm_opportunity_close` | `target_opportunity_id uuid, target_stage_id crm_stage, target_stage_position integer, target_stage_changed_at timestamp with time zone, target_lost_reason text, target_base_amount_minor bigint, target_base_currency_code text` | `opportunity` | definer | authenticated |
 | `crm_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
-| `digest_agent_key_keep` | — | `boolean` | definer | authenticated, service_role |
 | `digest_app_url_keep` | `new_app_url text` | `boolean` | definer | service_role |
 | `digest_target_keep` | `new_project_url text` | `void` | definer | service_role |
+| `fcm_key_keep` | `new_project_id text, new_client_email text, new_private_key text` | `void` | definer | service_role |
+| `is_a_scheduled_job` | `presented text` | `boolean` | definer | service_role |
 | `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
 | `is_company_profile` | `profile jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_in_circle` | `target_circle uuid` | `boolean` | definer | anon, authenticated, service_role |
 | `is_messenger_accounts` | `accounts jsonb` | `boolean` | invoker | anon, authenticated, service_role |
 | `is_public_identity_credential` | `kind text` | `boolean` | definer | authenticated, service_role |
 | `is_work_hours` | `schedule jsonb` | `boolean` | invoker | anon, authenticated, service_role |
+| `leave_accrue_due` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_balances` | `target_year integer` | `jsonb` | definer | authenticated, service_role |
-| `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer` | `numeric` | invoker | anon, authenticated, service_role |
+| `leave_days_in_year` | `starts_at timestamp with time zone, ends_at timestamp with time zone, total_days numeric, time_zone text, target_year integer, year_start_month integer DEFAULT 1, year_start_day integer DEFAULT 1` | `numeric` | invoker | anon, authenticated, service_role |
 | `leave_in_full` | — | `TABLE(id uuid, member_id uuid, kind text, is_paid boolean, is_deducted boolean, days numeric, status leave_status, starts_at timestamp with time zone, ends_at timestamp with time zone, note text)` | definer | authenticated, service_role |
 | `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
@@ -61,6 +68,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | definer | anon, authenticated, service_role |
 | `member_locale` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
 | `member_minimum_daily_minutes` | `target_member uuid` | `integer` | definer | anon, authenticated, service_role |
+| `member_picture_keep` | `picture_path text` | `boolean` | definer | authenticated, service_role |
 | `member_secret_name` | `target_member uuid, target_kind text` | `text` | invoker | anon, authenticated, service_role |
 | `member_timezone` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
 | `member_today` | `target_member uuid` | `date` | definer | anon, authenticated, service_role |
@@ -68,6 +76,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `member_work_hours` | `target_member uuid` | `jsonb` | definer | anon, authenticated, service_role |
 | `member_work_hours_on` | `target_member uuid, target_day date` | `jsonb` | definer | anon, authenticated, service_role |
 | `my_app_company` | — | `uuid` | invoker | anon, authenticated, service_role |
+| `my_clearance` | — | `smallint` | definer | authenticated, service_role |
 | `my_company_topic` | — | `text` | definer | anon, authenticated, service_role |
 | `my_member` | — | `uuid` | definer | anon, authenticated, service_role |
 | `my_member_topic` | — | `text` | definer | anon, authenticated, service_role |
@@ -78,8 +87,10 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `person_set` | `target_member uuid, account_changes jsonb, organization_changes jsonb` | `void` | definer | authenticated, service_role |
 | `push_device_claim` | `device_kind text, device_address text, device_keys jsonb` | `void` | definer | anon, authenticated, service_role |
 | `push_device_release` | `device_kind text, device_address text` | `void` | definer | anon, authenticated, service_role |
+| `push_keys_read` | — | `jsonb` | definer | service_role |
 | `read_company_secret` | `secret_id uuid` | `text` | definer | service_role |
 | `read_member_secret` | `target_member uuid, target_kind text` | `text` | definer | service_role |
+| `reopen_parent_for_an_unfinished_child` | `parent_id uuid` | `void` | definer | service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
 | `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb` | `uuid` | definer | authenticated |
@@ -90,6 +101,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `vapid_keys_keep` | `new_public_key text, new_private_key text, new_subject text, replace_existing boolean DEFAULT false` | `boolean` | definer | service_role |
 | `vapid_keys_read` | — | `jsonb` | definer | service_role |
 | `vapid_public_key` | — | `text` | definer | authenticated, service_role |
+| `vault_secret_keep` | `secret_name text, secret_value text` | `void` | definer | service_role |
 | `work_location_names` | `company_id uuid` | `text[]` | invoker | anon, authenticated, service_role |
 | `work_mode_of_member` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
 | `write_company_secret` | `secret_id uuid, secret_name text, secret_value text` | `uuid` | definer | service_role |
@@ -102,14 +114,22 @@ These run when a row changes. Nobody calls them.
 | Name |
 | --- |
 | `abandon_the_profile_image` |
+| `administrator_starts_at_full_clearance` |
 | `announce_task_write` |
 | `bind_member_to_new_user` |
 | `derive_task_status_from_dates` |
 | `enforce_crm_reference_consistency` |
+| `follow_children_completion` |
 | `guard_task_authority_shape` |
 | `guard_task_status_against_dates` |
+| `leave_granted_to_a_new_member` |
+| `leave_grants_restart_when_the_opening_rule_changes` |
+| `leave_stays_within_its_units` |
+| `leave_stays_within_its_usage_limit` |
 | `leave_under_autonomous_work_is_taken_not_asked` |
 | `lock_task_requester` |
+| `member_leave_days_follow_the_leave` |
+| `member_leave_days_follow_the_leave_policy` |
 | `order_time_range` |
 | `record_opportunity_stage_change` |
 | `refuse_a_second_copy_of_an_event` |
