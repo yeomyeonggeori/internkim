@@ -1,4 +1,4 @@
-import { SignJWT, importJWK } from 'jose';
+import { SignJWT, errors, importJWK, jwtVerify, type JWTPayload } from 'jose';
 
 export type RecordIdentity = {
 	userID: string;
@@ -65,4 +65,33 @@ const keyMaterialMembers = new Set(['kid', 'crv', 'x', 'y', 'd', 'k', 'n', 'e', 
 function keyMaterialOf(key: SigningKey): SigningKey {
 	const material = Object.entries(key).filter(([member]) => keyMaterialMembers.has(member));
 	return { kty: key.kty, ...Object.fromEntries(material) };
+}
+
+const privateKeyMembers = new Set(['d', 'p', 'q', 'dp', 'dq', 'qi']);
+
+function verifyingKeyOf(key: SigningKey): SigningKey {
+	if (key.kty === 'oct') return keyMaterialOf(key);
+	const material = Object.entries(keyMaterialOf(key)).filter(([member]) => !privateKeyMembers.has(member));
+	return { ...Object.fromEntries(material), kty: key.kty };
+}
+
+export async function verifiedRecordToken(
+	signingKey: string,
+	projectURL: string,
+	accessToken: string,
+): Promise<JWTPayload | null> {
+	const key = signingKeyOf(signingKey);
+	const algorithm = algorithmOf(key);
+	const verifyingKey = await importJWK(verifyingKeyOf(key), algorithm);
+	try {
+		const { payload } = await jwtVerify(accessToken, verifyingKey, {
+			issuer: `${projectURL}/auth/v1`,
+			audience: 'authenticated',
+			algorithms: [algorithm],
+		});
+		return payload;
+	} catch (failure) {
+		if (failure instanceof errors.JOSEError) return null;
+		throw failure;
+	}
 }
