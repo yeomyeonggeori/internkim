@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { agentOfKey, controlPlane } from './control-plane';
+import { companyOfHostCredential, controlPlane } from './control-plane';
 export { fleetDirectory } from './fleet-directory';
 
 export type Environment = Record<string, string | undefined>;
@@ -16,19 +16,27 @@ export function environmentOf(platform: App.Platform | undefined): Environment {
 }
 
 export async function callingAgent(request: Request, environment: Environment): Promise<CallingAgent> {
-	const projectURL = environment.SUPABASE_URL ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
-	if (!projectURL || !serviceRoleKey) error(500, 'the control plane is not configured');
+	const credentials = {
+		projectURL: environment.SUPABASE_URL ?? '',
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '',
+		signingKey: environment.SUPABASE_JWT_SIGNING_KEY ?? '',
+	};
+	if (!credentials.projectURL || !credentials.serviceRoleKey || !credentials.signingKey) {
+		error(500, 'the control plane is not configured');
+	}
 
+	const presented = bearerTokenOf(request);
+	if (!presented) error(401, 'no company computer credential');
+
+	const companyID = await companyOfHostCredential(credentials, presented);
+	if (!companyID) error(403, 'refused');
+
+	return { client: controlPlane(credentials), companyID };
+}
+
+export function bearerTokenOf(request: Request): string {
 	const authorization = request.headers.get('authorization') ?? '';
-	const apiKey = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!apiKey) error(401, 'no agent key');
-
-	const client = controlPlane({ projectURL, serviceRoleKey });
-	const agent = await agentOfKey(client, apiKey);
-	if (!agent) error(403, 'refused');
-
-	return { client, companyID: agent.companyID };
+	return authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
 }
 
 export function environmentOfPlatform(platformEnvironment: unknown): Environment {

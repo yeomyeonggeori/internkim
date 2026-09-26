@@ -6,7 +6,8 @@ import {
 } from '$lib/public-api-permission';
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 import { personalAccessTokenCredentialKind } from './public-api/catalog/credential';
-import { recordTokenFor } from './record-token';
+import { recordTokenFor, verifiedRecordToken } from './record-token';
+import { z } from 'zod';
 
 export type ControlPlaneCredentials = {
 	projectURL: string;
@@ -530,17 +531,18 @@ export async function sessionForPersonalAccessToken(
 	};
 }
 
-const fleetCredentialKind = 'fleet';
+export const fleetCredentialKind = 'fleet';
 
 export async function claimFleetForCompany(
 	client: SupabaseClient,
 	companyID: string,
 	fleetID: string,
+	settings: Record<string, unknown> = {},
 ): Promise<void> {
 	const { error } = await client
 		.from('credential')
 		.upsert(
-			{ company_id: companyID, kind: fleetCredentialKind, external_id: fleetID },
+			{ company_id: companyID, kind: fleetCredentialKind, external_id: fleetID, settings },
 			{ onConflict: 'company_id,kind' },
 		);
 	if (error) throw new Error(`fleet ${fleetID}: ${error.message}`);
@@ -612,13 +614,13 @@ export async function sessionForPlatformIdentity(
 	externalID: string,
 ): Promise<MemberSession> {
 	const client = controlPlane(credentials);
-	const agent = await agentOfKey(client, apiKey);
-	if (!agent) throw new Error('that key belongs to no agent');
+	const companyID = await companyOfHostCredential(credentials, apiKey);
+	if (!companyID) throw new Error('that credential belongs to no company computer');
 
 	const memberID =
 		kind === 'email'
-			? await memberOfCompanyByEmail(client, agent.companyID, externalID)
-			: (await membersOfCompanyByExternalID(client, agent.companyID, kind)).get(externalID);
+			? await memberOfCompanyByEmail(client, companyID, externalID)
+			: (await membersOfCompanyByExternalID(client, companyID, kind)).get(externalID);
 	if (!memberID) throw new Error(`no member here has ${kind} identity ${externalID}`);
 
 	return sessionForMember(credentials, memberID);
@@ -638,18 +640,48 @@ export async function sessionForHost(
 	credentials: SigningCredentials,
 	apiKey: string,
 ): Promise<HostSession> {
-	const client = controlPlane(credentials);
-	const agent = await agentOfKey(client, apiKey);
+	const agent = await agentOfKey(controlPlane(credentials), apiKey);
 	if (!agent) throw new Error('that key belongs to no agent');
+	return hostSessionOfCompany(credentials, agent.companyID);
+}
 
-	const address = hostAddressOf(agent.companyID);
-	const userID = await keepHostAccount(client, address, agent.companyID);
+export async function hostSessionOfCompany(
+	credentials: SigningCredentials,
+	companyID: string,
+): Promise<HostSession> {
+	const address = hostAddressOf(companyID);
+	const userID = await keepHostAccount(controlPlane(credentials), address, companyID);
 	const token = await recordTokenFor(credentials.signingKey, credentials.projectURL, {
 		userID,
 		email: address,
-		appMetadata: { company_id: agent.companyID },
+		appMetadata: { company_id: companyID },
 	});
-	return { companyID: agent.companyID, ...token };
+	return { companyID, ...token };
+}
+
+const hostSessionClaimsSchema = z.object({
+	email: z.string(),
+	app_metadata: z.object({ company_id: z.string() }),
+});
+
+export async function companyOfHostSession(
+	credentials: SigningCredentials,
+	accessToken: string,
+): Promise<string | null> {
+	const payload = await verifiedRecordToken(credentials.signingKey, credentials.projectURL, accessToken);
+	const claims = hostSessionClaimsSchema.safeParse(payload);
+	if (!claims.success) return null;
+	const companyID = claims.data.app_metadata.company_id;
+	return claims.data.email === hostAddressOf(companyID) ? companyID : null;
+}
+
+export async function companyOfHostCredential(
+	credentials: SigningCredentials,
+	presented: string,
+): Promise<string | null> {
+	if (presented.split('.').length === 3) return companyOfHostSession(credentials, presented);
+	const agent = await agentOfKey(controlPlane(credentials), presented);
+	return agent?.companyID ?? null;
 }
 
 async function keepHostAccount(
