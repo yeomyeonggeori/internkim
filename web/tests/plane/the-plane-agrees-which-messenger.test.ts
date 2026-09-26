@@ -16,12 +16,12 @@ test('the plane starts every daemon with the current company-box contract', () =
 		chatdPlatform: 'buzz',
 		deviceBrowserPath: '/usr/bin/moli',
 		deviceBrowserStateDirectory: '/tmp/device-browsers',
-		relayURL: 'http://127.0.0.1:8083',
+		fileReadPythonPath: 'python3',
 		admindSocketPath: '/tmp/admind.sock'
 	});
 
 	expect(argumentsForCapabilityd).toContain('--device-browser');
-	expect(argumentsForCapabilityd).toContain('--relay-url');
+	expect(argumentsForCapabilityd).toContain('--file-read-python');
 	expect(argumentsForCapabilityd).not.toContain('--device-browser-cdp');
 
 	const argumentsForBlueclaw = blueclawArgumentsForPlane({
@@ -48,6 +48,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 		siteScaffoldPath: '/tmp/site-scaffold',
 		centralPlaneAppURL: 'https://app.example.test',
 		centralPlaneAgentKeyPath: '/tmp/agent-key',
+		blueclawAssertionKeyPath: '/tmp/blueclaw-assertion-key',
 		centralPlaneProjectURL: 'https://project.example.test',
 		centralPlanePublishableKey: 'publishable-key',
 		listenSocketPath: '/tmp/admind.sock',
@@ -57,6 +58,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 	expect(argumentsForAdmind).toContain('-buzz-database-url-path');
 	expect(argumentsForAdmind).toContain('-buzz-relay-key-path');
 	expect(argumentsForAdmind).toContain('-buzz-account-links');
+	expect(argumentsForAdmind).toContain('-blueclaw-assertion-key');
 });
 
 test('a plane told two different messengers refuses to start', async () => {

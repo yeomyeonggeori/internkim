@@ -11,12 +11,14 @@ fi
 binaryDirectory="$repositoryRoot/.local/company-plane/bin"
 skillsDirectory="$repositoryRoot/.local/company-plane/skills"
 environmentPath="$repositoryRoot/.local/company-plane/environment.json"
+planeDirectory="$repositoryRoot/.local/company-plane"
 cd "$repositoryRoot"
 
 mkdir -p "$binaryDirectory"
 chmod 755 "$(dirname "$binaryDirectory")" "$binaryDirectory"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-capabilityd" ./cmd/internkim-capabilityd
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-admind" ./cmd/internkim-admind
+go run ./cmd/describe-company-host "$planeDirectory"
 (
   cd "$repositoryRoot/.dependency/blueclaw"
   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw" ./cmd/blueclaw

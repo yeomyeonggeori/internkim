@@ -1,7 +1,7 @@
 // A company plane, brought up the way a company's own box brings it up, with the
 // two messengers standing in as recorders.
 //
-// The bug this exists for was not a logic bug. host/entrypoint.sh started
+// The bug this exists for was not a logic bug. The company box once started
 // capabilityd without --chatd-platform, so every message tool answered "sent"
 // while reaching nothing. No unit test can reach that, because the defect is in
 // how the processes are started. So this starts them.
@@ -23,7 +23,7 @@ import {
 	type ARecordingMessenger
 } from './a-messenger-nobody-runs';
 import { aModelNobodyPaysFor, type AModelNobodyPaysFor } from './a-model-nobody-pays-for';
-import { theArgumentsThatStart } from '../support/the-entrypoint';
+import { theArgumentsThatStart } from '../support/the-package-units';
 
 const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
@@ -70,7 +70,7 @@ type CapabilitydPlaneArguments = {
 	chatdPlatform: string;
 	deviceBrowserPath: string;
 	deviceBrowserStateDirectory: string;
-	relayURL: string;
+	fileReadPythonPath: string;
 	admindSocketPath: string;
 };
 
@@ -97,6 +97,7 @@ type AdmindPlaneArguments = {
 	siteScaffoldPath: string;
 	centralPlaneAppURL: string;
 	centralPlaneAgentKeyPath: string;
+	blueclawAssertionKeyPath: string;
 	centralPlaneProjectURL: string;
 	centralPlanePublishableKey: string;
 	listenSocketPath: string;
@@ -120,7 +121,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--device-browser-first-port': '9230',
 			'--device-browser-capacity': '1',
 			'--device-browser-user': 'blueclaw',
-			'--relay-url': argumentsForPlane.relayURL
+			'--file-read-python': argumentsForPlane.fileReadPythonPath
 		},
 		{ '--admind-socket': argumentsForPlane.admindSocketPath }
 	);
@@ -154,6 +155,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-site-scaffold': argumentsForPlane.siteScaffoldPath,
 			'-central-plane-app-url': argumentsForPlane.centralPlaneAppURL,
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
+			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
 			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
 			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
 		},
@@ -369,6 +371,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		});
 		// No model is called here — a wiring scenario asks nobody to think — but the
 		// processes read the path at startup, so it has to be a file.
+		const blueclawAssertionKeyPath = join(runDirectory, 'secrets', 'blueclaw-assertion-key');
+		writeFileSync(blueclawAssertionKeyPath, `${crypto.randomUUID()}\n`, { mode: 0o600 });
 		const openRouterKeyPath = join(runDirectory, 'secrets', 'openrouter-key');
 		writeFileSync(openRouterKeyPath, 'no-model-is-called-here\n', { mode: 0o600 });
 
@@ -397,7 +401,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						chatdPlatform: capabilitydPlatform,
 						deviceBrowserPath: join(binaryDirectory, 'moli'),
 						deviceBrowserStateDirectory: join(runDirectory, 'state', 'device-browsers'),
-						relayURL: `http://127.0.0.1:${arrivalsPort}`,
+						fileReadPythonPath: 'python3',
 						admindSocketPath: requesterSocketPath
 					})
 				],
@@ -405,7 +409,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			)
 		);
 		// A unix socket is not a file Bun.file() can answer for, so this asks the
-		// filesystem the way the entrypoint's `[ ! -S ]` does.
+		// filesystem directly.
 		await untilReady('capabilityd', async () => existsSync(capabilitySocketPath));
 
 		// blueclaw keeps its own record, so each run gets a database of its own.
@@ -418,7 +422,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// runtime document proves nothing about the one a company runs on.
 		const runtimeConfigurationPath = join(runDirectory, 'runtime.json');
 		const policyPath = join(runDirectory, 'policy.json');
-		// blueclaw starts with nobody in it, exactly as host/entrypoint.sh writes it
+		// blueclaw starts with nobody in it, exactly as internkim-prepare writes it
 		// when no policy is mounted. Who works here arrives the way it arrives on a
 		// real box: admind reads the company's roster and reconciles it on.
 		writeFileSync(
@@ -448,7 +452,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					CHATD_ENDPOINT: connector.url,
 					MODEL_ENDPOINT: model.url,
 					MODEL_API_KEY_PATH: openRouterKeyPath,
-					ADMIN_ASSERTION_KEY_PATH: agentKeyPath,
+					ADMIN_ASSERTION_KEY_PATH: blueclawAssertionKeyPath,
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
 					MIGRATION_DIRECTORY_PATH: join(repositoryRoot, '.dependency', 'blueclaw', 'migrations'),
 					LOG_DIRECTORY_PATH: join(runDirectory, 'logs')
@@ -518,6 +522,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						siteScaffoldPath: join(environmentValue('COMPANY_PLANE_SKILLS'), 'website', 'assets', 'scaffold', 'app'),
 						centralPlaneAppURL: environmentValue('INTERNKIM_APP_URL'),
 						centralPlaneAgentKeyPath: agentKeyPath,
+						blueclawAssertionKeyPath,
 						centralPlaneProjectURL: projectURL,
 						centralPlanePublishableKey: environmentValue('SUPABASE_PUBLISHABLE_KEY'),
 						listenSocketPath: requesterSocketPath,
