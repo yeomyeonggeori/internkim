@@ -248,6 +248,7 @@ internkim-admind \
   -site-scaffold "${bundledSkillsPath}/website/assets/scaffold/app" \
   -central-plane-app-url "${INTERNKIM_APP_URL}" \
   -central-plane-agent-key "${agentKeyPath}" \
+  -blueclaw-assertion-key "${agentKeyPath}" \
   -central-plane-project-url "${SUPABASE_URL}" \
   -central-plane-publishable-key "${SUPABASE_PUBLISHABLE_KEY}" &
 admindPid="$!"

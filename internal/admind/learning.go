@@ -37,9 +37,9 @@ func (service *Service) blueclawSignedRequest(ctx context.Context, method string
 // The status and the body as Blueclaw wrote them, for a caller that has to pass
 // a refusal on rather than turn it into one of its own.
 func (service *Service) blueclawSignedAnswer(ctx context.Context, method string, path string, body []byte, readerPersonID string) (int, []byte, error) {
-	key := strings.TrimSpace(readTrimmedFile(service.Configuration.CentralPlaneAgentKeyPath))
+	key := strings.TrimSpace(readTrimmedFile(service.Configuration.BlueclawAssertionKeyPath))
 	if key == "" {
-		return 0, nil, fmt.Errorf("central plane agent key is missing")
+		return 0, nil, fmt.Errorf("the key admind signs Blueclaw requests with is missing")
 	}
 	request, errorValue := http.NewRequestWithContext(ctx, method, strings.TrimRight(service.Configuration.BlueclawBaseURL, "/")+path, bytes.NewReader(body))
 	if errorValue != nil {

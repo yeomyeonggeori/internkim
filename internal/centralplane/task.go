@@ -47,7 +47,7 @@ func (client *Client) MemberOf(ctx context.Context, email string) (string, error
 	if errorValue != nil {
 		return "", errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {

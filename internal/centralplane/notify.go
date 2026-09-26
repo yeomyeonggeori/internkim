@@ -47,7 +47,7 @@ func (client *Client) Notify(ctx context.Context, notification Notification) (No
 	if errorValue != nil {
 		return NotifyResult{}, errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 	request.Header.Set("Content-Type", "application/json")
 
 	response, errorValue := client.httpClient.Do(request)

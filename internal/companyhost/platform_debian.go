@@ -89,7 +89,7 @@ func (platform debianPlatform) SuperviseTheBundle(machine Machine, progress io.W
 		return fmt.Errorf("systemd would not reload its units; this package supervises the company server with systemd: %w", errorValue)
 	}
 	names := []string{}
-	for _, unit := range blueclaw.CompanyPackageUnits() {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(platform.Layout()) {
 		names = append(names, unit.FileName())
 	}
 	if errorValue := machine.Run("systemctl", append([]string{"enable"}, names...), nil, io.Discard); errorValue != nil {

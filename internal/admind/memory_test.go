@@ -127,7 +127,7 @@ func TestScheduleToolListSignsTheActiveRequesterAndForwardsExactInput(t *testing
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
-	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, assertionKey)
+	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, assertionKey)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isCompanyDirectoryRequest(request) {
 			return memoryDirectoryForTest().respond(t, request)
@@ -595,7 +595,7 @@ func TestScheduleToolCreateSignsTheRequesterAndForwardsTheExactDocument(t *testi
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
-	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, assertionKey)
+	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, assertionKey)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isCompanyDirectoryRequest(request) {
 			return memoryDirectoryForTest().respond(t, request)
@@ -633,7 +633,7 @@ func TestScheduleToolWritesRefuseADocumentTheContractRefuses(t *testing.T) {
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
-	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "schedule-assertion-secret")
+	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, "schedule-assertion-secret")
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isCompanyDirectoryRequest(request) {
 			return memoryDirectoryForTest().respond(t, request)
@@ -670,7 +670,7 @@ func TestScheduleToolCancelPassesBlueclawsRefusalThrough(t *testing.T) {
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
-	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "schedule-assertion-secret")
+	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, "schedule-assertion-secret")
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		if isCompanyDirectoryRequest(request) {
 			return memoryDirectoryForTest().respond(t, request)

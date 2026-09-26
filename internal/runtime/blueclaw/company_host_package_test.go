@@ -6,12 +6,37 @@ import (
 	"testing"
 )
 
-func TestEveryPackagedUnitWaitsForSomethingInstallWrites(t *testing.T) {
-	for _, unit := range CompanyPackageUnits() {
+func TestEveryBundledUnitWaitsForSomethingInstallWrites(t *testing.T) {
+	for _, unit := range CompanyHostSystemdUnits(DebianCompanyHostLayout()) {
 		if !strings.Contains(unit.Contents, "ConditionPathExists=") {
 			t.Fatalf("%s starts as soon as it is enabled; on a box that has the package and no "+
 				"company it would restart into the same failure forever", unit.FileName())
 		}
+	}
+}
+
+func TestTheBoxUnitIsThePackagedUnitThatRunsBeforeThereIsACompany(t *testing.T) {
+	bundled := map[string]bool{}
+	for _, unit := range CompanyHostSystemdUnits(DebianCompanyHostLayout()) {
+		bundled[unit.Name] = true
+	}
+	for _, unit := range CompanyPackageUnits() {
+		if bundled[unit.Name] {
+			continue
+		}
+		if unit.Name != BoxServiceName {
+			t.Fatalf("%s is packaged outside the bundle and is not the box unit", unit.FileName())
+		}
+		if strings.Contains(unit.Contents, "ConditionPathExists=") {
+			t.Fatalf("%s waits for a company, and it is what a company is claimed through", unit.FileName())
+		}
+		bundled[unit.Name] = true
+	}
+	if !bundled[BoxServiceName] {
+		t.Fatal("the package ships no box unit, so a box nobody configured never announces itself")
+	}
+	if _, isBundled := CompanyHostServiceNamed(DebianCompanyHostLayout(), BoxServiceName); isBundled {
+		t.Fatal("the box unit is in the bundle, so the install it runs would restart it halfway through")
 	}
 }
 

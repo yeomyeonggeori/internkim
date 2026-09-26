@@ -83,7 +83,7 @@ func KeepSecret(secretDirectoryPath, name string) (string, error) {
 			return "", chmodError
 		}
 		value := strings.TrimSpace(string(existing))
-		if !agentKeyPattern.MatchString(value) {
+		if !secretPattern.MatchString(value) {
 			return "", fmt.Errorf("saved %s is invalid. Restore it from backup; it will not be replaced", name)
 		}
 		return value, nil

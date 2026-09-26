@@ -17,7 +17,7 @@ import (
 
 func TestLearningProxyPreservesSafeUpstreamClientStatuses(t *testing.T) {
 	for _, statusCode := range []int{http.StatusForbidden, http.StatusConflict} {
-		service := NewService(Configuration{BlueclawBaseURL: "http://blueclaw.local", CentralPlaneAgentKeyPath: writeTestFile(t, "fixture-secret")})
+		service := NewService(Configuration{BlueclawBaseURL: "http://blueclaw.local", BlueclawAssertionKeyPath: writeTestFile(t, "fixture-secret")})
 		service.HTTPClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return jsonResponse(statusCode, `private provider detail`, nil), nil
 		})}
@@ -31,7 +31,7 @@ func TestLearningProxyPreservesSafeUpstreamClientStatuses(t *testing.T) {
 }
 
 func TestLearningProxySignsTheCompleteRequestTarget(t *testing.T) {
-	service := NewService(Configuration{BlueclawBaseURL: "http://blueclaw.local", CentralPlaneAgentKeyPath: writeTestFile(t, "fixture-secret")})
+	service := NewService(Configuration{BlueclawBaseURL: "http://blueclaw.local", BlueclawAssertionKeyPath: writeTestFile(t, "fixture-secret")})
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		header := request.Header.Get(memoryAssertionHeader)
 		parts := strings.Split(header, ".")

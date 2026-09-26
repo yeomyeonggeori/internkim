@@ -34,6 +34,10 @@ const (
 	messengerBotUserName      = "internkim"
 )
 
+func CurrentConnectionPath() string {
+	return filepath.Join(blueclaw.CompanyHostCurrentPath, connectionFileName)
+}
+
 func DefaultStateDirectoryPath(companyID string) string {
 	return filepath.Join(blueclaw.CompanyHostCompaniesRoot, companyID)
 }

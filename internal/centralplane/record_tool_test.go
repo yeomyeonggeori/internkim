@@ -29,7 +29,7 @@ func TestARecordCallAsksForARefusalItCanRead(t *testing.T) {
 	defer server.Close()
 	client := New(Settings{
 		AppURL:         server.URL,
-		AgentAPIKey:    "agent-key",
+		HostCredential: func() string { return "agent-key" },
 		ProjectURL:     server.URL,
 		PublishableKey: "publishable-key",
 	})

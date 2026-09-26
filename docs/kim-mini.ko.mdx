@@ -99,17 +99,24 @@ WPA3 네트워크 `kimmini`를 비밀번호 `intern-kim`으로 내보냅니다. 
 
 ## 상자의 신원이 에이전트 키를 대신합니다 [#the-boxs-identity-replaces-the-agent-key]
 
-지금 호스트는 bearer 에이전트 키로 자신을 증명합니다. 웹 앱이 한 번 발급하는
-무작위 비밀값이고, 호스트는 `/root/.internkim/secrets/agent-key`에 두며, 모든
-`/api/agent/*` 라우트가 `agent.api_key_hash`의 SHA-256 해시와 비교합니다
-(`web/src/lib/server/agent-request.ts`의 `callingAgent`를 거친 `agentOfKey`).
+연결 파일로 연결한 호스트는 bearer 에이전트 키로 자신을 증명합니다. 웹 앱이 한 번
+발급하는 무작위 비밀값이고, 호스트는 `/var/lib/internkim/current/secrets/agent-key`에
+두며, 모든 `/api/agent/*` 라우트가 `agent.api_key_hash`의 SHA-256 해시와 비교합니다.
 
-개인키를 가진 상자에는 공유 비밀값이 필요 없습니다. 짧은 assertion(자기가 속했다고
-믿는 회사, 시각, nonce)에 서명해 짧게 사는 세션으로 바꿉니다. `sessionForHost`는
-이미 그 세션을 매직링크 계정 `host.<companyID>@agent.internkim.invalid`로
-만들어 줍니다. 바뀌는 것은 입력뿐입니다. "해시가 맞는 에이전트 키"에서 "플릿
-credential의 공개키와 서명이 맞는 assertion"으로. bearer 키로 에이전트를 찾던
-라우트는 모두 그 세션으로 찾습니다.
+상자에는 공유 비밀값이 필요 없습니다. 패키지가 번들 옆에 함께 싣는 루트 유닛
+`internkim box`가 Ed25519 서명 키와 X25519 암호화 키를 `/var/lib/internkim/box`에
+둡니다. 자기 공개키를 적은 JWT에 서명하고(1분 유효, 2분이 지나면 거절),
+`/api/box/session`에서 회사 설정, `host.<companyID>@agent.internkim.invalid`로 된
+한 시간짜리 세션, 자기에게 봉인된 모델 키로 바꿉니다. 회사가 연결하기 전에는
+30초마다 자기를 알립니다.
+
+첫 세션으로 회사를 설치합니다. `internkim install`이 파일로 하는 것과 똑같고,
+에이전트 키 자리에 세션이 들어갑니다. 그다음부터 데몬은 만료 10분 전에 새 세션을
+그 파일에 덮어쓰고, 그 파일을 읽는 쪽은 요청마다 다시 읽으니 릴레이와 admind가
+지난 세션을 쥐고 있는 일이 없습니다. 에이전트 키를 받는 라우트는 세션도 받고,
+`/api/agent/host-session`은 받은 세션을 갱신 없이 그대로 돌려주니 훔친 세션은 한
+시간 안에 죽습니다. admind가 사람을 대신해 Blueclaw에 서명하는 요청은 따로 둔 키를
+씁니다. 세션은 한 시간마다 바뀌는데 Blueclaw는 키를 한 번만 읽기 때문입니다.
 
 | | 에이전트 키 | 상자 키쌍 |
 |---|---|---|
@@ -127,7 +134,7 @@ credential의 공개키와 서명이 맞는 assertion"으로. bearer 키로 에�
 
 OpenRouter 키 가져오기: 상자가 OpenRouter를 직접 부릅니다. 관리자가
 `intern.kim`에 키를 붙여 넣으면 브라우저가 상자의 공개키로 암호화하고, 암호문은
-중앙 평면을 거쳐 상자로 가서 `/root/.internkim/secrets/openrouter-key`로 풀립니다.
+중앙 평면을 거쳐 상자로 가서 `/var/lib/internkim/current/secrets/openrouter-key`로 풀립니다.
 중앙 평면은 자기가 읽을 수 없는 값을 저장하고 전달할 뿐입니다.
 
 구독: 상자에는 공급자 키가 없습니다. 자기 세션으로 중앙 평면의 모델

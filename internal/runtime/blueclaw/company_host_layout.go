@@ -166,8 +166,8 @@ func (layout CompanyHostLayout) RunSecretsPath() string {
 	return layout.RunPath + "/secrets"
 }
 
-func (layout CompanyHostLayout) RunAgentKeyPath() string {
-	return layout.RunSecretsPath() + "/agent-key"
+func (layout CompanyHostLayout) RunAssertionKeyPath() string {
+	return layout.RunSecretsPath() + "/blueclaw-assertion-key"
 }
 
 func (layout CompanyHostLayout) RunModelKeyPath() string {

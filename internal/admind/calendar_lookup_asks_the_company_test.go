@@ -56,7 +56,7 @@ func useCompanyForTest(service *Service, companyURL string) {
 	service.centralPlaneOnce.Do(func() {})
 	service.centralPlaneClient = centralplane.New(centralplane.Settings{
 		AppURL:         companyURL,
-		AgentAPIKey:    "agent-key",
+		HostCredential: func() string { return "agent-key" },
 		ProjectURL:     companyURL,
 		PublishableKey: "publishable",
 	})

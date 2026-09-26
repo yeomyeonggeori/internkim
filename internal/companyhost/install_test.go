@@ -90,7 +90,7 @@ func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 		blueclaw.CompanyHostPolicyDocument:  true,
 	}
 
-	for _, unit := range blueclaw.CompanyPackageUnits() {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.DebianCompanyHostLayout()) {
 		condition := conditionPathOf(unit.Contents)
 		if condition == "" {
 			t.Fatalf("%s starts whether or not this box has a company", unit.Name)
@@ -131,7 +131,7 @@ func TestTheInstallWritesTheUnitsThePackageShips(t *testing.T) {
 	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
 		t.Fatalf("install the units: %v", errorValue)
 	}
-	for _, unit := range blueclaw.CompanyPackageUnits() {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.DebianCompanyHostLayout()) {
 		written, errorValue := os.ReadFile(filepath.Join(unitRoot, unit.FileName()))
 		if errorValue != nil {
 			t.Fatalf("the install wrote no %s: %v", unit.FileName(), errorValue)
