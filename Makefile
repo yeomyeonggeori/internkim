@@ -2,9 +2,8 @@ GO_HOST ?= $(shell go env GOOS 2>/dev/null)-$(shell go env GOARCH 2>/dev/null)
 GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
-COMPANY_HOST_IMAGE ?= internkim-company-host:local
 
-.PHONY: build build-maild build-relay build-companion build-company-host build-company-host-image verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
+.PHONY: build build-maild build-relay build-companion build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -21,10 +20,6 @@ build-companion:
 
 build-company-host:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-host ./cmd/internkim-host
-
-build-company-host-image:
-	docker build --tag $(COMPANY_HOST_IMAGE)-base --file host/Dockerfile .
-	docker build --tag $(COMPANY_HOST_IMAGE) --build-arg HOST_IMAGE=$(COMPANY_HOST_IMAGE)-base --build-arg BUZZ_IMAGE=$$(cat host/quickstart/buzz-image) --file host/quickstart/Dockerfile .
 
 generate-protocol:
 	cd .dependency/blueclaw/protocol && bun install --frozen-lockfile

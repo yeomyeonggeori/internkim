@@ -427,8 +427,7 @@ cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
 ./internkim release publish
 ./internkim release companion
-./internkim release host-image
-./internkim release host --image <the reference host-image printed>
+./internkim release host
 
 ./internkim update check --profile dawn --node 1
 ./internkim update apply --profile dawn --node 1
@@ -552,19 +551,8 @@ command configures the host from the connection file and registers its native
 services. The web app's setup page and the [quickstart](https://docs.intern.kim/quickstart)
 show the same commands.
 
-To build the company host from source, build both halves here without pulling
-from a registry of ours. `make build-company-host-image` builds the company
-server image on this machine and `make build-company-host` stamps a binary
-with it; both take
-`COMPANY_HOST_IMAGE`, which defaults to `internkim-company-host:local`.
-
-```bash
-make build-company-host-image build-company-host
-./internkim-host install ~/Downloads/internkim-host.json
-```
-
-Every host binary runs exactly the company server image it was stamped with,
-and refuses to install carrying none.
+`make build-company-host` builds the same `internkim` command the package
+installs, as `./internkim-host`.
 
 `https://intern.kim/companion/install.sh` still answers: admind on a device that
 has not been redeployed prints that address, and the file there forwards to

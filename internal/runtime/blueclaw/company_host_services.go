@@ -1,6 +1,9 @@
 package blueclaw
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // What the company host runs, said once, for the two supervisors that run it.
 //
@@ -201,7 +204,7 @@ func companyHostMessengerService(layout CompanyHostLayout) CompanyHostService {
 				setting("RELAY_URL", BuzzRelayLocalURL),
 				setting("BUZZ_AUTO_MIGRATE", "1"),
 				setting("BUZZ_REQUIRE_RELAY_MEMBERSHIP", "true"),
-				setting("BUZZ_DB_POOL_SIZE", "50"),
+				setting("BUZZ_DB_POOL_SIZE", strconv.Itoa(MessengerDatabaseConnections)),
 			),
 		),
 		RestartAfterSeconds:   5,
