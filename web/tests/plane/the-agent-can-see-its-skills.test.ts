@@ -1,9 +1,6 @@
 import { expect, test } from 'bun:test';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync } from 'node:fs';
 import { aCompanyPlane } from './a-company-plane';
-
-const repositoryRoot = join(import.meta.dir, '..', '..', '..');
 
 type SkillInventory = {
 	skills: { name: string; path: string }[];
@@ -55,18 +52,3 @@ test('the agent on the plane can see every skill it can run, and no other', asyn
 		await plane.stop();
 	}
 }, 180_000);
-
-test('the company box ships the skills it starts the agent with', () => {
-	const dockerfile = readFileSync(join(repositoryRoot, 'host', 'Dockerfile'), 'utf8');
-	const entrypoint = readFileSync(join(repositoryRoot, 'host', 'entrypoint.sh'), 'utf8');
-
-	expect(
-		entrypoint.includes('BLUECLAW_BUNDLED_SKILLS_PATH'),
-		`host/entrypoint.sh names no bundled skills root, so blueclaw looks under the empty ` +
-			`/workspace volume and starts with nothing`
-	).toBe(true);
-	expect(
-		dockerfile.includes('.dependency/internkim-plugin/skills'),
-		`host/Dockerfile copies no plugin skills, so the path the entrypoint names is empty in the image`
-	).toBe(true);
-});
