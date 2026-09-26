@@ -145,22 +145,23 @@ compare(
 	comparisons
 );
 compare('storage.s3_protocol.enabled', localConfig.storage.s3_protocol.enabled, storage.features.s3Protocol.enabled, comparisons);
-compare('storage.analytics.enabled', localConfig.storage.analytics.enabled, storage.features.icebergCatalog.enabled, comparisons);
+const productionAnalytics = localConfig.remotes.production.storage.analytics;
+compare('storage.analytics.enabled', productionAnalytics.enabled, storage.features.icebergCatalog.enabled, comparisons);
 compare(
 	'storage.analytics.max_namespaces',
-	localConfig.storage.analytics.max_namespaces,
+	productionAnalytics.max_namespaces,
 	storage.features.icebergCatalog.maxNamespaces,
 	comparisons
 );
 compare(
 	'storage.analytics.max_tables',
-	localConfig.storage.analytics.max_tables,
+	productionAnalytics.max_tables,
 	storage.features.icebergCatalog.maxTables,
 	comparisons
 );
 compare(
 	'storage.analytics.max_catalogs',
-	localConfig.storage.analytics.max_catalogs,
+	productionAnalytics.max_catalogs,
 	storage.features.icebergCatalog.maxCatalogs,
 	comparisons
 );
