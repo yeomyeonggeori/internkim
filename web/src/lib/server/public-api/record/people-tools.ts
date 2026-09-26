@@ -1,4 +1,4 @@
-import { addMember, inviteMember } from '$lib/server/control-plane';
+import { addMember, AddressBelongsToAnotherCompany, AlreadyAMember, inviteMember } from '$lib/server/control-plane';
 import { personName } from '$lib/person-name';
 import type { DirectoryPerson, PersonInviteResult } from '../catalog/people';
 import type { RecordContext } from './company';
@@ -126,6 +126,20 @@ export async function personUpdate(
 	return answeredPerson(await personWrittenBack(context, person.personID), context.people, teams, context.locale);
 }
 
+async function personAddedAt(context: RecordContext, email: string, name: string): Promise<string> {
+	try {
+		return await addMember(context.accountDirectory, context.companyID, email, { name });
+	} catch (refusal) {
+		if (refusal instanceof AddressBelongsToAnotherCompany) {
+			throw new RecordRefusedTheWrite('that address belongs to another company', 409, 'person_address_taken');
+		}
+		if (refusal instanceof AlreadyAMember) {
+			throw new RecordRefusedTheWrite('that person is already a member of this company', 409, 'person_already_member');
+		}
+		throw refusal;
+	}
+}
+
 export async function personInvite(
 	context: RecordContext,
 	input: PersonInviteInput
@@ -136,17 +150,7 @@ export async function personInvite(
 	if (!name) throw new Error('an invitation names the person it invites');
 	refuseUnlessTheRequesterAdministers(context, 'invites people');
 
-	const held = await context.accountDirectory
-		.from('member')
-		.select('company_id')
-		.eq('email', email)
-		.maybeSingle<{ company_id: string }>();
-	if (held.error) throw new RecordRefusedTheWrite(held.error.message, 502);
-	if (held.data && held.data.company_id !== context.companyID) {
-		throw new RecordRefusedTheWrite('that address belongs to another company', 409, 'person_address_taken');
-	}
-
-	const personID = await addMember(context.accountDirectory, context.companyID, email, { name });
+	const personID = await personAddedAt(context, email, name);
 	const invitation = await inviteMember(context.accountDirectory, personID);
 	await writeTheOrganizationHomeOfANewPerson(context, personID, input);
 

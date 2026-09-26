@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { error, json } from '@sveltejs/kit';
-import { controlPlane } from '$lib/server/control-plane';
+import { accountOfAddress, controlPlane } from '$lib/server/control-plane';
 import {
 	anIssuedPassword,
 	isAlreadyClaimed,
@@ -46,9 +46,7 @@ async function issueTheFirstClaim(
 	email: string,
 	memberID: string,
 ): Promise<string> {
-	const accounts = await admin.auth.admin.listUsers();
-	if (accounts.error) error(500, accounts.error.message);
-	const account = (accounts.data.users ?? []).find((user) => user.email === email);
+	const account = (await accountOfAddress(admin, email)) ?? undefined;
 	if (isAlreadyClaimed(account)) error(409, 'that sign-in is already set up');
 
 	const password = anIssuedPassword();
