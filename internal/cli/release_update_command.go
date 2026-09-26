@@ -12,6 +12,7 @@ type releaseUpdateStatusResponse struct {
 	State         string                     `json:"state"`
 	UpdateAllowed bool                       `json:"updateAllowed"`
 	ActiveJob     *blueclawUpdateJobResponse `json:"activeJob,omitempty"`
+	SetupDrift    []string                   `json:"setupDrift,omitempty"`
 }
 
 type releaseUpdateSummary struct {
