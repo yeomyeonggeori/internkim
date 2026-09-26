@@ -64,6 +64,18 @@ type companyHostPlatform interface {
 
 // ThisMachine is the platform the installer is running on. A machine this
 // repository has no install for is refused by name rather than part way through.
+func ThisMachineKeepsABoxSessionFresh() bool {
+	return runtime.GOOS == "linux"
+}
+
+func KeepTheBoxSessionFresh(machine Machine, progress io.Writer) error {
+	unit := blueclaw.BoxServiceName + ".service"
+	if errorValue := machine.Run("systemctl", []string{"enable", unit}, nil, io.Discard); errorValue != nil {
+		return fmt.Errorf("the unit that keeps this computer's session fresh could not be enabled: %w", errorValue)
+	}
+	return machine.Run("systemctl", []string{"restart", unit}, nil, progress)
+}
+
 func ThisMachine() (companyHostPlatform, error) {
 	return platformFor(runtime.GOOS, homebrewPrefix())
 }

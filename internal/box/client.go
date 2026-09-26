@@ -61,6 +61,22 @@ func (client Client) Announce(ctx context.Context, identity Identity) (bool, err
 	return announced.IsClaimed, nil
 }
 
+func (client Client) Claim(ctx context.Context, identity Identity, connectionKey string) error {
+	body, errorValue := json.Marshal(map[string]string{"encryptionKey": identity.EncryptionPublicKey(), "connectionKey": connectionKey})
+	if errorValue != nil {
+		return errorValue
+	}
+	response, errorValue := client.post(ctx, identity, "/api/box/claim", body)
+	if errorValue != nil {
+		return errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return refusalOf(response, "claiming this computer with the connection file")
+	}
+	return nil
+}
+
 func (client Client) Session(ctx context.Context, identity Identity) (Session, bool, error) {
 	response, errorValue := client.post(ctx, identity, "/api/box/session", nil)
 	if errorValue != nil {

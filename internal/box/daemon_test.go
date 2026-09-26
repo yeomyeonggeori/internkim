@@ -24,6 +24,7 @@ type fakePlane struct {
 	accessToken    string
 	sealedModelKey *SealedModelKey
 	announcements  int
+	claimedWith    []string
 }
 
 func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
@@ -32,6 +33,12 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 		case "/api/box/announce":
 			plane.announcements++
 			writer.Write([]byte(`{"isClaimed":false}`))
+		case "/api/box/claim":
+			var body map[string]string
+			json.NewDecoder(request.Body).Decode(&body)
+			plane.claimedWith = append(plane.claimedWith, body["connectionKey"])
+			plane.isClaimed = true
+			writer.Write([]byte(`{"companyID":"` + sampleCompanyID + `"}`))
 		case "/api/box/session":
 			if !plane.isClaimed {
 				http.Error(writer, "this box belongs to no company yet", http.StatusNotFound)
@@ -210,4 +217,43 @@ func TestAComputerConnectedWithAFileIsNotAnnouncedAsEmpty(t *testing.T) {
 	if !errors.Is(errorValue, ErrConnectedByFile) || plane.announcements != 0 {
 		t.Fatalf("error = %v, announcements = %d", errorValue, plane.announcements)
 	}
+}
+
+func TestAConnectionFileClaimsThisComputerAndInstallsFromItsSession(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	recorded := &installs{}
+	daemon, _ := daemonFor(t, plane, recorded)
+
+	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if len(plane.claimedWith) != 1 || plane.claimedWith[0] != "connection-file-key" {
+		t.Fatalf("claimed with %v", plane.claimedWith)
+	}
+	if len(recorded.requests) != 1 || recorded.requests[0].Connection.AgentKey != "file.session.token" || recorded.requests[0].ModelKey != "sk-or-v1-typed" {
+		t.Fatalf("installed %+v", recorded.requests)
+	}
+}
+
+func TestAComputerInstalledFromAFileKeepsRenewingWithNoSealedModelKey(t *testing.T) {
+	plane := &fakePlane{accessToken: "file.session.token"}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	if errorValue := daemon.InstallWithConnectionFile(context.Background(), "connection-file-key", "sk-or-v1-typed"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, path := range append([]string{places.ModelKeyPath}, places.CredentialPaths...) {
+		if errorValue := os.WriteFile(path, []byte("installed\n"), 0o640); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+
+	plane.accessToken = "renewed.session.token"
+	runSteps(t, daemon, 1)
+
+	for _, path := range places.CredentialPaths {
+		requireFile(t, path, "renewed.session.token\n", 0o640)
+	}
+	requireFile(t, places.ModelKeyPath, "installed\n", 0o640)
 }
