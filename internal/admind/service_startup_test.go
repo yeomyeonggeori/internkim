@@ -33,6 +33,7 @@ func TestRunServesRequesterMemoryWhileSiteCleanupWaits(t *testing.T) {
 	service.Configuration.FleetIDPath = writeTestFile(t, "device-1")
 	service.Configuration.FleetSecretPath = writeTestFile(t, "secret-1")
 	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "test-agent-key")
+	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, "test-assertion-key")
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	cleanupStarted := make(chan struct{})
 	releaseCleanup := make(chan struct{})

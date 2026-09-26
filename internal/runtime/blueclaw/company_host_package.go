@@ -17,6 +17,7 @@ import (
 // device path already uses.
 const (
 	CompanyPackageName         = "internkim"
+	BoxServiceName             = "internkim-box"
 	CompanyPackageMaintainer   = "internkim <support@intern.kim>"
 	CompanyPackageVendor       = "yeomyeonggeori"
 	CompanyPackageHomepage     = "https://intern.kim"
@@ -55,6 +56,7 @@ const (
 	CompanyHostSecretsRoot      = "/var/lib/internkim/current/secrets"
 	CompanyHostAgentKeyPath     = "/var/lib/internkim/current/secrets/agent-key"
 	CompanyHostModelKeyPath     = "/var/lib/internkim/current/secrets/openrouter-key"
+	CompanyHostAssertionKeyPath = "/var/lib/internkim/current/secrets/blueclaw-assertion-key"
 	CompanyHostIdentitySeedPath = "/var/lib/internkim/current/secrets/buzz-key-seed"
 	CompanyHostBuzzDatabasePath = "/var/lib/internkim/current/secrets/buzz-database.env"
 	CompanyHostBuzzRelayKeyPath = "/var/lib/internkim/current/secrets/buzz-relay.env"
@@ -69,7 +71,6 @@ const (
 	CompanyHostBrowserStatePath = "/var/lib/internkim-moli"
 	CompanyHostRunPath          = "/run/internkim"
 	CompanyHostRunSecretsPath   = "/run/internkim/secrets"
-	CompanyHostRunAgentKeyPath  = "/run/internkim/secrets/agent-key"
 	CompanyHostRunModelKeyPath  = "/run/internkim/secrets/openrouter-key"
 	CompanyHostRuntimeDocument  = "/run/internkim/runtime.json"
 	CompanyHostPolicyDocument   = "/run/internkim/policy.json"
@@ -135,7 +136,26 @@ func (unit CompanyPackageUnit) InstalledPath() string {
 // has the package but not yet a company sits inactive rather than restarting into a
 // failure it cannot explain.
 func CompanyPackageUnits() []CompanyPackageUnit {
-	return CompanyHostSystemdUnits(DebianCompanyHostLayout())
+	layout := DebianCompanyHostLayout()
+	return append(CompanyHostSystemdUnits(layout), CompanyPackageUnit{Name: BoxServiceName, Contents: boxServiceUnit(layout)})
+}
+
+// The box unit is shipped beside the bundle and never inside it. Installing a
+// company restarts every unit of the bundle, and it is this unit that installs
+// one, so a box unit in the bundle would stop itself halfway through.
+func boxServiceUnit(layout CompanyHostLayout) string {
+	return "[Unit]\n" +
+		"Description=internkim box, which a company claims from its own network\n" +
+		"Documentation=https://docs.intern.kim/kim-mini/\n" +
+		"After=network-online.target\n" +
+		"Wants=network-online.target\n" +
+		"\n[Service]\n" +
+		"User=root\n" +
+		"Restart=on-failure\n" +
+		"RestartSec=30\n" +
+		"ExecStart=" + layout.BinaryPath(CompanyPackageName) + " box\n" +
+		"\n[Install]\n" +
+		"WantedBy=multi-user.target\n"
 }
 
 // CompanyHostSystemdUnits renders the bundle for systemd. What each unit runs comes
@@ -325,7 +345,8 @@ set -e
 
 install -d -o root -g %[3]s -m 0770 %[4]s
 install -d -o root -g %[3]s -m 0750 %[5]s
-install -o root -g %[3]s -m 0440 %[2]s %[6]s
+[ -s %[25]s ] || (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s)
+install -o root -g %[3]s -m 0440 %[25]s %[6]s
 [ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
 install -d -o %[3]s -g %[3]s -m 0750 %[9]s
 install -d -o %[3]s -g %[3]s -m 0750 %[10]s
@@ -363,7 +384,7 @@ fi
 		BlueclawUser,
 		layout.RunPath,
 		layout.RunSecretsPath(),
-		layout.RunAgentKeyPath(),
+		layout.RunAssertionKeyPath(),
 		CompanyHostModelKeyPath,
 		layout.RunModelKeyPath(),
 		CompanyHostLogPath,
@@ -381,5 +402,6 @@ fi
 		CompanyHostPolicyOverridePath,
 		layout.PolicyDocumentPath(),
 		layout.POSIXHelperPath(),
-		fmt.Sprintf("%04o", CompanyHostStateRootMode))
+		fmt.Sprintf("%04o", CompanyHostStateRootMode),
+		CompanyHostAssertionKeyPath)
 }

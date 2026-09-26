@@ -30,7 +30,7 @@ func TestACalendarEventCarriesItsPeopleAsAddresses(t *testing.T) {
 		}})
 	}))
 	defer server.Close()
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+	client := New(Settings{AppURL: server.URL, HostCredential: func() string { return "agent-key" }, ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
 	event, found, errorValue := client.EventByID(context.Background(), "buzz", "owner-account", "task-1")
 	if errorValue != nil {
@@ -64,7 +64,7 @@ func TestSavingAnEventNamesTheProcedureTheCompanyGuards(t *testing.T) {
 		writeJSON(writer, []any{})
 	}))
 	defer server.Close()
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+	client := New(Settings{AppURL: server.URL, HostCredential: func() string { return "agent-key" }, ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
 	savedID, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		Title:      "포틀랜드 출장",
@@ -112,7 +112,7 @@ func TestAWriteCarriesTheVersionItRead(t *testing.T) {
 		writeJSON(writer, []any{})
 	}))
 	defer server.Close()
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+	client := New(Settings{AppURL: server.URL, HostCredential: func() string { return "agent-key" }, ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
 	if _, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		CentralID:         "task-9",
@@ -155,7 +155,7 @@ func TestANewEventNamesNoTaskAndAKnownOneNamesItsOwn(t *testing.T) {
 		writeJSON(writer, []any{})
 	}))
 	defer server.Close()
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+	client := New(Settings{AppURL: server.URL, HostCredential: func() string { return "agent-key" }, ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
 	if _, errorValue := client.SaveEvent(context.Background(), "email", "kimyesi@example.com", Event{
 		Title: "새 일정", StartsAt: "2026-09-30T01:00:00Z", EndsAt: "2026-09-30T02:00:00Z",

@@ -638,11 +638,18 @@ export function hostAddressOf(companyID: string): string {
 
 export async function sessionForHost(
 	credentials: SigningCredentials,
-	apiKey: string,
+	presented: string,
 ): Promise<HostSession> {
-	const agent = await agentOfKey(controlPlane(credentials), apiKey);
+	if (presented.split('.').length === 3) return presentedHostSession(credentials, presented);
+	const agent = await agentOfKey(controlPlane(credentials), presented);
 	if (!agent) throw new Error('that key belongs to no agent');
 	return hostSessionOfCompany(credentials, agent.companyID);
+}
+
+async function presentedHostSession(credentials: SigningCredentials, accessToken: string): Promise<HostSession> {
+	const session = await verifiedHostSession(credentials, accessToken);
+	if (!session) throw new Error('that session belongs to no company computer');
+	return session;
 }
 
 export async function hostSessionOfCompany(
@@ -661,18 +668,27 @@ export async function hostSessionOfCompany(
 
 const hostSessionClaimsSchema = z.object({
 	email: z.string(),
+	exp: z.number(),
 	app_metadata: z.object({ company_id: z.string() }),
 });
+
+async function verifiedHostSession(
+	credentials: SigningCredentials,
+	accessToken: string,
+): Promise<HostSession | null> {
+	const payload = await verifiedRecordToken(credentials.signingKey, credentials.projectURL, accessToken);
+	const claims = hostSessionClaimsSchema.safeParse(payload);
+	if (!claims.success) return null;
+	const companyID = claims.data.app_metadata.company_id;
+	if (claims.data.email !== hostAddressOf(companyID)) return null;
+	return { companyID, accessToken, expiresAt: claims.data.exp };
+}
 
 export async function companyOfHostSession(
 	credentials: SigningCredentials,
 	accessToken: string,
 ): Promise<string | null> {
-	const payload = await verifiedRecordToken(credentials.signingKey, credentials.projectURL, accessToken);
-	const claims = hostSessionClaimsSchema.safeParse(payload);
-	if (!claims.success) return null;
-	const companyID = claims.data.app_metadata.company_id;
-	return claims.data.email === hostAddressOf(companyID) ? companyID : null;
+	return (await verifiedHostSession(credentials, accessToken))?.companyID ?? null;
 }
 
 export async function companyOfHostCredential(

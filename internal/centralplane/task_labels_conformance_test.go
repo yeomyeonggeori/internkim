@@ -36,7 +36,7 @@ func TestTaskLabelsReadAnAnswerTheCatalogPromises(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable-key"})
+	client := New(Settings{AppURL: server.URL, HostCredential: func() string { return "agent-key" }, ProjectURL: server.URL, PublishableKey: "publishable-key"})
 
 	labels, errorValue := client.TaskLabels(context.Background(), "member1@example.com")
 	if errorValue != nil {

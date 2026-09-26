@@ -18,7 +18,7 @@ const (
 
 type Settings struct {
 	AppURL         string
-	AgentAPIKey    string
+	HostCredential func() string
 	ProjectURL     string
 	PublishableKey string
 	HTTPClient     *http.Client
@@ -31,7 +31,8 @@ type Settings struct {
 
 func (settings Settings) Configured() bool {
 	return strings.TrimSpace(settings.AppURL) != "" &&
-		strings.TrimSpace(settings.AgentAPIKey) != "" &&
+		settings.HostCredential != nil &&
+		strings.TrimSpace(settings.HostCredential()) != "" &&
 		strings.TrimSpace(settings.ProjectURL) != "" &&
 		strings.TrimSpace(settings.PublishableKey) != ""
 }
@@ -108,7 +109,7 @@ func (client *Client) sessionFor(ctx context.Context, platform string, externalI
 	if errorValue != nil {
 		return memberSession{}, errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 	request.Header.Set("Content-Type", "application/json")
 
 	response, errorValue := client.httpClient.Do(request)

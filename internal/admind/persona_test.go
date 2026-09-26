@@ -43,7 +43,7 @@ func personaTestService(t *testing.T) *Service {
 		SoulDocumentPath:         filepath.Join(configurationDirectory, "soul.json"),
 		BlueclawWorkspacePath:    t.TempDir(),
 		AdminEmailPath:           writeTestFile(t, "admin@example.com"),
-		CentralPlaneAgentKeyPath: writeTestFile(t, "synthetic-persona-key"),
+		BlueclawAssertionKeyPath: writeTestFile(t, "synthetic-persona-key"),
 	})
 }
 

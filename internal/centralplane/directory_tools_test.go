@@ -153,7 +153,7 @@ func (stub *directoryStub) client() *Client {
 func (stub *directoryStub) clientClaimedBy(administratorEmail string) *Client {
 	return New(Settings{
 		AppURL:                    stub.server.URL,
-		AgentAPIKey:               "agent-key",
+		HostCredential:            func() string { return "agent-key" },
 		ProjectURL:                stub.server.URL,
 		PublishableKey:            "publishable",
 		ClaimedAdministratorEmail: func() string { return administratorEmail },
@@ -207,7 +207,7 @@ func TestADirectoryWriteRefusesWhenTheDeviceWasBuiltWithNoClaimAtAll(t *testing.
 	stub := newDirectoryStub(t)
 	client := New(Settings{
 		AppURL:         stub.server.URL,
-		AgentAPIKey:    "agent-key",
+		HostCredential: func() string { return "agent-key" },
 		ProjectURL:     stub.server.URL,
 		PublishableKey: "publishable",
 	})

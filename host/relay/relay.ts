@@ -42,7 +42,7 @@ import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival
 
 const projectURL = required('SUPABASE_URL');
 const publishableKey = required('SUPABASE_PUBLISHABLE_KEY');
-const agentKey = await agentKeyFromEnvironmentOrFile();
+await hostCredential();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = positiveNumberSetting('ARRIVALS_PORT', process.env.ARRIVALS_PORT, 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
@@ -75,13 +75,13 @@ function required(name: string): string {
 	return value;
 }
 
-async function agentKeyFromEnvironmentOrFile(): Promise<string> {
+async function hostCredential(): Promise<string> {
 	const given = process.env.AGENT_API_KEY?.trim();
 	if (given) return given;
 	const keptAt = process.env.AGENT_API_KEY_PATH?.trim();
 	if (!keptAt) throw new Error('set AGENT_API_KEY or AGENT_API_KEY_PATH');
 	const kept = (await Bun.file(keptAt).text()).trim();
-	if (!kept) throw new Error(`${keptAt} holds no agent key`);
+	if (!kept) throw new Error(`${keptAt} holds no company computer credential`);
 	return kept;
 }
 
@@ -467,7 +467,7 @@ async function askTheRecord<Value>(method: string, path: string, body?: unknown)
 	const response = await fetch(`${appURL}${path}`, {
 		method,
 		headers: {
-			Authorization: `Bearer ${agentKey}`,
+			Authorization: `Bearer ${await hostCredential()}`,
 			...(body === undefined ? {} : { 'Content-Type': 'application/json' })
 		},
 		body: body === undefined ? undefined : JSON.stringify(body)
@@ -479,7 +479,7 @@ async function askTheRecord<Value>(method: string, path: string, body?: unknown)
 async function askTheProject<Value>(functionName: string, body: unknown): Promise<Value> {
 	const response = await fetch(`${projectURL.replace(/\/+$/, '')}/functions/v1/${functionName}`, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
+		headers: { Authorization: `Bearer ${await hostCredential()}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify(body)
 	});
 	if (!response.ok) throw new Error(`the project answered ${response.status} for ${functionName}`);
@@ -491,7 +491,7 @@ async function askForMemberSession(
 ): Promise<{ accessToken: string; expiresAt: number }> {
 	const response = await fetch(`${appURL}/api/agent/session`, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${agentKey}`, 'Content-Type': 'application/json' },
+		headers: { Authorization: `Bearer ${await hostCredential()}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({ kind: 'email', externalID: requesterEmail })
 	});
 	if (!response.ok) {
@@ -503,9 +503,9 @@ async function askForMemberSession(
 async function askForHostSession(): Promise<{ companyID: string; accessToken: string; expiresAt: number }> {
 	const response = await fetch(`${appURL}/api/agent/host-session`, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${agentKey}` }
+		headers: { Authorization: `Bearer ${await hostCredential()}` }
 	});
-	if (!response.ok) throw new Error(`the central plane refused this agent key (${response.status})`);
+	if (!response.ok) throw new Error(`the central plane refused this company computer credential (${response.status})`);
 	return (await response.json()) as { companyID: string; accessToken: string; expiresAt: number };
 }
 

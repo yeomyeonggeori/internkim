@@ -58,7 +58,7 @@ func (client *Client) Members(ctx context.Context) ([]Member, error) {
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {
@@ -94,7 +94,7 @@ func (client *Client) MemberByEmail(ctx context.Context, email string) (Member, 
 	if errorValue != nil {
 		return Member{}, false, errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {
@@ -228,7 +228,7 @@ func (client *Client) KeepMessengerCredential(ctx context.Context, memberID stri
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 	request.Header.Set("Content-Type", "application/json")
 
 	response, errorValue := client.httpClient.Do(request)
@@ -273,7 +273,7 @@ func (client *Client) SaveMember(ctx context.Context, write MemberWrite) (Member
 	if errorValue != nil {
 		return Member{}, errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 	request.Header.Set("Content-Type", "application/json")
 
 	response, errorValue := client.httpClient.Do(request)
@@ -312,7 +312,7 @@ func (client *Client) WithdrawMember(ctx context.Context, email string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {

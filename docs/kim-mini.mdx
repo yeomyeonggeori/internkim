@@ -103,20 +103,28 @@ assistant, and it is the first thing to revisit if a company ever wants two.
 
 ## The box's identity replaces the agent key
 
-Today a host proves itself with a bearer agent key: a random secret the web
-app issues once, the host keeps at `/root/.internkim/secrets/agent-key`, and
-every `/api/agent/*` route checks against a SHA-256 hash in
-`agent.api_key_hash` (`agentOfKey`, reached through `callingAgent` in
-`web/src/lib/server/agent-request.ts`).
+A host connected with a file proves itself with a bearer agent key: a random
+secret the web app issues once, which the host keeps at
+`/var/lib/internkim/current/secrets/agent-key` and every `/api/agent/*` route
+checks against a SHA-256 hash in `agent.api_key_hash`.
 
-A box that holds a private key needs no shared secret. It signs a short
-assertion (the company it believes it belongs to, a timestamp, a nonce) and
-exchanges it for a short-lived session. `sessionForHost` already mints that
-session as the magic-link account `host.<companyID>@agent.internkim.invalid`;
-only its input changes from "an agent key whose hash matches" to "an assertion
-whose signature matches the public key on the fleet credential". Every route
-that resolves an agent from a bearer key resolves it from that session
-instead.
+A box needs no shared secret. `internkim box`, a root unit the package ships
+beside the bundle, keeps an Ed25519 signing key and an X25519 encryption key in
+`/var/lib/internkim/box`. It signs a JWT naming its own public key, valid for a
+minute and refused after two, and trades it at `/api/box/session` for the
+company's settings, an hour-long session as `host.<companyID>@agent.internkim.invalid`,
+and the model key sealed to it. Until a company claims it, it announces itself
+every thirty seconds.
+
+The first session installs the company, exactly as `internkim install` does from
+a file, with the session standing where the agent key stood. After that the
+daemon writes each new session over the old one ten minutes before it expires,
+and every reader of that file reads it per request, so the relay and admind
+never hold a stale one. The routes that take an agent key take the session too,
+and `/api/agent/host-session` hands a session back unrenewed, so a stolen one
+dies within the hour. What admind signs for Blueclaw on a person's behalf uses a
+key of its own, because the session changes hourly and Blueclaw reads its key
+once.
 
 | | agent key | box keypair |
 |---|---|---|
@@ -136,7 +144,7 @@ A company picks one of two ways to pay for inference.
 Bring your own OpenRouter key: the box calls OpenRouter directly. The
 administrator pastes the key at `intern.kim`, the browser encrypts it to the
 box's public key, and the ciphertext travels through the central plane to the
-box, which decrypts it into `/root/.internkim/secrets/openrouter-key`. The
+box, which decrypts it into `/var/lib/internkim/current/secrets/openrouter-key`. The
 plane stores and relays a value it cannot read.
 
 Subscribe: the box holds no provider key. It calls a model endpoint on the

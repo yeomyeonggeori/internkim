@@ -66,7 +66,7 @@ func newCentralPlaneStub(t *testing.T) *centralPlaneStub {
 func (stub *centralPlaneStub) client() *Client {
 	return New(Settings{
 		AppURL:         stub.server.URL,
-		AgentAPIKey:    "agent-key",
+		HostCredential: func() string { return "agent-key" },
 		ProjectURL:     stub.server.URL,
 		PublishableKey: "publishable-key",
 	})

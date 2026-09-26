@@ -18,6 +18,7 @@ import {
 	companyOfHostSession,
 	controlPlane,
 	provisionCompany,
+	sessionForHost,
 	sessionForMember
 } from '../../src/lib/server/control-plane';
 import { recordTokenFor } from '../../src/lib/server/record-token';
@@ -236,5 +237,22 @@ describe('the routes a company computer calls accept its session', () => {
 		const memberSession = await sessionForMember(credentials, adminMemberID);
 
 		await expect(callingAgent(requestBearing(memberSession.accessToken), environment)).rejects.toMatchObject({ status: 403 });
+	});
+
+	test('asking for a host session with one hands the same one back, unrenewed', async () => {
+		const box = await aBox();
+		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
+		await claimBox(client, companyID, box.publicKey, officeAddress);
+		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
+		const presented = answered?.session;
+		if (!presented) throw new Error('a claimed box gets a session');
+
+		expect(await sessionForHost(credentials, presented.accessToken)).toEqual(presented);
+	});
+
+	test('a member’s own session buys no host session', async () => {
+		const memberSession = await sessionForMember(credentials, adminMemberID);
+
+		await expect(sessionForHost(credentials, memberSession.accessToken)).rejects.toThrow('no company computer');
 	});
 });

@@ -24,7 +24,7 @@ func (service *Service) centralPlane() *centralplane.Client {
 			log.Printf("this device names no company, so the record it would read is not there")
 			return
 		}
-		settings.AgentAPIKey = service.centralPlaneAgentKey()
+		settings.HostCredential = service.centralPlaneAgentKey
 		if !settings.Configured() {
 			log.Printf("this device names a company that issued it no agent key")
 			return

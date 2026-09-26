@@ -2,16 +2,21 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
+	"gitlab.com/eastriver/internkim/internal/box"
 	"gitlab.com/eastriver/internkim/internal/companyhost"
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 	"golang.org/x/term"
 )
 
@@ -59,13 +64,63 @@ type installArguments struct {
 
 func main() {
 	command := filepath.Base(os.Args[0])
-	if len(os.Args) < 2 || os.Args[1] != "install" {
-		fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
+	if len(os.Args) < 2 {
+		printUsage(command)
+	}
+	switch os.Args[1] {
+	case "install":
+		if errorValue := runInstall(os.Args[2:]); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nInstallation stopped: %s\n", errorValue)
+			os.Exit(1)
+		}
+	case "box":
+		runBox(os.Args[2:])
+	default:
+		printUsage(command)
+	}
+}
+
+func printUsage(command string) {
+	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL]\n", command)
+	os.Exit(1)
+}
+
+func runBox(arguments []string) {
+	flags := flag.NewFlagSet("box", flag.ExitOnError)
+	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
+	flags.Parse(arguments)
+	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
 	}
-	if errorValue := runInstall(os.Args[2:]); errorValue != nil {
-		fmt.Fprintf(os.Stderr, "\nInstallation stopped: %s\n", errorValue)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	errorValue := boxDaemon(*appURL).Run(ctx)
+	if errors.Is(errorValue, box.ErrConnectedByFile) {
+		fmt.Println(errorValue)
+		return
+	}
+	if errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
+	}
+}
+
+func boxDaemon(appURL string) box.Daemon {
+	return box.Daemon{
+		Client: box.Client{AppURL: appURL},
+		Places: box.Places{
+			StateDirectoryPath:        filepath.Join(blueclaw.CompanyHostStateRoot, "box"),
+			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
+			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
+			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
+			CompanyStateDirectoryPath: companyhost.DefaultStateDirectoryPath,
+		},
+		Install: func(request companyhost.Request) error {
+			_, errorValue := companyhost.Install(request, thisComputer{}, os.Stdout)
+			return errorValue
+		},
 	}
 }
 
