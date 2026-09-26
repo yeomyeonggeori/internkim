@@ -12,6 +12,7 @@
         "@humanspeak/svelte-markdown": "^1.6.0",
         "@lucide/svelte": "^1.27.0",
         "@modelcontextprotocol/sdk": "1.30.0",
+        "@noble/curves": "2.0.1",
         "@scalar/sveltekit": "^0.3.13",
         "@supabase/supabase-js": "^2.111.0",
         "@tailwindcss/typography": "^0.5.19",

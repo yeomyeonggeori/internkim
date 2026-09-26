@@ -1,0 +1,12 @@
+{
+	"modelKey": "sk-or-v1-0000000000000000000000000000000000000000000000000000000000000000",
+	"boxSecretKey": "ERERERERERERERERERERERERERERERERERERERERERE",
+	"boxEncryptionKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+	"ephemeralSecretKey": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+	"nonce": "MzMzMzMzMzMzMzMz",
+	"sealed": {
+		"ephemeralPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+		"nonce": "MzMzMzMzMzMzMzMz",
+		"ciphertext": "IsKzudg9rvZUiqkN0HUacH8AzdlMw_IIR7_d6xyNe8A3wfu4k5ltTQbt_cGXOdmIITVzPGVV6_Tbq1xK8--F-SssNc-SocyKhTxJwQEAgdYo_GSrR9jWzyI"
+	}
+}

@@ -111,7 +111,7 @@ test('an identity nobody claims is refused', async () => {
 test('a made-up key is refused', async () => {
 	await expect(
 		sessionForPlatformIdentity(credentials, 'not-a-real-key', 'buzz', `speaker-${stamp}`),
-	).rejects.toThrow('no agent');
+	).rejects.toThrow('belongs to no company computer');
 });
 
 test('the key is not stored in a usable form', async () => {
@@ -132,7 +132,7 @@ test('a second agent can run before the first is retired', async () => {
 	await revokeAgent(client, ourAgentID);
 	await expect(
 		sessionForPlatformIdentity(credentials, ourAgentKey, 'buzz', `speaker-${stamp}`),
-	).rejects.toThrow('no agent');
+	).rejects.toThrow('belongs to no company computer');
 	const stillWorks = await sessionForPlatformIdentity(credentials, spare.apiKey, 'buzz', `speaker-${stamp}`);
 	expect(stillWorks.memberID).toBe(speakerID);
 });
