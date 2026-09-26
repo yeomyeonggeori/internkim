@@ -16,7 +16,7 @@ allSet() {
 }
 
 if ! allSet; then
-  if stack="$(cd "$repository" && supabase status -o env 2>/dev/null)"; then
+  if stack="$(cd "$repository" && supabase status --env --output-format text 2>/dev/null)"; then
     eval "$(printf '%s\n' "$stack" | grep -E '^(API_URL|SECRET_KEY|PUBLISHABLE_KEY)=')"
     export SUPABASE_URL="${SUPABASE_URL:-${API_URL:-}}"
     export SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-${SECRET_KEY:-}}"

@@ -2,6 +2,11 @@
 set -euo pipefail
 
 repository="$(cd "$(dirname "$0")/../.." && pwd)"
+
+if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
+  exec "$repository/tools/with-local-plane" "$0" "$@"
+fi
+
 cd "$repository"
 
 supabase db reset
@@ -16,7 +21,7 @@ read_central_plane_settings() {
   API_URL=
   PUBLISHABLE_KEY=
   SECRET_KEY=
-  eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+  eval "$(supabase status --env --output-format text 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
   [ -n "$API_URL" ] && [ -n "$PUBLISHABLE_KEY" ] && [ -n "$SECRET_KEY" ]
 }
 
@@ -33,37 +38,8 @@ wait_until_settings_are_named() {
 
 wait_until_settings_are_named
 
-project_id="$(sed -n '/^\[/q; s/^project_id = "\(.*\)"$/\1/p' "$repository/supabase/config.toml")"
-
-gateway_container() {
-  docker ps --filter "label=com.supabase.cli.project=$project_id" --filter 'name=supabase_kong_' --format '{{.Names}}'
-}
-
-every_container_has_settled() {
-  ! docker ps --filter "label=com.supabase.cli.project=$project_id" --format '{{.Status}}' \
-    | grep -qE 'health: starting|Restarting|Created'
-}
-
-container_start_times() {
-  docker ps --filter "label=com.supabase.cli.project=$project_id" --format '{{.Names}}' \
-    | while read -r container; do
-        docker inspect -f '{{.Name}}={{.State.StartedAt}}' "$container" 2>/dev/null
-      done | sort | tr '\n' ' '
-}
-
-restart_gateway() {
-  local container
-  container="$(gateway_container)"
-  if [ -z "$container" ]; then
-    echo "no supabase gateway container is running" >&2
-    return 1
-  fi
-  docker restart "$container" >/dev/null
-}
-
 central_plane_serves() {
-  every_container_has_settled \
-    && curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/auth/v1/settings" \
+  curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/auth/v1/settings" \
     && curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/rest/v1/company?select=id&limit=1" \
     && central_plane_signs_someone_in \
     && the_api_knows_the_organization_functions
@@ -97,24 +73,18 @@ seconds_the_central_plane_must_keep_serving=5
 
 wait_until_central_plane_serves() {
   settled=0
-  previous_start_times=""
-  for attempt in $(seq 1 120); do
-    current_start_times="$(container_start_times)"
-    if [ "$current_start_times" = "$previous_start_times" ] && central_plane_serves; then
+  for _ in $(seq 1 120); do
+    if central_plane_serves; then
       settled=$((settled + 1))
       if [ "$settled" -ge "$seconds_the_central_plane_must_keep_serving" ]; then
         return 0
       fi
     else
       settled=0
-      if [ $((attempt % 20)) -eq 0 ]; then
-        restart_gateway || true
-      fi
     fi
-    previous_start_times="$current_start_times"
     sleep 1
   done
-  echo "the central plane did not answer, sign anyone in, and name save_member_profiles and save_teams for $seconds_the_central_plane_must_keep_serving unchanged seconds within 120 seconds. Another checkout resetting the same local stack takes this branch's migrations away." >&2
+  echo "the central plane did not answer, sign anyone in, and name save_member_profiles and save_teams for $seconds_the_central_plane_must_keep_serving seconds in a row within 120 seconds" >&2
   return 1
 }
 

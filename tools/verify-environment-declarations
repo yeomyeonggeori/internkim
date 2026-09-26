@@ -94,7 +94,7 @@ SHELL_BUILTINS = {
     "SECONDS",
 }
 
-# `eval "$(supabase status -o env | grep -E '^(API_URL|SECRET_KEY)=')"` assigns
+# `eval "$(supabase status --env --output-format text | grep -E '^(API_URL|SECRET_KEY)=')"` assigns
 # these names the same way `NAME=value` would, just too indirectly for
 # SHELL_ASSIGNMENT_TARGET to see; read the alternation grep already filters
 # on, which names the same set for the same reason.

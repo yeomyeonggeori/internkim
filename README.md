@@ -233,11 +233,17 @@ Agent memory stays on the host with the agent, kept by
 
 ### The central plane, locally
 
+The local stack is the Supabase CLI's native runtime, with no Docker:
+`[experimental] stack = true` in `config.toml`, on the API and database ports
+that file pins. `tools/with-local-plane` starts it, holds it for one command at a
+time, and stops it after fifteen idle minutes. It refuses a CLI older than the
+version it names.
+
 ```bash
-supabase db reset                      # schema and fixtures
-supabase test db                       # pgTAP
-bun test ./supabase/tests/concurrency  # races between two sessions
-cd web && bun run dev
+tools/with-local-plane supabase db reset                      # schema and fixtures
+tools/with-local-plane supabase test db                       # pgTAP
+tools/with-local-plane bun test ./supabase/tests/concurrency  # races between two sessions
+cd web && ../tools/with-local-plane bun run dev
 ```
 
 The reset alone gives a company to sign into, as `member1@example.com` with
