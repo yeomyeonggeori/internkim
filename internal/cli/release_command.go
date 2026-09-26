@@ -55,7 +55,6 @@ var releaseSubcommands = []releaseSubcommand{
 	{name: "status", flags: []string{"--channel"}, run: runReleaseStatus},
 	{name: "companion", flags: []string{"--release"}, run: runReleaseCompanion},
 	{name: "host", flags: []string{"--release"}, run: runReleaseCompanyHost},
-	{name: "host-image", flags: []string{"--release"}, run: runReleaseCompanyHostImage},
 	{name: "deb", flags: []string{"--architecture", "--out", "--version"}, run: runReleaseDeb},
 	{name: "apt", flags: []string{"--suite", "--package-directory", "--output"}, run: runReleaseAPT},
 	{name: "brew", flags: []string{"--out", "--version"}, run: runReleaseBrew},
@@ -115,13 +114,12 @@ func checkReleaseArguments(subcommand releaseSubcommand, arguments []string) err
 }
 
 func printReleaseUsage() {
-	fmt.Println("Usage: internkim release <publish|status|companion|host|host-image|deb|apt|brew>")
+	fmt.Println("Usage: internkim release <publish|status|companion|host|deb|apt|brew>")
 	fmt.Println()
 	fmt.Println("  publish     Publish a device release to the stable channel")
 	fmt.Println("  status      Show what the channel points at")
 	fmt.Println("  companion   Build the companion for macOS and Linux and publish it under companion/latest")
 	fmt.Println("  host        Publish the host installer under host/latest, for a machine with no package manager")
-	fmt.Println("  host-image  Build and push the company server image, and print the --image it made")
 	fmt.Println("  deb         Build the company host as a Debian package for arm64 and amd64")
 	fmt.Println("  apt         Sign and publish the Debian repository under deb/, from the .debs release deb built")
 	fmt.Println("  brew        Build the company host as a Homebrew bottle on this Mac and render the tap's formula")
