@@ -24,7 +24,7 @@ eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|
 
 gateway_container() {
   local project
-  project="$(sed -n 's/^project_id = "\(.*\)"$/\1/p' "$repository/supabase/config.toml")"
+  project="$(sed -n '/^\[/q; s/^project_id = "\(.*\)"$/\1/p' "$repository/supabase/config.toml")"
   docker ps --filter "label=com.supabase.cli.project=$project" --filter 'name=supabase_kong_' --format '{{.Names}}'
 }
 

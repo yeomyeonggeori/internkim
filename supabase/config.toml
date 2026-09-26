@@ -31,10 +31,6 @@ enable_anonymous_sign_ins = false
 minimum_password_length = 6
 password_requirements = ""
 
-[auth.sessions]
-timebox = "0s"
-inactivity_timeout = "0s"
-
 [auth.rate_limit]
 anonymous_users = 30
 token_refresh = 150
@@ -86,11 +82,9 @@ enabled = false
 
 [auth.email.template.magic_link]
 subject = "Set up your internkim sign-in"
-content_path = "./supabase/templates/magic-link.html"
 
 [auth.email.template.confirmation]
 subject = "Set up your internkim sign-in"
-content_path = "./supabase/templates/magic-link.html"
 
 [auth.mfa]
 max_enrolled_factors = 10
@@ -193,12 +187,6 @@ enabled = true
 [storage.s3_protocol]
 enabled = true
 
-[storage.analytics]
-enabled = true
-max_namespaces = 10
-max_tables = 10
-max_catalogs = 2
-
 [storage.vector]
 enabled = true
 max_buckets = 10
@@ -227,3 +215,22 @@ verify_jwt = true
 
 [functions.tell-member]
 verify_jwt = false
+
+[remotes.production]
+project_id = "mutvimjbvmoludotyehk"
+
+[remotes.production.auth.sessions]
+timebox = "0s"
+inactivity_timeout = "0s"
+
+[remotes.production.auth.email.template.magic_link]
+content_path = "./supabase/templates/magic-link.html"
+
+[remotes.production.auth.email.template.confirmation]
+content_path = "./supabase/templates/magic-link.html"
+
+[remotes.production.storage.analytics]
+enabled = true
+max_namespaces = 10
+max_tables = 10
+max_catalogs = 2

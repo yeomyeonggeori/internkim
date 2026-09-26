@@ -33,7 +33,7 @@ wait_until_settings_are_named() {
 
 wait_until_settings_are_named
 
-project_id="$(sed -n 's/^project_id = "\(.*\)"$/\1/p' "$repository/supabase/config.toml")"
+project_id="$(sed -n '/^\[/q; s/^project_id = "\(.*\)"$/\1/p' "$repository/supabase/config.toml")"
 
 gateway_container() {
   docker ps --filter "label=com.supabase.cli.project=$project_id" --filter 'name=supabase_kong_' --format '{{.Names}}'

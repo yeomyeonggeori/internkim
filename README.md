@@ -258,6 +258,12 @@ omits returns to the CLI default. There is no dry run. Read the diff it prints,
 where `-` is the live state and `+` is what is about to be sent, before trusting
 the exit code.
 
+Settings that only the hosted project carries live under `[remotes.production]`:
+the sign-in email templates, session limits and analytics buckets. A push to
+that project merges them in and prints `Loading config override:
+[remotes.production]`. A local stack started by the TypeScript CLI leaves them
+out.
+
 ### The company web app
 
 One build serves a device host and a company host, because which Supabase

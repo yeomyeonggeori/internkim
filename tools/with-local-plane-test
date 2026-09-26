@@ -63,6 +63,7 @@ FAKE
 
 cat > "$fakeBinaries/docker" <<FAKE
 #!/usr/bin/env bash
+{ printf 'docker'; printf ' %q' "\$@"; printf '\n'; } >> "$fakeState/calls"
 [ -e "$fakeState/docker" ] || exit 1
 case "\$1 \$*" in
   info*) exit 0 ;;
@@ -161,6 +162,10 @@ resetFakes
 "$withLocalPlane" sh -c "[ -e '$fakeState/stack' ]" 2> /dev/null || fail "a command under the lock ran before the stopped plane was started"
 if ! called "colima start"; then
   fail "a command under the lock found docker down and did not start colima"
+fi
+topLevelProjectIdentifier="$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project_id"])' "$repositoryRoot/supabase/config.toml")"
+if ! called "docker ps --quiet --filter label=com.supabase.cli.project=$topLevelProjectIdentifier"; then
+  fail "the lock asked docker about a project other than the top-level project_id $topLevelProjectIdentifier"
 fi
 useToken="$(sed -n 1p "$lastUsedPath" 2>/dev/null || true)"
 if [ -z "$useToken" ]; then
