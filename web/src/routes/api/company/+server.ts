@@ -1,6 +1,13 @@
 import { env } from '$env/dynamic/private';
 import { slugShape } from '$lib/company-path';
-import { asMember, claimMemberFor, controlPlane, foundCompany, planeCredentialsOf } from '$lib/server/control-plane';
+import {
+	AddressBelongsToAnotherCompany,
+	asMember,
+	claimMemberFor,
+	controlPlane,
+	foundCompany,
+	planeCredentialsOf
+} from '$lib/server/control-plane';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { memberAccessTokenOf } from '$lib/server/member-request';
@@ -56,7 +63,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 			.filter((entry) => entry.includes('@')))]
 		: [];
 
-	const founded = await foundCompany(
+	const founded = await companyFoundedUnlessAnInviteeIsTaken(
 		client,
 		{ accountID: account.user.id, email },
 		{
@@ -73,3 +80,16 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	return json({ ...founded, slug, notifications });
 };
+
+async function companyFoundedUnlessAnInviteeIsTaken(
+	...founding: Parameters<typeof foundCompany>
+): ReturnType<typeof foundCompany> {
+	try {
+		return await foundCompany(...founding);
+	} catch (refusal) {
+		if (refusal instanceof AddressBelongsToAnotherCompany) {
+			error(409, `${refusal.email} already belongs to a company, so it cannot be invited here`);
+		}
+		throw refusal;
+	}
+}

@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import {
 	fullPublicAPIPermission,
 	publicAPIPermissionOf,
@@ -101,29 +101,55 @@ export async function provisionCompany(
 	return { companyID: created.id, adminMemberID };
 }
 
+export class AddressBelongsToAnotherCompany extends Error {
+	constructor(readonly email: string) {
+		super(`${email} belongs to another company`);
+	}
+}
+
+export class AlreadyAMember extends Error {
+	constructor(readonly email: string) {
+		super(`${email} is already a member of this company`);
+	}
+}
+
 export async function addMember(
 	client: SupabaseClient,
 	companyID: string,
 	email: string,
 	options: { isAdmin?: boolean; name?: string } = {},
 ): Promise<string> {
+	const held = await memberWaitingForAddress(client, email);
+	if (held) return memberWhoMayBeInvitedAgain(held, companyID, email);
+
 	const name = (options.name ?? '').trim();
 	const { data, error } = await client
 		.from('member')
-		.upsert(
-			{
-				company_id: companyID,
-				email,
-				is_admin: options.isAdmin ?? false,
-				status: 'pending',
-				...(name ? { name } : {}),
-			},
-			{ onConflict: 'email' },
-		)
+		.insert({
+			company_id: companyID,
+			email,
+			is_admin: options.isAdmin ?? false,
+			status: 'pending',
+			...(name ? { name } : {}),
+		})
 		.select('id')
 		.single();
 	if (error) throw new Error(`member ${email}: ${error.message}`);
 	return data.id;
+}
+
+function memberWhoMayBeInvitedAgain(held: MemberRow, companyID: string, email: string): string {
+	if (held.company_id !== companyID) throw new AddressBelongsToAnotherCompany(email);
+	if (held.status === 'active') throw new AlreadyAMember(email);
+	return held.id;
+}
+
+async function refuseAddressesHeldByAnyCompany(client: SupabaseClient, emails: string[]): Promise<void> {
+	if (emails.length === 0) return;
+	const { data, error } = await client.from('member').select('email').in('email', emails).limit(1);
+	if (error) throw new Error(error.message);
+	const taken = data[0]?.email;
+	if (taken) throw new AddressBelongsToAnotherCompany(taken);
 }
 
 // Somebody who worked here leaves their attendance, their leave and the tasks
@@ -220,6 +246,8 @@ export async function foundCompany(
 	company: CompanyInput,
 	invited: string[],
 ): Promise<FoundedCompany> {
+	const colleagues = invited.filter((email) => email !== founder.email);
+	await refuseAddressesHeldByAnyCompany(client, colleagues);
 	const { companyID, adminMemberID } = await provisionCompany(client, company, founder.email);
 
 	const { error } = await client
@@ -229,8 +257,7 @@ export async function foundCompany(
 	if (error) throw new Error(`founder: ${error.message}`);
 
 	const invitations: Invitation[] = [];
-	for (const email of invited) {
-		if (email === founder.email) continue;
+	for (const email of colleagues) {
 		const memberID = await addMember(client, companyID, email);
 		invitations.push(await inviteMember(client, memberID));
 	}
@@ -272,9 +299,7 @@ async function issueTemporaryPassword(
 	if (!member.email) throw new Error(`member ${memberID} has no address`);
 
 	const temporaryPassword = temporaryPasswordValue();
-	const { data: accounts, error: listError } = await client.auth.admin.listUsers();
-	if (listError) throw new Error(listError.message);
-	const account = accounts.users.find((user) => user.email === member.email);
+	const account = await accountOfAddress(client, member.email);
 
 	if (account) {
 		const { error } = await client.auth.admin.updateUserById(account.id, {
@@ -292,6 +317,15 @@ async function issueTemporaryPassword(
 	}
 
 	return { memberID, email: member.email, temporaryPassword };
+}
+
+export async function accountOfAddress(client: SupabaseClient, address: string): Promise<User | null> {
+	const { data: accountID, error } = await client.rpc('account_of_address', { address });
+	if (error) throw new Error(`account of ${address}: ${error.message}`);
+	if (typeof accountID !== 'string') return null;
+	const { data, error: readError } = await client.auth.admin.getUserById(accountID);
+	if (readError) throw new Error(`account of ${address}: ${readError.message}`);
+	return data.user;
 }
 
 function temporaryPasswordValue(): string {
@@ -623,9 +657,7 @@ async function keepHostAccount(
 	address: string,
 	companyID: string,
 ): Promise<string> {
-	const { data: accounts, error: listError } = await client.auth.admin.listUsers();
-	if (listError) throw new Error(listError.message);
-	const account = accounts.users.find((user) => user.email === address);
+	const account = await accountOfAddress(client, address);
 	const appMetadata = { company_id: companyID };
 
 	if (!account) {

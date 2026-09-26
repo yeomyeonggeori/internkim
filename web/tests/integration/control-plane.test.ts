@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import {
 	addMember,
+	AddressBelongsToAnotherCompany,
+	AlreadyAMember,
 	controlPlane,
+	foundCompany,
 	inviteMember,
 	provisionCompany,
 	resetMemberPassword,
@@ -18,7 +21,27 @@ const client = controlPlane({ projectURL, serviceRoleKey });
 const slug = `control-plane-test-${Date.now()}`;
 const adminEmail = `${slug}-admin@example.test`;
 const colleagueEmail = `${slug}-colleague@example.test`;
+const otherSlug = `${slug}-other`;
+const otherAdminEmail = `${otherSlug}-admin@example.test`;
+const lateEmail = `${slug}-late@example.test`;
+const fillerCount = 55;
 let companyID = '';
+let otherCompanyID = '';
+const fillerAccountIDs: string[] = [];
+
+function companyInput(companySlug: string) {
+	return { name: 'Control Plane Test', slug: companySlug, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' };
+}
+
+async function memberOf(email: string) {
+	const { data, error } = await client
+		.from('member')
+		.select('id, company_id, is_admin, status, user_id')
+		.eq('email', email)
+		.single();
+	if (error) throw new Error(error.message);
+	return data;
+}
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -34,15 +57,18 @@ beforeAll(async () => {
 		adminEmail,
 	);
 	companyID = provisioned.companyID;
+	otherCompanyID = (await provisionCompany(client, companyInput(otherSlug), otherAdminEmail)).companyID;
 }, networkHookTimeout);
 
 afterAll(async () => {
-	if (!companyID) return;
-	const { data: members } = await client.from('member').select('user_id').eq('company_id', companyID);
-	await client.from('company').delete().eq('id', companyID);
-	for (const member of members ?? []) {
-		if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
+	for (const heldCompanyID of [companyID, otherCompanyID].filter(Boolean)) {
+		const { data: members } = await client.from('member').select('user_id').eq('company_id', heldCompanyID);
+		await client.from('company').delete().eq('id', heldCompanyID);
+		for (const member of members ?? []) {
+			if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
+		}
 	}
+	for (const accountID of fillerAccountIDs) await client.auth.admin.deleteUser(accountID);
 }, networkHookTimeout);
 
 describe('provisioning a company', () => {
@@ -87,7 +113,7 @@ describe('provisioning a company', () => {
 	});
 
 	test('a platform identity resolves back to its member', async () => {
-		const memberID = await addMember(client, companyID, colleagueEmail);
+		const memberID = (await memberOf(colleagueEmail)).id;
 		await connectMessengerAccount(client, companyID, {
 			memberID,
 			platform: 'buzz',
@@ -102,4 +128,65 @@ describe('provisioning a company', () => {
 		expect(byExternalID.get(`pubkey-${slug}`)).toBe(memberID);
 		expect(byExternalID.get('nobody')).toBeUndefined();
 	});
+});
+
+describe('an address belongs to one company', () => {
+	test('another company cannot add a member this company holds, and the member stays', async () => {
+		await expect(addMember(client, otherCompanyID, adminEmail, { isAdmin: false })).rejects.toBeInstanceOf(
+			AddressBelongsToAnotherCompany,
+		);
+
+		const admin = await memberOf(adminEmail);
+		expect(admin.company_id).toBe(companyID);
+		expect(admin.is_admin).toBe(true);
+	});
+
+	test('inviting someone already active here is refused and keeps their role', async () => {
+		await client.from('member').update({ status: 'active' }).eq('email', adminEmail);
+
+		await expect(addMember(client, companyID, adminEmail)).rejects.toBeInstanceOf(AlreadyAMember);
+
+		const admin = await memberOf(adminEmail);
+		expect(admin.is_admin).toBe(true);
+		expect(admin.status).toBe('active');
+	});
+
+	test('founding with an invitee another company holds founds nothing and moves nobody', async () => {
+		const refusedSlug = `${slug}-refused`;
+		await expect(
+			foundCompany(
+				client,
+				{ accountID: crypto.randomUUID(), email: `${refusedSlug}-founder@example.test` },
+				companyInput(refusedSlug),
+				[colleagueEmail],
+			),
+		).rejects.toBeInstanceOf(AddressBelongsToAnotherCompany);
+
+		const { data: refused } = await client.from('company').select('id').eq('slug', refusedSlug).maybeSingle();
+		expect(refused).toBeNull();
+		expect((await memberOf(colleagueEmail)).company_id).toBe(companyID);
+	});
+
+	test(
+		'an invitation finds its account after more than one page of accounts',
+		async () => {
+			const late = await client.auth.admin.createUser({ email: lateEmail, email_confirm: true });
+			if (late.error) throw new Error(late.error.message);
+			for (let filler = 0; filler < fillerCount; filler += 1) {
+				const created = await client.auth.admin.createUser({
+					email: `${slug}-filler-${filler}@example.test`,
+					email_confirm: true,
+				});
+				if (created.error) throw new Error(created.error.message);
+				fillerAccountIDs.push(created.data.user.id);
+			}
+
+			const memberID = await addMember(client, companyID, lateEmail);
+			const invitation = await inviteMember(client, memberID);
+
+			expect(invitation.email).toBe(lateEmail);
+			expect(invitation.temporaryPassword).not.toBe('');
+		},
+		networkHookTimeout,
+	);
 });
