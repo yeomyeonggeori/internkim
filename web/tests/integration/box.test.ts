@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { x25519 } from '@noble/curves/ed25519.js';
 import { base64URLOf } from '../../src/lib/company/seal-model-key';
+import { companyComputerName } from '../../src/lib/company/host-setup';
 import { callingAgent } from '../../src/lib/server/agent-request';
 import {
 	announceBox,
@@ -10,6 +11,7 @@ import {
 	BoxRefused,
 	boxSessionFor,
 	claimBox,
+	claimBoxWithConnectionFile,
 	connectedBoxOf,
 	emptyBoxesAt,
 	keepSealedModelKey
@@ -17,6 +19,7 @@ import {
 import {
 	companyOfHostSession,
 	controlPlane,
+	issueAgentKey,
 	provisionCompany,
 	sessionForHost,
 	sessionForMember
@@ -208,6 +211,35 @@ describe('connecting an empty box', () => {
 		const sealedModelKey = { ephemeralPublicKey: 'e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM', nonce: 'MzMzMzMzMzMzMzMz', ciphertext: 'c2VhbGVk' };
 
 		await expect(keepSealedModelKey(client, empty.companyID, sealedModelKey)).rejects.toBeInstanceOf(BoxRefused);
+	});
+});
+
+describe('a connection file claims the computer it is installed on', () => {
+	test('the file names the company once, and the computer then gets its session', async () => {
+		const box = await aBox();
+		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
+
+		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, issued.apiKey)).toBe(companyID);
+		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
+
+		expect(answered?.configuration.company.id).toBe(companyID);
+	});
+
+	test('a file already used claims nothing more', async () => {
+		const first = await aBox();
+		const second = await aBox();
+		const issued = await issueAgentKey(client, companyID, companyComputerName, { replaceStanding: true });
+		await claimBoxWithConnectionFile(client, first.publicKey, first.encryptionKey, issued.apiKey);
+
+		expect(await claimBoxWithConnectionFile(client, second.publicKey, second.encryptionKey, issued.apiKey)).toBeNull();
+		expect(await boxSessionFor(credentials, second.publicKey, environment, appURL)).toBeNull();
+	});
+
+	test('only a connection file key claims, not another key the company holds', async () => {
+		const box = await aBox();
+		const other = await issueAgentKey(client, companyID, `another-caller-${stamp}`);
+
+		expect(await claimBoxWithConnectionFile(client, box.publicKey, box.encryptionKey, other.apiKey)).toBeNull();
 	});
 });
 

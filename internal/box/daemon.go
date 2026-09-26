@@ -68,6 +68,9 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 	if !isClaimed {
 		return announceInterval, daemon.announce(ctx, identity)
 	}
+	if daemon.installedCompany() == session.Configuration.Company.ID {
+		return daemon.untilRenewal(session.Session), daemon.renew(session, identity)
+	}
 	if session.SealedModelKey == nil {
 		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
 		return announceInterval, nil
@@ -76,7 +79,7 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 	if errorValue != nil {
 		return 0, errorValue
 	}
-	if errorValue := daemon.apply(session, modelKey); errorValue != nil {
+	if errorValue := daemon.installFor(session, modelKey); errorValue != nil {
 		return 0, errorValue
 	}
 	return daemon.untilRenewal(session.Session), nil
@@ -93,17 +96,38 @@ func (daemon Daemon) announce(ctx context.Context, identity Identity) error {
 	return nil
 }
 
-func (daemon Daemon) apply(session Session, modelKey string) error {
-	companyID := session.Configuration.Company.ID
-	if daemon.installedCompany() != companyID {
-		return daemon.installFor(session, modelKey)
-	}
+func (daemon Daemon) renew(session Session, identity Identity) error {
 	for _, path := range daemon.Places.CredentialPaths {
 		if errorValue := replaceKeepingOwner(path, session.Session.AccessToken+"\n"); errorValue != nil {
 			return fmt.Errorf("keeping the renewed session at %s: %w", path, errorValue)
 		}
 	}
+	if session.SealedModelKey == nil {
+		return nil
+	}
+	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey)
+	if errorValue != nil {
+		return errorValue
+	}
 	return replaceKeepingOwner(daemon.Places.ModelKeyPath, modelKey+"\n")
+}
+
+func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKey string, modelKey string) error {
+	identity, errorValue := LoadOrCreateIdentity(filepath.Join(daemon.Places.StateDirectoryPath, "identity.json"))
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := daemon.Client.Claim(ctx, identity, connectionKey); errorValue != nil {
+		return errorValue
+	}
+	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isClaimed {
+		return fmt.Errorf("the central plane accepted the connection file and then gave this computer no company")
+	}
+	return daemon.installFor(session, modelKey)
 }
 
 func (daemon Daemon) installFor(session Session, modelKey string) error {

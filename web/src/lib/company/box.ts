@@ -14,6 +14,11 @@ export type EmptyBox = z.infer<typeof emptyBoxSchema>;
 
 export const boxClaimSchema = z.object({ publicKey: boxKeySchema }).strict();
 
+export const boxFileClaimSchema = z.object({
+	encryptionKey: boxKeySchema,
+	connectionKey: z.string().regex(/^[a-f0-9]{64}$/)
+}).strict();
+
 export const sealedModelKeySchema = z.object({
 	ephemeralPublicKey: boxKeySchema,
 	nonce: z.string().regex(/^[A-Za-z0-9_-]{16}$/),

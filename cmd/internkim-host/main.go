@@ -162,6 +162,9 @@ func runInstall(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	if companyhost.ThisMachineKeepsABoxSessionFresh() {
+		return installByClaiming(parsed, modelKey)
+	}
 	installation, errorValue := companyhost.Install(companyhost.Request{
 		ConnectionPath:     parsed.ConnectionPath,
 		StateDirectoryPath: parsed.StateDirectoryPath,
@@ -174,6 +177,36 @@ func runInstall(arguments []string) error {
 	fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", installation.Connection.AppURL)
 	fmt.Printf("Private settings: %s\n%s starts the server when this computer starts. Keep it awake.\n",
 		installation.StateDirectoryPath, installation.Supervisor)
+	return nil
+}
+
+func installByClaiming(parsed installArguments, modelKey string) error {
+	connection, errorValue := companyhost.ReadConnection(parsed.ConnectionPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	if modelKey == "" {
+		modelKey, errorValue = readModelKey(os.Stdin, os.Stdout)
+		if errorValue != nil {
+			return errorValue
+		}
+	}
+	daemon := boxDaemon(connection.AppURL)
+	if parsed.StateDirectoryPath != "" {
+		stateDirectoryPath, errorValue := filepath.Abs(parsed.StateDirectoryPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		daemon.Places.CompanyStateDirectoryPath = func(string) string { return stateDirectoryPath }
+	}
+	if errorValue := daemon.InstallWithConnectionFile(context.Background(), connection.AgentKey, strings.TrimSpace(modelKey)); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := companyhost.KeepTheBoxSessionFresh(thisComputer{}, os.Stdout); errorValue != nil {
+		return errorValue
+	}
+	fmt.Printf("\nServer ready. Open %s/settings/setup and choose Check connection.\n", connection.AppURL)
+	fmt.Println("The connection file is spent: this computer now proves itself with its own key, and systemd keeps it signed in.")
 	return nil
 }
 
