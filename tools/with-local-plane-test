@@ -2,12 +2,13 @@
 set -euo pipefail
 
 repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
-withLocalPlane="$repositoryRoot/tools/with-local-plane"
-lockPath="$(sed -n 's/^lockPath="\(.*\)"$/\1/p' "$withLocalPlane")"
-lastUsedPath="$(sed -n 's/^lastUsedPath="\(.*\)"$/\1/p' "$withLocalPlane")"
+lockPath="$(sed -n 's/^lockPath="\(.*\)"$/\1/p' "$repositoryRoot/tools/with-local-plane")"
+lastUsedPath="$(sed -n 's/^lastUsedPath="\(.*\)"$/\1/p' "$repositoryRoot/tools/with-local-plane")"
 runDirectory="$(mktemp -d)"
 fakeState="$runDirectory/state"
 fakeBinaries="$runDirectory/bin"
+checkoutRoot="$runDirectory/checkout"
+withLocalPlane="$checkoutRoot/tools/with-local-plane"
 lastUseBeforeTheTest="$runDirectory/last-use-before-the-test"
 
 if [ -z "$lockPath" ] || [ -z "$lastUsedPath" ]; then
@@ -39,39 +40,31 @@ fi
 idleStopsWaiting > "$runDirectory/idle-stops-before-the-test"
 trap restoreTheLastUse EXIT
 
+copyCheckout() {
+  mkdir -p "$1/tools" "$1/supabase" "$1/web/scripts"
+  cp "$repositoryRoot/tools/with-local-plane" "$1/tools/with-local-plane"
+  cp "$repositoryRoot/web/scripts/local-plane-signing-key.sh" "$1/web/scripts/local-plane-signing-key.sh"
+  cp "$repositoryRoot/supabase/config.toml" "$1/supabase/config.toml"
+}
+
 mkdir -p "$fakeState" "$fakeBinaries"
+copyCheckout "$checkoutRoot"
 
 cat > "$fakeBinaries/supabase" <<FAKE
 #!/usr/bin/env bash
-echo "supabase \$*" >> "$fakeState/calls"
-case "\$1" in
-  status) [ -e "$fakeState/stack" ] ;;
-  start) [ -e "$fakeState/docker" ] && touch "$fakeState/stack" ;;
-  stop) rm -f "$fakeState/stack" ;;
-esac
-FAKE
-
-cat > "$fakeBinaries/colima" <<FAKE
-#!/usr/bin/env bash
-echo "colima \$*" >> "$fakeState/calls"
-case "\$1" in
-  status) [ -e "$fakeState/docker" ] ;;
-  start) touch "$fakeState/docker" ;;
-  stop) rm -f "$fakeState/docker" "$fakeState/stack" "$fakeState/other" ;;
-esac
-FAKE
-
-cat > "$fakeBinaries/docker" <<FAKE
-#!/usr/bin/env bash
-{ printf 'docker'; printf ' %q' "\$@"; printf '\n'; } >> "$fakeState/calls"
-[ -e "$fakeState/docker" ] || exit 1
-case "\$1 \$*" in
-  info*) exit 0 ;;
-  *status=exited*) exit 0 ;;
-  ps*)
-    [ -e "$fakeState/stack" ] && echo supabase_db_fake
-    [ -e "$fakeState/other" ] && echo other_container
-    exit 0 ;;
+{ printf 'supabase'; printf ' %q' "\$@"; printf '\n'; } >> "$fakeState/calls"
+[ -n "\${SUPABASE_EXPERIMENTAL_STACK:-}" ] && echo "SUPABASE_EXPERIMENTAL_STACK=\$SUPABASE_EXPERIMENTAL_STACK" >> "$fakeState/calls"
+[ -n "\${SUPABASE_AUTH_SIGNING_KEYS_PATH:-}" ] && echo "SUPABASE_AUTH_SIGNING_KEYS_PATH=\$SUPABASE_AUTH_SIGNING_KEYS_PATH" >> "$fakeState/calls"
+owner=unavailable
+[ -e "$fakeState/stack" ] && owner=reachable
+case "\$1 \${2:-}" in
+  "--version "*) cat "$fakeState/version" 2>/dev/null || echo 2.118.0 ;;
+  "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s"}\n' "\$owner" ;;
+  "start "*) touch "$fakeState/stack" ;;
+  "gen signing-key") echo '{"kty":"EC","kid":"fake"}' ;;
+  "stack list") cat "$fakeState/stacks.json" 2>/dev/null || echo '{"stacks":[]}' ;;
+  "stack stop") rm -f "$fakeState/stack" ;;
+  "stack destroy") ;;
 esac
 FAKE
 
@@ -85,6 +78,17 @@ failures=0
 fail() {
   printf 'FAIL %s\n' "$1" >&2
   failures=$((failures + 1))
+}
+
+resetFakes() {
+  rm -f "$fakeState"/*
+  for piece in "$@"; do
+    touch "$fakeState/$piece"
+  done
+}
+
+called() {
+  grep -qx -- "$1" "$fakeState/calls" 2>/dev/null
 }
 
 heldByALivingProcess() {
@@ -110,6 +114,7 @@ waitUntilTheFirstCommandHoldsTheLock() {
   done
 }
 
+resetFakes stack
 "$withLocalPlane" sh -c "touch '$runDirectory/first-holding' && sleep 3" &
 firstHolder=$!
 if ! waitUntilTheFirstCommandHoldsTheLock; then
@@ -126,7 +131,7 @@ if [ "$secondWaitedSeconds" -lt 1 ]; then
   fail "the second command did not wait for the first, it finished in ${secondWaitedSeconds}s"
 fi
 
-if ! grep -q "waiting for the local plane held by .* in $repositoryRoot" "$runDirectory/second-diagnostics"; then
+if ! grep -q "waiting for the local plane held by .* in $checkoutRoot" "$runDirectory/second-diagnostics"; then
   fail "the second command did not name the holder it waited for"
   cat "$runDirectory/second-diagnostics" >&2
 fi
@@ -147,64 +152,85 @@ if isAbandoned; then
   fail "the lock outlived a command killed by a signal"
 fi
 
-resetFakes() {
-  rm -f "$fakeState"/*
-  for piece in "$@"; do
-    touch "$fakeState/$piece"
-  done
-}
+resetFakes
+printf '2.117.0\n' > "$fakeState/version"
+"$withLocalPlane" sh -c "touch '$runDirectory/ran-on-an-old-cli'" 2> "$runDirectory/old-cli-diagnostics" && oldCLIStatus=0 || oldCLIStatus=$?
+if [ "$oldCLIStatus" -eq 0 ] || [ -e "$runDirectory/ran-on-an-old-cli" ]; then
+  fail "the lock ran a command on a Supabase CLI older than the one it requires"
+fi
+if ! grep -q "2.118.0 or later" "$runDirectory/old-cli-diagnostics"; then
+  fail "the lock refused an old Supabase CLI without naming the version it requires"
+fi
 
-called() {
-  grep -qx "$1" "$fakeState/calls" 2>/dev/null
-}
-
+signingKeysPath="$checkoutRoot/supabase/.temp/local-signing-keys.json"
 resetFakes
 "$withLocalPlane" sh -c "[ -e '$fakeState/stack' ]" 2> /dev/null || fail "a command under the lock ran before the stopped plane was started"
-if ! called "colima start"; then
-  fail "a command under the lock found docker down and did not start colima"
+if ! called "supabase start --output-format text"; then
+  fail "the lock found the plane down and did not start it"
 fi
-topLevelProjectIdentifier="$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project_id"])' "$repositoryRoot/supabase/config.toml")"
-if ! called "docker ps --quiet --filter label=com.supabase.cli.project=$topLevelProjectIdentifier"; then
-  fail "the lock asked docker about a project other than the top-level project_id $topLevelProjectIdentifier"
+if [ "$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))[0]["kid"])' "$signingKeysPath" 2>/dev/null)" != "fake" ]; then
+  fail "the lock started a plane without writing its signing key as a key set"
+fi
+if ! called "SUPABASE_AUTH_SIGNING_KEYS_PATH=$signingKeysPath"; then
+  fail "the lock started the plane without pointing it at the signing key it wrote"
 fi
 useToken="$(sed -n 1p "$lastUsedPath" 2>/dev/null || true)"
 if [ -z "$useToken" ]; then
   fail "releasing the lock with the plane up recorded no last use"
-elif ! pgrep -f -- "--stop-when-idle $useToken" >/dev/null; then
-  fail "releasing the lock with the plane up left nothing to stop it once idle"
+elif ! pgrep -f -- "--stop-when-idle $useToken fake-stack" >/dev/null; then
+  fail "releasing the lock with the plane up left nothing to stop that stack once idle"
 fi
 
-resetFakes docker stack
+otherCheckout="$runDirectory/other-checkout"
+unrelatedProject="$runDirectory/unrelated-project"
+copyCheckout "$otherCheckout"
+mkdir -p "$unrelatedProject/supabase"
+printf 'project_id = "unrelated"\n' > "$unrelatedProject/supabase/config.toml"
+resetFakes
+cat > "$fakeState/stacks.json" <<STACKS
+{"stacks": [
+  {"id": "own", "project_root": "$checkoutRoot", "branch_context": ""},
+  {"id": "other-checkout", "project_root": "$otherCheckout", "branch_context": "refs/heads/other"},
+  {"id": "removed-checkout", "project_root": "$runDirectory/removed", "branch_context": "refs/heads/gone"},
+  {"id": "unrelated", "project_root": "$unrelatedProject", "branch_context": "refs/heads/main"}
+]}
+STACKS
+"$withLocalPlane" true 2> /dev/null
+if ! called "supabase stack destroy --stack-id other-checkout --yes --output-format text"; then
+  fail "the lock left another checkout's stack holding the plane's ports"
+fi
+if ! called "supabase stack destroy --stack-id removed-checkout --yes --output-format text"; then
+  fail "the lock left a removed checkout's stack holding the plane's ports"
+fi
+if called "supabase stack destroy --stack-id own --yes --output-format text"; then
+  fail "the lock destroyed the stack of the checkout it runs from"
+fi
+if called "supabase stack destroy --stack-id unrelated --yes --output-format text"; then
+  fail "the lock destroyed a stack of a project that is not this repository"
+fi
+
+resetFakes stack
 printf 'idle\n' > "$lastUsedPath"
-"$withLocalPlane" --stop-when-idle idle 0
-if [ -e "$fakeState/stack" ] || [ -e "$fakeState/docker" ]; then
+"$withLocalPlane" --stop-when-idle idle fake-stack 0 > /dev/null
+if [ -e "$fakeState/stack" ]; then
   fail "a plane unused since the last release was not stopped"
 fi
+if ! called "SUPABASE_EXPERIMENTAL_STACK=1"; then
+  fail "the idle stop asked for a stack without enabling the CLI's stack commands"
+fi
 
-resetFakes docker stack
+resetFakes stack
 printf 'newer\n' > "$lastUsedPath"
-"$withLocalPlane" --stop-when-idle idle 0
-if called "supabase stop"; then
+"$withLocalPlane" --stop-when-idle idle fake-stack 0
+if called "supabase stack stop --stack-id fake-stack --output-format text"; then
   fail "a plane used again after the release was stopped anyway"
 fi
 
-resetFakes docker stack other
+movedCheckout="$runDirectory/moved-checkout"
+copyCheckout "$movedCheckout"
+resetFakes stack
 printf 'idle\n' > "$lastUsedPath"
-"$withLocalPlane" --stop-when-idle idle 0 > /dev/null
-if [ -e "$fakeState/stack" ]; then
-  fail "an idle plane beside other containers was not stopped"
-fi
-if called "colima stop"; then
-  fail "colima was stopped under containers that are not the plane"
-fi
-
-movedCheckout="$runDirectory/checkout"
-mkdir -p "$movedCheckout/tools" "$movedCheckout/supabase"
-cp "$withLocalPlane" "$movedCheckout/tools/with-local-plane"
-cp "$repositoryRoot/supabase/config.toml" "$movedCheckout/supabase/config.toml"
-resetFakes docker stack
-printf 'idle\n' > "$lastUsedPath"
-"$movedCheckout/tools/with-local-plane" --stop-when-idle idle 2 > /dev/null 2>&1 &
+"$movedCheckout/tools/with-local-plane" --stop-when-idle idle fake-stack 2 > /dev/null 2>&1 &
 idleStopFromTheRemovedCheckout=$!
 until pgrep -P "$idleStopFromTheRemovedCheckout" sleep >/dev/null; do
   sleep 0.1
@@ -220,4 +246,4 @@ if [ "$failures" -ne 0 ]; then
   exit 1
 fi
 
-echo "the local plane lock queues concurrent commands and stops an idle plane"
+echo "the local plane lock queues concurrent commands, starts the native stack and stops it when idle"

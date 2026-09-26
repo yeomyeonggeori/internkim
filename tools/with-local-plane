@@ -94,75 +94,124 @@ acquireLock() {
   rm -f "$holderPath"
 }
 
+minimumCommandLineVersion="2.118.0"
+
+. "$repositoryRoot/web/scripts/local-plane-signing-key.sh"
+signingKeysPath="$(local_plane_signing_keys_path "$repositoryRoot")"
+
 localPlaneProjectIdentifier() {
   sed -n '/^\[/q; s/^project_id = "\(.*\)"$/\1/p' "$repositoryRoot/supabase/config.toml"
 }
 
 projectIdentifier="$(localPlaneProjectIdentifier)"
 
-removeStoppedStackContainers() {
-  if ! command -v docker >/dev/null 2>&1; then
+runQuietlyUnlessItFails() {
+  local outputPath
+  outputPath="$(mktemp)"
+  "$@" > "$outputPath" 2>&1 && { rm -f "$outputPath"; return 0; }
+  local status=$?
+  cat "$outputPath" >&2
+  rm -f "$outputPath"
+  return "$status"
+}
+
+versionIsAtLeast() {
+  [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" = "$2" ]
+}
+
+requireStackCommandLine() {
+  local installedVersion
+  installedVersion="$(supabase --version 2>/dev/null | head -1 || true)"
+  if [ -n "$installedVersion" ] && versionIsAtLeast "$installedVersion" "$minimumCommandLineVersion"; then
     return 0
   fi
-  if [ -z "$projectIdentifier" ]; then
+  printf 'the local plane runs on the Supabase CLI %s or later, and %s answers %s; put a newer one ahead of it on PATH (npm install --global supabase@latest; Homebrew'"'"'s formula can lag)\n' \
+    "$minimumCommandLineVersion" "$(command -v supabase || printf 'nothing on PATH')" "${installedVersion:-no version}" >&2
+  exit 1
+}
+
+writeSigningKeyWhenMissing() {
+  if [ -s "$signingKeysPath" ]; then
     return 0
   fi
-  local stoppedContainers
-  stoppedContainers="$(
-    docker ps --all \
-      --filter "label=com.supabase.cli.project=$projectIdentifier" \
-      --filter 'status=exited' \
-      --filter 'status=dead' \
-      --format '{{.Names}}' 2>/dev/null || true
-  )"
-  if [ -z "$stoppedContainers" ]; then
-    return 0
-  fi
-  while IFS= read -r containerName; do
-    if [ -z "$containerName" ]; then
-      continue
-    fi
-    printf 'removing the stopped local plane container %s\n' "$containerName" >&2
-    docker rm --force "$containerName" >/dev/null 2>&1 || true
-  done <<< "$stoppedContainers"
+  mkdir -p "$(dirname "$signingKeysPath")"
+  printf 'writing a local signing key to %s\n' "$signingKeysPath" >&2
+  (umask 077 && cd "$repositoryRoot" && supabase gen signing-key --algorithm ES256 --output-format text 2>/dev/null \
+    | python3 -c 'import json, sys; json.dump([json.load(sys.stdin)], sys.stdout)' > "$signingKeysPath")
+}
+
+servingStackIdentifier() {
+  (cd "$repositoryRoot" && supabase status --output-format json 2>/dev/null) \
+    | python3 -c '
+import json, sys
+status = json.load(sys.stdin)
+if status.get("owner", "unavailable") != "unavailable":
+    print(status["identity"]["id"])
+' 2>/dev/null || true
 }
 
 stackIsServing() {
-  (cd "$repositoryRoot" && supabase status >/dev/null 2>&1)
+  [ -n "$(servingStackIdentifier)" ]
 }
 
-stackHasContainersRunning() {
-  [ -n "$(docker ps --quiet --filter "label=com.supabase.cli.project=$projectIdentifier" 2>/dev/null || true)" ]
+currentBranchContext() {
+  git -C "$repositoryRoot" symbolic-ref -q HEAD 2>/dev/null || true
 }
 
-startDockerWhenDown() {
-  if docker info >/dev/null 2>&1; then
-    return 0
-  fi
-  if ! command -v colima >/dev/null 2>&1; then
-    return 0
-  fi
-  printf 'starting colima for the local plane\n' >&2
-  colima start >&2
+otherStacksOfThisRepository() {
+  local stackList
+  stackList="$(cd "$repositoryRoot" && supabase stack list --output-format json 2>/dev/null)" || return 0
+  python3 -c '
+import json, os, re, sys
+repository_root, branch_context, project_identifier, stack_list = sys.argv[1:5]
+
+def belongs_to_this_repository(project_root):
+    if not os.path.isdir(project_root):
+        return True
+    try:
+        with open(os.path.join(project_root, "supabase", "config.toml"), encoding="utf-8") as config:
+            text = config.read()
+    except OSError:
+        return False
+    return re.search("^project_id = \"%s\"$" % re.escape(project_identifier), text, re.MULTILINE) is not None
+
+def is_this_checkout(stack):
+    if stack["project_root"] != repository_root:
+        return False
+    return branch_context == "" or stack["branch_context"] == branch_context
+
+for stack in json.loads(stack_list)["stacks"]:
+    if not is_this_checkout(stack) and belongs_to_this_repository(stack["project_root"]):
+        print(stack["id"])
+' "$repositoryRoot" "$(currentBranchContext)" "$projectIdentifier" "$stackList"
+}
+
+destroyOtherStacks() {
+  local stackIdentifier
+  for stackIdentifier in $(otherStacksOfThisRepository); do
+    printf 'destroying the local plane stack %s, left holding its ports by another checkout or branch\n' "$stackIdentifier" >&2
+    (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase stack destroy --stack-id "$stackIdentifier" --yes --output-format text)
+  done
 }
 
 startStackWhenDown() {
   if stackIsServing; then
     return 0
   fi
-  startDockerWhenDown
-  removeStoppedStackContainers
+  destroyOtherStacks
   printf 'starting the local plane\n' >&2
-  (cd "$repositoryRoot" && supabase start >/dev/null)
+  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --output-format text)
 }
 
 scheduleStopWhenIdle() {
-  if ! stackHasContainersRunning; then
+  local stackIdentifier
+  stackIdentifier="$(servingStackIdentifier)"
+  if [ -z "$stackIdentifier" ]; then
     return 0
   fi
   local useToken="$$.$(date +%s)"
   printf '%s\n' "$useToken" > "$lastUsedPath"
-  env -u LOCAL_PLANE_LOCK_HOLDER nohup "$0" --stop-when-idle "$useToken" \
+  env -u LOCAL_PLANE_LOCK_HOLDER nohup "$0" --stop-when-idle "$useToken" "$stackIdentifier" \
     >> "$idleStopLogPath" 2>&1 < /dev/null &
 }
 
@@ -170,23 +219,10 @@ isTheLastUse() {
   [ "$(sed -n 1p "$lastUsedPath" 2>/dev/null || true)" = "$1" ]
 }
 
-stopColimaWhenNothingElseRuns() {
-  if ! command -v colima >/dev/null 2>&1; then
-    return 0
-  fi
-  if ! colima status >/dev/null 2>&1; then
-    return 0
-  fi
-  if [ -n "$(docker ps --quiet 2>/dev/null || true)" ]; then
-    printf 'leaving colima up: containers outside the local plane still run\n'
-    return 0
-  fi
-  colima stop
-}
-
 stopWhenIdle() {
   local useToken="$1"
-  local idleSeconds="${2:-$defaultIdleSeconds}"
+  local stackIdentifier="$2"
+  local idleSeconds="${3:-$defaultIdleSeconds}"
   sleep "$idleSeconds" & wait "$!"
   if ! isTheLastUse "$useToken"; then
     return 0
@@ -195,9 +231,8 @@ stopWhenIdle() {
   if ! isTheLastUse "$useToken"; then
     return 0
   fi
-  printf '%s stopping the local plane, unused since %s\n' "$(date '+%F %T')" "$useToken"
-  (cd / && supabase stop --project-id "$projectIdentifier")
-  stopColimaWhenNothingElseRuns
+  printf '%s stopping the local plane stack %s, unused since %s\n' "$(date '+%F %T')" "$stackIdentifier" "$useToken"
+  (cd / && SUPABASE_EXPERIMENTAL_STACK=1 supabase stack stop --stack-id "$stackIdentifier" --output-format text)
 }
 
 if [ "$1" = "--stop-when-idle" ]; then
@@ -207,6 +242,9 @@ if [ "$1" = "--stop-when-idle" ]; then
 fi
 
 acquireLock
+requireStackCommandLine
+writeSigningKeyWhenMissing
+export SUPABASE_AUTH_SIGNING_KEYS_PATH="$signingKeysPath"
 startStackWhenDown
 
 export LOCAL_PLANE_LOCK_HOLDER="$$"

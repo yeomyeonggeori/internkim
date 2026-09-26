@@ -19,24 +19,8 @@ cd "$repository"
 
 supabase db reset
 
-eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+eval "$(supabase status --env --output-format text 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
 . "$repository/web/scripts/local-plane-signing-key.sh"
-
-gateway_container() {
-  local project
-  project="$(sed -n '/^\[/q; s/^project_id = "\(.*\)"$/\1/p' "$repository/supabase/config.toml")"
-  docker ps --filter "label=com.supabase.cli.project=$project" --filter 'name=supabase_kong_' --format '{{.Names}}'
-}
-
-restart_gateway() {
-  local container
-  container="$(gateway_container)"
-  if [ -z "$container" ]; then
-    echo "no supabase gateway container is running" >&2
-    return 1
-  fi
-  docker restart "$container" >/dev/null
-}
 
 central_plane_serves() {
   curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/auth/v1/settings" \
@@ -44,12 +28,9 @@ central_plane_serves() {
 }
 
 wait_until_central_plane_serves() {
-  for attempt in $(seq 1 60); do
+  for _ in $(seq 1 60); do
     if central_plane_serves; then
       return 0
-    fi
-    if [ $((attempt % 10)) -eq 0 ]; then
-      restart_gateway
     fi
     sleep 1
   done
