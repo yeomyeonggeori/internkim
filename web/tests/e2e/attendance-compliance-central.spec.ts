@@ -5,18 +5,20 @@ import {
 	dayOfMonth,
 	monthBefore,
 	removeAttendanceOf,
+	removeCompanyWorkPolicy,
 	seedAttendanceEvents,
 	seoulInstant,
 	seoulMonthToday
 } from './attendance-central-test-utils';
-import { member1ID } from './central-test-utils';
+import { member1Email, member1ID } from './central-test-utils';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.use({ locale: 'ko-KR' });
 
 const wholeDayStart = '00:01';
 const wholeDayEnd = '23:59';
-const workedDate = dayOfMonth(monthBefore(seoulMonthToday()), 15);
+const workedMonth = monthBefore(seoulMonthToday());
+const workedDate = dayOfMonth(workedMonth, 15);
 
 let seededEventIDs: string[] = [];
 
@@ -33,8 +35,13 @@ test.beforeAll(async () => {
 	]);
 });
 
+test.beforeEach(async () => {
+	await removeCompanyWorkPolicy();
+});
+
 test.afterAll(async () => {
 	await cleanupAttendanceEvents(seededEventIDs);
+	await removeCompanyWorkPolicy();
 });
 
 async function openSettings(page: Page): Promise<void> {
@@ -71,6 +78,10 @@ function personalPanel(page: Page) {
 	return page.getByTestId('personal-work-standard');
 }
 
+function workedDayCell(page: Page) {
+	return page.getByTestId(`team-status-cell-${member1Email}-${workedDate}`);
+}
+
 test('a fixed schedule nobody meets is reported on both surfaces', async ({ page }) => {
 	await openSettings(page);
 	await chooseWorkMode(page, '고정 근무제');
@@ -98,8 +109,14 @@ test('an autonomous schedule reports none of the three', async ({ page }) => {
 	await saveWorkSettings(page);
 
 	await openTheMonthBefore(page);
+	await page.getByRole('button', { name: '월별' }).first().click();
+	await expect(personalPanel(page)).toContainText(`${dayOfMonth(workedMonth, 1)}–`, {
+		timeout: 20000
+	});
 
-	await expect(complianceMarks(page)).toHaveCount(0, { timeout: 20000 });
+	await expect(personalPanel(page)).toContainText('자율 근무제');
+	await expect(workedDayCell(page)).toHaveText(/\d/);
+	await expect(complianceMarks(page)).toHaveCount(0);
 	await expect(
 		personalPanel(page).getByTestId('work-standard-compliance-late')
 	).toHaveCount(0);

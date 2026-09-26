@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
-import { centralPlaneAdminClient } from './central-test-utils';
+import { centralPlaneAdminClient, exampleCompanyID } from './central-test-utils';
 
 export type AttendanceCentralKind = 'clock_in' | 'clock_out';
 
@@ -138,4 +138,20 @@ export async function renameMember(memberID: string, name: string): Promise<void
 	const admin = centralPlaneAdminClient();
 	const updated = await admin.from('member').update({ name }).eq('id', memberID);
 	if (updated.error) throw new Error(`Failed to rename a member: ${updated.error.message}`);
+}
+
+export async function removeCompanyWorkPolicy(): Promise<void> {
+	const admin = centralPlaneAdminClient();
+	const company = await admin
+		.from('company')
+		.select('rules')
+		.eq('id', exampleCompanyID)
+		.single<{ rules: Record<string, unknown> }>();
+	if (company.error) throw new Error(`Failed to read the company rules: ${company.error.message}`);
+	const { attendanceWorkPolicy: _attendanceWorkPolicy, ...remainingRules } = company.data.rules;
+	const updated = await admin
+		.from('company')
+		.update({ rules: remainingRules })
+		.eq('id', exampleCompanyID);
+	if (updated.error) throw new Error(`Failed to remove the work policy: ${updated.error.message}`);
 }
