@@ -58,10 +58,13 @@ the `announce-event-reminder` edge function. An event with no lead time
 reminds nobody. The hourly question about shifts nobody closed runs the same
 way.
 
-Both read an address and a key from the vault, which the founding call also
-sets. By hand, an administrator posts to the `setup-digest-key` edge function.
-With neither stored, the schedule sends nothing and raises nothing, so a
-self-hosted install that is not set up yet stays quiet.
+Both read an address and a secret from the vault. The migration that creates
+the jobs also creates their secret, `scheduled_job_secret`, and the receiving
+side checks it with `is_a_scheduled_job()`, which only the service role may
+call. The secret belongs to the plane and to no company. The addresses are
+stored by the founding call. With no address stored, the schedule sends
+nothing and raises nothing, so a self-hosted install that is not set up yet
+stays quiet.
 
 ## What the platforms do differently [#platforms]
 

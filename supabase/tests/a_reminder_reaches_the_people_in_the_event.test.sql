@@ -1,8 +1,8 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
-delete from vault.secrets where name in ('project_url', 'day_digest_agent_key');
+delete from vault.secrets where name in ('project_url', 'scheduled_job_secret');
 delete from net.http_request_queue;
 
 select has_function(
@@ -47,13 +47,19 @@ select is(
   'a half-kept vault sends nothing, the way the digest does'
 );
 
-select vault.create_secret('a-key', 'day_digest_agent_key');
+select vault.create_secret('a-key', 'scheduled_job_secret');
 select public.announce_event_reminders();
 
 select is(
   (select url from net.http_request_queue order by id desc limit 1),
   'https://ours.supabase.co/functions/v1/announce-event-reminder',
   'with both kept it calls the project''s own function'
+);
+
+select is(
+  (select headers->>'Authorization' from net.http_request_queue order by id desc limit 1),
+  'Bearer a-key',
+  'and it carries the scheduled job secret, which belongs to no company'
 );
 
 select * from finish();
