@@ -95,7 +95,7 @@ acquireLock() {
 }
 
 localPlaneProjectIdentifier() {
-  sed -n 's/^project_id = "\(.*\)"$/\1/p' "$repositoryRoot/supabase/config.toml"
+  sed -n '/^\[/q; s/^project_id = "\(.*\)"$/\1/p' "$repositoryRoot/supabase/config.toml"
 }
 
 projectIdentifier="$(localPlaneProjectIdentifier)"
