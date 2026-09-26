@@ -2,28 +2,12 @@ package blueclaw
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
-
-// A compose file read as text answers "does this string appear somewhere",
-// which a comment, a second service, or an entry on the wrong service all
-// satisfy while the server and the messenger run on something else. These
-// decode it and ask the service that actually carries the setting.
-type composeFile struct {
-	Services map[string]composeService `yaml:"services"`
-}
-
-type composeService struct {
-	Command     []string       `yaml:"command"`
-	Environment map[string]any `yaml:"environment"`
-}
 
 func TestTheConnectionBudgetFitsTheServer(t *testing.T) {
 	if PostgresConnectionsGranted() > PostgresConnectionsAvailable() {
@@ -35,26 +19,29 @@ func TestTheConnectionBudgetFitsTheServer(t *testing.T) {
 	}
 }
 
-func TestTheServerIsToldTheCapacityTheBudgetDividesUp(t *testing.T) {
-	postgres := quickstartService(t, "postgres")
-	capacity, isSet := settingPostgresIsStartedWith(postgres.Command, "max_connections")
-	if !isSet {
-		t.Fatalf("the quickstart starts postgres with %v, which sets no max_connections, so the budget divides up a number nobody set", postgres.Command)
+func TestTheMessengerIsToldTheShareTheBudgetGivesIt(t *testing.T) {
+	messenger, isBundled := CompanyHostServiceNamed(DebianCompanyHostLayout(), BuzzRelayServiceName)
+	if !isBundled {
+		t.Fatalf("the bundle carries no %s, so the budget counts connections for a program it cannot see", BuzzRelayServiceName)
 	}
-	if capacity != strconv.Itoa(PostgresMaxConnections) {
-		t.Fatalf("the quickstart starts postgres with max_connections=%s against a budget that divides up %d", capacity, PostgresMaxConnections)
+	share, isSet := environmentSettingOf(messenger, "BUZZ_DB_POOL_SIZE")
+	if !isSet {
+		t.Fatal("the messenger unit names no BUZZ_DB_POOL_SIZE, so the budget counts connections it does not control")
+	}
+	if share != strconv.Itoa(MessengerDatabaseConnections) {
+		t.Fatalf("the messenger unit gives the relay %s connections against the %d the budget reserves for it", share, MessengerDatabaseConnections)
 	}
 }
 
-func TestTheMessengerIsToldTheShareTheBudgetGivesIt(t *testing.T) {
-	messenger := quickstartService(t, "messenger")
-	share, isSet := messenger.Environment["BUZZ_DB_POOL_SIZE"]
-	if !isSet {
-		t.Fatal("the messenger service's environment names no BUZZ_DB_POOL_SIZE, so the budget counts connections it does not control")
+func environmentSettingOf(service CompanyHostService, name string) (string, bool) {
+	for _, source := range service.Environment {
+		for _, setting := range source.Settings {
+			if setting.Name == name {
+				return setting.Value, true
+			}
+		}
 	}
-	if fmt.Sprintf("%v", share) != strconv.Itoa(MessengerDatabaseConnections) {
-		t.Fatalf("the quickstart gives the messenger %v connections against the %d the budget reserves for it", share, MessengerDatabaseConnections)
-	}
+	return "", false
 }
 
 func TestTheAgentIsToldTheShareTheBudgetGivesIt(t *testing.T) {
@@ -123,37 +110,6 @@ func databaseConnectionShareOf(t *testing.T, document string) (int, bool) {
 		t.Fatal(errorValue)
 	}
 	return share, true
-}
-
-// postgres takes its settings as "-c name=value" pairs, so a value that is not
-// the argument after a -c is not a value postgres was started with.
-func settingPostgresIsStartedWith(command []string, name string) (string, bool) {
-	value := ""
-	isSet := false
-	for index := 0; index+1 < len(command); index++ {
-		if command[index] != "-c" {
-			continue
-		}
-		setting, found := strings.CutPrefix(command[index+1], name+"=")
-		if !found {
-			continue
-		}
-		value, isSet = setting, true
-	}
-	return value, isSet
-}
-
-func quickstartService(t *testing.T, name string) composeService {
-	t.Helper()
-	var compose composeFile
-	if errorValue := yaml.Unmarshal([]byte(readHostFile(t, filepath.Join("host", "quickstart", "compose.yaml"))), &compose); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service, isDeclared := compose.Services[name]
-	if !isDeclared {
-		t.Fatalf("the quickstart declares no %s service, so the budget divides connections between programs it cannot see", name)
-	}
-	return service
 }
 
 func readHostFile(t *testing.T, relativePath string) string {

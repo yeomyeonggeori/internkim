@@ -1,33 +1,16 @@
 # The company's Buzz stack
 
-Postgres, Redis, MinIO and the relay, on the machine the company keeps on. This
-is the messenger half of the host bundle; the agent half is one directory up.
+Postgres, Redis, the media store and the relay, on the machine the company keeps
+on. This is the messenger half of the host; the agent half is one directory up.
 
-The relay binary comes from `.dependency/buzz-relay/`, which carries the release
-it was built from in its `REVISION` file. There is no published relay image to
-pin, so the image here is a base with a trust store and the binary mounted into
-it. When an official image exists, this file should pull that instead.
+The `internkim` package runs it as `buzz-relay` and `buzz-media` beside the
+agent's units, and `internkim install` writes the secrets they read. The relay
+binary comes from `.dependency/buzz-relay/`, which carries the release it was
+built from in its `REVISION` file.
 
-## Bringing it up
-
-```bash
-docker compose -f host/buzz/docker-compose.yml up -d
-```
-
-It needs one secret, in `host/buzz/.env`, which is gitignored:
-
-```
-BUZZ_RELAY_PRIVATE_KEY=<64 hex characters>
-```
-
-`openssl rand -hex 32` produces one. Keep the copy in `.local/buzz/`: the relay
-identity is not derivable again, and every event it signed becomes unverifiable
-without it.
-
-Everything else has a development default in `docker-compose.yml`. A deployment
-that anyone outside the machine can reach must override at least
-`BUZZ_POSTGRES_PASSWORD`, `BUZZ_S3_ACCESS_KEY`, `BUZZ_S3_SECRET_KEY`,
-`BUZZ_CORS_ORIGINS`, and set `BUZZ_REQUIRE_AUTH_TOKEN`.
+The relay identity in `buzz-relay.env` is not derivable again: every event it
+signed becomes unverifiable without it. Back up the company directory under
+`/var/lib/internkim/companies/` before you replace the machine.
 
 ## Reaching it from outside
 
@@ -44,7 +27,7 @@ this stack runs on, and hand the domain to whatever configures the relay.
 
 | Where the relay runs | How the name gets in |
 |---|---|
-| this compose stack | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
+| a company host the package installed | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
 | a device this repository provisions | `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>` |
 
 Nothing works the domain out for you. A relay with no domain stays on loopback,
@@ -72,9 +55,9 @@ subsystem has already reported ready, so the log reads like a healthy start
 until the last line. Set it to the origins a browser will actually use, or leave
 it unset.
 
-The relay's push delivery worker builds an HTTPS client at startup, so an image
-with no CA bundle panics in that worker while the rest of the relay keeps
-serving. That is what the `Dockerfile` is for.
+The relay's push delivery worker builds an HTTPS client at startup, so a
+machine with no CA bundle panics in that worker while the rest of the relay
+keeps serving.
 
 ## Checking it
 
@@ -89,41 +72,18 @@ in a request much later.
 
 ## Bringing a Mattermost workspace across
 
-```bash
-./host/buzz/import-from-mattermost
-```
-
-It needs two files under `.local/buzz/`, neither of them tracked:
-
-| | |
-|---|---|
-| `key-seed` | 64 hex characters, from `openssl rand -hex 32` |
-| `mattermost.env` | `MATTERMOST_URL`, `MATTERMOST_TOKEN`, `MATTERMOST_TEAM` |
-
-`./host/buzz/mattermost-token` writes the second one. It asks for a login and a
-password, reads the password from the terminal into a pipe so it is never an
-argument to anything, and fills in the team when the account belongs to exactly
-one. A refused login prints the reason Mattermost gave rather than an empty
-file.
-
-A device serves Mattermost on its own hostname, so `MATTERMOST_URL` is the same
-address the admin API answers on. `./internkim status` prints it and says
-whether it is up.
-
-Anything the importer takes can be overridden on the command line, so
-`--channels 광장` imports one channel while you are checking the result, and
-`--since <unix-millis>` picks up where a previous run stopped instead of
-starting over.
+`buzz-migrate`, which the package ships, imports a Mattermost team into the
+relay. admind's recovery script is the reference invocation: it names the
+Mattermost address and a file holding its session token, the relay's database,
+`buzz-admin`, the key seed, and the bridge that keeps what each imported message
+became. `--channels 광장` imports one channel while you check the result, and
+`--since <unix-millis>` picks up where a previous run stopped.
 
 **The seed is read from the file rather than passed in, and that is the point.**
 `cmd/buzz-migrate` derives every person's key and every channel id from it, so a
 second import under a different seed does not update the first: it derives
 different channel ids and lands a complete duplicate set of channels beside the
 originals.
-
-`buzz-admin` is the linux binary the relay ships with, wrapped so a mac runs it
-in a container on the stack's network. The importer shells out to it to register
-each imported author as a relay member.
 
 ## The identity seed
 
