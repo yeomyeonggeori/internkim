@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decodeJwt, errors, importJWK, jwtVerify } from 'jose';
 import { z } from 'zod';
+import { companyComputerName } from '$lib/company/host-setup';
 import {
 	boxConfigurationSchema,
 	boxKeySchema,
@@ -17,6 +18,7 @@ import {
 	controlPlane,
 	fleetCredentialKind,
 	hostSessionOfCompany,
+	spendAgentKey,
 	type HostSession,
 	type SigningCredentials
 } from './control-plane';
@@ -117,6 +119,20 @@ export async function claimBox(
 	await claimFleetForCompany(client, companyID, publicKey, { encryptionKey: data.encryption_key });
 	const removed = await client.from('empty_box').delete().eq('public_key', publicKey);
 	if (removed.error) throw new Error(`claiming box ${publicKey}: ${removed.error.message}`);
+}
+
+export async function claimBoxWithConnectionFile(
+	client: SupabaseClient,
+	publicKey: string,
+	encryptionKey: string,
+	connectionKey: string
+): Promise<string | null> {
+	const companyID = await spendAgentKey(client, connectionKey, companyComputerName);
+	if (!companyID) return null;
+	await claimFleetForCompany(client, companyID, publicKey, { encryptionKey });
+	const removed = await client.from('empty_box').delete().eq('public_key', publicKey);
+	if (removed.error) throw new Error(`claiming box ${publicKey}: ${removed.error.message}`);
+	return companyID;
 }
 
 const boxSettingsSchema = z.object({

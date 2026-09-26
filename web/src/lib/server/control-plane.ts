@@ -594,6 +594,19 @@ export async function agentOfKey(
 	return { agentID: data.id, companyID: data.company_id };
 }
 
+export async function spendAgentKey(client: SupabaseClient, apiKey: string, name: string): Promise<string | null> {
+	const { data, error } = await client
+		.from('agent')
+		.update({ revoked_at: new Date().toISOString() })
+		.eq('api_key_hash', await hashOf(apiKey))
+		.eq('name', name)
+		.is('revoked_at', null)
+		.select('company_id')
+		.maybeSingle<{ company_id: string }>();
+	if (error) throw new Error(`agent key: ${error.message}`);
+	return data?.company_id ?? null;
+}
+
 const lastSeenFreshForMilliseconds = 60_000;
 
 export function isLastSeenStale(lastSeenAt: string | null, now: number = Date.now()): boolean {
