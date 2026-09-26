@@ -146,14 +146,46 @@ func TestOpenRouterEmbeddingBackendKeepsCanonicalModelName(t *testing.T) {
 }
 
 func TestEmbeddingOutputDimensionsNormalizeTruncatedVector(t *testing.T) {
-	response := finalizeEmbeddingResponse(EmbeddingResponse{
+	response, errorValue := finalizeEmbeddingResponse(EmbeddingResponse{
 		Embedding: []float64{3, 4, 100},
 	}, EmbeddingRequest{OutputDimensions: 2})
 
-	if len(response.Embedding) != 2 {
+	if errorValue != nil || len(response.Embedding) != 2 {
 		t.Fatalf("expected truncated embedding, got %+v", response.Embedding)
 	}
 	if response.Embedding[0] != 0.6 || response.Embedding[1] != 0.8 {
 		t.Fatalf("expected normalized embedding, got %+v", response.Embedding)
+	}
+}
+
+type fixedEmbeddingProvider struct {
+	embedding []float64
+}
+
+func (provider fixedEmbeddingProvider) CreateEmbedding(context.Context, EmbeddingRequest) (EmbeddingResponse, error) {
+	return EmbeddingResponse{Provider: "remote", Embedding: provider.embedding}, nil
+}
+
+func TestAShorterEmbeddingThanRequestedMovesToTheNextProvider(t *testing.T) {
+	stale := LlamaCppEmbeddingBackend{
+		BaseURL:   "https://llamacpp.test",
+		ModelName: "baai/bge-m3",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"model":"embeddinggemma-300M-qat-Q4_0.gguf","data":[{"embedding":[0.6,0.8]}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		})},
+	}
+	request := EmbeddingRequest{Input: "hello", Model: "baai/bge-m3", OutputDimensions: 4}
+
+	_, staleError := stale.CreateEmbedding(context.Background(), request)
+	if staleError == nil || !strings.Contains(staleError.Error(), "embeddinggemma-300M-qat-Q4_0.gguf with 2-dimensional embeddings; 4 were requested") {
+		t.Fatalf("expected the short embedding to be refused by name, got %v", staleError)
+	}
+	response, errorValue := AutoEmbeddingProvider{Providers: []EmbeddingProvider{stale, fixedEmbeddingProvider{embedding: []float64{1, 0, 0, 0}}}}.CreateEmbedding(context.Background(), request)
+	if errorValue != nil || response.Provider != "remote" {
+		t.Fatalf("expected the next provider to answer, got %+v %v", response, errorValue)
 	}
 }

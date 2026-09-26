@@ -56,7 +56,7 @@ func (backend LlamaCppEmbeddingBackend) CreateEmbedding(ctx context.Context, req
 		response.Embedding = response.Embeddings[0]
 		response.Embeddings = nil
 	}
-	return finalizeEmbeddingResponse(response, request), nil
+	return finalizeEmbeddingResponse(response, request)
 }
 
 func (backend LlamaCppEmbeddingBackend) create(ctx context.Context, modelName string, inputs []string) (EmbeddingResponse, error) {
