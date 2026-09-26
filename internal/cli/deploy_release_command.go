@@ -216,7 +216,19 @@ func applyPublishedRelease(target commandTarget, releaseID string) error {
 		return errorValue
 	}
 	fmt.Printf("Deploy: %s/%s\n", completedJob.Status, completedJob.Phase)
+	printSetupDrift(api)
 	return nil
+}
+
+func printSetupDrift(api deviceReleaseAPI) {
+	status, errorValue := api.releaseUpdateStatus()
+	if errorValue != nil {
+		fmt.Printf("Setup drift: unknown, the release status could not be read: %v\n", errorValue)
+		return
+	}
+	for _, drift := range status.SetupDrift {
+		fmt.Printf("Warning: %s\n", drift)
+	}
 }
 
 func commandTargetFromDeployTarget(target deployops.Target) commandTarget {
