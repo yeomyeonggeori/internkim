@@ -147,7 +147,7 @@ func TestARunThatChangedLongAgoIsMarkedWithoutNotifying(t *testing.T) {
 		writer.Write([]byte(`{"told":1,"reached":1}`))
 	}))
 	t.Cleanup(plane.Close)
-	client := centralplane.New(centralplane.Settings{ProjectURL: plane.URL, AgentAPIKey: "agent-key"})
+	client := centralplane.New(centralplane.Settings{ProjectURL: plane.URL, HostCredential: func() string { return "agent-key" }})
 
 	now := time.Now()
 	server, _ := blueclawServingRuns(t, []taskNotifyRun{

@@ -28,7 +28,7 @@ func (client *Client) Company(ctx context.Context) (Company, bool, error) {
 	if errorValue != nil {
 		return Company{}, false, errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {

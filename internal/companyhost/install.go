@@ -39,6 +39,7 @@ type Installation struct {
 
 type Request struct {
 	ConnectionPath     string
+	Connection         *Connection
 	StateDirectoryPath string
 	ModelKey           string
 	PromptForModelKey  func() (string, error)
@@ -53,7 +54,7 @@ func Install(request Request, machine Machine, progress io.Writer) (Installation
 }
 
 func installOn(platform companyHostPlatform, request Request, machine Machine, progress io.Writer) (Installation, error) {
-	connection, errorValue := ReadConnection(request.ConnectionPath)
+	connection, errorValue := requestedConnection(request)
 	if errorValue != nil {
 		return Installation{}, errorValue
 	}
@@ -92,6 +93,16 @@ func installOn(platform companyHostPlatform, request Request, machine Machine, p
 		Connection:         connection,
 		Supervisor:         platform.NameOfItsSupervisor(),
 	}, nil
+}
+
+func requestedConnection(request Request) (Connection, error) {
+	if request.Connection == nil {
+		return ReadConnection(request.ConnectionPath)
+	}
+	if errorValue := validateConnection(*request.Connection); errorValue != nil {
+		return Connection{}, errorValue
+	}
+	return normalizeConnection(*request.Connection), nil
 }
 
 // RequireAdministrator makes the refusal a sentence rather than a permission

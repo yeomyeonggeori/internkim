@@ -120,7 +120,7 @@ func (client *Client) readAsAgent(ctx context.Context, path string, answer any) 
 	if errorValue != nil {
 		return errorValue
 	}
-	request.Header.Set("Authorization", "Bearer "+client.settings.AgentAPIKey)
+	request.Header.Set("Authorization", "Bearer "+client.settings.HostCredential())
 
 	response, errorValue := client.httpClient.Do(request)
 	if errorValue != nil {

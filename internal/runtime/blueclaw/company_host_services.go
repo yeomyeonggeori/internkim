@@ -280,6 +280,7 @@ func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {
 			"-site-scaffold", layout.SkillsPath() + "/website/assets/scaffold/app",
 			"-central-plane-app-url", "${INTERNKIM_APP_URL}",
 			"-central-plane-agent-key", CompanyHostAgentKeyPath,
+			"-blueclaw-assertion-key", CompanyHostAssertionKeyPath,
 			"-central-plane-project-url", "${SUPABASE_URL}",
 			"-central-plane-publishable-key", "${SUPABASE_PUBLISHABLE_KEY}",
 		},

@@ -14,7 +14,10 @@ import (
 
 const connectionSchemaVersion = 1
 
-var agentKeyPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
+var (
+	secretPattern      = regexp.MustCompile(`^[a-f0-9]{64}$`)
+	hostSessionPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
+)
 
 type Company struct {
 	ID   string `json:"id"`
@@ -87,7 +90,7 @@ func validateConnection(connection Connection) error {
 			return errorValue
 		}
 	}
-	if !agentKeyPattern.MatchString(connection.AgentKey) {
+	if !secretPattern.MatchString(connection.AgentKey) && !hostSessionPattern.MatchString(connection.AgentKey) {
 		return fmt.Errorf("the connection file contains an invalid company key")
 	}
 	return nil

@@ -35,6 +35,7 @@ type Configuration struct {
 	AttendanceDatabasePath         string
 	CentralPlaneAppURL             string
 	CentralPlaneAgentKeyPath       string
+	BlueclawAssertionKeyPath       string
 	CentralPlaneAppURLPath         string
 	CentralPlaneProjectURL         string
 	CentralPlaneProjectURLPath     string
@@ -121,6 +122,7 @@ func DefaultConfiguration() Configuration {
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
 		APIURLPath:                     "/root/.internkim/env/api-url",
 		CentralPlaneAgentKeyPath:       "/root/.internkim/secrets/central-plane-agent-key",
+		BlueclawAssertionKeyPath:       "/root/.internkim/secrets/central-plane-agent-key",
 		CentralPlaneAppURLPath:         "/root/.internkim/env/central-plane-app-url",
 		CentralPlaneProjectURL:         centralplane.DefaultProjectURL,
 		CentralPlaneProjectURLPath:     "/root/.internkim/env/central-plane-project-url",
@@ -293,6 +295,9 @@ func (configuration Configuration) withCentralPlaneDefaults(defaultConfiguration
 	}
 	if configuration.CentralPlaneAgentKeyPath == "" {
 		configuration.CentralPlaneAgentKeyPath = defaultConfiguration.CentralPlaneAgentKeyPath
+	}
+	if configuration.BlueclawAssertionKeyPath == "" {
+		configuration.BlueclawAssertionKeyPath = defaultConfiguration.BlueclawAssertionKeyPath
 	}
 	if configuration.CentralPlaneProjectURLPath == "" {
 		configuration.CentralPlaneProjectURLPath = defaultConfiguration.CentralPlaneProjectURLPath

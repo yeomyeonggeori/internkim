@@ -33,7 +33,7 @@ func memberDoorForTest(t *testing.T, answer string) (*Client, *memberDoorCall) {
 		_, _ = writer.Write([]byte(answer))
 	}))
 	t.Cleanup(server.Close)
-	client := New(Settings{AppURL: server.URL, AgentAPIKey: "agent-key", ProjectURL: server.URL, PublishableKey: "publishable"})
+	client := New(Settings{AppURL: server.URL, HostCredential: func() string { return "agent-key" }, ProjectURL: server.URL, PublishableKey: "publishable"})
 	return client, call
 }
 

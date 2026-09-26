@@ -729,9 +729,9 @@ func (service *Service) updateUserDocument(responseWriter http.ResponseWriter, r
 }
 
 func (service *Service) blueclawPersonaRequest(ctx context.Context, method string, path string, body []byte, readerPersonID string, responseValue any) error {
-	key := strings.TrimSpace(readTrimmedFile(service.Configuration.CentralPlaneAgentKeyPath))
+	key := strings.TrimSpace(readTrimmedFile(service.Configuration.BlueclawAssertionKeyPath))
 	if key == "" {
-		return errors.New("central plane agent key is missing")
+		return errors.New("the key admind signs Blueclaw requests with is missing")
 	}
 	request, errorValue := http.NewRequestWithContext(ctx, method, strings.TrimRight(service.Configuration.BlueclawBaseURL, "/")+path, bytes.NewReader(body))
 	if errorValue != nil {
