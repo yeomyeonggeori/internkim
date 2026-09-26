@@ -71,7 +71,7 @@ func (backend OpenRouterEmbeddingBackend) CreateEmbedding(ctx context.Context, r
 		response.Embedding = response.Embeddings[0]
 		response.Embeddings = nil
 	}
-	return finalizeEmbeddingResponse(response, request), nil
+	return finalizeEmbeddingResponse(response, request)
 }
 
 func (backend OpenRouterEmbeddingBackend) resolveAPIKey() (string, error) {

@@ -212,9 +212,12 @@ func embeddingTaskDescription(task string) string {
 	}
 }
 
-func finalizeEmbeddingResponse(response EmbeddingResponse, request EmbeddingRequest) EmbeddingResponse {
+func finalizeEmbeddingResponse(response EmbeddingResponse, request EmbeddingRequest) (EmbeddingResponse, error) {
 	if request.OutputDimensions <= 0 {
-		return response
+		return response, nil
+	}
+	if shortest := shortestEmbeddingLength(response); shortest < request.OutputDimensions {
+		return EmbeddingResponse{}, fmt.Errorf("%s answered %s with %d-dimensional embeddings; %d were requested", response.Provider, response.Model, shortest, request.OutputDimensions)
 	}
 	if len(response.Embedding) > 0 {
 		response.Embedding = truncateAndNormalizeEmbedding(response.Embedding, request.OutputDimensions)
@@ -226,7 +229,17 @@ func finalizeEmbeddingResponse(response EmbeddingResponse, request EmbeddingRequ
 		}
 		response.Embeddings = embeddings
 	}
-	return response
+	return response, nil
+}
+
+func shortestEmbeddingLength(response EmbeddingResponse) int {
+	shortest := len(response.Embedding)
+	for _, embedding := range response.Embeddings {
+		if shortest == 0 || len(embedding) < shortest {
+			shortest = len(embedding)
+		}
+	}
+	return shortest
 }
 
 func truncateAndNormalizeEmbedding(embedding []float64, dimensions int) []float64 {
