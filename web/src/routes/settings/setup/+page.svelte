@@ -5,12 +5,14 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { isCompanyAppRunning } from '$lib/host-bridge';
 	import { companyPathOf } from '$lib/company-path';
 	import type { HostConfiguration, HostSetupStatus } from '$lib/company/host-setup';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import CompanyMembers from '../company-members.svelte';
+	import BoxConnection from './box-connection.svelte';
 	import { downloadHostConfiguration, fetchHostSetupStatus, requestHostConfiguration } from './host-setup-client';
 	import { hostSetupText } from './text';
 
@@ -98,20 +100,27 @@
 					<Card.Title>{text.computer}</Card.Title>
 					<Card.Description>{text.computerDescription}</Card.Description>
 				</Card.Header>
-				<Card.Content class="grid min-w-0 gap-4">
-					<div class="grid justify-items-start gap-2">
-						<Button onclick={askForDownload} disabled={isDownloading}>
-							{isDownloading ? text.downloading : configuration ? text.downloadAgain : text.download}
-						</Button>
-						<p class="text-sm text-muted-foreground">{text.fileHint}</p>
-					</div>
-					<div class="grid gap-2 rounded-md border border-dashed p-4">
-						<p class="text-sm font-medium">{text.install}</p>
-						<p class="text-sm text-muted-foreground">{text.installDescription}</p>
-						<pre aria-label={text.install} class="max-w-full overflow-x-auto rounded-md bg-muted p-3 text-xs"><code>{text.installCommand}{'\n'}{text.configureCommand}</code></pre>
-						<a class="justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
-					</div>
-					<p class="text-sm text-muted-foreground">{text.installHint}</p>
+				<Card.Content class="grid min-w-0 gap-6">
+					<BoxConnection />
+					<Collapsible.Root class="grid gap-4">
+						<Collapsible.Trigger class="justify-self-start text-sm underline">{text.otherComputer}</Collapsible.Trigger>
+						<Collapsible.Content class="grid min-w-0 gap-4">
+							<p class="text-sm text-muted-foreground">{text.otherComputerDescription}</p>
+							<div class="grid justify-items-start gap-2">
+								<Button variant="outline" onclick={askForDownload} disabled={isDownloading}>
+									{isDownloading ? text.downloading : configuration ? text.downloadAgain : text.download}
+								</Button>
+								<p class="text-sm text-muted-foreground">{text.fileHint}</p>
+							</div>
+							<div class="grid gap-2 rounded-md border border-dashed p-4">
+								<p class="text-sm font-medium">{text.install}</p>
+								<p class="text-sm text-muted-foreground">{text.installDescription}</p>
+								<pre aria-label={text.install} class="max-w-full overflow-x-auto rounded-md bg-muted p-3 text-xs"><code>{text.installCommand}{'\n'}{text.configureCommand}</code></pre>
+								<a class="justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
+							</div>
+							<p class="text-sm text-muted-foreground">{text.installHint}</p>
+						</Collapsible.Content>
+					</Collapsible.Root>
 				</Card.Content>
 				<Card.Footer class="flex-col items-start gap-3">
 					<Button variant="outline" onclick={checkConnection} disabled={isChecking}>{isChecking ? text.checking : text.check}</Button>
