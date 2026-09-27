@@ -1,6 +1,16 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import {
+	aTurnStartingWork,
+	changingNothingTheCheckCanRead,
+	everyScriptWasAskedAndNothingElse,
+	expectedChangesSchemaName,
+	replyingAndFinishing,
+	turnRouterSchemaName,
+	turnWordsOwingOnlyTheReply,
+	whatTheModelWasAsked
+} from './a-model-nobody-pays-for';
 import { handToTheRelay, until } from './an-inbound-message';
 
 // The agent used to learn its record tools at deploy time, from descriptors
@@ -13,6 +23,10 @@ let plane: ACompanyPlane;
 beforeAll(async () => {
 	plane = await aCompanyPlane({ messengerPlatform: 'buzz' });
 }, 180_000);
+
+afterEach(async () => {
+	await everyScriptWasAskedAndNothingElse(plane.model);
+}, 90_000);
 
 afterAll(async () => {
 	await plane?.stop();
@@ -32,57 +46,34 @@ async function theToolsOfTheSessionFor(email: string): Promise<ToolInventory> {
 	return (await answer.json()) as ToolInventory;
 }
 
-function aRouterDocument(fields: Record<string, unknown>): string {
-	return JSON.stringify({
-		route: 'start_task',
-		classification: 'bounded_task',
-		taskShape: 'maintenance_task',
-		level: 'low',
-		requestedOutputFormats: null,
-		expectedResults: [],
-		siteRequestEvidence: '',
-		responseLanguage: 'ko',
-		reason: 'plane scenario',
-		userFacingReply: '',
-		initialToolNames: ['task_add'],
-		priorTaskReference: 'none',
-		...fields
-	});
-}
-
-function finishing(reply: string): string {
-	return JSON.stringify({
-		message: reply,
-		goalStatus: 'satisfied',
-		goalSatisfied: true,
-		completionEvidenceIDs: []
-	});
-}
-
 test('the agent calls a record tool the session named, and the row lands in the record', async () => {
 	const [sender] = plane.people;
 	const title = `평면 점검 ${Date.now()}`;
 
-	plane.model.answerNext('bluecollar_turn_router', aRouterDocument({}));
-	plane.model.callNext('task_add', JSON.stringify({ title, type: 'task' }));
-	plane.model.callNext('finish', finishing('업무로 남겼습니다'));
+	const request = `"${title}" 업무로 남겨줘`;
+	await plane.model.decideTurn(aTurnStartingWork(request, ['task_add']));
+	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
+	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+	await plane.model.callNext('task_add', { title, type: 'task' });
+	await plane.model.callNext('reply', replyingAndFinishing('업무로 남겼습니다'));
 
 	const asked = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
 		conversationID: `conversation-catalog-${plane.runIdentifier}`,
 		messageID: 'message-catalog-1',
-		message: `"${title}" 업무로 남겨줘`
+		message: request
 	});
 	// The door answers once the event is on disk, so whether the tool was reached
 	// is read off the record rather than off this response.
 	expect(asked.status, `the relay refused the turn: ${await asked.clone().text()}`).toBe(202);
 
 	await until(
-		`no task was written under that title.\n` +
-			`  the model was offered and answered: ${JSON.stringify(plane.model.completions.map((call) => call.answeredWith))}`,
+		'no task was written under that title',
 		async () => (await theTasksTitled(title)).length > 0,
 		120
-	);
+	).catch(async (failure: Error) => {
+		throw new Error(`${failure.message}\n  the model was asked: ${await whatTheModelWasAsked(plane.model)}`);
+	});
 
 	const written = await theTasksTitled(title);
 	expect(written).toHaveLength(1);
