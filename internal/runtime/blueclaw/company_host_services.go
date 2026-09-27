@@ -318,6 +318,7 @@ func companyHostMessengerBridgeService(layout CompanyHostLayout) CompanyHostServ
 				setting("CHATD_RELAY_INBOUND_URL", CompanyHostArrivalsInboundURL),
 				setting("CHATD_BUZZ_ACCOUNT_LINKS_PATH", CompanyHostAccountLinksPath),
 				setting("CHATD_ADMIND_BASE_URL", "http://"+CompanyHostAdmindListenAddress),
+				setting("CHATD_STATE_DIRECTORY", CompanyHostChatdStatePath),
 			),
 		),
 		RestartAfterSeconds:   5,
