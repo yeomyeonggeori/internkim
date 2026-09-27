@@ -66,7 +66,7 @@ echo "cache miss: $cachedBinaryPath"
 sshpassBin="$repositoryRoot/bin/sshpass"
 sshOptions=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=240)
 if [[ "$buildHost" == *.example.test ]]; then
-  sshOptions+=(-o "ProxyCommand=env GODEBUG=netdns=go TUNNEL_EDGE_IP_VERSION=4 cloudflared --edge-ip-version 4 --edge-bind-address 0.0.0.0 access ssh --hostname %h")
+  sshOptions+=(-o "ProxyCommand=$repositoryRoot/tools/cloudflared-access-ssh %h")
 fi
 sshCommand=(ssh "${sshOptions[@]}" "$buildUser@$buildHost")
 scpCommand=(scp "${sshOptions[@]}")
