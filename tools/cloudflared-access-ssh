@@ -1,65 +1,75 @@
 #!/usr/bin/env python3
-"""ProxyCommand for reaching a device over Cloudflare Access without a browser.
+"""ProxyCommand for reaching a device over Cloudflare Access with its service token.
 
-`cloudflared access login` writes a token that lasts a day, so an operator who
-works on a device signs in again every day, and a command that runs unattended
-cannot sign in at all. A service token does not expire for a year and needs no
-browser; `tools/provision-cloudflare-ssh-service-token` creates one and attaches
-the policy that admits it.
+A service token lasts a year and needs no browser;
+`tools/provision-cloudflare-ssh-service-token` creates one and attaches the
+policy that admits it. It lives in the @production vault profile.
 
-ssh starts this with whatever environment it holds, which is not the vault's, so
-this re-executes itself under `monkeys run` to be handed the token rather than
-reading it out of a file beside the checkout:
+ssh starts this with whatever environment it holds, so this re-executes itself
+under `monkeys run @production` to be handed the token:
 
     Host 0.ssh.*.intern.kim 1.ssh.*.intern.kim
       ProxyCommand /path/to/tools/cloudflared-access-ssh %h
 
-Without the token this falls back to plain `cloudflared access ssh`, which is
-the browser path, so nothing breaks before the token exists.
+With no token it stops and says which key is missing. It never starts
+`cloudflared access ssh` without one, because that opens a browser sign-in.
 """
 import os
 import pathlib
 import shutil
-import subprocess
 import sys
 
 repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
+tokenProfile = "production"
+clientIDVariable = "INTERNKIM_CF_ACCESS_CLIENT_ID"
+clientSecretVariable = "INTERNKIM_CF_ACCESS_CLIENT_SECRET"
+vaultMarker = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
 
 
-def runThroughTheVault():
-    """Hold the service token the way the CLI holds it.
+def refuse(reason):
+    print(f"cloudflared-access-ssh: {reason}", file=sys.stderr)
+    raise SystemExit(1)
 
-    `monkeys` hands a value to the command it starts, so the only way to have
-    one is to be that command. Every reason not to leaves the run as it was and
-    the browser path serves instead, because a ProxyCommand that fails takes the
-    whole ssh session with it.
-    """
-    if os.environ.get("INTERNKIM_ENVIRONMENT_FROM_VAULT"):
-        return
-    monkeys = shutil.which("monkeys") or str(pathlib.Path.home() / ".local/bin/monkeys")
-    if not pathlib.Path(monkeys).exists():
-        return
-    doctor = subprocess.run(
-        [monkeys, "doctor", "--short"], cwd=str(repositoryRoot), capture_output=True, text=True,
-    )
-    if any(line.startswith("missing @production:") for line in doctor.stdout.splitlines()):
-        return
-    os.environ["INTERNKIM_ENVIRONMENT_FROM_VAULT"] = "production"
+
+def heldToken():
+    clientID = os.environ.get(clientIDVariable, "").strip()
+    clientSecret = os.environ.get(clientSecretVariable, "").strip()
+    if clientID and clientSecret:
+        return clientID, clientSecret
+    return None
+
+
+def monkeysPath():
+    found = shutil.which("monkeys") or str(pathlib.Path.home() / ".local/bin/monkeys")
+    return found if pathlib.Path(found).exists() else None
+
+
+def runUnderTheTokenProfile():
+    monkeys = monkeysPath()
+    if monkeys is None:
+        refuse(f"no {clientIDVariable} in the environment and no monkeys to fetch it from @{tokenProfile}")
+    os.environ[vaultMarker] = tokenProfile
+    os.chdir(repositoryRoot)
     os.execvpe(monkeys, [
-        "monkeys", "run", "@production", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
+        "monkeys", "run", f"@{tokenProfile}", sys.executable, str(pathlib.Path(__file__).resolve()), *sys.argv[1:],
     ], os.environ)
 
-
-runThroughTheVault()
 
 if len(sys.argv) < 2:
     raise SystemExit("usage: cloudflared-access-ssh <hostname>")
 hostname = sys.argv[1]
 
-arguments = ["cloudflared", "access", "ssh", "--hostname", hostname]
-clientID = os.environ.get("INTERNKIM_CF_ACCESS_CLIENT_ID", "").strip()
-clientSecret = os.environ.get("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "").strip()
-if clientID and clientSecret:
-    arguments += ["--service-token-id", clientID, "--service-token-secret", clientSecret]
+token = heldToken()
+if token is None and os.environ.get(vaultMarker) != tokenProfile:
+    runUnderTheTokenProfile()
+if token is None:
+    refuse(
+        f"@{tokenProfile} holds no {clientIDVariable} and {clientSecretVariable}; "
+        "run tools/provision-cloudflare-ssh-service-token"
+    )
 
-os.execvp(arguments[0], arguments)
+clientID, clientSecret = token
+os.execvp("cloudflared", [
+    "cloudflared", "access", "ssh", "--hostname", hostname,
+    "--service-token-id", clientID, "--service-token-secret", clientSecret,
+])
