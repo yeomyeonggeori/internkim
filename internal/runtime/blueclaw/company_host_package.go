@@ -66,6 +66,7 @@ const (
 	CompanyHostMediaBucketPath  = "/var/lib/internkim/media/" + BuzzMediaBucket
 	CompanyHostChatdSecretPath  = "/var/lib/internkim/current/secrets/chatd.env"
 	CompanyHostAccountLinksPath = "/var/lib/internkim/buzz-account-links.json"
+	CompanyHostChatdStatePath   = "/var/lib/internkim/chatd"
 	CompanyHostWorkspacePath    = "/workspace"
 	CompanyHostLogPath          = "/var/log/internkim"
 	CompanyHostBrowserStatePath = "/var/lib/internkim-moli"
