@@ -188,13 +188,14 @@ Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
 Environment=CHATD_LISTEN_HOSTNAME=`+ChatdListenHostname+`
 Environment=CHATD_LISTEN_PORT=%s
 Environment=CHATD_ADMIND_BASE_URL=%s
+Environment=CHATD_STATE_DIRECTORY=%s
 ExecStart=%s
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
-`, ChatdEnvironmentFilePath, ChatdBotUserName, relayURL, BuzzRelayCertificatePath, BuzzAccountLinksPath, ChatdListenPort, AdmindBaseURL, ChatdBinaryPath)
+`, ChatdEnvironmentFilePath, ChatdBotUserName, relayURL, BuzzRelayCertificatePath, BuzzAccountLinksPath, ChatdListenPort, AdmindBaseURL, ChatdStateDirectoryPath, ChatdBinaryPath)
 }
 
 func ChatdHealthCheckCommand() string {
