@@ -381,7 +381,7 @@ func (service *Service) installReleaseComponents(ctx context.Context, jobID stri
 		return errorValue
 	}
 	if _, hasChatd := manifest.Components["chatd"]; hasChatd {
-		if errorValue := service.restartReleaseChatd(ctx); errorValue != nil {
+		if errorValue := service.installReleaseChatdService(ctx); errorValue != nil {
 			return errorValue
 		}
 	}

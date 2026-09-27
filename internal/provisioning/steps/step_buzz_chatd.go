@@ -33,6 +33,7 @@ var StepBuzzChatd = Step{
 		return trimmedRun(context, "systemctl is-active "+blueclaw.ChatdServiceName) == "active" &&
 			trimmedRun(context, blueclaw.ChatdHealthCheckCommand()) == "ok" &&
 			strings.Contains(installedUnit, "CHATD_LISTEN_HOSTNAME="+blueclaw.ChatdListenHostname) &&
+			strings.Contains(installedUnit, "CHATD_STATE_DIRECTORY="+blueclaw.ChatdStateDirectoryPath) &&
 			!strings.Contains(installedUnit, "CHATD_WORKSPACE_ROOT=") &&
 			trimmedRun(context, "cat "+blueclaw.ChatdEnvironmentFilePath) == strings.TrimSpace(chatdEnvironmentFileContents(agentSecret))
 	},
