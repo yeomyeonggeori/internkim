@@ -66,6 +66,22 @@ stored by the founding call. With no address stored, the schedule sends
 nothing and raises nothing, so a self-hosted install that is not set up yet
 stays quiet.
 
+The secret opens those two jobs and nothing else, and it never leaves the
+database except in their requests, so it is not rotated on a schedule. If it
+may have leaked, replace it in the SQL editor:
+
+```sql
+select vault.update_secret(
+  (select id from vault.secrets where name = 'scheduled_job_secret'),
+  encode(extensions.gen_random_bytes(32), 'hex')
+);
+```
+
+Both sides read the vault on every call, so the next call carries the new
+value and nothing needs redeploying. A request already queued when it changes
+arrives with the old one and is refused, which can drop that minute's
+reminders. Run it just after the minute turns.
+
 ## What the platforms do differently [#platforms]
 
 | | Safari, any Apple device | Android Chrome | Desktop Chrome |
