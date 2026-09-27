@@ -60,6 +60,21 @@ icon: Bell
 아무것도 보내지 않고 오류도 내지 않으므로, 아직 설정하지 않은 셀프호스팅 설치도
 조용합니다.
 
+이 비밀로 열리는 것은 두 일정뿐이고, 그 요청에 실리는 것 말고는 데이터베이스
+밖으로 나가지 않으므로 주기적으로 바꾸지 않습니다. 유출됐을 수 있다면 SQL
+편집기에서 바꿉니다.
+
+```sql
+select vault.update_secret(
+  (select id from vault.secrets where name = 'scheduled_job_secret'),
+  encode(extensions.gen_random_bytes(32), 'hex')
+);
+```
+
+양쪽 모두 호출할 때마다 볼트를 읽으므로, 다음 호출부터 새 값이 실리고 다시
+배포할 것은 없습니다. 바꾸는 순간 이미 대기열에 있던 요청은 옛 값으로 도착해
+거절되고, 그 분의 미리 알림이 빠질 수 있습니다. 매분이 바뀐 직후에 실행합니다.
+
 ## 플랫폼마다 다른 점 [#platforms]
 
 | | Safari, 모든 Apple 기기 | Android Chrome | 데스크톱 Chrome |
