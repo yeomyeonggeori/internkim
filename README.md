@@ -89,28 +89,26 @@ connections are outbound, and nothing here creates a tunnel, a DNS record or an
 access policy.
 
 An operator on the same network needs nothing. From elsewhere, put whatever you
-use in your own `~/.ssh/config` and every command follows it:
+use in your own `~/.ssh/config` and every command follows it.
 
-```
-Host device-*
-  ProxyCommand cloudflared access ssh --hostname %h
-```
-
-`cloudflared access login` writes a token that lasts a day, so that line means
-signing in again every morning and it cannot be used by anything unattended. A
-A Cloudflare Access service token lasts a year and can authenticate without a browser:
+Over Cloudflare Access, use a service token. It lasts a year and needs no
+browser:
 
 ```bash
 tools/provision-cloudflare-ssh-service-token     # creates it, attaches the policy
 ```
 
-Point the proxy at the wrapper. It reads the token from the file created by the
-script, keeping the credential out of this config:
+It is kept in the `@production` vault profile, and the wrapper fetches it from
+there on each connection:
 
 ```
 Host device-*
   ProxyCommand /path/to/tools/cloudflared-access-ssh %h
 ```
+
+Without the token the wrapper stops and names the missing key. It never falls
+back to `cloudflared access login`, whose day-long browser sign-in cannot serve
+anything unattended.
 
 A Cloudflare Tunnel is one answer and a convenient one during development.
 Tailscale, a jump host and WireGuard are others, and this repository cannot tell
