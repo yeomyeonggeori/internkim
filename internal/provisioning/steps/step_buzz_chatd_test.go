@@ -65,7 +65,10 @@ func (connection *chatdBootstrapConnection) SCP(string, string) error {
 
 const chatdTestAgentSecret = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
-type chatdConnection struct{ installedEnvironment string }
+type chatdConnection struct {
+	installedEnvironment string
+	installedUnit        string
+}
 
 func (connection chatdConnection) Run(command string) string {
 	switch {
@@ -74,7 +77,7 @@ func (connection chatdConnection) Run(command string) string {
 	case command == blueclaw.ChatdHealthCheckCommand():
 		return "ok"
 	case command == "cat "+blueclaw.ChatdServicePath:
-		return "CHATD_LISTEN_HOSTNAME=" + blueclaw.ChatdListenHostname
+		return connection.installedUnit
 	case command == "cat "+blueclaw.ChatdEnvironmentFilePath:
 		return connection.installedEnvironment
 	}
@@ -86,9 +89,13 @@ func (connection chatdConnection) SCP(localPath, remotePath string) error {
 }
 
 func chatdContext(installedEnvironment string) *Context {
+	return chatdContextWithUnit(installedEnvironment, blueclaw.ChatdServiceUnit(""))
+}
+
+func chatdContextWithUnit(installedEnvironment string, installedUnit string) *Context {
 	return &Context{
 		Backend: BackendSSH,
-		SSH:     chatdConnection{installedEnvironment: installedEnvironment},
+		SSH:     chatdConnection{installedEnvironment: installedEnvironment, installedUnit: installedUnit},
 		Callbacks: Callbacks{
 			GetBuzzAgentSecret: func() (string, error) { return chatdTestAgentSecret, nil },
 		},
@@ -122,5 +129,16 @@ func TestBuzzChatdEnvironmentNamesNoIdentitySeed(t *testing.T) {
 	}
 	if !strings.Contains(command, "CHATD_BUZZ_PRIVATE_KEY="+chatdTestAgentSecret) {
 		t.Fatalf("the agent's own key must still be written, got %s", command)
+	}
+}
+
+func TestBuzzChatdReinstallsAUnitThatGivesNoStateDirectory(t *testing.T) {
+	withoutStateDirectory := strings.ReplaceAll(
+		blueclaw.ChatdServiceUnit(""),
+		"Environment=CHATD_STATE_DIRECTORY="+blueclaw.ChatdStateDirectoryPath+"\n",
+		"",
+	)
+	if StepBuzzChatd.IsSatisfied(chatdContextWithUnit(chatdEnvironmentFileContents(chatdTestAgentSecret), withoutStateDirectory)) {
+		t.Fatal("a unit written before chatd kept a delivery record must be rewritten, or the record never reaches disk")
 	}
 }
