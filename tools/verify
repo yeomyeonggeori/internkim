@@ -222,6 +222,20 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "messenger-ui",
+        [
+            "web/src/routes/messenger/*",
+            "web/src/lib/components/channel/*",
+            "web/src/lib/components/ui/context-menu/*",
+            "web/src/lib/components/ui/sheet/*",
+            "web/tests/e2e/messenger*",
+            "web/bun.lock",
+        ],
+        [["bun", "run", "test:e2e:messenger"]],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "web-e2e",
         [
             "web/src/routes/calendar/*",
