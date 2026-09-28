@@ -42,11 +42,16 @@ export class InboundTurns {
 
 	askThePerson = async (asked: AskedPermission, addressing: Addressing): Promise<string> => {
 		const running = this.turnInFlight.get(addressing.conversationID);
-		if (running) running.blueclawOpenedARun = true;
+		if (running) await this.handTheRunToBlueclaw(running);
 		const answering = this.awaitAnAlreadyAskedQuestion(addressing);
 		await this.settings.postToConversation(addressing, asked.question);
 		return answering;
 	};
+
+	private async handTheRunToBlueclaw(running: RunningTurn): Promise<void> {
+		running.blueclawOpenedARun = true;
+		await this.settings.queue.forget(running.eventKey);
+	}
 
 	/** The question already reached the person before this relay last stopped; only wait. */
 	awaitAnAlreadyAskedQuestion = (addressing: Addressing): Promise<string> => {
@@ -95,8 +100,8 @@ export class InboundTurns {
 				continue;
 			}
 			const conversationID = inbound.addressing.conversationID;
-			// The event a running turn was started on is still queued until that
-			// turn finishes, and it is not the answer to the question it asked.
+			// The event a running turn was started on stays queued until the turn
+			// finishes or asks something, and it is not an answer to anything.
 			const running = this.turnInFlight.get(conversationID);
 			const isTheEventItsOwnTurnIsRunningOn = running?.eventKey === event.key;
 			if (isTheEventItsOwnTurnIsRunningOn) continue;
