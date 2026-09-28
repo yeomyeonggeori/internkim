@@ -1,5 +1,17 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import {
+	aPlanThatNeedsNoClarification,
+	aTurnApprovingTheHeldCall,
+	aTurnStartingWork,
+	changingNothingTheCheckCanRead,
+	everyScriptWasAskedAndNothingElse,
+	expectedChangesSchemaName,
+	replyingAndFinishing,
+	turnRouterSchemaName,
+	turnWordsOwingOnlyTheReply,
+	whatTheModelWasAsked
+} from './a-model-nobody-pays-for';
 import { directMessagesDelivered } from './a-messenger-nobody-runs';
 import { handToTheRelay, until, type AnInboundMessage } from './an-inbound-message';
 
@@ -14,73 +26,12 @@ const marker = `평면 acp 점검 ${Date.now()}`;
 
 // The loop offers one native tool per action, named after the action or, for a
 // continue, after the tool it would call. Its arguments are that tool's input.
-function sendingTheMessage(recipientName: string): string {
-	return JSON.stringify({
+function sendingTheMessage(recipientName: string): Record<string, unknown> {
+	return {
 		targetType: 'directMessage',
 		personHint: recipientName,
 		message: marker
-	});
-}
-
-function finishing(reply: string): string {
-	return JSON.stringify({
-		message: reply,
-		goalStatus: 'satisfied',
-		goalSatisfied: true,
-		completionEvidenceIDs: []
-	});
-}
-
-// The pre-turn plan gate fires because message_send is a send tool, and it is a
-// different question from the one under test. This plan asks nothing, so the
-// only question the requester gets is the tool call gate's.
-function aPlanThatNeedsNoClarification(recipientName: string): string {
-	return JSON.stringify({
-		summary: `${recipientName}에게 메시지를 보낸다`,
-		targets: [recipientName],
-		schedule: '',
-		startAt: '',
-		endAt: '',
-		cadence: '',
-		externalSend: true,
-		thirdPartyExternalSend: false,
-		repeated: false,
-		highFrequency: false,
-		destructive: false,
-		permissionChange: false,
-		publicDeploy: false,
-		paidAction: false,
-		requesterAuthorization: 'explicit',
-		missingInformation: [],
-		continuationInstruction: ''
-	});
-}
-
-function aRouterDocument(fields: Record<string, unknown>): string {
-	return JSON.stringify({
-		route: 'start_task',
-		classification: 'bounded_task',
-		taskShape: 'maintenance_task',
-		level: 'low',
-		requestedOutputFormats: null,
-		expectedResults: [],
-		siteRequestEvidence: '',
-		responseLanguage: 'ko',
-		reason: 'plane scenario',
-		userFacingReply: '',
-		initialToolNames: ['message_send'],
-		priorTaskReference: 'none',
-		...fields
-	});
-}
-
-// The words the person answers with are read by the same router that reads a
-// confirmation reply on the connectors path, which is the point: the relay
-// carries them and decides nothing.
-// The router schema for a turn that answers a pending question caps
-// initialToolNames at zero, and bluecollar refuses a document over that cap.
-function aRouterReadingTheAnswerAsApproval(): string {
-	return aRouterDocument({ route: 'continue_task', approval: 'approve', initialToolNames: [] });
+	};
 }
 
 async function askTheRelay(message: AnInboundMessage): Promise<Response> {
@@ -91,23 +42,32 @@ beforeAll(async () => {
 	plane = await aCompanyPlane({ messengerPlatform: 'buzz', inbound: 'acp' });
 }, 180_000);
 
+afterEach(async () => {
+	await everyScriptWasAskedAndNothingElse(plane.model);
+}, 90_000);
+
 afterAll(async () => {
 	await plane?.stop();
 });
 
 test('a message the relay carries becomes a turn, an approval, and a message in the recipient inbox', async () => {
 	const [sender, recipient] = plane.people;
-	plane.model.answerNext('bluecollar_turn_router', aRouterDocument({}));
-	plane.model.answerNext('bluecollar_turn_router', aRouterReadingTheAnswerAsApproval());
-	plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
-	plane.model.callNext('message_send', sendingTheMessage(recipient.name));
-	plane.model.callNext('finish', finishing('보냈습니다'));
+	const request = `${recipient.name}한테 DM으로 "${marker}" 보내줘`;
+	const answer = '응 보내줘';
+	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
+	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
+	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
+	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
+	await plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
+	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
+	await plane.model.callNext('reply', replyingAndFinishing('보냈습니다'));
 
 	const asked = await askTheRelay({
 		sender: { email: sender.email, name: sender.name },
 		conversationID: `conversation-${plane.runIdentifier}`,
 		messageID: 'message-1',
-		message: `${recipient.name}한테 DM으로 "${marker}" 보내줘`
+		message: request
 	});
 	// The door answers once the event is on disk, so a relay that dies here still
 	// owes the message. The turn happens after.
@@ -121,7 +81,7 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 		sender: { email: sender.email },
 		conversationID: `conversation-${plane.runIdentifier}`,
 		messageID: 'message-2',
-		message: '응 보내줘'
+		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);
 
@@ -135,7 +95,7 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 		delivered.length,
 		`nothing reached the messenger connector.\n` +
 			`  it saw: ${JSON.stringify(plane.connector.pathsCalled())}\n` +
-			`  the model answered: ${JSON.stringify(plane.model.completions.map((call) => call.answeredWith))}\n` +
+			`  the model was asked: ${await whatTheModelWasAsked(plane.model)}\n` +
 			`  the ledger says: ${await theLedger()}`
 	).toBeGreaterThan(0);
 	expect(

@@ -1,5 +1,15 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import {
+	aTurnStartingWork,
+	changingNothingTheCheckCanRead,
+	everyScriptWasAskedAndNothingElse,
+	expectedChangesSchemaName,
+	replyingAndFinishing,
+	turnRouterSchemaName,
+	turnWordsOwingOnlyTheReply,
+	whatTheModelWasAsked
+} from './a-model-nobody-pays-for';
 import { handToTheRelay, until } from './an-inbound-message';
 
 // 이샘플 writes in a room, names the agent, and the agent answers in that room.
@@ -15,59 +25,13 @@ function theRoom(): string {
 	return `conversation-room-${plane.runIdentifier}`;
 }
 
-// A message in a multi-person conversation is put to the addressing gate before
-// anything else, and an unscripted gate answers an empty document, which reads
-// as "nobody asked me" and ends the turn. So both stories say which it is.
-function addressedToTheAgent(): string {
-	return JSON.stringify({
-		target: 'agent',
-		shouldRespond: true,
-		dutyMatch: false,
-		dutyName: '',
-		dutyConfidence: 0
-	});
-}
-
-function addressedToNobodyInParticular(): string {
-	return JSON.stringify({
-		target: 'anyone',
-		shouldRespond: false,
-		dutyMatch: false,
-		dutyName: '',
-		dutyConfidence: 0
-	});
-}
-
-function aRouterDocument(fields: Record<string, unknown>): string {
-	return JSON.stringify({
-		route: 'start_task',
-		classification: 'bounded_task',
-		taskShape: 'maintenance_task',
-		level: 'low',
-		requestedOutputFormats: null,
-		expectedResults: [],
-		siteRequestEvidence: '',
-		responseLanguage: 'ko',
-		reason: 'plane scenario',
-		userFacingReply: '',
-		initialToolNames: [],
-		priorTaskReference: 'none',
-		...fields
-	});
-}
-
-function finishing(reply: string): string {
-	return JSON.stringify({
-		message: reply,
-		goalStatus: 'satisfied',
-		goalSatisfied: true,
-		completionEvidenceIDs: []
-	});
-}
-
 beforeAll(async () => {
 	plane = await aCompanyPlane({ messengerPlatform: 'buzz', inbound: 'acp' });
 }, 180_000);
+
+afterEach(async () => {
+	await everyScriptWasAskedAndNothingElse(plane.model);
+}, 90_000);
 
 afterAll(async () => {
 	await plane?.stop();
@@ -75,9 +39,11 @@ afterAll(async () => {
 
 test('a message written in a room and addressed to the agent is answered in that room', async () => {
 	const [sender] = plane.people;
-	plane.model.answerNext('bluecollar_addressing_classification', addressedToTheAgent());
-	plane.model.answerNext('bluecollar_turn_router', aRouterDocument({}));
-	plane.model.callNext('finish', finishing(marker));
+	const request = '인턴킴, 이번 주 정산 어떻게 됐는지 한 줄로 알려줘';
+	await plane.model.decideTurn(aTurnStartingWork(request, []));
+	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
+	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+	await plane.model.callNext('reply', replyingAndFinishing(marker));
 
 	const asked = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
@@ -86,7 +52,7 @@ test('a message written in a room and addressed to the agent is answered in that
 		conversationType: 'channel',
 		botMentioned: true,
 		channelName: '공지',
-		message: '인턴킴, 이번 주 정산 어떻게 됐는지 한 줄로 알려줘'
+		message: request
 	});
 	// The door answers once the event is on disk, so what the agent did with it is
 	// read off the connector rather than off this response.
@@ -100,9 +66,10 @@ test('a message written in a room and addressed to the agent is answered in that
 
 test('a message in that room that names nobody is answered by nobody', async () => {
 	const [sender] = plane.people;
-	plane.model.answerNext('bluecollar_addressing_classification', addressedToNobodyInParticular());
+	const overheardWords = '오늘 점심 뭐 먹지';
+	await plane.model.decideTurn({ message: overheardWords, addressing: { target: 'anyone', shouldRespond: false } });
 	const postsBeforeItArrived = postsToTheRoom().length;
-	const gatesBeforeItArrived = addressingGatesAsked();
+	const gatesBeforeItArrived = await addressingGatesAsked();
 
 	const overheard = await handToTheRelay(plane, {
 		sender: { email: sender.email, name: sender.name },
@@ -111,7 +78,7 @@ test('a message in that room that names nobody is answered by nobody', async () 
 		conversationType: 'channel',
 		botMentioned: false,
 		channelName: '공지',
-		message: '오늘 점심 뭐 먹지'
+		message: overheardWords
 	});
 	expect(overheard.status, await overheard.clone().text()).toBe(202);
 
@@ -119,7 +86,7 @@ test('a message in that room that names nobody is answered by nobody', async () 
 	// number of seconds instead would only prove the machine was slow.
 	await waitingFor(
 		'the addressing gate was never asked about the message nobody addressed',
-		() => addressingGatesAsked() > gatesBeforeItArrived,
+		async () => (await addressingGatesAsked()) > gatesBeforeItArrived,
 		30
 	);
 	await Bun.sleep(2000);
@@ -146,15 +113,20 @@ function postsToTheRoom(): string[] {
 	return posted;
 }
 
-function addressingGatesAsked(): number {
-	return plane.model.completions.filter(
-		(completion) => completion.toolChoice === 'bluecollar_addressing_classification'
+async function addressingGatesAsked(): Promise<number> {
+	const asked = await plane.model.asked();
+	return asked.filter(
+		(ask) => ask.kind === 'decision' && (ask.questionNames ?? []).some((name) => name.endsWith('.target'))
 	).length;
 }
 
 // until() is handed its sentence before it starts waiting, so what the run
 // actually did is gathered here, once it is known that it did not happen.
-async function waitingFor(what: string, ready: () => boolean, seconds = 60): Promise<void> {
+async function waitingFor(
+	what: string,
+	ready: () => boolean | Promise<boolean>,
+	seconds = 60
+): Promise<void> {
 	try {
 		await until(what, ready, seconds);
 	} catch {
@@ -166,7 +138,7 @@ async function whatTheRunSaw(): Promise<string> {
 	return (
 		`  the room was written: ${JSON.stringify(postsToTheRoom(), null, 2)}\n` +
 		`  the connector saw: ${JSON.stringify(plane.connector.pathsCalled())}\n` +
-		`  the model answered: ${JSON.stringify(plane.model.completions.map((call) => call.answeredWith))}\n` +
+		`  the model was asked: ${await whatTheModelWasAsked(plane.model)}\n` +
 		`  the ledger says: ${await theLedger()}`
 	);
 }

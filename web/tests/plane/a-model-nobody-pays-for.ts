@@ -1,109 +1,217 @@
-// An OpenAI-compatible endpoint that answers instantly and costs nothing. The
-// question a plane run asks about the model is not what it says: it is whether
-// the agent reaches the endpoint the plane rendered for its tier, with the model
-// that tier was given and the key that endpoint's file holds. So this records
-// the ask and answers the shape a caller of /chat/completions expects.
+import { openSync } from 'node:fs';
 
-export type RecordedCompletion = {
-	model: string;
-	authorization: string | null;
-	toolChoice: string | null;
-	/** The action step offers tools and lets the model choose; this is what it chose. */
-	answeredWith: string | null;
+export type AddressingDecision = {
+	target: 'bot' | 'human' | 'anyone' | 'none' | 'unclear';
+	shouldRespond: boolean;
 };
+
+export type TurnDecision = {
+	route:
+		| 'start_task'
+		| 'continue_task'
+		| 'revise_task'
+		| 'answer_question'
+		| 'answer_meta'
+		| 'clarify'
+		| 'consume'
+		| 'give_up';
+	classification?: 'quick_reply' | 'bounded_task' | 'needs_confirmation' | 'unsupported';
+	taskShape?: string;
+	level?: string;
+	responseLanguage?: string;
+	initialToolNames?: string[];
+	expectedToolCount?: 'none' | 'one' | 'several';
+	isExternalSendRequested?: boolean;
+	approval?: 'approve' | 'approve_task' | 'reject' | 'unclear';
+};
+
+/** The message a turn decides, and the intaketest.Outcome the decisions endpoint answers for it. */
+export type TurnOutcome = {
+	message: string;
+	addressing?: AddressingDecision;
+	turnDecision?: TurnDecision;
+};
+
+export type Ask = {
+	kind: 'completion' | 'decision' | 'embedding';
+	model: string;
+	authorization: string;
+	schemaName?: string;
+	offeredToolNames?: string[];
+	questionNames?: string[];
+	about?: string;
+	answeredWith?: string;
+	refusal?: string;
+};
+
+export type Leftovers = { refusals: string[]; unconsumed: Record<string, number> };
 
 export type AModelNobodyPaysFor = {
 	url: string;
-	completions: RecordedCompletion[];
-	modelsAsked: () => string[];
-	/** Queue what the model answers next for one schema, in the order asked. */
-	answerNext: (schemaName: string, document: string) => void;
-	/** Queue the next agent action, which the loop takes as a native tool call. */
-	callNext: (toolName: string, argumentsDocument: string) => void;
+	decideTurn: (outcome: TurnOutcome) => Promise<void>;
+	answerNext: (schemaName: string, document: Record<string, unknown>) => Promise<void>;
+	callNext: (toolName: string, argumentsDocument: Record<string, unknown>) => Promise<void>;
+	asked: () => Promise<Ask[]>;
+	leftovers: () => Promise<Leftovers>;
+	reset: () => Promise<void>;
 	stop: () => void;
 };
 
-function toolChoiceName(document: Record<string, unknown>): string | null {
-	const toolChoice = document.tool_choice;
-	if (typeof toolChoice !== 'object' || toolChoice === null) return null;
-	const chosenFunction = (toolChoice as Record<string, unknown>).function;
-	if (typeof chosenFunction !== 'object' || chosenFunction === null) return null;
-	const name = (chosenFunction as Record<string, unknown>).name;
-	return typeof name === 'string' ? name : null;
+export const turnRouterSchemaName = 'bluecollar_turn_router';
+
+export const turnWordsOwingOnlyTheReply = { expectedResults: [] };
+
+export const expectedChangesSchemaName = 'bluecollar_expected_changes';
+
+export const changingNothingTheCheckCanRead = { expectedChanges: [] };
+
+export function addressedToTheAgent(): AddressingDecision {
+	return { target: 'bot', shouldRespond: true };
 }
 
-function nothingToDo(): Response {
-	return Response.json({
-		choices: [{ message: { role: 'assistant', content: 'nothing to do' }, finish_reason: 'stop' }],
-		usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-	});
-}
-
-// The one model client asks for structured output as a forced tool call named
-// after the schema, and asks for an agent action as a free choice among tools
-// named after the actions. Either way an answer it can read is a tool call.
-function aToolCall(name: string, argumentsDocument: string): Response {
-	return Response.json({
-		choices: [
-			{
-				message: {
-					role: 'assistant',
-					tool_calls: [
-						{ id: `call-${name}`, type: 'function', function: { name, arguments: argumentsDocument } }
-					]
-				},
-				finish_reason: 'tool_calls'
-			}
-		],
-		usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
-	});
-}
-
-export function aModelNobodyPaysFor(): AModelNobodyPaysFor {
-	const completions: RecordedCompletion[] = [];
-	// A wiring scenario asks nobody to think, so an unscripted schema still gets
-	// an empty document. A scenario that needs the agent to decide something
-	// queues the decision instead of paying a model for it.
-	const scripted = new Map<string, string[]>();
-	const nextActions: { toolName: string; argumentsDocument: string }[] = [];
-	const server = Bun.serve({
-		port: 0,
-		async fetch(request) {
-			const path = new URL(request.url).pathname;
-			if (path.endsWith('/embeddings')) {
-				return Response.json({ data: [{ embedding: [0, 0, 0] }] });
-			}
-			if (!path.endsWith('/chat/completions')) {
-				return new Response(`no route for ${path}`, { status: 404 });
-			}
-			const document = (await request.json()) as Record<string, unknown>;
-			const schemaName = toolChoiceName(document);
-			const nextAction = schemaName === null && Array.isArray(document.tools) ? nextActions.shift() : undefined;
-			completions.push({
-				model: typeof document.model === 'string' ? document.model : '',
-				authorization: request.headers.get('authorization'),
-				toolChoice: schemaName,
-				answeredWith: schemaName ?? nextAction?.toolName ?? null
-			});
-			if (schemaName !== null) {
-				return aToolCall(schemaName, scripted.get(schemaName)?.shift() ?? '{}');
-			}
-			if (nextAction) {
-				return aToolCall(nextAction.toolName, nextAction.argumentsDocument);
-			}
-			return nothingToDo();
-		}
-	});
+export function aTurnStartingWork(message: string, toolNames: string[]): TurnOutcome {
 	return {
-		url: `http://127.0.0.1:${server.port}/v1`,
-		completions,
-		modelsAsked: () => completions.map((completion) => completion.model),
-		answerNext: (schemaName: string, document: string) => {
-			scripted.set(schemaName, [...(scripted.get(schemaName) ?? []), document]);
-		},
-		callNext: (toolName: string, argumentsDocument: string) => {
-			nextActions.push({ toolName, argumentsDocument });
-		},
-		stop: () => server.stop(true)
+		message,
+		addressing: addressedToTheAgent(),
+		turnDecision: {
+			route: 'start_task',
+			classification: 'bounded_task',
+			taskShape: 'maintenance_task',
+			level: 'low',
+			responseLanguage: 'ko',
+			initialToolNames: toolNames,
+			isExternalSendRequested: toolNames.includes('message_send')
+		}
 	};
+}
+
+export function aTurnApprovingTheHeldCall(message: string): TurnOutcome {
+	return {
+		message,
+		addressing: addressedToTheAgent(),
+		turnDecision: {
+			route: 'continue_task',
+			classification: 'bounded_task',
+			taskShape: 'maintenance_task',
+			level: 'low',
+			responseLanguage: 'ko',
+			expectedToolCount: 'none',
+			approval: 'approve'
+		}
+	};
+}
+
+export function aPlanThatNeedsNoClarification(recipientName: string): Record<string, unknown> {
+	return {
+		summary: `${recipientName}에게 메시지를 보낸다`,
+		targets: [recipientName],
+		schedule: '',
+		startAt: '',
+		endAt: '',
+		cadence: '',
+		externalSend: true,
+		thirdPartyExternalSend: false,
+		repeated: false,
+		highFrequency: false,
+		destructive: false,
+		permissionChange: false,
+		publicDeploy: false,
+		paidAction: false,
+		requesterAuthorization: 'explicit',
+		missingInformation: [],
+		continuationInstruction: ''
+	};
+}
+
+export function replyingAndFinishing(message: string): Record<string, unknown> {
+	return { message, final: true, goalStatus: 'satisfied', goalSatisfied: true, completionEvidenceIDs: [] };
+}
+
+async function send(url: string, document: unknown): Promise<void> {
+	const answer = await fetch(url, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(document)
+	});
+	if (answer.status !== 204) {
+		throw new Error(`the model stand-in refused a script: ${answer.status} ${await answer.text()}`);
+	}
+}
+
+async function read<Document>(url: string): Promise<Document> {
+	const answer = await fetch(url);
+	if (!answer.ok) throw new Error(`the model stand-in answered ${url} with ${answer.status}`);
+	return (await answer.json()) as Document;
+}
+
+async function untilListening(origin: string, child: Bun.Subprocess): Promise<void> {
+	for (let attempt = 0; attempt < 120; attempt += 1) {
+		const answer = await fetch(`${origin}/leftovers`).catch(() => null);
+		if (answer?.ok) return;
+		if (child.exitCode !== null) throw new Error(`blueclaw-model-stand-in exited with code ${child.exitCode}`);
+		await Bun.sleep(250);
+	}
+	throw new Error('blueclaw-model-stand-in never started listening');
+}
+
+export async function aModelNobodyPaysFor(
+	binaryPath: string,
+	port: number,
+	logPath: string
+): Promise<AModelNobodyPaysFor> {
+	const origin = `http://127.0.0.1:${port}`;
+	const log = openSync(logPath, 'a');
+	const child = Bun.spawn([binaryPath, '-listen', `127.0.0.1:${port}`], { stdout: log, stderr: log });
+	await untilListening(origin, child);
+	return {
+		url: `${origin}/v1`,
+		decideTurn: (outcome) => send(`${origin}/script/turn`, outcome),
+		answerNext: (schemaName, document) => send(`${origin}/script/structured`, { schemaName, document }),
+		callNext: (toolName, argumentsDocument) =>
+			send(`${origin}/script/action`, { toolName, arguments: argumentsDocument }),
+		asked: () => read<Ask[]>(`${origin}/asked`),
+		leftovers: () => read<Leftovers>(`${origin}/leftovers`),
+		reset: () => send(`${origin}/script/reset`, {}),
+		stop: () => child.kill('SIGKILL')
+	};
+}
+
+function hasUnconsumedScripts(leftovers: Leftovers): boolean {
+	return Object.keys(leftovers.unconsumed).length > 0;
+}
+
+async function leftoversOnceDrained(model: AModelNobodyPaysFor, seconds: number): Promise<Leftovers> {
+	let leftovers = await model.leftovers();
+	for (let attempt = 0; attempt < seconds * 4 && hasUnconsumedScripts(leftovers); attempt += 1) {
+		await Bun.sleep(250);
+		leftovers = await model.leftovers();
+	}
+	return leftovers;
+}
+
+export async function everyScriptWasAskedAndNothingElse(model: AModelNobodyPaysFor, seconds = 60): Promise<void> {
+	const leftovers = await leftoversOnceDrained(model, seconds);
+	await model.reset();
+	if (leftovers.refusals.length === 0 && !hasUnconsumedScripts(leftovers)) return;
+	throw new Error(
+		`the model stand-in was not asked exactly what the scenario scripted.\n` +
+			`  refused: ${JSON.stringify(leftovers.refusals, null, 2)}\n` +
+			`  never asked for: ${JSON.stringify(leftovers.unconsumed)}\n` +
+			`  asked, in order: ${await whatTheModelWasAsked(model)}`
+	);
+}
+
+export async function whatTheModelWasAsked(model: AModelNobodyPaysFor): Promise<string> {
+	const asked = await model.asked();
+	return JSON.stringify(
+		asked
+			.filter((ask) => ask.kind !== 'embedding')
+			.map((ask) => ({
+				asked: `${ask.kind} ${ask.schemaName ?? ''}`.trim(),
+				about: ask.about,
+				answered: ask.refusal ? `refused: ${ask.refusal}` : ask.answeredWith
+			})),
+		null,
+		2
+	);
 }

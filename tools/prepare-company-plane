@@ -23,6 +23,7 @@ go run ./cmd/describe-company-host "$planeDirectory"
   cd "$repositoryRoot/.dependency/blueclaw"
   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw" ./cmd/blueclaw
   CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw-posix-helper" ./cmd/blueclaw-posix-helper
+  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/blueclaw-model-stand-in" ./cmd/blueclaw-model-stand-in
 )
 
 rm -rf "$skillsDirectory"

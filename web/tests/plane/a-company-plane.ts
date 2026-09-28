@@ -308,7 +308,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 
 	const connector = aConnectorNobodyRuns();
 	const messenger = aMessengerNobodyRuns();
-	const model = aModelNobodyPaysFor();
+	let model: AModelNobodyPaysFor | undefined;
 	const started: Bun.Subprocess[] = [];
 	let companyID = '';
 	let droppableDatabase = '';
@@ -325,7 +325,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		}
 		connector.stop();
 		messenger.stop();
-		model.stop();
+		model?.stop();
 		if (companyID) {
 			await admin.from('company').delete().eq('id', companyID);
 		}
@@ -342,6 +342,12 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 	};
 
 	try {
+		const standInModel = await aModelNobodyPaysFor(
+			join(binaryDirectory, 'blueclaw-model-stand-in'),
+			await aFreePort(),
+			join(runDirectory, 'model.log')
+		);
+		model = standInModel;
 		const company = await provisionCompany(
 			admin,
 			{
@@ -369,12 +375,10 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		writeFileSync(join(runDirectory, 'secrets', 'buzz-key-seed'), `${crypto.randomUUID()}\n`, {
 			mode: 0o600
 		});
-		// No model is called here — a wiring scenario asks nobody to think — but the
-		// processes read the path at startup, so it has to be a file.
 		const blueclawAssertionKeyPath = join(runDirectory, 'secrets', 'blueclaw-assertion-key');
 		writeFileSync(blueclawAssertionKeyPath, `${crypto.randomUUID()}\n`, { mode: 0o600 });
 		const openRouterKeyPath = join(runDirectory, 'secrets', 'openrouter-key');
-		writeFileSync(openRouterKeyPath, 'no-model-is-called-here\n', { mode: 0o600 });
+		writeFileSync(openRouterKeyPath, 'the-model-stand-in-takes-any-key\n', { mode: 0o600 });
 
 		const admindPort = await aFreePort();
 		const blueclawPort = await aFreePort();
@@ -450,7 +454,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					BLUECLAW_BASE_URL: blueclawURL,
 					CAPABILITY_SOCKET_PATH: capabilitySocketPath,
 					CHATD_ENDPOINT: connector.url,
-					MODEL_ENDPOINT: model.url,
+					MODEL_ENDPOINT: standInModel.url,
 					MODEL_API_KEY_PATH: openRouterKeyPath,
 					ADMIN_ASSERTION_KEY_PATH: blueclawAssertionKeyPath,
 					WORKSPACE_ROOT_PATH: join(runDirectory, 'workspace'),
@@ -619,7 +623,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 			blueclawACPSocketPath,
 			relayInboundURL,
 			connector,
-			model,
+			model: standInModel,
 			runtimeConfigurationPath,
 			messenger,
 			messengerPlatform,

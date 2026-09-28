@@ -170,7 +170,7 @@
   },
   "COMPANY_PLANE_BIN": {
     "process": "web plane tests",
-    "description": "the shared-workspace directory containing Linux arm64 builds of capabilityd, admind, Blueclaw and the POSIX helper, read by web/tests/plane/a-company-plane.ts"
+    "description": "the shared-workspace directory containing Linux arm64 builds of capabilityd, admind, Blueclaw, the POSIX helper and the model stand-in, read by web/tests/plane/a-company-plane.ts"
   },
   "COMPANY_PLANE_DB_URL": {
     "process": "web plane tests",

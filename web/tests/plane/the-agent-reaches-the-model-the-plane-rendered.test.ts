@@ -1,11 +1,22 @@
 import { expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
+import {
+	aTurnStartingWork,
+	changingNothingTheCheckCanRead,
+	everyScriptWasAskedAndNothingElse,
+	expectedChangesSchemaName,
+	replyingAndFinishing,
+	turnRouterSchemaName,
+	turnWordsOwingOnlyTheReply,
+	type Ask
+} from './a-model-nobody-pays-for';
 
 type RenderedRung = { endpoint: string; model: string; apiKeyPath?: string };
 type RenderedLanguageModel = {
 	tiers?: Record<string, RenderedRung[]>;
 	embedding?: RenderedRung;
+	decision?: RenderedRung;
 	capability?: unknown;
 };
 
@@ -19,12 +30,17 @@ function renderedLanguageModel(plane: ACompanyPlane): RenderedLanguageModel {
 	return rendered.languageModel as RenderedLanguageModel;
 }
 
-async function until(satisfied: () => boolean, seconds: number): Promise<boolean> {
+async function until(satisfied: () => Promise<boolean>, seconds: number): Promise<boolean> {
 	for (let attempt = 0; attempt < seconds * 2; attempt += 1) {
-		if (satisfied()) return true;
+		if (await satisfied()) return true;
 		await Bun.sleep(500);
 	}
 	return satisfied();
+}
+
+async function theFirstAsk(plane: ACompanyPlane, kind: Ask['kind']): Promise<Ask | undefined> {
+	const asked = await plane.model.asked();
+	return asked.find((ask) => ask.kind === kind);
 }
 
 // The plane is where a company's model configuration becomes the agent's. Until
@@ -69,33 +85,46 @@ test('every tier is rendered as an endpoint this plane chose', async () => {
 test('the agent asks that endpoint for a model its ladder names', async () => {
 	const plane = await aCompanyPlane();
 	try {
+		const request = 'say hello';
+		await plane.model.decideTurn(aTurnStartingWork(request, []));
+		await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
+		await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+		await plane.model.callNext('reply', replyingAndFinishing('안녕하세요'));
 		const started = await fetch(`${plane.blueclawURL}/admin/api/run/start`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({
 				requesterPersonID: plane.people[0].memberID,
-				prompt: 'say hello'
+				prompt: request
 			})
 		});
 		expect(started.status, await started.clone().text()).toBe(200);
 
-		const wasAsked = await until(() => plane.model.completions.length > 0, 60);
-		expect(wasAsked, 'the endpoint the plane rendered was never asked anything').toBe(true);
+		const wasAsked = await until(async () => (await theFirstAsk(plane, 'completion')) !== undefined, 60);
+		expect(wasAsked, 'the endpoint the plane rendered was never asked for a completion').toBe(true);
 
 		const laddersModels = new Set(
 			everyTier.flatMap((tier) =>
 				(renderedLanguageModel(plane).tiers?.[tier] ?? []).map((rung) => rung.model)
 			)
 		);
-		const firstAsk = plane.model.completions[0];
+		const firstAsk = await theFirstAsk(plane, 'completion');
 		expect(
-			laddersModels.has(firstAsk.model),
-			`the turn asked for ${firstAsk.model}, which no rendered tier names`
+			laddersModels.has(firstAsk?.model ?? ''),
+			`the turn asked for ${firstAsk?.model}, which no rendered tier names`
 		).toBe(true);
 		expect(
-			firstAsk.authorization,
+			firstAsk?.authorization,
 			'the endpoint was asked without the key its rung named'
 		).toStartWith('Bearer ');
+
+		const firstDecision = await theFirstAsk(plane, 'decision');
+		expect(
+			firstDecision?.model,
+			'intake decided the turn without the decision model the plane rendered'
+		).toBe(renderedLanguageModel(plane).decision?.model);
+		expect(firstDecision?.authorization, 'the decisions endpoint was asked without a key').toStartWith('Bearer ');
+		await everyScriptWasAskedAndNothingElse(plane.model);
 	} finally {
 		await plane.stop();
 	}
