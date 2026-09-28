@@ -616,10 +616,9 @@ func pathsContain(paths []string, targetPath string) bool {
 	return false
 }
 
-func TestWiFiProfilesMigrateLegacyAndAddCurrent(t *testing.T) {
+func TestWiFiProfilesKeepSavedAndAddCurrent(t *testing.T) {
 	stateDirectory := t.TempDir()
-	saveState(stateDirectory, "wifi_ssid", "OfficeWiFi")
-	saveState(stateDirectory, "wifi_pass", "office-secret")
+	saveWiFiProfiles(stateDirectory, []wifiProfile{{SSID: "OfficeWiFi", IsOpen: true}})
 	getSSIDPath := createExecutableFixture(t, "StudioWiFi\n")
 	withArguments(t, "internkim", "setup", "--yes", "--wifi-password", "studio-secret")
 
@@ -630,8 +629,8 @@ func TestWiFiProfilesMigrateLegacyAndAddCurrent(t *testing.T) {
 	if len(profiles) != 2 {
 		t.Fatalf("expected two Wi-Fi profiles, got %+v", profiles)
 	}
-	if profiles[0].SSID != "OfficeWiFi" || profiles[1].SSID != "StudioWiFi" {
-		t.Fatalf("expected sorted preserved profiles, got %+v", profiles)
+	if profiles[0].SSID != "StudioWiFi" || profiles[1].SSID != "OfficeWiFi" {
+		t.Fatalf("expected the secured network before the saved open one, got %+v", profiles)
 	}
 	document, errorValue := os.ReadFile(filepath.Join(stateDirectory, wifiProfilesStateFile))
 	if errorValue != nil {

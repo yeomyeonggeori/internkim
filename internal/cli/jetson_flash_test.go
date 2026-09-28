@@ -98,8 +98,7 @@ func TestHumanBytesFormatsGibibytes(t *testing.T) {
 
 func TestResolveJetsonFlashWiFiPrefersCurrentSSID(t *testing.T) {
 	temporaryDirectory := t.TempDir()
-	saveState(temporaryDirectory, "wifi_ssid", "OldWiFi")
-	saveState(temporaryDirectory, "wifi_pass", "old-secret")
+	saveWiFiProfiles(temporaryDirectory, []wifiProfile{{SSID: "OldWiFi", IsOpen: true}})
 	getSSIDPath := createExecutableFixture(t, "dlee5G\n")
 	withArguments(t, "internkim", "flash", "--fix-oem-user", "--yes", "--wifi-password", "new-secret")
 
@@ -115,7 +114,7 @@ func TestResolveJetsonFlashWiFiPrefersCurrentSSID(t *testing.T) {
 	}
 	profiles := loadWiFiProfiles(temporaryDirectory)
 	if len(profiles) != 2 {
-		t.Fatalf("expected legacy and current Wi-Fi profiles to be preserved, got %+v", profiles)
+		t.Fatalf("expected saved and current Wi-Fi profiles to be preserved, got %+v", profiles)
 	}
 }
 

@@ -145,10 +145,7 @@ func loadAdminEmail(context *Context) string {
 	if context.Callbacks.LoadState == nil {
 		return ""
 	}
-	if adminEmail := context.Callbacks.LoadState("admin_email"); adminEmail != "" {
-		return adminEmail
-	}
-	return context.Callbacks.LoadState("google_email")
+	return context.Callbacks.LoadState("admin_email")
 }
 
 func uploadBlueclawConfigurationFile(context *Context, path string, content string) error {

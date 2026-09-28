@@ -253,8 +253,6 @@ func remoteSetupAdminEmail(stateDir string) string {
 	for _, value := range []string{
 		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
 		loadState(stateDir, "admin_email"),
-		loadState(stateDir, "claimed_admin_email"),
-		loadState(stateDir, "google_email"),
 	} {
 		if value != "" {
 			return value
