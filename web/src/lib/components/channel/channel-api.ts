@@ -147,6 +147,7 @@ export type ChannelSummary = {
 	description?: string;
 	platform?: string;
 	webURL?: string;
+	unreadCount?: number;
 };
 
 

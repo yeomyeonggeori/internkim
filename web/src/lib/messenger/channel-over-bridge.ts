@@ -167,7 +167,8 @@ export async function bridgeConversations(): Promise<ChannelSummary[]> {
 			isWithTheAgent: channel.isWithTheAgent === true,
 			description: channel.description,
 			platform: channel.platform,
-			webURL: channel.webURL
+			webURL: channel.webURL,
+			unreadCount: channel.unreadCount ?? 0
 		}));
 }
 
