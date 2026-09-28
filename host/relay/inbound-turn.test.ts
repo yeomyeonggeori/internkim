@@ -221,6 +221,44 @@ describe('InboundTurns', () => {
 		expect(posted).toEqual([]);
 	});
 
+	test('after a restart, the request a held question came from does not answer that question', async () => {
+		const directoryPath = directoryForOneTest();
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const postedBeforeTheRestart: string[] = [];
+		const turnsBeforeTheRestart = new InboundTurns({
+			client: aClientThat(async (_message, addressing) => {
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				await putTheQuestion(addressing);
+				return new Promise<string>(() => {});
+			}, []),
+			queue: new InboundQueue({ directoryPath }),
+			postToConversation: async (_addressing, message) => {
+				postedBeforeTheRestart.push(message);
+			},
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turnsBeforeTheRestart.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
+		await turnsBeforeTheRestart.keep(firstKey, aChatdBody());
+		await waitUntil(() => postedBeforeTheRestart.includes(askedTheQuestion), 'the question to reach the requester');
+
+		const turnsAfterTheRestart = new InboundTurns({
+			client: aClientThatSays('unused', []),
+			queue: new InboundQueue({ directoryPath }),
+			postToConversation: async () => {},
+			waitBeforeRetrying: async () => {}
+		});
+		const answering = turnsAfterTheRestart.awaitAnAlreadyAskedQuestion({
+			platform: 'buzz',
+			conversationID: 'conversation-1'
+		});
+		turnsAfterTheRestart.startDraining();
+		await turnsAfterTheRestart.keep(secondKey, aChatdBody({ messageID: 'message-8', prompt: '응 보내줘' }));
+
+		expect(await answering, 'the held question was answered by the request that asked it').toBe('응 보내줘');
+	});
+
 	test('a turn that keeps failing is retried and then dropped by name', async () => {
 		const directoryPath = directoryForOneTest();
 		const reported: string[] = [];
