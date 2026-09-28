@@ -33,31 +33,28 @@ describe('mentionCandidates', () => {
 describe('matchingMentions', () => {
 	const candidates = mentionCandidates(people, true);
 
-	test('an empty query offers the front of the list', () => {
-		expect(matchingMentions(candidates, '', 2)).toHaveLength(2);
+	test('an empty query offers everyone the channel holds', () => {
+		const crowd = Array.from({ length: 12 }, (_, index) => ({ externalID: `external-${index}`, name: `박예시${index}` }));
+		expect(matchingMentions(mentionCandidates(crowd, true), '')).toHaveLength(13);
 	});
 
 	test('offers what the name starts with before what it merely contains', () => {
-		const matched = matchingMentions(candidates, 'sample', 5);
+		const matched = matchingMentions(candidates, 'sample');
 		expect(matched.map((candidate) => candidate.label)).toEqual(['Sample Choi']);
 	});
 
 	test('finds a name by a word inside it, ignoring case', () => {
-		expect(matchingMentions(candidates, 'CHOI', 5).map((candidate) => candidate.label)).toEqual([
+		expect(matchingMentions(candidates, 'CHOI').map((candidate) => candidate.label)).toEqual([
 			'Sample Choi'
 		]);
 	});
 
 	test('everyone answers to its own name', () => {
-		expect(matchingMentions(candidates, 'al', 5).map((candidate) => candidate.label)).toEqual([everyoneLabel]);
+		expect(matchingMentions(candidates, 'al').map((candidate) => candidate.label)).toEqual([everyoneLabel]);
 	});
 
 	test('a query nobody answers to offers nothing', () => {
-		expect(matchingMentions(candidates, '없는사람', 5)).toEqual([]);
-	});
-
-	test('never offers more rows than it was asked for', () => {
-		expect(matchingMentions(candidates, '', 2)).toHaveLength(2);
+		expect(matchingMentions(candidates, '없는사람')).toEqual([]);
 	});
 });
 

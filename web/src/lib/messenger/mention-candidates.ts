@@ -24,16 +24,14 @@ export function mentionCandidates(people: MentionPerson[], isGroup: boolean): Me
 
 export function matchingMentions(
 	candidates: MentionCandidate[],
-	query: string,
-	most: number
+	query: string
 ): MentionCandidate[] {
 	const wanted = query.trim().toLowerCase();
-	if (wanted === '') return candidates.slice(0, most);
+	if (wanted === '') return candidates;
 	return candidates
 		.map((candidate, order) => ({ candidate, order, rank: rankOf(candidate.label, wanted) }))
 		.filter((scored) => scored.rank > 0)
 		.sort((left, right) => right.rank - left.rank || left.order - right.order)
-		.slice(0, most)
 		.map((scored) => scored.candidate);
 }
 

@@ -7,6 +7,7 @@
 	import MessengerChannelMembersDialog from './messenger-channel-members-dialog.svelte';
 	import MessengerChannelOwnerDialog from './messenger-channel-owner-dialog.svelte';
 	import MessengerNewChannelDialog from './messenger-new-channel-dialog.svelte';
+	import MessengerPersonProfile from './messenger-person-profile.svelte';
 	import { muteConversation, mutedConversations, unmuteConversation } from '$lib/notifications/muted-conversations';
 	import { toast } from 'svelte-sonner';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
@@ -18,7 +19,8 @@
 	import HashIcon from '@lucide/svelte/icons/hash';
 	import PanelLeftIcon from '@lucide/svelte/icons/panel-left';
 	import { channelText } from '$lib/i18n/channel-text';
-	import { mentionPeopleOf } from '$lib/messenger/mention-candidates';
+	import { mentionPeopleOf, type MentionPerson } from '$lib/messenger/mention-candidates';
+	import { personProfileContext, type PersonProfileActions } from '$lib/messenger/person-profile';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import {
 		ensureDirectMessage,
@@ -28,7 +30,7 @@
 		type ChannelSummary,
 		type Person
 	} from '$lib/components/channel/channel-api';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, setContext } from 'svelte';
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
@@ -74,6 +76,18 @@
 	let muted = $state<Set<string>>(new Set());
 	let hasSyncedMattermost = false;
 	let userChannelOrder = $state<string[]>([]);
+	let profilePerson = $state<MentionPerson | undefined>(undefined);
+	let isPersonProfileOpen = $state(false);
+
+	function messagePerson(person: MentionPerson) {
+		isPersonProfileOpen = false;
+		void startDirectMessage({ id: person.externalID, name: person.name });
+	}
+
+	setContext<PersonProfileActions>(personProfileContext, {
+		show: (person) => ((profilePerson = person), (isPersonProfileOpen = true)),
+		message: messagePerson
+	});
 
 	const isMobile = new IsMobile();
 
@@ -425,6 +439,8 @@
 		</div>
 	</div>
 </Sheet.Root>
+
+<MessengerPersonProfile bind:open={isPersonProfileOpen} person={profilePerson} onMessage={messagePerson} />
 
 {#if activeConversation?.kind === 'group'}
 	<MessengerChannelDetails
