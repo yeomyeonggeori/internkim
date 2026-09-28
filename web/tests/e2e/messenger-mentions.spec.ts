@@ -33,7 +33,7 @@ test.describe('messenger mentions', () => {
 	test('a mention shows the person on hover and opens their profile on click', async ({ page }) => {
 		const chip = page.getByRole('button', { name: `@${mentioned.name}` });
 		await chip.hover();
-		await expect(page.getByRole('button', { name: '메시지' })).toBeVisible();
+		await expect(page.locator('[data-slot="hover-card-content"]').getByRole('button', { name: '메시지', exact: true })).toBeVisible();
 
 		await chip.click();
 		const profile = page.getByRole('dialog', { name: '프로필' });
