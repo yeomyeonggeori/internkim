@@ -321,6 +321,10 @@ export async function writePost(
 	return asPost(message);
 }
 
+export async function editPost(channelID: string, messageID: string, body: string): Promise<void> {
+	await ask('person.message.edit', { conversationID: channelID, messageID, body });
+}
+
 export async function deletePost(channelID: string, messageID: string): Promise<void> {
 	await ask('person.message.delete', { conversationID: channelID, messageID });
 }

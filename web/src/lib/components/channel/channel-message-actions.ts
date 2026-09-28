@@ -6,6 +6,7 @@ import { deleteWarningFor } from './channel-delete-warning';
 import {
 	addChannelReaction,
 	deleteChannelMessage,
+	editChannelMessage,
 	removeChannelReaction,
 	type ChannelMessage,
 	type ChannelMessageReaction,
@@ -23,6 +24,7 @@ export type MessageActionText = {
 	deleteMessageDescription: string;
 	deleteThreadDescription: string;
 	deleteMessageFailed: string;
+	editMessageFailed: string;
 	deleteThreadPartly: string;
 	reactionFailed: string;
 	reactionRemoveFailed: string;
@@ -44,6 +46,7 @@ export type MessageActions = {
 	toggleReaction: (message: ChannelMessage, reaction: ChannelMessageReaction) => Promise<void>;
 	copy: (wanted: MessageCopy) => Promise<void>;
 	askToDelete: (message: ChannelMessage) => void;
+	saveEdit: (messageID: string, text: string) => Promise<boolean>;
 };
 
 export function messageActionsFor(host: MessageActionHost): MessageActions {
@@ -99,6 +102,17 @@ export function messageActionsFor(host: MessageActionHost): MessageActions {
 			const outcome = await copyText(wanted.text);
 			if (outcome === 'success') toast.success(text.messageCopied);
 			else toast.error(text.copyFailed);
+		},
+		async saveEdit(messageID, text) {
+			try {
+				await editChannelMessage(messageID, text, host.channelID());
+			} catch (failure) {
+				console.warn('the messenger did not take the edit', failure);
+				toast.error(host.text().editMessageFailed);
+				return false;
+			}
+			await host.readAgain();
+			return true;
 		},
 		askToDelete(message) {
 			const text = host.text();
