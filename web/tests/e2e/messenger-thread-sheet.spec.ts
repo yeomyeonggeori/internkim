@@ -22,12 +22,39 @@ const replyMessage = {
 	sentAt: '2026-09-28T01:05:00Z'
 };
 
+const unansweredText = '아직 답글이 없는 메시지입니다';
+
+const unansweredMessage = {
+	id: 'message-unanswered',
+	sender: author,
+	text: unansweredText,
+	sentAt: '2026-09-28T01:10:00Z'
+};
+
+const pictureMessage = {
+	id: 'message-picture',
+	sender: author,
+	text: '',
+	sentAt: '2026-09-28T01:15:00Z',
+	attachments: [
+		{
+			kind: 'image',
+			url: 'sample-picture.png',
+			source:
+				'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+			filename: 'sample-picture.png',
+			widthPixels: 120,
+			heightPixels: 120
+		}
+	]
+};
+
 function mockThreadChannel(page: Page): Promise<void> {
 	return mockDeviceMessenger(
 		page,
 		reader,
 		[{ id: channelID, name: '스레드 채널', kind: 'group', myRole: 'member' }],
-		[rootMessage, replyMessage]
+		[rootMessage, replyMessage, unansweredMessage, pictureMessage]
 	);
 }
 
@@ -58,6 +85,43 @@ test.describe('messenger thread sheet', () => {
 		await expect(threadSheet).toBeVisible();
 		await expect(reply).toBeVisible();
 		expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toContain('답글을 드래그해서');
+	});
+
+	test('opens an empty thread when a message with no replies is clicked', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+
+		await page.getByText(unansweredText).click();
+
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await expect(threadSheet).toBeVisible();
+		await expect(threadSheet.getByText(unansweredText)).toBeVisible();
+	});
+
+	test('opens the picture instead of the thread when a picture in a message is clicked', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+
+		await page.getByRole('button', { name: 'sample-picture.png' }).click();
+
+		await expect(page.getByRole('dialog')).toHaveCount(1);
+		await expect(page.getByRole('dialog', { name: '글타래' })).toHaveCount(0);
+	});
+
+	test('does not open a thread when text in a timeline message is dragged to select it', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+
+		const message = page.getByText(unansweredText);
+		const box = await message.boundingBox();
+		if (box === null) throw new Error('the timeline message has no layout box to drag across');
+		await page.mouse.move(box.x + 2, box.y + box.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 8 });
+		await page.mouse.up();
+
+		await expect(page.getByRole('dialog', { name: '글타래' })).toHaveCount(0);
+		expect(await page.evaluate(() => window.getSelection()?.toString() ?? '')).toContain('답글이 없는');
 	});
 });
 
