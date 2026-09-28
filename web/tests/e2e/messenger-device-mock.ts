@@ -9,6 +9,7 @@ export type MockConversation = {
 	kind: 'dm' | 'group';
 	myRole?: string;
 	unreadCount?: number;
+	members?: { externalID: string; name: string; role: string }[];
 };
 
 export async function mockDeviceMessenger(
