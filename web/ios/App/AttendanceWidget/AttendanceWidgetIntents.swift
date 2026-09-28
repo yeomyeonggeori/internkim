@@ -43,6 +43,7 @@ struct ShowLocationsIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         AttendanceLocationChoice.open()
+        AttendanceWidgetCache.markTap()
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
@@ -57,6 +58,7 @@ struct HideLocationsIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         AttendanceLocationChoice.close()
+        AttendanceWidgetCache.markTap()
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
@@ -81,6 +83,7 @@ private func clock(kind: String, location: String?) async {
         let optimistic = AttendanceWidgetCache.optimisticRow(kind: kind, location: location, now: tapped, timeZone: zone)
         AttendanceWidgetCache.amend(origin: origin) {
             $0.pending = optimistic
+            $0.tappedAt = tapped
             $0.rowsTrustedUntil = tapped.addingTimeInterval(AttendanceWidgetCache.rowsTrustedFor)
         }
         WidgetCenter.shared.reloadAllTimelines()

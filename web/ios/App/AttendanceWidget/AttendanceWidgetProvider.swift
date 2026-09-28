@@ -52,7 +52,7 @@ struct AttendanceProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: AttendanceWidgetConfiguration, in context: Context) async -> AttendanceEntry {
-        await read(at: Date(), chosen: configuration.workplace?.name)
+        await read(at: Date(), chosen: configuration.workplace?.name).entry
     }
 
     func timeline(
@@ -60,14 +60,18 @@ struct AttendanceProvider: AppIntentTimelineProvider {
         in context: Context
     ) async -> Timeline<AttendanceEntry> {
         let now = Date()
-        let read = await read(at: now, chosen: configuration.workplace?.name)
-        var entries: [AttendanceEntry] = []
+        let drawn = await read(at: now, chosen: configuration.workplace?.name)
+        let (entries, refreshAt) = entries(of: drawn.entry, at: now)
+        let redrawAt = drawn.isStale ? min(refreshAt, now.addingTimeInterval(AttendanceWidgetCache.tapRedrawnAfter)) : refreshAt
+        return Timeline(entries: entries, policy: .after(redrawAt))
+    }
 
+    private func entries(of read: AttendanceEntry, at now: Date) -> ([AttendanceEntry], Date) {
         if !read.today.isWorking, let closing = AttendanceLocationChoice.closes(after: now) {
-            let choosing = [read.at(now, isChoosingLocation: true), read.at(closing)]
-            return Timeline(entries: choosing, policy: .after(now.addingTimeInterval(Self.whileIdle)))
+            return ([read.at(now, isChoosingLocation: true), read.at(closing)], now.addingTimeInterval(Self.whileIdle))
         }
 
+        var entries: [AttendanceEntry] = []
         if let refusal = AttendanceRefusal.recent(at: now) {
             entries.append(read.at(now, refusal: refusal))
             entries.append(read.at(now.addingTimeInterval(AttendanceRefusal.shownFor)))
@@ -76,24 +80,28 @@ struct AttendanceProvider: AppIntentTimelineProvider {
         }
 
         guard read.today.isWorking else {
-            return Timeline(entries: entries, policy: .after(now.addingTimeInterval(Self.whileIdle)))
+            return (entries, now.addingTimeInterval(Self.whileIdle))
         }
         for minute in 1...Self.minutesDrawnAhead {
             entries.append(read.at(now.addingTimeInterval(TimeInterval(minute * 60))))
         }
-        let refreshAt = now.addingTimeInterval(TimeInterval(Self.minutesDrawnAhead * 60))
-        return Timeline(entries: entries, policy: .after(refreshAt))
+        return (entries, now.addingTimeInterval(TimeInterval(Self.minutesDrawnAhead * 60)))
     }
 
-    private func read(at now: Date, chosen: String?) async -> AttendanceEntry {
+    private func read(at now: Date, chosen: String?) async -> (entry: AttendanceEntry, isStale: Bool) {
         do {
             let api = try AttendanceAPI.held()
             let origin = api.credential.origin
             let cache = AttendanceWidgetCache.held(origin: origin)
+            let drawsTap = AttendanceWidgetCache.drawsTapFromCache(tappedAt: cache.tappedAt, now: now)
+            var isStale = false
 
             let settings: CompanySettings
             if let cached = cache.settings, AttendanceWidgetCache.settingsAreFresh(fetchedAt: cache.settingsFetchedAt, now: now) {
                 settings = cached
+            } else if let cached = cache.settings, drawsTap {
+                settings = cached
+                isStale = true
             } else {
                 let fetched = try await api.settings()
                 AttendanceWidgetCache.amend(origin: origin) {
@@ -109,17 +117,22 @@ struct AttendanceProvider: AppIntentTimelineProvider {
                 cachedRows: cache.rows,
                 pending: cache.pending,
                 rowsTrustedUntil: cache.rowsTrustedUntil,
+                drawsTap: drawsTap && cache.rowsListedAt != nil,
                 now: now
             ) {
                 rows = shown
+                isStale = isStale || cache.rowsTrustedUntil.map { now >= $0 } ?? true
             } else {
                 let listed = try await api.since(yesterdayOf: now, in: zone).attendance
-                AttendanceWidgetCache.amend(origin: origin) { $0.rows = listed }
+                AttendanceWidgetCache.amend(origin: origin) {
+                    $0.rows = listed
+                    $0.rowsListedAt = now
+                }
                 rows = listed
             }
 
             let today = AttendanceToday.of(rows: rows, today: CompanyClock.day(of: now, in: zone), now: now)
-            return AttendanceEntry(
+            let entry = AttendanceEntry(
                 date: now,
                 today: today,
                 locations: settings.workLocations,
@@ -127,8 +140,9 @@ struct AttendanceProvider: AppIntentTimelineProvider {
                 timeZone: zone,
                 failure: nil
             )
+            return (entry, isStale)
         } catch {
-            return AttendanceEntry(
+            let entry = AttendanceEntry(
                 date: now,
                 today: AttendanceToday(),
                 locations: [],
@@ -136,6 +150,7 @@ struct AttendanceProvider: AppIntentTimelineProvider {
                 timeZone: .current,
                 failure: error.localizedDescription
             )
+            return (entry, false)
         }
     }
 }
