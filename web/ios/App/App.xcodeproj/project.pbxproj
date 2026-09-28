@@ -55,6 +55,12 @@
 		7A11C0DE000000000000021B /* AttendanceActivityStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000021A /* AttendanceActivityStateTests.swift */; };
 		7A11C0DE0000000000000218 /* AttendanceWorkplaceEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */; };
 		7A11C0DE0000000000000302 /* AttendanceWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */; };
+		7A11C0DE0000000000000401 /* AttendanceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000102 /* AttendanceAPI.swift */; };
+		7A11C0DE0000000000000402 /* AttendanceToday.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000103 /* AttendanceToday.swift */; };
+		7A11C0DE0000000000000403 /* AttendanceWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */; };
+		7A11C0DE0000000000000404 /* AttendanceWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000108 /* AttendanceWidgetIntents.swift */; };
+		7A11C0DE0000000000000405 /* AttendanceRefusal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010D /* AttendanceRefusal.swift */; };
+		7A11C0DE0000000000000406 /* AttendanceLocationChoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000113 /* AttendanceLocationChoice.swift */; };
 		7A11C0DE0000000000000303 /* AttendanceWidgetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */; };
 		7A11C0DE0000000000000305 /* AttendanceWidgetCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000304 /* AttendanceWidgetCacheTests.swift */; };
 /* End PBXBuildFile section */
@@ -473,6 +479,12 @@
 				7A11C0DE0000000000000115 /* AttendanceActivityAttributes.swift in Sources */,
 				7A11C0DE0000000000000118 /* AttendanceLockScreenCards.swift in Sources */,
 				7A11C0DE0000000000000116 /* AttendanceActivityPlugin.swift in Sources */,
+				7A11C0DE0000000000000401 /* AttendanceAPI.swift in Sources */,
+				7A11C0DE0000000000000402 /* AttendanceToday.swift in Sources */,
+				7A11C0DE0000000000000403 /* AttendanceWidgetCache.swift in Sources */,
+				7A11C0DE0000000000000404 /* AttendanceWidgetIntents.swift in Sources */,
+				7A11C0DE0000000000000405 /* AttendanceRefusal.swift in Sources */,
+				7A11C0DE0000000000000406 /* AttendanceLocationChoice.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
