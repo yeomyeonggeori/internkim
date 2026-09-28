@@ -38,6 +38,7 @@
 	import { messageActionsFor } from './channel-message-actions';
 	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
 	import { mentionKeyAction } from '$lib/messenger/mention-draft';
+	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
 	import { createMentionPicker, mentionLabelsOf, type MentionPicker } from '$lib/messenger/mention-picker.svelte';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
@@ -71,7 +72,8 @@
 		canModerate = false,
 		participants = [],
 		isGroup = false,
-		isWithTheAgent = true
+		isWithTheAgent = true,
+		onReadThrough
 	}: {
 		isActive?: boolean;
 		threadLayout?: 'sheet' | 'inline';
@@ -81,6 +83,7 @@
 		participants?: MentionPerson[];
 		isGroup?: boolean;
 		isWithTheAgent?: boolean;
+		onReadThrough?: (sentAt: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -307,6 +310,13 @@
 	let scrollContainer = $state<HTMLDivElement | null>(null);
 	let showScrollToBottom = $state(false);
 	const reversedTimeline = $derived(timeline.slice().reverse());
+	let isPageVisible = $state(typeof document === 'undefined' || document.visibilityState === 'visible');
+	const latestSettledSentAt = $derived(latestSentAtOf(messages));
+
+	$effect(() => {
+		if (!onReadThrough || !isPageVisible || showScrollToBottom || !latestSettledSentAt) return;
+		onReadThrough(latestSettledSentAt);
+	});
 
 	const olderPrefetchScreens = 3;
 
@@ -1266,6 +1276,7 @@
 </div>
 
 <svelte:window onkeydown={handleLightboxKeydown} />
+<svelte:document onvisibilitychange={() => (isPageVisible = document.visibilityState === 'visible')} />
 {#if lightbox}
 	{@const currentImage = lightbox.images[lightbox.index]}
 	{@const hasMultiple = lightbox.images.length > 1}

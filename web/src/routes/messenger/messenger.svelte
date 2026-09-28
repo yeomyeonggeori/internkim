@@ -32,6 +32,8 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
+	import { markChannelRead } from '$lib/messenger/messenger-api';
+	import { createConversationReadMarker } from '$lib/messenger/conversation-read-marker';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
@@ -263,7 +265,6 @@
 		if (event.kind !== 'message.arrived' || !event.conversationID) return;
 		const conversationID = event.conversationID;
 		if (conversationsNotMine.has(conversationID)) return;
-		if (conversations.some((conversation) => conversation.id === conversationID)) return;
 		isReadingList ??= loadConversationList()
 			.then(() => {
 				if (!conversations.some((conversation) => conversation.id === conversationID)) {
@@ -277,6 +278,21 @@
 	}
 
 	let stopListeningForArrivals = () => {};
+
+	const markReadThrough = createConversationReadMarker(markChannelRead);
+
+	function readThrough(conversationID: string | undefined, sentAt: string): void {
+		if (!conversationID || !isSupabaseConfigured()) return;
+		markReadThrough(conversationID, sentAt)
+			.then((isNewlyRead) => {
+				if (!isNewlyRead) return;
+				conversations = conversations.map((conversation) =>
+					conversation.id === conversationID ? { ...conversation, unreadCount: 0 } : conversation
+				);
+				refreshConversations('the channel list did not refresh after reading a conversation');
+			})
+			.catch((failure: unknown) => console.warn('the messenger did not record how far this conversation was read', failure));
+	}
 
 	$effect(() => {
 		holdBackNotificationsFor(activeID).catch((failure: unknown) =>
@@ -402,6 +418,7 @@
 						showSenderNames={activeConversation?.kind === 'group'}
 						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
 						isWithTheAgent={activeConversation?.isWithTheAgent === true}
+						onReadThrough={(sentAt) => readThrough(activeID, sentAt)}
 					/>
 				{/key}
 			</div>
