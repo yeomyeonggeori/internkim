@@ -95,25 +95,33 @@
 				<Sidebar.GroupContent>
 					<Sidebar.Menu>
 						{#each groupChannels as channel (channel.id)}
-							<Sidebar.MenuItem
-								draggable="true"
-								class={dragOverChannelID === channel.id
-									? 'border-primary rounded-md border'
-									: 'rounded-md border border-transparent'}
-								ondragstart={() => (draggedChannelID = channel.id)}
-								ondragend={() => ((draggedChannelID = null), (dragOverChannelID = null))}
-								ondragover={(event: DragEvent) => {
-									if (!draggedChannelID || draggedChannelID === channel.id) return;
-									event.preventDefault();
-									dragOverChannelID = channel.id;
-								}}
-								ondragleave={() => {
-									if (dragOverChannelID === channel.id) dragOverChannelID = null;
-								}}
-								ondrop={(event: DragEvent) => {
-									event.preventDefault();
-									dragOverChannelID = null;
-									handleDrop(channel.id);
+							<ConversationMenu
+								isMuted={muted.has(channel.id)}
+								muteLabel={text.muteConversation}
+								unmuteLabel={text.unmuteConversation}
+								menuLabel={text.conversationMenu}
+								onSwitchMuted={() => switchMuted(channel.id)}
+								itemProps={{
+									draggable: 'true',
+									class:
+										dragOverChannelID === channel.id
+											? 'border-primary rounded-md border'
+											: 'rounded-md border border-transparent',
+									ondragstart: () => (draggedChannelID = channel.id),
+									ondragend: () => ((draggedChannelID = null), (dragOverChannelID = null)),
+									ondragover: (event: DragEvent) => {
+										if (!draggedChannelID || draggedChannelID === channel.id) return;
+										event.preventDefault();
+										dragOverChannelID = channel.id;
+									},
+									ondragleave: () => {
+										if (dragOverChannelID === channel.id) dragOverChannelID = null;
+									},
+									ondrop: (event: DragEvent) => {
+										event.preventDefault();
+										dragOverChannelID = null;
+										handleDrop(channel.id);
+									}
 								}}
 							>
 								<Sidebar.MenuButton
@@ -124,14 +132,7 @@
 									<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-semibold' : ''}>{channel.name}</span>
 								</Sidebar.MenuButton>
 								{@render unreadBadge(channel)}
-								<ConversationMenu
-									isMuted={muted.has(channel.id)}
-									muteLabel={text.muteConversation}
-									unmuteLabel={text.unmuteConversation}
-									menuLabel={text.conversationMenu}
-									onSwitchMuted={() => switchMuted(channel.id)}
-								/>
-							</Sidebar.MenuItem>
+							</ConversationMenu>
 						{/each}
 					</Sidebar.Menu>
 				</Sidebar.GroupContent>
@@ -144,7 +145,13 @@
 				<Sidebar.GroupContent>
 					<Sidebar.Menu>
 						{#each directMessages as conversation (conversation.id)}
-							<Sidebar.MenuItem>
+							<ConversationMenu
+								isMuted={muted.has(conversation.id)}
+								muteLabel={text.muteConversation}
+								unmuteLabel={text.unmuteConversation}
+								menuLabel={text.conversationMenu}
+								onSwitchMuted={() => switchMuted(conversation.id)}
+							>
 								<Sidebar.MenuButton
 									isActive={activeID === conversation.id}
 									onclick={() => selectChannel(conversation.id)}
@@ -161,14 +168,7 @@
 									<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-semibold' : ''}>{conversation.name}</span>
 								</Sidebar.MenuButton>
 								{@render unreadBadge(conversation)}
-								<ConversationMenu
-									isMuted={muted.has(conversation.id)}
-									muteLabel={text.muteConversation}
-									unmuteLabel={text.unmuteConversation}
-									menuLabel={text.conversationMenu}
-									onSwitchMuted={() => switchMuted(conversation.id)}
-								/>
-							</Sidebar.MenuItem>
+							</ConversationMenu>
 						{/each}
 					</Sidebar.Menu>
 				</Sidebar.GroupContent>
