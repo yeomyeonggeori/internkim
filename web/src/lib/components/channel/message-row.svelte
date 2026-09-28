@@ -19,10 +19,12 @@
 		canChange,
 		canReply,
 		canDelete,
+		canEdit,
 		isSettled,
 		hasFooter,
 		copyable,
 		onReply,
+		onEdit,
 		onCopy,
 		onDelete,
 		onReact,
@@ -38,10 +40,12 @@
 		canChange: boolean;
 		canReply: boolean;
 		canDelete: boolean;
+		canEdit: boolean;
 		isSettled: boolean;
 		hasFooter: boolean;
 		copyable: MessageCopy;
 		onReply: () => void;
+		onEdit: () => void;
 		onCopy: (wanted: MessageCopy) => void;
 		onDelete: () => void;
 		onReact: (glyph: string) => void;
@@ -85,6 +89,7 @@
 		canChange={canChangeThis}
 		{canReply}
 		{canDelete}
+		{canEdit}
 		canCopyText={copyable.kind === 'text'}
 		canCopyPicture={pictureToCopy !== ''}
 		disabled={!isSettled || !hasActions}
@@ -92,6 +97,7 @@
 		onQuickReact={onReact}
 		onOpenPicker={openPickerOnceTheMenuHasClosed}
 		{onReply}
+		{onEdit}
 		onCopyText={() => onCopy(copyable)}
 		onCopyPicture={() => onCopy({ kind: 'picture', address: pictureToCopy })}
 		{onDelete}

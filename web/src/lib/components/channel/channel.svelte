@@ -13,6 +13,8 @@
 	import ChannelLinkPreview from './channel-link-preview.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
+	import { messageTextBeside } from './message-text-beside';
+	import { canEditMessage, composerEditing, type EditingMessage } from './message-edit';
 	import { firstLinkIn } from './channel-link';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
@@ -21,7 +23,6 @@
 	import {
 		canChangeMessages,
 		fetchChannelConversation,
-		messageTextBeside,
 		applyCustomEmoji,
 		sendChannelMessage,
 		type ChannelMessage,
@@ -114,6 +115,22 @@
 	const mentions = createMentionPicker(() => participants, () => isGroup);
 	const threadMentions = createMentionPicker(() => participants, () => isGroup);
 	let isSending = $state(false);
+	let editing = $state<EditingMessage | null>(null);
+	let threadEditing = $state<EditingMessage | null>(null);
+	const conversationEdit = composerEditing({
+		text: () => composerValue,
+		setText: (written) => (composerValue = written),
+		editing: () => editing,
+		setEditing: (next) => (editing = next),
+		focus: () => void tick().then(() => composerElement?.focus())
+	});
+	const threadEdit = composerEditing({
+		text: () => threadComposer,
+		setText: (written) => (threadComposer = written),
+		editing: () => threadEditing,
+		setEditing: (next) => (threadEditing = next),
+		focus: () => void tick().then(() => threadComposerElement?.focus())
+	});
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
 	let olderMessages = $state<ChannelMessage[]>([]);
@@ -428,6 +445,12 @@
 
 	async function submitThreadReply(event: SubmitEvent) {
 		event.preventDefault();
+		if (threadEditing) {
+			if (isThreadSending) return;
+			isThreadSending = true;
+			await threadEdit.save(messageActions.saveEdit).finally(() => (isThreadSending = false));
+			return;
+		}
 		const trimmedReply = threadComposer.trim();
 		const outgoingAttachments = threadPendingAttachments.map((pending) => pending.attachment);
 		if ((!trimmedReply && outgoingAttachments.length === 0) || isThreadSending || !openThreadRoot) return;
@@ -454,6 +477,11 @@
 
 	function handleThreadKeydown(event: KeyboardEvent) {
 		if (handledByMentions(threadMentions, threadComposerElement, (written) => (threadComposer = written), event)) return;
+		if (event.key === 'Escape' && threadEditing && threadLayout === 'inline') {
+			event.preventDefault();
+			threadEdit.cancel();
+			return;
+		}
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
 		event.preventDefault();
 		if (!(event.currentTarget instanceof HTMLElement)) return;
@@ -493,6 +521,12 @@
 
 	async function submitMessage(event: SubmitEvent) {
 		event.preventDefault();
+		if (editing) {
+			if (isSending) return;
+			isSending = true;
+			await conversationEdit.save(messageActions.saveEdit).finally(() => (isSending = false));
+			return;
+		}
 		const trimmedMessage = composerValue.trim();
 		const outgoingAttachments = pendingAttachments.map((pending) => pending.attachment);
 		if ((!trimmedMessage && outgoingAttachments.length === 0) || isSending) return;
@@ -586,6 +620,7 @@
 	function closeThread() {
 		clearThreadAttachments();
 		threadComposer = '';
+		threadEditing = null;
 		openThreadRoot = null;
 	}
 
@@ -643,6 +678,11 @@
 
 	function handleComposerKeydown(event: KeyboardEvent) {
 		if (handledByMentions(mentions, composerElement, (written) => (composerValue = written), event)) return;
+		if (event.key === 'Escape' && editing) {
+			event.preventDefault();
+			conversationEdit.cancel();
+			return;
+		}
 		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
 		event.preventDefault();
 		if (!(event.currentTarget instanceof HTMLElement)) return;
@@ -886,7 +926,7 @@
 		<time
 			class="text-muted-foreground/70 pb-0.5 text-[11px] whitespace-nowrap tabular-nums @max-[56rem]/conversation:absolute @max-[56rem]/conversation:bottom-0.5 @max-[56rem]/conversation:left-full @max-[56rem]/conversation:ml-1.5 @max-[56rem]/conversation:pb-0 @max-[56rem]/conversation:group-data-[align=end]/message:right-full @max-[56rem]/conversation:group-data-[align=end]/message:left-auto @max-[56rem]/conversation:group-data-[align=end]/message:mr-1.5 @max-[56rem]/conversation:group-data-[align=end]/message:ml-0"
 		>
-			{clockTime(message.sentAt)}
+			{clockTime(message.sentAt)}{#if message.editedAt}&nbsp;· {text.edited}{/if}
 		</time>
 	</div>
 {/snippet}
@@ -942,6 +982,7 @@
 		{canChange}
 		canReply={isInTimeline && !message.threadRootId}
 		canDelete={isMine(message) || canModerate}
+		canEdit={canEditMessage(message, isMine(message))}
 		isSettled={!message.id.startsWith('pending-')}
 		hasFooter={replyChip !== undefined}
 		copyable={whatToCopy(
@@ -952,6 +993,7 @@
 			pictureAddressesOf(openableAttachments(message.attachments ?? [], openableAddressOf))
 		)}
 		onReply={() => openThread(message)}
+		onEdit={() => (isInTimeline ? conversationEdit : threadEdit).begin(message)}
 		onCopy={(wanted) => messageActions.copy(wanted)}
 		onDelete={() => messageActions.askToDelete(message)}
 		onReact={(glyph) => messageActions.reactWith(message, glyph)}
@@ -1038,6 +1080,12 @@
 					)}
 			/>
 		{/if}
+		{#if threadEditing}
+			<div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+				<span>{text.editingMessage}</span>
+				<Button type="button" variant="ghost" size="xs" onclick={threadEdit.cancel}>{text.cancelEdit}</Button>
+			</div>
+		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={threadComposer}
@@ -1062,7 +1110,7 @@
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => threadFileInput?.click()}
-					disabled={messageInputDisabled}
+					disabled={messageInputDisabled || threadEditing !== null}
 				>
 					<PlusIcon />
 				</InputGroup.Button>
@@ -1074,7 +1122,7 @@
 					disabled={messageInputDisabled || (threadComposer.trim().length === 0 && threadPendingAttachments.length === 0) || isThreadSending}
 				>
 					<ArrowUpIcon />
-					<span class="sr-only">{text.send}</span>
+					<span class="sr-only">{threadEditing ? text.saveEdit : text.send}</span>
 				</InputGroup.Button>
 			</InputGroup.Addon>
 		</InputGroup.Root>
@@ -1209,6 +1257,12 @@
 					void takeMention(mentions, composerElement, (written) => (composerValue = written), candidate)}
 			/>
 		{/if}
+		{#if editing}
+			<div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+				<span>{text.editingMessage}</span>
+				<Button type="button" variant="ghost" size="xs" onclick={conversationEdit.cancel}>{text.cancelEdit}</Button>
+			</div>
+		{/if}
 		<InputGroup.Root>
 			<InputGroup.Textarea
 				bind:value={composerValue}
@@ -1233,7 +1287,7 @@
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => fileInput?.click()}
-					disabled={messageInputDisabled}
+					disabled={messageInputDisabled || editing !== null}
 				>
 					<PlusIcon />
 				</InputGroup.Button>
@@ -1245,7 +1299,7 @@
 					disabled={messageInputDisabled || (composerValue.trim().length === 0 && pendingAttachments.length === 0) || isSending}
 				>
 					<ArrowUpIcon />
-					<span class="sr-only">{text.send}</span>
+					<span class="sr-only">{editing ? text.saveEdit : text.send}</span>
 				</InputGroup.Button>
 			</InputGroup.Addon>
 		</InputGroup.Root>
@@ -1340,7 +1394,15 @@
 			if (!open) closeThread();
 		}}
 	>
-		<Sheet.Content side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+		<Sheet.Content
+			side="right"
+			class="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+			onEscapeKeydown={(event) => {
+				if (!threadEditing) return;
+				event.preventDefault();
+				threadEdit.cancel();
+			}}
+		>
 			<Sheet.Header class="border-b">
 				<Sheet.Title>{text.threadTitle}</Sheet.Title>
 			</Sheet.Header>

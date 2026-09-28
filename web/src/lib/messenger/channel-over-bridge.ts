@@ -11,6 +11,7 @@ import { customEmojiNamesIn } from './custom-emoji-names';
 import {
 	addReaction,
 	deletePost,
+	editPost,
 	fetchChannels,
 	fetchPeople,
 	fetchPosts,
@@ -67,6 +68,7 @@ type Message = {
 	sender: Participant;
 	text: string;
 	sentAt: string;
+	editedAt?: string;
 	mentions?: Mentions;
 	reactions?: Reaction[];
 	attachments?: Attachment[];
@@ -270,6 +272,7 @@ function messageOf(post: MessengerPost, people: MessengerDirectory, viewer: View
 		sender: senderOf(post.author, people, viewer),
 		text: emojifyText(post.body),
 		sentAt: post.postedAt,
+		editedAt: post.editedAt,
 		mentions: post.mentions,
 		reactions: post.reactions.map((reaction) => ({
 			emoji: glyphOfEmojiName(reaction.emoji) ?? reaction.emoji,
@@ -301,6 +304,11 @@ export async function bridgeSendMessage(
 ): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
 	await writePost(channelID, text, replyToRootID, attachments, mentions);
+}
+
+export async function bridgeEditMessage(channelID: string | undefined, messageID: string, text: string): Promise<void> {
+	if (!channelID) throw new Error('choose a conversation first');
+	await editPost(channelID, messageID, text);
 }
 
 export async function bridgeDeleteMessage(channelID: string | undefined, messageID: string): Promise<void> {

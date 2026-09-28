@@ -5,6 +5,7 @@ import {
 	bridgeConversation,
 	bridgeConversations,
 	bridgeDeleteMessage,
+	bridgeEditMessage,
 	bridgeDirectMessage,
 	bridgePeople,
 	bridgeRemoveReaction,
@@ -85,6 +86,7 @@ export type ChannelMessage = {
 	sender: ChannelParticipant;
 	text: string;
 	sentAt: string;
+	editedAt?: string;
 	mentions?: ChannelMentions;
 	isError?: boolean;
 	interaction?: ChannelInteraction;
@@ -101,20 +103,6 @@ export type ChannelConversation = {
 	hasMoreBefore: boolean;
 	historyCursor: string;
 };
-
-const imageMarkdownPattern = /!\[[^\]]*\]\((\S+?)\)/g;
-const linkMarkdownPattern = /\[[^\]]*\]\((\S+?)\)/g;
-
-// An imported message names each file it carries in its body, so a client that
-// reads nothing but text still has them. This one draws them itself, and a
-// reference to something already on screen is not text.
-export function messageTextBeside(text: string, attachmentURLs: string[]): string {
-	const withoutImages = text.replace(imageMarkdownPattern, '');
-	const withoutFiles = withoutImages.replace(linkMarkdownPattern, (link, url: string) =>
-		attachmentURLs.includes(url) ? '' : link
-	);
-	return withoutFiles.trim();
-}
 
 export function applyCustomEmoji(
 	text: string,
@@ -315,6 +303,11 @@ export async function sendChannelMessage(
 
 export function canChangeMessages(): boolean {
 	return isSupabaseConfigured();
+}
+
+export async function editChannelMessage(messageID: string, text: string, channelID?: string): Promise<void> {
+	if (!isSupabaseConfigured()) throw new Error('this messenger cannot change a message here');
+	await bridgeEditMessage(channelID, messageID, text);
 }
 
 export async function deleteChannelMessage(messageID: string, channelID?: string): Promise<void> {
