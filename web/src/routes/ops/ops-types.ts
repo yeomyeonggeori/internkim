@@ -2,11 +2,8 @@ export type OpsTarget = {
 	id: string;
 	name: string;
 	adminURL: string;
-	profile?: string;
-	nodeArgument?: string;
-	nodeID?: string;
-	statePath?: string;
-	secretSource?: string;
+	sshHostname?: string;
+	fleetID?: string;
 };
 
 export type EndpointStatus = {
@@ -106,12 +103,4 @@ export type LocalFleetJobRequest = {
 	recipe?: string;
 	scenario?: string;
 	base?: string;
-};
-
-export type NewTarget = {
-	name: string;
-	adminURL: string;
-	profile?: string;
-	nodeArgument?: string;
-	secretSource?: string;
 };

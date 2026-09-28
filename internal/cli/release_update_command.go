@@ -65,7 +65,7 @@ func releaseDeviceEndpointURL(target commandTarget, endpointPath string) (string
 }
 
 func deviceURLForTarget(target commandTarget) string {
-	return strings.TrimSpace(firstNonEmptyString(target.deviceURL, loadState(target.stateDir, "device_url")))
+	return strings.TrimSpace(target.deviceURL)
 }
 
 func fetchDeviceReleaseUpdateStatusForTarget(target commandTarget) (releaseUpdateStatusResponse, error) {

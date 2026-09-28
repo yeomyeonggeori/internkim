@@ -25,17 +25,17 @@ func (server *Server) runJob(contextValue context.Context, job *JobRunner, targe
 		status := server.CheckStatus(contextValue, target)
 		job.Info(formatStatus(status))
 	case JobActionDeployAdmind:
-		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "admind")))
+		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, "admind")))
 	case JobActionDeployRuntime:
-		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "capabilityd,blueclawPayload,skills")))
+		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, "capabilityd,blueclawPayload,skills")))
 	case JobActionDeployWeb:
-		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "web")))
+		job.Error(server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, "web")))
 	case JobActionApplyRelease:
-		job.Error(server.runCommandPlan(contextValue, job, updateApplyCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target)))
+		job.Error(server.runCommandPlan(contextValue, job, updateApplyCommand(server.options.RepositoryRootPath, server.options.ExecutablePath)))
 	case JobActionPilotStandard:
 		server.runPilotStandardDeploy(contextValue, job, target)
 	case JobActionRestartSSH, JobActionRestartSSHRoute:
-		job.Error(server.runCommandPlan(contextValue, job, recoveryCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, action)))
+		job.Error(server.runCommandPlan(contextValue, job, recoveryCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, action)))
 	default:
 		job.Error(fmt.Errorf("unsupported job action: %s", action))
 	}
@@ -46,12 +46,12 @@ func (server *Server) runPilotStandardDeploy(contextValue context.Context, job *
 		job.Error(errorValue)
 		return
 	}
-	if errorValue := server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "admind")); errorValue != nil {
+	if errorValue := server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, "admind")); errorValue != nil {
 		job.Error(errorValue)
 		return
 	}
 	job.Info(formatStatus(server.CheckStatus(contextValue, target)))
-	if errorValue := server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "capabilityd,blueclawPayload,skills")); errorValue != nil {
+	if errorValue := server.runCommandPlan(contextValue, job, deployCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, "capabilityd,blueclawPayload,skills")); errorValue != nil {
 		job.Error(errorValue)
 		return
 	}
@@ -115,47 +115,23 @@ func runBufferedCommand(contextValue context.Context, plan CommandPlan) (string,
 	return output.String(), errorValue
 }
 
-func deployCommand(repositoryRootPath string, executablePath string, target Target, components string) CommandPlan {
-	arguments := commandTargetArguments(target, []string{"deploy", "--components", components})
+func deployCommand(repositoryRootPath string, executablePath string, components string) CommandPlan {
+	return internkimCommand(repositoryRootPath, executablePath, "deploy", "--components", components)
+}
+
+func updateApplyCommand(repositoryRootPath string, executablePath string) CommandPlan {
+	return internkimCommand(repositoryRootPath, executablePath, "update", "apply")
+}
+
+func recoveryCommand(repositoryRootPath string, executablePath string, action string) CommandPlan {
+	return internkimCommand(repositoryRootPath, executablePath, "recover", "ssh", "--action", action)
+}
+
+func internkimCommand(repositoryRootPath string, executablePath string, arguments ...string) CommandPlan {
 	return CommandPlan{
 		DirectoryPath: repositoryRootPath,
 		Name:          executablePath,
 		Arguments:     arguments,
-		Environment:   commandEnvironment(target),
+		Environment:   os.Environ(),
 	}
-}
-
-func updateApplyCommand(repositoryRootPath string, executablePath string, target Target) CommandPlan {
-	arguments := commandTargetArguments(target, []string{"update", "apply"})
-	return CommandPlan{
-		DirectoryPath: repositoryRootPath,
-		Name:          executablePath,
-		Arguments:     arguments,
-		Environment:   commandEnvironment(target),
-	}
-}
-
-func recoveryCommand(repositoryRootPath string, executablePath string, target Target, action string) CommandPlan {
-	arguments := commandTargetArguments(target, []string{"recover", "ssh", "--action", action})
-	return CommandPlan{
-		DirectoryPath: repositoryRootPath,
-		Name:          executablePath,
-		Arguments:     arguments,
-		Environment:   commandEnvironment(target),
-	}
-}
-
-func commandTargetArguments(target Target, arguments []string) []string {
-	if strings.TrimSpace(target.NodeArgument) == "" {
-		return append([]string(nil), arguments...)
-	}
-	return append(append([]string(nil), arguments...), "--node", target.NodeArgument)
-}
-
-func commandEnvironment(target Target) []string {
-	environment := os.Environ()
-	if strings.TrimSpace(target.Profile) != "" {
-		environment = append(environment, "INTERNKIM_PROFILE="+target.Profile)
-	}
-	return environment
 }

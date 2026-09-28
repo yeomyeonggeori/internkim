@@ -314,21 +314,18 @@ make build
 ./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
 ```
 
-The CLI probes the local network first and otherwise reaches the device by its
-saved ssh hostname; `--remote-ssh` skips the probe. How that hostname is
-reachable is the operator's own `~/.ssh/config`, so a device outside your
-network needs a `ProxyCommand` there and nothing here. `./internkim ssh` and
+The `@production` vault profile names the device: `INTERNKIM_DEVICE_URL`,
+`INTERNKIM_SSH_HOSTNAME` and `INTERNKIM_FLEET_ID` as the device's registration
+answered them, and `INTERNKIM_FLEET_SECRET`, which signs release applies and
+recovery requests. They live in the vault and not in `.monkeys` because they
+describe one operator's device, so `monkeys pack --only @production` carries
+everything another machine needs to deploy.
+
+The CLI probes the local network first and otherwise reaches the device by that
+ssh hostname; `--remote-ssh` skips the probe. How that hostname is reachable is
+the operator's own `~/.ssh/config`, so a device outside your network needs a
+`ProxyCommand` there and nothing here. `./internkim ssh` and
 `./internkim ssh -- uptime -p` use the same routing.
-
-Managing several companies or devices from one machine, `--profile` separates
-per-company state and `--node` picks a device inside it. The same pair resolves
-to the same target for `setup`, `update`, `status`, `verify` and `ssh`.
-
-```bash
-./internkim setup --profile acme --node 1 --host <jetson-ip>
-./internkim status --profile acme --node 1
-./internkim update --profile dawn --node 1 --web
-```
 
 Run `make build` again after changing Go, provisioning or runtime config.
 `./internkim` is a local binary and does not rebuild itself, and a stale one can
@@ -427,8 +424,8 @@ make prepare-blueclaw-payload
 ./internkim release companion
 ./internkim release host
 
-./internkim update check --profile dawn --node 1
-./internkim update apply --profile dawn --node 1
+./internkim @production update check
+./internkim @production update apply
 ```
 
 `setup --only admind --force` bootstraps a device that has no direct-upload
@@ -469,7 +466,7 @@ The same engine drives the ops console at `http://127.0.0.1:8789/ops`, so the
 CLI and the UI cannot diverge on ordering.
 
 ```bash
-./internkim ops serve
+./internkim @production ops serve
 ```
 
 `make fleet-gate` and `make deploy-after-fleet` wrap the gate and the deployment
