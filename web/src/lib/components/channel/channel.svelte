@@ -60,7 +60,7 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
-	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	let {
@@ -687,11 +687,10 @@
 		{farCorner}
 		{nameWidthPixels}
 		onToggle={(reaction) => messageActions.toggleReaction(message, reaction)}
-		onPick={(glyph) => messageActions.reactWith(message, glyph)}
 	/>
 {/snippet}
 
-{#snippet messageBody(message: ChannelMessage, nameWidthPixels: number, hasFooter: boolean, isToolbarShown: boolean, toolbar: Snippet)}
+{#snippet messageBody(message: ChannelMessage, nameWidthPixels: number)}
 	{@const attachments = openableAttachments(message.attachments ?? [], openableAddressOf)}
 	{@const bodyText = messageTextBeside(
 		message.text,
@@ -740,7 +739,7 @@
 			{#if !bodyText && reactions.length > 0}
 				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{#if !bodyText}{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}{/if}
+			{#if !bodyText}{@render timeStamp(message)}{/if}
 		</div>
 	{:else if attachments.length > 0}
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
@@ -793,7 +792,7 @@
 			{#if !bodyText && reactions.length > 0}
 				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{#if !bodyText}{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}{/if}
+			{#if !bodyText}{@render timeStamp(message)}{/if}
 		</div>
 	{/if}
 	{#if message.isError}
@@ -824,7 +823,7 @@
 					</Popover.Content>
 				</Popover.Root>
 			</Bubble.Reactions>
-			{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}
+			{@render timeStamp(message)}
 		</Bubble.Root>
 	{:else if bodyText}
 		<Bubble.Root
@@ -844,7 +843,7 @@
 			{#if reactions.length > 0}
 				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
 			{/if}
-			{@render timeStamp(message, hasFooter, isToolbarShown, toolbar)}
+			{@render timeStamp(message)}
 		</Bubble.Root>
 		{#if firstLinkIn(bodyText)}
 			<ChannelLinkPreview url={firstLinkIn(bodyText)} />
@@ -866,7 +865,7 @@
 	{/if}
 {/snippet}
 
-{#snippet timeStamp(message: ChannelMessage, hasFooter: boolean, isToolbarShown: boolean, toolbar: Snippet)}
+{#snippet timeStamp(message: ChannelMessage)}
 	<div
 		class="pointer-events-none absolute bottom-0 left-full ml-1.5 flex items-end gap-1.5 group-data-[align=end]/message:right-full group-data-[align=end]/message:left-auto group-data-[align=end]/message:mr-1.5 group-data-[align=end]/message:ml-0 group-data-[align=end]/message:flex-row-reverse @max-[56rem]/conversation:contents"
 	>
@@ -875,17 +874,6 @@
 		>
 			{clockTime(message.sentAt)}
 		</time>
-		{#if isToolbarShown}
-			<div
-				class={`bg-background pointer-events-auto z-20 rounded-lg border p-0.5 shadow-sm @max-[56rem]/conversation:absolute @max-[56rem]/conversation:left-0 @max-[56rem]/conversation:group-data-[align=end]/message:right-0 @max-[56rem]/conversation:group-data-[align=end]/message:left-auto ${
-					hasFooter
-						? '@max-[56rem]/conversation:bottom-full @max-[56rem]/conversation:mb-1'
-						: '@max-[56rem]/conversation:top-full @max-[56rem]/conversation:mt-1'
-				}`}
-			>
-				{@render toolbar()}
-			</div>
-		{/if}
 	</div>
 {/snippet}
 
@@ -957,9 +945,9 @@
 		{#snippet avatar()}
 			{@render senderAvatar(message.sender)}
 		{/snippet}
-		{#snippet children({ nameWidthPixels, hasFooter, isToolbarShown, toolbar })}
+		{#snippet children({ nameWidthPixels })}
 			<Bubble.Group class="w-full">
-				{@render messageBody(message, nameWidthPixels, hasFooter, isToolbarShown, toolbar)}
+				{@render messageBody(message, nameWidthPixels)}
 			</Bubble.Group>
 		{/snippet}
 		{#snippet footer()}

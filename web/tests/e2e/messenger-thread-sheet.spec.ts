@@ -67,6 +67,9 @@ test.describe('messenger thread sheet', () => {
 		const threadSheet = page.getByRole('dialog', { name: '글타래' });
 		const reply = threadSheet.getByText(replyText);
 		await expect(reply).toBeVisible();
+		await threadSheet.evaluate((sheet) =>
+			Promise.all(sheet.getAnimations({ subtree: true }).map((animation) => animation.finished))
+		);
 
 		const box = await reply.boundingBox();
 		if (box === null) throw new Error('the thread reply has no layout box to drag across');
