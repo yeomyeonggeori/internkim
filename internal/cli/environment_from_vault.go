@@ -17,9 +17,11 @@ import (
 // command: it re-executes itself under `monkeys run` and marks the environment
 // so the second run knows the values already arrived.
 //
-// Everything here declines rather than fails. No manifest, no monkeys, no
-// profile, or a profile the vault cannot fill yet, and the CLI runs exactly as
-// it would have.
+// Outside a checkout, or in one whose manifest names no secret for the
+// profile, there is nothing to hand over and the CLI runs as it was started. A
+// profile the manifest does declare is served in full or not at all: no
+// monkeys, a key the vault lacks, or a doctor that cannot answer stops the
+// command before it runs against whatever environment happened to be set.
 //
 // The profile is chosen by a leading `@profile` argument, the way `monkeys`
 // itself takes one, and is otherwise the first the manifest declares. monkeys
@@ -45,19 +47,25 @@ func splitVaultProfileArgument(arguments []string) (string, []string) {
 }
 
 func reExecuteWithVaultEnvironment(requestedProfile string) {
-	plan, shouldRun := plannedVaultRun(requestedProfile)
+	plan, shouldRun, errorValue := plannedVaultRun(requestedProfile)
+	if errorValue != nil {
+		fmt.Fprintf(os.Stderr, "internkim: %v\n", errorValue)
+		os.Exit(2)
+	}
 	if !shouldRun {
 		return
 	}
 	executablePath, errorValue := currentExecutablePath()
 	if errorValue != nil {
-		return
+		fmt.Fprintf(os.Stderr, "internkim: could not find this executable to run it through the vault: %v\n", errorValue)
+		os.Exit(2)
 	}
 	arguments := append([]string{
 		filepath.Base(plan.monkeysPath), "run", vaultManifestProfileMark + plan.profile, executablePath,
 	}, os.Args[1:]...)
 	errorValue = syscall.Exec(plan.monkeysPath, arguments, append(os.Environ(), vaultInjectedMarker+"="+plan.profile))
 	fmt.Fprintf(os.Stderr, "internkim: could not run through the vault: %v\n", errorValue)
+	os.Exit(2)
 }
 
 type vaultRun struct {
@@ -65,40 +73,40 @@ type vaultRun struct {
 	profile     string
 }
 
-func plannedVaultRun(requestedProfile string) (vaultRun, bool) {
+func plannedVaultRun(requestedProfile string) (vaultRun, bool, error) {
 	if os.Getenv("INTERNKIM_ENVIRONMENT_FROM_VAULT") != "" {
-		return vaultRun{}, false
+		return vaultRun{}, false, nil
 	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
-		return vaultRun{}, false
+		return vaultRun{}, false, nil
 	}
 	manifest, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, vaultManifestName))
 	if errorValue != nil {
-		return vaultRun{}, false
+		return vaultRun{}, false, nil
 	}
 	profile, errorValue := chosenVaultProfile(string(manifest), requestedProfile)
 	if errorValue != nil {
-		fmt.Fprintf(os.Stderr, "internkim: %v\n", errorValue)
-		os.Exit(2)
+		return vaultRun{}, false, errorValue
 	}
 	if len(vaultManifestNames(string(manifest), profile)) == 0 {
-		return vaultRun{}, false
+		return vaultRun{}, false, nil
 	}
 	monkeysPath := vaultCommandPath()
 	if monkeysPath == "" {
-		fmt.Fprintf(os.Stderr, "internkim: %s lists a @%s profile but monkeys is not installed, "+
-			"so the vault cannot supply it\n", vaultManifestName, profile)
-		return vaultRun{}, false
+		return vaultRun{}, false, fmt.Errorf("%s lists a @%s profile but monkeys is not installed, "+
+			"so the vault cannot supply it", vaultManifestName, profile)
 	}
-	missing := vaultProfileGap(monkeysPath, repositoryRootPath, profile)
+	missing, errorValue := vaultProfileGap(monkeysPath, repositoryRootPath, profile)
+	if errorValue != nil {
+		return vaultRun{}, false, errorValue
+	}
 	if len(missing) > 0 {
-		fmt.Fprintf(os.Stderr, "internkim: the vault has no %s yet, so the environment is whatever was "+
-			"already set; a human types each into `monkeys remember @%s <name>`\n",
-			strings.Join(missing, ", "), profile)
-		return vaultRun{}, false
+		return vaultRun{}, false, fmt.Errorf("the vault has no %s for @%s; a human types each into "+
+			"`monkeys remember @%s <name>`, or unpacks the bundle that carries them",
+			strings.Join(missing, ", "), profile, profile)
 	}
-	return vaultRun{monkeysPath: monkeysPath, profile: profile}, true
+	return vaultRun{monkeysPath: monkeysPath, profile: profile}, true, nil
 }
 
 func chosenVaultProfile(manifest, requestedProfile string) (string, error) {
@@ -131,11 +139,14 @@ func vaultCommandPath() string {
 	return installedPath
 }
 
-func vaultProfileGap(monkeysPath, repositoryRootPath, profile string) []string {
+func vaultProfileGap(monkeysPath, repositoryRootPath, profile string) ([]string, error) {
 	command := exec.Command(monkeysPath, "doctor", "--short")
 	command.Dir = repositoryRootPath
-	output, _ := command.Output()
-	return vaultMissingNames(string(output), profile)
+	output, errorValue := command.Output()
+	if errorValue != nil {
+		return nil, fmt.Errorf("monkeys doctor could not say what @%s lacks: %w", profile, errorValue)
+	}
+	return vaultMissingNames(string(output), profile), nil
 }
 
 // `monkeys doctor --short` prints one `missing @profile: A, B` line per profile
