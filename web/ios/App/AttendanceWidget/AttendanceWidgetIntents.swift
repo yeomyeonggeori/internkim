@@ -22,7 +22,7 @@ struct ClockInIntent: AppIntent {
 }
 
 @available(iOS 17.0, *)
-struct ClockOutIntent: AppIntent {
+struct ClockOutIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Clock out"
     static var isDiscoverable = false
 
