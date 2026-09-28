@@ -53,6 +53,7 @@ final class AttendanceWidgetCacheTests: XCTestCase {
                 cachedRows: [sampleRow],
                 pending: pendingRow,
                 rowsTrustedUntil: now.addingTimeInterval(60),
+                drawsTap: false,
                 now: now
             )
         )
@@ -66,13 +67,48 @@ final class AttendanceWidgetCacheTests: XCTestCase {
                 cachedRows: [sampleRow],
                 pending: pendingRow,
                 rowsTrustedUntil: now.addingTimeInterval(-1),
+                drawsTap: false,
                 now: now
             )
         )
     }
 
     func testRowsShownSignalARefetchWithNoTrustWindow() {
-        XCTAssertNil(AttendanceWidgetCache.rowsShown(cachedRows: [sampleRow], pending: nil, rowsTrustedUntil: nil, now: now))
+        XCTAssertNil(AttendanceWidgetCache.rowsShown(cachedRows: [sampleRow], pending: nil, rowsTrustedUntil: nil, drawsTap: false, now: now))
+    }
+
+    func testRowsShownServeHeldRowsForATapAfterTrustExpires() throws {
+        let shown = try XCTUnwrap(
+            AttendanceWidgetCache.rowsShown(
+                cachedRows: [sampleRow],
+                pending: nil,
+                rowsTrustedUntil: now.addingTimeInterval(-1),
+                drawsTap: true,
+                now: now
+            )
+        )
+
+        XCTAssertEqual(shown.map(\.eventID), ["e1"])
+    }
+
+    func testATapIsDrawnFromCacheOnlyRightAfterIt() {
+        XCTAssertTrue(AttendanceWidgetCache.drawsTapFromCache(tappedAt: now.addingTimeInterval(-1), now: now))
+        XCTAssertFalse(
+            AttendanceWidgetCache.drawsTapFromCache(
+                tappedAt: now.addingTimeInterval(-AttendanceWidgetCache.tapDrawnFromCacheFor),
+                now: now
+            )
+        )
+        XCTAssertFalse(AttendanceWidgetCache.drawsTapFromCache(tappedAt: nil, now: now))
+    }
+
+    func testACacheWrittenBeforeTapsWereRecordedStillDecodes() throws {
+        let written = #"{"origin":"https://alpha.example.com","rows":[]}"#
+
+        let decoded = try JSONDecoder().decode(AttendanceWidgetCache.self, from: Data(written.utf8))
+
+        XCTAssertNil(decoded.tappedAt)
+        XCTAssertNil(decoded.rowsListedAt)
     }
 
     func testAppendingReplacesARowTheListAlreadyCarries() {
