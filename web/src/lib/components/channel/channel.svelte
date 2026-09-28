@@ -7,6 +7,8 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import AgentWorkingMarker from './agent-working-marker.svelte';
+	import { agentWorkingRefreshIntervalMs, stillWorkingSince } from './agent-working';
 	import ChannelMessageBody from './channel-message-body.svelte';
 	import ChannelComposer, { type OutgoingMessage } from './channel-composer.svelte';
 	import ChannelLightbox, { type LightboxView } from './channel-lightbox.svelte';
@@ -84,7 +86,6 @@
 
 	const text = createPageText(channelText);
 	const idleRefreshIntervalMs = isSupabaseConfigured() ? 30_000 : 5000;
-	const workingRefreshIntervalMs = 1500;
 
 	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
 	const messageInputDisabled = false;
@@ -92,7 +93,8 @@
 	let currentUserID = $state(getCachedReaderID());
 	let currentUserEmail = $state('');
 	let currentUserImage = $state('');
-	let isAgentWorking = $state(false);
+	let agentWorkingSince = $state<number | null>(null);
+	const isAgentWorking = $derived(agentWorkingSince !== null);
 	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
 	let isSending = $state(false);
 	let threadEditing = $state<EditingMessage | null>(null);
@@ -125,6 +127,10 @@
 	function isMine(message: ChannelMessage): boolean {
 		return currentUserID !== '' && message.sender.id === currentUserID;
 	}
+
+	const workingAgent = $derived<ChannelParticipant>(
+		messages.findLast((message) => !isMine(message))?.sender ?? { id: '', name: text.title }
+	);
 
 	const canChange = canChangeMessages();
 	const openableAddressOf = (url: string): string => attachmentSource.openable(url);
@@ -182,7 +188,7 @@
 			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
 			if (latestIncoming && !isMine(latestIncoming) && latestIncoming.id !== messages.at(-1)?.id) {
-				isAgentWorking = false;
+				agentWorkingSince = null;
 			}
 			// Only replace the list when it actually changed. A poll that returns the
 			// same messages must not reassign the array, or the re-render resets the
@@ -317,8 +323,9 @@
 
 	function scheduleRefresh() {
 		clearTimeout(refreshTimer);
+		agentWorkingSince = stillWorkingSince(agentWorkingSince, Date.now());
 		if (!isActive) return;
-		const delay = isAgentWorking ? workingRefreshIntervalMs : idleRefreshIntervalMs;
+		const delay = isAgentWorking ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
 		refreshTimer = setTimeout(async () => {
 			await loadConversation();
 			scheduleRefresh();
@@ -359,7 +366,7 @@
 		scrollContainer?.scrollTo({ top: 0 });
 		try {
 			await sendChannelMessage(outgoing.text, outgoing.attachments, channelId, undefined, outgoing.mentions);
-			isAgentWorking = isWithTheAgent;
+			agentWorkingSince = isWithTheAgent ? Date.now() : null;
 			await loadConversation();
 		} catch {
 			loadFailed = true;
@@ -378,7 +385,7 @@
 		isSending = true;
 		try {
 			await sendChannelMessage(optionLabel, [], channelId);
-			isAgentWorking = isWithTheAgent;
+			agentWorkingSince = isWithTheAgent ? Date.now() : null;
 			await loadConversation();
 		} catch {
 			loadFailed = true;
@@ -790,9 +797,7 @@
 					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
 				>
 					{#if isAgentWorking}
-						<Marker.Root role="status">
-							<Marker.Content class="shimmer">{text.working}</Marker.Content>
-						</Marker.Root>
+						<AgentWorkingMarker agent={workingAgent} label={text.working} />
 					{/if}
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
