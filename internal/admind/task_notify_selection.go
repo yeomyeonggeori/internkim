@@ -55,7 +55,7 @@ func taskNotifyContent(run taskNotifyRun, category string, confirmationMessage s
 		Category: category,
 		Title:    title,
 		Body:     taskNotifyExcerpt(body, taskNotifyBodyRunes),
-		OpenPath: "/tasks/" + url.PathEscape(run.TaskRunID),
+		OpenPath: "/runs/" + url.PathEscape(run.TaskRunID),
 		Tag:      "task-run-" + run.TaskRunID,
 	}
 }
