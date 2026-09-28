@@ -2,20 +2,24 @@
 	import * as Attachment from '$lib/components/ui/attachment/index.js';
 	import * as Bubble from '$lib/components/ui/bubble/index.js';
 	import * as Empty from '$lib/components/ui/empty/index.js';
-	import * as InputGroup from '$lib/components/ui/input-group/index.js';
 	import * as Marker from '$lib/components/ui/marker/index.js';
 	import * as Message from '$lib/components/ui/message/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import AgentWorkingMarker from './agent-working-marker.svelte';
+	import { agentWorkingRefreshIntervalMs, stillWorkingSince } from './agent-working';
 	import ChannelMessageBody from './channel-message-body.svelte';
-	import MentionPopup from './mention-popup.svelte';
+	import ChannelComposer, { type OutgoingMessage } from './channel-composer.svelte';
+	import ChannelLightbox, { type LightboxView } from './channel-lightbox.svelte';
 	import ChannelLinkPreview from './channel-link-preview.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
 	import { messageTextBeside } from './message-text-beside';
-	import { canEditMessage, composerEditing, type EditingMessage } from './message-edit';
+	import { canEditMessage, type EditingMessage } from './message-edit';
 	import { firstLinkIn } from './channel-link';
+	import { clockTime, dateKeyOf, dateLabel, relativeTime } from './channel-time';
+	import { threadRepliesByRoot, timelineMessages } from './channel-threads';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { channelText } from '$lib/i18n/channel-text';
@@ -26,45 +30,37 @@
 		applyCustomEmoji,
 		sendChannelMessage,
 		type ChannelMessage,
-		type ChannelOutgoingAttachment,
 		type ChannelParticipant,
 		type ThreadSummary
 	} from './channel-api';
 	import {
 		attachmentStateOf,
-		fileToAttachment,
 		formatAttachmentMeta,
 		openableAttachments,
 		pictureAddressesOf
 	} from './channel-attachments';
 	import { messageActionsFor } from './channel-message-actions';
-	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
-	import { mentionKeyAction } from '$lib/messenger/mention-draft';
+	import type { MentionPerson } from '$lib/messenger/mention-candidates';
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
-	import { createMentionPicker, mentionLabelsOf, type MentionPicker } from '$lib/messenger/mention-picker.svelte';
+	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
 	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
 	import { groupConsecutiveMessages } from './channel-message-groups';
-	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
-	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
-	import { onDestroy, onMount, tick } from 'svelte';
-	import { fade, scale } from 'svelte/transition';
+	import { onDestroy, onMount } from 'svelte';
 
 	let {
 		isActive = true,
@@ -90,15 +86,6 @@
 
 	const text = createPageText(channelText);
 	const idleRefreshIntervalMs = isSupabaseConfigured() ? 30_000 : 5000;
-	const workingRefreshIntervalMs = 1500;
-
-	type PendingAttachment = {
-		id: string;
-		previewURL: string;
-		isImage: boolean;
-		sizeBytes: number;
-		attachment: ChannelOutgoingAttachment;
-	};
 
 	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
 	const messageInputDisabled = false;
@@ -106,88 +93,29 @@
 	let currentUserID = $state(getCachedReaderID());
 	let currentUserEmail = $state('');
 	let currentUserImage = $state('');
-	let isAgentWorking = $state(false);
-	let composerValue = $state('');
-	let composerElement = $state<HTMLTextAreaElement | null>(null);
-	let threadComposerElement = $state<HTMLTextAreaElement | null>(null);
-	const canMention = $derived(canChangeMessages() && participants.length > 0);
+	let agentWorkingSince = $state<number | null>(null);
+	const isAgentWorking = $derived(agentWorkingSince !== null);
 	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
-	const mentions = createMentionPicker(() => participants, () => isGroup);
-	const threadMentions = createMentionPicker(() => participants, () => isGroup);
 	let isSending = $state(false);
-	let editing = $state<EditingMessage | null>(null);
 	let threadEditing = $state<EditingMessage | null>(null);
-	const conversationEdit = composerEditing({
-		text: () => composerValue,
-		setText: (written) => (composerValue = written),
-		editing: () => editing,
-		setEditing: (next) => (editing = next),
-		focus: () => void tick().then(() => composerElement?.focus())
-	});
-	const threadEdit = composerEditing({
-		text: () => threadComposer,
-		setText: (written) => (threadComposer = written),
-		editing: () => threadEditing,
-		setEditing: (next) => (threadEditing = next),
-		focus: () => void tick().then(() => threadComposerElement?.focus())
-	});
+	let conversationComposer = $state<ChannelComposer | null>(null);
+	let threadComposer = $state<ChannelComposer | null>(null);
 	let loadFailed = $state(false);
 	let hasLoadedOnce = $state(false);
 	let olderMessages = $state<ChannelMessage[]>([]);
 	let hasMoreBefore = $state(false);
 	let historyCursor = $state('');
 	let isLoadingOlder = $state(false);
-	let lightbox = $state<{ images: string[]; index: number } | null>(null);
-	let lightboxTouchStartX = 0;
-	let lightboxTouchMoved = false;
+	let lightbox = $state<LightboxView | null>(null);
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function openLightbox(images: string[], index: number) {
 		if (images.length === 0) return;
 		lightbox = { images, index: Math.max(0, index) };
 	}
-
-	function stepLightbox(delta: number) {
-		if (!lightbox || lightbox.images.length < 2) return;
-		const count = lightbox.images.length;
-		lightbox = { images: lightbox.images, index: (lightbox.index + delta + count) % count };
-	}
-
-	function handleLightboxKeydown(event: KeyboardEvent) {
-		if (!lightbox) return;
-		if (event.key === 'Escape') lightbox = null;
-		else if (event.key === 'ArrowRight') stepLightbox(1);
-		else if (event.key === 'ArrowLeft') stepLightbox(-1);
-	}
-
-	function handleLightboxTouchStart(event: TouchEvent) {
-		lightboxTouchStartX = event.changedTouches[0]?.clientX ?? 0;
-		lightboxTouchMoved = false;
-	}
-
-	function handleLightboxTouchEnd(event: TouchEvent) {
-		const deltaX = (event.changedTouches[0]?.clientX ?? 0) - lightboxTouchStartX;
-		if (Math.abs(deltaX) < 40) return;
-		lightboxTouchMoved = true;
-		stepLightbox(deltaX < 0 ? 1 : -1);
-	}
-
-	function closeLightboxFromBackdrop() {
-		if (lightboxTouchMoved) {
-			lightboxTouchMoved = false;
-			return;
-		}
-		lightbox = null;
-	}
 	let lastConversationSignature = '';
-	let pendingAttachments = $state<PendingAttachment[]>([]);
-	let fileInput = $state<HTMLInputElement | null>(null);
-	let attachmentSerial = 0;
 	let openThreadRoot = $state<ChannelMessage | null>(null);
-	let threadComposer = $state('');
 	let isThreadSending = $state(false);
-	let threadPendingAttachments = $state<PendingAttachment[]>([]);
-	let threadFileInput = $state<HTMLInputElement | null>(null);
 
 	const currentUser = $derived<ChannelParticipant>({
 		id: currentUserID,
@@ -199,6 +127,10 @@
 	function isMine(message: ChannelMessage): boolean {
 		return currentUserID !== '' && message.sender.id === currentUserID;
 	}
+
+	const workingAgent = $derived<ChannelParticipant>(
+		messages.findLast((message) => !isMine(message))?.sender ?? { id: '', name: text.title }
+	);
 
 	const canChange = canChangeMessages();
 	const openableAddressOf = (url: string): string => attachmentSource.openable(url);
@@ -219,42 +151,9 @@
 		readAgain: loadConversation
 	});
 
-	const threadRepliesByRoot = $derived.by(() => {
-		const repliesByRoot = new Map<string, ChannelMessage[]>();
-		for (const message of messages) {
-			if (!message.threadRootId) continue;
-			const replies = repliesByRoot.get(message.threadRootId) ?? [];
-			replies.push(message);
-			repliesByRoot.set(message.threadRootId, replies);
-		}
-		for (const replies of repliesByRoot.values()) {
-			replies.sort((first, second) => first.sentAt.localeCompare(second.sentAt));
-		}
-		return repliesByRoot;
-	});
+	const repliesByRoot = $derived(threadRepliesByRoot(messages));
 
-	const visibleMessages = $derived.by(() => {
-		const presentIds = new Set(messages.map((message) => message.id));
-		return messages
-			.filter((message) => !message.threadRootId || !presentIds.has(message.threadRootId))
-			.map((message) => {
-				const replies = threadRepliesByRoot.get(message.id);
-				if (!replies || replies.length === 0) return message;
-				return { ...message, thread: threadSummaryFor(message, replies) };
-			});
-	});
-
-	function threadSummaryFor(rootMessage: ChannelMessage, replies: ChannelMessage[]): ThreadSummary {
-		const participantsById = new Map<string, ChannelParticipant>();
-		for (const message of [rootMessage, ...replies]) {
-			participantsById.set(message.sender.id, message.sender);
-		}
-		return {
-			replyCount: replies.length,
-			lastReplyAt: replies.at(-1)?.sentAt ?? rootMessage.sentAt,
-			participants: [...participantsById.values()]
-		};
-	}
+	const visibleMessages = $derived(timelineMessages(messages, repliesByRoot));
 
 	const messageGroups = $derived(groupConsecutiveMessages(visibleMessages));
 
@@ -277,7 +176,7 @@
 	});
 
 	const threadReplies = $derived(
-		openThreadRoot ? (threadRepliesByRoot.get(openThreadRoot.id) ?? []) : []
+		openThreadRoot ? (repliesByRoot.get(openThreadRoot.id) ?? []) : []
 	);
 
 	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
@@ -289,7 +188,7 @@
 			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
 			if (latestIncoming && !isMine(latestIncoming) && latestIncoming.id !== messages.at(-1)?.id) {
-				isAgentWorking = false;
+				agentWorkingSince = null;
 			}
 			// Only replace the list when it actually changed. A poll that returns the
 			// same messages must not reassign the array, or the re-render resets the
@@ -408,90 +307,25 @@
 		}
 	}
 
-	function relativeTime(isoTimestamp: string): string {
-		const elapsedSeconds = Math.max(0, Math.round((Date.now() - new Date(isoTimestamp).getTime()) / 1000));
-		if (elapsedSeconds < 60) return '방금';
-		const elapsedMinutes = Math.round(elapsedSeconds / 60);
-		if (elapsedMinutes < 60) return `${elapsedMinutes}분 전`;
-		const elapsedHours = Math.round(elapsedMinutes / 60);
-		if (elapsedHours < 24) return `${elapsedHours}시간 전`;
-		return `${Math.round(elapsedHours / 24)}일 전`;
-	}
-
-	function clockTime(isoTimestamp: string): string {
-		return new Date(isoTimestamp).toLocaleTimeString('ko-KR', {
-			hour: 'numeric',
-			minute: '2-digit',
-			hour12: true
-		});
-	}
-
-	function dateKeyOf(isoTimestamp: string): string {
-		return new Date(isoTimestamp).toLocaleDateString('en-CA');
-	}
-
-	function dateLabel(isoTimestamp: string): string {
-		return new Date(isoTimestamp).toLocaleDateString('ko-KR', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-			weekday: 'short'
-		});
-	}
-
 	function openThread(rootMessage: ChannelMessage) {
 		openThreadRoot = rootMessage;
 	}
 
-	async function submitThreadReply(event: SubmitEvent) {
-		event.preventDefault();
-		if (threadEditing) {
-			if (isThreadSending) return;
-			isThreadSending = true;
-			await threadEdit.save(messageActions.saveEdit).finally(() => (isThreadSending = false));
-			return;
-		}
-		const trimmedReply = threadComposer.trim();
-		const outgoingAttachments = threadPendingAttachments.map((pending) => pending.attachment);
-		if ((!trimmedReply && outgoingAttachments.length === 0) || isThreadSending || !openThreadRoot) return;
-		const outgoingMentions = threadMentions.mentionsIn(trimmedReply);
-		isThreadSending = true;
-		threadComposer = '';
-		threadMentions.forget();
-		clearThreadAttachments();
+	async function sendThreadReply(outgoing: OutgoingMessage) {
+		if (!openThreadRoot) return;
 		try {
-			await sendChannelMessage(
-				trimmedReply,
-				outgoingAttachments,
-				channelId,
-				openThreadRoot.id,
-				outgoingMentions
-			);
+			await sendChannelMessage(outgoing.text, outgoing.attachments, channelId, openThreadRoot.id, outgoing.mentions);
 			await loadConversation();
 		} catch {
 			loadFailed = true;
-		} finally {
-			isThreadSending = false;
 		}
-	}
-
-	function handleThreadKeydown(event: KeyboardEvent) {
-		if (handledByMentions(threadMentions, threadComposerElement, (written) => (threadComposer = written), event)) return;
-		if (event.key === 'Escape' && threadEditing && threadLayout === 'inline') {
-			event.preventDefault();
-			threadEdit.cancel();
-			return;
-		}
-		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
-		event.preventDefault();
-		if (!(event.currentTarget instanceof HTMLElement)) return;
-		event.currentTarget.closest('form')?.requestSubmit();
 	}
 
 	function scheduleRefresh() {
 		clearTimeout(refreshTimer);
+		agentWorkingSince = stillWorkingSince(agentWorkingSince, Date.now());
 		if (!isActive) return;
-		const delay = isAgentWorking ? workingRefreshIntervalMs : idleRefreshIntervalMs;
+		const delay = isAgentWorking ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
 		refreshTimer = setTimeout(async () => {
 			await loadConversation();
 			scheduleRefresh();
@@ -519,108 +353,30 @@
 		scheduleRefresh();
 	}
 
-	async function submitMessage(event: SubmitEvent) {
-		event.preventDefault();
-		if (editing) {
-			if (isSending) return;
-			isSending = true;
-			await conversationEdit.save(messageActions.saveEdit).finally(() => (isSending = false));
-			return;
-		}
-		const trimmedMessage = composerValue.trim();
-		const outgoingAttachments = pendingAttachments.map((pending) => pending.attachment);
-		if ((!trimmedMessage && outgoingAttachments.length === 0) || isSending) return;
-		const outgoingMentions = mentions.mentionsIn(trimmedMessage);
-		isSending = true;
-		composerValue = '';
-		mentions.forget();
-		const attachmentSummary = pendingAttachments.map((pending) => pending.attachment.filename).join(', ');
-		clearAttachments();
+	async function sendToConversation(outgoing: OutgoingMessage) {
 		messages = [
 			...messages,
 			{
 				id: `pending-${messages.length}`,
 				sender: currentUser,
-				text: trimmedMessage || attachmentSummary,
+				text: outgoing.text || outgoing.attachmentSummary,
 				sentAt: new Date().toISOString()
 			}
 		];
 		scrollContainer?.scrollTo({ top: 0 });
 		try {
-			await sendChannelMessage(trimmedMessage, outgoingAttachments, channelId, undefined, outgoingMentions);
-			isAgentWorking = isWithTheAgent;
+			await sendChannelMessage(outgoing.text, outgoing.attachments, channelId, undefined, outgoing.mentions);
+			agentWorkingSince = isWithTheAgent ? Date.now() : null;
 			await loadConversation();
 		} catch {
 			loadFailed = true;
 		} finally {
-			isSending = false;
 			scheduleRefresh();
 		}
 	}
 
-	function filesFromInput(event: Event): File[] {
-		if (!(event.currentTarget instanceof HTMLInputElement)) return [];
-		const files = Array.from(event.currentTarget.files ?? []);
-		event.currentTarget.value = '';
-		return files;
-	}
-
-	async function buildPendingAttachments(files: File[]): Promise<PendingAttachment[]> {
-		const built: PendingAttachment[] = [];
-		for (const file of files) {
-			built.push({
-				id: `attachment-${attachmentSerial++}`,
-				previewURL: URL.createObjectURL(file),
-				isImage: file.type.startsWith('image/'),
-				sizeBytes: file.size,
-				attachment: await fileToAttachment(file)
-			});
-		}
-		return built;
-	}
-
-	function withoutAttachment(list: PendingAttachment[], id: string): PendingAttachment[] {
-		const removed = list.find((pending) => pending.id === id);
-		if (removed) URL.revokeObjectURL(removed.previewURL);
-		return list.filter((pending) => pending.id !== id);
-	}
-
-	function revokeAttachments(list: PendingAttachment[]): PendingAttachment[] {
-		for (const pending of list) URL.revokeObjectURL(pending.previewURL);
-		return [];
-	}
-
-	async function handleFilesSelected(event: Event) {
-		pendingAttachments = [...pendingAttachments, ...(await buildPendingAttachments(filesFromInput(event)))];
-	}
-
-	function removeAttachment(id: string) {
-		pendingAttachments = withoutAttachment(pendingAttachments, id);
-	}
-
-	function clearAttachments() {
-		pendingAttachments = revokeAttachments(pendingAttachments);
-	}
-
-	async function handleThreadFilesSelected(event: Event) {
-		threadPendingAttachments = [
-			...threadPendingAttachments,
-			...(await buildPendingAttachments(filesFromInput(event)))
-		];
-	}
-
-	function removeThreadAttachment(id: string) {
-		threadPendingAttachments = withoutAttachment(threadPendingAttachments, id);
-	}
-
-	function clearThreadAttachments() {
-		threadPendingAttachments = revokeAttachments(threadPendingAttachments);
-	}
-
 	function closeThread() {
-		clearThreadAttachments();
-		threadComposer = '';
-		threadEditing = null;
+		threadComposer?.clear();
 		openThreadRoot = null;
 	}
 
@@ -629,7 +385,7 @@
 		isSending = true;
 		try {
 			await sendChannelMessage(optionLabel, [], channelId);
-			isAgentWorking = isWithTheAgent;
+			agentWorkingSince = isWithTheAgent ? Date.now() : null;
 			await loadConversation();
 		} catch {
 			loadFailed = true;
@@ -637,56 +393,6 @@
 			isSending = false;
 			scheduleRefresh();
 		}
-	}
-
-	function refreshMentions(picker: MentionPicker, element: HTMLTextAreaElement | null): void {
-		if (!canMention || !element) return picker.close();
-		picker.reopen(element.value, element.selectionStart ?? element.value.length);
-	}
-
-	async function takeMention(
-		picker: MentionPicker,
-		element: HTMLTextAreaElement | null,
-		write: (text: string) => void,
-		candidate?: MentionCandidate
-	): Promise<void> {
-		if (!element) return;
-		const written = picker.take(element.value, element.selectionStart ?? element.value.length, candidate);
-		if (!written) return;
-		write(written.text);
-		await tick();
-		element.focus();
-		element.setSelectionRange(written.cursor, written.cursor);
-	}
-
-	function handledByMentions(
-		picker: MentionPicker,
-		element: HTMLTextAreaElement | null,
-		write: (text: string) => void,
-		event: KeyboardEvent
-	): boolean {
-		if (!picker.isOpen) return false;
-		const action = mentionKeyAction(event.key, event.isComposing);
-		if (!action) return false;
-		event.preventDefault();
-		if (action === 'close') picker.close();
-		else if (action === 'down') picker.moveBy(1);
-		else if (action === 'up') picker.moveBy(-1);
-		else void takeMention(picker, element, write);
-		return true;
-	}
-
-	function handleComposerKeydown(event: KeyboardEvent) {
-		if (handledByMentions(mentions, composerElement, (written) => (composerValue = written), event)) return;
-		if (event.key === 'Escape' && editing) {
-			event.preventDefault();
-			conversationEdit.cancel();
-			return;
-		}
-		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
-		event.preventDefault();
-		if (!(event.currentTarget instanceof HTMLElement)) return;
-		event.currentTarget.closest('form')?.requestSubmit();
 	}
 
 	$effect(() => {
@@ -726,7 +432,6 @@
 	onDestroy(() => {
 		stopListeningForArrivals();
 		clearTimeout(refreshTimer);
-		clearAttachments();
 	});
 </script>
 
@@ -993,7 +698,7 @@
 			pictureAddressesOf(openableAttachments(message.attachments ?? [], openableAddressOf))
 		)}
 		onReply={() => openThread(message)}
-		onEdit={() => (isInTimeline ? conversationEdit : threadEdit).begin(message)}
+		onEdit={() => (isInTimeline ? conversationComposer : threadComposer)?.beginEdit(message)}
 		onCopy={(wanted) => messageActions.copy(wanted)}
 		onDelete={() => messageActions.askToDelete(message)}
 		onReact={(glyph) => messageActions.reactWith(message, glyph)}
@@ -1027,106 +732,20 @@
 			{/if}
 		</div>
 	</div>
-	<form onsubmit={submitThreadReply} class="relative border-t p-3">
-		<input bind:this={threadFileInput} type="file" multiple class="hidden" onchange={handleThreadFilesSelected} />
-		{#if threadPendingAttachments.length > 0}
-			<Attachment.Group class="mb-2">
-				{#each threadPendingAttachments as pending (pending.id)}
-					<Attachment.Root size="sm">
-						{#if pending.isImage}
-							<Attachment.Media variant="image">
-								<img src={pending.previewURL} alt="" />
-							</Attachment.Media>
-						{:else}
-							<Attachment.Media>
-								<FileIcon />
-							</Attachment.Media>
-						{/if}
-						<Attachment.Content>
-							<Attachment.Title>{pending.attachment.filename}</Attachment.Title>
-							<Attachment.Description>
-								{formatAttachmentMeta({
-									mimeType: pending.attachment.contentType,
-									filename: pending.attachment.filename,
-									sizeBytes: pending.sizeBytes
-								})}
-							</Attachment.Description>
-						</Attachment.Content>
-						<Attachment.Actions>
-							<Attachment.Action
-								aria-label={text.removeAttachment}
-								onclick={() => removeThreadAttachment(pending.id)}
-							>
-								<XIcon />
-							</Attachment.Action>
-						</Attachment.Actions>
-					</Attachment.Root>
-				{/each}
-			</Attachment.Group>
-		{/if}
-		{#if threadMentions.isOpen}
-			<MentionPopup
-				name="thread"
-				rows={threadMentions.rows}
-				active={threadMentions.active}
-				listLabel={text.mentionList}
-				everyoneLabel={text.mentionEveryone}
-				onPick={(candidate) =>
-					void takeMention(
-						threadMentions,
-						threadComposerElement,
-						(written) => (threadComposer = written),
-						candidate
-					)}
-			/>
-		{/if}
-		{#if threadEditing}
-			<div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
-				<span>{text.editingMessage}</span>
-				<Button type="button" variant="ghost" size="xs" onclick={threadEdit.cancel}>{text.cancelEdit}</Button>
-			</div>
-		{/if}
-		<InputGroup.Root>
-			<InputGroup.Textarea
-				bind:value={threadComposer}
-				bind:ref={threadComposerElement}
-				role="combobox"
-				aria-autocomplete="list"
-				aria-expanded={threadMentions.isOpen}
-				aria-controls="mention-list-thread"
-				aria-activedescendant={threadMentions.isOpen ? `mention-row-thread-${threadMentions.active}` : undefined}
-				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.threadComposerPlaceholder}
-				aria-label={text.threadComposerPlaceholder}
-				rows={1}
-				onkeydown={handleThreadKeydown}
-				oninput={() => refreshMentions(threadMentions, threadComposerElement)}
-				onblur={() => threadMentions.close()}
-				disabled={messageInputDisabled}
-			/>
-			<InputGroup.Addon align="block-end" class="pt-1">
-				<InputGroup.Button
-					type="button"
-					variant="outline"
-					size="icon-sm"
-					aria-label={text.addAttachment}
-					onclick={() => threadFileInput?.click()}
-					disabled={messageInputDisabled || threadEditing !== null}
-				>
-					<PlusIcon />
-				</InputGroup.Button>
-				<InputGroup.Button
-					type="submit"
-					variant="default"
-					size="icon-sm"
-					class="ms-auto"
-					disabled={messageInputDisabled || (threadComposer.trim().length === 0 && threadPendingAttachments.length === 0) || isThreadSending}
-				>
-					<ArrowUpIcon />
-					<span class="sr-only">{threadEditing ? text.saveEdit : text.send}</span>
-				</InputGroup.Button>
-			</InputGroup.Addon>
-		</InputGroup.Root>
-	</form>
+	<ChannelComposer
+		bind:this={threadComposer}
+		bind:isSending={isThreadSending}
+		bind:editing={threadEditing}
+		name="thread"
+		placeholder={text.threadComposerPlaceholder}
+		rows={1}
+		{participants}
+		{isGroup}
+		disabled={messageInputDisabled}
+		cancelsEditOnEscape={threadLayout === 'inline'}
+		saveEdit={messageActions.saveEdit}
+		onSend={sendThreadReply}
+	/>
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
@@ -1178,9 +797,7 @@
 					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
 				>
 					{#if isAgentWorking}
-						<Marker.Root role="status">
-							<Marker.Content class="shimmer">{text.working}</Marker.Content>
-						</Marker.Root>
+						<AgentWorkingMarker agent={workingAgent} label={text.working} />
 					{/if}
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
@@ -1209,101 +826,19 @@
 			</div>
 		{/if}
 	</div>
-	<form onsubmit={submitMessage} class="relative border-t p-3">
-		<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
-		{#if pendingAttachments.length > 0}
-			<Attachment.Group class="mb-2">
-				{#each pendingAttachments as pending (pending.id)}
-					<Attachment.Root size="sm">
-						{#if pending.isImage}
-							<Attachment.Media variant="image">
-								<img src={pending.previewURL} alt="" />
-							</Attachment.Media>
-						{:else}
-							<Attachment.Media>
-								<FileIcon />
-							</Attachment.Media>
-						{/if}
-						<Attachment.Content>
-							<Attachment.Title>{pending.attachment.filename}</Attachment.Title>
-							<Attachment.Description>
-								{formatAttachmentMeta({
-									mimeType: pending.attachment.contentType,
-									filename: pending.attachment.filename,
-									sizeBytes: pending.sizeBytes
-								})}
-							</Attachment.Description>
-						</Attachment.Content>
-						<Attachment.Actions>
-							<Attachment.Action
-								aria-label={text.removeAttachment}
-								onclick={() => removeAttachment(pending.id)}
-							>
-								<XIcon />
-							</Attachment.Action>
-						</Attachment.Actions>
-					</Attachment.Root>
-				{/each}
-			</Attachment.Group>
-		{/if}
-		{#if mentions.isOpen}
-			<MentionPopup
-				name="conversation"
-				rows={mentions.rows}
-				active={mentions.active}
-				listLabel={text.mentionList}
-				everyoneLabel={text.mentionEveryone}
-				onPick={(candidate) =>
-					void takeMention(mentions, composerElement, (written) => (composerValue = written), candidate)}
-			/>
-		{/if}
-		{#if editing}
-			<div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
-				<span>{text.editingMessage}</span>
-				<Button type="button" variant="ghost" size="xs" onclick={conversationEdit.cancel}>{text.cancelEdit}</Button>
-			</div>
-		{/if}
-		<InputGroup.Root>
-			<InputGroup.Textarea
-				bind:value={composerValue}
-				bind:ref={composerElement}
-				role="combobox"
-				aria-autocomplete="list"
-				aria-expanded={mentions.isOpen}
-				aria-controls="mention-list-conversation"
-				aria-activedescendant={mentions.isOpen ? `mention-row-conversation-${mentions.active}` : undefined}
-				placeholder={messageInputDisabled ? text.composerDisabledPlaceholder : text.composerPlaceholder}
-				aria-label={text.composerPlaceholder}
-				rows={2}
-				onkeydown={handleComposerKeydown}
-				oninput={() => refreshMentions(mentions, composerElement)}
-				onblur={() => mentions.close()}
-				disabled={messageInputDisabled}
-			/>
-			<InputGroup.Addon align="block-end" class="pt-1">
-				<InputGroup.Button
-					type="button"
-					variant="outline"
-					size="icon-sm"
-					aria-label={text.addAttachment}
-					onclick={() => fileInput?.click()}
-					disabled={messageInputDisabled || editing !== null}
-				>
-					<PlusIcon />
-				</InputGroup.Button>
-				<InputGroup.Button
-					type="submit"
-					variant="default"
-					size="icon-sm"
-					class="ms-auto"
-					disabled={messageInputDisabled || (composerValue.trim().length === 0 && pendingAttachments.length === 0) || isSending}
-				>
-					<ArrowUpIcon />
-					<span class="sr-only">{editing ? text.saveEdit : text.send}</span>
-				</InputGroup.Button>
-			</InputGroup.Addon>
-		</InputGroup.Root>
-	</form>
+	<ChannelComposer
+		bind:this={conversationComposer}
+		bind:isSending
+		name="conversation"
+		placeholder={text.composerPlaceholder}
+		rows={2}
+		{participants}
+		{isGroup}
+		disabled={messageInputDisabled}
+		cancelsEditOnEscape={true}
+		saveEdit={messageActions.saveEdit}
+		onSend={sendToConversation}
+	/>
 </div>
 {#if threadLayout === 'inline' && openThreadRoot}
 	<aside class="flex min-h-0 w-full max-w-md flex-col border-l">
@@ -1333,59 +868,8 @@
 {/if}
 </div>
 
-<svelte:window onkeydown={handleLightboxKeydown} />
 <svelte:document onvisibilitychange={() => (isPageVisible = document.visibilityState === 'visible')} />
-{#if lightbox}
-	{@const currentImage = lightbox.images[lightbox.index]}
-	{@const hasMultiple = lightbox.images.length > 1}
-	<div
-		class="fixed inset-0 z-(--layer-alert) flex items-center justify-center"
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-		transition:fade={{ duration: 150 }}
-		ontouchstart={handleLightboxTouchStart}
-		ontouchend={handleLightboxTouchEnd}
-	>
-		<button
-			type="button"
-			class="absolute inset-0 cursor-zoom-out bg-black/80"
-			aria-label="이미지 닫기"
-			onclick={closeLightboxFromBackdrop}
-		></button>
-		{#key lightbox.index}
-			<img
-				src={currentImage}
-				alt=""
-				class="pointer-events-none relative z-10 max-h-full max-w-full rounded-md object-contain p-6"
-				in:scale={{ duration: 200, start: 0.94 }}
-			/>
-		{/key}
-		{#if hasMultiple}
-			<button
-				type="button"
-				class="absolute left-3 z-20 flex size-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20 max-md:hidden"
-				aria-label="이전 이미지"
-				onclick={() => stepLightbox(-1)}
-			>
-				<ChevronLeftIcon class="size-6" />
-			</button>
-			<button
-				type="button"
-				class="absolute right-3 z-20 flex size-11 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur transition hover:bg-white/20 max-md:hidden"
-				aria-label="다음 이미지"
-				onclick={() => stepLightbox(1)}
-			>
-				<ChevronRightIcon class="size-6" />
-			</button>
-			<div
-				class="absolute bottom-5 z-20 rounded-full bg-black/50 px-3 py-1 text-sm text-white/90"
-			>
-				{lightbox.index + 1} / {lightbox.images.length}
-			</div>
-		{/if}
-	</div>
-{/if}
+<ChannelLightbox bind:view={lightbox} />
 
 {#if threadLayout === 'sheet'}
 	<Sheet.Root
@@ -1400,7 +884,7 @@
 			onEscapeKeydown={(event) => {
 				if (!threadEditing) return;
 				event.preventDefault();
-				threadEdit.cancel();
+				threadComposer?.cancelEdit();
 			}}
 		>
 			<Sheet.Header class="border-b">
