@@ -5,9 +5,7 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { reactionPeopleLabel } from './channel-reactions';
-	import EmojiPicker from './emoji-picker.svelte';
 	import type { ChannelMessageReaction } from './channel-api';
-	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 
 	let {
 		reactions,
@@ -15,8 +13,7 @@
 		side,
 		farCorner,
 		nameWidthPixels,
-		onToggle,
-		onPick
+		onToggle
 	}: {
 		reactions: ChannelMessageReaction[];
 		canChange: boolean;
@@ -24,7 +21,6 @@
 		farCorner: 'start' | 'end';
 		nameWidthPixels: number;
 		onToggle: (reaction: ChannelMessageReaction) => void;
-		onPick: (glyph: string) => void;
 	} = $props();
 
 	const text = createPageText(channelText);
@@ -108,19 +104,4 @@
 			</Tooltip.Content>
 		</Tooltip.Root>
 	{/each}
-	{#if canChange}
-		<EmojiPicker {onPick} align={farCorner === 'start' ? 'end' : 'start'}>
-			{#snippet trigger({ props })}
-				<Button
-					{...props}
-					variant="ghost"
-					size="icon-xs"
-					aria-label={text.addReaction}
-					class={`bg-muted ring-card hover:bg-muted absolute rounded-full ring-3 data-[state=open]:inline-flex [@media(hover:hover)]:hidden [@media(hover:hover)]:group-focus-within/row:inline-flex [@media(hover:hover)]:group-hover/row:inline-flex ${farCorner === 'start' ? 'right-full mr-1.5' : 'left-full ml-1.5'}`}
-				>
-					<SmilePlusIcon />
-				</Button>
-			{/snippet}
-		</EmojiPicker>
-	{/if}
 </Bubble.Reactions>
