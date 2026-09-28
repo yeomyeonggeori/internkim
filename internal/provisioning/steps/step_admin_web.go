@@ -12,7 +12,7 @@ var StepAdminWeb = Step{
 			return false
 		}
 		version := context.Callbacks.AdminWebVersion()
-		return version != "" && (context.Callbacks.LoadState("web_version") == version || context.Callbacks.LoadState("admin_web_version") == version)
+		return version != "" && context.Callbacks.LoadState("web_version") == version
 	},
 	Run: func(context *Context) error {
 		if context.Callbacks.DeployAdminWeb == nil {

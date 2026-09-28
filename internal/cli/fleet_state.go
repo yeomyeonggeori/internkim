@@ -53,10 +53,6 @@ func setupStateName(boardType string) string {
 func copySetupStateHints(sourceDir string, destinationDir string) {
 	for _, key := range []string{
 		"subnet",
-		"wifi_ssid",
-		"wifi_pass",
-		"wifi_open",
-		"openrouter_api_key",
 	} {
 		if loadState(destinationDir, key) != "" {
 			continue
