@@ -1,5 +1,5 @@
-import { expect, type Page, test } from '@playwright/test';
-import { mockBuzzDisabled } from './buzz-test-routes';
+import { expect, test, type Page } from '@playwright/test';
+import { mockDeviceMessenger } from './messenger-device-mock';
 
 const channelID = 'channel-thread-sheet';
 const reader = { id: 'person-reader', name: '이샘플', email: 'reader@example.com' };
@@ -22,41 +22,18 @@ const replyMessage = {
 	sentAt: '2026-09-28T01:05:00Z'
 };
 
-async function mockDeviceMessenger(page: Page): Promise<void> {
-	await mockBuzzDisabled(page);
-	await page.route('**/auth/session**', async (route) => {
-		await route.fulfill({ json: { authenticated: true, email: reader.email } });
-	});
-	await page.route('**/admin/api/session', async (route) => {
-		await route.fulfill({ json: { email: reader.email } });
-	});
-	await page.route('**/admin/api/locale', async (route) => {
-		await route.fulfill({ json: { locale: 'ko' } });
-	});
-	await page.route('**/agent/api/channels', async (route) => {
-		await route.fulfill({
-			json: { conversations: [{ id: channelID, name: '스레드 채널', kind: 'group', myRole: 'member' }] }
-		});
-	});
-	await page.route('**/agent/api/people', async (route) => {
-		await route.fulfill({ json: { people: [] } });
-	});
-	await page.route('**/agent/api/dm**', async (route) => {
-		await route.fulfill({
-			json: {
-				conversationID: channelID,
-				currentUserId: reader.id,
-				messages: [rootMessage, replyMessage],
-				hasMoreBefore: false,
-				historyCursor: ''
-			}
-		});
-	});
+function mockThreadChannel(page: Page): Promise<void> {
+	return mockDeviceMessenger(
+		page,
+		reader,
+		[{ id: channelID, name: '스레드 채널', kind: 'group', myRole: 'member' }],
+		[rootMessage, replyMessage]
+	);
 }
 
 test.describe('messenger thread sheet', () => {
 	test.beforeEach(async ({ page }) => {
-		await mockDeviceMessenger(page);
+		await mockThreadChannel(page);
 	});
 
 	test('stays open while text in a thread message is dragged to copy it', async ({ page }) => {
@@ -88,7 +65,7 @@ test.describe('messenger thread sheet on a touch screen', () => {
 	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
 	test.beforeEach(async ({ page }) => {
-		await mockDeviceMessenger(page);
+		await mockThreadChannel(page);
 	});
 
 	test('keeps a long press for the message menu instead of text selection', async ({ page }) => {
