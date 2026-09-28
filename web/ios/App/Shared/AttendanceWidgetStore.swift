@@ -20,7 +20,7 @@ enum AttendanceWidgetStore {
         return "\(prefix)app.intern.kim"
     }
 
-    private static var shared: UserDefaults? {
+    static var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: appGroup)
     }
 
@@ -32,25 +32,25 @@ enum AttendanceWidgetStore {
     }
 
     static func heldTokenName() -> String {
-        shared?.string(forKey: tokenNameKey) ?? ""
+        sharedDefaults?.string(forKey: tokenNameKey) ?? ""
     }
 
     static func credential() -> AttendanceWidgetCredential? {
         guard let token = read(account: tokenAccount),
-              let origin = shared?.string(forKey: originKey), !origin.isEmpty else { return nil }
+              let origin = sharedDefaults?.string(forKey: originKey), !origin.isEmpty else { return nil }
         return AttendanceWidgetCredential(token: token, tokenName: heldTokenName(), origin: origin)
     }
 
     static func keep(_ credential: AttendanceWidgetCredential) {
         write(account: tokenAccount, value: credential.token)
-        shared?.set(credential.tokenName, forKey: tokenNameKey)
-        shared?.set(credential.origin, forKey: originKey)
+        sharedDefaults?.set(credential.tokenName, forKey: tokenNameKey)
+        sharedDefaults?.set(credential.origin, forKey: originKey)
     }
 
     static func forget() {
         delete(account: tokenAccount)
-        shared?.removeObject(forKey: tokenNameKey)
-        shared?.removeObject(forKey: originKey)
+        sharedDefaults?.removeObject(forKey: tokenNameKey)
+        sharedDefaults?.removeObject(forKey: originKey)
     }
 
     private static func query(account: String) -> [String: Any] {
