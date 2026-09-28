@@ -51,7 +51,7 @@
 </script>
 
 <ContextMenu.Root bind:open>
-	<ContextMenu.Trigger {disabled} class="[@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]">
+	<ContextMenu.Trigger {disabled} class="select-text [@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]">
 		{@render children()}
 	</ContextMenu.Trigger>
 	<ContextMenu.Content class="w-52">
