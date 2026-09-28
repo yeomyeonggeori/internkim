@@ -1,4 +1,6 @@
 import type { ChannelMessageAttachment, ChannelOutgoingAttachment } from './channel-api';
+import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
+import type { AttachmentSourceStatus } from '$lib/stores/attachment-source.svelte';
 
 export function openableAttachments(
 	attachments: ChannelMessageAttachment[],
@@ -8,6 +10,13 @@ export function openableAttachments(
 		...attachment,
 		source: attachment.source || openableAddressOf(attachment.url)
 	}));
+}
+
+export function attachmentStateOf(source: string | undefined, status: AttachmentSourceStatus): AttachmentState {
+	if (source) return 'done';
+	if (status === 'loading') return 'processing';
+	if (status === 'failed') return 'error';
+	return 'done';
 }
 
 export function pictureAddressesOf(attachments: ChannelMessageAttachment[]): string[] {
