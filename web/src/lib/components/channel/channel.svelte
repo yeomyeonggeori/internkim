@@ -13,6 +13,7 @@
 	import ChannelLinkPreview from './channel-link-preview.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
+	import { messageTextBeside } from './message-text-beside';
 	import { firstLinkIn } from './channel-link';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
@@ -21,7 +22,6 @@
 	import {
 		canChangeMessages,
 		fetchChannelConversation,
-		messageTextBeside,
 		applyCustomEmoji,
 		sendChannelMessage,
 		type ChannelMessage,
