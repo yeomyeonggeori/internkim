@@ -17,6 +17,7 @@ export type MessengerChannel = {
 	webURL?: string;
 	description?: string;
 	roleOfExternalID?: Record<string, string>;
+	unreadCount?: number;
 };
 
 export type MessengerReaction = {
@@ -80,6 +81,7 @@ type PersonalConversation = {
 	isWithTheAgent?: boolean;
 	webURL?: string;
 	roleOfExternalID?: Record<string, string>;
+	unreadCount?: number;
 };
 type PersonalReaction = { emoji: string; imageURL?: string; byExternalIDs: string[] };
 type PersonalAttachment = {
@@ -158,7 +160,8 @@ export function asChannel(conversation: PersonalConversation, position: number):
 		participants: (conversation.participantExternalIDs ?? []).map((externalID) => ({ externalID })),
 		webURL: conversation.webURL,
 		description: conversation.description,
-		roleOfExternalID: conversation.roleOfExternalID
+		roleOfExternalID: conversation.roleOfExternalID,
+		unreadCount: conversation.unreadCount
 	};
 }
 
@@ -196,6 +199,10 @@ export async function fetchChannels(): Promise<MessengerChannels> {
 		'person.conversations.list'
 	);
 	return { channels: answer.conversations.map(asChannel), agentExternalID: answer.agentExternalID };
+}
+
+export async function markChannelRead(channelID: string, readAt: string): Promise<void> {
+	await ask('person.read_state.mark', { conversationID: channelID, readAt });
 }
 
 export type MessengerDirectoryPerson = { externalID: string; name: string; avatarURL?: string };
