@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -121,7 +122,7 @@ func TestOutsideARepositoryTheVaultIsNotConsulted(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
 
-	if _, shouldRun := plannedVaultRun(""); shouldRun {
+	if _, shouldRun, _ := plannedVaultRun(""); shouldRun {
 		t.Fatal("a directory that is not a checkout planned a run through the vault")
 	}
 }
@@ -136,7 +137,7 @@ func TestAManifestWithoutAProfileIsNotConsulted(t *testing.T) {
 	t.Chdir(repositoryRootPath)
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
 
-	if _, shouldRun := plannedVaultRun(""); shouldRun {
+	if _, shouldRun, _ := plannedVaultRun(""); shouldRun {
 		t.Fatal("a manifest that declares no profile planned a run through the vault")
 	}
 }
@@ -149,7 +150,7 @@ func TestTheReExecutedRunDoesNotRunThroughTheVaultAgain(t *testing.T) {
 	t.Chdir(repositoryRootPath)
 	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "1")
 
-	if _, shouldRun := plannedVaultRun(""); shouldRun {
+	if _, shouldRun, _ := plannedVaultRun(""); shouldRun {
 		t.Fatal("the run that already has the vault environment planned another one")
 	}
 }
@@ -159,4 +160,65 @@ func writeFile(t *testing.T, path string, contents string) {
 	if errorValue := os.WriteFile(path, []byte(contents), 0o600); errorValue != nil {
 		t.Fatalf("write %s: %v", path, errorValue)
 	}
+}
+
+func TestAProfileTheVaultCannotFillStopsTheCommand(t *testing.T) {
+	repositoryRootPath := checkoutWithAFakeVault(t, "echo 'missing @test: FIRST_KEY, SECOND_KEY'")
+
+	_, shouldRun, errorValue := plannedVaultRun("")
+
+	if shouldRun || errorValue == nil {
+		t.Fatalf("a vault missing two declared keys let the command run in %s", repositoryRootPath)
+	}
+	if !strings.Contains(errorValue.Error(), "FIRST_KEY, SECOND_KEY") {
+		t.Fatalf("the refusal does not name what is missing: %v", errorValue)
+	}
+}
+
+func TestAVaultThatCannotSayWhatItLacksStopsTheCommand(t *testing.T) {
+	checkoutWithAFakeVault(t, "exit 3")
+
+	if _, shouldRun, errorValue := plannedVaultRun(""); shouldRun || errorValue == nil {
+		t.Fatal("a doctor that failed was read as a vault with nothing missing")
+	}
+}
+
+func TestADeclaredProfileWithoutMonkeysStopsTheCommand(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	writeFile(t, filepath.Join(repositoryRootPath, "go.mod"), "module example.test\n")
+	writeFile(t, filepath.Join(repositoryRootPath, vaultManifestName), exampleManifest)
+	t.Chdir(repositoryRootPath)
+	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+
+	if _, shouldRun, errorValue := plannedVaultRun(""); shouldRun || errorValue == nil {
+		t.Fatal("a manifest that declares secrets ran without monkeys to supply them")
+	}
+}
+
+func TestAFullVaultIsRunThrough(t *testing.T) {
+	checkoutWithAFakeVault(t, "true")
+
+	plan, shouldRun, errorValue := plannedVaultRun("")
+
+	if errorValue != nil || !shouldRun || plan.profile != "test" {
+		t.Fatalf("a vault with nothing missing was not run through: %+v %v %v", plan, shouldRun, errorValue)
+	}
+}
+
+func checkoutWithAFakeVault(t *testing.T, doctorBody string) string {
+	t.Helper()
+	repositoryRootPath := t.TempDir()
+	writeFile(t, filepath.Join(repositoryRootPath, "go.mod"), "module example.test\n")
+	writeFile(t, filepath.Join(repositoryRootPath, vaultManifestName), exampleManifest)
+	binaryDirectory := t.TempDir()
+	monkeysPath := filepath.Join(binaryDirectory, "monkeys")
+	if errorValue := os.WriteFile(monkeysPath, []byte("#!/bin/sh\n"+doctorBody+"\n"), 0o755); errorValue != nil {
+		t.Fatalf("write the fake monkeys: %v", errorValue)
+	}
+	t.Chdir(repositoryRootPath)
+	t.Setenv("INTERNKIM_ENVIRONMENT_FROM_VAULT", "")
+	t.Setenv("PATH", binaryDirectory)
+	return repositoryRootPath
 }
