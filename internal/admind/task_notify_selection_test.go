@@ -36,7 +36,7 @@ func TestTaskNotifyContentRelaysWhatWasRecorded(t *testing.T) {
 	if approval.Body != "메일을 보내도 될까요?" {
 		t.Fatalf("body = %q", approval.Body)
 	}
-	if approval.OpenPath != "/tasks/run-1" || approval.Tag != "task-run-run-1" {
+	if approval.OpenPath != "/runs/run-1" || approval.Tag != "task-run-run-1" {
 		t.Fatalf("openPath = %q tag = %q", approval.OpenPath, approval.Tag)
 	}
 
