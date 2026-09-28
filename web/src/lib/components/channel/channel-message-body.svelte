@@ -3,9 +3,9 @@
 	import { setContext } from 'svelte';
 	import ChannelCode from './channel-code.svelte';
 	import ChannelMentionText from './channel-mention-text.svelte';
-	import { mentionLabelsContext } from '$lib/messenger/mention-text';
+	import { mentionLabelsContext, type MentionLabel } from '$lib/messenger/mention-text';
 
-	let { source, mentionLabels = [] }: { source: string; mentionLabels?: string[] } = $props();
+	let { source, mentionLabels = [] }: { source: string; mentionLabels?: MentionLabel[] } = $props();
 
 	setContext(mentionLabelsContext, () => mentionLabels);
 </script>

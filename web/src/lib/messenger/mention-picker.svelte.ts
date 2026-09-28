@@ -13,6 +13,7 @@ import {
 	type DraftMentions,
 	type MentionFragment
 } from './mention-draft';
+import type { MentionLabel } from './mention-text';
 
 export type MentionPicker = ReturnType<typeof createMentionPicker>;
 
@@ -77,12 +78,13 @@ export function createMentionPicker(people: () => MentionPerson[], isGroup: () =
 export function mentionLabelsOf(
 	mentions: DraftMentions | undefined,
 	nameOf: (externalID: string) => string | undefined
-): string[] {
+): MentionLabel[] {
 	if (!mentions) return [];
-	const named = mentions.externalIDs
-		.map((externalID) => nameOf(externalID))
-		.filter((name): name is string => name !== undefined && name.trim() !== '');
-	return mentions.isEveryone ? [everyoneLabel, ...named] : named;
+	const named = mentions.externalIDs.flatMap((externalID) => {
+		const name = nameOf(externalID);
+		return name !== undefined && name.trim() !== '' ? [{ label: name, externalID }] : [];
+	});
+	return mentions.isEveryone ? [{ label: everyoneLabel }, ...named] : named;
 }
 
 function asChosen(candidate: MentionCandidate): ChosenMention {
