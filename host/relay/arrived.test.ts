@@ -59,7 +59,7 @@ describe('tellingOf', () => {
 		expect(tellingOf(arrived!, '이샘플')).toEqual({
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
-			openPath: '/messenger/',
+			openPath: '/messenger/?channel=channel-1',
 			tag: 'message:channel-1'
 		});
 	});
@@ -88,7 +88,7 @@ describe('notifyRequestOf', () => {
 			senderPicturePath: picturePath,
 			title: '이샘플',
 			body: '오늘 회의 30분 미뤄도 될까요',
-			openPath: '/messenger/',
+			openPath: '/messenger/?channel=channel-1',
 			tag: 'message:channel-1'
 		});
 	});

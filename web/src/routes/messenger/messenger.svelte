@@ -37,7 +37,7 @@
 	import { markChannelRead } from '$lib/messenger/messenger-api';
 	import { createConversationReadMarker } from '$lib/messenger/conversation-read-marker';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
+	import { afterNavigate, replaceState } from '$app/navigation';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 	import { breadcrumbMeta } from '$lib/stores/breadcrumb-meta.svelte';
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
@@ -173,6 +173,12 @@
 		const initial = remembered ?? groupChannels[0] ?? conversations[0];
 		if (initial) selectChannel(initial.id);
 	}
+
+	afterNavigate((navigation) => {
+		const requestedID = navigation.to?.url.searchParams.get('channel');
+		if (!requestedID || activeID === undefined || requestedID === activeID) return;
+		void showChannel(requestedID);
+	});
 
 	$effect(() => {
 		if (!buzzIdentity.secretHex || hasSyncedMattermost) return;
