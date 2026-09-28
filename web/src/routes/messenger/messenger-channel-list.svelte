@@ -12,6 +12,7 @@
 	import { cn } from '$lib/utils';
 	import ConversationMenu from '$lib/components/channel/conversation-menu.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
+	import { isUnreadEmphasized, unreadBadgeLabel } from '$lib/messenger/unread-badge';
 
 	let {
 		activeID,
@@ -54,6 +55,16 @@
 		draggedChannelID = null;
 	}
 </script>
+
+{#snippet unreadBadge(conversation: ChannelSummary)}
+	{@const label = unreadBadgeLabel(conversation.unreadCount)}
+	{#if label}
+		<Sidebar.MenuBadge>
+			<span class="sr-only">{text.unreadMessages}</span>
+			{label}
+		</Sidebar.MenuBadge>
+	{/if}
+{/snippet}
 
 <Sidebar.Provider class={cn('h-full min-h-0 w-auto', className)} style="--sidebar-width: {sidebarWidth};">
 	<Sidebar.Root collapsible="none">
@@ -110,8 +121,9 @@
 									onclick={() => selectChannel(channel.id)}
 								>
 									{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
-									<span>{channel.name}</span>
+									<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-semibold' : ''}>{channel.name}</span>
 								</Sidebar.MenuButton>
+								{@render unreadBadge(channel)}
 								<ConversationMenu
 									isMuted={muted.has(channel.id)}
 									muteLabel={text.muteConversation}
@@ -146,8 +158,9 @@
 										class="size-4"
 									/>
 
-									<span>{conversation.name}</span>
+									<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-semibold' : ''}>{conversation.name}</span>
 								</Sidebar.MenuButton>
+								{@render unreadBadge(conversation)}
 								<ConversationMenu
 									isMuted={muted.has(conversation.id)}
 									muteLabel={text.muteConversation}
