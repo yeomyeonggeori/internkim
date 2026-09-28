@@ -9,10 +9,19 @@ mock.module('../../../src/lib/host-bridge', () => ({
 	}
 }));
 
-const { deletePost, addReaction, removeReaction, markChannelRead } = await import('../../../src/lib/messenger/messenger-api');
+const { deletePost, addReaction, removeReaction, markChannelRead, editPost } = await import('../../../src/lib/messenger/messenger-api');
 const { reactionValueFor } = await import('../../../src/lib/components/channel/channel-reactions');
 
 describe('what the message-action capabilities are asked to carry', () => {
+	test('editPost asks person.message.edit with the conversation, message and new body it names', async () => {
+		asked.length = 0;
+
+		await editPost('channel-1', 'message-1', '고친 문장');
+
+		const call = asked.find((entry) => entry.capability === 'person.message.edit');
+		expect(call?.body).toEqual({ conversationID: 'channel-1', messageID: 'message-1', body: '고친 문장' });
+	});
+
 	test('deletePost asks person.message.delete with the conversation and message it names', async () => {
 		asked.length = 0;
 

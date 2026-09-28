@@ -5,6 +5,7 @@ import {
 	bridgeConversation,
 	bridgeConversations,
 	bridgeDeleteMessage,
+	bridgeEditMessage,
 	bridgeDirectMessage,
 	bridgePeople,
 	bridgeRemoveReaction,
@@ -85,6 +86,7 @@ export type ChannelMessage = {
 	sender: ChannelParticipant;
 	text: string;
 	sentAt: string;
+	editedAt?: string;
 	mentions?: ChannelMentions;
 	isError?: boolean;
 	interaction?: ChannelInteraction;
@@ -301,6 +303,11 @@ export async function sendChannelMessage(
 
 export function canChangeMessages(): boolean {
 	return isSupabaseConfigured();
+}
+
+export async function editChannelMessage(messageID: string, text: string, channelID?: string): Promise<void> {
+	if (!isSupabaseConfigured()) throw new Error('this messenger cannot change a message here');
+	await bridgeEditMessage(channelID, messageID, text);
 }
 
 export async function deleteChannelMessage(messageID: string, channelID?: string): Promise<void> {
