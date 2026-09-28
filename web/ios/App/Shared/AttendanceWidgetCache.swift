@@ -3,6 +3,8 @@ import Foundation
 struct AttendanceWidgetCache: Codable {
     static let settingsFreshFor: TimeInterval = 6 * 60 * 60
     static let rowsTrustedFor: TimeInterval = 120
+    static let tapDrawnFromCacheFor: TimeInterval = 5
+    static let tapRedrawnAfter: TimeInterval = 20
 
     var origin: String
     var settings: CompanySettings?
@@ -10,6 +12,8 @@ struct AttendanceWidgetCache: Codable {
     var rows: [AttendanceRow]
     var rowsTrustedUntil: Date?
     var pending: AttendanceRow?
+    var rowsListedAt: Date? = nil
+    var tappedAt: Date? = nil
 
     private static let key = "widget.attendanceCache"
 
@@ -49,6 +53,16 @@ struct AttendanceWidgetCache: Codable {
         store?.set(encoded, forKey: key)
     }
 
+    static func markTap(at moment: Date = Date()) {
+        guard let origin = AttendanceWidgetStore.credential()?.origin else { return }
+        amend(origin: origin) { $0.tappedAt = moment }
+    }
+
+    static func drawsTapFromCache(tappedAt: Date?, now: Date) -> Bool {
+        guard let tappedAt else { return false }
+        return now.timeIntervalSince(tappedAt) < tapDrawnFromCacheFor
+    }
+
     static func settingsAreFresh(fetchedAt: Date?, now: Date) -> Bool {
         guard let fetchedAt else { return false }
         return now.timeIntervalSince(fetchedAt) < settingsFreshFor
@@ -58,9 +72,11 @@ struct AttendanceWidgetCache: Codable {
         cachedRows: [AttendanceRow],
         pending: AttendanceRow?,
         rowsTrustedUntil: Date?,
+        drawsTap: Bool,
         now: Date
     ) -> [AttendanceRow]? {
-        guard let rowsTrustedUntil, now < rowsTrustedUntil else { return nil }
+        let isTrusted = rowsTrustedUntil.map { now < $0 } ?? false
+        guard isTrusted || drawsTap else { return nil }
         return pending.map { cachedRows + [$0] } ?? cachedRows
     }
 
