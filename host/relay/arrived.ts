@@ -47,9 +47,14 @@ export function tellingOf(arrived: ArrivedMessage, authorName: string): Told {
 	return {
 		title: authorName || 'internkim',
 		body: arrived.preview,
-		openPath: '/messenger/',
+		openPath: conversationPathOf(arrived.conversationID),
 		tag: `message:${arrived.conversationID}`
 	};
+}
+
+function conversationPathOf(conversationID: string): string {
+	if (!conversationID) return '/messenger/';
+	return `/messenger/?channel=${encodeURIComponent(conversationID)}`;
 }
 
 export function notifyRequestOf(
