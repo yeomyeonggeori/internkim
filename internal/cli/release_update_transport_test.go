@@ -9,11 +9,7 @@ import (
 )
 
 func TestSignedReleaseApplyDocumentNamesTheReleaseAndChannel(t *testing.T) {
-	stateDirectory := t.TempDir()
-	saveState(stateDirectory, "fleet_id", "fleet-1")
-	saveState(stateDirectory, "fleet_secret", "secret-1")
-
-	document, errorValue := signedReleaseApplyDocument(commandTarget{stateDir: stateDirectory}, "release-1", deployReleaseChannel)
+	document, errorValue := signedReleaseApplyDocument(commandTarget{fleetID: "fleet-1", fleetSecret: "secret-1"}, "release-1", deployReleaseChannel)
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -38,7 +34,7 @@ func TestSignedReleaseApplyDocumentNamesTheReleaseAndChannel(t *testing.T) {
 }
 
 func TestSignedReleaseApplyDocumentNeedsTheFleetIdentity(t *testing.T) {
-	_, errorValue := signedReleaseApplyDocument(commandTarget{stateDir: t.TempDir()}, "release-1", deployReleaseChannel)
+	_, errorValue := signedReleaseApplyDocument(commandTarget{fleetID: "fleet-1"}, "release-1", deployReleaseChannel)
 
 	if errorValue == nil {
 		t.Fatal("a device with no fleet secret cannot sign an apply")
@@ -46,9 +42,6 @@ func TestSignedReleaseApplyDocumentNeedsTheFleetIdentity(t *testing.T) {
 }
 
 func TestReleaseAPIAppliesOverThePublicEndpointWhenItHasNoSSH(t *testing.T) {
-	stateDirectory := t.TempDir()
-	saveState(stateDirectory, "fleet_id", "fleet-1")
-	saveState(stateDirectory, "fleet_secret", "secret-1")
 	observedRequestURL := ""
 	observedBody := []byte(nil)
 	restoreReleaseUpdateHTTPClient := stubReleaseUpdateHTTPClient(t, func(request *http.Request) (*http.Response, error) {
@@ -57,7 +50,7 @@ func TestReleaseAPIAppliesOverThePublicEndpointWhenItHasNoSSH(t *testing.T) {
 		return jsonTestResponse(`{"jobID":"job-1","status":"running","phase":"downloading"}`), nil
 	})
 	defer restoreReleaseUpdateHTTPClient()
-	api := deviceReleaseAPI{target: commandTarget{stateDir: stateDirectory, deviceURL: "https://device.example"}}
+	api := deviceReleaseAPI{target: commandTarget{fleetID: "fleet-1", fleetSecret: "secret-1", deviceURL: "https://device.example"}}
 
 	job, errorValue := api.applyRelease("release-1", deployReleaseChannel)
 
@@ -82,7 +75,7 @@ func TestReleaseAPIReadsJobStatusOverThePublicEndpoint(t *testing.T) {
 		return jsonTestResponse(`{"jobID":"job-1","status":"completed","phase":"verified"}`), nil
 	})
 	defer restoreReleaseUpdateHTTPClient()
-	api := deviceReleaseAPI{target: commandTarget{stateDir: t.TempDir(), deviceURL: "https://device.example"}}
+	api := deviceReleaseAPI{target: commandTarget{deviceURL: "https://device.example"}}
 
 	job, errorValue := api.releaseUpdateJob("job-1")
 

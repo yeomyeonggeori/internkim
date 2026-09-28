@@ -6,8 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -38,56 +36,10 @@ func signedAdminRequestPayload(identity targetFleetIdentity, action string) sign
 }
 
 func targetIdentity(target Target) (targetFleetIdentity, error) {
-	sourcePath := expandedPath(firstNonEmpty(target.SecretSource, target.StatePath))
-	if sourcePath == "" {
-		return targetFleetIdentity{}, fmt.Errorf("target secret source is not configured")
+	if target.FleetID == "" || target.FleetSecret == "" {
+		return targetFleetIdentity{}, fmt.Errorf("the vault names no %s and %s for %s", FleetIDVariable, FleetSecretVariable, target.Name)
 	}
-	fileInfo, errorValue := os.Stat(sourcePath)
-	if errorValue != nil {
-		return targetFleetIdentity{}, errorValue
-	}
-	if fileInfo.IsDir() {
-		return targetIdentityFromDirectory(sourcePath)
-	}
-	return targetIdentityFromSecretFile(sourcePath)
-}
-
-func targetIdentityFromDirectory(directoryPath string) (targetFleetIdentity, error) {
-	return requireTargetIdentity(
-		strings.TrimSpace(readStateFile(directoryPath, "fleet_id")),
-		strings.TrimSpace(readStateFile(directoryPath, "fleet_secret")),
-	)
-}
-
-func targetIdentityFromSecretFile(secretPath string) (targetFleetIdentity, error) {
-	secretDocument, errorValue := os.ReadFile(secretPath)
-	if errorValue != nil {
-		return targetFleetIdentity{}, errorValue
-	}
-	return requireTargetIdentity(
-		strings.TrimSpace(readStateFile(filepath.Dir(secretPath), "fleet_id")),
-		strings.TrimSpace(string(secretDocument)),
-	)
-}
-
-func requireTargetIdentity(deviceID string, secret string) (targetFleetIdentity, error) {
-	deviceID = strings.TrimSpace(deviceID)
-	secret = strings.TrimSpace(secret)
-	if deviceID == "" || secret == "" {
-		return targetFleetIdentity{}, fmt.Errorf("target fleet id or secret is not configured")
-	}
-	return targetFleetIdentity{DeviceID: deviceID, Secret: secret}, nil
-}
-
-func expandedPath(path string) string {
-	path = strings.TrimSpace(path)
-	if strings.HasPrefix(path, "~/") {
-		homePath, errorValue := os.UserHomeDir()
-		if errorValue == nil {
-			return filepath.Join(homePath, strings.TrimPrefix(path, "~/"))
-		}
-	}
-	return path
+	return targetFleetIdentity{DeviceID: target.FleetID, Secret: target.FleetSecret}, nil
 }
 
 func randomSignedRequestNonce() string {

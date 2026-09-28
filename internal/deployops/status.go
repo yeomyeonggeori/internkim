@@ -112,7 +112,7 @@ func (server *Server) checkReleaseEndpoint(contextValue context.Context, endpoin
 }
 
 func (server *Server) checkRecovery(contextValue context.Context, target Target) RecoveryStatus {
-	plan := recoveryCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, target, "status")
+	plan := recoveryCommand(server.options.RepositoryRootPath, server.options.ExecutablePath, "status")
 	commandOutput, errorValue := runBufferedCommand(contextValue, plan)
 	if errorValue != nil {
 		return RecoveryStatus{State: "failed", Message: Redact(strings.TrimSpace(commandOutput + "\n" + errorValue.Error()))}

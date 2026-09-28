@@ -9,7 +9,6 @@
 	import BrainCircuitIcon from '@lucide/svelte/icons/brain-circuit';
 	import CloudUploadIcon from '@lucide/svelte/icons/cloud-upload';
 	import FlaskConicalIcon from '@lucide/svelte/icons/flask-conical';
-	import PlusIcon from '@lucide/svelte/icons/plus';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
 	import SaveIcon from '@lucide/svelte/icons/save';
@@ -17,8 +16,8 @@
 	import ServerIcon from '@lucide/svelte/icons/server';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
-	import { createTarget, fetchLocalFleetStatus, fetchTargets, fetchTargetStatus, startJob, startLocalFleetJob, streamJobEvents, updateTargetModel } from './ops-api';
-	import type { Job, LLMModelStatus, LocalFleetJobRequest, LocalFleetStatus, NewTarget, OpsTarget, TargetStatus } from './ops-types';
+	import { fetchLocalFleetStatus, fetchTargets, fetchTargetStatus, startJob, startLocalFleetJob, streamJobEvents, updateTargetModel } from './ops-api';
+	import type { Job, LLMModelStatus, LocalFleetJobRequest, LocalFleetStatus, OpsTarget, TargetStatus } from './ops-types';
 	import { endpointStatusLabel, hasVersion, readableModelLabel, runtimeVersionDetail, shortRelease, shortVersion, statusBadgeVariant } from './ops-view';
 
 	const actions = [
@@ -45,13 +44,6 @@
 	let selectedTargetID = $state('');
 	let isLoading = $state(false);
 	let errorMessage = $state('');
-	let newTarget = $state<NewTarget>({
-		name: '',
-		adminURL: '',
-		profile: '',
-		nodeArgument: '',
-		secretSource: ''
-	});
 
 	const selectedJob = () => (selectedJobID ? jobs[selectedJobID] : undefined);
 	const selectedJobEvents = () => selectedJob()?.events ?? [];
@@ -92,18 +84,6 @@
 	async function fetchStatuses(nextTargets: OpsTarget[]): Promise<Record<string, TargetStatus>> {
 		const entries = await Promise.all(nextTargets.map(async (target) => [target.id, await readTargetStatus(target.id)] as const));
 		return Object.fromEntries(entries);
-	}
-
-	async function addTarget() {
-		errorMessage = '';
-		try {
-			const target = await createTarget(newTarget);
-			targets = await fetchTargets();
-			selectedTargetID = target.id;
-			newTarget = { name: '', adminURL: '', profile: '', nodeArgument: '', secretSource: '' };
-		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : 'failed to add target';
-		}
 	}
 
 	async function checkTarget(targetID: string) {
@@ -380,10 +360,9 @@
 								{@render StatusCell('Release', status?.release)}
 								{@render StatusCell('Recovery', status?.recovery)}
 							</div>
-							<div class="grid gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground sm:grid-cols-3">
-								<div class="truncate">profile: {target.profile || 'default'}</div>
-								<div class="truncate">node: {target.nodeID || target.nodeArgument || 'default'}</div>
-								<div class="truncate">secret: {target.secretSource ? 'local reference' : 'state'}</div>
+							<div class="grid gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground sm:grid-cols-2">
+								<div class="truncate">fleet: {target.fleetID || 'unnamed'}</div>
+								<div class="truncate">ssh: {target.sshHostname || 'unnamed'}</div>
 							</div>
 							<div class="grid gap-2 rounded-md border border-border/70 bg-muted/10 p-3 text-xs [grid-template-columns:repeat(auto-fit,minmax(118px,1fr))]">
 								{@render VersionCell('Admind', status.versions.admind, '', isStatusPending)}
@@ -410,26 +389,10 @@
 							</div>
 						</Card.Content>
 					</Card.Root>
+				{:else}
+					<p class="text-sm text-muted-foreground">The vault names no device. Start the console as <code>./internkim @production ops serve</code>.</p>
 				{/each}
 			</div>
-
-			<Card.Root>
-				<Card.Header class="border-b">
-					<Card.Title class="flex items-center gap-2 text-base"><PlusIcon class="size-4" /> Add target</Card.Title>
-					<Card.Description>Secret values stay in local files; this form stores references and routing metadata only.</Card.Description>
-				</Card.Header>
-				<Card.Content class="grid gap-3 p-3 md:grid-cols-5">
-					<Input placeholder="name" bind:value={newTarget.name} />
-					<Input class="md:col-span-2" placeholder="https://pilot-01.example.test" bind:value={newTarget.adminURL} />
-					<Input placeholder="profile" bind:value={newTarget.profile} />
-					<Input placeholder="node" bind:value={newTarget.nodeArgument} />
-					<Input class="md:col-span-4" placeholder="secret source path" bind:value={newTarget.secretSource} />
-					<Button onclick={addTarget} disabled={!newTarget.adminURL}>
-						<PlusIcon />
-						Add
-					</Button>
-				</Card.Content>
-			</Card.Root>
 		</section>
 
 		<aside class="space-y-4">

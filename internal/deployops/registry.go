@@ -1,168 +1,37 @@
 package deployops
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"net/url"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 )
 
-func registryPath(repositoryRootPath string) string {
-	return filepath.Join(repositoryRootPath, ".local", "ops", "targets.json")
+const (
+	DeviceURLVariable   = "INTERNKIM_DEVICE_URL"
+	SSHHostnameVariable = "INTERNKIM_SSH_HOSTNAME"
+	FleetIDVariable     = "INTERNKIM_FLEET_ID"
+	FleetSecretVariable = "INTERNKIM_FLEET_SECRET"
+)
+
+func DeviceTargetFromEnvironment() (Target, bool) {
+	adminURL := normalizeAdminURL(os.Getenv("INTERNKIM_DEVICE_URL"))
+	fleetID := strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_ID")))
+	return Target{
+		ID:          firstNonEmpty(fleetID, hostName(adminURL)),
+		Name:        hostName(adminURL),
+		AdminURL:    adminURL,
+		SSHHostname: strings.TrimSpace(os.Getenv("INTERNKIM_SSH_HOSTNAME")),
+		FleetID:     fleetID,
+		FleetSecret: strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_SECRET")),
+	}, adminURL != ""
 }
 
-func LoadRegistry(repositoryRootPath string, internKimHomePath string) (TargetRegistry, error) {
-	path := registryPath(repositoryRootPath)
-	document, errorValue := os.ReadFile(path)
-	if errorValue == nil {
-		return decodeRegistry(document)
+func LoadRegistry() TargetRegistry {
+	target, isNamed := DeviceTargetFromEnvironment()
+	if !isNamed {
+		return TargetRegistry{}
 	}
-	if !errors.Is(errorValue, os.ErrNotExist) {
-		return TargetRegistry{}, errorValue
-	}
-	return discoverDefaultRegistry(internKimHomePath), nil
-}
-
-func SaveRegistry(repositoryRootPath string, registry TargetRegistry) error {
-	path := registryPath(repositoryRootPath)
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
-		return errorValue
-	}
-	document, errorValue := json.MarshalIndent(normalizeRegistry(registry), "", "\t")
-	if errorValue != nil {
-		return errorValue
-	}
-	return os.WriteFile(path, append(document, '\n'), 0o600)
-}
-
-func decodeRegistry(document []byte) (TargetRegistry, error) {
-	var registry TargetRegistry
-	if errorValue := json.Unmarshal(document, &registry); errorValue != nil {
-		return TargetRegistry{}, errorValue
-	}
-	return normalizeRegistry(registry), nil
-}
-
-func normalizeRegistry(registry TargetRegistry) TargetRegistry {
-	seenTargets := map[string]bool{}
-	targets := make([]Target, 0, len(registry.Targets))
-	for _, target := range registry.Targets {
-		normalizedTarget := normalizeTarget(target)
-		if !shouldKeepTarget(normalizedTarget) || seenTargets[normalizedTarget.ID] {
-			continue
-		}
-		seenTargets[normalizedTarget.ID] = true
-		targets = append(targets, normalizedTarget)
-	}
-	sort.SliceStable(targets, func(leftIndex int, rightIndex int) bool {
-		return targets[leftIndex].Name < targets[rightIndex].Name
-	})
-	return TargetRegistry{Targets: targets}
-}
-
-func shouldKeepTarget(target Target) bool {
-	if target.ID == "" {
-		return false
-	}
-	return target.AdminURL != ""
-}
-
-func normalizeTarget(target Target) Target {
-	target.Name = strings.TrimSpace(target.Name)
-	target.AdminURL = normalizeAdminURL(target.AdminURL)
-	target.Kind = strings.TrimSpace(target.Kind)
-	target.Profile = strings.TrimSpace(target.Profile)
-	target.NodeArgument = strings.TrimSpace(target.NodeArgument)
-	target.NodeID = strings.TrimSpace(target.NodeID)
-	target.StatePath = strings.TrimSpace(target.StatePath)
-	target.SecretSource = strings.TrimSpace(target.SecretSource)
-	if target.Name == "" {
-		target.Name = strings.TrimSpace(hostName(target.AdminURL))
-	}
-	target.ID = sanitizeID(target.ID)
-	if target.ID == "" {
-		target.ID = sanitizeID(target.Name)
-	}
-	if target.ID == "" {
-		target.ID = hashID(target.AdminURL)
-	}
-	return target
-}
-
-func discoverDefaultRegistry(internKimHomePath string) TargetRegistry {
-	targets := []Target{}
-	targets = append(targets, discoverBoardTargets(filepath.Join(internKimHomePath, "devices", "jetson-orin-nano", "boards"), "")...)
-	targets = append(targets, discoverBoardTargets(filepath.Join(internKimHomePath, "profiles", "pilot", "devices", "jetson-orin-nano", "boards"), "pilot")...)
-	return normalizeRegistry(TargetRegistry{Targets: targets})
-}
-
-func discoverBoardTargets(boardsPath string, profile string) []Target {
-	entries, errorValue := os.ReadDir(boardsPath)
-	if errorValue != nil {
-		return nil
-	}
-	targets := []Target{}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		statePath := filepath.Join(boardsPath, entry.Name())
-		adminURL := strings.TrimSpace(readStateFile(statePath, "device_url"))
-		if adminURL == "" {
-			continue
-		}
-		fleetRole := strings.TrimSpace(readStateFile(statePath, "fleet_role"))
-		isAbandonedFleetRegistration := strings.TrimSpace(readStateFile(statePath, "fleet_id")) != "" &&
-			fleetRole != "active" && fleetRole != "pending"
-		if isAbandonedFleetRegistration {
-			continue
-		}
-		nodeID := strings.TrimSpace(readStateFile(statePath, "node_id"))
-		targets = append(targets, Target{
-			ID:           targetID(profile, entry.Name(), adminURL),
-			Name:         targetName(profile, nodeID, adminURL),
-			AdminURL:     adminURL,
-			Profile:      profile,
-			NodeArgument: entry.Name(),
-			NodeID:       nodeID,
-			StatePath:    statePath,
-			SecretSource: statePath,
-		})
-	}
-	return targets
-}
-
-func targetID(profile string, nodeArgument string, adminURL string) string {
-	if profile != "" && nodeArgument != "" {
-		return sanitizeID(profile + "-" + nodeArgument)
-	}
-	if nodeArgument != "" {
-		return sanitizeID("default-" + nodeArgument)
-	}
-	return sanitizeID(hostName(adminURL))
-}
-
-func targetName(profile string, nodeID string, adminURL string) string {
-	if nodeID != "" {
-		return nodeID
-	}
-	if profile != "" {
-		return profile + "-" + hostName(adminURL)
-	}
-	return hostName(adminURL)
-}
-
-func readStateFile(statePath string, name string) string {
-	document, errorValue := os.ReadFile(filepath.Join(statePath, name))
-	if errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(document))
+	return TargetRegistry{Targets: []Target{target}}
 }
 
 func normalizeAdminURL(value string) string {
@@ -182,24 +51,4 @@ func hostName(rawURL string) string {
 		return strings.TrimSpace(rawURL)
 	}
 	return parsedURL.Hostname()
-}
-
-func sanitizeID(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	builder := strings.Builder{}
-	for _, character := range value {
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' {
-			builder.WriteRune(character)
-			continue
-		}
-		if character == '-' || character == '_' {
-			builder.WriteRune('-')
-		}
-	}
-	return strings.Trim(builder.String(), "-")
-}
-
-func hashID(value string) string {
-	sum := sha1.Sum([]byte(value))
-	return hex.EncodeToString(sum[:])[:12]
 }

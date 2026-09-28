@@ -715,22 +715,6 @@ func TestJetsonWiFiCommandHostCandidatesPreferUSB(t *testing.T) {
 	}
 }
 
-func TestSavedRemoteSSHHostnameTakesWhatWasSavedAndInventsNothing(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	stateDirectory := setupStateDir(filepath.Join(homeDirectory, ".internkim"), setup.BoardJetsonOrinNano)
-	saveState(stateDirectory, "fleet_id", "device-1")
-
-	if hostname := savedRemoteSSHHostname(commandTarget{stateDir: stateDirectory}); hostname != "" {
-		t.Fatalf("a fleet id is not a hostname; nothing should be derived from it, got %q", hostname)
-	}
-
-	saveState(stateDirectory, "ssh_hostname", "whatever.the.operator.set")
-	if hostname := savedRemoteSSHHostname(commandTarget{stateDir: stateDirectory}); hostname != "whatever.the.operator.set" {
-		t.Fatalf("expected the saved hostname, got %q", hostname)
-	}
-}
-
 func TestSavedRemoteSSHHostnamePrefersAnExplicitHost(t *testing.T) {
 	target := commandTarget{host: "192.0.2.10", useRemoteSSH: true, sshHostname: "saved.example.test"}
 

@@ -398,6 +398,10 @@
     "process": "web e2e tests",
     "description": "the delete-triggering prompt tests/e2e/delete-evidence.spec.ts records alongside its screenshots"
   },
+  "INTERNKIM_DEVICE_URL": {
+    "process": "cli",
+    "description": "the device's public admin address, from the @production vault profile; internal/deployops/registry.go reads it as the one deploy target"
+  },
   "INTERNKIM_DOMAIN": {
     "process": "cli",
     "description": "overrides the CLI's compiled-in zone; everything else (the API URL, hostnames) derives from it"
@@ -446,9 +450,13 @@
     "process": "device",
     "description": "override cache directory for Jetson image downloads during internal/cli's flash flow"
   },
+  "INTERNKIM_FLEET_ID": {
+    "process": "cli",
+    "description": "the device's fleet ID, from the @production vault profile; internal/deployops/registry.go reads it as the name signed requests carry"
+  },
   "INTERNKIM_FLEET_SECRET": {
     "process": "cli",
-    "description": "the shared fleet secret internal/cli/target_context.go reads when a device target's own secret is unset"
+    "description": "the device's fleet secret, from the @production vault profile; internal/deployops/registry.go reads it to sign release applies and recovery requests"
   },
   "INTERNKIM_GATE_MODEL": {
     "process": "tools/verify-api",
@@ -525,10 +533,6 @@
   "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
     "process": "tools/mirror-local",
     "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"
-  },
-  "INTERNKIM_PROFILE": {
-    "process": "cli",
-    "description": "overrides which saved target profile internal/cli/target_context.go resolves against"
   },
   "INTERNKIM_PUBLIC_URL": {
     "process": "web e2e tests",
@@ -609,6 +613,10 @@
   "INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": {
     "process": "cli",
     "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
+  },
+  "INTERNKIM_SSH_HOSTNAME": {
+    "process": "cli",
+    "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network"
   },
   "INTERNKIM_TARGET_USERNAME": {
     "process": "web e2e tests",
