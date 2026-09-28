@@ -2,6 +2,7 @@
 	import * as Message from '$lib/components/ui/message/index.js';
 	import EmojiPicker from './emoji-picker.svelte';
 	import MessageContextMenu from './message-context-menu.svelte';
+	import { openThreadOnTap } from './open-thread-on-tap';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
 	import { swipeToReply } from './swipe-to-reply';
 	import type { ChannelMessage } from './channel-api';
@@ -99,6 +100,7 @@
 			bind:this={contentElement}
 			class="translate-x-(--swipe-offset,0px) group-[:not([data-swipe-armed])]/row:transition-transform"
 			use:swallowClickAfterTouchHold={{ isMenuOpen: isContextMenuOpen }}
+			use:openThreadOnTap={{ onOpen: onReply, disabled: !canReply || !isSettled }}
 		>
 			<Message.Root align={mine ? 'end' : 'start'}>
 				{#if !mine}
