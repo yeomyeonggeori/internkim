@@ -14,8 +14,6 @@ import {
 	type MentionFragment
 } from './mention-draft';
 
-const mostRows = 6;
-
 export type MentionPicker = ReturnType<typeof createMentionPicker>;
 
 export function createMentionPicker(people: () => MentionPerson[], isGroup: () => boolean) {
@@ -48,7 +46,7 @@ export function createMentionPicker(people: () => MentionPerson[], isGroup: () =
 		reopen(text: string, cursor: number): void {
 			const opening = mentionFragmentAt(text, cursor);
 			if (!opening) return close();
-			const matched = matchingMentions(mentionCandidates(people(), isGroup()), opening.query, mostRows);
+			const matched = matchingMentions(mentionCandidates(people(), isGroup()), opening.query);
 			if (matched.length === 0) return close();
 			fragment = opening;
 			rows = matched;

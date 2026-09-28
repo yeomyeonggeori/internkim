@@ -18,6 +18,10 @@
 		everyoneLabel: string;
 		onPick: (candidate: MentionCandidate) => void;
 	} = $props();
+
+	$effect(() => {
+		document.getElementById(`mention-row-${name}-${active}`)?.scrollIntoView({ block: 'nearest' });
+	});
 </script>
 
 <ul
