@@ -30,6 +30,7 @@
 		type ThreadSummary
 	} from './channel-api';
 	import {
+		attachmentStateOf,
 		fileToAttachment,
 		formatAttachmentMeta,
 		openableAttachments,
@@ -755,7 +756,8 @@
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
 			<Attachment.Group class="relative w-fit max-w-full">
 			{#each attachments as attachment (attachment.url)}
-				<Attachment.Root orientation="vertical">
+				{@const attachmentState = attachmentStateOf(attachment.source, attachmentSource.status(attachment.url))}
+				<Attachment.Root orientation="vertical" state={attachmentState}>
 					{#if attachment.kind === 'image' && attachment.source}
 						<Attachment.Media variant="image">
 							<button
@@ -789,7 +791,9 @@
 									{attachment.filename ?? attachment.url}
 								{/if}
 							</Attachment.Title>
-							{#if formatAttachmentMeta(attachment)}
+							{#if attachmentState === 'error'}
+								<Attachment.Description>{text.attachmentUnavailable}</Attachment.Description>
+							{:else if formatAttachmentMeta(attachment)}
 								<Attachment.Description>
 									{formatAttachmentMeta(attachment)}
 								</Attachment.Description>
