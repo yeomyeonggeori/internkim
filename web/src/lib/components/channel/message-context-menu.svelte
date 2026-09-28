@@ -6,6 +6,7 @@
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import ImageIcon from '@lucide/svelte/icons/image';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import type { Snippet } from 'svelte';
@@ -14,6 +15,7 @@
 		canChange,
 		canReply,
 		canDelete,
+		canEdit,
 		canCopyText,
 		canCopyPicture,
 		disabled,
@@ -21,6 +23,7 @@
 		onQuickReact,
 		onOpenPicker,
 		onReply,
+		onEdit,
 		onCopyText,
 		onCopyPicture,
 		onDelete,
@@ -29,6 +32,7 @@
 		canChange: boolean;
 		canReply: boolean;
 		canDelete: boolean;
+		canEdit: boolean;
 		canCopyText: boolean;
 		canCopyPicture: boolean;
 		disabled?: boolean;
@@ -36,6 +40,7 @@
 		onQuickReact: (glyph: string) => void;
 		onOpenPicker: () => void;
 		onReply: () => void;
+		onEdit: () => void;
 		onCopyText: () => void;
 		onCopyPicture: () => void;
 		onDelete: () => void;
@@ -77,6 +82,12 @@
 			<ContextMenu.Item onSelect={onReply}>
 				<ReplyIcon />
 				<span>{text.reply}</span>
+			</ContextMenu.Item>
+		{/if}
+		{#if canChange && canEdit}
+			<ContextMenu.Item onSelect={onEdit}>
+				<PencilIcon />
+				<span>{text.editMessage}</span>
 			</ContextMenu.Item>
 		{/if}
 		{#if canCopyPicture}
