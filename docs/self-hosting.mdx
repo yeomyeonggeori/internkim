@@ -1,0 +1,57 @@
+---
+title: Self-hosting levels
+description: Four ways to run internkim, from the host on your own computer to a host you can reach from any network.
+icon: Layers
+---
+
+A company can run as much of internkim as it wants and leave the rest to
+`intern.kim`. The levels below name the common stopping points. Each one adds to
+the one before it.
+
+| Level | The host | Supabase | Cloudflare | Reached from other networks |
+|---|---|---|---|---|
+| 1 | your computer | `intern.kim` | `intern.kim` | no |
+| 2 | your computer | yours | `intern.kim` | no |
+| 3 | your computer | yours | yours | no |
+| 4 | your computer or a cloud server | yours | yours | yes, over SSH |
+
+## Level 1: the host on your own computer
+
+Install [the host](/docs/running-the-host) on a computer the company leaves on,
+such as a Kim Mini or a Linux machine. The company's record, the web app and the
+sign-in address stay with `intern.kim`. The host connects outward and nothing
+listens off loopback, so the computer needs no public address.
+
+## Level 2: your own Supabase
+
+The record moves to a Supabase project you run. The host and the web app read
+its address and keys from settings, and [What lives where](/docs/what-lives-where)
+says which data that project holds. Self-hosted Supabase ships the same
+Postgres and the same row level security, so the schema in `supabase/migrations`
+applies unchanged.
+
+## Level 3: your own Cloudflare
+
+The web app is deployed to your Cloudflare account and served from your own
+domain, which `CLOUDFLARE_DOMAIN` names. Everyone signs in at that domain
+itself. Releases are published to a bucket in the same account, so sign-in, the web
+app and updates no longer depend on `intern.kim`.
+
+## Level 4: reachable over SSH from any network
+
+The host still opens no way in, and the product provides none. A level 4
+company chooses its own route to the computer:
+
+- a Cloudflare Tunnel from your own account, with an Access policy in front of
+  it, or a quick tunnel from `trycloudflare.com` for a single session
+- the host on a cloud server that already has a public address
+
+The tunnel or the server is the operator's. `~/.ssh/config` names the route, as
+for [any host](/docs/architecture#why-the-host-has-no-inbound-port).
+
+## The legacy device path
+
+Before these levels there was one appliance per company, reached through
+per-device hostnames on `intern.kim`. It is called the legacy device path, and
+[its page](/docs/device) describes it. It is not a level and nothing new is
+designed against it.
