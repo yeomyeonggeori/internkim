@@ -108,29 +108,42 @@ secret the web app issues once, which the host keeps at
 `/var/lib/internkim/current/secrets/agent-key` and every `/api/agent/*` route
 checks against a SHA-256 hash in `agent.api_key_hash`.
 
-A box needs no shared secret. `internkim box`, a root unit the package ships
+A box is issued no shared secret. `internkim box`, a root unit the package ships
 beside the bundle, keeps an Ed25519 signing key and an X25519 encryption key in
 `/var/lib/internkim/box`. It signs a JWT naming its own public key, valid for a
 minute and refused after two, and trades it at `/api/box/session` for the
-company's settings, an hour-long session as `host.<companyID>@agent.internkim.invalid`,
-and the model key sealed to it. Until a company claims it, it announces itself
-every thirty seconds.
+company's settings and a session as `host.<companyID>@agent.internkim.invalid`.
+That is a Supabase session with a refresh token, made once, and any earlier
+session of the host account ends. Until a company claims it, the box announces
+itself every thirty seconds.
 
 The first session installs the company, exactly as `internkim install` does from
-a file, with the session standing where the agent key stood. After that the
-daemon writes each new session over the old one ten minutes before it expires,
-and every reader of that file reads it per request, so the relay and admind
-never hold a stale one. The routes that take an agent key take the session too,
-and `/api/agent/host-session` hands a session back unrenewed, so a stolen one
-dies within the hour. What admind signs for Blueclaw on a person's behalf uses a
-key of its own, because the session changes hourly and Blueclaw reads its key
-once.
+a file, with the session standing where the agent key stood. The box keeps the
+refresh token in its own file beside its keys, and ten minutes before the hour is
+up it renews straight against the company's Supabase project with that token, so
+renewal never passes through the web app. The new access token is written over the
+old one, and every reader of that file reads it per request, so the relay and
+admind never hold a stale one. If the project refuses the refresh token, the box
+signs a new JWT and starts again at `/api/box/session`.
+
+The model key comes a different way. The company seals it to the box's encryption
+key, and after every session it obtains the box reads the sealed key from its own
+project through `box_sealed_model_key()` and writes it out when it differs. The
+routes that take an agent key take the session too, and `/api/agent/host-session`
+hands a session back unrenewed, so a stolen one dies within the hour. What admind
+signs for Blueclaw on a person's behalf uses a key of its own, because the session
+changes hourly and Blueclaw reads its key once.
+
+The web app makes the first session with GoTrue's magic-link verification, because
+Supabase issues no service-account token without the signing key. The box holds
+two long-lived credentials, the signing key for recovery and the refresh token,
+and both sit under the root-only `/var/lib/internkim/box`.
 
 | | agent key | box keypair |
 |---|---|---|
-| secret that crosses the network | the key, at issuance and on every call | none; only signatures and short sessions |
+| secret that crosses the network | the key, at issuance and on every call | the refresh token, to the company's own project, at the first session and on each renewal; otherwise signatures and short sessions |
 | a copied disk file gives | lasting access until someone revokes it | lasting access until someone resets or reclaims |
-| a leaked request log gives | the key | an expired session |
+| a leaked request log gives | the key | an expired session; the project's request bodies would also give a refresh token |
 | taking it back | revoke in the web app | reset the box or claim another |
 
 A computer the company brings for itself can use the same shape: the host

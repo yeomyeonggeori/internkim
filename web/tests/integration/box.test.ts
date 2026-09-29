@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { SignJWT, exportJWK, generateKeyPair } from 'jose';
+import { SignJWT, decodeJwt, exportJWK, generateKeyPair } from 'jose';
+import { z } from 'zod';
 import { x25519 } from '@noble/curves/ed25519.js';
 import { base64URLOf } from '../../src/lib/company/seal-model-key';
+import { sealedModelKeySchema } from '../../src/lib/company/box';
 import { companyComputerName } from '../../src/lib/company/host-setup';
 import { callingAgent } from '../../src/lib/server/agent-request';
 import {
@@ -22,7 +24,8 @@ import {
 	issueAgentKey,
 	provisionCompany,
 	sessionForHost,
-	sessionForMember
+	sessionForMember,
+	type RefreshableHostSession
 } from '../../src/lib/server/control-plane';
 import { recordTokenFor } from '../../src/lib/server/record-token';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
@@ -74,6 +77,29 @@ async function aCompany(label: string) {
 	);
 	companyIDs.push(provisioned.companyID);
 	return provisioned;
+}
+
+async function refreshableSessionOf(box: Box): Promise<RefreshableHostSession> {
+	const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
+	const session = answered?.session;
+	if (!session || !('refreshToken' in session)) throw new Error('a claimed box that asks for a refreshable session gets one');
+	return session;
+}
+
+const refreshedSchema = z.object({ access_token: z.string(), refresh_token: z.string() });
+
+async function refreshWith(refreshToken: string): Promise<Response> {
+	return fetch(`${projectURL}/auth/v1/token?grant_type=refresh_token`, {
+		method: 'POST',
+		headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ refresh_token: refreshToken })
+	});
+}
+
+async function refreshedThroughTheProject(refreshToken: string) {
+	const answered = await refreshWith(refreshToken);
+	expect(answered.status).toBe(200);
+	return refreshedSchema.parse(await answered.json());
 }
 
 function requestBearing(token: string): Request {
@@ -171,7 +197,7 @@ describe('connecting an empty box', () => {
 		expect((await emptyBoxesAt(client, officeAddress)).map((listed) => listed.publicKey)).not.toContain(box.publicKey);
 	});
 
-	test('a claimed box gets its company, a host session and the model key sealed to it', async () => {
+	test('a claimed box gets its company and a host session, and the model key is not in the answer', async () => {
 		const box = await aBox();
 		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
 		await claimBox(client, companyID, box.publicKey, officeAddress);
@@ -182,7 +208,7 @@ describe('connecting an empty box', () => {
 
 		expect(answered?.configuration.company.id).toBe(companyID);
 		expect(answered?.configuration.appURL).toBe(appURL);
-		expect(answered?.sealedModelKey).toEqual(sealedModelKey);
+		expect(Object.keys(answered ?? {}).sort()).toEqual(['configuration', 'session']);
 		expect(await companyOfHostSession(credentials, answered?.session.accessToken ?? '')).toBe(companyID);
 		expect((await connectedBoxOf(client, companyID))?.lastSeenAt).not.toBeNull();
 	});
@@ -279,7 +305,75 @@ describe('the routes a company computer calls accept its session', () => {
 		const presented = answered?.session;
 		if (!presented) throw new Error('a claimed box gets a session');
 
-		expect(await sessionForHost(credentials, presented.accessToken)).toEqual(presented);
+		expect(await sessionForHost(credentials, presented.accessToken)).toEqual({
+			companyID: presented.companyID,
+			accessToken: presented.accessToken,
+			expiresAt: presented.expiresAt
+		});
+	});
+
+	test('the first session comes with a refresh token the box renews with by itself', async () => {
+		const box = await aBox();
+		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
+		await claimBox(client, companyID, box.publicKey, officeAddress);
+		const first = await refreshableSessionOf(box);
+		expect(first.refreshToken).not.toBe('');
+
+		const renewed = await refreshedThroughTheProject(first.refreshToken);
+
+		expect(renewed.refresh_token).not.toBe(first.refreshToken);
+		expect(await companyOfHostSession(credentials, renewed.access_token)).toBe(companyID);
+		const agent = await callingAgent(requestBearing(renewed.access_token), environment);
+		expect(agent.companyID).toBe(companyID);
+	});
+
+	test('a second refreshable bootstrap ends the first one’s refresh token', async () => {
+		const box = await aBox();
+		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
+		await claimBox(client, companyID, box.publicKey, officeAddress);
+		const first = await refreshableSessionOf(box);
+
+		const second = await refreshableSessionOf(box);
+
+		expect((await refreshWith(first.refreshToken)).status).toBe(400);
+		expect((await refreshedThroughTheProject(second.refreshToken)).refresh_token).not.toBe('');
+	});
+
+	test('a host session an agent key bought has no session to end, and a box bootstrap leaves it valid', async () => {
+		const box = await aBox();
+		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
+		await claimBox(client, companyID, box.publicKey, officeAddress);
+		const issued = await issueAgentKey(client, companyID, `host-session-buyer-${stamp}`);
+		const bought = await sessionForHost(credentials, issued.apiKey);
+		await refreshableSessionOf(box);
+
+		expect(await companyOfHostSession(credentials, bought.accessToken)).toBe(companyID);
+		const agent = await callingAgent(requestBearing(bought.accessToken), environment);
+		expect(agent.companyID).toBe(companyID);
+	});
+
+	test('a refreshed host session reads the model key its company sealed to the box', async () => {
+		const box = await aBox();
+		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
+		await claimBox(client, companyID, box.publicKey, officeAddress);
+		const sealedModelKey = { ephemeralPublicKey: box.encryptionKey, nonce: 'MzMzMzMzMzMzMzMz', ciphertext: 'c2VhbGVk' };
+		await keepSealedModelKey(client, companyID, sealedModelKey);
+		const renewed = await refreshedThroughTheProject((await refreshableSessionOf(box)).refreshToken);
+
+		const answered = await fetch(`${projectURL}/rest/v1/rpc/box_sealed_model_key`, {
+			method: 'POST',
+			headers: { apikey: publishableKey, Authorization: `Bearer ${renewed.access_token}`, 'Content-Type': 'application/json' },
+			body: '{}'
+		});
+
+		expect(answered.status).toBe(200);
+		expect(sealedModelKeySchema.parse(await answered.json())).toEqual(sealedModelKey);
+	});
+
+	test('a refresh token nobody issued renews nothing', async () => {
+		const answered = await refreshWith('not-a-refresh-token');
+
+		expect(answered.status).toBe(400);
 	});
 
 	test('a member’s own session buys no host session', async () => {

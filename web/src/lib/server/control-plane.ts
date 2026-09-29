@@ -644,6 +644,8 @@ export type HostSession = {
 	expiresAt: number;
 };
 
+export type RefreshableHostSession = HostSession & { refreshToken: string };
+
 export function hostAddressOf(companyID: string): string {
 	return `host.${companyID}@agent.internkim.invalid`;
 }
@@ -676,6 +678,29 @@ export async function hostSessionOfCompany(
 		appMetadata: { company_id: companyID },
 	});
 	return { companyID, ...token };
+}
+
+export async function refreshableHostSessionOfCompany(
+	credentials: ControlPlaneCredentials,
+	companyID: string,
+): Promise<RefreshableHostSession> {
+	const client = controlPlane(credentials);
+	const address = hostAddressOf(companyID);
+	await keepHostAccount(client, address, companyID);
+	const link = await client.auth.admin.generateLink({ type: 'magiclink', email: address });
+	if (link.error) throw new Error(`host session for ${companyID}: ${link.error.message}`);
+	const opened = await client.auth.verifyOtp({
+		token_hash: link.data.properties.hashed_token,
+		type: 'magiclink',
+	});
+	if (opened.error || !opened.data.session) {
+		throw new Error(`host session for ${companyID}: ${opened.error?.message ?? 'no session came back'}`);
+	}
+	const { access_token, refresh_token, expires_at } = opened.data.session;
+	if (!expires_at) throw new Error(`host session for ${companyID}: the session has no expiry`);
+	const revoked = await client.auth.admin.signOut(access_token, 'others');
+	if (revoked.error) throw new Error(`host session for ${companyID}: ${revoked.error.message}`);
+	return { companyID, accessToken: access_token, expiresAt: expires_at, refreshToken: refresh_token };
 }
 
 const hostSessionClaimsSchema = z.object({

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,15 +23,17 @@ type Configuration struct {
 }
 
 type HostSession struct {
-	CompanyID   string `json:"companyID"`
-	AccessToken string `json:"accessToken"`
-	ExpiresAt   int64  `json:"expiresAt"`
+	CompanyID    string `json:"companyID"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+	ExpiresAt    int64  `json:"expiresAt"`
 }
 
+var ErrRefreshRefused = errors.New("the project refused this refresh token")
+
 type Session struct {
-	Configuration  Configuration   `json:"configuration"`
-	Session        HostSession     `json:"session"`
-	SealedModelKey *SealedModelKey `json:"sealedModelKey"`
+	Configuration Configuration `json:"configuration"`
+	Session       HostSession   `json:"session"`
 }
 
 type Client struct {
@@ -94,6 +97,64 @@ func (client Client) Session(ctx context.Context, identity Identity) (Session, b
 		return Session{}, false, fmt.Errorf("asking for this box's session: %w", errorValue)
 	}
 	return session, true, nil
+}
+
+func (client Client) Refresh(ctx context.Context, plane companyhost.CentralPlane, refreshToken string) (HostSession, error) {
+	body, errorValue := json.Marshal(map[string]string{"refresh_token": refreshToken})
+	if errorValue != nil {
+		return HostSession{}, errorValue
+	}
+	address := strings.TrimRight(plane.ProjectURL, "/") + "/auth/v1/token?grant_type=refresh_token"
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, address, bytes.NewReader(body))
+	if errorValue != nil {
+		return HostSession{}, errorValue
+	}
+	request.Header.Set("apikey", plane.PublishableKey)
+	request.Header.Set("Content-Type", "application/json")
+	response, errorValue := client.httpClient().Do(request)
+	if errorValue != nil {
+		return HostSession{}, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+		return HostSession{}, fmt.Errorf("%w: %w", ErrRefreshRefused, refusalOf(response, "renewing this box's session"))
+	}
+	if response.StatusCode != http.StatusOK {
+		return HostSession{}, refusalOf(response, "renewing this box's session")
+	}
+	var renewed struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresAt    int64  `json:"expires_at"`
+	}
+	if errorValue := json.NewDecoder(response.Body).Decode(&renewed); errorValue != nil {
+		return HostSession{}, fmt.Errorf("renewing this box's session: %w", errorValue)
+	}
+	return HostSession{AccessToken: renewed.AccessToken, RefreshToken: renewed.RefreshToken, ExpiresAt: renewed.ExpiresAt}, nil
+}
+
+func (client Client) SealedModelKey(ctx context.Context, plane companyhost.CentralPlane, accessToken string) (*SealedModelKey, error) {
+	address := strings.TrimRight(plane.ProjectURL, "/") + "/rest/v1/rpc/box_sealed_model_key"
+	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, address, strings.NewReader("{}"))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	request.Header.Set("apikey", plane.PublishableKey)
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+	request.Header.Set("Content-Type", "application/json")
+	response, errorValue := client.httpClient().Do(request)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, refusalOf(response, "reading this box's model key")
+	}
+	var sealedModelKey *SealedModelKey
+	if errorValue := json.NewDecoder(response.Body).Decode(&sealedModelKey); errorValue != nil {
+		return nil, fmt.Errorf("reading this box's model key: %w", errorValue)
+	}
+	return sealedModelKey, nil
 }
 
 func (client Client) post(ctx context.Context, identity Identity, path string, body []byte) (*http.Response, error) {

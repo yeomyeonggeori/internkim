@@ -17,10 +17,10 @@ import {
 	companyOfFleet,
 	controlPlane,
 	fleetCredentialKind,
-	hostSessionOfCompany,
+	refreshableHostSessionOfCompany,
 	spendAgentKey,
-	type HostSession,
-	type SigningCredentials
+	type RefreshableHostSession,
+	type ControlPlaneCredentials
 } from './control-plane';
 
 export const boxAssertionAudience = 'internkim-box';
@@ -191,12 +191,11 @@ export async function keepSealedModelKey(
 
 export type BoxSession = {
 	configuration: BoxConfiguration;
-	session: HostSession;
-	sealedModelKey: SealedModelKey | null;
+	session: RefreshableHostSession;
 };
 
 export async function boxSessionFor(
-	credentials: SigningCredentials,
+	credentials: ControlPlaneCredentials,
 	publicKey: string,
 	environment: Environment,
 	appURL: string
@@ -210,8 +209,7 @@ export async function boxSessionFor(
 	await writeBoxSettings(client, box, { ...box.settings, lastSeenAt: new Date().toISOString() });
 	return {
 		configuration: await boxConfigurationOf(client, companyID, environment, appURL),
-		session: await hostSessionOfCompany(credentials, companyID),
-		sealedModelKey: box.settings.sealedModelKey ?? null
+		session: await refreshableHostSessionOfCompany(credentials, companyID)
 	};
 }
 
