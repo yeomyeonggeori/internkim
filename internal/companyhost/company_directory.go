@@ -38,6 +38,10 @@ func CurrentConnectionPath() string {
 	return filepath.Join(blueclaw.CompanyHostCurrentPath, connectionFileName)
 }
 
+func StoredConnectionPath(stateDirectoryPath string) string {
+	return filepath.Join(stateDirectoryPath, connectionFileName)
+}
+
 func DefaultStateDirectoryPath(companyID string) string {
 	return filepath.Join(blueclaw.CompanyHostCompaniesRoot, companyID)
 }
