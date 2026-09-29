@@ -15,6 +15,14 @@
 	import * as InputGroup from '$lib/components/ui/input-group/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import MentionPopup from './mention-popup.svelte';
+	import EmojiPicker from './emoji-picker.svelte';
+	import ComposerFormatToolbar from './composer-format-toolbar.svelte';
+	import {
+		applyComposerFormat,
+		insertIntoDraft,
+		type ComposerDraft,
+		type ComposerFormat
+	} from './composer-formatting';
 	import { composerEditing, type EditingMessage } from './message-edit';
 	import { canChangeMessages } from './channel-api';
 	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
@@ -24,8 +32,10 @@
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
+	import AtSignIcon from '@lucide/svelte/icons/at-sign';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { onDestroy, tick } from 'svelte';
 
@@ -157,10 +167,37 @@
 		if (!element) return;
 		const written = mentions.take(element.value, element.selectionStart ?? element.value.length, candidate);
 		if (!written) return;
-		value = written.text;
+		await writeDraft({ text: written.text, selectionStart: written.cursor, selectionEnd: written.cursor });
+	}
+
+	function currentDraft(): ComposerDraft | undefined {
+		if (!textarea) return undefined;
+		return { text: textarea.value, selectionStart: textarea.selectionStart, selectionEnd: textarea.selectionEnd };
+	}
+
+	async function writeDraft(draft: ComposerDraft): Promise<void> {
+		value = draft.text;
 		await tick();
-		element.focus();
-		element.setSelectionRange(written.cursor, written.cursor);
+		textarea?.focus();
+		textarea?.setSelectionRange(draft.selectionStart, draft.selectionEnd);
+	}
+
+	function format(chosen: ComposerFormat): void {
+		const draft = currentDraft();
+		if (draft) void writeDraft(applyComposerFormat(draft, chosen));
+	}
+
+	function insertEmoji(glyph: string): void {
+		const draft = currentDraft();
+		if (draft) void writeDraft(insertIntoDraft(draft, glyph));
+	}
+
+	async function startMention(): Promise<void> {
+		const draft = currentDraft();
+		if (!draft) return;
+		const needsSpace = draft.selectionStart > 0 && !/\s/.test(draft.text[draft.selectionStart - 1]);
+		await writeDraft(insertIntoDraft(draft, needsSpace ? ' @' : '@'));
+		refreshMentions();
 	}
 
 	function handledByMentions(event: KeyboardEvent): boolean {
@@ -242,6 +279,7 @@
 		</div>
 	{/if}
 	<InputGroup.Root>
+		<ComposerFormatToolbar {disabled} onFormat={format} />
 		<InputGroup.Textarea
 			bind:value
 			bind:ref={textarea}
@@ -269,6 +307,18 @@
 			>
 				<PlusIcon />
 			</InputGroup.Button>
+			<EmojiPicker onPick={insertEmoji} side="top" align="start">
+				{#snippet trigger({ props })}
+					<InputGroup.Button {...props} size="icon-sm" aria-label={text.addEmoji} {disabled}>
+						<SmilePlusIcon />
+					</InputGroup.Button>
+				{/snippet}
+			</EmojiPicker>
+			{#if canMention}
+				<InputGroup.Button size="icon-sm" aria-label={text.addMention} {disabled} onclick={() => void startMention()}>
+					<AtSignIcon />
+				</InputGroup.Button>
+			{/if}
 			<InputGroup.Button
 				type="submit"
 				variant="default"
