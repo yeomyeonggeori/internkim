@@ -9,10 +9,6 @@ import (
 )
 
 func TestPerformSSHRecoveryRequestSignsPublicAdminRequest(t *testing.T) {
-	stateDirectory := t.TempDir()
-	saveState(stateDirectory, "device_url", "https://device.example")
-	saveState(stateDirectory, "fleet_id", "fleet-1")
-	saveState(stateDirectory, "fleet_secret", "secret-1")
 
 	originalRecoveryHTTPClient := recoveryHTTPClient
 	defer func() { recoveryHTTPClient = originalRecoveryHTTPClient }()
@@ -39,8 +35,9 @@ func TestPerformSSHRecoveryRequestSignsPublicAdminRequest(t *testing.T) {
 	})}
 
 	response, errorValue := performSSHRecoveryRequest(commandTarget{
-		stateDir:  stateDirectory,
-		deviceURL: "https://device.example",
+		deviceURL:   "https://device.example",
+		fleetID:     "fleet-1",
+		fleetSecret: "secret-1",
 	}, "restart-cloudflared-node-ssh", "")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -52,18 +49,14 @@ func TestPerformSSHRecoveryRequestSignsPublicAdminRequest(t *testing.T) {
 
 func TestPerformSSHRecoveryRequestRequiresFleetIdentity(t *testing.T) {
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
-		stateDir:  t.TempDir(),
 		deviceURL: "https://device.example",
 	}, "status", "")
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "fleet identity") {
-		t.Fatalf("expected fleet identity error, got %v", errorValue)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "INTERNKIM_FLEET_SECRET") {
+		t.Fatalf("expected the refusal to name the missing key, got %v", errorValue)
 	}
 }
 
 func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T) {
-	stateDirectory := t.TempDir()
-	saveState(stateDirectory, "fleet_id", "fleet-1")
-	saveState(stateDirectory, "fleet_secret", "secret-1")
 
 	originalRecoveryHTTPClient := recoveryHTTPClient
 	originalStatusHTTPClient := statusHTTPClient
@@ -87,8 +80,9 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 	statusHTTPClient = stubbedClient
 
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
-		stateDir:  stateDirectory,
-		deviceURL: "https://device.example",
+		deviceURL:   "https://device.example",
+		fleetID:     "fleet-1",
+		fleetSecret: "secret-1",
 	}, "status", "")
 	for _, expectedText := range []string{"recovery endpoint redirected", "location=\"/admin/\"", "health=HTTP 200"} {
 		if errorValue == nil || !strings.Contains(errorValue.Error(), expectedText) {

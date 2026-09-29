@@ -36,18 +36,6 @@ func runStatusArguments(arguments []string) error {
 	if hasCommandArgument(arguments, "--recover-ssh") {
 		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh", "", false)
 	}
-	if hasCommandArgument(arguments, "--all-nodes") {
-		targets := allFleetCommandTargets(target)
-		if len(targets) == 0 {
-			return errors.New("no fleet nodes are known locally")
-		}
-		for _, fleetTarget := range targets {
-			fleetTarget = resolveLabHostForCommandTarget(fleetTarget, repositoryRootPath)
-			printStatusForCommandTarget(m, configuration, sshpassBin, fleetTarget)
-		}
-		return nil
-	}
-
 	return printStatusForCommandTarget(m, configuration, sshpassBin, target)
 }
 

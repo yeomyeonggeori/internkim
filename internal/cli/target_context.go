@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gitlab.com/eastriver/internkim/internal/deployops"
 	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
@@ -24,7 +25,6 @@ const (
 
 type commandTarget struct {
 	mode           commandTargetMode
-	profile        string
 	boardType      string
 	baseStateDir   string
 	stateDir       string
@@ -36,6 +36,8 @@ type commandTarget struct {
 	sshPassword    string
 	deviceURL      string
 	sshHostname    string
+	fleetID        string
+	fleetSecret    string
 	useRemoteSSH   bool
 }
 
@@ -74,19 +76,19 @@ func resolveCommandTarget(arguments []string) commandTarget {
 	if hasCommandArgument(arguments, "--sim") {
 		boardType = commandTargetBoardSimulation
 	}
-	profile := commandTargetProfileName(arguments)
-	baseStateDir := commandTargetStateDir(commandTargetRootDir(profile), boardType)
+	mode := commandTargetModeForBoardType(boardType)
+	baseStateDir := commandTargetStateDir(internkimHomeDir(), boardType)
 	nodeID := commandTargetNodeID(arguments)
 	stateDir := resolveCommandTargetStateDir(baseStateDir, nodeID, commandArgumentValue(arguments, "--host", "") != "")
 	applyFleetTargetArguments(stateDir, baseStateDir, arguments)
+	device := deviceTargetFor(mode, stateDir)
 	sshUser, sshPassword := resolveSetupSSHCredentials(
 		boardType,
 		commandArgumentValue(arguments, "--user", ""),
 		commandArgumentValue(arguments, "--password", ""),
 	)
 	return commandTarget{
-		mode:           commandTargetModeForBoardType(boardType),
-		profile:        profile,
+		mode:           mode,
 		boardType:      boardType,
 		baseStateDir:   baseStateDir,
 		stateDir:       stateDir,
@@ -96,29 +98,33 @@ func resolveCommandTarget(arguments []string) commandTarget {
 		host:           commandArgumentValue(arguments, "--host", ""),
 		sshUser:        sshUser,
 		sshPassword:    sshPassword,
-		deviceURL:      firstNonEmptyString(commandArgumentValue(arguments, "--device-url", ""), loadState(stateDir, "device_url")),
-		sshHostname:    loadState(stateDir, "ssh_hostname"),
+		deviceURL:      firstNonEmptyString(commandArgumentValue(arguments, "--device-url", ""), device.AdminURL),
+		sshHostname:    device.SSHHostname,
+		fleetID:        device.FleetID,
+		fleetSecret:    device.FleetSecret,
 		useRemoteSSH:   hasCommandArgument(arguments, "--remote-ssh"),
 	}
 }
 
-func commandTargetProfileName(arguments []string) string {
-	value := strings.TrimSpace(commandArgumentValue(arguments, "--profile", ""))
-	if value == "" {
-		value = strings.TrimSpace(os.Getenv("INTERNKIM_PROFILE"))
+func deviceTargetFor(mode commandTargetMode, stateDir string) deployops.Target {
+	if mode == commandTargetModePhysical {
+		device, _ := deployops.DeviceTargetFromEnvironment()
+		return device
 	}
-	normalizedValue := setupNodeIdentityName(value)
-	if normalizedValue == "default" {
-		return ""
+	return deployops.Target{
+		AdminURL:    loadState(stateDir, "device_url"),
+		SSHHostname: loadState(stateDir, "ssh_hostname"),
+		FleetID:     loadState(stateDir, "fleet_id"),
+		FleetSecret: loadState(stateDir, "fleet_secret"),
 	}
-	return normalizedValue
 }
 
-func commandTargetRootDir(profile string) string {
-	if strings.TrimSpace(profile) == "" {
-		return internkimHomeDir()
+func (target commandTarget) fleetIdentity() (string, string, error) {
+	if target.fleetID == "" || target.fleetSecret == "" {
+		return "", "", fmt.Errorf("the vault names no %s and %s for this device; run it as `internkim @production …`",
+			deployops.FleetIDVariable, deployops.FleetSecretVariable)
 	}
-	return filepath.Join(internkimHomeDir(), "profiles", profile)
+	return target.fleetID, target.fleetSecret, nil
 }
 
 func commandTargetModeForBoardType(boardType string) commandTargetMode {
@@ -154,15 +160,12 @@ func resolveLabHostForCommandTarget(target commandTarget, repositoryRootPath str
 
 func printCommandTargetEvidence(target commandTarget) {
 	fmt.Printf("Target: %s (%s)\n", target.boardType, target.mode)
-	if strings.TrimSpace(target.profile) != "" {
-		fmt.Printf("Profile: %s\n", target.profile)
-	}
 	fmt.Printf("State: %s\n", target.stateDir)
 	if strings.TrimSpace(target.nodeID) != "" {
 		fmt.Printf("Node: %s\n", target.nodeID)
 	}
-	if fleetID := strings.TrimSpace(loadState(target.stateDir, "fleet_id")); fleetID != "" {
-		fmt.Printf("Fleet: %s\n", fleetID)
+	if target.fleetID != "" {
+		fmt.Printf("Fleet: %s\n", target.fleetID)
 	}
 	if strings.TrimSpace(target.fleetRole) != "" {
 		fmt.Printf("Role: %s\n", target.fleetRole)
@@ -317,52 +320,11 @@ func firstActiveFleetNodeID(baseStateDir string) string {
 	return ""
 }
 
-func activeFleetCommandTargets(baseTarget commandTarget) []commandTarget {
-	return fleetCommandTargetsByRole(baseTarget, "active")
-}
-
-func allFleetCommandTargets(baseTarget commandTarget) []commandTarget {
-	targets := fleetCommandTargetsByRole(baseTarget, "active")
-	targets = append(targets, fleetCommandTargetsByRole(baseTarget, "pending")...)
-	return targets
-}
-
-func fleetCommandTargetsByRole(baseTarget commandTarget, role string) []commandTarget {
-	boardStateDirectories, errorValue := os.ReadDir(filepath.Join(baseTarget.baseStateDir, "boards"))
-	if errorValue != nil {
-		return nil
-	}
-	targets := []commandTarget{}
-	for _, boardStateDirectory := range boardStateDirectories {
-		if !boardStateDirectory.IsDir() {
-			continue
-		}
-		stateDir := filepath.Join(baseTarget.baseStateDir, "boards", boardStateDirectory.Name())
-		if loadState(stateDir, "fleet_role") != role {
-			continue
-		}
-		target := baseTarget
-		target.stateDir = stateDir
-		target.nodeID = loadNodeID(stateDir)
-		target.fleetRole = loadState(stateDir, "fleet_role")
-		target.deviceURL = loadState(stateDir, "device_url")
-		target.sshHostname = loadState(stateDir, "ssh_hostname")
-		target.host = ""
-		target.isNodeExplicit = true
-		targets = append(targets, target)
-	}
-	return targets
-}
-
 func applyFleetTargetArguments(stateDir string, baseStateDir string, arguments []string) {
 	if fleetID := strings.TrimSpace(commandArgumentValue(arguments, "--fleet", "")); fleetID != "" {
 		saveState(stateDir, "fleet_id", strings.ToLower(fleetID))
 	}
-	fleetSecret := strings.TrimSpace(commandArgumentValue(arguments, "--fleet-secret", ""))
-	if fleetSecret == "" {
-		fleetSecret = strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_SECRET"))
-	}
-	if fleetSecret != "" {
+	if fleetSecret := strings.TrimSpace(commandArgumentValue(arguments, "--fleet-secret", "")); fleetSecret != "" {
 		saveState(stateDir, "fleet_secret", fleetSecret)
 	}
 	if loadState(stateDir, "fleet_id") == "" {

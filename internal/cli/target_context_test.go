@@ -3,8 +3,10 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"gitlab.com/eastriver/internkim/internal/deployops"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
 
@@ -64,65 +66,53 @@ func TestResolveCommandTargetKeepsSimulationOutOfDeviceState(t *testing.T) {
 	}
 }
 
-func TestResolveCommandTargetUsesProfileScopedState(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-
-	target := resolveCommandTarget([]string{"--profile", "Company A"})
-	expectedStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "company-a", "devices", setup.BoardJetsonOrinNano)
-
-	if target.profile != "company-a" {
-		t.Fatalf("expected profile company-a, got %q", target.profile)
-	}
-	if target.stateDir != expectedStateDir {
-		t.Fatalf("expected profile state dir %q, got %q", expectedStateDir, target.stateDir)
-	}
-}
-
-func TestResolveCommandTargetKeepsProfilesIsolated(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-	defaultStateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
-	profileStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "acme", "devices", setup.BoardJetsonOrinNano)
-	if errorValue := os.MkdirAll(defaultStateDir, 0o700); errorValue != nil {
-		t.Fatalf("expected default state dir: %v", errorValue)
-	}
-	if errorValue := os.MkdirAll(profileStateDir, 0o700); errorValue != nil {
-		t.Fatalf("expected profile state dir: %v", errorValue)
-	}
-	saveState(defaultStateDir, "fleet_id", "default-fleet")
-	saveState(profileStateDir, "fleet_id", "acme-fleet")
-
-	target := resolveCommandTarget([]string{"--profile", "acme"})
-
-	if loadState(target.stateDir, "fleet_id") != "acme-fleet" {
-		t.Fatalf("expected profile fleet id, got %q", loadState(target.stateDir, "fleet_id"))
-	}
-}
-
-func TestResolveCommandTargetUsesProfileAndNodeScopedState(t *testing.T) {
-	homeDirectory := t.TempDir()
-	t.Setenv("HOME", homeDirectory)
-
-	target := resolveCommandTarget([]string{"--profile", "acme", "--node", "1"})
-	expectedStateDir := filepath.Join(homeDirectory, ".internkim", "profiles", "acme", "devices", setup.BoardJetsonOrinNano, "boards", "1")
-
-	if target.stateDir != expectedStateDir {
-		t.Fatalf("expected profile node state dir %q, got %q", expectedStateDir, target.stateDir)
-	}
-	if loadState(target.stateDir, "node_id") != "1" {
-		t.Fatalf("expected profile node id, got %q", loadState(target.stateDir, "node_id"))
-	}
-}
-
-func TestResolveCommandTargetReadsRemoteSSHFlag(t *testing.T) {
+func TestTheVaultNamesThePhysicalDevice(t *testing.T) {
 	homeDirectory := t.TempDir()
 	t.Setenv("HOME", homeDirectory)
 	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
 	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected state dir: %v", errorValue)
 	}
-	saveState(stateDir, "ssh_hostname", "ssh.device.example.test")
+	saveState(stateDir, "device_url", "https://left-behind.example.test")
+	saveState(stateDir, "fleet_secret", "left-behind-secret")
+	t.Setenv(deployops.DeviceURLVariable, "https://fleetexample.example.test")
+	t.Setenv(deployops.SSHHostnameVariable, "0.ssh.fleetexample.example.test")
+	t.Setenv(deployops.FleetIDVariable, "fleetexample")
+	t.Setenv(deployops.FleetSecretVariable, "vault-secret")
+
+	target := resolveCommandTarget(nil)
+
+	if target.deviceURL != "https://fleetexample.example.test" || target.sshHostname != "0.ssh.fleetexample.example.test" {
+		t.Fatalf("the target was not the device the vault names: %+v", target)
+	}
+	if fleetID, fleetSecret, errorValue := target.fleetIdentity(); errorValue != nil || fleetID != "fleetexample" || fleetSecret != "vault-secret" {
+		t.Fatalf("the fleet identity was not the vault's: %q %q %v", fleetID, fleetSecret, errorValue)
+	}
+}
+
+func TestAVaultNamingNoDeviceLeavesThePhysicalTargetUnnamed(t *testing.T) {
+	homeDirectory := t.TempDir()
+	t.Setenv("HOME", homeDirectory)
+	stateDir := filepath.Join(homeDirectory, ".internkim", "devices", setup.BoardJetsonOrinNano)
+	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
+		t.Fatalf("expected state dir: %v", errorValue)
+	}
+	saveState(stateDir, "fleet_id", "left-behind")
+	saveState(stateDir, "fleet_secret", "left-behind-secret")
+	for _, name := range []string{deployops.DeviceURLVariable, deployops.SSHHostnameVariable, deployops.FleetIDVariable, deployops.FleetSecretVariable} {
+		t.Setenv(name, "")
+	}
+
+	_, _, errorValue := resolveCommandTarget(nil).fleetIdentity()
+
+	if errorValue == nil || !strings.Contains(errorValue.Error(), deployops.FleetSecretVariable) {
+		t.Fatalf("a device state file stood in for the vault: %v", errorValue)
+	}
+}
+
+func TestResolveCommandTargetReadsRemoteSSHFlag(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(deployops.SSHHostnameVariable, "ssh.device.example.test")
 
 	target := resolveCommandTarget([]string{"--remote-ssh"})
 
@@ -130,7 +120,7 @@ func TestResolveCommandTargetReadsRemoteSSHFlag(t *testing.T) {
 		t.Fatalf("expected the remote ssh flag")
 	}
 	if target.sshHostname != "ssh.device.example.test" {
-		t.Fatalf("expected SSH hostname from state, got %q", target.sshHostname)
+		t.Fatalf("expected the SSH hostname the vault names, got %q", target.sshHostname)
 	}
 }
 
@@ -423,7 +413,7 @@ func TestResolveVerifyTargetUsesTheSavedHostnameWithoutLocalProbe(t *testing.T) 
 	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected state dir: %v", errorValue)
 	}
-	saveState(stateDir, "ssh_hostname", "0.ssh.example.test")
+	t.Setenv(deployops.SSHHostnameVariable, "0.ssh.example.test")
 
 	target, errorValue := resolveVerifyTarget([]string{"--remote-ssh"})
 	if errorValue != nil {

@@ -32,13 +32,9 @@ func Serve(contextValue context.Context, options ServerOptions) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	registry, errorValue := LoadRegistry(normalizedOptions.RepositoryRootPath, normalizedOptions.InternKimHomePath)
-	if errorValue != nil {
-		return errorValue
-	}
 	server := &Server{
 		options:  normalizedOptions,
-		registry: registry,
+		registry: LoadRegistry(),
 		jobs:     NewJobStore(),
 		client:   &http.Client{Timeout: 8 * time.Second},
 	}
@@ -87,13 +83,6 @@ func normalizeServerOptions(options ServerOptions) (ServerOptions, error) {
 		}
 		options.RepositoryRootPath = repositoryRootPath
 	}
-	if strings.TrimSpace(options.InternKimHomePath) == "" {
-		homePath, errorValue := os.UserHomeDir()
-		if errorValue != nil {
-			return options, errorValue
-		}
-		options.InternKimHomePath = filepath.Join(homePath, ".internkim")
-	}
 	if strings.TrimSpace(options.ExecutablePath) == "" {
 		executablePath, errorValue := os.Executable()
 		if errorValue != nil {
@@ -140,34 +129,11 @@ func (server *Server) handleLocale(responseWriter http.ResponseWriter, request *
 }
 
 func (server *Server) handleTargets(responseWriter http.ResponseWriter, request *http.Request) {
-	switch request.Method {
-	case http.MethodGet:
-		writeJSON(responseWriter, http.StatusOK, server.registry.Targets)
-	case http.MethodPost:
-		server.handleCreateTarget(responseWriter, request)
-	default:
+	if request.Method != http.MethodGet {
 		writeError(responseWriter, http.StatusMethodNotAllowed, "method not allowed")
-	}
-}
-
-func (server *Server) handleCreateTarget(responseWriter http.ResponseWriter, request *http.Request) {
-	var target Target
-	if errorValue := json.NewDecoder(request.Body).Decode(&target); errorValue != nil {
-		writeError(responseWriter, http.StatusBadRequest, errorValue.Error())
 		return
 	}
-	target = normalizeTarget(target)
-	if target.AdminURL == "" {
-		writeError(responseWriter, http.StatusBadRequest, "adminURL is required")
-		return
-	}
-	server.registry.Targets = append(server.registry.Targets, target)
-	server.registry = normalizeRegistry(server.registry)
-	if errorValue := SaveRegistry(server.options.RepositoryRootPath, server.registry); errorValue != nil {
-		writeError(responseWriter, http.StatusInternalServerError, errorValue.Error())
-		return
-	}
-	writeJSON(responseWriter, http.StatusCreated, target)
+	writeJSON(responseWriter, http.StatusOK, server.registry.Targets)
 }
 
 func (server *Server) handleTargetResource(responseWriter http.ResponseWriter, request *http.Request) {

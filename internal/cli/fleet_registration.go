@@ -176,10 +176,7 @@ func savedRemoteSSHHostname(target commandTarget) string {
 	if target.useRemoteSSH && strings.TrimSpace(target.host) != "" {
 		return strings.TrimSpace(target.host)
 	}
-	if strings.TrimSpace(target.sshHostname) != "" {
-		return strings.TrimSpace(target.sshHostname)
-	}
-	return strings.TrimSpace(loadState(target.stateDir, "ssh_hostname"))
+	return strings.TrimSpace(target.sshHostname)
 }
 
 func updateRemoteDeviceRegistration(connection *sshClient, configuration config, response *registerResponse) {

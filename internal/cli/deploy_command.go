@@ -28,7 +28,7 @@ func runDeploy() {
 		runDeployLegacySSH()
 		return
 	}
-	if errorValue := runRegistryReleaseDeploy(arguments); errorValue != nil {
+	if errorValue := runReleaseDeploy(arguments); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }
@@ -45,30 +45,21 @@ func runDeployLegacySSH() {
 		fatal(errorValue.Error())
 	}
 
-	targets := []commandTarget{resolveCommandTarget(arguments)}
-	if hasCommandArgument(arguments, "--all-active") {
-		targets = activeFleetCommandTargets(targets[0])
-		if len(targets) == 0 {
-			fatal("No active fleet nodes are known locally.")
-		}
+	target := resolveCommandTarget(arguments)
+	if strings.TrimSpace(target.fleetRole) == "pending" {
+		fatal("Refusing to deploy to pending node " + target.nodeID)
 	}
-
-	for _, target := range targets {
-		if strings.TrimSpace(target.fleetRole) == "pending" {
-			fatal("Refusing to deploy to pending node " + target.nodeID)
-		}
-		ssh, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
-		if errorValue != nil {
-			fatal(errorValue.Error())
-		}
-		target.host = ssh.host
-		target.useRemoteSSH = isRemote
-		printCommandTargetEvidence(target)
-		if hasSelectedSetupSteps {
-			runLegacySSHSetupDeploy(configuration, scriptDir, target, ssh, setupStepNames)
-		} else {
-			runDeployToBoard(scriptDir, boardBinDir, ssh)
-		}
+	ssh, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	target.host = ssh.host
+	target.useRemoteSSH = isRemote
+	printCommandTargetEvidence(target)
+	if hasSelectedSetupSteps {
+		runLegacySSHSetupDeploy(configuration, scriptDir, target, ssh, setupStepNames)
+	} else {
+		runDeployToBoard(scriptDir, boardBinDir, ssh)
 	}
 	fmt.Println("Deploy complete.")
 }

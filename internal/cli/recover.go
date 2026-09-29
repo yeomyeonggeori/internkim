@@ -172,10 +172,9 @@ func performSSHRecoveryRequest(target commandTarget, action string, actionTarget
 	if deviceURL == "" {
 		return response, errors.New("device URL is not configured; run setup on the device network first")
 	}
-	fleetID := strings.TrimSpace(loadState(target.stateDir, "fleet_id"))
-	fleetSecret := strings.TrimSpace(loadState(target.stateDir, "fleet_secret"))
-	if fleetID == "" || fleetSecret == "" {
-		return response, errors.New("fleet identity is not configured in local device state")
+	fleetID, fleetSecret, errorValue := target.fleetIdentity()
+	if errorValue != nil {
+		return response, errorValue
 	}
 	endpointURL, errorValue := publicEndpointURL(deviceURL, "/admin/api/recovery/ssh-tunnel/restart")
 	if errorValue != nil {

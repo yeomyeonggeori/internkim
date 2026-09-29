@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/deployops"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 )
 
@@ -40,7 +38,6 @@ Options:
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).
-  --fleet <id>         Restrict registry deploy to fleet target ID(s). Repeatable or comma-separated.
   --node <id>          Target a specific node by ID.
   --legacy-ssh         Copy skills and workspace tools straight over ssh.
   -h, --help           Print this usage and exit.`
@@ -53,13 +50,11 @@ func validateDeployArguments(arguments []string) error {
 		"--components": true,
 		"--release":    true,
 		"--channel":    true,
-		"--fleet":      true,
 		"--node":       true,
 		"--node-id":    true,
 		"--host":       true,
 		"--device-url": true,
 		"--legacy-ssh": true,
-		"--all-active": true,
 		"--board":      true,
 		"--board-type": true,
 		"--sim":        true,
@@ -70,7 +65,6 @@ func validateDeployArguments(arguments []string) error {
 		"--components": true,
 		"--release":    true,
 		"--channel":    true,
-		"--fleet":      true,
 		"--node":       true,
 		"--node-id":    true,
 		"--host":       true,
@@ -101,106 +95,7 @@ func validateDeployArguments(arguments []string) error {
 	return nil
 }
 
-func runRegistryReleaseDeploy(arguments []string) error {
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	registry, errorValue := deployops.LoadRegistry(repositoryRootPath, internkimHomeDir())
-	if errorValue != nil {
-		return errorValue
-	}
-	targets, shouldUseRegistry, errorValue := selectRegistryDeployTargets(registry, arguments)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !shouldUseRegistry {
-		return runDirectReleaseDeploy(arguments)
-	}
-	return deployReleaseToRegistryTargets(repositoryRootPath, targets, arguments)
-}
-
-func selectRegistryDeployTargets(registry deployops.TargetRegistry, arguments []string) ([]deployops.Target, bool, error) {
-	fleetIDs := deployFleetIDs(arguments)
-	if len(registry.Targets) == 0 {
-		return nil, false, nil
-	}
-	if len(fleetIDs) == 0 && hasExplicitSingleDeployTarget(arguments) {
-		return nil, false, nil
-	}
-	targets, errorValue := deployops.SelectTargets(registry, fleetIDs)
-	if errorValue != nil {
-		return nil, false, errorValue
-	}
-	return targets, true, nil
-}
-
-func hasExplicitSingleDeployTarget(arguments []string) bool {
-	for _, name := range []string{"--host", "--node", "--node-id", "--board", "--sim"} {
-		if hasCommandArgument(arguments, name) {
-			return true
-		}
-	}
-	return false
-}
-
-func deployFleetIDs(arguments []string) []string {
-	fleetIDs := []string{}
-	for index := 0; index < len(arguments); index++ {
-		argument := arguments[index]
-		switch {
-		case argument == "--fleet" && index+1 < len(arguments):
-			fleetIDs = appendFleetIDs(fleetIDs, arguments[index+1])
-			index++
-		case strings.HasPrefix(argument, "--fleet="):
-			fleetIDs = appendFleetIDs(fleetIDs, strings.TrimPrefix(argument, "--fleet="))
-		}
-	}
-	return fleetIDs
-}
-
-func appendFleetIDs(fleetIDs []string, value string) []string {
-	for _, fleetID := range strings.Split(value, ",") {
-		fleetID = strings.TrimSpace(fleetID)
-		if fleetID != "" {
-			fleetIDs = append(fleetIDs, fleetID)
-		}
-	}
-	return fleetIDs
-}
-
-func deployReleaseToRegistryTargets(repositoryRootPath string, targets []deployops.Target, arguments []string) error {
-	for _, target := range targets {
-		if target.ResolvedKind() != "jetson" {
-			return fmt.Errorf("unsupported target kind %q for %s", target.ResolvedKind(), target.ID)
-		}
-	}
-	return deployReleaseToJetsonTargets(repositoryRootPath, targets, arguments)
-}
-
 const deployReleaseChannel = "direct"
-
-func deployReleaseToJetsonTargets(repositoryRootPath string, targets []deployops.Target, arguments []string) error {
-	if len(targets) == 0 {
-		return nil
-	}
-	selectedComponentNames, errorValue := selectedReleaseComponentNames(arguments)
-	if errorValue != nil {
-		return errorValue
-	}
-	releaseID := defaultReleaseID(repositoryRootPath)
-	fmt.Printf("Release: %s\n", releaseID)
-	if errorValue := publishRelease(repositoryRootPath, releaseID, deployReleaseChannel, selectedComponentNames, 10); errorValue != nil {
-		return errorValue
-	}
-	for _, target := range targets {
-		fmt.Printf("Target: %s (%s)\n", target.ID, target.ResolvedKind())
-		if errorValue := applyPublishedRelease(commandTargetFromDeployTarget(target), releaseID); errorValue != nil {
-			return errorValue
-		}
-	}
-	return nil
-}
 
 func applyPublishedRelease(target commandTarget, releaseID string) error {
 	api, errorValue := reachDeviceReleaseAPI(target)
@@ -231,23 +126,7 @@ func printSetupDrift(api deviceReleaseAPI) {
 	}
 }
 
-func commandTargetFromDeployTarget(target deployops.Target) commandTarget {
-	sshUser, sshPassword := resolveSetupSSHCredentials(setup.BoardJetsonOrinNano, "", "")
-	return commandTarget{
-		mode:           commandTargetModePhysical,
-		profile:        target.Profile,
-		boardType:      setup.BoardJetsonOrinNano,
-		stateDir:       target.StatePath,
-		nodeID:         target.NodeID,
-		isNodeExplicit: target.NodeArgument != "" || target.NodeID != "",
-		deviceURL:      target.AdminURL,
-		sshUser:        sshUser,
-		sshPassword:    sshPassword,
-		sshHostname:    loadState(target.StatePath, "ssh_hostname"),
-	}
-}
-
-func runDirectReleaseDeploy(arguments []string) error {
+func runReleaseDeploy(arguments []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
