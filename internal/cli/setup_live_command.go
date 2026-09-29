@@ -404,7 +404,7 @@ func collectSetupParameterValues() setupParameterValues {
 	}
 }
 
-func buildOpenRouterKeyCallback(stateDir string, messenger *msg, openRouterAPIKey string, nonInteractive bool) func(force bool) (string, error) {
+func buildOpenRouterKeyCallback(messenger *msg, openRouterAPIKey string, nonInteractive bool) func(force bool) (string, error) {
 	return func(force bool) (string, error) {
 		if openRouterAPIKey != "" {
 			return openRouterAPIKey, nil
@@ -412,15 +412,15 @@ func buildOpenRouterKeyCallback(stateDir string, messenger *msg, openRouterAPIKe
 		if envKey := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY")); envKey != "" {
 			return envKey, nil
 		}
-		if savedKey := loadState(stateDir, "openrouter_api_key"); !force && savedKey != "" {
-			return savedKey, nil
-		}
 		if nonInteractive {
-			return "", fmt.Errorf("openrouter API key is empty; pass --openrouter-api-key, set OPENROUTER_API_KEY, or run interactive setup once")
+			return "", fmt.Errorf("openrouter API key is empty; pass --openrouter-api-key, or keep OPENROUTER_API_KEY in the vault")
 		}
 		promptedKey := strings.TrimSpace(readLine(messenger.t("  OpenRouter API 키: ", "  OpenRouter API key: ")))
-		if promptedKey != "" {
-			saveState(stateDir, "openrouter_api_key", promptedKey)
+		if promptedKey == "" {
+			return "", nil
+		}
+		if errorValue := rememberInVault("OPENROUTER_API_KEY", promptedKey); errorValue != nil {
+			fmt.Printf("  Warning: %v; the key serves this run only\n", errorValue)
 		}
 		return promptedKey, nil
 	}

@@ -599,7 +599,7 @@ func defaultBlueclawPlanContext(runtimeContractOutput string, payloadManifestOut
 				return "payload-manifest"
 			},
 			LoadState: func(key string) string {
-				if key == "web_version" || key == "admin_web_version" {
+				if key == "web_version" {
 					return "web-version"
 				}
 				return ""
