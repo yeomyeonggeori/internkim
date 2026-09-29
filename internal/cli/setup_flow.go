@@ -168,7 +168,7 @@ func (state *setupFlowState) callbacks() setup.Callbacks {
 		Translate:                   func(korean, english string) string { return state.messenger.t(korean, english) },
 		LoadState:                   func(key string) string { return loadState(state.stateDir, key) },
 		SaveState:                   func(key, value string) { saveState(state.stateDir, key, value) },
-		GetOpenRouterKey:            buildOpenRouterKeyCallback(state.stateDir, state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
+		GetOpenRouterKey:            buildOpenRouterKeyCallback(state.messenger, state.parameters.OpenRouterAPIKey, state.nonInteractive),
 		GetLiteRTModelPath:          buildLiteRTModelPathCallback(state.parameters.LiteRTModelPath),
 		GetBuzzKeySeed:              buildBuzzKeySeedCallback(),
 		GetBuzzRelayOwnerPubkey:     buildBuzzRelayOwnerPubkeyCallback(),
@@ -732,7 +732,6 @@ func (state *setupFlowState) deployAdminWeb(context *setup.Context) error {
 	}
 	if version != "" && context.Callbacks.SaveState != nil {
 		context.Callbacks.SaveState("web_version", version)
-		context.Callbacks.SaveState("admin_web_version", version)
 	}
 	fmt.Println("  " + context.T("웹 배포 완료", "Web deployed"))
 	return nil
@@ -2261,8 +2260,6 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 		saveState(state.stateDir, "node_tunnel_token", state.nodeTunnelToken)
 		saveState(state.stateDir, "device_url", state.deviceURL)
 		saveState(state.stateDir, "ssh_hostname", sshHostname)
-		saveState(state.stateDir, "tunnel_origin", setup.AdminGatewayTunnelOrigin)
-		saveState(state.stateDir, "tunnel_revision", setup.TunnelConfigurationRevision)
 		saveDefaultFleetNode(state.stateDir, registrationResponse)
 		if state.adminEmail != "" {
 			saveState(state.stateDir, "admin_email", state.adminEmail)
@@ -2274,10 +2271,6 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 		state.fleetPendingCount = defaultIntString(loadState(state.stateDir, "fleet_pending_count"), 0)
 		state.fleetQuorumSize = defaultIntString(loadState(state.stateDir, "fleet_quorum_size"), 1)
 		state.nodeTunnelToken = firstNonEmptyString(loadState(state.stateDir, "node_tunnel_token"), state.tunnelToken)
-	}
-
-	if state.adminEmail == "" {
-		state.adminEmail = loadState(state.stateDir, "claimed_admin_email")
 	}
 
 	if state.deviceURL != "" {

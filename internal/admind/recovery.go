@@ -382,7 +382,7 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 	case "buzz-rewrite-old-links-dryrun":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count the messages a rewrite would change", "sh", "-lc", buzzRewriteOldLinksCommand(false)))
 	case "buzz-device-link-count":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count messages carrying a device link", "sh", "-lc", buzzDeviceLinkCountCommand(service.fleetZone())))
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count messages carrying a device link", "sh", "-lc", buzzDeviceLinkCountCommand(service.fleetZone(), readTrimmedFile(service.Configuration.FleetIDPath))))
 	case "buzz-named-reaction-count":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "count reactions published as a name", "sh", "-lc", buzzNamedReactionCountCommand()))
 	case "buzz-profile-inspect":
@@ -1793,7 +1793,7 @@ printf '%s\n' "$body" | jq . 2>/dev/null || printf '%s\n' "$body"
 `)
 }
 
-func buzzDeviceLinkCountCommand(zone string) string {
+func buzzDeviceLinkCountCommand(zone string, fleetID string) string {
 	return strings.TrimSpace(`
 set +e
 q() { su - postgres -c "psql -X -qAt -d ` + blueclaw.BuzzRelayDatabaseName + ` -c \"$1\"" 2>&1; }
@@ -1801,7 +1801,7 @@ host=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr 
 printf 'relay host: %s\n' "$host"
 q "SELECT count(*) FROM events WHERE kind=9 AND content LIKE '%.` + zone + `/calendar%'" | sed 's/^/messages linking a calendar: /'
 q "SELECT count(*) FROM events WHERE kind=9 AND content LIKE '%.` + zone + `/flow%'" | sed 's/^/messages linking the board: /'
-q "SELECT count(*) FROM events WHERE kind=9 AND content LIKE '%zd2df6qt6jmc%'" | sed 's/^/messages naming this device: /'
+q "SELECT count(*) FROM events WHERE kind=9 AND content LIKE '%` + fleetID + `%'" | sed 's/^/messages naming this device: /'
 `)
 }
 

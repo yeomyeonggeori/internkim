@@ -87,13 +87,11 @@ func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath stri
 }
 
 func resolveWiFiProfilePasswords(messenger *msg, stateDirectory string, profiles []wifiProfile, selectedSSID string, explicitPassword string) ([]resolvedWiFiProfile, error) {
-	legacySSID := loadState(stateDirectory, "wifi_ssid")
-	legacyPassword := loadState(stateDirectory, "wifi_pass")
 	resolvedProfiles := make([]resolvedWiFiProfile, 0, len(profiles))
 	for _, profile := range profiles {
 		password := ""
 		if !profile.IsOpen {
-			password = resolveWiFiPassword(profile.SSID, selectedSSID, explicitPassword, legacySSID, legacyPassword)
+			password = resolveWiFiPassword(profile.SSID, selectedSSID, explicitPassword)
 		}
 		if !profile.IsOpen && password == "" {
 			if strings.EqualFold(profile.SSID, selectedSSID) {
@@ -118,12 +116,9 @@ func isNonInteractiveWiFiResolution() bool {
 	return containsArg("--yes") || containsArg("--non-interactive")
 }
 
-func resolveWiFiPassword(ssid string, selectedSSID string, explicitPassword string, legacySSID string, legacyPassword string) string {
+func resolveWiFiPassword(ssid string, selectedSSID string, explicitPassword string) string {
 	if explicitPassword != "" && strings.EqualFold(ssid, selectedSSID) {
 		return explicitPassword
-	}
-	if legacyPassword != "" && strings.EqualFold(ssid, legacySSID) {
-		return legacyPassword
 	}
 	if keychainPassword := getKeychainPassword(ssid); keychainPassword != "" {
 		return keychainPassword
@@ -151,16 +146,7 @@ func wifiProfileSource(selectedSSID string, currentSSID string) string {
 }
 
 func loadWiFiProfiles(stateDirectory string) []wifiProfile {
-	profiles := readWiFiProfilesFile(stateDirectory)
-	legacySSID := loadState(stateDirectory, "wifi_ssid")
-	if legacySSID != "" {
-		profiles = upsertWiFiProfile(profiles, wifiProfile{
-			SSID:   legacySSID,
-			IsOpen: loadState(stateDirectory, "wifi_open") == "true",
-			Source: "legacy",
-		})
-	}
-	return sortWiFiProfiles(profiles)
+	return sortWiFiProfiles(readWiFiProfilesFile(stateDirectory))
 }
 
 func readWiFiProfilesFile(stateDirectory string) []wifiProfile {
