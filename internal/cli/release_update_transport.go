@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -71,10 +70,9 @@ func (api deviceReleaseAPI) applyRelease(releaseID string, channel string) (blue
 }
 
 func signedReleaseApplyDocument(target commandTarget, releaseID string, channel string) ([]byte, error) {
-	fleetID := strings.TrimSpace(loadState(target.stateDir, "fleet_id"))
-	fleetSecret := strings.TrimSpace(loadState(target.stateDir, "fleet_secret"))
-	if fleetID == "" || fleetSecret == "" {
-		return nil, errors.New("fleet identity is not configured in local device state")
+	fleetID, fleetSecret, errorValue := target.fleetIdentity()
+	if errorValue != nil {
+		return nil, errorValue
 	}
 	return json.Marshal(signedReleaseUpdateApplyRequest{
 		recoveryRequest:  signedRecoveryRequestPayload(fleetSecret, releaseUpdateSignedAction, "", fleetID),

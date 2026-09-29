@@ -1145,8 +1145,10 @@ func (state *setupFlowState) verifyAdmindDeployment(context *setup.Context) erro
 		return fmt.Errorf("admind public health check failed: HTTP %d %s", statusCode, strings.TrimSpace(responseBody))
 	}
 	if _, errorValue := performSSHRecoveryRequest(commandTarget{
-		stateDir:  state.stateDir,
-		deviceURL: context.PublicURL,
+		stateDir:    state.stateDir,
+		deviceURL:   context.PublicURL,
+		fleetID:     loadState(state.stateDir, "fleet_id"),
+		fleetSecret: loadState(state.stateDir, "fleet_secret"),
 	}, "status", ""); errorValue != nil {
 		return fmt.Errorf("admind recovery route check failed: %w", errorValue)
 	}

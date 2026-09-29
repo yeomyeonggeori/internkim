@@ -4,33 +4,18 @@ import "time"
 
 type ServerOptions struct {
 	RepositoryRootPath string
-	InternKimHomePath  string
 	ExecutablePath     string
 	ListenAddress      string
 	EnableSvelteUI     bool
 }
 
 type Target struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	AdminURL     string `json:"adminURL"`
-	Kind         string `json:"kind,omitempty"`
-	Profile      string `json:"profile,omitempty"`
-	NodeArgument string `json:"nodeArgument,omitempty"`
-	NodeID       string `json:"nodeID,omitempty"`
-	StatePath    string `json:"statePath,omitempty"`
-	SecretSource string `json:"secretSource,omitempty"`
-}
-
-// Every target is a device. A registry that still names something else is not
-// deployed to as though it were one; the kind it names is read back to it.
-const deviceTargetKind = "jetson"
-
-func (target Target) ResolvedKind() string {
-	if target.Kind == "" {
-		return deviceTargetKind
-	}
-	return target.Kind
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	AdminURL    string `json:"adminURL"`
+	SSHHostname string `json:"sshHostname,omitempty"`
+	FleetID     string `json:"fleetID,omitempty"`
+	FleetSecret string `json:"-"`
 }
 
 type TargetRegistry struct {

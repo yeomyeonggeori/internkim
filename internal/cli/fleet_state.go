@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/deployops"
 )
 
 func internkimHomeDir() string {
@@ -66,7 +68,8 @@ func copySetupStateHints(sourceDir string, destinationDir string) {
 }
 
 func loadOrCreateFleetID(stateDir string) string {
-	id := loadState(stateDir, "fleet_id")
+	device, _ := deployops.DeviceTargetFromEnvironment()
+	id := firstNonEmptyString(device.FleetID, loadState(stateDir, "fleet_id"))
 	if id != "" {
 		saveState(stateDir, "fleet_id", id)
 		return id
@@ -107,7 +110,8 @@ func isNumericNodeID(nodeID string) bool {
 }
 
 func loadOrCreateFleetSecret(stateDir string) string {
-	secret := loadState(stateDir, "fleet_secret")
+	device, _ := deployops.DeviceTargetFromEnvironment()
+	secret := firstNonEmptyString(device.FleetSecret, loadState(stateDir, "fleet_secret"))
 	if secret != "" {
 		saveState(stateDir, "fleet_secret", secret)
 		return secret

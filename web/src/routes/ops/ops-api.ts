@@ -1,4 +1,4 @@
-import type { Job, JobEvent, LLMModelStatus, LocalFleetJobRequest, LocalFleetStatus, NewTarget, OpsTarget, TargetStatus } from './ops-types';
+import type { Job, JobEvent, LLMModelStatus, LocalFleetJobRequest, LocalFleetStatus, OpsTarget, TargetStatus } from './ops-types';
 
 async function readJSON<T>(response: Response): Promise<T> {
 	if (!response.ok) {
@@ -20,15 +20,6 @@ async function readErrorMessage(response: Response): Promise<string> {
 export async function fetchTargets(): Promise<OpsTarget[]> {
 	const response = await fetch('/api/targets');
 	return readJSON<OpsTarget[]>(response);
-}
-
-export async function createTarget(target: NewTarget): Promise<OpsTarget> {
-	const response = await fetch('/api/targets', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(target)
-	});
-	return readJSON<OpsTarget>(response);
 }
 
 export async function fetchTargetStatus(targetID: string): Promise<TargetStatus> {

@@ -1,65 +1,53 @@
 package deployops
 
 import (
-	"os"
-	"path/filepath"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
-func TestDiscoverDefaultRegistryFindsPilotTarget(t *testing.T) {
-	homePath := t.TempDir()
-	statePath := filepath.Join(homePath, "profiles", "pilot", "devices", "jetson-orin-nano", "boards", "1")
-	if errorValue := os.MkdirAll(statePath, 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	writeTestState(t, statePath, "device_url", "https://pilot-01.example.test")
-	writeTestState(t, statePath, "node_id", "pilot-01")
+func TestTheVaultNamesTheOneDeviceTarget(t *testing.T) {
+	t.Setenv(DeviceURLVariable, "https://fleetexample.example.test/")
+	t.Setenv(SSHHostnameVariable, "0.ssh.fleetexample.example.test")
+	t.Setenv(FleetIDVariable, "FleetExample")
+	t.Setenv(FleetSecretVariable, "example-fleet-secret")
 
-	registry := discoverDefaultRegistry(homePath)
+	registry := LoadRegistry()
+
 	if len(registry.Targets) != 1 {
-		t.Fatalf("expected one target, got %d", len(registry.Targets))
+		t.Fatalf("expected the one device the vault names, got %d", len(registry.Targets))
 	}
 	target := registry.Targets[0]
-	if target.Name != "pilot-01" {
-		t.Fatalf("expected pilot-01 name, got %q", target.Name)
+	if target.ID != "fleetexample" || target.FleetID != "fleetexample" || target.AdminURL != "https://fleetexample.example.test" {
+		t.Fatalf("unexpected target: %+v", target)
 	}
-	if target.Profile != "pilot" || target.NodeArgument != "1" {
-		t.Fatalf("unexpected target routing: %#v", target)
-	}
-	if target.SecretSource != statePath {
-		t.Fatalf("expected local state secret source, got %q", target.SecretSource)
+	if target.SSHHostname != "0.ssh.fleetexample.example.test" || target.FleetSecret != "example-fleet-secret" {
+		t.Fatalf("the target lost what the vault named: %+v", target)
 	}
 }
 
-func TestSaveRegistryDoesNotRequireSecretValue(t *testing.T) {
-	repositoryRootPath := t.TempDir()
-	registry := TargetRegistry{Targets: []Target{{
-		Name:         "pilot-01",
-		AdminURL:     "pilot-01.example.test",
-		Profile:      "pilot",
-		NodeArgument: "1",
-		SecretSource: "/local/state",
-	}}}
+func TestAVaultNamingNoDeviceHasNoTarget(t *testing.T) {
+	t.Setenv(DeviceURLVariable, "")
+	t.Setenv(FleetSecretVariable, "example-fleet-secret")
 
-	if errorValue := SaveRegistry(repositoryRootPath, registry); errorValue != nil {
-		t.Fatal(errorValue)
+	if registry := LoadRegistry(); len(registry.Targets) != 0 {
+		t.Fatalf("a device without an address became a target: %+v", registry.Targets)
 	}
-	loadedRegistry, errorValue := LoadRegistry(repositoryRootPath, t.TempDir())
+}
+
+func TestTheConsoleNeverServesTheFleetSecret(t *testing.T) {
+	document, errorValue := json.Marshal(Target{ID: "fleetexample", FleetSecret: "example-fleet-secret"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	target := loadedRegistry.Targets[0]
-	if target.AdminURL != "https://pilot-01.example.test" {
-		t.Fatalf("expected normalized admin URL, got %q", target.AdminURL)
-	}
-	if target.ID == "" {
-		t.Fatal("expected generated target id")
+	if strings.Contains(string(document), "example-fleet-secret") {
+		t.Fatalf("the target list carries the fleet secret: %s", document)
 	}
 }
 
-func writeTestState(t *testing.T, statePath string, name string, value string) {
-	t.Helper()
-	if errorValue := os.WriteFile(filepath.Join(statePath, name), []byte(value), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
+func TestATargetWithoutFleetIdentityCannotSign(t *testing.T) {
+	_, errorValue := targetIdentity(Target{Name: "fleetexample.example.test", FleetID: "fleetexample"})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), FleetSecretVariable) {
+		t.Fatalf("expected the refusal to name the missing key, got %v", errorValue)
 	}
 }
