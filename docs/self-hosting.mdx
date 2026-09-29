@@ -5,13 +5,11 @@ icon: Layers
 ---
 
 A company can run as much of internkim as it wants and leave the rest to
-`intern.kim`. The levels below name the common stopping points. Each one adds to
-the one before it.
+`intern.kim`. The levels below name the common stopping points.
 
 | Level | The host | Supabase | Cloudflare | Reached from other networks |
 |---|---|---|---|---|
 | 1 | your computer | `intern.kim` | `intern.kim` | no |
-| 2 | your computer | yours | `intern.kim` | no |
 | 3 | your computer | yours | yours | no |
 | 4 | your computer or a cloud server | yours | yours | yes, over SSH |
 
@@ -22,20 +20,19 @@ such as a Kim Mini or a Linux machine. The company's record, the web app and the
 sign-in address stay with `intern.kim`. The host connects outward and nothing
 listens off loopback, so the computer needs no public address.
 
-## Level 2: your own Supabase
+## Level 3: your own Supabase and your own Cloudflare
 
-The record moves to a Supabase project you run. The host and the web app read
-its address and keys from settings, and [What lives where](/docs/what-lives-where)
+The record moves to a Supabase project you run, and the web app is deployed to
+your Cloudflare account and served from your own domain, which
+`CLOUDFLARE_DOMAIN` names. Deploying the web app yourself is what lets it read
+your project's address and keys from its settings. [What lives where](/docs/what-lives-where)
 says which data that project holds. Self-hosted Supabase ships the same
 Postgres and the same row level security, so the schema in `supabase/migrations`
 applies unchanged.
 
-## Level 3: your own Cloudflare
-
-The web app is deployed to your Cloudflare account and served from your own
-domain, which `CLOUDFLARE_DOMAIN` names. Everyone signs in at that domain
-itself. Releases are published to a bucket in the same account, so sign-in, the web
-app and updates no longer depend on `intern.kim`.
+Everyone signs in at your domain itself. Releases are published to a bucket in
+the same account, so sign-in, the web app and updates no longer depend on
+`intern.kim`.
 
 ## Level 4: reachable over SSH from any network
 
