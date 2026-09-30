@@ -1,8 +1,22 @@
-# Intern Kim
+<p align="center">
+  <img src="assets/internkim.icon.png" width="120" alt="Intern Kim">
+</p>
 
-Intern Kim is an AI coworker that a company runs itself. People ask it for work in
-the web app or the company messenger, and it does that work under the identity of
-whoever asked, on a computer the company owns.
+<h1 align="center">Intern Kim</h1>
+
+<p align="center">
+  An AI coworker your company runs on its own computer.
+</p>
+
+<p align="center">
+  <a href="https://docs.intern.kim">Documentation</a> ·
+  <a href="https://docs.intern.kim/quickstart">Quickstart</a> ·
+  <a href="https://docs.intern.kim/self-hosting">Self-hosting</a> ·
+  <a href="LICENSE">Apache-2.0</a>
+</p>
+
+People ask Intern Kim for work in the web app or the company messenger, and it does
+that work under the identity of whoever asked, on a computer the company owns.
 
 Everyone signs in at [intern.kim](https://intern.kim). The company's records sit in
 Supabase behind row level security, and the agent runs on one always-on computer
@@ -24,8 +38,8 @@ Debian 13 and Ubuntu 22.04 or 24.04, dnf on Fedora and on RHEL-compatible 10 (Ro
 AlmaLinux), pacman on Arch Linux, and the Homebrew tap on macOS. Linux machines can
 be arm64 or amd64. The second command asks for an
 [OpenRouter API key](https://openrouter.ai/settings/keys) and registers the services.
-On Linux the machine then signs in with a key it generated itself, and the
-downloaded file connects nothing else. The
+On Linux the machine then signs in with a key it generated itself, so the
+downloaded file is used once and never again. The
 [quickstart](https://docs.intern.kim/quickstart) covers the rest of the setup.
 
 ## How it is built
