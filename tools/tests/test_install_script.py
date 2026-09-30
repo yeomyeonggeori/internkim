@@ -362,11 +362,7 @@ class InstallScriptTests(unittest.TestCase):
             (directory / name).chmod(0o755)
         return str(directory)
 
-    # This Mac has no /etc/os-release, so the suite the script would derive from
-    # one is named here instead. What the script derives when the file is there
-    # is the guest's to answer, in `tools/test-apt-repository`; what it does
-    # when the file is not is the test below.
-    def run_install_on_debian(self, base_url, shims, product="host", suite="trixie-stable", shims_first=None):
+    def run_install_on_debian(self, base_url, shims, product="host", suite=None, shims_first=None):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
         environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
@@ -391,7 +387,7 @@ class InstallScriptTests(unittest.TestCase):
         (self.served_directory / "deb" / "internkim-archive-keyring.pgp").write_bytes(published_keyring)
         return base_url
 
-    def publish_suite(self, base_url, suite="trixie-stable"):
+    def publish_suite(self, base_url, suite="stable"):
         """The suite's own signed index, which is what the script asks for to
         tell a suite this repository does not carry from one it does."""
         index = self.served_directory / "deb" / "dists" / suite
@@ -399,7 +395,7 @@ class InstallScriptTests(unittest.TestCase):
         (index / "InRelease").write_bytes(b"-----BEGIN PGP SIGNED MESSAGE-----\nSuite: " + suite.encode() + b"\n")
         return base_url
 
-    def publish_repository(self, base_url, suite="trixie-stable"):
+    def publish_repository(self, base_url, suite="stable"):
         return self.publish_suite(self.publish_keyring(base_url), suite)
 
     def test_a_machine_with_apt_gets_the_package_and_not_a_bare_binary(self):
@@ -413,7 +409,7 @@ class InstallScriptTests(unittest.TestCase):
             [
                 "Types: deb",
                 f"URIs: {base_url}/deb",
-                "Suites: trixie-stable",
+                "Suites: stable",
                 "Components: main",
                 "Architectures: arm64",
                 f"Signed-By: {keyring_path}",
@@ -425,18 +421,6 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("apt-get update", calls)
         self.assertIn("apt-get install -y internkim", calls)
         self.assertEqual(list(bin_dir.iterdir()), [])
-
-    def test_a_machine_that_cannot_name_its_debian_release_is_told_rather_than_guessed_at(self):
-        """A suite carries the Debian release the package was built for, so a
-        machine that cannot say which release it is must not have one picked for
-        it: apt would pin on a suite nobody built and blame the server."""
-        base_url = self.publish_keyring(self.serve())
-        completed, _ = self.run_install_on_debian(base_url, self.debian_machine(), suite=None)
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("VERSION_CODENAME", completed.stderr)
-        self.assertIn("INTERNKIM_INSTALL_SUITE", completed.stderr)
-        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
-        self.assertFalse(self.apt_log.exists(), "the machine was asked nothing before the refusal")
 
     def test_the_key_never_lands_where_it_would_sign_every_repository(self):
         base_url = self.publish_repository(self.serve())
@@ -498,8 +482,8 @@ class InstallScriptTests(unittest.TestCase):
         base_url = self.publish_keyring(self.serve())
         completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
         self.assertEqual(completed.returncode, 1)
-        self.assertIn("trixie-stable", completed.stderr)
-        self.assertIn(f"{base_url}/deb/dists/trixie-stable/InRelease", completed.stderr)
+        self.assertIn("stable", completed.stderr)
+        self.assertIn(f"{base_url}/deb/dists/stable/InRelease", completed.stderr)
         self.assertIn("404", completed.stderr)
         self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists(),
                          "no source list is written for a suite that is not there")

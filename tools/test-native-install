@@ -334,23 +334,10 @@ class Rig:
     def snapshot(self):
         return set(self.machine.checked_shell(SNAPSHOT_COMMAND).stdout.splitlines())
 
-    def suite_override(self):
-        """Ubuntu's os-release names jammy or noble, and only trixie-stable is published.
-
-        install.sh derives `<codename>-stable` from the machine, so on an Ubuntu guest it
-        asks for a suite that does not exist and refuses. Until the repository's suites stop
-        naming a Debian release, the rig names the published one, and that refusal is what
-        the release has to fix before the one-liner works there.
-        """
-        if self.options.distribution == DEFAULT_DISTRIBUTION:
-            return ""
-        return f"export INTERNKIM_INSTALL_SUITE={SUITE}\n"
-
     def run_step_one(self, step):
         one_liner = (
             f"set -eu\n"
             f"export INTERNKIM_INSTALL_RELEASE_URL={self.base_url}/{PACKAGE_NAME}\n"
-            f"{self.suite_override()}"
             f"export INTERNKIM_INSTALL_REPOSITORY_URL={self.repository_url}\n"
             f"export INTERNKIM_INSTALL_KEYRING_URL={self.keyring_url}\n"
             f"curl -fsSL {self.base_url}/install.sh | sh -s -- host\n"
