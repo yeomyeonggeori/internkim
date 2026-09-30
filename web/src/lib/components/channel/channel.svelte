@@ -13,6 +13,8 @@
 	import ChannelComposer, { type OutgoingMessage } from './channel-composer.svelte';
 	import ChannelLightbox, { type LightboxView } from './channel-lightbox.svelte';
 	import ChannelLinkPreview from './channel-link-preview.svelte';
+	import FailedMessageActions from './failed-message-actions.svelte';
+	import { createOutgoingMessages } from './outgoing-messages.svelte';
 	import MessageReactions from './message-reactions.svelte';
 	import MessageRow from './message-row.svelte';
 	import { messageTextBeside } from './message-text-beside';
@@ -151,9 +153,27 @@
 		readAgain: loadConversation
 	});
 
-	const repliesByRoot = $derived(threadRepliesByRoot(messages));
+	const outgoing = createOutgoingMessages({
+		sender: () => currentUser,
+		deliver: (entry) =>
+			sendChannelMessage(
+				entry.draft.text,
+				entry.draft.attachments,
+				entry.channelID,
+				entry.threadRootID,
+				entry.draft.mentions
+			),
+		afterDelivered: async (entry) => {
+			if (!entry.threadRootID) agentWorkingSince = isWithTheAgent ? Date.now() : null;
+			await loadConversation();
+		}
+	});
 
-	const visibleMessages = $derived(timelineMessages(messages, repliesByRoot));
+	const shownMessages = $derived([...messages, ...outgoing.messagesIn(channelId)]);
+
+	const repliesByRoot = $derived(threadRepliesByRoot(shownMessages));
+
+	const visibleMessages = $derived(timelineMessages(shownMessages, repliesByRoot));
 
 	const messageGroups = $derived(groupConsecutiveMessages(visibleMessages));
 
@@ -311,14 +331,9 @@
 		openThreadRoot = rootMessage;
 	}
 
-	async function sendThreadReply(outgoing: OutgoingMessage) {
+	async function sendThreadReply(draft: OutgoingMessage) {
 		if (!openThreadRoot) return;
-		try {
-			await sendChannelMessage(outgoing.text, outgoing.attachments, channelId, openThreadRoot.id, outgoing.mentions);
-			await loadConversation();
-		} catch {
-			loadFailed = true;
-		}
+		await outgoing.send(draft, channelId, openThreadRoot.id);
 	}
 
 	function scheduleRefresh() {
@@ -353,26 +368,16 @@
 		scheduleRefresh();
 	}
 
-	async function sendToConversation(outgoing: OutgoingMessage) {
-		messages = [
-			...messages,
-			{
-				id: `pending-${messages.length}`,
-				sender: currentUser,
-				text: outgoing.text || outgoing.attachmentSummary,
-				sentAt: new Date().toISOString()
-			}
-		];
+	async function sendToConversation(draft: OutgoingMessage) {
+		const sending = outgoing.send(draft, channelId);
 		scrollContainer?.scrollTo({ top: 0 });
-		try {
-			await sendChannelMessage(outgoing.text, outgoing.attachments, channelId, undefined, outgoing.mentions);
-			agentWorkingSince = isWithTheAgent ? Date.now() : null;
-			await loadConversation();
-		} catch {
-			loadFailed = true;
-		} finally {
-			scheduleRefresh();
-		}
+		await sending;
+		scheduleRefresh();
+	}
+
+	async function sendAgain(messageID: string) {
+		await outgoing.retry(messageID);
+		scheduleRefresh();
 	}
 
 	function closeThread() {
@@ -678,6 +683,7 @@
 
 {#snippet messageRow(message: ChannelMessage, startsGroup: boolean, endsGroup: boolean, isInTimeline: boolean)}
 	{@const replyChip = isInTimeline ? message.thread : undefined}
+	{@const isUnsent = outgoing.hasFailed(message.id)}
 	<MessageRow
 		{message}
 		mine={isMine(message)}
@@ -689,7 +695,7 @@
 		canDelete={isMine(message) || canModerate}
 		canEdit={canEditMessage(message, isMine(message))}
 		isSettled={!message.id.startsWith('pending-')}
-		hasFooter={replyChip !== undefined}
+		hasFooter={replyChip !== undefined || isUnsent}
 		copyable={whatToCopy(
 			messageTextBeside(
 				message.text,
@@ -713,6 +719,9 @@
 		{/snippet}
 		{#snippet footer()}
 			{#if replyChip}{@render threadChip(message, replyChip)}{/if}
+			{#if isUnsent}
+				<FailedMessageActions onRetry={() => void sendAgain(message.id)} onDiscard={() => outgoing.discard(message.id)} />
+			{/if}
 		{/snippet}
 	</MessageRow>
 {/snippet}
@@ -763,7 +772,7 @@
 					</div>
 				{/each}
 			</div>
-		{:else if loadFailed && messages.length === 0}
+		{:else if loadFailed && shownMessages.length === 0}
 			<Empty.Root class="h-full">
 				<Empty.Header>
 					<Empty.Media variant="icon"><MessageCircleDashedIcon /></Empty.Media>
@@ -772,7 +781,7 @@
 				</Empty.Header>
 				<Button variant="outline" size="sm" onclick={loadConversation}>{text.retry}</Button>
 			</Empty.Root>
-		{:else if messages.length === 0}
+		{:else if shownMessages.length === 0}
 			<Empty.Root class="h-full">
 				<Empty.Header>
 					<Empty.Media variant="icon"><MessageCircleDashedIcon /></Empty.Media>
