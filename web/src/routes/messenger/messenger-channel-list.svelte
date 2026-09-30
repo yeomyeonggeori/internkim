@@ -11,6 +11,8 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { cn } from '$lib/utils';
 	import ConversationMenu from '$lib/components/channel/conversation-menu.svelte';
+	import MessengerChannelSection from './messenger-channel-section.svelte';
+	import { isSectionOpen, setSectionOpen } from './channel-sections.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { isUnreadEmphasized, unreadBadgeLabel } from '$lib/messenger/unread-badge';
 
@@ -69,110 +71,116 @@
 <Sidebar.Provider class={cn('h-full min-h-0 w-auto', className)} style="--sidebar-width: {sidebarWidth};">
 	<Sidebar.Root collapsible="none">
 		<Sidebar.Content class="pt-2">
-			<Sidebar.Group>
-				<Sidebar.GroupLabel>{text.channelListTitle}</Sidebar.GroupLabel>
-				{#if openNewChannel && openBrowseChannels}
-					<DropdownMenu.Root>
-						<DropdownMenu.Trigger>
-							{#snippet child({ props })}
-								<Sidebar.GroupAction {...props} aria-label={text.channelActions}>
+			<MessengerChannelSection
+				title={text.channelListTitle}
+				open={isSectionOpen('channels')}
+				onOpenChange={(open) => setSectionOpen('channels', open)}
+			>
+				{#snippet action()}
+					{#if openNewChannel && openBrowseChannels}
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<Sidebar.GroupAction {...props} aria-label={text.channelActions}>
+										<PlusIcon />
+									</Sidebar.GroupAction>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								<DropdownMenu.Item onclick={openNewChannel}>
 									<PlusIcon />
-								</Sidebar.GroupAction>
-							{/snippet}
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content align="end">
-							<DropdownMenu.Item onclick={openNewChannel}>
-								<PlusIcon />
-								{text.newChannel}
-							</DropdownMenu.Item>
-							<DropdownMenu.Item onclick={openBrowseChannels}>
-								<CompassIcon />
-								{text.browseChannels}
-							</DropdownMenu.Item>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
-				{/if}
-				<Sidebar.GroupContent>
-					<Sidebar.Menu>
-						{#each groupChannels as channel (channel.id)}
-							<ConversationMenu
-								isMuted={muted.has(channel.id)}
-								muteLabel={text.muteConversation}
-								unmuteLabel={text.unmuteConversation}
-								menuLabel={text.conversationMenu}
-								onSwitchMuted={() => switchMuted(channel.id)}
-								itemProps={{
-									draggable: 'true',
-									class:
-										dragOverChannelID === channel.id
-											? 'border-primary rounded-md border'
-											: 'rounded-md border border-transparent',
-									ondragstart: () => (draggedChannelID = channel.id),
-									ondragend: () => ((draggedChannelID = null), (dragOverChannelID = null)),
-									ondragover: (event: DragEvent) => {
-										if (!draggedChannelID || draggedChannelID === channel.id) return;
-										event.preventDefault();
-										dragOverChannelID = channel.id;
-									},
-									ondragleave: () => {
-										if (dragOverChannelID === channel.id) dragOverChannelID = null;
-									},
-									ondrop: (event: DragEvent) => {
-										event.preventDefault();
-										dragOverChannelID = null;
-										handleDrop(channel.id);
-									}
-								}}
+									{text.newChannel}
+								</DropdownMenu.Item>
+								<DropdownMenu.Item onclick={openBrowseChannels}>
+									<CompassIcon />
+									{text.browseChannels}
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					{/if}
+				{/snippet}
+				<Sidebar.Menu>
+					{#each groupChannels as channel (channel.id)}
+						<ConversationMenu
+							isMuted={muted.has(channel.id)}
+							muteLabel={text.muteConversation}
+							unmuteLabel={text.unmuteConversation}
+							menuLabel={text.conversationMenu}
+							onSwitchMuted={() => switchMuted(channel.id)}
+							itemProps={{
+								draggable: 'true',
+								class:
+									dragOverChannelID === channel.id
+										? 'border-primary rounded-md border'
+										: 'rounded-md border border-transparent',
+								ondragstart: () => (draggedChannelID = channel.id),
+								ondragend: () => ((draggedChannelID = null), (dragOverChannelID = null)),
+								ondragover: (event: DragEvent) => {
+									if (!draggedChannelID || draggedChannelID === channel.id) return;
+									event.preventDefault();
+									dragOverChannelID = channel.id;
+								},
+								ondragleave: () => {
+									if (dragOverChannelID === channel.id) dragOverChannelID = null;
+								},
+								ondrop: (event: DragEvent) => {
+									event.preventDefault();
+									dragOverChannelID = null;
+									handleDrop(channel.id);
+								}
+							}}
+						>
+							<Sidebar.MenuButton
+								isActive={activeID === channel.id}
+								onclick={() => selectChannel(channel.id)}
 							>
-								<Sidebar.MenuButton
-									isActive={activeID === channel.id}
-									onclick={() => selectChannel(channel.id)}
-								>
-									{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
-									<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-semibold' : ''}>{channel.name}</span>
-								</Sidebar.MenuButton>
-								{@render unreadBadge(channel)}
-							</ConversationMenu>
-						{/each}
-					</Sidebar.Menu>
-				</Sidebar.GroupContent>
-			</Sidebar.Group>
-			<Sidebar.Group>
-				<Sidebar.GroupLabel>{text.directMessagesTitle}</Sidebar.GroupLabel>
-				<Sidebar.GroupAction aria-label={text.newDirectMessage} onclick={openNewDirectMessage}>
-					<PlusIcon />
-				</Sidebar.GroupAction>
-				<Sidebar.GroupContent>
-					<Sidebar.Menu>
-						{#each directMessages as conversation (conversation.id)}
-							<ConversationMenu
-								isMuted={muted.has(conversation.id)}
-								muteLabel={text.muteConversation}
-								unmuteLabel={text.unmuteConversation}
-								menuLabel={text.conversationMenu}
-								onSwitchMuted={() => switchMuted(conversation.id)}
+								{#if channel.isPrivate}<LockIcon />{:else}<HashIcon />{/if}
+								<span class={isUnreadEmphasized(channel.unreadCount, muted.has(channel.id)) ? 'font-semibold' : ''}>{channel.name}</span>
+							</Sidebar.MenuButton>
+							{@render unreadBadge(channel)}
+						</ConversationMenu>
+					{/each}
+				</Sidebar.Menu>
+			</MessengerChannelSection>
+			<MessengerChannelSection
+				title={text.directMessagesTitle}
+				open={isSectionOpen('directMessages')}
+				onOpenChange={(open) => setSectionOpen('directMessages', open)}
+			>
+				{#snippet action()}
+					<Sidebar.GroupAction aria-label={text.newDirectMessage} onclick={openNewDirectMessage}>
+						<PlusIcon />
+					</Sidebar.GroupAction>
+				{/snippet}
+				<Sidebar.Menu>
+					{#each directMessages as conversation (conversation.id)}
+						<ConversationMenu
+							isMuted={muted.has(conversation.id)}
+							muteLabel={text.muteConversation}
+							unmuteLabel={text.unmuteConversation}
+							menuLabel={text.conversationMenu}
+							onSwitchMuted={() => switchMuted(conversation.id)}
+						>
+							<Sidebar.MenuButton
+								isActive={activeID === conversation.id}
+								onclick={() => selectChannel(conversation.id)}
 							>
-								<Sidebar.MenuButton
-									isActive={activeID === conversation.id}
-									onclick={() => selectChannel(conversation.id)}
-								>
-									<PersonAvatar
-										name={conversation.name}
-										seed={conversation.id}
-										image={conversation.avatarURL ?? ''}
-										memberID={conversation.counterpart?.memberID ?? ''}
-										externalID={conversation.counterpart?.externalID ?? ''}
-										class="size-4"
-									/>
+								<PersonAvatar
+									name={conversation.name}
+									seed={conversation.id}
+									image={conversation.avatarURL ?? ''}
+									memberID={conversation.counterpart?.memberID ?? ''}
+									externalID={conversation.counterpart?.externalID ?? ''}
+									class="size-4"
+								/>
 
-									<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-semibold' : ''}>{conversation.name}</span>
-								</Sidebar.MenuButton>
-								{@render unreadBadge(conversation)}
-							</ConversationMenu>
-						{/each}
-					</Sidebar.Menu>
-				</Sidebar.GroupContent>
-			</Sidebar.Group>
+								<span class={isUnreadEmphasized(conversation.unreadCount, muted.has(conversation.id)) ? 'font-semibold' : ''}>{conversation.name}</span>
+							</Sidebar.MenuButton>
+							{@render unreadBadge(conversation)}
+						</ConversationMenu>
+					{/each}
+				</Sidebar.Menu>
+			</MessengerChannelSection>
 		</Sidebar.Content>
 		{#if openOnPlatform}
 			<Sidebar.Footer>
