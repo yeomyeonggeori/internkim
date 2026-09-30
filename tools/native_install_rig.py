@@ -40,6 +40,7 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
 SUITE = "stable"
+KEY_ALGORITHM = "rsa4096"
 TESTING_SUITE = "testing"
 COMPONENT = "main"
 PACKAGE_NAME = "internkim"
@@ -225,7 +226,7 @@ def parse_control_paragraph(text):
 class Release:
     """An apt repository on this Mac, served to the guest over HTTP.
 
-    The repository itself is built by `internkim release apt`, which is what
+    The repository itself is built by `internkim release repositories`, which is what
     publishes it to R2 for real. The rig substitutes the address it is served
     from and nothing else, so what a guest installs from here is what a
     customer installs from.
@@ -260,7 +261,7 @@ class Release:
             [
                 "gpg", "--homedir", str(self.keyring_directory), "--batch", "--yes", "--no-tty",
                 "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
-                "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>", "default", "default", "never",
+                "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>", KEY_ALGORITHM, "sign", "never",
             ]
         )
         exported = checked(
@@ -272,20 +273,25 @@ class Release:
         self.archive_key_path.write_text(exported.stdout)
         self.archive_key_path.chmod(0o600)
 
-    def publish(self, package_path, suite=SUITE):
+    def stage(self, package_path):
         self.staging_directory.mkdir(parents=True, exist_ok=True)
         destination = self.staging_directory / Path(package_path).name
         shutil.copyfile(package_path, destination)
         self.published.append(destination)
+        return destination
+
+    def publish(self, package_path, suite=SUITE):
+        destination = self.stage(package_path)
         self.rebuild(suite)
         return destination
 
-    def rebuild(self, suite=SUITE):
+    def rebuild(self, suite=SUITE, formats="deb"):
         """Render the repository with the command that publishes it for real."""
         checked(
             [
-                str(internkim_command()), "release", "apt",
-                "--suite", suite,
+                str(internkim_command()), "release", "repositories",
+                "--channel", suite,
+                "--format", formats,
                 "--package-directory", str(self.staging_directory),
                 "--output", str(self.directory),
             ],

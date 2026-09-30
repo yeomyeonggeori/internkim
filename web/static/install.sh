@@ -23,11 +23,13 @@ esac
 package_name="internkim"
 package_file_source="${INTERNKIM_INSTALL_PACKAGE:-}"
 package_file_checksum="${INTERNKIM_INSTALL_PACKAGE_SHA256:-}"
-rpm_repository_url="${INTERNKIM_INSTALL_RPM_REPOSITORY_URL:-}"
+repository_base_url="${INTERNKIM_INSTALL_BASE_URL:-https://updates.intern.kim}"
+repository_channel="${INTERNKIM_INSTALL_SUITE:-stable}"
+rpm_repository_url="${INTERNKIM_INSTALL_RPM_REPOSITORY_URL:-$repository_base_url/rpm/$repository_channel}"
 rpm_repository_key_name="internkim-rpm-signing.asc"
-pacman_repository_url="${INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL:-}"
+pacman_repository_url="${INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL:-$repository_base_url/arch/$repository_channel}"
 pacman_repository_key_name="internkim-pacman-signing.asc"
-repository_url="${INTERNKIM_INSTALL_REPOSITORY_URL:-https://updates.intern.kim/deb}"
+repository_url="${INTERNKIM_INSTALL_REPOSITORY_URL:-$repository_base_url/deb}"
 keyring_path="/usr/share/keyrings/internkim-archive-keyring.pgp"
 keyring_url="${INTERNKIM_INSTALL_KEYRING_URL:-$repository_url/internkim-archive-keyring.pgp}"
 apt_source_path="/etc/apt/sources.list.d/internkim.sources"
@@ -59,7 +61,7 @@ Run the same command as root:
 }
 
 install_through_apt_repository() {
-  apt_suite="${INTERNKIM_INSTALL_SUITE:-stable}"
+  apt_suite="$repository_channel"
 
   debian_architecture="$(dpkg --print-architecture)"
   case "$debian_architecture" in
@@ -152,9 +154,9 @@ tell_what_to_do_next() {
   echo "  sudo internkim install ~/Downloads/internkim-host.json"
 }
 
-# The repository is how the package arrives by default. apt's is published;
-# the other two are addressed by variables that are empty until their
-# repository is, and an empty one says so rather than guessing.
+# The repository is how the package arrives by default, and one channel
+# variable picks stable or testing for all three. A repository address set to
+# nothing says so rather than guessing.
 install_through_the_repository() {
   case "$package_manager" in
     apt-get) install_through_apt_repository ;;
@@ -180,7 +182,7 @@ install_through_rpm_repository() {
   printf '%s\n' \
     "[$package_name]" \
     "name=$package_name" \
-    "baseurl=$rpm_repository_url" \
+    "baseurl=$rpm_repository_url/\$basearch" \
     "enabled=1" \
     "gpgcheck=1" \
     "repo_gpgcheck=1" \
@@ -207,7 +209,7 @@ Nothing on this machine was changed."
   [ -n "$pacman_key_fingerprint" ] || stop "$pacman_repository_url served no signing key. Nothing on this machine was changed."
   privileged pacman-key --add "$package_work_dir/key.asc"
   privileged pacman-key --lsign-key "$pacman_key_fingerprint"
-  printf '\n[%s]\nSigLevel = Required DatabaseOptional\nServer = %s/$arch\n' "$package_name" "$pacman_repository_url" > "$package_work_dir/pacman-source.conf"
+  printf '\n[%s]\nSigLevel = Required\nServer = %s/$arch\n' "$package_name" "$pacman_repository_url" > "$package_work_dir/pacman-source.conf"
   privileged sh -c "cat '$package_work_dir/pacman-source.conf' >> /etc/pacman.conf"
   privileged pacman -Sy --noconfirm
   privileged pacman -S --needed --noconfirm "$package_name" || stop \

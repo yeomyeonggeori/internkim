@@ -1,4 +1,4 @@
-package aptrepository
+package packagerepository
 
 import (
 	"bytes"
@@ -7,59 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/packagerepository/repositorytest"
 )
 
-// shortLivedHomeDirectory gives gpg a homedir whose gpg-agent socket path fits
-// in the 104 bytes a unix socket gets, which t.TempDir() on macOS does not.
-func shortLivedHomeDirectory(t *testing.T) string {
-	t.Helper()
-	homeDirectory, errorValue := os.MkdirTemp("/tmp", "ikapt-test-")
-	if errorValue != nil {
-		t.Fatalf("make a gpg homedir: %v", errorValue)
-	}
-	t.Cleanup(func() {
-		exec.Command("gpgconf", "--homedir", homeDirectory, "--kill", "gpg-agent").Run()
-		os.RemoveAll(homeDirectory)
-	})
-	if errorValue := os.Chmod(homeDirectory, 0o700); errorValue != nil {
-		t.Fatalf("tighten the homedir: %v", errorValue)
-	}
-	return homeDirectory
-}
-
-// throwawaySigningKey generates a key that says in its own user ID that it is
-// not the archive key. It exists so the signing path can be exercised; the
-// real key's home is a decision this test must not pre-empt.
-func throwawaySigningKey(t *testing.T) string {
-	t.Helper()
-	if _, errorValue := exec.LookPath("gpg"); errorValue != nil {
-		t.Skip("gpg is not on PATH")
-	}
-	homeDirectory := shortLivedHomeDirectory(t)
-	generate := exec.Command("gpg",
-		"--homedir", homeDirectory, "--batch", "--yes", "--no-tty",
-		"--pinentry-mode", "loopback", "--passphrase", "",
-		"--quick-generate-key", "InternKim TEST KEY DO NOT TRUST <test-key@invalid.internkim.test>",
-		"default", "default", "never")
-	if output, errorValue := generate.CombinedOutput(); errorValue != nil {
-		t.Skipf("gpg could not generate a key here: %s", output)
-	}
-	exported := exec.Command("gpg", "--homedir", homeDirectory, "--batch", "--no-tty",
-		"--pinentry-mode", "loopback", "--passphrase", "", "--armor", "--export-secret-keys")
-	key, errorValue := exported.Output()
-	if errorValue != nil || len(key) == 0 {
-		t.Skipf("gpg exported no secret key: %v", errorValue)
-	}
-	keyPath := filepath.Join(t.TempDir(), "apt-archive-signing-key.asc")
-	if errorValue := os.WriteFile(keyPath, key, 0o600); errorValue != nil {
-		t.Fatalf("write the throwaway key: %v", errorValue)
-	}
-	exec.Command("gpgconf", "--homedir", homeDirectory, "--kill", "gpg-agent").Run()
-	return keyPath
-}
-
 func TestTheSignatureVerifiesAgainstThePublishedKeyring(t *testing.T) {
-	signer, errorValue := NewGPGSigner(throwawaySigningKey(t))
+	signer, errorValue := NewGPGSigner(repositorytest.KeyPath(t))
 	if errorValue != nil {
 		t.Fatalf("open the signer: %v", errorValue)
 	}
@@ -78,7 +31,7 @@ func TestTheSignatureVerifiesAgainstThePublishedKeyring(t *testing.T) {
 		t.Fatalf("export the keyring: %v", errorValue)
 	}
 
-	verificationHome := shortLivedHomeDirectory(t)
+	verificationHome := repositorytest.ShortLivedHomeDirectory(t)
 	keyringPath := filepath.Join(verificationHome, "keyring.pgp")
 	if errorValue := os.WriteFile(keyringPath, keyring, 0o644); errorValue != nil {
 		t.Fatalf("write the keyring: %v", errorValue)
@@ -149,7 +102,7 @@ func TestASigningKeyTheVaultDoesNotHoldNamesWhatToRun(t *testing.T) {
 	if errorValue == nil {
 		t.Fatal("a release with no signing key was allowed to start")
 	}
-	for _, named := range []string{"internkim @production release apt", SigningKeyVariable} {
+	for _, named := range []string{"internkim @production release repositories", SigningKeyVariable} {
 		if !strings.Contains(errorValue.Error(), named) {
 			t.Fatalf("the refusal is %q and does not name %q", errorValue.Error(), named)
 		}
