@@ -10,6 +10,7 @@ export type ArrivalWatchersDependencies = {
 	credentialOf: (memberID: string) => Promise<ActorCredential | null>;
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	arrivalsURL: string;
+	typingURL: string;
 	report: (line: string) => void;
 };
 
@@ -25,7 +26,8 @@ export async function renewArrivalWatches(dependencies: ArrivalWatchersDependenc
 		}
 		const answer = await dependencies.askChatd(arrivalsWatchCapability, {
 			actor,
-			arrivalsURL: dependencies.arrivalsURL
+			arrivalsURL: dependencies.arrivalsURL,
+			typingURL: dependencies.typingURL
 		});
 		if (answer.status < 300) {
 			renewal.watched += 1;
