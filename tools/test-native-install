@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Judge whether installing the company host through apt leaves a working machine.
 
-The rig boots one disposable arm64 Debian guest with nothing of ours on it,
+The rig boots one disposable arm64 guest, Debian 13, Ubuntu 22.04 or Ubuntu 24.04,
+with nothing of ours on it,
 serves an apt repository from this Mac, runs the install, and then reads the
 guest's own state: dpkg's database, systemd's, the filesystem. Nothing here
 judges a transcript of what the install printed.
@@ -23,8 +24,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_rig import (  # noqa: E402
     APT_SOURCE_PATH,
-    OTHER_SUITE_IMAGE,
     ARCHITECTURE,
+    DEFAULT_DISTRIBUTION,
+    DISTRIBUTIONS,
+    DOCUMENT_MODULES_THE_SKILLS_OPEN,
     COMPONENT,
     CONFFILE_EDIT,
     CONFFILE_PATH,
@@ -50,7 +53,6 @@ from native_install_rig import (  # noqa: E402
     Release,
     RigFailure,
     build_stand_in_package,
-    install_attempt_on_another_suite,
     dependency_names,
     package_fields,
 )
@@ -58,7 +60,10 @@ from native_install_rig import (  # noqa: E402
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 RELAY_UNIT_NAME = "internkim-relay.service"
-DOCUMENT_INTERPRETER_PACKAGE = "python3"
+CARRIED_INTERPRETER_PATH = "/opt/internkim/python/bin/python3.13"
+CARRIED_DOCUMENT_PYTHON_PATH = "/opt/internkim/document-venv/bin/python"
+CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
+NAMES_THE_PACKAGE_CARRIES = ("python3", "python3-venv", "fonts-nanum", "chromium")
 PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
 PLANTED_SECRET = "0123456789abcdef" * 4
 
@@ -288,7 +293,9 @@ class Rig:
     def start_machine(self):
         share = self.working_directory / "share"
         (share / "scripts").mkdir(parents=True, exist_ok=True)
-        self.machine = Machine(self.options.name, share, kernel_image_path=self.options.kernel)
+        self.machine = Machine(
+            self.options.name, share, kernel_image_path=self.options.kernel, distribution=self.options.distribution
+        )
         self.machine.preflight()
         self.machine.create()
         self.machine.wait_until_running()
@@ -442,9 +449,7 @@ class Rig:
             "everything the package declares a dependency on is installed or provided",
             "`dpkg-query -W` for each name in the package's own Depends: field, and the "
             "Provides: of every installed package for the names dpkg does not record",
-            "the plan's §3 makes fonts-nanum and chromium hard dependencies because without them "
-            "a skill is withheld from the prompt and the Korean silently leaves the PDF; reading "
-            "the field back off the machine is what shows apt honoured the line. A name can be "
+            "reading the field back off the machine is what shows apt honoured the line. A name can be "
             "honoured without being recorded: postgresql-contrib is a real package on bookworm, "
             "jammy and noble and purely virtual on trixie, where postgresql provides it and dpkg "
             "never holds the name",
@@ -479,29 +484,49 @@ class Rig:
             modes.stdout.strip(),
         )
 
-        self.observe_the_other_suite_is_refused(step)
+        self.observe_the_package_carries_what_it_does_not_ask_for(step)
         self.observe_services(step)
 
-    def observe_the_other_suite_is_refused(self, step, package_path=None):
-        """The package carries wheels for one Python, and says so in Depends:.
+    def observe_the_package_carries_what_it_does_not_ask_for(self, step):
+        """The interpreter, its wheels and the Hangul face come with the package.
 
-        A guest of a suite with a different python3 is the only place that claim
-        can be read, because apt on this guest satisfied it.
+        Read on the guest, which asked apt for none of them: a distribution whose
+        python3 is another minor version, or which ships no python3 at all, is the
+        machine where a dependency on the distribution's would have failed.
         """
-        package_path = package_path or self.package_under_test
-        attempt = install_attempt_on_another_suite(package_path)
-        said = (attempt.stdout + attempt.stderr).strip()
+        declared = self.declared_dependencies(self.package_under_test)
+        asked_for = [name for name in NAMES_THE_PACKAGE_CARRIES if name in declared]
         step.observe(
-            f"a suite whose python3 the interpreter was not resolved against refuses it",
-            f"what apt on a {OTHER_SUITE_IMAGE} guest answers when asked to install this package",
-            "the package's document interpreter is a tree of wheels built for one Python minor "
-            "version, and the only thing that keeps it off a suite carrying another is the bound "
-            "in Depends:. A bound that does not bite reads exactly like one that does from here, "
-            "so it is read where it has to bite",
-        ).record(
-            attempt.returncode != 0 and DOCUMENT_INTERPRETER_PACKAGE in said and "Depends" in said,
-            "\n".join(said.splitlines()[-6:]) or f"apt exited {attempt.returncode} and said nothing",
+            "the package asks the distribution for no python3, font or browser",
+            "the package's own Depends: field",
+            "a name in Depends: is something every distribution has to spell and version the "
+            "same way, which python3 and the font package do not",
+        ).record(not asked_for, ", ".join(asked_for) or "none of " + ", ".join(NAMES_THE_PACKAGE_CARRIES))
+
+        imported = self.machine.shell(
+            f"{CARRIED_DOCUMENT_PYTHON_PATH} -c '{DOCUMENT_MODULES_THE_SKILLS_OPEN}' 2>&1 && echo imported"
         )
+        step.observe(
+            "the carried interpreter imports every module the document skills open",
+            f"`{CARRIED_DOCUMENT_PYTHON_PATH}` run in the guest with the skills' import list",
+            "the file existing says it was unpacked; the import is what needs the wheels, the "
+            "interpreter and this machine's glibc to agree",
+        ).record(imported.stdout.strip().endswith("imported"), imported.stdout.strip()[-400:])
+
+        linked = self.machine.shell(f"readlink -f {CARRIED_DOCUMENT_PYTHON_PATH}; {CARRIED_INTERPRETER_PATH} -V")
+        step.observe(
+            "the document venv runs on the interpreter the package carries, not the distribution's",
+            f"where {CARRIED_DOCUMENT_PYTHON_PATH} resolves to",
+            "a venv whose link pointed at /usr/bin/python3 would import on this guest and not on "
+            "the next one",
+        ).record(linked.stdout.splitlines()[:1] == [CARRIED_INTERPRETER_PATH], linked.stdout.strip())
+
+        font = self.machine.shell(f"fc-match -f '%{{file}}' 'NanumGothic' 2>/dev/null || true; echo; ls -l {CARRIED_FONT_PATH}")
+        step.observe(
+            "the Hangul face is on disk where fontconfig scans",
+            f"{CARRIED_FONT_PATH} and what fontconfig answers for NanumGothic",
+            "a skill that cannot find Hangul writes a PDF with none and no error",
+        ).record(CARRIED_FONT_PATH in font.stdout, font.stdout.strip())
 
     def units(self):
         return installed_units(self.machine)
@@ -960,6 +985,17 @@ def main():
         action="store_true",
         help="build a stand-in package so the rig's own assertions can be exercised before the real one exists",
     )
+    parser.add_argument(
+        "--distribution",
+        choices=sorted(DISTRIBUTIONS),
+        default=DEFAULT_DISTRIBUTION,
+        help="the release the guest runs (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--without-company",
+        action="store_true",
+        help="do not give the guest a company, so no local plane is needed; step 5 is reported BLOCKED rather than passed",
+    )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
     parser.add_argument(
@@ -985,7 +1021,7 @@ def main():
             )
             return 1
 
-        print(f"the machine: {ARCHITECTURE} Debian 13, named {options.name}")
+        print(f"the machine: {ARCHITECTURE} {options.distribution}, named {options.name}")
         print(f"under test:  {', '.join(path.name for path in packages)}")
         print(f"pre-seeded:  {', '.join(PRESEEDED_PACKAGES)}, then the package's own Depends:")
         print()
@@ -1007,10 +1043,12 @@ def main():
 
             step_five = rig.step(5, "a person signs in and exchanges a message")
             revision_before = {}
-            if options.stand_in:
+            if options.stand_in or options.without_company:
                 step_five.block(
                     "not run against a stand-in: the package under test carries none of the "
                     "services a company would be given to"
+                    if options.stand_in
+                    else "not run: --without-company was passed, so no plane issued this guest a company"
                 )
             else:
                 rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
@@ -1024,7 +1062,7 @@ def main():
             step_three = rig.step(3, "apt upgrade moves it to a newer version")
             rig.run_step_three(step_three, packages)
 
-            if not options.stand_in:
+            if not options.stand_in and not options.without_company:
                 rig.observe_the_processes_moved(
                     step_five, revision_before, rig.build_identity_the_guest_reports()
                 )

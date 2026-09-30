@@ -48,7 +48,7 @@ class StandInPackageTests(unittest.TestCase):
         self.assertEqual(fields["Package"], "internkim")
         self.assertEqual(fields["Version"], "9.9.9")
         self.assertEqual(fields["Architecture"], "arm64")
-        self.assertIn("python3", fields["Depends"])
+        self.assertIn("ca-certificates", fields["Depends"])
 
     def test_a_continued_description_keeps_the_indentation_a_paragraph_needs(self):
         fields = rig.package_fields(self.build())
@@ -166,13 +166,13 @@ class DependencyReadingTests(unittest.TestCase):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         package = rig.build_stand_in_package(directory, "1.0.0", "one")
         self.assertEqual(
-            rig.dependency_names(rig.package_fields(package)["Depends"]), ["python3", "ca-certificates"]
+            rig.dependency_names(rig.package_fields(package)["Depends"]), ["ca-certificates"]
         )
 
     def test_a_name_bounded_from_both_sides_is_asked_for_once(self):
         self.assertEqual(
-            rig.dependency_names("python3 (>= 3.13), python3 (<< 3.14), ca-certificates"),
-            ["python3", "ca-certificates"],
+            rig.dependency_names("postgresql (>= 14), postgresql (<< 18), ca-certificates"),
+            ["postgresql", "ca-certificates"],
         )
 
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
@@ -371,3 +371,33 @@ class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
                 declared.append(line)
         self.assertNotIn(rig.SIGNING_KEY_VARIABLE, declared,
                          f"@{default_profile} would hand the rig's CLI the vault's signing key over its throwaway one")
+
+
+class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
+    """The guest is asked about paths and imports that belong to `internal/runtime/blueclaw`."""
+
+    def blueclaw_source(self, file_name):
+        return (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / file_name).read_text()
+
+    def declared(self, file_name, name):
+        match = re.search(rf'^\s*{name}\s+=\s*"([^"]+)"', self.blueclaw_source(file_name), re.MULTILINE)
+        self.assertIsNotNone(match, f"internal/runtime/blueclaw no longer declares {name}")
+        return match.group(1)
+
+    def test_the_modules_the_rig_imports_are_the_ones_the_build_checks(self):
+        source = self.blueclaw_source("document_interpreter.go")
+        declared = re.search(r"const documentModulesTheSkillsOpen = ((?:\"[^\"]*\"\s*\+?\s*)+)", source)
+        self.assertIsNotNone(declared, "documentModulesTheSkillsOpen is no longer a string literal")
+        joined = "".join(re.findall(r'"([^"]*)"', declared.group(1)))
+        self.assertEqual(rig.DOCUMENT_MODULES_THE_SKILLS_OPEN, joined)
+
+    def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
+        driver = load_driver()
+        directory = self.declared("document_interpreter.go", "documentInterpreterDirectoryName")
+        minor = self.declared("document_interpreter.go", "DocumentInterpreterMinor")
+        self.assertEqual(driver.CARRIED_INTERPRETER_PATH, f"/opt/internkim/{directory}/bin/python{minor}")
+        self.assertEqual(driver.CARRIED_DOCUMENT_PYTHON_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentVenvPath") + "/bin/python")
+        self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
+
+    def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
+        self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])

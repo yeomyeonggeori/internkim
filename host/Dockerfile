@@ -27,7 +27,7 @@ RUN cd relay && bun install --frozen-lockfile
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv libfontconfig1 fonts-nanum chromium \
+	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv libfontconfig1 fonts-nanum \
 	&& rm -rf /var/lib/apt/lists/*
 ARG MOLI_VERSION=1.1.5
 ARG AGENT_BROWSER_VERSION=0.32.3

@@ -45,6 +45,9 @@ type companyHostPlatform interface {
 	// SuperviseTheBundle writes the service definitions, registers them and
 	// starts them.
 	SuperviseTheBundle(machine Machine, progress io.Writer) error
+	// CarriesItInThePackage is true for a dependency the package on this
+	// machine brings with it, so the machine is not asked for it.
+	CarriesItInThePackage(dependency blueclaw.HostDependency) bool
 	// WhereToLookFor is where this machine keeps a dependency that is not on
 	// PATH and not where Debian puts it. Any one of the paths satisfies it.
 	// Empty means look the way the declaration says.

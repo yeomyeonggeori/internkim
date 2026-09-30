@@ -28,8 +28,17 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 KERNEL_IMAGE_PATH = REPOSITORY_ROOT / ".dependency" / "container-kernel" / "Image-6.1.68-kvm"
 DEBIAN_SUITE = "trixie"
-BASE_IMAGE = f"debian:{DEBIAN_SUITE}-slim"
+DISTRIBUTIONS = {
+    "debian-13": f"debian:{DEBIAN_SUITE}-slim",
+    "ubuntu-22.04": "ubuntu:22.04",
+    "ubuntu-24.04": "ubuntu:24.04",
+}
+DEFAULT_DISTRIBUTION = "debian-13"
 ARCHITECTURE = "arm64"
+DOCUMENT_MODULES_THE_SKILLS_OPEN = (
+    "import plistlib, platform, xml.etree.ElementTree, "
+    "docx, openpyxl, fpdf, pptx, lxml, PIL, pypdf, yaml, xlsxwriter, fontTools"
+)
 SUITE = f"{DEBIAN_SUITE}-stable"
 TESTING_SUITE = f"{DEBIAN_SUITE}-testing"
 COMPONENT = "main"
@@ -188,8 +197,8 @@ def dependency_names(depends_field):
     A version constraint is dropped and the first alternative of an `a | b`
     clause is taken, which is the one a Debian machine installs by default.
 
-    A name bounded from both sides, as `python3 (>= 3.13), python3 (<< 3.14)`
-    is, names one package twice; apt is asked for it once.
+    A name bounded from both sides, as `postgresql (>= 14), postgresql (<< 18)`
+    would be, names one package twice; apt is asked for it once.
     """
     names = []
     for clause in depends_field.replace("\n", " ").split(","):
@@ -375,11 +384,7 @@ def build_stand_in_package(directory, version, revision):
             "Maintainer: InternKim <nobody@invalid.internkim.test>",
             "Section: admin",
             "Priority: optional",
-            # The real package bounds python3 to the minor version its document
-            # interpreter was resolved against, and the stand-in carries the same
-            # bound so that assertion has something to read. trixie's python3 is
-            # inside it and bookworm's is not, which is the whole point of it.
-            "Depends: python3 (>= 3.13), python3 (<< 3.14), ca-certificates",
+            "Depends: ca-certificates",
             "Description: stand-in for the company host package",
             " Built by tools/test-native-install so the rig can be exercised before",
             " the real package exists. It is not the product.",
@@ -584,10 +589,18 @@ PRESEEDED_PACKAGES = ("systemd", "systemd-sysv", "curl", "ca-certificates")
 
 
 class Machine:
-    """One disposable arm64 Debian guest, created and destroyed by this rig alone."""
+    """One disposable arm64 guest of a Debian or Ubuntu release, created and destroyed by this rig alone."""
 
-    def __init__(self, name, share_directory, container_binary="container", kernel_image_path=KERNEL_IMAGE_PATH):
+    def __init__(
+        self,
+        name,
+        share_directory,
+        container_binary="container",
+        kernel_image_path=KERNEL_IMAGE_PATH,
+        distribution=DEFAULT_DISTRIBUTION,
+    ):
         self.name = name
+        self.image = DISTRIBUTIONS[distribution]
         self.share_directory = Path(share_directory)
         self.container_binary = container_binary
         self.kernel_image_path = Path(kernel_image_path)
@@ -625,7 +638,7 @@ class Machine:
                 "--tmpfs", "/run/lock",
                 "--kernel", str(self.kernel_image_path),
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
-                BASE_IMAGE,
+                self.image,
                 "sh", "-c", BOOTSTRAP_SCRIPT,
             ]
         )
@@ -683,38 +696,6 @@ class Machine:
         run([self.container_binary, "rm", "--force", self.name])
         self.created = False
 
-
-# The suite the package was not built for. Its python3 is 3.11 where trixie's is
-# 3.13, which is the difference the document interpreter's wheels cannot cross.
-OTHER_SUITE_IMAGE = "debian:bookworm-slim"
-
-
-def install_attempt_on_another_suite(package_path, container_binary="container"):
-    """Ask a guest of another suite to install this package, and answer what apt said.
-
-    A throwaway `container run` rather than a second Machine: nothing here needs an
-    init, a kernel or a shared directory, because apt refuses before it unpacks
-    anything.
-    """
-    package_path = Path(package_path)
-    script = "\n".join([
-        "set -u",
-        "export DEBIAN_FRONTEND=noninteractive",
-        "apt-get update -qq >/dev/null 2>&1",
-        "apt-get install -y /package/" + package_path.name,
-    ])
-    completed = subprocess.run(
-        [
-            container_binary, "run", "--rm",
-            "--platform", "linux/" + ARCHITECTURE,
-            "--volume", str(package_path.parent) + ":/package",
-            OTHER_SUITE_IMAGE, "sh", "-c", script,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=900,
-    )
-    return completed
 
 # ------------------------------------------------------- what a person does next
 

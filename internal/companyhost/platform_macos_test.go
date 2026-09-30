@@ -41,26 +41,18 @@ func TestAMachineThatIsNeitherIsRefusedByName(t *testing.T) {
 	}
 }
 
-// The browser the deck renderer opens on a Mac is an application bundle, not a
-// program on PATH. A preflight that asked for `chromium` would refuse every Mac,
-// including one with a working browser.
-func TestAMacWithAWorkingBrowserIsNotToldItsBrowserIsMissing(t *testing.T) {
-	// No Mac has a `chromium` on PATH and none has Debian's font file; this one
-	// has the browser bundle and the Hangul face the system ships.
+// The Hangul face on a Mac is a file the system ships, not Debian's path. A
+// preflight that asked for NanumGothic's Debian path would refuse every Mac.
+func TestAMacWithTheSystemHangulFaceIsNotToldItsFontIsMissing(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{
-		"chromium": true,
-		"/usr/share/fonts/truetype/nanum/NanumGothic.ttf":    true,
-		"/Applications/Chromium.app/Contents/MacOS/Chromium": true,
+		"/usr/share/fonts/truetype/nanum/NanumGothic.ttf": true,
 	}}
 	if errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(), machine); errorValue != nil {
-		t.Fatalf("a Mac with Google Chrome and AppleSDGothicNeo was refused:\n%v", errorValue)
+		t.Fatalf("a Mac with AppleSDGothicNeo was refused:\n%v", errorValue)
 	}
 }
 
-// And a Mac with neither browser has to be told what to type. The chromium cask
-// is disabled upstream, so naming it would send a person at a command that
-// fails; the refusal names the cask that works and says why the other cannot.
-func TestAMacWithNoBrowserIsToldWhichCaskToInstallAndWhyNotTheOther(t *testing.T) {
+func TestAMacWithNoHangulFaceIsToldWhichFileWasLookedFor(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{}}
 	for _, dependency := range blueclaw.HostDependencies() {
 		for _, candidate := range dependency.MacFilePathCandidates {
@@ -69,12 +61,10 @@ func TestAMacWithNoBrowserIsToldWhichCaskToInstallAndWhyNotTheOther(t *testing.T
 	}
 	errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(), machine)
 	if errorValue == nil {
-		t.Fatal("a Mac with no browser and no Hangul face was accepted")
+		t.Fatal("a Mac with no Hangul face was accepted")
 	}
-	for _, named := range []string{"brew install --cask google-chrome", "chromium", "Gatekeeper"} {
-		if !strings.Contains(errorValue.Error(), named) {
-			t.Fatalf("the refusal does not name %q:\n%s", named, errorValue)
-		}
+	if !strings.Contains(errorValue.Error(), "AppleSDGothicNeo") {
+		t.Fatalf("the refusal does not name the file it looked for:\n%s", errorValue)
 	}
 }
 

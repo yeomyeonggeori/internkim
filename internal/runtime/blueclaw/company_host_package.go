@@ -33,10 +33,13 @@ const (
 	// resolved once, when the package is built, so no customer machine resolves
 	// a wheel. capabilityd hands this path to the file reader, the image builds
 	// the same one, and the .deb carries it.
-	CompanyPackageDocumentVenvPath   = "/opt/internkim/document-venv"
-	CompanyPackageDocumentPythonPath = CompanyPackageDocumentVenvPath + "/bin/python"
-	CompanyPackageMigrationPath      = "/opt/blueclaw/migrations"
-	CompanyPackagePreparePath        = "/usr/lib/internkim/prepare-company-host"
+	CompanyPackageDocumentVenvPath        = "/opt/internkim/document-venv"
+	CompanyPackageInterpreterPath         = "/opt/internkim/" + documentInterpreterDirectoryName
+	CompanyPackageDocumentPythonPath      = CompanyPackageDocumentVenvPath + "/bin/python"
+	CompanyPackageDocumentFontPath        = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
+	CompanyPackageDocumentFontLicensePath = "/usr/share/doc/internkim/NanumGothic-OFL.txt"
+	CompanyPackageMigrationPath           = "/opt/blueclaw/migrations"
+	CompanyPackagePreparePath             = "/usr/lib/internkim/prepare-company-host"
 
 	// POSIXHelperProgramName is what lets the unprivileged agent act as the
 	// person who asked, and it is the one setuid file the package ships. Debian
