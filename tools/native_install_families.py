@@ -11,7 +11,7 @@ import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
-from native_install_rig import BOOTSTRAP_SCRIPT, PACKAGE_NAME
+from native_install_rig import ARCHITECTURE, BOOTSTRAP_SCRIPT, MACHINE_NAME, PACKAGE_NAME
 
 PRESENT_MARKER = "internkim-is-present"
 
@@ -92,7 +92,7 @@ def debian_family(name, image):
     return Family(
         name=name,
         image=image,
-        package_pattern=f"{PACKAGE_NAME}_*_arm64.deb",
+        package_pattern=f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb",
         bootstrap=BOOTSTRAP_SCRIPT,
         tools_command=DEBIAN_TOOLS,
         installed_status_command=f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}",
@@ -127,7 +127,7 @@ FAMILIES = {
         Family(
             name="fedora",
             image="fedora:latest",
-            package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
+            package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
             bootstrap=FEDORA_BOOTSTRAP,
             tools_command="dnf install -y -q iproute procps-ng",
             installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
@@ -149,7 +149,7 @@ FAMILIES = {
         Family(
             name="rhel-10",
             image="rockylinux/rockylinux:10",
-            package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
+            package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
             bootstrap=RHEL_BOOTSTRAP,
             tools_command="dnf install -y -q iproute procps-ng",
             installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
@@ -171,7 +171,7 @@ FAMILIES = {
         Family(
             name="archlinux",
             image="lopsided/archlinux:latest",
-            package_pattern=f"{PACKAGE_NAME}-*-aarch64.pkg.tar.zst",
+            package_pattern=f"{PACKAGE_NAME}-*-{MACHINE_NAME}.pkg.tar.zst",
             bootstrap=ARCH_BOOTSTRAP,
             tools_command="pacman -S --noconfirm --needed iproute2 procps-ng",
             installed_status_command=f"pacman -Q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
