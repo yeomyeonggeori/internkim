@@ -6,7 +6,7 @@ const reader = { id: 'person-reader', name: '이샘플', email: 'reader@example.
 const author = { id: 'person-author', name: '박예시', email: 'author@example.com' };
 const idleRefreshMs = 5000;
 
-type Delivery = { failNext: number };
+type Delivery = { failNext: number; failReadsAfterSend?: number };
 
 async function mockChannelThatFailsToSend(page: Page, delivery: Delivery): Promise<void> {
 	const messages: object[] = [
@@ -18,7 +18,13 @@ async function mockChannelThatFailsToSend(page: Page, delivery: Delivery): Promi
 		[{ id: channelID, name: '전송 채널', kind: 'group', myRole: 'member' }],
 		messages
 	);
+	let readsLeftToFail = 0;
 	await page.route('**/agent/api/dm**', async (route) => {
+		if (route.request().method() !== 'POST' && readsLeftToFail > 0) {
+			readsLeftToFail--;
+			await route.fulfill({ status: 503, body: 'relay unavailable' });
+			return;
+		}
 		if (route.request().method() === 'POST') {
 			if (delivery.failNext > 0) {
 				delivery.failNext--;
@@ -36,6 +42,7 @@ async function mockChannelThatFailsToSend(page: Page, delivery: Delivery): Promi
 				text: message,
 				sentAt: '2026-09-28T01:05:00Z'
 			});
+			readsLeftToFail = delivery.failReadsAfterSend ?? 0;
 		}
 		await route.fulfill({
 			json: { conversationID: channelID, currentUserId: reader.id, messages, hasMoreBefore: false, historyCursor: '' }
@@ -103,4 +110,19 @@ test('a thread reply that failed to send offers the same choices', async ({ page
 	await failure.getByRole('button', { name: '다시 전송' }).click();
 	await expect(failure).toBeHidden();
 	await expect(threadSheet.locator('[data-message-id^="message-"]').filter({ hasText: '실패할 답글' })).toBeVisible();
+});
+
+test('a sent message stays on screen when reading the conversation right after fails', async ({ page }) => {
+	await page.clock.install();
+	const delivery = { failNext: 0, failReadsAfterSend: 1 };
+	await mockChannelThatFailsToSend(page, delivery);
+
+	await send(page, '메시지를 입력하세요', '보낸 뒤 읽기 실패');
+
+	await expect(page.locator('[data-message-id^="pending-"]').filter({ hasText: '보낸 뒤 읽기 실패' })).toBeVisible();
+	await expect(page.getByRole('group', { name: '보내지 못했어요' })).toHaveCount(0);
+
+	await page.clock.fastForward(idleRefreshMs * 2);
+	await expect(page.locator('[data-message-id^="message-"]').filter({ hasText: '보낸 뒤 읽기 실패' })).toBeVisible();
+	await expect(page.getByText('보낸 뒤 읽기 실패')).toHaveCount(1);
 });
