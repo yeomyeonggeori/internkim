@@ -371,7 +371,7 @@ class Measurement:
 
 
     def give_it_swap(self, machine, reading):
-        """Raspberry Pi OS trixie ships rpi-swap, zram sized to RAM, and this guest ships none.
+        """The board image ships zram swap sized to RAM, and this guest ships none.
 
         Without it a box that runs out of memory is killed rather than slowed,
         which is only half of what a board does. The size is the one a person
@@ -631,7 +631,7 @@ def main():
     )
     parser.add_argument(
         "--swap-mebibytes", type=int, default=0,
-        help="give each guest a swapfile of this size; the board itself swaps to zram through rpi-swap",
+        help="give each guest a swapfile of this size; the board itself swaps to zram",
     )
     parser.add_argument("--name-prefix", default=f"internkim-memory-{uuid.uuid4().hex[:6]}")
     parser.add_argument("--keep", action="store_true", help="leave each guest up for autopsy")

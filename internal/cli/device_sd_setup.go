@@ -80,9 +80,6 @@ var (
 	}
 )
 
-// flashSD detects an SD card, downloads Debian trixie arm64, and writes it.
-// After flashing, it mounts the boot partition and injects SSH keys + Wi-Fi config.
-// runSetupSD handles the full SD card provisioning flow for Raspberry Pi 5.
 func runSetupSD(m *msg) {
 	cfg := loadConfig()
 	stateDir := internkimHomeDir()
@@ -111,7 +108,7 @@ func runSetupSD(m *msg) {
 		fmt.Println()
 		fatal(fmt.Sprintf("알 수 없는 보드: %s", boardType))
 	}
-	boardNames := map[string]string{"rpi": "Raspberry Pi", "orangepi5": "Orange Pi 5"}
+	boardNames := map[string]string{"rpi": "CM5", "orangepi5": "Orange Pi 5"}
 	fmt.Printf("=== Intern Kim Setup (%s, Armbian Trixie) ===\n", boardNames[boardType])
 	fmt.Println()
 
@@ -339,7 +336,6 @@ func runSetupSD(m *msg) {
 	}
 	fmt.Printf("  %s\n", m.t("스테이지 디렉터리 복사 완료", "Stage directory copied"))
 
-	// sysconf.txt is Debian raspi's own first-boot configuration file.
 	sysconf := "hostname=internkim\n"
 	if flowState.publicKey != "" {
 		sysconf += fmt.Sprintf("root_authorized_key=%s\n", flowState.publicKey)
@@ -377,8 +373,8 @@ func runSetupSD(m *msg) {
 	fmt.Println("========================================")
 	fmt.Println()
 	fmt.Println(m.t(
-		"  1. SD 카드를 라즈베리파이 5에 삽입\n  2. 전원 연결\n  3. 첫 부팅 시 자동 설정 (약 5-10분 소요)",
-		"  1. Insert SD card into Raspberry Pi 5\n  2. Connect power\n  3. First boot auto-setup (takes ~5-10 min)",
+		"  1. SD 카드를 보드에 삽입\n  2. 전원 연결\n  3. 첫 부팅 시 자동 설정 (약 5-10분 소요)",
+		"  1. Insert the SD card into the board\n  2. Connect power\n  3. First boot auto-setup (takes ~5-10 min)",
 	))
 	deviceURL := loadState(stateDir, "device_url")
 	if deviceURL != "" {
