@@ -1,0 +1,52 @@
+---
+title: Plugin
+description: Install InternKim's skills and tool server in Claude Code or Codex, and sign in as yourself.
+icon: Plug
+---
+
+The [internkim plugin](https://github.com/yeomyeonggeori/internkim-plugin)
+carries the skills the InternKim agent uses and declares its tool server, so a
+coding agent on your own machine can write a deck, file a document in the data
+room or add a task to your company's record. It acts as you: every tool call
+carries your account, and your company's permissions decide what it may do.
+
+## Install [#install]
+
+In Claude Code:
+
+```sh
+claude plugin marketplace add yeomyeonggeori/internkim-plugin
+claude plugin install internkim@internkim
+```
+
+In Codex:
+
+```sh
+codex plugin marketplace add yeomyeonggeori/internkim-plugin
+codex plugin add internkim@internkim
+```
+
+Other clients that read the Agent Plugins layout are covered in the plugin's
+README.
+
+## Sign in [#sign-in]
+
+The tool server at `https://api.intern.kim/v1/mcp` follows MCP authorization.
+The client lists it as needing sign-in, and the first tool call opens the
+browser at intern.kim; the client keeps the token itself, and the plugin holds
+none. Until your account belongs to a company, every tool call answers `403`
+naming that as what is missing.
+
+A client without MCP authorization sends a personal access token instead,
+issued from your account settings, as `Authorization: Bearer ik_…`. What each
+token's permission opens is under [Permissions](/docs/api#permissions).
+
+## What runs where [#what-runs-where]
+
+Six skills, among them PDF, spreadsheet and presentation, run entirely on your
+machine and need no account. The other eleven call the tool server, which reads
+and writes your company's record. The plugin's README lists both groups.
+
+Running the local skills needs Python 3 and [uv](https://docs.astral.sh/uv/) on
+`PATH`; each skill creates its own environment on first use. Building a
+website also needs [Bun](https://bun.sh).

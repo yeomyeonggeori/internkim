@@ -1,0 +1,50 @@
+---
+title: 플러그인
+description: Claude Code나 Codex에 김인턴의 스킬과 툴 서버를 설치하고, 내 계정으로 로그인하기.
+icon: Plug
+---
+
+[김인턴 플러그인](https://github.com/yeomyeonggeori/internkim-plugin)은 김인턴
+에이전트가 쓰는 스킬을 담고 툴 서버를 선언합니다. 그래서 내 컴퓨터의 코딩
+에이전트가 덱을 만들고, 데이터룸에 문서를 올리고, 회사 기록에 업무를 추가할 수
+있습니다. 플러그인은 나로서 일합니다. 모든 툴 호출에 내 계정이 실리고, 무엇을
+할 수 있는지는 회사 권한이 정합니다.
+
+## 설치 [#install]
+
+Claude Code에서:
+
+```sh
+claude plugin marketplace add yeomyeonggeori/internkim-plugin
+claude plugin install internkim@internkim
+```
+
+Codex에서:
+
+```sh
+codex plugin marketplace add yeomyeonggeori/internkim-plugin
+codex plugin add internkim@internkim
+```
+
+Agent Plugins 형식을 읽는 다른 클라이언트는 플러그인 README에 방법이 있습니다.
+
+## 로그인 [#sign-in]
+
+`https://api.intern.kim/v1/mcp` 툴 서버는 MCP 인증을 따릅니다. 클라이언트는 이
+서버를 로그인이 필요한 상태로 보여 주고, 첫 툴 호출 때 intern.kim 로그인 화면을
+브라우저로 엽니다. 토큰은 클라이언트가 직접 보관하고 플러그인에는 없습니다. 내
+계정이 회사에 속하기 전까지 모든 툴 호출은 그 점을 알려 주며 `403`으로 답합니다.
+
+MCP 인증이 없는 클라이언트는 계정 설정에서 발급한 개인 액세스 토큰을
+`Authorization: Bearer ik_…`로 보냅니다. 토큰 권한별로 열리는 범위는
+[권한](/ko/docs/api#permissions)에 있습니다.
+
+## 어디서 도는가 [#what-runs-where]
+
+PDF, 스프레드시트, 프레젠테이션을 포함한 스킬 여섯 개는 내 컴퓨터에서만 돌고
+계정이 필요 없습니다. 나머지 열한 개는 툴 서버를 불러 회사 기록을 읽고 씁니다.
+두 묶음의 목록은 플러그인 README에 있습니다.
+
+내 컴퓨터에서 도는 스킬에는 `PATH`에 Python 3와 [uv](https://docs.astral.sh/uv/)가
+있어야 하고, 스킬마다 처음 쓸 때 자기 환경을 만듭니다. 웹사이트를 빌드하려면
+[Bun](https://bun.sh)도 필요합니다.
