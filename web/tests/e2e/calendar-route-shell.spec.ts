@@ -18,6 +18,7 @@ test.describe('calendar route shell', () => {
 
 	test('renders the embedded calendar without the old sidebar', async ({ page }) => {
 		await routeCalendarHolidays(page);
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
 		const [eventID] = await seedCalendarEvents([
 			{ title: '겹치는 일정', startISO: '2026-06-08T01:00:00+09:00', endISO: '2026-06-08T02:00:00+09:00' }
 		]);
@@ -119,6 +120,7 @@ test.describe('calendar route shell', () => {
 		await page.route('**/api/calendar/holidays?**', async (route) => {
 			await route.fulfill({ status: 503, contentType: 'text/plain', body: 'provider unavailable' });
 		});
+		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
 		const [eventID] = await seedCalendarEvents([
 			{ title: '공휴일 실패해도 보임', startISO: '2026-06-15T09:00:00+09:00', endISO: '2026-06-15T10:00:00+09:00' }
 		]);
