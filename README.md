@@ -363,12 +363,14 @@ make build
 ./internkim @production deploy --components admind,capabilityd
 ```
 
-Omitting `--components` builds the whole release set, which needs the board UI
-and the blueclaw payload built first.
+Without `--components`, deploy rebuilds the blueclaw payload (and the board
+UI when it is older than the last commit to `web/`), compares the device with
+this tree, and ships every component that differs, with its protocol partner.
+It refuses a component the device is ahead on, ships nothing when the device
+already matches, and after the apply prints each shipped component's revision
+on the device next to the tree's, failing on any difference.
 
 ```bash
-cd web && bun run build:board && cd ..
-make prepare-blueclaw-payload
 ./internkim @production deploy
 ```
 

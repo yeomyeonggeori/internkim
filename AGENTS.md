@@ -556,13 +556,12 @@ and delete the duplicates.
 
 ## Deploying
 
-- When told to deploy, make it the default to: (1) check each relevant
-  component's currently-deployed version first, (2) rebuild the changes fresh
-  (`make build`, plus `make prepare-blueclaw-payload` for any `cmd/blueclaw`
-  change), (3) deploy the related components together so none lags, and (4)
-  verify each deployed version matches the intended HEAD afterward. This avoids
-  shipping a stale/rolled-back component.
-- Before that rebuild, confirm the working tree the build runs from is `main`
+- `./internkim @production deploy` with no flags rebuilds the payload (and the
+  board UI when `web/` is newer), ships every component that differs
+  from the device plus its protocol partner, refuses one the device is ahead
+  on, ships nothing when they match, and fails if a shipped component's device
+  revision differs from the tree's. `--components` narrows on purpose.
+- Before deploying, confirm the working tree the build runs from is `main`
   or already contains `origin/main` HEAD (`git merge-base --is-ancestor
   origin/main HEAD`), including the `.dependency/blueclaw` submodule pointer
   (`git -C .dependency/blueclaw merge-base --is-ancestor origin/main HEAD`).
