@@ -13,7 +13,6 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Empty from '$lib/components/ui/empty';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
@@ -60,19 +59,6 @@
 		replaceState(url, {});
 	}
 
-	function closeChannel() {
-		activeID = undefined;
-		if (typeof localStorage !== 'undefined') localStorage.removeItem(lastChannelKey);
-		const url = new URL(location.href);
-		url.searchParams.delete('channel');
-		replaceState(url, {});
-	}
-
-	function toggleChannel(channelID: string) {
-		if (channelID === activeID) closeChannel();
-		else selectChannel(channelID);
-	}
-
 	const text = createPageText(channelText);
 
 	let conversations = $state<ChannelSummary[]>([]);
@@ -112,7 +98,7 @@
 
 	function selectChannelFromSheet(channelID: string) {
 		isChannelSheetOpen = false;
-		toggleChannel(channelID);
+		selectChannel(channelID);
 	}
 
 	function openNewDirectMessageFromSheet() {
@@ -405,7 +391,7 @@
 				openBrowseChannels={canManageChannels ? openBrowseChannels : undefined}
 				{openOnPlatform}
 				{reorderChannels}
-				selectChannel={toggleChannel}
+				{selectChannel}
 			/>
 			<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 				<header class="flex h-14 shrink-0 items-center gap-2 border-b px-6">
@@ -444,25 +430,17 @@
 						/>
 					{/if}
 				</header>
-				{#if !activeID}
-					<Empty.Root>
-						<Empty.Header>
-							<Empty.Title>{text.noConversationSelected}</Empty.Title>
-						</Empty.Header>
-					</Empty.Root>
-				{:else}
-					{#key activeID}
-						<Channel
-							channelId={activeID}
-							participants={mentionPeopleOf(activeConversation)}
-							isGroup={activeConversation?.kind === 'group'}
-							showSenderNames={activeConversation?.kind === 'group'}
-							canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
-							isWithTheAgent={activeConversation?.isWithTheAgent === true}
-							onReadThrough={(sentAt) => readThrough(activeID, sentAt)}
-						/>
-					{/key}
-				{/if}
+				{#key activeID}
+					<Channel
+						channelId={activeID}
+						participants={mentionPeopleOf(activeConversation)}
+						isGroup={activeConversation?.kind === 'group'}
+						showSenderNames={activeConversation?.kind === 'group'}
+						canModerate={activeConversation?.myRole === 'owner' || activeConversation?.myRole === 'admin'}
+						isWithTheAgent={activeConversation?.isWithTheAgent === true}
+						onReadThrough={(sentAt) => readThrough(activeID, sentAt)}
+					/>
+				{/key}
 			</div>
 		</div>
 	</div>
