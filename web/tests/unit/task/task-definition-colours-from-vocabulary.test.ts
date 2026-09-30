@@ -11,7 +11,7 @@ const hexColour = /^#[0-9a-f]{6}$/;
 function definitionsOfStoredVocabulary(): ReturnType<typeof taskDefinitionsOf> {
 	return taskDefinitionsOf(
 		vocabularyOf({
-			businesses: [{ name: '오토케', color: '#2563eb' }, { name: '태스크포스' }],
+			businesses: [{ name: '오샘플', color: '#2563eb' }, { name: '태스크포스' }],
 			types: [{ name: '개발' }, { name: '운영' }, { name: '영업' }]
 		})
 	);
@@ -38,13 +38,13 @@ describe('colours a company never chose', () => {
 	test('keeps the colour a company did choose', () => {
 		const definitions = definitionsOfStoredVocabulary();
 
-		expect(taskBusinessColor('오토케', definitions)).toBe('#2563eb');
+		expect(taskBusinessColor('오샘플', definitions)).toBe('#2563eb');
 	});
 
 	test('still separates a business nobody coloured from one somebody did', () => {
 		const definitions = definitionsOfStoredVocabulary();
 
 		expect(taskBusinessColor('태스크포스', definitions)).toMatch(hexColour);
-		expect(taskBusinessColor('태스크포스', definitions)).not.toBe(taskBusinessColor('오토케', definitions));
+		expect(taskBusinessColor('태스크포스', definitions)).not.toBe(taskBusinessColor('오샘플', definitions));
 	});
 });

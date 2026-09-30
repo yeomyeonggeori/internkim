@@ -16,7 +16,7 @@ describe('membersInReadingOrder', () => {
 
 	test('everyone else reads by who joined earliest', () => {
 		const ordered = membersInReadingOrder(
-			[member('a', '박예시', '2026-03-01'), member('b', '김예시', '2024-01-01'), member('c', '곽성재', '2025-05-05')],
+			[member('a', '박예시', '2026-03-01'), member('b', '김예시', '2024-01-01'), member('c', '곽샘플', '2025-05-05')],
 			undefined
 		);
 		expect(ordered.map((entry) => entry.id)).toEqual(['b', 'c', 'a']);
@@ -24,10 +24,10 @@ describe('membersInReadingOrder', () => {
 
 	test('a shared joining day falls back to the name', () => {
 		const ordered = membersInReadingOrder(
-			[member('a', '장석민', '2026-01-01'), member('b', '곽성재', '2026-01-01'), member('c', '김테스트', '2026-01-01')],
+			[member('a', '장샘플', '2026-01-01'), member('b', '곽샘플', '2026-01-01'), member('c', '김테스트', '2026-01-01')],
 			undefined
 		);
-		expect(ordered.map((entry) => entry.name)).toEqual(['곽성재', '김테스트', '장석민']);
+		expect(ordered.map((entry) => entry.name)).toEqual(['곽샘플', '김테스트', '장샘플']);
 	});
 
 	test('nobody claims the earliest place by having no joining day', () => {
