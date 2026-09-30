@@ -9,8 +9,8 @@ import (
 )
 
 // The package expresses this list as its dependencies and the package manager
-// satisfies it before a single file lands. Nothing else can: a machine that took
-// the bare binary has no package manager holding it to anything, so the same
+// satisfies it before a single file lands. A binary built from source and run
+// on its own has no package manager holding it to anything, so the same
 // declaration is read here and the gap is named instead of installed.
 
 type missingPiece struct {

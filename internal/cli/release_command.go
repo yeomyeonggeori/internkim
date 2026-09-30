@@ -55,7 +55,6 @@ var releaseSubcommands = []releaseSubcommand{
 	{name: "publish", summary: "Publish a device release to the stable channel", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
 	{name: "status", summary: "Show what the channel points at", flags: []string{"--channel"}, run: runReleaseStatus},
 	{name: "companion", summary: "Build the companion for macOS and Linux and publish it under companion/latest", flags: []string{"--release"}, run: runReleaseCompanion},
-	{name: "host", summary: "Publish the host installer under host/latest, for a machine with no package manager", flags: []string{"--release"}, run: runReleaseCompanyHost},
 	{name: "packages", summary: "Build the company host as deb, rpm and archlinux packages from one payload", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
 	{name: "repositories", summary: "Sign and publish the apt, rpm and pacman repositories under deb/, rpm/ and arch/, from the packages release packages built", flags: []string{"--channel", "--format", "--package-directory", "--output"}, run: runReleaseRepositories},
 	{name: "brew", summary: "Build the company host as a Homebrew bottle on this Mac and render the tap's formula", flags: []string{"--out", "--version"}, run: runReleaseBrew},

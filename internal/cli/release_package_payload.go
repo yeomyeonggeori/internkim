@@ -44,6 +44,7 @@ every unit stays inactive rather than restarting into a failure.`
 	// dpkg has read xz since 1.15, which predates every distribution the package
 	// is for.
 	debPayloadCompression = "xz"
+	companyHostBinaryName = "internkim-host"
 	packageLicense        = "Apache-2.0"
 )
 
@@ -228,8 +229,8 @@ func packagedGoPrograms() []packagedGoProgram {
 	}
 }
 
-// packagedSymbolicLinks keeps the name the published bare binary had working for the
-// one release in which a machine may still be carrying it.
+// packagedSymbolicLinks keeps working the name the bare binary was published under
+// until `release host` was removed, for a machine that still types it.
 func packagedSymbolicLinks() []packagedFile {
 	return []packagedFile{
 		{

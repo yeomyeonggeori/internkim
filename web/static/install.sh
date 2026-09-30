@@ -11,8 +11,9 @@ set -eu
 # which is a path or an address. On a Mac with Homebrew it means the tap
 # and `brew install internkim`, for the same reason and with the same result:
 # `brew upgrade` and `brew uninstall` work afterwards because nothing was put
-# on the machine behind Homebrew's back. Everywhere else, and for `companion`
-# always, the published binary is fetched against its checksum.
+# on the machine behind Homebrew's back. A machine with neither is refused
+# before anything changes. `companion` is the published binary, fetched
+# against its checksum.
 
 product="${1:-}"
 case "$product" in
@@ -315,23 +316,38 @@ Undo what this script did with:
   brew untap $homebrew_tap"
 }
 
-package_manager=""
-if [ "$product" = host ]; then
+refuse_a_machine_with_no_supported_package_manager() {
+  if [ "$(uname -s)" = Darwin ]; then
+    stop \
+"The company host on a Mac is installed through Homebrew, and this Mac has none.
+Install it from https://brew.sh, then run the same command again.
+Nothing on this machine was changed."
+  fi
+  stop \
+"The company host is installed through apt, dnf or pacman, and this machine has
+none of them. It is published for Debian, Ubuntu, Fedora, RHEL-compatible
+distributions and Arch Linux.
+Nothing on this machine was changed."
+}
+
+install_the_host() {
   package_manager="$(find_the_package_manager)"
-fi
+  if [ -n "$package_manager" ]; then
+    install_the_package
+  elif command -v brew >/dev/null 2>&1; then
+    install_through_homebrew
+  else
+    refuse_a_machine_with_no_supported_package_manager
+  fi
+}
 
-if [ -n "$package_manager" ]; then
-  install_the_package
+if [ "$product" = host ]; then
+  install_the_host
   exit 0
 fi
 
-if [ "$product" = host ] && command -v brew >/dev/null 2>&1; then
-  install_through_homebrew
-  exit 0
-fi
-
-binary="internkim-$product"
-release_url="${INTERNKIM_INSTALL_RELEASE_URL:-https://updates.intern.kim/$product/latest}"
+binary="internkim-companion"
+release_url="${INTERNKIM_INSTALL_RELEASE_URL:-https://updates.intern.kim/companion/latest}"
 bin_dir="${INTERNKIM_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 binary_path="$bin_dir/$binary"
 
@@ -374,21 +390,6 @@ case ":$PATH:" in
   *":$bin_dir:"*) ;;
   *) echo "Add it to your PATH: export PATH=\"$bin_dir:\$PATH\"" ;;
 esac
-
-if [ "$product" = "host" ]; then
-  echo
-  if [ "$operating_system" = darwin ]; then
-    echo "This Mac has no Homebrew, so the company host arrived as one binary rather than"
-    echo "a package. Homebrew is where the database, the cache and the rest come from:"
-    echo "  https://brew.sh"
-    echo "Install it, run this line again, and the box ends registered with brew."
-  else
-    echo "This machine has none of apt, dnf or pacman, so the company host arrived as one binary rather than"
-    echo "a package. Install the company server with the connection file you downloaded:"
-  fi
-  echo "  sudo $binary_path install ~/Downloads/internkim-host.json"
-  exit 0
-fi
 
 if "$binary_path" service status 2>/dev/null | grep -q '^running'; then
   "$binary_path" service restart

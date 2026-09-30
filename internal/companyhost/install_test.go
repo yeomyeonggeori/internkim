@@ -122,7 +122,7 @@ func conditionPathOf(unitContents string) string {
 	return ""
 }
 
-// The preflight is the unpackaged path's substitute for `Depends:`, so it reads
+// The preflight stands in for the package's dependencies on a binary run without it, so it reads
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{"jq": true, "redis-server": true, "valkey-server": true}}

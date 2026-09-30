@@ -35,12 +35,6 @@ var companionProduct = releaseProduct{
 	PackagePath: "./cmd/internkim-companion",
 }
 
-var companyHostProduct = releaseProduct{
-	Name:        "host",
-	BinaryName:  companyHostBinaryName,
-	PackagePath: "./cmd/internkim-host",
-}
-
 const binaryReleaseChecksumsName = "SHA256SUMS"
 
 type binaryBuilder func(target releaseTarget, outputPath string) error
