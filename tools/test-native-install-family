@@ -308,16 +308,22 @@ class FamilyRig:
             for line in self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(running_units)).stdout.split()
             if "=" in line
         )
+        unsettled = sorted(
+            name for name, state in states.items() if state.split("/")[1] != "active" or state.split("/")[3] != "0"
+        )
+        journals = "".join(
+            f"\n--- journalctl -u {name}\n"
+            + self.machine.shell(f"journalctl -u {name} --no-pager -o short-monotonic | tail -40").stdout.strip()
+            for name in unsettled
+        )
         step.observe(
             "every unit but the relay is running and none is restarting in a loop",
-            "ActiveState and NRestarts for each unit",
+            "ActiveState and NRestarts for each unit, and the journal of any unit that is not",
             "a unit that dies and is restarted reports active for most of every second; the relay is left out "
             "because its gateway is an address that answers nothing in this rig",
         ).record(
-            bool(states) and all(
-                state.split("/")[1] == "active" and state.split("/")[3] == "0" for state in states.values()
-            ),
-            "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
+            bool(states) and not unsettled,
+            "\n".join(f"{name}={state}" for name, state in sorted(states.items())) + journals,
         )
         probes = "; ".join(
             f"printf '%s %s\\n' {port}{path} "
