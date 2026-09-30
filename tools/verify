@@ -324,6 +324,12 @@ GROUPS = [
             "tools/native-install-member-session.ts",
             "tools/tests/test_native_install_rig.py",
             "internal/aptrepository/*",
+            "internal/rpmrepository/*",
+            "internal/pacmanrepository/*",
+            "internal/packagerepository/*",
+            "tools/test-native-install-family",
+            "tools/native_install_families.py",
+            "web/static/install.sh",
         ],
         # The half that needs no guest. Both rigs take a disposable Debian and
         # about ten minutes, so they are run by hand:

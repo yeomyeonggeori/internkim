@@ -47,10 +47,28 @@ describe('Release Registry Worker', () => {
 		}
 	});
 
-	test('keeps the rest of the bucket behind the token', async () => {
-		const bucket = new MemoryR2Bucket({ 'debug/secret': 'secret', 'deb': 'secret' });
+	test('serves the rpm and pacman repositories without a token, because dnf and pacman carry none', async () => {
+		const objectKeys = [
+			'rpm/stable/aarch64/repodata/repomd.xml',
+			'rpm/stable/internkim-rpm-signing.asc',
+			'arch/stable/aarch64/internkim.db',
+			'arch/stable/aarch64/internkim.db.sig'
+		];
+		const bucket = new MemoryR2Bucket(Object.fromEntries(objectKeys.map((objectKey) => [objectKey, 'object'])));
 
-		for (const objectKey of ['debug/secret', 'deb']) {
+		for (const objectKey of objectKeys) {
+			const response = await handleReleaseRegistryRequest(new Request(`https://updates.example.test/${objectKey}`), {
+				RELEASE_BUCKET: bucket as unknown as R2Bucket,
+				RELEASE_DOWNLOAD_TOKEN: 'download-token'
+			});
+			expect(response.status).toBe(200);
+		}
+	});
+
+	test('keeps the rest of the bucket behind the token', async () => {
+		const bucket = new MemoryR2Bucket({ 'debug/secret': 'secret', 'deb': 'secret', 'rpmfusion/secret': 'secret', 'archive/secret': 'secret' });
+
+		for (const objectKey of ['debug/secret', 'deb', 'rpmfusion/secret', 'archive/secret']) {
 			const response = await handleReleaseRegistryRequest(new Request(`https://updates.example.test/${objectKey}`), {
 				RELEASE_BUCKET: bucket as unknown as R2Bucket,
 				RELEASE_DOWNLOAD_TOKEN: 'download-token'

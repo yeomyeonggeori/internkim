@@ -6,24 +6,24 @@ import (
 )
 
 func TestReleaseRefusesAFlagItsSubcommandDoesNotTake(t *testing.T) {
-	apt, _ := findReleaseSubcommand("apt")
-	errorValue := checkReleaseArguments(apt, []string{"--suit", "testing"})
+	repositories, _ := findReleaseSubcommand("repositories")
+	errorValue := checkReleaseArguments(repositories, []string{"--chann", "testing"})
 	if errorValue == nil {
-		t.Fatal("a misspelled --suite was accepted, so apt would publish to its default suite")
+		t.Fatal("a misspelled --channel was accepted, so release repositories would publish to its default channel")
 	}
-	if !strings.Contains(errorValue.Error(), "--suit") || !strings.Contains(errorValue.Error(), "--suite") {
+	if !strings.Contains(errorValue.Error(), "--chann") || !strings.Contains(errorValue.Error(), "--channel") {
 		t.Fatalf("the refusal should name the flag given and the flags taken: %v", errorValue)
 	}
 }
 
 func TestReleaseAcceptsItsFlagsInBothSpellings(t *testing.T) {
-	apt, _ := findReleaseSubcommand("apt")
+	repositories, _ := findReleaseSubcommand("repositories")
 	for _, arguments := range [][]string{
-		{"--suite", "testing"},
-		{"--suite=testing", "--output", "/tmp/repository"},
+		{"--channel", "testing"},
+		{"--channel=testing", "--output", "/tmp/repository"},
 		{},
 	} {
-		if errorValue := checkReleaseArguments(apt, arguments); errorValue != nil {
+		if errorValue := checkReleaseArguments(repositories, arguments); errorValue != nil {
 			t.Fatalf("%v was refused: %v", arguments, errorValue)
 		}
 	}
