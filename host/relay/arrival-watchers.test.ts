@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { arrivalsWatchCapability, renewArrivalWatches } from './arrival-watchers';
 
 const arrivalsURL = 'http://127.0.0.1:18091/arrived';
+const typingURL = 'http://127.0.0.1:18091/typing';
 
 describe('renewing arrival watches', () => {
 	test('asks chatd to watch every active member who holds a credential, telling it where to post', async () => {
@@ -18,12 +19,13 @@ describe('renewing arrival watches', () => {
 					: { status: 200, body: {} };
 			},
 			arrivalsURL,
+			typingURL,
 			report: () => {}
 		});
 
 		expect(asked).toEqual([
-			{ capability: arrivalsWatchCapability, body: { actor: { kind: 'buzz-secret', secret: 'secret-of-member-1' }, arrivalsURL } },
-			{ capability: arrivalsWatchCapability, body: { actor: { kind: 'buzz-secret', secret: 'secret-of-member-3' }, arrivalsURL } }
+			{ capability: arrivalsWatchCapability, body: { actor: { kind: 'buzz-secret', secret: 'secret-of-member-1' }, arrivalsURL, typingURL } },
+			{ capability: arrivalsWatchCapability, body: { actor: { kind: 'buzz-secret', secret: 'secret-of-member-3' }, arrivalsURL, typingURL } }
 		]);
 		expect(renewal).toEqual({
 			watched: 1,
