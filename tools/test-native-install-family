@@ -283,30 +283,20 @@ class FamilyRig:
         )
 
     def observe_tampering(self, step):
-        targets = [("package", None)] + [
-            (f"{relative}", (relative, needle, replacement, is_compressed))
-            for relative, needle, replacement, is_compressed in self.family.metadata_tampering
-        ]
         tree = self.release.directory
-        for label, change in targets:
+        for label, tamperings in [("package", None)] + [
+            (", ".join(change[0] for change in group), group) for group in self.family.metadata_tampering
+        ]:
             self.machine.shell(self.family.remove_command, timeout_seconds=900)
-            if change is None:
-                path = next(
-                    candidate for candidate in tree.rglob("*")
-                    if candidate.is_file() and candidate.match(self.family.package_pattern)
-                )
-                original = path.read_bytes()
-                path.write_bytes(original[: len(original) // 2] + bytes([original[len(original) // 2] ^ 0xFF]) + original[len(original) // 2 + 1 :])
-            else:
-                relative, needle, replacement, is_compressed = change
-                path = tree / relative
-                original = tamper(path, needle, replacement, is_compressed)
+            originals = self.tamper_published(tree, tamperings)
             refused = self.attempt_install()
             left_installed = self.installed()
-            path.write_bytes(original)
+            for path, contents in originals.items():
+                path.write_bytes(contents)
             step.observe(
                 f"a tampered {label} is refused and nothing is installed",
-                f"the exit status of `{self.family.install_command}` and the package database, with {path.relative_to(tree)} changed and its signature untouched",
+                f"the exit status of `{self.family.install_command}` and the package database, with "
+                f"{', '.join(str(path.relative_to(tree)) for path in originals)} changed and its signature untouched",
                 "the install succeeding against a changed file would mean the signature was never checked",
             ).record(
                 refused.returncode != 0 and not left_installed,
@@ -317,7 +307,25 @@ class FamilyRig:
                 f"the same install succeeds once {label} is put back",
                 f"the exit status of `{self.family.install_command}` and the package database after restoring the file",
                 "a refusal that also happens with the file intact says the rig broke something, not that the signature was checked",
-            ).record(controlled.returncode == 0 and self.installed(), f"exit {controlled.returncode}\n{(controlled.stdout + controlled.stderr).strip()[-400:]}")
+            ).record(
+                controlled.returncode == 0 and self.installed(),
+                f"exit {controlled.returncode}\n{(controlled.stdout + controlled.stderr).strip()[-400:]}",
+            )
+
+    def tamper_published(self, tree, tamperings):
+        if tamperings is None:
+            path = next(
+                candidate for candidate in sorted(tree.rglob("*"))
+                if candidate.is_file() and candidate.match(self.family.package_pattern)
+            )
+            original = path.read_bytes()
+            middle = len(original) // 2
+            path.write_bytes(original[:middle] + bytes([original[middle] ^ 0xFF]) + original[middle + 1 :])
+            return {path: original}
+        return {
+            tree / relative: tamper(tree / relative, needle, replacement, is_compressed)
+            for relative, needle, replacement, is_compressed in tamperings
+        }
 
     def observe_package_state(self, step):
         verified = self.machine.shell(self.family.verify_command)

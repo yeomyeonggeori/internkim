@@ -40,6 +40,7 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
 SUITE = "stable"
+KEY_ALGORITHM = os.environ.get("INTERNKIM_RIG_KEY_ALGORITHM", "rsa4096")
 TESTING_SUITE = "testing"
 COMPONENT = "main"
 PACKAGE_NAME = "internkim"
@@ -260,7 +261,7 @@ class Release:
             [
                 "gpg", "--homedir", str(self.keyring_directory), "--batch", "--yes", "--no-tty",
                 "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
-                "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>", "default", "default", "never",
+                "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>", KEY_ALGORITHM, "sign", "never",
             ]
         )
         exported = checked(
