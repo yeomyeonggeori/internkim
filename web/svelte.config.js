@@ -18,7 +18,8 @@ const config = {
 		adapter: isBoard
 			? adapterStatic({ pages: '../build/board-ui', assets: '../build/board-ui', fallback: 'index.html' })
 			: adapterCloudflare(),
-		paths: { relative: false }
+		paths: { relative: false },
+		...(process.env.INTERNKIM_WEB_REVISION ? { version: { name: process.env.INTERNKIM_WEB_REVISION } } : {})
 	}
 };
 
