@@ -33,8 +33,7 @@ It is pre-alpha. Yeomyeonggeori, the company that builds it, runs its workday on
 setting it up anywhere else still takes some knowledge of how it is built.
 
 Everyone signs in at [intern.kim](https://intern.kim). The company's records sit in
-Supabase behind row level security, and the agent runs on one always-on computer
-that the company brings and that opens no inbound port.
+Supabase behind row level security, and the agent's computer opens no inbound port.
 
 ## Install
 
