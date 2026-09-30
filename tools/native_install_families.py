@@ -89,7 +89,7 @@ RPM_SIGNATURE_COMMAND = (
     f"|| dnf reinstall -y --downloadonly --downloaddir /tmp/downloaded {PACKAGE_NAME}) >/dev/null 2>&1; "
     "rpm -K /tmp/downloaded/*.rpm"
 )
-RPM_METADATA_TAMPERING = ((("rpm/stable/aarch64/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
+RPM_METADATA_TAMPERING = (((f"rpm/stable/{MACHINE_NAME}/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
 RPM_RESET = "dnf clean all"
 RPM_INSTALL = f"dnf install -y {PACKAGE_NAME}"
 
@@ -197,7 +197,7 @@ FAMILIES = {
             signature_answer="Signature",
             reset_command=f"rm -f /var/cache/pacman/pkg/{PACKAGE_NAME}-*",
             install_command=f"pacman -Syy --noconfirm && pacman -S --needed --noconfirm {PACKAGE_NAME}",
-            metadata_tampering=((("arch/stable/aarch64/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),),
+            metadata_tampering=(((f"arch/stable/{MACHINE_NAME}/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),),
         ),
     )
 }
