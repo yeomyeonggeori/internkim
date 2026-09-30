@@ -33,12 +33,20 @@ Publish a release to the registry, then have the device apply it over ssh,
 or over its public endpoint with a signed request when ssh is unreachable.
 
 Options:
-  --components <list>  Comma-separated component names to include.
+  --components <list>  Comma-separated component names to ship. Without it the
+                       command builds the artifacts, compares the device with
+                       this tree, and ships every component that differs
+                       together with its protocol partner. It refuses a
+                       component the device is ahead on, and ships nothing
+                       when the device already matches.
                        Available: ` + strings.Join(ReleaseComponentNames(), ", ") + `
                        Example: --components admind,web
   --release <id>       Override the release ID.
   --channel <name>     Override the release channel (default: stable).
   --node <id>          Target a specific node by ID.
+  --plan               Build, select and print what would ship or be refused,
+                       reading only the device's current release. Publishes
+                       nothing.
   --legacy-ssh         Copy skills and workspace tools straight over ssh.
   -h, --help           Print this usage and exit.`
 }
@@ -55,6 +63,7 @@ func validateDeployArguments(arguments []string) error {
 		"--host":       true,
 		"--device-url": true,
 		"--legacy-ssh": true,
+		"--plan":       true,
 		"--board":      true,
 		"--board-type": true,
 		"--sim":        true,
@@ -97,7 +106,12 @@ func validateDeployArguments(arguments []string) error {
 
 const deployReleaseChannel = "direct"
 
-func applyPublishedRelease(target commandTarget, releaseID string) error {
+var (
+	readDeviceReleaseComponents = readDeviceComponents
+	publishDeployRelease        = publishRelease
+)
+
+func applyPublishedRelease(target commandTarget, releaseID string, shippedNames []string, revisionOf func(string) string) error {
 	api, errorValue := reachDeviceReleaseAPI(target)
 	if errorValue != nil {
 		return errorValue
@@ -112,7 +126,18 @@ func applyPublishedRelease(target commandTarget, releaseID string) error {
 	}
 	fmt.Printf("Deploy: %s/%s\n", completedJob.Status, completedJob.Phase)
 	printSetupDrift(api)
-	return nil
+	return verifyDeviceHoldsRelease(api, shippedNames, revisionOf)
+}
+
+func verifyDeviceHoldsRelease(api deviceReleaseAPI, shippedNames []string, revisionOf func(string) string) error {
+	status, errorValue := api.releaseUpdateStatus()
+	if errorValue != nil {
+		return fmt.Errorf("the deploy finished but the device's release could not be read back to verify it: %w", errorValue)
+	}
+	if status.Current == nil {
+		return errors.New("the deploy finished but the device reports no current release")
+	}
+	return verifyDeployedRevisions(shippedNames, revisionOf, status.Current.Components)
 }
 
 func printSetupDrift(api deviceReleaseAPI) {
@@ -136,12 +161,72 @@ func runReleaseDeploy(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	releaseID := defaultReleaseID(repositoryRootPath)
-	fmt.Printf("Release: %s\n", releaseID)
-	if errorValue := publishRelease(repositoryRootPath, releaseID, deployReleaseChannel, selectedComponentNames, 10); errorValue != nil {
+	plan, errorValue := chooseDeployComponents(
+		repositoryRootPath,
+		selectedComponentNames,
+		func() (map[string]releaseset.Component, error) { return readDeviceReleaseComponents(target) },
+		func(revision string) bool { return revisionIsKnown(repositoryRootPath, revision) },
+		func(older string, newer string) bool { return revisionIsAncestor(repositoryRootPath, older, newer) },
+	)
+	if errorValue != nil {
 		return errorValue
 	}
-	return applyPublishedRelease(target, releaseID)
+	treeRevision := gitRevision(repositoryRootPath)
+	revisionOf := func(name string) string {
+		return releaseComponentRevision(name, repositoryRootPath, treeRevision)
+	}
+	shippedNames := shippedComponentNames(plan.selected)
+	if plan.selected == nil || len(plan.selected) > 0 {
+		printDeploySelection(shippedNames, plan.held, revisionOf)
+	}
+	if len(plan.refusals) > 0 {
+		return refusalError(plan.refusals)
+	}
+	if plan.selected != nil && len(plan.selected) == 0 {
+		fmt.Println("The device already holds everything this tree builds. Nothing to ship.")
+		return nil
+	}
+	if hasCommandArgument(arguments, "--plan") {
+		fmt.Println("Plan only: nothing was published.")
+		return nil
+	}
+	releaseID := defaultReleaseID(repositoryRootPath)
+	fmt.Printf("Release: %s\n", releaseID)
+	if errorValue := publishDeployRelease(repositoryRootPath, releaseID, deployReleaseChannel, plan.selected, 10); errorValue != nil {
+		return errorValue
+	}
+	return applyPublishedRelease(target, releaseID, shippedNames, revisionOf)
+}
+
+func readDeviceComponents(target commandTarget) (map[string]releaseset.Component, error) {
+	api, errorValue := reachDeviceReleaseAPI(target)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	status, errorValue := api.releaseUpdateStatus()
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	components := map[string]releaseset.Component{}
+	if status.Current == nil {
+		return components, nil
+	}
+	for name, brief := range status.Current.Components {
+		components[name] = releaseset.Component{Name: name, Revision: brief.Revision}
+	}
+	return components, nil
+}
+
+func shippedComponentNames(selectedComponentNames map[string]bool) []string {
+	if selectedComponentNames == nil {
+		return ReleaseComponentNames()
+	}
+	names := make([]string, 0, len(selectedComponentNames))
+	for name := range selectedComponentNames {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func selectedReleaseComponentNames(arguments []string) (map[string]bool, error) {
