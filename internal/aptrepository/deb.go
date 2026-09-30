@@ -3,7 +3,6 @@ package aptrepository
 import (
 	"archive/tar"
 	"bytes"
-	"compress/bzip2"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -42,7 +41,7 @@ func (fields *ControlFields) set(name string, value string) {
 
 // ReadControlFields returns the control paragraph of a Debian binary package.
 func ReadControlFields(archive []byte) (ControlFields, error) {
-	controlArchive, errorValue := arMember(archive, "control.tar")
+	controlArchive, errorValue := arMember(archive, "control.tar.gz")
 	if errorValue != nil {
 		return ControlFields{}, errorValue
 	}
@@ -79,8 +78,8 @@ func ParseControlParagraph(text string) (ControlFields, error) {
 	return fields, nil
 }
 
-// arMember returns the body of the named `ar` member, accepting the
-// compression suffix dpkg appends (control.tar.gz, control.tar.xz, …).
+// arMember returns the body of the named `ar` member. nfpm, which builds every
+// package this repository indexes, writes the control member as control.tar.gz.
 func arMember(archive []byte, wantedName string) ([]byte, error) {
 	if !bytes.HasPrefix(archive, []byte(arFileMagic)) {
 		return nil, errors.New("not an ar archive, so not a .deb")
@@ -97,33 +96,21 @@ func arMember(archive []byte, wantedName string) ([]byte, error) {
 		if bodyStart+size > len(archive) {
 			return nil, fmt.Errorf("ar member %q claims %d bytes the archive does not hold", name, size)
 		}
-		if name == wantedName || strings.HasPrefix(name, wantedName+".") {
-			return decompress(name, archive[bodyStart:bodyStart+size])
+		if name == wantedName {
+			return gunzip(archive[bodyStart : bodyStart+size])
 		}
 		offset = bodyStart + size + size%2
 	}
 	return nil, fmt.Errorf("the archive carries no %s member", wantedName)
 }
 
-func decompress(name string, body []byte) ([]byte, error) {
-	switch path.Ext(name) {
-	case "", ".tar":
-		return body, nil
-	case ".gz":
-		reader, errorValue := gzip.NewReader(bytes.NewReader(body))
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		defer reader.Close()
-		return io.ReadAll(reader)
-	case ".bz2":
-		return io.ReadAll(bzip2.NewReader(bytes.NewReader(body)))
-	case ".xz":
-		return readXZ(body)
-	case ".zst":
-		return nil, errors.New("zstd-compressed control members are not read here; build the package with gzip or xz")
+func gunzip(body []byte) ([]byte, error) {
+	reader, errorValue := gzip.NewReader(bytes.NewReader(body))
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	return nil, fmt.Errorf("unrecognised compression on ar member %q", name)
+	defer reader.Close()
+	return io.ReadAll(reader)
 }
 
 func tarMember(archive []byte, wantedName string) ([]byte, error) {
