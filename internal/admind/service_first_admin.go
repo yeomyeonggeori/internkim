@@ -223,14 +223,6 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 	return emails
 }
 
-// After an organization change the caller gets the directory back, so the
-// screen it just edited redraws from what the company holds rather than from
-// what the browser thought it was sending.
-func (service *Service) writeFullLocalUsersResponse(responseWriter http.ResponseWriter, request *http.Request) {
-	records := service.accountDirectoryUserRecords(request)
-	service.writeDirectoryUsersResponse(responseWriter, request, pagesUsersResponse{Records: records})
-}
-
 func policyStringList(value any) []string {
 	values, _ := value.([]any)
 	result := []string{}
@@ -326,20 +318,6 @@ func (service *Service) writeFirstAdminBootstrapResult(result firstAdminBootstra
 
 func (service *Service) firstAdminPasswordPath() string {
 	return filepath.Join(service.Configuration.StateDirectory, "first-admin-password.json")
-}
-
-func (service *Service) writeFirstAdminPassword(email string, password string) error {
-	if errorValue := os.MkdirAll(service.Configuration.StateDirectory, 0o700); errorValue != nil {
-		return errorValue
-	}
-	document, errorValue := json.Marshal(firstAdminPasswordDocument{
-		Email:    strings.ToLower(strings.TrimSpace(email)),
-		Password: password,
-	})
-	if errorValue != nil {
-		return errorValue
-	}
-	return os.WriteFile(service.firstAdminPasswordPath(), document, 0o600)
 }
 
 func (service *Service) consumeFirstAdminPassword(email string) firstAdminPasswordDocument {

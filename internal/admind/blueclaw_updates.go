@@ -633,11 +633,6 @@ func (service *Service) isBlueclawPayloadAlreadyCurrent(ctx context.Context, art
 	return true
 }
 
-func (service *Service) blueclawWorkspaceManifestMatches(artifactPath string) bool {
-	matches, _ := service.blueclawWorkspaceManifestMatchesTarget(artifactPath, canonicalBlueclawPayloadInstallTarget())
-	return matches
-}
-
 func (service *Service) blueclawWorkspaceManifestMatchesTarget(artifactPath string, target blueclawPayloadInstallTarget) (bool, string) {
 	manifestDocument, errorValue := os.ReadFile(filepath.Join(artifactPath, "manifest.json"))
 	if errorValue != nil {

@@ -1,13 +1,5 @@
 package admind
 
-import "gitlab.com/eastriver/internkim/internal/centralplane"
-
-const (
-	memberStatusActive    = centralplane.MemberStatusActive
-	memberStatusDeparted  = centralplane.MemberStatusDeparted
-	memberStatusWithdrawn = centralplane.MemberStatusWithdrawn
-)
-
 type organizationProfile struct {
 	MemberID     string `json:"memberID,omitempty"`
 	Email        string `json:"email,omitempty"`
