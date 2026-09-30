@@ -247,10 +247,6 @@ func runLabSubcommand(ctx context.Context, service internkimlab.Service, subcomm
 	}
 }
 
-func simContainerIP() string {
-	return ""
-}
-
 func getLocalSSHPubKey() string {
 	// Try common public key locations
 	home, _ := os.UserHomeDir()

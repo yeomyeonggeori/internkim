@@ -169,23 +169,6 @@ func captureSimSetup(t *testing.T, errorValue error) *[]string {
 	return &capturedArguments
 }
 
-func captureSimLabTarget(t *testing.T, errorValue error) *[]string {
-	t.Helper()
-	previousLabTarget := runSimLabTarget
-	var capturedArguments []string
-	runSimLabTarget = func(arguments []string, boardType string) error {
-		capturedArguments = append([]string(nil), arguments...)
-		if boardType != commandTargetBoardSimulation {
-			t.Fatalf("board type = %s", boardType)
-		}
-		return errorValue
-	}
-	t.Cleanup(func() {
-		runSimLabTarget = previousLabTarget
-	})
-	return &capturedArguments
-}
-
 func withIsolatedInternkimHome(t *testing.T) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())

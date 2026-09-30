@@ -1,14 +1,10 @@
 package cli
 
 import (
-	"archive/tar"
-	"compress/gzip"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -268,65 +264,6 @@ func normalizedReleaseComponentName(componentName string) string {
 	}
 }
 
-func writeDirectReleaseBundleArchive(archivePath string, manifest releaseset.Manifest, blobs []releaseBlob) error {
-	file, errorValue := os.Create(archivePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	gzipWriter := gzip.NewWriter(file)
-	tarWriter := tar.NewWriter(gzipWriter)
-	manifestDocument, errorValue := json.MarshalIndent(manifest, "", "  ")
-	if errorValue == nil {
-		errorValue = writeDirectReleaseBundleBytes(tarWriter, "manifest.json", append(manifestDocument, '\n'))
-	}
-	for _, blob := range blobs {
-		if errorValue != nil {
-			break
-		}
-		errorValue = writeDirectReleaseBundleFile(tarWriter, "blobs/"+blob.component.Name+".tar.gz", blob.path)
-	}
-	closeTarError := tarWriter.Close()
-	closeGzipError := gzipWriter.Close()
-	closeFileError := file.Close()
-	for _, candidateError := range []error{errorValue, closeTarError, closeGzipError, closeFileError} {
-		if candidateError != nil {
-			return candidateError
-		}
-	}
-	return nil
-}
-
-func writeDirectReleaseBundleBytes(writer *tar.Writer, name string, document []byte) error {
-	header := &tar.Header{Name: name, Mode: 0o600, Size: int64(len(document))}
-	if errorValue := writer.WriteHeader(header); errorValue != nil {
-		return errorValue
-	}
-	_, errorValue := writer.Write(document)
-	return errorValue
-}
-
-func writeDirectReleaseBundleFile(writer *tar.Writer, name string, path string) error {
-	information, errorValue := os.Stat(path)
-	if errorValue != nil {
-		return errorValue
-	}
-	header, errorValue := tar.FileInfoHeader(information, "")
-	if errorValue != nil {
-		return errorValue
-	}
-	header.Name = name
-	if errorValue := writer.WriteHeader(header); errorValue != nil {
-		return errorValue
-	}
-	file, errorValue := os.Open(path)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer file.Close()
-	_, errorValue = io.Copy(writer, file)
-	return errorValue
-}
-
 func waitForReleaseUpdateJob(api deviceReleaseAPI, job blueclawUpdateJobResponse, expectedReleaseID string) (blueclawUpdateJobResponse, error) {
 	lastObservedJob := job
 	for attempt := 0; attempt < 240; attempt++ {
@@ -420,13 +357,4 @@ func sendReleaseUpdateRequest(buildRequest func() (*http.Request, error)) (int, 
 		}
 	}
 	return 0, nil, lastError
-}
-
-func releaseManifestComponentNames(manifest releaseset.Manifest) []string {
-	componentNames := make([]string, 0, len(manifest.Components))
-	for componentName := range manifest.Components {
-		componentNames = append(componentNames, componentName)
-	}
-	sort.Strings(componentNames)
-	return componentNames
 }

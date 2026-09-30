@@ -89,22 +89,6 @@ func loadOrCreateNodeKey(stateDir string) string {
 	return key
 }
 
-func isNumericNodeID(nodeID string) bool {
-	trimmedNodeID := strings.TrimSpace(nodeID)
-	if trimmedNodeID == "" {
-		return false
-	}
-	for index, character := range trimmedNodeID {
-		if character < '0' || character > '9' {
-			return false
-		}
-		if index == 0 && character == '0' {
-			return false
-		}
-	}
-	return true
-}
-
 func loadOrCreateFleetSecret(stateDir string) string {
 	device, _ := deployops.DeviceTargetFromEnvironment()
 	secret := firstNonEmptyString(device.FleetSecret, loadState(stateDir, "fleet_secret"))
