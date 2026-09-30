@@ -39,14 +39,12 @@ func TestNoFormatsScriptNamesADistributionsOwnAccountOrUnitTools(t *testing.T) {
 }
 
 func TestEveryFormatsScriptsAreTheSameProgramBesideTheirPrologue(t *testing.T) {
-	prologue := func(format linuxPackageFormat, script packageScript) string {
-		return strings.ReplaceAll(maintainerScript(format, script), format.RunsOnlyWhen(string(script)), "")
+	withoutPrologue := func(format linuxPackageFormat) string {
+		return strings.ReplaceAll(maintainerScript(format, postInstallScript), format.RunsOnlyWhen(string(postInstallScript)), "")
 	}
-	for _, script := range []packageScript{postInstallScript} {
-		for _, format := range linuxPackageFormats() {
-			if prologue(format, script) != prologue(debianPackageFormat, script) {
-				t.Errorf("the %s %s differs from the deb's beyond its prologue", format.Name, script)
-			}
+	for _, format := range linuxPackageFormats() {
+		if withoutPrologue(format) != withoutPrologue(debianPackageFormat) {
+			t.Errorf("the %s postinst differs from the deb's beyond its prologue", format.Name)
 		}
 	}
 }
@@ -162,15 +160,20 @@ func TestAnUnknownFormatIsRefusedByName(t *testing.T) {
 
 func TestNoFormatRestartsTheDatabaseOrTheCacheFromAMaintainerScript(t *testing.T) {
 	for _, format := range linuxPackageFormats() {
+		restarts := 0
 		for _, line := range strings.Split(maintainerScript(format, postInstallScript), "\n") {
-			if !strings.HasPrefix(line, "restart_units ") {
+			if !strings.HasPrefix(line, "systemctl restart ") {
 				continue
 			}
+			restarts++
 			for _, name := range []string{blueclaw.CompanyHostDatabaseServiceName, blueclaw.CompanyHostCacheServiceName} {
 				if strings.Contains(line, name) {
 					t.Errorf("the %s postinst restarts %s together with the units bound to it, and systemd fails the job for each of them", format.Name, name)
 				}
 			}
+		}
+		if restarts == 0 {
+			t.Errorf("the %s postinst restarts nothing, so this test reads no line", format.Name)
 		}
 	}
 }
