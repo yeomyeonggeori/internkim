@@ -228,7 +228,7 @@
 	onDestroy(clearAttachments);
 </script>
 
-<form onsubmit={submit} class="relative border-t p-3">
+<form onsubmit={submit} class="relative p-3">
 	<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
 	{#if pendingAttachments.length > 0}
 		<Attachment.Group class="mb-2">
