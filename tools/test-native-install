@@ -60,6 +60,8 @@ from native_install_rig import (  # noqa: E402
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 RELAY_UNIT_NAME = "internkim-relay.service"
+BOX_UNIT_NAME = "internkim-box.service"
+RUNNING_STATE = "yes/active/success/0"
 CARRIED_INTERPRETER_PATH = "/opt/internkim/python/bin/python3.13"
 CARRIED_DOCUMENT_PYTHON_PATH = "/opt/internkim/document-venv/bin/python"
 CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
@@ -332,10 +334,23 @@ class Rig:
     def snapshot(self):
         return set(self.machine.checked_shell(SNAPSHOT_COMMAND).stdout.splitlines())
 
+    def suite_override(self):
+        """Ubuntu's os-release names jammy or noble, and only trixie-stable is published.
+
+        install.sh derives `<codename>-stable` from the machine, so on an Ubuntu guest it
+        asks for a suite that does not exist and refuses. Until the repository's suites stop
+        naming a Debian release, the rig names the published one, and that refusal is what
+        the release has to fix before the one-liner works there.
+        """
+        if self.options.distribution == DEFAULT_DISTRIBUTION:
+            return ""
+        return f"export INTERNKIM_INSTALL_SUITE={SUITE}\n"
+
     def run_step_one(self, step):
         one_liner = (
             f"set -eu\n"
             f"export INTERNKIM_INSTALL_RELEASE_URL={self.base_url}/{PACKAGE_NAME}\n"
+            f"{self.suite_override()}"
             f"export INTERNKIM_INSTALL_REPOSITORY_URL={self.repository_url}\n"
             f"export INTERNKIM_INSTALL_KEYRING_URL={self.keyring_url}\n"
             f"curl -fsSL {self.base_url}/install.sh | sh -s -- host\n"
@@ -555,14 +570,19 @@ class Rig:
         declined = self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names))
         states = dict(line.split("=", 1) for line in declined.stdout.split() if "=" in line)
         step.observe(
-            "every unit declined to start rather than failing to",
+            "every unit but the box declined to start rather than failing to, and the box is running",
             "ConditionResult, ActiveState, Result and NRestarts for each unit dpkg lists",
             "this box has the package and no company, and the plan's §2 says that is exactly "
             "when every unit stays inactive: each one carries ConditionPathExists over a file "
-            "`internkim install` writes. Inactive-because-it-declined and inactive-because-it-died "
+            "`internkim install` writes, except the box, which waits for a company to claim it and so "
+            "is the one unit that runs. Inactive-because-it-declined and inactive-because-it-died "
             "are different machine states, and only these four fields together tell them apart",
         ).record(
-            bool(states) and all(state == DECLINED_STATE for state in states.values()),
+            bool(states)
+            and all(
+                state == (RUNNING_STATE if name == BOX_UNIT_NAME else DECLINED_STATE)
+                for name, state in states.items()
+            ),
             "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
         )
 

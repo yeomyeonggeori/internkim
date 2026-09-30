@@ -401,3 +401,9 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
 
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
         self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])
+
+    def test_the_unit_the_rig_expects_to_be_running_is_the_box(self):
+        driver = load_driver()
+        self.assertEqual(
+            driver.BOX_UNIT_NAME, self.declared("company_host_package.go", "BoxServiceName") + ".service"
+        )
