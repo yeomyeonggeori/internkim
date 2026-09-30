@@ -25,39 +25,72 @@ func TestEveryFormatsScriptsAreValidShell(t *testing.T) {
 	}
 }
 
-func TestOnlyDebianScriptsNameDebianTools(t *testing.T) {
+func TestNoFormatsScriptNamesADistributionsOwnAccountOrUnitTools(t *testing.T) {
 	for _, format := range linuxPackageFormats() {
 		for _, script := range []packageScript{postInstallScript, preRemoveScript, postRemoveScript} {
-			names := strings.Contains(maintainerScript(format, script), "deb-systemd")
-			if names != (format.Name == "deb") {
-				t.Errorf("the %s %s names deb-systemd-* = %v, and only the deb's scripts may", format.Name, script, names)
+			body := maintainerScript(format, script)
+			for _, tool := range []string{"deb-systemd", "adduser", "addgroup", "useradd", "groupadd"} {
+				if strings.Contains(body, tool) {
+					t.Errorf("the %s %s names %s, which belongs to one family", format.Name, script, tool)
+				}
 			}
 		}
 	}
 }
 
-func TestNoFormatUsesAccountToolsOnlyDebianHas(t *testing.T) {
+func TestEveryFormatsScriptsAreTheSameProgramBesideTheirPrologue(t *testing.T) {
+	prologue := func(format linuxPackageFormat, script packageScript) string {
+		return strings.ReplaceAll(maintainerScript(format, script), format.RunsOnlyWhen(string(script)), "")
+	}
+	for _, script := range []packageScript{postInstallScript} {
+		for _, format := range linuxPackageFormats() {
+			if prologue(format, script) != prologue(debianPackageFormat, script) {
+				t.Errorf("the %s %s differs from the deb's beyond its prologue", format.Name, script)
+			}
+		}
+	}
+}
+
+func TestEveryFormatsPostInstallDeclaresAccountsAndDirectoriesToSystemd(t *testing.T) {
 	for _, format := range linuxPackageFormats() {
 		script := maintainerScript(format, postInstallScript)
-		for _, debianOnly := range []string{"adduser", "addgroup"} {
-			if strings.Contains(script, debianOnly) {
-				t.Errorf("the %s postinst calls %s, which is Debian's alone", format.Name, debianOnly)
+		for _, command := range []string{
+			"systemd-sysusers " + blueclaw.CompanyPackageSysusersPath,
+			"systemd-tmpfiles --create " + blueclaw.CompanyPackageTmpfilesPath,
+			"systemctl daemon-reload",
+			"systemctl enable",
+		} {
+			if !strings.Contains(script, command) {
+				t.Errorf("the %s postinst does not run %q", format.Name, command)
 			}
 		}
 	}
 }
 
-func TestEveryFormatsPostInstallCreatesEveryServiceAccount(t *testing.T) {
-	accounts := []string{
+func TestTheDeclaredAccountsAreTheFourServiceAccountsWithNoLogin(t *testing.T) {
+	declared := blueclaw.CompanyHostSysusersFile()
+	for _, account := range []string{
 		blueclaw.BlueclawUser, blueclaw.RelayUserName,
 		blueclaw.CompanyHostDatabaseUser, blueclaw.CompanyHostCacheUser,
+	} {
+		if !strings.Contains(declared, "u "+account+" - ") {
+			t.Errorf("sysusers does not declare %s:\n%s", account, declared)
+		}
 	}
-	for _, format := range linuxPackageFormats() {
-		script := maintainerScript(format, postInstallScript)
-		for _, account := range accounts {
-			if !strings.Contains(script, "create_system_user "+account+" ") {
-				t.Errorf("the %s postinst does not create %s", format.Name, account)
-			}
+	if strings.Count(declared, "/usr/sbin/nologin") != 4 {
+		t.Errorf("an account can log in:\n%s", declared)
+	}
+}
+
+func TestTheDeclaredDirectoriesCarryTheStateRootModeAndTheHelpersSetuidBit(t *testing.T) {
+	declared := blueclaw.CompanyHostTmpfilesFile()
+	for _, line := range []string{
+		"d " + blueclaw.CompanyHostStateRoot + " 0700 root root -",
+		"d " + blueclaw.CompanyHostCompaniesRoot + " 0700 root root -",
+		"z " + blueclaw.CompanyHostPOSIXHelperPath + " 4755 root root -",
+	} {
+		if !strings.Contains(declared, line) {
+			t.Errorf("tmpfiles does not carry %q:\n%s", line, declared)
 		}
 	}
 }

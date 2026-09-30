@@ -24,8 +24,6 @@ type linuxPackageFormat struct {
 	Name string
 	// Manager is whose dependency dialect the package speaks.
 	Manager blueclaw.PackageManager
-	// UnitHelpers are the shell functions the maintainer scripts call to act on units.
-	UnitHelpers string
 	// HasPurge is whether the format can tell a removal from a purge.
 	HasPurge bool
 	// Compression is what the payload is compressed with.
@@ -36,20 +34,17 @@ var (
 	debianPackageFormat = linuxPackageFormat{
 		Name:        "deb",
 		Manager:     blueclaw.PackageManagerApt,
-		UnitHelpers: debianUnitHelpers,
 		HasPurge:    true,
 		Compression: debPayloadCompression,
 	}
 	rpmPackageFormat = linuxPackageFormat{
 		Name:        "rpm",
 		Manager:     blueclaw.PackageManagerDnf,
-		UnitHelpers: systemctlUnitHelpers,
 		Compression: "zstd",
 	}
 	archlinuxPackageFormat = linuxPackageFormat{
-		Name:        "archlinux",
-		Manager:     blueclaw.PackageManagerPacman,
-		UnitHelpers: systemctlUnitHelpers,
+		Name:    "archlinux",
+		Manager: blueclaw.PackageManagerPacman,
 	}
 )
 

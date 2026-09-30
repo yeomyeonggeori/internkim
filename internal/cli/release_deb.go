@@ -638,6 +638,20 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 		Destination: blueclaw.DebianCompanyHostLayout().DataServicePath(),
 		Mode:        blueclaw.CompanyHostDataServiceMode,
 	})
+	for _, declaration := range []struct {
+		name        string
+		destination string
+		contents    string
+	}{
+		{"declared-accounts", blueclaw.CompanyPackageSysusersPath, blueclaw.CompanyHostSysusersFile()},
+		{"declared-directories", blueclaw.CompanyPackageTmpfilesPath, blueclaw.CompanyHostTmpfilesFile()},
+	} {
+		declarationPath := filepath.Join(stagingPath, declaration.name)
+		if errorValue := os.WriteFile(declarationPath, []byte(declaration.contents), 0o644); errorValue != nil {
+			return nil, errorValue
+		}
+		packaged = append(packaged, debPackagedFile{SourcePath: declarationPath, Destination: declaration.destination, Mode: 0o644})
+	}
 	settingsPath := filepath.Join(stagingPath, "company-host.env")
 	if errorValue := os.WriteFile(settingsPath, []byte(blueclaw.CompanyHostSettingsFile()), 0o644); errorValue != nil {
 		return nil, errorValue

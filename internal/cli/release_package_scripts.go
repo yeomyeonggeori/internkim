@@ -1,18 +1,18 @@
 package cli
 
 import (
-	"fmt"
 	"path"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// The maintainer scripts are one program in three dialects. What the scripts do
-// is written once, in terms of a few shell functions; what differs between dpkg,
-// rpm and pacman is how a script learns why it was run and which tool enables a
-// unit, and that is the prologue each format gets. Nothing below the prologue
-// names a format.
+// The maintainer scripts are one program for every format. The accounts and the
+// directories are declared to systemd (sysusers.d and tmpfiles.d, shipped in the
+// package) and the units are enabled through systemctl, so nothing below names a
+// distribution's own account or unit tools. The one thing that differs between
+// dpkg, rpm and pacman is how a script learns why it was run, and that is the
+// prologue (RunsOnlyWhen) and the removal test each format gets.
 //
 // A postinst that cannot do its job fails, naming what it was doing. A box left with
 // the package installed but no users, no state directory or no registered units would
@@ -22,10 +22,6 @@ import (
 // ConditionPathExists over a file `internkim install` writes, so starting them before
 // a company exists is a no-op systemd records as an unmet condition. The last lines
 // say what to type next.
-//
-// companyHostStateRootMode is the one mode the state root has, as the shell
-// spells it. Everything that creates that directory reads the same constant.
-var companyHostStateRootMode = fmt.Sprintf("%04o", blueclaw.CompanyHostStateRootMode)
 
 type packageScript string
 
@@ -41,11 +37,10 @@ func maintainerScript(format linuxPackageFormat, script packageScript) string {
 		preRemoveScript:   preRemoveBody,
 		postRemoveScript:  postRemoveBody,
 	}[script]
-	return "#!/bin/sh\nset -e\n\n" + scriptHelpers(format) + "\n" + body(format)
+	return "#!/bin/sh\nset -e\n\n" + body(format)
 }
 
 func postInstallBody(format linuxPackageFormat) string {
-	helperPath := blueclaw.CompanyHostPOSIXHelperPath
 	return strings.Join([]string{
 		format.RunsOnlyWhen("postinst"),
 		`refuse() {`,
@@ -53,23 +48,16 @@ func postInstallBody(format linuxPackageFormat) string {
 		`  exit 1`,
 		`}`,
 		``,
-		systemUser(blueclaw.BlueclawUser, blueclaw.BlueclawHomePath, "the agent runs as"),
-		systemUser(blueclaw.RelayUserName, "", "the relay runs as"),
-		systemUser(blueclaw.CompanyHostDatabaseUser, "", "the database runs as"),
-		systemUser(blueclaw.CompanyHostCacheUser, "", "the cache runs as"),
-		ownedDirectory(blueclaw.BlueclawHomePath, blueclaw.BlueclawUser, "0750"),
-		ownedDirectory(blueclaw.CompanyHostStateRoot, "root", companyHostStateRootMode),
-		ownedDirectory(blueclaw.CompanyHostCompaniesRoot, "root", companyHostStateRootMode),
-		ownedDirectory(blueclaw.CompanyHostConfigurationRoot, "root", "0755"),
-		`chown root:root ` + helperPath + ` || refuse "could not take ownership of ` + helperPath + `"`,
-		`chmod 4755 ` + helperPath + ` || refuse "could not make ` + helperPath + ` setuid"`,
+		`systemd-sysusers ` + blueclaw.CompanyPackageSysusersPath + ` || refuse "systemd-sysusers could not create the service accounts declared in ` + blueclaw.CompanyPackageSysusersPath + `"`,
+		`systemd-tmpfiles --create ` + blueclaw.CompanyPackageTmpfilesPath + ` || refuse "systemd-tmpfiles could not create the directories declared in ` + blueclaw.CompanyPackageTmpfilesPath + `"`,
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
-		`  enable_unit "$unit" || refuse "could not enable $unit"`,
+		`  systemctl unmask "$unit" >/dev/null 2>&1 || true`,
+		`  systemctl enable "$unit" >/dev/null 2>&1 || refuse "could not enable $unit"`,
 		`done`,
-		`restart_units ` + restartedUnitFileNames(),
+		`systemctl restart ` + restartedUnitFileNames() + ` >/dev/null 2>&1 || true`,
 		``,
 		`if [ ! -e ` + blueclaw.CompanyHostCurrentPath + ` ]; then`,
 		`  echo "internkim: installed. No company is configured yet, so every service but the box is idle."`,
@@ -84,10 +72,8 @@ func postInstallBody(format linuxPackageFormat) string {
 func preRemoveBody(format linuxPackageFormat) string {
 	return strings.Join([]string{
 		`if ` + format.RemovalTest("prerm") + `; then`,
-		`  stop_units ` + unitFileNames(),
-		`  for unit in ` + unitFileNames() + `; do`,
-		`    disable_unit "$unit"`,
-		`  done`,
+		`  systemctl stop ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
+		`  systemctl disable ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
 		`fi`,
 		`exit 0`,
 		``,
@@ -104,9 +90,6 @@ func preRemoveBody(format linuxPackageFormat) string {
 func postRemoveBody(format linuxPackageFormat) string {
 	lines := []string{
 		`if ` + format.RemovalTest("postrm") + `; then`,
-		`  for unit in ` + unitFileNames() + `; do`,
-		`    retire_unit "$unit"`,
-		`  done`,
 		`  rm -rf ` + blueclaw.CompanyPackageInterpreterPath + ` ` + blueclaw.CompanyPackageDocumentVenvPath,
 		`fi`,
 		``,
@@ -114,9 +97,6 @@ func postRemoveBody(format linuxPackageFormat) string {
 	if format.HasPurge {
 		lines = append(lines,
 			`if [ "$1" = purge ]; then`,
-			`  for unit in `+unitFileNames()+`; do`,
-			`    forget_unit "$unit"`,
-			`  done`,
 			`  rm -rf `+blueclaw.CompanyHostConfigurationRoot,
 			`  if [ -d `+blueclaw.CompanyHostStateRoot+` ]; then`,
 			`    echo "internkim: `+blueclaw.CompanyHostStateRoot+` was kept. It holds this company's identity on"`,
@@ -127,18 +107,6 @@ func postRemoveBody(format linuxPackageFormat) string {
 			``)
 	}
 	return strings.Join(append(lines, `systemctl daemon-reload >/dev/null 2>&1 || true`, `exit 0`, ``), "\n")
-}
-
-func systemUser(name string, homePath string, role string) string {
-	return strings.Join([]string{
-		`create_system_user ` + name + ` "` + homePath + `" || refuse "could not create the ` + name + ` user ` + role + `"`,
-		``,
-	}, "\n")
-}
-
-func ownedDirectory(path string, owner string, mode string) string {
-	return `install -d -o ` + owner + ` -g ` + owner + ` -m ` + mode + ` ` + path +
-		` || refuse "could not create ` + path + `"`
 }
 
 func restartedUnitFileNames() string {
@@ -158,82 +126,3 @@ func unitFileNames() string {
 	}
 	return strings.Join(names, " ")
 }
-
-// scriptHelpers is the part that differs by format: shadow-utils accounts are the
-// same everywhere, and the unit verbs are the format's own. Debian's helpers keep
-// dpkg's record of which units an administrator enabled; the others talk to
-// systemctl, which is what their own macros expand to.
-func scriptHelpers(format linuxPackageFormat) string {
-	return accountHelpers + format.UnitHelpers
-}
-
-const accountHelpers = `create_system_user() {
-  name="$1"
-  home="$2"
-  getent group "$name" >/dev/null || groupadd --system "$name" >/dev/null 2>&1 || true
-  getent group "$name" >/dev/null || return 1
-  getent passwd "$name" >/dev/null && return 0
-  shell="$(command -v nologin || true)"
-  [ -n "$shell" ] || shell=/bin/false
-  useradd --system --gid "$name" --home-dir "${home:-/nonexistent}" --no-create-home --shell "$shell" "$name" >/dev/null 2>&1 || true
-  getent passwd "$name" >/dev/null
-}
-`
-
-// Every format restarts rather than starts: on a box with no company every unit's
-// condition is unmet and this starts nothing either way, and on an upgrade it is what
-// moves the running processes onto the binaries that were just unpacked. start leaves
-// the old process serving while the package database, the file's mtime and the package
-// manager all report the new version.
-const debianUnitHelpers = `enable_unit() {
-  deb-systemd-helper unmask "$1" >/dev/null 2>&1 || true
-  deb-systemd-helper enable "$1" >/dev/null
-}
-
-restart_units() {
-  deb-systemd-invoke restart "$@" >/dev/null 2>&1 || true
-}
-
-stop_units() {
-  deb-systemd-invoke stop "$@" >/dev/null 2>&1 || true
-}
-
-disable_unit() {
-  :
-}
-
-retire_unit() {
-  deb-systemd-helper mask "$1" >/dev/null 2>&1 || true
-}
-
-forget_unit() {
-  deb-systemd-helper purge "$1" >/dev/null 2>&1 || true
-  deb-systemd-helper unmask "$1" >/dev/null 2>&1 || true
-}
-`
-
-const systemctlUnitHelpers = `enable_unit() {
-  systemctl unmask "$1" >/dev/null 2>&1 || true
-  systemctl enable "$1" >/dev/null 2>&1
-}
-
-restart_units() {
-  systemctl restart "$@" >/dev/null 2>&1 || true
-}
-
-stop_units() {
-  systemctl stop "$@" >/dev/null 2>&1 || true
-}
-
-disable_unit() {
-  systemctl disable "$1" >/dev/null 2>&1 || true
-}
-
-retire_unit() {
-  :
-}
-
-forget_unit() {
-  :
-}
-`

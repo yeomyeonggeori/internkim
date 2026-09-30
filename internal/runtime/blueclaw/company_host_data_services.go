@@ -45,12 +45,6 @@ const (
 	companyHostDataSocketMode    = "0660"
 	companyHostDatabasePort      = "5432"
 	companyHostDatabaseCollation = "C.UTF-8"
-
-	// The extension the memory store needs for embeddings. The migration skips
-	// its tables when the server cannot create it, which is a memory without
-	// embeddings that nothing reports, so the database unit refuses to come up
-	// without it.
-	CompanyHostDatabaseRequiredExtension = "vector"
 )
 
 // CompanyHostAccountsThatReachTheDatabase are the service accounts given the
@@ -196,7 +190,6 @@ func CompanyHostDataServiceScript() string {
 		"@PORT@", companyHostDatabasePort,
 		"@COLLATION@", companyHostDatabaseCollation,
 		"@ROLE@", CompanyHostDatabaseUser,
-		"@EXTENSION@", CompanyHostDatabaseRequiredExtension,
 		"@CACHE_SOCKET@", CompanyHostCacheSocketPath,
 		"@CACHE_DATA@", CompanyHostCacheDataPath,
 	)
@@ -232,23 +225,13 @@ binaries_for_major() {
   return 1
 }
 
-major_offers_the_extension() {
-  for directory in /usr/share/postgresql/"$1"/extension /usr/share/postgresql"$1"/extension /usr/share/pgsql/extension /usr/share/postgresql/extension; do
-    if [ -r "$directory/@EXTENSION@.control" ]; then return 0; fi
-  done
-  return 1
-}
-
 installed_majors() {
   for directory in $(binary_directories); do
     major_of "$directory"
   done | sort -rn
 }
 
-best_installed_major() {
-  for major in $(installed_majors); do
-    if major_offers_the_extension "$major"; then echo "$major"; return 0; fi
-  done
+highest_installed_major() {
   installed_majors | head -n 1
 }
 
@@ -258,7 +241,7 @@ postgres_directory() {
     binaries_for_major "$major" || fail "the company database was made by PostgreSQL $major and this machine has no PostgreSQL $major installed; install it again, or restore the version the cluster was made by"
     return
   fi
-  major="$(best_installed_major)"
+  major="$(highest_installed_major)"
   [ -n "$major" ] || fail "no PostgreSQL server is installed; the package names the one to install"
   binaries_for_major "$major"
 }
@@ -298,17 +281,8 @@ postgres_answers() {
   "$directory/pg_isready" --quiet --host "$socket_directory"
 }
 
-postgres_offers_the_extension() {
-  directory="$(postgres_directory)"
-  offered="$("$directory/psql" --host "$socket_directory" --username @ROLE@ --dbname postgres --no-psqlrc --tuples-only --no-align \
-    --command "select count(*) from pg_available_extensions where name = '@EXTENSION@'")"
-  [ "$offered" = 1 ]
-}
-
 postgres_ready() {
   wait_until postgres_answers || fail "PostgreSQL did not accept connections on $socket_directory"
-  directory="$(postgres_directory)"
-  postgres_offers_the_extension || fail "PostgreSQL $(major_of "$directory") has no @EXTENSION@ extension installed, and the memory store needs it; install the pgvector package for that PostgreSQL version"
 }
 
 cache_program() {

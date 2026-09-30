@@ -107,13 +107,6 @@ func TestTheDatabaseListensOnNoNetworkAddressAndTheCacheOnNoPort(t *testing.T) {
 	}
 }
 
-func TestTheDatabaseRefusesToStartWithoutTheExtensionTheMemoryStoreNeeds(t *testing.T) {
-	script := CompanyHostDataServiceScript()
-	if !strings.Contains(script, "pg_available_extensions where name = '"+CompanyHostDatabaseRequiredExtension+"'") {
-		t.Fatal("the database unit does not check for the extension the memory store creates, so its tables would be skipped silently")
-	}
-}
-
 func TestEveryClientIsGivenASocketAddressOnALinuxHost(t *testing.T) {
 	layout := DebianCompanyHostLayout()
 	url := layout.DatabaseURL("internkim", "pass word", "blueclaw")

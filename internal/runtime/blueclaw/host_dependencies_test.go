@@ -244,8 +244,8 @@ func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *test
 				"install is a host the container path proved it needs more than", packageName)
 		}
 	}
-	if !strings.Contains(depends, "postgresql-14-pgvector") || strings.Contains(depends, "postgresql-13-pgvector") {
-		t.Errorf("the package must name the oldest PostgreSQL the schema runs on and nothing older, got %q", depends)
+	if !strings.Contains(depends, "postgresql") || strings.Contains(depends, "pgvector") {
+		t.Errorf("the package must ask for the distribution's own PostgreSQL under one unversioned name and no pgvector, got %q", depends)
 	}
 }
 

@@ -262,7 +262,6 @@ func TestTheDatabasePreparationRunsTwiceWithoutFailing(t *testing.T) {
 		"ALTER ROLE internkim WITH LOGIN PASSWORD 'secret'",
 		"WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'blueclaw')",
 		"WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'buzz')",
-		"\\connect blueclaw\nCREATE EXTENSION IF NOT EXISTS vector;",
 	} {
 		if !strings.Contains(statements, expected) {
 			t.Fatalf("the preparation does not carry %q:\n%s", expected, statements)

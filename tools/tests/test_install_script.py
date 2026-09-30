@@ -538,36 +538,19 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual((bin_dir / "internkim-host").read_bytes(), published_binary("internkim-host-linux-amd64"))
         self.assertEqual(sorted(path.name for path in bin_dir.iterdir()), ["internkim-host"])
 
-    def linux_machine(self, manager, offered_names=None):
-        """A machine that has one package manager, sudo and a sandbox for what root writes.
-
-        `offered_names` is what the manager's repositories carry among the
-        pgvector candidates; None means every name is carried.
-        """
+    def linux_machine(self, manager):
+        """A machine that has one package manager, sudo and a sandbox for what root writes."""
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.manager_log = directory / "manager.log"
-        offered = "" if offered_names is None else " ".join(offered_names)
-        answers = "ALL" if offered_names is None else offered
         (directory / manager).write_text(
             "#!/bin/sh\n"
             f'printf "%s\\n" "{manager} $*" >> "{self.manager_log}"\n'
-            'for argument in "$@"; do last="$argument"; done\n'
-            'case "$*" in\n'
-            '  *repoquery*|*search*|*-Si*)\n'
-            f'    for name in {answers}; do if [ "$name" = "ALL" ] || [ "$name" = "$last" ]; then echo "$last | package"; exit 0; fi; done\n'
-            "    exit 1 ;;\n"
-            "esac\n"
             "exit 0\n"
-        )
-        (directory / "apt-cache").write_text(
-            "#!/bin/sh\n"
-            f'for name in {answers}; do if [ "$name" = "ALL" ] || [ "$name" = "$2" ]; then candidate=1.0; fi; done\n'
-            'printf "%s:\\n  Installed: (none)\\n  Candidate: %s\\n" "$2" "${candidate:-(none)}"\n'
         )
         (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
         (directory / "install").write_text(install_shim)
-        for name in (manager, "apt-cache", "sudo", "install"):
+        for name in (manager, "sudo", "install"):
             (directory / name).chmod(0o755)
         return str(directory)
 
@@ -644,93 +627,6 @@ class InstallScriptTests(unittest.TestCase):
                 self.assertEqual(completed.returncode, 1)
                 self.assertIn("INTERNKIM_INSTALL_PACKAGE", completed.stderr)
                 self.assertFalse(self.manager_log.exists())
-
-    def test_a_distribution_with_no_pgvector_is_told_what_was_looked_for(self):
-        for manager, expected in [
-            ("dnf", "pgvector"),
-            ("pacman", "pgvector"),
-        ]:
-            with self.subTest(manager=manager):
-                shims = self.linux_machine(manager, offered_names=[])
-                package = self.a_package_file("internkim-1-1.x86_64.rpm" if manager != "pacman" else "internkim-1-1-x86_64.pkg.tar.zst")
-                completed = self.run_install_with_a_package_file(shims, package)
-                self.assertEqual(completed.returncode, 1)
-                self.assertIn(expected, completed.stderr)
-                self.assertFalse(
-                    any(" install " in line or " -U " in line for line in self.manager_log.read_text().splitlines()),
-                    "nothing is installed when the memory store could not be kept")
-
-    def test_a_distribution_that_carries_pgvector_adds_no_repository(self):
-        shims = self.linux_machine("dnf", offered_names=["pgvector"])
-        completed = self.run_install_with_a_package_file(shims, self.a_package_file("internkim-1-1.x86_64.rpm"))
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(list(self.sandbox.rglob("*")), [])
-
-    def postgresql_repository_machine(self, key_fingerprint):
-        """A Debian-family machine whose apt offers pgvector only once the
-        PostgreSQL project's source has been written, and whose gpg reads the
-        key as having the given fingerprint."""
-        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.apt_log = directory / "apt.log"
-        source = self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources"
-        (directory / "apt-get").write_text(
-            f'#!/bin/sh\nprintf "%s\\n" "apt-get $*" >> "{self.apt_log}"\nexit 0\n')
-        (directory / "apt-cache").write_text(
-            "#!/bin/sh\n"
-            f'if [ -e "{source}" ]; then candidate=16.0; else candidate="(none)"; fi\n'
-            'printf "%s:\\n  Installed: (none)\\n  Candidate: %s\\n" "$2" "$candidate"\n'
-        )
-        (directory / "gpg").write_text(f'#!/bin/sh\necho "fpr:::::::::{key_fingerprint}:"\n')
-        (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
-        (directory / "install").write_text(install_shim)
-        for name in ("apt-get", "apt-cache", "gpg", "sudo", "install"):
-            (directory / name).chmod(0o755)
-        return str(directory)
-
-    def run_install_needing_the_postgresql_repository(self, key_fingerprint):
-        base_url = self.serve()
-        (self.served_directory / "postgresql-key.asc").write_bytes(b"armored key\n")
-        shims = self.postgresql_repository_machine(key_fingerprint)
-        os_release = Path(self.enterContext(tempfile.TemporaryDirectory())) / "os-release"
-        os_release.write_text("VERSION_CODENAME=jammy\n")
-        package = self.a_package_file("internkim_1_amd64.deb")
-        completed = self.run_install_with_a_package_file(shims, package, {
-            "INTERNKIM_INSTALL_OS_RELEASE": str(os_release),
-            "INTERNKIM_INSTALL_POSTGRESQL_KEY_URL": f"{base_url}/postgresql-key.asc",
-            "INTERNKIM_INSTALL_POSTGRESQL_REPOSITORY_URL": "https://postgresql.example.test/apt",
-        })
-        return completed, package
-
-    def test_ubuntu_without_pgvector_gets_the_postgresql_project_repository_scoped_to_it(self):
-        pinned = re.search(r'^postgresql_key_fingerprint="([0-9A-F]+)"', install_script.read_text(), re.MULTILINE).group(1)
-        completed, package = self.run_install_needing_the_postgresql_repository(pinned)
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        source = (self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources").read_text()
-        self.assertIn("Suites: jammy-pgdg", source)
-        self.assertIn("Signed-By: /usr/share/keyrings/internkim-postgresql-archive-keyring.asc", source)
-        preference = (self.sandbox / "etc/apt/preferences.d/internkim-postgresql.pref").read_text()
-        self.assertIn("Pin: origin postgresql.example.test", preference)
-        self.assertIn("Pin-Priority: 100", preference)
-        stack = [stanza for stanza in preference.split("\n\n") if "Pin-Priority: 600" in stanza]
-        self.assertEqual(len(stack), 1, preference)
-        names = stack[0].splitlines()[0].removeprefix("Package: ").split()
-        for name in ("postgresql-18", "postgresql-client-18", "postgresql-18-pgvector", "postgresql-client", "libpq5"):
-            self.assertIn(name, names)
-        self.assertEqual([name for name in names if name.startswith("postgresql-1") and "18" not in name], [])
-        self.assertEqual((self.sandbox / "usr/share/keyrings/internkim-postgresql-archive-keyring.asc").read_bytes(), b"armored key\n")
-        self.assertFalse((self.sandbox / "etc/apt/trusted.gpg.d").exists())
-        calls = self.apt_log.read_text().splitlines()
-        self.assertLess(calls.index("apt-get update"), len(calls) - 1)
-        self.assertEqual(calls[-1], f"apt-get install -y {package}")
-
-    def test_a_postgresql_key_that_is_not_the_pinned_one_is_refused(self):
-        completed, _ = self.run_install_needing_the_postgresql_repository("0" * 40)
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("trusts only", completed.stderr)
-        self.assertFalse((self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources").exists())
-        self.assertFalse(any(" install " in line and "gpg" not in line and ".deb" in line
-                             for line in self.apt_log.read_text().splitlines()))
 
 
 if __name__ == "__main__":

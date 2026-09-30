@@ -21,31 +21,18 @@ case "$product" in
 esac
 
 package_name="internkim"
-os_release_path="${INTERNKIM_INSTALL_OS_RELEASE:-/etc/os-release}"
 package_file_source="${INTERNKIM_INSTALL_PACKAGE:-}"
 package_file_checksum="${INTERNKIM_INSTALL_PACKAGE_SHA256:-}"
 rpm_repository_url="${INTERNKIM_INSTALL_RPM_REPOSITORY_URL:-}"
 rpm_repository_key_name="internkim-rpm-signing.asc"
 pacman_repository_url="${INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL:-}"
 pacman_repository_key_name="internkim-pacman-signing.asc"
-postgresql_repository_url="${INTERNKIM_INSTALL_POSTGRESQL_REPOSITORY_URL:-https://apt.postgresql.org/pub/repos/apt}"
-postgresql_key_url="${INTERNKIM_INSTALL_POSTGRESQL_KEY_URL:-https://www.postgresql.org/media/keys/ACCC4CF8.asc}"
-postgresql_key_fingerprint="B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8"
-postgresql_keyring_path="/usr/share/keyrings/internkim-postgresql-archive-keyring.asc"
-postgresql_source_path="/etc/apt/sources.list.d/internkim-postgresql.sources"
-postgresql_preferences_path="/etc/apt/preferences.d/internkim-postgresql.pref"
 repository_url="${INTERNKIM_INSTALL_REPOSITORY_URL:-https://updates.intern.kim/deb}"
 keyring_path="/usr/share/keyrings/internkim-archive-keyring.pgp"
 keyring_url="${INTERNKIM_INSTALL_KEYRING_URL:-$repository_url/internkim-archive-keyring.pgp}"
 apt_source_path="/etc/apt/sources.list.d/internkim.sources"
 apt_component="main"
 homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
-
-# BEGIN generated from internal/runtime/blueclaw/host_dependencies.go
-memory_store_candidates_apt_get="postgresql-18-pgvector postgresql-17-pgvector postgresql-16-pgvector postgresql-15-pgvector postgresql-14-pgvector"
-memory_store_candidates_dnf="pgvector"
-memory_store_candidates_pacman="pgvector"
-# END generated
 
 stop() {
   echo "$1" >&2
@@ -118,7 +105,6 @@ this install did not cause it.
 Undo what this script wrote with:
   sudo rm -f $apt_source_path $keyring_path"
 
-  make_the_memory_store_available
 
   privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$package_name" || stop \
 "apt-get install $package_name failed, and its own output above names what it
@@ -203,7 +189,6 @@ install_through_rpm_repository() {
   case "$package_manager" in
     dnf)
       privileged install -m 0644 "$package_work_dir/$package_name.repo" "/etc/yum.repos.d/$package_name.repo"
-      make_the_memory_store_available
       privileged dnf install -y "$package_name" || stop \
 "dnf install $package_name failed, and its own output above names what it could
 not resolve. Undo what this script wrote with:
@@ -225,7 +210,6 @@ Nothing on this machine was changed."
   printf '\n[%s]\nSigLevel = Required DatabaseOptional\nServer = %s/$arch\n' "$package_name" "$pacman_repository_url" > "$package_work_dir/pacman-source.conf"
   privileged sh -c "cat '$package_work_dir/pacman-source.conf' >> /etc/pacman.conf"
   privileged pacman -Sy --noconfirm
-  make_the_memory_store_available
   privileged pacman -S --needed --noconfirm "$package_name" || stop \
 "pacman -S $package_name failed, and its own output above names what it could
 not resolve. The [$package_name] section this script appended to /etc/pacman.conf
@@ -264,7 +248,6 @@ Nothing on this machine was changed." ;;
   if [ "$package_manager" = apt-get ]; then
     privileged apt-get update || stop "apt-get update failed, and its own output is above. Nothing on this machine was changed."
   fi
-  make_the_memory_store_available
   case "$package_manager" in
     apt-get) privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$package_file_path" ;;
     dnf) privileged dnf install -y "$package_file_path" ;;
@@ -285,129 +268,6 @@ verify_the_package_file_checksum() {
   [ "$actual_package_checksum" = "$package_file_checksum" ] || stop \
 "$1 hashes to $actual_package_checksum and INTERNKIM_INSTALL_PACKAGE_SHA256 says
 $package_file_checksum. Nothing on this machine was changed."
-}
-
-# The memory store keeps its embeddings in pgvector, and a PostgreSQL without
-# it is a memory that stores nothing and says nothing. The package names the
-# pgvector it needs, and whether this machine's repositories carry any of
-# those names is asked of the package manager, so a distribution that begins
-# carrying it stops needing anything else without this script being edited.
-# Where apt's do not, the PostgreSQL project's own repository is added, scoped:
-# a key pinned by fingerprint that signs that repository alone, and a pin that
-# keeps it from replacing a package the distribution already carries, except
-# the one PostgreSQL major it supplies.
-make_the_memory_store_available() {
-  memory_store_candidates="$(memory_store_candidates_of "$package_manager")"
-  if a_memory_store_candidate_is_available; then
-    return 0
-  fi
-  [ "$package_manager" = apt-get ] || stop \
-"None of the pgvector packages this host needs is in this machine's repositories:
-  $memory_store_candidates
-The memory store cannot keep what the agent learns without it. Nothing on this
-machine was changed."
-  add_the_postgresql_apt_repository
-  a_memory_store_candidate_is_available || stop \
-"Even with the PostgreSQL project's repository added, apt offers none of:
-  $memory_store_candidates
-Undo what this script wrote with:
-  sudo rm -f $postgresql_source_path $postgresql_keyring_path $postgresql_preferences_path"
-}
-
-memory_store_candidates_of() {
-  case "$1" in
-    apt-get) printf '%s' "$memory_store_candidates_apt_get" ;;
-    dnf) printf '%s' "$memory_store_candidates_dnf" ;;
-    pacman) printf '%s' "$memory_store_candidates_pacman" ;;
-  esac
-}
-
-a_memory_store_candidate_is_available() {
-  for candidate_name in $memory_store_candidates; do
-    case "$package_manager" in
-      apt-get)
-        offered="$(apt-cache policy "$candidate_name" 2>/dev/null | sed -n 's/^  Candidate: //p')"
-        [ -n "$offered" ] && [ "$offered" != "(none)" ] && return 0 ;;
-      dnf)
-        [ -n "$(dnf -q repoquery "$candidate_name" 2>/dev/null)" ] && return 0 ;;
-      pacman)
-        pacman -Si "$candidate_name" >/dev/null 2>&1 && return 0 ;;
-    esac
-  done
-  return 1
-}
-
-add_the_postgresql_apt_repository() {
-  postgresql_codename=""
-  if [ -r "$os_release_path" ]; then
-    postgresql_codename="$(sed -n 's/^VERSION_CODENAME=//p' "$os_release_path" | tr -d '"'"'"'"' | head -n 1)"
-  fi
-  [ -n "$postgresql_codename" ] || stop \
-"$os_release_path names no VERSION_CODENAME, so this script cannot tell which
-PostgreSQL repository suite this machine's release uses."
-  command -v gpg >/dev/null 2>&1 || privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gpg
-  curl -fsSL "$postgresql_key_url" -o "$package_work_dir/postgresql-key.asc" || stop \
-"Could not fetch the PostgreSQL project's signing key from $postgresql_key_url.
-Nothing on this machine was changed."
-  fetched_key_fingerprint="$(gpg --show-keys --with-colons "$package_work_dir/postgresql-key.asc" | sed -n 's/^fpr:::::::::\([0-9A-F]*\):$/\1/p' | head -n 1)"
-  [ "$fetched_key_fingerprint" = "$postgresql_key_fingerprint" ] || stop \
-"$postgresql_key_url served a key with fingerprint ${fetched_key_fingerprint:-none}, and this
-script trusts only $postgresql_key_fingerprint for that repository.
-Nothing on this machine was changed."
-  privileged install -d -m 0755 /usr/share/keyrings
-  privileged install -d -m 0755 /etc/apt/preferences.d
-  privileged install -d -m 0755 /etc/apt/sources.list.d
-  privileged install -m 0644 "$package_work_dir/postgresql-key.asc" "$postgresql_keyring_path"
-  printf '%s\n' \
-    "Types: deb" \
-    "URIs: $postgresql_repository_url" \
-    "Suites: $postgresql_codename-pgdg" \
-    "Components: main" \
-    "Signed-By: $postgresql_keyring_path" \
-    > "$package_work_dir/postgresql.sources"
-  privileged install -m 0644 "$package_work_dir/postgresql.sources" "$postgresql_source_path"
-  postgresql_origin="$(printf '%s' "$postgresql_repository_url" | sed 's#^[a-z]*://##; s#/.*##')"
-  write_the_postgresql_preferences ""
-  privileged apt-get update || stop \
-"apt-get update failed after adding the PostgreSQL project's repository, and its
-own output is above. Undo what this script wrote with:
-  sudo rm -f $postgresql_source_path $postgresql_keyring_path $postgresql_preferences_path"
-  postgresql_major="$(the_postgresql_major_the_repository_offers_pgvector_for)"
-  [ -n "$postgresql_major" ] || return 0
-  write_the_postgresql_preferences "$postgresql_major"
-}
-
-# The repository stays below the distribution's own for everything. For the one
-# PostgreSQL major the memory store will be installed on, its server, client,
-# pgvector and the libraries and helper packages that major requires rise above
-# it, so apt resolves one consistent set instead of a pgvector for one major
-# and a server for another.
-write_the_postgresql_preferences() {
-  printf '%s\n' \
-    "Package: *" \
-    "Pin: origin $postgresql_origin" \
-    "Pin-Priority: 100" \
-    > "$package_work_dir/postgresql.pref"
-  if [ -n "$1" ]; then
-    printf '%s\n' \
-      "" \
-      "Package: postgresql postgresql-$1 postgresql-client postgresql-client-$1 postgresql-$1-pgvector libpq5 postgresql-common postgresql-client-common" \
-      "Pin: origin $postgresql_origin" \
-      "Pin-Priority: 600" \
-      >> "$package_work_dir/postgresql.pref"
-  fi
-  privileged install -m 0644 "$package_work_dir/postgresql.pref" "$postgresql_preferences_path"
-}
-
-the_postgresql_major_the_repository_offers_pgvector_for() {
-  for candidate_name in $memory_store_candidates; do
-    offered="$(apt-cache policy "$candidate_name" 2>/dev/null | sed -n 's/^  Candidate: //p')"
-    if [ -n "$offered" ] && [ "$offered" != "(none)" ]; then
-      major="${candidate_name#postgresql-}"
-      printf '%s' "${major%-pgvector}"
-      return 0
-    fi
-  done
 }
 
 # A suite nobody published makes `apt-get update` fail on the whole source, and
