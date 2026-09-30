@@ -310,8 +310,9 @@ func writeSystemdEnvironment(unit *strings.Builder, source CompanyHostEnvironmen
 func CompanyHostSettingsFile() string {
 	return strings.Join([]string{
 		"# Settings for the company host installed by the internkim package.",
-		"# dpkg keeps your edits across upgrades. Secrets do not belong here:",
-		"# they live in " + CompanyHostSecretsRoot + ", which only root can read.",
+		"# Upgrades keep your edits: the package manager never replaces this file",
+		"# without asking. Secrets do not belong here: they live in",
+		"# " + CompanyHostSecretsRoot + ", which only root can read.",
 		"",
 		"# Where the messenger keeps attachments. Any S3-compatible server on this",
 		"# box answers here; the access and secret keys live beside the other",
