@@ -73,7 +73,7 @@ func exampleConnection(t *testing.T) Connection {
 func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 	connection := exampleConnection(t)
 	directoryPath := DefaultStateDirectoryPath(connection.Company.ID)
-	files, errorValue := companyHostFiles(directoryPath, connection, exampleSecrets())
+	files, errorValue := companyHostFiles(blueclaw.DebianCompanyHostLayout(), directoryPath, connection, exampleSecrets())
 	if errorValue != nil {
 		t.Fatalf("render the company's files: %v", errorValue)
 	}
@@ -161,8 +161,8 @@ func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
 // The preflight is the unpackaged path's substitute for `Depends:`, so it reads
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
-	machine := &recordedMachine{missing: map[string]bool{"jq": true, "redis-server": true}}
-	errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, machine)
+	machine := &recordedMachine{missing: map[string]bool{"jq": true, "redis-server": true, "valkey-server": true}}
+	errorValue := requireWhatTheCompanyHostRuns(linuxPlatform{}, machine)
 	if errorValue == nil {
 		t.Fatal("a machine with no jq and no redis was accepted")
 	}
@@ -177,13 +177,13 @@ func TestThePreflightDoesNotAskADebianMachineForWhatThePackageCarries(t *testing
 	machine := &recordedMachine{missing: map[string]bool{
 		"/usr/share/fonts/truetype/nanum/NanumGothic.ttf": true,
 	}}
-	if errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, machine); errorValue != nil {
+	if errorValue := requireWhatTheCompanyHostRuns(linuxPlatform{}, machine); errorValue != nil {
 		t.Fatalf("a machine without its own Nanum font was refused for what the package brings: %v", errorValue)
 	}
 }
 
 func TestThePreflightPassesAMachineThatCarriesEverything(t *testing.T) {
-	if errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, &recordedMachine{}); errorValue != nil {
+	if errorValue := requireWhatTheCompanyHostRuns(linuxPlatform{}, &recordedMachine{}); errorValue != nil {
 		t.Fatalf("a complete machine was refused: %v", errorValue)
 	}
 }
@@ -200,15 +200,15 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 		failures: map[string]error{"pg_isready": errors.New("exit status 2")},
 		answers:  map[string]string{"systemctl": "failed"},
 	}
-	errorValue := waitUntilTheServerAnswers(debianPlatform{}, machine, io.Discard)
+	errorValue := waitUntilTheServerAnswers(linuxPlatform{}, machine, io.Discard)
 	if errorValue == nil {
 		t.Fatal("a server whose database never answered reported ready")
 	}
 	for _, named := range []string{
 		"PostgreSQL is not accepting connections",
 		"pg_isready",
-		"postgresql.service is failed",
-		"journalctl -u postgresql.service",
+		"internkim-postgresql.service is failed",
+		"journalctl -u internkim-postgresql.service",
 		"Nothing was removed",
 	} {
 		if !strings.Contains(errorValue.Error(), named) {
@@ -218,8 +218,8 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 }
 
 func TestTheWaitReturnsOnceEveryServiceAnswers(t *testing.T) {
-	machine := &recordedMachine{answers: map[string]string{"redis-cli": "PONG\n"}}
-	if errorValue := waitUntilTheServerAnswers(debianPlatform{}, machine, io.Discard); errorValue != nil {
+	machine := &recordedMachine{answers: map[string]string{blueclaw.DebianCompanyHostLayout().DataServicePath(): "PONG\n"}}
+	if errorValue := waitUntilTheServerAnswers(linuxPlatform{}, machine, io.Discard); errorValue != nil {
 		t.Fatalf("a machine whose services all answered was refused: %v", errorValue)
 	}
 }
@@ -235,7 +235,7 @@ func TestTheWaitKeepsTheBudgetTheComposeStackHad(t *testing.T) {
 func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *testing.T) {
 	machine := &recordedMachine{}
 	password := strings.Repeat("2", 64)
-	if errorValue := prepareDatabases(debianPlatform{}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
+	if errorValue := prepareDatabases(linuxPlatform{root: t.TempDir()}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
 	}
 	prepared := false
@@ -296,7 +296,7 @@ func TestACompanyInstallsWhereTheUnitsReadIt(t *testing.T) {
 // the two files it reads are the two the install hands to its account.
 func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 	connection := exampleConnection(t)
-	files, errorValue := companyHostFiles(DefaultStateDirectoryPath(connection.Company.ID), connection, exampleSecrets())
+	files, errorValue := companyHostFiles(blueclaw.DebianCompanyHostLayout(), DefaultStateDirectoryPath(connection.Company.ID), connection, exampleSecrets())
 	if errorValue != nil {
 		t.Fatalf("render the company's files: %v", errorValue)
 	}
@@ -309,4 +309,24 @@ func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 			t.Fatalf("%s is owned by %q and the relay runs as %s", path, owners[path], blueclaw.RelayUserName)
 		}
 	}
+}
+
+func TestTheBundleIsRestartedWithoutTheUnitsItIsBoundTo(t *testing.T) {
+	machine := &recordedMachine{}
+	platform := linuxPlatform{root: t.TempDir()}
+	if errorValue := platform.SuperviseTheBundle(machine, io.Discard); errorValue != nil {
+		t.Fatalf("supervise the bundle: %v", errorValue)
+	}
+	for _, run := range machine.runs {
+		if run[0] != "systemctl" || run[1] != "restart" {
+			continue
+		}
+		for _, argument := range run[2:] {
+			if argument == blueclaw.CompanyHostDatabaseServiceName+".service" || argument == blueclaw.CompanyHostCacheServiceName+".service" {
+				t.Fatalf("%v restarts %s in the same transaction as the units bound to it", run, argument)
+			}
+		}
+		return
+	}
+	t.Fatal("the bundle was never restarted")
 }

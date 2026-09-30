@@ -120,63 +120,19 @@ func debVersionFromRepository(repositoryRootPath string) string {
 }
 
 func buildDebianPackage(repositoryRootPath string, target debianTarget, version string, outputDirectory string, output io.Writer) (string, error) {
-	stagingPath, errorValue := os.MkdirTemp("", "internkim-deb-*")
+	built, errorValue := buildLinuxPackages(repositoryRootPath, target, version, outputDirectory, []linuxPackageFormat{debianPackageFormat}, output)
 	if errorValue != nil {
 		return "", errorValue
 	}
-	defer os.RemoveAll(stagingPath)
-	contents, errorValue := debPackageContents(repositoryRootPath, target, version, stagingPath, output)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	scripts, errorValue := writeDebMaintainerScripts(stagingPath)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := os.MkdirAll(outputDirectory, 0o755); errorValue != nil {
-		return "", errorValue
-	}
-	packagePath := filepath.Join(outputDirectory, fmt.Sprintf("%s_%s_%s.deb", blueclaw.CompanyPackageName, version, target.DebianArchitecture))
-	return packagePath, writeDebianPackage(debianPackageInformation(target, version, contents, scripts), packagePath)
+	return built[0], nil
 }
 
 func debianPackageInformation(target debianTarget, version string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
-	return &nfpm.Info{
-		Name:        blueclaw.CompanyPackageName,
-		Arch:        target.DebianArchitecture,
-		Platform:    "linux",
-		Version:     version,
-		Section:     blueclaw.CompanyPackageSection,
-		Priority:    "optional",
-		Maintainer:  blueclaw.CompanyPackageMaintainer,
-		Description: debPackageDescription,
-		Vendor:      blueclaw.CompanyPackageVendor,
-		Homepage:    blueclaw.CompanyPackageHomepage,
-		License:     debReleaseLicense,
-		Overridables: nfpm.Overridables{
-			Depends:  strings.Split(blueclaw.HostDebianDependsLine(), ", "),
-			Contents: contents,
-			Scripts:  scripts,
-			Deb:      nfpm.Deb{Compression: debPayloadCompression},
-		},
-	}
+	return linuxPackageInformation(debianPackageFormat, target, version, contents, scripts)
 }
 
 func writeDebianPackage(information *nfpm.Info, packagePath string) error {
-	packager, errorValue := nfpm.Get("deb")
-	if errorValue != nil {
-		return errorValue
-	}
-	information = nfpm.WithDefaults(information)
-	if errorValue := nfpm.Validate(information); errorValue != nil {
-		return errorValue
-	}
-	file, errorValue := os.Create(packagePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer file.Close()
-	return packager.Package(information, file)
+	return writeLinuxPackage(debianPackageFormat, information, packagePath)
 }
 
 func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {
@@ -673,6 +629,29 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 		Destination: blueclaw.CompanyPackagePreparePath,
 		Mode:        0o755,
 	})
+	dataServicePath := filepath.Join(stagingPath, blueclaw.CompanyHostDataServiceProgramName)
+	if errorValue := os.WriteFile(dataServicePath, []byte(blueclaw.CompanyHostDataServiceScript()), blueclaw.CompanyHostDataServiceMode); errorValue != nil {
+		return nil, errorValue
+	}
+	packaged = append(packaged, debPackagedFile{
+		SourcePath:  dataServicePath,
+		Destination: blueclaw.DebianCompanyHostLayout().DataServicePath(),
+		Mode:        blueclaw.CompanyHostDataServiceMode,
+	})
+	for _, declaration := range []struct {
+		name        string
+		destination string
+		contents    string
+	}{
+		{"declared-accounts", blueclaw.CompanyPackageSysusersPath, blueclaw.CompanyHostSysusersFile()},
+		{"declared-directories", blueclaw.CompanyPackageTmpfilesPath, blueclaw.CompanyHostTmpfilesFile()},
+	} {
+		declarationPath := filepath.Join(stagingPath, declaration.name)
+		if errorValue := os.WriteFile(declarationPath, []byte(declaration.contents), 0o644); errorValue != nil {
+			return nil, errorValue
+		}
+		packaged = append(packaged, debPackagedFile{SourcePath: declarationPath, Destination: declaration.destination, Mode: 0o644})
+	}
 	settingsPath := filepath.Join(stagingPath, "company-host.env")
 	if errorValue := os.WriteFile(settingsPath, []byte(blueclaw.CompanyHostSettingsFile()), 0o644); errorValue != nil {
 		return nil, errorValue
@@ -840,30 +819,6 @@ func debCarriedTrees(repositoryRootPath string) ([]debPackagedFile, error) {
 		}
 	}
 	return carried, nil
-}
-
-func writeDebMaintainerScripts(stagingPath string) (nfpm.Scripts, error) {
-	scripts := map[string]string{
-		"postinst": debPostInstallScript(),
-		"prerm":    debPreRemoveScript(),
-		"postrm":   debPostRemoveScript(),
-	}
-	written := nfpm.Scripts{}
-	for name, body := range scripts {
-		path := filepath.Join(stagingPath, name)
-		if errorValue := os.WriteFile(path, []byte(body), 0o755); errorValue != nil {
-			return nfpm.Scripts{}, errorValue
-		}
-		switch name {
-		case "postinst":
-			written.PostInstall = path
-		case "prerm":
-			written.PreRemove = path
-		case "postrm":
-			written.PostRemove = path
-		}
-	}
-	return written, nil
 }
 
 // debShippedProgramNames is every program the package puts in /usr/bin, derived from

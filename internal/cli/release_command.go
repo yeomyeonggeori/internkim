@@ -56,6 +56,7 @@ var releaseSubcommands = []releaseSubcommand{
 	{name: "companion", flags: []string{"--release"}, run: runReleaseCompanion},
 	{name: "host", flags: []string{"--release"}, run: runReleaseCompanyHost},
 	{name: "deb", flags: []string{"--architecture", "--out", "--version"}, run: runReleaseDeb},
+	{name: "packages", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
 	{name: "apt", flags: []string{"--suite", "--package-directory", "--output"}, run: runReleaseAPT},
 	{name: "brew", flags: []string{"--out", "--version"}, run: runReleaseBrew},
 }
@@ -121,6 +122,7 @@ func printReleaseUsage() {
 	fmt.Println("  companion   Build the companion for macOS and Linux and publish it under companion/latest")
 	fmt.Println("  host        Publish the host installer under host/latest, for a machine with no package manager")
 	fmt.Println("  deb         Build the company host as a Debian package for arm64 and amd64")
+	fmt.Println("  packages    Build the company host as deb, rpm and archlinux packages from one payload")
 	fmt.Println("  apt         Sign and publish the Debian repository under deb/, from the .debs release deb built")
 	fmt.Println("  brew        Build the company host as a Homebrew bottle on this Mac and render the tap's formula")
 	fmt.Println()

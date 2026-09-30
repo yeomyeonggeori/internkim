@@ -4,8 +4,8 @@ description: 회사 호스트를 설치하고 서비스를 확인하며 로컬 �
 icon: ServerCog
 ---
 
-회사 호스트는 arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, 혹은 Homebrew를 설치한 macOS에서 실행됩니다. 인터넷에
-연결하고 계속 켜 두어야 합니다. 설치 프로그램은 Debian·Ubuntu의 systemd나 macOS의
+회사 호스트는 arm64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora, RHEL 호환 10(Rocky, AlmaLinux), Arch Linux, 혹은 Homebrew를 설치한 macOS에서 실행됩니다. 인터넷에
+연결하고 계속 켜 두어야 합니다. 설치 프로그램은 Linux의 systemd나 macOS의
 launchd에 서비스를 등록합니다. 공개 주소, 외부에서 들어오는 포트, Docker 설치는
 필요하지 않습니다.
 
@@ -18,14 +18,14 @@ curl -fsSL https://intern.kim/install.sh | sh -s -- host
 sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-첫 명령은 apt 또는 Homebrew 패키지를 설치합니다. 둘째 명령은 회사를 설정하고
+첫 명령은 apt, dnf, pacman 또는 Homebrew 패키지를 설치합니다. 둘째 명령은 회사를 설정하고
 OpenRouter API 키를 받은 뒤 호스트 서비스를 등록합니다. 컴퓨터가 켜지면
 서비스가 자동으로 시작하고, 서비스가 종료되면 다시 시작합니다. 설치가 끝나면
 화면에 나온 회사 설정 주소에서 연결 확인을 누르세요.
 
 ## 서비스 확인하기
 
-Debian과 Ubuntu에서는 systemd에서 상태와 로그를 확인합니다.
+Linux에서는 systemd에서 상태와 로그를 확인합니다.
 
 ```bash
 systemctl list-units 'internkim*' 'blueclaw*' 'buzz*'

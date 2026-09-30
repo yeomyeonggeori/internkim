@@ -15,7 +15,7 @@ import (
 // Neither schema is created here. Blueclaw applies its own migrations as it
 // starts and the messenger applies its own under BUZZ_AUTO_MIGRATE, and both
 // create the extensions they need — citext, pg_trgm and pgcrypto are trusted
-// extensions a database owner may create, so nothing below needs to.
+// extensions a database owner may create.
 
 const databasePreparationVariable = "INTERNKIM_COMPANY_HOST_SQL"
 

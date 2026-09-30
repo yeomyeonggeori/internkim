@@ -36,23 +36,10 @@ type serviceProbe struct {
 	WhatItCosts    string
 }
 
-func companyHostProbes() []serviceProbe {
+func companyHostProbes(layout blueclaw.CompanyHostLayout) []serviceProbe {
 	return []serviceProbe{
-		{
-			Service:        "PostgreSQL",
-			SupervisedName: databaseServiceName,
-			Command:        []string{"pg_isready", "--quiet", "--host", "127.0.0.1", "--port", "5432"},
-			WhenSilent:     "PostgreSQL is not accepting connections on " + databaseListenAddress,
-			WhatItCosts:    "everything this company remembers is in it, and nothing else starts until it answers",
-		},
-		{
-			Service:        "Redis",
-			SupervisedName: cacheServiceName,
-			Command:        []string{"redis-cli", "-h", "127.0.0.1", "ping"},
-			Answer:         "PONG",
-			WhenSilent:     "Redis is not answering on 127.0.0.1:6379",
-			WhatItCosts:    "the messenger opens it for presence and fan-out and will not start without it",
-		},
+		databaseProbe(layout),
+		cacheProbe(layout),
 		{
 			Service:        "the attachment store",
 			SupervisedName: blueclaw.BuzzMediaServiceName,
@@ -81,7 +68,47 @@ func companyHostProbes() []serviceProbe {
 			WhenSilent:     "the admin gateway is not answering on " + blueclaw.CompanyHostAdmindListenAddress,
 			WhatItCosts:    "the company's roster, its files and its tasks are all read through it",
 		},
+		{
+			Service:        "the messenger bridge",
+			SupervisedName: blueclaw.ChatdServiceName,
+			Command:        curlCommand(blueclaw.CompanyHostChatdEndpoint + blueclaw.ChatdHealthPath),
+			WhenSilent:     "the messenger bridge is not ready at " + blueclaw.CompanyHostChatdEndpoint + blueclaw.ChatdHealthPath,
+			WhatItCosts:    "it hands every message people send to the agent and carries the agent's answers back",
+		},
 	}
+}
+
+func databaseProbe(layout blueclaw.CompanyHostLayout) serviceProbe {
+	probe := serviceProbe{
+		Service:        "PostgreSQL",
+		SupervisedName: databaseServiceName,
+		WhatItCosts:    "everything this company remembers is in it, and nothing else starts until it answers",
+	}
+	if layout.OwnsItsDataServices() {
+		probe.Command = []string{"pg_isready", "--quiet", "--host", layout.DatabaseSocketDirectory}
+		probe.WhenSilent = "PostgreSQL is not accepting connections on " + layout.DatabaseSocketDirectory
+		return probe
+	}
+	probe.Command = []string{"pg_isready", "--quiet", "--host", "127.0.0.1", "--port", "5432"}
+	probe.WhenSilent = "PostgreSQL is not accepting connections on " + layout.DatabaseLoopbackAddress
+	return probe
+}
+
+func cacheProbe(layout blueclaw.CompanyHostLayout) serviceProbe {
+	probe := serviceProbe{
+		Service:        "the cache",
+		SupervisedName: cacheServiceName,
+		Answer:         "PONG",
+		WhatItCosts:    "the messenger opens it for presence and fan-out and will not start without it",
+	}
+	if layout.OwnsItsDataServices() {
+		probe.Command = []string{layout.DataServicePath(), "cache-ping"}
+		probe.WhenSilent = "the cache is not answering on " + layout.CacheSocketPath
+		return probe
+	}
+	probe.Command = []string{"redis-cli", "-h", "127.0.0.1", "ping"}
+	probe.WhenSilent = "Redis is not answering on 127.0.0.1:6379"
+	return probe
 }
 
 func curlCommand(address string) []string {
@@ -90,7 +117,7 @@ func curlCommand(address string) []string {
 
 func waitUntilTheServerAnswers(platform companyHostPlatform, machine Machine, progress io.Writer) error {
 	deadline := time.Now().Add(waitForTheServerBudget)
-	for _, probe := range companyHostProbes() {
+	for _, probe := range companyHostProbes(platform.Layout()) {
 		if errorValue := waitForOne(platform, machine, probe, deadline, progress); errorValue != nil {
 			return errorValue
 		}

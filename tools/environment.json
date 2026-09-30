@@ -478,6 +478,14 @@
     "process": "install script",
     "description": "where web/static/install.sh fetches the archive signing key it installs as the source's Signed-By; defaults to the keyring beside the repository"
   },
+  "INTERNKIM_INSTALL_PACKAGE_SHA256": {
+    "process": "install script",
+    "description": "the SHA-256 web/static/install.sh checks a package file named by INTERNKIM_INSTALL_PACKAGE against before installing it"
+  },
+  "INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL": {
+    "process": "install script",
+    "description": "the pacman repository web/static/install.sh adds on Arch; unset until one is published"
+  },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
     "description": "the release registry prefix web/static/install.sh downloads from; defaults to https://updates.intern.kim/<product>/latest"
@@ -485,6 +493,10 @@
   "INTERNKIM_INSTALL_REPOSITORY_URL": {
     "process": "install script",
     "description": "the apt repository web/static/install.sh registers; defaults to https://updates.intern.kim/deb"
+  },
+  "INTERNKIM_INSTALL_RPM_REPOSITORY_URL": {
+    "process": "install script",
+    "description": "the rpm repository web/static/install.sh adds on Fedora; unset until one is published"
   },
   "INTERNKIM_INSTALL_SCRIPT_URL": {
     "process": "install script",
