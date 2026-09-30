@@ -135,7 +135,7 @@ func requireMessengerBinary(sourcePath string, name string, target packageTarget
 
 func requirePackagedProgramsFit(packaged []packagedFile, target packageTarget) error {
 	for _, file := range packaged {
-		if file.IsSymbolicLink || file.IsDirectoryTree {
+		if file.IsDirectoryTree {
 			continue
 		}
 		if errorValue := requireELFFits(file.SourcePath, target); errorValue != nil {

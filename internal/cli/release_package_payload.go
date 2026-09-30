@@ -44,7 +44,6 @@ every unit stays inactive rather than restarting into a failure.`
 	// dpkg has read xz since 1.15, which predates every distribution the package
 	// is for.
 	debPayloadCompression = "xz"
-	companyHostBinaryName = "internkim-host"
 	packageLicense        = "Apache-2.0"
 )
 
@@ -67,7 +66,6 @@ type packagedFile struct {
 	Mode            os.FileMode
 	IsConfiguration bool
 	IsDirectoryTree bool
-	IsSymbolicLink  bool
 }
 
 func packageTargetsNamed(requested string) ([]packageTarget, error) {
@@ -148,8 +146,6 @@ func contentsFor(packaged []packagedFile) files.Contents {
 			FileInfo:    &files.ContentFileInfo{Owner: "root", Group: "root", Mode: file.Mode},
 		}
 		switch {
-		case file.IsSymbolicLink:
-			content.Type = files.TypeSymlink
 		case file.IsConfiguration:
 			content.Type = files.TypeConfigNoReplace
 		case file.IsDirectoryTree:
@@ -229,18 +225,6 @@ func packagedGoPrograms() []packagedGoProgram {
 	}
 }
 
-// packagedSymbolicLinks keeps working the name the bare binary was published under
-// until `release host` was removed, for a machine that still types it.
-func packagedSymbolicLinks() []packagedFile {
-	return []packagedFile{
-		{
-			SourcePath:     blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName),
-			Destination:    blueclaw.CompanyPackageBinaryPath(companyHostBinaryName),
-			IsSymbolicLink: true,
-		},
-	}
-}
-
 type packagedBunProgram struct {
 	Name           string
 	WorkingRoot    string
@@ -281,7 +265,6 @@ func buildPackagedPrograms(repositoryRootPath string, target packageTarget, vers
 			Mode:        program.Mode,
 		})
 	}
-	packaged = append(packaged, packagedSymbolicLinks()...)
 	for _, program := range packagedBunPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
 		if errorValue := compilePackagedBunProgram(repositoryRootPath, program, target, builtPath); errorValue != nil {

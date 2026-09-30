@@ -109,7 +109,7 @@ func TestTheHelperIsShippedSetuidWhereTheRuntimeLooksForIt(t *testing.T) {
 // The package is named after a command, and `internkim install` is the only way
 // a box gets a company. A package that ships every daemon and not that command
 // installs a machine nobody can finish setting up.
-func TestThePackageShipsTheControlCommandAndTheNameTheBareBinaryHad(t *testing.T) {
+func TestThePackageShipsTheControlCommand(t *testing.T) {
 	installed := map[string]bool{}
 	for _, program := range packagedGoPrograms() {
 		installed[program.InstalledPath()] = true
@@ -118,12 +118,6 @@ func TestThePackageShipsTheControlCommandAndTheNameTheBareBinaryHad(t *testing.T
 	if !installed[controlPath] {
 		t.Fatalf("the package installs no %s", controlPath)
 	}
-	for _, link := range packagedSymbolicLinks() {
-		if link.Destination == blueclaw.CompanyPackageBinaryPath(companyHostBinaryName) && link.SourcePath == controlPath {
-			return
-		}
-	}
-	t.Fatalf("nothing keeps %s working for a machine that still has it", companyHostBinaryName)
 }
 
 // A postinst that cannot do its job must fail naming what it was doing. A box with the
