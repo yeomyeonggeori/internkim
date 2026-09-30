@@ -347,10 +347,6 @@ func (service Service) invokeSiteApp(ctx context.Context, request capabilities.T
 	}
 }
 
-func siteToolNeedsSourceBundle(toolName string) bool {
-	return toolName == "site_serve"
-}
-
 func siteAppInputWithSourceBundle(document json.RawMessage, sourceBundle *capabilities.SiteSourceBundle) (json.RawMessage, error) {
 	if errorValue := validateSiteSourceBundle(sourceBundle); errorValue != nil {
 		return nil, errorValue

@@ -70,12 +70,6 @@ func answeringPerCall(answers func(*http.Request) (int, string)) *standingIn {
 	return &standingIn{answers: answers}
 }
 
-func (backend *standingIn) Asked() []askedOfBackend {
-	backend.mutex.Lock()
-	defer backend.mutex.Unlock()
-	return append([]askedOfBackend(nil), backend.asked...)
-}
-
 func (backend *standingIn) handler(t *testing.T) http.Handler {
 	t.Helper()
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {

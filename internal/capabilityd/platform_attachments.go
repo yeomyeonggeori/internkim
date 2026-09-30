@@ -9,8 +9,6 @@ import (
 	"strings"
 )
 
-const workspaceAttachmentMaximumBytes = 25 * 1024 * 1024
-
 type platformFileSpec struct {
 	DevicePath    string `json:"devicePath"`
 	Filename      string `json:"filename,omitempty"`

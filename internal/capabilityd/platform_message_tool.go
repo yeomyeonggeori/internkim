@@ -113,13 +113,6 @@ type platformMessageSendResult struct {
 	Failures       []platformMessageFailureResult `json:"failures,omitempty"`
 }
 
-type platformMessageUpdateResult struct {
-	MessageID      string `json:"messageID"`
-	DeliveryStatus string `json:"deliveryStatus"`
-	MessageUpdated bool   `json:"messageUpdated"`
-	IsPinned       *bool  `json:"isPinned,omitempty"`
-}
-
 type platformMessageDeleteResult struct {
 	MessageIDs     []string                       `json:"messageIDs"`
 	DeliveryStatus string                         `json:"deliveryStatus"`
@@ -449,9 +442,4 @@ func isValidPlatformMessageAuthor(author string) bool {
 	default:
 		return false
 	}
-}
-
-func mustMarshalPlatformMessageInput(value any) json.RawMessage {
-	document, _ := json.Marshal(value)
-	return document
 }

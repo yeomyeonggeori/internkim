@@ -3,8 +3,6 @@ package capabilityd
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,47 +85,10 @@ type Service struct {
 	DeviceBrowsers   *browserruntime.DeviceBrowsers
 }
 
-type interactionResolveRequest struct {
-	DispatchID string `json:"dispatchID"`
-}
-
-type reactionAddRequest struct {
-	ConversationID string `json:"conversationID"`
-	MessageID      string `json:"messageID"`
-	EmojiName      string `json:"emojiName"`
-	Reason         string `json:"reason"`
-}
-
-type platformAskInteraction struct {
-	InteractionID        string                    `json:"interactionID"`
-	TaskRunID            string                    `json:"taskRunID"`
-	Kind                 string                    `json:"kind"`
-	Message              string                    `json:"message,omitempty"`
-	Question             string                    `json:"question,omitempty"`
-	Options              []platformAskChoiceOption `json:"options,omitempty"`
-	RecommendedOptionKey string                    `json:"recommendedOptionKey,omitempty"`
-	SelectionMode        string                    `json:"selectionMode,omitempty"`
-	ResponseLanguage     string                    `json:"responseLanguage,omitempty"`
-	TargetPlatformUserID string                    `json:"targetPlatformUserID,omitempty"`
-}
-
-type platformAskChoiceOption struct {
-	Key        string `json:"key"`
-	Label      string `json:"label"`
-	ShortLabel string `json:"shortLabel,omitempty"`
-	Value      string `json:"value,omitempty"`
-}
-
 type platformHealthState struct {
 	mutex                   sync.RWMutex
 	LastSuccessfulForwardAt time.Time `json:"lastSuccessfulForwardAt,omitempty"`
 	LastForwardError        string    `json:"lastForwardError,omitempty"`
-}
-
-var fallbackPlatformHealthState = &platformHealthState{}
-
-type progressRequest struct {
-	ReplyTargetID string `json:"replyTargetID"`
 }
 
 func DefaultConfiguration() Configuration {
@@ -334,17 +295,6 @@ func (service Service) writeJSON(responseWriter http.ResponseWriter, response an
 	}
 }
 
-func (service Service) healthState() *platformHealthState {
-	if service.HealthState != nil {
-		return service.HealthState
-	}
-	return defaultPlatformHealthState()
-}
-
-func defaultPlatformHealthState() *platformHealthState {
-	return fallbackPlatformHealthState
-}
-
 func (state *platformHealthState) Snapshot() platformHealthState {
 	if state == nil {
 		return platformHealthState{}
@@ -364,41 +314,6 @@ func (state *platformHealthState) Update(update func(*platformHealthState)) {
 	state.mutex.Lock()
 	defer state.mutex.Unlock()
 	update(state)
-}
-
-func numberedChoiceLabel(index int, label string) string {
-	return strconv.Itoa(index+1) + ". " + strings.TrimSpace(label)
-}
-
-func trimNonEmptyPlatformAskOptions(options []platformAskChoiceOption) []platformAskChoiceOption {
-	trimmedOptions := []platformAskChoiceOption{}
-	for _, option := range options {
-		option.Key = strings.TrimSpace(option.Key)
-		option.Label = strings.TrimSpace(option.Label)
-		option.ShortLabel = strings.TrimSpace(option.ShortLabel)
-		option.Value = strings.TrimSpace(option.Value)
-		if option.Key != "" && option.Label != "" {
-			trimmedOptions = append(trimmedOptions, option)
-		}
-	}
-	return trimmedOptions
-}
-
-func trimNonEmptyPlatformStrings(values []string) []string {
-	trimmedValues := []string{}
-	for _, value := range values {
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedValue != "" {
-			trimmedValues = append(trimmedValues, trimmedValue)
-		}
-	}
-	return trimmedValues
-}
-
-func randomCapabilityHex(size int) string {
-	value := make([]byte, size)
-	_, _ = rand.Read(value)
-	return hex.EncodeToString(value)
 }
 
 func (service Service) listen() (net.Listener, error) {
@@ -509,10 +424,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-var fallbackPlatformProgressManager = newPlatformProgressManager()
-
 const platformProgressTTL = 3 * time.Minute
-const platformTypingInterval = 4 * time.Second
 
 type platformProgressManager struct {
 	mutex      sync.Mutex
@@ -560,13 +472,6 @@ func (manager *platformProgressManager) Stop(key string) {
 		lease.timer.Stop()
 		lease.cancel()
 	}
-}
-
-func (service Service) progressManager() *platformProgressManager {
-	if service.ProgressManager != nil {
-		return service.ProgressManager
-	}
-	return fallbackPlatformProgressManager
 }
 
 func (configuration Configuration) WithDefaults() Configuration {
