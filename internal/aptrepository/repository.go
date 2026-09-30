@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/packagerepository"
 )
 
 const (
@@ -34,33 +36,7 @@ const (
 // is told about and then cannot fetch an index for is a broken repository.
 var Architectures = []string{"amd64", "arm64"}
 
-// Suites are the published suites, named for how far a build is trusted:
-// `stable` is what an install follows and `testing` carries release candidates.
-// The package names no distribution, so neither does a suite.
-const (
-	StableSuite  = "stable"
-	TestingSuite = "testing"
-)
-
-var Suites = []string{StableSuite, TestingSuite}
-
-// DefaultSuite is what an install follows when nothing asks for another.
-const DefaultSuite = StableSuite
-
 const Component = "main"
-
-// Package is one .deb about to be indexed.
-type Package struct {
-	FileName string
-	Contents []byte
-}
-
-// Signer turns the text of a Release file into its two published signatures.
-type Signer interface {
-	ClearSign(document []byte) ([]byte, error)
-	DetachSign(document []byte) ([]byte, error)
-	PublicKeyring() ([]byte, error)
-}
 
 // Build renders every object of a one-suite apt repository, keyed by the
 // object name it takes in the release bucket.
@@ -68,9 +44,9 @@ type Signer interface {
 // The same map is written to disk for the install rig and uploaded to R2 by
 // `internkim release apt`, so the repository a test serves is the repository a
 // customer installs from.
-func Build(suite string, packages []Package, signer Signer, now time.Time) (map[string][]byte, error) {
-	if !isKnownSuite(suite) {
-		return nil, fmt.Errorf("suite %q is not one of %s", suite, strings.Join(Suites, ", "))
+func Build(suite string, packages []packagerepository.Package, signer packagerepository.Signer, now time.Time) (map[string][]byte, error) {
+	if errorValue := packagerepository.CheckChannel(suite); errorValue != nil {
+		return nil, errorValue
 	}
 	if signer == nil {
 		return nil, errors.New("an apt repository is signed; no signer was given")
@@ -113,7 +89,7 @@ type indexedPackage struct {
 	sha256Digest string
 }
 
-func poolObjects(packages []Package, objects map[string][]byte) ([]indexedPackage, error) {
+func poolObjects(packages []packagerepository.Package, objects map[string][]byte) ([]indexedPackage, error) {
 	indexed := make([]indexedPackage, 0, len(packages))
 	for _, packageFile := range packages {
 		fields, errorValue := ReadControlFields(packageFile.Contents)
@@ -247,13 +223,4 @@ func compress(payload []byte) []byte {
 func digestOf(digest hash.Hash, payload []byte) string {
 	digest.Write(payload)
 	return hex.EncodeToString(digest.Sum(nil))
-}
-
-func isKnownSuite(suite string) bool {
-	for _, known := range Suites {
-		if known == suite {
-			return true
-		}
-	}
-	return false
 }
