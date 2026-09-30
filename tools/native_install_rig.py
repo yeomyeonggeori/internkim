@@ -225,7 +225,7 @@ def parse_control_paragraph(text):
 class Release:
     """An apt repository on this Mac, served to the guest over HTTP.
 
-    The repository itself is built by `internkim release apt`, which is what
+    The repository itself is built by `internkim release repositories`, which is what
     publishes it to R2 for real. The rig substitutes the address it is served
     from and nothing else, so what a guest installs from here is what a
     customer installs from.
@@ -284,8 +284,9 @@ class Release:
         """Render the repository with the command that publishes it for real."""
         checked(
             [
-                str(internkim_command()), "release", "apt",
-                "--suite", suite,
+                str(internkim_command()), "release", "repositories",
+                "--channel", suite,
+                "--format", "deb",
                 "--package-directory", str(self.staging_directory),
                 "--output", str(self.directory),
             ],

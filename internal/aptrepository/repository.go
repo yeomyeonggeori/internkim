@@ -42,7 +42,7 @@ const Component = "main"
 // object name it takes in the release bucket.
 //
 // The same map is written to disk for the install rig and uploaded to R2 by
-// `internkim release apt`, so the repository a test serves is the repository a
+// `internkim release repositories`, so the repository a test serves is the repository a
 // customer installs from.
 func Build(suite string, packages []packagerepository.Package, signer packagerepository.Signer, now time.Time) (map[string][]byte, error) {
 	if errorValue := packagerepository.CheckChannel(suite); errorValue != nil {

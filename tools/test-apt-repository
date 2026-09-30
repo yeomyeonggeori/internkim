@@ -6,7 +6,7 @@ question underneath it: whether apt would refuse the repository if someone
 changed what it serves. A repository that serves is not a repository that is
 trusted, and only the refusals tell the two apart.
 
-The repository under test is built by `internkim release apt` — the same
+The repository under test is built by `internkim release repositories` — the same
 command that publishes it to R2 — and served from this Mac the way
 `workers/release-registry` serves it. One disposable arm64 Debian guest points
 its apt at it.
@@ -314,7 +314,7 @@ class RepositoryTrial:
     def run(self):
         self.working_directory = Path(tempfile.mkdtemp(prefix="/tmp/ikapt-trial-"))
         try:
-            print(f"building the repository with `internkim release apt` in {self.working_directory}\n")
+            print(f"building the repository with `internkim release repositories` in {self.working_directory}\n")
             self.build_repository()
             self.start_machine()
             print(f"the guest's apt points at {self.repository_url}\n")
@@ -393,8 +393,9 @@ def publish_through_the_vault():
     try:
         published = subprocess.run(
             [
-                monkeys, "run", str(internkim_command()), "release", "apt",
-                "--suite", TESTING_SUITE,
+                monkeys, "run", str(internkim_command()), "release", "repositories",
+                "--channel", TESTING_SUITE,
+                "--format", "deb",
                 "--package-directory", str(release.staging_directory),
                 "--output", str(release.directory),
             ],

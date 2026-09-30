@@ -78,8 +78,9 @@ func TestTheInstallScriptNamesTheKeysTheRepositoriesPublish(t *testing.T) {
 	for _, wanted := range []string{
 		`rpm_repository_key_name="` + rpmrepository.KeyName + `"`,
 		`pacman_repository_key_name="` + pacmanrepository.KeyName + `"`,
-		`https://updates.intern.kim/` + rpmrepository.Prefix + `/$repository_channel`,
-		`https://updates.intern.kim/` + pacmanrepository.Prefix + `/$repository_channel`,
+		`$repository_base_url/` + rpmrepository.Prefix + `/$repository_channel`,
+		`$repository_base_url/` + pacmanrepository.Prefix + `/$repository_channel`,
+		`$repository_base_url/` + aptrepository.Prefix,
 	} {
 		if !strings.Contains(string(script), wanted) {
 			t.Errorf("install.sh does not contain %s", wanted)
