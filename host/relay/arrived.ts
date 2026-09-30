@@ -78,7 +78,7 @@ function text(offered: unknown): string {
 	return typeof offered === 'string' ? offered.trim() : '';
 }
 
-function externalIDs(offered: unknown, author: string): string[] {
+export function externalIDs(offered: unknown, author: string): string[] {
 	if (!Array.isArray(offered)) return [];
 	const named = offered.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
 	return [...new Set(named.map((entry) => entry.trim()))].filter((entry) => entry !== author);
