@@ -1168,7 +1168,7 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 	switch name {
 	case "blueclawPayload":
 		return blueclawPayloadRevision(repositoryRootPath)
-	case "chatd":
+	case "chatd", "blueclawSupervisor":
 		return blueclawSubmoduleRevision(repositoryRootPath)
 	}
 	paths := componentSourcePaths[name]
@@ -1203,13 +1203,12 @@ func skillComponentSourcePaths(repositoryRootPath string) []string {
 }
 
 var componentSourcePaths = map[string][]string{
-	"internkim":          {"cmd/internkim"},
-	"admind":             {"cmd/internkim-admind"},
-	"capabilityd":        {"cmd/internkim-capabilityd"},
-	"blueclawSupervisor": {"cmd/blueclaw-supervisor"},
-	"fonts":              {"assets/fonts"},
-	"relay":              {"host/relay"},
-	"buzzMigrate":        {"cmd/buzz-migrate"},
+	"internkim":   {"cmd/internkim"},
+	"admind":      {"cmd/internkim-admind"},
+	"capabilityd": {"cmd/internkim-capabilityd"},
+	"fonts":       {"assets/fonts"},
+	"relay":       {"host/relay"},
+	"buzzMigrate": {"cmd/buzz-migrate"},
 	"web": {
 		"web",
 		"pkg/capabilityprotocol/generated",
