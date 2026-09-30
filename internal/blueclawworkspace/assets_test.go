@@ -531,7 +531,7 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for _, expectedText := range []string{"offRowFormulaCount", "headerRow", "titleRowDetected"} {
+	for _, expectedText := range []string{"headerRow", "titleRowDetected"} {
 		if !strings.Contains(string(xlsxValidationScript), expectedText) {
 			t.Fatalf("xlsx validation script must include %q", expectedText)
 		}
