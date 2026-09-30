@@ -40,6 +40,13 @@ type CompanyHostLayout struct {
 	// holds neither Homebrew's prefix nor this package's own tree, so a service
 	// that shells out to psql, git, jq, bun or uv would find none of them.
 	SearchPath string
+	// DatabaseSocketDirectory and CacheSocketPath are where the host's own
+	// database and cache answer, on a machine whose supervisor the package
+	// installs units into. Empty means the machine's own PostgreSQL and Redis
+	// are used, at DatabaseLoopbackAddress and the cache's loopback address.
+	DatabaseSocketDirectory string
+	CacheSocketPath         string
+	DatabaseLoopbackAddress string
 }
 
 // The macOS workspace is a sibling of the state root rather than a child, for
@@ -50,6 +57,7 @@ const (
 	macCompanyHostWorkspacePath = "/var/lib/internkim-workspace"
 	macCompanyHostRunPath       = "/var/run/internkim"
 	macBlueclawHomePath         = "/var/lib/blueclaw"
+	macDatabaseLoopbackAddress  = "127.0.0.1:5432"
 
 	companyHostPrepareProgramName = "prepare-company-host"
 )
@@ -65,6 +73,9 @@ func DebianCompanyHostLayout() CompanyHostLayout {
 		WorkspacePath: CompanyHostWorkspacePath,
 		RunPath:       CompanyHostRunPath,
 		AgentHomePath: BlueclawHomePath,
+
+		DatabaseSocketDirectory: CompanyHostDatabaseSocketDirectory,
+		CacheSocketPath:         CompanyHostCacheSocketPath,
 	}
 }
 
@@ -103,6 +114,8 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 		WorkspacePath: macCompanyHostWorkspacePath,
 		RunPath:       macCompanyHostRunPath,
 		AgentHomePath: macBlueclawHomePath,
+
+		DatabaseLoopbackAddress: macDatabaseLoopbackAddress,
 	}
 }
 

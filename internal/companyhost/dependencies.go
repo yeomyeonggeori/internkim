@@ -16,12 +16,13 @@ import (
 
 type missingPiece struct {
 	What            string
-	DebianPackage   string
+	Dependency      blueclaw.HostDependency
+	IsOurs          bool
 	HomebrewFormula string
 }
 
 func (piece missingPiece) belongsToOurPackage() bool {
-	return piece.DebianPackage == blueclaw.CompanyPackageName
+	return piece.IsOurs
 }
 
 func requireWhatTheCompanyHostRuns(platform companyHostPlatform, machine Machine) error {
@@ -41,7 +42,7 @@ func whatThisComputerIsMissing(platform companyHostPlatform, machine Machine) []
 	missing := []missingPiece{}
 	for _, program := range blueclaw.HostProgramsThePackageShips() {
 		if machine.CarriesProgram(program) != nil {
-			missing = append(missing, missingPiece{What: program, DebianPackage: blueclaw.CompanyPackageName})
+			missing = append(missing, missingPiece{What: program, IsOurs: true})
 		}
 	}
 	for _, dependency := range blueclaw.HostDependencies() {
@@ -56,7 +57,8 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 	describe := func(what string) missingPiece {
 		return missingPiece{
 			What:            what,
-			DebianPackage:   whatCarries(dependency),
+			Dependency:      dependency,
+			IsOurs:          dependency.ArrivesAsPayload,
 			HomebrewFormula: dependency.HomebrewFormula,
 		}
 	}
@@ -72,6 +74,9 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 		return []missingPiece{describe(candidates[0])}
 	}
 	missing := []missingPiece{}
+	if len(dependency.OneOfThesePrograms) > 0 && !machineCarriesAnyOf(machine, dependency.OneOfThesePrograms) {
+		missing = append(missing, describe(strings.Join(dependency.OneOfThesePrograms, " or ")))
+	}
 	for _, program := range dependency.ProgramsTheHostRuns {
 		if machine.CarriesProgram(program) != nil {
 			missing = append(missing, describe(program))
@@ -83,11 +88,13 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 	return missing
 }
 
-func whatCarries(dependency blueclaw.HostDependency) string {
-	if dependency.ArrivesAsPayload {
-		return blueclaw.CompanyPackageName
+func machineCarriesAnyOf(machine Machine, programs []string) bool {
+	for _, program := range programs {
+		if machine.CarriesProgram(program) == nil {
+			return true
+		}
 	}
-	return dependency.DebianPackage
+	return false
 }
 
 // A person reads one command, not a list of twelve names to look up. The command

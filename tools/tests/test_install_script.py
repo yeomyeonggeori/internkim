@@ -147,7 +147,7 @@ class InstallScriptTests(unittest.TestCase):
         return os.pathsep.join(
             directory
             for directory in os.environ["PATH"].split(os.pathsep)
-            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "brew"))
+            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "dnf", "pacman", "zypper", "brew"))
         )
 
     def forget_checksum_line(self, base_url, product, binary_name):
@@ -352,9 +352,14 @@ class InstallScriptTests(unittest.TestCase):
             f'case "$1" in {failing_apt_subcommand or "__never__"}) exit 100 ;; esac\n'
             "exit 0\n"
         )
+        (directory / "apt-cache").write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "apt-cache $*" >> "{self.apt_log}"\n'
+            'printf "%s:\\n  Installed: (none)\\n  Candidate: 1.0\\n" "$2"\n'
+        )
         (directory / "dpkg").write_text(recording_shim("dpkg", directory / "apt.log", output="arm64"))
         (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
-        shimmed = ["apt-get", "dpkg", "sudo"]
+        shimmed = ["apt-get", "apt-cache", "dpkg", "sudo"]
         if sandbox_installs:
             (directory / "install").write_text(install_shim)
             shimmed.append("install")
@@ -532,6 +537,196 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual((bin_dir / "internkim-host").read_bytes(), published_binary("internkim-host-linux-amd64"))
         self.assertEqual(sorted(path.name for path in bin_dir.iterdir()), ["internkim-host"])
+
+    def linux_machine(self, manager, offered_names=None):
+        """A machine that has one package manager, sudo and a sandbox for what root writes.
+
+        `offered_names` is what the manager's repositories carry among the
+        pgvector candidates; None means every name is carried.
+        """
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.manager_log = directory / "manager.log"
+        offered = "" if offered_names is None else " ".join(offered_names)
+        answers = "ALL" if offered_names is None else offered
+        (directory / manager).write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "{manager} $*" >> "{self.manager_log}"\n'
+            'for argument in "$@"; do last="$argument"; done\n'
+            'case "$*" in\n'
+            '  *repoquery*|*search*|*-Si*)\n'
+            f'    for name in {answers}; do if [ "$name" = "ALL" ] || [ "$name" = "$last" ]; then echo "$last | package"; exit 0; fi; done\n'
+            "    exit 1 ;;\n"
+            "esac\n"
+            "exit 0\n"
+        )
+        (directory / "apt-cache").write_text(
+            "#!/bin/sh\n"
+            f'for name in {answers}; do if [ "$name" = "ALL" ] || [ "$name" = "$2" ]; then candidate=1.0; fi; done\n'
+            'printf "%s:\\n  Installed: (none)\\n  Candidate: %s\\n" "$2" "${candidate:-(none)}"\n'
+        )
+        (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
+        (directory / "install").write_text(install_shim)
+        for name in (manager, "apt-cache", "sudo", "install"):
+            (directory / name).chmod(0o755)
+        return str(directory)
+
+    def run_install_with_a_package_file(self, shims, package_file, extra_environment=None):
+        environment = dict(os.environ)
+        environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
+        environment["INTERNKIM_INSTALL_PACKAGE"] = str(package_file)
+        environment.update(extra_environment or {})
+        environment["PATH"] = os.pathsep.join(
+            [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
+        return subprocess.run(
+            ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
+
+    def a_package_file(self, name):
+        path = Path(self.enterContext(tempfile.TemporaryDirectory())) / name
+        path.write_bytes(b"not really a package\n")
+        return path
+
+    def test_each_manager_installs_a_package_file_with_its_own_command(self):
+        for manager, file_name, expected in [
+            ("apt-get", "internkim_1_amd64.deb", "apt-get install -y {path}"),
+            ("dnf", "internkim-1-1.x86_64.rpm", "dnf install -y {path}"),
+            ("pacman", "internkim-1-1-x86_64.pkg.tar.zst", "pacman -U --needed --noconfirm {path}"),
+            ("zypper", "internkim-1-1.x86_64.rpm", "zypper --non-interactive --no-gpg-checks install {path}"),
+        ]:
+            with self.subTest(manager=manager):
+                shims = self.linux_machine(manager)
+                package = self.a_package_file(file_name)
+                completed = self.run_install_with_a_package_file(shims, package)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertIn(expected.format(path=package), self.manager_log.read_text().splitlines())
+                self.assertIn("sudo internkim install", completed.stdout)
+
+    def test_a_package_file_of_another_format_is_refused_before_anything_runs(self):
+        shims = self.linux_machine("dnf")
+        completed = self.run_install_with_a_package_file(shims, self.a_package_file("internkim_1_amd64.deb"))
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("installs .rpm files", completed.stderr)
+        self.assertFalse(self.manager_log.exists(), "the manager was asked nothing before the refusal")
+
+    def test_a_package_file_that_is_not_there_is_named(self):
+        shims = self.linux_machine("pacman")
+        completed = self.run_install_with_a_package_file(shims, "/nonexistent/internkim.pkg.tar.zst")
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("/nonexistent/internkim.pkg.tar.zst is not a file", completed.stderr)
+
+    def test_a_package_file_whose_checksum_is_not_the_one_given_is_refused(self):
+        shims = self.linux_machine("dnf")
+        package = self.a_package_file("internkim-1-1.x86_64.rpm")
+        completed = self.run_install_with_a_package_file(
+            shims, package, {"INTERNKIM_INSTALL_PACKAGE_SHA256": "0" * 64})
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("INTERNKIM_INSTALL_PACKAGE_SHA256", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
+
+    def test_a_package_file_is_fetched_from_an_address(self):
+        base_url = self.serve()
+        (self.served_directory / "internkim-1-1.x86_64.rpm").write_bytes(b"rpm bytes\n")
+        shims = self.linux_machine("dnf")
+        completed = self.run_install_with_a_package_file(shims, f"{base_url}/internkim-1-1.x86_64.rpm")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        installed = [line for line in self.manager_log.read_text().splitlines() if line.startswith("dnf install -y ")]
+        self.assertEqual(len(installed), 1)
+        self.assertTrue(installed[0].endswith("internkim-1-1.x86_64.rpm"), installed)
+
+    def test_a_manager_with_no_published_repository_says_so_and_changes_nothing(self):
+        for manager in ("dnf", "pacman", "zypper"):
+            with self.subTest(manager=manager):
+                shims = self.linux_machine(manager)
+                environment = dict(os.environ)
+                environment["PATH"] = os.pathsep.join(
+                    [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
+                completed = subprocess.run(
+                    ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
+                self.assertEqual(completed.returncode, 1)
+                self.assertIn("INTERNKIM_INSTALL_PACKAGE", completed.stderr)
+                self.assertFalse(self.manager_log.exists())
+
+    def test_a_distribution_with_no_pgvector_is_told_what_was_looked_for(self):
+        for manager, expected in [
+            ("dnf", "pgvector"),
+            ("pacman", "pgvector"),
+            ("zypper", "postgresql18-pgvector"),
+        ]:
+            with self.subTest(manager=manager):
+                shims = self.linux_machine(manager, offered_names=[])
+                package = self.a_package_file("internkim-1-1.x86_64.rpm" if manager != "pacman" else "internkim-1-1-x86_64.pkg.tar.zst")
+                completed = self.run_install_with_a_package_file(shims, package)
+                self.assertEqual(completed.returncode, 1)
+                self.assertIn(expected, completed.stderr)
+                self.assertFalse(
+                    any(" install " in line or " -U " in line for line in self.manager_log.read_text().splitlines()),
+                    "nothing is installed when the memory store could not be kept")
+
+    def test_a_distribution_that_carries_pgvector_adds_no_repository(self):
+        shims = self.linux_machine("dnf", offered_names=["pgvector"])
+        completed = self.run_install_with_a_package_file(shims, self.a_package_file("internkim-1-1.x86_64.rpm"))
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(list(self.sandbox.rglob("*")), [])
+
+    def postgresql_repository_machine(self, key_fingerprint):
+        """A Debian-family machine whose apt offers pgvector only once the
+        PostgreSQL project's source has been written, and whose gpg reads the
+        key as having the given fingerprint."""
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.apt_log = directory / "apt.log"
+        source = self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources"
+        (directory / "apt-get").write_text(
+            f'#!/bin/sh\nprintf "%s\\n" "apt-get $*" >> "{self.apt_log}"\nexit 0\n')
+        (directory / "apt-cache").write_text(
+            "#!/bin/sh\n"
+            f'if [ -e "{source}" ]; then candidate=16.0; else candidate="(none)"; fi\n'
+            'printf "%s:\\n  Installed: (none)\\n  Candidate: %s\\n" "$2" "$candidate"\n'
+        )
+        (directory / "gpg").write_text(f'#!/bin/sh\necho "fpr:::::::::{key_fingerprint}:"\n')
+        (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
+        (directory / "install").write_text(install_shim)
+        for name in ("apt-get", "apt-cache", "gpg", "sudo", "install"):
+            (directory / name).chmod(0o755)
+        return str(directory)
+
+    def run_install_needing_the_postgresql_repository(self, key_fingerprint):
+        base_url = self.serve()
+        (self.served_directory / "postgresql-key.asc").write_bytes(b"armored key\n")
+        shims = self.postgresql_repository_machine(key_fingerprint)
+        os_release = Path(self.enterContext(tempfile.TemporaryDirectory())) / "os-release"
+        os_release.write_text("VERSION_CODENAME=jammy\n")
+        package = self.a_package_file("internkim_1_amd64.deb")
+        completed = self.run_install_with_a_package_file(shims, package, {
+            "INTERNKIM_INSTALL_OS_RELEASE": str(os_release),
+            "INTERNKIM_INSTALL_POSTGRESQL_KEY_URL": f"{base_url}/postgresql-key.asc",
+            "INTERNKIM_INSTALL_POSTGRESQL_REPOSITORY_URL": "https://postgresql.example.test/apt",
+        })
+        return completed, package
+
+    def test_ubuntu_without_pgvector_gets_the_postgresql_project_repository_scoped_to_it(self):
+        pinned = re.search(r'^postgresql_key_fingerprint="([0-9A-F]+)"', install_script.read_text(), re.MULTILINE).group(1)
+        completed, package = self.run_install_needing_the_postgresql_repository(pinned)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        source = (self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources").read_text()
+        self.assertIn("Suites: jammy-pgdg", source)
+        self.assertIn("Signed-By: /usr/share/keyrings/internkim-postgresql-archive-keyring.asc", source)
+        preference = (self.sandbox / "etc/apt/preferences.d/internkim-postgresql.pref").read_text()
+        self.assertIn("Pin: origin postgresql.example.test", preference)
+        self.assertIn("Pin-Priority: 100", preference)
+        self.assertEqual((self.sandbox / "usr/share/keyrings/internkim-postgresql-archive-keyring.asc").read_bytes(), b"armored key\n")
+        self.assertFalse((self.sandbox / "etc/apt/trusted.gpg.d").exists())
+        calls = self.apt_log.read_text().splitlines()
+        self.assertLess(calls.index("apt-get update"), len(calls) - 1)
+        self.assertEqual(calls[-1], f"apt-get install -y {package}")
+
+    def test_a_postgresql_key_that_is_not_the_pinned_one_is_refused(self):
+        completed, _ = self.run_install_needing_the_postgresql_repository("0" * 40)
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("trusts only", completed.stderr)
+        self.assertFalse((self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources").exists())
+        self.assertFalse(any(" install " in line and "gpg" not in line and ".deb" in line
+                             for line in self.apt_log.read_text().splitlines()))
 
 
 if __name__ == "__main__":

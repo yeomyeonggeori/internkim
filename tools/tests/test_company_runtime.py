@@ -92,6 +92,41 @@ class CompanyRuntimeTests(unittest.TestCase):
         })
         self.assertEqual(custom_runtime["memory"]["adminAssertionKeyPath"], "/run/company/agent-key")
 
+    def test_a_database_address_with_sed_metacharacters_arrives_intact(self):
+        """The host reaches its database on a socket, so its address carries a query:
+        `?host=%2Frun%2Finternkim-postgres&sslmode=...`. The renderer once substituted
+        with sed, where `&` in the replacement means the text that matched."""
+        repository_root = Path(__file__).resolve().parents[2]
+        address = "postgres://u:p@localhost/db?host=%2Frun%2Finternkim-postgres&a=b|c\\d"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            capabilityd_path = temporary_path / "capabilityd"
+            capabilityd_path.write_text(
+                "#!/bin/sh\n"
+                "case \"$1\" in\n"
+                "--print-capabilities) printf '{\"tools\":[]}' ;;\n"
+                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\"}}' ;;\n"
+                "*) exit 1 ;;\n"
+                "esac\n"
+            )
+            capabilityd_path.chmod(capabilityd_path.stat().st_mode | stat.S_IXUSR)
+            output_path = temporary_path / "runtime.json"
+            subprocess.run(
+                [
+                    str(repository_root / "tools/render-company-runtime"),
+                    "--template", str(repository_root / "host/runtime.template.json"),
+                    "--capabilityd", str(capabilityd_path),
+                    "--out", str(output_path),
+                    "--work", str(temporary_path / "work"),
+                ],
+                check=True,
+                env=os.environ | {"DATABASE_URL": address, "MESSENGER_PLATFORM": "buzz"},
+                capture_output=True,
+                text=True,
+            )
+            runtime = json.loads(output_path.read_text())
+        self.assertEqual(runtime["database"]["connectionString"], address)
+
 
 if __name__ == "__main__":
     unittest.main()

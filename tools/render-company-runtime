@@ -73,17 +73,30 @@ renderedPath="${workDirectory}/runtime.rendered.json"
 capabilitiesPath="${workDirectory}/capabilities.json"
 languageModelPath="${workDirectory}/language-model.json"
 
-sed -e "s|\${DATABASE_URL}|${DATABASE_URL}|g" \
-    -e "s|\${MESSENGER_PLATFORM}|${MESSENGER_PLATFORM}|g" \
-    -e "s|\${BLUECLAW_BASE_URL}|${BLUECLAW_BASE_URL}|g" \
-    -e "s|\${CAPABILITY_SOCKET_PATH}|${CAPABILITY_SOCKET_PATH}|g" \
-    -e "s|\${CHATD_ENDPOINT}|${CHATD_ENDPOINT}|g" \
-    -e "s|\${WORKSPACE_ROOT_PATH}|${WORKSPACE_ROOT_PATH}|g" \
-    -e "s|\${MIGRATION_DIRECTORY_PATH}|${MIGRATION_DIRECTORY_PATH}|g" \
-    -e "s|\${LOG_DIRECTORY_PATH}|${LOG_DIRECTORY_PATH}|g" \
-    -e "s|\${ADMIN_ASSERTION_KEY_PATH}|${ADMIN_ASSERTION_KEY_PATH}|g" \
-    -e "s|\${POSIX_HELPER_PATH}|${POSIX_HELPER_PATH}|g" \
-    "${templatePath}" > "${renderedPath}"
+jq \
+  --arg DATABASE_URL "${DATABASE_URL}" \
+  --arg MESSENGER_PLATFORM "${MESSENGER_PLATFORM}" \
+  --arg BLUECLAW_BASE_URL "${BLUECLAW_BASE_URL}" \
+  --arg CAPABILITY_SOCKET_PATH "${CAPABILITY_SOCKET_PATH}" \
+  --arg CHATD_ENDPOINT "${CHATD_ENDPOINT}" \
+  --arg WORKSPACE_ROOT_PATH "${WORKSPACE_ROOT_PATH}" \
+  --arg MIGRATION_DIRECTORY_PATH "${MIGRATION_DIRECTORY_PATH}" \
+  --arg LOG_DIRECTORY_PATH "${LOG_DIRECTORY_PATH}" \
+  --arg ADMIN_ASSERTION_KEY_PATH "${ADMIN_ASSERTION_KEY_PATH}" \
+  --arg POSIX_HELPER_PATH "${POSIX_HELPER_PATH}" \
+  'walk(if type == "string" then
+    gsub("\\$\\{DATABASE_URL\\}"; $DATABASE_URL)
+    | gsub("\\$\\{MESSENGER_PLATFORM\\}"; $MESSENGER_PLATFORM)
+    | gsub("\\$\\{BLUECLAW_BASE_URL\\}"; $BLUECLAW_BASE_URL)
+    | gsub("\\$\\{CAPABILITY_SOCKET_PATH\\}"; $CAPABILITY_SOCKET_PATH)
+    | gsub("\\$\\{CHATD_ENDPOINT\\}"; $CHATD_ENDPOINT)
+    | gsub("\\$\\{WORKSPACE_ROOT_PATH\\}"; $WORKSPACE_ROOT_PATH)
+    | gsub("\\$\\{MIGRATION_DIRECTORY_PATH\\}"; $MIGRATION_DIRECTORY_PATH)
+    | gsub("\\$\\{LOG_DIRECTORY_PATH\\}"; $LOG_DIRECTORY_PATH)
+    | gsub("\\$\\{ADMIN_ASSERTION_KEY_PATH\\}"; $ADMIN_ASSERTION_KEY_PATH)
+    | gsub("\\$\\{POSIX_HELPER_PATH\\}"; $POSIX_HELPER_PATH)
+  else . end)' \
+  "${templatePath}" > "${renderedPath}"
 
 "${capabilitydPath}" --print-capabilities --socket "${CAPABILITY_SOCKET_PATH}" > "${capabilitiesPath}"
 "${capabilitydPath}" --print-model-ladder "${MODEL_API_KEY_PATH}" --model-endpoint "${MODEL_ENDPOINT:-}" > "${languageModelPath}"
