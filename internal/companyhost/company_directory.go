@@ -28,7 +28,6 @@ const (
 	mediaRootCredentialName   = "buzz-media-root.env"
 	messengerBridgeFileName   = "chatd.env"
 	hostEnvironmentFileName   = "host.env"
-	databaseListenAddress     = "127.0.0.1:5432"
 	databaseRoleName          = "internkim"
 	messengerPlatform         = "buzz"
 	messengerBotUserName      = "internkim"
@@ -95,7 +94,7 @@ func prepareCompanyDirectory(platform companyHostPlatform, machine Machine, dire
 	if errorValue != nil {
 		return companyHostSettings{}, errorValue
 	}
-	files, errorValue := companyHostFiles(directoryPath, connection, secrets)
+	files, errorValue := companyHostFiles(platform.Layout(), directoryPath, connection, secrets)
 	if errorValue != nil {
 		return companyHostSettings{}, errorValue
 	}
@@ -139,7 +138,7 @@ func keepCompanySecrets(secretsPath string) (companySecrets, error) {
 // companyHostFiles is a pure function of the company and its secrets so a test
 // can read what the install would write beside what the units require, without a
 // machine to write it on.
-func companyHostFiles(directoryPath string, connection Connection, secrets companySecrets) ([]companyFile, error) {
+func companyHostFiles(layout blueclaw.CompanyHostLayout, directoryPath string, connection Connection, secrets companySecrets) ([]companyFile, error) {
 	identity, errorValue := IdentityForSeed(secrets.IdentitySeed)
 	if errorValue != nil {
 		return nil, errorValue
@@ -150,9 +149,9 @@ func companyHostFiles(directoryPath string, connection Connection, secrets compa
 		owner   string
 		entries []EnvironmentEntry
 	}{
-		{path: filepath.Join(directoryPath, hostEnvironmentFileName), entries: companyEnvironment(secrets.DatabasePassword, connection)},
+		{path: filepath.Join(directoryPath, hostEnvironmentFileName), entries: companyEnvironment(layout, secrets.DatabasePassword, connection)},
 		{path: filepath.Join(secretsPath, messengerDatabaseFileName), entries: []EnvironmentEntry{
-			{"DATABASE_URL", databaseAddress(secrets.DatabasePassword, blueclaw.BuzzRelayDatabaseName)},
+			{"DATABASE_URL", layout.DatabaseURL(databaseRoleName, secrets.DatabasePassword, blueclaw.BuzzRelayDatabaseName)},
 		}},
 		{path: filepath.Join(secretsPath, messengerRelayKeyFileName), entries: []EnvironmentEntry{
 			{"BUZZ_RELAY_PRIVATE_KEY", secrets.RelayPrivateKey},
@@ -198,9 +197,9 @@ func modeFor(owner string) os.FileMode {
 
 // companyEnvironment is what every unit of the bundle reads: the addresses only
 // this company knows, and the database the agent opens.
-func companyEnvironment(password string, connection Connection) []EnvironmentEntry {
+func companyEnvironment(layout blueclaw.CompanyHostLayout, password string, connection Connection) []EnvironmentEntry {
 	return []EnvironmentEntry{
-		{"DATABASE_URL", databaseAddress(password, blueclaw.BlueclawDatabaseName)},
+		{"DATABASE_URL", layout.DatabaseURL(databaseRoleName, password, blueclaw.BlueclawDatabaseName)},
 		{"SUPABASE_URL", connection.CentralPlane.ProjectURL},
 		{"SUPABASE_PUBLISHABLE_KEY", connection.CentralPlane.PublishableKey},
 		{"INTERNKIM_APP_URL", connection.AppURL},
@@ -227,10 +226,6 @@ func relayEnvironment(connection Connection) []EnvironmentEntry {
 		{"BLUECLAW_ACP_SOCKET_PATH", blueclaw.CompanyHostACPSocketPath},
 		{"WORKSPACE_ROOT_PATH", blueclaw.CompanyHostWorkspacePath},
 	}
-}
-
-func databaseAddress(password string, databaseName string) string {
-	return fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", databaseRoleName, password, databaseListenAddress, databaseName)
 }
 
 // environmentFileText is systemd's EnvironmentFile format, which is not a shell

@@ -94,16 +94,22 @@ type companyHostServiceAccount struct {
 }
 
 func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHostServiceAccount {
-	return []companyHostServiceAccount{
+	accounts := []companyHostServiceAccount{
 		{Name: blueclaw.BlueclawUser, HomePath: layout.AgentHomePath, Description: "internkim agent"},
 		{Name: blueclaw.RelayUserName, Description: "internkim relay"},
 	}
+	if !layout.OwnsItsDataServices() {
+		return accounts
+	}
+	return append(accounts,
+		companyHostServiceAccount{Name: blueclaw.CompanyHostDatabaseUser, Description: "internkim database"},
+		companyHostServiceAccount{Name: blueclaw.CompanyHostCacheUser, Description: "internkim cache"})
 }
 
 func platformFor(operatingSystem string, homebrewPrefix string) (companyHostPlatform, error) {
 	switch operatingSystem {
 	case "linux":
-		return debianPlatform{}, nil
+		return linuxPlatform{}, nil
 	case "darwin":
 		if homebrewPrefix == "" {
 			return nil, fmt.Errorf(
@@ -112,5 +118,5 @@ func platformFor(operatingSystem string, homebrewPrefix string) (companyHostPlat
 		}
 		return macPlatform{homebrewPrefix: homebrewPrefix}, nil
 	}
-	return nil, fmt.Errorf("the company host installs on Debian and on macOS; this machine is %s", operatingSystem)
+	return nil, fmt.Errorf("the company host installs on Linux with systemd and on macOS; this machine is %s", operatingSystem)
 }

@@ -200,7 +200,7 @@ func companyHostMessengerService(layout CompanyHostLayout) CompanyHostService {
 			environmentSettings(
 				setting("BUZZ_BIND_ADDR", BuzzRelayBindAddress),
 				setting("BUZZ_HEALTH_PORT", BuzzRelayHealthPort),
-				setting("REDIS_URL", BuzzRelayRedisURL),
+				setting("REDIS_URL", layout.CacheURL()),
 				setting("RELAY_URL", BuzzRelayLocalURL),
 				setting("BUZZ_AUTO_MIGRATE", "1"),
 				setting("BUZZ_REQUIRE_RELAY_MEMBERSHIP", "true"),

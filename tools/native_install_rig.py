@@ -598,9 +598,12 @@ class Machine:
         container_binary="container",
         kernel_image_path=KERNEL_IMAGE_PATH,
         distribution=DEFAULT_DISTRIBUTION,
+        image=None,
+        bootstrap_script=BOOTSTRAP_SCRIPT,
     ):
         self.name = name
-        self.image = DISTRIBUTIONS[distribution]
+        self.image = image or DISTRIBUTIONS[distribution]
+        self.bootstrap_script = bootstrap_script
         self.share_directory = Path(share_directory)
         self.container_binary = container_binary
         self.kernel_image_path = Path(kernel_image_path)
@@ -639,7 +642,7 @@ class Machine:
                 "--kernel", str(self.kernel_image_path),
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
                 self.image,
-                "sh", "-c", BOOTSTRAP_SCRIPT,
+                "sh", "-c", self.bootstrap_script,
             ]
         )
         self.created = True

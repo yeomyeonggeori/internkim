@@ -233,6 +233,9 @@ func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *test
 	}
 	for _, packageName := range blueclaw.HostImageDebianPackages() {
 		isNamed := strings.Contains(depends, packageName)
+		if dependencyNamingIt(packageName).WhatBringsItInstead[blueclaw.PackageManagerApt] != "" {
+			continue
+		}
 		if carried[packageName] && isNamed {
 			t.Errorf("the package carries %s and still asks the distribution for it", packageName)
 		}
@@ -241,8 +244,8 @@ func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *test
 				"install is a host the container path proved it needs more than", packageName)
 		}
 	}
-	if !strings.Contains(depends, "postgresql (>= 14)") {
-		t.Errorf("the package must name the oldest PostgreSQL the schema runs on, got %q", depends)
+	if !strings.Contains(depends, "postgresql") || strings.Contains(depends, "pgvector") {
+		t.Errorf("the package must ask for the distribution's own PostgreSQL under one unversioned name and no pgvector, got %q", depends)
 	}
 }
 
@@ -261,4 +264,13 @@ func TestEveryHostDependencyIsDeclaredOnceAndNeededBySomething(t *testing.T) {
 			t.Errorf("%s is declared and nothing needs it, so no consumer derives it", name)
 		}
 	}
+}
+
+func dependencyNamingIt(packageName string) blueclaw.HostDependency {
+	for _, dependency := range blueclaw.HostDependencies() {
+		if dependency.DebianPackage == packageName {
+			return dependency
+		}
+	}
+	return blueclaw.HostDependency{}
 }

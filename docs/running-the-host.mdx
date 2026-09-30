@@ -4,10 +4,10 @@ description: Install the company host, check its services, and find local data a
 icon: ServerCog
 ---
 
-The company host runs on Debian 13 or Ubuntu 22.04 or 24.04, on arm64 or amd64, or on macOS with
+The company host runs on Debian 13, Ubuntu 22.04 or 24.04, Fedora, RHEL-compatible 10 (Rocky, AlmaLinux) or Arch Linux, on arm64, or on macOS with
 Homebrew. It
 needs an outbound internet connection and must stay awake. The installer registers native
-services with systemd on Debian and Ubuntu or launchd on macOS. The host needs no public
+services with systemd on Linux or launchd on macOS. The host needs no public
 address, inbound port, or Docker installation.
 
 ## Install
@@ -19,7 +19,7 @@ curl -fsSL https://intern.kim/install.sh | sh -s -- host
 sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-The first command installs the package through apt or Homebrew. The second
+The first command installs the package through apt, dnf, pacman or Homebrew. The second
 configures the company, asks for the OpenRouter API key, and registers the host
 services. They start with the computer and recover after a service exits. When
 installation finishes, open the printed company setup address and choose
@@ -27,7 +27,7 @@ Check connection.
 
 ## Check services
 
-On Debian and Ubuntu, systemd shows the host service state and logs:
+On Linux, systemd shows the host service state and logs:
 
 ```bash
 systemctl list-units 'internkim*' 'blueclaw*' 'buzz*'

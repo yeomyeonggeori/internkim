@@ -147,7 +147,7 @@ class InstallScriptTests(unittest.TestCase):
         return os.pathsep.join(
             directory
             for directory in os.environ["PATH"].split(os.pathsep)
-            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "brew"))
+            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "dnf", "pacman", "brew"))
         )
 
     def forget_checksum_line(self, base_url, product, binary_name):
@@ -352,9 +352,14 @@ class InstallScriptTests(unittest.TestCase):
             f'case "$1" in {failing_apt_subcommand or "__never__"}) exit 100 ;; esac\n'
             "exit 0\n"
         )
+        (directory / "apt-cache").write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "apt-cache $*" >> "{self.apt_log}"\n'
+            'printf "%s:\\n  Installed: (none)\\n  Candidate: 1.0\\n" "$2"\n'
+        )
         (directory / "dpkg").write_text(recording_shim("dpkg", directory / "apt.log", output="arm64"))
         (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
-        shimmed = ["apt-get", "dpkg", "sudo"]
+        shimmed = ["apt-get", "apt-cache", "dpkg", "sudo"]
         if sandbox_installs:
             (directory / "install").write_text(install_shim)
             shimmed.append("install")
@@ -532,6 +537,96 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertEqual((bin_dir / "internkim-host").read_bytes(), published_binary("internkim-host-linux-amd64"))
         self.assertEqual(sorted(path.name for path in bin_dir.iterdir()), ["internkim-host"])
+
+    def linux_machine(self, manager):
+        """A machine that has one package manager, sudo and a sandbox for what root writes."""
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.manager_log = directory / "manager.log"
+        (directory / manager).write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "{manager} $*" >> "{self.manager_log}"\n'
+            "exit 0\n"
+        )
+        (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
+        (directory / "install").write_text(install_shim)
+        for name in (manager, "sudo", "install"):
+            (directory / name).chmod(0o755)
+        return str(directory)
+
+    def run_install_with_a_package_file(self, shims, package_file, extra_environment=None):
+        environment = dict(os.environ)
+        environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
+        environment["INTERNKIM_INSTALL_PACKAGE"] = str(package_file)
+        environment.update(extra_environment or {})
+        environment["PATH"] = os.pathsep.join(
+            [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
+        return subprocess.run(
+            ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
+
+    def a_package_file(self, name):
+        path = Path(self.enterContext(tempfile.TemporaryDirectory())) / name
+        path.write_bytes(b"not really a package\n")
+        return path
+
+    def test_each_manager_installs_a_package_file_with_its_own_command(self):
+        for manager, file_name, expected in [
+            ("apt-get", "internkim_1_amd64.deb", "apt-get install -y {path}"),
+            ("dnf", "internkim-1-1.x86_64.rpm", "dnf install -y {path}"),
+            ("pacman", "internkim-1-1-x86_64.pkg.tar.zst", "pacman -U --needed --noconfirm {path}"),
+        ]:
+            with self.subTest(manager=manager):
+                shims = self.linux_machine(manager)
+                package = self.a_package_file(file_name)
+                completed = self.run_install_with_a_package_file(shims, package)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertIn(expected.format(path=package), self.manager_log.read_text().splitlines())
+                self.assertIn("sudo internkim install", completed.stdout)
+
+    def test_a_package_file_of_another_format_is_refused_before_anything_runs(self):
+        shims = self.linux_machine("dnf")
+        completed = self.run_install_with_a_package_file(shims, self.a_package_file("internkim_1_amd64.deb"))
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("installs .rpm files", completed.stderr)
+        self.assertFalse(self.manager_log.exists(), "the manager was asked nothing before the refusal")
+
+    def test_a_package_file_that_is_not_there_is_named(self):
+        shims = self.linux_machine("pacman")
+        completed = self.run_install_with_a_package_file(shims, "/nonexistent/internkim.pkg.tar.zst")
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("/nonexistent/internkim.pkg.tar.zst is not a file", completed.stderr)
+
+    def test_a_package_file_whose_checksum_is_not_the_one_given_is_refused(self):
+        shims = self.linux_machine("dnf")
+        package = self.a_package_file("internkim-1-1.x86_64.rpm")
+        completed = self.run_install_with_a_package_file(
+            shims, package, {"INTERNKIM_INSTALL_PACKAGE_SHA256": "0" * 64})
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("INTERNKIM_INSTALL_PACKAGE_SHA256", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
+
+    def test_a_package_file_is_fetched_from_an_address(self):
+        base_url = self.serve()
+        (self.served_directory / "internkim-1-1.x86_64.rpm").write_bytes(b"rpm bytes\n")
+        shims = self.linux_machine("dnf")
+        completed = self.run_install_with_a_package_file(shims, f"{base_url}/internkim-1-1.x86_64.rpm")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        installed = [line for line in self.manager_log.read_text().splitlines() if line.startswith("dnf install -y ")]
+        self.assertEqual(len(installed), 1)
+        self.assertTrue(installed[0].endswith("internkim-1-1.x86_64.rpm"), installed)
+
+    def test_a_manager_with_no_published_repository_says_so_and_changes_nothing(self):
+        for manager in ("dnf", "pacman"):
+            with self.subTest(manager=manager):
+                shims = self.linux_machine(manager)
+                environment = dict(os.environ)
+                environment["PATH"] = os.pathsep.join(
+                    [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
+                completed = subprocess.run(
+                    ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
+                self.assertEqual(completed.returncode, 1)
+                self.assertIn("INTERNKIM_INSTALL_PACKAGE", completed.stderr)
+                self.assertFalse(self.manager_log.exists())
 
 
 if __name__ == "__main__":

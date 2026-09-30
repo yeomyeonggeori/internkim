@@ -537,9 +537,9 @@ registry; everything else there needs the download token.
 `./internkim release companion` cross-compiles the four builds and publishes
 them; `make build-companion` builds the host's own.
 
-The same installer installs the company host package. Debian 13 and
-Ubuntu 22.04 or 24.04 machines, on arm64 or amd64, use apt; Macs with Homebrew
-use the tap:
+The same installer installs the company host package. Debian 13,
+Ubuntu 22.04 or 24.04, Fedora, RHEL-compatible 10 and Arch Linux machines, on
+arm64, use their own package manager; Macs with Homebrew use the tap:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host
