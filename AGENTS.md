@@ -562,13 +562,12 @@ and delete the duplicates.
   and fails if a shipped component's device revision differs from the
   tree's. `--plan` prints the selection and publishes nothing; `--components`
   narrows on purpose.
-- Before deploying, confirm the working tree the build runs from is `main`
-  or already contains `origin/main` HEAD (`git merge-base --is-ancestor
-  origin/main HEAD`), including the `.dependency/blueclaw` submodule pointer
-  (`git -C .dependency/blueclaw merge-base --is-ancestor origin/main HEAD`).
-  Building from a stale branch ships its code everywhere and still reports
-  success. After deploy, grep the running binary for a string unique to the
-  change, or check the release ID's embedded SHA against `git rev-parse HEAD`.
+- Deploy fetches first and refuses a tree with uncommitted edits to a shipped
+  component's sources, a HEAD or `.dependency/blueclaw` that lacks its
+  `origin/main`, or a submodule checkout off the recorded pointer;
+  `./internkim verify deploy-tree` runs that check alone. `--rollback [<id>]`
+  reapplies the release before the current one, and refuses when its payload
+  cannot run against the migrated database; `--plan` shows either.
 - A company on the central plane is deployed by
   [README.md](README.md)'s "The company web app". The rest is the device.
 - The running `admind` applies a device release, so a new component takes two

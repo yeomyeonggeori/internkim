@@ -208,16 +208,8 @@ func publishRelease(
 	if errorValue := publisher.PutObject(manifestKey, append(manifestDocument, '\n'), "application/json"); errorValue != nil {
 		return errorValue
 	}
-	pointer := releaseset.StablePointer{
-		ReleaseID:   releaseID,
-		ManifestURL: publisher.PublicURL(manifestKey),
-		UpdatedAt:   time.Now().UTC().Format(time.RFC3339),
-	}
-	pointerDocument, errorValue := json.MarshalIndent(pointer, "", "  ")
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := publisher.PutObject("channels/"+channel+".json", append(pointerDocument, '\n'), "application/json"); errorValue != nil {
+	pointer := releaseset.ChannelHistoryEntry{ReleaseID: releaseID, ManifestURL: publisher.PublicURL(manifestKey)}
+	if errorValue := putChannelPointer(publisher, channel, pointer); errorValue != nil {
 		return errorValue
 	}
 	historyEntry := releaseset.ChannelHistoryEntry{
@@ -1171,6 +1163,14 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 	case "chatd", "blueclawSupervisor":
 		return blueclawSubmoduleRevision(repositoryRootPath)
 	}
+	return revisionOfPaths(repositoryRootPath, releaseComponentSourcePaths(name, repositoryRootPath), gitRevision)
+}
+
+func releaseComponentSourcePaths(name string, repositoryRootPath string) []string {
+	switch name {
+	case "blueclawPayload", "chatd", "blueclawSupervisor":
+		return []string{blueclaw.BlueclawSubmodulePath}
+	}
 	paths := componentSourcePaths[name]
 	if name == "skills" {
 		paths = skillComponentSourcePaths(repositoryRootPath)
@@ -1180,7 +1180,7 @@ func releaseComponentRevision(name string, repositoryRootPath string, gitRevisio
 			paths = dependencyPaths
 		}
 	}
-	return revisionOfPaths(repositoryRootPath, paths, gitRevision)
+	return paths
 }
 
 // Where each component's source lives, so a commit that does not touch it does
