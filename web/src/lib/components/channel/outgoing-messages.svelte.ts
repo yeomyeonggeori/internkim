@@ -7,6 +7,7 @@ export type OutgoingEntry = {
 	channelID: string | undefined;
 	threadRootID: string | undefined;
 	hasFailed: boolean;
+	deliveredSerial?: number;
 };
 
 export type OutgoingMessages = ReturnType<typeof createOutgoingMessages>;
@@ -18,6 +19,7 @@ export function createOutgoingMessages(options: {
 }) {
 	let entries = $state<OutgoingEntry[]>([]);
 	let serial = 0;
+	let deliveredSerial = 0;
 
 	function replace(messageID: string, change: Partial<OutgoingEntry>): void {
 		entries = entries.map((entry) => (entry.message.id === messageID ? { ...entry, ...change } : entry));
@@ -34,13 +36,20 @@ export function createOutgoingMessages(options: {
 			replace(entry.message.id, { hasFailed: true });
 			return;
 		}
+		deliveredSerial++;
+		replace(entry.message.id, { deliveredSerial });
 		await options.afterDelivered(entry);
-		forget(entry.message.id);
 	}
 
 	return {
 		messagesIn(channelID: string | undefined): ChannelMessage[] {
 			return entries.filter((entry) => entry.channelID === channelID).map((entry) => entry.message);
+		},
+		deliveredSoFar(): number {
+			return deliveredSerial;
+		},
+		forgetDeliveredThrough(serialSeen: number): void {
+			entries = entries.filter((entry) => entry.deliveredSerial === undefined || entry.deliveredSerial > serialSeen);
 		},
 		hasFailed(messageID: string): boolean {
 			return entries.some((entry) => entry.message.id === messageID && entry.hasFailed);
