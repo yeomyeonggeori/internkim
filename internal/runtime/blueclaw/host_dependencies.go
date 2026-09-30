@@ -216,6 +216,8 @@ var hostDependencies = []HostDependency{
 	},
 	{
 		DebianPackage:       "python3",
+		DnfPackages:         []string{"python3"},
+		PacmanPackages:      []string{"python"},
 		ProgramsTheHostRuns: []string{"python3"},
 		WhatAnswersItOnAMac: "the keg carries a pinned relocatable CPython for file_read, because Homebrew's python@3.13 cannot load pyexpat on macOS 26.1",
 		NeededBy:            []HostPart{HostPartDocumentSkills},
