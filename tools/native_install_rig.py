@@ -35,9 +35,9 @@ DISTRIBUTIONS = {
 }
 DEFAULT_DISTRIBUTION = "debian-13"
 ARCHITECTURE = "arm64"
-DOCUMENT_MODULES_THE_SKILLS_OPEN = (
+DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "import plistlib, platform, xml.etree.ElementTree, "
-    "docx, openpyxl, fpdf, pptx, lxml, PIL, pypdf, yaml, xlsxwriter, fontTools"
+    "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
 SUITE = "stable"
 TESTING_SUITE = "testing"

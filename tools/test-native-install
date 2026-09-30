@@ -27,7 +27,7 @@ from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
-    DOCUMENT_MODULES_THE_SKILLS_OPEN,
+    DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
     COMPONENT,
     CONFFILE_EDIT,
     CONFFILE_PATH,
@@ -65,7 +65,7 @@ RUNNING_STATE = "yes/active/success/0"
 CARRIED_INTERPRETER_PATH = "/opt/internkim/python/bin/python3.13"
 CARRIED_DOCUMENT_PYTHON_PATH = "/opt/internkim/document-venv/bin/python"
 CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
-NAMES_THE_PACKAGE_CARRIES = ("python3", "python3-venv", "fonts-nanum", "chromium")
+NAMES_THE_PACKAGE_CARRIES = ("python3-venv", "fonts-nanum", "chromium")
 PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
 PLANTED_SECRET = "0123456789abcdef" * 4
 
@@ -493,24 +493,24 @@ class Rig:
         """The interpreter, its wheels and the Hangul face come with the package.
 
         Read on the guest, which asked apt for none of them: a distribution whose
-        python3 is another minor version, or which ships no python3 at all, is the
-        machine where a dependency on the distribution's would have failed.
+        python3 is another minor version is the machine where a conversion venv
+        built against the distribution's would have failed.
         """
         declared = self.declared_dependencies(self.package_under_test)
         asked_for = [name for name in NAMES_THE_PACKAGE_CARRIES if name in declared]
         step.observe(
-            "the package asks the distribution for no python3, font or browser",
+            "the package asks the distribution for no venv module, font or browser",
             "the package's own Depends: field",
             "a name in Depends: is something every distribution has to spell and version the "
-            "same way, which python3 and the font package do not",
+            "same way, which the font package does not",
         ).record(not asked_for, ", ".join(asked_for) or "none of " + ", ".join(NAMES_THE_PACKAGE_CARRIES))
 
         imported = self.machine.shell(
-            f"{CARRIED_DOCUMENT_PYTHON_PATH} -c '{DOCUMENT_MODULES_THE_SKILLS_OPEN}' 2>&1 && echo imported"
+            f"{CARRIED_DOCUMENT_PYTHON_PATH} -c '{DOCUMENT_MODULES_THE_CONVERSION_IMPORTS}' 2>&1 && echo imported"
         )
         step.observe(
-            "the carried interpreter imports every module the document skills open",
-            f"`{CARRIED_DOCUMENT_PYTHON_PATH}` run in the guest with the skills' import list",
+            "the carried interpreter imports every module file_read conversion opens",
+            f"`{CARRIED_DOCUMENT_PYTHON_PATH}` run in the guest with the conversion import list",
             "the file existing says it was unpacked; the import is what needs the wheels, the "
             "interpreter and this machine's glibc to agree",
         ).record(imported.stdout.strip().endswith("imported"), imported.stdout.strip()[-400:])

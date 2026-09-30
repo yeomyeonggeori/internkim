@@ -237,7 +237,7 @@ func writeHomebrewTestBlock(formula *strings.Builder) {
 	formula.WriteString("    assert_predicate libexec/" + rubyString(POSIXHelperProgramName) + ", :exist?\n")
 	formula.WriteString("    assert_predicate libexec/\"skills\", :directory?\n")
 	formula.WriteString("    system libexec/" + rubyString(documentVirtualEnvironmentDirectoryName+"/bin/python") +
-		", \"-c\", " + rubyString(documentModulesTheSkillsOpen) + "\n")
+		", \"-c\", " + rubyString(documentModulesTheConversionImports) + "\n")
 	formula.WriteString("    assert_match " + rubyString(CompanyPackageName) +
 		", shell_output(\"#{bin}/" + CompanyPackageName + " --help 2>&1\", 1)\n")
 	formula.WriteString("  end\n")

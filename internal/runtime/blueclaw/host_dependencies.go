@@ -136,20 +136,10 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartEntrypoint},
 	},
 	{
-		DebianPackage:                      "python3",
-		ProgramsTheHostRuns:                []string{"python3"},
-		WhatTheDebianPackageCarriesInstead: "a pinned relocatable CPython, the one the Mac carries, so no distribution's python3 or minor version matters",
-		// See company_host_mac_interpreter.go: Homebrew's python@3.13 bottle
-		// for macOS 26 cannot load pyexpat on 26.1, so the keg carries a
-		// pinned relocatable CPython instead of depending on one.
-		WhatAnswersItOnAMac: "the package carries a pinned relocatable CPython, because Homebrew's python@3.13 cannot load pyexpat on macOS 26.1",
+		DebianPackage:       "python3",
+		ProgramsTheHostRuns: []string{"python3"},
+		WhatAnswersItOnAMac: "the keg carries a pinned relocatable CPython for file_read, because Homebrew's python@3.13 cannot load pyexpat on macOS 26.1",
 		NeededBy:            []HostPart{HostPartDocumentSkills},
-	},
-	{
-		DebianPackage:                      "python3-venv",
-		WhatTheDebianPackageCarriesInstead: "the interpreter the package carries has venv in it",
-		WhatAnswersItOnAMac:                "the interpreter the package carries has venv in it",
-		NeededBy:                           []HostPart{HostPartDocumentSkills},
 	},
 	{
 		DebianPackage:   "libfontconfig1",

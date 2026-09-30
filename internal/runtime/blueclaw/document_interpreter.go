@@ -87,19 +87,20 @@ func DocumentInterpreterTargets() []string {
 	return hostPayloadTargets()
 }
 
-// DocumentModulesTheSkillsOpen is what a document skill imports before it
-// imports anything of its own. It is checked three times against one list: by
-// the release, against the interpreter it is about to put in the keg; by the
-// formula's own `brew test`, against the virtualenv the install built; and by
-// tools/test-macos-install, against what actually landed. A Python that loses
-// one of them loses it silently until somebody asks for a document.
-const documentModulesTheSkillsOpen = "import plistlib, platform, xml.etree.ElementTree, " +
-	"docx, openpyxl, fpdf, pptx, lxml, PIL, pypdf, yaml, xlsxwriter, fontTools"
+// DocumentModulesTheConversionImports is what file_read_helper.py imports, and
+// the standard-library modules a broken CPython loses before it gets that far.
+// It is checked three times against one list: by the release, against the
+// interpreter it is about to put in the keg; by the formula's own `brew test`,
+// against the virtualenv the install built; and by tools/test-macos-install,
+// against what actually landed. A Python that loses one of them loses it
+// silently until somebody asks for a file to be read.
+const documentModulesTheConversionImports = "import plistlib, platform, xml.etree.ElementTree, " +
+	"anydoc, bs4, markdownify, pypdf, pypdfium2"
 
-// DocumentModulesTheSkillsOpen is the statement above, for anything outside this
-// package that has to run the same check.
-func DocumentModulesTheSkillsOpen() string {
-	return documentModulesTheSkillsOpen
+// DocumentModulesTheConversionImports is the statement above, for anything
+// outside this package that has to run the same check.
+func DocumentModulesTheConversionImports() string {
+	return documentModulesTheConversionImports
 }
 
 // MacDocumentWheelDirectoryName is where the keg keeps the wheels the release

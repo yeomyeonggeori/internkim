@@ -175,11 +175,10 @@ func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T)
 
 func TestThePreflightDoesNotAskADebianMachineForWhatThePackageCarries(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{
-		"python3": true,
 		"/usr/share/fonts/truetype/nanum/NanumGothic.ttf": true,
 	}}
 	if errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, machine); errorValue != nil {
-		t.Fatalf("a machine without its own python3 or Nanum font was refused for what the package brings: %v", errorValue)
+		t.Fatalf("a machine without its own Nanum font was refused for what the package brings: %v", errorValue)
 	}
 }
 
