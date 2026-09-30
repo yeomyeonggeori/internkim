@@ -38,6 +38,7 @@ import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { HeldQuestionStore } from './held-question-store';
 import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
+import { readTyping, typingPath, typingTeller } from './typing';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -309,6 +310,33 @@ async function memberIDOf(externalID: string): Promise<string | null> {
 	return member.data?.id ?? null;
 }
 
+async function memberIDsOf(externalIDs: string[]): Promise<Map<string, string>> {
+	const members = await client
+		.from('member')
+		.select(`id, externalID:messenger->>${messengerPlatform}`)
+		.eq('company_id', companyID)
+		.in(`messenger->>${messengerPlatform}`, externalIDs)
+		.returns<{ id: string; externalID: string }[]>();
+	if (members.error) throw new Error(members.error.message);
+	return new Map(members.data.map((member) => [member.externalID, member.id]));
+}
+
+const tellTypingTo = typingTeller({
+	memberIDsOf,
+	deliver: (event, audienceMemberIDs) => gateway?.deliver(event, audienceMemberIDs),
+	now: () => Date.now()
+});
+
+async function tellTyping(offered: unknown): Promise<Response> {
+	const typing = readTyping(offered);
+	if (!typing) return new Response('that is not someone typing', { status: 400 });
+	const told = await tellTypingTo(typing).catch((error) => {
+		console.error('typing not told:', error instanceof Error ? error.message : error);
+		return 0;
+	});
+	return Response.json({ told });
+}
+
 async function authorNameOf(arrived: ArrivedMessage): Promise<string> {
 	if (arrived.authorName) return arrived.authorName;
 	return nameOf(arrived.authorExternalID);
@@ -430,6 +458,7 @@ Bun.serve({
 		if (catalogTicket) return recordCatalogs.serve(request, catalogTicket);
 		const offered = await request.json().catch(() => null);
 		if (pathname === '/inbound') return keepInboundMessage(offered);
+		if (pathname === typingPath) return tellTyping(offered);
 		const arrived = readArrivedMessage(offered);
 		if (!arrived) return new Response('that is not a message', { status: 400 });
 		const told = await tellThoseAddressed(arrived).catch((error) => {
@@ -446,6 +475,7 @@ keepWatchingArrivals({
 	credentialOf: (memberID) => credentials.credentialOf(memberID),
 	askChatd: (capability, body) => dispatch.askChatd(capability, body),
 	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
+	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
 	report: (line) => console.log(line)
 });
 
