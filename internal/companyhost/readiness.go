@@ -68,6 +68,13 @@ func companyHostProbes(layout blueclaw.CompanyHostLayout) []serviceProbe {
 			WhenSilent:     "the admin gateway is not answering on " + blueclaw.CompanyHostAdmindListenAddress,
 			WhatItCosts:    "the company's roster, its files and its tasks are all read through it",
 		},
+		{
+			Service:        "the messenger bridge",
+			SupervisedName: blueclaw.ChatdServiceName,
+			Command:        curlCommand(blueclaw.CompanyHostChatdEndpoint + blueclaw.ChatdHealthPath),
+			WhenSilent:     "the messenger bridge is not ready at " + blueclaw.CompanyHostChatdEndpoint + blueclaw.ChatdHealthPath,
+			WhatItCosts:    "it hands every message people send to the agent and carries the agent's answers back",
+		},
 	}
 }
 
