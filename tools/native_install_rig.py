@@ -40,7 +40,7 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
 SUITE = "stable"
-KEY_ALGORITHM = os.environ.get("INTERNKIM_RIG_KEY_ALGORITHM", "rsa4096")
+KEY_ALGORITHM = "rsa4096"
 TESTING_SUITE = "testing"
 COMPONENT = "main"
 PACKAGE_NAME = "internkim"
