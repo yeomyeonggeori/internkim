@@ -39,8 +39,14 @@ if ARCHITECTURE not in ("arm64", "amd64"):
     raise SystemExit(f"INTERNKIM_RIG_ARCHITECTURE is {ARCHITECTURE!r}; the packages are built for arm64 and amd64")
 MACHINE_NAME = {"arm64": "aarch64", "amd64": "x86_64"}[ARCHITECTURE]
 RUNTIME_KERNEL = "runtime"
+ROSETTA_WRITABLE_EXECUTABLE_UNITS = ("systemd-journald", "redis-server")
 ROSETTA_BOOTSTRAP = (
     "mkdir -p /etc/systemd/system && ln -sf /dev/null /etc/systemd/system/systemd-binfmt.service\n"
+    + "".join(
+        f"mkdir -p /etc/systemd/system/{unit}.service.d && "
+        f"printf '[Service]\\nMemoryDenyWriteExecute=no\\n' > /etc/systemd/system/{unit}.service.d/rosetta.conf\n"
+        for unit in ROSETTA_WRITABLE_EXECUTABLE_UNITS
+    )
 )
 DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "import plistlib, platform, xml.etree.ElementTree, "
