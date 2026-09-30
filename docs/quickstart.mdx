@@ -14,7 +14,7 @@ outbound connections, so it needs no public address or inbound port.
 Have these ready:
 
 - an email address for the first administrator;
-- a computer running Debian 13 or Ubuntu 22.04 or 24.04 on arm64 or amd64, or
+- a computer running Debian 13, Ubuntu 22.04 or 24.04, Fedora or Arch Linux on arm64 or amd64, or
   macOS with Homebrew,
   connected to the internet and kept awake;
 - administrator access to install the host package; and
@@ -50,7 +50,7 @@ Open `https://intern.kim/<company-address>/settings/setup`. Choose
 `Download connection file` and save `internkim-host.json` to the computer that
 will run the company server. The file carries a key that connects a computer
 to this company, so keep it on that computer and do not commit it or send it
-in chat. On Debian and Ubuntu the install spends the key: the computer then signs in with
+in chat. On Linux the install spends the key: the computer then signs in with
 its own, and the file connects nothing else.
 
 The setup page provides `Check connection` after installation.
@@ -62,7 +62,7 @@ The setup page provides `Check connection` after installation.
 ## Install the company server [#3-install-the-company-server]
 
 On the company computer, run the installer and then register the connection
-file. The first command installs the package through apt on Debian or Ubuntu, or
+file. The first command installs the package through apt, dnf or pacman on Linux, or
 Homebrew on macOS. The second configures the host services and asks for the OpenRouter
 key.
 

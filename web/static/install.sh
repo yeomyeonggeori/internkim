@@ -3,7 +3,7 @@ set -eu
 
 # The front door onto the package rather than a second installer. On a Linux
 # machine `host` means its package manager, found by asking which of apt-get,
-# dnf, pacman and zypper is there. With apt that is the keyring, a deb822
+# dnf and pacman is there. With apt that is the keyring, a deb822
 # source naming it, and `apt-get install internkim`, so the box ends in the
 # state it would have reached had the person typed those commands themselves
 # and `apt upgrade` and `apt remove` work on it afterwards. A package file the
@@ -45,7 +45,6 @@ homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
 memory_store_candidates_apt_get="postgresql-18-pgvector postgresql-17-pgvector postgresql-16-pgvector postgresql-15-pgvector postgresql-14-pgvector"
 memory_store_candidates_dnf="pgvector"
 memory_store_candidates_pacman="pgvector"
-memory_store_candidates_zypper="postgresql18-pgvector postgresql17-pgvector postgresql16-pgvector postgresql15-pgvector postgresql14-pgvector"
 # END generated
 
 stop() {
@@ -131,9 +130,9 @@ Undo what this script wrote with:
 
 # The package manager this machine has, asked in a fixed order because some
 # machines carry two: a Fedora with apt-get installed for a build is still a
-# Fedora. Empty means none of the four the package is published for.
+# Fedora. Empty means none of the three the package is published for.
 find_the_package_manager() {
-  for candidate in apt-get dnf pacman zypper; do
+  for candidate in apt-get dnf pacman; do
     if command -v "$candidate" >/dev/null 2>&1; then
       printf '%s' "$candidate"
       return 0
@@ -173,7 +172,7 @@ tell_what_to_do_next() {
 install_through_the_repository() {
   case "$package_manager" in
     apt-get) install_through_apt_repository ;;
-    dnf|zypper) install_through_rpm_repository ;;
+    dnf) install_through_rpm_repository ;;
     pacman) install_through_pacman_repository ;;
   esac
 }
@@ -209,14 +208,6 @@ install_through_rpm_repository() {
 "dnf install $package_name failed, and its own output above names what it could
 not resolve. Undo what this script wrote with:
   sudo rm -f /etc/yum.repos.d/$package_name.repo" ;;
-    zypper)
-      privileged zypper --non-interactive addrepo --gpgcheck --refresh "$rpm_repository_url" "$package_name"
-      privileged zypper --non-interactive --gpg-auto-import-keys refresh "$package_name"
-      make_the_memory_store_available
-      privileged zypper --non-interactive install "$package_name" || stop \
-"zypper install $package_name failed, and its own output above names what it
-could not resolve. Undo what this script wrote with:
-  sudo zypper removerepo $package_name" ;;
   esac
 }
 
@@ -250,7 +241,7 @@ install_the_package_file() {
   trap 'rm -rf "$package_work_dir"' EXIT
   case "$package_manager" in
     apt-get) package_file_suffix=".deb" ;;
-    dnf|zypper) package_file_suffix=".rpm" ;;
+    dnf) package_file_suffix=".rpm" ;;
     pacman) package_file_suffix=".pkg.tar.zst" ;;
   esac
   case "$package_file_source" in
@@ -277,7 +268,6 @@ Nothing on this machine was changed." ;;
   case "$package_manager" in
     apt-get) privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$package_file_path" ;;
     dnf) privileged dnf install -y "$package_file_path" ;;
-    zypper) privileged zypper --non-interactive --no-gpg-checks install "$package_file_path" ;;
     pacman) privileged pacman -U --needed --noconfirm "$package_file_path" ;;
   esac || stop \
 "Installing $package_file_path failed, and the package manager's own output above
@@ -304,7 +294,8 @@ $package_file_checksum. Nothing on this machine was changed."
 # carrying it stops needing anything else without this script being edited.
 # Where apt's do not, the PostgreSQL project's own repository is added, scoped:
 # a key pinned by fingerprint that signs that repository alone, and a pin that
-# keeps it from replacing a package the distribution already carries.
+# keeps it from replacing a package the distribution already carries, except
+# the one PostgreSQL major it supplies.
 make_the_memory_store_available() {
   memory_store_candidates="$(memory_store_candidates_of "$package_manager")"
   if a_memory_store_candidate_is_available; then
@@ -328,7 +319,6 @@ memory_store_candidates_of() {
     apt-get) printf '%s' "$memory_store_candidates_apt_get" ;;
     dnf) printf '%s' "$memory_store_candidates_dnf" ;;
     pacman) printf '%s' "$memory_store_candidates_pacman" ;;
-    zypper) printf '%s' "$memory_store_candidates_zypper" ;;
   esac
 }
 
@@ -342,8 +332,6 @@ a_memory_store_candidate_is_available() {
         [ -n "$(dnf -q repoquery "$candidate_name" 2>/dev/null)" ] && return 0 ;;
       pacman)
         pacman -Si "$candidate_name" >/dev/null 2>&1 && return 0 ;;
-      zypper)
-        zypper --non-interactive search --match-exact --type package "$candidate_name" 2>/dev/null | grep -q "| package" && return 0 ;;
     esac
   done
   return 1
@@ -378,16 +366,48 @@ Nothing on this machine was changed."
     "Signed-By: $postgresql_keyring_path" \
     > "$package_work_dir/postgresql.sources"
   privileged install -m 0644 "$package_work_dir/postgresql.sources" "$postgresql_source_path"
-  printf '%s\n' \
-    "Package: *" \
-    "Pin: origin $(printf '%s' "$postgresql_repository_url" | sed 's#^[a-z]*://##; s#/.*##')" \
-    "Pin-Priority: 100" \
-    > "$package_work_dir/postgresql.pref"
-  privileged install -m 0644 "$package_work_dir/postgresql.pref" "$postgresql_preferences_path"
+  postgresql_origin="$(printf '%s' "$postgresql_repository_url" | sed 's#^[a-z]*://##; s#/.*##')"
+  write_the_postgresql_preferences ""
   privileged apt-get update || stop \
 "apt-get update failed after adding the PostgreSQL project's repository, and its
 own output is above. Undo what this script wrote with:
   sudo rm -f $postgresql_source_path $postgresql_keyring_path $postgresql_preferences_path"
+  postgresql_major="$(the_postgresql_major_the_repository_offers_pgvector_for)"
+  [ -n "$postgresql_major" ] || return 0
+  write_the_postgresql_preferences "$postgresql_major"
+}
+
+# The repository stays below the distribution's own for everything. For the one
+# PostgreSQL major the memory store will be installed on, its server, client,
+# pgvector and the libraries and helper packages that major requires rise above
+# it, so apt resolves one consistent set instead of a pgvector for one major
+# and a server for another.
+write_the_postgresql_preferences() {
+  printf '%s\n' \
+    "Package: *" \
+    "Pin: origin $postgresql_origin" \
+    "Pin-Priority: 100" \
+    > "$package_work_dir/postgresql.pref"
+  if [ -n "$1" ]; then
+    printf '%s\n' \
+      "" \
+      "Package: postgresql postgresql-$1 postgresql-client postgresql-client-$1 postgresql-$1-pgvector libpq5 postgresql-common postgresql-client-common" \
+      "Pin: origin $postgresql_origin" \
+      "Pin-Priority: 600" \
+      >> "$package_work_dir/postgresql.pref"
+  fi
+  privileged install -m 0644 "$package_work_dir/postgresql.pref" "$postgresql_preferences_path"
+}
+
+the_postgresql_major_the_repository_offers_pgvector_for() {
+  for candidate_name in $memory_store_candidates; do
+    offered="$(apt-cache policy "$candidate_name" 2>/dev/null | sed -n 's/^  Candidate: //p')"
+    if [ -n "$offered" ] && [ "$offered" != "(none)" ]; then
+      major="${candidate_name#postgresql-}"
+      printf '%s' "${major%-pgvector}"
+      return 0
+    fi
+  done
 }
 
 # A suite nobody published makes `apt-get update` fail on the whole source, and
@@ -528,7 +548,7 @@ if [ "$product" = "host" ]; then
     echo "  https://brew.sh"
     echo "Install it, run this line again, and the box ends registered with brew."
   else
-    echo "This machine has none of apt, dnf, pacman or zypper, so the company host arrived as one binary rather than"
+    echo "This machine has none of apt, dnf or pacman, so the company host arrived as one binary rather than"
     echo "a package. Install the company server with the connection file you downloaded:"
   fi
   echo "  sudo $binary_path install ~/Downloads/internkim-host.json"

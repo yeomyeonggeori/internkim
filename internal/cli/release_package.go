@@ -22,9 +22,8 @@ import (
 type linuxPackageFormat struct {
 	// Name is nfpm's name for the packager and what --format takes.
 	Name string
-	// Managers are whose dependency dialect the package speaks: one for a deb or a
-	// pacman package, dnf and zypper for the rpm both install.
-	Managers []blueclaw.PackageManager
+	// Manager is whose dependency dialect the package speaks.
+	Manager blueclaw.PackageManager
 	// UnitHelpers are the shell functions the maintainer scripts call to act on units.
 	UnitHelpers string
 	// HasPurge is whether the format can tell a removal from a purge.
@@ -36,20 +35,20 @@ type linuxPackageFormat struct {
 var (
 	debianPackageFormat = linuxPackageFormat{
 		Name:        "deb",
-		Managers:    []blueclaw.PackageManager{blueclaw.PackageManagerApt},
+		Manager:     blueclaw.PackageManagerApt,
 		UnitHelpers: debianUnitHelpers,
 		HasPurge:    true,
 		Compression: debPayloadCompression,
 	}
 	rpmPackageFormat = linuxPackageFormat{
 		Name:        "rpm",
-		Managers:    []blueclaw.PackageManager{blueclaw.PackageManagerDnf, blueclaw.PackageManagerZypper},
+		Manager:     blueclaw.PackageManagerDnf,
 		UnitHelpers: systemctlUnitHelpers,
 		Compression: "zstd",
 	}
 	archlinuxPackageFormat = linuxPackageFormat{
 		Name:        "archlinux",
-		Managers:    []blueclaw.PackageManager{blueclaw.PackageManagerPacman},
+		Manager:     blueclaw.PackageManagerPacman,
 		UnitHelpers: systemctlUnitHelpers,
 	}
 )
@@ -129,7 +128,7 @@ func linuxPackageInformation(format linuxPackageFormat, target debianTarget, ver
 		License:       debReleaseLicense,
 		MTime:         time.Now().UTC().Truncate(time.Second),
 		Overridables: nfpm.Overridables{
-			Depends:   blueclaw.HostPackageDependsForManagers(format.Managers...),
+			Depends:   blueclaw.HostPackageDependsFor(format.Manager),
 			Contents:  contents,
 			Scripts:   scripts,
 			Deb:       nfpm.Deb{Compression: format.Compression},

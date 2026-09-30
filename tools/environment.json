@@ -508,7 +508,7 @@
   },
   "INTERNKIM_INSTALL_RPM_REPOSITORY_URL": {
     "process": "install script",
-    "description": "the rpm repository web/static/install.sh adds on Fedora and openSUSE; unset until one is published"
+    "description": "the rpm repository web/static/install.sh adds on Fedora; unset until one is published"
   },
   "INTERNKIM_INSTALL_SCRIPT_URL": {
     "process": "install script",
