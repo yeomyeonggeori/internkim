@@ -124,7 +124,7 @@ function messageOf(telling: Telling): string {
 
 function controlPlaneOf(environment: Environment): SupabaseClient | null {
 	const projectURL = environment.SUPABASE_URL ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? '';
 	if (!projectURL || !serviceRoleKey) return null;
 	return controlPlane({ projectURL, serviceRoleKey });
 }

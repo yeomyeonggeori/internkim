@@ -6,7 +6,7 @@ import { controlPlane } from './control-plane';
 export async function callingScheduledJob(request: Request, environment: Environment): Promise<SupabaseClient> {
 	const credentials = {
 		projectURL: environment.SUPABASE_URL ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '',
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? '',
 	};
 	if (!credentials.projectURL || !credentials.serviceRoleKey) error(500, 'the control plane is not configured');
 

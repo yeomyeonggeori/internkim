@@ -29,7 +29,7 @@ async function privateJWK(): Promise<Record<string, unknown>> {
 }
 
 async function registerWithSupabase(key: Record<string, unknown>, status: KeyStatus): Promise<{ id: string }> {
-	const response = await fetch(`https://api.supabase.com/v1/projects/${projectReference}/config/auth/signing-keys`, {
+	const response = await fetch(`https://api.supabase.com/v1/projects/${projectReference()}/config/auth/signing-keys`, {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${accessToken()}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({ algorithm: 'ES256', status, private_jwk: key })
@@ -44,5 +44,5 @@ const key = await privateJWK();
 const registered = await registerWithSupabase(key, status);
 rememberSetting('SUPABASE_JWT_SIGNING_KEY', JSON.stringify(key));
 
-console.log(`signing key ${registered.id} (kid ${key.kid}) is ${status} on project ${projectReference}`);
+console.log(`signing key ${registered.id} (kid ${key.kid}) is ${status} on project ${projectReference()}`);
 console.log('carry it to Pages with: monkeys run @production bun run web/scripts/set-pages-secrets.ts --project internkim');

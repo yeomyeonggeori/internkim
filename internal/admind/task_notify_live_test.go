@@ -15,13 +15,14 @@ import (
 
 func livePlaneOrSkip(t *testing.T) (appURL string, projectURL string, publishableKey string, agentKey string) {
 	t.Helper()
-	appURL = os.Getenv("LIVE_PLANE_APP_URL")
-	projectURL = os.Getenv("LIVE_PLANE_PROJECT_URL")
-	publishableKey = os.Getenv("LIVE_PLANE_PUBLISHABLE_KEY")
+	zone := os.Getenv("CLOUDFLARE_DOMAIN")
+	projectURL = os.Getenv("SUPABASE_URL")
+	publishableKey = os.Getenv("SUPABASE_PUBLISHABLE_KEY")
 	agentKey = os.Getenv("LIVE_PLANE_AGENT_KEY")
-	if appURL == "" || projectURL == "" || publishableKey == "" || agentKey == "" {
-		t.Skip("no live plane named; set LIVE_PLANE_APP_URL, LIVE_PLANE_PROJECT_URL, LIVE_PLANE_PUBLISHABLE_KEY, LIVE_PLANE_AGENT_KEY")
+	if zone == "" || projectURL == "" || publishableKey == "" || agentKey == "" {
+		t.Skip("no live plane named; run through monkeys run @production with LIVE_PLANE_AGENT_KEY remembered")
 	}
+	appURL = "https://" + zone
 	return appURL, projectURL, publishableKey, agentKey
 }
 

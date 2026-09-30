@@ -18,7 +18,7 @@ export function environmentOf(platform: App.Platform | undefined): Environment {
 export async function callingAgent(request: Request, environment: Environment): Promise<CallingAgent> {
 	const credentials = {
 		projectURL: environment.SUPABASE_URL ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '',
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? '',
 		signingKey: environment.SUPABASE_JWT_SIGNING_KEY ?? '',
 	};
 	if (!credentials.projectURL || !credentials.serviceRoleKey || !credentials.signingKey) {

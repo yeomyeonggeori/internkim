@@ -31,7 +31,7 @@ const putThroughTheRuntime: PutDocument = (url, options) => fetch(url, options);
 export function assetStoreCredentialsOf(environment: Record<string, string | undefined>): ControlPlaneCredentials {
 	return {
 		projectURL: environment.SUPABASE_URL ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? ''
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? ''
 	};
 }
 

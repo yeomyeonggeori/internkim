@@ -5,7 +5,7 @@ import type { Environment } from './agent-request';
 
 export async function fleetDirectory(environment: Environment, fleetID: string): Promise<CompanyDirectory> {
 	const projectURL = environment.SUPABASE_URL ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? '';
 	if (!projectURL || !serviceRoleKey) throw error(500, 'the central plane is not configured');
 
 	const client = controlPlane({ projectURL, serviceRoleKey });

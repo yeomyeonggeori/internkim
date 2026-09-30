@@ -29,7 +29,7 @@ export function planeCredentialsOf(
 	const plane = {
 		projectURL: environment.SUPABASE_URL ?? '',
 		publishableKey: environment.SUPABASE_PUBLISHABLE_KEY ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '',
+		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? '',
 		signingKey: environment.SUPABASE_JWT_SIGNING_KEY ?? '',
 	};
 	if (!plane.projectURL || !plane.publishableKey || !plane.serviceRoleKey || !plane.signingKey) {

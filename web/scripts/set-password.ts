@@ -13,7 +13,7 @@ if (!email || !password) throw new Error("pass --email <address> --password '<va
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
-	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? '',
 });
 
 const { data: accounts, error: listError } = await client.auth.admin.listUsers();

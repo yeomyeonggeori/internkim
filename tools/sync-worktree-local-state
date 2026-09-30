@@ -67,16 +67,6 @@ syncLocalState() {
   linkLocalState "$sourcePath" "$destinationPath"
 }
 
-syncRootMatches() {
-  pattern="$1"
-  for sourcePath in "$mainWorktreePath"/$pattern; do
-    if [ ! -e "$sourcePath" ] && [ ! -L "$sourcePath" ]; then
-      continue
-    fi
-    syncLocalState "$(basename "$sourcePath")"
-  done
-}
-
 checkOutSubmodules() {
   if ! git -C "$repositoryRoot" submodule update --init --recursive >/dev/null 2>&1; then
     echo "skipped submodules (git submodule update failed)"
@@ -153,14 +143,9 @@ if [ "$repositoryRoot" = "$mainWorktreePath" ]; then
   fail "main worktree path must be different from this worktree"
 fi
 
-syncLocalState "web/.env"
-syncLocalState "web/.dev.vars"
 syncLocalState ".local/ops"
 syncLocalState ".agents"
-syncLocalState "secrets"
 syncLocalState "docs/private"
-syncRootMatches "*.token.enc"
-syncRootMatches "*.key"
 syncSharedDependencyArtifacts
 checkOutSubmodules
 installBunWorkspaces

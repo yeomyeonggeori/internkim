@@ -1,11 +1,11 @@
 //   monkeys run @production bun run web/scripts/set-pages-secrets.ts --project internkim
 
-import { requiredSetting, setting } from './repository-setting';
+import { requiredSetting } from './repository-setting';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
 const projectURL = requiredSetting('SUPABASE_URL');
 const publishableKey = requiredSetting('SUPABASE_PUBLISHABLE_KEY');
-const secretKey = setting('SUPABASE_SECRET_KEY') || requiredSetting('SUPABASE_SERVICE_ROLE_KEY');
+const secretKey = requiredSetting('SUPABASE_SECRET_KEY');
 const signingKey = requiredSetting('SUPABASE_JWT_SIGNING_KEY');
 
 function argument(name: string): string | undefined {
@@ -21,7 +21,6 @@ const variables = {
 	SUPABASE_PUBLISHABLE_KEY: { type: 'secret_text', value: publishableKey },
 	SUPABASE_SECRET_KEY: { type: 'secret_text', value: secretKey },
 	SUPABASE_JWT_SIGNING_KEY: { type: 'secret_text', value: signingKey },
-	CF_PAGES_PROJECT: { type: 'plain_text', value: project },
 };
 
 const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${project}`, {

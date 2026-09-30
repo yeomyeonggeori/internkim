@@ -124,12 +124,9 @@ func printReleaseUsage() {
 	}
 	fmt.Println()
 	fmt.Println("Environment for publish:")
-	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")
+	fmt.Println("  CLOUDFLARE_ACCOUNT_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_BUCKET")
-	fmt.Println("  INTERNKIM_RELEASE_R2_ACCESS_KEY_ID")
-	fmt.Println("  INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY")
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
-	fmt.Println("  INTERNKIM_RELEASE_R2_PUBLISHER optional: s3 or wrangler")
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
@@ -624,10 +621,23 @@ func releaseBinaryRevision(repositoryRootPath string) string {
 // file. A build that leaves these at their defaults answers `unknown` and that check
 // can never be made.
 func admindStampFlags(buildID string, revision string) string {
-	return strings.Join([]string{
+	flags := []string{
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
-	}, " ")
+	}
+	return strings.Join(append(flags, centralPlaneStampFlags()...), " ")
+}
+
+func centralPlaneStampFlags() []string {
+	projectURL := os.Getenv("SUPABASE_URL")
+	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
+	if projectURL == "" || publishableKey == "" {
+		return nil
+	}
+	return []string{
+		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultProjectURL=" + projectURL,
+		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultPublishableKey=" + publishableKey,
+	}
 }
 
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
@@ -728,34 +738,12 @@ func writeReleaseArchiveEntry(writer *tar.Writer, sourcePath string, currentPath
 	return errorValue
 }
 
-func releaseR2Client() (releaseset.R2Client, error) {
-	return releaseset.NewR2Client(releaseset.R2Configuration{
-		AccountID:       releaseR2AccountID(),
-		Bucket:          os.Getenv("INTERNKIM_RELEASE_R2_BUCKET"),
-		AccessKeyID:     os.Getenv("INTERNKIM_RELEASE_R2_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY"),
-		PublicBaseURL:   os.Getenv("INTERNKIM_RELEASE_PUBLIC_BASE_URL"),
-		HTTPClient:      statusHTTPClient,
-	})
-}
-
-// R2 shares the same Cloudflare account as the rest of the workspace, so CLOUDFLARE_ACCOUNT_ID is a valid fallback.
 func releaseR2AccountID() string {
-	if accountID := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID")); accountID != "" {
-		return accountID
-	}
 	return strings.TrimSpace(os.Getenv("CLOUDFLARE_ACCOUNT_ID"))
 }
 
 func releasePublisherFromEnvironment(repositoryRootPath string) (releaseObjectPublisher, error) {
-	publisherName := strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_PUBLISHER")))
-	if publisherName == "" || publisherName == "s3" {
-		return releaseR2Client()
-	}
-	if publisherName == "wrangler" {
-		return releaseWranglerPublisher(repositoryRootPath)
-	}
-	return nil, fmt.Errorf("unsupported INTERNKIM_RELEASE_R2_PUBLISHER %q", publisherName)
+	return releaseWranglerPublisher(repositoryRootPath)
 }
 
 func releaseWranglerPublisher(repositoryRootPath string) (wranglerReleasePublisher, error) {

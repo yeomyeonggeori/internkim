@@ -541,10 +541,7 @@ func admindBuildFlags(state *setupFlowState) string {
 	if revision == "" {
 		revision = "unknown"
 	}
-	return strings.Join([]string{
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
-	}, " ")
+	return admindStampFlags(buildID, revision)
 }
 
 func (state *setupFlowState) binariesVersion() string {
