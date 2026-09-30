@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/packagerepository"
 )
 
 var publishedAt = time.Date(2026, time.September, 22, 9, 30, 0, 0, time.UTC)
@@ -27,6 +29,14 @@ func (signer *recordingSigner) ClearSign(document []byte) ([]byte, error) {
 func (signer *recordingSigner) DetachSign(document []byte) ([]byte, error) {
 	signer.detached = document
 	return []byte("-----BEGIN PGP SIGNATURE-----\n"), nil
+}
+
+func (signer *recordingSigner) DetachSignBinary(document []byte) ([]byte, error) {
+	return []byte("binary-signature"), nil
+}
+
+func (signer *recordingSigner) PublicKeyArmoured() ([]byte, error) {
+	return []byte("armoured-key"), nil
 }
 
 func (signer *recordingSigner) PublicKeyring() ([]byte, error) {
@@ -68,14 +78,14 @@ func buildTestPackage(t *testing.T, fields string) []byte {
 	return packageFile.Bytes()
 }
 
-func hostPackage(t *testing.T, version string, architecture string) Package {
+func hostPackage(t *testing.T, version string, architecture string) packagerepository.Package {
 	t.Helper()
 	fields := fmt.Sprintf(
 		"Package: internkim\nVersion: %s\nArchitecture: %s\nMaintainer: InternKim <support@example.com>\n"+
 			"Installed-Size: 1024\nDepends: postgresql (>= 14), redis-server\nSection: admin\nPriority: optional\n"+
 			"Description: the company host\n it runs the agent.\n",
 		version, architecture)
-	return Package{
+	return packagerepository.Package{
 		FileName: fmt.Sprintf("internkim_%s_%s.deb", version, architecture),
 		Contents: buildTestPackage(t, fields),
 	}
@@ -83,12 +93,12 @@ func hostPackage(t *testing.T, version string, architecture string) Package {
 
 func TestPackagesIndexDescribesTheFileAptWillFetch(t *testing.T) {
 	packageFile := hostPackage(t, "1.0.0", "arm64")
-	objects, errorValue := Build(DefaultSuite, []Package{packageFile}, &recordingSigner{}, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{packageFile}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
 
-	index := string(objects["deb/dists/"+DefaultSuite+"/main/binary-arm64/Packages"])
+	index := string(objects["deb/dists/"+packagerepository.DefaultChannel+"/main/binary-arm64/Packages"])
 	expectedPoolPath := "pool/main/i/internkim/internkim_1.0.0_arm64.deb"
 	digest := sha256.Sum256(packageFile.Contents)
 	for _, wanted := range []string{
@@ -111,11 +121,11 @@ func TestPackagesIndexDescribesTheFileAptWillFetch(t *testing.T) {
 // A stanza whose Description came before another field would swallow it: the
 // folded continuation lines belong to whatever field precedes them.
 func TestFoldedDescriptionIsTheLastFieldOfAStanza(t *testing.T) {
-	objects, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
-	index := string(objects["deb/dists/"+DefaultSuite+"/main/binary-arm64/Packages"])
+	index := string(objects["deb/dists/"+packagerepository.DefaultChannel+"/main/binary-arm64/Packages"])
 	lines := strings.Split(strings.TrimRight(index, "\n"), "\n")
 	if lines[len(lines)-1] != " it runs the agent." {
 		t.Fatalf("the stanza ends with %q, so a field follows the folded Description:\n%s", lines[len(lines)-1], index)
@@ -123,27 +133,27 @@ func TestFoldedDescriptionIsTheLastFieldOfAStanza(t *testing.T) {
 }
 
 func TestEveryDeclaredArchitectureGetsAnIndexEvenWithNoPackage(t *testing.T) {
-	objects, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
 	for _, architecture := range Architectures {
-		if _, present := objects[fmt.Sprintf("deb/dists/%s/main/binary-%s/Packages", DefaultSuite, architecture)]; !present {
+		if _, present := objects[fmt.Sprintf("deb/dists/%s/main/binary-%s/Packages", packagerepository.DefaultChannel, architecture)]; !present {
 			t.Errorf("no index for %s; apt refuses a repository whose Release names an architecture it cannot fetch", architecture)
 		}
 	}
-	if length := len(objects["deb/dists/"+DefaultSuite+"/main/binary-amd64/Packages"]); length != 0 {
+	if length := len(objects["deb/dists/"+packagerepository.DefaultChannel+"/main/binary-amd64/Packages"]); length != 0 {
 		t.Errorf("the amd64 index is %d bytes, wanted an empty one", length)
 	}
 }
 
 func TestAnArchitectureIndependentPackageIsIndexedUnderEveryArchitecture(t *testing.T) {
-	objects, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "all")}, &recordingSigner{}, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "all")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
 	for _, architecture := range Architectures {
-		index := string(objects[fmt.Sprintf("deb/dists/%s/main/binary-%s/Packages", DefaultSuite, architecture)])
+		index := string(objects[fmt.Sprintf("deb/dists/%s/main/binary-%s/Packages", packagerepository.DefaultChannel, architecture)])
 		if !strings.Contains(index, "Package: internkim") {
 			t.Errorf("the %s index does not carry the architecture-independent package", architecture)
 		}
@@ -154,11 +164,11 @@ func TestAnArchitectureIndependentPackageIsIndexedUnderEveryArchitecture(t *test
 // through the digest listed here, so a digest that does not match the bytes
 // published beside it is the repository failing open.
 func TestTheReleaseDigestsMatchThePublishedIndices(t *testing.T) {
-	objects, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
-	release := string(objects["deb/dists/"+DefaultSuite+"/Release"])
+	release := string(objects["deb/dists/"+packagerepository.DefaultChannel+"/Release"])
 	listed := 0
 	for _, line := range strings.Split(release, "\n") {
 		if !strings.HasPrefix(line, " ") {
@@ -168,7 +178,7 @@ func TestTheReleaseDigestsMatchThePublishedIndices(t *testing.T) {
 		if len(columns) != 3 || len(columns[0]) != 64 {
 			continue
 		}
-		published, present := objects["deb/dists/"+DefaultSuite+"/"+columns[2]]
+		published, present := objects["deb/dists/"+packagerepository.DefaultChannel+"/"+columns[2]]
 		if !present {
 			t.Fatalf("the Release lists %s, which is not published", columns[2])
 		}
@@ -187,11 +197,11 @@ func TestTheReleaseDigestsMatchThePublishedIndices(t *testing.T) {
 // worker serving this repository publishes none, so the field is stated rather
 // than left to a default that could move.
 func TestTheReleaseTurnsByHashOff(t *testing.T) {
-	objects, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
-	release := string(objects["deb/dists/"+DefaultSuite+"/Release"])
+	release := string(objects["deb/dists/"+packagerepository.DefaultChannel+"/Release"])
 	if !strings.Contains(release, "Acquire-By-Hash: no\n") {
 		t.Fatalf("the Release does not turn by-hash off:\n%s", release)
 	}
@@ -202,11 +212,11 @@ func TestTheReleaseTurnsByHashOff(t *testing.T) {
 
 func TestBothSignaturesCoverTheReleaseThatWasPublished(t *testing.T) {
 	signer := &recordingSigner{}
-	objects, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "arm64")}, signer, publishedAt)
+	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, signer, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the repository: %v", errorValue)
 	}
-	release := objects["deb/dists/"+DefaultSuite+"/Release"]
+	release := objects["deb/dists/"+packagerepository.DefaultChannel+"/Release"]
 	if !bytes.Equal(signer.clearSigned, release) {
 		t.Error("InRelease was signed over something other than the published Release")
 	}
@@ -219,8 +229,8 @@ func TestBothSignaturesCoverTheReleaseThatWasPublished(t *testing.T) {
 }
 
 func TestATestingSuiteIsPublishedBesideStable(t *testing.T) {
-	testingSuite := TestingSuite
-	objects, errorValue := Build(testingSuite, []Package{hostPackage(t, "1.1.0~rc1", "arm64")}, &recordingSigner{}, publishedAt)
+	testingSuite := packagerepository.TestingChannel
+	objects, errorValue := Build(testingSuite, []packagerepository.Package{hostPackage(t, "1.1.0~rc1", "arm64")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the testing suite: %v", errorValue)
 	}
@@ -241,7 +251,7 @@ func TestASuiteNamedForADistributionIsRefused(t *testing.T) {
 }
 
 func TestAnUnsignedRepositoryIsRefusedAtTheSource(t *testing.T) {
-	if _, errorValue := Build(DefaultSuite, []Package{hostPackage(t, "1.0.0", "arm64")}, nil, publishedAt); errorValue == nil {
+	if _, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, nil, publishedAt); errorValue == nil {
 		t.Fatal("a repository was built with no signer; apt would refuse what this would publish")
 	}
 }
