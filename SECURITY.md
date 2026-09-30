@@ -2,8 +2,8 @@
 
 ## Reporting a vulnerability
 
-Report it privately through GitHub: open the repository's **Security** tab and
-choose **Report a vulnerability**, or go to
+Report it privately through GitHub: open the repository's "Security" tab and
+choose "Report a vulnerability", or go to
 <https://github.com/yeomyeonggeori/internkim/security/advisories/new>.
 Do not open a public issue, pull request or discussion for it.
 
