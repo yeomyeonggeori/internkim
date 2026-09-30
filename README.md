@@ -10,17 +10,27 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="Status: pre-alpha">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/runs%20on-Linux%20%7C%20macOS-informational" alt="Runs on Linux and macOS">
+  <img src="https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white" alt="Go 1.26">
+  <img src="https://img.shields.io/badge/SvelteKit-2-FF3E00?logo=svelte&logoColor=white" alt="SvelteKit 2">
+  <img src="https://img.shields.io/badge/Supabase-Postgres-3ECF8E?logo=supabase&logoColor=white" alt="Supabase">
+</p>
+
+<p align="center">
   <a href="https://docs.intern.kim">Documentation</a> ·
   <a href="https://docs.intern.kim/quickstart">Quickstart</a> ·
-  <a href="https://docs.intern.kim/self-hosting">Self-hosting</a> ·
-  <a href="LICENSE">Apache-2.0</a>
+  <a href="https://docs.intern.kim/self-hosting">Self-hosting</a>
 </p>
 
 Intern Kim is where a team keeps its tasks, calendar, attendance, files, customers
 and conversations, and where it hands work to an AI coworker. People ask it for work
 in the web app or the company messenger, and it does that work under the identity of
-whoever asked, on a computer the company owns. Yeomyeonggeori, the company that
-builds it, runs its own workday on it.
+whoever asked, on a computer the company owns.
+
+It is pre-alpha. Yeomyeonggeori, the company that builds it, runs its workday on it;
+setting it up anywhere else still takes some knowledge of how it is built.
 
 Everyone signs in at [intern.kim](https://intern.kim). The company's records sit in
 Supabase behind row level security, and the agent runs on one always-on computer
@@ -102,16 +112,8 @@ deploy the web app.
 
 `supabase/migrations` is the schema of record and `web/` is the web app and the API.
 `host/` holds the company computer's boot order and the relay, and `cmd/` and
-`internal/` hold the Go programs. The agent is the `.dependency/blueclaw` submodule.
-
-```bash
-tools/with-local-plane supabase db reset   # schema and fixtures; sign in as member1@example.com with seed-password
-cd web && ../tools/with-local-plane bun run dev
-tools/verify                               # runs the checks your diff can break
-```
-
-Work on a branch, run `tools/verify` and open a pull request. [AGENTS.md](AGENTS.md)
-has the conventions for branches, commits, pull requests, prose and code.
+`internal/` hold the Go programs. [CONTRIBUTING.md](CONTRIBUTING.md) says how to
+build, check and send a change.
 
 ## License
 
