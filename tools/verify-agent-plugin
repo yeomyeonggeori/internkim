@@ -4,7 +4,9 @@
 The spec (https://agent-plugins.org/specification) fixes the root layout:
 plugin.json, skills/ and mcp.json, with anything client-specific under a
 reverse-domain directory. A client manifest or adapter at the root is what
-this fails on.
+this fails on. The repository may also publish itself as a marketplace: a
+client's catalog directory is accepted when it holds that catalog and nothing
+else, because a catalog points at the plugin and adds nothing to it.
 """
 
 import json
@@ -20,7 +22,8 @@ PERMITTED_MANIFEST_FIELDS = {
     "$schema", "name", "version", "description", "author", "homepage", "repository", "license", "keywords", "extensions",
 }
 MCP_TRANSPORTS = {"stdio": "command", "streamable-http": "url", "sse": "url"}
-PORTABLE_ROOT_ENTRIES = {"plugin.json", "mcp.json", "skills", "README.md", "LICENSE", ".gitignore", ".git"}
+PORTABLE_ROOT_ENTRIES = {"plugin.json", "mcp.json", "skills", "tests", "README.md", "LICENSE", ".gitignore", ".git"}
+MARKETPLACE_CATALOGS = {".claude-plugin": {"marketplace.json"}, ".agents": {"plugins/marketplace.json"}}
 REVERSE_DOMAIN_DIRECTORY = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
 
 
@@ -99,9 +102,22 @@ def root_entries(plugin_root: Path) -> list[Path]:
     return sorted(plugin_root / name for name in top_level_names)
 
 
+def files_under(directory: Path) -> set[str]:
+    return {str(path.relative_to(directory)) for path in directory.rglob("*") if path.is_file()}
+
+
+def check_marketplace_catalog(entry: Path, findings: list[str]) -> None:
+    expected_files = MARKETPLACE_CATALOGS[entry.name]
+    if files_under(entry) != expected_files:
+        findings.append(f"{entry.name}: may hold only its marketplace catalog, {sorted(expected_files)}; a client-specific file belongs under a reverse-domain directory")
+
+
 def check_root_entries(plugin_root: Path, findings: list[str]) -> None:
     for entry in root_entries(plugin_root):
         if entry.name in PORTABLE_ROOT_ENTRIES:
+            continue
+        if entry.is_dir() and entry.name in MARKETPLACE_CATALOGS:
+            check_marketplace_catalog(entry, findings)
             continue
         if entry.is_dir() and REVERSE_DOMAIN_DIRECTORY.match(entry.name):
             continue
