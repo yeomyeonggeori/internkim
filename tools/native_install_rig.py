@@ -1,7 +1,8 @@
 """The parts of the native-install rig that run on this Mac.
 
 Building a Debian package and an apt repository, and driving one disposable
-arm64 Debian guest. The assertions that read the guest live in
+Debian guest of the architecture INTERNKIM_RIG_ARCHITECTURE names (arm64 unless
+it says amd64). The assertions that read the guest live in
 `tools/test-native-install`; everything here is what they need in order to have
 a machine and something to install on it.
 """
@@ -646,6 +647,7 @@ class Machine:
                 "--tmpfs", "/run",
                 "--tmpfs", "/run/lock",
                 "--kernel", str(self.kernel_image_path),
+                "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
                 self.image,
                 "sh", "-c", self.bootstrap_script,
