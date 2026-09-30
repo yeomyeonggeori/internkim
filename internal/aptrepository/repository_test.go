@@ -219,7 +219,7 @@ func TestBothSignaturesCoverTheReleaseThatWasPublished(t *testing.T) {
 }
 
 func TestATestingSuiteIsPublishedBesideStable(t *testing.T) {
-	testingSuite := DebianSuite + "-testing"
+	testingSuite := TestingSuite
 	objects, errorValue := Build(testingSuite, []Package{hostPackage(t, "1.1.0~rc1", "arm64")}, &recordingSigner{}, publishedAt)
 	if errorValue != nil {
 		t.Fatalf("build the testing suite: %v", errorValue)
@@ -232,13 +232,10 @@ func TestATestingSuiteIsPublishedBesideStable(t *testing.T) {
 	}
 }
 
-// A suite name that leaves the Debian release out is what apt would pin on
-// while taking the newest candidate inside it, which is how a box ends up
-// offered a build made for a Debian it is not running.
-func TestASuiteNameWithoutTheDebianReleaseIsRefused(t *testing.T) {
-	for _, bare := range []string{"stable", "testing"} {
-		if _, errorValue := Build(bare, nil, &recordingSigner{}, publishedAt); errorValue == nil {
-			t.Errorf("suite %q was accepted without a Debian release in its name", bare)
+func TestASuiteNamedForADistributionIsRefused(t *testing.T) {
+	for _, named := range []string{"trixie-stable", "noble-stable", "trixie-testing"} {
+		if _, errorValue := Build(named, nil, &recordingSigner{}, publishedAt); errorValue == nil {
+			t.Errorf("suite %q was accepted though the package names no distribution", named)
 		}
 	}
 }

@@ -39,8 +39,8 @@ DOCUMENT_MODULES_THE_SKILLS_OPEN = (
     "import plistlib, platform, xml.etree.ElementTree, "
     "docx, openpyxl, fpdf, pptx, lxml, PIL, pypdf, yaml, xlsxwriter, fontTools"
 )
-SUITE = f"{DEBIAN_SUITE}-stable"
-TESTING_SUITE = f"{DEBIAN_SUITE}-testing"
+SUITE = "stable"
+TESTING_SUITE = "testing"
 COMPONENT = "main"
 PACKAGE_NAME = "internkim"
 SHARE_PATH = "/srv/internkim-rig"

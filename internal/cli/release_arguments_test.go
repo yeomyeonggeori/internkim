@@ -7,7 +7,7 @@ import (
 
 func TestReleaseRefusesAFlagItsSubcommandDoesNotTake(t *testing.T) {
 	apt, _ := findReleaseSubcommand("apt")
-	errorValue := checkReleaseArguments(apt, []string{"--suit", "trixie-testing"})
+	errorValue := checkReleaseArguments(apt, []string{"--suit", "testing"})
 	if errorValue == nil {
 		t.Fatal("a misspelled --suite was accepted, so apt would publish to its default suite")
 	}
@@ -19,8 +19,8 @@ func TestReleaseRefusesAFlagItsSubcommandDoesNotTake(t *testing.T) {
 func TestReleaseAcceptsItsFlagsInBothSpellings(t *testing.T) {
 	apt, _ := findReleaseSubcommand("apt")
 	for _, arguments := range [][]string{
-		{"--suite", "trixie-testing"},
-		{"--suite=trixie-testing", "--output", "/tmp/repository"},
+		{"--suite", "testing"},
+		{"--suite=testing", "--output", "/tmp/repository"},
 		{},
 	} {
 		if errorValue := checkReleaseArguments(apt, arguments); errorValue != nil {

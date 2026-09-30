@@ -4,9 +4,10 @@ description: Install the company host, check its services, and find local data a
 icon: ServerCog
 ---
 
-The company host runs on arm64 or amd64 Debian 13, or macOS with Homebrew. It
+The company host runs on Debian 13 or Ubuntu 22.04 or 24.04, on arm64 or amd64, or on macOS with
+Homebrew. It
 needs an outbound internet connection and must stay awake. The installer registers native
-services with systemd on Debian or launchd on macOS. The host needs no public
+services with systemd on Debian and Ubuntu or launchd on macOS. The host needs no public
 address, inbound port, or Docker installation.
 
 ## Install
@@ -26,7 +27,7 @@ Check connection.
 
 ## Check services
 
-On Debian, systemd shows the host service state and logs:
+On Debian and Ubuntu, systemd shows the host service state and logs:
 
 ```bash
 systemctl list-units 'internkim*' 'blueclaw*' 'buzz*'

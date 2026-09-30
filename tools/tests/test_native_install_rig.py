@@ -208,15 +208,13 @@ class RepositoryShapeTests(unittest.TestCase):
     def test_the_keyring_the_rig_installs_is_the_one_the_builder_exports(self):
         self.assertEqual(rig.KEYRING_NAME, self.declared_in_go("KeyringName"))
 
-    def test_the_debian_release_the_rig_runs_is_the_one_the_suite_name_carries(self):
-        self.assertEqual(rig.DEBIAN_SUITE, self.declared_in_go("DebianSuite"))
-
     def test_the_suite_the_rig_asks_apt_for_is_one_the_builder_publishes(self):
         source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "repository.go").read_text()
-        declared = re.search(r"^var DefaultSuite = (.+)$", source, re.MULTILINE)
+        self.assertEqual(rig.SUITE, self.declared_in_go("StableSuite"))
+        self.assertEqual(rig.TESTING_SUITE, self.declared_in_go("TestingSuite"))
+        declared = re.search(r"^const DefaultSuite = (.+)$", source, re.MULTILINE)
         self.assertIsNotNone(declared, "internal/aptrepository no longer declares DefaultSuite")
-        self.assertEqual(declared.group(1).strip(), 'DebianSuite + "-stable"')
-        self.assertEqual(rig.SUITE, rig.DEBIAN_SUITE + "-stable")
+        self.assertEqual(declared.group(1).strip(), "StableSuite")
 
     def test_the_guest_installs_that_keyring_where_the_source_looks_for_it(self):
         self.assertTrue(rig.KEYRING_PATH.endswith("/" + rig.KEYRING_NAME))
