@@ -19,9 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/aptrepository"
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/deviceassets"
+	"gitlab.com/eastriver/internkim/internal/packagerepository"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -57,7 +57,7 @@ var releaseSubcommands = []releaseSubcommand{
 	{name: "host", flags: []string{"--release"}, run: runReleaseCompanyHost},
 	{name: "deb", flags: []string{"--architecture", "--out", "--version"}, run: runReleaseDeb},
 	{name: "packages", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
-	{name: "apt", flags: []string{"--suite", "--package-directory", "--output"}, run: runReleaseAPT},
+	{name: "repositories", flags: []string{"--channel", "--format", "--package-directory", "--output"}, run: runReleaseRepositories},
 	{name: "brew", flags: []string{"--out", "--version"}, run: runReleaseBrew},
 }
 
@@ -123,7 +123,7 @@ func printReleaseUsage() {
 	fmt.Println("  host        Publish the host installer under host/latest, for a machine with no package manager")
 	fmt.Println("  deb         Build the company host as a Debian package for arm64 and amd64")
 	fmt.Println("  packages    Build the company host as deb, rpm and archlinux packages from one payload")
-	fmt.Println("  apt         Sign and publish the Debian repository under deb/, from the .debs release deb built")
+	fmt.Println("  repositories  Sign and publish the apt, rpm and pacman repositories under deb/, rpm/ and arch/, from the packages release packages built")
 	fmt.Println("  brew        Build the company host as a Homebrew bottle on this Mac and render the tap's formula")
 	fmt.Println()
 	fmt.Println("Environment for publish:")
@@ -136,9 +136,9 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
-	fmt.Println("Environment for apt:")
-	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_APT_SIGNING_KEY:")
-	fmt.Printf("    internkim @production release apt --suite %s\n", aptrepository.TestingSuite)
+	fmt.Println("Environment for repositories:")
+	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_APT_SIGNING_KEY, and signs all three formats:")
+	fmt.Printf("    internkim @production release repositories --channel %s\n", packagerepository.TestingChannel)
 	fmt.Println("  there is no flag that names a key on disk: the vault is the key's one home,")
 	fmt.Println("  and the rigs put their own throwaway key in the same variable")
 }

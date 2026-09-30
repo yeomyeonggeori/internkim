@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/aptrepository"
+	"gitlab.com/eastriver/internkim/internal/packagerepository"
 	"gitlab.com/eastriver/internkim/internal/deployops"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
 )
@@ -64,14 +64,14 @@ func TestConsolePasswordWithoutAnEnvironmentValueIsGeneratedRatherThanReadFromAF
 // is the shape it used to fall back to, and a fallback means two homes.
 func TestTheArchiveSigningKeyComesFromTheVaultAlone(t *testing.T) {
 	writeDecoyLocalSecret(t, "apt-archive-signing-key.asc", "key-from-the-file")
-	t.Setenv(aptrepository.SigningKeyVariable, "")
+	t.Setenv(packagerepository.SigningKeyVariable, "")
 
-	if _, _, errorValue := aptrepository.MaterialiseSigningKey(); errorValue == nil {
+	if _, _, errorValue := packagerepository.MaterialiseSigningKey(); errorValue == nil {
 		t.Fatal("a release with nothing in the vault found a signing key anyway")
 	}
 
-	t.Setenv(aptrepository.SigningKeyVariable, "key-from-the-vault")
-	keyPath, remove, errorValue := aptrepository.MaterialiseSigningKey()
+	t.Setenv(packagerepository.SigningKeyVariable, "key-from-the-vault")
+	keyPath, remove, errorValue := packagerepository.MaterialiseSigningKey()
 	if errorValue != nil {
 		t.Fatalf("materialise the signing key: %v", errorValue)
 	}
