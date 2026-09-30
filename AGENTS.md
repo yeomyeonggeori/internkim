@@ -569,7 +569,7 @@ and delete the duplicates.
   reapplies the release before the current one, and refuses when its payload
   cannot run against the migrated database; `--plan` shows either.
 - A company on the central plane is deployed by
-  [README.md](README.md)'s "The company web app". The rest is the device.
+  [docs/self-hosting.mdx](docs/self-hosting.mdx)'s "Deploying the web app". The rest is the device.
 - The running `admind` applies a device release, so a new component takes two
   deploys, `admind` first; a release it cannot accept is escaped with
   `./internkim setup --only admind --force`.

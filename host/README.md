@@ -24,7 +24,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **Moli** | the device browser, a headless engine agent-browser drives over the Chrome DevTools Protocol; without it the browser tools report unavailable and everything else answers |
 | **the POSIX helper** | `bash` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
-A virtual-machine guest, Mattermost and cloudflared are **not** needed.
+A virtual-machine guest and cloudflared are **not** needed.
 
 ### What the skills need
 
@@ -229,7 +229,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
 INTERNKIM_APP_URL=https://intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
-MESSENGER_PLATFORM=buzz              # or mattermost
+MESSENGER_PLATFORM=buzz
 DATABASE_URL=postgres://…            # the host's own Postgres
 ```
 
@@ -239,10 +239,9 @@ is handed the path, so rotating the file is enough for it. blueclaw runs as the
 `blueclaw` user and cannot open `/root`, so the entrypoint copies both keys to
 `/run/internkim/secrets` as it starts; blueclaw sees a rotated key after a restart.
 
-Plus the messenger the tenant runs, one of:
+Plus the connection to the messenger the tenant runs:
 
 ```
-CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
 ```
 
@@ -253,8 +252,7 @@ rewrites `/run/internkim/policy.json` whenever the company changes, so a
 `policy.json` mounted there seeds that file rather than being it. The seed is
 `/root/.internkim/secrets/buzz-key-seed`, beside the agent key, and without it a message the
 agent sends under a person's own name cannot be signed. `MESSENGER_PLATFORM`
-names which of the two messengers the company runs, and the relay refuses to
-start rather than guess.
+names the messenger the company runs, and the relay refuses to start without it.
 
 ## Acceptance
 

@@ -2,9 +2,7 @@
 
 Manifest V3 extension that reports DOM element coordinates from a plain,
 un-automated Chrome session to the companion Go daemon. It carries no CDP
-automation flags and sets no `navigator.webdriver` signal itself — see
-`.claude/plans/warm-kindling-sunrise.md` for why this replaces CDP-driven
-automation.
+automation flags and sets no `navigator.webdriver` signal itself.
 
 ## Loading
 

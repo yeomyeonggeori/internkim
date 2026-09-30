@@ -1,208 +1,61 @@
 ---
 title: Kim mini
-description: How a box that arrives in the post becomes a company's host, with nothing but power.
+description: How a box that arrives in the post becomes a company's host without a connection file.
 icon: Bot
 ---
 
-Kim mini is a small computer sold with internkim installed: a fanless
-Raspberry Pi CM5 computer, in a 4 GB model (64 GB
-microSD) and a 16 GB model (256 GB SSD in the M.2 slot). It is optional
+Kim mini is a small computer sold with internkim installed. It is optional
 hardware. The same software runs on any computer a company already has, and
 [the host](/docs/running-the-host) is what both install.
 
-This page is the design for how a box that arrived in the post becomes one
-company's host without a monitor, a keyboard, or anyone from us touching it.
+This page describes how a box that has never been configured becomes one
+company's host, and how it proves itself afterwards.
 
-## Constraints
+## Every box starts identical
 
-- Every box leaves the factory identical: no per-box password, sticker, QR
-  code, serial registered to a buyer, or key burned in at assembly. Anything
-  that differs between two boxes is put there by the person setting it up.
-- Installation needs power and a phone or laptop to finish. A LAN cable skips
-  the Wi-Fi step.
-- A stranger may get there first: someone in radio range can configure an
-  empty box before its owner does. That is acceptable as long as the owner can
-  always take it back.
-- The host makes outbound connections after a company claims it
-  ([why](/docs/architecture#why-the-host-has-no-inbound-port)). The setup page
-  below is the single listener, it exists only while the box is empty, and it
-  closes the moment the box is claimed.
+No per-box password, sticker, serial registered to a buyer or key is put in at
+assembly. On first boot the box generates an Ed25519 signing key and an X25519
+encryption key in `/var/lib/internkim/box`. The private halves never leave its disk.
 
-## Setting it up
+## Claiming a box
 
-<Steps>
-<Step>
-The box boots empty. It generates a keypair on first boot; the private key is
-written to its own disk and never leaves it.
-</Step>
-<Step>
-It broadcasts a WPA3 network named `kimmini` with the password `intern-kim`,
-printed in the manual and on the product page. Every box shares it, so it
-identifies nobody. What it buys is WPA3's key exchange: someone nearby who
-knows the password still cannot read another phone's session, which carries
-the office Wi-Fi password. A phone without WPA3 joins over WPA2 and loses that
-protection.
-</Step>
-<Step>
-Joining opens the setup page. It asks for an office network and its password
-and nothing else, choosing from the networks the box scanned before it started
-broadcasting. That is everything a person puts into the box. With a LAN cable
-the box never broadcasts and this step does not exist.
-</Step>
-<Step>
-The box turns off the setup page and its own network, joins the office network
-(or uses the cable), and announces its public key to the central plane as a box
-that belongs to no company yet. Nothing listens on the box after that.
-</Step>
-<Step>
-An administrator opens `intern.kim` from that same office network. The address
-the box announced from and the address of the browser are the same, so the
-empty box appears in a list, and clicking connect binds that public key to the
-company.
-</Step>
-<Step>
-The box starts the host bundle as that company's host. If the office password
-was wrong, the box reopens `kimmini` and the setup page says so.
-</Step>
-</Steps>
+1. The box joins the office network and announces its public key to the central
+   plane every thirty seconds, as a box that belongs to no company yet. Nothing
+   listens on the box.
+2. An administrator opens `intern.kim` from the same office network. The address the
+   box announced from and the address of the browser match, so the empty box appears
+   in a list.
+3. Choosing the box binds its public key to the company. A company has one host, so
+   claiming a second box moves the company to it.
+4. The box stops announcing, trades a signed assertion for the company's settings and
+   a session, and starts the host services as that company's host.
 
-The box is either broadcasting or connected to the office, never both, so
-setup works on a Wi-Fi chip that cannot act as access point and client at
-once. The phone losing the `kimmini` network is expected; it returns to the
-office Wi-Fi and the result is read at `intern.kim`.
-
-The setup page accepts injection only while the box is empty and never displays
-a value back. A phone that later looks for a claimed box's network finds none.
-
-There is no connection code because by then the box is already online. A code
-was how a person carried "which company" into a box that could not reach the
-internet. Once the box is on the office network it announces itself, so the
-binding happens in the browser and the only value anyone types into the box is
-a Wi-Fi password. Issuing, expiring, and reissuing codes all go away, and so
-does the iOS captive webview problem, because the setup page never sends anyone
-to `intern.kim`.
-
-A stranger who claimed the box first shows up as an empty list rather than an
-error, because a claimed box stops announcing itself. So the empty list is
-where the guidance belongs: check the cable and the Wi-Fi password, and five
-presses on the power button make the box announce itself as empty again.
-
-### What the server does when you connect
-
-The central plane already records which fleet belongs to which company:
-`claimFleetForCompany` in `web/src/lib/server/control-plane.ts` upserts a
-`credential` row of kind `fleet`. Clicking connect calls it with the public key
-the box announced as the fleet identifier. An Ed25519 public key is 43 characters of
-base64url, so `external_id` holds the key itself and no column is added.
-
-The row is unique on `(company_id, kind)`
-(`supabase/migrations/20260803000023_credential_company_conflict_target.sql`),
-so a company has one host. Claiming a second box moves the company to the new
-one. That matches the host's role as the company's single persistent
-assistant, and it is the first thing to revisit if a company ever wants two.
+An empty list means the box was claimed already or cannot reach the network.
 
 ## The box's identity replaces the agent key
 
-A host connected with a file proves itself with a bearer agent key: a random
-secret the web app issues once, which the host keeps at
-`/var/lib/internkim/current/secrets/agent-key` and every `/api/agent/*` route
-checks against a SHA-256 hash in `agent.api_key_hash`.
+A host installed from a connection file proves itself with a bearer agent key, a
+random secret the web app issues once. A box needs no shared secret. It signs a JWT
+naming its own public key, valid for one minute, and trades it at
+`/api/box/session` for an hour-long session as the company's host and for the model
+key sealed to the box. Mail passwords are sealed to the same key.
 
-A box needs no shared secret. `internkim box`, a root unit the package ships
-beside the bundle, keeps an Ed25519 signing key and an X25519 encryption key in
-`/var/lib/internkim/box`. It signs a JWT naming its own public key, valid for a
-minute and refused after two, and trades it at `/api/box/session` for the
-company's settings, an hour-long session as `host.<companyID>@agent.internkim.invalid`,
-and the model key sealed to it. Mail passwords are sealed to the same key.
-Until a company claims it, it announces itself every thirty seconds.
-
-The first session installs the company, exactly as `internkim install` does from
-a file, with the session standing where the agent key stood. After that the
-daemon writes each new session over the old one ten minutes before it expires,
-and every reader of that file reads it per request, so the relay and admind
-never hold a stale one. The routes that take an agent key take the session too,
-and `/api/agent/host-session` hands a session back unrenewed, so a stolen one
-dies within the hour. What admind signs for Blueclaw on a person's behalf uses a
-key of its own, because the session changes hourly and Blueclaw reads its key
-once.
+The daemon writes each new session over the old one ten minutes before it expires, and
+every reader of that file reads it per request. A stolen session dies within the hour.
 
 | | agent key | box keypair |
 |---|---|---|
 | secret that crosses the network | the key, at issuance and on every call | none; only signatures and short sessions |
-| a copied disk file gives | lasting access until someone revokes it | lasting access until someone resets or reclaims |
 | a leaked request log gives | the key | an expired session |
 | taking it back | revoke in the web app | reset the box or claim another |
 
-A computer the company brings for itself can use the same shape: the host
-bundle generates the keypair on install and, already online, announces itself
-with no setup page at all.
+A computer the company brings follows the same shape. On Linux, `sudo internkim
+install` spends the downloaded key, and the machine signs in with one it generated
+from then on.
 
 ## Models
 
-A company picks one of two ways to pay for inference.
-
-Bring your own OpenRouter key: the box calls OpenRouter directly. The
-administrator pastes the key at `intern.kim`, the browser encrypts it to the
-box's public key, and the ciphertext travels through the central plane to the
-box, which decrypts it into `/var/lib/internkim/current/secrets/openrouter-key`. The
-plane stores and relays a value it cannot read.
-
-Subscribe: the box holds no provider key. It calls a model endpoint on the
-central plane with its session; the endpoint checks that the company's
-subscription is active and within its rate limit, then forwards to OpenRouter
-with our key. That endpoint lives in the web app under `/api/v1`, beside
-[the rest of the API](/docs/api), so a self-hosted plane carries it too.
-
-An earlier gateway of this kind was removed in #1275 because nothing called
-it. `capabilityd` still accepts `--openrouter-gateway-secret` and
-`--openrouter-gateway-secret-header` (`cmd/internkim-capabilityd/main.go`),
-which send a shared secret. With a subscription, capabilityd sends the host
-session in their place, and the shared secret flags go away.
-
-## The power button
-
-Kim mini has one button, the power button. It carries two actions:
-
-| press | effect |
-|---|---|
-| one press | clean shutdown |
-| five presses in quick succession | factory reset |
-| long press | hard power-off by the CM5 firmware; unavailable to us |
-
-We own the button handler. systemd-logind is told to ignore it
-(`HandlePowerKey=ignore`), and a small service reads the key events, counts
-presses inside a short window, and either shuts down or resets.
-
-A reset deletes the private key, the company binding, the local Postgres,
-agent memory, and the workspace. It then generates a new keypair and reopens
-the `kimmini` network, so the box is indistinguishable from one that just
-arrived. This is the whole answer to a stranger who configured the box first:
-five presses and set it up again. The old public key stays on the other
-company's fleet credential, where it can no longer sign anything.
-
-## Open questions
-
-- Public-address matching: boxes and administrators behind one
-  public address see each other, so a building or a coworking space can list a
-  neighbour's empty box. A browser on IPv6 and a box on IPv4 may not match at
-  all. What the list shows when nothing matches, and whether a typed code comes
-  back for that case, is open.
-- Remote setup: an administrator who is not on the office
-  network sees no box, so remote setup is not supported.
-- Button wiring: the case button must connect to the CM5 `PWR_BUT` line
-  and arrives as a key event while the system is running.
-- Key storage: the CM5 has no TPM, so the private key is a file on the
-  microSD card or SSD. Removing the storage and copying it clones the box's
-  identity; reclaiming the company from another box is the recovery.
-- Setup race: anyone in range between power-on and claim can inject
-  first. The reset button bounds the damage to the time it takes the owner to
-  notice.
-- Fake `kimmini`: someone nearby can broadcast their own network with
-  the same public password and collect the office Wi-Fi password the user
-  types. There is no code left to steal, but a box of theirs announcing from
-  the same public address lands in the same list, where an administrator can
-  click the wrong one. The tell is that the real box keeps broadcasting, and
-  five presses take it back; a company has one host, so connecting the real box
-  moves the company to it.
-- WPA3 access point: whether the box's Wi-Fi firmware offers WPA3 in
-  access point mode, with WPA2 as the fallback.
+The administrator pastes an OpenRouter key at `intern.kim`. The browser encrypts it
+to the box's public key, and the ciphertext travels through the central plane to the
+box, which decrypts it on its own disk. The plane stores and relays a value it cannot
+read.

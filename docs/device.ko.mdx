@@ -12,10 +12,8 @@ icon: Monitor
 돌릴지 정하는 중이라면 답은 [호스트](/ko/docs/running-the-host)이고, 이
 페이지는 지나간 이야기입니다.
 
-여기 있는 것 중 특정 보드를 요구하는 것은 없습니다. 아래의 모델 크기와 Cloud
-Hypervisor 게스트는 이 경로를 만든 Jetson Orin Nano Super에서 나왔고, 지금
-작업 기준이 되는 보드는 Raspberry Pi CM5입니다.
-[호스트](/ko/docs/running-the-host)는 회사가 이미 켜 두는 macOS 또는 Linux
+아래의 모델 크기와 Cloud Hypervisor 게스트는 이 경로를 만든 Jetson Orin Nano
+Super에서 나왔습니다. [호스트](/ko/docs/running-the-host)는 회사가 이미 켜 두는 macOS 또는 Linux
 컴퓨터 아무 데서나 도는 같은 소프트웨어입니다.
 
 ## 그 컴퓨터 위에서 도는 것 [#what-runs-on-the-box]
@@ -77,6 +75,20 @@ capabilityd가 처음 쓸 때 띄우고 10분 동안 쓰지 않으면 내립니�
 중이라고 알립니다. 로그인, MFA, captcha, 민감한 입력과 계정에 위험한 행동은
 디바이스 브라우저로 하지 않습니다. 에이전트는 무엇에 막혔는지 말하고 멈춥니다.
 
+## 디바이스 설정하기 [#setting-up-a-device]
+
+JetPack으로 부팅한 NVIDIA Jetson Orin Nano Super Developer Kit(NVMe 저장소 권장)에 SSH로 닿을 수
+있는 Mac과 [OpenRouter API 키](https://openrouter.ai/keys)가 필요합니다.
+
+```bash
+make build
+./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
+```
+
+`./internkim`은 스스로 다시 빌드하지 않는 로컬 바이너리이므로, Go나 프로비저닝, 런타임 설정을 바꾼
+뒤에는 `make build`를 다시 실행하세요. 전체 설정은 `internal/provisioning/steps/`의 모든 단계를 그
+패키지가 선언한 순서대로 실행하며, `--only`는 그 단계 이름을 받습니다.
+
 ## 디바이스에 배포하기 [#deploying-to-a-device]
 
 일상 배포는 Admin HTTPS 위의 OTA 릴리스 엔진으로 갑니다. SSH는 최초 설치와
@@ -103,6 +115,9 @@ make build
   바꾼 배포 뒤에는 배포보다 새로운 태스크 실행이 있는지 확인하세요.
 - `./internkim release publish`는 여러 디바이스가 `./internkim update`로
   당겨 갈 안정 채널을 R2에 발행합니다.
+- `--components` 없이 `deploy`하면 오래된 산출물을 다시 빌드하고, 디바이스와 다른 모든 컴포넌트를
+  프로토콜 짝과 함께 배포합니다. 디바이스가 앞서 있는 컴포넌트는 거부하며, `--plan`은 발행하지 않고
+  선택만 출력합니다.
 
 디바이스 배포 전의 관문은 일회용 로컬 플릿입니다. macOS 위의 ARM 리눅스
 VM에서 현재 체크아웃을 실제 서비스 경계에 대고 돌리는

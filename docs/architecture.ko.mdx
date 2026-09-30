@@ -56,13 +56,8 @@ flowchart TB
 
 ## 여러 하네스가 쓰는 하나의 플러그인 [#one-plugin-across-harnesses]
 
-이 절은 공통 플러그인의 설계 계약을 정의합니다. 릴리스의 호환성은 아래
-검증·공개 기준으로 확정하며, 위 다이어그램은 배포 구조를 설명합니다.
-
-`internkim-plugin`은 Bluecollar, Claude Code, Codex, Pi가 함께 사용하는
-클라이언트 패키지입니다. 김인턴 내부 에이전트도 외부 하네스에 설치하는 것과
-같은 버전의 스킬·스크립트·에셋·서비스 계약을 사용합니다. 외부 하네스는
-Bluecollar가 꺼져 있어도 서비스 기능을 사용할 수 있어야 합니다.
+`internkim-plugin`은 공통 클라이언트 패키지입니다. 김인턴의 에이전트가 여기서 스킬을 불러오고,
+Claude Code, Codex, Pi도 같은 패키지를 설치해 자기 루프에서 회사의 도구를 쓸 수 있습니다.
 
 ```mermaid
 flowchart TB
@@ -70,179 +65,26 @@ flowchart TB
     claude["Claude Code"] --> plugin
     codex["Codex"] --> plugin
     pi["Pi"] --> plugin
-    plugin["internkim-plugin<br/>공통 스킬·스크립트·얇은 어댑터"] --> service
-    service["김인턴 도구 서비스<br/>인증된 멤버와 회사"] --> record["업무 기록"]
-    service --> relay["기존 회사 릴레이 연결"]
-    relay --> execution["회사·컴패니언 기능"]
+    plugin["internkim-plugin<br/>스킬과 도구 서버 주소"] --> service
+    service["공개 API, /api/v1/mcp<br/>인증된 멤버와 회사"] --> record["업무 기록"]
+    service --> relay["회사 릴레이 연결"]
 ```
 
-### 책임의 경계 [#ownership]
+플러그인은 평범한 Agent Plugins 체크아웃입니다. `plugin.json`, `https://api.intern.kim/v1/mcp`를
+가리키는 `mcp.json`, `skills/`로 이루어지고, 하네스 어댑터는 없습니다. 각 클라이언트가 이 구조를
+자기 방식으로 불러오며, 방법은 플러그인의 README에 있습니다.
 
-| 계층 | 책임 |
-| --- | --- |
-| 김인턴 서비스 | 도구 스키마 원본, 업무 동작, 권한, 영속 승인, 실행 상태와 변경 증거 |
-| 플러그인 | 공통 스킬·스크립트·에셋, 연결 정보와 공통 클라이언트 |
-| 하네스 어댑터 | 설치, 스킬 경로 연결, 자격증명 저장소 연동, 도구·결과 표현 |
-| 하네스 | 모델 호출, 추론, 도구 선택, 문맥과 실행 루프의 판단 |
-| Blueclaw 호스트 | 관리되는 호스트 안에서 실행하는 작업의 신원과 격리 |
+서비스는 도구 계약을 한 번만 작성하고, 호출자의 인증에서 행위자를 정하며 현재 회사 멤버십을
+확인합니다. 그래서 모델이 넘긴 인자로 더 높은 권한의 신원을 고를 수 없습니다. MCP는 도구 호출을
+나르고, ACP는 릴레이가 메신저 대화를 에이전트에게 넘기는 별도의 경계입니다. 플러그인만 쓸 때는
+ACP 세션이 필요 없습니다. 플러그인을 설치해도 외부 에이전트에게 blueclaw의 워크스페이스나
+터미널이 열리지는 않습니다.
 
-업무 도구 계약은 서비스에서 한 번 정의합니다. 어댑터는 연결과 표현 차이를
-변환하며 업무 로직이나 스킬 본문을 복제하지 않습니다. 하네스의 기본 MCP
-연결과 확장 기능을 통한 클라이언트가 같은 계약을 사용합니다. MCP는 업무
-도구 호출을 담당하고, ACP는 에이전트가 메신저에 참여할 때 쓰는 별도 세션
-경계입니다. 플러그인만 사용하는 데 ACP 세션은 필요하지 않습니다.
-
-같은 멤버·회사·플러그인 버전·실행 자원이라면 같은 업무 기능과 권한 동작을
-제공해야 합니다. 모델 품질과 로컬 환경은 다를 수 있습니다. 플러그인 설치로
-외부 에이전트에 Blueclaw의 비공개 워크스페이스나 터미널 권한이 생기지
-않습니다. 독립적인 산출물 스킬은 외부 하네스의 로컬 환경에서 실행하고,
-관리되는 호스트에서는 요청자의 POSIX 신원을 유지합니다. 필요한 의존성이나
-컴패니언 기능이 없으면 그 상태를 명시합니다.
-
-### 연결과 실행 [#connection-and-execution]
-
-아래는 제안된 계약을 설명하는 의사코드입니다. 출시된 엔드포인트 정의나 모든
-하네스가 턴 도중 도구 등록을 지원한다는 뜻이 아닙니다. 무엇이 출시됐고 어느
-하네스 버전에서 확인했는지는 아래 "출시된 동작"에 있습니다.
-
-```text
-function attachPlugin(adapter, package, account):
-    package.verifyRelease()
-    session = connect(package.server, account.credentialReference)
-    requireSupportedContract(session, package.supportedVersions)
-    adapter.installSkills(package.skillRoot)
-    adapter.exposeDiscovery(session.catalogSummaries())
-
-function invoke(session, toolID, arguments, operationKey):
-    descriptor = session.describeExact(toolID)
-    validatedArguments = descriptor.inputSchema.validate(arguments)
-    return session.call(descriptor.id, validatedArguments, operationKey)
-```
-
-모델이 간결한 카탈로그에서 관련 기능을 선택하고, 상세 스키마는 필요할 때
-가져옵니다. 동적 등록이 없는 어댑터는 지원하는 갱신 시점이나 공통 클라이언트의
-검증된 호출 경로를 사용합니다. 탐색 비용·스키마 크기·호출 오류도 이 선택의
-측정 비용에 포함합니다.
-
-서비스는 인증 정보로 실행자를 해석하고 현재 회사 소속을 확인합니다.
-자격증명은 클라이언트의 자격증명 저장소에 둡니다. 모델이 만든 인자로 더 높은
-권한의 실행 신원을 선택할 수 없습니다.
-
-```text
-function submit(connection, request):
-    actor = authenticateAndResolveMember(connection)
-    descriptor = catalog.resolveExact(request.toolID)
-    arguments = descriptor.inputSchema.validate(request.arguments)
-    authorize(actor, descriptor, arguments)
-    operation = claimDurably(actor, request.operationKey, descriptor, arguments)
-    if operation.alreadyExists:
-        return operation.currentResult()
-    if requiresApproval(actor, descriptor, arguments):
-        return holdForAuthenticatedApproval(operation)
-    return dispatchDurably(operation)
-```
-
-전송 재시도는 같은 실행 키를 사용하고, 다른 인자로 키를 재사용하면
-거절합니다. 승인은 실행자·회사·실행·인자·만료 시점에 결합합니다. 재접속하면
-기록된 실행을 이어가며 권한을 다시 확인합니다. 외부 변경 뒤 타임아웃이
-발생하면 대상 서비스의 멱등성이나 실제 결과 대조를 통해 재실행 여부를
-확정합니다. 취소 응답에는 이미 반영된 변경을 알립니다. 예약된 업무는
-하네스 연결이 끊겨도 유지합니다.
-
-결과에는 구조화된 기록·이미지·권한이 적용된 산출물 참조를 보존합니다.
-서비스가 무엇이 변경됐는지 기록하고, 하네스가 그 증거를 사용자에게
-설명합니다. 이미지나 산출물을 성공 문장 하나로 바꾸어 버리면 기능 동등성
-검증을 통과할 수 없습니다.
-
-### Bluecollar의 정체성과 Pi의 범용 구현 [#bluecollars-identity-and-pis-mechanics]
-
-Bluecollar의 업무 이해, 후속 지시를 잇는 연속성, 결과 판단과 복구 동작은
-보존합니다. 범용 도구 이름·인자 형태·파일 편집·셸 세션·실행 연결부는 Pi를
-그대로 따라도 됩니다. 적절한 곳에서 Pi 구현을 재사용하거나 수정하며,
-라이선스와 출처 표기를 유지합니다.
-
-Pi의 특정 리비전을 기준으로 각 범용 구성 요소의 재사용·수정·유지 결정을
-기록합니다. 다르게 만들 때는 제품 동작, 실행 경계, 호환성 또는 측정된 성능상
-이유가 있어야 합니다. 기존 도구 이름, 액션 봉투, 프롬프트 상용구는 이미
-Bluecollar에 있다는 이유만으로 제품의 정체성이 되지 않습니다.
-
-### 검증과 공개 [#verification-and-publication]
-
-플러그인 릴리스 하나로 Bluecollar·Claude Code·Codex·Pi에서 같은 업무
-시나리오를 수행합니다. 설치·인증·승인·재접속·취소·회사 간 격리·산출물 전달을
-포함하고, Bluecollar가 꺼진 상태의 외부 사용도 입증합니다. 지원되는 경우 같은
-모델 설정으로 비교하고, 나머지 조합은 제품 간 비교라고 구분합니다.
-
-채택하려면 기능을 보존하고 성공률·성공 업무당 비용·문맥 크기·완료 지연을
-측정해야 합니다. 릴리스와 함께 지원 버전 표와 검증 증거를 공개합니다.
-클라이언트 업데이트 전에 서비스 호환성을 배포하고, 명시된 호환 기간을
-유지하며 실행 중인 버전을 확인합니다. 영어·한국어 문서 모두 출시된 동작과
-아직 남은 설계를 구분해 갱신합니다.
-
-### 출시된 동작 [#released-behavior]
-
-위 절들은 목표입니다. internkim `8a9b7dae5`, 플러그인 `1be15af`,
-Blueclaw `8857d92a`, Bluecollar `bc91eee6` 기준으로 출시된 것은 다음과
-같습니다.
-
-- 플러그인은 Agent Plugins 1.0.0 규격 그대로의 체크아웃입니다. `plugin.json`,
-  `https://api.intern.kim/v1/mcp`를 가리키는 `mcp.json`, `skills/`가 전부이고
-  하네스별 어댑터는 없습니다. 각 클라이언트가 이 배치를 자기 방식으로 읽으며,
-  그 방법은 플러그인 README에 있습니다.
-- 예약 도구(`schedule_list`, `schedule_create`, `schedule_update`,
-  `schedule_cancel`)는 카탈로그에 한 번 정의되고 회사 컴퓨터가 답합니다.
-  Bluecollar에는 자체 사본이 없습니다. 공개 서버는 자기가 실행하는 웹
-  배포본의 카탈로그를 내보내므로, 그 배포본이 `b3b1406e3`를 담은 뒤에야
-  클라이언트가 이 네 도구를 봅니다.
-- 턴 도중의 도구 등록, 지속되는 승인 봉투, "연결과 실행"의 서비스 영수증은
-  계약 문안이지 출시된 엔드포인트가 아닙니다.
-- 모델의 커널은 `read`, `write`, `edit`, `bash`, `plan`,
-  `equip`입니다. 앞의 네 개가 실제 작업입니다. `plan`은 목표와 단계,
-  그리고 실행 크기를 정하는 level을 기록합니다. `equip`은 필요를
-  서술한 문장 하나를 받아 그 필요에 맞는 도구를 답하는데, intake가 한 턴의
-  유력 도구를 고를 때 쓰는 바로 그 셀렉터를 씁니다. 회사 카탈로그의 나머지는
-  플랜 단계마다 한 번 정해지는 후보 목록으로 모델에 닿으므로, 모델이 한 가지
-  일을 하는 동안 그 앞에 선 도구들은 가만히 있습니다.
-- 모델은 `reply`로 말합니다. 답장은 말과 첨부할 파일을 함께 싣습니다.
-  `final`은 그것을 그 업무의 마지막 말로 만들고, `expectsAnswer`는 누군가
-  답할 때까지 실행을 세우며, `choices`는 그 질문을 메신저가 그리는 버튼으로
-  바꿉니다. `file_deliver`와 `ask_input`은 런타임이 답장 뒤에서 호출하는
-  내부 도구로 남아 있어, 둘 다 완료 게이트가 읽는 도구 관찰을 그대로
-  남깁니다. `finish`, `ask_input`, `file_deliver`, `request_tools`,
-  `plan_update`는 모델의 어휘에서 사라졌습니다.
-- 모델 호출은 처리량 기준으로 정렬된 OpenRouter로 나가고, 한 대화의 모든
-  호출은 그 대화를 세션 id로 싣습니다. 프롬프트 앞부분을 이미 쥔 프로바이더가
-  그 일을 계속 맡습니다.
-- 파일럿 러너(`web/tests/pilot`, internkim#1842)는 과제 서른 개를 돌립니다.
-  그중 스무 개는 파일로 끝나고 판정자가 전달된 첨부의 메타데이터로 확인하며,
-  턴이 돌기 전에 intake가 세운 실행은 커널의 성적으로 매기지 않고 자기 칸에
-  따로 적습니다.
-
-과제 서른 개, 각 한 번, 모든 암을 `z-ai/glm-5.3-flash`로, 일회용 플릿에서,
-남은 기록을 읽는 판정자로 측정했습니다. 위의 커널을 측정한 실행이 `pilot-8`이고, 그것이
-대체한 일곱 도구 커널이 `pilot-6`입니다(internkim#1832):
-
-| 암 | 통과 | 루프 도달 | 루프 안 통과 | 호출당 프롬프트 토큰 중앙값 | 실행당 호출 중앙값 | 통과 과제당 비용 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 일곱 도구 커널 (`pilot-6`) | 24/30 | 29/30 | 24/29 | 22,399 | 5.5 | $0.0354 |
-| 이 커널 (`pilot-8`) | 24/30 | 23/30 | 23/23 | 23,257 | 4 | $0.0220 |
-
-통과 칸보다 루프 도달 칸을 먼저 보십시오. `pilot-8`의 실패 여섯 개는 모두 턴이
-돌기 전에 일어났습니다. 다섯은 intake가 요청자에게 되물으며 업무를 세운
-것으로, 두 커널이 똑같이 하는 일이고 커널을 고쳐서 없앨 수 있는 것이
-아닙니다. 하나는 하네스가 자기 settle 타임아웃에 잃은 실행입니다. 채택
-게이트는 쓰인 그대로라면 이 줄을 기각합니다. 호출당 프롬프트 토큰이 더 낮을
-것을 요구하는데, 그 문구는 정의 개수를 묻던 실험을 위해 쓰였기 때문입니다.
-그래도 채택하자는 근거는 루프 안 칸과 비용이고, 그 논증은 이슈에 있습니다.
-같은 서른 과제를 같은 플러그인 릴리스로 도는 Claude Code, Codex, Pi가 그
-프로그램의 다음 암입니다.
-
-| 하네스 | 확인한 버전 | 플러그인을 읽는 경로 | 상태 |
-| --- | --- | --- | --- |
-| Bluecollar (Blueclaw 안) | `f41ae448` | capabilityd, 같은 카탈로그 | Local Fleet과 장비에서 확인(internkim#1819) |
-| Claude Code | 2.1.276 | internkim 저장소의 마켓플레이스 항목 | 끝까지 확인(internkim#1823) |
-| Codex | 0.154.0 | 루트 배치를 그대로 읽음 | 방법만 공개, 서비스 상대로는 미실행 |
-| Pi | 0.83.0 | `pi-agent-plugins`와 `pi-mcp-adapter` | 방법만 공개, 서비스 상대로는 미실행 |
+blueclaw 안에서 모델의 커널은 `read`, `write`, `edit`, `bash`, `plan`, `equip`입니다.
+`plan`은 목표와 단계, 실행 규모를 정하는 수준을 기록합니다. `equip`은 필요를 설명한 문장을 받아
+그에 맞는 도구를 돌려주고, 나머지 회사 카탈로그는 계획 단계마다 한 번 정해지는 후보 목록으로
+모델에 전달됩니다. 모델은 말과 파일을 담은 하나의 `reply`로 말하며, 이 `reply`는 누군가 답할
+때까지 실행을 멈추게 하거나 선택지를 버튼으로 제시할 수 있습니다.
 
 ## 중앙 쪽 [#the-central-side]
 
@@ -311,7 +153,7 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
 | 프로세스 | 응답 위치 | 하는 일 | 코드 |
 |---|---|---|---|
 | 릴레이 (`internkim-relay`) | 바깥으로만; 커넥터를 위해 `127.0.0.1:18091` | 앱의 호출에 답하고, 메시지를 에이전트의 턴으로 바꾸고, 에이전트에게 도구를 서빙 | `host/relay/` |
-| 커넥터 (`chatd`) | `127.0.0.1:18090` | 메신저 어댑터: Buzz 또는 Mattermost | `.dependency/blueclaw/chatd/` |
+| 커넥터 (`chatd`) | `127.0.0.1:18090` | Buzz용 메신저 어댑터 | `.dependency/blueclaw/chatd/` |
 | 에이전트 (`blueclaw`) | `/run/internkim/blueclaw-acp.sock`; 관리 API는 `127.0.0.1:8080` | ACP 에이전트: 실행, 승인, 태스크 원장, 기억 | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | 프로바이더 자격증명을 쥠: 모델 호출, 임베딩, 메일·사이트·웹·브라우저 도구 | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), 요청자마다 하나 | `127.0.0.1:9230`부터 | 컴패니언이 없을 때 공개 페이지의 단순한 텍스트를 탐색하는 디바이스 브라우저. capabilityd가 사람마다 처음 쓸 때 그 사람의 프로필로 띄우고, 쓰지 않으면 내립니다 | `internal/browser/device_browsers.go` |
