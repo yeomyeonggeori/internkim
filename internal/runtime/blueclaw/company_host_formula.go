@@ -9,7 +9,7 @@ import (
 )
 
 // The company host as a Homebrew formula. Everything it declares is read from
-// this package, the same way the .deb's control fields are: the depends_on lines
+// this package, the same way the Linux packages' dependency lists are: the depends_on lines
 // from HostHomebrewDependencies, the paths from CompanyHostLayout.
 //
 // What the formula does *not* do is the whole of why there is a second line.

@@ -9,7 +9,7 @@ import (
 
 // Installing a company host is giving a machine that already carries the
 // programs a company to run them for. Whatever put the binaries there — the
-// Debian package, or the downloads the unpackaged path fetches — this writes
+// package, or the downloads the unpackaged path fetches — this writes
 // the files every unit names in ConditionPathExists, prepares the databases
 // they open, starts them, and then waits the way `docker compose up --wait`
 // used to.

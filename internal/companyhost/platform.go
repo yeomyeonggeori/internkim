@@ -20,8 +20,8 @@ import (
 // names the command that installs something.
 
 // The two services the company host opens and does not ship. They are named here
-// because each platform calls them something different — postgresql and
-// redis-server on Debian, postgresql@17 and redis under `brew services` — and a
+// because each platform calls them something different — internkim-postgresql and
+// internkim-cache under systemd, postgresql@17 and redis under `brew services` — and a
 // probe should not have to know which machine it is on.
 const (
 	databaseServiceName = "database"
@@ -49,7 +49,7 @@ type companyHostPlatform interface {
 	// machine brings with it, so the machine is not asked for it.
 	CarriesItInThePackage(dependency blueclaw.HostDependency) bool
 	// WhereToLookFor is where this machine keeps a dependency that is not on
-	// PATH and not where Debian puts it. Any one of the paths satisfies it.
+	// PATH and not at the path the declaration names. Any one of them satisfies it.
 	// Empty means look the way the declaration says.
 	WhereToLookFor(dependency blueclaw.HostDependency) []string
 	// HowToInstallTheseByHand is the closing lines of the preflight refusal: the

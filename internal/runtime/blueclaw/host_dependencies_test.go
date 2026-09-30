@@ -227,7 +227,7 @@ func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *test
 	depends := strings.Join(blueclaw.HostPackageDependsFor(blueclaw.PackageManagerApt), ", ")
 	carried := map[string]bool{}
 	for _, dependency := range blueclaw.HostDependencies() {
-		if dependency.WhatTheDebianPackageCarriesInstead != "" {
+		if dependency.WhatThePackageCarriesInstead != "" {
 			carried[dependency.DebianPackage] = true
 		}
 	}

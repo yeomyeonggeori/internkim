@@ -144,8 +144,8 @@ func (platform linuxPlatform) SuperviseTheBundle(machine Machine, progress io.Wr
 }
 
 // A unit already on disk belongs to whatever put it there, which on a packaged
-// box is dpkg: rewriting it would make `dpkg --verify` report the package
-// modified. What is missing is written from the same renderer the package built
+// box is the package manager: rewriting it would make `dpkg --verify`, `rpm -V`
+// or `pacman -Qkk` report the package modified. What is missing is written from the same renderer the package built
 // from, which is the whole of the claim that the two paths supervise the company
 // host identically.
 func writeMissingSystemdUnits(unitRoot string, layout blueclaw.CompanyHostLayout, progress io.Writer) error {
@@ -207,11 +207,11 @@ func knownPackageManagerNames() string {
 }
 
 func (linuxPlatform) CarriesItInThePackage(dependency blueclaw.HostDependency) bool {
-	return dependency.WhatTheDebianPackageCarriesInstead != ""
+	return dependency.WhatThePackageCarriesInstead != ""
 }
 
-// A Debian box looks for a dependency where Debian puts it, which is what the
-// declaration already says.
+// A Linux box looks for a dependency on PATH or at the path the declaration
+// names.
 func (linuxPlatform) WhereToLookFor(blueclaw.HostDependency) []string {
 	return nil
 }
