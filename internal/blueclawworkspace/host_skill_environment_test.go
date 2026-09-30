@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const hostSkillsImagePath = "/opt/internkim/skills"
@@ -123,6 +125,11 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 	}
 	if len(sharedFontPaths) == 0 {
 		t.Fatal("the skills that embed a font no longer share a system path; the host image cannot satisfy them with one package")
+	}
+
+	if !sharedFontPaths[blueclaw.CompanyPackageDocumentFontPath] {
+		t.Fatalf("the .deb carries its Hangul font at %s and not every font-embedding skill looks there (they share %s)",
+			blueclaw.CompanyPackageDocumentFontPath, strings.Join(sortedKeys(sharedFontPaths), ", "))
 	}
 
 	entrypoint := hostEntrypoint(t, repositoryRootPath)
