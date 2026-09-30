@@ -24,8 +24,8 @@ func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
 			t.Fatalf("the package depends on %q where the host declares %q", information.Depends[index], dependency)
 		}
 	}
-	if !strings.Contains(blueclaw.HostDebianDependsLine(), "-pgvector") {
-		t.Fatal("the package does not ask apt for a PostgreSQL with pgvector, so an install would leave a box with no database or a memory without embeddings")
+	if strings.Contains(blueclaw.HostDebianDependsLine(), "pgvector") {
+		t.Fatal("the package asks apt for pgvector, and memory embeddings no longer live in the host's PostgreSQL")
 	}
 }
 
@@ -148,10 +148,8 @@ func TestThePackageShipsTheControlCommandAndTheNameTheBareBinaryHad(t *testing.T
 func TestThePostInstallRefusesEveryStepItCannotComplete(t *testing.T) {
 	script := maintainerScript(debianPackageFormat, postInstallScript)
 	for _, mustRefuse := range []string{
-		"could not create the " + blueclaw.BlueclawUser + " user",
-		"could not create the " + blueclaw.RelayUserName + " user",
-		"could not create " + blueclaw.CompanyHostStateRoot,
-		"could not make " + blueclaw.CompanyHostPOSIXHelperPath + " setuid",
+		"systemd-sysusers could not create the service accounts",
+		"systemd-tmpfiles could not create the directories",
 		"systemd did not reload",
 		"could not enable $unit",
 	} {
@@ -186,11 +184,11 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 // this; here is the cheap half.
 func TestConfiguringThePackageRestartsRatherThanStarts(t *testing.T) {
 	script := maintainerScript(debianPackageFormat, postInstallScript)
-	if strings.Contains(script, "deb-systemd-invoke start ") {
+	if strings.Contains(script, "systemctl start ") {
 		t.Fatal("configuring the package starts its units, which is a no-op for a unit already " +
 			"running, so an upgrade leaves the old process serving the new version's files")
 	}
-	if !strings.Contains(script, "deb-systemd-invoke restart ") {
+	if !strings.Contains(script, "systemctl restart ") {
 		t.Fatal("configuring the package neither starts nor restarts its units")
 	}
 }

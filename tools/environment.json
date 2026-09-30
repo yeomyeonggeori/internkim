@@ -478,10 +478,6 @@
     "process": "install script",
     "description": "where web/static/install.sh fetches the archive signing key it installs as the source's Signed-By; defaults to the keyring beside the repository"
   },
-  "INTERNKIM_INSTALL_OS_RELEASE": {
-    "process": "install script",
-    "description": "the os-release file web/static/install.sh reads to name this machine's distribution; defaults to /etc/os-release"
-  },
   "INTERNKIM_INSTALL_PACKAGE_SHA256": {
     "process": "install script",
     "description": "the SHA-256 web/static/install.sh checks a package file named by INTERNKIM_INSTALL_PACKAGE against before installing it"
@@ -489,14 +485,6 @@
   "INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL": {
     "process": "install script",
     "description": "the pacman repository web/static/install.sh adds on Arch; unset until one is published"
-  },
-  "INTERNKIM_INSTALL_POSTGRESQL_KEY_URL": {
-    "process": "install script",
-    "description": "where web/static/install.sh fetches the PostgreSQL project's archive signing key; defaults to postgresql.org"
-  },
-  "INTERNKIM_INSTALL_POSTGRESQL_REPOSITORY_URL": {
-    "process": "install script",
-    "description": "the PostgreSQL project's apt repository web/static/install.sh adds on Debian and Ubuntu; defaults to apt.postgresql.org"
   },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",

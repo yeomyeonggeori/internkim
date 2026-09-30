@@ -1,7 +1,6 @@
 package blueclaw
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -18,7 +17,6 @@ const (
 	HostPartMessenger      HostPart = "messenger"
 	HostPartCache          HostPart = "cache"
 	HostPartDatabase       HostPart = "database"
-	HostPartMemoryStore    HostPart = "memoryStore"
 )
 
 // PackageManager is one of the tools that installs the host's dependencies on
@@ -73,8 +71,7 @@ type HostDependency struct {
 	DnfPackages    []string
 	PacmanPackages []string
 	// WhatBringsItInstead is for a manager that installs this without being
-	// told to: Arch ships contrib inside postgresql, and every manager installs
-	// the server because the pgvector row names one of the same major. A
+	// told to: Arch ships contrib inside postgresql. A
 	// manager with neither a name nor an entry here is a hole, and a test fails
 	// on it.
 	WhatBringsItInstead map[PackageManager]string
@@ -111,18 +108,13 @@ type HostReadableFile struct {
 	DebianPackage string
 }
 
-var theServerThePgvectorRowNames = map[PackageManager]string{
-	PackageManagerApt:    "the pgvector row names a server of the same major",
-	PackageManagerDnf:    "pgvector requires the server it was built for",
-	PackageManagerPacman: "pgvector depends on postgresql",
-}
-
 var hostDependencies = []HostDependency{
 	{
-		DebianPackage:       "postgresql",
-		WhatBringsItInstead: theServerThePgvectorRowNames,
-		HomebrewFormula:     "postgresql@17",
-		NeededBy:            []HostPart{HostPartDatabase},
+		DebianPackage:   "postgresql",
+		DnfPackages:     []string{"postgresql-server"},
+		PacmanPackages:  []string{"postgresql"},
+		HomebrewFormula: "postgresql@17",
+		NeededBy:        []HostPart{HostPartDatabase},
 	},
 	{
 		DebianPackage: "postgresql-contrib",
@@ -133,18 +125,6 @@ var hostDependencies = []HostDependency{
 		},
 		WhatAnswersItOnAMac: "Homebrew's postgresql@17 carries contrib",
 		NeededBy:            []HostPart{HostPartDatabase},
-	},
-	{
-		// The memory store creates this extension in its migration and skips its
-		// embedding tables when the server cannot, which is a memory without
-		// embeddings that nothing reports. Naming it here is what makes the
-		// install refuse instead. Only Debian names it per major.
-		DebianPackage:      "postgresql-18-pgvector",
-		DebianAlternatives: []string{"postgresql-17-pgvector", "postgresql-16-pgvector", "postgresql-15-pgvector", "postgresql-14-pgvector"},
-		DnfPackages:        []string{"pgvector"},
-		PacmanPackages:     []string{"pgvector"},
-		HomebrewFormula:    "pgvector",
-		NeededBy:           []HostPart{HostPartMemoryStore},
 	},
 	{
 		DebianPackage:      "redis-server",
@@ -425,21 +405,6 @@ func HostPackagesToInstallFor(manager PackageManager, dependency HostDependency)
 	return dependency.PackagesFor(manager)[:1]
 }
 
-// HostMemoryStorePackageCandidates are the names that would satisfy the memory
-// store's dependency on this manager. install.sh asks the machine's own package
-// manager whether any of them is available before it decides whether the
-// database project's repository is needed, so a distribution that begins
-// carrying pgvector stops needing it without anyone editing a list.
-func HostMemoryStorePackageCandidates(manager PackageManager) []string {
-	names := []string{}
-	for _, dependency := range hostDependencies {
-		if dependency.neededByAnyOf([]HostPart{HostPartMemoryStore}) && dependency.IsNamedIn(manager) {
-			names = append(names, dependency.PackagesFor(manager)...)
-		}
-	}
-	return names
-}
-
 // HostHomebrewDependencies is every `depends_on` line of the formula, and only
 // those. It is a shorter list than Debian's because Homebrew's PostgreSQL
 // carries contrib, the keg carries its own Python, and macOS supplies curl,
@@ -535,23 +500,4 @@ func BuzzRelayDatabasePackages() string {
 // through it.
 func BuzzRelayCachePackages() string {
 	return strings.Join(HostDebianPackagesFor(HostPartCache), " ")
-}
-
-const (
-	InstallScriptDeclarationsBegin = "# BEGIN generated from internal/runtime/blueclaw/host_dependencies.go"
-	InstallScriptDeclarationsEnd   = "# END generated"
-)
-
-// InstallScriptDeclarations is the part of web/static/install.sh that comes from
-// the table. A shell script cannot import Go, so the names it needs are written
-// into it, between two markers, and a test fails when what sits between them
-// is not what this returns.
-func InstallScriptDeclarations() string {
-	lines := []string{InstallScriptDeclarationsBegin}
-	for _, manager := range PackageManagers() {
-		lines = append(lines, fmt.Sprintf("memory_store_candidates_%s=%q",
-			strings.ReplaceAll(string(manager), "-", "_"),
-			strings.Join(HostMemoryStorePackageCandidates(manager), " ")))
-	}
-	return strings.Join(append(lines, InstallScriptDeclarationsEnd), "\n")
 }

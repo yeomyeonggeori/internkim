@@ -13,7 +13,7 @@ What it does not do is run a company on a real plane. The guest is given a
 connection file whose addresses go nowhere, so the gateway, the record and the
 messenger round trip are `tools/test-native-install`'s to judge. What this reads
 instead is everything that touches the database and the cache: the two units,
-the accounts, the modes, the sockets, the extension, and the clients that open
+the accounts, the modes, the sockets, the database schema, and the clients that open
 them.
 
     tools/test-native-install-family --help
@@ -75,23 +75,10 @@ DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
 DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
 HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
 TASK_USER = "bc_person_rigcheck"
-POSTGRESQL_SOURCE_PATH = "/etc/apt/sources.list.d/internkim-postgresql.sources"
 DECLINED_STATE = "no/inactive/success/0"
 BOX_UNIT = "internkim-box.service"
 RELAY_UNIT = "internkim-relay.service"
 READINESS_PROBES = ((3000, "/_readiness"), (8080, "/admin/api/health"), (18080, "/admin/api/health"))
-
-# Whether a distribution's own repositories carry pgvector, which is what decides
-# whether install.sh has to add the PostgreSQL project's. Ubuntu 22.04 ships
-# PostgreSQL 14 and no pgvector for it; the others do.
-DISTRIBUTION_CARRIES_PGVECTOR = {
-    "debian-13": True,
-    "ubuntu-22.04": False,
-    "ubuntu-24.04": True,
-    "fedora": True,
-    "archlinux": True,
-}
-
 
 NOWHERE = "127.0.0.1:9"
 
@@ -213,32 +200,13 @@ class FamilyRig:
             f"install.sh exited {attempt.returncode}\n{(attempt.stdout + attempt.stderr).strip()[-900:]}",
         )
         added = self.shell_value(
-            f"ls {POSTGRESQL_SOURCE_PATH} 2>&1 | grep -v 'No such file'; ls /etc/yum.repos.d 2>/dev/null | grep -i internkim; true"
+            "ls /etc/apt/sources.list.d /etc/apt/preferences.d /etc/yum.repos.d /usr/share/keyrings 2>/dev/null | grep -i postgresql; true"
         )
-        expected = not DISTRIBUTION_CARRIES_PGVECTOR[self.family.name]
         step.observe(
-            "the PostgreSQL project's repository is added where the distribution has no pgvector, and nowhere else",
-            f"{POSTGRESQL_SOURCE_PATH} and /etc/yum.repos.d after the install, on a distribution that "
-            f"{'lacks' if expected else 'carries'} pgvector",
-            "a repository added on a machine that did not need it is an unrequested trust; one missing on a "
-            "machine that did is an install that failed before it got here",
-        ).record(bool(added) == expected, added or "no repository file was written")
-        if expected:
-            scoped = self.shell_value(
-                f"cat {POSTGRESQL_SOURCE_PATH}; cat /etc/apt/preferences.d/internkim-postgresql.pref; "
-                "apt-cache policy postgresql-18-pgvector | sed -n 2,3p"
-            )
-            step.observe(
-                "that repository is scoped: its own keyring, a pin below the distribution's, and a candidate from it",
-                "the source, the preference and apt's policy for the pgvector package it added",
-                "a key in the legacy keyring would sign every repository; a default pin would let it replace "
-                "packages the distribution carries",
-            ).record(
-                "Signed-By: /usr/share/keyrings/internkim-postgresql-archive-keyring.asc" in scoped
-                and "Pin-Priority: 100" in scoped
-                and "Candidate: (none)" not in scoped,
-                scoped,
-            )
+            "the install adds no repository, key or pin for anyone's PostgreSQL",
+            "the apt, yum and keyring directories for anything named for PostgreSQL after the install",
+            "the host takes the distribution's own PostgreSQL, so a repository added on the way is an unrequested trust",
+        ).record(not added, added or "nothing was added")
 
     def observe_package_state(self, step):
         verified = self.machine.shell(self.family.verify_command)
@@ -419,17 +387,15 @@ class FamilyRig:
             f"processes in the two units: {' '.join(data_service_processes)}\n"
             f"their listeners: {' '.join(own_listeners) or 'none'}\nall listeners:\n{listeners or 'none'}",
         )
-        extension = self.shell_value(
+        schema = self.shell_value(
             f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname blueclaw --tuples-only --no-align "
-            "--command \"select extname from pg_extension where extname = 'vector'; "
-            "select to_regclass('memory_fact_embedding')\""
+            "--command \"select count(*) > 0 from information_schema.tables where table_schema = 'public'\""
         )
         step.observe(
-            "the vector extension is installed in the agent's database and the memory store made its embedding table",
-            "`pg_extension` and `to_regclass('memory_fact_embedding')` in the blueclaw database, read as the cluster's own account",
-            "the migration skips its embedding tables when the extension is missing, so a missing table with "
-            "a running agent is exactly the silent degradation this install refuses",
-        ).record(extension.splitlines() == ["vector", "memory_fact_embedding"], extension)
+            "the agent applied its migrations to its own database",
+            "`information_schema.tables` in the blueclaw database, read as the cluster's own account",
+            "the agent's health answering says it opened a connection; tables say its schema was made in this cluster",
+        ).record(schema == "t", schema)
 
         self.machine.shell(f"id {TASK_USER} >/dev/null 2>&1 || useradd --system --shell /bin/false {TASK_USER}")
         agent_groups = self.shell_value(
@@ -484,12 +450,13 @@ class FamilyRig:
         )
         after = self.machine.shell(
             "; ".join(
-                f"printf '%s=%s/%s\\n' {name} "
-                f"\"$(systemctl is-enabled {name} 2>&1)\" \"$(systemctl is-active {name} 2>&1)\""
+                f"enablement=$(systemctl is-enabled {name} 2>/dev/null | head -n 1); "
+                f"activity=$(systemctl is-active {name} 2>/dev/null | head -n 1); "
+                f"printf '%s=%s/%s\\n' {name} \"${{enablement:-not-found}}\" \"${{activity:-inactive}}\""
                 for name in self.unit_names
             )
         )
-        states = dict(line.split("=", 1) for line in after.stdout.split() if "=" in line)
+        states = dict(line.split("=", 1) for line in after.stdout.splitlines() if "=" in line)
         step.observe(
             "the units are neither enabled nor running any more",
             "`systemctl is-enabled` and `is-active` for every unit the package had shipped",
