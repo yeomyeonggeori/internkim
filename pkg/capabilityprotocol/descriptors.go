@@ -146,10 +146,6 @@ func IsSideEffectClass(sideEffectClass string) bool {
 	return isKnown
 }
 
-func StatesAResultContract(descriptor Descriptor) bool {
-	return descriptor.ResultContract != nil
-}
-
 func CanonicalizeDescriptors(descriptors []Descriptor) []Descriptor {
 	canonicalDescriptors := make([]Descriptor, len(descriptors))
 	copy(canonicalDescriptors, descriptors)
