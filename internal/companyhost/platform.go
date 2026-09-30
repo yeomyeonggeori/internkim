@@ -35,8 +35,8 @@ type companyHostPlatform interface {
 	NameOfItsSupervisor() string
 	// Layout is where this machine keeps the company host's own files.
 	Layout() blueclaw.CompanyHostLayout
-	// EnsureServiceAccounts creates the two unprivileged accounts the bundle
-	// runs services as.
+	// EnsureServiceAccounts creates the unprivileged accounts the bundle runs
+	// services as, where the package did not declare them.
 	EnsureServiceAccounts(machine Machine) error
 	// StartTheDatabaseAndTheCache starts what the distribution supervises.
 	StartTheDatabaseAndTheCache(machine Machine) error
@@ -81,29 +81,6 @@ func KeepTheBoxSessionFresh(machine Machine, progress io.Writer) error {
 
 func ThisMachine() (companyHostPlatform, error) {
 	return platformFor(runtime.GOOS, homebrewPrefix())
-}
-
-// companyHostServiceAccount is one unprivileged account the bundle runs a
-// service as. Two exist, and they are separate because the relay outlives the
-// agent: it keeps answering when the agent is down, so it does not share the
-// agent's identity or its files.
-type companyHostServiceAccount struct {
-	Name        string
-	HomePath    string
-	Description string
-}
-
-func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHostServiceAccount {
-	accounts := []companyHostServiceAccount{
-		{Name: blueclaw.BlueclawUser, HomePath: layout.AgentHomePath, Description: "internkim agent"},
-		{Name: blueclaw.RelayUserName, Description: "internkim relay"},
-	}
-	if !layout.OwnsItsDataServices() {
-		return accounts
-	}
-	return append(accounts,
-		companyHostServiceAccount{Name: blueclaw.CompanyHostDatabaseUser, Description: "internkim database"},
-		companyHostServiceAccount{Name: blueclaw.CompanyHostCacheUser, Description: "internkim cache"})
 }
 
 func platformFor(operatingSystem string, homebrewPrefix string) (companyHostPlatform, error) {

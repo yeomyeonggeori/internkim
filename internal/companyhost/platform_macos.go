@@ -78,6 +78,23 @@ func homebrewPrefix() string {
 	return strings.TrimSpace(string(commandOutput))
 }
 
+// companyHostServiceAccount is one unprivileged account the bundle runs a
+// service as. Two exist, and they are separate because the relay outlives the
+// agent: it keeps answering when the agent is down, so it does not share the
+// agent's identity or its files.
+type companyHostServiceAccount struct {
+	Name        string
+	HomePath    string
+	Description string
+}
+
+func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHostServiceAccount {
+	return []companyHostServiceAccount{
+		{Name: blueclaw.BlueclawUser, HomePath: layout.AgentHomePath, Description: "internkim agent"},
+		{Name: blueclaw.RelayUserName, Description: "internkim relay"},
+	}
+}
+
 // dscl is the whole of account creation on a Mac, and it is eight commands
 // rather than one because the directory service has no adduser. The same eight
 // are what blueclaw's POSIX helper runs for a projected person, and the reason

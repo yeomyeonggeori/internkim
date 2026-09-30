@@ -3,8 +3,6 @@ package companyhost
 import (
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -21,15 +19,7 @@ var linuxDataServiceUnits = map[string]string{
 	cacheServiceName:    blueclaw.CompanyHostCacheServiceName + ".service",
 }
 
-type linuxPlatform struct {
-	// root is prepended to every path this platform writes itself, which is
-	// empty on a real machine and a temporary directory in a test.
-	root string
-}
-
-func (platform linuxPlatform) onDisk(path string) string {
-	return filepath.Join(platform.root, path)
-}
+type linuxPlatform struct{}
 
 func (linuxPlatform) Describe() string {
 	return "Linux"
@@ -43,50 +33,11 @@ func (linuxPlatform) Layout() blueclaw.CompanyHostLayout {
 	return blueclaw.LinuxCompanyHostLayout()
 }
 
-// The package's maintainer script creates these accounts; a machine that took
-// the unpackaged path has nobody to have done it. useradd and groupadd are
-// shadow-utils and are on every distribution the package is for, where adduser
-// is Debian's alone.
-func (platform linuxPlatform) EnsureServiceAccounts(machine Machine) error {
-	for _, account := range companyHostServiceAccounts(platform.Layout()) {
-		if _, errorValue := machine.Output("getent", []string{"passwd", account.Name}); errorValue == nil {
-			continue
-		}
-		machine.Run("groupadd", []string{"--system", account.Name}, nil, io.Discard)
-		arguments := []string{"--system", "--gid", account.Name, "--shell", nologinShell(machine)}
-		if account.HomePath != "" {
-			arguments = append(arguments, "--home-dir", account.HomePath)
-		} else {
-			arguments = append(arguments, "--no-create-home")
-		}
-		machine.Run("useradd", append(arguments, account.Name), nil, io.Discard)
-		if _, errorValue := machine.Output("getent", []string{"passwd", account.Name}); errorValue != nil {
-			return fmt.Errorf("the %s account the company host runs a service as could not be created: %w", account.Name, errorValue)
-		}
-	}
+func (linuxPlatform) EnsureServiceAccounts(Machine) error {
 	return nil
 }
 
-func nologinShell(machine Machine) string {
-	for _, path := range []string{"/usr/sbin/nologin", "/sbin/nologin", "/usr/bin/nologin"} {
-		if machine.CarriesFile(path) == nil {
-			return path
-		}
-	}
-	return "/bin/false"
-}
-
-func (platform linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
-	layout := platform.Layout()
-	if errorValue := writeMissingDataServiceScript(platform.onDisk(layout.DataServicePath())); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := writeMissingSystemdUnits(platform.onDisk(blueclaw.CompanyPackageUnitRoot), layout, io.Discard); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := machine.Run("systemctl", []string{"daemon-reload"}, nil, io.Discard); errorValue != nil {
-		return fmt.Errorf("systemd would not reload its units; this package supervises the company server with systemd: %w", errorValue)
-	}
+func (linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
 	units := []string{linuxDataServiceUnits[databaseServiceName], linuxDataServiceUnits[cacheServiceName]}
 	if errorValue := machine.Run("systemctl", append([]string{"enable", "--now"}, units...), nil, io.Discard); errorValue != nil {
 		return fmt.Errorf(
@@ -94,16 +45,6 @@ func (platform linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error
 			strings.Join(units, " and "), errorValue)
 	}
 	return nil
-}
-
-func writeMissingDataServiceScript(path string) error {
-	if _, errorValue := os.Stat(path); errorValue == nil {
-		return nil
-	}
-	if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
-		return errorValue
-	}
-	return os.WriteFile(path, []byte(blueclaw.CompanyHostDataServiceScript()), blueclaw.CompanyHostDataServiceMode)
 }
 
 // The cluster authenticates its own superuser by peer, so the way in is to
@@ -120,12 +61,6 @@ func (platform linuxPlatform) RunDatabaseStatements(machine Machine, statements 
 }
 
 func (platform linuxPlatform) SuperviseTheBundle(machine Machine, progress io.Writer) error {
-	if errorValue := writeMissingSystemdUnits(platform.onDisk(blueclaw.CompanyPackageUnitRoot), platform.Layout(), progress); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := machine.Run("systemctl", []string{"daemon-reload"}, nil, progress); errorValue != nil {
-		return fmt.Errorf("systemd would not reload its units; this package supervises the company server with systemd: %w", errorValue)
-	}
 	names := []string{}
 	restarted := []string{}
 	for _, unit := range blueclaw.CompanyHostSystemdUnits(platform.Layout()) {
@@ -139,28 +74,6 @@ func (platform linuxPlatform) SuperviseTheBundle(machine Machine, progress io.Wr
 	}
 	if errorValue := machine.Run("systemctl", append([]string{"restart"}, restarted...), nil, progress); errorValue != nil {
 		return fmt.Errorf("the company server's services could not be started: %w", errorValue)
-	}
-	return nil
-}
-
-// A unit already on disk belongs to whatever put it there, which on a packaged
-// box is the package manager: rewriting it would make `dpkg --verify`, `rpm -V`
-// or `pacman -Qkk` report the package modified. What is missing is written from the same renderer the package built
-// from, which is the whole of the claim that the two paths supervise the company
-// host identically.
-func writeMissingSystemdUnits(unitRoot string, layout blueclaw.CompanyHostLayout, progress io.Writer) error {
-	if errorValue := os.MkdirAll(unitRoot, 0o755); errorValue != nil {
-		return errorValue
-	}
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(layout) {
-		path := filepath.Join(unitRoot, unit.FileName())
-		if _, errorValue := os.Stat(path); errorValue == nil {
-			continue
-		}
-		if errorValue := os.WriteFile(path, []byte(unit.Contents), 0o644); errorValue != nil {
-			return fmt.Errorf("write the %s unit: %w", unit.Name, errorValue)
-		}
-		fmt.Fprintf(progress, "  wrote %s\n", path)
 	}
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -123,41 +122,6 @@ func conditionPathOf(unitContents string) string {
 	return ""
 }
 
-// The plan's claim is that there is one unit renderer, and that the unpackaged
-// path runs it at install time where the package runs it at build time. A second
-// renderer would be a second definition of the same service.
-func TestTheInstallWritesTheUnitsThePackageShips(t *testing.T) {
-	unitRoot := t.TempDir()
-	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.LinuxCompanyHostLayout(), io.Discard); errorValue != nil {
-		t.Fatalf("install the units: %v", errorValue)
-	}
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.LinuxCompanyHostLayout()) {
-		written, errorValue := os.ReadFile(filepath.Join(unitRoot, unit.FileName()))
-		if errorValue != nil {
-			t.Fatalf("the install wrote no %s: %v", unit.FileName(), errorValue)
-		}
-		if string(written) != unit.Contents {
-			t.Fatalf("%s written by the install is not the one the package ships", unit.FileName())
-		}
-	}
-}
-
-// dpkg owns the units on a packaged box, and `dpkg --verify` re-hashes them.
-func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
-	unitRoot := t.TempDir()
-	owned := filepath.Join(unitRoot, blueclaw.CompanyPackageUnits()[0].FileName())
-	if errorValue := os.WriteFile(owned, []byte("installed by dpkg\n"), 0o644); errorValue != nil {
-		t.Fatalf("plant the packaged unit: %v", errorValue)
-	}
-	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.LinuxCompanyHostLayout(), io.Discard); errorValue != nil {
-		t.Fatalf("install the units: %v", errorValue)
-	}
-	kept, _ := os.ReadFile(owned)
-	if string(kept) != "installed by dpkg\n" {
-		t.Fatalf("the install rewrote a unit dpkg owns: %q", kept)
-	}
-}
-
 // The preflight is the unpackaged path's substitute for `Depends:`, so it reads
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
@@ -244,7 +208,7 @@ func TestTheWaitKeepsTheBudgetTheComposeStackHad(t *testing.T) {
 func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *testing.T) {
 	machine := &recordedMachine{}
 	password := strings.Repeat("2", 64)
-	if errorValue := prepareDatabases(linuxPlatform{root: t.TempDir()}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
+	if errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
 	}
 	prepared := false
@@ -322,7 +286,7 @@ func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 
 func TestTheBundleIsRestartedWithoutTheUnitsItIsBoundTo(t *testing.T) {
 	machine := &recordedMachine{}
-	platform := linuxPlatform{root: t.TempDir()}
+	platform := linuxPlatform{}
 	if errorValue := platform.SuperviseTheBundle(machine, io.Discard); errorValue != nil {
 		t.Fatalf("supervise the bundle: %v", errorValue)
 	}

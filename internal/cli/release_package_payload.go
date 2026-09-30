@@ -464,7 +464,7 @@ func extractProgram(archivePath string, wantedPath string, outputPath string) (s
 	return "", fmt.Errorf("%s is an archive kind this package does not know how to open", archivePath)
 }
 
-// The zip reader this shares with the unpackaged path matches on an entry's own name
+// The zip reader this shares with binary_download.go matches on an entry's own name
 // rather than its path, which is exact here because the archive's bytes were verified
 // against the pin before this opened it.
 func extractPinnedFromZip(archivePath string, wantedPath string, outputPath string) (string, error) {
