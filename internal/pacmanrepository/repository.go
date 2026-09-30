@@ -64,16 +64,14 @@ func Build(channel string, packages []packagerepository.Package, signer packager
 		if errorValue != nil {
 			return nil, fmt.Errorf("sign %s: %w", packageFile.FileName, errorValue)
 		}
-		served := architecturesServedBy(information.value("arch"))
-		if len(served) == 0 {
-			return nil, fmt.Errorf("%s is built for %s, and the pacman repository publishes %s", packageFile.FileName, information.value("arch"), strings.Join(Architectures, " and "))
+		architecture := information.value("arch")
+		if errorValue := packagerepository.CheckArchitecture("pacman", packageFile.FileName, architecture, Architectures); errorValue != nil {
+			return nil, errorValue
 		}
-		for _, architecture := range served {
-			directory := architectureDirectory(channel, architecture)
-			objects[path.Join(directory, packageFile.FileName)] = packageFile.Contents
-			objects[path.Join(directory, packageFile.FileName+".sig")] = signature
-			indexed[architecture] = append(indexed[architecture], indexedPackage{packageFile: packageFile, information: information, signature: signature})
-		}
+		directory := architectureDirectory(channel, architecture)
+		objects[path.Join(directory, packageFile.FileName)] = packageFile.Contents
+		objects[path.Join(directory, packageFile.FileName+".sig")] = signature
+		indexed[architecture] = append(indexed[architecture], indexedPackage{packageFile: packageFile, information: information, signature: signature})
 	}
 	for _, architecture := range Architectures {
 		if errorValue := addDatabases(objects, channel, architecture, indexed[architecture], signer, now); errorValue != nil {
@@ -92,20 +90,10 @@ func architectureDirectory(channel string, architecture string) string {
 	return path.Join(Prefix, channel, architecture)
 }
 
-func architecturesServedBy(packageArchitecture string) []string {
-	if packageArchitecture == "any" {
-		return Architectures
-	}
-	for _, architecture := range Architectures {
-		if architecture == packageArchitecture {
-			return []string{architecture}
-		}
-	}
-	return nil
-}
-
 func addDatabases(objects map[string][]byte, channel string, architecture string, entries []indexedPackage, signer packagerepository.Signer, now time.Time) error {
-	sort.Slice(entries, func(first int, second int) bool { return entries[first].packageFile.FileName < entries[second].packageFile.FileName })
+	sort.Slice(entries, func(first int, second int) bool {
+		return entries[first].packageFile.FileName < entries[second].packageFile.FileName
+	})
 	for index := 1; index < len(entries); index++ {
 		if entries[index].information.value("pkgname") == entries[index-1].information.value("pkgname") {
 			return fmt.Errorf("%s and %s are both %s for %s; a pacman database holds one version of a package",

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path"
 	"sort"
-	"strings"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/packagerepository"
@@ -51,20 +50,18 @@ func Build(channel string, packages []packagerepository.Package, signer packager
 		if errorValue != nil {
 			return nil, fmt.Errorf("read %s: %w", packageFile.FileName, errorValue)
 		}
-		served := architecturesServedBy(metadata.architecture)
-		if len(served) == 0 {
-			return nil, fmt.Errorf("%s is built for %s, and the rpm repository publishes %s", packageFile.FileName, metadata.architecture, strings.Join(Architectures, " and "))
+		architecture := metadata.architecture
+		if errorValue := packagerepository.CheckArchitecture("rpm", packageFile.FileName, architecture, Architectures); errorValue != nil {
+			return nil, errorValue
 		}
-		for _, architecture := range served {
-			objects[path.Join(architectureDirectory(channel, architecture), PackagesDirectory, packageFile.FileName)] = signed
-			indexed[architecture] = append(indexed[architecture], indexedPackage{
-				metadata:  metadata,
-				fileName:  packageFile.FileName,
-				checksum:  sha256Hex(signed),
-				fileSize:  len(signed),
-				timestamp: now.Unix(),
-			})
-		}
+		objects[path.Join(architectureDirectory(channel, architecture), PackagesDirectory, packageFile.FileName)] = signed
+		indexed[architecture] = append(indexed[architecture], indexedPackage{
+			metadata:  metadata,
+			fileName:  packageFile.FileName,
+			checksum:  sha256Hex(signed),
+			fileSize:  len(signed),
+			timestamp: now.Unix(),
+		})
 	}
 	for _, architecture := range Architectures {
 		if errorValue := addRepositoryMetadata(objects, channel, architecture, indexed[architecture], signer, now); errorValue != nil {
@@ -81,18 +78,6 @@ func Build(channel string, packages []packagerepository.Package, signer packager
 
 func architectureDirectory(channel string, architecture string) string {
 	return path.Join(Prefix, channel, architecture)
-}
-
-func architecturesServedBy(packageArchitecture string) []string {
-	if packageArchitecture == "noarch" {
-		return Architectures
-	}
-	for _, architecture := range Architectures {
-		if architecture == packageArchitecture {
-			return []string{architecture}
-		}
-	}
-	return nil
 }
 
 func addRepositoryMetadata(objects map[string][]byte, channel string, architecture string, entries []indexedPackage, signer packagerepository.Signer, now time.Time) error {

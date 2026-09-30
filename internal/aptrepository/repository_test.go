@@ -147,16 +147,9 @@ func TestEveryDeclaredArchitectureGetsAnIndexEvenWithNoPackage(t *testing.T) {
 	}
 }
 
-func TestAnArchitectureIndependentPackageIsIndexedUnderEveryArchitecture(t *testing.T) {
-	objects, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "all")}, &recordingSigner{}, publishedAt)
-	if errorValue != nil {
-		t.Fatalf("build the repository: %v", errorValue)
-	}
-	for _, architecture := range Architectures {
-		index := string(objects[fmt.Sprintf("deb/dists/%s/main/binary-%s/Packages", packagerepository.DefaultChannel, architecture)])
-		if !strings.Contains(index, "Package: internkim") {
-			t.Errorf("the %s index does not carry the architecture-independent package", architecture)
-		}
+func TestAPackageForAnUnpublishedArchitectureIsRefused(t *testing.T) {
+	if _, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "riscv64")}, &recordingSigner{}, publishedAt); errorValue == nil {
+		t.Fatal("a riscv64 package was accepted, and would sit in the pool with no index naming it")
 	}
 }
 
