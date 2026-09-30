@@ -60,6 +60,8 @@ class Family:
     unit_directories: tuple
     verify_ignored_lines: tuple = ("backup file",)
     repository_format: str = ""
+    policy_command: str = ""
+    policy_answer: str = ""
     signature_command: str = ""
     signature_answer: str = ""
     reset_command: str = ""
@@ -96,6 +98,8 @@ def debian_family(name, image):
         package_manager="apt-get",
         unit_directories=("/lib/systemd/system", "/usr/lib/systemd/system"),
         repository_format="deb",
+        policy_command="cat /etc/apt/sources.list.d/internkim.sources",
+        policy_answer="Signed-By: /usr/share/keyrings/internkim-archive-keyring.pgp",
         signature_command=f"apt-cache policy {PACKAGE_NAME}",
         signature_answer="/deb stable/main",
         reset_command="apt-get clean; rm -rf /var/lib/apt/lists/*",
@@ -127,6 +131,8 @@ FAMILIES = {
             package_manager="dnf",
             unit_directories=("/usr/lib/systemd/system",),
             repository_format="rpm",
+            policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
+            policy_answer="repo_gpgcheck=1",
             signature_command=RPM_SIGNATURE_COMMAND,
             signature_answer="Key ID",
             reset_command=RPM_RESET,
@@ -147,6 +153,8 @@ FAMILIES = {
             package_manager="dnf",
             unit_directories=("/usr/lib/systemd/system",),
             repository_format="rpm",
+            policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
+            policy_answer="repo_gpgcheck=1",
             signature_command=RPM_SIGNATURE_COMMAND,
             signature_answer="Key ID",
             reset_command=RPM_RESET,
@@ -168,6 +176,8 @@ FAMILIES = {
             unit_directories=("/usr/lib/systemd/system",),
             verify_ignored_lines=("backup file", " total files, 0 altered files"),
             repository_format="archlinux",
+            policy_command="grep -A1 '^\\[internkim\\]' /etc/pacman.conf",
+            policy_answer="SigLevel = Required",
             signature_command=f"pacman -Qi {PACKAGE_NAME} | grep '^Validated By'",
             signature_answer="Signature",
             reset_command=f"rm -f /var/cache/pacman/pkg/{PACKAGE_NAME}-*",
