@@ -45,20 +45,21 @@ type wranglerReleasePublisher struct {
 }
 
 type releaseSubcommand struct {
-	name  string
-	flags []string
-	run   func(arguments []string) error
+	name    string
+	summary string
+	flags   []string
+	run     func(arguments []string) error
 }
 
 var releaseSubcommands = []releaseSubcommand{
-	{name: "publish", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
-	{name: "status", flags: []string{"--channel"}, run: runReleaseStatus},
-	{name: "companion", flags: []string{"--release"}, run: runReleaseCompanion},
-	{name: "host", flags: []string{"--release"}, run: runReleaseCompanyHost},
-	{name: "deb", flags: []string{"--architecture", "--out", "--version"}, run: runReleaseDeb},
-	{name: "packages", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
-	{name: "repositories", flags: []string{"--channel", "--format", "--package-directory", "--output"}, run: runReleaseRepositories},
-	{name: "brew", flags: []string{"--out", "--version"}, run: runReleaseBrew},
+	{name: "publish", summary: "Publish a device release to the stable channel", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
+	{name: "status", summary: "Show what the channel points at", flags: []string{"--channel"}, run: runReleaseStatus},
+	{name: "companion", summary: "Build the companion for macOS and Linux and publish it under companion/latest", flags: []string{"--release"}, run: runReleaseCompanion},
+	{name: "host", summary: "Publish the host installer under host/latest, for a machine with no package manager", flags: []string{"--release"}, run: runReleaseCompanyHost},
+	{name: "deb", summary: "Build the company host as a Debian package for arm64 and amd64", flags: []string{"--architecture", "--out", "--version"}, run: runReleaseDeb},
+	{name: "packages", summary: "Build the company host as deb, rpm and archlinux packages from one payload", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
+	{name: "repositories", summary: "Sign and publish the apt, rpm and pacman repositories under deb/, rpm/ and arch/, from the packages release packages built", flags: []string{"--channel", "--format", "--package-directory", "--output"}, run: runReleaseRepositories},
+	{name: "brew", summary: "Build the company host as a Homebrew bottle on this Mac and render the tap's formula", flags: []string{"--out", "--version"}, run: runReleaseBrew},
 }
 
 func runRelease() {
@@ -115,16 +116,14 @@ func checkReleaseArguments(subcommand releaseSubcommand, arguments []string) err
 }
 
 func printReleaseUsage() {
-	fmt.Println("Usage: internkim release <publish|status|companion|host|deb|apt|brew>")
-	fmt.Println()
-	fmt.Println("  publish     Publish a device release to the stable channel")
-	fmt.Println("  status      Show what the channel points at")
-	fmt.Println("  companion   Build the companion for macOS and Linux and publish it under companion/latest")
-	fmt.Println("  host        Publish the host installer under host/latest, for a machine with no package manager")
-	fmt.Println("  deb         Build the company host as a Debian package for arm64 and amd64")
-	fmt.Println("  packages    Build the company host as deb, rpm and archlinux packages from one payload")
-	fmt.Println("  repositories  Sign and publish the apt, rpm and pacman repositories under deb/, rpm/ and arch/, from the packages release packages built")
-	fmt.Println("  brew        Build the company host as a Homebrew bottle on this Mac and render the tap's formula")
+	names := make([]string, 0, len(releaseSubcommands))
+	for _, subcommand := range releaseSubcommands {
+		names = append(names, subcommand.name)
+	}
+	fmt.Printf("Usage: internkim release <%s>\n\n", strings.Join(names, "|"))
+	for _, subcommand := range releaseSubcommands {
+		fmt.Printf("  %-13s %s\n", subcommand.name, subcommand.summary)
+	}
 	fmt.Println()
 	fmt.Println("Environment for publish:")
 	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")
