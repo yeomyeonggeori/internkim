@@ -287,8 +287,8 @@
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
   },
   "INTERNKIM_APT_SIGNING_KEY": {
-    "process": "internkim release apt",
-    "description": "the exported OpenPGP secret key that signs the apt repository's Release, held in the operating system's vault under this name and handed to one command by `monkeys run`; release apt writes it to a mode-0600 file it removes and never lets a child inherit the value"
+    "process": "internkim release repositories",
+    "description": "the exported OpenPGP secret key that signs the apt, rpm and pacman repositories (Release, repomd.xml, each package and each database), held in the operating system's vault under this name and handed to one command by `monkeys run`; release repositories writes it to a mode-0600 file it removes and never lets a child inherit the value"
   },
   "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
     "process": "tools/prepare-blueclaw-payload",
@@ -484,19 +484,23 @@
   },
   "INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL": {
     "process": "install script",
-    "description": "the pacman repository web/static/install.sh adds on Arch; unset until one is published"
+    "description": "the pacman repository web/static/install.sh adds on Arch; defaults to the base URL's arch/<channel>"
   },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
     "description": "the release registry prefix web/static/install.sh downloads from; defaults to https://updates.intern.kim/<product>/latest"
   },
+  "INTERNKIM_INSTALL_BASE_URL": {
+    "process": "install script",
+    "description": "where web/static/install.sh finds the deb/, rpm/ and arch/ repositories; defaults to https://updates.intern.kim"
+  },
   "INTERNKIM_INSTALL_REPOSITORY_URL": {
     "process": "install script",
-    "description": "the apt repository web/static/install.sh registers; defaults to https://updates.intern.kim/deb"
+    "description": "the apt repository web/static/install.sh registers; defaults to the base URL's deb"
   },
   "INTERNKIM_INSTALL_RPM_REPOSITORY_URL": {
     "process": "install script",
-    "description": "the rpm repository web/static/install.sh adds on Fedora; unset until one is published"
+    "description": "the rpm repository web/static/install.sh adds on Fedora; defaults to the base URL's rpm/<channel>"
   },
   "INTERNKIM_INSTALL_SCRIPT_URL": {
     "process": "install script",
@@ -504,7 +508,7 @@
   },
   "INTERNKIM_INSTALL_SUITE": {
     "process": "install script",
-    "description": "the apt suite web/static/install.sh writes into the source it installs; defaults to stable"
+    "description": "the channel (stable or testing) web/static/install.sh follows for apt, dnf and pacman alike; defaults to stable"
   },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",

@@ -1,4 +1,4 @@
-package aptrepository
+package packagerepository
 
 import (
 	"bytes"
@@ -12,7 +12,8 @@ import (
 
 // SigningKeyVariable is the name the operating system's vault holds the private
 // half of the archive key under, and the name `monkeys run` sets when it hands
-// the key to a release. It is the key's one home.
+// the key to a release. It is the key's one home, and it signs the apt, rpm and
+// pacman repositories alike.
 //
 // What gpg is given is still a path, because a secret this repository hands a
 // program is a file that program opens rather than a value in its environment.
@@ -20,8 +21,8 @@ import (
 // that changes when the key moves to a smartcard.
 const SigningKeyVariable = "INTERNKIM_APT_SIGNING_KEY"
 
-// GPGSigner signs a Release with an exported OpenPGP secret key, in a homedir
-// it creates and destroys around the run.
+// GPGSigner signs repository metadata and packages with an exported OpenPGP
+// secret key, in a homedir it creates and destroys around the run.
 //
 // Shelling out to gpg rather than signing in-process is what keeps the key's
 // eventual home an open question: a key held by a running gpg-agent, on a
@@ -43,7 +44,7 @@ func NewGPGSigner(keyPath string) (*GPGSigner, error) {
 		return nil, fmt.Errorf("read the archive signing key: %w", errorValue)
 	}
 	if _, errorValue := exec.LookPath("gpg"); errorValue != nil {
-		return nil, errors.New("gpg is not on PATH; the archive signature is what apt checks before it installs anything")
+		return nil, errors.New("gpg is not on PATH; the archive signature is what apt, dnf and pacman check before they install anything")
 	}
 	homeDirectory, errorValue := makeShortLivedHomeDirectory()
 	if errorValue != nil {
@@ -100,6 +101,17 @@ func (signer *GPGSigner) ClearSign(document []byte) ([]byte, error) {
 
 func (signer *GPGSigner) DetachSign(document []byte) ([]byte, error) {
 	return signer.run(document, "--detach-sign", "--armor", "--digest-algo", "SHA256", "--local-user", signer.fingerprint)
+}
+
+// DetachSignBinary is the signature rpm keeps in a package header and pacman
+// keeps in a .sig file; neither reads the armoured form.
+func (signer *GPGSigner) DetachSignBinary(document []byte) ([]byte, error) {
+	return signer.run(document, "--detach-sign", "--digest-algo", "SHA256", "--local-user", signer.fingerprint)
+}
+
+// PublicKeyArmoured is the form `rpm --import` and `pacman-key --add` read.
+func (signer *GPGSigner) PublicKeyArmoured() ([]byte, error) {
+	return signer.run(nil, "--armor", "--export", signer.fingerprint)
 }
 
 // PublicKeyring is the binary keyring the install script writes to
@@ -179,7 +191,7 @@ func MaterialiseSigningKey() (string, func(), error) {
 	key := strings.TrimSpace(os.Getenv("INTERNKIM_APT_SIGNING_KEY"))
 	if key == "" {
 		return "", func() {}, fmt.Errorf(
-			"no archive signing key: run this as `internkim @production release apt`, which hands it %s "+
+			"no archive signing key: run this as `internkim @production release repositories`, which hands it %s "+
 				"out of the vault for the length of the command", SigningKeyVariable)
 	}
 	if errorValue := os.Unsetenv("INTERNKIM_APT_SIGNING_KEY"); errorValue != nil {
