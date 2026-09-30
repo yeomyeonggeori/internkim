@@ -1,4 +1,3 @@
-<!-- 캘린더 timeline drag range preview overlay를 렌더링합니다. -->
 <script lang="ts">
 	import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
 

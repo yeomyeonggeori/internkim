@@ -1,4 +1,3 @@
-// Flow 개인 상세 점수 계산 행을 검증한다.
 import { describe, expect, test } from 'bun:test';
 import { buildTaskPersonalScoreDetail } from '../../src/routes/task/task-personal-score-detail-model';
 import type { TaskDefinitions, TaskMember, TaskSummary, Task } from '../../src/routes/task/task-types';

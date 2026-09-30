@@ -1,4 +1,3 @@
-// Flow 업무 작업공간 모델의 필터와 권한 규칙을 검증한다.
 import { describe, expect, test } from 'bun:test';
 import {
 	ETC_TASK_OPTION_VALUE,
