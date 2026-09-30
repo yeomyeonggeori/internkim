@@ -245,3 +245,17 @@ func TestVerificationFailsWhenTheDeviceHoldsAnotherRevision(t *testing.T) {
 		t.Fatalf("verification did not name exactly web: %v", errorValue)
 	}
 }
+
+func TestSupervisorRevisionFollowsTheBlueclawItIsBuiltFrom(t *testing.T) {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	blueclawRevision := strings.TrimSpace(runCmd("git", "-C", filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath), "rev-parse", "HEAD"))
+	if blueclawRevision == "" {
+		t.Skip("the blueclaw submodule is not checked out")
+	}
+	if revision := releaseComponentRevision("blueclawSupervisor", repositoryRootPath, "repository-head"); revision != blueclawRevision {
+		t.Fatalf("the supervisor is built from blueclaw %s but its revision is %s, so every commit here ships it", blueclawRevision, revision)
+	}
+}
