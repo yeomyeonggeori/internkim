@@ -1,0 +1,22 @@
+name: Feature request
+description: Something the product should do that it does not.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to get done and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observable outcome
+      description: What a person or an API caller sees once this exists.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you already tried
+      description: Existing features, workarounds or designs you ruled out, and why.
