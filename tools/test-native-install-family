@@ -1,0 +1,606 @@
+#!/usr/bin/env python3
+"""Judge whether the company host package installs and runs on each Linux family.
+
+`tools/test-native-install` judges the Debian package end to end through an apt
+repository. This one installs a package file through `install.sh` on a guest of
+any family the package is built for (Debian, Ubuntu, Fedora, Arch Linux) and
+reads the guest's own state: the package database's, systemd's, the
+filesystem's. It is the test of what PR 2 added: the same payload as a deb, an
+rpm and a pacman package, portable maintainer scripts, and the host's own
+PostgreSQL and cache on Unix sockets.
+
+What it does not do is run a company on a real plane. The guest is given a
+connection file whose addresses go nowhere, so the gateway, the record and the
+messenger round trip are `tools/test-native-install`'s to judge. What this reads
+instead is everything that touches the database and the cache: the two units,
+the accounts, the modes, the sockets, the extension, and the clients that open
+them.
+
+    tools/test-native-install-family --help
+"""
+
+import argparse
+import functools
+import http.server
+import importlib.machinery
+import importlib.util
+import json
+import shutil
+import sys
+import tempfile
+import threading
+import time
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from native_install_families import FAMILIES  # noqa: E402
+from native_install_rig import (  # noqa: E402
+    COMPANY_CONDITION_PATH,
+    KERNEL_IMAGE_PATH,
+    PACKAGE_NAME,
+    STATE_DIRECTORY,
+    Machine,
+    RigFailure,
+    free_port,
+    install_the_company,
+)
+
+
+def load_the_judge_of_the_debian_package():
+    """The observation and step classes the apt rig reports with, read from it.
+
+    `tools/test-native-install` is a script, so it is loaded under another name
+    rather than copied: a second copy of the report format would be a second
+    thing to keep the same.
+    """
+    path = Path(__file__).resolve().parent / "test-native-install"
+    loader = importlib.machinery.SourceFileLoader("test_native_install", str(path))
+    specification = importlib.util.spec_from_loader("test_native_install", loader)
+    module = importlib.util.module_from_spec(specification)
+    loader.exec_module(module)
+    return module
+
+
+judge = load_the_judge_of_the_debian_package()
+
+DATABASE_USER = "internkim-postgres"
+CACHE_USER = "internkim-cache"
+AGENT_USER = "blueclaw"
+RELAY_USER = "internkim"
+DATABASE_SOCKET_DIRECTORY = "/run/internkim-postgres"
+CACHE_SOCKET_PATH = "/run/internkim-cache/cache.sock"
+DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
+DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
+HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
+TASK_USER = "bc_person_rigcheck"
+POSTGRESQL_SOURCE_PATH = "/etc/apt/sources.list.d/internkim-postgresql.sources"
+DECLINED_STATE = "no/inactive/success/0"
+BOX_UNIT = "internkim-box.service"
+RELAY_UNIT = "internkim-relay.service"
+READINESS_PROBES = ((3000, "/_readiness"), (8080, "/admin/api/health"), (18080, "/admin/api/health"))
+
+# Whether a distribution's own repositories carry pgvector, which is what decides
+# whether install.sh has to add the PostgreSQL project's. Ubuntu 22.04 ships
+# PostgreSQL 14 and no pgvector for it; the others do.
+DISTRIBUTION_CARRIES_PGVECTOR = {
+    "debian-13": True,
+    "ubuntu-22.04": False,
+    "ubuntu-24.04": True,
+    "fedora": True,
+    "archlinux": True,
+    "opensuse-tumbleweed": True,
+}
+
+
+NOWHERE = "127.0.0.1:9"
+
+
+def connection_document(app_url):
+    """A connection file that is valid, whose app is the stub and whose other addresses go nowhere."""
+    return {
+        "schemaVersion": 1,
+        "appURL": app_url,
+        "company": {"id": str(uuid.uuid4()), "name": "Rig Company", "slug": "rig-company"},
+        "centralPlane": {"projectURL": f"http://{NOWHERE}", "publishableKey": "sb_publishable_rig"},
+        "gatewayURL": f"ws://{NOWHERE}",
+        "agentKey": uuid.uuid4().hex + uuid.uuid4().hex,
+    }
+
+
+class StubApp(http.server.BaseHTTPRequestHandler):
+    """The two routes of the company app that `internkim install` and the box unit call.
+
+    On Linux `internkim install` does not read the connection file itself: it claims
+    the computer with the app and is handed the company back. The stub hands back
+    the company in `connection`, and nothing else the app does is reproduced.
+    """
+
+    issued = None
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        self.rfile.read(length)
+        answers = {
+            "/api/box/announce": {"isClaimed": True},
+            "/api/box/claim": {},
+            "/api/box/session": {
+                "configuration": {key: value for key, value in self.issued.items() if key != "agentKey"},
+                "session": {
+                    "companyID": self.issued["company"]["id"],
+                    "accessToken": self.issued["agentKey"],
+                    "expiresAt": int(time.time()) + 3600,
+                },
+                "sealedModelKey": None,
+            },
+        }
+        if self.path not in answers:
+            self.send_error(404)
+            return
+        body = json.dumps(answers[self.path]).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *arguments):
+        pass
+
+
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *arguments):
+        pass
+
+
+class FamilyRig:
+    def __init__(self, options):
+        self.options = options
+        self.family = FAMILIES[options.family]
+        self.steps = []
+        self.machine = None
+        self.server = None
+        self.app = None
+        self.company_id = ""
+        self.unit_names = []
+
+    def step(self, number, name):
+        step = judge.Step(number, name)
+        self.steps.append(step)
+        return step
+
+    def serve(self, directory, package):
+        served = directory / "served"
+        served.mkdir()
+        shutil.copyfile(package, served / package.name)
+        shutil.copyfile(Path(__file__).resolve().parent.parent / "web" / "static" / "install.sh", served / "install.sh")
+        handler = functools.partial(Quiet, directory=str(served))
+        self.server = http.server.ThreadingHTTPServer(("0.0.0.0", free_port()), handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.app = http.server.ThreadingHTTPServer(("0.0.0.0", free_port()), StubApp)
+        threading.Thread(target=self.app.serve_forever, daemon=True).start()
+
+    def start_machine(self, directory):
+        share = directory / "share"
+        (share / "scripts").mkdir(parents=True)
+        self.machine = Machine(
+            self.options.name, share, kernel_image_path=self.options.kernel,
+            image=self.family.image, bootstrap_script=self.family.bootstrap,
+        )
+        self.machine.preflight()
+        self.machine.create()
+        self.machine.wait_until_running()
+        self.machine.checked_shell(self.family.tools_command, timeout_seconds=900)
+        self.machine.checked_shell("echo '127.0.0.1 intern.kim updates.intern.kim' >> /etc/hosts")
+
+    def shell_value(self, script):
+        return self.machine.shell(script).stdout.strip()
+
+    def observe_install(self, step, package):
+        base = f"http://{self.machine.host_gateway()}:{self.server.server_address[1]}"
+        attempt = self.machine.shell(
+            f"set -eu\nexport INTERNKIM_INSTALL_PACKAGE={base}/{package.name}\n"
+            f"curl -fsSL {base}/install.sh | sh -s -- host\n",
+            timeout_seconds=2400,
+        )
+        status = self.machine.shell(self.family.installed_status_command)
+        step.observe(
+            "the published one-liner installs the package file through the machine's own package manager",
+            f"`{self.family.installed_status_command}` after `install.sh host` with INTERNKIM_INSTALL_PACKAGE set",
+            "install.sh exiting 0 says the script ended; the package database is what upgrade and remove act on",
+        ).record(
+            attempt.returncode == 0 and self.family.installed_answer in status.stdout,
+            f"install.sh exited {attempt.returncode}\n{(attempt.stdout + attempt.stderr).strip()[-900:]}",
+        )
+        added = self.shell_value(
+            f"ls {POSTGRESQL_SOURCE_PATH} 2>&1 | grep -v 'No such file'; ls /etc/yum.repos.d 2>/dev/null | grep -i internkim; true"
+        )
+        expected = not DISTRIBUTION_CARRIES_PGVECTOR[self.family.name]
+        step.observe(
+            "the PostgreSQL project's repository is added where the distribution has no pgvector, and nowhere else",
+            f"{POSTGRESQL_SOURCE_PATH} and /etc/yum.repos.d after the install, on a distribution that "
+            f"{'lacks' if expected else 'carries'} pgvector",
+            "a repository added on a machine that did not need it is an unrequested trust; one missing on a "
+            "machine that did is an install that failed before it got here",
+        ).record(bool(added) == expected, added or "no repository file was written")
+        if expected:
+            scoped = self.shell_value(
+                f"cat {POSTGRESQL_SOURCE_PATH}; cat /etc/apt/preferences.d/internkim-postgresql.pref; "
+                "apt-cache policy postgresql-18-pgvector | sed -n 2,3p"
+            )
+            step.observe(
+                "that repository is scoped: its own keyring, a pin below the distribution's, and a candidate from it",
+                "the source, the preference and apt's policy for the pgvector package it added",
+                "a key in the legacy keyring would sign every repository; a default pin would let it replace "
+                "packages the distribution carries",
+            ).record(
+                "Signed-By: /usr/share/keyrings/internkim-postgresql-archive-keyring.asc" in scoped
+                and "Pin-Priority: 100" in scoped
+                and "Candidate: (none)" not in scoped,
+                scoped,
+            )
+
+    def observe_package_state(self, step):
+        verified = self.machine.shell(self.family.verify_command)
+        step.observe(
+            "every file the package shipped is present and unmodified",
+            f"`{self.family.verify_command}`, which re-checks each shipped file against the package database",
+            "a manifest listing proves the manifest exists; this reads the files on disk",
+        ).record(
+            verified.returncode == 0 and not [
+                line
+                for line in verified.stdout.splitlines()
+                if line.strip() and not any(ignored in line for ignored in self.family.verify_ignored_lines)
+            ],
+            verified.stdout.strip() or "no differences",
+        )
+        accounts = self.shell_value(
+            "for user in %s; do getent passwd \"$user\" | cut -d: -f1,7; done" % " ".join(
+                [AGENT_USER, RELAY_USER, DATABASE_USER, CACHE_USER]
+            )
+        )
+        step.observe(
+            "the four service accounts exist and none can log in",
+            "`getent passwd` for blueclaw, internkim, internkim-postgres and internkim-cache",
+            "a package that runs a service as an account it never created starts nothing, and an account with "
+            "a login shell is one more way in",
+        ).record(
+            len(accounts.splitlines()) == 4 and all(
+                line.split(":")[1].endswith(("nologin", "false")) for line in accounts.splitlines()
+            ),
+            accounts,
+        )
+        modes = self.shell_value(
+            f"stat -c '%n %a %U:%G' {HELPER_PATH} {STATE_DIRECTORY} {DATA_SERVICE_PATH}"
+        )
+        expected = {
+            HELPER_PATH: ["4755", "root:root"],
+            STATE_DIRECTORY: ["700", "root:root"],
+            DATA_SERVICE_PATH: ["755", "root:root"],
+        }
+        found = {line.split()[0]: line.split()[1:] for line in modes.splitlines()}
+        step.observe(
+            "the setuid helper, the state tree and the data-service script carry the modes the boundary rests on",
+            f"`stat` of {HELPER_PATH}, {STATE_DIRECTORY} and {DATA_SERVICE_PATH}",
+            "the POSIX permission boundary is these bits, and a package format that drops the setuid bit does "
+            "it without an error",
+        ).record(found == expected, modes)
+        self.unit_names = [
+            name for name in self.shell_value(
+                f"{self.family.files_command} | grep -E '^/(usr/)?lib/systemd/system/.*\\.service$' | xargs -r -n1 basename | sort -u"
+            ).split()
+        ]
+        enabled = self.machine.shell(f"systemctl is-enabled {' '.join(self.unit_names)} 2>&1")
+        step.observe(
+            "every unit the package ships is enabled",
+            "`systemctl is-enabled` for each unit in the package's file list",
+            "a unit file under the unit directory says the file was copied; the symlink decides whether it "
+            "comes back after a reboot",
+        ).record(
+            bool(self.unit_names) and enabled.returncode == 0
+            and all(line.strip() == "enabled" for line in enabled.stdout.splitlines()),
+            " ".join(f"{name}={state}" for name, state in zip(self.unit_names, enabled.stdout.split())),
+        )
+        company_units = [name for name in self.unit_names if name != BOX_UNIT]
+        declined = self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(company_units))
+        states = dict(line.split("=", 1) for line in declined.stdout.split() if "=" in line)
+        step.observe(
+            "with no company every unit but the box, the database and the cache included, declined to start rather than failing",
+            "ConditionResult, ActiveState, Result and NRestarts for each unit",
+            "inactive because the condition was unmet and inactive because the process died are different "
+            "machine states, and only these four fields together tell them apart",
+        ).record(
+            bool(states) and all(state == DECLINED_STATE for state in states.values()),
+            "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
+        )
+
+    def give_the_guest_a_company(self, step):
+        connection = connection_document(f"http://{self.machine.host_gateway()}:{self.app.server_address[1]}")
+        StubApp.issued = connection
+        self.company_id = connection["company"]["id"]
+        installed = install_the_company(self.machine, connection)
+        pointed = self.machine.shell(
+            f"readlink -f {STATE_DIRECTORY}/current; test -s {COMPANY_CONDITION_PATH} && echo condition-met"
+        )
+        step.observe(
+            "`internkim install` gives the box a company and waits until PostgreSQL, the cache, the messenger, "
+            "the agent and the admin gateway all answer",
+            f"the exit status of `internkim install` and {COMPANY_CONDITION_PATH}",
+            "its last step polls PostgreSQL on the socket, the cache on its socket, and the messenger's "
+            "readiness, which pings both; a success here is each client having opened its socket",
+        ).record(
+            installed.returncode == 0 and self.company_id in pointed.stdout and "condition-met" in pointed.stdout,
+            (pointed.stdout.strip() or "nothing was written")
+            + f"\ninternkim install exited {installed.returncode}\n"
+            + (installed.stdout + installed.stderr).strip()[-1500:],
+        )
+        running_units = [name for name in self.unit_names if name != RELAY_UNIT]
+        states = dict(
+            line.split("=", 1)
+            for line in self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(running_units)).stdout.split()
+            if "=" in line
+        )
+        step.observe(
+            "every unit but the relay is running and none is restarting in a loop",
+            "ActiveState and NRestarts for each unit",
+            "a unit that dies and is restarted reports active for most of every second; the relay is left out "
+            "because its gateway is an address that answers nothing in this rig",
+        ).record(
+            bool(states) and all(
+                state.split("/")[1] == "active" and state.split("/")[3] == "0" for state in states.values()
+            ),
+            "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
+        )
+        probes = "; ".join(
+            f"printf '%s %s\\n' {port}{path} "
+            f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
+            for port, path in READINESS_PROBES
+        )
+        answers = self.machine.shell(probes)
+        step.observe(
+            "the messenger, the agent and the admin gateway answer their readiness endpoints",
+            "an HTTP GET inside the guest to " + ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES),
+            "the messenger's readiness pings its database and its cache, the agent's health opens its "
+            "database; so a 200 is sqlx, redis and pgx each having reached their socket",
+        ).record(
+            bool(answers.stdout.strip()) and all(line.split()[-1] == "200" for line in answers.stdout.splitlines() if line.strip()),
+            answers.stdout.strip() or "nothing answered",
+        )
+
+    def observe_the_data_services(self, step):
+        owners = self.shell_value(
+            f"for unit in internkim-postgresql internkim-cache; do "
+            f"pid=\"$(systemctl show -p MainPID --value $unit)\"; printf '%s=%s\\n' $unit \"$(ps -o user= -p $pid | tr -d ' ')\"; done"
+        )
+        step.observe(
+            "the database and the cache run as their own accounts",
+            "the owner of the main process of each unit",
+            "a database that runs as root is one bug away from owning the machine, and one that runs as the "
+            "distribution's own account is sharing a cluster the company did not make",
+        ).record(
+            owners.splitlines() == [f"internkim-postgresql={DATABASE_USER}", f"internkim-cache={CACHE_USER}"], owners
+        )
+        modes = self.shell_value(
+            f"stat -c '%n %a %U:%G' {DATABASE_DATA_DIRECTORY} {DATABASE_SOCKET_DIRECTORY} "
+            f"{DATABASE_SOCKET_DIRECTORY}/.s.PGSQL.5432 /run/internkim-cache {CACHE_SOCKET_PATH}"
+        )
+        expected = {
+            DATABASE_DATA_DIRECTORY: ["700", f"{DATABASE_USER}:{DATABASE_USER}"],
+            DATABASE_SOCKET_DIRECTORY: ["750", f"{DATABASE_USER}:{DATABASE_USER}"],
+            f"{DATABASE_SOCKET_DIRECTORY}/.s.PGSQL.5432": ["660", f"{DATABASE_USER}:{DATABASE_USER}"],
+            "/run/internkim-cache": ["750", f"{CACHE_USER}:{CACHE_USER}"],
+            CACHE_SOCKET_PATH: ["660", f"{CACHE_USER}:{CACHE_USER}"],
+        }
+        found = {line.split()[0]: line.split()[1:] for line in modes.splitlines()}
+        step.observe(
+            "the data directory is 0700 and each socket is reachable by its own group alone",
+            "`stat` of the data directory, both socket directories and both sockets",
+            "the modes are the whole boundary: a socket directory any account can enter is a database any "
+            "account can try",
+        ).record(found == expected, modes)
+        listeners = self.shell_value("ss -H -ltnp; ss -H -lunp")
+        data_service_processes = self.shell_value(
+            "for unit in internkim-postgresql internkim-cache; do "
+            "cat /sys/fs/cgroup$(systemctl show -p ControlGroup --value $unit.service)/cgroup.procs; done"
+        ).split()
+        own_listeners = [
+            line
+            for line in listeners.splitlines()
+            if any(f"pid={process}," in line for process in data_service_processes)
+        ]
+        step.observe(
+            "neither of the host's two services listens on any network port",
+            "every listening TCP and UDP socket on the guest, filtered to the processes in the two units' cgroups",
+            "that they answer on a Unix socket says how they are reached, not that nothing else can reach them; "
+            "the listener table is what says no port is open. The distribution's own PostgreSQL and cache may "
+            "listen on this machine, and they are not the host's to stop or to judge",
+        ).record(
+            len(data_service_processes) > 0 and not own_listeners,
+            f"processes in the two units: {' '.join(data_service_processes)}\n"
+            f"their listeners: {' '.join(own_listeners) or 'none'}\nall listeners:\n{listeners or 'none'}",
+        )
+        extension = self.shell_value(
+            f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname blueclaw --tuples-only --no-align "
+            "--command \"select extname from pg_extension where extname = 'vector'; "
+            "select to_regclass('memory_fact_embedding')\""
+        )
+        step.observe(
+            "the vector extension is installed in the agent's database and the memory store made its embedding table",
+            "`pg_extension` and `to_regclass('memory_fact_embedding')` in the blueclaw database, read as the cluster's own account",
+            "the migration skips its embedding tables when the extension is missing, so a missing table with "
+            "a running agent is exactly the silent degradation this install refuses",
+        ).record(extension.splitlines() == ["vector", "memory_fact_embedding"], extension)
+
+        self.machine.shell(f"id {TASK_USER} >/dev/null 2>&1 || useradd --system --shell /bin/false {TASK_USER}")
+        agent_groups = self.shell_value(
+            "ps -o supgrp= -p \"$(systemctl show -p MainPID --value blueclaw.service)\" | tr ',' ' '"
+        )
+        task_groups = self.shell_value(f"id -Gn {TASK_USER}")
+        as_task_user = self.machine.shell(
+            f"runuser -u {TASK_USER} -- psql --host {DATABASE_SOCKET_DIRECTORY} --dbname postgres --command 'select 1' 2>&1"
+        )
+        step.observe(
+            "the agent's process holds the database's group and a task user's account does not",
+            f"the supplementary groups of blueclaw.service's main process, and of {TASK_USER}, "
+            "which stands for a bc_person_* identity, and what `psql` gives that account",
+            "the agent's terminal runs as the person who asked; if that account could open the socket, a "
+            "person could read the company's whole store by asking for a shell",
+        ).record(
+            DATABASE_USER in agent_groups.split() and DATABASE_USER not in task_groups.split()
+            and as_task_user.returncode != 0 and "ermission denied" in as_task_user.stdout,
+            f"agent process groups: {agent_groups}\ntask user groups: {task_groups}\n"
+            f"task user psql: exit {as_task_user.returncode} {as_task_user.stdout.strip()[-200:]}",
+        )
+        client = "valkey-cli"
+        cache_as_task_user = self.machine.shell(
+            f"client=\"$(command -v valkey-cli || command -v redis-cli)\"; "
+            f"runuser -u {TASK_USER} -- \"$client\" -s {CACHE_SOCKET_PATH} ping 2>&1"
+        )
+        cache_as_root = self.shell_value(
+            f"client=\"$(command -v valkey-cli || command -v redis-cli)\"; \"$client\" -s {CACHE_SOCKET_PATH} ping"
+        )
+        step.observe(
+            "the cache answers on its socket and a task user cannot open it",
+            f"`{client} -s {CACHE_SOCKET_PATH} ping` as root and as {TASK_USER}",
+            "the messenger's presence and fan-out pass through the cache",
+        ).record(
+            cache_as_root == "PONG"
+            and "PONG" not in cache_as_task_user.stdout
+            and cache_as_task_user.returncode != 0,
+            f"root: {cache_as_root}\ntask user: {cache_as_task_user.stdout.strip()[-200:]}",
+        )
+
+    def observe_removal(self, step):
+        shipped = [path for path in self.shell_value(self.family.files_command).split() if path.startswith(("/usr/", "/lib/"))]
+        removed = self.machine.shell(self.family.remove_command, timeout_seconds=900)
+        status = self.machine.shell(self.family.installed_status_command)
+        step.observe(
+            "the package manager removes the package",
+            f"`{self.family.installed_status_command}` after `{self.family.remove_command}`",
+            "a removal printing success is the manager's account of its own run",
+        ).record(
+            removed.returncode == 0 and self.family.installed_answer not in status.stdout,
+            (removed.stdout + removed.stderr).strip()[-300:],
+        )
+        after = self.machine.shell(
+            "; ".join(
+                f"printf '%s=%s/%s\\n' {name} "
+                f"\"$(systemctl is-enabled {name} 2>&1)\" \"$(systemctl is-active {name} 2>&1)\""
+                for name in self.unit_names
+            )
+        )
+        states = dict(line.split("=", 1) for line in after.stdout.split() if "=" in line)
+        step.observe(
+            "the units are neither enabled nor running any more",
+            "`systemctl is-enabled` and `is-active` for every unit the package had shipped",
+            "removing the unit file leaves a still-running process and a still-present enable symlink",
+        ).record(
+            bool(states) and all(
+                enablement in ("not-found", "disabled", "masked") and activity != "active"
+                for enablement, activity in (value.split("/", 1) for value in states.values())
+            ),
+            after.stdout.strip(),
+        )
+        survivors = self.shell_value(
+            "for path in " + " ".join(shipped) + "; do [ -f \"$path\" ] && echo \"$path\"; done; true"
+        )
+        step.observe(
+            "the files the package owned are off the disk",
+            "a stat of every regular file in the package's file list before the removal",
+            "the package database reporting the package removed is its bookkeeping; these are the files",
+        ).record(not survivors, survivors or f"{len(shipped)} paths gone")
+        kept = self.shell_value(
+            f"test -d {STATE_DIRECTORY}/companies/{self.company_id} && echo company-kept; "
+            f"test -s {DATABASE_DATA_DIRECTORY}/PG_VERSION && echo database-kept"
+        )
+        step.observe(
+            "removal keeps the company's directory and its database",
+            f"{STATE_DIRECTORY}/companies/<id> and {DATABASE_DATA_DIRECTORY}/PG_VERSION after removal",
+            "the agent key and the company's data cannot be reissued, so removing the package must not delete them",
+        ).record(kept.split() == ["company-kept", "database-kept"], kept)
+
+    def report(self):
+        lines = []
+        for step in sorted(self.steps, key=lambda step: step.number):
+            marker = {"PASS": "✓", "FAIL": "✗", "BLOCKED": "—"}[step.verdict]
+            lines.append(f"{marker} step {step.number} · {step.name}")
+            if step.blocked_because:
+                lines.append(f"    blocked: {step.blocked_because}")
+            for observation in step.observations:
+                lines.append(f"    {'✓' if observation.passed else '✗'} {observation.name}")
+                lines.append(f"        observes: {observation.observes}")
+                if not observation.passed and observation.not_a_proxy:
+                    lines.append(f"        why that and not a stand-in: {observation.not_a_proxy}")
+                if observation.detail:
+                    for detail_line in observation.detail.splitlines():
+                        lines.append(f"        | {detail_line}")
+        return "\n".join(lines)
+
+    def verdict(self):
+        return all(step.verdict == "PASS" for step in self.steps)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--family", choices=sorted(FAMILIES), required=True, help="the distribution the guest runs")
+    parser.add_argument(
+        "--package-directory", default=".artifacts/native-package",
+        help="where the packages under test are (default: %(default)s)",
+    )
+    parser.add_argument("--name", default=f"internkim-familyrig-{uuid.uuid4().hex[:8]}")
+    parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
+    parser.add_argument(
+        "--stop-after", type=int, default=5, metavar="STEP",
+        help="stop once this step has run, so a guest can be examined before the next one changes it",
+    )
+    parser.add_argument("--kernel", default=str(KERNEL_IMAGE_PATH), help="the guest kernel (default: %(default)s)")
+    options = parser.parse_args()
+
+    rig = FamilyRig(options)
+    directory = Path(options.package_directory)
+    package = rig.family.package_in(directory) if directory.exists() else None
+    if package is None:
+        print(
+            f"✗ native install rig ({options.family})\n"
+            f"    No {rig.family.package_pattern} under {directory}.\n"
+            f"    Build it with `internkim release packages`.",
+            file=sys.stderr,
+        )
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="internkim-family-rig-") as temporary:
+        working_directory = Path(temporary)
+        print(f"the machine: {options.family}, image {rig.family.image}, named {options.name}")
+        print(f"under test:  {package.name}\n")
+        try:
+            rig.serve(working_directory, package)
+            rig.start_machine(working_directory)
+            rig.observe_install(rig.step(1, "one command installs the package file"), package)
+            rig.observe_package_state(rig.step(2, "the machine is in the state the package manager would have left it"))
+            if options.stop_after >= 3:
+                rig.give_the_guest_a_company(rig.step(3, "the box takes a company and every service answers"))
+            if options.stop_after >= 4:
+                rig.observe_the_data_services(rig.step(4, "the database and the cache keep to their sockets and their accounts"))
+            if options.stop_after >= 5:
+                rig.observe_removal(rig.step(5, "removing the package leaves the company"))
+        except RigFailure as failure:
+            print(f"✗ native install rig ({options.family})\n    {failure}", file=sys.stderr)
+            return 2
+        finally:
+            for held in (rig.server, rig.app):
+                if held:
+                    held.shutdown()
+            if rig.machine and not options.keep:
+                rig.machine.destroy()
+            elif rig.machine:
+                print(f"the guest is still up: container exec {options.name} bash")
+        print(rig.report())
+        print()
+        passed = rig.verdict()
+        print(f"{'✓' if passed else '✗'} native install rig ({options.family})")
+        return 0 if passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

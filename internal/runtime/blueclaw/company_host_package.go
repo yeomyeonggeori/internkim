@@ -167,7 +167,7 @@ func boxServiceUnit(layout CompanyHostLayout) string {
 // condition, the Documentation link — is here, because launchd has no counterpart for
 // any of it.
 func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
-	units := []CompanyPackageUnit{}
+	units := CompanyHostDataServiceUnits(layout)
 	for _, service := range CompanyHostServices(layout) {
 		if service.Name == RelayServiceName {
 			units = append(units, CompanyPackageUnit{
@@ -187,12 +187,18 @@ func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 // IPC." So none of this crosses to the Mac, and what stands in its place there is the
 // readiness polling internal/companyhost already does on both.
 type companyHostUnitOrdering struct {
-	After            []string
-	Wants            []string
-	Requires         []string
-	BindsTo          []string
-	DocumentationURL string
+	SupplementaryGroups []string
+	After               []string
+	Wants               []string
+	Requires            []string
+	BindsTo             []string
+	DocumentationURL    string
 }
+
+const (
+	companyHostDatabaseUnitName = CompanyHostDatabaseServiceName + ".service"
+	companyHostCacheUnitName    = CompanyHostCacheServiceName + ".service"
+)
 
 func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 	switch serviceName {
@@ -204,9 +210,9 @@ func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 		return companyHostUnitOrdering{}
 	case BuzzRelayServiceName:
 		return companyHostUnitOrdering{
-			After:   []string{"postgresql.service", "redis-server.service", BuzzMediaServiceName + ".service"},
-			Wants:   []string{"redis-server.service", BuzzMediaServiceName + ".service"},
-			BindsTo: []string{"postgresql.service"},
+			After:   []string{companyHostDatabaseUnitName, companyHostCacheUnitName, BuzzMediaServiceName + ".service"},
+			Wants:   []string{companyHostCacheUnitName, BuzzMediaServiceName + ".service"},
+			BindsTo: []string{companyHostDatabaseUnitName},
 		}
 	case CapabilitydServiceName:
 		return companyHostUnitOrdering{
@@ -215,10 +221,11 @@ func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 		}
 	case BlueclawServiceName:
 		return companyHostUnitOrdering{
-			After:    []string{"postgresql.service", CompanyHostPrepareServiceName + ".service", CapabilitydServiceName + ".service"},
-			Wants:    []string{CapabilitydServiceName + ".service"},
-			Requires: []string{CompanyHostPrepareServiceName + ".service"},
-			BindsTo:  []string{"postgresql.service"},
+			SupplementaryGroups: []string{CompanyHostDatabaseUser},
+			After:               []string{companyHostDatabaseUnitName, CompanyHostPrepareServiceName + ".service", CapabilitydServiceName + ".service"},
+			Wants:               []string{CapabilitydServiceName + ".service"},
+			Requires:            []string{CompanyHostPrepareServiceName + ".service"},
+			BindsTo:             []string{companyHostDatabaseUnitName},
 		}
 	case AdmindServiceName:
 		return companyHostUnitOrdering{
@@ -248,6 +255,9 @@ func systemdUnitFor(service CompanyHostService) string {
 	unit.WriteString("ConditionPathExists=" + service.WaitsForTheFileAtPath + "\n")
 
 	unit.WriteString("\n[Service]\n")
+	if len(ordering.SupplementaryGroups) > 0 {
+		unit.WriteString("SupplementaryGroups=" + strings.Join(ordering.SupplementaryGroups, " ") + "\n")
+	}
 	if service.RunsOnceAndStays {
 		unit.WriteString("Type=oneshot\nRemainAfterExit=yes\n")
 	}

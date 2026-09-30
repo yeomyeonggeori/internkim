@@ -15,7 +15,10 @@ import (
 // Neither schema is created here. Blueclaw applies its own migrations as it
 // starts and the messenger applies its own under BUZZ_AUTO_MIGRATE, and both
 // create the extensions they need — citext, pg_trgm and pgcrypto are trusted
-// extensions a database owner may create, so nothing below needs to.
+// extensions a database owner may create. pgvector's control file is not marked
+// trusted, so the one extension below is created here, by the superuser, in the
+// agent's database; the migration's own CREATE EXTENSION IF NOT EXISTS then
+// finds it.
 
 const databasePreparationVariable = "INTERNKIM_COMPANY_HOST_SQL"
 
@@ -52,6 +55,8 @@ func databasePreparationStatements(password string) string {
 		`  WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '` + blueclaw.BlueclawDatabaseName + `')\gexec`,
 		`SELECT 'CREATE DATABASE ` + blueclaw.BuzzRelayDatabaseName + ` OWNER ` + databaseRoleName + `'`,
 		`  WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '` + blueclaw.BuzzRelayDatabaseName + `')\gexec`,
+		`\connect ` + blueclaw.BlueclawDatabaseName,
+		`CREATE EXTENSION IF NOT EXISTS ` + blueclaw.CompanyHostDatabaseRequiredExtension + `;`,
 		``,
 	}, "\n")
 }

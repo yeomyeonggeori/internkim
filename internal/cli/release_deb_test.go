@@ -24,8 +24,8 @@ func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
 			t.Fatalf("the package depends on %q where the host declares %q", information.Depends[index], dependency)
 		}
 	}
-	if !strings.Contains(blueclaw.HostDebianDependsLine(), "postgresql (>= 14)") {
-		t.Fatal("the package does not ask apt for a PostgreSQL, so an install would leave a box with no database")
+	if !strings.Contains(blueclaw.HostDebianDependsLine(), "-pgvector") {
+		t.Fatal("the package does not ask apt for a PostgreSQL with pgvector, so an install would leave a box with no database or a memory without embeddings")
 	}
 }
 
@@ -51,7 +51,10 @@ func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
 		if errorValue != nil {
 			t.Fatalf("%s: %v", target.DebianArchitecture, errorValue)
 		}
-		shippedPaths := map[string]bool{blueclaw.CompanyPackagePreparePath: true}
+		shippedPaths := map[string]bool{
+			blueclaw.CompanyPackagePreparePath:                   true,
+			blueclaw.DebianCompanyHostLayout().DataServicePath(): true,
+		}
 		for _, name := range shipped {
 			shippedPaths[blueclaw.CompanyPackageBinaryPath(name)] = true
 		}
@@ -143,7 +146,7 @@ func TestThePackageShipsTheControlCommandAndTheNameTheBareBinaryHad(t *testing.T
 // A postinst that cannot do its job must fail naming what it was doing. A box with the
 // package installed and no blueclaw user runs nothing and reports itself installed.
 func TestThePostInstallRefusesEveryStepItCannotComplete(t *testing.T) {
-	script := debPostInstallScript()
+	script := maintainerScript(debianPackageFormat, postInstallScript)
 	for _, mustRefuse := range []string{
 		"could not create the " + blueclaw.BlueclawUser + " user",
 		"could not create the " + blueclaw.RelayUserName + " user",
@@ -164,7 +167,7 @@ func TestThePostInstallRefusesEveryStepItCannotComplete(t *testing.T) {
 // Purge removes the configuration and keeps the state, which is not what purge usually
 // means, so the message that says why is part of the contract.
 func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
-	script := debPostRemoveScript()
+	script := maintainerScript(debianPackageFormat, postRemoveScript)
 	if !strings.Contains(script, "rm -rf "+blueclaw.CompanyHostConfigurationRoot) {
 		t.Fatalf("purge does not remove %s", blueclaw.CompanyHostConfigurationRoot)
 	}
@@ -182,7 +185,7 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 // of the install rig reads the admin gateway's build id across an upgrade and caught
 // this; here is the cheap half.
 func TestConfiguringThePackageRestartsRatherThanStarts(t *testing.T) {
-	script := debPostInstallScript()
+	script := maintainerScript(debianPackageFormat, postInstallScript)
 	if strings.Contains(script, "deb-systemd-invoke start ") {
 		t.Fatal("configuring the package starts its units, which is a no-op for a unit already " +
 			"running, so an upgrade leaves the old process serving the new version's files")
@@ -193,7 +196,7 @@ func TestConfiguringThePackageRestartsRatherThanStarts(t *testing.T) {
 }
 
 func TestPreRemoveStopsEveryUnitTheInstallStarted(t *testing.T) {
-	script := debPreRemoveScript()
+	script := maintainerScript(debianPackageFormat, preRemoveScript)
 	for _, unit := range blueclaw.CompanyPackageUnits() {
 		if !strings.Contains(script, unit.FileName()) {
 			t.Fatalf("removing the package leaves %s running", unit.FileName())
