@@ -17,7 +17,7 @@ make build
 cd web && bun install
 ```
 
-[README.md](README.md#running-it) covers the local Supabase stack and running
+[Running it locally](https://docs.intern.kim/record#running-locally) covers the local Supabase stack and running
 the web app against it. Anything that uses that stack runs under
 `tools/with-local-plane <command>`.
 

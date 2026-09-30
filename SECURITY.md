@@ -30,4 +30,4 @@ acknowledgment, and a fix is coordinated with you before anything is disclosed.
 - Issues in a dependency with no path to this product. Report those upstream.
 - Model output that is wrong or unwise but crosses no permission boundary.
 
-[README.md](README.md#security) describes the boundaries the system relies on.
+[Boundaries](https://docs.intern.kim/boundaries) describes what the system relies on.
