@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/internkim.icon.png" width="120" alt="Intern Kim">
+  <img src="assets/internkim.logo.png" width="120" alt="Intern Kim">
 </p>
 
 <h1 align="center">Intern Kim</h1>
