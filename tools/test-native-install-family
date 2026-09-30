@@ -3,7 +3,7 @@
 
 `tools/test-native-install` judges the Debian package end to end through an apt
 repository. This one installs a package file through `install.sh` on a guest of
-any family the package is built for (Debian, Ubuntu, Fedora, Arch Linux) and
+any family the package is built for (Debian, Ubuntu, Fedora, RHEL-compatible, Arch Linux) and
 reads the guest's own state: the package database's, systemd's, the
 filesystem's. It is the test of what PR 2 added: the same payload as a deb, an
 rpm and a pacman package, portable maintainer scripts, and the host's own

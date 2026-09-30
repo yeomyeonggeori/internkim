@@ -30,6 +30,8 @@ FEDORA_BOOTSTRAP = "\n".join(
     ]
 )
 
+RHEL_BOOTSTRAP = FEDORA_BOOTSTRAP.replace("dnf install -y", "dnf install -y --allowerasing")
+
 ARCH_BOOTSTRAP = "\n".join(
     [
         "set -eu",
@@ -96,6 +98,20 @@ FAMILIES = {
             image="fedora:latest",
             package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
             bootstrap=FEDORA_BOOTSTRAP,
+            tools_command="dnf install -y -q iproute procps-ng",
+            installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
+            installed_answer=PRESENT_MARKER,
+            verify_command=f"rpm -V {PACKAGE_NAME}",
+            files_command=f"rpm -ql {PACKAGE_NAME}",
+            remove_command=f"dnf remove -y {PACKAGE_NAME}",
+            package_manager="dnf",
+            unit_directories=("/usr/lib/systemd/system",),
+        ),
+        Family(
+            name="rhel-10",
+            image="rockylinux/rockylinux:10",
+            package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
+            bootstrap=RHEL_BOOTSTRAP,
             tools_command="dnf install -y -q iproute procps-ng",
             installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
             installed_answer=PRESENT_MARKER,
