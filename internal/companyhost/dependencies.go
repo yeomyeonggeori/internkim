@@ -18,7 +18,6 @@ type missingPiece struct {
 	What            string
 	DebianPackage   string
 	HomebrewFormula string
-	HomebrewCask    blueclaw.HostHomebrewCask
 }
 
 func (piece missingPiece) belongsToOurPackage() bool {
@@ -59,8 +58,10 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 			What:            what,
 			DebianPackage:   whatCarries(dependency),
 			HomebrewFormula: dependency.HomebrewFormula,
-			HomebrewCask:    dependency.HomebrewCask,
 		}
+	}
+	if platform.CarriesItInThePackage(dependency) {
+		return nil
 	}
 	if candidates := platform.WhereToLookFor(dependency); len(candidates) > 0 {
 		for _, candidate := range candidates {

@@ -48,7 +48,7 @@ class StandInPackageTests(unittest.TestCase):
         self.assertEqual(fields["Package"], "internkim")
         self.assertEqual(fields["Version"], "9.9.9")
         self.assertEqual(fields["Architecture"], "arm64")
-        self.assertIn("python3", fields["Depends"])
+        self.assertIn("ca-certificates", fields["Depends"])
 
     def test_a_continued_description_keeps_the_indentation_a_paragraph_needs(self):
         fields = rig.package_fields(self.build())
@@ -166,13 +166,13 @@ class DependencyReadingTests(unittest.TestCase):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         package = rig.build_stand_in_package(directory, "1.0.0", "one")
         self.assertEqual(
-            rig.dependency_names(rig.package_fields(package)["Depends"]), ["python3", "ca-certificates"]
+            rig.dependency_names(rig.package_fields(package)["Depends"]), ["ca-certificates"]
         )
 
     def test_a_name_bounded_from_both_sides_is_asked_for_once(self):
         self.assertEqual(
-            rig.dependency_names("python3 (>= 3.13), python3 (<< 3.14), ca-certificates"),
-            ["python3", "ca-certificates"],
+            rig.dependency_names("postgresql (>= 14), postgresql (<< 18), ca-certificates"),
+            ["postgresql", "ca-certificates"],
         )
 
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
@@ -208,15 +208,13 @@ class RepositoryShapeTests(unittest.TestCase):
     def test_the_keyring_the_rig_installs_is_the_one_the_builder_exports(self):
         self.assertEqual(rig.KEYRING_NAME, self.declared_in_go("KeyringName"))
 
-    def test_the_debian_release_the_rig_runs_is_the_one_the_suite_name_carries(self):
-        self.assertEqual(rig.DEBIAN_SUITE, self.declared_in_go("DebianSuite"))
-
     def test_the_suite_the_rig_asks_apt_for_is_one_the_builder_publishes(self):
         source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "repository.go").read_text()
-        declared = re.search(r"^var DefaultSuite = (.+)$", source, re.MULTILINE)
+        self.assertEqual(rig.SUITE, self.declared_in_go("StableSuite"))
+        self.assertEqual(rig.TESTING_SUITE, self.declared_in_go("TestingSuite"))
+        declared = re.search(r"^const DefaultSuite = (.+)$", source, re.MULTILINE)
         self.assertIsNotNone(declared, "internal/aptrepository no longer declares DefaultSuite")
-        self.assertEqual(declared.group(1).strip(), 'DebianSuite + "-stable"')
-        self.assertEqual(rig.SUITE, rig.DEBIAN_SUITE + "-stable")
+        self.assertEqual(declared.group(1).strip(), "StableSuite")
 
     def test_the_guest_installs_that_keyring_where_the_source_looks_for_it(self):
         self.assertTrue(rig.KEYRING_PATH.endswith("/" + rig.KEYRING_NAME))
@@ -371,3 +369,39 @@ class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
                 declared.append(line)
         self.assertNotIn(rig.SIGNING_KEY_VARIABLE, declared,
                          f"@{default_profile} would hand the rig's CLI the vault's signing key over its throwaway one")
+
+
+class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
+    """The guest is asked about paths and imports that belong to `internal/runtime/blueclaw`."""
+
+    def blueclaw_source(self, file_name):
+        return (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / file_name).read_text()
+
+    def declared(self, file_name, name):
+        match = re.search(rf'^\s*{name}\s+=\s*"([^"]+)"', self.blueclaw_source(file_name), re.MULTILINE)
+        self.assertIsNotNone(match, f"internal/runtime/blueclaw no longer declares {name}")
+        return match.group(1)
+
+    def test_the_modules_the_rig_imports_are_the_ones_the_build_checks(self):
+        source = self.blueclaw_source("document_interpreter.go")
+        declared = re.search(r"const documentModulesTheConversionImports = ((?:\"[^\"]*\"\s*\+?\s*)+)", source)
+        self.assertIsNotNone(declared, "documentModulesTheConversionImports is no longer a string literal")
+        joined = "".join(re.findall(r'"([^"]*)"', declared.group(1)))
+        self.assertEqual(rig.DOCUMENT_MODULES_THE_CONVERSION_IMPORTS, joined)
+
+    def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
+        driver = load_driver()
+        directory = self.declared("document_interpreter.go", "documentInterpreterDirectoryName")
+        minor = self.declared("document_interpreter.go", "DocumentInterpreterMinor")
+        self.assertEqual(driver.CARRIED_INTERPRETER_PATH, f"/opt/internkim/{directory}/bin/python{minor}")
+        self.assertEqual(driver.CARRIED_DOCUMENT_PYTHON_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentVenvPath") + "/bin/python")
+        self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
+
+    def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
+        self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])
+
+    def test_the_unit_the_rig_expects_to_be_running_is_the_box(self):
+        driver = load_driver()
+        self.assertEqual(
+            driver.BOX_UNIT_NAME, self.declared("company_host_package.go", "BoxServiceName") + ".service"
+        )

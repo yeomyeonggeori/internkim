@@ -27,7 +27,7 @@ RUN cd relay && bun install --frozen-lockfile
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 python3-venv libfontconfig1 fonts-nanum chromium \
+	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 libfontconfig1 fonts-nanum \
 	&& rm -rf /var/lib/apt/lists/*
 ARG MOLI_VERSION=1.1.5
 ARG AGENT_BROWSER_VERSION=0.32.3
@@ -79,15 +79,9 @@ COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json
 
-# The requirement files the skills already carry are the list, so a skill that
-# declares a new package gets it here rather than at a person's request. uv
-# stays behind for the one whose requirements move past this image.
 RUN uv venv --python /usr/bin/python3 /opt/internkim/document-venv \
-	&& cat /opt/internkim/skills/*/scripts/requirements.txt /opt/internkim/document-conversion/requirements.txt \
-		| uv pip install --python /opt/internkim/document-venv/bin/python --requirements - \
-	&& uv cache clean \
-	&& printf '#!/bin/sh\nexec /opt/internkim/document-venv/bin/python3 "$@"\n' > /usr/local/bin/python3 \
-	&& chmod 0755 /usr/local/bin/python3
+	&& uv pip install --python /opt/internkim/document-venv/bin/python --requirement /opt/internkim/document-conversion/requirements.txt \
+	&& uv cache clean
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
 RUN printf '#!/bin/sh\nexec bun run /opt/blueclaw-workspace/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \

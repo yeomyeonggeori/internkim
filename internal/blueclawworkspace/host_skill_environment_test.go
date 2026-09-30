@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 const hostSkillsImagePath = "/opt/internkim/skills"
@@ -65,26 +67,18 @@ func skillsDeclaringRequirements(t *testing.T, repositoryRootPath string) []Skil
 	return declaring
 }
 
-func TestHostImageResolvesEveryBundledSkillRequirement(t *testing.T) {
+func TestHostImageInstallsOnlyTheDocumentConversionRequirementsIntoItsVenv(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	declaring := skillsDeclaringRequirements(t, repositoryRootPath)
-	if len(declaring) == 0 {
-		t.Fatal("expected bundled skills to declare scripts/requirements.txt")
-	}
 	dockerfile := hostDockerfile(t, repositoryRootPath)
 
 	if !strings.Contains(dockerfile, "COPY .dependency/internkim-plugin/skills "+hostSkillsImagePath) {
 		t.Fatalf("host Dockerfile must copy the bundled skills to %s", hostSkillsImagePath)
 	}
-	requirementsGlob := hostSkillsImagePath + "/*/scripts/requirements.txt"
-	if !strings.Contains(dockerfile, requirementsGlob) {
-		t.Fatalf("host Dockerfile must resolve %s; listing the packages by hand is a second place to forget one", requirementsGlob)
+	if !strings.Contains(dockerfile, "--requirement /opt/internkim/document-conversion/requirements.txt") {
+		t.Fatal("host Dockerfile must install assets/document-conversion/requirements.txt into the interpreter capabilityd reads")
 	}
-	if !strings.Contains(dockerfile, "uv pip install --python /opt/internkim/document-venv/bin/python") {
-		t.Fatal("host Dockerfile must install the resolved requirements into the interpreter capabilityd reads")
-	}
-	if !strings.Contains(dockerfile, `printf '#!/bin/sh\nexec /opt/internkim/document-venv/bin/python3 "$@"\n' > /usr/local/bin/python3`) {
-		t.Fatal(`host Dockerfile must put that interpreter on the requester's PATH as /usr/local/bin/python3`)
+	if strings.Contains(dockerfile, hostSkillsImagePath+"/*/scripts/requirements.txt") {
+		t.Fatal("host Dockerfile must leave the skills' requirements to the skills, which resolve them on first use")
 	}
 }
 
@@ -125,6 +119,11 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 		t.Fatal("the skills that embed a font no longer share a system path; the host image cannot satisfy them with one package")
 	}
 
+	if !sharedFontPaths[blueclaw.CompanyPackageDocumentFontPath] {
+		t.Fatalf("the .deb carries its Hangul font at %s and not every font-embedding skill looks there (they share %s)",
+			blueclaw.CompanyPackageDocumentFontPath, strings.Join(sortedKeys(sharedFontPaths), ", "))
+	}
+
 	entrypoint := hostEntrypoint(t, repositoryRootPath)
 	checkedFontPath := shellAssignment(entrypoint, "koreanCapableFontPath")
 	if checkedFontPath == "" {
@@ -155,9 +154,9 @@ func TestHostImageBuildRefusesAnIncompleteSkillEnvironment(t *testing.T) {
 	command.Env = []string{"PATH=" + stubDirectory}
 	output, errorValue := command.CombinedOutput()
 	if errorValue == nil {
-		t.Fatalf("--check-programs accepted an image with no chromium and no Korean font:\n%s", output)
+		t.Fatalf("--check-programs accepted an image with no Korean font:\n%s", output)
 	}
-	for _, expectedText := range []string{"this image carries no chromium", "carries no Korean-capable font", "install fonts-nanum"} {
+	for _, expectedText := range []string{"carries no Korean-capable font", "install fonts-nanum"} {
 		if !strings.Contains(string(output), expectedText) {
 			t.Fatalf("--check-programs must say %q so the build failure names what to install; it said:\n%s", expectedText, output)
 		}
@@ -172,7 +171,7 @@ func TestARunningHostReportsAnIncompleteSkillEnvironmentInsteadOfTakingTheMessen
 	if strings.Contains(collector, "exit ") {
 		t.Fatal("whatTheBundledSkillsAreMissing must collect what is missing, not exit; the image build decides what to do with it")
 	}
-	for _, expectedName := range []string{"python3", "bun", "uv", "chromium"} {
+	for _, expectedName := range []string{"python3", "bun", "uv"} {
 		if !strings.Contains(entrypoint, expectedName) {
 			t.Fatalf("host entrypoint must look for %s, which the bundled skills run", expectedName)
 		}

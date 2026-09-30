@@ -29,7 +29,7 @@ constant assembled from pieces reads as its first fragment, so the Linux pins
 were only ever probed because `host/Dockerfile` happened to spell the same URLs
 out in full, and the macOS ones would have been probed by nothing at all. So
 this asks the package instead: a throwaway program prints what
-`HostPayloadDownloads` and `MacDocumentInterpreter` resolve to, for every target
+`HostPayloadDownloads` and `DocumentInterpreterForTarget` resolve to, for every target
 they know.
 """
 
@@ -138,7 +138,16 @@ func main() {
 			fmt.Println(download.URL)
 		}
 	}
-	fmt.Println(blueclaw.MacDocumentInterpreter().URL)
+	for _, target := range blueclaw.DocumentInterpreterTargets() {
+		interpreter, errorValue := blueclaw.DocumentInterpreterForTarget(target)
+		if errorValue != nil {
+			panic(errorValue)
+		}
+		fmt.Println(interpreter.URL)
+	}
+	for _, download := range blueclaw.DocumentFontDownloads() {
+		fmt.Println(download.URL)
+	}
 }
 """
 

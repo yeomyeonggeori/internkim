@@ -11,9 +11,9 @@ So this points one disposable arm64 Debian guest at the published repository
 and runs the line a person is given, which fetches `install.sh` from the web
 site as well. Nothing here substitutes an address.
 
-    tools/test-published-apt-repository --suite trixie-testing
-    tools/test-published-apt-repository --suite trixie-testing --disturb-published-objects
-    tools/test-published-apt-repository --suite trixie-testing --prove-upgrade <newer.deb>
+    tools/test-published-apt-repository --suite testing
+    tools/test-published-apt-repository --suite testing --disturb-published-objects
+    tools/test-published-apt-repository --suite testing --prove-upgrade <newer.deb>
 
 Two of the three refusals need the repository to be wrong, and the only place
 it can be wrong is the bucket. `--disturb-published-objects` is what writes:
