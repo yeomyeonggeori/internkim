@@ -1,9 +1,10 @@
 """The parts of the native-install rig that run on this Mac.
 
-Building a Debian package and an apt repository, and driving one disposable
-Debian guest, arm64 or (INTERNKIM_RIG_ARCHITECTURE=amd64) amd64 under Rosetta. The assertions that read the guest live in
-`tools/test-native-install`; everything here is what they need in order to have
-a machine and something to install on it.
+Serving the repositories `internkim release repositories` renders, and driving
+one disposable guest, arm64 or (INTERNKIM_RIG_ARCHITECTURE=amd64) amd64 under
+Rosetta. The assertions that read the guest live in `tools/test-native-install`
+and `tools/test-native-install-family`; everything here is what they need in
+order to have a machine and something to install on it.
 """
 
 import base64
@@ -29,9 +30,8 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 KERNEL_IMAGE_PATH = REPOSITORY_ROOT / ".dependency" / "container-kernel" / "Image-6.1.68-kvm"
-DEBIAN_SUITE = "trixie"
 DISTRIBUTIONS = {
-    "debian-13": f"debian:{DEBIAN_SUITE}-slim",
+    "debian-13": "debian:trixie-slim",
     "ubuntu-22.04": "ubuntu:22.04",
     "ubuntu-24.04": "ubuntu:24.04",
 }
@@ -127,7 +127,7 @@ REPOSITORY_PREFIX = "deb"
 KEYRING_NAME = "internkim-archive-keyring.pgp"
 
 # The name the vault holds the archive signing key under. The canonical copy is
-# aptrepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
+# packagerepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
 # reads that constant and fails if this drifts from it.
 SIGNING_KEY_VARIABLE = "INTERNKIM_APT_SIGNING_KEY"
 BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
