@@ -35,7 +35,6 @@ import (
 
 const (
 	brewDefaultOutputDirectory = ".artifacts/homebrew"
-	brewPayloadCacheDirectory  = ".dependency/host-payload"
 	brewMessengerArtifactPath  = ".dependency/buzz-relay-darwin-arm64"
 )
 
@@ -274,23 +273,16 @@ func fetchBrewVendoredPrograms(repositoryRootPath string, libraryPath string, ou
 	if errorValue != nil {
 		return errorValue
 	}
-	cachePath := filepath.Join(repositoryRootPath, brewPayloadCacheDirectory)
-	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
-		return errorValue
-	}
 	for _, download := range downloads {
-		downloadedPath, errorValue := fetchPinnedPayload(download, cachePath, output)
+		programPath, errorValue := fetchVendoredProgram(repositoryRootPath, download, libraryPath, output)
 		if errorValue != nil {
 			return errorValue
 		}
 		destination := filepath.Join(libraryPath, download.ProgramName)
-		if download.PathInsideArchive == "" {
-			if errorValue := copyFile(downloadedPath, destination, 0o755); errorValue != nil {
-				return errorValue
-			}
+		if programPath == destination {
 			continue
 		}
-		if _, errorValue := extractProgram(downloadedPath, download.PathInsideArchive, destination); errorValue != nil {
+		if errorValue := copyFile(programPath, destination, 0o755); errorValue != nil {
 			return errorValue
 		}
 	}

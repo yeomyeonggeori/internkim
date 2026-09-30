@@ -35,7 +35,7 @@ func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
 			t.Fatalf("%s: %v", target.Architecture, errorValue)
 		}
 		shippedPaths := map[string]bool{
-			blueclaw.CompanyPackagePreparePath:                   true,
+			blueclaw.CompanyPackagePreparePath:                  true,
 			blueclaw.LinuxCompanyHostLayout().DataServicePath(): true,
 		}
 		for _, name := range shipped {

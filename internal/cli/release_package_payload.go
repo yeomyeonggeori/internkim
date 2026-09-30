@@ -123,17 +123,13 @@ func packageContents(repositoryRootPath string, target packageTarget, version st
 
 // carriedFont is the Hangul face and the license that has to travel with it.
 func carriedFont(repositoryRootPath string, output io.Writer) ([]packagedFile, error) {
-	cachePath := filepath.Join(repositoryRootPath, payloadCacheDirectory)
-	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
-		return nil, errorValue
-	}
 	destinations := []string{blueclaw.CompanyPackageDocumentFontPath, blueclaw.CompanyPackageDocumentFontLicensePath}
 	downloads := blueclaw.DocumentFontDownloads()
 	packaged := []packagedFile{}
 	for index, download := range downloads {
-		downloadedPath, errorValue := fetchPinnedPayload(blueclaw.HostPayloadDownload{
+		downloadedPath, errorValue := fetchPinnedPayload(repositoryRootPath, blueclaw.HostPayloadDownload{
 			ProgramName: download.Name, Version: "pinned", URL: download.URL, SHA256: download.SHA256,
-		}, cachePath, output)
+		}, output)
 		if errorValue != nil {
 			return nil, errorValue
 		}
@@ -377,22 +373,11 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	cachePath := filepath.Join(repositoryRootPath, payloadCacheDirectory)
-	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
-		return nil, errorValue
-	}
 	packaged := []packagedFile{}
 	for _, download := range downloads {
-		downloadedPath, errorValue := fetchPinnedPayload(download, cachePath, output)
+		programPath, errorValue := fetchVendoredProgram(repositoryRootPath, download, stagingPath, output)
 		if errorValue != nil {
 			return nil, errorValue
-		}
-		programPath := downloadedPath
-		if download.PathInsideArchive != "" {
-			programPath, errorValue = extractProgram(downloadedPath, download.PathInsideArchive, filepath.Join(stagingPath, download.ProgramName))
-			if errorValue != nil {
-				return nil, errorValue
-			}
 		}
 		packaged = append(packaged, packagedFile{
 			SourcePath:  programPath,
@@ -403,7 +388,21 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 	return packaged, nil
 }
 
-func fetchPinnedPayload(download blueclaw.HostPayloadDownload, cachePath string, output io.Writer) (string, error) {
+// fetchVendoredProgram is the pinned program's path: the download itself, or
+// the program extracted from it into directoryPath.
+func fetchVendoredProgram(repositoryRootPath string, download blueclaw.HostPayloadDownload, directoryPath string, output io.Writer) (string, error) {
+	downloadedPath, errorValue := fetchPinnedPayload(repositoryRootPath, download, output)
+	if errorValue != nil || download.PathInsideArchive == "" {
+		return downloadedPath, errorValue
+	}
+	return extractProgram(downloadedPath, download.PathInsideArchive, filepath.Join(directoryPath, download.ProgramName))
+}
+
+func fetchPinnedPayload(repositoryRootPath string, download blueclaw.HostPayloadDownload, output io.Writer) (string, error) {
+	cachePath := filepath.Join(repositoryRootPath, payloadCacheDirectory)
+	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
+		return "", errorValue
+	}
 	cachedPath := filepath.Join(cachePath, filepath.Base(download.URL))
 	if checksum, errorValue := checksumOf(cachedPath); errorValue == nil && checksum == download.SHA256 {
 		return cachedPath, nil
