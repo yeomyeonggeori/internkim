@@ -26,7 +26,7 @@ func inspectELF(path string) (elfFacts, bool, error) {
 		return elfFacts{}, false, errorValue
 	}
 	defer file.Close()
-	machine, isTargeted := debianArchitectureOfMachine(file.Machine)
+	machine, isTargeted := architectureOfMachine(file.Machine)
 	if !isTargeted {
 		return elfFacts{}, true, fmt.Errorf("%s is built for %s, a machine this package does not target", path, file.Machine)
 	}
@@ -37,7 +37,7 @@ func inspectELF(path string) (elfFacts, bool, error) {
 	return elfFacts{Machine: machine, NewestGlibc: newestGlibcVersion(symbols)}, true, nil
 }
 
-func debianArchitectureOfMachine(machine elf.Machine) (string, bool) {
+func architectureOfMachine(machine elf.Machine) (string, bool) {
 	switch machine {
 	case elf.EM_AARCH64:
 		return "arm64", true
@@ -91,13 +91,13 @@ func versionPart(version []int, index int) int {
 	return 0
 }
 
-func requireELFFits(path string, target debianTarget) error {
+func requireELFFits(path string, target packageTarget) error {
 	facts, isELF, errorValue := inspectELF(path)
 	if errorValue != nil || !isELF {
 		return errorValue
 	}
-	if facts.Machine != target.DebianArchitecture {
-		return fmt.Errorf("%s is a %s binary and this package is %s", path, facts.Machine, target.DebianArchitecture)
+	if facts.Machine != target.Architecture {
+		return fmt.Errorf("%s is a %s binary and this package is %s", path, facts.Machine, target.Architecture)
 	}
 	floor, _ := parseGlibcVersion("GLIBC_" + blueclaw.HostGlibcMinimum)
 	if compareVersions(facts.NewestGlibc, floor) > 0 {
@@ -114,26 +114,26 @@ func joinVersion(version []int) string {
 	return strings.Join(parts, ".")
 }
 
-func requireMessengerBinary(sourcePath string, name string, target debianTarget) error {
+func requireMessengerBinary(sourcePath string, name string, target packageTarget) error {
 	facts, isELF, errorValue := inspectELF(sourcePath)
 	if errors.Is(errorValue, fs.ErrNotExist) {
-		return fmt.Errorf("%s is not at %s; build it with `tools/prepare-buzz-relay --target linux-%s`: %w", name, sourcePath, target.DebianArchitecture, errorValue)
+		return fmt.Errorf("%s is not at %s; build it with `tools/prepare-buzz-relay --target linux-%s`: %w", name, sourcePath, target.Architecture, errorValue)
 	}
 	if errorValue != nil {
 		return errorValue
 	}
 	if !isELF {
-		return fmt.Errorf("%s at %s is not a Linux binary; rebuild it with `tools/prepare-buzz-relay --target linux-%s`", name, sourcePath, target.DebianArchitecture)
+		return fmt.Errorf("%s at %s is not a Linux binary; rebuild it with `tools/prepare-buzz-relay --target linux-%s`", name, sourcePath, target.Architecture)
 	}
-	if facts.Machine != target.DebianArchitecture {
+	if facts.Machine != target.Architecture {
 		return fmt.Errorf(
 			"%s at %s is a %s binary and this package is %s; `tools/prepare-buzz-relay --target linux-%s` builds that one",
-			name, sourcePath, facts.Machine, target.DebianArchitecture, target.DebianArchitecture)
+			name, sourcePath, facts.Machine, target.Architecture, target.Architecture)
 	}
 	return nil
 }
 
-func requirePackagedProgramsFit(packaged []debPackagedFile, target debianTarget) error {
+func requirePackagedProgramsFit(packaged []packagedFile, target packageTarget) error {
 	for _, file := range packaged {
 		if file.IsSymbolicLink || file.IsDirectoryTree {
 			continue

@@ -26,41 +26,41 @@ import (
 // declaration goes straight into nfpm.Info, so there is no configuration file to drift
 // away from the code that would have generated it.
 const (
-	debPackageDescription = `internkim company host
+	packageDescription = `internkim company host
 
 The agent, the messenger relay and the screen a company signs into, as systemd
-services on an ordinary Debian machine. The package installs the programs and
+services on an ordinary Linux machine. The package installs the programs and
 the units; ` + "`internkim install`" + ` gives it a company to run, and until it has one
 every unit stays inactive rather than restarting into a failure.`
 
 	// tools/native_install_rig.py looks here for the package it judges, so the two
 	// halves meet without either naming the other.
-	debDefaultOutputDirectory = ".artifacts/native-package"
+	defaultPackageDirectory = ".artifacts/native-package"
 
-	debPayloadCacheDirectory = ".dependency/host-payload"
+	payloadCacheDirectory = ".dependency/host-payload"
 
 	documentConversionLockPath = "assets/document-conversion/requirements.txt"
 
 	// dpkg has read xz since 1.15, which predates every distribution the package
 	// is for.
 	debPayloadCompression = "xz"
-	debReleaseLicense     = "Apache-2.0"
+	packageLicense        = "Apache-2.0"
 )
 
-type debianTarget struct {
-	DebianArchitecture string
-	GoArchitecture     string
-	BunTarget          string
-	ELFMachine         string
+type packageTarget struct {
+	Architecture   string
+	GoArchitecture string
+	BunTarget      string
+	ELFMachine     string
 }
 
-var debianTargets = []debianTarget{
-	{DebianArchitecture: "arm64", GoArchitecture: "arm64", BunTarget: "bun-linux-arm64", ELFMachine: "aarch64"},
-	{DebianArchitecture: "amd64", GoArchitecture: "amd64", BunTarget: "bun-linux-x64", ELFMachine: "x86-64"},
+var packageTargets = []packageTarget{
+	{Architecture: "arm64", GoArchitecture: "arm64", BunTarget: "bun-linux-arm64", ELFMachine: "aarch64"},
+	{Architecture: "amd64", GoArchitecture: "amd64", BunTarget: "bun-linux-x64", ELFMachine: "x86-64"},
 }
 
-// debPackagedFile is one path the package owns.
-type debPackagedFile struct {
+// packagedFile is one path the package owns.
+type packagedFile struct {
 	SourcePath      string
 	Destination     string
 	Mode            os.FileMode
@@ -69,16 +69,16 @@ type debPackagedFile struct {
 	IsSymbolicLink  bool
 }
 
-func debTargetsNamed(requested string) ([]debianTarget, error) {
+func packageTargetsNamed(requested string) ([]packageTarget, error) {
 	if requested == "" {
-		return debianTargets, nil
+		return packageTargets, nil
 	}
-	chosen := []debianTarget{}
+	chosen := []packageTarget{}
 	for _, name := range strings.Split(requested, ",") {
 		name = strings.TrimSpace(name)
 		found := false
-		for _, target := range debianTargets {
-			if target.DebianArchitecture == name {
+		for _, target := range packageTargets {
+			if target.Architecture == name {
 				chosen = append(chosen, target)
 				found = true
 			}
@@ -90,46 +90,46 @@ func debTargetsNamed(requested string) ([]debianTarget, error) {
 	return chosen, nil
 }
 
-// debVersionFromRepository turns the commit into something dpkg orders. A release
+// packageVersionFromRepository turns the commit into something every package manager orders. A release
 // that names --version gets that instead.
-func debVersionFromRepository(repositoryRootPath string) string {
+func packageVersionFromRepository(repositoryRootPath string) string {
 	return "0.0.0+" + time.Now().UTC().Format("20060102") + "." + shortRevision(gitRevision(repositoryRootPath))
 }
 
-func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {
-	packaged := []debPackagedFile{}
-	programs, errorValue := buildDebPrograms(repositoryRootPath, target, version, stagingPath, output)
+func packageContents(repositoryRootPath string, target packageTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {
+	packaged := []packagedFile{}
+	programs, errorValue := buildPackagedPrograms(repositoryRootPath, target, version, stagingPath, output)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	packaged = append(packaged, programs...)
-	rendered, errorValue := writeDebRenderedFiles(stagingPath)
+	rendered, errorValue := writeRenderedFiles(stagingPath)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	packaged = append(packaged, rendered...)
-	carried, errorValue := debCarriedTrees(repositoryRootPath)
+	carried, errorValue := carriedTrees(repositoryRootPath)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	packaged = append(packaged, carried...)
-	font, errorValue := debCarriedFont(repositoryRootPath, output)
+	font, errorValue := carriedFont(repositoryRootPath, output)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	packaged = append(packaged, font...)
-	return debContentsFor(packaged), nil
+	return contentsFor(packaged), nil
 }
 
-// debCarriedFont is the Hangul face and the license that has to travel with it.
-func debCarriedFont(repositoryRootPath string, output io.Writer) ([]debPackagedFile, error) {
-	cachePath := filepath.Join(repositoryRootPath, debPayloadCacheDirectory)
+// carriedFont is the Hangul face and the license that has to travel with it.
+func carriedFont(repositoryRootPath string, output io.Writer) ([]packagedFile, error) {
+	cachePath := filepath.Join(repositoryRootPath, payloadCacheDirectory)
 	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
 		return nil, errorValue
 	}
 	destinations := []string{blueclaw.CompanyPackageDocumentFontPath, blueclaw.CompanyPackageDocumentFontLicensePath}
 	downloads := blueclaw.DocumentFontDownloads()
-	packaged := []debPackagedFile{}
+	packaged := []packagedFile{}
 	for index, download := range downloads {
 		downloadedPath, errorValue := fetchPinnedPayload(blueclaw.HostPayloadDownload{
 			ProgramName: download.Name, Version: "pinned", URL: download.URL, SHA256: download.SHA256,
@@ -137,12 +137,12 @@ func debCarriedFont(repositoryRootPath string, output io.Writer) ([]debPackagedF
 		if errorValue != nil {
 			return nil, errorValue
 		}
-		packaged = append(packaged, debPackagedFile{SourcePath: downloadedPath, Destination: destinations[index], Mode: 0o644})
+		packaged = append(packaged, packagedFile{SourcePath: downloadedPath, Destination: destinations[index], Mode: 0o644})
 	}
 	return packaged, nil
 }
 
-func debContentsFor(packaged []debPackagedFile) files.Contents {
+func contentsFor(packaged []packagedFile) files.Contents {
 	contents := files.Contents{}
 	for _, file := range packaged {
 		content := &files.Content{
@@ -160,7 +160,7 @@ func debContentsFor(packaged []debPackagedFile) files.Contents {
 		}
 		contents = append(contents, content)
 	}
-	for _, directory := range debOwnedDirectories() {
+	for _, directory := range ownedDirectories() {
 		contents = append(contents, &files.Content{
 			Destination: directory.Destination,
 			Type:        files.TypeDir,
@@ -170,14 +170,14 @@ func debContentsFor(packaged []debPackagedFile) files.Contents {
 	return contents
 }
 
-// debOwnedDirectories are the trees §5 puts on disk. The state root is 0700 because
+// ownedDirectories are the trees §5 puts on disk. The state root is 0700 because
 // what lands under it is a company's identity on the plane and the seed that signs a
 // message under a person's own name, and the bucket directory is 0750 root:root to
 // keep attachments away from the unprivileged task users sharing the box. The bucket
 // is a directory because versitygw's posix backend serves one as a bucket; it is what
 // `mc mb` used to do.
-func debOwnedDirectories() []debPackagedFile {
-	return []debPackagedFile{
+func ownedDirectories() []packagedFile {
+	return []packagedFile{
 		{Destination: blueclaw.CompanyHostStateRoot, Mode: blueclaw.CompanyHostStateRootMode},
 		{Destination: blueclaw.CompanyHostCompaniesRoot, Mode: blueclaw.CompanyHostStateRootMode},
 		{Destination: blueclaw.CompanyHostMediaRootPath, Mode: 0o750},
@@ -187,10 +187,10 @@ func debOwnedDirectories() []debPackagedFile {
 	}
 }
 
-// debGoPrograms are this repository's own binaries and blueclaw's, each named by the
+// packagedGoPrograms are this repository's own binaries and blueclaw's, each named by the
 // constant the units use, so a rename cannot leave the package shipping a program no
 // unit starts.
-type debGoProgram struct {
+type packagedGoProgram struct {
 	Name        string
 	ModuleRoot  string
 	Package     string
@@ -199,16 +199,16 @@ type debGoProgram struct {
 }
 
 // InstalledPath is /usr/bin unless the program says otherwise, because that is
-// where a program a person types belongs and where dpkg is allowed to write.
-func (program debGoProgram) InstalledPath() string {
+// where a program a person types belongs and where a package manager is allowed to write.
+func (program packagedGoProgram) InstalledPath() string {
 	if program.Destination != "" {
 		return program.Destination
 	}
 	return blueclaw.CompanyPackageBinaryPath(program.Name)
 }
 
-func debGoPrograms() []debGoProgram {
-	return []debGoProgram{
+func packagedGoPrograms() []packagedGoProgram {
+	return []packagedGoProgram{
 		// The control command the package is named after. `internkim install`
 		// gives this box a company; until it has one, every unit's condition is
 		// unmet and nothing runs.
@@ -232,10 +232,10 @@ func debGoPrograms() []debGoProgram {
 	}
 }
 
-// debSymbolicLinks keeps the name the published bare binary had working for the
+// packagedSymbolicLinks keeps the name the published bare binary had working for the
 // one release in which a machine may still be carrying it.
-func debSymbolicLinks() []debPackagedFile {
-	return []debPackagedFile{
+func packagedSymbolicLinks() []packagedFile {
+	return []packagedFile{
 		{
 			SourcePath:     blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName),
 			Destination:    blueclaw.CompanyPackageBinaryPath(companyHostBinaryName),
@@ -244,7 +244,7 @@ func debSymbolicLinks() []debPackagedFile {
 	}
 }
 
-type debBunProgram struct {
+type packagedBunProgram struct {
 	Name           string
 	WorkingRoot    string
 	EntryPoint     string
@@ -252,8 +252,8 @@ type debBunProgram struct {
 	InstallWorking string
 }
 
-func debBunPrograms() []debBunProgram {
-	return []debBunProgram{
+func packagedBunPrograms() []packagedBunProgram {
+	return []packagedBunProgram{
 		{
 			Name:           blueclaw.RelayName,
 			WorkingRoot:    "host/relay",
@@ -270,44 +270,44 @@ func debBunPrograms() []debBunProgram {
 	}
 }
 
-func buildDebPrograms(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) ([]debPackagedFile, error) {
-	packaged := []debPackagedFile{}
-	for _, program := range debGoPrograms() {
+func buildPackagedPrograms(repositoryRootPath string, target packageTarget, version string, stagingPath string, output io.Writer) ([]packagedFile, error) {
+	packaged := []packagedFile{}
+	for _, program := range packagedGoPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
-		if errorValue := crossCompileDebProgram(repositoryRootPath, program, target, version, builtPath); errorValue != nil {
+		if errorValue := crossCompilePackagedProgram(repositoryRootPath, program, target, version, builtPath); errorValue != nil {
 			return nil, errorValue
 		}
-		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.DebianArchitecture)
-		packaged = append(packaged, debPackagedFile{
+		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.Architecture)
+		packaged = append(packaged, packagedFile{
 			SourcePath:  builtPath,
 			Destination: program.InstalledPath(),
 			Mode:        program.Mode,
 		})
 	}
-	packaged = append(packaged, debSymbolicLinks()...)
-	for _, program := range debBunPrograms() {
+	packaged = append(packaged, packagedSymbolicLinks()...)
+	for _, program := range packagedBunPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
-		if errorValue := compileDebBunProgram(repositoryRootPath, program, target, builtPath); errorValue != nil {
+		if errorValue := compilePackagedBunProgram(repositoryRootPath, program, target, builtPath); errorValue != nil {
 			return nil, errorValue
 		}
-		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.DebianArchitecture)
-		packaged = append(packaged, debPackagedFile{
+		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.Architecture)
+		packaged = append(packaged, packagedFile{
 			SourcePath:  builtPath,
 			Destination: blueclaw.CompanyPackageBinaryPath(program.Name),
 			Mode:        0o755,
 		})
 	}
-	messenger, errorValue := debMessengerPrograms(repositoryRootPath, target)
+	messenger, errorValue := messengerPrograms(repositoryRootPath, target)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	packaged = append(packaged, messenger...)
-	vendored, errorValue := debVendoredPrograms(repositoryRootPath, target, stagingPath, output)
+	vendored, errorValue := vendoredPrograms(repositoryRootPath, target, stagingPath, output)
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	packaged = append(packaged, vendored...)
-	packaged = append(packaged, debPackagedFile{
+	packaged = append(packaged, packagedFile{
 		SourcePath:  filepath.Join(repositoryRootPath, "tools", blueclaw.RenderCompanyRuntimeName),
 		Destination: blueclaw.CompanyPackageBinaryPath(blueclaw.RenderCompanyRuntimeName),
 		Mode:        0o755,
@@ -319,21 +319,21 @@ func buildDebPrograms(repositoryRootPath string, target debianTarget, version st
 }
 
 // Two packages built from one tree carry one revision, so the build id is the package
-// version: it is what dpkg moved, and it is what says whether the process answering
+// version: it is what the package manager moved, and it is what says whether the process answering
 // after an upgrade is the process the upgrade installed.
-func crossCompileDebProgram(repositoryRootPath string, program debGoProgram, target debianTarget, version string, outputPath string) error {
+func crossCompilePackagedProgram(repositoryRootPath string, program packagedGoProgram, target packageTarget, version string, outputPath string) error {
 	stamped := "-s -w " + admindStampFlags(version, releaseBinaryRevision(repositoryRootPath))
 	command := exec.Command("go", "build", "-trimpath", "-ldflags", stamped, "-o", outputPath, program.Package)
 	command.Dir = filepath.Join(repositoryRootPath, program.ModuleRoot)
 	command.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+target.GoArchitecture, "CGO_ENABLED=0")
 	commandOutput, errorValue := command.CombinedOutput()
 	if errorValue != nil {
-		return fmt.Errorf("compile %s for %s: %s", program.Name, target.DebianArchitecture, strings.TrimSpace(string(commandOutput)))
+		return fmt.Errorf("compile %s for %s: %s", program.Name, target.Architecture, strings.TrimSpace(string(commandOutput)))
 	}
 	return nil
 }
 
-func compileDebBunProgram(repositoryRootPath string, program debBunProgram, target debianTarget, outputPath string) error {
+func compilePackagedBunProgram(repositoryRootPath string, program packagedBunProgram, target packageTarget, outputPath string) error {
 	installArguments := []string{"install", "--frozen-lockfile"}
 	if program.InstallFilter != "" {
 		installArguments = append(installArguments, "--filter", program.InstallFilter)
@@ -346,7 +346,7 @@ func compileDebBunProgram(repositoryRootPath string, program debBunProgram, targ
 	build := exec.Command("bun", "build", "--compile", "--target="+target.BunTarget, "--outfile", outputPath, program.EntryPoint)
 	build.Dir = filepath.Join(repositoryRootPath, program.WorkingRoot)
 	if commandOutput, errorValue := build.CombinedOutput(); errorValue != nil {
-		return fmt.Errorf("compile %s for %s: %s", program.Name, target.DebianArchitecture, strings.TrimSpace(string(commandOutput)))
+		return fmt.Errorf("compile %s for %s: %s", program.Name, target.Architecture, strings.TrimSpace(string(commandOutput)))
 	}
 	return nil
 }
@@ -356,14 +356,14 @@ func compileDebBunProgram(repositoryRootPath string, program debBunProgram, targ
 // names. The package carries those files; it does not build Rust. A package for an
 // architecture whose directory is missing or holds another one's binaries is refused
 // rather than shipped without a messenger.
-func debMessengerPrograms(repositoryRootPath string, target debianTarget) ([]debPackagedFile, error) {
-	packaged := []debPackagedFile{}
+func messengerPrograms(repositoryRootPath string, target packageTarget) ([]packagedFile, error) {
+	packaged := []packagedFile{}
 	for _, name := range []string{blueclaw.BuzzRelayName, blueclaw.BuzzAdminName} {
-		sourcePath := filepath.Join(repositoryRootPath, blueclaw.BuzzRelayArtifactPathFor(target.DebianArchitecture), name)
+		sourcePath := filepath.Join(repositoryRootPath, blueclaw.BuzzRelayArtifactPathFor(target.Architecture), name)
 		if errorValue := requireMessengerBinary(sourcePath, name, target); errorValue != nil {
 			return nil, errorValue
 		}
-		packaged = append(packaged, debPackagedFile{
+		packaged = append(packaged, packagedFile{
 			SourcePath:  sourcePath,
 			Destination: blueclaw.CompanyPackageBinaryPath(name),
 			Mode:        0o755,
@@ -372,16 +372,16 @@ func debMessengerPrograms(repositoryRootPath string, target debianTarget) ([]deb
 	return packaged, nil
 }
 
-func debVendoredPrograms(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) ([]debPackagedFile, error) {
-	downloads, errorValue := blueclaw.HostPayloadDownloads(target.DebianArchitecture)
+func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPath string, output io.Writer) ([]packagedFile, error) {
+	downloads, errorValue := blueclaw.HostPayloadDownloads(target.Architecture)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	cachePath := filepath.Join(repositoryRootPath, debPayloadCacheDirectory)
+	cachePath := filepath.Join(repositoryRootPath, payloadCacheDirectory)
 	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
 		return nil, errorValue
 	}
-	packaged := []debPackagedFile{}
+	packaged := []packagedFile{}
 	for _, download := range downloads {
 		downloadedPath, errorValue := fetchPinnedPayload(download, cachePath, output)
 		if errorValue != nil {
@@ -394,7 +394,7 @@ func debVendoredPrograms(repositoryRootPath string, target debianTarget, staging
 				return nil, errorValue
 			}
 		}
-		packaged = append(packaged, debPackagedFile{
+		packaged = append(packaged, packagedFile{
 			SourcePath:  programPath,
 			Destination: blueclaw.CompanyPackageBinaryPath(download.ProgramName),
 			Mode:        0o755,
@@ -522,14 +522,14 @@ func extractFromGzippedTar(archivePath string, wantedPath string, outputPath str
 	}
 }
 
-func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
-	packaged := []debPackagedFile{}
+func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
+	packaged := []packagedFile{}
 	for _, unit := range blueclaw.CompanyPackageUnits() {
 		unitPath := filepath.Join(stagingPath, unit.FileName())
 		if errorValue := os.WriteFile(unitPath, []byte(unit.Contents), 0o644); errorValue != nil {
 			return nil, errorValue
 		}
-		packaged = append(packaged, debPackagedFile{
+		packaged = append(packaged, packagedFile{
 			SourcePath:  unitPath,
 			Destination: unit.InstalledPath(),
 			Mode:        0o644,
@@ -539,7 +539,7 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 	if errorValue := os.WriteFile(preparePath, []byte(blueclaw.CompanyHostPrepareScript()), 0o755); errorValue != nil {
 		return nil, errorValue
 	}
-	packaged = append(packaged, debPackagedFile{
+	packaged = append(packaged, packagedFile{
 		SourcePath:  preparePath,
 		Destination: blueclaw.CompanyPackagePreparePath,
 		Mode:        0o755,
@@ -548,9 +548,9 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 	if errorValue := os.WriteFile(dataServicePath, []byte(blueclaw.CompanyHostDataServiceScript()), blueclaw.CompanyHostDataServiceMode); errorValue != nil {
 		return nil, errorValue
 	}
-	packaged = append(packaged, debPackagedFile{
+	packaged = append(packaged, packagedFile{
 		SourcePath:  dataServicePath,
-		Destination: blueclaw.DebianCompanyHostLayout().DataServicePath(),
+		Destination: blueclaw.LinuxCompanyHostLayout().DataServicePath(),
 		Mode:        blueclaw.CompanyHostDataServiceMode,
 	})
 	for _, declaration := range []struct {
@@ -565,13 +565,13 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 		if errorValue := os.WriteFile(declarationPath, []byte(declaration.contents), 0o644); errorValue != nil {
 			return nil, errorValue
 		}
-		packaged = append(packaged, debPackagedFile{SourcePath: declarationPath, Destination: declaration.destination, Mode: 0o644})
+		packaged = append(packaged, packagedFile{SourcePath: declarationPath, Destination: declaration.destination, Mode: 0o644})
 	}
 	settingsPath := filepath.Join(stagingPath, "company-host.env")
 	if errorValue := os.WriteFile(settingsPath, []byte(blueclaw.CompanyHostSettingsFile()), 0o644); errorValue != nil {
 		return nil, errorValue
 	}
-	packaged = append(packaged, debPackagedFile{
+	packaged = append(packaged, packagedFile{
 		SourcePath:      settingsPath,
 		Destination:     blueclaw.CompanyHostSettingsPath,
 		Mode:            0o644,
@@ -580,10 +580,10 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 	return packaged, nil
 }
 
-// debCarriedTrees are the files the image copies in unchanged. A missing one is a
+// carriedTrees are the files the image copies in unchanged. A missing one is a
 // refusal: a box whose skills directory is empty answers and does nothing.
-func debCarriedTrees(repositoryRootPath string) ([]debPackagedFile, error) {
-	carried := []debPackagedFile{
+func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
+	carried := []packagedFile{
 		{
 			SourcePath:      filepath.Join(repositoryRootPath, ".dependency/internkim-plugin/skills"),
 			Destination:     blueclaw.CompanyPackageSkillsPath,
@@ -603,7 +603,7 @@ func debCarriedTrees(repositoryRootPath string) ([]debPackagedFile, error) {
 		},
 		{
 			SourcePath:  filepath.Join(repositoryRootPath, documentConversionLockPath),
-			Destination: blueclaw.DebianCompanyHostLayout().DocumentRequirementsPath(),
+			Destination: blueclaw.LinuxCompanyHostLayout().DocumentRequirementsPath(),
 			Mode:        0o644,
 		},
 	}
@@ -615,21 +615,21 @@ func debCarriedTrees(repositoryRootPath string) ([]debPackagedFile, error) {
 	return carried, nil
 }
 
-// debShippedProgramNames is every program the package puts in /usr/bin, derived from
-// the same four declarations buildDebPrograms builds from, so a unit that starts a
+// shippedProgramNames is every program the package puts in /usr/bin, derived from
+// the same four declarations buildPackagedPrograms builds from, so a unit that starts a
 // program nothing produces is a test failure rather than a box that does not come up.
-func debShippedProgramNames(debianArchitecture string) ([]string, error) {
+func shippedProgramNames(architecture string) ([]string, error) {
 	names := []string{blueclaw.RenderCompanyRuntimeName, blueclaw.BuzzRelayName, blueclaw.BuzzAdminName}
-	for _, program := range debGoPrograms() {
+	for _, program := range packagedGoPrograms() {
 		if program.Destination != "" {
 			continue
 		}
 		names = append(names, program.Name)
 	}
-	for _, program := range debBunPrograms() {
+	for _, program := range packagedBunPrograms() {
 		names = append(names, program.Name)
 	}
-	downloads, errorValue := blueclaw.HostPayloadDownloads(debianArchitecture)
+	downloads, errorValue := blueclaw.HostPayloadDownloads(architecture)
 	if errorValue != nil {
 		return nil, errorValue
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestEveryBundledUnitWaitsForSomethingInstallWrites(t *testing.T) {
-	for _, unit := range CompanyHostSystemdUnits(DebianCompanyHostLayout()) {
+	for _, unit := range CompanyHostSystemdUnits(LinuxCompanyHostLayout()) {
 		if !strings.Contains(unit.Contents, "ConditionPathExists=") {
 			t.Fatalf("%s starts as soon as it is enabled; on a box that has the package and no "+
 				"company it would restart into the same failure forever", unit.FileName())
@@ -17,7 +17,7 @@ func TestEveryBundledUnitWaitsForSomethingInstallWrites(t *testing.T) {
 
 func TestTheBoxUnitIsThePackagedUnitThatRunsBeforeThereIsACompany(t *testing.T) {
 	bundled := map[string]bool{}
-	for _, unit := range CompanyHostSystemdUnits(DebianCompanyHostLayout()) {
+	for _, unit := range CompanyHostSystemdUnits(LinuxCompanyHostLayout()) {
 		bundled[unit.Name] = true
 	}
 	for _, unit := range CompanyPackageUnits() {
@@ -35,7 +35,7 @@ func TestTheBoxUnitIsThePackagedUnitThatRunsBeforeThereIsACompany(t *testing.T) 
 	if !bundled[BoxServiceName] {
 		t.Fatal("the package ships no box unit, so a box nobody configured never announces itself")
 	}
-	if _, isBundled := CompanyHostServiceNamed(DebianCompanyHostLayout(), BoxServiceName); isBundled {
+	if _, isBundled := CompanyHostServiceNamed(LinuxCompanyHostLayout(), BoxServiceName); isBundled {
 		t.Fatal("the box unit is in the bundle, so the install it runs would restart it halfway through")
 	}
 }

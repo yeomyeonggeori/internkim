@@ -16,7 +16,7 @@ import (
 // The skills build their own environment from the distribution's python3, so Depends
 // names it; the conversion environment is uv's, which is why no python3-venv is asked for.
 func TestThePackageAsksTheDistributionForPythonAndNoVenvModule(t *testing.T) {
-	depends := strings.Join(linuxPackageInformation(debianPackageFormat, debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
+	depends := strings.Join(linuxPackageInformation(debianPackageFormat, packageTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
 	if !strings.Contains(depends, "python3") {
 		t.Fatalf("the package's Depends is %q and leaves the skills with no interpreter", depends)
 	}
@@ -29,14 +29,14 @@ func TestThePackageAsksTheDistributionForPythonAndNoVenvModule(t *testing.T) {
 
 // Every unit the package installs starts a program the package installs.
 func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
-	for _, target := range debianTargets {
-		shipped, errorValue := debShippedProgramNames(target.DebianArchitecture)
+	for _, target := range packageTargets {
+		shipped, errorValue := shippedProgramNames(target.Architecture)
 		if errorValue != nil {
-			t.Fatalf("%s: %v", target.DebianArchitecture, errorValue)
+			t.Fatalf("%s: %v", target.Architecture, errorValue)
 		}
 		shippedPaths := map[string]bool{
 			blueclaw.CompanyPackagePreparePath:                   true,
-			blueclaw.DebianCompanyHostLayout().DataServicePath(): true,
+			blueclaw.LinuxCompanyHostLayout().DataServicePath(): true,
 		}
 		for _, name := range shipped {
 			shippedPaths[blueclaw.CompanyPackageBinaryPath(name)] = true
@@ -49,7 +49,7 @@ func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
 				program := strings.Fields(strings.TrimPrefix(line, "ExecStart="))[0]
 				if !shippedPaths[program] {
 					t.Fatalf("the %s package installs no %s, and %s starts it",
-						target.DebianArchitecture, program, unit.FileName())
+						target.Architecture, program, unit.FileName())
 				}
 			}
 		}
@@ -59,7 +59,7 @@ func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
 // dpkg keeps a conffile's local edits across upgrades, and overwrites everything else.
 // Anything an operator is expected to change has to be one.
 func TestTheOperatorSettingsFileIsTheOnlyConfigurationFile(t *testing.T) {
-	contents := debContentsFor([]debPackagedFile{
+	contents := contentsFor([]packagedFile{
 		{SourcePath: "/tmp/a", Destination: "/usr/bin/one", Mode: 0o755},
 		{SourcePath: "/tmp/b", Destination: blueclaw.CompanyHostSettingsPath, Mode: 0o644, IsConfiguration: true},
 	})
@@ -78,7 +78,7 @@ func TestTheOperatorSettingsFileIsTheOnlyConfigurationFile(t *testing.T) {
 // The state root holds a company's identity on the plane. A directory dpkg creates
 // world-readable would hand it to every account on the box.
 func TestTheStateRootIsPrivate(t *testing.T) {
-	for _, directory := range debOwnedDirectories() {
+	for _, directory := range ownedDirectories() {
 		if directory.Destination != blueclaw.CompanyHostStateRoot && directory.Destination != blueclaw.CompanyHostCompaniesRoot {
 			continue
 		}
@@ -91,7 +91,7 @@ func TestTheStateRootIsPrivate(t *testing.T) {
 // The helper is setuid root. If the package ever stops saying so, the agent silently
 // loses the ability to act as the person who asked.
 func TestTheHelperIsShippedSetuidWhereTheRuntimeLooksForIt(t *testing.T) {
-	for _, program := range debGoPrograms() {
+	for _, program := range packagedGoPrograms() {
 		if program.Name != blueclaw.POSIXHelperProgramName {
 			continue
 		}
@@ -111,14 +111,14 @@ func TestTheHelperIsShippedSetuidWhereTheRuntimeLooksForIt(t *testing.T) {
 // installs a machine nobody can finish setting up.
 func TestThePackageShipsTheControlCommandAndTheNameTheBareBinaryHad(t *testing.T) {
 	installed := map[string]bool{}
-	for _, program := range debGoPrograms() {
+	for _, program := range packagedGoPrograms() {
 		installed[program.InstalledPath()] = true
 	}
 	controlPath := blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName)
 	if !installed[controlPath] {
 		t.Fatalf("the package installs no %s", controlPath)
 	}
-	for _, link := range debSymbolicLinks() {
+	for _, link := range packagedSymbolicLinks() {
 		if link.Destination == blueclaw.CompanyPackageBinaryPath(companyHostBinaryName) && link.SourcePath == controlPath {
 			return
 		}
@@ -149,7 +149,7 @@ func TestThePostInstallBuildsTheConversionEnvironmentBeforeItRestartsTheServices
 	for _, format := range linuxPackageFormats() {
 		script := maintainerScript(format, postInstallScript)
 		restart := strings.Index(script, "systemctl restart")
-		for _, command := range blueclaw.DebianCompanyHostLayout().DocumentEnvironmentCommands() {
+		for _, command := range blueclaw.LinuxCompanyHostLayout().DocumentEnvironmentCommands() {
 			position := strings.Index(script, shellWords(command.Arguments)+" || refuse")
 			if position < 0 || position > restart {
 				t.Fatalf("the %s postinst does not %s before it restarts the services:\n%s", format.Name, command.Purpose, script)
@@ -238,15 +238,15 @@ func TestThePackagedBinariesCarryABuildIdentity(t *testing.T) {
 }
 
 func TestTheArchitecturesAreArm64AndAmd64(t *testing.T) {
-	if _, errorValue := debTargetsNamed("riscv64"); errorValue == nil {
+	if _, errorValue := packageTargetsNamed("riscv64"); errorValue == nil {
 		t.Fatal("a package was accepted for an architecture nothing is built for")
 	}
-	chosen, errorValue := debTargetsNamed("arm64")
-	if errorValue != nil || len(chosen) != 1 || chosen[0].DebianArchitecture != "arm64" {
+	chosen, errorValue := packageTargetsNamed("arm64")
+	if errorValue != nil || len(chosen) != 1 || chosen[0].Architecture != "arm64" {
 		t.Fatalf("--architecture arm64 chose %v (%v)", chosen, errorValue)
 	}
-	if len(debianTargets) != 2 {
-		t.Fatalf("the package is built for %d architectures and the design names two", len(debianTargets))
+	if len(packageTargets) != 2 {
+		t.Fatalf("the package is built for %d architectures and the design names two", len(packageTargets))
 	}
 }
 
@@ -262,9 +262,9 @@ func TestTheBuiltPackageLandsWhereTheInstallRigLooks(t *testing.T) {
 	if readError != nil {
 		t.Skip("the install rig is not in this tree")
 	}
-	if !strings.Contains(string(runner), debDefaultOutputDirectory) {
+	if !strings.Contains(string(runner), defaultPackageDirectory) {
 		t.Fatalf("internkim release packages writes %s and the install rig does not look there; "+
-			"the rig would report that no package exists", debDefaultOutputDirectory)
+			"the rig would report that no package exists", defaultPackageDirectory)
 	}
 	if !strings.Contains(string(rig), `PACKAGE_NAME = "`+blueclaw.CompanyPackageName+`"`) {
 		t.Fatalf("the install rig globs for a package not named %s", blueclaw.CompanyPackageName)

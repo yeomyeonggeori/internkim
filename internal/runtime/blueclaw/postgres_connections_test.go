@@ -20,7 +20,7 @@ func TestTheConnectionBudgetFitsTheServer(t *testing.T) {
 }
 
 func TestTheMessengerIsToldTheShareTheBudgetGivesIt(t *testing.T) {
-	messenger, isBundled := CompanyHostServiceNamed(DebianCompanyHostLayout(), BuzzRelayServiceName)
+	messenger, isBundled := CompanyHostServiceNamed(LinuxCompanyHostLayout(), BuzzRelayServiceName)
 	if !isBundled {
 		t.Fatalf("the bundle carries no %s, so the budget counts connections for a program it cannot see", BuzzRelayServiceName)
 	}

@@ -28,7 +28,7 @@ func main() {
 
 func describe(directory string) error {
 	services := []startedService{}
-	for _, service := range blueclaw.CompanyHostServices(blueclaw.DebianCompanyHostLayout()) {
+	for _, service := range blueclaw.CompanyHostServices(blueclaw.LinuxCompanyHostLayout()) {
 		services = append(services, startedService{Name: service.Name, Arguments: service.Command})
 	}
 	document, errorValue := json.MarshalIndent(services, "", "  ")

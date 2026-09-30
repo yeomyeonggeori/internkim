@@ -105,7 +105,7 @@ func TestOnlyARemovalStopsTheUnitsInEveryFormat(t *testing.T) {
 }
 
 func TestEveryFormatDependsOnTheSameDeclarationInItsOwnDialect(t *testing.T) {
-	target := debianTargets[0]
+	target := packageTargets[0]
 	for _, format := range linuxPackageFormats() {
 		information := linuxPackageInformation(format, target, "1.2.3", files.Contents{}, nfpm.Scripts{})
 		declared := blueclaw.HostPackageDependsFor(format.Manager)
@@ -124,7 +124,7 @@ func TestEveryFormatNamesAnNfpmPackager(t *testing.T) {
 }
 
 func TestEachFormatWritesItsOwnConventionalFileName(t *testing.T) {
-	target := debianTargets[0]
+	target := packageTargets[0]
 	expected := map[string]string{
 		"deb":       "internkim_1.2.3_arm64.deb",
 		"rpm":       "internkim-1.2.3-1.aarch64.rpm",
@@ -142,7 +142,7 @@ func TestEachFormatWritesItsOwnConventionalFileName(t *testing.T) {
 func TestEveryFormatKeepsTheWholeVersionSoTwoBuildsOfOneDayAreTwoVersions(t *testing.T) {
 	version := "0.0.0+20260930.abc1234"
 	for _, format := range linuxPackageFormats() {
-		information := linuxPackageInformation(format, debianTargets[0], version, files.Contents{}, nfpm.Scripts{})
+		information := linuxPackageInformation(format, packageTargets[0], version, files.Contents{}, nfpm.Scripts{})
 		fileName, errorValue := format.packageFileName(information)
 		if errorValue != nil || !strings.Contains(fileName, version) {
 			t.Errorf("the %s package is named %q (%v), which drops part of %s, so a later build of the same day would not upgrade it", format.Name, fileName, errorValue, version)

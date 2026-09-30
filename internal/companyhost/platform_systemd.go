@@ -40,7 +40,7 @@ func (linuxPlatform) NameOfItsSupervisor() string {
 }
 
 func (linuxPlatform) Layout() blueclaw.CompanyHostLayout {
-	return blueclaw.DebianCompanyHostLayout()
+	return blueclaw.LinuxCompanyHostLayout()
 }
 
 // The package's maintainer script creates these accounts; a machine that took

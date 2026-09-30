@@ -52,21 +52,21 @@ func compileLinuxProgram(t *testing.T, architecture string) string {
 
 func TestAnotherArchitecturesMessengerIsRefused(t *testing.T) {
 	amd64Program := compileLinuxProgram(t, "amd64")
-	errorValue := requireMessengerBinary(amd64Program, "buzz-relay", debianTargets[0])
+	errorValue := requireMessengerBinary(amd64Program, "buzz-relay", packageTargets[0])
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "--target linux-arm64") {
 		t.Fatalf("an amd64 binary was accepted for the arm64 package: %v", errorValue)
 	}
-	if errorValue := requireMessengerBinary(amd64Program, "buzz-relay", debianTargets[1]); errorValue != nil {
+	if errorValue := requireMessengerBinary(amd64Program, "buzz-relay", packageTargets[1]); errorValue != nil {
 		t.Fatalf("an amd64 binary was refused for the amd64 package: %v", errorValue)
 	}
 }
 
 func TestAStaticProgramFitsItsOwnArchitectureOnly(t *testing.T) {
 	amd64Program := compileLinuxProgram(t, "amd64")
-	if errorValue := requireELFFits(amd64Program, debianTargets[1]); errorValue != nil {
+	if errorValue := requireELFFits(amd64Program, packageTargets[1]); errorValue != nil {
 		t.Fatalf("a static amd64 program does not fit the amd64 package: %v", errorValue)
 	}
-	if errorValue := requireELFFits(amd64Program, debianTargets[0]); errorValue == nil {
+	if errorValue := requireELFFits(amd64Program, packageTargets[0]); errorValue == nil {
 		t.Fatal("a static amd64 program fit the arm64 package")
 	}
 }

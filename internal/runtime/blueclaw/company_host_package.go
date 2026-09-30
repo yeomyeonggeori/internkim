@@ -133,7 +133,7 @@ func (unit CompanyPackageUnit) InstalledPath() string {
 // has the package but not yet a company sits inactive rather than restarting into a
 // failure it cannot explain.
 func CompanyPackageUnits() []CompanyPackageUnit {
-	layout := DebianCompanyHostLayout()
+	layout := LinuxCompanyHostLayout()
 	return append(CompanyHostSystemdUnits(layout), CompanyPackageUnit{Name: BoxServiceName, Contents: boxServiceUnit(layout)})
 }
 
@@ -335,7 +335,7 @@ func CompanyHostSettingsFile() string {
 // It is rendered here rather than kept as a file of its own so the paths it touches
 // are the same constants the units name.
 func CompanyHostPrepareScript() string {
-	return CompanyHostPrepareScriptFor(DebianCompanyHostLayout())
+	return CompanyHostPrepareScriptFor(LinuxCompanyHostLayout())
 }
 
 // CompanyHostPrepareScriptFor renders it for one machine's layout. Every program

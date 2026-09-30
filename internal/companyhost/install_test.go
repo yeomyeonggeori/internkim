@@ -73,7 +73,7 @@ func exampleConnection(t *testing.T) Connection {
 func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 	connection := exampleConnection(t)
 	directoryPath := DefaultStateDirectoryPath(connection.Company.ID)
-	files, errorValue := companyHostFiles(blueclaw.DebianCompanyHostLayout(), directoryPath, connection, exampleSecrets())
+	files, errorValue := companyHostFiles(blueclaw.LinuxCompanyHostLayout(), directoryPath, connection, exampleSecrets())
 	if errorValue != nil {
 		t.Fatalf("render the company's files: %v", errorValue)
 	}
@@ -90,7 +90,7 @@ func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 		blueclaw.CompanyHostPolicyDocument:  true,
 	}
 
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.DebianCompanyHostLayout()) {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.LinuxCompanyHostLayout()) {
 		condition := conditionPathOf(unit.Contents)
 		if condition == "" {
 			t.Fatalf("%s starts whether or not this box has a company", unit.Name)
@@ -128,10 +128,10 @@ func conditionPathOf(unitContents string) string {
 // renderer would be a second definition of the same service.
 func TestTheInstallWritesTheUnitsThePackageShips(t *testing.T) {
 	unitRoot := t.TempDir()
-	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
+	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.LinuxCompanyHostLayout(), io.Discard); errorValue != nil {
 		t.Fatalf("install the units: %v", errorValue)
 	}
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.DebianCompanyHostLayout()) {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.LinuxCompanyHostLayout()) {
 		written, errorValue := os.ReadFile(filepath.Join(unitRoot, unit.FileName()))
 		if errorValue != nil {
 			t.Fatalf("the install wrote no %s: %v", unit.FileName(), errorValue)
@@ -149,7 +149,7 @@ func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
 	if errorValue := os.WriteFile(owned, []byte("installed by dpkg\n"), 0o644); errorValue != nil {
 		t.Fatalf("plant the packaged unit: %v", errorValue)
 	}
-	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
+	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.LinuxCompanyHostLayout(), io.Discard); errorValue != nil {
 		t.Fatalf("install the units: %v", errorValue)
 	}
 	kept, _ := os.ReadFile(owned)
@@ -227,7 +227,7 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 }
 
 func TestTheWaitReturnsOnceEveryServiceAnswers(t *testing.T) {
-	machine := &recordedMachine{answers: map[string]string{blueclaw.DebianCompanyHostLayout().DataServicePath(): "PONG\n"}}
+	machine := &recordedMachine{answers: map[string]string{blueclaw.LinuxCompanyHostLayout().DataServicePath(): "PONG\n"}}
 	if errorValue := waitUntilTheServerAnswers(linuxPlatform{}, machine, io.Discard); errorValue != nil {
 		t.Fatalf("a machine whose services all answered was refused: %v", errorValue)
 	}
@@ -305,7 +305,7 @@ func TestACompanyInstallsWhereTheUnitsReadIt(t *testing.T) {
 // the two files it reads are the two the install hands to its account.
 func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 	connection := exampleConnection(t)
-	files, errorValue := companyHostFiles(blueclaw.DebianCompanyHostLayout(), DefaultStateDirectoryPath(connection.Company.ID), connection, exampleSecrets())
+	files, errorValue := companyHostFiles(blueclaw.LinuxCompanyHostLayout(), DefaultStateDirectoryPath(connection.Company.ID), connection, exampleSecrets())
 	if errorValue != nil {
 		t.Fatalf("render the company's files: %v", errorValue)
 	}
