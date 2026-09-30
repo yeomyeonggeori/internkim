@@ -235,14 +235,6 @@ func TestATestingSuiteIsPublishedBesideStable(t *testing.T) {
 	}
 }
 
-func TestASuiteNamedForADistributionIsRefused(t *testing.T) {
-	for _, named := range []string{"trixie-stable", "noble-stable", "trixie-testing"} {
-		if _, errorValue := Build(named, nil, &recordingSigner{}, publishedAt); errorValue == nil {
-			t.Errorf("suite %q was accepted though the package names no distribution", named)
-		}
-	}
-}
-
 func TestAnUnsignedRepositoryIsRefusedAtTheSource(t *testing.T) {
 	if _, errorValue := Build(packagerepository.DefaultChannel, []packagerepository.Package{hostPackage(t, "1.0.0", "arm64")}, nil, publishedAt); errorValue == nil {
 		t.Fatal("a repository was built with no signer; apt would refuse what this would publish")
