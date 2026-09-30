@@ -11,7 +11,7 @@ import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
-from native_install_rig import BOOTSTRAP_SCRIPT, PACKAGE_NAME
+from native_install_rig import ARCHITECTURE, BOOTSTRAP_SCRIPT, MACHINE_NAME, PACKAGE_NAME
 
 PRESENT_MARKER = "internkim-is-present"
 
@@ -36,7 +36,15 @@ ARCH_BOOTSTRAP = "\n".join(
     [
         "set -eu",
         "sed -i '/^\\[options\\]/a DisableSandbox' /etc/pacman.conf",
-        "pacman -Syu --noconfirm --needed systemd curl",
+        *(
+            [
+                "sed -i '1i Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' /etc/pacman.d/mirrorlist",
+                "pacman -Sy --noconfirm archlinux-keyring",
+                "pacman -Su --noconfirm --needed systemd curl",
+            ]
+            if ARCHITECTURE == "amd64"
+            else ["pacman -Syu --noconfirm --needed systemd curl"]
+        ),
         MAKE_RESOLVER_STATIC,
         "ln -sf /dev/null /etc/systemd/system/systemd-resolved.service",
         "exec /usr/lib/systemd/systemd",
@@ -81,7 +89,7 @@ RPM_SIGNATURE_COMMAND = (
     f"|| dnf reinstall -y --downloadonly --downloaddir /tmp/downloaded {PACKAGE_NAME}) >/dev/null 2>&1; "
     "rpm -K /tmp/downloaded/*.rpm"
 )
-RPM_METADATA_TAMPERING = ((("rpm/stable/aarch64/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
+RPM_METADATA_TAMPERING = (((f"rpm/stable/{MACHINE_NAME}/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
 RPM_RESET = "dnf clean all"
 RPM_INSTALL = f"dnf install -y {PACKAGE_NAME}"
 
@@ -92,7 +100,7 @@ def debian_family(name, image):
     return Family(
         name=name,
         image=image,
-        package_pattern=f"{PACKAGE_NAME}_*_arm64.deb",
+        package_pattern=f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb",
         bootstrap=BOOTSTRAP_SCRIPT,
         tools_command=DEBIAN_TOOLS,
         installed_status_command=f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}",
@@ -127,7 +135,7 @@ FAMILIES = {
         Family(
             name="fedora",
             image="fedora:latest",
-            package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
+            package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
             bootstrap=FEDORA_BOOTSTRAP,
             tools_command="dnf install -y -q iproute procps-ng",
             installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
@@ -149,7 +157,7 @@ FAMILIES = {
         Family(
             name="rhel-10",
             image="rockylinux/rockylinux:10",
-            package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
+            package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
             bootstrap=RHEL_BOOTSTRAP,
             tools_command="dnf install -y -q iproute procps-ng",
             installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
@@ -171,7 +179,7 @@ FAMILIES = {
         Family(
             name="archlinux",
             image="lopsided/archlinux:latest",
-            package_pattern=f"{PACKAGE_NAME}-*-aarch64.pkg.tar.zst",
+            package_pattern=f"{PACKAGE_NAME}-*-{MACHINE_NAME}.pkg.tar.zst",
             bootstrap=ARCH_BOOTSTRAP,
             tools_command="pacman -S --noconfirm --needed iproute2 procps-ng",
             installed_status_command=f"pacman -Q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
@@ -189,7 +197,7 @@ FAMILIES = {
             signature_answer="Signature",
             reset_command=f"rm -f /var/cache/pacman/pkg/{PACKAGE_NAME}-*",
             install_command=f"pacman -Syy --noconfirm && pacman -S --needed --noconfirm {PACKAGE_NAME}",
-            metadata_tampering=((("arch/stable/aarch64/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),),
+            metadata_tampering=(((f"arch/stable/{MACHINE_NAME}/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),),
         ),
     )
 }

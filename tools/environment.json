@@ -266,6 +266,10 @@
     "process": "internal/browser test",
     "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"
   },
+  "INTERNKIM_RIG_ARCHITECTURE": {
+    "process": "tools/native_install_rig.py",
+    "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
+  },
   "INTERNKIM_API_URL": {
     "process": "cli",
     "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
