@@ -1044,7 +1044,7 @@ def main():
             print(
                 f"✗ native install rig\n"
                 f"    No {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}.\n"
-                f"    Build it with `internkim release deb`.\n"
+                f"    Build it with `internkim release packages --format deb --architecture {ARCHITECTURE}`.\n"
                 f"    To exercise the rig itself against a stand-in, pass --stand-in.",
                 file=sys.stderr,
             )

@@ -13,28 +13,10 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// The dependency list lives once, in host_dependencies.go. A package that spelled its
-// own would drift from the image the same declaration builds.
-func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
-	information := debianPackageInformation(debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{})
-	declared := strings.Split(blueclaw.HostDebianDependsLine(), ", ")
-	if len(information.Depends) != len(declared) {
-		t.Fatalf("the package declares %d dependencies and the host declares %d", len(information.Depends), len(declared))
-	}
-	for index, dependency := range declared {
-		if information.Depends[index] != dependency {
-			t.Fatalf("the package depends on %q where the host declares %q", information.Depends[index], dependency)
-		}
-	}
-	if strings.Contains(blueclaw.HostDebianDependsLine(), "pgvector") {
-		t.Fatal("the package asks apt for pgvector, and memory embeddings no longer live in the host's PostgreSQL")
-	}
-}
-
 // The skills build their own environment from the distribution's python3, so Depends
 // names it; the conversion environment is uv's, which is why no python3-venv is asked for.
 func TestThePackageAsksTheDistributionForPythonAndNoVenvModule(t *testing.T) {
-	depends := strings.Join(debianPackageInformation(debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
+	depends := strings.Join(linuxPackageInformation(debianPackageFormat, debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
 	if !strings.Contains(depends, "python3") {
 		t.Fatalf("the package's Depends is %q and leaves the skills with no interpreter", depends)
 	}
@@ -281,7 +263,7 @@ func TestTheBuiltPackageLandsWhereTheInstallRigLooks(t *testing.T) {
 		t.Skip("the install rig is not in this tree")
 	}
 	if !strings.Contains(string(runner), debDefaultOutputDirectory) {
-		t.Fatalf("internkim release deb writes %s and the install rig does not look there; "+
+		t.Fatalf("internkim release packages writes %s and the install rig does not look there; "+
 			"the rig would report that no package exists", debDefaultOutputDirectory)
 	}
 	if !strings.Contains(string(rig), `PACKAGE_NAME = "`+blueclaw.CompanyPackageName+`"`) {

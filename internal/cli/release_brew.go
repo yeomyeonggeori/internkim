@@ -18,11 +18,11 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// The company host as a Homebrew bottle, built the way `internkim release deb`
-// builds the Debian package: every path, dependency and program name is read
+// The company host as a Homebrew bottle, built the way `internkim release packages`
+// builds the Linux packages: every path, dependency and program name is read
 // from internal/runtime/blueclaw, and nothing about the formula is written twice.
 //
-// Three things differ from the .deb, and each is Homebrew's rule rather than a
+// Three things differ from the Linux packages, and each is Homebrew's rule rather than a
 // choice. The keg holds no service definitions, because the plists carry baked
 // environment and are written by `internkim install` once there is a company to
 // bake. It holds no setuid helper bit, because a bottle is a tar extracted as an

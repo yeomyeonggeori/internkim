@@ -657,7 +657,7 @@ def main():
     if not packages:
         print(
             f"✗ no {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}; "
-            "`internkim release deb --architecture arm64` builds one",
+            "`internkim release packages --format deb --architecture arm64` builds one",
             file=sys.stderr,
         )
         return 1

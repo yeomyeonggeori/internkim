@@ -14,16 +14,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goreleaser/nfpm/v2"
-	_ "github.com/goreleaser/nfpm/v2/deb"
 	"github.com/goreleaser/nfpm/v2/files"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// The company host as one Debian package. Everything it declares is read from
-// internal/runtime/blueclaw: the dependency line from HostDebianDependsLine, the units
-// from CompanyPackageUnits, the paths from the same constants those units name. Nothing
+// The company host's payload, which every package format carries. Everything it
+// declares is read from internal/runtime/blueclaw: the dependencies from
+// HostPackageDependsFor, the units from CompanyPackageUnits, the paths from the same constants those units name. Nothing
 // about the package is written twice, and nothing about it is written in YAML — the
 // declaration goes straight into nfpm.Info, so there is no configuration file to drift
 // away from the code that would have generated it.
@@ -71,28 +69,6 @@ type debPackagedFile struct {
 	IsSymbolicLink  bool
 }
 
-func runReleaseDeb(arguments []string) error {
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), debVersionFromRepository(repositoryRootPath))
-	outputDirectory := firstNonEmptyString(commandArgumentValue(arguments, "--out", ""), filepath.Join(repositoryRootPath, debDefaultOutputDirectory))
-	requested := commandArgumentValue(arguments, "--architecture", "")
-	targets, errorValue := debTargetsNamed(requested)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, target := range targets {
-		builtPath, errorValue := buildDebianPackage(repositoryRootPath, target, version, outputDirectory, os.Stdout)
-		if errorValue != nil {
-			return errorValue
-		}
-		fmt.Fprintf(os.Stdout, "built %s\n", builtPath)
-	}
-	return nil
-}
-
 func debTargetsNamed(requested string) ([]debianTarget, error) {
 	if requested == "" {
 		return debianTargets, nil
@@ -118,18 +94,6 @@ func debTargetsNamed(requested string) ([]debianTarget, error) {
 // that names --version gets that instead.
 func debVersionFromRepository(repositoryRootPath string) string {
 	return "0.0.0+" + time.Now().UTC().Format("20060102") + "." + shortRevision(gitRevision(repositoryRootPath))
-}
-
-func buildDebianPackage(repositoryRootPath string, target debianTarget, version string, outputDirectory string, output io.Writer) (string, error) {
-	built, errorValue := buildLinuxPackages(repositoryRootPath, target, version, outputDirectory, []linuxPackageFormat{debianPackageFormat}, output)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return built[0], nil
-}
-
-func debianPackageInformation(target debianTarget, version string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
-	return linuxPackageInformation(debianPackageFormat, target, version, contents, scripts)
 }
 
 func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {

@@ -224,7 +224,7 @@ func TestTheEntrypointNamesTheFilesTheDeclarationDoes(t *testing.T) {
 }
 
 func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *testing.T) {
-	depends := blueclaw.HostDebianDependsLine()
+	depends := strings.Join(blueclaw.HostPackageDependsFor(blueclaw.PackageManagerApt), ", ")
 	carried := map[string]bool{}
 	for _, dependency := range blueclaw.HostDependencies() {
 		if dependency.WhatTheDebianPackageCarriesInstead != "" {

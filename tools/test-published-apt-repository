@@ -621,7 +621,7 @@ class PublishedTrial:
     def the_newer_version_sorts_newer(self, older_version, newer_version):
         """dpkg's ordering, asked of dpkg, before anything is published.
 
-        `release deb` versions a build `0.0.0+<date>.<short git sha>`. Two
+        `release packages` versions a build `0.0.0+<date>.<short git sha>`. Two
         builds cut on one day differ only in the sha, and dpkg orders that
         lexically, so which one apt calls newer follows the sha rather than
         which commit is later. Half the pairs sort the wrong way, and the

@@ -30,15 +30,15 @@ func TestReleaseAcceptsItsFlagsInBothSpellings(t *testing.T) {
 }
 
 func TestReleaseRefusesAFlagWithNoValue(t *testing.T) {
-	deb, _ := findReleaseSubcommand("deb")
-	if checkReleaseArguments(deb, []string{"--architecture"}) == nil {
+	packages, _ := findReleaseSubcommand("packages")
+	if checkReleaseArguments(packages, []string{"--architecture"}) == nil {
 		t.Fatal("--architecture with nothing after it was accepted")
 	}
 }
 
 func TestReleaseRefusesAPositionalArgument(t *testing.T) {
-	deb, _ := findReleaseSubcommand("deb")
-	if checkReleaseArguments(deb, []string{"arm64"}) == nil {
+	packages, _ := findReleaseSubcommand("packages")
+	if checkReleaseArguments(packages, []string{"arm64"}) == nil {
 		t.Fatal("a bare word was accepted and would have been ignored")
 	}
 }

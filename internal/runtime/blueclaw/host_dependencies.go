@@ -392,11 +392,6 @@ func appendOnce(values []string, value string) []string {
 	return append(values, value)
 }
 
-// HostDebianDependsLine is the whole host, as a .deb control field.
-func HostDebianDependsLine() string {
-	return strings.Join(HostPackageDependsFor(PackageManagerApt), ", ")
-}
-
 // HostPackagesToInstallFor is what a person types after `install` to get what
 // the host needs on this manager: the first name of each alternative, for the
 // rows the package would not bring on its own.
