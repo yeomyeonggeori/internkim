@@ -364,11 +364,13 @@ make build
 ```
 
 Without `--components`, deploy rebuilds the blueclaw payload (and the board
-UI when it is older than the last commit to `web/`), compares the device with
-this tree, and ships every component that differs, with its protocol partner.
-It refuses a component the device is ahead on, ships nothing when the device
+UI when its stamp differs from the last commit to the sources it reads),
+compares the device with this tree, and ships every component that differs,
+with its protocol partner. It refuses a component the device is ahead on or
+holds at a commit this checkout does not know, ships nothing when the device
 already matches, and after the apply prints each shipped component's revision
-on the device next to the tree's, failing on any difference.
+on the device next to the tree's, failing on any difference. `--plan` does the
+build and the selection and prints the result without publishing.
 
 ```bash
 ./internkim @production deploy

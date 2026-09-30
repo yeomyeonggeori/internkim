@@ -556,11 +556,12 @@ and delete the duplicates.
 
 ## Deploying
 
-- `./internkim @production deploy` with no flags rebuilds the payload (and the
-  board UI when `web/` is newer), ships every component that differs
-  from the device plus its protocol partner, refuses one the device is ahead
-  on, ships nothing when they match, and fails if a shipped component's device
-  revision differs from the tree's. `--components` narrows on purpose.
+- `./internkim @production deploy` with no flags rebuilds stale artifacts,
+  ships every component that differs from the device plus its protocol
+  partner, refuses one the device is ahead on or holds at an unknown commit,
+  and fails if a shipped component's device revision differs from the
+  tree's. `--plan` prints the selection and publishes nothing; `--components`
+  narrows on purpose.
 - Before deploying, confirm the working tree the build runs from is `main`
   or already contains `origin/main` HEAD (`git merge-base --is-ancestor
   origin/main HEAD`), including the `.dependency/blueclaw` submodule pointer

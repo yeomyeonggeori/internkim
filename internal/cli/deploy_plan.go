@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/releaseset"
@@ -15,21 +15,26 @@ import (
 
 var prepareReleaseArtifacts = buildReleaseArtifacts
 
+var fetchReleaseHistory = fetchRepositories
+
 func buildReleaseArtifacts(repositoryRootPath string) error {
 	fmt.Println("Building the blueclaw payload")
-	if errorValue := runBuildStep(repositoryRootPath, "make", "prepare-blueclaw-payload"); errorValue != nil {
+	if errorValue := runBuildStep(repositoryRootPath, nil, "make", "prepare-blueclaw-payload"); errorValue != nil {
 		return errorValue
 	}
-	if !boardUIIsStale(repositoryRootPath) {
+	webRevision := releaseComponentRevision("web", repositoryRootPath, gitRevision(repositoryRootPath))
+	if builtBoardUIRevision(repositoryRootPath) == webRevision {
 		return nil
 	}
 	fmt.Println("Building the board UI")
-	return runBuildStep(filepath.Join(repositoryRootPath, "web"), "bun", "run", "build:board")
+	stamp := []string{"INTERNKIM_WEB_REVISION=" + webRevision}
+	return runBuildStep(filepath.Join(repositoryRootPath, "web"), stamp, "bun", "run", "build:board")
 }
 
-func runBuildStep(directoryPath string, name string, arguments ...string) error {
+func runBuildStep(directoryPath string, environment []string, name string, arguments ...string) error {
 	command := exec.Command(name, arguments...)
 	command.Dir = directoryPath
+	command.Env = append(os.Environ(), environment...)
 	output, errorValue := command.CombinedOutput()
 	if errorValue != nil {
 		return fmt.Errorf("%s %s failed: %s", name, strings.Join(arguments, " "), strings.TrimSpace(string(output)))
@@ -37,31 +42,31 @@ func runBuildStep(directoryPath string, name string, arguments ...string) error 
 	return nil
 }
 
-// The board UI's version is the millisecond it was built, so only the age of
-// the artifact against the last commit to web/ can say whether it is current.
-func boardUIIsStale(repositoryRootPath string) bool {
-	document, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "build", "board-ui", "_app", "version.json"))
-	if errorValue != nil {
-		return true
-	}
-	builtAtMilliseconds, errorValue := strconv.ParseInt(boardUIVersion(document), 10, 64)
-	if errorValue != nil {
-		return true
-	}
-	committedAtSeconds, parseError := strconv.ParseInt(strings.TrimSpace(runCmd("git", "-C", repositoryRootPath, "log", "-1", "--format=%ct", "--", "web")), 10, 64)
-	if parseError != nil {
-		return false
-	}
-	return committedAtSeconds*1000 > builtAtMilliseconds
-}
-
-func boardUIVersion(document []byte) string {
-	version, errorValue := adminUIVersionOf(document)
+func builtBoardUIRevision(repositoryRootPath string) string {
+	version, errorValue := readAdminUIVersion(filepath.Join(repositoryRootPath, "build", "board-ui"))
 	if errorValue != nil {
 		return ""
 	}
 	return version
 }
+
+func fetchRepositories(repositoryRootPath string) {
+	for _, repositoryPath := range []string{repositoryRootPath, filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath)} {
+		exec.Command("git", "-C", repositoryPath, "fetch", "--quiet").Run()
+	}
+}
+
+func revisionIsKnown(repositoryRootPath string, revision string) bool {
+	commit, _, _ := strings.Cut(revision, "-dirty-")
+	for _, repositoryPath := range []string{repositoryRootPath, filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath)} {
+		if exec.Command("git", "-C", repositoryPath, "cat-file", "-e", commit+"^{commit}").Run() == nil {
+			return true
+		}
+	}
+	return false
+}
+
+var commitIdentifier = regexp.MustCompile(`^[0-9a-f]{40}(-dirty-[0-9a-f]+)?$`)
 
 func revisionIsAncestor(repositoryRootPath string, older string, newer string) bool {
 	for _, repositoryPath := range []string{repositoryRootPath, filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath)} {
@@ -72,62 +77,80 @@ func revisionIsAncestor(repositoryRootPath string, older string, newer string) b
 	return false
 }
 
-// The component names to ship. nil means the whole set, an empty map means the
-// device already holds everything this tree builds.
+type deployPlan struct {
+	selected map[string]bool
+	held     map[string]releaseset.Component
+	refusals []string
+}
+
+// selected is nil for the whole set and empty when the device already holds
+// everything this tree builds.
 func chooseDeployComponents(
 	repositoryRootPath string,
 	narrowedComponentNames map[string]bool,
 	readDevice func() (map[string]releaseset.Component, error),
+	isKnown func(revision string) bool,
 	isAncestor func(older string, newer string) bool,
-) (map[string]bool, error) {
+) (deployPlan, error) {
 	if errorValue := prepareReleaseArtifacts(repositoryRootPath); errorValue != nil {
-		return nil, errorValue
+		return deployPlan{}, errorValue
 	}
+	held, readError := readDevice()
 	if len(narrowedComponentNames) > 0 {
-		return narrowedComponentNames, nil
+		return deployPlan{selected: narrowedComponentNames, held: held}, nil
 	}
-	held, errorValue := readDevice()
-	if errorValue != nil || len(held) == 0 {
-		return nil, nil
+	if readError != nil {
+		return deployPlan{}, fmt.Errorf("read what the device holds: %w", readError)
 	}
+	if len(held) == 0 {
+		return deployPlan{held: held}, nil
+	}
+	fetchReleaseHistory(repositoryRootPath)
 	treeRevision := gitRevision(repositoryRootPath)
-	return selectDeployComponents(held, func(name string) string {
+	selected, refusals := selectDeployComponents(held, func(name string) string {
 		return releaseComponentRevision(name, repositoryRootPath, treeRevision)
-	}, isAncestor)
+	}, isKnown, isAncestor)
+	return deployPlan{selected: selected, held: held, refusals: refusals}, nil
 }
 
 func selectDeployComponents(
 	held map[string]releaseset.Component,
 	revisionOf func(string) string,
+	isKnown func(revision string) bool,
 	isAncestor func(older string, newer string) bool,
-) (map[string]bool, error) {
+) (map[string]bool, []string) {
 	selected := map[string]bool{}
-	ahead := []string{}
+	refusals := []string{}
 	for _, name := range ReleaseComponentNames() {
 		expected := revisionOf(name)
 		carried, isHeld := held[name]
 		if expected == "" || (isHeld && carried.Revision == expected) {
 			continue
 		}
+		if isHeld && commitIdentifier.MatchString(carried.Revision) && !isKnown(carried.Revision) {
+			refusals = append(refusals, fmt.Sprintf("%s (device holds %s, which this checkout does not know; fetch or check what was deployed)", name, shortRevision(carried.Revision)))
+			continue
+		}
 		if isHeld && isAncestor(expected, carried.Revision) {
-			ahead = append(ahead, describeComponentAhead(name, carried.Revision, expected))
+			refusals = append(refusals, describeComponentAhead(name, carried.Revision, expected))
 			continue
 		}
 		selected[name] = true
 	}
-	if len(ahead) > 0 {
-		sort.Strings(ahead)
-		return nil, fmt.Errorf(
-			"the device is ahead of this tree, and deploying would roll these back:\n  %s\nupdate this branch from origin/main, or name them in --components to roll back on purpose",
-			strings.Join(ahead, "\n  "),
-		)
-	}
+	sort.Strings(refusals)
 	addProtocolPartners(selected, held)
-	return selected, nil
+	return selected, refusals
+}
+
+func refusalError(refusals []string) error {
+	return fmt.Errorf(
+		"deploy refuses to ship over:\n  %s\nfetch, update this branch from origin/main, or name the component in --components to overwrite it on purpose",
+		strings.Join(refusals, "\n  "),
+	)
 }
 
 func describeComponentAhead(name string, carried string, expected string) string {
-	return fmt.Sprintf("%s (the device holds %s, this tree builds %s)", name, shortRevision(carried), shortRevision(expected))
+	return fmt.Sprintf("%s (the device is ahead: it holds %s, this tree builds %s)", name, shortRevision(carried), shortRevision(expected))
 }
 
 func addProtocolPartners(selected map[string]bool, held map[string]releaseset.Component) {

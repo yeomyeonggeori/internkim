@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,67 +25,88 @@ func treeBuilding(revisions map[string]string) func(string) string {
 
 func neverAhead(string, string) bool { return false }
 
+func everythingKnown(string) bool { return true }
+
+func selectWith(held map[string]string, tree map[string]string, isKnown func(string) bool, isAncestor func(string, string) bool) (map[string]bool, []string) {
+	return selectDeployComponents(deviceHolding(held), treeBuilding(tree), isKnown, isAncestor)
+}
+
 func TestSelectionTakesWhatDiffers(t *testing.T) {
-	selected, errorValue := selectDeployComponents(
-		deviceHolding(map[string]string{"skills": "old", "admind": "same"}),
-		treeBuilding(map[string]string{"skills": "new", "admind": "same"}),
-		neverAhead,
+	selected, refusals := selectWith(
+		map[string]string{"skills": "old", "admind": "same"},
+		map[string]string{"skills": "new", "admind": "same"},
+		everythingKnown, neverAhead,
 	)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(selected) != 1 || !selected["skills"] {
-		t.Fatalf("selected %v, want only skills", selected)
+	if len(refusals) != 0 || len(selected) != 1 || !selected["skills"] {
+		t.Fatalf("selected %v refused %v, want only skills", selected, refusals)
 	}
 }
 
 func TestSelectionAddsTheProtocolPartner(t *testing.T) {
-	selected, errorValue := selectDeployComponents(
-		deviceHolding(map[string]string{"capabilityd": "old", "blueclawPayload": "same"}),
-		treeBuilding(map[string]string{"capabilityd": "new", "blueclawPayload": "same"}),
-		neverAhead,
+	selected, _ := selectWith(
+		map[string]string{"capabilityd": "old", "blueclawPayload": "same"},
+		map[string]string{"capabilityd": "new", "blueclawPayload": "same"},
+		everythingKnown, neverAhead,
 	)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	if !selected["capabilityd"] || !selected["blueclawPayload"] {
 		t.Fatalf("selected %v, want capabilityd with blueclawPayload", selected)
 	}
 }
 
 func TestSelectionRefusesAComponentTheDeviceIsAheadOn(t *testing.T) {
-	_, errorValue := selectDeployComponents(
-		deviceHolding(map[string]string{"relay": "device", "skills": "old"}),
-		treeBuilding(map[string]string{"relay": "tree", "skills": "new"}),
+	_, refusals := selectWith(
+		map[string]string{"relay": "device", "skills": "old"},
+		map[string]string{"relay": "tree", "skills": "new"},
+		everythingKnown,
 		func(older string, newer string) bool { return older == "tree" && newer == "device" },
 	)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "relay") {
-		t.Fatalf("a rollback of relay was not refused by name: %v", errorValue)
+	joined := strings.Join(refusals, "\n")
+	if !strings.Contains(joined, "relay") || strings.Contains(joined, "skills") {
+		t.Fatalf("refusals %q, want exactly relay", joined)
 	}
-	if strings.Contains(errorValue.Error(), "skills") {
-		t.Fatalf("the refusal names a component that is merely behind: %v", errorValue)
+}
+
+func TestSelectionRefusesADeviceCommitThisCheckoutDoesNotKnow(t *testing.T) {
+	unknownCommit := strings.Repeat("a", 40)
+	selected, refusals := selectWith(
+		map[string]string{"relay": unknownCommit, "skills": "old"},
+		map[string]string{"relay": "tree", "skills": "new"},
+		func(revision string) bool { return revision != unknownCommit },
+		neverAhead,
+	)
+	if len(refusals) != 1 || !strings.Contains(refusals[0], "relay") || !strings.Contains(refusals[0], "does not know") {
+		t.Fatalf("refusals %q, want relay named as unknown", refusals)
+	}
+	if selected["relay"] {
+		t.Fatal("a component the device holds at an unknown commit was shipped over")
+	}
+}
+
+func TestSelectionShipsOverARevisionThatIsNotACommit(t *testing.T) {
+	selected, refusals := selectWith(
+		map[string]string{"web": "1790637690492"},
+		map[string]string{"web": strings.Repeat("b", 40)},
+		func(string) bool { return false }, neverAhead,
+	)
+	if len(refusals) != 0 || !selected["web"] {
+		t.Fatalf("selected %v refused %v, want web shipped", selected, refusals)
 	}
 }
 
 func TestSelectionIsEmptyWhenTheDeviceMatches(t *testing.T) {
 	revisions := map[string]string{"skills": "same", "web": "same"}
-	selected, errorValue := selectDeployComponents(deviceHolding(revisions), treeBuilding(revisions), neverAhead)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if selected == nil || len(selected) != 0 {
-		t.Fatalf("selected %v, want an empty set", selected)
+	selected, refusals := selectWith(revisions, revisions, everythingKnown, neverAhead)
+	if len(refusals) != 0 || selected == nil || len(selected) != 0 {
+		t.Fatalf("selected %v refused %v, want an empty set", selected, refusals)
 	}
 }
 
 func TestNarrowedSetIsKeptAndTheProtocolGuardStillRefuses(t *testing.T) {
-	restore := prepareReleaseArtifacts
-	prepareReleaseArtifacts = func(string) error { return nil }
-	defer func() { prepareReleaseArtifacts = restore }()
-	narrowed := map[string]bool{"capabilityd": true}
-	selected, errorValue := chooseDeployComponents("", narrowed, nil, neverAhead)
-	if errorValue != nil || len(selected) != 1 || !selected["capabilityd"] {
-		t.Fatalf("narrowed set changed: %v, %v", selected, errorValue)
+	stubDeployEffects(t)
+	plan, errorValue := chooseDeployComponents("", map[string]bool{"capabilityd": true},
+		func() (map[string]releaseset.Component, error) { return nil, nil }, everythingKnown, neverAhead)
+	if errorValue != nil || len(plan.selected) != 1 || !plan.selected["capabilityd"] {
+		t.Fatalf("narrowed set changed: %v, %v", plan.selected, errorValue)
 	}
 	errorValue = refuseToSplitTheProtocol(
 		map[string]releaseset.Component{"capabilityd": {}},
@@ -93,6 +115,14 @@ func TestNarrowedSetIsKeptAndTheProtocolGuardStillRefuses(t *testing.T) {
 	if errorValue == nil {
 		t.Fatal("a narrowed set that splits the protocol was allowed")
 	}
+}
+
+func stubDeployEffects(t *testing.T) {
+	t.Helper()
+	restorePrepare, restoreFetch := prepareReleaseArtifacts, fetchReleaseHistory
+	prepareReleaseArtifacts = func(string) error { return nil }
+	fetchReleaseHistory = func(string) {}
+	t.Cleanup(func() { prepareReleaseArtifacts, fetchReleaseHistory = restorePrepare, restoreFetch })
 }
 
 func writePayloadManifest(t *testing.T, repositoryRootPath string, revision string) {
@@ -116,23 +146,91 @@ func TestStalePayloadArtifactIsRebuiltBeforeItsRevisionIsRead(t *testing.T) {
 		held[name] = releaseset.Component{Revision: releaseComponentRevision(name, repositoryRootPath, treeRevision)}
 	}
 	held["blueclawPayload"] = releaseset.Component{Revision: "current"}
-	restore := prepareReleaseArtifacts
+	stubDeployEffects(t)
 	prepareReleaseArtifacts = func(rootPath string) error {
 		writePayloadManifest(t, rootPath, "current")
 		return nil
 	}
-	defer func() { prepareReleaseArtifacts = restore }()
-	selected, errorValue := chooseDeployComponents(
-		repositoryRootPath,
-		nil,
+	plan, errorValue := chooseDeployComponents(
+		repositoryRootPath, nil,
 		func() (map[string]releaseset.Component, error) { return held, nil },
-		neverAhead,
+		everythingKnown, neverAhead,
 	)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if selected["blueclawPayload"] {
+	if plan.selected["blueclawPayload"] {
 		t.Fatal("the payload was compared against the stale artifact, not a rebuilt one")
+	}
+}
+
+func TestPlanNeverPublishes(t *testing.T) {
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	stubDeployEffects(t)
+	treeRevision := gitRevision(repositoryRootPath)
+	held := map[string]releaseset.Component{}
+	for _, name := range ReleaseComponentNames() {
+		held[name] = releaseset.Component{Revision: releaseComponentRevision(name, repositoryRootPath, treeRevision)}
+	}
+	held["skills"] = releaseset.Component{Revision: "old"}
+	restoreRead, restorePublish := readDeviceReleaseComponents, publishDeployRelease
+	published := false
+	readDeviceReleaseComponents = func(commandTarget) (map[string]releaseset.Component, error) { return held, nil }
+	publishDeployRelease = func(string, string, string, map[string]bool, int) error {
+		published = true
+		return nil
+	}
+	t.Cleanup(func() { readDeviceReleaseComponents, publishDeployRelease = restoreRead, restorePublish })
+	if errorValue := runReleaseDeploy([]string{"--plan", "--sim"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if published {
+		t.Fatal("--plan published a release")
+	}
+}
+
+func TestBoardUIRevisionFollowsTheSourcesItReads(t *testing.T) {
+	repositoryRootPath := t.TempDir()
+	for _, command := range [][]string{{"init", "-q"}, {"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "first"}} {
+		if output, errorValue := exec.Command("git", append([]string{"-C", repositoryRootPath}, command...)...).CombinedOutput(); errorValue != nil {
+			t.Fatalf("git %v: %s", command, output)
+		}
+	}
+	writeFileForTest(t, filepath.Join(repositoryRootPath, "web", "src", "first.ts"), "export {}")
+	runGitForTest(t, repositoryRootPath, "add", ".")
+	runGitForTest(t, repositoryRootPath, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "first web")
+	before := releaseComponentRevision("web", repositoryRootPath, gitRevision(repositoryRootPath))
+	writeFileForTest(t, filepath.Join(repositoryRootPath, "docs", "page.mdx"), "unrelated")
+	runGitForTest(t, repositoryRootPath, "add", ".")
+	runGitForTest(t, repositoryRootPath, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "docs")
+	if after := releaseComponentRevision("web", repositoryRootPath, gitRevision(repositoryRootPath)); after != before {
+		t.Fatalf("a docs commit moved the web revision: %s -> %s", before, after)
+	}
+	writeFileForTest(t, filepath.Join(repositoryRootPath, "web", "src", "page.ts"), "export {}")
+	runGitForTest(t, repositoryRootPath, "add", ".")
+	runGitForTest(t, repositoryRootPath, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "web")
+	if after := releaseComponentRevision("web", repositoryRootPath, gitRevision(repositoryRootPath)); after == before {
+		t.Fatal("a commit to web/ did not move the web revision")
+	}
+}
+
+func writeFileForTest(t *testing.T, path string, content string) {
+	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(path, []byte(content), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+}
+
+func runGitForTest(t *testing.T, repositoryRootPath string, arguments ...string) {
+	t.Helper()
+	if output, errorValue := exec.Command("git", append([]string{"-C", repositoryRootPath}, arguments...)...).CombinedOutput(); errorValue != nil {
+		t.Fatalf("git %v: %s", arguments, output)
 	}
 }
 

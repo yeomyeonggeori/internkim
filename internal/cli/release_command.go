@@ -953,14 +953,6 @@ func shortRevision(revision string) string {
 	return revision[:12]
 }
 
-func webRevision(repositoryRootPath string) string {
-	version, errorValue := readAdminUIVersion(filepath.Join(repositoryRootPath, "build", "board-ui"))
-	if errorValue == nil && strings.TrimSpace(version) != "" {
-		return strings.TrimSpace(version)
-	}
-	return gitRevision(repositoryRootPath)
-}
-
 // Without the artifact this tree cannot say what a payload it would build is,
 // and saying the repository's own revision instead reports a component as
 // changed on every commit. Unknown is the honest answer; what is done with it
@@ -1174,8 +1166,6 @@ func currentReleaseComponents(channel string) (map[string]releaseset.Component, 
 // and every deploy reported success.
 func releaseComponentRevision(name string, repositoryRootPath string, gitRevision string) string {
 	switch name {
-	case "web":
-		return webRevision(repositoryRootPath)
 	case "blueclawPayload":
 		return blueclawPayloadRevision(repositoryRootPath)
 	case "chatd":
@@ -1220,6 +1210,13 @@ var componentSourcePaths = map[string][]string{
 	"fonts":              {"assets/fonts"},
 	"relay":              {"host/relay"},
 	"buzzMigrate":        {"cmd/buzz-migrate"},
+	"web": {
+		"web",
+		"pkg/capabilityprotocol/generated",
+		"internal/admind/persona-schema/user.schema.json",
+		"internal/tasksize/definitions.json",
+		".dependency/blueclaw",
+	},
 }
 
 const internkimModulePath = "gitlab.com/eastriver/internkim/"
