@@ -90,7 +90,6 @@ DISTRIBUTION_CARRIES_PGVECTOR = {
     "ubuntu-24.04": True,
     "fedora": True,
     "archlinux": True,
-    "opensuse-tumbleweed": True,
 }
 
 

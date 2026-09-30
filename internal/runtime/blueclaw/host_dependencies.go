@@ -29,7 +29,6 @@ const (
 	PackageManagerApt    PackageManager = "apt-get"
 	PackageManagerDnf    PackageManager = "dnf"
 	PackageManagerPacman PackageManager = "pacman"
-	PackageManagerZypper PackageManager = "zypper"
 )
 
 // InstallWords is what a person types to install packages with this manager,
@@ -40,8 +39,6 @@ func (manager PackageManager) InstallWords() []string {
 		return []string{"dnf", "install"}
 	case PackageManagerPacman:
 		return []string{"pacman", "-S", "--needed"}
-	case PackageManagerZypper:
-		return []string{"zypper", "install"}
 	}
 	return []string{"apt-get", "install"}
 }
@@ -49,7 +46,7 @@ func (manager PackageManager) InstallWords() []string {
 // PackageManagers is every manager the table names packages for, in the order
 // install.sh looks for them.
 func PackageManagers() []PackageManager {
-	return []PackageManager{PackageManagerApt, PackageManagerDnf, PackageManagerPacman, PackageManagerZypper}
+	return []PackageManager{PackageManagerApt, PackageManagerDnf, PackageManagerPacman}
 }
 
 // HostGlibcMinimum is the oldest glibc the package runs on, and the one place
@@ -57,19 +54,6 @@ func PackageManagers() []PackageManager {
 // format states it as a dependency so an older machine is refused with the
 // package manager's own message.
 const HostGlibcMinimum = "2.35"
-
-// postgresqlMajors are the server versions a distribution may ship, newest
-// first, so a dependency that is named per major reads the same in every
-// family's table.
-var postgresqlMajors = []string{"18", "17", "16", "15", "14"}
-
-func perPostgresqlMajor(format string) []string {
-	names := []string{}
-	for _, major := range postgresqlMajors {
-		names = append(names, fmt.Sprintf(format, major))
-	}
-	return names
-}
 
 // HostDependency is one thing the company host needs and does not build. A
 // dependency is not one string: Debian and Homebrew disagree on the name, some
@@ -88,7 +72,6 @@ type HostDependency struct {
 	// order; pacman has no syntax for them and names one.
 	DnfPackages    []string
 	PacmanPackages []string
-	ZypperPackages []string
 	// WhatBringsItInstead is for a manager that installs this without being
 	// told to: Arch ships contrib inside postgresql, and every manager installs
 	// the server because the pgvector row names one of the same major. A
@@ -132,7 +115,6 @@ var theServerThePgvectorRowNames = map[PackageManager]string{
 	PackageManagerApt:    "the pgvector row names a server of the same major",
 	PackageManagerDnf:    "pgvector requires the server it was built for",
 	PackageManagerPacman: "pgvector depends on postgresql",
-	PackageManagerZypper: "the pgvector row names a server of the same major",
 }
 
 var hostDependencies = []HostDependency{
@@ -149,7 +131,6 @@ var hostDependencies = []HostDependency{
 			PackageManagerApt:    "a Debian server package carries contrib",
 			PackageManagerPacman: "Arch's postgresql package carries contrib",
 		},
-		ZypperPackages:      perPostgresqlMajor("postgresql%s-contrib"),
 		WhatAnswersItOnAMac: "Homebrew's postgresql@17 carries contrib",
 		NeededBy:            []HostPart{HostPartDatabase},
 	},
@@ -157,12 +138,11 @@ var hostDependencies = []HostDependency{
 		// The memory store creates this extension in its migration and skips its
 		// embedding tables when the server cannot, which is a memory without
 		// embeddings that nothing reports. Naming it here is what makes the
-		// install refuse instead. Only Debian and openSUSE name it per major.
+		// install refuse instead. Only Debian names it per major.
 		DebianPackage:      "postgresql-18-pgvector",
 		DebianAlternatives: []string{"postgresql-17-pgvector", "postgresql-16-pgvector", "postgresql-15-pgvector", "postgresql-14-pgvector"},
 		DnfPackages:        []string{"pgvector"},
 		PacmanPackages:     []string{"pgvector"},
-		ZypperPackages:     perPostgresqlMajor("postgresql%s-pgvector"),
 		HomebrewFormula:    "pgvector",
 		NeededBy:           []HostPart{HostPartMemoryStore},
 	},
@@ -171,7 +151,6 @@ var hostDependencies = []HostDependency{
 		DebianAlternatives: []string{"valkey-server"},
 		DnfPackages:        []string{"valkey", "redis"},
 		PacmanPackages:     []string{"valkey"},
-		ZypperPackages:     []string{"valkey", "redis"},
 		HomebrewFormula:    "redis",
 		OneOfThesePrograms: []string{"valkey-server", "redis-server"},
 		NeededBy:           []HostPart{HostPartCache},
@@ -180,7 +159,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "git",
 		DnfPackages:         []string{"git"},
 		PacmanPackages:      []string{"git"},
-		ZypperPackages:      []string{"git"},
 		HomebrewFormula:     "git",
 		ProgramsTheHostRuns: []string{"git"},
 		NeededBy:            []HostPart{HostPartMessenger},
@@ -189,7 +167,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:   "openssl",
 		DnfPackages:     []string{"openssl"},
 		PacmanPackages:  []string{"openssl"},
-		ZypperPackages:  []string{"openssl"},
 		HomebrewFormula: "openssl@3",
 		NeededBy:        []HostPart{HostPartMessenger},
 	},
@@ -197,7 +174,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "ca-certificates",
 		DnfPackages:         []string{"ca-certificates"},
 		PacmanPackages:      []string{"ca-certificates"},
-		ZypperPackages:      []string{"ca-certificates"},
 		WhatAnswersItOnAMac: "macOS keeps the trust store in the system keychain",
 		NeededBy:            []HostPart{HostPartAgent, HostPartMessenger},
 	},
@@ -205,7 +181,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "curl",
 		DnfPackages:         []string{"curl"},
 		PacmanPackages:      []string{"curl"},
-		ZypperPackages:      []string{"curl"},
 		WhatAnswersItOnAMac: "macOS ships curl",
 		ProgramsTheHostRuns: []string{"curl"},
 		NeededBy:            []HostPart{HostPartAgent, HostPartMessenger},
@@ -214,7 +189,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "jq",
 		DnfPackages:         []string{"jq"},
 		PacmanPackages:      []string{"jq"},
-		ZypperPackages:      []string{"jq"},
 		HomebrewFormula:     "jq",
 		ProgramsTheHostRuns: []string{"jq"},
 		NeededBy:            []HostPart{HostPartAgent},
@@ -223,7 +197,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "unzip",
 		DnfPackages:         []string{"unzip"},
 		PacmanPackages:      []string{"unzip"},
-		ZypperPackages:      []string{"unzip"},
 		WhatAnswersItOnAMac: "macOS ships unzip",
 		ProgramsTheHostRuns: []string{"unzip"},
 		NeededBy:            []HostPart{HostPartAgent},
@@ -232,7 +205,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "postgresql-client",
 		DnfPackages:         []string{"postgresql"},
 		PacmanPackages:      []string{"postgresql"},
-		ZypperPackages:      []string{"postgresql"},
 		HomebrewFormula:     "postgresql@17",
 		ProgramsTheHostRuns: []string{"pg_isready"},
 		NeededBy:            []HostPart{HostPartEntrypoint},
@@ -241,7 +213,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "netcat-openbsd",
 		DnfPackages:         []string{"nmap-ncat"},
 		PacmanPackages:      []string{"openbsd-netcat"},
-		ZypperPackages:      []string{"netcat-openbsd"},
 		WhatAnswersItOnAMac: "macOS ships nc",
 		ProgramsTheHostRuns: []string{"nc"},
 		NeededBy:            []HostPart{HostPartEntrypoint},
@@ -273,7 +244,6 @@ var hostDependencies = []HostDependency{
 		DebianPackage:   "libfontconfig1",
 		DnfPackages:     []string{"fontconfig"},
 		PacmanPackages:  []string{"fontconfig"},
-		ZypperPackages:  []string{"libfontconfig1"},
 		HomebrewFormula: "fontconfig",
 		NeededBy:        []HostPart{HostPartDocumentSkills},
 	},
@@ -375,8 +345,6 @@ func (dependency HostDependency) PackagesFor(manager PackageManager) []string {
 		return dependency.DnfPackages
 	case PackageManagerPacman:
 		return dependency.PacmanPackages
-	case PackageManagerZypper:
-		return dependency.ZypperPackages
 	}
 	return nil
 }
@@ -397,32 +365,15 @@ func (dependency HostDependency) IsNamedIn(manager PackageManager) bool {
 }
 
 // HostPackageDependsFor is the whole host as one manager's dependency list.
+// A glibc floor comes first: it is what refuses a machine the binaries cannot
+// run on before any of the names are tried.
 func HostPackageDependsFor(manager PackageManager) []string {
-	return HostPackageDependsForManagers(manager)
-}
-
-// HostPackageDependsForManagers is the whole host as the dependency list of one
-// package that several managers install. An rpm is installed by dnf and by
-// zypper, and they name some packages differently, so each row carries every
-// name the managers give it as alternatives; a row is left out only when none
-// of them names it. A glibc floor comes first: it is what refuses a machine the
-// binaries cannot run on before any of the names are tried.
-func HostPackageDependsForManagers(managers ...PackageManager) []string {
-	depends := []string{glibcDependencyFor(managers[0])}
+	depends := []string{glibcDependencyFor(manager)}
 	for _, dependency := range hostDependencies {
-		names := []string{}
-		for _, manager := range managers {
-			if !dependency.IsNamedIn(manager) {
-				continue
-			}
-			for _, name := range dependency.PackagesFor(manager) {
-				names = appendOnce(names, name)
-			}
-		}
-		if len(names) == 0 {
+		if !dependency.IsNamedIn(manager) {
 			continue
 		}
-		depends = appendOnce(depends, dependencyExpression(managers[0], names))
+		depends = appendOnce(depends, dependencyExpression(manager, dependency.PackagesFor(manager)))
 	}
 	return depends
 }

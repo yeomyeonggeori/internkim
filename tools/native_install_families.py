@@ -30,16 +30,6 @@ FEDORA_BOOTSTRAP = "\n".join(
     ]
 )
 
-OPENSUSE_BOOTSTRAP = "\n".join(
-    [
-        "set -eu",
-        "zypper --non-interactive install --no-recommends systemd curl gawk",
-        MAKE_RESOLVER_STATIC,
-        "ln -sf /dev/null /etc/systemd/system/systemd-resolved.service",
-        "exec /usr/lib/systemd/systemd",
-    ]
-)
-
 ARCH_BOOTSTRAP = "\n".join(
     [
         "set -eu",
@@ -113,20 +103,6 @@ FAMILIES = {
             files_command=f"rpm -ql {PACKAGE_NAME}",
             remove_command=f"dnf remove -y {PACKAGE_NAME}",
             package_manager="dnf",
-            unit_directories=("/usr/lib/systemd/system",),
-        ),
-        Family(
-            name="opensuse-tumbleweed",
-            image="opensuse/tumbleweed:latest",
-            package_pattern=f"{PACKAGE_NAME}-*.aarch64.rpm",
-            bootstrap=OPENSUSE_BOOTSTRAP,
-            tools_command="zypper --non-interactive install --no-recommends iproute2 procps",
-            installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
-            installed_answer=PRESENT_MARKER,
-            verify_command=f"rpm -V {PACKAGE_NAME}",
-            files_command=f"rpm -ql {PACKAGE_NAME}",
-            remove_command=f"zypper --non-interactive remove {PACKAGE_NAME}",
-            package_manager="zypper",
             unit_directories=("/usr/lib/systemd/system",),
         ),
         Family(

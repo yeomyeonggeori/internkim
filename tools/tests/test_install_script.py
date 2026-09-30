@@ -147,7 +147,7 @@ class InstallScriptTests(unittest.TestCase):
         return os.pathsep.join(
             directory
             for directory in os.environ["PATH"].split(os.pathsep)
-            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "dnf", "pacman", "zypper", "brew"))
+            if directory and not any((Path(directory) / name).exists() for name in ("apt-get", "dnf", "pacman", "brew"))
         )
 
     def forget_checksum_line(self, base_url, product, binary_name):
@@ -591,7 +591,6 @@ class InstallScriptTests(unittest.TestCase):
             ("apt-get", "internkim_1_amd64.deb", "apt-get install -y {path}"),
             ("dnf", "internkim-1-1.x86_64.rpm", "dnf install -y {path}"),
             ("pacman", "internkim-1-1-x86_64.pkg.tar.zst", "pacman -U --needed --noconfirm {path}"),
-            ("zypper", "internkim-1-1.x86_64.rpm", "zypper --non-interactive --no-gpg-checks install {path}"),
         ]:
             with self.subTest(manager=manager):
                 shims = self.linux_machine(manager)
@@ -634,7 +633,7 @@ class InstallScriptTests(unittest.TestCase):
         self.assertTrue(installed[0].endswith("internkim-1-1.x86_64.rpm"), installed)
 
     def test_a_manager_with_no_published_repository_says_so_and_changes_nothing(self):
-        for manager in ("dnf", "pacman", "zypper"):
+        for manager in ("dnf", "pacman"):
             with self.subTest(manager=manager):
                 shims = self.linux_machine(manager)
                 environment = dict(os.environ)
@@ -650,7 +649,6 @@ class InstallScriptTests(unittest.TestCase):
         for manager, expected in [
             ("dnf", "pgvector"),
             ("pacman", "pgvector"),
-            ("zypper", "postgresql18-pgvector"),
         ]:
             with self.subTest(manager=manager):
                 shims = self.linux_machine(manager, offered_names=[])
@@ -714,6 +712,12 @@ class InstallScriptTests(unittest.TestCase):
         preference = (self.sandbox / "etc/apt/preferences.d/internkim-postgresql.pref").read_text()
         self.assertIn("Pin: origin postgresql.example.test", preference)
         self.assertIn("Pin-Priority: 100", preference)
+        stack = [stanza for stanza in preference.split("\n\n") if "Pin-Priority: 600" in stanza]
+        self.assertEqual(len(stack), 1, preference)
+        names = stack[0].splitlines()[0].removeprefix("Package: ").split()
+        for name in ("postgresql-18", "postgresql-client-18", "postgresql-18-pgvector", "postgresql-client", "libpq5"):
+            self.assertIn(name, names)
+        self.assertEqual([name for name in names if name.startswith("postgresql-1") and "18" not in name], [])
         self.assertEqual((self.sandbox / "usr/share/keyrings/internkim-postgresql-archive-keyring.asc").read_bytes(), b"armored key\n")
         self.assertFalse((self.sandbox / "etc/apt/trusted.gpg.d").exists())
         calls = self.apt_log.read_text().splitlines()

@@ -75,7 +75,7 @@ func TestEveryFormatDependsOnTheSameDeclarationInItsOwnDialect(t *testing.T) {
 	target := debianTargets[0]
 	for _, format := range linuxPackageFormats() {
 		information := linuxPackageInformation(format, target, "1.2.3", files.Contents{}, nfpm.Scripts{})
-		declared := blueclaw.HostPackageDependsForManagers(format.Managers...)
+		declared := blueclaw.HostPackageDependsFor(format.Manager)
 		if strings.Join(information.Depends, ",") != strings.Join(declared, ",") {
 			t.Errorf("the %s package depends on %v and the declaration gives %v", format.Name, information.Depends, declared)
 		}
@@ -159,15 +159,5 @@ func TestArchContentsGetWholeSecondTimesAndTheSetuidBitAsAPOSIXBit(t *testing.T)
 	}
 	if contents[0].FileInfo.Mode != os.ModeSetuid|0o755 || contents[0].FileInfo.MTime != fractional {
 		t.Fatal("the shared contents were changed in place")
-	}
-}
-
-func TestTheRPMOffersEachNameDnfAndZypperGiveARow(t *testing.T) {
-	information := linuxPackageInformation(rpmPackageFormat, debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{})
-	depends := strings.Join(information.Depends, "\n")
-	for _, name := range []string{"nmap-ncat", "netcat-openbsd"} {
-		if !strings.Contains(depends, name) {
-			t.Errorf("the rpm's dependencies do not offer %s, so a machine that names netcat that way cannot install it:\n%s", name, depends)
-		}
 	}
 }

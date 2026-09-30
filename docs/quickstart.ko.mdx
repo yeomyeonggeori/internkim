@@ -14,7 +14,7 @@ icon: Rocket
 다음을 준비하세요.
 
 - 첫 관리자가 사용할 이메일 주소
-- arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, 혹은 Homebrew를 설치한 macOS 컴퓨터. 인터넷에
+- arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora, Arch Linux, 혹은 Homebrew를 설치한 macOS 컴퓨터. 인터넷에
   연결하고 계속 켜 두어야 합니다.
 - 회사 컴퓨터에 패키지를 설치할 관리자 권한
 - 에이전트가 사용할 [OpenRouter API 키](https://openrouter.ai/settings/keys)
@@ -51,7 +51,7 @@ icon: Rocket
 `https://intern.kim/<회사-주소>/settings/setup`을 여세요.
 `연결 파일 받기`를 눌러 `internkim-host.json`을 회사 서버로 쓸 컴퓨터에
 저장하세요. 이 파일에는 컴퓨터를 이 회사에 연결하는 키가 들어 있으므로 그
-컴퓨터에만 보관하고, 커밋하거나 채팅으로 보내지 마세요. Debian과 Ubuntu에서는 설치가 이
+컴퓨터에만 보관하고, 커밋하거나 채팅으로 보내지 마세요. Linux에서는 설치가 이
 키를 한 번 쓰고 없앱니다. 그 뒤로 컴퓨터는 자기 키로 로그인하고, 파일로는 다른
 컴퓨터를 연결할 수 없습니다.
 
@@ -66,7 +66,7 @@ icon: Rocket
 ## 회사 서버 설치하기 [#3-회사-서버-설치하기]
 
 회사 컴퓨터에서 설치 프로그램을 실행한 다음 연결 파일을 적용하세요. 첫 명령은
-Debian과 Ubuntu에서 apt 패키지를, macOS에서 Homebrew 패키지를 설치합니다. 둘째 명령은
+Linux에서 apt, dnf 또는 pacman 패키지를, macOS에서 Homebrew 패키지를 설치합니다. 둘째 명령은
 호스트 서비스를 등록하고 OpenRouter 키를 묻습니다.
 
 ```bash
