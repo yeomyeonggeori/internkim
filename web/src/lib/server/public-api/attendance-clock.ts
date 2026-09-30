@@ -34,7 +34,7 @@ export async function clockAttendance(
 	const caller = asMember(plane, member.accessToken);
 	try {
 		const result = await addAttendanceFor(caller, null, input);
-		const announcement = announceAttendance(environment, member.accessToken);
+		const announcement = announceAttendance(environment, member.accessToken, result.status === 'added');
 		backgroundWork?.(announcement);
 		return json({ tool: 'attendance_add', result });
 	} catch (refusal) {
@@ -43,9 +43,13 @@ export async function clockAttendance(
 	}
 }
 
-async function announceAttendance(environment: Environment, accessToken: string): Promise<void> {
+async function announceAttendance(
+	environment: Environment,
+	accessToken: string,
+	colleagues: boolean
+): Promise<void> {
 	try {
-		const answer = await askTheProject(environment, 'announce-attendance', { what: 'clock' }, accessToken);
+		const answer = await askTheProject(environment, 'announce-attendance', { what: 'clock', colleagues }, accessToken);
 		if (answer.status >= 300) console.error('attendance.announcement_failed', answer.status);
 	} catch (failure) {
 		console.error('attendance.announcement_failed', failure);

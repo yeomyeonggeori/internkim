@@ -93,7 +93,12 @@ same tool. `backdated` is true when the moment is older than
 `attendance_backdated_after_minutes()`, and a backdated write does not announce
 an arrival to colleagues.
 
-`attendance_add` with no date and no time clocks the moment of the call. Naming
+`attendance_add` with no date and no time clocks the moment of the call. A
+clock-out followed within a minute by a clock-in at the same place is taken
+back, and so is a clock-in followed within a minute by a clock-out: the earlier
+row is removed with the reason `reversed within a minute`, no row is added, and
+the answer's status is `removed`. A clock-in that moved to another place is
+kept. Naming
 a past moment is writing by hand; a reason is kept when given and never
 demanded. `attendance_list` with `handWrittenOnly` returns the rows written or
 moved by hand, and the record keeps the moment a row was moved from, the
