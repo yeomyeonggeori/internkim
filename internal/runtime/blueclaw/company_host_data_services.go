@@ -47,13 +47,6 @@ const (
 	companyHostDatabaseCollation = "C.UTF-8"
 )
 
-// CompanyHostAccountsThatReachTheDatabase are the service accounts given the
-// database's group. A task user, which is what the agent's terminal runs as, is
-// in none of them and cannot open the socket.
-func CompanyHostAccountsThatReachTheDatabase() []string {
-	return []string{BlueclawUser}
-}
-
 // IsDataService is true of the database and the cache. Restarting one restarts
 // everything bound to it, so a package upgrade or an install that restarts the
 // whole bundle in one transaction asks systemd to stop and start the same unit

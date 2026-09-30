@@ -233,10 +233,6 @@ func RetiredLLMDServiceIsGoneCommand() string {
 	return "systemctl is-active " + retiredLLMDServiceName + " 2>/dev/null || true"
 }
 
-func BlueclawWorkspaceSkillPath(skillName string) string {
-	return filepath.Join(BlueclawWorkspacePath, "skills", skillName)
-}
-
 func BlueclawWorkspaceBinaryPath(binaryName string) string {
 	return filepath.Join(BlueclawWorkspacePath, "bin", binaryName)
 }
