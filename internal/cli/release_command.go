@@ -977,10 +977,6 @@ func releaseFileSHA256AndSize(path string) (string, int64, error) {
 	return hex.EncodeToString(hash.Sum(nil)), size, nil
 }
 
-func readAllLimited(reader io.Reader, limit int64) ([]byte, error) {
-	return io.ReadAll(io.LimitReader(reader, limit))
-}
-
 type releaseBlobInput struct {
 	name         string
 	revision     string
