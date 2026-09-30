@@ -8,13 +8,15 @@ import {
 	signInToAttendance
 } from './attendance-central-test-utils';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
-import { member1ID } from './central-test-utils';
+import { centralPlaneAdminClient, member1ID } from './central-test-utils';
+import { moveAttendanceEarlier } from '../support/move-attendance-earlier';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.use({ locale: 'ko-KR' });
 
 const office = '사무실';
 const home = '재택';
+const minutesPastTakingBack = 2;
 
 test.beforeAll(async () => {
 	await removeAttendanceOf(member1ID);
@@ -109,6 +111,7 @@ test('the command palette clocks in at the location it names', async ({ page }) 
 });
 
 test('the clock rail clocks out and the record keeps the pair', async ({ page }) => {
+	await moveAttendanceEarlier(centralPlaneAdminClient(), member1ID, minutesPastTakingBack);
 	await signInToAttendance(page);
 
 	await openClockMenu(page);
@@ -143,6 +146,7 @@ test('the clock rail clocks in at the location the menu offers', async ({ page }
 });
 
 test('the command palette clock-out shortcut records the clock-out', async ({ page }) => {
+	await moveAttendanceEarlier(centralPlaneAdminClient(), member1ID, minutesPastTakingBack);
 	await signInToAttendance(page);
 
 	await openCommandPalette(page, true);

@@ -10,6 +10,7 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supaba
 import { createOpenApiDocument } from '../../../docs/web/app/lib/openapi';
 import { savedAttendanceEventSchema } from '../../src/lib/attendance/recorded-attendance';
 import { createMockFetch } from '../unit/test-fetch';
+import { moveAttendanceEarlier } from '../support/move-attendance-earlier';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -224,6 +225,7 @@ describe('clocking attendance', () => {
 		expect((await invoke('attendance_add', readersToken, { kind: 'clock_out' })).status).toBe(403);
 		expect((await invoke('attendance_add', departedToken, { kind: 'clock_out' })).status).toBe(403);
 		expect((await invoke('attendance_add', 'invalid-session', { kind: 'clock_out' })).status).toBe(401);
+		await moveAttendanceEarlier(client, memberID, 2);
 		const answered = await invoke('attendance_add', holdersToken, { kind: 'clock_out' });
 		expect(answered.status).toBe(200);
 		expect(answered.body).toMatchObject({
@@ -248,6 +250,36 @@ describe('clocking attendance', () => {
 		]);
 		expect(answers.map((answer) => answer.status).sort()).toEqual([200, 422]);
 		expect((await invoke('attendance_add', sessionToken, { kind: 'clock_out' })).status).toBe(200);
+	});
+
+	test('a press taken back is announced to nobody but its owner', async () => {
+		const originalFetch = globalThis.fetch;
+		const backgroundWork: Promise<unknown>[] = [];
+		const announcements: unknown[] = [];
+		globalThis.fetch = createMockFetch(async (input, options) => {
+			const url = new URL(input instanceof Request ? input.url : String(input));
+			if (url.pathname === '/functions/v1/announce-attendance') {
+				announcements.push(
+					input instanceof Request ? await input.clone().json() : JSON.parse(String(options?.body))
+				);
+				return Response.json({ told: 0, reached: 0 });
+			}
+			return originalFetch(input, options);
+		});
+		try {
+			const answered = await reach('/tools/attendance_add/invoke', sessionToken, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ input: { kind: 'clock_in' } })
+			}, (work) => backgroundWork.push(work));
+			expect(answered.status).toBe(200);
+			expect(answered.body).toMatchObject({ result: { status: 'removed' } });
+			await Promise.all(backgroundWork);
+			expect(announcements).toEqual([{ what: 'clock', colleagues: false }]);
+		} finally {
+			await Promise.all(backgroundWork);
+			globalThis.fetch = originalFetch;
+		}
 	});
 });
 

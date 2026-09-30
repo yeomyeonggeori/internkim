@@ -40,6 +40,13 @@ begin
 	assert answer -> 'event' ->> 'location' = event.location, 'the answer returns the saved location';
 end $$;$block$, 'a live clock-in returns its exact saved event');
 
+reset role;
+update public.attendance
+	set occurred_at = occurred_at - interval '2 minutes', edit_reason = 'clocked in earlier'
+	where member_id = '43000000-0000-0000-0000-000000000011';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '43000000-0000-0000-0000-000000000001', true);
+
 select lives_ok($block$do $$
 declare answer jsonb;
 begin

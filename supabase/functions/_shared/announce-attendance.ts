@@ -23,7 +23,8 @@ export async function announceClock(
 	record: SupabaseClient,
 	memberID: string,
 	pushKeys: PushKeys,
-	nowInSeconds: number
+	nowInSeconds: number,
+	tellsColleagues: boolean
 ): Promise<Announced> {
 	const clocked = await newestClock(caller, memberID);
 	if (!clocked) return { told: 0, reached: 0 };
@@ -44,6 +45,7 @@ export async function announceClock(
 	const ownAlert = { title: clocked.kind === 'clock_in' ? '출근' : '퇴근', body: notification.body };
 	await showClockOnOwnPhones(record, memberID, clocked, ownAlert, pushKeys, nowInSeconds, companyZoneOf(announcer));
 	await refreshOwnWidgets(record, memberID, clocked.kind, pushKeys, nowInSeconds);
+	if (!tellsColleagues) return { told: 0, reached: 0 };
 	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
 
