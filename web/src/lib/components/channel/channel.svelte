@@ -202,6 +202,7 @@
 	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
 
 	async function loadConversation() {
+		const deliveredBeforeReading = outgoing.deliveredSoFar();
 		try {
 			const conversation = await fetchChannelConversation(channelId);
 			currentUserID = conversation.currentUserID;
@@ -226,6 +227,7 @@
 					openThreadRoot = visibleMessages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
 				}
 			}
+			outgoing.forgetDeliveredThrough(deliveredBeforeReading);
 			loadFailed = false;
 		} catch {
 			loadFailed = true;
