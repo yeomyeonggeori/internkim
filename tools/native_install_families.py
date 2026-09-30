@@ -59,6 +59,12 @@ class Family:
     package_manager: str
     unit_directories: tuple
     verify_ignored_lines: tuple = ("backup file",)
+    repository_format: str = ""
+    signature_command: str = ""
+    signature_answer: str = ""
+    reset_command: str = ""
+    install_command: str = ""
+    metadata_tampering: tuple = ()
 
     def package_in(self, directory):
         found = sorted(
@@ -66,6 +72,11 @@ class Family:
         )
         return found[-1] if found else None
 
+
+RPM_SIGNATURE_COMMAND = f"rpm -qi {PACKAGE_NAME} | grep '^Signature'"
+RPM_METADATA_TAMPERING = (("rpm/stable/aarch64/repodata/repomd.xml", b"<revision>", b"<revision>9", False),)
+RPM_RESET = "dnf clean all"
+RPM_INSTALL = f"dnf install -y {PACKAGE_NAME}"
 
 DEBIAN_TOOLS = "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq iproute2 procps"
 
@@ -84,6 +95,15 @@ def debian_family(name, image):
         remove_command=f"export DEBIAN_FRONTEND=noninteractive; apt-get remove -y {PACKAGE_NAME}",
         package_manager="apt-get",
         unit_directories=("/lib/systemd/system", "/usr/lib/systemd/system"),
+        repository_format="deb",
+        signature_command=f"apt-cache policy {PACKAGE_NAME}",
+        signature_answer="/deb stable/main",
+        reset_command="apt-get clean; rm -rf /var/lib/apt/lists/*",
+        install_command=f"export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y {PACKAGE_NAME}",
+        metadata_tampering=(
+            ("deb/dists/stable/InRelease", b"Origin: InternKim", b"Origin: InternKiM", False),
+            ("deb/dists/stable/Release", b"Origin: InternKim", b"Origin: InternKiM", False),
+        ),
     )
 
 
@@ -106,6 +126,12 @@ FAMILIES = {
             remove_command=f"dnf remove -y {PACKAGE_NAME}",
             package_manager="dnf",
             unit_directories=("/usr/lib/systemd/system",),
+            repository_format="rpm",
+            signature_command=RPM_SIGNATURE_COMMAND,
+            signature_answer="Key ID",
+            reset_command=RPM_RESET,
+            install_command=RPM_INSTALL,
+            metadata_tampering=RPM_METADATA_TAMPERING,
         ),
         Family(
             name="rhel-10",
@@ -120,6 +146,12 @@ FAMILIES = {
             remove_command=f"dnf remove -y {PACKAGE_NAME}",
             package_manager="dnf",
             unit_directories=("/usr/lib/systemd/system",),
+            repository_format="rpm",
+            signature_command=RPM_SIGNATURE_COMMAND,
+            signature_answer="Key ID",
+            reset_command=RPM_RESET,
+            install_command=RPM_INSTALL,
+            metadata_tampering=RPM_METADATA_TAMPERING,
         ),
         Family(
             name="archlinux",
@@ -135,6 +167,12 @@ FAMILIES = {
             package_manager="pacman",
             unit_directories=("/usr/lib/systemd/system",),
             verify_ignored_lines=("backup file", " total files, 0 altered files"),
+            repository_format="archlinux",
+            signature_command=f"pacman -Qi {PACKAGE_NAME} | grep '^Validated By'",
+            signature_answer="Signature",
+            reset_command=f"rm -f /var/cache/pacman/pkg/{PACKAGE_NAME}-*",
+            install_command=f"pacman -Syy --noconfirm && pacman -S --needed --noconfirm {PACKAGE_NAME}",
+            metadata_tampering=(("arch/stable/aarch64/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),
         ),
     )
 }

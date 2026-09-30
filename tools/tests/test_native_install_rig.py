@@ -196,8 +196,8 @@ class RepositoryShapeTests(unittest.TestCase):
     canonical one and fails when they drift.
     """
 
-    def declared_in_go(self, name):
-        source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "repository.go").read_text()
+    def declared_in_go(self, name, package="aptrepository", file="repository.go"):
+        source = (rig.REPOSITORY_ROOT / "internal" / package / file).read_text()
         match = re.search(rf'^\t{name}\s*=\s*"([^"]+)"', source, re.MULTILINE)
         self.assertIsNotNone(match, f"internal/aptrepository no longer declares {name}")
         return match.group(1)
@@ -209,12 +209,12 @@ class RepositoryShapeTests(unittest.TestCase):
         self.assertEqual(rig.KEYRING_NAME, self.declared_in_go("KeyringName"))
 
     def test_the_suite_the_rig_asks_apt_for_is_one_the_builder_publishes(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "repository.go").read_text()
-        self.assertEqual(rig.SUITE, self.declared_in_go("StableSuite"))
-        self.assertEqual(rig.TESTING_SUITE, self.declared_in_go("TestingSuite"))
-        declared = re.search(r"^const DefaultSuite = (.+)$", source, re.MULTILINE)
-        self.assertIsNotNone(declared, "internal/aptrepository no longer declares DefaultSuite")
-        self.assertEqual(declared.group(1).strip(), "StableSuite")
+        source = (rig.REPOSITORY_ROOT / "internal" / "packagerepository" / "channel.go").read_text()
+        self.assertEqual(rig.SUITE, self.declared_in_go("StableChannel", "packagerepository", "channel.go"))
+        self.assertEqual(rig.TESTING_SUITE, self.declared_in_go("TestingChannel", "packagerepository", "channel.go"))
+        declared = re.search(r"^const DefaultChannel = (.+)$", source, re.MULTILINE)
+        self.assertIsNotNone(declared, "internal/packagerepository no longer declares DefaultChannel")
+        self.assertEqual(declared.group(1).strip(), "StableChannel")
 
     def test_the_guest_installs_that_keyring_where_the_source_looks_for_it(self):
         self.assertTrue(rig.KEYRING_PATH.endswith("/" + rig.KEYRING_NAME))
@@ -347,13 +347,13 @@ class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
     """
 
     def test_the_rig_names_the_same_signing_key_variable(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "aptrepository" / "signing.go").read_text()
+        source = (rig.REPOSITORY_ROOT / "internal" / "packagerepository" / "signing.go").read_text()
         declared = re.search(r'SigningKeyVariable\s*=\s*"([^"]+)"', source)
-        self.assertIsNotNone(declared, "aptrepository.SigningKeyVariable is not declared as a literal")
+        self.assertIsNotNone(declared, "packagerepository.SigningKeyVariable is not declared as a literal")
         self.assertEqual(declared.group(1), rig.SIGNING_KEY_VARIABLE)
 
     def test_no_flag_offers_the_signing_key_a_second_home(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_apt.go").read_text()
+        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_repositories.go").read_text()
         self.assertNotIn("--signing-key", source)
 
     def test_the_profile_the_rig_runs_under_leaves_its_signing_key_alone(self):

@@ -615,18 +615,18 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual(len(installed), 1)
         self.assertTrue(installed[0].endswith("internkim-1-1.x86_64.rpm"), installed)
 
-    def test_a_manager_with_no_published_repository_says_so_and_changes_nothing(self):
-        for manager in ("dnf", "pacman"):
-            with self.subTest(manager=manager):
-                shims = self.linux_machine(manager)
-                environment = dict(os.environ)
-                environment["PATH"] = os.pathsep.join(
-                    [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
-                completed = subprocess.run(
-                    ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
-                self.assertEqual(completed.returncode, 1)
-                self.assertIn("INTERNKIM_INSTALL_PACKAGE", completed.stderr)
-                self.assertFalse(self.manager_log.exists())
+    def test_pacman_with_an_unreachable_repository_names_the_key_and_changes_nothing(self):
+        shims = self.linux_machine("pacman")
+        environment = dict(os.environ)
+        environment["PATH"] = os.pathsep.join(
+            [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
+        environment["INTERNKIM_INSTALL_BASE_URL"] = "http://127.0.0.1:9"
+        environment["INTERNKIM_INSTALL_SUITE"] = "testing"
+        completed = subprocess.run(
+            ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("http://127.0.0.1:9/arch/testing/internkim-pacman-signing.asc", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
 
 
 if __name__ == "__main__":
