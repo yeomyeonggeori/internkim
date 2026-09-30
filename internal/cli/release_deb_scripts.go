@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
@@ -39,6 +40,7 @@ func debPostInstallScript() string {
 		`# an install that leaves it unprivileged has an agent that can read nothing.`,
 		`chown root:root ` + helperPath + ` || refuse "could not take ownership of ` + helperPath + `"`,
 		`chmod 4755 ` + helperPath + ` || refuse "could not make ` + helperPath + ` setuid"`,
+		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + debUnitFileNames() + `; do`,
@@ -101,6 +103,7 @@ func debPostRemoveScript() string {
 		`  for unit in ` + debUnitFileNames() + `; do`,
 		`    deb-systemd-helper mask "$unit" >/dev/null 2>&1 || true`,
 		`  done`,
+		`  rm -rf ` + blueclaw.CompanyPackageInterpreterPath + ` ` + blueclaw.CompanyPackageDocumentVenvPath,
 		`fi`,
 		``,
 		`if [ "$1" = purge ]; then`,

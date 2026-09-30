@@ -37,7 +37,7 @@ const (
 	CompanyPackageInterpreterPath         = "/opt/internkim/" + documentInterpreterDirectoryName
 	CompanyPackageDocumentPythonPath      = CompanyPackageDocumentVenvPath + "/bin/python"
 	CompanyPackageDocumentFontPath        = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
-	CompanyPackageDocumentFontLicensePath = "/usr/share/doc/internkim/NanumGothic-OFL.txt"
+	CompanyPackageDocumentFontLicensePath = "/usr/share/fonts/truetype/internkim/NanumGothic-OFL.txt"
 	CompanyPackageMigrationPath           = "/opt/blueclaw/migrations"
 	CompanyPackagePreparePath             = "/usr/lib/internkim/prepare-company-host"
 

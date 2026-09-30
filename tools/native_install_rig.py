@@ -801,7 +801,7 @@ def free_port():
 
 
 def local_plane_settings():
-    completed = run(["supabase", "status", "-o", "env"], cwd=REPOSITORY_ROOT)
+    completed = run(["supabase", "status", "--env", "--output-format", "text"], cwd=REPOSITORY_ROOT)
     if completed.returncode != 0:
         raise RigFailure(
             "this Mac is running no local plane, so there is no company to install. "
@@ -811,7 +811,7 @@ def local_plane_settings():
     for line in completed.stdout.splitlines():
         name, separator, value = line.partition("=")
         if separator:
-            settings[name.strip()] = value.strip().strip('"')
+            settings[name.strip()] = value.strip().strip("\"'")
     for required in ("API_URL", "PUBLISHABLE_KEY", "SECRET_KEY"):
         if not settings.get(required):
             raise RigFailure(f"the local plane named no {required}")
