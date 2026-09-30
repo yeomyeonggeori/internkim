@@ -21,6 +21,7 @@ them.
 
 import argparse
 import functools
+import gzip
 import http.server
 import importlib.machinery
 import importlib.util
@@ -42,6 +43,7 @@ from native_install_rig import (  # noqa: E402
     PACKAGE_NAME,
     STATE_DIRECTORY,
     Machine,
+    Release,
     RigFailure,
     free_port,
     install_the_company,
@@ -140,6 +142,20 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+REPOSITORY_GUESTS = ("debian-13", "fedora", "archlinux")
+
+
+def tamper(path, needle, replacement, is_compressed):
+    """Change one thing in a published file and leave its signature as it was."""
+    contents = path.read_bytes()
+    document = gzip.decompress(contents) if is_compressed else contents
+    if needle not in document:
+        raise RigFailure(f"{path} holds no {needle!r} to change")
+    changed = document.replace(needle, replacement, 1)
+    path.write_bytes(gzip.compress(changed, mtime=0) if is_compressed else changed)
+    return contents
+
+
 class FamilyRig:
     def __init__(self, options):
         self.options = options
@@ -148,6 +164,7 @@ class FamilyRig:
         self.machine = None
         self.server = None
         self.app = None
+        self.release = None
         self.company_id = ""
         self.unit_names = []
 
@@ -166,6 +183,31 @@ class FamilyRig:
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.app = http.server.ThreadingHTTPServer(("0.0.0.0", free_port()), StubApp)
         threading.Thread(target=self.app.serve_forever, daemon=True).start()
+
+    def serve_repositories(self, directory, package_directory):
+        """Build all three repositories with `internkim release repositories` and serve them.
+
+        The rig substitutes the address and the signing key, and nothing else:
+        what a guest installs from here is what a customer installs from.
+        """
+        self.release = Release(directory / "repository")
+        self.release.directory.mkdir()
+        self.release.generate_signing_key()
+        for guest in REPOSITORY_GUESTS:
+            package = FAMILIES[guest].package_in(package_directory)
+            if package is None:
+                raise RigFailure(f"No {FAMILIES[guest].package_pattern} under {package_directory}; build it with `internkim release packages`.")
+            self.release.stage(package)
+        self.release.rebuild(formats="deb,rpm,archlinux")
+        shutil.copyfile(Path(__file__).resolve().parent.parent / "web" / "static" / "install.sh", self.release.directory / "install.sh")
+        self.release.serve()
+
+    def repository_base(self):
+        return f"http://{self.machine.host_gateway()}:{self.release.port}"
+
+    def installed(self):
+        status = self.machine.shell(self.family.installed_status_command)
+        return self.family.installed_answer in status.stdout
 
     def start_machine(self, directory):
         share = directory / "share"
@@ -207,6 +249,75 @@ class FamilyRig:
             "the apt, yum and keyring directories for anything named for PostgreSQL after the install",
             "the host takes the distribution's own PostgreSQL, so a repository added on the way is an unrequested trust",
         ).record(not added, added or "nothing was added")
+
+    def observe_repository_install(self, step):
+        base = self.repository_base()
+        attempt = self.machine.shell(
+            f"set -eu\nexport INTERNKIM_INSTALL_BASE_URL={base}\ncurl -fsSL {base}/install.sh | sh -s -- host\n",
+            timeout_seconds=2400,
+        )
+        step.observe(
+            "the published one-liner installs the package from the repository it configures, with signature checks on",
+            f"`{self.family.package_manager}`'s package database after `install.sh host` with only INTERNKIM_INSTALL_BASE_URL set",
+            "install.sh exiting 0 says the script ended; the package database is what upgrade and remove act on",
+        ).record(
+            attempt.returncode == 0 and self.installed(),
+            f"install.sh exited {attempt.returncode}\n{(attempt.stdout + attempt.stderr).strip()[-900:]}",
+        )
+        policy = self.machine.shell(self.family.policy_command)
+        step.observe(
+            "the repository configuration install.sh wrote demands signatures",
+            f"`{self.family.policy_command}` on the guest",
+            "the script's own text says what it meant to write; the file on the guest says what the manager will enforce",
+        ).record(self.family.policy_answer in policy.stdout, policy.stdout.strip())
+        signature = self.machine.shell(self.family.signature_command)
+        step.observe(
+            "the installed package came from this repository under the manager's signature checking",
+            f"`{self.family.signature_command}`",
+            "a package installed from a file leaves no repository behind it; these fields name the signature or the source the manager recorded",
+        ).record(self.family.signature_answer in signature.stdout, signature.stdout.strip())
+
+    def attempt_install(self):
+        return self.machine.shell(
+            f"{self.family.reset_command}; {self.family.install_command}", timeout_seconds=1800
+        )
+
+    def observe_tampering(self, step):
+        targets = [("package", None)] + [
+            (f"{relative}", (relative, needle, replacement, is_compressed))
+            for relative, needle, replacement, is_compressed in self.family.metadata_tampering
+        ]
+        tree = self.release.directory
+        for label, change in targets:
+            self.machine.shell(self.family.remove_command, timeout_seconds=900)
+            if change is None:
+                path = next(
+                    candidate for candidate in tree.rglob("*")
+                    if candidate.is_file() and candidate.match(self.family.package_pattern)
+                )
+                original = path.read_bytes()
+                path.write_bytes(original[: len(original) // 2] + bytes([original[len(original) // 2] ^ 0xFF]) + original[len(original) // 2 + 1 :])
+            else:
+                relative, needle, replacement, is_compressed = change
+                path = tree / relative
+                original = tamper(path, needle, replacement, is_compressed)
+            refused = self.attempt_install()
+            left_installed = self.installed()
+            path.write_bytes(original)
+            step.observe(
+                f"a tampered {label} is refused and nothing is installed",
+                f"the exit status of `{self.family.install_command}` and the package database, with {path.relative_to(tree)} changed and its signature untouched",
+                "the install succeeding against a changed file would mean the signature was never checked",
+            ).record(
+                refused.returncode != 0 and not left_installed,
+                f"exit {refused.returncode}\n{(refused.stdout + refused.stderr).strip()[-700:]}",
+            )
+            controlled = self.attempt_install()
+            step.observe(
+                f"the same install succeeds once {label} is put back",
+                f"the exit status of `{self.family.install_command}` and the package database after restoring the file",
+                "a refusal that also happens with the file intact says the rig broke something, not that the signature was checked",
+            ).record(controlled.returncode == 0 and self.installed(), f"exit {controlled.returncode}\n{(controlled.stdout + controlled.stderr).strip()[-400:]}")
 
     def observe_package_state(self, step):
         verified = self.machine.shell(self.family.verify_command)
@@ -520,6 +631,11 @@ def main():
         "--package-directory", default=".artifacts/native-package",
         help="where the packages under test are (default: %(default)s)",
     )
+    parser.add_argument(
+        "--repository", action="store_true",
+        help="install through repositories built by `internkim release repositories` and served here, "
+        "and check that a tampered package or database is refused, instead of installing a package file",
+    )
     parser.add_argument("--name", default=f"internkim-familyrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
     parser.add_argument(
@@ -546,10 +662,18 @@ def main():
         print(f"the machine: {options.family}, image {rig.family.image}, named {options.name}")
         print(f"under test:  {package.name}\n")
         try:
-            rig.serve(working_directory, package)
-            rig.start_machine(working_directory)
-            rig.observe_install(rig.step(1, "one command installs the package file"), package)
-            rig.observe_package_state(rig.step(2, "the machine is in the state the package manager would have left it"))
+            if options.repository:
+                rig.serve_repositories(working_directory, directory)
+                rig.start_machine(working_directory)
+                rig.observe_repository_install(rig.step(1, "one command installs through the repository with signature checks on"))
+                rig.observe_package_state(rig.step(2, "the machine is in the state the package manager would have left it"))
+                rig.observe_tampering(rig.step(3, "a tampered package or database is refused"))
+                options.stop_after = 0
+            else:
+                rig.serve(working_directory, package)
+                rig.start_machine(working_directory)
+                rig.observe_install(rig.step(1, "one command installs the package file"), package)
+                rig.observe_package_state(rig.step(2, "the machine is in the state the package manager would have left it"))
             if options.stop_after >= 3:
                 rig.give_the_guest_a_company(rig.step(3, "the box takes a company and every service answers"))
             if options.stop_after >= 4:
@@ -563,6 +687,8 @@ def main():
             for held in (rig.server, rig.app):
                 if held:
                     held.shutdown()
+            if rig.release:
+                rig.release.stop()
             if rig.machine and not options.keep:
                 rig.machine.destroy()
             elif rig.machine:

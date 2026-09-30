@@ -272,21 +272,25 @@ class Release:
         self.archive_key_path.write_text(exported.stdout)
         self.archive_key_path.chmod(0o600)
 
-    def publish(self, package_path, suite=SUITE):
+    def stage(self, package_path):
         self.staging_directory.mkdir(parents=True, exist_ok=True)
         destination = self.staging_directory / Path(package_path).name
         shutil.copyfile(package_path, destination)
         self.published.append(destination)
+        return destination
+
+    def publish(self, package_path, suite=SUITE):
+        destination = self.stage(package_path)
         self.rebuild(suite)
         return destination
 
-    def rebuild(self, suite=SUITE):
+    def rebuild(self, suite=SUITE, formats="deb"):
         """Render the repository with the command that publishes it for real."""
         checked(
             [
                 str(internkim_command()), "release", "repositories",
                 "--channel", suite,
-                "--format", "deb",
+                "--format", formats,
                 "--package-directory", str(self.staging_directory),
                 "--output", str(self.directory),
             ],
