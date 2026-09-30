@@ -205,6 +205,10 @@ export async function markChannelRead(channelID: string, readAt: string): Promis
 	await ask('person.read_state.mark', { conversationID: channelID, readAt });
 }
 
+export async function announceTyping(channelID: string): Promise<void> {
+	await ask('person.typing.send', { conversationID: channelID });
+}
+
 export type MessengerDirectoryPerson = { externalID: string; name: string; avatarURL?: string };
 
 export async function fetchPeople(): Promise<MessengerDirectoryPerson[]> {
