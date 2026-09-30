@@ -36,7 +36,15 @@ ARCH_BOOTSTRAP = "\n".join(
     [
         "set -eu",
         "sed -i '/^\\[options\\]/a DisableSandbox' /etc/pacman.conf",
-        "pacman -Syu --noconfirm --needed systemd curl",
+        *(
+            [
+                "sed -i '1i Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' /etc/pacman.d/mirrorlist",
+                "pacman -Sy --noconfirm archlinux-keyring",
+                "pacman -Su --noconfirm --needed systemd curl",
+            ]
+            if ARCHITECTURE == "amd64"
+            else ["pacman -Syu --noconfirm --needed systemd curl"]
+        ),
         MAKE_RESOLVER_STATIC,
         "ln -sf /dev/null /etc/systemd/system/systemd-resolved.service",
         "exec /usr/lib/systemd/systemd",
