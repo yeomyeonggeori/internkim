@@ -1,7 +1,7 @@
 """The parts of the native-install rig that run on this Mac.
 
 Building a Debian package and an apt repository, and driving one disposable
-arm64 Debian guest. The assertions that read the guest live in
+Debian guest, arm64 or (INTERNKIM_RIG_ARCHITECTURE=amd64) amd64 under Rosetta. The assertions that read the guest live in
 `tools/test-native-install`; everything here is what they need in order to have
 a machine and something to install on it.
 """
@@ -34,7 +34,20 @@ DISTRIBUTIONS = {
     "ubuntu-24.04": "ubuntu:24.04",
 }
 DEFAULT_DISTRIBUTION = "debian-13"
-ARCHITECTURE = "arm64"
+ARCHITECTURE = os.environ.get("INTERNKIM_RIG_ARCHITECTURE", "arm64")
+if ARCHITECTURE not in ("arm64", "amd64"):
+    raise SystemExit(f"INTERNKIM_RIG_ARCHITECTURE is {ARCHITECTURE!r}; the packages are built for arm64 and amd64")
+MACHINE_NAME = {"arm64": "aarch64", "amd64": "x86_64"}[ARCHITECTURE]
+RUNTIME_KERNEL = "runtime"
+ROSETTA_WRITABLE_EXECUTABLE_UNITS = ("systemd-journald", "redis-server")
+ROSETTA_BOOTSTRAP = (
+    "mkdir -p /etc/systemd/system && ln -sf /dev/null /etc/systemd/system/systemd-binfmt.service\n"
+    + "".join(
+        f"mkdir -p /etc/systemd/system/{unit}.service.d && "
+        f"printf '[Service]\\nMemoryDenyWriteExecute=no\\n' > /etc/systemd/system/{unit}.service.d/rosetta.conf\n"
+        for unit in ROSETTA_WRITABLE_EXECUTABLE_UNITS
+    )
+)
 DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "import plistlib, platform, xml.etree.ElementTree, "
     "anydoc, bs4, markdownify, pypdf, pypdfium2"
@@ -595,7 +608,7 @@ PRESEEDED_PACKAGES = ("systemd", "systemd-sysv", "curl", "ca-certificates")
 
 
 class Machine:
-    """One disposable arm64 guest of a Debian or Ubuntu release, created and destroyed by this rig alone."""
+    """One disposable guest of a Debian or Ubuntu release, created and destroyed by this rig alone."""
 
     def __init__(
         self,
@@ -612,13 +625,14 @@ class Machine:
         self.bootstrap_script = bootstrap_script
         self.share_directory = Path(share_directory)
         self.container_binary = container_binary
+        self.uses_runtime_kernel = str(kernel_image_path) == RUNTIME_KERNEL
         self.kernel_image_path = Path(kernel_image_path)
         self.created = False
 
     def preflight(self):
         if shutil.which(self.container_binary) is None:
             raise RigFailure("the `container` CLI is not on PATH; this rig uses the same runtime the local fleet does")
-        if not self.kernel_image_path.exists():
+        if not self.uses_runtime_kernel and not self.kernel_image_path.exists():
             raise RigFailure(f"{self.kernel_image_path} is missing; run `make prepare-container-kernel`")
         for existing in self.list_containers():
             if existing.get("configuration", {}).get("id") == self.name:
@@ -645,10 +659,11 @@ class Machine:
                 "--memory", f"{memory_mebibytes}M",
                 "--tmpfs", "/run",
                 "--tmpfs", "/run/lock",
-                "--kernel", str(self.kernel_image_path),
+                *([] if self.uses_runtime_kernel else ["--kernel", str(self.kernel_image_path)]),
+                "--platform", "linux/" + ARCHITECTURE,
                 "--volume", f"{self.share_directory}:{SHARE_PATH}",
                 self.image,
-                "sh", "-c", self.bootstrap_script,
+                "sh", "-c", (ROSETTA_BOOTSTRAP if ARCHITECTURE == "amd64" else "") + self.bootstrap_script,
             ]
         )
         self.created = True

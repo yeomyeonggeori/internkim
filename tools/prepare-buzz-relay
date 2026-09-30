@@ -4,8 +4,10 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 
 # The messenger is built for the machine that will run it. linux/arm64 is the
-# appliance and the .deb and stays the default, so the artifact directory every
-# other caller names does not move. A Mac builds the same clone with the same two
+# appliance and stays the default, so the artifact directory every other caller
+# names does not move; linux/amd64 is the .deb for an ordinary company server and
+# sits in a directory of its own beside it. `--target linux` builds both, which is
+# what the package release wants. A Mac builds the same clone with the same two
 # patches and the same cargo line, on the host rather than in a container: the
 # patches are Python text substitutions and the platform they run on has no
 # bearing on them, and cargo needs no target flag because the host is the target.
@@ -13,13 +15,24 @@ target="linux-arm64"
 case "${1:-}" in
   --target) target="$2"; shift 2 ;;
   "") ;;
-  *) echo "usage: prepare-buzz-relay [--target linux-arm64|darwin-arm64]" >&2; exit 1 ;;
+  *) echo "usage: prepare-buzz-relay [--target linux-arm64|linux-amd64|linux|darwin-arm64]" >&2; exit 1 ;;
 esac
+
+if [ "$target" = "linux" ]; then
+  "$0" --target linux-arm64
+  exec "$0" --target linux-amd64
+fi
 
 case "$target" in
   linux-arm64)
     artifact_directory="$repository_root/.dependency/buzz-relay"
     bun_target="bun-linux-arm64"
+    container_platform="linux/arm64"
+    ;;
+  linux-amd64)
+    artifact_directory="$repository_root/.dependency/buzz-relay-linux-amd64"
+    bun_target="bun-linux-x64"
+    container_platform="linux/amd64"
     ;;
   darwin-arm64)
     if [ "$(uname -s)" != "Darwin" ] || [ "$(uname -m)" != "arm64" ]; then
@@ -30,7 +43,7 @@ case "$target" in
     bun_target="bun-darwin-arm64"
     ;;
   *)
-    echo "no messenger is built for $target; the targets are linux-arm64 and darwin-arm64" >&2
+    echo "no messenger is built for $target; the targets are linux-arm64, linux-amd64 and darwin-arm64" >&2
     exit 1
     ;;
 esac
@@ -131,7 +144,7 @@ if [ "$target" = "darwin-arm64" ]; then
     && cargo update --package rust-s3 \
     && cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin)
 else
-  container run --rm --platform linux/arm64 --memory 8G \
+  container run --rm --platform "$container_platform" --memory 8G \
     -v "$source_directory:/build" -w /build rust:1.95-bookworm \
     bash -c '
       set -euo pipefail

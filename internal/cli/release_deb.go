@@ -356,6 +356,9 @@ func buildDebPrograms(repositoryRootPath string, target debianTarget, version st
 		Destination: blueclaw.CompanyPackageBinaryPath(blueclaw.RenderCompanyRuntimeName),
 		Mode:        0o755,
 	})
+	if errorValue := requirePackagedProgramsFit(packaged, target); errorValue != nil {
+		return nil, errorValue
+	}
 	return packaged, nil
 }
 
@@ -393,14 +396,15 @@ func compileDebBunProgram(repositoryRootPath string, program debBunProgram, targ
 }
 
 // The messenger is built by tools/prepare-buzz-relay from a pinned upstream revision
-// and lands in .dependency/buzz-relay as linux binaries. The package carries those
-// files; it does not build Rust. A package for an architecture that artifact does not
-// cover is refused rather than shipped without a messenger.
+// and lands in a directory per architecture, which blueclaw.BuzzRelayArtifactPathFor
+// names. The package carries those files; it does not build Rust. A package for an
+// architecture whose directory is missing or holds another one's binaries is refused
+// rather than shipped without a messenger.
 func debMessengerPrograms(repositoryRootPath string, target debianTarget) ([]debPackagedFile, error) {
 	packaged := []debPackagedFile{}
 	for _, name := range []string{blueclaw.BuzzRelayName, blueclaw.BuzzAdminName} {
-		sourcePath := filepath.Join(repositoryRootPath, blueclaw.BuzzRelayArtifactPath, name)
-		if errorValue := requireELFFor(sourcePath, target, name); errorValue != nil {
+		sourcePath := filepath.Join(repositoryRootPath, blueclaw.BuzzRelayArtifactPathFor(target.DebianArchitecture), name)
+		if errorValue := requireMessengerBinary(sourcePath, name, target); errorValue != nil {
 			return nil, errorValue
 		}
 		packaged = append(packaged, debPackagedFile{
@@ -410,51 +414,6 @@ func debMessengerPrograms(repositoryRootPath string, target debianTarget) ([]deb
 		})
 	}
 	return packaged, nil
-}
-
-func requireELFFor(sourcePath string, target debianTarget, name string) error {
-	information, errorValue := os.Stat(sourcePath)
-	if errorValue != nil {
-		return fmt.Errorf("%s is not at %s; build it with tools/prepare-buzz-relay: %w", name, sourcePath, errorValue)
-	}
-	if information.Size() == 0 {
-		return fmt.Errorf("%s at %s is empty; rebuild it with tools/prepare-buzz-relay", name, sourcePath)
-	}
-	machine, errorValue := elfMachineOf(sourcePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	if machine != target.ELFMachine {
-		return fmt.Errorf(
-			"%s at %s is a %s binary and this package is %s; tools/prepare-buzz-relay builds one architecture at a time",
-			name, sourcePath, machine, target.DebianArchitecture)
-	}
-	return nil
-}
-
-// elfMachineOf reads e_machine out of the header rather than shelling out to file(1),
-// which is not on every build host.
-func elfMachineOf(sourcePath string) (string, error) {
-	file, errorValue := os.Open(sourcePath)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	defer file.Close()
-	header := make([]byte, 20)
-	if _, errorValue := io.ReadFull(file, header); errorValue != nil {
-		return "", fmt.Errorf("read the header of %s: %w", sourcePath, errorValue)
-	}
-	if string(header[:4]) != "\x7fELF" {
-		return "", fmt.Errorf("%s is not a Linux binary", sourcePath)
-	}
-	switch uint16(header[18]) | uint16(header[19])<<8 {
-	case 0xB7:
-		return "aarch64", nil
-	case 0x3E:
-		return "x86-64", nil
-	default:
-		return "", fmt.Errorf("%s is built for a machine this package does not target", sourcePath)
-	}
 }
 
 func debVendoredPrograms(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) ([]debPackagedFile, error) {
@@ -721,6 +680,11 @@ func buildDocumentInterpreter(repositoryRootPath string, target debianTarget, st
 	builtPath := filepath.Join(workPath, "document-venv")
 	if _, errorValue := os.Lstat(filepath.Join(builtPath, "bin", "python")); errorValue != nil {
 		return nil, fmt.Errorf("the resolved interpreter has no %s/bin/python", builtPath)
+	}
+	for _, tree := range []string{interpreterPath, builtPath} {
+		if errorValue := requireELFTreeFits(tree, target); errorValue != nil {
+			return nil, errorValue
+		}
 	}
 	return []debPackagedFile{
 		{SourcePath: interpreterPath, Destination: blueclaw.CompanyPackageInterpreterPath, Mode: 0o755, IsDirectoryTree: true},
