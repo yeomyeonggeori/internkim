@@ -10,8 +10,7 @@ import (
 
 // The company host as a Homebrew formula. Everything it declares is read from
 // this package, the same way the .deb's control fields are: the depends_on lines
-// from HostHomebrewDependencies, the caveats' casks from
-// HostHomebrewCasksAPersonMustInstall, the paths from CompanyHostLayout.
+// from HostHomebrewDependencies, the paths from CompanyHostLayout.
 //
 // What the formula does *not* do is the whole of why there is a second line.
 // It supervises nothing: `brew services` holds one service block per formula and
@@ -197,7 +196,7 @@ func writeHomebrewInstallBlock(formula *strings.Builder) {
 	formula.WriteString("    return if (venv/\"bin/python\").exist?\n")
 	formula.WriteString("\n")
 	formula.WriteString("    system libexec/" + rubyString(PackageResolverName) +
-		", \"venv\", \"--python\", libexec/" + rubyString(macDocumentInterpreterDirectoryName+"/bin/python3.13") + ", venv\n")
+		", \"venv\", \"--python\", libexec/" + rubyString(documentInterpreterDirectoryName+"/bin/python"+DocumentInterpreterMinor) + ", venv\n")
 	formula.WriteString("    system libexec/" + rubyString(PackageResolverName) +
 		", \"pip\", \"install\", \"--python\", venv/\"bin/python\", \"--no-index\", " +
 		"\"--find-links\", libexec/" + rubyString(documentWheelDirectoryName) + ", " +
@@ -224,26 +223,11 @@ func writeHomebrewCaveats(formula *strings.Builder) {
 		"makes the POSIX helper setuid root, and writes the LaunchDaemons into",
 		CompanyHostLaunchDaemonRoot + ".",
 	}
-	casks := HostHomebrewCasksAPersonMustInstall()
-	if len(casks) > 0 {
-		lines = append(lines, "", "A formula cannot depend on a cask, so these are yours to install:")
-		for _, cask := range casks {
-			lines = append(lines, "  "+homebrewCaskCaveat(cask))
-		}
-	}
 	formula.WriteString("  def caveats\n    <<~EOS\n")
 	for _, line := range lines {
 		formula.WriteString(strings.TrimRight("      "+line, " ") + "\n")
 	}
 	formula.WriteString("    EOS\n  end\n\n")
-}
-
-func homebrewCaskCaveat(cask HostHomebrewCask) string {
-	if !cask.IsDisabledUpstream {
-		return "brew install --cask " + cask.Name + " — " + cask.WhatItIsFor
-	}
-	return "brew install --cask " + cask.InsteadInstall + " — " + cask.WhatItIsFor +
-		". The " + cask.Name + " cask cannot be installed at all: " + cask.WhyItIsDisabled
 }
 
 // `brew test` runs without root and with no company, so what it can show is that
@@ -253,7 +237,7 @@ func writeHomebrewTestBlock(formula *strings.Builder) {
 	formula.WriteString("    assert_predicate libexec/" + rubyString(POSIXHelperProgramName) + ", :exist?\n")
 	formula.WriteString("    assert_predicate libexec/\"skills\", :directory?\n")
 	formula.WriteString("    system libexec/" + rubyString(documentVirtualEnvironmentDirectoryName+"/bin/python") +
-		", \"-c\", " + rubyString(documentModulesTheSkillsOpen) + "\n")
+		", \"-c\", " + rubyString(documentModulesTheConversionImports) + "\n")
 	formula.WriteString("    assert_match " + rubyString(CompanyPackageName) +
 		", shell_output(\"#{bin}/" + CompanyPackageName + " --help 2>&1\", 1)\n")
 	formula.WriteString("  end\n")

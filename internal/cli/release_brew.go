@@ -322,7 +322,7 @@ func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
 		filepath.Join(libraryPath, "runtime.template.json"), 0o644)
 }
 
-// The wheels the document skills import are resolved here, against the
+// The wheels file_read_helper.py imports are resolved here, against the
 // interpreter the keg carries and this Mac's processor, because a wheel is built
 // for one of each. What the keg carries is the wheels rather than a virtualenv:
 // a virtualenv names its interpreter by absolute path, so one built here would
@@ -331,7 +331,7 @@ func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
 // name. The formula's install block builds the virtualenv from these wheels with
 // --no-index, so nothing is resolved twice and nothing needs the network.
 func buildBrewDocumentWheels(repositoryRootPath string, libraryPath string, layout blueclaw.CompanyHostLayout, interpreterPath string, output io.Writer) error {
-	requirements, errorValue := documentSkillRequirements(repositoryRootPath)
+	requirements, errorValue := documentConversionRequirements(repositoryRootPath)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -340,11 +340,11 @@ func buildBrewDocumentWheels(repositoryRootPath string, libraryPath string, layo
 		return errorValue
 	}
 	wheelPath := filepath.Join(libraryPath, blueclaw.MacDocumentWheelDirectoryName())
-	fmt.Fprintf(output, "  resolving the document skills' wheels for this Mac\n")
+	fmt.Fprintf(output, "  resolving the document conversion wheels for this Mac\n")
 	build := exec.Command(interpreterPath, "-m", "pip", "wheel", "--quiet", "--no-cache-dir",
 		"--wheel-dir", wheelPath, "--requirement", requirementsPath)
 	if commandOutput, errorValue := build.CombinedOutput(); errorValue != nil {
-		return fmt.Errorf("resolve the document skills' wheels: %s", strings.TrimSpace(string(commandOutput)))
+		return fmt.Errorf("resolve the document conversion wheels: %s", strings.TrimSpace(string(commandOutput)))
 	}
 	return requireTheWheelsInstallAndImport(libraryPath, wheelPath, requirementsPath, interpreterPath, output)
 }
@@ -370,24 +370,27 @@ func requireTheWheelsInstallAndImport(libraryPath string, wheelPath string, requ
 		}
 	}
 	commandOutput, errorValue := exec.Command(
-		filepath.Join(venvPath, "bin", "python"), "-c", blueclaw.DocumentModulesTheSkillsOpen()).CombinedOutput()
+		filepath.Join(venvPath, "bin", "python"), "-c", blueclaw.DocumentModulesTheConversionImports()).CombinedOutput()
 	if errorValue != nil {
 		return fmt.Errorf(
-			"the document skills' modules do not import out of the wheels this keg carries:\n%s",
+			"the document conversion modules do not import out of the wheels this keg carries:\n%s",
 			strings.TrimSpace(string(commandOutput)))
 	}
-	fmt.Fprintf(output, "  every module the document skills open imports\n")
+	fmt.Fprintf(output, "  every module document conversion opens imports\n")
 	return nil
 }
 
 // The interpreter comes into the keg as a pinned download rather than from
 // Homebrew, for the reason company_host_mac_interpreter.go gives. It is checked
-// here as well as pinned: a Python that cannot import what the document skills
-// import is a Mac host whose every .docx write fails on an import, and finding
+// here as well as pinned: a Python that cannot import what document conversion
+// imports is a Mac host whose every file_read fails on an import, and finding
 // that at release time rather than at a customer's desk is the whole point of
 // resolving anything in advance.
 func carryDocumentInterpreter(repositoryRootPath string, libraryPath string, output io.Writer) (string, error) {
-	pin := blueclaw.MacDocumentInterpreter()
+	pin, errorValue := blueclaw.DocumentInterpreterForTarget(blueclaw.HostPayloadDarwinArm64)
+	if errorValue != nil {
+		return "", errorValue
+	}
 	cachePath := filepath.Join(repositoryRootPath, brewPayloadCacheDirectory)
 	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
 		return "", errorValue
@@ -401,30 +404,30 @@ func carryDocumentInterpreter(repositoryRootPath string, libraryPath string, out
 	if errorValue := extractGzippedTarTree(archivePath, pin.DirectoryInsideArchive, filepath.Join(libraryPath, pin.DirectoryInsideArchive)); errorValue != nil {
 		return "", errorValue
 	}
-	interpreterPath := filepath.Join(libraryPath, pin.DirectoryInsideArchive, "bin", "python3.13")
-	return interpreterPath, requireTheInterpreterOpensWhatTheSkillsOpen(interpreterPath)
+	interpreterPath := filepath.Join(libraryPath, pin.DirectoryInsideArchive, "bin", "python"+blueclaw.DocumentInterpreterMinor)
+	return interpreterPath, requireTheInterpreterOpensWhatConversionOpens(interpreterPath)
 }
 
 // The standard-library modules a broken build of CPython loses, which is how
-// Homebrew's python@3.13 fails on macOS 26.1. The wheels the skills import are
+// Homebrew's python@3.13 fails on macOS 26.1. The wheels conversion imports are
 // checked separately, once they exist.
-const interpreterStandardLibraryTheSkillsNeed = "import plistlib, platform, xml.etree.ElementTree, zlib, sqlite3, ssl, lzma; " +
+const interpreterStandardLibraryConversionNeeds = "import plistlib, platform, xml.etree.ElementTree, zlib, sqlite3, ssl, lzma; " +
 	"assert platform.mac_ver()[0], 'platform.mac_ver() is empty'"
 
-func requireTheInterpreterOpensWhatTheSkillsOpen(interpreterPath string) error {
-	commandOutput, errorValue := exec.Command(interpreterPath, "-c", interpreterStandardLibraryTheSkillsNeed).CombinedOutput()
+func requireTheInterpreterOpensWhatConversionOpens(interpreterPath string) error {
+	commandOutput, errorValue := exec.Command(interpreterPath, "-c", interpreterStandardLibraryConversionNeeds).CombinedOutput()
 	if errorValue == nil {
 		return nil
 	}
 	return fmt.Errorf(
-		"%s cannot open what the document skills open, so this keg would write broken documents:\n%s",
+		"%s cannot open what document conversion opens, so this keg would read no file:\n%s",
 		interpreterPath, strings.TrimSpace(string(commandOutput)))
 }
 
 // extractGzippedTarTree unpacks one directory out of a tarball, which is what
 // an interpreter is: a tree rather than the single program every other pinned
 // download carries.
-func extractGzippedTarTree(archivePath string, directoryInsideArchive string, destinationPath string) error {
+func extractGzippedTarTree(archivePath string, directoryInsideArchive string, destinationPath string, skippedDirectories ...string) error {
 	if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
 		return errorValue
 	}
@@ -448,13 +451,22 @@ func extractGzippedTarTree(archivePath string, directoryInsideArchive string, de
 			return errorValue
 		}
 		relative, isInside := strings.CutPrefix(filepath.Clean(header.Name), directoryInsideArchive+"/")
-		if !isInside {
+		if !isInside || isInsideAny(relative, skippedDirectories) {
 			continue
 		}
 		if errorValue := writeExtractedEntry(archive, header, filepath.Join(destinationPath, relative)); errorValue != nil {
 			return errorValue
 		}
 	}
+}
+
+func isInsideAny(relativePath string, directories []string) bool {
+	for _, directory := range directories {
+		if relativePath == directory || strings.HasPrefix(relativePath, directory+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func writeExtractedEntry(archive *tar.Reader, header *tar.Header, destination string) error {

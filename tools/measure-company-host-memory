@@ -358,7 +358,7 @@ class Measurement:
 
         started = now()
         rendered = self.render_a_deck(machine)
-        reading.phase("the deck renderer starts Chromium", started, now(), rendered)
+        reading.phase("the deck renderer starts a browser", started, now(), rendered)
         self.carry_samples(machine, share)
 
         started = now()
@@ -487,11 +487,12 @@ class Measurement:
 
 
     def render_a_deck(self, machine):
-        """The deck renderer, which is what starts Chromium on this box.
+        """The deck renderer, which is what starts a browser on this box.
 
         `skills/presentation/scripts/build.sh` with a review format is the
-        command the skill's own instructions give, and the browser it launches
-        through playwright-core is the `chromium` the package depends on.
+        command the skill's own instructions give. The package carries no
+        browser, so on a box that has none the render-source line below reads
+        nativeFallback rather than browser.
         """
         (machine.share_directory / "slides.html").write_text(DECK_SOURCE)
         return self.said(machine.shell(

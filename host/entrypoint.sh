@@ -45,10 +45,9 @@ done
 # build refuses over a gap; a box already running says so and comes up anyway,
 # because this script also starts the one process that answers when the agent
 # cannot.
-programsTheBundledSkillsRun="python3 bun uv chromium"
+programsTheBundledSkillsRun="python3 bun uv"
 koreanCapableFontPath="/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
 koreanCapableFontPackage="fonts-nanum"
-skillRequirementsGlob="/opt/internkim/skills/*/scripts/requirements.txt /opt/internkim/document-conversion/requirements.txt"
 
 whatTheBundledSkillsAreMissing() {
   for programTheBundledSkillsRun in ${programsTheBundledSkillsRun}; do
@@ -57,24 +56,6 @@ whatTheBundledSkillsAreMissing() {
   done
   [ -r "${koreanCapableFontPath}" ] \
     || echo "carries no Korean-capable font at ${koreanCapableFontPath} — install ${koreanCapableFontPackage}, the one Debian package whose path all three font-embedding skills look for; without it every PDF they write comes out with no Hangul and no error"
-  missingSkillPackages="$(cat ${skillRequirementsGlob} 2>/dev/null | python3 -c '
-import importlib.metadata
-import re
-import sys
-
-missing = []
-for line in sys.stdin:
-    name = re.split(r"[\s=<>!~;\[]", line.split("#", 1)[0].strip(), maxsplit=1)[0]
-    if name == "":
-        continue
-    try:
-        importlib.metadata.distribution(name)
-    except importlib.metadata.PackageNotFoundError:
-        missing.append(name)
-print(" ".join(sorted(set(missing))))
-' 2>/dev/null)"
-  [ -z "${missingSkillPackages}" ] \
-    || echo "has a python3 that cannot supply what the bundled skills declare: ${missingSkillPackages}"
 }
 
 whatTheBundledSkillsAreMissingReport="$(whatTheBundledSkillsAreMissing || true)"

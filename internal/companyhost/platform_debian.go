@@ -147,6 +147,10 @@ func (debianPlatform) HowToInstallTheseByHand(machine Machine, missing []missing
 	}
 }
 
+func (debianPlatform) CarriesItInThePackage(dependency blueclaw.HostDependency) bool {
+	return dependency.WhatTheDebianPackageCarriesInstead != ""
+}
+
 // A Debian box looks for a dependency where Debian puts it, which is what the
 // declaration already says.
 func (debianPlatform) WhereToLookFor(blueclaw.HostDependency) []string {

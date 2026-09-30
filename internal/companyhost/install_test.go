@@ -161,15 +161,24 @@ func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
 // The preflight is the unpackaged path's substitute for `Depends:`, so it reads
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
-	machine := &recordedMachine{missing: map[string]bool{"chromium": true, "redis-server": true}}
+	machine := &recordedMachine{missing: map[string]bool{"jq": true, "redis-server": true}}
 	errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, machine)
 	if errorValue == nil {
-		t.Fatal("a machine with no chromium and no redis was accepted")
+		t.Fatal("a machine with no jq and no redis was accepted")
 	}
-	for _, named := range []string{"chromium", "redis-server", "sudo apt-get install"} {
+	for _, named := range []string{"jq", "redis-server", "sudo apt-get install"} {
 		if !strings.Contains(errorValue.Error(), named) {
 			t.Fatalf("the refusal does not name %q:\n%s", named, errorValue)
 		}
+	}
+}
+
+func TestThePreflightDoesNotAskADebianMachineForWhatThePackageCarries(t *testing.T) {
+	machine := &recordedMachine{missing: map[string]bool{
+		"/usr/share/fonts/truetype/nanum/NanumGothic.ttf": true,
+	}}
+	if errorValue := requireWhatTheCompanyHostRuns(debianPlatform{}, machine); errorValue != nil {
+		t.Fatalf("a machine without its own Nanum font was refused for what the package brings: %v", errorValue)
 	}
 }
 

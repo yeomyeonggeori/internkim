@@ -492,7 +492,7 @@
   },
   "INTERNKIM_INSTALL_SUITE": {
     "process": "install script",
-    "description": "the apt suite web/static/install.sh writes into the source it installs; defaults to <VERSION_CODENAME>-stable"
+    "description": "the apt suite web/static/install.sh writes into the source it installs; defaults to stable"
   },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",
@@ -930,10 +930,6 @@
     "process": "web",
     "description": "the VAPID public key injected into the page for push-notification subscription; the matching private key lives in Supabase Vault, not the environment",
     "isRequiredOnPages": true
-  },
-  "VERSION_CODENAME": {
-    "process": "install script",
-    "description": "this machine's Debian release name (standard /etc/os-release field), read by web/static/install.sh to name the apt suite built for it"
   },
   "VIRTIOFSD_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",

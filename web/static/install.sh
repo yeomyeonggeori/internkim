@@ -51,27 +51,7 @@ Run the same command as root:
 
 install_the_package() {
   require_administrator
-  apt_suite="${INTERNKIM_INSTALL_SUITE:-}"
-  suite_came_from_this_machine=no
-  debian_codename=""
-  # A suite name carries both how far a build is trusted and the Debian release
-  # it was built against, because apt pins on the suite and then takes the
-  # newest candidate inside it. The release half is this machine's own, so the
-  # box follows the build made for it rather than one made for a Debian it is
-  # not running.
-  if [ -z "$apt_suite" ]; then
-    debian_codename=""
-    if [ -r /etc/os-release ]; then
-      debian_codename="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
-    fi
-    [ -n "$debian_codename" ] || stop \
-"/etc/os-release names no VERSION_CODENAME, so this script cannot tell which
-Debian release to ask apt for. Put the suite for this machine's release in
-INTERNKIM_INSTALL_SUITE, which is trixie-stable on Debian 13, and run the same
-command again."
-    apt_suite="$debian_codename-stable"
-    suite_came_from_this_machine=yes
-  fi
+  apt_suite="${INTERNKIM_INSTALL_SUITE:-stable}"
 
   debian_architecture="$(dpkg --print-architecture)"
   case "$debian_architecture" in
@@ -155,18 +135,10 @@ Check that this machine can reach it, then run the same command again.
 Nothing on this machine was changed."
   fi
 
-  if [ "$suite_came_from_this_machine" = yes ]; then
-    stop \
-"This repository publishes nothing at $apt_suite, which is the suite name this
-machine's own Debian release, $debian_codename, asks for on the stable channel.
-So there is no stable build for this release yet.
-$suite_index_url answered $suite_index_code.
-Nothing on this machine was changed."
-  fi
-
   stop \
 "This repository publishes nothing at $apt_suite, which is the suite
-INTERNKIM_INSTALL_SUITE names. Check it against what the repository publishes.
+this install asked for. If INTERNKIM_INSTALL_SUITE is set, check it against what
+the repository publishes.
 $suite_index_url answered $suite_index_code.
 Nothing on this machine was changed."
 }
