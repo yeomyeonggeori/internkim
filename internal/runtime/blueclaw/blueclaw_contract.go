@@ -127,6 +127,7 @@ const (
 	DeviceURLFilePath              = "/root/.internkim/env/device-url"
 	BuzzRelayRedisURL              = "redis://127.0.0.1:6379"
 	BuzzRelayArtifactPath          = ".dependency/buzz-relay"
+	BuzzRelayAmd64ArtifactPath     = ".dependency/buzz-relay-linux-amd64"
 	BuzzMediaServiceName           = "buzz-media"
 	BuzzMediaServicePath           = "/etc/systemd/system/buzz-media.service"
 	BuzzMediaProgramName           = "versitygw"
@@ -267,4 +268,14 @@ func BlueclawDeliveryRefreshCommand() string {
 		"chown 998:971 " + BlueclawDeliverySecretsPath + "\n" +
 		"chmod 0700 " + BlueclawDeliverySecretsPath + "\n" +
 		"find " + BlueclawDeliveryRuntimePath + "/bin -type f -exec chmod 0755 {} + 2>/dev/null || true"
+}
+
+// BuzzRelayArtifactPathFor is where tools/prepare-buzz-relay leaves the messenger
+// built for one Debian architecture. arm64 is the appliance's directory and keeps
+// its name; amd64 sits beside it.
+func BuzzRelayArtifactPathFor(debianArchitecture string) string {
+	if debianArchitecture == "amd64" {
+		return BuzzRelayAmd64ArtifactPath
+	}
+	return BuzzRelayArtifactPath
 }
