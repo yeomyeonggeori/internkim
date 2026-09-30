@@ -34,6 +34,7 @@ setting it up anywhere else still takes some knowledge of how it is built.
 
 Everyone signs in at [intern.kim](https://intern.kim). The company's records sit in
 Supabase behind row level security, and the agent's computer opens no inbound port.
+Every part is self-hostable, so a company can take all of it off `intern.kim`.
 
 ## Install
 
@@ -52,8 +53,7 @@ AlmaLinux), pacman on Arch Linux, and the Homebrew tap on macOS. Linux machines 
 be arm64 or amd64. The second command asks for an
 [OpenRouter API key](https://openrouter.ai/settings/keys) and registers the services.
 On Linux the machine then signs in with a key it generated itself, so the
-downloaded file is used once and never again. The
-[quickstart](https://docs.intern.kim/quickstart) covers the rest of the setup.
+downloaded file is used once and never again.
 
 ## How it is built
 
@@ -102,8 +102,9 @@ The pages live in `docs/` and are published at
 
 ## Self-hosting
 
-A company can run only the host, or also its own Supabase project and its own
-Cloudflare Pages deployment. [Self-hosting
+The host always runs on the company's own computer. The record can move to the
+company's own Supabase project, hosted or self-hosted, and the web app and the
+public API to its own Cloudflare account and domain. [Self-hosting
 levels](https://docs.intern.kim/self-hosting) says what each level moves and how to
 deploy the web app.
 
