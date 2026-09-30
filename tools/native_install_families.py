@@ -77,7 +77,9 @@ class Family:
 
 RPM_SIGNATURE_COMMAND = (
     f"rpm -q --qf '%{{RSAHEADER:pgpsig}}\\n' {PACKAGE_NAME}; rm -rf /tmp/downloaded; "
-    f"dnf download --destdir /tmp/downloaded {PACKAGE_NAME} >/dev/null 2>&1; rpm -K /tmp/downloaded/*.rpm"
+    f"(dnf download --destdir /tmp/downloaded {PACKAGE_NAME} "
+    f"|| dnf reinstall -y --downloadonly --downloaddir /tmp/downloaded {PACKAGE_NAME}) >/dev/null 2>&1; "
+    "rpm -K /tmp/downloaded/*.rpm"
 )
 RPM_METADATA_TAMPERING = ((("rpm/stable/aarch64/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
 RPM_RESET = "dnf clean all"
