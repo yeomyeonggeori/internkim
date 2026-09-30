@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/internkim.logo.png" width="120" alt="Intern Kim">
+  <img src="assets/internkim.logo.svg" width="120" alt="Intern Kim">
 </p>
 
 <h1 align="center">Intern Kim</h1>
@@ -117,3 +117,8 @@ has the conventions for branches, commits, pull requests, prose and code.
 
 Apache-2.0, see [LICENSE](LICENSE). The submodules blueclaw and internkim-plugin are
 Apache-2.0 too.
+
+<p align="center">
+  <a href="https://dawn.kim"><img src="assets/yeomyeonggeori.logo.svg" width="40" alt="Yeomyeonggeori"></a><br>
+  <sub>Made by <a href="https://dawn.kim">Yeomyeonggeori</a></sub>
+</p>
