@@ -39,7 +39,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_families import FAMILIES  # noqa: E402
 from native_install_rig import (  # noqa: E402
     COMPANY_CONDITION_PATH,
+    ARCHITECTURE,
     KERNEL_IMAGE_PATH,
+    RUNTIME_KERNEL,
     PACKAGE_NAME,
     STATE_DIRECTORY,
     Machine,
@@ -650,7 +652,7 @@ def main():
         "--stop-after", type=int, default=5, metavar="STEP",
         help="stop once this step has run, so a guest can be examined before the next one changes it",
     )
-    parser.add_argument("--kernel", default=str(KERNEL_IMAGE_PATH), help="the guest kernel (default: %(default)s)")
+    parser.add_argument("--kernel", default=str(RUNTIME_KERNEL if ARCHITECTURE == "amd64" else KERNEL_IMAGE_PATH), help="the guest kernel (default: %(default)s)")
     options = parser.parse_args()
 
     rig = FamilyRig(options)

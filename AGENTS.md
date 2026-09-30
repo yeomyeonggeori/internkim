@@ -31,6 +31,10 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   fails on a listen address and a health route that binary never had.
   `dev fleet run` refuses a `CHATD_REVISION` that is missing or does not match
   the pointer, naming both.
+- `internkim release deb` needs the messenger for each architecture it builds:
+  `make prepare-buzz-relay-linux` prepares arm64 and amd64, the amd64 one in a
+  linux/amd64 guest under Rosetta (about ten minutes). The default
+  `make prepare-buzz-relay` stays arm64 for the device.
 - Do not revert user or generated changes unless explicitly asked.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.
