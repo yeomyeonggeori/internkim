@@ -130,10 +130,6 @@
 		return currentUserID !== '' && message.sender.id === currentUserID;
 	}
 
-	const workingAgent = $derived<ChannelParticipant>(
-		messages.findLast((message) => !isMine(message))?.sender ?? { id: '', name: text.title }
-	);
-
 	const canChange = canChangeMessages();
 	const openableAddressOf = (url: string): string => attachmentSource.openable(url);
 	const messageActions = messageActionsFor({
@@ -807,9 +803,6 @@
 					onscroll={handleViewportScroll}
 					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
 				>
-					{#if isAgentWorking}
-						<AgentWorkingMarker agent={workingAgent} label={text.working} />
-					{/if}
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
 							<Marker.Root variant="separator">
@@ -837,19 +830,26 @@
 			</div>
 		{/if}
 	</div>
-	<ChannelComposer
-		bind:this={conversationComposer}
-		bind:isSending
-		name="conversation"
-		placeholder={text.composerPlaceholder}
-		rows={2}
-		{participants}
-		{isGroup}
-		disabled={messageInputDisabled}
-		cancelsEditOnEscape={true}
-		saveEdit={messageActions.saveEdit}
-		onSend={sendToConversation}
-	/>
+	<div class="relative">
+		{#if isAgentWorking}
+			<div class="bg-background absolute inset-x-0 bottom-[calc(100%-0.625rem)] flex h-5 items-center px-4">
+				<AgentWorkingMarker label={text.working} />
+			</div>
+		{/if}
+		<ChannelComposer
+			bind:this={conversationComposer}
+			bind:isSending
+			name="conversation"
+			placeholder={text.composerPlaceholder}
+			rows={2}
+			{participants}
+			{isGroup}
+			disabled={messageInputDisabled}
+			cancelsEditOnEscape={true}
+			saveEdit={messageActions.saveEdit}
+			onSend={sendToConversation}
+		/>
+	</div>
 </div>
 {#if threadLayout === 'inline' && openThreadRoot}
 	<aside class="flex min-h-0 w-full max-w-md flex-col border-l">
