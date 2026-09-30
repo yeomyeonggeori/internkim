@@ -354,7 +354,7 @@ class Measurement:
 
         started = now()
         written = self.write_a_document(machine)
-        reading.phase("the document skill writes a docx", started, now(), written)
+        reading.phase("the office skill writes a docx", started, now(), written)
         self.carry_samples(machine, share)
 
         started = now()
@@ -470,7 +470,7 @@ class Measurement:
     def render_a_deck(self, machine):
         """The deck renderer, which is what starts a browser on this box.
 
-        `skills/presentation/scripts/build.sh` with a review format is the
+        `skills/office/scripts/office deck build` with a review format is the
         command the skill's own instructions give. The package carries no
         browser, so on a box that has none the render-source line below reads
         nativeFallback rather than browser.
@@ -482,24 +482,26 @@ class Measurement:
             f"cp {SHARE_PATH}/slides.html /var/tmp/deck/slides.html\n"
             "cd /var/tmp/deck\n"
             "export SRC=slides.html NAME=deck FORMATS=review\n"
-            f"bash {SKILLS_PATH}/presentation/scripts/build.sh 2>&1 | tail -40\n"
+            f"{SKILLS_PATH}/office/scripts/office deck build 2>&1 | tail -40\n"
             "ls -la /var/tmp/deck/build/review 2>&1 | tail -8\n"
             "echo \"render-source=$(cat /var/tmp/deck/build/review/render-source* 2>/dev/null | tr -d '\\n')\"\n",
             timeout_seconds=2400,
         ))
 
     def write_a_document(self, machine):
-        """The document skill, started the way its SKILL.md tells the agent to: python3."""
+        """The office skill, started the way its SKILL.md tells the agent to: python3."""
         (machine.share_directory / "report.md").write_text(DOCUMENT_SOURCE)
         return self.said(machine.shell(
             "set -u\n"
             "install -d /var/tmp/documents\n"
             f"cp {SHARE_PATH}/report.md /var/tmp/documents/report.md\n"
             "cd /var/tmp/documents\n"
-            f"skills={SKILLS_PATH}/document/scripts\n"
-            "python3 $skills/skill_runtime.py python $skills/export_document.py "
-            "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20\n"
-            "python3 $skills/skill_runtime.py python $skills/validate_docx.py "
+            f"office={SKILLS_PATH}/office/scripts/office
+"
+            "python3 $office doc export "
+            "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20
+"
+            "python3 $office doc validate "
             "/var/tmp/documents/report.docx 2>&1 | tail -20\n"
             "ls -la /var/tmp/documents 2>&1 | tail -6\n",
             timeout_seconds=1800,

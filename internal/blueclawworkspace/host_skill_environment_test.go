@@ -1,6 +1,7 @@
 package blueclawworkspace
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,17 +19,20 @@ var systemFontPathPattern = regexp.MustCompile(`/usr/share/fonts/[A-Za-z0-9._/-]
 
 func skillScriptSources(t *testing.T, skillDirectory SkillDirectory) string {
 	t.Helper()
-	scriptPaths, errorValue := filepath.Glob(filepath.Join(skillDirectory.Path, "scripts", "*.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	sources := strings.Builder{}
-	for _, scriptPath := range scriptPaths {
-		script, readError := os.ReadFile(scriptPath)
+	walkError := filepath.WalkDir(filepath.Join(skillDirectory.Path, "scripts"), func(path string, entry fs.DirEntry, walkError error) error {
+		if walkError != nil || entry.IsDir() || filepath.Ext(path) != ".py" {
+			return walkError
+		}
+		script, readError := os.ReadFile(path)
 		if readError != nil {
-			t.Fatal(readError)
+			return readError
 		}
 		sources.Write(script)
+		return nil
+	})
+	if walkError != nil {
+		t.Fatal(walkError)
 	}
 	return sources.String()
 }
@@ -79,7 +83,7 @@ func TestHostImageLeavesTheSkillsRequirementsToTheSkills(t *testing.T) {
 	}
 }
 
-func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
+func TestHostImageCarriesTheFontTheOfficeSkillLooksFor(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	sharedFontPaths := map[string]bool{}
 	embeddingSkillCount := 0
@@ -109,8 +113,8 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 			}
 		}
 	}
-	if embeddingSkillCount < 2 {
-		t.Fatalf("expected several skills to embed a system font into a PDF, found %d", embeddingSkillCount)
+	if embeddingSkillCount < 1 {
+		t.Fatal("expected a skill to embed a system font into a PDF")
 	}
 	if len(sharedFontPaths) == 0 {
 		t.Fatal("the skills that embed a font no longer share a system path; the host image cannot satisfy them with one package")
@@ -192,7 +196,7 @@ func TestARunningHostReportsAnIncompleteSkillEnvironmentInsteadOfTakingTheMessen
 
 func TestBundledSkillRequirementsCarryNoVersionSpecifier(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	runtimeScript, errorValue := os.ReadFile(filepath.Join(skillDirectoryPath(t, repositoryRootPath, "pdf"), "scripts", "skill_runtime.py"))
+	runtimeScript, errorValue := os.ReadFile(filepath.Join(skillDirectoryPath(t, repositoryRootPath, "office"), "scripts", "skill_runtime.py"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

@@ -2,7 +2,7 @@
  "name": "document-lifecycle",
  "requiresModelProvenance": true,
  "expectedLLMProvider": "openrouter",
- "skillNames": ["document"],
+ "skillNames": ["office"],
  "allowedTools": [
   "conversation_history",
   "memory_search",
