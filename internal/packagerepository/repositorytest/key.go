@@ -58,3 +58,28 @@ func KeyPath(t *testing.T) string {
 	exec.Command("gpgconf", "--homedir", homeDirectory, "--kill", "gpg-agent").Run()
 	return keyPath
 }
+
+// Verify fails the test unless signature is a valid detached signature of
+// document by the armoured or binary public key, checked by gpg in a keyring
+// that holds nothing else.
+func Verify(t *testing.T, publicKey []byte, signature []byte, document []byte) {
+	t.Helper()
+	directory := ShortLivedHomeDirectory(t)
+	paths := map[string][]byte{"key": publicKey, "signature": signature, "document": document}
+	for name, contents := range paths {
+		if errorValue := os.WriteFile(filepath.Join(directory, name), contents, 0o600); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	command := exec.Command("gpg", "--homedir", directory, "--batch", "--no-tty", "--no-default-keyring",
+		"--keyring", filepath.Join(directory, "keyring.kbx"), "--import", filepath.Join(directory, "key"))
+	if output, errorValue := command.CombinedOutput(); errorValue != nil {
+		t.Fatalf("import the public key: %s", output)
+	}
+	command = exec.Command("gpg", "--homedir", directory, "--batch", "--no-tty", "--no-default-keyring",
+		"--keyring", filepath.Join(directory, "keyring.kbx"), "--verify",
+		filepath.Join(directory, "signature"), filepath.Join(directory, "document"))
+	if output, errorValue := command.CombinedOutput(); errorValue != nil {
+		t.Fatalf("the signature does not verify:\n%s", output)
+	}
+}
