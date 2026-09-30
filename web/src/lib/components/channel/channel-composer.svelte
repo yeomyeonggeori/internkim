@@ -13,7 +13,9 @@
 <script lang="ts">
 	import * as Attachment from '$lib/components/ui/attachment/index.js';
 	import * as InputGroup from '$lib/components/ui/input-group/index.js';
+	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Toggle } from '$lib/components/ui/toggle/index.js';
 	import MentionPopup from './mention-popup.svelte';
 	import EmojiPicker from './emoji-picker.svelte';
 	import ComposerFormatToolbar from './composer-format-toolbar.svelte';
@@ -29,15 +31,17 @@
 	import type { MentionCandidate, MentionPerson } from '$lib/messenger/mention-candidates';
 	import { mentionKeyAction } from '$lib/messenger/mention-draft';
 	import { createMentionPicker } from '$lib/messenger/mention-picker.svelte';
+	import { isFormatToolbarShown, rememberFormatToolbarShown } from '$lib/messenger/format-toolbar-visibility';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import AtSignIcon from '@lucide/svelte/icons/at-sign';
+	import CaseSensitiveIcon from '@lucide/svelte/icons/case-sensitive';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { onDestroy, tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 
 	let {
 		name,
@@ -79,6 +83,8 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let pendingAttachments = $state<PendingAttachment[]>([]);
 	let attachmentSerial = 0;
+	let showsFormatToolbar = $state(false);
+	const formatToggleLabel = $derived(showsFormatToolbar ? text.hideFormatting : text.showFormatting);
 	const canMention = $derived(canChangeMessages() && participants.length > 0);
 	const mentions = createMentionPicker(() => participants, () => isGroup);
 	const edit = composerEditing({
@@ -225,6 +231,9 @@
 		event.currentTarget.closest('form')?.requestSubmit();
 	}
 
+	onMount(() => {
+		showsFormatToolbar = isFormatToolbarShown();
+	});
 	onDestroy(clearAttachments);
 </script>
 
@@ -279,7 +288,9 @@
 		</div>
 	{/if}
 	<InputGroup.Root>
-		<ComposerFormatToolbar {disabled} onFormat={format} />
+		{#if showsFormatToolbar}
+			<ComposerFormatToolbar {disabled} onFormat={format} />
+		{/if}
 		<InputGroup.Textarea
 			bind:value
 			bind:ref={textarea}
@@ -307,6 +318,23 @@
 			>
 				<PlusIcon />
 			</InputGroup.Button>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Toggle
+							{...props}
+							size="sm"
+							aria-label={formatToggleLabel}
+							bind:pressed={showsFormatToolbar}
+							onPressedChange={rememberFormatToolbarShown}
+							{disabled}
+						>
+							<CaseSensitiveIcon />
+						</Toggle>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content side="top">{formatToggleLabel}</Tooltip.Content>
+			</Tooltip.Root>
 			<EmojiPicker onPick={insertEmoji} side="top" align="start">
 				{#snippet trigger({ props })}
 					<InputGroup.Button {...props} size="icon-sm" aria-label={text.addEmoji} {disabled}>
