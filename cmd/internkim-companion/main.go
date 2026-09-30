@@ -119,8 +119,6 @@ const (
 	companionAuthStatusUnknown           = "unknown"
 )
 
-type browserAutoApprovalHandler struct{}
-
 func registerStateFlag(flags *flag.FlagSet) *string {
 	return flags.String("state", defaultStatePath(), "companion state path")
 }

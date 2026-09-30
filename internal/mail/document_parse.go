@@ -18,10 +18,6 @@ type parsedDocument struct {
 
 const maxPreviewCharacters = 220
 
-func plainTextFromDocument(document []byte) string {
-	return ParseDocument(document).PlainText
-}
-
 func ParseDocument(document []byte) parsedDocument {
 	if len(bytes.TrimSpace(document)) == 0 {
 		return parsedDocument{}
