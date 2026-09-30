@@ -204,6 +204,24 @@ export class CompanyCalls extends WorkerEntrypoint<WorkerEnvironment> {
 	}
 }
 
+const bearerPrefix = 'Bearer ';
+const serverKeyDigestStorageKey = 'serverKeyDigest';
+const legacyServerKeyStorageKey = 'serverKey';
+
+async function digestOf(value: string): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function digestsMatch(first: string, second: string): boolean {
+	if (first.length !== second.length) return false;
+	let difference = 0;
+	for (let index = 0; index < first.length; index += 1) {
+		difference |= first.charCodeAt(index) ^ second.charCodeAt(index);
+	}
+	return difference === 0;
+}
+
 export class CompanyConnectionObject {
 	private serverSocket: WebSocket | null = null;
 	private serverSeenAt = 0;
@@ -231,7 +249,8 @@ export class CompanyConnectionObject {
 		if (typeof serverKey !== 'string' || serverKey.trim() === '') {
 			return jsonResponse({ error: 'a server key is required' }, 400);
 		}
-		await this.state.storage.put('serverKey', serverKey);
+		await this.state.storage.put(serverKeyDigestStorageKey, await digestOf(serverKey));
+		await this.state.storage.delete(legacyServerKeyStorageKey);
 		return jsonResponse({ status: 'ok' }, 200);
 	}
 
@@ -253,11 +272,27 @@ export class CompanyConnectionObject {
 
 	private async acceptServer(request: Request): Promise<Response> {
 		const offered = request.headers.get('Authorization') ?? '';
-		const serverKey = await this.state.storage.get<string>('serverKey');
-		if (!serverKey || offered !== `Bearer ${serverKey}`) {
+		if (!(await this.isTheServerKey(offered))) {
 			return jsonResponse({ error: 'this connection is not the company server' }, 401);
 		}
 		return this.acceptConnectedServer(request);
+	}
+
+	private async isTheServerKey(authorization: string): Promise<boolean> {
+		if (!authorization.startsWith(bearerPrefix)) return false;
+		const offeredDigest = await digestOf(authorization.slice(bearerPrefix.length));
+		const keptDigest = await this.state.storage.get<string>(serverKeyDigestStorageKey);
+		if (keptDigest) return digestsMatch(offeredDigest, keptDigest);
+		return this.upgradeLegacyServerKey(offeredDigest);
+	}
+
+	private async upgradeLegacyServerKey(offeredDigest: string): Promise<boolean> {
+		const legacyKey = await this.state.storage.get<string>(legacyServerKeyStorageKey);
+		if (!legacyKey) return false;
+		if (!digestsMatch(offeredDigest, await digestOf(legacyKey))) return false;
+		await this.state.storage.put(serverKeyDigestStorageKey, offeredDigest);
+		await this.state.storage.delete(legacyServerKeyStorageKey);
+		return true;
 	}
 
 	private acceptHost(request: Request): Response {

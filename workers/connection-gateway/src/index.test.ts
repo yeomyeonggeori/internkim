@@ -64,14 +64,14 @@ async function signedHostToken(claims: Record<string, unknown>): Promise<string>
 	return `${signed}.${base64URL(new Uint8Array(signature))}`;
 }
 
-function newState(): DurableObjectState {
-	const values = new Map<string, unknown>();
+function newState(values: Map<string, unknown> = new Map()): DurableObjectState {
 	const storage = {
 		get: (key: string) => Promise.resolve(values.get(key)),
 		put: (key: string, value: unknown) => {
 			values.set(key, value);
 			return Promise.resolve();
-		}
+		},
+		delete: (key: string) => Promise.resolve(values.delete(key))
 	};
 	return { storage } as unknown as DurableObjectState;
 }
@@ -302,6 +302,58 @@ describe('CompanyCalls.callCompany', () => {
 	test('refuses a call naming no capability', async () => {
 		const { calls } = await companyWithAServerKey();
 		await expect(calls.callCompany(companyID, { requestID: 'r1', capability: '  ' })).rejects.toThrow(TypeError);
+	});
+});
+
+describe('the server key at rest', () => {
+	function serverRequest(key: string): Request {
+		return new Request(`https://gateway/company/${companyID}/server`, {
+			headers: { Upgrade: 'websocket', Authorization: `Bearer ${key}` }
+		});
+	}
+
+	async function sha256Hex(value: string): Promise<string> {
+		const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+		return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+	}
+
+	test('keeps only a digest of the key', async () => {
+		const values = new Map<string, unknown>();
+		const object = new CompanyConnectionObject(newState(values));
+		await object.fetch(
+			new Request(`https://gateway/company/${companyID}/server-key`, {
+				method: 'POST',
+				body: JSON.stringify({ serverKey })
+			})
+		);
+		expect([...values.values()]).not.toContain(serverKey);
+		expect([...values.values()]).toContain(await sha256Hex(serverKey));
+		expect((await object.fetch(serverRequest(serverKey))).status).not.toBe(401);
+		expect((await object.fetch(serverRequest('another-key'))).status).toBe(401);
+	});
+
+	test('accepts a key stored in plaintext once and replaces it with its digest', async () => {
+		const values = new Map<string, unknown>([['serverKey', serverKey]]);
+		const object = new CompanyConnectionObject(newState(values));
+		expect((await object.fetch(serverRequest('another-key'))).status).toBe(401);
+		expect(values.get('serverKey')).toBe(serverKey);
+
+		expect((await object.fetch(serverRequest(serverKey))).status).not.toBe(401);
+		expect(values.has('serverKey')).toBe(false);
+		expect(values.get('serverKeyDigest')).toBe(await sha256Hex(serverKey));
+		expect((await object.fetch(serverRequest(serverKey))).status).not.toBe(401);
+		expect((await object.fetch(serverRequest('another-key'))).status).toBe(401);
+	});
+
+	test('refuses a header that is not a bearer credential', async () => {
+		const values = new Map<string, unknown>([['serverKey', serverKey]]);
+		const object = new CompanyConnectionObject(newState(values));
+		const response = await object.fetch(
+			new Request(`https://gateway/company/${companyID}/server`, {
+				headers: { Upgrade: 'websocket', Authorization: serverKey }
+			})
+		);
+		expect(response.status).toBe(401);
 	});
 });
 
