@@ -45,7 +45,7 @@ done
 # build refuses over a gap; a box already running says so and comes up anyway,
 # because this script also starts the one process that answers when the agent
 # cannot.
-programsTheBundledSkillsRun="python3 bun uv chromium"
+programsTheBundledSkillsRun="python3 bun uv"
 koreanCapableFontPath="/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
 koreanCapableFontPackage="fonts-nanum"
 skillRequirementsGlob="/opt/internkim/skills/*/scripts/requirements.txt /opt/internkim/document-conversion/requirements.txt"

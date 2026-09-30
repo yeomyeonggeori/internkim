@@ -223,12 +223,22 @@ func TestTheEntrypointNamesTheFilesTheDeclarationDoes(t *testing.T) {
 	}
 }
 
-func TestThePackageDependsOnEverythingTheImageInstalls(t *testing.T) {
-	depends := blueclaw.HostDebianDependsLine("")
+func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *testing.T) {
+	depends := blueclaw.HostDebianDependsLine()
+	carried := map[string]bool{}
+	for _, dependency := range blueclaw.HostDependencies() {
+		if dependency.WhatTheDebianPackageCarriesInstead != "" {
+			carried[dependency.DebianPackage] = true
+		}
+	}
 	for _, packageName := range blueclaw.HostImageDebianPackages() {
-		if !strings.Contains(depends, packageName) {
-			t.Errorf("the image installs %s and the package does not depend on it, so a native install is a host "+
-				"the container path proved it needs more than", packageName)
+		isNamed := strings.Contains(depends, packageName)
+		if carried[packageName] && isNamed {
+			t.Errorf("the package carries %s and still asks the distribution for it", packageName)
+		}
+		if !carried[packageName] && !isNamed {
+			t.Errorf("the image installs %s and the package neither depends on it nor carries it, so a native "+
+				"install is a host the container path proved it needs more than", packageName)
 		}
 	}
 	if !strings.Contains(depends, "postgresql (>= 14)") {

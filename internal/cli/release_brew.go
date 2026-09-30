@@ -387,7 +387,10 @@ func requireTheWheelsInstallAndImport(libraryPath string, wheelPath string, requ
 // that at release time rather than at a customer's desk is the whole point of
 // resolving anything in advance.
 func carryDocumentInterpreter(repositoryRootPath string, libraryPath string, output io.Writer) (string, error) {
-	pin := blueclaw.MacDocumentInterpreter()
+	pin, errorValue := blueclaw.DocumentInterpreterForTarget(blueclaw.HostPayloadDarwinArm64)
+	if errorValue != nil {
+		return "", errorValue
+	}
 	cachePath := filepath.Join(repositoryRootPath, brewPayloadCacheDirectory)
 	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
 		return "", errorValue
@@ -401,7 +404,7 @@ func carryDocumentInterpreter(repositoryRootPath string, libraryPath string, out
 	if errorValue := extractGzippedTarTree(archivePath, pin.DirectoryInsideArchive, filepath.Join(libraryPath, pin.DirectoryInsideArchive)); errorValue != nil {
 		return "", errorValue
 	}
-	interpreterPath := filepath.Join(libraryPath, pin.DirectoryInsideArchive, "bin", "python3.13")
+	interpreterPath := filepath.Join(libraryPath, pin.DirectoryInsideArchive, "bin", "python"+blueclaw.DocumentInterpreterMinor)
 	return interpreterPath, requireTheInterpreterOpensWhatTheSkillsOpen(interpreterPath)
 }
 
@@ -424,7 +427,7 @@ func requireTheInterpreterOpensWhatTheSkillsOpen(interpreterPath string) error {
 // extractGzippedTarTree unpacks one directory out of a tarball, which is what
 // an interpreter is: a tree rather than the single program every other pinned
 // download carries.
-func extractGzippedTarTree(archivePath string, directoryInsideArchive string, destinationPath string) error {
+func extractGzippedTarTree(archivePath string, directoryInsideArchive string, destinationPath string, skippedDirectories ...string) error {
 	if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
 		return errorValue
 	}
@@ -448,13 +451,22 @@ func extractGzippedTarTree(archivePath string, directoryInsideArchive string, de
 			return errorValue
 		}
 		relative, isInside := strings.CutPrefix(filepath.Clean(header.Name), directoryInsideArchive+"/")
-		if !isInside {
+		if !isInside || isInsideAny(relative, skippedDirectories) {
 			continue
 		}
 		if errorValue := writeExtractedEntry(archive, header, filepath.Join(destinationPath, relative)); errorValue != nil {
 			return errorValue
 		}
 	}
+}
+
+func isInsideAny(relativePath string, directories []string) bool {
+	for _, directory := range directories {
+		if relativePath == directory || strings.HasPrefix(relativePath, directory+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func writeExtractedEntry(archive *tar.Reader, header *tar.Header, destination string) error {

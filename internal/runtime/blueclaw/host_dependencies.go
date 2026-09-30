@@ -1,10 +1,6 @@
 package blueclaw
 
-import (
-	"fmt"
-	"strconv"
-	"strings"
-)
+import "strings"
 
 // HostPart is who in the company host needs a dependency. The agent image
 // carries what the entrypoint, the daemons and the bundled skills reach for; a
@@ -24,17 +20,20 @@ const (
 // HostDependency is one thing the company host needs and does not build. A
 // dependency is not one string: Debian and Homebrew disagree on the name, some
 // of it is programs the host calls rather than packages it installs, one of it
-// is a font file nothing puts on PATH, and four of them no distribution
+// is a font file nothing puts on PATH, and some of them no distribution
 // carries at all.
 type HostDependency struct {
 	DebianPackage          string
 	DebianMinimumVersion   string
 	DebianCallsItEssential bool
-	HomebrewFormula        string
-	HomebrewCask           HostHomebrewCask
-	ArrivesAsPayload       bool
-	ProgramsTheHostRuns    []string
-	ReadableFilePath       string
+	// WhatTheDebianPackageCarriesInstead is for a dependency the .deb does not
+	// ask the distribution for because the package brings its own. The host
+	// image is a container and still installs DebianPackage, so the name stays.
+	WhatTheDebianPackageCarriesInstead string
+	HomebrewFormula                    string
+	ArrivesAsPayload                   bool
+	ProgramsTheHostRuns                []string
+	ReadableFilePath                   string
 	// MacFilePathCandidates are where this dependency is on a Mac when it is
 	// neither on PATH nor where Debian puts it: an application bundle, a font
 	// the system ships. Any one of them satisfies the dependency, and a machine
@@ -46,35 +45,6 @@ type HostDependency struct {
 	// the same empty field.
 	WhatAnswersItOnAMac string
 	NeededBy            []HostPart
-}
-
-// HostHomebrewCask is a dependency a formula cannot declare. Homebrew's
-// DependencyCollector#parse_symbol_spec accepts :arch, :linux, :macos,
-// :maximum_macos and :xcode and raises "Unsupported special dependency" on
-// anything else; `cask:` is a key of the cask DSL's own depends_on. So a cask
-// never becomes a depends_on line, and what the formula can do instead is say in
-// its caveats what the person has to type.
-type HostHomebrewCask struct {
-	Name string
-	// IsDisabledUpstream means `brew install --cask <Name>` refuses. Naming it
-	// in a caveat would send a person at a command that fails, so the caveat
-	// names InsteadInstall instead and says why.
-	IsDisabledUpstream bool
-	// WhyItIsDisabled is upstream's own reason, so the caveat and the report do
-	// not have to guess at it.
-	WhyItIsDisabled string
-	// InsteadInstall is the cask that does work, when one does. Empty means
-	// nothing on Homebrew answers for this and the dependency is met another
-	// way or not at all.
-	InsteadInstall string
-	// WhatItIsFor is the sentence the caveat prints, so a person knows what
-	// declining it costs.
-	WhatItIsFor string
-}
-
-// IsDeclared distinguishes a dependency that names a cask from one that does not.
-func (cask HostHomebrewCask) IsDeclared() bool {
-	return cask.Name != ""
 }
 
 // HostReadableFile is a path whose absence the host reports by name, because
@@ -166,8 +136,9 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartEntrypoint},
 	},
 	{
-		DebianPackage:       "python3",
-		ProgramsTheHostRuns: []string{"python3"},
+		DebianPackage:                      "python3",
+		ProgramsTheHostRuns:                []string{"python3"},
+		WhatTheDebianPackageCarriesInstead: "a pinned relocatable CPython, the one the Mac carries, so no distribution's python3 or minor version matters",
 		// See company_host_mac_interpreter.go: Homebrew's python@3.13 bottle
 		// for macOS 26 cannot load pyexpat on 26.1, so the keg carries a
 		// pinned relocatable CPython instead of depending on one.
@@ -175,9 +146,10 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartDocumentSkills},
 	},
 	{
-		DebianPackage:       "python3-venv",
-		WhatAnswersItOnAMac: "the interpreter the package carries has venv in it",
-		NeededBy:            []HostPart{HostPartDocumentSkills},
+		DebianPackage:                      "python3-venv",
+		WhatTheDebianPackageCarriesInstead: "the interpreter the package carries has venv in it",
+		WhatAnswersItOnAMac:                "the interpreter the package carries has venv in it",
+		NeededBy:                           []HostPart{HostPartDocumentSkills},
 	},
 	{
 		DebianPackage:   "libfontconfig1",
@@ -185,8 +157,9 @@ var hostDependencies = []HostDependency{
 		NeededBy:        []HostPart{HostPartDocumentSkills},
 	},
 	{
-		DebianPackage:    "fonts-nanum",
-		ReadableFilePath: "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+		DebianPackage:                      "fonts-nanum",
+		ReadableFilePath:                   "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+		WhatTheDebianPackageCarriesInstead: "NanumGothic, under its own license, in a directory fontconfig scans",
 		// Every Mac ships a Hangul face, and the skills that embed one already
 		// accept it: pdf and paperwork both list AppleSDGothicNeo in their
 		// requires-any-file declarations. So the cask is a nicety on macOS
@@ -194,27 +167,6 @@ var hostDependencies = []HostDependency{
 		// recommends it.
 		MacFilePathCandidates: []string{"/System/Library/Fonts/AppleSDGothicNeo.ttc"},
 		NeededBy:              []HostPart{HostPartDocumentSkills},
-	},
-	{
-		DebianPackage:       "chromium",
-		ProgramsTheHostRuns: []string{"chromium"},
-		// There is no `brew install` that puts a Chromium on a Mac. The cask was
-		// disabled upstream on 2026-09-01 and `brew info --cask chromium` says
-		// so. What the deck renderer opens instead is the browser it already
-		// falls through to, which is a live cask and an application bundle
-		// rather than anything on PATH.
-		HomebrewCask: HostHomebrewCask{
-			Name:               "chromium",
-			IsDisabledUpstream: true,
-			WhyItIsDisabled:    "it does not pass the macOS Gatekeeper check (disabled upstream on 2026-09-01)",
-			InsteadInstall:     "google-chrome",
-			WhatItIsFor:        "the skills that render slides and print documents drive a browser; without one they are withheld",
-		},
-		MacFilePathCandidates: []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-		},
-		NeededBy: []HostPart{HostPartDocumentSkills},
 	},
 	{
 		ArrivesAsPayload:    true,
@@ -291,67 +243,31 @@ func HostImageDebianPackages() []string {
 	return HostDebianPackagesFor(HostPartEntrypoint, HostPartAgent, HostPartDocumentSkills)
 }
 
-// DocumentInterpreterPackage is the distribution's python3, which is also the
-// interpreter the package's own document venv is resolved against.
-const DocumentInterpreterPackage = "python3"
-
-// HostDebianDependsLine is the whole host, as a .deb control field.
-//
-// documentInterpreterVersion is the full version the package's document venv
-// reports, and it bounds python3 to that minor version alone: the venv's
-// site-packages are wheels built for one operating system, one processor and
-// one Python minor version, and an interpreter outside the bound imports none
-// of them. An empty version leaves python3 unbounded, which is what a path that
-// ships no venv wants.
-func HostDebianDependsLine(documentInterpreterVersion string) string {
-	minimum, below, isBounded := documentInterpreterBound(documentInterpreterVersion)
-	constrained := []string{}
+// HostDebianDependsLine is the whole host, as a .deb control field. What the
+// package carries is left out: a name in this line is something every
+// distribution has to spell the same way and keep patched.
+func HostDebianDependsLine() string {
+	named := []string{}
 	for _, dependency := range hostDependencies {
 		if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential {
 			continue
 		}
-		if dependency.DebianPackage == DocumentInterpreterPackage && isBounded {
-			constrained = append(constrained,
-				DocumentInterpreterPackage+" (>= "+minimum+")",
-				DocumentInterpreterPackage+" (<< "+below+")")
+		if dependency.WhatTheDebianPackageCarriesInstead != "" {
 			continue
 		}
 		if dependency.DebianMinimumVersion == "" {
-			constrained = append(constrained, dependency.DebianPackage)
+			named = append(named, dependency.DebianPackage)
 			continue
 		}
-		constrained = append(constrained,
-			dependency.DebianPackage+" (>= "+dependency.DebianMinimumVersion+")")
+		named = append(named, dependency.DebianPackage+" (>= "+dependency.DebianMinimumVersion+")")
 	}
-	return strings.Join(constrained, ", ")
-}
-
-// documentInterpreterBound reads 3.13.5 as "3.13 or newer, below 3.14". The
-// version is the venv's own answer rather than a literal anybody maintains, so
-// the package cannot claim a python3 it was not resolved against.
-func documentInterpreterBound(version string) (string, string, bool) {
-	parts := strings.Split(strings.TrimSpace(version), ".")
-	if len(parts) < 2 {
-		return "", "", false
-	}
-	major, errorValue := strconv.Atoi(parts[0])
-	if errorValue != nil {
-		return "", "", false
-	}
-	minor, errorValue := strconv.Atoi(parts[1])
-	if errorValue != nil {
-		return "", "", false
-	}
-	return fmt.Sprintf("%d.%d", major, minor), fmt.Sprintf("%d.%d", major, minor+1), true
+	return strings.Join(named, ", ")
 }
 
 // HostHomebrewDependencies is every `depends_on` line of the formula, and only
-// those. It is a shorter list than Debian's for three separate reasons, and none
-// of them is that the Mac needs less: Homebrew's PostgreSQL carries contrib and
-// its Python carries venv, macOS supplies curl, unzip, netcat and the CA
-// bundle itself, and two of Debian's dependencies are casks a formula is
-// forbidden to name. What the formula does about those two is
-// HostHomebrewCasksAPersonMustInstall.
+// those. It is a shorter list than Debian's because Homebrew's PostgreSQL
+// carries contrib, the keg carries its own Python, and macOS supplies curl,
+// unzip, netcat and the CA bundle itself; none of it means the Mac needs less.
 func HostHomebrewDependencies() []string {
 	formulas := []string{}
 	named := map[string]bool{}
@@ -363,20 +279,6 @@ func HostHomebrewDependencies() []string {
 		formulas = append(formulas, dependency.HomebrewFormula)
 	}
 	return formulas
-}
-
-// HostHomebrewCasksAPersonMustInstall is what the formula's caveats say, because
-// a formula cannot say it as a dependency. Each one names what it is for, so a
-// person can decide to do without it and know what they gave up.
-func HostHomebrewCasksAPersonMustInstall() []HostHomebrewCask {
-	casks := []HostHomebrewCask{}
-	for _, dependency := range hostDependencies {
-		if !dependency.HomebrewCask.IsDeclared() {
-			continue
-		}
-		casks = append(casks, dependency.HomebrewCask)
-	}
-	return casks
 }
 
 func hostProgramsNeededBy(parts ...HostPart) []string {

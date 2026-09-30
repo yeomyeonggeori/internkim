@@ -275,22 +275,17 @@ func readEnvironmentFilesTheServicesName(layout blueclaw.CompanyHostLayout) map[
 	return contentsByPath
 }
 
-// On a Mac the one command is brew's, and the two casks a formula is forbidden
-// to depend on are named here rather than in the formula, because this is the
-// step that found them missing.
+// On a Mac the one command is brew's; what Homebrew has no formula for is named
+// by what it is.
 func (macPlatform) HowToInstallTheseByHand(machine Machine, missing []missingPiece) []string {
 	formulas := []string{}
-	casks := []string{}
+	unavailable := []string{}
 	for _, piece := range missing {
-		if piece.HomebrewCask.IsDeclared() {
-			casks = append(casks, macCaskInstruction(piece.HomebrewCask))
-			continue
-		}
 		if piece.HomebrewFormula != "" {
 			formulas = append(formulas, piece.HomebrewFormula)
 			continue
 		}
-		casks = append(casks, "  "+piece.What+" is missing and Homebrew has nothing that installs it.")
+		unavailable = append(unavailable, "  "+piece.What+" is missing and Homebrew has nothing that installs it.")
 	}
 	lines := []string{}
 	if len(formulas) > 0 {
@@ -298,15 +293,11 @@ func (macPlatform) HowToInstallTheseByHand(machine Machine, missing []missingPie
 			"  Homebrew carries the rest. Install them, then run this again:",
 			"    brew install "+strings.Join(sortedAndUnique(formulas), " "))
 	}
-	return append(lines, sortedAndUnique(casks)...)
+	return append(lines, sortedAndUnique(unavailable)...)
 }
 
-func macCaskInstruction(cask blueclaw.HostHomebrewCask) string {
-	if !cask.IsDisabledUpstream {
-		return "  brew install --cask " + cask.Name + " — " + cask.WhatItIsFor
-	}
-	return "  brew install --cask " + cask.InsteadInstall + " — " + cask.WhatItIsFor +
-		". The " + cask.Name + " cask cannot be installed at all: " + cask.WhyItIsDisabled
+func (macPlatform) CarriesItInThePackage(blueclaw.HostDependency) bool {
+	return false
 }
 
 func (macPlatform) WhereToLookFor(dependency blueclaw.HostDependency) []string {

@@ -14,8 +14,8 @@ import (
 // The dependency list lives once, in host_dependencies.go. A package that spelled its
 // own would drift from the image the same declaration builds.
 func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
-	information := debianPackageInformation(debianTargets[0], "1.2.3", "", files.Contents{}, nfpm.Scripts{})
-	declared := strings.Split(blueclaw.HostDebianDependsLine(""), ", ")
+	information := debianPackageInformation(debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{})
+	declared := strings.Split(blueclaw.HostDebianDependsLine(), ", ")
 	if len(information.Depends) != len(declared) {
 		t.Fatalf("the package declares %d dependencies and the host declares %d", len(information.Depends), len(declared))
 	}
@@ -24,27 +24,19 @@ func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
 			t.Fatalf("the package depends on %q where the host declares %q", information.Depends[index], dependency)
 		}
 	}
-	if !strings.Contains(blueclaw.HostDebianDependsLine(""), "postgresql (>= 14)") {
+	if !strings.Contains(blueclaw.HostDebianDependsLine(), "postgresql (>= 14)") {
 		t.Fatal("the package does not ask apt for a PostgreSQL, so an install would leave a box with no database")
 	}
 }
 
-// The package carries a venv of wheels built for one Python minor version, so it has
-// to name the python3 it can be installed beside. The version comes out of the venv
-// the build just resolved, which is the only value that cannot disagree with the
-// wheels; a literal here would be a second account of the same fact.
-func TestThePackageNamesThePythonItsInterpreterWasResolvedAgainst(t *testing.T) {
-	information := debianPackageInformation(debianTargets[0], "1.2.3", "3.13.5", files.Contents{}, nfpm.Scripts{})
-	bounded := strings.Join(information.Depends, ", ")
-	for _, required := range []string{"python3 (>= 3.13)", "python3 (<< 3.14)"} {
-		if !strings.Contains(bounded, required) {
-			t.Fatalf("the package's Depends is %q and does not carry %q, so apt would install it "+
-				"beside a python3 that imports none of the wheels it ships", bounded, required)
+// The package carries the interpreter its wheels were built for, so Depends names no
+// python3 at all: a distribution's minor version is not a fact the package rests on.
+func TestThePackageAsksTheDistributionForNoPython(t *testing.T) {
+	depends := strings.Join(debianPackageInformation(debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
+	for _, carried := range []string{"python3", "fonts-nanum", "chromium"} {
+		if strings.Contains(depends, carried) {
+			t.Fatalf("the package's Depends is %q and still asks the distribution for %s", depends, carried)
 		}
-	}
-	unbounded := strings.Join(debianPackageInformation(debianTargets[0], "1.2.3", "", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
-	if strings.Contains(unbounded, "python3 (") {
-		t.Fatalf("a package built with no interpreter bounds python3 anyway: %q", unbounded)
 	}
 }
 

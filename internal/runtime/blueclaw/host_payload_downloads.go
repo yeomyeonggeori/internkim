@@ -163,13 +163,23 @@ func packageResolverPayload(targetTriple string, checksum string) HostPayloadDow
 // architecture nobody publishes for is an error rather than an empty list, because a
 // box that installed none of these answers and does nothing.
 func HostPayloadDownloads(debianArchitecture string) ([]HostPayloadDownload, error) {
+	target, errorValue := HostPayloadTargetForDebianArchitecture(debianArchitecture)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return HostPayloadDownloadsForTarget(target)
+}
+
+// HostPayloadTargetForDebianArchitecture names the target whose pins a .deb of
+// one architecture carries.
+func HostPayloadTargetForDebianArchitecture(debianArchitecture string) (string, error) {
 	target, isPublished := hostPayloadTargetByDebianArchitecture[debianArchitecture]
 	if !isPublished {
-		return nil, fmt.Errorf(
+		return "", fmt.Errorf(
 			"no vendored binary is pinned for %s; the architectures are %v",
 			debianArchitecture, hostPayloadDebianArchitectures())
 	}
-	return HostPayloadDownloadsForTarget(target)
+	return target, nil
 }
 
 // HostPayloadDownloadsForTarget is the same five programs for a machine named by

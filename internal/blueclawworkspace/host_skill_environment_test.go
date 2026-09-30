@@ -155,9 +155,9 @@ func TestHostImageBuildRefusesAnIncompleteSkillEnvironment(t *testing.T) {
 	command.Env = []string{"PATH=" + stubDirectory}
 	output, errorValue := command.CombinedOutput()
 	if errorValue == nil {
-		t.Fatalf("--check-programs accepted an image with no chromium and no Korean font:\n%s", output)
+		t.Fatalf("--check-programs accepted an image with no Korean font:\n%s", output)
 	}
-	for _, expectedText := range []string{"this image carries no chromium", "carries no Korean-capable font", "install fonts-nanum"} {
+	for _, expectedText := range []string{"carries no Korean-capable font", "install fonts-nanum"} {
 		if !strings.Contains(string(output), expectedText) {
 			t.Fatalf("--check-programs must say %q so the build failure names what to install; it said:\n%s", expectedText, output)
 		}
@@ -172,7 +172,7 @@ func TestARunningHostReportsAnIncompleteSkillEnvironmentInsteadOfTakingTheMessen
 	if strings.Contains(collector, "exit ") {
 		t.Fatal("whatTheBundledSkillsAreMissing must collect what is missing, not exit; the image build decides what to do with it")
 	}
-	for _, expectedName := range []string{"python3", "bun", "uv", "chromium"} {
+	for _, expectedName := range []string{"python3", "bun", "uv"} {
 		if !strings.Contains(entrypoint, expectedName) {
 			t.Fatalf("host entrypoint must look for %s, which the bundled skills run", expectedName)
 		}
