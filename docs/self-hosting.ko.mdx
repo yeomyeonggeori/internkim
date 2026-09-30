@@ -10,8 +10,8 @@ icon: Layers
 | 단계 | 호스트 | Supabase | Cloudflare | 다른 네트워크에서 접속 |
 |---|---|---|---|---|
 | 1 | 내 컴퓨터 | `intern.kim` | `intern.kim` | 아니요 |
-| 2 | 내 컴퓨터 | 직접 운영 | 직접 운영 | 아니요 |
-| 3 | 내 컴퓨터 또는 클라우드 서버 | 직접 운영 | 직접 운영 | 예, SSH로 |
+| 3 | 내 컴퓨터 | 직접 운영 | 직접 운영 | 아니요 |
+| 4 | 내 컴퓨터 또는 클라우드 서버 | 직접 운영 | 직접 운영 | 예, SSH로 |
 
 ## 1단계: 내 컴퓨터에 호스트
 
@@ -20,7 +20,7 @@ icon: Layers
 바깥으로만 연결하고 로컬 인터페이스 밖에서는 아무것도 요청을 받지 않으므로, 컴퓨터에
 공개 주소가 필요 없습니다.
 
-## 2단계: 직접 운영하는 Supabase와 Cloudflare
+## 3단계: 직접 운영하는 Supabase와 Cloudflare
 
 회사 기록이 직접 운영하는 Supabase 프로젝트로 옮겨 가고, 웹 앱은 내 Cloudflare 계정에
 배포해 `CLOUDFLARE_DOMAIN`이 가리키는 내 도메인으로 서비스합니다. 웹 앱을 직접 배포하기
@@ -60,9 +60,9 @@ bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-
 - `supabase config push`는 `config.toml` 전체를 보내므로 파일에 없는 설정은 CLI 기본값으로
   돌아갑니다. 종료 코드를 믿기 전에 출력되는 diff를 읽으세요.
 
-## 3단계: 어느 네트워크에서든 SSH로 접속
+## 4단계: 어느 네트워크에서든 SSH로 접속
 
-호스트는 여전히 들어오는 길을 열지 않고, 제품도 그런 길을 제공하지 않습니다. 3단계의
+호스트는 여전히 들어오는 길을 열지 않고, 제품도 그런 길을 제공하지 않습니다. 4단계의
 회사는 컴퓨터로 가는 길을 스스로 고릅니다.
 
 - 내 계정의 Cloudflare Tunnel과 그 앞의 Access 정책. 한 번만 접속할 때는

@@ -10,8 +10,8 @@ A company can run as much of internkim as it wants and leave the rest to
 | Level | The host | Supabase | Cloudflare | Reached from other networks |
 |---|---|---|---|---|
 | 1 | your computer | `intern.kim` | `intern.kim` | no |
-| 2 | your computer | yours | yours | no |
-| 3 | your computer or a cloud server | yours | yours | yes, over SSH |
+| 3 | your computer | yours | yours | no |
+| 4 | your computer or a cloud server | yours | yours | yes, over SSH |
 
 ## Level 1: the host on your own computer
 
@@ -20,7 +20,7 @@ such as a Kim Mini, a Mac or a Linux machine. The company's record, the web app 
 sign-in address stay with `intern.kim`. The host connects outward and nothing
 listens off loopback, so the computer needs no public address.
 
-## Level 2: your own Supabase and your own Cloudflare
+## Level 3: your own Supabase and your own Cloudflare
 
 The record moves to a Supabase project you run, and the web app is deployed to
 your Cloudflare account and served from your own domain, which
@@ -66,9 +66,9 @@ wildcards.
   omits returns to the CLI default. Read the diff it prints before trusting the exit
   code.
 
-## Level 3: reachable over SSH from any network
+## Level 4: reachable over SSH from any network
 
-The host still opens no way in, and the product provides none. A level 3
+The host still opens no way in, and the product provides none. A level 4
 company chooses its own route to the computer:
 
 - a Cloudflare Tunnel from your own account, with an Access policy in front of
