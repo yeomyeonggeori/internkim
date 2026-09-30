@@ -75,8 +75,11 @@ class Family:
         return found[-1] if found else None
 
 
-RPM_SIGNATURE_COMMAND = f"rpm -qi {PACKAGE_NAME} | grep '^Signature'"
-RPM_METADATA_TAMPERING = (("rpm/stable/aarch64/repodata/repomd.xml", b"<revision>", b"<revision>9", False),)
+RPM_SIGNATURE_COMMAND = (
+    f"rpm -q --qf '%{{RSAHEADER:pgpsig}}\\n' {PACKAGE_NAME}; rm -rf /tmp/downloaded; "
+    f"dnf download --destdir /tmp/downloaded {PACKAGE_NAME} >/dev/null 2>&1; rpm -K /tmp/downloaded/*.rpm"
+)
+RPM_METADATA_TAMPERING = ((("rpm/stable/aarch64/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
 RPM_RESET = "dnf clean all"
 RPM_INSTALL = f"dnf install -y {PACKAGE_NAME}"
 
@@ -105,8 +108,10 @@ def debian_family(name, image):
         reset_command="apt-get clean; rm -rf /var/lib/apt/lists/*",
         install_command=f"export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y {PACKAGE_NAME}",
         metadata_tampering=(
-            ("deb/dists/stable/InRelease", b"Origin: InternKim", b"Origin: InternKiM", False),
-            ("deb/dists/stable/Release", b"Origin: InternKim", b"Origin: InternKiM", False),
+            (
+                ("deb/dists/stable/InRelease", b"Origin: InternKim", b"Origin: InternKiM", False),
+                ("deb/dists/stable/Release", b"Origin: InternKim", b"Origin: InternKiM", False),
+            ),
         ),
     )
 
@@ -134,7 +139,7 @@ FAMILIES = {
             policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
             policy_answer="repo_gpgcheck=1",
             signature_command=RPM_SIGNATURE_COMMAND,
-            signature_answer="Key ID",
+            signature_answer="digests signatures OK",
             reset_command=RPM_RESET,
             install_command=RPM_INSTALL,
             metadata_tampering=RPM_METADATA_TAMPERING,
@@ -156,7 +161,7 @@ FAMILIES = {
             policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
             policy_answer="repo_gpgcheck=1",
             signature_command=RPM_SIGNATURE_COMMAND,
-            signature_answer="Key ID",
+            signature_answer="digests signatures OK",
             reset_command=RPM_RESET,
             install_command=RPM_INSTALL,
             metadata_tampering=RPM_METADATA_TAMPERING,
@@ -182,7 +187,7 @@ FAMILIES = {
             signature_answer="Signature",
             reset_command=f"rm -f /var/cache/pacman/pkg/{PACKAGE_NAME}-*",
             install_command=f"pacman -Syy --noconfirm && pacman -S --needed --noconfirm {PACKAGE_NAME}",
-            metadata_tampering=(("arch/stable/aarch64/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),
+            metadata_tampering=((("arch/stable/aarch64/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),),
         ),
     )
 }
