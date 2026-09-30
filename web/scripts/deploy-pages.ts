@@ -61,7 +61,7 @@ if (process.argv.includes('--whoami')) {
 
 if (!project || !outputArgument)
 	throw new Error(
-		'pass --project <name> --output <path>; "The company web app" in README.md names the ones this repository deploys'
+		'pass --project <name> --output <path>; "Deploying the web app" in docs/self-hosting.mdx names the ones this repository deploys'
 	);
 
 if (isProduction) {
