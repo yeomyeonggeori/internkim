@@ -5,7 +5,8 @@
 <h1 align="center">Intern Kim</h1>
 
 <p align="center">
-  An AI coworker your company runs on its own computer.
+  An AI-native workspace for teams: tasks, calendar and messenger,<br>
+  with an AI coworker that runs on your own computer.
 </p>
 
 <p align="center">
@@ -15,8 +16,11 @@
   <a href="LICENSE">Apache-2.0</a>
 </p>
 
-People ask Intern Kim for work in the web app or the company messenger, and it does
-that work under the identity of whoever asked, on a computer the company owns.
+Intern Kim is where a team keeps its tasks, calendar, attendance, files, customers
+and conversations, and where it hands work to an AI coworker. People ask it for work
+in the web app or the company messenger, and it does that work under the identity of
+whoever asked, on a computer the company owns. Yeomyeonggeori, the company that
+builds it, runs its own workday on it.
 
 Everyone signs in at [intern.kim](https://intern.kim). The company's records sit in
 Supabase behind row level security, and the agent runs on one always-on computer
