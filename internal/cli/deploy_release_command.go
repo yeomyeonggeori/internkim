@@ -46,7 +46,12 @@ Options:
   --node <id>          Target a specific node by ID.
   --plan               Build, select and print what would ship or be refused,
                        reading only the device's current release. Publishes
-                       nothing.
+                       nothing. With --rollback it prints what would go back.
+  --rollback [<id>]    Reapply the release before the one the device holds, or
+                       the named retained release, instead of building. Skips
+                       the device-ahead refusal for this run only. Refuses
+                       when the older payload cannot run against the database
+                       the newer one migrated, or the registry pruned a blob.
   --legacy-ssh         Copy skills and workspace tools straight over ssh.
   -h, --help           Print this usage and exit.`
 }
@@ -64,6 +69,7 @@ func validateDeployArguments(arguments []string) error {
 		"--device-url": true,
 		"--legacy-ssh": true,
 		"--plan":       true,
+		"--rollback":   true,
 		"--board":      true,
 		"--board-type": true,
 		"--sim":        true,
@@ -157,8 +163,14 @@ func runReleaseDeploy(arguments []string) error {
 		return errorValue
 	}
 	target := resolveCommandTarget(commandControlArguments(arguments))
+	if request := parseRollbackRequest(arguments); request.enabled {
+		return runReleaseRollback(arguments, request, repositoryRootPath, target)
+	}
 	selectedComponentNames, errorValue := selectedReleaseComponentNames(arguments)
 	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := checkDeployTree(repositoryRootPath, shippedComponentNames(selectedComponentNames)); errorValue != nil {
 		return errorValue
 	}
 	plan, errorValue := chooseDeployComponents(
