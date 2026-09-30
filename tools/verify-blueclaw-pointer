@@ -1,62 +1,9 @@
 #!/usr/bin/env python3
-"""Fail when .dependency/blueclaw points somewhere main cannot follow.
-
-A submodule bump is a one-line diff, so it has a patch identity like any other
-commit. Once the same bump has been on main and main has moved off it, a plain
-rebase calls the branch's copy "previously applied", drops it, and reports
-success - and the branch now carries a backwards pointer. Redo the bump with
-`git rebase --reapply-cherry-picks origin/main`.
-"""
-
-import subprocess
+import os
 import sys
+from pathlib import Path
 
-SUBMODULE = ".dependency/blueclaw"
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 
-
-def git(*arguments, cwd="."):
-    return subprocess.run(
-        ["git", *arguments], cwd=cwd, capture_output=True, text=True
-    )
-
-
-def revision_of_pointer(committish):
-    finished = git("rev-parse", f"{committish}:{SUBMODULE}")
-    return finished.stdout.strip() if finished.returncode == 0 else ""
-
-
-def is_ancestor(earlier, later):
-    return git("merge-base", "--is-ancestor", earlier, later, cwd=SUBMODULE).returncode == 0
-
-
-def main():
-    base_branch = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
-    git("fetch", "--quiet", "origin", "main", cwd=SUBMODULE)
-
-    head = revision_of_pointer("HEAD")
-    if not head:
-        print(f"{SUBMODULE} is not a submodule of this commit", file=sys.stderr)
-        return 1
-
-    if not is_ancestor(head, "origin/main"):
-        print(f"{head} is not on blueclaw's main yet; merge it there first.", file=sys.stderr)
-        return 1
-
-    base = revision_of_pointer(base_branch)
-    if not base or base == head:
-        return 0
-
-    if not is_ancestor(base, "origin/main"):
-        return 0
-
-    if not is_ancestor(base, head):
-        print(f"{SUBMODULE} would move backwards, {base} -> {head}.", file=sys.stderr)
-        print("A rebase drops a pointer bump whose patch already appeared upstream.", file=sys.stderr)
-        print("Redo it with: git rebase --reapply-cherry-picks origin/main", file=sys.stderr)
-        return 1
-
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+os.chdir(REPOSITORY_ROOT)
+os.execvp("go", ["go", "run", "./cmd/internkim", "verify", "blueclaw-pointer", *sys.argv[1:]])
