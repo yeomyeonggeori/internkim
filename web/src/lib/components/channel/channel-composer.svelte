@@ -54,7 +54,8 @@
 		isSending = $bindable(false),
 		editing = $bindable(null),
 		saveEdit,
-		onSend
+		onSend,
+		onTyping
 	}: {
 		name: string;
 		placeholder: string;
@@ -67,6 +68,7 @@
 		editing?: EditingMessage | null;
 		saveEdit: (messageID: string, text: string) => Promise<boolean>;
 		onSend: (outgoing: OutgoingMessage) => Promise<void>;
+		onTyping?: () => void;
 	} = $props();
 
 	type PendingAttachment = {
@@ -161,6 +163,11 @@
 	function clearAttachments() {
 		for (const pending of pendingAttachments) URL.revokeObjectURL(pending.previewURL);
 		pendingAttachments = [];
+	}
+
+	function handleInput(): void {
+		refreshMentions();
+		if (!editing && value.trim() !== '') onTyping?.();
 	}
 
 	function refreshMentions(): void {
@@ -303,7 +310,7 @@
 			aria-label={placeholder}
 			{rows}
 			onkeydown={handleKeydown}
-			oninput={refreshMentions}
+			oninput={handleInput}
 			onblur={() => mentions.close()}
 			{disabled}
 		/>

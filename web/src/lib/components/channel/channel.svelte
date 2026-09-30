@@ -7,7 +7,8 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import AgentWorkingMarker from './agent-working-marker.svelte';
+	import ActivityMarker from './activity-marker.svelte';
+	import { createChannelTyping } from './channel-typing.svelte';
 	import { agentWorkingRefreshIntervalMs, stillWorkingSince } from './agent-working';
 	import ChannelMessageBody from './channel-message-body.svelte';
 	import ChannelComposer, { type OutgoingMessage } from './channel-composer.svelte';
@@ -45,6 +46,7 @@
 	import type { MentionPerson } from '$lib/messenger/mention-candidates';
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
 	import { mentionLabelsOf } from '$lib/messenger/mention-picker.svelte';
+	import { activityLabel } from '$lib/messenger/typing-signal';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
 	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
@@ -98,6 +100,21 @@
 	let agentWorkingSince = $state<number | null>(null);
 	const isAgentWorking = $derived(agentWorkingSince !== null);
 	const nameByExternalID = $derived(new Map(participants.map((person) => [person.externalID, person.name])));
+	const typing = createChannelTyping(
+		() => channelId,
+		() => messages.map((message) => ({ senderExternalID: message.sender.externalID, sentAt: message.sentAt }))
+	);
+	const activity = $derived(
+		activityLabel(
+			{
+				typerExternalIDs: typing.typerExternalIDs,
+				nameOf: (externalID) => nameByExternalID.get(externalID),
+				isGroup,
+				isAgentWorking
+			},
+			text
+		)
+	);
 	let isSending = $state(false);
 	let threadEditing = $state<EditingMessage | null>(null);
 	let conversationComposer = $state<ChannelComposer | null>(null);
@@ -831,9 +848,9 @@
 		{/if}
 	</div>
 	<div class="relative">
-		{#if isAgentWorking}
+		{#if activity}
 			<div class="bg-background absolute inset-x-0 bottom-[calc(100%-0.625rem)] flex h-5 items-center px-4">
-				<AgentWorkingMarker label={text.working} />
+				<ActivityMarker label={activity} />
 			</div>
 		{/if}
 		<ChannelComposer
@@ -848,6 +865,7 @@
 			cancelsEditOnEscape={true}
 			saveEdit={messageActions.saveEdit}
 			onSend={sendToConversation}
+			onTyping={typing.announce}
 		/>
 	</div>
 </div>
