@@ -69,27 +69,19 @@ class AvailableComponentsParserTests(unittest.TestCase):
         self.assertEqual(module.parse_available_components(help_text), ["admind", "web"])
 
 
-class CleanTreeCheckTests(unittest.TestCase):
-    def test_clean_when_no_lines_are_dirty(self):
+class TreeCheckTests(unittest.TestCase):
+    def test_refuses_with_what_the_internkim_check_says(self):
         module = deploy_main_module()
-        self.assertTrue(module.working_tree_is_clean([]))
+        module.run = lambda command, working_directory=None: subprocess.CompletedProcess(command, 1, "", "deploy refuses to ship this tree")
+        with self.assertRaisesRegex(module.Refusal, "deploy refuses to ship this tree"):
+            module.require_tree_is_shippable()
 
-    def test_dirty_on_an_unrelated_change(self):
+    def test_asks_the_internkim_check_and_nothing_else(self):
         module = deploy_main_module()
-        self.assertFalse(module.working_tree_is_clean(["?? tools/deploy-main"]))
-
-    def test_ignores_the_stray_blueclaw_test_artifact(self):
-        module = deploy_main_module()
-        status_lines = ["?? .dependency/blueclaw/internal/app/.blueclaw/"]
-        self.assertTrue(module.working_tree_is_clean(status_lines))
-
-    def test_stray_artifact_does_not_mask_other_dirt(self):
-        module = deploy_main_module()
-        status_lines = [
-            "?? .dependency/blueclaw/internal/app/.blueclaw/",
-            " M .dependency/blueclaw",
-        ]
-        self.assertFalse(module.working_tree_is_clean(status_lines))
+        asked = []
+        module.run = lambda command, working_directory=None: asked.append(command) or subprocess.CompletedProcess(command, 0, "", "")
+        module.require_tree_is_shippable()
+        self.assertEqual(asked, [["go", "run", "./cmd/internkim", "verify", "deploy-tree"]])
 
 
 class PlanTests(unittest.TestCase):

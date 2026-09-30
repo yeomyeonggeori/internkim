@@ -24,7 +24,6 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 LOCK_PATH = REPOSITORY_ROOT / ".artifacts" / "deploy-main.lock"
 BLUECLAW_PATH = REPOSITORY_ROOT / ".dependency" / "blueclaw"
 STRAY_BLUECLAW_APP_ARTIFACT = BLUECLAW_PATH / "internal" / "app" / ".blueclaw"
-IGNORED_ARTIFACT_STATUS_PATH = ".dependency/blueclaw/internal/app/.blueclaw/"
 TARGETS_PATH = REPOSITORY_ROOT / ".local" / "ops" / "targets.json"
 HEALTH_POLL_TIMEOUT_SECONDS = 300
 HEALTH_POLL_INTERVAL_SECONDS = 5
@@ -39,7 +38,7 @@ BUILD_STEPS = [
 PLAN_STEPS = [
     "acquire the deploy lock under .artifacts/deploy-main.lock, waiting if another session holds it",
     "git fetch origin",
-    "refuse unless the working tree is clean and HEAD equals origin/main",
+    "refuse through ./internkim verify deploy-tree unless no shipped source is edited and HEAD and .dependency/blueclaw contain origin/main and match the recorded pointer, then unless HEAD equals origin/main",
     "read every fleet target's current revision from its health endpoint",
     "refuse unless every target's revision or its exact Git tree is in origin/main's history",
     "make build",
@@ -84,26 +83,10 @@ def delete_stray_blueclaw_app_artifact():
         shutil.rmtree(STRAY_BLUECLAW_APP_ARTIFACT)
 
 
-def working_tree_is_clean(status_lines):
-    relevant_lines = [line for line in status_lines if IGNORED_ARTIFACT_STATUS_PATH not in line]
-    return not relevant_lines
-
-
-def blueclaw_pointer_matches_head():
-    recorded_tree_entry = run(["git", "ls-tree", "HEAD", ".dependency/blueclaw"]).stdout.split()
-    recorded_revision = recorded_tree_entry[2] if len(recorded_tree_entry) >= 3 else None
-    checked_out_revision = run(["git", "rev-parse", "HEAD"], working_directory=BLUECLAW_PATH).stdout.strip()
-    return recorded_revision is not None and recorded_revision == checked_out_revision
-
-
-def combined_status_lines():
-    top_level_lines = [line for line in run(["git", "status", "--porcelain"]).stdout.splitlines() if line.strip()]
-    lines_outside_blueclaw = [line for line in top_level_lines if line[3:].strip() != ".dependency/blueclaw"]
-    blueclaw_lines = [line for line in run(["git", "status", "--porcelain"], working_directory=BLUECLAW_PATH).stdout.splitlines() if line.strip()]
-    prefixed_blueclaw_lines = [f"{line[:2]} .dependency/blueclaw/{line[3:].strip()}" for line in blueclaw_lines]
-    if not blueclaw_pointer_matches_head():
-        lines_outside_blueclaw.append(" M .dependency/blueclaw")
-    return lines_outside_blueclaw + prefixed_blueclaw_lines
+def require_tree_is_shippable():
+    checked = run(["go", "run", "./cmd/internkim", "verify", "deploy-tree"])
+    if checked.returncode != 0:
+        raise Refusal((checked.stderr or checked.stdout).strip())
 
 
 def fetch_origin():
@@ -114,11 +97,7 @@ def fetch_origin():
 
 def require_head_matches_origin_main():
     delete_stray_blueclaw_app_artifact()
-    if not working_tree_is_clean(combined_status_lines()):
-        raise Refusal(
-            "working tree is not clean; commit or stash before deploying, then "
-            "git checkout --detach origin/main && git submodule update --init --recursive"
-        )
+    require_tree_is_shippable()
     head = run(["git", "rev-parse", "HEAD"]).stdout.strip()
     origin_main = run(["git", "rev-parse", "origin/main"]).stdout.strip()
     if head != origin_main:

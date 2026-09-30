@@ -119,10 +119,13 @@ func TestNarrowedSetIsKeptAndTheProtocolGuardStillRefuses(t *testing.T) {
 
 func stubDeployEffects(t *testing.T) {
 	t.Helper()
-	restorePrepare, restoreFetch := prepareReleaseArtifacts, fetchReleaseHistory
+	restorePrepare, restoreFetch, restoreCheck := prepareReleaseArtifacts, fetchReleaseHistory, checkDeployTree
 	prepareReleaseArtifacts = func(string) error { return nil }
 	fetchReleaseHistory = func(string) {}
-	t.Cleanup(func() { prepareReleaseArtifacts, fetchReleaseHistory = restorePrepare, restoreFetch })
+	checkDeployTree = func(string, []string) error { return nil }
+	t.Cleanup(func() {
+		prepareReleaseArtifacts, fetchReleaseHistory, checkDeployTree = restorePrepare, restoreFetch, restoreCheck
+	})
 }
 
 func writePayloadManifest(t *testing.T, repositoryRootPath string, revision string) {

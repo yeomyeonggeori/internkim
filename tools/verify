@@ -67,7 +67,7 @@ GROUPS = [
     ),
     Group(
         "blueclaw-pointer",
-        [".dependency/blueclaw*"],
+        [".dependency/blueclaw*", "tools/verify-blueclaw-pointer", "internal/cli/verify_blueclaw_pointer*.go"],
         [["tools/verify-blueclaw-pointer"]],
     ),
     Group(
