@@ -384,10 +384,10 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
 
     def test_the_modules_the_rig_imports_are_the_ones_the_build_checks(self):
         source = self.blueclaw_source("document_interpreter.go")
-        declared = re.search(r"const documentModulesTheSkillsOpen = ((?:\"[^\"]*\"\s*\+?\s*)+)", source)
-        self.assertIsNotNone(declared, "documentModulesTheSkillsOpen is no longer a string literal")
+        declared = re.search(r"const documentModulesTheConversionImports = ((?:\"[^\"]*\"\s*\+?\s*)+)", source)
+        self.assertIsNotNone(declared, "documentModulesTheConversionImports is no longer a string literal")
         joined = "".join(re.findall(r'"([^"]*)"', declared.group(1)))
-        self.assertEqual(rig.DOCUMENT_MODULES_THE_SKILLS_OPEN, joined)
+        self.assertEqual(rig.DOCUMENT_MODULES_THE_CONVERSION_IMPORTS, joined)
 
     def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
         driver = load_driver()

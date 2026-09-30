@@ -686,7 +686,7 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 	return packaged, nil
 }
 
-// The document skills import wheels, and a wheel is built for one operating system,
+// The document conversion imports wheels, and a wheel is built for one operating system,
 // one processor and one Python minor version. The package carries the interpreter the
 // wheels are built for, so the build resolves them inside a throwaway guest of the
 // target architecture with that interpreter mounted at the path it will have on a
@@ -713,7 +713,7 @@ func buildDocumentInterpreter(repositoryRootPath string, target debianTarget, st
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	requirements, errorValue := documentSkillRequirements(repositoryRootPath)
+	requirements, errorValue := documentConversionRequirements(repositoryRootPath)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -793,7 +793,7 @@ func documentVenvBuildScript() string {
 		"apt-get install -y -qq --no-install-recommends ca-certificates >/dev/null",
 		resolver + " venv --python " + interpreter + " " + blueclaw.CompanyPackageDocumentVenvPath + " >/dev/null",
 		resolver + " pip install --quiet --python " + blueclaw.CompanyPackageDocumentPythonPath + " --requirements /work/requirements.txt",
-		blueclaw.CompanyPackageDocumentPythonPath + " -c " + shellQuoted(blueclaw.DocumentModulesTheSkillsOpen()),
+		blueclaw.CompanyPackageDocumentPythonPath + " -c " + shellQuoted(blueclaw.DocumentModulesTheConversionImports()),
 		"rm -rf /work/document-venv",
 		"cp -a " + blueclaw.CompanyPackageDocumentVenvPath + " /work/document-venv",
 	}, "\n")
@@ -803,26 +803,13 @@ func shellQuoted(text string) string {
 	return "'" + strings.ReplaceAll(text, "'", `'\''`) + "'"
 }
 
-// The requirement files the skills already carry are the list, so a skill that declares
-// a new package gets it into the interpreter rather than asking a person for it.
-func documentSkillRequirements(repositoryRootPath string) (string, error) {
-	paths, errorValue := filepath.Glob(filepath.Join(repositoryRootPath, ".dependency/internkim-plugin/skills/*/scripts/requirements.txt"))
+func documentConversionRequirements(repositoryRootPath string) (string, error) {
+	path := filepath.Join(repositoryRootPath, "assets/document-conversion/requirements.txt")
+	document, errorValue := os.ReadFile(path)
 	if errorValue != nil {
-		return "", errorValue
+		return "", fmt.Errorf("the document interpreter is resolved from %s: %w", path, errorValue)
 	}
-	paths = append(paths, filepath.Join(repositoryRootPath, "assets/document-conversion/requirements.txt"))
-	declared := []string{}
-	for _, path := range paths {
-		document, errorValue := os.ReadFile(path)
-		if errorValue != nil {
-			return "", fmt.Errorf("the document interpreter is resolved from %s: %w", path, errorValue)
-		}
-		declared = append(declared, strings.TrimSpace(string(document)))
-	}
-	if len(declared) == 0 {
-		return "", fmt.Errorf("no skill declares a requirements.txt, so the document interpreter would hold nothing")
-	}
-	return strings.Join(declared, "\n") + "\n", nil
+	return strings.TrimSpace(string(document)) + "\n", nil
 }
 
 // debCarriedTrees are the files the image copies in unchanged. A missing one is a

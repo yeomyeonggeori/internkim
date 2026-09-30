@@ -29,11 +29,15 @@ func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
 	}
 }
 
-// The package carries the interpreter its wheels were built for, so Depends names no
-// python3 at all: a distribution's minor version is not a fact the package rests on.
-func TestThePackageAsksTheDistributionForNoPython(t *testing.T) {
+// The skills build their own environment from the distribution's python3, so Depends
+// names it; what the package carries is the interpreter its conversion wheels were
+// built for, which is why no python3-venv is asked for.
+func TestThePackageAsksTheDistributionForPythonAndNoVenvModule(t *testing.T) {
 	depends := strings.Join(debianPackageInformation(debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
-	for _, carried := range []string{"python3", "fonts-nanum", "chromium"} {
+	if !strings.Contains(depends, "python3") {
+		t.Fatalf("the package's Depends is %q and leaves the skills with no interpreter", depends)
+	}
+	for _, carried := range []string{"python3-venv", "fonts-nanum", "chromium"} {
 		if strings.Contains(depends, carried) {
 			t.Fatalf("the package's Depends is %q and still asks the distribution for %s", depends, carried)
 		}

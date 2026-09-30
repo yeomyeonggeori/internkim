@@ -56,12 +56,12 @@ STATE_ROOT = Path("/var/lib/internkim")
 SERVICE_ACCOUNTS = ("blueclaw", "internkim-relay")
 DEFAULT_ARTIFACT_DIRECTORY = Path(".artifacts/homebrew")
 
-# The modules a document skill reaches for before it reaches for a wheel. The
+# The modules file_read conversion reaches for before it reaches for a wheel. The
 # release build checks the same list against the interpreter it carries; this
 # checks it against the interpreter that actually landed.
 DOCUMENT_MODULES = (
     "import plistlib, platform, xml.etree.ElementTree, "
-    "docx, openpyxl, fpdf, pptx, lxml, PIL, pypdf, yaml, xlsxwriter, fontTools"
+    "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
 
 
@@ -298,7 +298,7 @@ def programs_the_plists_name():
     ]
 
 
-def step_four_the_document_interpreter_opens_what_the_skills_open(keg):
+def step_four_the_document_interpreter_opens_what_conversion_opens(keg):
     """Homebrew's python@3.13 bottle for macOS 26 cannot load pyexpat on 26.1,
     which takes plistlib, xml.etree and every .docx write with it. The keg
     carries its own interpreter for that reason, and this is the check that says
@@ -309,9 +309,9 @@ def step_four_the_document_interpreter_opens_what_the_skills_open(keg):
     completed = run([str(interpreter), "-c", DOCUMENT_MODULES], check=False)
     if completed.returncode != 0:
         raise RigFailure(
-            f"the interpreter in the keg cannot open what the document skills open:\n{completed.stdout}"
+            f"the interpreter in the keg cannot open what file_read conversion opens:\n{completed.stdout}"
         )
-    return "the keg's document interpreter imports every module the skills import"
+    return "the keg's document interpreter imports every module conversion imports"
 
 
 def step_five_the_formula_passes_its_own_test():
@@ -457,7 +457,7 @@ def main():
         keg = installed_keg_path()
         passed.append(step_two_the_one_command_is_linked_and_nothing_else_is(keg, prefix_before))
         passed.append(step_three_every_program_the_services_start_is_there_and_runs(keg))
-        passed.append(step_four_the_document_interpreter_opens_what_the_skills_open(keg))
+        passed.append(step_four_the_document_interpreter_opens_what_conversion_opens(keg))
         passed.append(step_five_the_formula_passes_its_own_test())
         if with_company:
             passed += step_seven_the_company_is_supervised(arguments.install_the_company)
