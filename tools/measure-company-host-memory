@@ -29,12 +29,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     KERNEL_IMAGE_PATH,
-    KEYRING_NAME,
     MESSENGER_BRIDGE,
     MESSENGER_DATABASE_PATH,
     PACKAGE_NAME,
     READINESS_PROBES,
-    REPOSITORY_PREFIX,
     REPOSITORY_ROOT,
     SHARE_PATH,
     STATE_DIRECTORY,
@@ -451,12 +449,9 @@ class Measurement:
     def install_the_package(self, machine):
         gateway = machine.host_gateway()
         base = f"http://{gateway}:{self.release.port}"
-        repository = f"{base}/{REPOSITORY_PREFIX}"
         return machine.shell(
             "set -eu\n"
-            f"export INTERNKIM_INSTALL_RELEASE_URL={base}/{PACKAGE_NAME}\n"
-            f"export INTERNKIM_INSTALL_REPOSITORY_URL={repository}\n"
-            f"export INTERNKIM_INSTALL_KEYRING_URL={repository}/{KEYRING_NAME}\n"
+            f"export INTERNKIM_INSTALL_BASE_URL={base}\n"
             f"curl -fsSL {base}/install.sh | sh -s -- host\n",
             timeout_seconds=2400,
         )

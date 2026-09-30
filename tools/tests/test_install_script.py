@@ -371,7 +371,7 @@ class InstallScriptTests(unittest.TestCase):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
         environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
-        environment["INTERNKIM_INSTALL_REPOSITORY_URL"] = f"{base_url}/deb"
+        environment["INTERNKIM_INSTALL_BASE_URL"] = base_url
         environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
         if suite:
             environment["INTERNKIM_INSTALL_SUITE"] = suite
