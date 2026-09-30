@@ -91,8 +91,6 @@
 	const text = createPageText(channelText);
 	const idleRefreshIntervalMs = isSupabaseConfigured() ? 30_000 : 5000;
 
-	// ponytail: 전환 중 메시지 입력 임시 잠금 (되돌리려면 false)
-	const messageInputDisabled = false;
 	let messages = $state<ChannelMessage[]>([]);
 	let currentUserID = $state(getCachedReaderID());
 	let currentUserEmail = $state('');
@@ -765,7 +763,6 @@
 		rows={1}
 		{participants}
 		{isGroup}
-		disabled={messageInputDisabled}
 		cancelsEditOnEscape={threadLayout === 'inline'}
 		saveEdit={messageActions.saveEdit}
 		onSend={sendThreadReply}
@@ -861,7 +858,6 @@
 			rows={2}
 			{participants}
 			{isGroup}
-			disabled={messageInputDisabled}
 			cancelsEditOnEscape={true}
 			saveEdit={messageActions.saveEdit}
 			onSend={sendToConversation}
