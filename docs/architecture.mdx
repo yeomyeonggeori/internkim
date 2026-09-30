@@ -28,7 +28,7 @@ flowchart TB
         connector["The connector (chatd)"]
         agent["The agent (blueclaw)"]
         daemons["admind · capabilityd · maild"]
-        store[("The agent's store<br/>Postgres with pgvector")]
+        store[("The agent's store<br/>Postgres")]
     end
 
     messenger["The company's messenger server<br/>its network, or this same computer"]
@@ -182,9 +182,9 @@ Memory is one Postgres fact store. When a run finishes, bluememo has a
 model extract atomic facts from it; a newer fact supersedes an older one, a
 repeated fact reinforces one, and a person can ask the agent to forget one.
 Each fact has an owner and the circles it is shared with, and recall returns
-only what the reader may see. Search fuses pgvector similarity with word
-similarity, which is why the host's Postgres carries the `vector` extension;
-without it the store still answers, lexically.
+only what the reader may see. Search fuses vector similarity with word
+similarity when Postgres has the `vector` extension. The company host installs
+Postgres without it, so there recall matches words.
 
 Models are named in one place, `internal/modelladder`. The agent asks for a
 tier, and capabilityd holds the key and makes the call, so the agent never sees
