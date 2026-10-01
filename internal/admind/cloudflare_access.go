@@ -136,7 +136,10 @@ func (verifier *cloudflareAccessVerifier) verifyToken(ctx context.Context, token
 
 func (verifier *cloudflareAccessVerifier) validateClaims(claims cloudflareAccessClaims) error {
 	now := time.Now()
-	if claims.ExpiresAt != 0 && now.After(time.Unix(claims.ExpiresAt, 0).Add(cloudflareAccessClockSkew)) {
+	if claims.ExpiresAt == 0 {
+		return errors.New("token carries no expiry")
+	}
+	if now.After(time.Unix(claims.ExpiresAt, 0).Add(cloudflareAccessClockSkew)) {
 		return errors.New("token expired")
 	}
 	if claims.NotBefore != 0 && now.Before(time.Unix(claims.NotBefore, 0).Add(-cloudflareAccessClockSkew)) {

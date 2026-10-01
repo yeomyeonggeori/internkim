@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/mail"
@@ -34,6 +35,7 @@ const (
 	companyShareSnapshotFileName      = "company-share-snapshot.json"
 	companyShareAttemptWindow         = 15 * time.Minute
 	companyShareAttemptLimit          = 5
+	companySharePasswordCost          = 12
 )
 
 var allowedCompanyShareFields = map[string]bool{
@@ -281,7 +283,7 @@ func applyCompanyShareSettingsUpdate(settings companyShareSettings, update compa
 		return settings, errors.New("접근 유지 시간은 1시간에서 168시간 사이여야 해요.")
 	}
 	if password != "" {
-		passwordHash, errorValue := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		passwordHash, errorValue := bcrypt.GenerateFromPassword([]byte(password), companySharePasswordCost)
 		if errorValue != nil {
 			return settings, errorValue
 		}
@@ -610,12 +612,35 @@ func (service *Service) unlockCompanyShare(responseWriter http.ResponseWriter, r
 		return
 	}
 	service.clearCompanyShareFailures(clientAddress)
+	service.strengthenCompanySharePasswordHash(settings.PasswordHash, body.Password)
 	if errorValue := service.issueCompanyShareCookie(responseWriter, request, settings); errorValue != nil {
 		http.Error(responseWriter, "접근 세션을 만들지 못했어요.", http.StatusInternalServerError)
 		return
 	}
 	logAuditEvent("company share unlock success")
 	service.writeJSON(responseWriter, map[string]bool{"authenticated": true})
+}
+
+func (service *Service) strengthenCompanySharePasswordHash(verifiedHash string, password string) {
+	cost, errorValue := bcrypt.Cost([]byte(verifiedHash))
+	if errorValue != nil || cost >= companySharePasswordCost {
+		return
+	}
+	strengthenedHash, errorValue := bcrypt.GenerateFromPassword([]byte(password), companySharePasswordCost)
+	if errorValue != nil {
+		log.Printf("company share password hash was not strengthened: %v", errorValue)
+		return
+	}
+	service.companyShareAccessMutex.Lock()
+	defer service.companyShareAccessMutex.Unlock()
+	accessState, errorValue := service.readCompanyShareAccessState()
+	if errorValue != nil || accessState.PasswordHash != verifiedHash {
+		return
+	}
+	accessState.PasswordHash = string(strengthenedHash)
+	if errorValue := writeCompanyShareJSON(service.companyShareAccessPath(), accessState, 0o700, 0o600); errorValue != nil {
+		log.Printf("company share password hash was not strengthened: %v", errorValue)
+	}
 }
 
 func (service *Service) writeCompanyShareContent(responseWriter http.ResponseWriter, request *http.Request) {
@@ -855,6 +880,8 @@ func (service *Service) writeCompanyShareSettingsFile(settings companyShareSetti
 		return errorValue
 	}
 	accessState := companyShareAccessState{PasswordHash: settings.PasswordHash, AccessVersion: settings.AccessVersion}
+	service.companyShareAccessMutex.Lock()
+	defer service.companyShareAccessMutex.Unlock()
 	return writeCompanyShareJSON(service.companyShareAccessPath(), accessState, 0o700, 0o600)
 }
 

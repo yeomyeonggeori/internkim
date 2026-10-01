@@ -2,10 +2,11 @@ package admind
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
+	"crypto/pbkdf2"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -169,24 +170,48 @@ func extractBundle(bundlePath string, targetDirectoryPath string) (*BackupManife
 	return manifest, nil
 }
 
+type backupFormat struct {
+	magic          string
+	iterations     int
+	associatedData func(salt []byte) []byte
+}
+
+const (
+	backupSaltLength  = 16
+	backupNonceLength = 12
+	backupKeyLength   = 32
+)
+
+var currentBackupFormat = backupFormat{
+	magic:      "IKBAK2\n",
+	iterations: 600_000,
+	associatedData: func(salt []byte) []byte {
+		return append([]byte("IKBAK2\n"), salt...)
+	},
+}
+
+var legacyBackupFormat = backupFormat{
+	magic:      "IKBAK1\n",
+	iterations: 200_000,
+	associatedData: func([]byte) []byte {
+		return []byte("internkim-backup-v1")
+	},
+}
+
 func encryptFile(inputPath string, outputPath string, passphrase string) error {
 	plainDocument, errorValue := os.ReadFile(inputPath)
 	if errorValue != nil {
 		return errorValue
 	}
-	salt := randomBytes(16)
-	nonce := randomBytes(12)
-	key := deriveKey([]byte(passphrase), salt, 200000, 32)
-	block, errorValue := aes.NewCipher(key)
+	format := currentBackupFormat
+	salt := randomBytes(backupSaltLength)
+	nonce := randomBytes(backupNonceLength)
+	aead, errorValue := backupCipher(passphrase, salt, format.iterations)
 	if errorValue != nil {
 		return errorValue
 	}
-	aead, errorValue := cipher.NewGCM(block)
-	if errorValue != nil {
-		return errorValue
-	}
-	ciphertext := aead.Seal(nil, nonce, plainDocument, []byte("internkim-backup-v1"))
-	outputDocument := append([]byte("IKBAK1\n"), salt...)
+	ciphertext := aead.Seal(nil, nonce, plainDocument, format.associatedData(salt))
+	outputDocument := append([]byte(format.magic), salt...)
 	outputDocument = append(outputDocument, nonce...)
 	outputDocument = append(outputDocument, ciphertext...)
 	return os.WriteFile(outputPath, outputDocument, 0o600)
@@ -197,53 +222,46 @@ func decryptFile(inputPath string, outputPath string, passphrase string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	if len(encryptedDocument) < len("IKBAK1\n")+16+12 || string(encryptedDocument[:7]) != "IKBAK1\n" {
+	format, found := backupFormatOf(encryptedDocument)
+	if !found || len(encryptedDocument) < len(format.magic)+backupSaltLength+backupNonceLength {
 		return errors.New("backup format is not supported")
 	}
-	offset := 7
-	salt := encryptedDocument[offset : offset+16]
-	offset += 16
-	nonce := encryptedDocument[offset : offset+12]
-	offset += 12
+	offset := len(format.magic)
+	salt := encryptedDocument[offset : offset+backupSaltLength]
+	offset += backupSaltLength
+	nonce := encryptedDocument[offset : offset+backupNonceLength]
+	offset += backupNonceLength
 	ciphertext := encryptedDocument[offset:]
-	key := deriveKey([]byte(passphrase), salt, 200000, 32)
-	block, errorValue := aes.NewCipher(key)
+	aead, errorValue := backupCipher(passphrase, salt, format.iterations)
 	if errorValue != nil {
 		return errorValue
 	}
-	aead, errorValue := cipher.NewGCM(block)
-	if errorValue != nil {
-		return errorValue
-	}
-	plainDocument, errorValue := aead.Open(nil, nonce, ciphertext, []byte("internkim-backup-v1"))
+	plainDocument, errorValue := aead.Open(nil, nonce, ciphertext, format.associatedData(salt))
 	if errorValue != nil {
 		return errors.New("backup passphrase is incorrect or bundle is corrupted")
 	}
 	return os.WriteFile(outputPath, plainDocument, 0o600)
 }
 
-func deriveKey(password []byte, salt []byte, iterations int, keyLength int) []byte {
-	var derivedKey []byte
-	var block []byte
-	blockIndex := 1
-	for len(derivedKey) < keyLength {
-		mac := hmac.New(sha256.New, password)
-		mac.Write(salt)
-		mac.Write([]byte{byte(blockIndex >> 24), byte(blockIndex >> 16), byte(blockIndex >> 8), byte(blockIndex)})
-		block = mac.Sum(nil)
-		accumulator := append([]byte{}, block...)
-		for iteration := 1; iteration < iterations; iteration++ {
-			mac = hmac.New(sha256.New, password)
-			mac.Write(block)
-			block = mac.Sum(nil)
-			for index := range accumulator {
-				accumulator[index] ^= block[index]
-			}
+func backupFormatOf(encryptedDocument []byte) (backupFormat, bool) {
+	for _, format := range []backupFormat{currentBackupFormat, legacyBackupFormat} {
+		if bytes.HasPrefix(encryptedDocument, []byte(format.magic)) {
+			return format, true
 		}
-		derivedKey = append(derivedKey, accumulator...)
-		blockIndex++
 	}
-	return derivedKey[:keyLength]
+	return backupFormat{}, false
+}
+
+func backupCipher(passphrase string, salt []byte, iterations int) (cipher.AEAD, error) {
+	key, errorValue := pbkdf2.Key(sha256.New, passphrase, salt, iterations, backupKeyLength)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	block, errorValue := aes.NewCipher(key)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return cipher.NewGCM(block)
 }
 
 func copyDirectory(sourceRoot string, targetRoot string) error {

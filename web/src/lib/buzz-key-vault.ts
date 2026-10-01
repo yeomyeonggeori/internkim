@@ -146,14 +146,25 @@ const RECOVERY_GROUP_LENGTH = 4;
 // ambiguous characters). The user stores it; it seals a second copy of the key
 // so a lost passkey and password can still be recovered without the server.
 export function generateRecoveryCode(): string {
+	const characters = uniformRecoveryCharacters(RECOVERY_GROUPS * RECOVERY_GROUP_LENGTH);
 	const groups: string[] = [];
-	for (let group = 0; group < RECOVERY_GROUPS; group++) {
-		let block = "";
-		const randomValues = crypto.getRandomValues(new Uint8Array(RECOVERY_GROUP_LENGTH));
-		for (const value of randomValues) block += RECOVERY_ALPHABET[value % RECOVERY_ALPHABET.length];
-		groups.push(block);
+	for (let start = 0; start < characters.length; start += RECOVERY_GROUP_LENGTH) {
+		groups.push(characters.slice(start, start + RECOVERY_GROUP_LENGTH));
 	}
 	return groups.join("-");
+}
+
+const UNBIASED_BYTE_CEILING = 256 - (256 % RECOVERY_ALPHABET.length);
+
+function uniformRecoveryCharacters(count: number): string {
+	let characters = "";
+	while (characters.length < count) {
+		for (const value of crypto.getRandomValues(new Uint8Array(count))) {
+			if (value >= UNBIASED_BYTE_CEILING || characters.length === count) continue;
+			characters += RECOVERY_ALPHABET[value % RECOVERY_ALPHABET.length];
+		}
+	}
+	return characters;
 }
 
 export function normalizeRecoveryCode(recoveryCode: string): string {

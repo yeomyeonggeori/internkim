@@ -94,6 +94,19 @@ func TestCloudflareAccessVerifierRejectsExpiredToken(t *testing.T) {
 	}
 }
 
+func TestCloudflareAccessVerifierRejectsTokenWithoutExpiry(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	verifier := newTestAccessVerifier(t, key, "kid-1", "team.cloudflareaccess.com", "aud-1")
+	token := signTestAccessToken(t, key, "kid-1", map[string]any{
+		"iss":   "https://team.cloudflareaccess.com",
+		"aud":   []string{"aud-1"},
+		"email": "member1@example.com",
+	})
+	if email := verifier.verifiedEmail(context.Background(), requestWithAccessToken(token)); email != "" {
+		t.Fatalf("a token that never expires must be rejected, got %q", email)
+	}
+}
+
 func TestCloudflareAccessVerifierRejectsForgedSignature(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	attackerKey, _ := rsa.GenerateKey(rand.Reader, 2048)
