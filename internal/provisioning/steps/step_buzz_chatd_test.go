@@ -142,3 +142,12 @@ func TestBuzzChatdReinstallsAUnitThatGivesNoStateDirectory(t *testing.T) {
 		t.Fatal("a unit written before chatd kept a delivery record must be rewritten, or the record never reaches disk")
 	}
 }
+
+func TestBuzzChatdInstallRemovesTheLegacyTLSDropIns(t *testing.T) {
+	command := chatdUnitInstallCommand("")
+	for _, path := range blueclaw.ChatdLegacyTLSDropInPaths() {
+		if !strings.Contains(command, path) {
+			t.Fatalf("a device that still has %s would keep verification off, got:\n%s", path, command)
+		}
+	}
+}

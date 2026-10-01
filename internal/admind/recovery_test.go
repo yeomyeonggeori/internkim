@@ -335,3 +335,15 @@ func TestBuzzRelayRepairCommandInstallsStunnelBeforeEnablingIt(t *testing.T) {
 		t.Fatalf("stunnel4 must be installed before the unit is enabled, install at %d enable at %d", installIndex, enableIndex)
 	}
 }
+
+func TestBuzzChatdRepairRemovesTheTLSBypassInsteadOfWritingIt(t *testing.T) {
+	command := buzzChatdRepairCommand()
+	if strings.Contains(command, "NODE_TLS_REJECT_UNAUTHORIZED") {
+		t.Fatalf("the repair would switch certificate verification off for chatd, got:\n%s", command)
+	}
+	for _, path := range blueclaw.ChatdLegacyTLSDropInPaths() {
+		if !strings.Contains(command, path) {
+			t.Fatalf("the repair leaves %s in place, got:\n%s", path, command)
+		}
+	}
+}

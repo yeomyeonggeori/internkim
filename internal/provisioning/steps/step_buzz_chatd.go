@@ -78,6 +78,7 @@ chmod 600 ` + blueclaw.ChatdEnvironmentFilePath
 func chatdUnitInstallCommand(relayPublicURL string) string {
 	return `cat > ` + blueclaw.ChatdServicePath + ` <<'CHATDUNITEOF'
 ` + blueclaw.ChatdServiceUnit(relayPublicURL) + `CHATDUNITEOF
+rm -f ` + strings.Join(blueclaw.ChatdLegacyTLSDropInPaths(), " ") + `
 systemctl daemon-reload
 systemctl enable ` + blueclaw.ChatdServiceName + `
 if ! systemctl is-active --quiet ` + blueclaw.BlueclawServiceName + `; then exit 0; fi
