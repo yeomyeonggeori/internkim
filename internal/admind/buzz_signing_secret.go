@@ -20,10 +20,6 @@ type buzzSigningSecretResponse struct {
 }
 
 func (service *Service) handleBuzzSigningSecret(responseWriter http.ResponseWriter, request *http.Request) {
-	if !isLocalRequest(request) {
-		http.Error(responseWriter, "local access required", http.StatusForbidden)
-		return
-	}
 	var requestDocument buzzSigningSecretRequest
 	if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
 		http.Error(responseWriter, "this action names the key it is asking about", http.StatusBadRequest)

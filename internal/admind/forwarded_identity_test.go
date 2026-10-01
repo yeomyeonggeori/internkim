@@ -33,3 +33,13 @@ func TestAuthenticatedCallerEmailIgnoresHeadersOnARoutableBinding(t *testing.T) 
 		t.Fatalf("routable binding must not accept a forged identity header, got %q", email)
 	}
 }
+
+func TestAuthenticatedCallerEmailIgnoresHeadersOnATunneledRequest(t *testing.T) {
+	loopbackService := &Service{Configuration: Configuration{ListenAddress: "127.0.0.1:18080"}}
+	request := tunneledRequest(http.MethodGet, "/agent/api/channels", "")
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "attacker@example.test")
+	request.Header.Set("X-Forwarded-Email", "attacker@example.test")
+	if email := loopbackService.authenticatedCallerEmail(request); email != "" {
+		t.Fatalf("a tunneled request must not name its own caller, got %q", email)
+	}
+}

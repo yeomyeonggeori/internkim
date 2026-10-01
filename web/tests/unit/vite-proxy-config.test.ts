@@ -19,14 +19,13 @@ async function devServerProxy(): Promise<Record<string, string | ProxyOptions>> 
 }
 
 describe('vite proxy config', () => {
-	test('forwards original host information to admind routes', async () => {
+	test('reaches admind as a local caller, never as a forwarding proxy', async () => {
 		const proxy = await devServerProxy();
 
 		for (const path of admindProxyPaths) {
-			expect(proxy[path]).toMatchObject({
-				target: 'http://127.0.0.1:18080',
-				xfwd: true
-			});
+			const options = proxy[path];
+			expect(options).toMatchObject({ target: 'http://127.0.0.1:18080' });
+			expect(typeof options === 'string' ? undefined : options.xfwd).toBeUndefined();
 		}
 	});
 
