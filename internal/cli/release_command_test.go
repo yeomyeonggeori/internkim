@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -222,14 +221,6 @@ func containsDeletedObjectKey(values []string, expected string) bool {
 		}
 	}
 	return false
-}
-
-func runCommandForTest(directoryPath string, name string, arguments ...string) (string, error) {
-	command := exec.Command(name, arguments...)
-	command.Dir = directoryPath
-	command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
-	output, errorValue := command.CombinedOutput()
-	return string(output), errorValue
 }
 
 func TestWriteReleaseArchiveFollowsRootDirectorySymlink(t *testing.T) {

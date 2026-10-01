@@ -77,7 +77,7 @@ func TestTheReleaseRegistryServesEveryPublishedProductWithoutAToken(t *testing.T
 		t.Fatal("the release registry worker no longer declares its public prefixes")
 	}
 	served := strings.NewReplacer("'", "", " ", "", "\n", "", "\t", "").Replace(declaration[1])
-	for _, product := range []releaseProduct{companionProduct, companyHostProduct} {
+	for _, product := range []releaseProduct{companionProduct} {
 		if !strings.Contains(","+served+",", ","+product.Name+"/,") {
 			t.Fatalf("%s is published but the release registry asks for a token to serve it: %s", product.Name, served)
 		}

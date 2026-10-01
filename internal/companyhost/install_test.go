@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,7 +72,7 @@ func exampleConnection(t *testing.T) Connection {
 func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 	connection := exampleConnection(t)
 	directoryPath := DefaultStateDirectoryPath(connection.Company.ID)
-	files, errorValue := companyHostFiles(blueclaw.DebianCompanyHostLayout(), directoryPath, connection, exampleSecrets())
+	files, errorValue := companyHostFiles(blueclaw.LinuxCompanyHostLayout(), directoryPath, connection, exampleSecrets())
 	if errorValue != nil {
 		t.Fatalf("render the company's files: %v", errorValue)
 	}
@@ -90,7 +89,7 @@ func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 		blueclaw.CompanyHostPolicyDocument:  true,
 	}
 
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.DebianCompanyHostLayout()) {
+	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.LinuxCompanyHostLayout()) {
 		condition := conditionPathOf(unit.Contents)
 		if condition == "" {
 			t.Fatalf("%s starts whether or not this box has a company", unit.Name)
@@ -123,42 +122,7 @@ func conditionPathOf(unitContents string) string {
 	return ""
 }
 
-// The plan's claim is that there is one unit renderer, and that the unpackaged
-// path runs it at install time where the package runs it at build time. A second
-// renderer would be a second definition of the same service.
-func TestTheInstallWritesTheUnitsThePackageShips(t *testing.T) {
-	unitRoot := t.TempDir()
-	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
-		t.Fatalf("install the units: %v", errorValue)
-	}
-	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.DebianCompanyHostLayout()) {
-		written, errorValue := os.ReadFile(filepath.Join(unitRoot, unit.FileName()))
-		if errorValue != nil {
-			t.Fatalf("the install wrote no %s: %v", unit.FileName(), errorValue)
-		}
-		if string(written) != unit.Contents {
-			t.Fatalf("%s written by the install is not the one the package ships", unit.FileName())
-		}
-	}
-}
-
-// dpkg owns the units on a packaged box, and `dpkg --verify` re-hashes them.
-func TestTheInstallLeavesAUnitSomethingElseAlreadyOwns(t *testing.T) {
-	unitRoot := t.TempDir()
-	owned := filepath.Join(unitRoot, blueclaw.CompanyPackageUnits()[0].FileName())
-	if errorValue := os.WriteFile(owned, []byte("installed by dpkg\n"), 0o644); errorValue != nil {
-		t.Fatalf("plant the packaged unit: %v", errorValue)
-	}
-	if errorValue := writeMissingSystemdUnits(unitRoot, blueclaw.DebianCompanyHostLayout(), io.Discard); errorValue != nil {
-		t.Fatalf("install the units: %v", errorValue)
-	}
-	kept, _ := os.ReadFile(owned)
-	if string(kept) != "installed by dpkg\n" {
-		t.Fatalf("the install rewrote a unit dpkg owns: %q", kept)
-	}
-}
-
-// The preflight is the unpackaged path's substitute for `Depends:`, so it reads
+// The preflight stands in for the package's dependencies on a binary run without it, so it reads
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{"jq": true, "redis-server": true, "valkey-server": true}}
@@ -227,7 +191,7 @@ func TestTheWaitNamesTheServiceThatIsSilentAndWhatToRead(t *testing.T) {
 }
 
 func TestTheWaitReturnsOnceEveryServiceAnswers(t *testing.T) {
-	machine := &recordedMachine{answers: map[string]string{blueclaw.DebianCompanyHostLayout().DataServicePath(): "PONG\n"}}
+	machine := &recordedMachine{answers: map[string]string{blueclaw.LinuxCompanyHostLayout().DataServicePath(): "PONG\n"}}
 	if errorValue := waitUntilTheServerAnswers(linuxPlatform{}, machine, io.Discard); errorValue != nil {
 		t.Fatalf("a machine whose services all answered was refused: %v", errorValue)
 	}
@@ -244,7 +208,7 @@ func TestTheWaitKeepsTheBudgetTheComposeStackHad(t *testing.T) {
 func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *testing.T) {
 	machine := &recordedMachine{}
 	password := strings.Repeat("2", 64)
-	if errorValue := prepareDatabases(linuxPlatform{root: t.TempDir()}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
+	if errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
 	}
 	prepared := false
@@ -305,7 +269,7 @@ func TestACompanyInstallsWhereTheUnitsReadIt(t *testing.T) {
 // the two files it reads are the two the install hands to its account.
 func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 	connection := exampleConnection(t)
-	files, errorValue := companyHostFiles(blueclaw.DebianCompanyHostLayout(), DefaultStateDirectoryPath(connection.Company.ID), connection, exampleSecrets())
+	files, errorValue := companyHostFiles(blueclaw.LinuxCompanyHostLayout(), DefaultStateDirectoryPath(connection.Company.ID), connection, exampleSecrets())
 	if errorValue != nil {
 		t.Fatalf("render the company's files: %v", errorValue)
 	}
@@ -322,7 +286,7 @@ func TestTheRelayCanReadTheTwoFilesItsUnitNames(t *testing.T) {
 
 func TestTheBundleIsRestartedWithoutTheUnitsItIsBoundTo(t *testing.T) {
 	machine := &recordedMachine{}
-	platform := linuxPlatform{root: t.TempDir()}
+	platform := linuxPlatform{}
 	if errorValue := platform.SuperviseTheBundle(machine, io.Discard); errorValue != nil {
 		t.Fatalf("supervise the bundle: %v", errorValue)
 	}

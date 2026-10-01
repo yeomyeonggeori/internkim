@@ -16,7 +16,7 @@ import (
 //   - Ordering. After=, Requires= and BindsTo= have no counterpart, so the
 //     bundle comes up in whatever order launchd pleases and every process has to
 //     tolerate its dependencies being absent and retry. `internkim install` polls
-//     the same six readiness endpoints it polls on Debian, and on a Mac that
+//     the same six readiness endpoints it polls under systemd, and on a Mac that
 //     polling is the only thing standing where systemd's ordering stood.
 //   - EnvironmentFile=. launchd reads no file; EnvironmentVariables is baked into
 //     the plist when it is written. So the plists are written by `internkim
@@ -83,7 +83,7 @@ func companyHostLaunchDaemon(layout CompanyHostLayout, service CompanyHostServic
 	// launchd starts a daemon with /usr/bin:/bin:/usr/sbin:/sbin and nothing
 	// else, so psql, redis-cli, git, jq, bun and uv are all absent from a
 	// service that shells out to them. systemd's default is no better; it costs
-	// nothing on Debian because everything the bundle runs is in /usr/bin.
+	// nothing on Linux because everything the bundle runs is in /usr/bin.
 	if _, isSet := environment["PATH"]; !isSet && layout.SearchPath != "" {
 		environment["PATH"] = layout.SearchPath
 	}

@@ -8,21 +8,16 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// The package expresses this list as `Depends:` and apt satisfies it before a
-// single file lands. Nothing else can: a machine that took the unpackaged path
-// has no package manager holding it to anything, so the same declaration is
-// read here and the gap is named instead of installed. The gap between the two
-// paths is this message.
+// The package expresses this list as its dependencies and the package manager
+// satisfies it before a single file lands. A binary built from source and run
+// on its own has no package manager holding it to anything, so the same
+// declaration is read here and the gap is named instead of installed.
 
 type missingPiece struct {
 	What            string
 	Dependency      blueclaw.HostDependency
 	IsOurs          bool
 	HomebrewFormula string
-}
-
-func (piece missingPiece) belongsToOurPackage() bool {
-	return piece.IsOurs
 }
 
 func requireWhatTheCompanyHostRuns(platform companyHostPlatform, machine Machine) error {
@@ -46,9 +41,7 @@ func whatThisComputerIsMissing(platform companyHostPlatform, machine Machine) []
 		}
 	}
 	for _, dependency := range blueclaw.HostDependencies() {
-		for _, piece := range whatIsMissingOf(platform, machine, dependency) {
-			missing = append(missing, piece)
-		}
+		missing = append(missing, whatIsMissingOf(platform, machine, dependency)...)
 	}
 	return missing
 }
@@ -107,17 +100,13 @@ func machineCarriesAnyOf(machine Machine, programs []string) bool {
 	return false
 }
 
-// A person reads one command, not a list of twelve names to look up. The command
-// is offered only where this repository knows it is the right one: on a machine
-// with apt, the names are Debian's and the line is apt's. Anywhere else the
-// missing pieces are named by what they are, because a Debian package name is
-// the wrong name on a machine that does not use Debian packages, and advice a
-// person cannot follow is worse than no advice.
+// Our own programs are one line, the install script. What the distribution
+// carries is the platform's to phrase, in the words of the manager it has.
 func refusalNaming(platform companyHostPlatform, machine Machine, missing []missingPiece) string {
 	fromOurPackage := []string{}
 	fromElsewhere := []missingPiece{}
 	for _, piece := range missing {
-		if piece.belongsToOurPackage() {
+		if piece.IsOurs {
 			fromOurPackage = append(fromOurPackage, piece.What)
 			continue
 		}

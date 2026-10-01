@@ -96,6 +96,9 @@ func poolObjects(packages []packagerepository.Package, objects map[string][]byte
 		if errorValue != nil {
 			return nil, fmt.Errorf("read %s: %w", packageFile.FileName, errorValue)
 		}
+		if errorValue := packagerepository.CheckArchitecture("apt", packageFile.FileName, fields.Value("Architecture"), Architectures); errorValue != nil {
+			return nil, errorValue
+		}
 		poolPath := PoolPath(fields.Value("Package"), packageFile.FileName)
 		objects[path.Join(Prefix, poolPath)] = packageFile.Contents
 		indexed = append(indexed, indexedPackage{
@@ -142,13 +145,11 @@ func indexObjects(suite string, indexed []indexedPackage, objects map[string][]b
 }
 
 // renderPackagesIndex writes the stanza apt reads for each package of one
-// architecture. `all` is indexed under every architecture, which is what makes
-// an architecture-independent package installable at all.
+// architecture.
 func renderPackagesIndex(indexed []indexedPackage, architecture string) []byte {
 	var index bytes.Buffer
 	for _, entry := range indexed {
-		declared := entry.fields.Value("Architecture")
-		if declared != architecture && declared != "all" {
+		if entry.fields.Value("Architecture") != architecture {
 			continue
 		}
 		if index.Len() > 0 {

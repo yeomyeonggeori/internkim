@@ -3,8 +3,8 @@ package blueclaw
 import "strings"
 
 // Where the company host's own files sit is the only thing that differs between
-// the two machines that run it. Debian's answer is the FHS one dpkg is allowed to
-// write; a Mac's is Homebrew's prefix, because a formula installs into a cellar
+// the two machines that run it. Linux's answer is the FHS one a package manager is
+// allowed to write; a Mac's is Homebrew's prefix, because a formula installs into a cellar
 // and is symlinked from there, and because `/` on macOS 11 and newer is a sealed
 // read-only volume — `mkdir /workspace` fails with "Read-only file system", so
 // the one absolute path the bundle invented for itself cannot exist there.
@@ -14,8 +14,6 @@ import "strings"
 // and CompanyHostRunPath moves with the rest of the state, and the addresses,
 // ports and unit names are the constants above.
 type CompanyHostLayout struct {
-	// Name is what a refusal calls this machine.
-	Name string
 	// BinaryRoot is where a program the package ships is found.
 	BinaryRoot string
 	// HelperRoot holds the setuid helper and the preparation script, which
@@ -35,7 +33,7 @@ type CompanyHostLayout struct {
 	AgentHomePath string
 	// SearchPath is the PATH the services are given, for a supervisor that does
 	// not inherit a useful one. Empty means the supervisor's own default is
-	// already right, which on Debian it is: everything the bundle shells out to
+	// already right, which under systemd it is: everything the bundle shells out to
 	// is in /usr/bin. launchd's default is /usr/bin:/bin:/usr/sbin:/sbin, which
 	// holds neither Homebrew's prefix nor this package's own tree, so a service
 	// that shells out to psql, git, jq, bun or uv would find none of them.
@@ -62,11 +60,10 @@ const (
 	companyHostPrepareProgramName = "prepare-company-host"
 )
 
-// DebianCompanyHostLayout is what the .deb installs, and what every systemd unit
-// in this package names.
-func DebianCompanyHostLayout() CompanyHostLayout {
+// LinuxCompanyHostLayout is what every Linux package installs, and what every
+// systemd unit in this package names.
+func LinuxCompanyHostLayout() CompanyHostLayout {
 	return CompanyHostLayout{
-		Name:          "Debian",
 		BinaryRoot:    CompanyPackageBinaryRoot,
 		HelperRoot:    CompanyPackageHelperRoot,
 		LibraryRoot:   CompanyPackageLibraryRoot,
@@ -103,7 +100,6 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 	prefix := strings.TrimRight(homebrewPrefix, "/")
 	keg := prefix + "/opt/" + CompanyPackageName
 	return CompanyHostLayout{
-		Name:        "macOS",
 		BinaryRoot:  keg + "/libexec",
 		HelperRoot:  keg + "/libexec",
 		LibraryRoot: keg + "/libexec",

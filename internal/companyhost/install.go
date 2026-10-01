@@ -8,14 +8,10 @@ import (
 )
 
 // Installing a company host is giving a machine that already carries the
-// programs a company to run them for. Whatever put the binaries there — the
-// Debian package, or the downloads the unpackaged path fetches — this writes
-// the files every unit names in ConditionPathExists, prepares the databases
-// they open, starts them, and then waits the way `docker compose up --wait`
-// used to.
-//
-// The units come from internal/runtime/blueclaw either way, so a unit written
-// here because one was missing is byte for byte the unit the package ships.
+// programs a company to run them for: the Linux package, or the Homebrew
+// formula on a Mac. This writes the files every unit names in
+// ConditionPathExists, prepares the databases they open, starts them, and then
+// waits the way `docker compose up --wait` used to.
 
 // Machine is what the installer may do to the computer it runs on. Starting a
 // process goes through this so a test can read the commands instead of running

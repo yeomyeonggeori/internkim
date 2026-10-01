@@ -19,7 +19,7 @@ import (
 // that read only the browsers'. Three pinned downloads had grown two mechanisms.
 // Two lists have to agree about what the package carries itself: the dependency
 // declaration, which decides what `internkim install` demands of the machine, and the
-// pin table, which decides what `internkim release deb` puts in the package. Nothing
+// pin table, which decides what `internkim release packages` puts in the package. Nothing
 // compared them, and the first reader of both was a person typing `internkim install`
 // on a box whose package shipped no bun and no uv. Both directions are checked: a
 // declared program with no pin builds a package that refuses to run, and a pin for a
@@ -49,7 +49,7 @@ func TestThePinsCoverExactlyThePayloadProgramsDeclared(t *testing.T) {
 		for programName := range declared {
 			if !pinned[programName] {
 				t.Errorf("%s is declared ArrivesAsPayload and no %s download is pinned for it, so "+
-					"`internkim release deb` builds a package `internkim install` refuses at "+
+					"`internkim release packages` builds a package `internkim install` refuses at "+
 					"\"1/5 Checking what this computer already has\"", programName, architecture)
 			}
 		}

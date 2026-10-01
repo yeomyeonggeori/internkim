@@ -6,12 +6,12 @@ import (
 	"strings"
 )
 
-// The company host installed by dpkg is the same set of processes host/entrypoint.sh
+// The company host installed by a package manager is the same set of processes host/entrypoint.sh
 // starts, supervised by systemd instead of by a shell. It is not the device, and four
 // of the seven services differ from their device units in ways no argument bridges:
 // blueclaw runs its own binary here and a Cloud Hypervisor guest there, capabilityd is
 // reached over a unix socket here and a vsock there, admind carries the central plane's
-// addresses here and none there, and dpkg may not write /usr/local, so every path moves
+// addresses here and none there, and a package may not write /usr/local, so every path moves
 // to /usr/bin. What is shared is shared: the relay unit is the one renderer with the
 // binary path passed in, and every name, port and address below is the constant the
 // device path already uses.
@@ -35,8 +35,8 @@ const (
 	CompanyPackagePreparePath             = "/usr/lib/internkim/prepare-company-host"
 
 	// POSIXHelperProgramName is what lets the unprivileged agent act as the
-	// person who asked, and it is the one setuid file the package ships. Debian
-	// forbids a package writing /usr/local, where the device path keeps it, so
+	// person who asked, and it is the one setuid file the package ships. The FHS
+	// keeps packages out of /usr/local, where the device path keeps it, so
 	// the packaged host names its own path and the rendered runtime document
 	// carries that name rather than the device's.
 	POSIXHelperProgramName     = "blueclaw-posix-helper"
@@ -89,7 +89,7 @@ const (
 	// default the unit would use anyway, and it is the single place the object
 	// store is named: BUZZ_S3_ENDPOINT, BUZZ_S3_BUCKET and BUZZ_S3_REGION point
 	// the messenger's media at whatever serves S3 on this box. Keys stay out of
-	// it, in the company directory, because dpkg keeps a conffile readable.
+	// it, in the company directory, because a package manager keeps a conffile readable.
 	CompanyHostSettingsPath = "/etc/internkim/company-host.env"
 
 	// An override the container reads from /etc/blueclaw keeps the same meaning
@@ -107,8 +107,8 @@ const (
 	CompanyHostBrowserCapacity     = "4"
 )
 
-// CompanyPackageBinaryPath is where the package puts a program it ships. Debian
-// policy forbids a package writing /usr/local, which is also what keeps a packaged
+// CompanyPackageBinaryPath is where the package puts a program it ships. The FHS
+// keeps packages out of /usr/local, which is also what keeps a packaged
 // install from colliding with the device path's own binaries during convergence.
 func CompanyPackageBinaryPath(programName string) string {
 	return CompanyPackageBinaryRoot + "/" + programName
@@ -133,7 +133,7 @@ func (unit CompanyPackageUnit) InstalledPath() string {
 // has the package but not yet a company sits inactive rather than restarting into a
 // failure it cannot explain.
 func CompanyPackageUnits() []CompanyPackageUnit {
-	layout := DebianCompanyHostLayout()
+	layout := LinuxCompanyHostLayout()
 	return append(CompanyHostSystemdUnits(layout), CompanyPackageUnit{Name: BoxServiceName, Contents: boxServiceUnit(layout)})
 }
 
@@ -306,12 +306,13 @@ func writeSystemdEnvironment(unit *strings.Builder, source CompanyHostEnvironmen
 
 // CompanyHostSettingsFile is the shipped conffile. Every value in it is the default
 // the unit would use anyway; it exists so an operator can change one without editing
-// a unit dpkg owns, and so the object store has an address that is written down.
+// a unit the package owns, and so the object store has an address that is written down.
 func CompanyHostSettingsFile() string {
 	return strings.Join([]string{
 		"# Settings for the company host installed by the internkim package.",
-		"# dpkg keeps your edits across upgrades. Secrets do not belong here:",
-		"# they live in " + CompanyHostSecretsRoot + ", which only root can read.",
+		"# Upgrades keep your edits: the package manager never replaces this file",
+		"# without asking. Secrets do not belong here: they live in",
+		"# " + CompanyHostSecretsRoot + ", which only root can read.",
 		"",
 		"# Where the messenger keeps attachments. Any S3-compatible server on this",
 		"# box answers here; the access and secret keys live beside the other",
@@ -335,7 +336,7 @@ func CompanyHostSettingsFile() string {
 // It is rendered here rather than kept as a file of its own so the paths it touches
 // are the same constants the units name.
 func CompanyHostPrepareScript() string {
-	return CompanyHostPrepareScriptFor(DebianCompanyHostLayout())
+	return CompanyHostPrepareScriptFor(LinuxCompanyHostLayout())
 }
 
 // CompanyHostPrepareScriptFor renders it for one machine's layout. Every program

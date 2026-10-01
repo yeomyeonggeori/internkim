@@ -44,6 +44,7 @@ from native_install_rig import (  # noqa: E402
     KERNEL_IMAGE_PATH,
     RUNTIME_KERNEL,
     PACKAGE_NAME,
+    READINESS_PROBES,
     STATE_DIRECTORY,
     Machine,
     Release,
@@ -80,10 +81,6 @@ DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
 DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
 HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
 TASK_USER = "bc_person_rigcheck"
-DECLINED_STATE = "no/inactive/success/0"
-BOX_UNIT = "internkim-box.service"
-RELAY_UNIT = "internkim-relay.service"
-READINESS_PROBES = ((3000, "/_readiness"), (8080, "/admin/api/health"), (18080, "/admin/api/health"))
 
 NOWHERE = "127.0.0.1:9"
 
@@ -145,7 +142,11 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-REPOSITORY_GUESTS = ("debian-13", "fedora", "archlinux")
+def one_family_per_repository():
+    chosen = {}
+    for family in FAMILIES.values():
+        chosen.setdefault(family.repository_format, family)
+    return chosen
 
 
 def tamper(path, needle, replacement, is_compressed):
@@ -196,12 +197,13 @@ class FamilyRig:
         self.release = Release(directory / "repository")
         self.release.directory.mkdir()
         self.release.generate_signing_key()
-        for guest in REPOSITORY_GUESTS:
-            package = FAMILIES[guest].package_in(package_directory)
+        families = one_family_per_repository()
+        for family in families.values():
+            package = family.package_in(package_directory)
             if package is None:
-                raise RigFailure(f"No {FAMILIES[guest].package_pattern} under {package_directory}; build it with `internkim release packages`.")
+                raise RigFailure(f"No {family.package_pattern} under {package_directory}; build it with `internkim release packages`.")
             self.release.stage(package)
-        self.release.rebuild(formats="deb,rpm,archlinux")
+        self.release.rebuild(formats=",".join(families))
         shutil.copyfile(Path(__file__).resolve().parent.parent / "web" / "static" / "install.sh", self.release.directory / "install.sh")
         self.release.serve()
 
@@ -392,7 +394,7 @@ class FamilyRig:
             " ".join(f"{name}={state}" for name, state in zip(self.unit_names, enabled.stdout.split())),
         )
         judge.observe_the_conversion_environment(self.machine, step)
-        company_units = [name for name in self.unit_names if name != BOX_UNIT]
+        company_units = [name for name in self.unit_names if name != judge.BOX_UNIT_NAME]
         declined = self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(company_units))
         states = dict(line.split("=", 1) for line in declined.stdout.split() if "=" in line)
         step.observe(
@@ -401,7 +403,7 @@ class FamilyRig:
             "inactive because the condition was unmet and inactive because the process died are different "
             "machine states, and only these four fields together tell them apart",
         ).record(
-            bool(states) and all(state == DECLINED_STATE for state in states.values()),
+            bool(states) and all(state == judge.DECLINED_STATE for state in states.values()),
             "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
         )
 
@@ -425,7 +427,7 @@ class FamilyRig:
             + f"\ninternkim install exited {installed.returncode}\n"
             + (installed.stdout + installed.stderr).strip()[-1500:],
         )
-        running_units = [name for name in self.unit_names if name != RELAY_UNIT]
+        running_units = [name for name in self.unit_names if name != judge.RELAY_UNIT_NAME]
         states = dict(
             line.split("=", 1)
             for line in self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(running_units)).stdout.split()

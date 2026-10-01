@@ -31,7 +31,7 @@ const (
 )
 
 // InstallWords is what a person types to install packages with this manager,
-// as words, and what install.sh runs with its own flags added.
+// as words.
 func (manager PackageManager) InstallWords() []string {
 	switch manager {
 	case PackageManagerDnf:
@@ -76,14 +76,14 @@ type HostDependency struct {
 	// manager with neither a name nor an entry here is a hole, and a test fails
 	// on it.
 	WhatBringsItInstead map[PackageManager]string
-	// WhatTheDebianPackageCarriesInstead is for a dependency the native packages
+	// WhatThePackageCarriesInstead is for a dependency the native packages
 	// do not ask the distribution for because the package brings its own. The
 	// host image is a container and still installs DebianPackage, so the name
 	// stays.
-	WhatTheDebianPackageCarriesInstead string
-	HomebrewFormula                    string
-	ArrivesAsPayload                   bool
-	ProgramsTheHostRuns                []string
+	WhatThePackageCarriesInstead string
+	HomebrewFormula              string
+	ArrivesAsPayload             bool
+	ProgramsTheHostRuns          []string
 	// OneOfThesePrograms is for a dependency any one of several programs
 	// satisfies, such as the cache's server, which is valkey-server on some
 	// distributions and redis-server on others.
@@ -223,9 +223,9 @@ var hostDependencies = []HostDependency{
 		NeededBy:        []HostPart{HostPartDocumentSkills},
 	},
 	{
-		DebianPackage:                      "fonts-nanum",
-		ReadableFilePath:                   "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
-		WhatTheDebianPackageCarriesInstead: "NanumGothic, under its own license, in a directory fontconfig scans",
+		DebianPackage:                "fonts-nanum",
+		ReadableFilePath:             "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+		WhatThePackageCarriesInstead: "NanumGothic, under its own license, in a directory fontconfig scans",
 		// Every Mac ships a Hangul face, and the skills that embed one already
 		// accept it: pdf and paperwork both list AppleSDGothicNeo in their
 		// requires-any-file declarations. So the cask is a nicety on macOS
@@ -340,7 +340,7 @@ func (dependency HostDependency) IsNamedIn(manager PackageManager) bool {
 	if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential || dependency.OnlyTheImageEntrypointRuns() {
 		return false
 	}
-	if dependency.WhatTheDebianPackageCarriesInstead != "" {
+	if dependency.WhatThePackageCarriesInstead != "" {
 		return false
 	}
 	return dependency.WhatBringsItInstead[manager] == ""
@@ -390,11 +390,6 @@ func appendOnce(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
-}
-
-// HostDebianDependsLine is the whole host, as a .deb control field.
-func HostDebianDependsLine() string {
-	return strings.Join(HostPackageDependsFor(PackageManagerApt), ", ")
 }
 
 // HostPackagesToInstallFor is what a person types after `install` to get what

@@ -13,7 +13,7 @@ func TestChatdOnTheDeviceKeepsItsDeliveryRecordOnDisk(t *testing.T) {
 }
 
 func TestChatdOnTheCompanyHostKeepsItsDeliveryRecordOnDisk(t *testing.T) {
-	chatd, isBundled := CompanyHostServiceNamed(DebianCompanyHostLayout(), ChatdServiceName)
+	chatd, isBundled := CompanyHostServiceNamed(LinuxCompanyHostLayout(), ChatdServiceName)
 	if !isBundled {
 		t.Fatalf("the bundle carries no %s", ChatdServiceName)
 	}

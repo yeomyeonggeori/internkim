@@ -11,7 +11,7 @@ import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
-from native_install_rig import ARCHITECTURE, BOOTSTRAP_SCRIPT, MACHINE_NAME, PACKAGE_NAME
+from native_install_rig import ARCHITECTURE, BOOTSTRAP_SCRIPT, DISTRIBUTIONS, MACHINE_NAME, PACKAGE_NAME
 
 PRESENT_MARKER = "internkim-is-present"
 
@@ -66,15 +66,15 @@ class Family:
     remove_command: str
     package_manager: str
     unit_directories: tuple
+    repository_format: str
+    policy_command: str
+    policy_answer: str
+    signature_command: str
+    signature_answer: str
+    reset_command: str
+    install_command: str
+    metadata_tampering: tuple
     verify_ignored_lines: tuple = ("backup file",)
-    repository_format: str = ""
-    policy_command: str = ""
-    policy_answer: str = ""
-    signature_command: str = ""
-    signature_answer: str = ""
-    reset_command: str = ""
-    install_command: str = ""
-    metadata_tampering: tuple = ()
 
     def package_in(self, directory):
         found = sorted(
@@ -89,17 +89,13 @@ RPM_SIGNATURE_COMMAND = (
     f"|| dnf reinstall -y --downloadonly --downloaddir /tmp/downloaded {PACKAGE_NAME}) >/dev/null 2>&1; "
     "rpm -K /tmp/downloaded/*.rpm"
 )
-RPM_METADATA_TAMPERING = (((f"rpm/stable/{MACHINE_NAME}/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),)
-RPM_RESET = "dnf clean all"
-RPM_INSTALL = f"dnf install -y {PACKAGE_NAME}"
-
 DEBIAN_TOOLS = "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq iproute2 procps"
 
 
-def debian_family(name, image):
+def debian_family(name):
     return Family(
         name=name,
-        image=image,
+        image=DISTRIBUTIONS[name],
         package_pattern=f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb",
         bootstrap=BOOTSTRAP_SCRIPT,
         tools_command=DEBIAN_TOOLS,
@@ -126,56 +122,37 @@ def debian_family(name, image):
     )
 
 
+def rpm_family(name, image, bootstrap):
+    return Family(
+        name=name,
+        image=image,
+        package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
+        bootstrap=bootstrap,
+        tools_command="dnf install -y -q iproute procps-ng",
+        installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
+        installed_answer=PRESENT_MARKER,
+        verify_command=f"rpm -V {PACKAGE_NAME}",
+        files_command=f"rpm -ql {PACKAGE_NAME}",
+        remove_command=f"dnf remove -y {PACKAGE_NAME}",
+        package_manager="dnf",
+        unit_directories=("/usr/lib/systemd/system",),
+        repository_format="rpm",
+        policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
+        policy_answer="repo_gpgcheck=1",
+        signature_command=RPM_SIGNATURE_COMMAND,
+        signature_answer="digests signatures OK",
+        reset_command="dnf clean all",
+        install_command=f"dnf install -y {PACKAGE_NAME}",
+        metadata_tampering=(((f"rpm/stable/{MACHINE_NAME}/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),),
+    )
+
+
 FAMILIES = {
     family.name: family
     for family in (
-        debian_family("debian-13", "debian:trixie-slim"),
-        debian_family("ubuntu-22.04", "ubuntu:22.04"),
-        debian_family("ubuntu-24.04", "ubuntu:24.04"),
-        Family(
-            name="fedora",
-            image="fedora:latest",
-            package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
-            bootstrap=FEDORA_BOOTSTRAP,
-            tools_command="dnf install -y -q iproute procps-ng",
-            installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
-            installed_answer=PRESENT_MARKER,
-            verify_command=f"rpm -V {PACKAGE_NAME}",
-            files_command=f"rpm -ql {PACKAGE_NAME}",
-            remove_command=f"dnf remove -y {PACKAGE_NAME}",
-            package_manager="dnf",
-            unit_directories=("/usr/lib/systemd/system",),
-            repository_format="rpm",
-            policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
-            policy_answer="repo_gpgcheck=1",
-            signature_command=RPM_SIGNATURE_COMMAND,
-            signature_answer="digests signatures OK",
-            reset_command=RPM_RESET,
-            install_command=RPM_INSTALL,
-            metadata_tampering=RPM_METADATA_TAMPERING,
-        ),
-        Family(
-            name="rhel-10",
-            image="rockylinux/rockylinux:10",
-            package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
-            bootstrap=RHEL_BOOTSTRAP,
-            tools_command="dnf install -y -q iproute procps-ng",
-            installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
-            installed_answer=PRESENT_MARKER,
-            verify_command=f"rpm -V {PACKAGE_NAME}",
-            files_command=f"rpm -ql {PACKAGE_NAME}",
-            remove_command=f"dnf remove -y {PACKAGE_NAME}",
-            package_manager="dnf",
-            unit_directories=("/usr/lib/systemd/system",),
-            repository_format="rpm",
-            policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
-            policy_answer="repo_gpgcheck=1",
-            signature_command=RPM_SIGNATURE_COMMAND,
-            signature_answer="digests signatures OK",
-            reset_command=RPM_RESET,
-            install_command=RPM_INSTALL,
-            metadata_tampering=RPM_METADATA_TAMPERING,
-        ),
+        *(debian_family(name) for name in DISTRIBUTIONS),
+        rpm_family("fedora", "fedora:latest", FEDORA_BOOTSTRAP),
+        rpm_family("rhel-10", "rockylinux/rockylinux:10", RHEL_BOOTSTRAP),
         Family(
             name="archlinux",
             image="lopsided/archlinux:latest",

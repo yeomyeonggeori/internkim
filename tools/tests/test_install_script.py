@@ -87,7 +87,7 @@ def published_binary(binary_name):
 class PublishedRelease:
     def __init__(self, directory, checksum_of):
         self.directory = Path(directory)
-        for product in ("companion", "host"):
+        for product in ("companion",):
             for operating_system in ("darwin", "linux"):
                 for architecture in ("arm64", "amd64"):
                     self.publish(product, f"internkim-{product}-{operating_system}-{architecture}", checksum_of)
@@ -179,7 +179,7 @@ class InstallScriptTests(unittest.TestCase):
 
     def test_installs_the_build_for_this_machine(self):
         base_url = self.serve()
-        for product in ("companion", "host"):
+        for product in ("companion",):
             for reported, expected in [
                 (("Darwin", "arm64"), "darwin-arm64"),
                 (("Darwin", "x86_64"), "darwin-amd64"),
@@ -263,46 +263,58 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("brew untap", completed.stderr)
         self.assertFalse((bin_dir / "internkim-host").exists())
 
-    def test_a_mac_without_homebrew_is_told_where_to_get_it(self):
+    def test_a_mac_without_homebrew_is_told_where_to_get_it_and_given_nothing(self):
         base_url = self.serve()
         completed, bin_dir = self.run_install("host", base_url, machine=("Darwin", "arm64"))
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("https://brew.sh", completed.stdout)
-        self.assertTrue((bin_dir / "internkim-host").exists())
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn("https://brew.sh", completed.stderr)
+        self.assertIn("Nothing on this machine was changed", completed.stderr)
+        self.assertEqual(list(bin_dir.iterdir()), [])
+
+    def test_a_linux_machine_with_no_supported_package_manager_is_refused_by_name(self):
+        """A binary on its own cannot install the host, so a machine without
+        apt, dnf or pacman is told which managers the package is published for
+        and is given nothing."""
+        base_url = self.serve()
+        completed, bin_dir = self.run_install("host", base_url, machine=("Linux", "x86_64"))
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn("apt, dnf or pacman", completed.stderr)
+        self.assertIn("Nothing on this machine was changed", completed.stderr)
+        self.assertEqual(list(bin_dir.iterdir()), [])
 
     def test_refuses_a_machine_with_no_published_build(self):
         base_url = self.serve()
         for reported in [("Darwin", "riscv64"), ("OpenBSD", "arm64")]:
             with self.subTest(machine=reported):
-                completed, bin_dir = self.run_install("host", base_url, machine=reported)
+                completed, bin_dir = self.run_install("companion", base_url, machine=reported)
                 self.assertEqual(completed.returncode, 1)
                 self.assertIn("has no build for", completed.stderr)
-                self.assertFalse((bin_dir / "internkim-host").exists())
+                self.assertFalse((bin_dir / "internkim-companion").exists())
 
     def test_refuses_a_download_whose_checksum_was_not_published(self):
         base_url = self.serve(checksum_of=lambda content: hashlib.sha256(content + b"tampered").hexdigest())
-        completed, bin_dir = self.run_install("host", base_url, machine=("Linux", "x86_64"))
+        completed, bin_dir = self.run_install("companion", base_url, machine=("Linux", "x86_64"))
         self.assertEqual(completed.returncode, 1)
         self.assertIn("does not match the published checksum", completed.stderr)
-        self.assertFalse((bin_dir / "internkim-host").exists())
+        self.assertFalse((bin_dir / "internkim-companion").exists())
 
     def test_refuses_a_download_the_checksum_list_does_not_name(self):
         base_url = self.serve()
-        self.forget_checksum_line(base_url, "host", "internkim-host-linux-amd64")
-        completed, bin_dir = self.run_install("host", base_url, machine=("Linux", "x86_64"))
+        self.forget_checksum_line(base_url, "companion", "internkim-companion-linux-amd64")
+        completed, bin_dir = self.run_install("companion", base_url, machine=("Linux", "x86_64"))
         self.assertEqual(completed.returncode, 1, completed.stderr)
         self.assertIn("does not match the published checksum", completed.stderr)
-        self.assertFalse((bin_dir / "internkim-host").exists())
+        self.assertFalse((bin_dir / "internkim-companion").exists())
 
     def test_refuses_a_download_when_nothing_can_be_compared(self):
         base_url = self.serve()
-        self.forget_checksum_line(base_url, "host", "internkim-host-linux-amd64")
+        self.forget_checksum_line(base_url, "companion", "internkim-companion-linux-amd64")
         completed, bin_dir = self.run_install(
-            "host", base_url, machine=("Linux", "x86_64"), shims=[self.silent_hasher()]
+            "companion", base_url, machine=("Linux", "x86_64"), shims=[self.silent_hasher()]
         )
         self.assertEqual(completed.returncode, 1, completed.stderr)
         self.assertIn("does not match the published checksum", completed.stderr)
-        self.assertFalse((bin_dir / "internkim-host").exists())
+        self.assertFalse((bin_dir / "internkim-companion").exists())
 
     def test_the_address_devices_still_print_installs_the_companion(self):
         base_url = self.serve()
@@ -371,7 +383,7 @@ class InstallScriptTests(unittest.TestCase):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
         environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
-        environment["INTERNKIM_INSTALL_REPOSITORY_URL"] = f"{base_url}/deb"
+        environment["INTERNKIM_INSTALL_BASE_URL"] = base_url
         environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
         if suite:
             environment["INTERNKIM_INSTALL_SUITE"] = suite
@@ -531,12 +543,12 @@ class InstallScriptTests(unittest.TestCase):
     def test_a_second_install_replaces_the_binary_in_place(self):
         base_url = self.serve()
         bin_dir = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        first, _ = self.run_install("host", base_url, machine=("Linux", "x86_64"), bin_dir=bin_dir)
+        first, _ = self.run_install("companion", base_url, machine=("Linux", "x86_64"), bin_dir=bin_dir)
         self.assertEqual(first.returncode, 0, first.stderr)
-        second, _ = self.run_install("host", base_url, machine=("Linux", "x86_64"), bin_dir=bin_dir)
+        second, _ = self.run_install("companion", base_url, machine=("Linux", "x86_64"), bin_dir=bin_dir)
         self.assertEqual(second.returncode, 0, second.stderr)
-        self.assertEqual((bin_dir / "internkim-host").read_bytes(), published_binary("internkim-host-linux-amd64"))
-        self.assertEqual(sorted(path.name for path in bin_dir.iterdir()), ["internkim-host"])
+        self.assertEqual((bin_dir / "internkim-companion").read_bytes(), published_binary("internkim-companion-linux-amd64"))
+        self.assertEqual(sorted(path.name for path in bin_dir.iterdir()), ["internkim-companion"])
 
     def linux_machine(self, manager):
         """A machine that has one package manager, sudo and a sandbox for what root writes."""
