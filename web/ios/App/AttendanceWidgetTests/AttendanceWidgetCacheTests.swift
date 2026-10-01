@@ -117,6 +117,30 @@ final class AttendanceWidgetCacheTests: XCTestCase {
         XCTAssertEqual(rows.map(\.eventID), ["e1"])
     }
 
+    func testAnEarlierPressSettlingLeavesALaterPressPending() throws {
+        let seoul = try XCTUnwrap(TimeZone(identifier: "Asia/Seoul"))
+        let earlier = AttendanceWidgetCache.optimisticRow(kind: "clock_out", location: nil, now: now, timeZone: seoul)
+        let later = AttendanceWidgetCache.optimisticRow(kind: "clock_in", location: "사무실", now: now.addingTimeInterval(1), timeZone: seoul)
+        var cache = AttendanceWidgetCache.empty(origin: "https://alpha.example.com")
+        cache.pending = later
+
+        cache.settle(pressed: earlier, written: AttendanceWrite(status: "added", eventID: "e2", event: nil), added: nil, now: now)
+
+        XCTAssertEqual(cache.pending?.kind, "clock_in")
+    }
+
+    func testATakenBackPressDropsTheRowItRemoved() {
+        var cache = AttendanceWidgetCache.empty(origin: "https://alpha.example.com")
+        cache.rows = [sampleRow]
+        cache.pending = pendingRow
+
+        cache.settle(pressed: pendingRow, written: AttendanceWrite(status: "removed", eventID: sampleRow.eventID, event: nil), added: nil, now: now)
+
+        XCTAssertTrue(cache.rows.isEmpty)
+        XCTAssertNil(cache.pending)
+        XCTAssertEqual(cache.rowsTrustedUntil, now.addingTimeInterval(AttendanceWidgetCache.rowsTrustedFor))
+    }
+
     func testARefusalIsNotUndoneByAReadThatStartedBeforeIt() throws {
         let suite = "AttendanceWidgetCacheTests.\(UUID().uuidString)"
         let store = try XCTUnwrap(UserDefaults(suiteName: suite))

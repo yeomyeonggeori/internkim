@@ -80,6 +80,30 @@ struct AttendanceWidgetCache: Codable {
         return pending.map { cachedRows + [$0] } ?? cachedRows
     }
 
+    mutating func settle(pressed: AttendanceRow?, written: AttendanceWrite, added: AttendanceRow?, now: Date) {
+        letGo(of: pressed)
+        if written.status == "removed", let takenBack = written.eventID {
+            rows = rows.filter { $0.eventID != takenBack }
+            rowsTrustedUntil = now.addingTimeInterval(Self.rowsTrustedFor)
+        } else if let added {
+            rows = Self.appending(added, to: rows)
+            rowsTrustedUntil = now.addingTimeInterval(Self.rowsTrustedFor)
+        } else {
+            rowsTrustedUntil = nil
+        }
+    }
+
+    mutating func refuse(pressed: AttendanceRow?) {
+        letGo(of: pressed)
+        rowsTrustedUntil = nil
+    }
+
+    private mutating func letGo(of pressed: AttendanceRow?) {
+        guard let pending, let pressed,
+              pending.kind == pressed.kind, pending.occurredAt == pressed.occurredAt else { return }
+        self.pending = nil
+    }
+
     static func appending(_ row: AttendanceRow, to rows: [AttendanceRow]) -> [AttendanceRow] {
         rows.filter { $0.eventID != row.eventID } + [row]
     }
