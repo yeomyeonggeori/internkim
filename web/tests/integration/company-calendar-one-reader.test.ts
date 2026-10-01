@@ -152,7 +152,7 @@ beforeAll(async () => {
 
 	const { error: leaveRefused } = await client.from('leave').insert({
 		member_id: colleagueID,
-		kind: '연차',
+		kind: 'annual',
 		is_paid: true,
 		is_deducted: true,
 		days: -2,

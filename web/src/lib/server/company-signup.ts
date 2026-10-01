@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { mailCanCarryTheCode } from './claim-without-mail';
 
 export type CompanySignupEnvironment = Record<string, string | undefined>;
 
@@ -32,7 +31,6 @@ export async function requestCompanySignupEmail(
 	const projectURL = environment.SUPABASE_URL ?? '';
 	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
 	if (!projectURL || !publishableKey) throw new CompanySignupError(500, 'the control plane is not configured');
-	if (!mailCanCarryTheCode(environment)) throw new CompanySignupError(503, 'company sign-up email is unavailable');
 
 	const response = await sendEmail({
 		email,

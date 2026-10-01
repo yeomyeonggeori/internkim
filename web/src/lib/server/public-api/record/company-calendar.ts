@@ -218,7 +218,9 @@ function calendarParticipant(
 	return { personID: memberID, name, ...(email ? { email } : {}) };
 }
 
+const kindsNamedByTheirLength = new Set(['annual', 'leave', '연차', '반차']);
+
 function leaveKindLabel(kind: string, days: number, locale: Locale): string {
-	if (kind !== 'leave' && kind !== '연차' && kind !== '반차') return kind;
+	if (!kindsNamedByTheirLength.has(kind)) return kind;
 	return localizedLeaveUnitName(days, locale);
 }

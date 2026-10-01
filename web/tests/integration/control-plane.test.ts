@@ -14,6 +14,7 @@ import {
 } from '../../src/lib/server/control-plane';
 import {
 	connectMessengerAccount,
+	memberOfCompanyByEmail,
 	membersOfCompanyByExternalID,
 } from '../../src/lib/server/member-credential';
 import { recordTokenFor } from '../../src/lib/server/record-token';
@@ -272,5 +273,16 @@ describe('an administrator is one who administers now', () => {
 		await inviteMember(client, memberID);
 
 		expect(await adminCallerOf(await administratorClient(memberID))).toBeNull();
+	});
+});
+
+describe('a member found by their address', () => {
+	test('is found by that address alone, never by a pattern spelled in it', async () => {
+		const underscored = await addMember(client, companyID, `${slug}-a_b@example.test`);
+		await addMember(client, companyID, `${slug}-axb@example.test`);
+
+		expect(await memberOfCompanyByEmail(client, companyID, `${slug}-A_B@example.test`)).toBe(underscored);
+		expect(await memberOfCompanyByEmail(client, companyID, `${slug}-a%@example.test`)).toBeNull();
+		expect(await memberOfCompanyByEmail(client, companyID, `${slug}-a_c@example.test`)).toBeNull();
 	});
 });

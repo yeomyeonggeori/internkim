@@ -33,7 +33,7 @@ insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, g
   ('79000000-0000-0000-0000-0000000000a2', 'annual', true, false, 20, 'approved', date '1970-01-01', 'manual');
 
 insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at) values
-  ('79000000-0000-0000-0000-0000000000a2', '연차', true, true, -4, 'approved',
+  ('79000000-0000-0000-0000-0000000000a2', 'annual', true, true, -4, 'approved',
    '2026-03-02 00:00+09', '2026-03-05 23:59+09');
 
 insert into public.task (id, company_id, title) values

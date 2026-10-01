@@ -31,7 +31,7 @@ insert into public.member (id, company_id, email, user_id, status) values
   ('47000000-0000-0000-0000-0000000000b1', '47000000-0000-0000-0000-0000000000b0', 'fixed-hours@example.test', '47000000-0000-0000-0000-000000000002', 'active');
 
 select is(
-  public.work_mode_of_member('47000000-0000-0000-0000-0000000000a1'),
+  internal.work_mode_of_member('47000000-0000-0000-0000-0000000000a1'),
   'autonomous',
   'the work mode comes from the company the member belongs to'
 );
@@ -98,7 +98,7 @@ set rules = '{}'::jsonb
 where id = '47000000-0000-0000-0000-0000000000a0';
 
 select is(
-  public.work_mode_of_member('47000000-0000-0000-0000-0000000000a1'),
+  internal.work_mode_of_member('47000000-0000-0000-0000-0000000000a1'),
   'flexible',
   'a company that never said falls back to flexible'
 );

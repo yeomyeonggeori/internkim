@@ -219,7 +219,9 @@ async function keepTheCompanyPicture(
 	try {
 		return json({ profileImageURL: await companyPictureWritten(member, kept.path) }, { status: 200 });
 	} catch (refusal) {
-		await dropFileFromTheBucket(assetStoreCredentialsOf(environment), kept.path).catch(() => undefined);
+		if (!kept.wasAlreadyKept) {
+			await dropFileFromTheBucket(assetStoreCredentialsOf(environment), kept.path).catch(() => undefined);
+		}
 		throw refusal;
 	}
 }

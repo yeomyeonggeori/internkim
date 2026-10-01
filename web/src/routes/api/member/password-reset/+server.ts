@@ -3,6 +3,7 @@ import {
 	adminCallerOf,
 	asMember,
 	controlPlane,
+	isBelowCaller,
 	planeCredentialsOf,
 	resetMemberPassword
 } from '$lib/server/control-plane';
@@ -17,7 +18,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	const accessToken = await signedInAccessTokenOf(request, plane);
 
-	const caller = await adminCallerOf(asMember(plane, accessToken));
+	const callerClient = asMember(plane, accessToken);
+	const caller = await adminCallerOf(callerClient);
 	if (!caller) error(403, 'only an admin resets a password');
 
 	const body = (await request.json().catch(() => ({}))) as { memberID?: unknown };
@@ -32,6 +34,9 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		.eq('id', memberID)
 		.maybeSingle();
 	if (!member) error(404, 'no such member in this company');
+	if (!(await isBelowCaller(callerClient, member.id))) {
+		error(403, 'an administrator resets the password only of somebody below their own clearance');
+	}
 
 	try {
 		return json(await resetMemberPassword(client, member.id));
