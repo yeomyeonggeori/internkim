@@ -1,9 +1,13 @@
 package capabilityd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/png"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -197,6 +201,16 @@ func gateCases() map[string]catalogGateCase {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"action":"fill"`)
 				expectResultHolds(t, answered, `"target":"@e1"`)
+			},
+		},
+		"browser_screenshot": {
+			kind:    provesBehaviour,
+			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"action":"screenshot"`)
+				expectResultHolds(t, answered, `"contentType":"image/png"`)
 			},
 		},
 		"browser_select": {
@@ -1079,6 +1093,17 @@ func TestTheCoveredCatalogToolsAnswerTheirCalls(t *testing.T) {
 
 // agent-browser prints the current URL for one command and a JSON snapshot for
 // another, so the stand-in answers by what it was asked to do.
+func savedAsPicture(path string) string {
+	var encoded bytes.Buffer
+	if errorValue := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 2, 2))); errorValue != nil {
+		return errorValue.Error()
+	}
+	if errorValue := os.WriteFile(path, encoded.Bytes(), 0o600); errorValue != nil {
+		return errorValue.Error()
+	}
+	return "saved"
+}
+
 func runningTheBrowser() *standingIn {
 	return answeringPerCall(func(request *http.Request) (int, string) {
 		asked := request.URL.Path
@@ -1086,7 +1111,8 @@ func runningTheBrowser() *standingIn {
 		case strings.Contains(asked, "snapshot"):
 			return 0, `{"url":"https://example.test/","title":"예시","elements":[{"ref":"@e1","role":"button","name":"보내기"}]}`
 		case strings.Contains(asked, "screenshot"):
-			return 0, `{"path":"/tmp/shot.png"}`
+			arguments := strings.Fields(asked)
+			return 0, savedAsPicture(arguments[len(arguments)-1])
 		default:
 			return 0, "https://example.test/"
 		}

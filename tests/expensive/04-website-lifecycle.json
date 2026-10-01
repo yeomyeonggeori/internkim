@@ -12,6 +12,7 @@
   "edit",
   "browser_open",
   "browser_snapshot",
+  "browser_screenshot",
   "browser_click",
   "artifact_review",
   "site_serve",

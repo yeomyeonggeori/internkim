@@ -17,5 +17,6 @@ Core workflow:
 2. `browser_snapshot` with `{}` to read page text and interactive refs such as `@e1`.
 3. `browser_click`, `browser_fill`, `browser_select`, `browser_press` or `browser_wait` using refs or selectors.
 4. Re-run `browser_snapshot` after page changes.
+5. `browser_screenshot` with `{}` when the user asks to capture the visible result.
 
 Never invent missing refs, selectors, URLs, or file paths. If an operation returns an attachment, let the final reply include the attachment instead of exposing a device path.

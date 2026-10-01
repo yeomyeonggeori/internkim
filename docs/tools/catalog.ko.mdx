@@ -194,7 +194,7 @@ admind 위에 구현되어 있습니다(`internal/capabilityd/site_tool.go`).
 
 `internal/capabilityd/browser_tool.go`에 구현되어 있고, 호출은 회사 컴퓨터의
 브라우저에서 돕니다. 요청한 사람마다 자기 프로필을 가진 Moli가 하나씩 뜹니다.
-응답에는 쿠키도 프로필 경로도 담기지 않습니다. 봇 확인 화면이 뜨는 페이지는
+응답에는 쿠키도 프로필 경로도 담기지 않고, `browser_screenshot`은 페이지를 PNG 첨부로 돌려줍니다. 봇 확인 화면이 뜨는 페이지는
 거절로 돌아오고, 에이전트는 그 사실을 요청한 사람에게 알립니다.
 
 ## 아티팩트 [#artifact]

@@ -62,13 +62,14 @@ func TestGeneratedToolDescriptorsReturnClones(t *testing.T) {
 		"image_read",
 		"browser_open",
 		"browser_snapshot",
+		"browser_screenshot",
 		"browser_click",
 		"artifact_review",
 		"web_search",
 	}
 	firstDescriptors := MustGeneratedToolDescriptors(names...)
-	if len(firstDescriptors) != 24 {
-		t.Fatalf("expected twenty-four tool descriptors, got %d", len(firstDescriptors))
+	if len(firstDescriptors) != 25 {
+		t.Fatalf("expected twenty-five tool descriptors, got %d", len(firstDescriptors))
 	}
 	firstDescriptors[0].InputSchema[0] = 'x'
 	firstDescriptors[0].InputIntentSchema[0] = 'x'
