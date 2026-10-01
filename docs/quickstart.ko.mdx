@@ -14,8 +14,9 @@ icon: Rocket
 다음을 준비하세요.
 
 - 첫 관리자가 사용할 이메일 주소
-- arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora, RHEL 호환 10(Rocky, AlmaLinux), Arch Linux, 혹은 Homebrew를 설치한 macOS 컴퓨터. 인터넷에
-  연결하고 계속 켜 두어야 합니다.
+- arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora, RHEL 호환
+  10(Rocky, AlmaLinux), Arch Linux 컴퓨터, 혹은 Homebrew를 설치한 Apple 실리콘
+  Mac. 인터넷에 연결하고 계속 켜 두어야 합니다.
 - 회사 컴퓨터에 패키지를 설치할 관리자 권한
 - 에이전트가 사용할 [OpenRouter API 키](https://openrouter.ai/settings/keys)
 
@@ -78,6 +79,13 @@ sudo internkim install ~/Downloads/internkim-host.json
 다시 켜지면 자동으로 시작합니다. 컴퓨터가 잠들지 않게 하세요. 설치가 끝나면
 출력된 `/settings/setup` 주소에서 `연결 확인`을 누르세요. 서비스 상태와 로그는
 [호스트 운영 안내](/ko/running-the-host)를 보세요.
+
+Linux에서는 연결 파일을 건너뛸 수 있습니다. 첫 명령만 실행하면 컴퓨터가 같은
+네트워크의 `http://<컴퓨터>.local:18088/`에 8자리 코드를 띄우고,
+`sudo internkim box code`로도 코드를 보여 줍니다. 같은 네트워크의 브라우저에서
+설정 화면에 코드를 넣고, 컴퓨터 키의 마지막 네 글자가 컴퓨터 페이지에 보이는 것과
+같은지 확인한 다음 연결하세요. 그러면 설정 화면이 OpenRouter 키를 묻고, 그
+컴퓨터만 열 수 있게 잠가서 보냅니다.
 
 </Step>
 

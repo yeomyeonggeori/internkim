@@ -14,9 +14,9 @@ outbound connections, so it needs no public address or inbound port.
 Have these ready:
 
 - an email address for the first administrator;
-- a computer running Debian 13, Ubuntu 22.04 or 24.04, Fedora, RHEL-compatible 10 (Rocky, AlmaLinux) or Arch Linux on arm64 or amd64, or
-  macOS with Homebrew,
-  connected to the internet and kept awake;
+- a computer running Debian 13, Ubuntu 22.04 or 24.04, Fedora, RHEL-compatible
+  10 (Rocky, AlmaLinux) or Arch Linux on arm64 or amd64, or a Mac with Apple
+  silicon and Homebrew, connected to the internet and kept awake;
 - administrator access to install the host package; and
 - an [OpenRouter API key](https://openrouter.ai/settings/keys) for the agent.
 
@@ -75,6 +75,14 @@ The installer registers native services that start with the computer and
 restart after a failure. Keep the computer awake. When installation finishes,
 open the printed `/settings/setup` address and choose `Check connection`. See
 [Running the host](/running-the-host) for service checks and logs.
+
+On Linux you can skip the connection file. Run only the first command, and the
+computer shows an eight-character code at `http://<computer>.local:18088/` on
+its own network, or prints it with `sudo internkim box code`. From a browser on
+the same network, enter the code on the setup page, check that the last four
+characters of the computer's key match the ones its page shows, and confirm. The
+setup page then asks for the OpenRouter key and encrypts it so only that
+computer can read it.
 
 </Step>
 

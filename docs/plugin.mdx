@@ -43,10 +43,14 @@ token's permission opens is under [Permissions](/docs/api#permissions).
 
 ## What runs where [#what-runs-where]
 
-Six skills, among them PDF, spreadsheet and presentation, run entirely on your
-machine and need no account. The other eleven call the tool server, which reads
-and writes your company's record. The plugin's README lists both groups.
+A few skills, such as the calculator and the data room, run entirely on your
+machine and need no account. The others call the tool server, which reads and
+writes your company's record. Documents, PDFs, spreadsheets and decks are one
+skill, `office`, which works locally and needs the server only to fill company
+forms on letterhead and to read attachments. The plugin's README lists every
+skill and which group it is in.
 
-Running the local skills needs Python 3 and [uv](https://docs.astral.sh/uv/) on
-`PATH`; each skill creates its own environment on first use. Building a
-website also needs [Bun](https://bun.sh).
+The skills need Python 3 and [uv](https://docs.astral.sh/uv/) on `PATH`; each
+skill creates its own environment on first use. Building a website also needs
+[Bun](https://bun.sh), and rendering a deck needs Bun and a browser that speaks
+the Chrome DevTools Protocol.
