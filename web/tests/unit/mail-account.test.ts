@@ -6,9 +6,12 @@ import { base64URLOf, bytesOfBase64URL } from '../../src/lib/company/seal-to-box
 import {
 	asShown,
 	asWritten,
+	imapConnectionOf,
 	mailPasswordPurpose,
 	passwordSealer,
+	passwordsLostToAServerChange,
 	sealedPasswords,
+	smtpConnectionOf,
 	type MailAccount,
 	type MailPasswordField
 } from '../../src/lib/server/mail-account';
@@ -35,6 +38,9 @@ const boxSecretKey = x25519.utils.randomSecretKey();
 const boxEncryptionKey = base64URLOf(x25519.getPublicKey(boxSecretKey));
 const owner = { companyID: 'company-a', memberID: 'member-a' };
 const seal = passwordSealer(boxEncryptionKey, owner);
+
+const imapConnection = { host: 'imap.example.com', port: 993, security: 'tls', username: 'first' };
+const smtpConnection = { host: 'smtp.example.com', port: 587, security: 'starttls', username: 'first' };
 
 function sealed(field: SealedSecret | null): SealedSecret {
 	if (!field) throw new Error('the password was not sealed');
@@ -120,10 +126,10 @@ describe('sealing the passwords to the company box', () => {
 		expect(stored.includes('smtp-secret')).toBe(false);
 		expect(JSON.parse(stored).IMAPPassword).toBe('');
 		expect(JSON.parse(stored).SMTPPassword).toBe('');
-		expect(await openedBy(boxSecretKey, sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword'))).toBe(
+		expect(await openedBy(boxSecretKey, sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword', imapConnection))).toBe(
 			'imap-secret'
 		);
-		expect(await openedBy(boxSecretKey, sealed(kept.SealedSMTPPassword), mailPasswordPurpose(owner, 'SMTPPassword'))).toBe(
+		expect(await openedBy(boxSecretKey, sealed(kept.SealedSMTPPassword), mailPasswordPurpose(owner, 'SMTPPassword', smtpConnection))).toBe(
 			'smtp-secret'
 		);
 	});
@@ -132,14 +138,62 @@ describe('sealing the passwords to the company box', () => {
 		const held = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
 
 		const again = await sealedPasswords(
-			asWritten({ ...written, imapHost: 'imap.changed.example.com', imapPassword: '', smtpPassword: '' }, 'first@example.com', held),
+			asWritten({ ...written, displayName: '박예시', imapPassword: '', smtpPassword: '' }, 'first@example.com', held),
 			seal
 		);
 
 		expect(again.SealedIMAPPassword).toEqual(held.SealedIMAPPassword);
 		expect(again.SealedSMTPPassword).toEqual(held.SealedSMTPPassword);
-		expect(again.IMAPHost).toBe('imap.changed.example.com');
+		expect(again.DisplayName).toBe('박예시');
 		expect(asShown(again)?.isConfigured).toBe(true);
+		expect(passwordsLostToAServerChange(again, held)).toEqual([]);
+	});
+
+	test('a changed server, port, security or login with a blank password drops that password and says which', async () => {
+		const held = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+
+		for (const change of [
+			{ imapHost: 'imap.changed.example.com' },
+			{ imapPort: 143 },
+			{ imapSecurity: 'none' },
+			{ imapUsername: 'second' }
+		]) {
+			const moved = asWritten({ ...written, ...change, imapPassword: '', smtpPassword: '' }, 'first@example.com', held);
+
+			expect(moved.SealedIMAPPassword).toBeNull();
+			expect(moved.SealedSMTPPassword).toEqual(held.SealedSMTPPassword);
+			expect(passwordsLostToAServerChange(moved, held)).toEqual(['IMAP']);
+		}
+	});
+
+	test('a changed server with its password entered again keeps nothing to refuse', async () => {
+		const held = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+
+		const moved = asWritten(
+			{ ...written, smtpHost: 'smtp.changed.example.com', imapPassword: '', smtpPassword: 'new-smtp' },
+			'first@example.com',
+			held
+		);
+
+		expect(passwordsLostToAServerChange(moved, held)).toEqual([]);
+	});
+
+	test('a password sealed for one server does not open for another', async () => {
+		const kept = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+
+		for (const elsewhere of [
+			{ ...imapConnection, host: 'imap.attacker.test' },
+			{ ...imapConnection, port: 143 },
+			{ ...imapConnection, security: 'none' },
+			{ ...imapConnection, username: 'second' },
+			{ ...imapConnection, host: 'imap.example.com|first', username: '' }
+		]) {
+			await expect(
+				openedBy(boxSecretKey, sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword', elsewhere))
+			).rejects.toThrow();
+		}
+		expect(imapConnectionOf(kept)).toEqual(imapConnection);
+		expect(smtpConnectionOf(kept)).toEqual(smtpConnection);
 	});
 
 	test('a new password is sealed afresh and the other is left alone', async () => {
@@ -152,7 +206,7 @@ describe('sealing the passwords to the company box', () => {
 
 		expect(changed.SealedIMAPPassword).not.toEqual(held.SealedIMAPPassword);
 		expect(changed.SealedSMTPPassword).toEqual(held.SealedSMTPPassword);
-		expect(await openedBy(boxSecretKey, sealed(changed.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword'))).toBe(
+		expect(await openedBy(boxSecretKey, sealed(changed.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword', imapConnection))).toBe(
 			'changed'
 		);
 	});
@@ -176,7 +230,7 @@ describe('sealing the passwords to the company box', () => {
 			[owner, 'SMTPPassword']
 		];
 		for (const [someoneElse, field] of elsewhere) {
-			await expect(openedBy(boxSecretKey, imapPassword, mailPasswordPurpose(someoneElse, field))).rejects.toThrow();
+			await expect(openedBy(boxSecretKey, imapPassword, mailPasswordPurpose(someoneElse, field, imapConnection))).rejects.toThrow();
 		}
 	});
 
@@ -184,16 +238,20 @@ describe('sealing the passwords to the company box', () => {
 		const kept = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
 
 		await expect(
-			openedBy(x25519.utils.randomSecretKey(), sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword'))
+			openedBy(x25519.utils.randomSecretKey(), sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword', imapConnection))
 		).rejects.toThrow();
 	});
 
-	test('the password the box side opens in its tests opens here for the same member and field', async () => {
+	test('the password the box side opens in its tests opens here for the same member, field and server', async () => {
 		const fixture = JSON.parse(
 			readFileSync(new URL('../../../internal/box/testdata/sealed-mail-password.json', import.meta.url), 'utf8')
 		);
-		const purpose = mailPasswordPurpose({ companyID: fixture.companyID, memberID: fixture.memberID }, fixture.field);
+		const purpose = mailPasswordPurpose(
+			{ companyID: fixture.companyID, memberID: fixture.memberID },
+			fixture.field,
+			fixture.connection
+		);
 
 		expect(await openedBy(bytesOfBase64URL(fixture.boxSecretKey), fixture.sealed, purpose)).toBe(fixture.password);
-});
+	});
 });

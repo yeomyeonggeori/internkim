@@ -22,26 +22,28 @@ func BoxPasswords(boxStateDirectoryPath string) PasswordOpener {
 }
 
 func openedPasswords(account Account, connected box.Connected, memberID string) (Account, error) {
-	imapPassword, errorValue := openedPassword(account.SealedIMAPPassword, account.IMAPPassword, connected, memberID, "IMAPPassword")
+	imapPurpose := box.MailPasswordPurpose(connected.CompanyID, memberID, "IMAPPassword", box.MailConnection{
+		Host: account.IMAPHost, Port: account.IMAPPort, Security: account.IMAPSecurity, Username: account.IMAPUsername,
+	})
+	imapPassword, errorValue := openedPassword(account.SealedIMAPPassword, account.IMAPPassword, connected, imapPurpose)
 	if errorValue != nil {
-		return Account{}, errorValue
+		return Account{}, fmt.Errorf("the IMAP password of member %s: %w", memberID, errorValue)
 	}
-	smtpPassword, errorValue := openedPassword(account.SealedSMTPPassword, account.SMTPPassword, connected, memberID, "SMTPPassword")
+	smtpPurpose := box.MailPasswordPurpose(connected.CompanyID, memberID, "SMTPPassword", box.MailConnection{
+		Host: account.SMTPHost, Port: account.SMTPPort, Security: account.SMTPSecurity, Username: account.SMTPUsername,
+	})
+	smtpPassword, errorValue := openedPassword(account.SealedSMTPPassword, account.SMTPPassword, connected, smtpPurpose)
 	if errorValue != nil {
-		return Account{}, errorValue
+		return Account{}, fmt.Errorf("the SMTP password of member %s: %w", memberID, errorValue)
 	}
 	account.IMAPPassword, account.SMTPPassword = imapPassword, smtpPassword
 	account.SealedIMAPPassword, account.SealedSMTPPassword = nil, nil
 	return account, nil
 }
 
-func openedPassword(sealed *box.SealedSecret, held string, connected box.Connected, memberID, field string) (string, error) {
+func openedPassword(sealed *box.SealedSecret, held string, connected box.Connected, purpose box.SealPurpose) (string, error) {
 	if sealed == nil {
 		return held, nil
 	}
-	opened, errorValue := connected.Identity.OpenSecret(*sealed, box.MailPasswordPurpose(connected.CompanyID, memberID, field))
-	if errorValue != nil {
-		return "", fmt.Errorf("the %s of member %s: %w", field, memberID, errorValue)
-	}
-	return opened, nil
+	return connected.Identity.OpenSecret(*sealed, purpose)
 }

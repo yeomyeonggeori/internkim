@@ -1,5 +1,5 @@
 import { fetchMailAccount, fetchMailBootstrap, saveMailAccount, testMailAccount } from './mail-api';
-import { createMailAccountDraft, emptyMailAccount, mailAccountDraftPayload } from './mail-account-draft';
+import { createMailAccountDraft, emptyMailAccount, isPasswordNeededAgain, mailAccountDraftPayload } from './mail-account-draft';
 import { selectedVisibleMessage } from './mail-message-detail-cache';
 import { mailMessagePageSize } from './mail-message-page-cache';
 import type { MailPageControllerState, MailPageText } from './mail-page-controller-types';
@@ -40,6 +40,10 @@ export function openMailSettings(controller: MailPageControllerState) {
 }
 
 export async function saveMailAccountDraft(controller: MailPageControllerState, text: MailPageText) {
+	if (isPasswordNeededAgain(controller.account, controller.accountDraft)) {
+		controller.settingsMessage = text.settingsSheet.passwordNeededAgain;
+		return;
+	}
 	controller.isSavingAccount = true;
 	controller.settingsMessage = '';
 	try {

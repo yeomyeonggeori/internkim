@@ -26,6 +26,10 @@ export function bytesOfBase64URL(encoded: string): Uint8Array<ArrayBuffer> {
 	return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
+export function additionalDataOf(...parts: string[]): string {
+	return parts.map((part) => `${new TextEncoder().encode(part).length}:${part}`).join('');
+}
+
 export async function sealToBox(plaintext: string, boxEncryptionKey: string, purpose: SealPurpose): Promise<SealedSecret> {
 	const recipientPublicKey = await boxSealingSuite.kem.deserializePublicKey(bytesOfBase64URL(boxEncryptionKey));
 	const sealed = await boxSealingSuite.seal(

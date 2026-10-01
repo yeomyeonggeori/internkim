@@ -11,7 +11,9 @@ import (
 	"testing"
 )
 
-var mailPurpose = MailPasswordPurpose("company-a", "member-a", "IMAPPassword")
+var imapConnection = MailConnection{Host: "imap.example.test", Port: 993, Security: "tls", Username: "sample"}
+
+var mailPurpose = MailPasswordPurpose("company-a", "member-a", "IMAPPassword", imapConnection)
 
 func sealSecretTo(t *testing.T, recipient Identity, plaintext string, purpose SealPurpose) SealedSecret {
 	t.Helper()
@@ -62,9 +64,14 @@ func TestASecretSealedForAnotherOwnerDoesNotOpen(t *testing.T) {
 	sealed := sealSecretTo(t, identity, "imap-secret", mailPurpose)
 
 	for _, asked := range []SealPurpose{
-		MailPasswordPurpose("company-a", "member-b", "IMAPPassword"),
-		MailPasswordPurpose("company-b", "member-a", "IMAPPassword"),
-		MailPasswordPurpose("company-a", "member-a", "SMTPPassword"),
+		MailPasswordPurpose("company-a", "member-b", "IMAPPassword", imapConnection),
+		MailPasswordPurpose("company-b", "member-a", "IMAPPassword", imapConnection),
+		MailPasswordPurpose("company-a", "member-a", "SMTPPassword", imapConnection),
+		MailPasswordPurpose("company-a", "member-a", "IMAPPassword", MailConnection{Host: "imap.attacker.test", Port: 993, Security: "tls", Username: "sample"}),
+		MailPasswordPurpose("company-a", "member-a", "IMAPPassword", MailConnection{Host: "imap.example.test", Port: 143, Security: "tls", Username: "sample"}),
+		MailPasswordPurpose("company-a", "member-a", "IMAPPassword", MailConnection{Host: "imap.example.test", Port: 993, Security: "none", Username: "sample"}),
+		MailPasswordPurpose("company-a", "member-a", "IMAPPassword", MailConnection{Host: "imap.example.test", Port: 993, Security: "tls", Username: "other"}),
+		MailPasswordPurpose("company-a", "member-a", "IMAPPassword", MailConnection{Host: "imap.example.test|sample", Port: 993, Security: "tls", Username: ""}),
 		{Information: modelKeySealInformation, AdditionalData: mailPurpose.AdditionalData},
 	} {
 		if _, errorValue := identity.OpenSecret(sealed, asked); errorValue == nil {
@@ -125,12 +132,22 @@ func TestAConnectedBoxNamesItsCompany(t *testing.T) {
 }
 
 type mailSealingVector struct {
-	Password     string       `json:"password"`
-	BoxSecretKey string       `json:"boxSecretKey"`
-	CompanyID    string       `json:"companyID"`
-	MemberID     string       `json:"memberID"`
-	Field        string       `json:"field"`
-	Sealed       SealedSecret `json:"sealed"`
+	Password     string `json:"password"`
+	BoxSecretKey string `json:"boxSecretKey"`
+	CompanyID    string `json:"companyID"`
+	MemberID     string `json:"memberID"`
+	Field        string `json:"field"`
+	Connection   struct {
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		Security string `json:"security"`
+		Username string `json:"username"`
+	} `json:"connection"`
+	Sealed SealedSecret `json:"sealed"`
+}
+
+func (vector mailSealingVector) connection() MailConnection {
+	return MailConnection(vector.Connection)
 }
 
 func readMailSealingVector(t *testing.T) mailSealingVector {
@@ -150,7 +167,7 @@ func TestBoxOpensTheMailPasswordTheWebAppSealed(t *testing.T) {
 	vector := readMailSealingVector(t)
 	identity := identityWithEncryptionSeed(t, vector.BoxSecretKey)
 
-	opened, errorValue := identity.OpenSecret(vector.Sealed, MailPasswordPurpose(vector.CompanyID, vector.MemberID, vector.Field))
+	opened, errorValue := identity.OpenSecret(vector.Sealed, MailPasswordPurpose(vector.CompanyID, vector.MemberID, vector.Field, vector.connection()))
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -160,12 +177,17 @@ func TestBoxOpensTheMailPasswordTheWebAppSealed(t *testing.T) {
 	}
 }
 
-func TestTheMailPasswordTheWebAppSealedOpensForNoOtherMember(t *testing.T) {
+func TestTheMailPasswordTheWebAppSealedOpensForNoOtherMemberOrServer(t *testing.T) {
 	vector := readMailSealingVector(t)
 	identity := identityWithEncryptionSeed(t, vector.BoxSecretKey)
 
-	if _, errorValue := identity.OpenSecret(vector.Sealed, MailPasswordPurpose(vector.CompanyID, vector.CompanyID, vector.Field)); errorValue == nil {
+	if _, errorValue := identity.OpenSecret(vector.Sealed, MailPasswordPurpose(vector.CompanyID, vector.CompanyID, vector.Field, vector.connection())); errorValue == nil {
 		t.Fatal("a password sealed for one member opened for another")
+	}
+	moved := vector.connection()
+	moved.Host = "imap.attacker.test"
+	if _, errorValue := identity.OpenSecret(vector.Sealed, MailPasswordPurpose(vector.CompanyID, vector.MemberID, vector.Field, moved)); errorValue == nil {
+		t.Fatal("a password sealed for one server opened for another")
 	}
 }
 

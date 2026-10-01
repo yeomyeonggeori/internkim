@@ -4,6 +4,8 @@ import (
 	"crypto/hpke"
 	"encoding/base64"
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -27,11 +29,29 @@ type SealedSecret struct {
 	Ciphertext string `json:"ciphertext"`
 }
 
-func MailPasswordPurpose(companyID, memberID, field string) SealPurpose {
+type MailConnection struct {
+	Host     string
+	Port     int
+	Security string
+	Username string
+}
+
+func MailPasswordPurpose(companyID, memberID, field string, connection MailConnection) SealPurpose {
 	return SealPurpose{
-		Information:    mailAccountSealInformation,
-		AdditionalData: companyID + "|" + memberID + "|mail|" + field,
+		Information: mailAccountSealInformation,
+		AdditionalData: additionalDataOf(
+			companyID, memberID, "mail", field,
+			connection.Host, strconv.Itoa(connection.Port), connection.Security, connection.Username,
+		),
 	}
+}
+
+func additionalDataOf(parts ...string) string {
+	var joined strings.Builder
+	for _, part := range parts {
+		joined.WriteString(strconv.Itoa(len(part)) + ":" + part)
+	}
+	return joined.String()
 }
 
 func (identity Identity) OpenSecret(sealed SealedSecret, purpose SealPurpose) (string, error) {

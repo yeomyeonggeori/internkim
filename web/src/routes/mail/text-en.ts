@@ -83,6 +83,7 @@ export const mailTextEn = {
 		description: 'Enter your email address and app password. Server settings are filled automatically.',
 		displayNamePlaceholder: 'Your name',
 		savedPassword: 'Saved password',
+		passwordNeededAgain: 'The server settings changed. Enter the app password again.',
 		appPassword: 'App password',
 		googleAppPasswordLink: 'Create Google app password',
 		googleAccountNote: 'First check that you are signed in to the correct Google account. App passwords from another account will not connect.',

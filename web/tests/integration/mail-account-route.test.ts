@@ -11,7 +11,7 @@ import {
 	provisionCompany,
 	sessionForMember
 } from '../../src/lib/server/control-plane';
-import { mailPasswordPurpose } from '../../src/lib/server/mail-account';
+import { imapConnectionOf, mailPasswordPurpose } from '../../src/lib/server/mail-account';
 import { keepMemberCredential } from '../../src/lib/server/member-credential';
 import { mailAccountCredentialKind } from '../../src/lib/server/public-api/catalog/credential';
 import { resealMailAccounts } from '../../scripts/reseal-mail-accounts';
@@ -128,6 +128,16 @@ async function storedSecretOf(memberID: string): Promise<string> {
 	return data;
 }
 
+async function refusalOf(attempt: () => Promise<unknown>): Promise<{ status: number; message: string }> {
+	try {
+		await attempt();
+	} catch (thrown) {
+		const refusal = z.object({ status: z.number(), body: z.object({ message: z.string() }) }).parse(thrown);
+		return { status: refusal.status, message: refusal.body.message };
+	}
+	throw new Error('the write was accepted');
+}
+
 function sealedOf(offered: unknown): SealedSecret {
 	return sealedSecretSchema.parse(offered);
 }
@@ -168,11 +178,12 @@ describe('a company with a box keeps its mail passwords sealed to it', () => {
 		const imapPassword = sealedOf(held.SealedIMAPPassword);
 		expect(imapPassword.recipient).toBe(boxEncryptionKey);
 		const owner = { companyID: boxed.companyID, memberID: boxed.memberID };
-		expect(await openedBy(boxSecretKey, imapPassword, mailPasswordPurpose(owner, 'IMAPPassword'))).toBe(
+		const server = imapConnectionOf(held);
+		expect(await openedBy(boxSecretKey, imapPassword, mailPasswordPurpose(owner, 'IMAPPassword', server))).toBe(
 			written.imapPassword
 		);
 		await expect(
-			openedBy(boxSecretKey, imapPassword, mailPasswordPurpose({ ...owner, memberID: frozen.memberID }, 'IMAPPassword'))
+			openedBy(boxSecretKey, imapPassword, mailPasswordPurpose({ ...owner, memberID: frozen.memberID }, 'IMAPPassword', server))
 		).rejects.toThrow();
 	});
 
@@ -180,12 +191,35 @@ describe('a company with a box keeps its mail passwords sealed to it', () => {
 		const before = JSON.parse(await storedSecretOf(boxed.memberID));
 		expect(sealedOf(before.SealedIMAPPassword).recipient).toBe(boxEncryptionKey);
 
-		await writeAs(boxed, { ...written, imapHost: 'imap2.example.test', imapPassword: '', smtpPassword: '' });
+		await writeAs(boxed, { ...written, displayName: '박예시', imapPassword: '', smtpPassword: '' });
 
 		const after = JSON.parse(await storedSecretOf(boxed.memberID));
 		expect(after.SealedIMAPPassword).toEqual(before.SealedIMAPPassword);
 		expect(after.SealedSMTPPassword).toEqual(before.SealedSMTPPassword);
-		expect(after.IMAPHost).toBe('imap2.example.test');
+		expect(after.DisplayName).toBe('박예시');
+	});
+
+	test('a server change with the password left blank is refused, says why, and changes nothing', async () => {
+		const before = await storedSecretOf(boxed.memberID);
+
+		const refused = await refusalOf(() =>
+			writeAs(boxed, { ...written, imapHost: 'imap.attacker.test', imapPassword: '', smtpPassword: '' })
+		);
+
+		expect(refused.status).toBe(400);
+		expect(refused.message).toContain('enter the IMAP password again');
+		expect(await storedSecretOf(boxed.memberID)).toBe(before);
+	});
+
+	test('a server change with the password entered again seals it for the new server', async () => {
+		await writeAs(boxed, { ...written, imapHost: 'imap2.example.test', imapPassword: 'imap-moved', smtpPassword: '' });
+
+		const held = JSON.parse(await storedSecretOf(boxed.memberID));
+		const owner = { companyID: boxed.companyID, memberID: boxed.memberID };
+		expect(held.IMAPHost).toBe('imap2.example.test');
+		expect(
+			await openedBy(boxSecretKey, sealedOf(held.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword', imapConnectionOf(held)))
+		).toBe('imap-moved');
 	});
 
 	test('the mail tab is shown the account as configured and no password', async () => {
@@ -238,7 +272,7 @@ describe('resealing what was kept before sealing', () => {
 			await openedBy(
 				boxSecretKey,
 				sealedOf(held.SealedIMAPPassword),
-				mailPasswordPurpose({ companyID: boxed.companyID, memberID: boxed.memberID }, 'IMAPPassword')
+				mailPasswordPurpose({ companyID: boxed.companyID, memberID: boxed.memberID }, 'IMAPPassword', imapConnectionOf(held))
 			)
 		).toBe('old-imap');
 		expect(report.sealed).toContainEqual({ companyID: boxed.companyID, memberID: boxed.memberID });

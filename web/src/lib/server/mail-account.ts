@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sealedSecretSchema, type SealedSecret } from '$lib/company/box';
-import { sealToBox, type SealPurpose } from '$lib/company/seal-to-box';
+import { additionalDataOf, sealToBox, type SealPurpose } from '$lib/company/seal-to-box';
 import { connectedBoxOf } from './box';
 import { keepMemberCredential, memberCredential } from './member-credential';
 import { mailAccountCredentialKind } from './public-api/catalog/credential';
@@ -9,7 +9,11 @@ export const mailAccountSealInformation = 'internkim mail account';
 
 export type MailPasswordField = 'IMAPPassword' | 'SMTPPassword';
 
+export type MailProtocol = 'IMAP' | 'SMTP';
+
 export type MailAccountOwner = { companyID: string; memberID: string };
+
+export type MailConnection = { host: string; port: number; security: string; username: string };
 
 export type MailAccount = {
 	ActorEmail: string;
@@ -32,7 +36,7 @@ export type MailAccount = {
 	SentMailbox: string;
 };
 
-type SealPassword = (password: string, field: MailPasswordField) => Promise<SealedSecret>;
+type SealPassword = (password: string, field: MailPasswordField, connection: MailConnection) => Promise<SealedSecret>;
 
 export type MailAccountAsShown = {
 	email: string;
@@ -108,7 +112,7 @@ export function asWritten(
 	actorEmail: string,
 	held: MailAccount | null
 ): MailAccount {
-	return {
+	const account: MailAccount = {
 		ActorEmail: actorEmail,
 		Email: text(written.email) || held?.Email || '',
 		FromAddress: text(written.fromAddress) || text(written.email) || held?.FromAddress || '',
@@ -117,17 +121,55 @@ export function asWritten(
 		IMAPPort: port(written.imapPort, 993),
 		IMAPSecurity: text(written.imapSecurity) || 'tls',
 		IMAPUsername: text(written.imapUsername),
-		IMAPPassword: text(written.imapPassword) || held?.IMAPPassword || '',
+		IMAPPassword: text(written.imapPassword),
 		SMTPHost: text(written.smtpHost),
 		SMTPPort: port(written.smtpPort, 587),
 		SMTPSecurity: text(written.smtpSecurity) || 'starttls',
 		SMTPUsername: text(written.smtpUsername),
-		SMTPPassword: text(written.smtpPassword) || held?.SMTPPassword || '',
-		SealedIMAPPassword: text(written.imapPassword) ? null : (held?.SealedIMAPPassword ?? null),
-		SealedSMTPPassword: text(written.smtpPassword) ? null : (held?.SealedSMTPPassword ?? null),
+		SMTPPassword: text(written.smtpPassword),
+		SealedIMAPPassword: null,
+		SealedSMTPPassword: null,
 		DefaultMailbox: text(written.defaultMailbox) || 'INBOX',
 		SentMailbox: text(written.sentMailbox) || 'Sent'
 	};
+	return held ? withHeldPasswords(account, held) : account;
+}
+
+export function imapConnectionOf(account: MailAccount): MailConnection {
+	return { host: account.IMAPHost, port: account.IMAPPort, security: account.IMAPSecurity, username: account.IMAPUsername };
+}
+
+export function smtpConnectionOf(account: MailAccount): MailConnection {
+	return { host: account.SMTPHost, port: account.SMTPPort, security: account.SMTPSecurity, username: account.SMTPUsername };
+}
+
+function isSameConnection(first: MailConnection, second: MailConnection): boolean {
+	return (
+		first.host === second.host &&
+		first.port === second.port &&
+		first.security === second.security &&
+		first.username === second.username
+	);
+}
+
+function withHeldPasswords(account: MailAccount, held: MailAccount): MailAccount {
+	const keepsIMAP = !account.IMAPPassword && isSameConnection(imapConnectionOf(account), imapConnectionOf(held));
+	const keepsSMTP = !account.SMTPPassword && isSameConnection(smtpConnectionOf(account), smtpConnectionOf(held));
+	return {
+		...account,
+		IMAPPassword: keepsIMAP ? held.IMAPPassword : account.IMAPPassword,
+		SealedIMAPPassword: keepsIMAP ? held.SealedIMAPPassword : null,
+		SMTPPassword: keepsSMTP ? held.SMTPPassword : account.SMTPPassword,
+		SealedSMTPPassword: keepsSMTP ? held.SealedSMTPPassword : null
+	};
+}
+
+export function passwordsLostToAServerChange(account: MailAccount, held: MailAccount | null): MailProtocol[] {
+	const lost: MailProtocol[] = [];
+	if (!held) return lost;
+	if (hasIMAPPassword(held) && !hasIMAPPassword(account)) lost.push('IMAP');
+	if (hasSMTPPassword(held) && !hasSMTPPassword(account)) lost.push('SMTP');
+	return lost;
 }
 
 export async function mailAccountOfMember(
@@ -165,15 +207,29 @@ function unsealedOnTheFrozenDevicePath(owner: MailAccountOwner, account: MailAcc
 	return account;
 }
 
-export function mailPasswordPurpose(owner: MailAccountOwner, field: MailPasswordField): SealPurpose {
+export function mailPasswordPurpose(
+	owner: MailAccountOwner,
+	field: MailPasswordField,
+	connection: MailConnection
+): SealPurpose {
 	return {
 		information: mailAccountSealInformation,
-		additionalData: `${owner.companyID}|${owner.memberID}|mail|${field}`
+		additionalData: additionalDataOf(
+			owner.companyID,
+			owner.memberID,
+			'mail',
+			field,
+			connection.host,
+			String(connection.port),
+			connection.security,
+			connection.username
+		)
 	};
 }
 
 export function passwordSealer(boxEncryptionKey: string, owner: MailAccountOwner): SealPassword {
-	return (password, field) => sealToBox(password, boxEncryptionKey, mailPasswordPurpose(owner, field));
+	return (password, field, connection) =>
+		sealToBox(password, boxEncryptionKey, mailPasswordPurpose(owner, field, connection));
 }
 
 export async function sealedPasswords(account: MailAccount, seal: SealPassword): Promise<MailAccount> {
@@ -182,10 +238,10 @@ export async function sealedPasswords(account: MailAccount, seal: SealPassword):
 		IMAPPassword: '',
 		SMTPPassword: '',
 		SealedIMAPPassword: account.IMAPPassword
-			? await seal(account.IMAPPassword, 'IMAPPassword')
+			? await seal(account.IMAPPassword, 'IMAPPassword', imapConnectionOf(account))
 			: account.SealedIMAPPassword,
 		SealedSMTPPassword: account.SMTPPassword
-			? await seal(account.SMTPPassword, 'SMTPPassword')
+			? await seal(account.SMTPPassword, 'SMTPPassword', smtpConnectionOf(account))
 			: account.SealedSMTPPassword
 	};
 }
