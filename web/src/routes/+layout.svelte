@@ -6,6 +6,7 @@
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
+	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { routePathOf } from '$lib/company-path';
 	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
@@ -184,6 +185,12 @@
 	}
 </script>
 
+{#snippet contained()}
+	<EffectErrorBoundary region="page">
+		{@render children()}
+	</EffectErrorBoundary>
+{/snippet}
+
 <svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
 
 <ModeWatcher />
@@ -194,7 +201,9 @@
 	<Tooltip.Provider delayDuration={120}>
 		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(100svh,100%)] min-h-0 w-full bg-background text-foreground">
 			{#if !isEmbeddedFrame()}
-				<AppRail session={data.session} />
+				<EffectErrorBoundary region="app rail">
+					<AppRail session={data.session} />
+				</EffectErrorBoundary>
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
 				{#if !isEmbeddedFrame()}
@@ -280,10 +289,10 @@
 				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+0.5rem)] sm:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
-							{@render children()}
+							{@render contained()}
 						</WebAuthGate>
 					{:else}
-						{@render children()}
+						{@render contained()}
 					{/if}
 				</div>
 			</div>
@@ -291,5 +300,5 @@
 		<AppCommandPalette bind:open={isCommandPaletteOpen} />
 	</Tooltip.Provider>
 {:else}
-	{@render children()}
+	{@render contained()}
 {/if}
