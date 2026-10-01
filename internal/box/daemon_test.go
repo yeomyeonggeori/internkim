@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +23,8 @@ type fakePlane struct {
 	accessToken    string
 	sealedModelKey *SealedModelKey
 	announcements  int
+	codesAskedFor  int
+	pageAddresses  []string
 	claimedWith    []string
 }
 
@@ -29,7 +33,22 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 		switch request.URL.Path {
 		case "/api/box/announce":
 			plane.announcements++
-			writer.Write([]byte(`{"isClaimed":false}`))
+			var body struct {
+				WantsPairingCode     bool     `json:"wantsPairingCode"`
+				PairingPageAddresses []string `json:"pairingPageAddresses"`
+			}
+			json.NewDecoder(request.Body).Decode(&body)
+			plane.pageAddresses = body.PairingPageAddresses
+			if !body.WantsPairingCode {
+				writer.Write([]byte(`{"isClaimed":false}`))
+				return
+			}
+			plane.codesAskedFor++
+			json.NewEncoder(writer).Encode(map[string]any{
+				"isClaimed":            false,
+				"pairingCode":          "ABCD-EFGH",
+				"pairingCodeExpiresAt": time.Now().Add(15 * time.Minute).UTC().Format(time.RFC3339Nano),
+			})
 		case "/api/box/claim":
 			var body map[string]string
 			json.NewDecoder(request.Body).Decode(&body)
@@ -119,6 +138,116 @@ func TestAnUnclaimedBoxKeepsAnnouncingAndInstallsNothing(t *testing.T) {
 
 	if plane.announcements != 3 || len(recorded.requests) != 0 {
 		t.Fatalf("announcements = %d, installs = %d", plane.announcements, len(recorded.requests))
+	}
+}
+
+func TestAnEmptyBoxAsksForACodeOnlyWhileItHoldsNoLiveOne(t *testing.T) {
+	plane := &fakePlane{}
+	daemon, places := daemonFor(t, plane, &installs{})
+
+	runSteps(t, daemon, 3)
+
+	shown, isLive, errorValue := ShownPairingCode(places.StateDirectoryPath, time.Now())
+	if errorValue != nil || !isLive || shown.Code != "ABCD-EFGH" {
+		t.Fatalf("shown = %+v, live = %v, error = %v", shown, isLive, errorValue)
+	}
+	if plane.codesAskedFor != 1 {
+		t.Fatalf("asked for a code %d times in three announcements", plane.codesAskedFor)
+	}
+
+	daemon.Now = func() time.Time { return time.Now().Add(16 * time.Minute) }
+	runSteps(t, daemon, 1)
+
+	if plane.codesAskedFor != 2 {
+		t.Fatalf("an expired code was not replaced: asked %d times", plane.codesAskedFor)
+	}
+}
+
+func TestAnEmptyBoxShowsItsCodeOnItsNetworkUntilItIsClaimed(t *testing.T) {
+	plane := &fakePlane{}
+	daemon, _ := daemonFor(t, plane, &installs{})
+	daemon.Places.PairingPageListenAddress = "127.0.0.1:0"
+	pageAddress := ""
+	taken := 0
+	daemon.Sleep = func(ctx context.Context, wait time.Duration) error {
+		taken++
+		if taken == 1 {
+			if len(plane.pageAddresses) == 0 {
+				t.Fatal("the box announced no local page")
+			}
+			port := plane.pageAddresses[0][strings.LastIndex(plane.pageAddresses[0], ":")+1:]
+			pageAddress = "http://127.0.0.1:" + strings.TrimSuffix(port, "/") + "/"
+			fingerprint := identityOf(t, daemon.Places)
+			if shown := pageText(t, pageAddress); !strings.Contains(shown, "ABCD-EFGH") ||
+				!strings.Contains(shown, "…"+fingerprint.PublicKey()[len(fingerprint.PublicKey())-4:]) {
+				t.Fatalf("the local page shows %q", shown)
+			}
+			plane.isClaimed = true
+			plane.accessToken = "header.claims.signature"
+			return nil
+		}
+		return context.Canceled
+	}
+	if errorValue := daemon.Run(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, errorValue := http.Get(pageAddress); errorValue == nil {
+		t.Fatal("a claimed box still answers on its network")
+	}
+}
+
+func TestAReleasedBoxAsksForACodeAndShowsItAgain(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+	daemon, _ := daemonFor(t, plane, &installs{})
+	daemon.Places.PairingPageListenAddress = "127.0.0.1:0"
+	taken := 0
+	daemon.Sleep = func(ctx context.Context, wait time.Duration) error {
+		taken++
+		switch taken {
+		case 1:
+			plane.isClaimed = false
+			return nil
+		case 2:
+			return nil
+		default:
+			return context.Canceled
+		}
+	}
+	if errorValue := daemon.Run(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if plane.codesAskedFor == 0 || len(plane.pageAddresses) == 0 {
+		t.Fatalf("a released box asked for %d codes and showed its page at %v", plane.codesAskedFor, plane.pageAddresses)
+	}
+}
+
+func pageText(t *testing.T, address string) string {
+	t.Helper()
+	response, errorValue := http.Get(address)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer response.Body.Close()
+	document, errorValue := io.ReadAll(response.Body)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(document)
+}
+
+func TestAClaimedBoxShowsNoCode(t *testing.T) {
+	plane := &fakePlane{}
+	daemon, places := daemonFor(t, plane, &installs{})
+	runSteps(t, daemon, 1)
+
+	plane.isClaimed = true
+	plane.accessToken = "header.claims.signature"
+	runSteps(t, daemon, 1)
+
+	if _, isLive, errorValue := ShownPairingCode(places.StateDirectoryPath, time.Now()); errorValue != nil || isLive {
+		t.Fatalf("a claimed box still shows a code: live = %v, error = %v", isLive, errorValue)
 	}
 }
 

@@ -7,7 +7,9 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { boxStepOf, shortBoxName } from './box-step';
-	import { connectBox, fetchBoxes, giveBoxModelKey, type Boxes } from './host-setup-client';
+	import type { EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import { connectBox, disconnectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
@@ -16,6 +18,8 @@
 	let modelKey = $state('');
 	let isChangingModelKey = $state(false);
 	let connectingKey = $state('');
+	let pairingCodes = $state<Record<string, string>>({});
+	let verified = $state<VerifiedBoxAnswer | null>(null);
 	let isSendingModelKey = $state(false);
 	let errorMessage = $state('');
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -38,16 +42,55 @@
 		}
 	}
 
-	async function connect(publicKey: string) {
+	function whereTheCodeIs(box: EmptyBox): string {
+		const [address] = box.pairingPageAddresses;
+		return address ? text.pairingCodeAt.replace('{address}', address) : text.pairingCodeOnTheBox;
+	}
+
+	async function verify(event: SubmitEvent, publicKey: string) {
+		event.preventDefault();
+		const pairingCode = (pairingCodes[publicKey] ?? '').trim();
+		if (!pairingCode) {
+			errorMessage = text.pairingCodeMissing;
+			return;
+		}
+		await whileConnecting(publicKey, async () => {
+			verified = await verifyBoxCode(publicKey, pairingCode);
+		});
+	}
+
+	async function confirm() {
+		if (!verified) return;
+		const confirmed = verified;
+		await whileConnecting(confirmed.publicKey, async () => {
+			boxes = { connected: await connectBox(confirmed.publicKey, confirmed.ticket), empty: [] };
+		});
+		verified = null;
+	}
+
+	async function whileConnecting(publicKey: string, work: () => Promise<void>) {
 		connectingKey = publicKey;
 		errorMessage = '';
 		try {
-			boxes = { connected: await connectBox(publicKey), empty: [] };
+			await work();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;
 		} finally {
 			connectingKey = '';
 		}
+	}
+
+	function askToDisconnect() {
+		confirmDelete({
+			title: text.disconnectTitle,
+			description: text.disconnectDescription,
+			confirm: { text: text.disconnect },
+			cancel: { text: text.cancel },
+			onConfirm: async () => {
+				await disconnectBox();
+				boxes = { connected: null, empty: [] };
+			}
+		});
 	}
 
 	async function sendModelKey(event: SubmitEvent) {
@@ -77,18 +120,44 @@
 			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
 		</div>
+	{:else if step === 'choosing' && verified}
+		<Item.Root variant="outline">
+			<Item.Content>
+				<Item.Title>{text.confirmBox.replace('{company}', verified.companyName)}</Item.Title>
+				<Item.Description>{verified.hostName ?? text.foundBox} · <span class="font-mono">{shortBoxName(verified.publicKey)}</span></Item.Description>
+				<Item.Description>{text.confirmNetwork.replace('{address}', verified.publicAddress)}</Item.Description>
+				<Item.Description>{text.confirmMatch.replace('{fingerprint}', shortBoxName(verified.publicKey))}</Item.Description>
+			</Item.Content>
+			<Item.Actions>
+				<Button variant="outline" onclick={() => (verified = null)} disabled={connectingKey !== ''}>{text.cancel}</Button>
+				<Button onclick={confirm} disabled={connectingKey !== ''}>
+					{connectingKey === verified.publicKey ? text.connecting : text.confirmConnect}
+				</Button>
+			</Item.Actions>
+		</Item.Root>
 	{:else if step === 'choosing'}
 		<Item.Group class="gap-2">
 			{#each boxes.empty as box (box.publicKey)}
 				<Item.Root variant="outline">
 					<Item.Content>
-						<Item.Title>{text.foundBox}</Item.Title>
+						<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
 						<Item.Description class="font-mono">{shortBoxName(box.publicKey)}</Item.Description>
+						<Item.Description>{whereTheCodeIs(box)}</Item.Description>
 					</Item.Content>
 					<Item.Actions>
-						<Button onclick={() => connect(box.publicKey)} disabled={connectingKey !== ''}>
-							{connectingKey === box.publicKey ? text.connecting : text.connect}
-						</Button>
+						<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => verify(event, box.publicKey)}>
+							<Input
+								class="w-36 font-mono uppercase"
+								aria-label={text.pairingCode}
+								placeholder="ABCD-EFGH"
+								autocomplete="off"
+								maxlength={32}
+								bind:value={pairingCodes[box.publicKey]}
+							/>
+							<Button type="submit" disabled={connectingKey !== ''}>
+								{connectingKey === box.publicKey ? text.connecting : text.connect}
+							</Button>
+						</form>
 					</Item.Actions>
 				</Item.Root>
 			{/each}
@@ -99,11 +168,12 @@
 				<Item.Title>{text.foundBox}</Item.Title>
 				<Item.Description class="font-mono">{shortBoxName(boxes.connected.publicKey)}</Item.Description>
 			</Item.Content>
-			{#if step === 'connected' && !isChangingModelKey}
-				<Item.Actions>
+			<Item.Actions>
+				{#if step === 'connected' && !isChangingModelKey}
 					<Button variant="outline" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
-				</Item.Actions>
-			{/if}
+				{/if}
+				<Button variant="ghost" onclick={askToDisconnect}>{text.disconnect}</Button>
+			</Item.Actions>
 		</Item.Root>
 		<p role="status" class="text-sm">{step === 'connected' ? text.boxConnected : text.boxClaimed}</p>
 	{/if}

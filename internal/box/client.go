@@ -39,26 +39,59 @@ type Client struct {
 	Now        func() time.Time
 }
 
-func (client Client) Announce(ctx context.Context, identity Identity) (bool, error) {
-	body, errorValue := json.Marshal(map[string]string{"encryptionKey": identity.EncryptionPublicKey()})
+type Announcement struct {
+	IsClaimed   bool
+	PairingCode *PairingCode
+}
+
+type LocalPage struct {
+	HostName  string
+	Addresses []string
+}
+
+type AnnouncementRequest struct {
+	WantsPairingCode bool
+	LocalPage        LocalPage
+}
+
+func (client Client) Announce(ctx context.Context, identity Identity, asked AnnouncementRequest) (Announcement, error) {
+	announcement := map[string]any{
+		"encryptionKey":    identity.EncryptionPublicKey(),
+		"wantsPairingCode": asked.WantsPairingCode,
+	}
+	if asked.LocalPage.HostName != "" {
+		announcement["hostName"] = asked.LocalPage.HostName
+	}
+	if len(asked.LocalPage.Addresses) > 0 {
+		announcement["pairingPageAddresses"] = asked.LocalPage.Addresses
+	}
+	body, errorValue := json.Marshal(announcement)
 	if errorValue != nil {
-		return false, errorValue
+		return Announcement{}, errorValue
 	}
 	response, errorValue := client.post(ctx, identity, "/api/box/announce", body)
 	if errorValue != nil {
-		return false, errorValue
+		return Announcement{}, errorValue
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false, refusalOf(response, "announcing this box")
+		return Announcement{}, refusalOf(response, "announcing this box")
 	}
 	var announced struct {
-		IsClaimed bool `json:"isClaimed"`
+		IsClaimed            bool      `json:"isClaimed"`
+		PairingCode          string    `json:"pairingCode"`
+		PairingCodeExpiresAt time.Time `json:"pairingCodeExpiresAt"`
 	}
 	if errorValue := json.NewDecoder(response.Body).Decode(&announced); errorValue != nil {
-		return false, fmt.Errorf("announcing this box: %w", errorValue)
+		return Announcement{}, fmt.Errorf("announcing this box: %w", errorValue)
 	}
-	return announced.IsClaimed, nil
+	if announced.PairingCode == "" {
+		return Announcement{IsClaimed: announced.IsClaimed}, nil
+	}
+	return Announcement{
+		IsClaimed:   announced.IsClaimed,
+		PairingCode: &PairingCode{Code: announced.PairingCode, ExpiresAt: announced.PairingCodeExpiresAt},
+	}, nil
 }
 
 func (client Client) Claim(ctx context.Context, identity Identity, connectionKey string) error {
