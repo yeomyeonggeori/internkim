@@ -389,7 +389,7 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 }
 
 func databaseRemovalStatements() string {
-	statements := []string{}
+	statements := []string{`SET client_min_messages = warning;`}
 	for _, database := range hostDatabases {
 		statements = append(statements, `DROP DATABASE IF EXISTS `+database+` WITH (FORCE);`)
 	}
