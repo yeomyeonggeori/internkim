@@ -31,11 +31,12 @@ import {
 import { notifyRequestOf, readArrivedMessage, type ArrivedMessage } from './arrived';
 import { connectToGateway, type GatewayConnection } from './gateway-socket';
 import { CredentialCache } from './credential-cache';
-import { BlueclawACPClient, defaultBlueclawACPSocketPath, type Addressing } from './acp-session';
+import { BlueclawACPClient, defaultBlueclawACPSocketPath } from './acp-session';
 import { RecordCatalogs, ticketOf } from './record-catalog';
 import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
+import { conversationPoster } from './conversation-post';
 import { HeldQuestionStore } from './held-question-store';
 import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
@@ -405,11 +406,6 @@ function isRecord(offered: unknown): offered is Record<string, unknown> {
 	return typeof offered === 'object' && offered !== null;
 }
 
-function postedMessageIDOf(body: unknown): string {
-	const messageID = (body as { messageID?: unknown } | null)?.messageID;
-	return typeof messageID === 'string' ? messageID : '';
-}
-
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
@@ -428,10 +424,11 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		directoryPath: `${relayStateDirectory}/inbound`,
 		report: (line) => console.log(`inbound: ${line}`)
 	}),
-	postToConversation: async (addressing: Addressing, message: string) => {
-		const posted = await dispatch.askChatd('message.post', { channelID: addressing.conversationID, message });
-		if (posted.status < 300) tellBrowsers(addressing.conversationID, postedMessageIDOf(posted.body));
-	},
+	postToConversation: conversationPoster({
+		askChatd: (capability, body) => dispatch.askChatd(capability, body),
+		tellBrowsers,
+		report: (line) => console.log(`reply: ${line}`)
+	}),
 	report: (line) => console.log(`acp: ${line}`)
 });
 
