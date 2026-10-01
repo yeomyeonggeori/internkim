@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { createClient } from '@supabase/supabase-js';
 import {
 	addMember,
 	AddressBelongsToAnotherCompany,
@@ -10,7 +11,9 @@ import {
 	hostAddressOf,
 	inviteMember,
 	provisionCompany,
+	removeMember,
 	resetMemberPassword,
+	settleSignInOfMember,
 } from '../../src/lib/server/control-plane';
 import {
 	connectMessengerAccount,
@@ -273,6 +276,58 @@ describe('an administrator is one who administers now', () => {
 		await inviteMember(client, memberID);
 
 		expect(await adminCallerOf(await administratorClient(memberID))).toBeNull();
+	});
+});
+
+describe('somebody who leaves stops signing in', () => {
+	function aBrowser() {
+		return createClient(projectURL, publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
+	}
+
+	async function signedInAs(email: string, password: string) {
+		const browser = aBrowser();
+		const signedIn = await browser.auth.signInWithPassword({ email, password });
+		if (signedIn.error) throw new Error(signedIn.error.message);
+		return { browser, refreshToken: signedIn.data.session.refresh_token };
+	}
+
+	async function canSignIn(email: string, password: string): Promise<boolean> {
+		const { error } = await aBrowser().auth.signInWithPassword({ email, password });
+		return error === null;
+	}
+
+	async function canRefresh(refreshToken: string): Promise<boolean> {
+		const { error } = await aBrowser().auth.refreshSession({ refresh_token: refreshToken });
+		return error === null;
+	}
+
+	test('removing a member refuses their password and their refresh token, and inviting them again lifts it', async () => {
+		const email = `${slug}-removed@example.test`;
+		const memberID = await addMember(client, companyID, email);
+		const { temporaryPassword } = await inviteMember(client, memberID);
+		const { refreshToken } = await signedInAs(email, temporaryPassword);
+
+		await removeMember(client, companyID, memberID);
+
+		expect(await canSignIn(email, temporaryPassword)).toBe(false);
+		expect(await canRefresh(refreshToken)).toBe(false);
+
+		const reinvited = await inviteMember(client, memberID);
+		expect(await canSignIn(email, reinvited.temporaryPassword)).toBe(true);
+	});
+
+	test('a departure written to the record closes the account, and a return opens it', async () => {
+		const email = `${slug}-departed@example.test`;
+		const memberID = await addMember(client, companyID, email);
+		const { temporaryPassword } = await inviteMember(client, memberID);
+
+		await client.from('member').update({ status: 'departed' }).eq('id', memberID);
+		await settleSignInOfMember(client, memberID);
+		expect(await canSignIn(email, temporaryPassword)).toBe(false);
+
+		await client.from('member').update({ status: 'active' }).eq('id', memberID);
+		await settleSignInOfMember(client, memberID);
+		expect(await canSignIn(email, temporaryPassword)).toBe(true);
 	});
 });
 

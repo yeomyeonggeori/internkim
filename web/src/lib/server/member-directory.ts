@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { memberRoles, memberRoleOf, type MemberRole, type MemberStatus } from '$lib/member-vocabulary';
+import { settleSignInOfMember } from './control-plane';
 
 export type CompanyDirectory = { client: SupabaseClient; companyID: string };
 
@@ -99,6 +100,7 @@ export async function withdrawMember(directory: CompanyDirectory, email: string)
 	if (!held.data) return null;
 	const withdrawn = await directory.client.from('member').update({ status: 'withdrawn' }).eq('id', held.data.id);
 	if (withdrawn.error) throw new Error(withdrawn.error.message);
+	await settleSignInOfMember(directory.client, held.data.id);
 	return { memberID: held.data.id, email, status: 'withdrawn' };
 }
 

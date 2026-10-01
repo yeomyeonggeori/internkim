@@ -8,6 +8,7 @@ import {
 	isPersonalAccessToken,
 	planeCredentialsOf,
 	sessionForPersonalAccessToken,
+	TokenHasExpired,
 	TokenOwnerHasLeft,
 	type PersonalAccessTokenSession,
 	type SigningCredentials,
@@ -84,6 +85,7 @@ async function sessionOfTokenOrRefusal(
 		return await sessionForPersonalAccessToken(credentials, presented);
 	} catch (refusal) {
 		if (refusal instanceof TokenOwnerHasLeft) error(403, refusal.message);
+		if (refusal instanceof TokenHasExpired) error(401, refusal.message);
 		throw refusal;
 	}
 }

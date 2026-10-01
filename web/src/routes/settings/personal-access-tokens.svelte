@@ -41,6 +41,16 @@
 		delete: text.personalAccessTokenDeletes
 	});
 
+	function withDate(template: string, moment: string): string {
+		return template.replace('{date}', new Date(moment).toLocaleDateString());
+	}
+
+	function lifetimeOf(key: PersonalAccessToken): string {
+		if (Date.parse(key.expiresAt) <= Date.now()) return text.personalAccessTokenExpired;
+		const usage = key.lastUsedAt ? withDate(text.lastUsedOn, key.lastUsedAt) : text.neverUsed;
+		return `${withDate(text.personalAccessTokenExpiresOn, key.expiresAt)} · ${usage}`;
+	}
+
 	async function load() {
 		try {
 			keys = await personalAccessTokens();
@@ -150,7 +160,10 @@
 				<ul class="grid gap-2">
 					{#each keys as key (key.name)}
 						<li class="flex items-center justify-between gap-4 rounded-md border px-4 py-3">
-							<span class="min-w-0 truncate text-sm font-medium">{key.name}</span>
+							<div class="grid min-w-0 gap-0.5">
+								<span class="truncate text-sm font-medium">{key.name}</span>
+								<span class="text-xs text-muted-foreground">{lifetimeOf(key)}</span>
+							</div>
 							<div class="flex items-center gap-2">
 								<span class="text-sm text-muted-foreground">{permissionLabels[key.permission]}</span>
 								<Button

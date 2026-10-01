@@ -63,6 +63,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
 | `member_hr_file` | `target_member uuid` | `TABLE(member_id uuid, leave_days numeric, note text)` | definer | authenticated, service_role |
+| `member_is_below_me` | `target_member uuid` | `boolean` | definer | authenticated, service_role |
 | `member_leave_days` | `target_member uuid` | `numeric` | definer | anon, authenticated, service_role |
 | `member_leave_days_set` | `target_member uuid, granted_days numeric` | `numeric` | definer | anon, authenticated, service_role |
 | `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | definer | anon, authenticated, service_role |
@@ -103,7 +104,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `vapid_public_key` | — | `text` | definer | authenticated, service_role |
 | `vault_secret_keep` | `secret_name text, secret_value text` | `void` | definer | service_role |
 | `work_location_names` | `company_id uuid` | `text[]` | invoker | anon, authenticated, service_role |
-| `work_mode_of_member` | `target_member uuid` | `text` | definer | anon, authenticated, service_role |
+| `work_mode_of_member` | `target_member uuid` | `text` | definer | authenticated, service_role |
 | `write_company_secret` | `secret_id uuid, secret_name text, secret_value text` | `uuid` | definer | service_role |
 | `write_member_secret` | `target_member uuid, target_kind text, secret_value text` | `uuid` | definer | service_role |
 
@@ -118,10 +119,12 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `announce_task_write` |
 | `bind_member_to_new_user` |
 | `derive_task_status_from_dates` |
+| `document_is_lowered_only_from_its_own_clearance` |
 | `enforce_crm_reference_consistency` |
 | `follow_children_completion` |
 | `guard_task_authority_shape` |
 | `guard_task_status_against_dates` |
+| `leave_carries_the_terms_of_its_kind` |
 | `leave_granted_to_a_new_member` |
 | `leave_grants_restart_when_the_opening_rule_changes` |
 | `leave_stays_within_its_units` |
