@@ -62,7 +62,7 @@
       "name": "asset_dataroom_writer_may_write",
       "arguments": "object_name text",
       "returns": "boolean",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -73,7 +73,7 @@
       "name": "asset_reader_may_read",
       "arguments": "object_name text",
       "returns": "boolean",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -392,6 +392,123 @@
       "security": "definer",
       "callableBy": [
         "authenticated"
+      ]
+    },
+    {
+      "name": "data_room_administrator",
+      "arguments": "target_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_document_readable",
+      "arguments": "document company_document",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_document_writable",
+      "arguments": "document company_document",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_may_read",
+      "arguments": "target_company uuid, target_category text, download boolean DEFAULT false",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_member",
+      "arguments": "target_company uuid",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_role_set",
+      "arguments": "target_company uuid, role_code text, role_name text, readable_categories text[], role_name_ko text DEFAULT ''::text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_share_accept",
+      "arguments": "target_share uuid",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_share_applies",
+      "arguments": "share data_room_share",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_share_create",
+      "arguments": "target_company uuid, role_code text, audience text, recipient_email text DEFAULT NULL::text, recipient_member uuid DEFAULT NULL::uuid, recipient_circle uuid DEFAULT NULL::uuid, expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone, can_download boolean DEFAULT false",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_share_revoke",
+      "arguments": "target_share uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_visible_category",
+      "arguments": "target_company uuid, target_category text",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
       ]
     },
     {
@@ -873,6 +990,16 @@
       ]
     },
     {
+      "name": "status_my_leave_request_takes",
+      "arguments": "",
+      "returns": "leave_status",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "task_children_link",
       "arguments": "parent_id uuid, child_ids uuid[]",
       "returns": "void",
@@ -1029,6 +1156,8 @@
     "administrator_starts_at_full_clearance",
     "announce_task_write",
     "bind_member_to_new_user",
+    "data_room_guard_category",
+    "data_room_guard_document",
     "derive_task_status_from_dates",
     "document_is_lowered_only_from_its_own_clearance",
     "enforce_crm_reference_consistency",
