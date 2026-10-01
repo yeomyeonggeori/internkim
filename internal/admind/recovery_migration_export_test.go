@@ -90,3 +90,28 @@ func TestTheLiveExportLooksForTheGuestWhereTheSupervisorPutsIt(t *testing.T) {
 		t.Fatalf("the Cloud Hypervisor API socket lives under the supervisor's runtime directory %s", blueclaw.BlueclawRuntimeInstanceDirectoryPath)
 	}
 }
+
+func TestAResumedExportNeverPausesTheGuest(t *testing.T) {
+	script := migrationExportScript("20261001T143757Z")
+	if !strings.Contains(script, "mode=resume") || !strings.Contains(script, "stamp=20261001T143757Z") {
+		t.Fatal("a stamp target resumes that export")
+	}
+	resumeBranch := script[strings.Index(script, `if [ "$mode" = resume ]; then`):]
+	resumeBranch = resumeBranch[:strings.Index(resumeBranch, "\nelse\n")]
+	if strings.Contains(resumeBranch, "vm.pause") || strings.Contains(resumeBranch, "systemctl stop") {
+		t.Fatal("resuming must not pause or stop the agent")
+	}
+}
+
+func TestTheExportDumpsOnlyTheHostDatabasesTheMoveCarries(t *testing.T) {
+	script := migrationExportScript("")
+	if !strings.Contains(script, "for database in buzz mattermost; do") {
+		t.Fatal("the host databases are named, not listed from the cluster")
+	}
+	if strings.Contains(script, "from pg_database") {
+		t.Fatal("listing every database brings back the damaged leftover blueclaw")
+	}
+	if !strings.Contains(script, `pg_restore --file=/dev/null`) {
+		t.Fatal("each host dump is read back before the export trusts it")
+	}
+}

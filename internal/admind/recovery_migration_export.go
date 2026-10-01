@@ -75,23 +75,26 @@ func migrationExportCommand(target string) string {
 }
 
 func migrationExportScript(target string) string {
-	mode := "live"
-	if target == "cutover" {
+	mode, stamp := "live", "$(date -u +%Y%m%dT%H%M%SZ)"
+	switch {
+	case target == "cutover":
 		mode = "cutover"
+	case migrationExportStampPattern.MatchString(target):
+		mode, stamp = "resume", target
 	}
 	return strings.TrimSpace(`
 set -u
 mode=` + mode + `
 root=` + migrationExportRoot + `
 readerGroup=` + migrationExportReaderGroup + `
-stamp=$(date -u +%Y%m%dT%H%M%SZ)
+stamp=` + stamp + `
 export_directory="$root/$stamp"
 work="$root/.work-$stamp"
 status_file="$root/$stamp.status"
 image=/var/lib/blueclaw/workspace.ext4
 guest_root_filesystem=/opt/internkim/blueclaw-runtime/rootfs.ext4
 install -d -o root -g "$readerGroup" -m 0750 "$root"
-exec >"$root/$stamp.log" 2>&1
+exec >>"$root/$stamp.log" 2>&1
 chgrp "$readerGroup" "$root/$stamp.log"; chmod 0640 "$root/$stamp.log"
 echo running >"$status_file"; chgrp "$readerGroup" "$status_file"; chmod 0640 "$status_file"
 step() { echo "== $(date -u +%FT%TZ) $*"; }
@@ -122,7 +125,14 @@ fail() {
 trap finish EXIT
 
 step "export $stamp in $mode mode"
-install -d -o root -g root -m 0700 "$work" "$work/workspace" "$work/rootfs"
+install -d -o root -g root -m 0700 "$work"
+if [ "$mode" = resume ]; then
+  [ -d "$export_directory" ] || fail "there is no export $stamp to resume"
+  zstd -q -t "$export_directory/workspace.ext4.tar.zst" && zstd -q -t "$export_directory/workspace.tar.zst" && [ -s "$export_directory/blueclaw.dump" ] ||
+    fail "export $stamp never finished its copy of the guest; start a new export"
+  step "the guest's image, database dump and workspace tree are already here; carrying on from the host"
+else
+install -d -o root -g root -m 0700 "$work/workspace" "$work/rootfs"
 install -d -o root -g root -m 0700 "$export_directory"
 allocated_kilobytes=$(du -sk "$image" | cut -f1)
 available_kilobytes=$(df -Pk "$root" | awk 'NR==2 {print $4}')
@@ -195,11 +205,17 @@ tar --numeric-owner --xattrs --acls --sparse -C "$work/workspace" \
 step "keep the whole image, trimmed to what it holds"
 release_mounts
 tar --sparse -C "$work" -cf - workspace.ext4 | zstd -q -T0 -3 >"$export_directory/workspace.ext4.tar.zst" || fail "packing the image failed"
+fi
 
-step "dump the host databases"
+step "dump the host databases the move carries"
 su - postgres -c "pg_dumpall --globals-only --no-role-passwords" >"$export_directory/host-postgres-globals.sql" || fail "the host roles would not dump"
-for database in $(su - postgres -c "psql -XAtc \"select datname from pg_database where not datistemplate and datname <> 'postgres'\""); do
+rm -f "$export_directory"/host-*.dump
+echo "left out: the host's own blueclaw database, a leftover from before the guest whose catalog no longer dumps; the live ledger is the guest's blueclaw.dump"
+for database in ` + strings.Join(migrationExportHostDatabases, " ") + `; do
   su - postgres -c "pg_dump --format=custom --no-owner --no-acl $database" >"$export_directory/host-$database.dump" || fail "the host database $database would not dump"
+  pg_restore --list "$export_directory/host-$database.dump" >/dev/null && pg_restore --file=/dev/null "$export_directory/host-$database.dump" ||
+    fail "the dump of $database does not read back"
+  echo "host-$database.dump reads back whole"
 done
 
 step "mirror the media store"
@@ -235,6 +251,10 @@ step "export ready at $export_directory"
 const migrationExportShareSnippet = `chown -R root:"$readerGroup" "$export_directory"
 chmod -R u=rwX,g=rX,o= "$export_directory"
 [ ! -e "$export_directory/workspace.ext4.tar.zst" ] || { chgrp root "$export_directory/workspace.ext4.tar.zst"; chmod 0600 "$export_directory/workspace.ext4.tar.zst"; }`
+
+// buzz is the messenger the move carries. mattermost is the messenger it
+// replaced, kept only as a backup.
+var migrationExportHostDatabases = []string{"buzz", "mattermost"}
 
 var migrationExportStampPattern = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}Z$`)
 
