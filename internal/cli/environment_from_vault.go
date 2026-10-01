@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -143,10 +144,17 @@ func vaultProfileGap(monkeysPath, repositoryRootPath, profile string) ([]string,
 	command := exec.Command(monkeysPath, "doctor", "--short")
 	command.Dir = repositoryRootPath
 	output, errorValue := command.Output()
-	if errorValue != nil {
+	if errorValue != nil && !isDoctorReportingAGap(errorValue, output) {
 		return nil, fmt.Errorf("monkeys doctor could not say what @%s lacks: %w", profile, errorValue)
 	}
 	return vaultMissingNames(string(output), profile), nil
+}
+
+// `monkeys doctor` exits non-zero whenever any profile lacks a secret, and the
+// lines it printed are still the answer for the one profile this run asks about.
+func isDoctorReportingAGap(errorValue error, output []byte) bool {
+	var exitError *exec.ExitError
+	return errors.As(errorValue, &exitError) && strings.Contains(string(output), "missing "+vaultManifestProfileMark)
 }
 
 // `monkeys doctor --short` prints one `missing @profile: A, B` line per profile

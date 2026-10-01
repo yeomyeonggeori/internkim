@@ -397,29 +397,25 @@ monkeys run @production bun run web/scripts/deploy-worker.ts workers/release-reg
 ```
 
 `deploy-worker.ts` renders the route as `<subdomain>.<zone>` from the zone
-`CLOUDFLARE_DOMAIN` or `INTERNKIM_DOMAIN` names, falling back to
+`CLOUDFLARE_DOMAIN` names, falling back to
 `fleetdomain.defaultZone`. No `wrangler.jsonc` writes the domain down, and
 `web/tests/unit/scripts/worker-route.test.ts` fails when one starts to.
 A route already pointing at this Worker is left alone, id and all; wrangler
 adds what is missing and deletes nothing.
 
 Publishing from a development machine with a Wrangler OAuth session needs the
-bucket and base URL. `INTERNKIM_RELEASE_R2_ACCOUNT_ID` falls back to
-`CLOUDFLARE_ACCOUNT_ID`. Everything the CLI reads comes from the vault, which
-it hands itself through `monkeys run`, so nothing here needs exporting by hand.
-None of these three is a secret, so they are plain lines in `.monkeys`:
+bucket and base URL, and `CLOUDFLARE_ACCOUNT_ID` names the account.
+Everything the CLI reads comes from the vault, which it hands itself through
+`monkeys run`, so nothing here needs exporting by hand. The bucket and the base
+URL are not secrets, so they are plain lines in `.monkeys`:
 
 ```
 INTERNKIM_RELEASE_R2_BUCKET=internkim-releases
-INTERNKIM_RELEASE_R2_PUBLISHER=wrangler
 INTERNKIM_RELEASE_PUBLIC_BASE_URL=https://updates.<zone>
 ```
 
-CI, with no OAuth session, publishes with R2 S3 credentials instead:
-`INTERNKIM_RELEASE_R2_ACCOUNT_ID`, `INTERNKIM_RELEASE_R2_ACCESS_KEY_ID`,
-`INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY` and
-`INTERNKIM_RELEASE_DOWNLOAD_TOKEN`. `INTERNKIM_RELEASE_SIGNING_KEY` is optional
-either way.
+`INTERNKIM_RELEASE_DOWNLOAD_TOKEN` is required, and
+`INTERNKIM_RELEASE_SIGNING_KEY` is optional.
 
 ```bash
 cd web && bun run build:board && cd ..

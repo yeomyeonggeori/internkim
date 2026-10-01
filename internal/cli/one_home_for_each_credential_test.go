@@ -156,13 +156,12 @@ func TestBuzzKeySeedComesFromTheEnvironmentAlone(t *testing.T) {
 // home.
 func TestTheCLIEnvironmentComesFromTheVaultAlone(t *testing.T) {
 	workingDirectory := t.TempDir()
-	decoy := "INTERNKIM_REGISTER_SECRET=secret-from-the-file\nINTERNKIM_DOMAIN=domain-from-the-file\n"
+	decoy := "INTERNKIM_REGISTER_SECRET=secret-from-the-file\nCLOUDFLARE_DOMAIN=domain-from-the-file\n"
 	if errorValue := os.WriteFile(filepath.Join(workingDirectory, ".env"), []byte(decoy), 0o600); errorValue != nil {
 		t.Fatalf("write the decoy environment file: %v", errorValue)
 	}
 	t.Chdir(workingDirectory)
 	t.Setenv("INTERNKIM_REGISTER_SECRET", "")
-	t.Setenv("INTERNKIM_DOMAIN", "")
 	t.Setenv("CLOUDFLARE_DOMAIN", "")
 
 	configuration := loadConfig()

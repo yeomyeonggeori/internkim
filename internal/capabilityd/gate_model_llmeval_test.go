@@ -5,6 +5,7 @@ package capabilityd
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -17,13 +18,7 @@ func TestLiveCatalogModelToolContracts(t *testing.T) {
 	if modelName == "" {
 		t.Fatal("INTERNKIM_GATE_MODEL is required for live catalog model contracts")
 	}
-	keyPath := strings.TrimSpace(os.Getenv("INTERNKIM_GATE_OPENROUTER_KEY_PATH"))
-	if keyPath == "" {
-		t.Fatal("INTERNKIM_GATE_OPENROUTER_KEY_PATH is required for live catalog model contracts")
-	}
-	if _, errorValue := os.Stat(keyPath); errorValue != nil {
-		t.Fatalf("read OpenRouter key path: %v", errorValue)
-	}
+	keyPath := openRouterKeyFileFromEnvironment(t)
 
 	for name, gateCase := range gateCases() {
 		if _, reachesOpenRouter := gateCase.reaches[openRouterOverHTTP]; !reachesOpenRouter {
@@ -48,4 +43,17 @@ func TestLiveCatalogModelToolContracts(t *testing.T) {
 			expectAnswerKeepsItsContract(t, name, answered)
 		})
 	}
+}
+
+func openRouterKeyFileFromEnvironment(t *testing.T) string {
+	t.Helper()
+	key := strings.TrimSpace(os.Getenv("OPENROUTER_API_KEY"))
+	if key == "" {
+		t.Fatal("OPENROUTER_API_KEY is required for live catalog model contracts: run through monkeys run @test")
+	}
+	keyPath := filepath.Join(t.TempDir(), "openrouter-api-key")
+	if errorValue := os.WriteFile(keyPath, []byte(key), 0o600); errorValue != nil {
+		t.Fatalf("write OpenRouter key file: %v", errorValue)
+	}
+	return keyPath
 }

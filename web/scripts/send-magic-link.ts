@@ -12,8 +12,7 @@ const redirectTo = argument('redirect');
 if (!email) throw new Error('pass --email <address>');
 
 const projectURL = process.env.SUPABASE_URL ?? '';
-const publishableKey =
-	process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '';
+const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? '';
 if (!projectURL || !publishableKey) throw new Error('set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY');
 
 const client = createClient(projectURL, publishableKey, {

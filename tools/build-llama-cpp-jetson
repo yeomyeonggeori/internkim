@@ -5,9 +5,9 @@ scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
 
 llamaVersion="${LLAMA_CPP_VERSION:-b9660}"
-buildHost="${LLAMA_CPP_BUILD_HOST:-}"
-buildUser="${LLAMA_CPP_BUILD_USER:-internkim}"
-buildPassword="${LLAMA_CPP_BUILD_PASSWORD:-}"
+buildHost="${INTERNKIM_SSH_HOSTNAME:-}"
+buildUser="internkim"
+buildPassword="${INTERNKIM_CONSOLE_PASSWORD:-}"
 remoteWorkRoot="${LLAMA_CPP_REMOTE_WORK_ROOT:-/var/cache/internkim/llama-cpp-build}"
 cudaArchitecture="${LLAMA_CPP_CUDA_ARCH:-87}"
 maxParallelJobs="${LLAMA_CPP_BUILD_JOBS:-4}"
@@ -23,9 +23,8 @@ resulting llama-server binary plus required shared libraries in
 
 Environment overrides:
   LLAMA_CPP_VERSION         Pinned release tag (default: b8995)
-  LLAMA_CPP_BUILD_HOST      SSH host (default: cached board IP)
-  LLAMA_CPP_BUILD_USER      SSH user (default: internkim)
-  LLAMA_CPP_BUILD_PASSWORD  SSH password (omit for key auth or passwordless sudo)
+  INTERNKIM_SSH_HOSTNAME     SSH host (default: the device the vault names)
+  INTERNKIM_CONSOLE_PASSWORD SSH password (omit for key auth or passwordless sudo)
   LLAMA_CPP_REMOTE_WORK_ROOT Remote build directory
   LLAMA_CPP_CUDA_ARCH       CMAKE_CUDA_ARCHITECTURES (default: 87 for Orin)
 USAGE
@@ -53,10 +52,7 @@ if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ] && [ -d "$cachedLibr
 fi
 
 if [ -z "$buildHost" ]; then
-  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/board_ip" 2>/dev/null || true)"
-fi
-if [ -z "$buildHost" ]; then
-  echo "No build host. Pass --host <ip> or set LLAMA_CPP_BUILD_HOST." >&2
+  echo "No build host. Pass --host <ip> or run under monkeys run @production, which names INTERNKIM_SSH_HOSTNAME." >&2
   exit 1
 fi
 

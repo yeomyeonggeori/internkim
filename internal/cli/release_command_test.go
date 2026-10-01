@@ -32,8 +32,7 @@ func TestReleasePublisherFromEnvironmentUsesWrangler(t *testing.T) {
 	if errorValue := os.WriteFile(localWranglerPath, []byte("#!/bin/sh\n"), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	t.Setenv("INTERNKIM_RELEASE_R2_PUBLISHER", "wrangler")
-	t.Setenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID", "account-1")
+	t.Setenv("CLOUDFLARE_ACCOUNT_ID", "account-1")
 	t.Setenv("INTERNKIM_RELEASE_R2_BUCKET", "internkim-releases")
 	t.Setenv("INTERNKIM_RELEASE_PUBLIC_BASE_URL", "https://updates.example.test")
 

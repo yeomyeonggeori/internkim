@@ -1,9 +1,9 @@
-function credential(name: string, alternative?: string): string {
-	return (process.env[name] || (alternative ? process.env[alternative] : '') || '').trim();
+function credential(name: string): string {
+	return (process.env[name] ?? '').trim();
 }
 
 export const projectURL = credential('SUPABASE_URL');
-export const serviceRoleKey = credential('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY');
+export const serviceRoleKey = credential('SUPABASE_SECRET_KEY');
 export const publishableKey = credential('SUPABASE_PUBLISHABLE_KEY');
 export const signingKey = credential('SUPABASE_JWT_SIGNING_KEY');
 

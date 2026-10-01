@@ -13,9 +13,9 @@ const exampleManifest = `+internkim
 OPENROUTER_API_KEY
 # the archive key signs what every company host installs as root
 @production,scripts
-INTERNKIM_APT_SIGNING_KEY
+INTERNKIM_PACKAGE_SIGNING_KEY
 INTERNKIM_REGISTER_SECRET
-INTERNKIM_DOMAIN
+CLOUDFLARE_DOMAIN
 INTERNKIM_BOARD_PORT=8080
 @scripts
 CLOUDFLARE_API_TOKEN
@@ -68,7 +68,7 @@ func TestALeadingProfileArgumentIsTakenOffTheCommand(t *testing.T) {
 
 func TestManifestNamesAreTheBareKeysOfTheProfilesThatListTheName(t *testing.T) {
 	names := vaultManifestNames(exampleManifest, "production")
-	wanted := []string{"INTERNKIM_APT_SIGNING_KEY", "INTERNKIM_REGISTER_SECRET", "INTERNKIM_DOMAIN"}
+	wanted := []string{"INTERNKIM_PACKAGE_SIGNING_KEY", "INTERNKIM_REGISTER_SECRET", "CLOUDFLARE_DOMAIN"}
 	if !slices.Equal(names, wanted) {
 		t.Fatalf("the production profile read %v, wanted %v", names, wanted)
 	}
@@ -90,9 +90,9 @@ func TestAValueInTheManifestIsNotAskedOfTheVault(t *testing.T) {
 }
 
 func TestTheGapIsTheProfilesOwnMissingLine(t *testing.T) {
-	doctorOutput := "missing @scripts: CLOUDFLARE_API_TOKEN\nmissing @production: INTERNKIM_REGISTER_SECRET, INTERNKIM_DOMAIN\n"
+	doctorOutput := "missing @scripts: CLOUDFLARE_API_TOKEN\nmissing @production: INTERNKIM_REGISTER_SECRET, CLOUDFLARE_DOMAIN\n"
 	missing := vaultMissingNames(doctorOutput, "production")
-	wanted := []string{"INTERNKIM_REGISTER_SECRET", "INTERNKIM_DOMAIN"}
+	wanted := []string{"INTERNKIM_REGISTER_SECRET", "CLOUDFLARE_DOMAIN"}
 	if !slices.Equal(missing, wanted) {
 		t.Fatalf("the production gap read %v, wanted %v", missing, wanted)
 	}
@@ -104,6 +104,22 @@ func TestAProfileWithNoGapReportsNothing(t *testing.T) {
 	}
 	if missing := vaultMissingNames("", "production"); len(missing) != 0 {
 		t.Fatalf("an empty doctor report read %v", missing)
+	}
+}
+
+func TestAGapInAnotherProfileDoesNotStopThisOne(t *testing.T) {
+	doctorPath := filepath.Join(t.TempDir(), "monkeys")
+	doctor := "#!/bin/sh\necho 'missing @production: INTERNKIM_PACKAGE_SIGNING_KEY'\nexit 1\n"
+	if errorValue := os.WriteFile(doctorPath, []byte(doctor), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	missing, errorValue := vaultProfileGap(doctorPath, t.TempDir(), "test")
+	if errorValue != nil || len(missing) != 0 {
+		t.Fatalf("a gap in @production stopped @test: missing %v, error %v", missing, errorValue)
+	}
+	missing, errorValue = vaultProfileGap(doctorPath, t.TempDir(), "production")
+	if errorValue != nil || !slices.Equal(missing, []string{"INTERNKIM_PACKAGE_SIGNING_KEY"}) {
+		t.Fatalf("the @production gap read %v, error %v", missing, errorValue)
 	}
 }
 

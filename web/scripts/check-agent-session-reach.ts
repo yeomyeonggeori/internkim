@@ -10,7 +10,7 @@ import {
 // table answers for one member and refuses the rest without anyone noticing.
 
 const projectURL = process.env.SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? '';
 if (!projectURL || !serviceRoleKey) throw new Error('needs SUPABASE_URL and SUPABASE_SECRET_KEY');
 
 function argument(name: string): string | undefined {

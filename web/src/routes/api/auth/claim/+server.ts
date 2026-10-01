@@ -8,7 +8,7 @@ export const POST: RequestHandler = async ({ request, platform, url }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const projectURL = environment.SUPABASE_URL ?? '';
 	const publishableKey = environment.SUPABASE_PUBLISHABLE_KEY ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? '';
 	if (!projectURL || !publishableKey || !serviceRoleKey) error(500, 'the control plane is not configured');
 
 	const body = (await request.json().catch(() => ({}))) as { email?: unknown };

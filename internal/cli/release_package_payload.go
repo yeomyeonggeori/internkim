@@ -302,7 +302,11 @@ func buildPackagedPrograms(repositoryRootPath string, target packageTarget, vers
 // version: it is what the package manager moved, and it is what says whether the process answering
 // after an upgrade is the process the upgrade installed.
 func crossCompilePackagedProgram(repositoryRootPath string, program packagedGoProgram, target packageTarget, version string, outputPath string) error {
-	stamped := "-s -w " + admindStampFlags(version, releaseBinaryRevision(repositoryRootPath))
+	stampFlags, errorValue := admindStampFlags(version, releaseBinaryRevision(repositoryRootPath))
+	if errorValue != nil {
+		return errorValue
+	}
+	stamped := "-s -w " + stampFlags
 	command := exec.Command("go", "build", "-trimpath", "-ldflags", stamped, "-o", outputPath, program.Package)
 	command.Dir = filepath.Join(repositoryRootPath, program.ModuleRoot)
 	command.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+target.GoArchitecture, "CGO_ENABLED=0")

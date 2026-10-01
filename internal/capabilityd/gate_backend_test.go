@@ -144,10 +144,9 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 }
 
 func TestServiceReachingKeepsAmbientModelSettingsOnTheStandIn(t *testing.T) {
-	ambientCredentialPath := filepath.Join(t.TempDir(), "ambient-realmodel-key-sentinel")
 	t.Setenv("OPENROUTER_MODEL", "realmodel/test-model")
 	t.Setenv("INTERNKIM_GATE_MODEL", "realmodel/legacy-test-model")
-	t.Setenv("INTERNKIM_GATE_OPENROUTER_KEY_PATH", ambientCredentialPath)
+	t.Setenv("OPENROUTER_API_KEY", "ambient-realmodel-key-sentinel")
 
 	service := serviceReaching(t, map[gateBackend]*standingIn{
 		openRouterOverHTTP: answering(`{}`),
@@ -162,9 +161,6 @@ func TestServiceReachingKeepsAmbientModelSettingsOnTheStandIn(t *testing.T) {
 	}
 	if string(key) != "openrouter-key\n" {
 		t.Fatal("the catalog gate did not use its fake credential")
-	}
-	if service.Configuration.OpenRouterKeyPath == ambientCredentialPath {
-		t.Fatal("the catalog gate used the ambient credential path")
 	}
 }
 

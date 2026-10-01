@@ -6,7 +6,7 @@
 import { defaultZone } from '../src/lib/server/fleet-domain';
 
 export function zoneOfSettings(settings: Record<string, string | undefined>): string {
-	const configured = settings.CLOUDFLARE_DOMAIN ?? settings.INTERNKIM_DOMAIN ?? '';
+	const configured = settings.CLOUDFLARE_DOMAIN ?? '';
 	return configured.trim().toLowerCase() || defaultZone;
 }
 

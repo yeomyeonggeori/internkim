@@ -14,7 +14,7 @@ if (!companyID) throw new Error('pass --company <uuid>');
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
-	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? '',
 });
 
 const { data: members, error } = await client
