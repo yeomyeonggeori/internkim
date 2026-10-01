@@ -67,6 +67,7 @@ class Family:
     package_manager: str
     unit_directories: tuple
     verify_ignored_lines: tuple = ("backup file",)
+    postgresql_major_from_its_own_repository: str = ""
 
     @property
     def asset_name(self):
@@ -76,6 +77,10 @@ class Family:
         path = Path(directory) / self.asset_name
         return path if path.is_file() else None
 
+
+# Ubuntu 22.04's archive carries no pgvector, so install.sh takes PostgreSQL 15
+# and its pgvector from PostgreSQL's own apt repository there.
+JAMMY_POSTGRESQL_MAJOR = "15"
 
 DEBIAN_TOOLS = "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq iproute2 procps"
 
@@ -95,6 +100,7 @@ def debian_family(name):
         remove_command=f"export DEBIAN_FRONTEND=noninteractive; apt-get remove -y {PACKAGE_NAME}",
         package_manager="apt-get",
         unit_directories=("/lib/systemd/system", "/usr/lib/systemd/system"),
+        postgresql_major_from_its_own_repository=JAMMY_POSTGRESQL_MAJOR if name == "ubuntu-22.04" else "",
     )
 
 
