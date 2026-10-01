@@ -79,31 +79,31 @@ func (service *Service) handleAdminSessionRoute(responseWriter http.ResponseWrit
 }
 
 func (service *Service) handleAdminDirectoryRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	if request.Method == http.MethodPost && path == "/directory/person" {
-		service.handleDirectoryPerson(responseWriter, request)
-		return true
+	handler := service.adminDirectoryHandler(request.Method, path)
+	if handler == nil {
+		return false
 	}
-	if request.Method == http.MethodGet && path == "/directory/people" {
-		service.handleDirectoryPeople(responseWriter, request)
-		return true
+	localCallersOnly(handler)(responseWriter, request)
+	return true
+}
+
+func (service *Service) adminDirectoryHandler(method string, path string) http.HandlerFunc {
+	switch {
+	case method == http.MethodPost && path == "/directory/person":
+		return service.handleDirectoryPerson
+	case method == http.MethodGet && path == "/directory/people":
+		return service.handleDirectoryPeople
+	case method == http.MethodPost && path == "/buzz/signing-secret":
+		return service.handleBuzzSigningSecret
+	case method == http.MethodPost && path == "/directory/buzz-key":
+		return service.handleDirectoryBuzzKey
+	case method == http.MethodPost && path == "/directory/direct-message":
+		return service.handleDirectoryDirectMessage
+	case method == http.MethodPost && path == "/directory/changed":
+		return service.handleDirectoryChanged
+	default:
+		return nil
 	}
-	if request.Method == http.MethodPost && path == "/buzz/signing-secret" {
-		service.handleBuzzSigningSecret(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodPost && path == "/directory/buzz-key" {
-		service.handleDirectoryBuzzKey(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodPost && path == "/directory/direct-message" {
-		service.handleDirectoryDirectMessage(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodPost && path == "/directory/changed" {
-		service.handleDirectoryChanged(responseWriter, request)
-		return true
-	}
-	return false
 }
 
 func (service *Service) handleAdminRecoveryRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {

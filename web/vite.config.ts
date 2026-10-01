@@ -15,8 +15,7 @@ function devUserRoleFromEnv(value: string | undefined): DevAdminMockUserRole {
 
 function admindProxy(target: string, devUserEmail?: string): ProxyOptions {
 	const options: ProxyOptions = {
-		target,
-		xfwd: true
+		target
 	};
 	if (devUserEmail) {
 		options.configure = (proxy) => {

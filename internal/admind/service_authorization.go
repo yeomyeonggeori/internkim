@@ -27,19 +27,13 @@ func (service *Service) authenticatedCallerEmail(request *http.Request) string {
 	if email := service.cloudflareAccessVerifier().verifiedEmail(request.Context(), request); email != "" {
 		return email
 	}
-	// Deployments that do not use Cloudflare front the app with their own
-	// identity-aware reverse proxy (oauth2-proxy, Authelia, Authentik, Pomerium)
-	// that authenticates the user and injects a trusted email header. The
-	// operator opts in with TrustProxyForwardedEmail, asserting the proxy is the
-	// only ingress. Absent that, a verified Cloudflare Access JWT is required,
-	// except on loopback for local development and tests.
 	if service.Configuration.TrustProxyForwardedEmail {
 		return forwardedProxyEmail(request)
 	}
 	if service.cloudflareAccessVerifier().isConfigured() {
 		return ""
 	}
-	if !trustsForwardedIdentity(service.Configuration.ListenAddress) {
+	if !trustsForwardedIdentity(service.Configuration.ListenAddress) || carriesProxyMarker(request) {
 		return ""
 	}
 	return forwardedProxyEmail(request)
@@ -100,12 +94,44 @@ func (service *Service) seedAdminEmail() string {
 	return readLowerTrimmedFirstExistingFile(paths...)
 }
 
+var proxyMarkerHeaders = []string{
+	"Cf-Connecting-Ip",
+	"Cf-Ray",
+	"Cdn-Loop",
+	"X-Forwarded-For",
+	"Forwarded",
+	"X-Real-Ip",
+}
+
 func isLocalRequest(request *http.Request) bool {
+	return arrivedFromLoopback(request) && !carriesProxyMarker(request)
+}
+
+func arrivedFromLoopback(request *http.Request) bool {
 	host, _, splitError := net.SplitHostPort(request.RemoteAddr)
 	if splitError != nil {
 		host = request.RemoteAddr
 	}
 	return host == "127.0.0.1" || host == "::1" || host == "localhost"
+}
+
+func carriesProxyMarker(request *http.Request) bool {
+	for _, header := range proxyMarkerHeaders {
+		if len(request.Header.Values(header)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func localCallersOnly(handler http.HandlerFunc) http.HandlerFunc {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		if !isLocalRequest(request) {
+			http.Error(responseWriter, "local access required", http.StatusForbidden)
+			return
+		}
+		handler(responseWriter, request)
+	}
 }
 
 func readLowerTrimmedFirstExistingFile(paths ...string) string {
