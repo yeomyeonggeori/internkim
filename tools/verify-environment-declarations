@@ -112,7 +112,7 @@ EVAL_ENV_FILTER = re.compile(r"""grep\s+-E\s+['"]\^\(([A-Z_|]+)\)=""")
 BARE_DEFAULT_OPERATOR = re.compile(r"^:?-$")
 
 # `NAME="$NAME"` forwards an incoming value to a subprocess unchanged (as
-# `prepare-blueclaw-runtime` does for GOMODCACHE); the left side reads as a
+# a script forwarding GOMODCACHE does); the left side reads as a
 # local assignment, but the value it copies is still read from outside.
 SHELL_SELF_COPY = re.compile(r"""\b([A-Z_][A-Z0-9_]*)=(?:"\$\1"|'\$\1'|\$\1)(?=[\s"']|$)""")
 

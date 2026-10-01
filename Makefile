@@ -3,7 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
 
-.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay prepare-buzz-relay-linux smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
+.PHONY: build build-maild build-relay build-company-host generate-protocol verify-generated-protocol check test deps-browser prepare-buzz-relay prepare-buzz-relay-linux
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -35,54 +35,12 @@ check:
 
 test: check
 
-doctor: build
-	./internkim doctor
-
-deps-sim:
-	@echo "install the container CLI from https://github.com/apple/container/releases"
-
 deps-browser:
 	cd web && bun install
 	cd web && bunx playwright install chromium
-
-prepare-blueclaw-runtime-builder: build
-	./internkim lab runtime-builder-prepare
-
-prepare-blueclaw-runtime-base:
-	if [ "$$(uname -s)" = "Linux" ]; then GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder local; else GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder container; fi
-
-prepare-blueclaw-payload: verify-generated-protocol
-	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-payload
 
 prepare-buzz-relay:
 	tools/prepare-buzz-relay
 
 prepare-buzz-relay-linux:
 	tools/prepare-buzz-relay --target linux
-
-smoke-blueclaw-runtime-lab: build
-	./internkim setup --sim --only blueclaw-runtime-base,blueclaw-payload,skills,services,users-sync --force-all --verify
-
-smoke-blueclaw-runtime-lab-fast: build
-	./internkim setup --sim --only binaries,blueclaw-runtime-base,blueclaw-payload,services --verify
-
-build-litert-lm-main:
-	tools/build-litert-lm-main
-
-setup-sim: build
-	./internkim setup --sim
-
-fleet-gate: build
-	./internkim dev fleet run
-
-deploy-after-fleet: build
-	./internkim dev fleet run
-	./internkim deploy
-
-sim-gate: fleet-gate
-
-deploy-after-sim: deploy-after-fleet
-
-verify-browser: build
-	./internkim verify browser --local
-	./internkim verify browser --public

@@ -57,12 +57,9 @@ GROUPS = [
         [
             "tools/verify",
             "tools/tests/test_verification_plan.py",
-            "tools/deploy-main",
-            "tools/tests/test_deploy_main.py",
         ],
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verification_plan.py"],
-            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_deploy_main.py"],
         ],
     ),
     Group(

@@ -563,9 +563,9 @@ class Machine:
 
     def preflight(self):
         if shutil.which(self.container_binary) is None:
-            raise RigFailure("the `container` CLI is not on PATH; this rig uses the same runtime the local fleet does")
+            raise RigFailure("the `container` CLI is not on PATH; this rig uses the same runtime dev plane does")
         if not self.uses_runtime_kernel and not self.kernel_image_path.exists():
-            raise RigFailure(f"{self.kernel_image_path} is missing; run `make prepare-container-kernel`")
+            raise RigFailure(f"{self.kernel_image_path} is missing; run tools/prepare-container-kernel")
         for existing in self.list_containers():
             if existing.get("configuration", {}).get("id") == self.name:
                 raise RigFailure(f"a container named {self.name} already exists; the rig refuses to adopt one it did not create")

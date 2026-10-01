@@ -93,37 +93,6 @@ func TestThePackageCarriesTheFontEveryFontEmbeddingSkillLooksFor(t *testing.T) {
 	}
 }
 
-func TestThePackagePinsTheUVReleaseTheDeviceRootfsInstalls(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	hostVersion := packagePinnedVersion(t, blueclaw.PackageResolverName)
-	prepareScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	devicePin := regexp.MustCompile(`blueclaw_uv_version="\$\{BLUECLAW_UV_VERSION:-([0-9.]+)\}"`).FindStringSubmatch(string(prepareScript))
-	if devicePin == nil {
-		t.Fatal("prepare-blueclaw-runtime no longer pins a uv version the host can match")
-	}
-	if hostVersion != devicePin[1] {
-		t.Fatalf("the package installs uv %s while the device rootfs installs %s; one skill environment, one release", hostVersion, devicePin[1])
-	}
-}
-
-func packagePinnedVersion(t *testing.T, programName string) string {
-	t.Helper()
-	pins, errorValue := blueclaw.HostPayloadDownloads("arm64")
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, pin := range pins {
-		if pin.ProgramName == programName {
-			return pin.Version
-		}
-	}
-	t.Fatalf("the package pins no %s", programName)
-	return ""
-}
-
 func sortedKeys(values map[string]bool) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
