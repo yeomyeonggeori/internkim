@@ -16,8 +16,12 @@ import (
 
 func newMailTestService(t *testing.T) *Service {
 	t.Helper()
+	return newMailTestServiceOn(t, startPlaneHoldingMailAccounts(t))
+}
+
+func newMailTestServiceOn(t *testing.T, plane *httptest.Server) *Service {
+	t.Helper()
 	stateDirectory := t.TempDir()
-	plane := startPlaneHoldingMailAccounts(t)
 	return NewService(Configuration{
 		StateDirectory:             stateDirectory,
 		TaskDatabasePath:           filepath.Join(stateDirectory, "flow.sqlite"),

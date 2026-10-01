@@ -420,7 +420,7 @@ async function serveMail(
 	if (!account) {
 		return { status: 409, body: { error: 'this member has connected no mail account' } };
 	}
-	return dispatch.askMaild(operation, { ...body, account });
+	return dispatch.askMaild(operation, { ...body, account, memberID });
 }
 
 export function tellCallOf(body: Record<string, unknown>): AdmindCall | null {

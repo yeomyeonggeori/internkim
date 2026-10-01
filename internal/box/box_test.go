@@ -24,7 +24,7 @@ type sealingVector struct {
 
 func readSealingVector(t *testing.T) sealingVector {
 	t.Helper()
-	document, errorValue := os.ReadFile(filepath.Join("testdata", "sealed-model-key.json"))
+	document, errorValue := os.ReadFile(filepath.Join("testdata", "legacy-sealed-model-key.json"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -48,14 +48,14 @@ func identityWithEncryptionSeed(t *testing.T, encoded string) Identity {
 	return Identity{signingKey: ed25519.NewKeyFromSeed(make([]byte, seedLength)), encryptionKey: encryptionKey}
 }
 
-func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
+func TestBoxStillOpensAModelKeySealedBeforeHPKE(t *testing.T) {
 	vector := readSealingVector(t)
 	identity := identityWithEncryptionSeed(t, vector.BoxSecretKey)
 	if identity.EncryptionPublicKey() != vector.BoxEncryptionKey {
 		t.Fatalf("encryption key = %s, the browser sealed to %s", identity.EncryptionPublicKey(), vector.BoxEncryptionKey)
 	}
 
-	modelKey, errorValue := identity.OpenModelKey(vector.Sealed)
+	modelKey, errorValue := identity.OpenModelKey(vector.Sealed, sampleCompanyID)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -64,11 +64,11 @@ func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
 	}
 }
 
-func TestAnotherBoxCannotOpenTheModelKey(t *testing.T) {
+func TestAnotherBoxCannotOpenAModelKeySealedBeforeHPKE(t *testing.T) {
 	vector := readSealingVector(t)
 	otherBox := identityWithEncryptionSeed(t, base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("\x44", seedLength))))
 
-	if _, errorValue := otherBox.OpenModelKey(vector.Sealed); errorValue == nil {
+	if _, errorValue := otherBox.OpenModelKey(vector.Sealed, sampleCompanyID); errorValue == nil {
 		t.Fatal("a box the key was not sealed to opened it")
 	}
 }

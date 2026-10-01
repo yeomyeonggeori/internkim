@@ -113,8 +113,8 @@ beside the bundle, keeps an Ed25519 signing key and an X25519 encryption key in
 `/var/lib/internkim/box`. It signs a JWT naming its own public key, valid for a
 minute and refused after two, and trades it at `/api/box/session` for the
 company's settings, an hour-long session as `host.<companyID>@agent.internkim.invalid`,
-and the model key sealed to it. Until a company claims it, it announces itself
-every thirty seconds.
+and the model key sealed to it. Mail passwords are sealed to the same key.
+Until a company claims it, it announces itself every thirty seconds.
 
 The first session installs the company, exactly as `internkim install` does from
 a file, with the session standing where the agent key stood. After that the

@@ -513,6 +513,18 @@ describe('serveCallForMember for mail', () => {
 		expect(asked[0]?.body.account).toEqual({ imapHost: 'imap.example.test' });
 	});
 
+	test('maild is told whose account it carries, so a password sealed to that member opens and no other', async () => {
+		const { asked, dispatch } = dispatchThatKnows({});
+
+		await serveCallForMember(dispatch, {
+			callID: 'c1',
+			capability: 'person.mail.mailboxes',
+			body: { memberID: 'member-2' }
+		}, 'member-1');
+
+		expect(asked[0]?.body.memberID).toBe('member-1');
+	});
+
 	test('the browser never carries the mail password, so one it offers is ignored', async () => {
 		const { asked, dispatch } = dispatchThatKnows({});
 

@@ -83,6 +83,7 @@ export const mailTextKo = {
 		description: '메일 주소와 앱 비밀번호를 입력하면 서버 설정은 자동으로 채워집니다.',
 		displayNamePlaceholder: '이름',
 		savedPassword: '저장된 비밀번호',
+		passwordNeededAgain: '서버 설정이 바뀌었습니다. 앱 비밀번호를 다시 입력하세요.',
 		appPassword: '앱 비밀번호',
 		googleAppPasswordLink: 'Google 앱 비밀번호 만들기',
 		googleAccountNote: '먼저 올바른 Google 계정으로 로그인했는지 확인하세요. 다른 계정에서 만든 앱 비밀번호는 연결되지 않습니다.',

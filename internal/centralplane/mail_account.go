@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"gitlab.com/eastriver/internkim/internal/box"
 )
 
 // One person's mail account, in the shape /api/agent/mail-account answers it.
@@ -28,6 +30,10 @@ type MailAccount struct {
 	SMTPPassword   string `json:"SMTPPassword"`
 	DefaultMailbox string `json:"DefaultMailbox"`
 	SentMailbox    string `json:"SentMailbox"`
+
+	MemberID           string            `json:"MemberID"`
+	SealedIMAPPassword *box.SealedSecret `json:"SealedIMAPPassword"`
+	SealedSMTPPassword *box.SealedSecret `json:"SealedSMTPPassword"`
 }
 
 func (client *Client) MailAccount(ctx context.Context, actorEmail string) (MailAccount, bool, error) {
@@ -47,7 +53,9 @@ func (client *Client) MailAccount(ctx context.Context, actorEmail string) (MailA
 	if answered.Account == nil {
 		return MailAccount{}, false, nil
 	}
-	return *answered.Account, true, nil
+	held := *answered.Account
+	held.MemberID = member.MemberID
+	return held, true, nil
 }
 
 func (client *Client) MailAccounts(ctx context.Context) ([]MailAccount, error) {
