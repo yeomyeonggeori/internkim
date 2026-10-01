@@ -1,6 +1,6 @@
 # Contributing
 
-Nothing lands on `main` or `design/saas` by direct push. Branch, run
+Nothing lands on `main` by direct push. Branch, run
 `tools/verify`, open a pull request, merge.
 
 The rules for this repository are in [CLAUDE.md](CLAUDE.md), also read as
@@ -35,9 +35,8 @@ that skipped it has not been checked.
 ## Branches
 
 `<type>/<subject-in-kebab-case>`, for example `fix/mattermost-recipient-resolution`.
-The type is the word the commit will carry. Branch product work off
-`design/saas` and device or runtime work off `main`, and rebase when either
-moves.
+The type is the word the commit will carry. Branch off `main` and rebase when
+it moves.
 
 ## Commits
 
