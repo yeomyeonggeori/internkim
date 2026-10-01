@@ -202,6 +202,34 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 	}
 }
 
+func TestRemovalNamesThePostgresqlRepositoryInstallShAddedAndKeepsIt(t *testing.T) {
+	script := maintainerScript(debianPackageFormat, postRemoveScript)
+	removal := "sudo rm -f " + strings.Join(postgresqlRepositoryPaths, " ") + " && sudo apt-get update"
+	if !strings.Contains(script, removal) {
+		t.Fatalf("removal does not name the command that takes PostgreSQL's repository away, %q:\n%s", removal, script)
+	}
+	for _, line := range strings.Split(script, "\n") {
+		command := strings.TrimSpace(line)
+		for _, path := range postgresqlRepositoryPaths {
+			if strings.HasPrefix(command, "rm ") && strings.Contains(command, path) {
+				t.Fatalf("removal runs %q, and the PostgreSQL that made the company's database updates from it", command)
+			}
+		}
+	}
+}
+
+func TestThePostgresqlRepositoryPathsAreTheOnesInstallShWrites(t *testing.T) {
+	document, errorValue := os.ReadFile(filepath.Join(runtimeSourceGateRepositoryRoot(t), "web", "static", "install.sh"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, path := range postgresqlRepositoryPaths {
+		if !strings.Contains(string(document), `="`+path+`"`) {
+			t.Errorf("install.sh does not write %s, so removal would name a file nobody wrote", path)
+		}
+	}
+}
+
 func TestUpgradeAndRemovalTakeTheDeviceUsersSync(t *testing.T) {
 	removal := "rm -f " + strings.Join(deviceUsersSyncPaths(), " ")
 	for _, script := range []packageScript{postInstallScript, preRemoveScript} {

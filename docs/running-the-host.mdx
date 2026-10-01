@@ -4,11 +4,12 @@ description: Install the company host, check its services, and find local data a
 icon: ServerCog
 ---
 
-The company host runs on Debian 13, Ubuntu 24.04, Fedora, RHEL-compatible 10
-(Rocky, AlmaLinux) or Arch Linux, on arm64 or amd64, or on a Mac with Apple
-silicon through Homebrew. Each of them carries pgvector for its own PostgreSQL,
-which the agent's memory search needs. Ubuntu 22.04's archive does not, so the
-package does not install there. The Linux packages need glibc 2.35 or newer. The host needs an outbound internet connection and must stay awake. The
+The company host runs on Debian 13, Ubuntu 22.04 or 24.04, Fedora,
+RHEL-compatible 10 (Rocky, AlmaLinux) or Arch Linux, on arm64 or amd64, or on a
+Mac with Apple silicon through Homebrew. Ubuntu 22.04's archive has no pgvector,
+which the agent's memory search needs, so there we add PostgreSQL's own apt
+repository and take PostgreSQL 15 and its pgvector from it. The Linux packages
+need glibc 2.35 or newer. The host needs an outbound internet connection and must stay awake. The
 installer registers native services with systemd on Linux or launchd on macOS.
 It needs no public address, inbound port, or Docker installation.
 
@@ -57,8 +58,11 @@ sudo pacman -R internkim      # Arch Linux
 ```
 
 Removing the package stops and disables the host services and deletes the
-program files and the host's Python runtime. The install added no package
-source or signing key, so there is none to clean up. The company stays on the
+program files and the host's Python runtime. On Ubuntu 22.04 we leave
+PostgreSQL's apt repository in place, because the host's database was made by
+the PostgreSQL 15 it updates. The removal prints the command that deletes the
+repository once you have deleted that database. Elsewhere the install added no
+package source or signing key. The company stays on the
 computer: `/var/lib/internkim` holds its key on the hosted service and the seed
 that signs messages as each person, and `/var/lib/internkim-postgres` and
 `/var/lib/internkim-cache` hold the host's database and cache. Installing the

@@ -330,6 +330,14 @@
     "process": "install script",
     "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
   },
+  "INTERNKIM_INSTALL_OS_RELEASE": {
+    "process": "install script",
+    "description": "the os-release file web/static/install.sh reads for the suite of PostgreSQL's apt repository; defaults to /etc/os-release"
+  },
+  "INTERNKIM_INSTALL_POSTGRESQL_KEY_URL": {
+    "process": "install script",
+    "description": "where web/static/install.sh fetches PostgreSQL's apt signing key, which it checks against the published fingerprint; defaults to postgresql.org"
+  },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
     "description": "where web/static/install.sh downloads the host's files and their SHA256SUMS from; defaults to the GitHub release the channel names. The native install rig points it at a release served from the Mac"

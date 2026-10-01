@@ -88,6 +88,11 @@ HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
 TASK_USER = "bc_person_rigcheck"
 
 NOWHERE = "127.0.0.1:9"
+POSTGRESQL_REPOSITORY_FILES = [
+    "internkim-postgresql.sources",
+    "internkim-postgresql.pref",
+    "internkim-postgresql-archive-keyring.asc",
+]
 
 VECTOR_ROUND_TRIP = """
 begin;
@@ -101,6 +106,7 @@ insert into memory_fact_embedding (fact_id, embedding)
   from (values ('rig-near', 1), ('rig-far', 2)) facts (fact_id, axis), generate_series(1, 1024) position
   group by fact_id;
 select
+  current_setting('server_version_num')::int / 10000,
   (select extversion from pg_extension where extname = 'vector'),
   to_regclass('public.memory_fact_embedding') is not null,
   to_regclass('public.memory_fact_embedding_hnsw_idx') is not null,
@@ -254,12 +260,45 @@ class FamilyRig:
             "ls /etc/apt/sources.list.d /etc/apt/preferences.d /etc/yum.repos.d /usr/share/keyrings 2>/dev/null "
             "| grep -i -e postgresql -e internkim; grep -n internkim /etc/pacman.conf; true"
         )
+        if not self.family.postgresql_major_from_its_own_repository:
+            step.observe(
+                "the install adds no repository, key or pin, ours or anyone's PostgreSQL's",
+                "the apt, yum and keyring directories and /etc/pacman.conf after the install",
+                "the package is a file the manager installs and its dependencies come from the distribution, "
+                "so a source added on the way is an unrequested trust",
+            ).record(not added, added or "nothing was added")
+            return
+        self.observe_postgresqls_own_repository(step, added)
+
+    def observe_postgresqls_own_repository(self, step, added):
+        major = self.family.postgresql_major_from_its_own_repository
         step.observe(
-            "the install adds no repository, key or pin, ours or anyone's PostgreSQL's",
+            "the install adds PostgreSQL's own apt repository, its key and its pin, and nothing else",
             "the apt, yum and keyring directories and /etc/pacman.conf after the install",
-            "the package is a file the manager installs and its dependencies come from the distribution, "
-            "so a source added on the way is an unrequested trust",
-        ).record(not added, added or "nothing was added")
+            "this archive carries no pgvector, so the repository is the one source the package needed; anything "
+            "more is an unrequested trust",
+        ).record(
+            sorted(added.split()) == sorted(POSTGRESQL_REPOSITORY_FILES),
+            added or "nothing was added",
+        )
+        candidates = self.shell_value(
+            "for name in postgresql-18-pgvector postgresql-17-pgvector postgresql-16-pgvector "
+            f"postgresql-{major}-pgvector postgresql-{major} postgresql-18; do "
+            "printf '%s=%s\\n' $name \"$(apt-cache policy $name | sed -n 's/^ *Candidate: //p')\"; done"
+        )
+        offered = dict(line.split("=", 1) for line in candidates.splitlines() if "=" in line)
+        step.observe(
+            f"the pin lets PostgreSQL's repository supply PostgreSQL {major} and its pgvector and no other major",
+            "`apt-cache policy` candidates for the pgvector of every major the package accepts and for two servers",
+            "the repository's own `postgresql` points at its newest major, and an unpinned source would move "
+            "the host's database onto it at the next install",
+        ).record(
+            all(offered.get(name, "") in ("", "(none)") for name in
+                ("postgresql-18-pgvector", "postgresql-17-pgvector", "postgresql-16-pgvector", "postgresql-18"))
+            and "pgdg" in offered.get(f"postgresql-{major}-pgvector", "")
+            and "pgdg" in offered.get(f"postgresql-{major}", ""),
+            candidates,
+        )
 
     def observe_tampering(self, step, installed_before):
         name = self.family.asset_name
@@ -529,16 +568,19 @@ class FamilyRig:
             "--dbname blueclaw --quiet --tuples-only --no-align --set ON_ERROR_STOP=1 2>&1"
         )
         fields = answer.stdout.strip().split("|")
+        major = self.family.postgresql_major_from_its_own_repository
         step.observe(
             "the agent's database has the vector extension, the memory store's embedding table and its HNSW index, "
-            "and a stored embedding is found again by its nearest neighbour",
+            "and a stored embedding is found again by its nearest neighbour"
+            + (f", on PostgreSQL {major}" if major else ""),
             "the extension's version in pg_extension, to_regclass of memory_fact_embedding and its index, and the "
             "fact a cosine-distance query ranks first among two written in a transaction that is rolled back",
             "the memory store's migration skips its embedding tables when the server has no vector extension and "
             "recall then matches words alone with nothing failing; the table is what its search checks for, and the "
             "ranking is the operator its hybrid search orders by",
         ).record(
-            answer.returncode == 0 and len(fields) == 4 and fields[0] != "" and fields[1:] == ["t", "t", "rig-near"],
+            answer.returncode == 0 and len(fields) == 5 and fields[1] != "" and fields[2:] == ["t", "t", "rig-near"]
+            and (not major or fields[0] == major),
             answer.stdout.strip() or f"exit {answer.returncode}",
         )
 
