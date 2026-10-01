@@ -4,6 +4,7 @@ import { describe, expect, test } from 'bun:test';
 
 const copies = [
 	['base64url.ts', 'src/lib/notifications/base64url.ts'],
+	['same-secret.ts', 'src/lib/server/same-secret.ts'],
 	['who-answers.ts', 'src/lib/server/who-answers.ts']
 ] as const;
 
