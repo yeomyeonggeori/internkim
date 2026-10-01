@@ -70,12 +70,15 @@ export type AdminCaller = { memberID: string; companyID: string };
 export async function adminCallerOf(client: SupabaseClient): Promise<AdminCaller | null> {
 	const { data: account } = await client.auth.getUser();
 	if (!account.user) return null;
+	const { data: isAdministrator, error: adminError } = await client.rpc('is_company_admin');
+	if (adminError) throw new Error(`administrator: ${adminError.message}`);
+	if (isAdministrator !== true) return null;
 	const { data: member } = await client
 		.from('member')
-		.select('id, company_id, is_admin')
+		.select('id, company_id')
 		.eq('user_id', account.user.id)
 		.maybeSingle();
-	if (!member?.is_admin) return null;
+	if (!member) return null;
 	return { memberID: member.id, companyID: member.company_id };
 }
 
@@ -120,6 +123,7 @@ export async function addMember(
 	email: string,
 	options: { isAdmin?: boolean; name?: string } = {},
 ): Promise<string> {
+	if (isHostAddress(email)) throw new AddressBelongsToAnotherCompany(email);
 	const held = await memberWaitingForAddress(client, email);
 	if (held) return memberWhoMayBeInvitedAgain(held, companyID, email);
 
@@ -293,14 +297,17 @@ async function issueTemporaryPassword(
 ): Promise<Invitation> {
 	const { data: member, error: readError } = await client
 		.from('member')
-		.select('email')
+		.select('id, email, user_id')
 		.eq('id', memberID)
-		.single();
+		.single<{ id: string; email: string | null; user_id: string | null }>();
 	if (readError) throw new Error(`member ${memberID}: ${readError.message}`);
 	if (!member.email) throw new Error(`member ${memberID} has no address`);
 
 	const temporaryPassword = temporaryPasswordValue();
 	const account = await accountOfAddress(client, member.email);
+	if (account && !(await isAccountOpenTo(client, account, member))) {
+		throw new AddressBelongsToAnotherCompany(member.email);
+	}
 
 	if (account) {
 		const { error } = await client.auth.admin.updateUserById(account.id, {
@@ -318,6 +325,16 @@ async function issueTemporaryPassword(
 	}
 
 	return { memberID, email: member.email, temporaryPassword };
+}
+
+async function isAccountOpenTo(
+	client: SupabaseClient,
+	account: User,
+	member: { id: string; user_id: string | null },
+): Promise<boolean> {
+	if (account.app_metadata?.company_id) return false;
+	if (member.user_id) return member.user_id === account.id;
+	return (await memberHeldByAccount(client, account.id)) === null;
 }
 
 export async function accountOfAddress(client: SupabaseClient, address: string): Promise<User | null> {
@@ -644,8 +661,14 @@ export type HostSession = {
 	expiresAt: number;
 };
 
+const hostAddressDomain = 'agent.internkim.invalid';
+
 export function hostAddressOf(companyID: string): string {
-	return `host.${companyID}@agent.internkim.invalid`;
+	return `host.${companyID}@${hostAddressDomain}`;
+}
+
+function isHostAddress(address: string): boolean {
+	return address.trim().toLowerCase().endsWith(`@${hostAddressDomain}`);
 }
 
 export async function sessionForHost(
