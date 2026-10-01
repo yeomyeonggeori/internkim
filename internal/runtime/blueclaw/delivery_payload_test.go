@@ -135,3 +135,44 @@ func TestDeliveryRefreshMirrorsTheBundledSkills(t *testing.T) {
 		t.Fatal("the skills the agent writes are its own and stay in the workspace, where it can write them")
 	}
 }
+
+func TestDeliveryRefreshKeepsADeliveredSkillScriptRunnable(t *testing.T) {
+	skillsPath := filepath.Join(t.TempDir(), "skills")
+	scriptPath := filepath.Join(skillsPath, "office", "scripts", "office")
+	referencePath := filepath.Join(skillsPath, "office", "SKILL.md")
+	if errorValue := os.MkdirAll(filepath.Dir(scriptPath), 0700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(scriptPath, []byte("#!/bin/sh\n"), 0700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(referencePath, []byte("# office\n"), 0600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	modeLines := []string{}
+	for _, line := range strings.Split(BlueclawDeliveryRefreshCommand(), "\n") {
+		if strings.HasPrefix(line, "find ") && strings.Contains(line, BlueclawDeliverySkillsPath) {
+			modeLines = append(modeLines, line)
+		}
+	}
+	if len(modeLines) == 0 {
+		t.Fatal("expected the refresh to set the delivered skills' modes")
+	}
+	script := strings.ReplaceAll(strings.Join(modeLines, "\n"), BlueclawDeliverySkillsPath, skillsPath)
+	script = strings.ReplaceAll(script, BlueclawDeliveryConfigPath+" ", "")
+	script = strings.ReplaceAll(script, BlueclawDeliveryRuntimePath+" ", "")
+	if output, errorValue := exec.Command("sh", "-c", "set -e\n"+script).CombinedOutput(); errorValue != nil {
+		t.Fatalf("running the skill mode lines failed: %v\n%s", errorValue, output)
+	}
+
+	for path, expectedMode := range map[string]os.FileMode{scriptPath: 0755, referencePath: 0644} {
+		information, errorValue := os.Stat(path)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if information.Mode().Perm() != expectedMode {
+			t.Fatalf("a skill is run from the share as written, so %s must be %o, got %o", filepath.Base(path), expectedMode, information.Mode().Perm())
+		}
+	}
+}
