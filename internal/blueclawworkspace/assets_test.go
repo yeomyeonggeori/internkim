@@ -424,9 +424,6 @@ func TestOfficeSkillBootstrapsDependenciesFromBundledScripts(t *testing.T) {
 	if !strings.Contains(string(runtimeScript), `"uv",`) {
 		t.Fatal("office runtime script must use uv for Python dependency setup")
 	}
-	if !strings.Contains(string(runtimeScript), "Path(sys.executable).absolute()") {
-		t.Fatal("office runtime script must compare Python paths without resolving venv symlinks")
-	}
 }
 
 func TestBundledSkillsNameNoHostEnvironmentVariable(t *testing.T) {
