@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 func defaultDataRoomCategories(t *testing.T) []centralplane.DataRoomCategory {

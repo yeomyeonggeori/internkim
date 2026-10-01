@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 const dataRoomClassificationPath = "/data-room/api/classify"
