@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import datetime
-import importlib.util
 import json
 import pathlib
 import subprocess
@@ -11,7 +10,7 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
 from skill_paths import find_skill_directory
 
-RENDER_REVIEW_SCRIPT = find_skill_directory(REPOSITORY_ROOT, "presentation") / "scripts" / "render_review.py"
+RENDER_REVIEW_SCRIPT = find_skill_directory(REPOSITORY_ROOT, "office") / "scripts" / "deck" / "render_review.py"
 
 TEMPLATED_DECK = """<!DOCTYPE html>
 <html lang="ko">
@@ -172,10 +171,10 @@ def main() -> int:
     dated = run_review(TEMPLATED_DECK.replace("DATE_PLACEHOLDER", today_text), "", ledger_with_today)
     assert "unsourcedCurrentDateWarning" not in warning_prefixes(dated)
 
-    specification = importlib.util.spec_from_file_location("render_review", RENDER_REVIEW_SCRIPT)
-    render_review = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(render_review)
-    pattern = render_review.current_date_pattern(datetime.date(2026, 7, 7))
+    sys.path[:0] = [str(RENDER_REVIEW_SCRIPT.parent), str(RENDER_REVIEW_SCRIPT.parent.parent)]
+    import content_warnings
+
+    pattern = content_warnings.current_date_pattern(datetime.date(2026, 7, 7))
     for text in ["2026.07.07", "2026. 07. 07", "2026-07-07", "2026/7/7", "2026년 7월 7일"]:
         assert pattern.search(text), text
     for text in ["2026-07-17", "2026-07-071", "2025-07-07", "2026년 6월 30일"]:

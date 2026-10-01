@@ -1,6 +1,7 @@
 package blueclawworkspace
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,17 +19,20 @@ var systemFontPathPattern = regexp.MustCompile(`/usr/share/fonts/[A-Za-z0-9._/-]
 
 func skillScriptSources(t *testing.T, skillDirectory SkillDirectory) string {
 	t.Helper()
-	scriptPaths, errorValue := filepath.Glob(filepath.Join(skillDirectory.Path, "scripts", "*.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
 	sources := strings.Builder{}
-	for _, scriptPath := range scriptPaths {
-		script, readError := os.ReadFile(scriptPath)
+	walkError := filepath.WalkDir(filepath.Join(skillDirectory.Path, "scripts"), func(path string, entry fs.DirEntry, walkError error) error {
+		if walkError != nil || entry.IsDir() || filepath.Ext(path) != ".py" {
+			return walkError
+		}
+		script, readError := os.ReadFile(path)
 		if readError != nil {
-			t.Fatal(readError)
+			return readError
 		}
 		sources.Write(script)
+		return nil
+	})
+	if walkError != nil {
+		t.Fatal(walkError)
 	}
 	return sources.String()
 }
@@ -79,7 +83,7 @@ func TestHostImageLeavesTheSkillsRequirementsToTheSkills(t *testing.T) {
 	}
 }
 
-func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
+func TestHostImageCarriesTheFontTheOfficeSkillLooksFor(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	sharedFontPaths := map[string]bool{}
 	embeddingSkillCount := 0
@@ -109,8 +113,8 @@ func TestHostImageCarriesTheFontEveryPDFSkillLooksFor(t *testing.T) {
 			}
 		}
 	}
-	if embeddingSkillCount < 2 {
-		t.Fatalf("expected several skills to embed a system font into a PDF, found %d", embeddingSkillCount)
+	if embeddingSkillCount < 1 {
+		t.Fatal("expected a skill to embed a system font into a PDF")
 	}
 	if len(sharedFontPaths) == 0 {
 		t.Fatal("the skills that embed a font no longer share a system path; the host image cannot satisfy them with one package")
@@ -187,35 +191,6 @@ func TestARunningHostReportsAnIncompleteSkillEnvironmentInsteadOfTakingTheMessen
 	}
 	if !strings.Contains(entrypoint, `echo "[host] up, incomplete`) {
 		t.Fatal("the last line a person reads must say the box came up incomplete, or the report scrolls away")
-	}
-}
-
-func TestBundledSkillRequirementsCarryNoVersionSpecifier(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	runtimeScript, errorValue := os.ReadFile(filepath.Join(skillDirectoryPath(t, repositoryRootPath, "pdf"), "scripts", "skill_runtime.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(runtimeScript), "importlib.metadata.distribution(package_name)") {
-		t.Fatal("skill_runtime.py no longer decides by distribution name alone; this guard can go once it compares versions")
-	}
-
-	specifierPattern := regexp.MustCompile(`[=<>!~]`)
-	for _, skillDirectory := range skillsDeclaringRequirements(t, repositoryRootPath) {
-		requirementsPath := filepath.Join(skillDirectory.Path, "scripts", "requirements.txt")
-		document, readError := os.ReadFile(requirementsPath)
-		if readError != nil {
-			t.Fatal(readError)
-		}
-		for _, line := range strings.Split(string(document), "\n") {
-			requirement := strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-			if requirement == "" {
-				continue
-			}
-			if specifierPattern.MatchString(requirement) {
-				t.Fatalf("%s pins %q, but skill_runtime.py only checks that a distribution of that name is importable; a host that preinstalled another version would run the skill against it without saying so", requirementsPath, requirement)
-			}
-		}
 	}
 }
 

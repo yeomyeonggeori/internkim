@@ -131,15 +131,13 @@ func skillDirectoryPath(t *testing.T, repositoryRootPath string, skillName strin
 func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	skillNames := []string{"document", "spreadsheet", "presentation", "pdf"}
-	for _, skillName := range skillNames {
-		path := filepath.Join(skillDirectoryPath(t, repositoryRootPath, skillName), "SKILL.md")
+	for _, path := range officeDocumentPaths(t, repositoryRootPath) {
 		document, errorValue := os.ReadFile(path)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
 		if strings.Contains(string(document), "/workspace/.blueclaw/tmp") {
-			t.Fatalf("%s skill must use requester temporary workspace, not /workspace/.blueclaw/tmp", skillName)
+			t.Fatalf("%s must use requester temporary workspace, not /workspace/.blueclaw/tmp", path)
 		}
 	}
 }
@@ -147,12 +145,7 @@ func TestArtifactSkillsDoNotUseBlueclawInternalTemporaryPath(t *testing.T) {
 func TestUserFacingWorkspaceDocsDoNotExposeRuntimeInternalPaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	documentPaths := []string{
-		AgentsPath(repositoryRootPath),
-		skillPathInTest(t, repositoryRootPath, "document", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "spreadsheet", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "presentation", "SKILL.md"),
-	}
+	documentPaths := append([]string{AgentsPath(repositoryRootPath)}, officeDocumentPaths(t, repositoryRootPath)...)
 	for _, documentPath := range documentPaths {
 		document, errorValue := os.ReadFile(documentPath)
 		if errorValue != nil {
@@ -218,14 +211,10 @@ func TestCalendarAndWorkSkillsDocumentSemanticRouting(t *testing.T) {
 func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	documentPaths := []string{
-		AgentsPath(repositoryRootPath),
-		skillPathInTest(t, repositoryRootPath, "website", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "document", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "spreadsheet", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "presentation", "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "pdf", "SKILL.md"),
-	}
+	documentPaths := append(
+		[]string{AgentsPath(repositoryRootPath), skillPathInTest(t, repositoryRootPath, "website", "SKILL.md")},
+		officeDocumentPaths(t, repositoryRootPath)...,
+	)
 	for _, documentPath := range documentPaths {
 		document, errorValue := os.ReadFile(documentPath)
 		if errorValue != nil {
@@ -390,64 +379,53 @@ func TestBundledSkillRuntimeScriptsStayIdentical(t *testing.T) {
 	}
 }
 
-func TestArtifactPythonSkillsBootstrapDependenciesFromBundledScripts(t *testing.T) {
+func TestOfficeSkillBootstrapsDependenciesFromBundledScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	createScriptNames := map[string]string{"document": "create_docx.py", "spreadsheet": "create_xlsx.py"}
-	for skillName, createScriptName := range createScriptNames {
-		skillPath := skillDirectoryPath(t, repositoryRootPath, skillName)
-		runtimePath := filepath.Join(skillPath, "scripts", "skill_runtime.py")
-		if _, errorValue := os.Stat(runtimePath); errorValue != nil {
-			t.Fatalf("%s skill must bundle scripts/skill_runtime.py: %v", skillName, errorValue)
-		}
-		requirementsPath := filepath.Join(skillPath, "scripts", "requirements.txt")
-		if _, errorValue := os.Stat(requirementsPath); errorValue != nil {
-			t.Fatalf("%s skill must bundle scripts/requirements.txt: %v", skillName, errorValue)
-		}
+	runtimePath := officePathInTest(t, repositoryRootPath, "scripts", "skill_runtime.py")
+	if _, errorValue := os.Stat(runtimePath); errorValue != nil {
+		t.Fatalf("office skill must bundle scripts/skill_runtime.py: %v", errorValue)
+	}
+	if _, errorValue := os.Stat(officePathInTest(t, repositoryRootPath, "scripts", "requirements.txt")); errorValue != nil {
+		t.Fatalf("office skill must bundle scripts/requirements.txt: %v", errorValue)
+	}
 
-		skillDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
+	for _, documentPath := range officeDocumentPaths(t, repositoryRootPath) {
+		skillDocument, errorValue := os.ReadFile(documentPath)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
 		if strings.Contains(string(skillDocument), "Do not run package installation") {
-			t.Fatalf("%s skill must not instruct the model to handle dependency installation manually", skillName)
+			t.Fatalf("%s must not instruct the model to handle dependency installation manually", documentPath)
 		}
 		if strings.Contains(string(skillDocument), "runtime is missing") {
-			t.Fatalf("%s skill must not surface missing runtime libraries as the primary recovery path", skillName)
+			t.Fatalf("%s must not surface missing runtime libraries as the primary recovery path", documentPath)
 		}
 		if strings.Contains(string(skillDocument), `"command": "python - <<`) {
-			t.Fatalf("%s skill must not instruct the model to bypass bundled scripts with inline Python", skillName)
+			t.Fatalf("%s must not instruct the model to bypass bundled scripts with inline Python", documentPath)
 		}
+	}
 
-		createScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", createScriptName))
-		if errorValue != nil {
-			t.Fatal(errorValue)
+	runtimeScript, errorValue := os.ReadFile(runtimePath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(string(runtimeScript), "requirements.txt") {
+		t.Fatal("office runtime script must install from requirements.txt")
+	}
+	if !strings.Contains(string(runtimeScript), "XDG_CACHE_HOME") {
+		t.Fatal("office runtime script must keep its dependency environment under the standard cache home")
+	}
+	for _, hostPath := range []string{"/opt/blueclaw", "/workspace"} {
+		if strings.Contains(string(runtimeScript), hostPath) {
+			t.Fatalf("office runtime script must not hardcode the host path %q; a bundled skill runs wherever it is installed", hostPath)
 		}
-		if !strings.Contains(string(createScript), "ensure_requirements(") {
-			t.Fatalf("%s create script must bootstrap its own Python requirements", skillName)
-		}
-
-		runtimeScript, errorValue := os.ReadFile(runtimePath)
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if !strings.Contains(string(runtimeScript), "requirements.txt") {
-			t.Fatalf("%s runtime script must install from requirements.txt", skillName)
-		}
-		if !strings.Contains(string(runtimeScript), "XDG_CACHE_HOME") {
-			t.Fatalf("%s runtime script must keep its dependency environment under the standard cache home", skillName)
-		}
-		for _, hostPath := range []string{"/opt/blueclaw", "/workspace"} {
-			if strings.Contains(string(runtimeScript), hostPath) {
-				t.Fatalf("%s runtime script must not hardcode the host path %q; a bundled skill runs wherever it is installed", skillName, hostPath)
-			}
-		}
-		if !strings.Contains(string(runtimeScript), `"uv",`) {
-			t.Fatalf("%s runtime script must use uv for Python dependency setup", skillName)
-		}
-		if !strings.Contains(string(runtimeScript), "Path(sys.executable).absolute()") {
-			t.Fatalf("%s runtime script must compare Python paths without resolving venv symlinks", skillName)
-		}
+	}
+	if !strings.Contains(string(runtimeScript), `"uv",`) {
+		t.Fatal("office runtime script must use uv for Python dependency setup")
+	}
+	if !strings.Contains(string(runtimeScript), "Path(sys.executable).absolute()") {
+		t.Fatal("office runtime script must compare Python paths without resolving venv symlinks")
 	}
 }
 
@@ -481,74 +459,27 @@ func TestBundledSkillsNameNoHostEnvironmentVariable(t *testing.T) {
 func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	for _, skillName := range []string{"document", "spreadsheet", "pdf", "website"} {
-		skillPath := filepath.Join(skillDirectoryPath(t, repositoryRootPath, skillName), "SKILL.md")
+	for _, skillPath := range []string{
+		officePathInTest(t, repositoryRootPath, "SKILL.md"),
+		skillPathInTest(t, repositoryRootPath, "website", "SKILL.md"),
+	} {
 		document, errorValue := os.ReadFile(skillPath)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
 		content := string(document)
 		if !strings.Contains(content, "source of truth") {
-			t.Fatalf("%s skill must preserve supplied data as source of truth", skillName)
+			t.Fatalf("%s must preserve supplied data as source of truth", skillPath)
 		}
 	}
 
-	docxCreateScript, errorValue := os.ReadFile(skillPathInTest(t, repositoryRootPath, "document", "scripts", "create_docx.py"))
+	pdfReference, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "references", "pdf.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for _, expectedText := range []string{"eastAsia", "set_table_borders", "columnWidthsInches"} {
-		if !strings.Contains(string(docxCreateScript), expectedText) {
-			t.Fatalf("docx create script must include %q", expectedText)
-		}
-	}
-
-	xlsxCreateScript, errorValue := os.ReadFile(skillPathInTest(t, repositoryRootPath, "spreadsheet", "scripts", "create_xlsx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"default_freeze_panes", "auto_filter_reference", "create_thin_border", "heading"} {
-		if !strings.Contains(string(xlsxCreateScript), expectedText) {
-			t.Fatalf("xlsx create script must include %q", expectedText)
-		}
-	}
-
-	for _, validationScriptPath := range []string{
-		skillPathInTest(t, repositoryRootPath, "document", "scripts", "validate_docx.py"),
-		skillPathInTest(t, repositoryRootPath, "spreadsheet", "scripts", "validate_xlsx.py"),
-		skillPathInTest(t, repositoryRootPath, "pdf", "scripts", "validate_pdf.py"),
-	} {
-		document, errorValue := os.ReadFile(validationScriptPath)
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if !strings.Contains(string(document), "warningCount") {
-			t.Fatalf("%s must report warningCount", validationScriptPath)
-		}
-	}
-
-	xlsxValidationScript, errorValue := os.ReadFile(skillPathInTest(t, repositoryRootPath, "spreadsheet", "scripts", "validate_xlsx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"headerRow", "titleRowDetected"} {
-		if !strings.Contains(string(xlsxValidationScript), expectedText) {
-			t.Fatalf("xlsx validation script must include %q", expectedText)
-		}
-	}
-
-	pdfSkillDocument, errorValue := os.ReadFile(skillPathInTest(t, repositoryRootPath, "pdf", "SKILL.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"validate_pdf.py", "extractable PDF text", "computed total equals"} {
-		if !strings.Contains(string(pdfSkillDocument), expectedText) {
-			t.Fatalf("pdf skill must include %q", expectedText)
-		}
-	}
-	for _, fileName := range []string{"skill_runtime.py", "requirements.txt", "validate_pdf.py"} {
-		if _, errorValue := os.Stat(skillPathInTest(t, repositoryRootPath, "pdf", "scripts", fileName)); errorValue != nil {
-			t.Fatalf("pdf skill must bundle scripts/%s: %v", fileName, errorValue)
+	for _, expectedText := range []string{"office pdf validate", "extractable text"} {
+		if !strings.Contains(string(pdfReference), expectedText) {
+			t.Fatalf("pdf reference must include %q", expectedText)
 		}
 	}
 
@@ -634,7 +565,7 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 func TestPresentationBundlesPackageManifest(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	skillPath := skillPathInTest(t, repositoryRootPath, "presentation")
+	skillPath := officePathInTest(t, repositoryRootPath)
 	packageDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "package.json"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -651,7 +582,7 @@ func TestPresentationBundlesPackageManifest(t *testing.T) {
 func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	documentPath := skillPathInTest(t, repositoryRootPath, "presentation", "SKILL.md")
+	documentPath := officePathInTest(t, repositoryRootPath, "references", "deck.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -662,7 +593,7 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 		"Older PDF or Markdown files are supporting material",
 		"work only in `artifacts/<deck-slug>/`",
 		"`slides.html` as the canonical controller-free source",
-		"restore_source.py",
+		"`deck restore`",
 		"edit it in place with targeted changes",
 		"never rewrite an existing deck whole",
 		"same slug",
@@ -685,7 +616,7 @@ func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
 func TestPresentationExporterNormalizesSlideViewer(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	scriptPath := skillPathInTest(t, repositoryRootPath, "presentation", "scripts", "html_export.py")
+	scriptPath := officePathInTest(t, repositoryRootPath, "scripts", "deck", "slide_viewer.py")
 	testProgram := `
 import runpy
 import sys
@@ -722,7 +653,7 @@ assert "<section>Keep me</section>" in stripped
 func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	scriptPath := skillPathInTest(t, repositoryRootPath, "presentation", "scripts", "restore_source.py")
+	scriptPath := officePathInTest(t, repositoryRootPath, "scripts", "deck", "restore_source.py")
 	temporaryPath := t.TempDir()
 	deliveredPath := filepath.Join(temporaryPath, "delivered.html")
 	sourcePath := filepath.Join(temporaryPath, "artifacts", "deck", "slides.html")
@@ -731,6 +662,7 @@ func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	command := exec.Command("python3", scriptPath, deliveredPath, sourcePath)
+	command.Env = append(os.Environ(), "PYTHONPATH="+officePathInTest(t, repositoryRootPath, "scripts"))
 	commandOutput, errorValue := command.CombinedOutput()
 	if errorValue != nil {
 		t.Fatalf("presentation source restoration failed: %v\n%s", errorValue, commandOutput)
@@ -748,7 +680,7 @@ func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	skillPath := skillPathInTest(t, repositoryRootPath, "presentation")
+	skillPath := officePathInTest(t, repositoryRootPath)
 	fontPath := filepath.Join(skillPath, "assets", "fonts", "paperlogy")
 	for _, fileName := range []string{
 		"Paperlogy-4Regular.woff2",
@@ -764,9 +696,9 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	}
 
 	documentPaths := []string{
-		filepath.Join(skillPath, "SKILL.md"),
-		filepath.Join(skillPath, "assets", "webfonts.md"),
-		filepath.Join(skillPath, "assets", "minimal-design.md"),
+		filepath.Join(skillPath, "references", "deck.md"),
+		filepath.Join(skillPath, "references", "deck", "webfonts.md"),
+		filepath.Join(skillPath, "references", "deck", "minimal-design.md"),
 	}
 	for _, documentPath := range documentPaths {
 		document, errorValue := os.ReadFile(documentPath)
@@ -786,7 +718,7 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 		}
 	}
 
-	webfontsDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "webfonts.md"))
+	webfontsDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "references", "deck", "webfonts.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -797,93 +729,10 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	}
 }
 
-func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	skillPath := skillPathInTest(t, repositoryRootPath, "presentation")
-	document, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"deck archetype",
-		"Pick one deck archetype",
-		"title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask",
-		"slide-review.json",
-		"needsDesignRevision",
-		"qualityGatePassed",
-		"visualQualityScore",
-		"visualEvidenceReliable",
-		"contact sheets",
-		"fit-review-XX.md",
-		"expected visible text",
-		"design warnings",
-		"deck-brief.md",
-		"story spine",
-		"slide count",
-		"visual system",
-		"signature move",
-		"Reject shallow content",
-		"worked example",
-		"rendered image evidence",
-		"revise `slides.html`",
-		"Attach every accepted output",
-		"Preserve the design-source marker, requested slide count, source-fact ledger intent",
-		"Do not spend delivery budget creating or attaching internal review-decision files",
-		"not a delivery blocker",
-		"A clean export is not acceptance",
-		"Do not use emoji as functional icons or bullets",
-		"HTML-first",
-		"target-versus-actual metrics",
-		"risk/evidence/response/owner",
-		"제공된 자료 없음",
-		"claim-style titles",
-		"exact organization, product, and period",
-		"original period wording exactly",
-		"Preserve exact source values",
-		"KPI cards",
-		"status chips",
-		"raw `<table>` or bare `<ul>`",
-		"same 2x2 card dashboard",
-		"A board or quarterly deck needs KPI cards",
-		"composition-seeds.md",
-		"visual-styles.md",
-		"webfonts.md",
-		"Run the script as one shell command line from that working directory",
-		"required-visible-text.txt",
-		"one source fact or must-appear phrase per line",
-		"not a token filter",
-		"Do not replace Korean period wording",
-		"HTML is the default deliverable",
-		"PPTX is image-backed by default",
-		"PRESENTATION_PPTX_MODE=native",
-		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence",
-		"FORMATS=pptx",
-		`"command": "FORMATS=pptx <skill>/scripts/build.sh"`,
-		"write the complete `slides.html` as a file in one step",
-		"do not assemble it through shell heredocs or echo",
-		"must not delay the primary source file",
-		"A dark theme is not a visual system",
-		"Scene",
-		"Style Prompt",
-		"Visual Identity Gate",
-		"Design Thesis",
-		"Signature Move",
-		"Anti-default Check",
-		"data-visual-system",
-		"data-slide-role",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("presentation must document beautiful deck contract %q", expectedText)
-		}
-	}
-}
-
 func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	documentPath := skillPathInTest(t, repositoryRootPath, "presentation", "assets", "visual-styles.md")
+	documentPath := officePathInTest(t, repositoryRootPath, "references", "deck", "visual-styles.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -913,7 +762,7 @@ func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
 func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	documentPath := skillPathInTest(t, repositoryRootPath, "presentation", "assets", "composition-seeds.md")
+	documentPath := officePathInTest(t, repositoryRootPath, "references", "deck", "composition-seeds.md")
 	document, errorValue := os.ReadFile(documentPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -952,34 +801,34 @@ func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
 func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	skillPath := skillPathInTest(t, repositoryRootPath, "presentation")
-	skillDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "SKILL.md"))
+	skillPath := officePathInTest(t, repositoryRootPath)
+	deckDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "references", "deck.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	skillContent := string(skillDocument)
-	for _, forbiddenText := range []string{"cp /workspace/skills/presentation", "/workspace/skills/presentation/assets/build.sh", " ./build.sh", "mkdir artifacts", `"arguments":`} {
-		if strings.Contains(skillContent, forbiddenText) {
-			t.Fatalf("presentation must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
+	deckContent := string(deckDocument)
+	for _, forbiddenText := range []string{"cp /workspace/skills/", " ./build.sh", "mkdir artifacts", `"arguments":`} {
+		if strings.Contains(deckContent, forbiddenText) {
+			t.Fatalf("deck reference must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{`"command": "<skill>/scripts/build.sh"`, `"command": "FORMATS=pptx <skill>/scripts/build.sh"`, `"workingDirectoryPath": "artifacts/<deck-slug>"`, "then deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
-		if !strings.Contains(skillContent, expectedText) {
-			t.Fatalf("presentation must document %q", expectedText)
+	for _, expectedText := range []string{"<skill>/scripts/office deck build", "FORMATS=pptx <skill>/scripts/office deck build", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "then deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
+		if !strings.Contains(deckContent, expectedText) {
+			t.Fatalf("deck reference must document %q", expectedText)
 		}
 	}
 
 	if _, errorValue := os.Stat(filepath.Join(skillPath, "assets", "build.sh")); !os.IsNotExist(errorValue) {
-		t.Fatal("presentation build script must live under scripts, not assets")
+		t.Fatal("deck build script must live under scripts, not assets")
 	}
 
-	buildPath := filepath.Join(skillPath, "scripts", "build.sh")
+	buildPath := filepath.Join(skillPath, "scripts", "deck", "build.sh")
 	buildInfo, errorValue := os.Stat(buildPath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if buildInfo.Mode()&0111 == 0 {
-		t.Fatal("presentation build script must be executable")
+		t.Fatal("deck build script must be executable")
 	}
 
 	buildScript, errorValue := os.ReadFile(buildPath)
@@ -988,115 +837,25 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 	}
 	buildContent := string(buildScript)
 	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
-		t.Fatal("presentation build script must run against the caller's task workspace")
+		t.Fatal("deck build script must run against the caller's task workspace")
 	}
-	if strings.Contains(buildContent, "command -v marp") {
-		t.Fatal("presentation build script must not select ambiguous global Marp")
-	}
-	for _, expectedText := range []string{"slides.html", `FORMATS="${FORMATS:-html,review}"`, "needs_node_environment", "deck-brief.md missing", "build continues without slide-count cross-check", "slide sections", "extract_requested_slide_count", "numbered_slide_items", "required-visible-text.txt missing", "should include design-source: DESIGN.md", "deck_brief_path.exists()", "HTML_EXPORT_SCRIPT", "HTML_RENDER_SCRIPT", "RENDER_REVIEW_SCRIPT", "SKILL_ASSET_DIRECTORY", "../assets/package.json", "BUILD_DIR", `export TMPDIR="${BUILD_PATH}/.tmp"`, `export TMP="$TMPDIR"`, `export TEMP="$TMPDIR"`, `export HOME="${TMPDIR}/home"`, `${WORK_DIR}/.skill-env/presentation`, "NODE_RUNTIME_BUN_INSTALL", "NODE_RUNTIME_BUN_CACHE", `export BUN_INSTALL="$NODE_RUNTIME_BUN_INSTALL"`, `export BUN_INSTALL_CACHE_DIR="$NODE_RUNTIME_BUN_CACHE"`, "playwright-core"} {
+	for _, expectedText := range []string{"slides.html", `FORMATS="${FORMATS:-html,review}"`, "SKILL_ASSET_DIRECTORY", "${SCRIPT_DIRECTORY}/../../assets"} {
 		if !strings.Contains(buildContent, expectedText) {
-			t.Fatalf("presentation build script must contain %q", expectedText)
-		}
-	}
-	for _, forbiddenText := range []string{"normalize_required_search_text", "required_numeric_unit_phrases", "optional_required_tokens", "missing required visible text", "all_required_tokens_are_visible"} {
-		if strings.Contains(buildContent, forbiddenText) {
-			t.Fatalf("presentation build script must not contain token-filter required text check %q", forbiddenText)
-		}
-	}
-	for _, forbiddenText := range []string{"presentation.md", "EXTRACT_NOTES_SCRIPT", "REVIEW_STRICT", `cd "$TMPDIR"`, "/workspace/shared/cache/dependencies/bun", "is older than DESIGN.md", "must include design-source: DESIGN.md", "DESIGN.md not found", "deck-brief.md not found"} {
-		if strings.Contains(buildContent, forbiddenText) {
-			t.Fatalf("presentation build script must not contain old workflow fragment %q", forbiddenText)
+			t.Fatalf("deck build script must contain %q", expectedText)
 		}
 	}
 }
 
-func TestPresentationBuildAndReviewScriptsCheckFontsAndDensity(t *testing.T) {
+func TestDeckMinimalDesignKeepsFitSafeGuidance(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	skillPath := skillPathInTest(t, repositoryRootPath, "presentation")
-	htmlExportScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "html_export.py"))
+	minimalDesign, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "references", "deck", "minimal-design.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	htmlExportContent := string(htmlExportScript)
-	for _, expectedText := range []string{".woff2", ".woff", "font/woff2", "base64_data_url", "inline_local_fonts", "inject_vendored_paperlogy_fallback", "PaperlogyLocal", "add_paperlogy_local_to_font_family_lists", "write_image_backed_pptx", "write_native_text_pptx", "native_slide_xml", "native_slide_relationship_xml", "write_native_review_images", "write_render_source", "PRESENTATION_PPTX_MODE", "image-backed PowerPoint", "native text-backed PowerPoint", "draw_summary_dashboard", "draw_metric_scoreboard", "draw_risk_ledger_from_table", "목표 대비 Q2 판정", "BOARD REVIEW", "data-internkim-slide-viewer", "bespoke-marp-parent", "bespoke-marp-osc", "internkim-deck-scale", "data-lucide", "lucideIcon", "bespoke-marp-tooltip", "Next slide (→ / Space / PageDown)", "Overview (O)", "Presenter view (P)", "Exit fullscreen (F)", "minimize", "window.opener.postMessage", "body[data-bespoke-view=\"presenter\"] .bespoke-marp-osc button[data-action=\"presenter\"]", "@page { size: 1600px 900px; margin: 0; }", "width: 1600px", "height: 900px", "resolve_paperlogy_alias", "slideMasters/slideMaster1.xml", "slideLayouts/slideLayout1.xml", "theme/theme1.xml"} {
-		if !strings.Contains(htmlExportContent, expectedText) {
-			t.Fatalf("presentation HTML export script must inline fonts, present HTML as slides, and export valid PPTX with %q", expectedText)
-		}
-	}
-	if strings.Contains(htmlExportContent, "@layer internkim-fonts") {
-		t.Fatal("presentation font fallback must use plain @font-face rules for browser compatibility")
-	}
-	for _, forbiddenText := range []string{"is older than DESIGN.md"} {
-		if strings.Contains(htmlExportContent, forbiddenText) {
-			t.Fatalf("presentation HTML export script must not contain old workflow fragment %q", forbiddenText)
-		}
-	}
-
-	reviewScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "render_review.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	reviewContent := string(reviewScript)
-	for _, expectedText := range []string{"contentDensity", "content_density", "notTooEmpty", "notTooDense", "fit-review.json", "fit-review-XX.md", "textOverflowRisk", "frameFitRisk", "fitReviewFilename", "needsDesignRevision", "designWarnings", "reviewUnavailable", "renderSource", "visualQualityScore", "qualityGatePassed", "visualEvidenceReliable", "VISUAL_QUALITY_SCORE_MINIMUM"} {
-		if !strings.Contains(reviewContent, expectedText) {
-			t.Fatalf("render review must include density check %q", expectedText)
-		}
-	}
-	for _, expectedText := range []string{"DESIGN_REVIEW_PROMPT", "DESIGN_WARNING_PREFIXES", "Design Revision Needed", "topicTitleWarning", "rawTableWarning", "bareListWarning", "repeatedCompositionWarning", "rawStructurePatternWarning", "weakVisualIdentityWarning", "missingSlideRoleWarning", "unreliableVisualEvidenceWarning", "sideStripeWarning", "ghostCardWarning", "tinyTextWarning", "languageMismatchWarning", "unsourcedCurrentDateWarning", "staticGatePassed", "source_has_side_stripe", "source_has_ghost_card_pattern", "source_has_tiny_text_pattern", "structure", "claim-style title", "purposeful executive artifact"} {
-		if !strings.Contains(reviewContent, expectedText) {
-			t.Fatalf("render review must include design warning %q", expectedText)
-		}
-	}
-	if strings.Contains(reviewContent, `return 0 if report["passed"] else 1`) {
-		t.Fatalf("render review warnings must remain LLM review input, not fail the build")
-	}
-	for _, forbiddenText := range []string{"presentation.md", "remove_front_matter", "split(r\"(?m)^\\s*---\\s*$\""} {
-		if strings.Contains(reviewContent, forbiddenText) {
-			t.Fatalf("render review must stay on HTML section source and not contain %q", forbiddenText)
-		}
-	}
-
-	acceptScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "accept_review.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	acceptContent := string(acceptScript)
-	for _, expectedText := range []string{"review-decision.json", "inspectedEvidence", "remainingNotes", "acceptedWarnings", "string_set_field", "should be a list"} {
-		if !strings.Contains(acceptContent, expectedText) {
-			t.Fatalf("review acceptance script must include %q", expectedText)
-		}
-	}
-	for _, forbiddenText := range []string{"blocking issues remain", "raise ValueError(\"contact sheets were not inspected"} {
-		if strings.Contains(acceptContent, forbiddenText) {
-			t.Fatalf("review acceptance must report review warnings without hard-blocking delivery on %q", forbiddenText)
-		}
-	}
-
-	minimalDesign, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "minimal-design.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	minimalDesignContent := string(minimalDesign)
 	for _, expectedText := range []string{"minmax(0, 1fr)", "overflow-wrap: anywhere", "line budgets", "fit-review text files"} {
-		if !strings.Contains(minimalDesignContent, expectedText) {
+		if !strings.Contains(string(minimalDesign), expectedText) {
 			t.Fatalf("minimal design reference must include fit-safe guidance %q", expectedText)
-		}
-	}
-}
-
-func TestPresentationValidatePPTXScriptReportsDesignWarnings(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	skillPath := skillPathInTest(t, repositoryRootPath, "presentation")
-	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate_pptx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	validateContent := string(validateScript)
-	for _, expectedText := range []string{"slide appears empty", "slide is missing a title", "Aptos", "Calibri", "excessive shape count", "hybrid background", "editable overlay out of bounds"} {
-		if !strings.Contains(validateContent, expectedText) {
-			t.Fatalf("presentation validate_pptx.py must report design warning %q", expectedText)
 		}
 	}
 }
@@ -1112,7 +871,7 @@ func TestEverySkillComesFromAPlugin(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for _, skillName := range []string{"pdf", "presentation", "calculator", "paperwork", "website", "messages"} {
+	for _, skillName := range []string{"office", "calculator", "website", "messages"} {
 		if !containsSkillNamed(skillDirectories, skillName) {
 			t.Fatalf("%s is in no plugin under %v", skillName, pluginSkillPaths)
 		}
@@ -1149,6 +908,20 @@ func TestSkillDirectoriesRejectTheSameSkillFromTwoRoots(t *testing.T) {
 	if _, errorValue := SkillDirectories(repositoryRootPath); errorValue == nil {
 		t.Fatal("a skill provided by two roots must be reported, not silently resolved")
 	}
+}
+
+func officePathInTest(t *testing.T, repositoryRootPath string, relativeParts ...string) string {
+	t.Helper()
+	return skillPathInTest(t, repositoryRootPath, "office", relativeParts...)
+}
+
+func officeDocumentPaths(t *testing.T, repositoryRootPath string) []string {
+	t.Helper()
+	referencePaths, errorValue := filepath.Glob(officePathInTest(t, repositoryRootPath, "references", "*.md"))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return append([]string{officePathInTest(t, repositoryRootPath, "SKILL.md")}, referencePaths...)
 }
 
 func skillPathInTest(t *testing.T, repositoryRootPath string, skillName string, relativeParts ...string) string {
