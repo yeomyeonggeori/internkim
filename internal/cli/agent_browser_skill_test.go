@@ -39,7 +39,7 @@ func TestLoadAgentBrowserSkillMarkdownUsesVendoredFallback(t *testing.T) {
 		"browser_open",
 		"browser_snapshot",
 		"interactive fallback",
-		"user input such as login/MFA/captcha",
+		"captcha you cannot pass",
 	} {
 		if !strings.Contains(skillMarkdown, fragment) {
 			t.Fatalf("expected skill markdown to include %q", fragment)

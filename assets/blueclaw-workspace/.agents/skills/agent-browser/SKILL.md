@@ -5,7 +5,9 @@ description: Use internkim browser capability operations for web navigation, pag
 
 # Browser Automation
 
-Browser automation is an interactive fallback, not the default web research path. Prefer search/fetch capabilities for ordinary public lookup and source retrieval. Use browser operations only when the user needs to see or operate a browser, user input such as login/MFA/captcha is required, you are guiding the user through a web flow, page state or interaction is the actual task, or search/fetch capabilities are unavailable, insufficient, or failing.
+Browser automation is an interactive fallback, not the default web research path. Prefer search/fetch capabilities for ordinary public lookup and source retrieval. Use browser operations only when page state or interaction is the actual task, or search/fetch capabilities are unavailable, insufficient, or failing.
+
+You work in the company computer's browser; nobody else is operating it. When a page asks for a login, MFA code or captcha you cannot pass, stop and tell the person which page and what it asked for. Do not guess credentials or try to get around the check.
 
 Invoke `browser.*` operations through the capability bridge. internkim runs the browser runtime behind these operations.
 

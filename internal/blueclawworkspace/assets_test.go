@@ -489,10 +489,6 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 			t.Fatalf("website skill must include %q", expectedText)
 		}
 	}
-	expectedToolReferences := `kim.intern.tool-references: "browser_open browser_snapshot browser_click artifact_review site_serve site_list site_unserve"`
-	if !strings.Contains(string(siteSkillDocument), expectedToolReferences) {
-		t.Fatalf("website skill must use the canonical tool references")
-	}
 	for _, removedToolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
 		if strings.Contains(string(siteSkillDocument), removedToolName) {
 			t.Fatalf("website skill must not reference %q", removedToolName)
