@@ -214,12 +214,11 @@ async function digestOf(value: string): Promise<string> {
 }
 
 function digestsMatch(first: string, second: string): boolean {
-	if (first.length !== second.length) return false;
-	let difference = 0;
-	for (let index = 0; index < first.length; index += 1) {
-		difference |= first.charCodeAt(index) ^ second.charCodeAt(index);
-	}
-	return difference === 0;
+	const encoder = new TextEncoder();
+	const firstBytes = encoder.encode(first);
+	const secondBytes = encoder.encode(second);
+	if (firstBytes.byteLength !== secondBytes.byteLength) return false;
+	return crypto.subtle.timingSafeEqual(firstBytes, secondBytes);
 }
 
 export class CompanyConnectionObject {

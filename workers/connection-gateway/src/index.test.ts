@@ -345,6 +345,13 @@ describe('the server key at rest', () => {
 		expect((await object.fetch(serverRequest('another-key'))).status).toBe(401);
 	});
 
+	test('refuses a wrong key of the same length', async () => {
+		const { object } = await companyWithAServerKey();
+		const sameLength = 'x'.repeat(serverKey.length);
+		expect(sameLength).toHaveLength(serverKey.length);
+		expect((await object.fetch(serverRequest(sameLength))).status).toBe(401);
+	});
+
 	test('refuses a header that is not a bearer credential', async () => {
 		const values = new Map<string, unknown>([['serverKey', serverKey]]);
 		const object = new CompanyConnectionObject(newState(values));
