@@ -91,8 +91,8 @@ NOWHERE = "127.0.0.1:9"
 
 VECTOR_ROUND_TRIP = """
 begin;
-insert into memory_episode (episode_id, source_kind, source_id, requester_person_id, content, occurred_at)
-  values ('rig-episode', 'explicit', 'rig-episode', 'rig-person', 'rig', now());
+insert into memory_episode (episode_id, source_kind, source_id, requester_person_id, content, occurred_at, receipt)
+  values ('rig-episode', 'explicit', 'rig-episode', 'rig-person', 'rig', now(), '{}');
 insert into memory_fact (fact_id, episode_id, owner_person_id, kind, content, valid_from)
   values ('rig-near', 'rig-episode', 'rig-person', 'fact', 'near', now()),
          ('rig-far', 'rig-episode', 'rig-person', 'fact', 'far', now());
