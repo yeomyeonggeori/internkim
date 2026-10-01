@@ -101,10 +101,11 @@ A call without a token answers `401` with
 `WWW-Authenticate: Bearer resource_metadata="https://api.intern.kim/.well-known/oauth-protected-resource/v1/mcp"`.
 That document names the plane's Supabase Auth as the authorization server. The
 client registers itself there, opens `intern.kim/oauth/consent` for the person
-to sign in and allow it, and keeps the token it is given. The token is that
-person's session for that app, so it carries full permission like a signed-in
-web session. The app is listed under connected apps in settings, and
-disconnecting it refuses its next call.
+to sign in and allow it, and keeps the token it is given. The token acts as
+that person, at the rung they chose on the consent screen: read, or read and
+write. An app nobody chose a rung for reads, and none administers the company.
+The app is listed under connected apps in settings, and disconnecting it
+refuses its next call.
 
 Anyone can register a client under any name, so the consent screen also shows
 where the access goes. A client on your own computer returns to `localhost` or

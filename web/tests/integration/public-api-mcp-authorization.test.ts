@@ -19,6 +19,7 @@ const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 const { GET: readResourceMetadata } = await import(
 	'../../src/routes/.well-known/oauth-protected-resource/[...resource]/+server'
 );
+const { PUT: chooseConnectedAppPermission } = await import('../../src/routes/api/member/connected-app/+server');
 
 const networkHookTimeout = 60_000;
 const record = controlPlane({ projectURL, serviceRoleKey });
@@ -155,6 +156,27 @@ async function consentAsTheMember(authorizationAddress: URL): Promise<string> {
 	return new URL(approved.data?.redirect_url ?? '').searchParams.get('code') ?? '';
 }
 
+async function choosePermissionWith(bearer: string, clientID: string, permission: string): Promise<number> {
+	const request = new Request(`${planeOrigin}/api/member/connected-app`, {
+		method: 'PUT',
+		headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify({ clientID, permission })
+	});
+	const event = { request, url: new URL(request.url), params: {}, platform: undefined };
+	const answered = await answerOfRoute(() =>
+		chooseConnectedAppPermission(event as unknown as Parameters<typeof chooseConnectedAppPermission>[0])
+	);
+	return answered.status;
+}
+
+async function toolNamesOf(provider: RememberingClient): Promise<string[]> {
+	const connected = new Client({ name: 'mcp-authorization-test', version: '1' });
+	await connected.connect(new StreamableHTTPClientTransport(toolServer, { authProvider: provider, fetch: reachingThePlane }));
+	const { tools } = await connected.listTools();
+	await connected.close();
+	return tools.map((tool) => tool.name);
+}
+
 describe('an MCP client with no credential', () => {
 	test('is challenged toward the metadata that names where to sign in', async () => {
 		const answered = await reachingThePlane(toolServer, {
@@ -195,15 +217,23 @@ describe('an MCP client with no credential', () => {
 		const finishing = new StreamableHTTPClientTransport(toolServer, { authProvider: provider, fetch: reachingThePlane });
 		await finishing.finishAuth(await consentAsTheMember(authorizationAddress));
 
-		const signedIn = new Client({ name: 'mcp-authorization-test', version: '1' });
-		await signedIn.connect(
-			new StreamableHTTPClientTransport(toolServer, { authProvider: provider, fetch: reachingThePlane })
-		);
-		const { tools } = await signedIn.listTools();
-		await signedIn.close();
-		expect(tools.map((tool) => tool.name)).toContain('task_list');
+		const readingTools = await toolNamesOf(provider);
+		expect(readingTools).toContain('task_list');
+		expect(readingTools).not.toContain('task_add');
+
+		const clientID = provider.clientInformation()?.client_id ?? '';
+		const appToken = provider.tokens()?.access_token ?? '';
+		expect(await choosePermissionWith(appToken, clientID, 'write')).toBe(403);
+		expect(await toolNamesOf(provider)).not.toContain('task_add');
 
 		const browser = await theMemberInTheirBrowser();
+		const { data: memberSession } = await browser.auth.getSession();
+		expect(await choosePermissionWith(memberSession.session?.access_token ?? '', clientID, 'delete')).toBe(400);
+		expect(await choosePermissionWith(memberSession.session?.access_token ?? '', clientID, 'write')).toBe(200);
+		const writingTools = await toolNamesOf(provider);
+		expect(writingTools).toContain('task_add');
+		expect(writingTools).not.toContain('task_delete');
+
 		const disconnected = await browser.auth.oauth.revokeGrant({ clientId: provider.clientInformation()?.client_id ?? '' });
 		expect(disconnected.error).toBeNull();
 		const afterDisconnecting = new Client({ name: 'mcp-authorization-test', version: '1' });

@@ -8,6 +8,8 @@ export const personalAccessTokenCredentialKind = 'api_key';
 
 export const mailAccountCredentialKind = 'mail';
 
+export const connectedAppCredentialKind = 'oauth_client';
+
 export const messengerIdentityCredentialKinds = [messengerIdentityCredentialKind] as const;
 
 export const companyConnectionCredentialKinds = messengerPlatformNames;

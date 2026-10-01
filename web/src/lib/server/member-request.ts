@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fullPublicAPIPermission, reachesPermission, type PublicAPIPermission } from '$lib/public-api-permission';
 import {
 	asMember,
+	connectedAppPermissionFor,
 	controlPlane,
 	isPersonalAccessToken,
 	planeCredentialsOf,
@@ -38,11 +39,9 @@ export async function memberAccessTokenOf(
 	request: Request,
 	credentials: SigningCredentials,
 ): Promise<MemberCall> {
-	const authorization = request.headers.get('authorization') ?? '';
-	const presented = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
-	if (!presented) error(401, 'sign in first');
+	const presented = presentedTokenOf(request);
 	if (!isPersonalAccessToken(presented)) {
-		return { accessToken: presented, permission: fullPublicAPIPermission, tokenName: '', memberID: null };
+		return { accessToken: presented, permission: await permissionOfSession(credentials, presented), tokenName: '', memberID: null };
 	}
 
 	const session = await sessionOfTokenOrRefusal(credentials, presented);
@@ -55,22 +54,39 @@ export async function memberAccessTokenOf(
 	};
 }
 
+function presentedTokenOf(request: Request): string {
+	const authorization = request.headers.get('authorization') ?? '';
+	const presented = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
+	if (!presented) error(401, 'sign in first');
+	return presented;
+}
+
 export async function signedInAccessTokenOf(request: Request, credentials: SigningCredentials): Promise<string> {
-	const { accessToken, tokenName } = await memberAccessTokenOf(request, credentials);
-	if (tokenName) error(403, 'sign in to administer the company; a personal access token does not');
-	if (isGrantedToAnOAuthClient(accessToken)) {
+	if (connectedAppOf(presentedTokenOf(request))) {
 		error(403, 'sign in to administer the company; a token granted to another application does not');
 	}
+	const { accessToken, tokenName } = await memberAccessTokenOf(request, credentials);
+	if (tokenName) error(403, 'sign in to administer the company; a personal access token does not');
 	return accessToken;
 }
 
-function isGrantedToAnOAuthClient(accessToken: string): boolean {
+type ConnectedApp = { accountID: string; clientID: string };
+
+function connectedAppOf(accessToken: string): ConnectedApp | null {
 	try {
-		return typeof decodeJwt(accessToken).client_id === 'string';
+		const { sub, client_id } = decodeJwt(accessToken);
+		if (typeof client_id !== 'string' || typeof sub !== 'string') return null;
+		return { accountID: sub, clientID: client_id };
 	} catch (failure) {
-		if (failure instanceof errors.JWTInvalid) return false;
+		if (failure instanceof errors.JWTInvalid) return null;
 		throw failure;
 	}
+}
+
+async function permissionOfSession(credentials: SigningCredentials, accessToken: string): Promise<PublicAPIPermission> {
+	const app = connectedAppOf(accessToken);
+	if (!app) return fullPublicAPIPermission;
+	return connectedAppPermissionFor(controlPlane(credentials), app.accountID, app.clientID);
 }
 
 export function refuseUnlessTheCallerWrites(member: Pick<CallingMember, 'permission'>): void {

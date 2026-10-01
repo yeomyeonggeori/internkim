@@ -1,11 +1,14 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import {
+	connectedAppPermissionOf,
 	fullPublicAPIPermission,
 	publicAPIPermissionOf,
+	unchosenConnectedAppPermission,
+	type ConnectedAppPermission,
 	type PublicAPIPermission,
 } from '$lib/public-api-permission';
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
-import { personalAccessTokenCredentialKind } from './public-api/catalog/credential';
+import { connectedAppCredentialKind, personalAccessTokenCredentialKind } from './public-api/catalog/credential';
 import { recordTokenFor, verifiedRecordToken } from './record-token';
 import { defaultTokenLifetimeDays, expiryAfter } from '$lib/token-lifetime';
 import { z } from 'zod';
@@ -654,6 +657,51 @@ async function noteTokenUse(
 		.update({ settings: { ...settings, lastUsedAt: now.toISOString() } })
 		.eq('id', credentialID);
 	if (error) throw new Error(`personal access token: ${error.message}`);
+}
+
+export async function keepConnectedAppPermission(
+	client: SupabaseClient,
+	memberID: string,
+	clientID: string,
+	permission: ConnectedAppPermission,
+): Promise<void> {
+	const { error } = await client
+		.from('credential')
+		.upsert(
+			{ member_id: memberID, kind: connectedAppCredentialKind, name: clientID, permission },
+			{ onConflict: 'member_id,kind,name' },
+		);
+	if (error) throw new Error(`connected app ${clientID}: ${error.message}`);
+}
+
+export async function forgetConnectedAppPermission(
+	client: SupabaseClient,
+	memberID: string,
+	clientID: string,
+): Promise<void> {
+	const { error } = await client
+		.from('credential')
+		.delete()
+		.eq('member_id', memberID)
+		.eq('kind', connectedAppCredentialKind)
+		.eq('name', clientID);
+	if (error) throw new Error(`connected app ${clientID}: ${error.message}`);
+}
+
+export async function connectedAppPermissionFor(
+	client: SupabaseClient,
+	accountID: string,
+	clientID: string,
+): Promise<ConnectedAppPermission> {
+	const { data, error } = await client
+		.from('credential')
+		.select('permission, member!inner(user_id)')
+		.eq('kind', connectedAppCredentialKind)
+		.eq('name', clientID)
+		.eq('member.user_id', accountID)
+		.maybeSingle<{ permission: unknown }>();
+	if (error) throw new Error(`connected app ${clientID}: ${error.message}`);
+	return connectedAppPermissionOf(data?.permission) ?? unchosenConnectedAppPermission;
 }
 
 export const fleetCredentialKind = 'fleet';
