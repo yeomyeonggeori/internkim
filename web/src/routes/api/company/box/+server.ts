@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { boxClaimSchema } from '$lib/company/box';
 import { environmentOfPlatform } from '$lib/server/agent-request';
-import { BoxRefused, claimBox, connectedBoxOf, emptyBoxesAt } from '$lib/server/box';
+import { BoxRefused, claimBox, connectedBoxOf, emptyBoxesAt, releaseBox } from '$lib/server/box';
 import { callingHostAdministrator } from '$lib/server/company-host-setup';
 import type { RequestHandler } from './$types';
 
@@ -30,4 +30,10 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		throw refusal;
 	}
 	return json({ connected: await connectedBoxOf(member.record, member.companyID) }, { headers: privateHeaders });
+};
+
+export const DELETE: RequestHandler = async ({ request, platform }) => {
+	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
+	if (!(await releaseBox(member.record, member.companyID))) error(404, 'this company has no box connected');
+	return json({ connected: null }, { headers: privateHeaders });
 };

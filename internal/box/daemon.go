@@ -49,13 +49,15 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
-	page := daemon.openPairingPage(identity)
-	defer page.close()
+	var page *pairingPage
+	if daemon.installedCompany() == "" {
+		page = daemon.openPairingPage(identity)
+	}
+	defer func() { page.close() }()
 	for {
 		wait, isClaimed, errorValue := daemon.step(ctx, identity, page.localPage())
-		if isClaimed {
-			page.close()
-			page = nil
+		if errorValue == nil || isClaimed {
+			page = daemon.pairingPageFor(isClaimed, page, identity)
 		}
 		if errorValue != nil {
 			log.Printf("%v; trying again in %s", errorValue, announceInterval)
@@ -65,6 +67,17 @@ func (daemon Daemon) Run(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+func (daemon Daemon) pairingPageFor(isClaimed bool, page *pairingPage, identity Identity) *pairingPage {
+	if isClaimed {
+		page.close()
+		return nil
+	}
+	if page == nil {
+		return daemon.openPairingPage(identity)
+	}
+	return page
 }
 
 func (daemon Daemon) step(ctx context.Context, identity Identity, page LocalPage) (time.Duration, bool, error) {

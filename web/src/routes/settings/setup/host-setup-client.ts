@@ -11,7 +11,7 @@ import {
 import { hostConfigurationSchema, hostSetupStatusSchema, type HostConfiguration } from '$lib/company/host-setup';
 import { sealModelKey } from '$lib/company/seal-to-box';
 
-async function askCompanyRoute(path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown): Promise<unknown> {
+async function askCompanyRoute(path: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: unknown): Promise<unknown> {
 	const { data } = await supabase().auth.getSession();
 	if (!data.session) throw new Error('sign in first');
 	const response = await fetch(path, {
@@ -65,6 +65,10 @@ export async function verifyBoxCode(publicKey: string, pairingCode: string): Pro
 export async function connectBox(publicKey: string, ticket: string): Promise<ConnectedBox | null> {
 	const answer = await askCompanyRoute('/api/company/box', 'POST', { publicKey, ticket });
 	return connectedAnswerSchema.parse(answer).connected;
+}
+
+export async function disconnectBox(): Promise<void> {
+	connectedAnswerSchema.parse(await askCompanyRoute('/api/company/box', 'DELETE'));
 }
 
 export async function giveBoxModelKey(box: ConnectedBox, modelKey: string): Promise<ConnectedBox | null> {

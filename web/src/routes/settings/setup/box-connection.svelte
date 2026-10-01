@@ -8,7 +8,8 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { boxStepOf, shortBoxName } from './box-step';
 	import type { EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
-	import { connectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
+	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import { connectBox, disconnectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
@@ -77,6 +78,19 @@
 		} finally {
 			connectingKey = '';
 		}
+	}
+
+	function askToDisconnect() {
+		confirmDelete({
+			title: text.disconnectTitle,
+			description: text.disconnectDescription,
+			confirm: { text: text.disconnect },
+			cancel: { text: text.cancel },
+			onConfirm: async () => {
+				await disconnectBox();
+				boxes = { connected: null, empty: [] };
+			}
+		});
 	}
 
 	async function sendModelKey(event: SubmitEvent) {
@@ -154,11 +168,12 @@
 				<Item.Title>{text.foundBox}</Item.Title>
 				<Item.Description class="font-mono">{shortBoxName(boxes.connected.publicKey)}</Item.Description>
 			</Item.Content>
-			{#if step === 'connected' && !isChangingModelKey}
-				<Item.Actions>
+			<Item.Actions>
+				{#if step === 'connected' && !isChangingModelKey}
 					<Button variant="outline" onclick={() => (isChangingModelKey = true)}>{text.changeModelKey}</Button>
-				</Item.Actions>
-			{/if}
+				{/if}
+				<Button variant="ghost" onclick={askToDisconnect}>{text.disconnect}</Button>
+			</Item.Actions>
 		</Item.Root>
 		<p role="status" class="text-sm">{step === 'connected' ? text.boxConnected : text.boxClaimed}</p>
 	{/if}

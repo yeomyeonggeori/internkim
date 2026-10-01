@@ -197,6 +197,32 @@ func TestAnEmptyBoxShowsItsCodeOnItsNetworkUntilItIsClaimed(t *testing.T) {
 	}
 }
 
+func TestAReleasedBoxAsksForACodeAndShowsItAgain(t *testing.T) {
+	plane := &fakePlane{isClaimed: true, accessToken: "header.claims.signature"}
+	daemon, _ := daemonFor(t, plane, &installs{})
+	daemon.Places.PairingPageListenAddress = "127.0.0.1:0"
+	taken := 0
+	daemon.Sleep = func(ctx context.Context, wait time.Duration) error {
+		taken++
+		switch taken {
+		case 1:
+			plane.isClaimed = false
+			return nil
+		case 2:
+			return nil
+		default:
+			return context.Canceled
+		}
+	}
+	if errorValue := daemon.Run(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if plane.codesAskedFor == 0 || len(plane.pageAddresses) == 0 {
+		t.Fatalf("a released box asked for %d codes and showed its page at %v", plane.codesAskedFor, plane.pageAddresses)
+	}
+}
+
 func pageText(t *testing.T, address string) string {
 	t.Helper()
 	response, errorValue := http.Get(address)

@@ -16,7 +16,8 @@ import {
 	verifyBoxCode,
 	connectedBoxOf,
 	emptyBoxesAt,
-	keepSealedModelKey
+	keepSealedModelKey,
+	releaseBox
 } from '../../src/lib/server/box';
 import {
 	companyOfHostSession,
@@ -355,6 +356,25 @@ describe('connecting an empty box', () => {
 
 		expect((await connectedBoxOf(client, companyID))?.publicKey).toBe(second.publicKey);
 		expect(await boxSessionFor(credentials, first.publicKey, environment, appURL)).toBeNull();
+	});
+
+	test('an administrator disconnects a box, which then announces as empty and is given a new code', async () => {
+		const releasing = await aCompany('releasing');
+		const box = await aBox();
+		await claimWithCode(releasing.companyID, box.publicKey, await announcedCode(box));
+
+		expect(await releaseBox(client, releasing.companyID)).toBe(true);
+
+		expect(await connectedBoxOf(client, releasing.companyID)).toBeNull();
+		expect(await boxSessionFor(credentials, box.publicKey, environment, appURL)).toBeNull();
+		const announced = await announceBox(client, {
+			publicKey: box.publicKey,
+			encryptionKey: box.encryptionKey,
+			publicAddress: officeAddress,
+			wantsPairingCode: true
+		});
+		expect(announced).toMatchObject({ isClaimed: false, pairingCode: expect.any(String) });
+		expect(await releaseBox(client, releasing.companyID)).toBe(false);
 	});
 
 	test('a model key waits for a connected box', async () => {

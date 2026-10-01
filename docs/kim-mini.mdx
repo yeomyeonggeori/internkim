@@ -64,7 +64,7 @@ every reader of that file reads it per request. A stolen session dies within the
 |---|---|---|
 | secret that crosses the network | the key, at issuance and on every call | none; only signatures and short sessions |
 | a leaked request log gives | the key | an expired session |
-| taking it back | revoke in the web app | reset the box or claim another |
+| taking it back | revoke in the web app | disconnect it in the web app, reset it, or claim another |
 
 A computer the company brings follows the same shape. On Linux, `sudo internkim
 install` spends the downloaded key, and the machine signs in with one it generated

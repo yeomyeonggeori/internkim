@@ -243,6 +243,17 @@ function refuseUnless(outcome: VerificationOutcome, expected: 'verified' | 'clai
 	throw new BoxRefused(...refusalOfOutcome[outcome]);
 }
 
+export async function releaseBox(client: SupabaseClient, companyID: string): Promise<boolean> {
+	const { data, error } = await client
+		.from('credential')
+		.delete()
+		.eq('company_id', companyID)
+		.eq('kind', fleetCredentialKind)
+		.select('external_id');
+	if (error) throw new Error(`releasing the box of ${companyID}: ${error.message}`);
+	return data.length > 0;
+}
+
 export async function claimBoxWithConnectionFile(
 	client: SupabaseClient,
 	publicKey: string,

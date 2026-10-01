@@ -22,7 +22,7 @@ type pairingPage struct {
 }
 
 func (daemon Daemon) openPairingPage(identity Identity) *pairingPage {
-	if daemon.Places.PairingPageListenAddress == "" || daemon.installedCompany() != "" {
+	if daemon.Places.PairingPageListenAddress == "" {
 		return nil
 	}
 	listener, errorValue := net.Listen("tcp", daemon.Places.PairingPageListenAddress)
