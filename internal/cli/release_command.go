@@ -21,7 +21,6 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
 	"gitlab.com/eastriver/internkim/internal/deviceassets"
-	"gitlab.com/eastriver/internkim/internal/packagerepository"
 	"gitlab.com/eastriver/internkim/internal/releaseset"
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
@@ -55,8 +54,8 @@ var releaseSubcommands = []releaseSubcommand{
 	{name: "publish", summary: "Publish a device release to the stable channel", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
 	{name: "status", summary: "Show what the channel points at", flags: []string{"--channel"}, run: runReleaseStatus},
 	{name: "companion", summary: "Build the companion for macOS and Linux and publish it under companion/latest", flags: []string{"--release"}, run: runReleaseCompanion},
-	{name: "packages", summary: "Build the company host as deb, rpm and archlinux packages from one payload", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
-	{name: "repositories", summary: "Sign and publish the apt, rpm and pacman repositories under deb/, rpm/ and arch/, from the packages release packages built", flags: []string{"--channel", "--format", "--package-directory", "--output"}, run: runReleaseRepositories},
+	{name: "packages", summary: "Build the company host as deb, rpm and archlinux packages from one payload, with their SHA256SUMS", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
+	{name: "host", summary: "Build the company host packages for arm64 and amd64 and publish them as a GitHub Release on the stable or testing channel", flags: []string{"--channel"}, run: runReleaseHost},
 	{name: "brew", summary: "Build the company host as a Homebrew bottle on this Mac and render the tap's formula", flags: []string{"--out", "--version"}, run: runReleaseBrew},
 }
 
@@ -129,11 +128,7 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
-	fmt.Println("Environment for repositories:")
-	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_PACKAGE_SIGNING_KEY, and signs all three formats:")
-	fmt.Printf("    internkim @production release repositories --channel %s\n", packagerepository.TestingChannel)
-	fmt.Println("  there is no flag that names a key on disk: the vault is the key's one home,")
-	fmt.Println("  and the rigs put their own throwaway key in the same variable")
+	fmt.Printf("release host publishes through gh, signed in to an account that can create releases on %s.\n", hostReleaseRepository)
 }
 
 func runReleasePublish(arguments []string) error {

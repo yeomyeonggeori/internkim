@@ -35,7 +35,7 @@ var companionProduct = releaseProduct{
 	PackagePath: "./cmd/internkim-companion",
 }
 
-const binaryReleaseChecksumsName = "SHA256SUMS"
+const releaseChecksumsName = "SHA256SUMS"
 
 type binaryBuilder func(target releaseTarget, outputPath string) error
 
@@ -71,7 +71,7 @@ func publishBinaryRelease(product releaseProduct, releaseID string, publisher re
 				return errorValue
 			}
 		}
-		if errorValue := publisher.PutObject(prefix+binaryReleaseChecksumsName, []byte(checksums), "text/plain"); errorValue != nil {
+		if errorValue := publisher.PutObject(prefix+releaseChecksumsName, []byte(checksums), "text/plain"); errorValue != nil {
 			return errorValue
 		}
 	}

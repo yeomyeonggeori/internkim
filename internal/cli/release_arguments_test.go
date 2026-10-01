@@ -6,10 +6,10 @@ import (
 )
 
 func TestReleaseRefusesAFlagItsSubcommandDoesNotTake(t *testing.T) {
-	repositories, _ := findReleaseSubcommand("repositories")
-	errorValue := checkReleaseArguments(repositories, []string{"--chann", "testing"})
+	host, _ := findReleaseSubcommand("host")
+	errorValue := checkReleaseArguments(host, []string{"--chann", "testing"})
 	if errorValue == nil {
-		t.Fatal("a misspelled --channel was accepted, so release repositories would publish to its default channel")
+		t.Fatal("a misspelled --channel was accepted")
 	}
 	if !strings.Contains(errorValue.Error(), "--chann") || !strings.Contains(errorValue.Error(), "--channel") {
 		t.Fatalf("the refusal should name the flag given and the flags taken: %v", errorValue)
@@ -17,13 +17,13 @@ func TestReleaseRefusesAFlagItsSubcommandDoesNotTake(t *testing.T) {
 }
 
 func TestReleaseAcceptsItsFlagsInBothSpellings(t *testing.T) {
-	repositories, _ := findReleaseSubcommand("repositories")
+	packages, _ := findReleaseSubcommand("packages")
 	for _, arguments := range [][]string{
-		{"--channel", "testing"},
-		{"--channel=testing", "--output", "/tmp/repository"},
+		{"--architecture", "arm64"},
+		{"--architecture=arm64", "--out", "/tmp/release"},
 		{},
 	} {
-		if errorValue := checkReleaseArguments(repositories, arguments); errorValue != nil {
+		if errorValue := checkReleaseArguments(packages, arguments); errorValue != nil {
 			t.Fatalf("%v was refused: %v", arguments, errorValue)
 		}
 	}

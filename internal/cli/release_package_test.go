@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -121,31 +125,73 @@ func TestEveryFormatNamesAnNfpmPackager(t *testing.T) {
 	}
 }
 
-func TestEachFormatWritesItsOwnConventionalFileName(t *testing.T) {
-	target := packageTargets[0]
-	expected := map[string]string{
-		"deb":       "internkim_1.2.3_arm64.deb",
-		"rpm":       "internkim-1.2.3-1.aarch64.rpm",
-		"archlinux": "internkim-1.2.3-1-aarch64.pkg.tar.zst",
+func TestEachFormatAndArchitectureShipsUnderANameNoVersionChanges(t *testing.T) {
+	expected := []string{
+		"internkim-arm64.deb", "internkim-arm64.rpm", "internkim-arm64.pkg.tar.zst",
+		"internkim-amd64.deb", "internkim-amd64.rpm", "internkim-amd64.pkg.tar.zst",
 	}
-	for _, format := range linuxPackageFormats() {
-		information := linuxPackageInformation(format, target, "1.2.3", files.Contents{}, nfpm.Scripts{})
-		fileName, errorValue := format.packageFileName(information)
-		if errorValue != nil || fileName != expected[format.Name] {
-			t.Errorf("the %s package is named %q (%v), expected %q", format.Name, fileName, errorValue, expected[format.Name])
-		}
+	if names := hostReleaseAssetNames(); strings.Join(names, " ") != strings.Join(expected, " ") {
+		t.Errorf("a release ships %v, and install.sh asks for %v", names, expected)
 	}
 }
 
-func TestEveryFormatKeepsTheWholeVersionSoTwoBuildsOfOneDayAreTwoVersions(t *testing.T) {
-	version := "0.0.0+20260930.abc1234"
-	for _, format := range linuxPackageFormats() {
-		information := linuxPackageInformation(format, packageTargets[0], version, files.Contents{}, nfpm.Scripts{})
-		fileName, errorValue := format.packageFileName(information)
-		if errorValue != nil || !strings.Contains(fileName, version) {
-			t.Errorf("the %s package is named %q (%v), which drops part of %s, so a later build of the same day would not upgrade it", format.Name, fileName, errorValue, version)
+func TestALaterCommitIsAVersionEveryManagerOrdersAfterAnEarlierOne(t *testing.T) {
+	morning := time.Date(2026, 10, 1, 9, 5, 7, 0, time.UTC)
+	for _, pair := range [][2]time.Time{
+		{morning, morning.Add(time.Second)},
+		{morning, morning.Add(5 * time.Hour)},
+		{morning, morning.AddDate(0, 0, 9)},
+		{morning, morning.AddDate(0, 3, 0)},
+	} {
+		earlier, later := packageVersionAt(pair[0]), packageVersionAt(pair[1])
+		if compareVersionSegments(earlier, later) >= 0 {
+			t.Errorf("%s does not order before %s, so re-running install.sh would not upgrade", earlier, later)
 		}
 	}
+	if version := packageVersionAt(morning); version != "2026.10.01.090507" {
+		t.Errorf("the version reads %s", version)
+	}
+}
+
+// compareVersionSegments compares dot-separated numbers one by one, which is
+// what dpkg, rpmvercmp and pacman's vercmp all reduce to for an all-digit version.
+func compareVersionSegments(left string, right string) int {
+	leftSegments, rightSegments := strings.Split(left, "."), strings.Split(right, ".")
+	for index := range leftSegments {
+		leftNumber, _ := strconv.Atoi(leftSegments[index])
+		rightNumber, _ := strconv.Atoi(rightSegments[index])
+		if leftNumber != rightNumber {
+			return leftNumber - rightNumber
+		}
+	}
+	return 0
+}
+
+func TestTheChecksumListNamesEveryPackageTheDirectoryHolds(t *testing.T) {
+	directory := t.TempDir()
+	for name, contents := range map[string]string{
+		"internkim-arm64.deb": "deb bytes", "internkim-amd64.rpm": "rpm bytes", "notes.txt": "not an asset",
+	} {
+		if errorValue := os.WriteFile(filepath.Join(directory, name), []byte(contents), 0o644); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	if errorValue := writeReleaseChecksums(directory); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	written, errorValue := os.ReadFile(filepath.Join(directory, releaseChecksumsName))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	expected := sha256Hex("deb bytes") + "  internkim-arm64.deb\n" + sha256Hex("rpm bytes") + "  internkim-amd64.rpm\n"
+	if string(written) != expected {
+		t.Errorf("SHA256SUMS reads\n%s\nwanted\n%s", written, expected)
+	}
+}
+
+func sha256Hex(contents string) string {
+	sum := sha256.Sum256([]byte(contents))
+	return hex.EncodeToString(sum[:])
 }
 
 func TestAnUnknownFormatIsRefusedByName(t *testing.T) {

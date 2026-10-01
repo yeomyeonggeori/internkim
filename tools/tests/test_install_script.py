@@ -1,5 +1,4 @@
 import hashlib
-import shutil
 import functools
 import http.server
 import os
@@ -15,9 +14,10 @@ repository_root = Path(__file__).resolve().parents[2]
 install_script = repository_root / "web/static/install.sh"
 companion_address = repository_root / "web/static/companion/install.sh"
 formula_source = repository_root / "internal/runtime/blueclaw/company_host_formula.go"
-keyring_path = "/usr/share/keyrings/internkim-archive-keyring.pgp"
-apt_source_path = "/etc/apt/sources.list.d/internkim.sources"
-published_keyring = b"-----BEGIN PGP PUBLIC KEY BLOCK-----\nnot a real key\n"
+package_formats_source = repository_root / "internal/cli/release_package.go"
+package_targets_source = repository_root / "internal/cli/release_package_payload.go"
+github_downloads = "https://github.com/yeomyeonggeori/internkim/releases"
+github_newest_release = "https://api.github.com/repos/yeomyeonggeori/internkim/releases?per_page=1"
 
 # `install` is the only command the script uses to put a file where root can
 # see it, and its destination is always the last argument. Rewriting that one
@@ -29,6 +29,23 @@ def default_of(setting):
     if match is None:
         raise AssertionError(f"install.sh no longer sets {setting} from an override with a default")
     return match.group(1)
+
+
+def declared_asset_names():
+    """The names `internkim release packages` gives each format and architecture.
+
+    install.sh spells the same names, and the release the tests serve is built
+    from these, so a script that asks for another name finds nothing to install.
+    """
+    suffixes = re.findall(r'^\t\tSuffix:\s+"([^"]+)"', package_formats_source.read_text(), re.MULTILINE)
+    architectures = re.findall(r'\{Architecture: "([a-z0-9]+)"', package_targets_source.read_text())
+    if len(suffixes) != 3 or len(architectures) != 2:
+        raise AssertionError(f"internal/cli no longer declares the formats and targets this reads: {suffixes}, {architectures}")
+    return {
+        (architecture, suffix): f"internkim-{architecture}{suffix}"
+        for architecture in architectures
+        for suffix in suffixes
+    }
 
 
 def declared_tap():
@@ -44,7 +61,6 @@ def declared_tap():
 
 install_shim = """#!/usr/bin/env python3
 import os
-import shutil
 import sys
 
 sandbox = os.environ["INTERNKIM_TEST_SANDBOX"]
@@ -353,186 +369,6 @@ class InstallScriptTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertFalse((bin_dir / "internkim-companion").exists())
 
-    def debian_machine(self, failing_apt_subcommand="", sandbox_installs=True):
-        """A machine that has apt-get, dpkg and sudo, and a sandbox for what root writes."""
-        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.apt_log = directory / "apt.log"
-        (directory / "apt-get").write_text(
-            "#!/bin/sh\n"
-            f'printf "%s\\n" "apt-get $*" >> "{self.apt_log}"\n'
-            f'case "$1" in {failing_apt_subcommand or "__never__"}) exit 100 ;; esac\n'
-            "exit 0\n"
-        )
-        (directory / "apt-cache").write_text(
-            "#!/bin/sh\n"
-            f'printf "%s\\n" "apt-cache $*" >> "{self.apt_log}"\n'
-            'printf "%s:\\n  Installed: (none)\\n  Candidate: 1.0\\n" "$2"\n'
-        )
-        (directory / "dpkg").write_text(recording_shim("dpkg", directory / "apt.log", output="arm64"))
-        (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
-        shimmed = ["apt-get", "apt-cache", "dpkg", "sudo"]
-        if sandbox_installs:
-            (directory / "install").write_text(install_shim)
-            shimmed.append("install")
-        for name in shimmed:
-            (directory / name).chmod(0o755)
-        return str(directory)
-
-    def run_install_on_debian(self, base_url, shims, product="host", suite=None, shims_first=None):
-        environment = dict(os.environ)
-        environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
-        environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
-        environment["INTERNKIM_INSTALL_BASE_URL"] = base_url
-        environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/{product}/latest"
-        if suite:
-            environment["INTERNKIM_INSTALL_SUITE"] = suite
-        directories = [shims, self.uname_shim("Linux", "aarch64"), environment["PATH"]]
-        if shims_first:
-            directories.insert(0, shims_first)
-        environment["PATH"] = os.pathsep.join(directories)
-        completed = subprocess.run(
-            ["sh", str(install_script), product],
-            capture_output=True,
-            text=True,
-            env=environment,
-        )
-        return completed, Path(environment["INTERNKIM_INSTALL_BIN_DIR"])
-
-    def publish_keyring(self, base_url):
-        (self.served_directory / "deb").mkdir(parents=True, exist_ok=True)
-        (self.served_directory / "deb" / "internkim-archive-keyring.pgp").write_bytes(published_keyring)
-        return base_url
-
-    def publish_suite(self, base_url, suite="stable"):
-        """The suite's own signed index, which is what the script asks for to
-        tell a suite this repository does not carry from one it does."""
-        index = self.served_directory / "deb" / "dists" / suite
-        index.mkdir(parents=True, exist_ok=True)
-        (index / "InRelease").write_bytes(b"-----BEGIN PGP SIGNED MESSAGE-----\nSuite: " + suite.encode() + b"\n")
-        return base_url
-
-    def publish_repository(self, base_url, suite="stable"):
-        return self.publish_suite(self.publish_keyring(base_url), suite)
-
-    def test_a_machine_with_apt_gets_the_package_and_not_a_bare_binary(self):
-        base_url = self.publish_repository(self.serve())
-        completed, bin_dir = self.run_install_on_debian(base_url, self.debian_machine())
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-
-        written = (self.sandbox / apt_source_path.lstrip("/")).read_text()
-        self.assertEqual(
-            written.splitlines(),
-            [
-                "Types: deb",
-                f"URIs: {base_url}/deb",
-                "Suites: stable",
-                "Components: main",
-                "Architectures: arm64",
-                f"Signed-By: {keyring_path}",
-            ],
-        )
-        self.assertEqual((self.sandbox / keyring_path.lstrip("/")).read_bytes(), published_keyring)
-
-        calls = self.apt_log.read_text().splitlines()
-        self.assertIn("apt-get update", calls)
-        self.assertIn("apt-get install -y internkim", calls)
-        self.assertEqual(list(bin_dir.iterdir()), [])
-
-    def test_the_key_never_lands_where_it_would_sign_every_repository(self):
-        base_url = self.publish_repository(self.serve())
-        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        for forbidden in ("etc/apt/trusted.gpg", "etc/apt/trusted.gpg.d"):
-            self.assertFalse((self.sandbox / forbidden).exists(), forbidden)
-        self.assertNotIn("apt-key", self.apt_log.read_text())
-
-    def test_a_failed_package_install_says_how_to_undo_what_it_wrote(self):
-        base_url = self.publish_repository(self.serve())
-        completed, _ = self.run_install_on_debian(base_url, self.debian_machine(failing_apt_subcommand="install"))
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn(apt_source_path, completed.stderr)
-        self.assertIn(keyring_path, completed.stderr)
-
-    def test_a_signing_key_that_cannot_be_fetched_changes_nothing(self):
-        base_url = self.publish_suite(self.serve())
-        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("signing key", completed.stderr)
-        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
-        self.assertNotIn("apt-get", self.apt_log.read_text())
-
-    def unreachable_suite_index(self):
-        """A curl that serves everything but the suite's index, which is the
-        network dropping between fetching the key and asking for the suite.
-        The two requests go to one host, so nothing else can tell the
-        repository being out of reach apart from the suite being absent."""
-        real_curl = shutil.which("curl")
-        self.assertIsNotNone(real_curl, "this machine has no curl to pass the other fetches through to")
-        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        shim = directory / "curl"
-        shim.write_text(
-            "#!/bin/sh\n"
-            'for argument in "$@"; do\n'
-            '  case "$argument" in\n'
-            '    */dists/*) echo "curl: (7) Failed to connect" >&2; exit 7 ;;\n'
-            "  esac\n"
-            "done\n"
-            f'exec {real_curl} "$@"\n'
-        )
-        shim.chmod(0o755)
-        return str(directory)
-
-    def test_a_suite_the_repository_publishes_is_installed_from(self):
-        """The probe stands between every Debian install and apt, so a suite
-        that is served has to pass it untouched."""
-        base_url = self.publish_repository(self.serve())
-        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("apt-get install -y internkim", self.apt_log.read_text())
-
-    def test_a_suite_the_repository_does_not_publish_is_named_rather_than_left_to_apt(self):
-        """apt reports a missing suite as the whole source failing, which reads
-        as this machine or this address being wrong. Both are fine; the suite
-        is the thing nobody published, and only this script knows that before
-        apt is asked."""
-        base_url = self.publish_keyring(self.serve())
-        completed, _ = self.run_install_on_debian(base_url, self.debian_machine())
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("stable", completed.stderr)
-        self.assertIn(f"{base_url}/deb/dists/stable/InRelease", completed.stderr)
-        self.assertIn("404", completed.stderr)
-        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists(),
-                         "no source list is written for a suite that is not there")
-        self.assertFalse((self.sandbox / keyring_path.lstrip("/")).exists(),
-                         "nor the key that would only ever verify it")
-        self.assertNotIn("apt-get", self.apt_log.read_text(), "and apt is never asked")
-
-    def test_a_repository_out_of_reach_is_not_reported_as_an_unpublished_suite(self):
-        """Telling someone their Debian release was never built for, when the
-        truth is that their network is down, is a worse error than the one this
-        probe exists to fix."""
-        base_url = self.publish_repository(self.serve())
-        completed, _ = self.run_install_on_debian(
-            base_url, self.debian_machine(), shims_first=self.unreachable_suite_index())
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("Could not reach", completed.stderr)
-        self.assertNotIn("publishes nothing", completed.stderr)
-        self.assertFalse((self.sandbox / apt_source_path.lstrip("/")).exists())
-        self.assertNotIn("apt-get", self.apt_log.read_text())
-
-    def test_the_companion_ignores_the_package_manager(self):
-        base_url = self.publish_keyring(self.serve())
-        completed, bin_dir = self.run_install_on_debian(
-            base_url, self.debian_machine(sandbox_installs=False), product="companion"
-        )
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(
-            (bin_dir / "internkim-companion").read_bytes(),
-            published_binary("internkim-companion-linux-arm64"),
-        )
-        self.assertFalse(self.apt_log.exists())
-
     def test_refuses_a_product_it_publishes_no_build_for(self):
         completed = subprocess.run(
             ["sh", str(install_script), "something-else"], capture_output=True, text=True
@@ -550,7 +386,22 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual((bin_dir / "internkim-companion").read_bytes(), published_binary("internkim-companion-linux-amd64"))
         self.assertEqual(sorted(path.name for path in bin_dir.iterdir()), ["internkim-companion"])
 
-    def linux_machine(self, manager):
+    def test_the_companion_ignores_the_package_manager(self):
+        base_url = self.serve()
+        shims = self.linux_machine("apt-get", sandbox_installs=False)
+        environment = dict(os.environ)
+        environment["INTERNKIM_INSTALL_BIN_DIR"] = str(self.enterContext(tempfile.TemporaryDirectory()))
+        environment["INTERNKIM_INSTALL_RELEASE_URL"] = f"{base_url}/companion/latest"
+        environment["PATH"] = os.pathsep.join([shims, self.uname_shim("Linux", "aarch64"), environment["PATH"]])
+        completed = subprocess.run(["sh", str(install_script), "companion"], capture_output=True, text=True, env=environment)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            (Path(environment["INTERNKIM_INSTALL_BIN_DIR"]) / "internkim-companion").read_bytes(),
+            published_binary("internkim-companion-linux-arm64"),
+        )
+        self.assertFalse(self.manager_log.exists())
+
+    def linux_machine(self, manager, failing=False, sandbox_installs=True):
         """A machine that has one package manager, sudo and a sandbox for what root writes."""
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -558,88 +409,220 @@ class InstallScriptTests(unittest.TestCase):
         (directory / manager).write_text(
             "#!/bin/sh\n"
             f'printf "%s\\n" "{manager} $*" >> "{self.manager_log}"\n'
-            "exit 0\n"
+            + ('[ "$1" = update ] || exit 100\n' if failing else "")
+            + "exit 0\n"
         )
         (directory / "sudo").write_text('#!/bin/sh\n[ "$1" = "-v" ] && exit 0\nexec "$@"\n')
-        (directory / "install").write_text(install_shim)
-        for name in (manager, "sudo", "install"):
+        shimmed = [manager, "sudo"]
+        if sandbox_installs:
+            (directory / "install").write_text(install_shim)
+            shimmed.append("install")
+        for name in shimmed:
             (directory / name).chmod(0o755)
         return str(directory)
 
-    def run_install_with_a_package_file(self, shims, package_file, extra_environment=None):
+    def serve_host_release(self, tamper=None):
+        """A GitHub release's download directory: every package and its SHA256SUMS."""
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        lines = []
+        for name in declared_asset_names().values():
+            contents = f"{name} bytes\n".encode()
+            (directory / name).write_bytes(contents)
+            lines.append(f"{hashlib.sha256(contents).hexdigest()}  {name}\n")
+        checksums = "".join(lines)
+        (directory / "SHA256SUMS").write_text(tamper(checksums) if tamper else checksums)
+        handler = functools.partial(QuietRequestHandler, directory=str(directory))
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        return f"http://127.0.0.1:{server.server_address[1]}"
+
+    def run_host_install(self, shims, machine=("Linux", "aarch64"), arguments=(), extra_environment=None, first=()):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
-        environment["INTERNKIM_INSTALL_PACKAGE"] = str(package_file)
         environment.update(extra_environment or {})
-        environment["PATH"] = os.pathsep.join(
-            [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
+        environment["PATH"] = os.pathsep.join([*first, shims, self.uname_shim(*machine), self.path_without_a_package_manager()])
         return subprocess.run(
-            ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
+            ["sh", str(install_script), "host", *arguments], capture_output=True, text=True, env=environment)
 
-    def a_package_file(self, name):
-        path = Path(self.enterContext(tempfile.TemporaryDirectory())) / name
-        path.write_bytes(b"not really a package\n")
-        return path
-
-    def test_each_manager_installs_a_package_file_with_its_own_command(self):
-        for manager, file_name, expected in [
-            ("apt-get", "internkim_1_amd64.deb", "apt-get install -y {path}"),
-            ("dnf", "internkim-1-1.x86_64.rpm", "dnf install -y {path}"),
-            ("pacman", "internkim-1-1-x86_64.pkg.tar.zst", "pacman -U --needed --noconfirm {path}"),
+    def test_each_manager_installs_the_releases_file_for_its_format_and_architecture(self):
+        names = declared_asset_names()
+        for manager, suffix, command in [
+            ("apt-get", ".deb", "apt-get install -y"),
+            ("dnf", ".rpm", "dnf install -y"),
+            ("pacman", ".pkg.tar.zst", "pacman -U --needed --noconfirm"),
         ]:
-            with self.subTest(manager=manager):
-                shims = self.linux_machine(manager)
-                package = self.a_package_file(file_name)
-                completed = self.run_install_with_a_package_file(shims, package)
-                self.assertEqual(completed.returncode, 0, completed.stderr)
-                self.assertIn(expected.format(path=package), self.manager_log.read_text().splitlines())
-                self.assertIn("sudo internkim install", completed.stdout)
+            for machine_architecture, architecture in [("aarch64", "arm64"), ("x86_64", "amd64")]:
+                with self.subTest(manager=manager, architecture=machine_architecture):
+                    base_url = self.serve_host_release()
+                    shims = self.linux_machine(manager)
+                    completed = self.run_host_install(
+                        shims, machine=("Linux", machine_architecture),
+                        extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": base_url})
+                    self.assertEqual(completed.returncode, 0, completed.stderr)
+                    ran = [line for line in self.manager_log.read_text().splitlines() if line.startswith(command)]
+                    self.assertEqual(len(ran), 1, self.manager_log.read_text())
+                    self.assertTrue(ran[0].endswith("/" + names[(architecture, suffix)]), ran[0])
+                    self.assertIn("sudo internkim install", completed.stdout)
 
-    def test_a_package_file_of_another_format_is_refused_before_anything_runs(self):
-        shims = self.linux_machine("dnf")
-        completed = self.run_install_with_a_package_file(shims, self.a_package_file("internkim_1_amd64.deb"))
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("installs .rpm files", completed.stderr)
-        self.assertFalse(self.manager_log.exists(), "the manager was asked nothing before the refusal")
-
-    def test_a_package_file_that_is_not_there_is_named(self):
-        shims = self.linux_machine("pacman")
-        completed = self.run_install_with_a_package_file(shims, "/nonexistent/internkim.pkg.tar.zst")
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("/nonexistent/internkim.pkg.tar.zst is not a file", completed.stderr)
-
-    def test_a_package_file_whose_checksum_is_not_the_one_given_is_refused(self):
-        shims = self.linux_machine("dnf")
-        package = self.a_package_file("internkim-1-1.x86_64.rpm")
-        completed = self.run_install_with_a_package_file(
-            shims, package, {"INTERNKIM_INSTALL_PACKAGE_SHA256": "0" * 64})
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("INTERNKIM_INSTALL_PACKAGE_SHA256", completed.stderr)
-        self.assertFalse(self.manager_log.exists())
-
-    def test_a_package_file_is_fetched_from_an_address(self):
-        base_url = self.serve()
-        (self.served_directory / "internkim-1-1.x86_64.rpm").write_bytes(b"rpm bytes\n")
-        shims = self.linux_machine("dnf")
-        completed = self.run_install_with_a_package_file(shims, f"{base_url}/internkim-1-1.x86_64.rpm")
+    def test_apt_refreshes_its_indices_before_resolving_the_packages_dependencies(self):
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(
+            shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release()})
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        installed = [line for line in self.manager_log.read_text().splitlines() if line.startswith("dnf install -y ")]
-        self.assertEqual(len(installed), 1)
-        self.assertTrue(installed[0].endswith("internkim-1-1.x86_64.rpm"), installed)
+        calls = self.manager_log.read_text().splitlines()
+        self.assertEqual(calls[0], "apt-get update")
+        self.assertTrue(calls[1].startswith("apt-get install -y /"), calls)
 
-    def test_pacman_with_an_unreachable_repository_names_the_key_and_changes_nothing(self):
-        shims = self.linux_machine("pacman")
-        environment = dict(os.environ)
-        environment["PATH"] = os.pathsep.join(
-            [shims, self.uname_shim("Linux", "x86_64"), self.path_without_a_package_manager()])
-        environment["INTERNKIM_INSTALL_BASE_URL"] = "http://127.0.0.1:9"
-        environment["INTERNKIM_INSTALL_SUITE"] = "testing"
-        completed = subprocess.run(
-            ["sh", str(install_script), "host"], capture_output=True, text=True, env=environment)
-        self.assertEqual(completed.returncode, 1)
-        self.assertIn("http://127.0.0.1:9/arch/testing/internkim-pacman-signing.asc", completed.stderr)
+    def test_the_install_adds_no_source_key_or_repository_to_the_machine(self):
+        """The package is a file the manager installs; re-running the line is the
+        upgrade, so nothing is left behind that the manager would poll."""
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(
+            shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release()})
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(list(self.sandbox.rglob("*")), [])
+
+    def test_a_package_that_does_not_hash_to_the_published_checksum_is_refused(self):
+        def tampered(checksums):
+            return checksums.replace(hashlib.sha256(b"internkim-arm64.deb bytes\n").hexdigest(), "0" * 64)
+
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(
+            shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release(tampered)})
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn("internkim-arm64.deb hashes to", completed.stderr)
+        self.assertIn("0" * 64, completed.stderr)
+        self.assertFalse(self.manager_log.exists(), "the manager was asked to install something that failed its check")
+
+    def test_a_checksum_list_that_does_not_name_the_package_is_refused(self):
+        def without_the_deb(checksums):
+            return "".join(line for line in checksums.splitlines(True) if not line.endswith("  internkim-arm64.deb\n"))
+
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(
+            shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release(without_the_deb)})
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn("lists no internkim-arm64.deb", completed.stderr)
         self.assertFalse(self.manager_log.exists())
 
+    def test_only_the_line_naming_the_package_exactly_answers_for_it(self):
+        def renamed(checksums):
+            return checksums.replace("  internkim-arm64.deb\n", "  old-internkim-arm64.deb\n")
+
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(
+            shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release(renamed)})
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn("lists no internkim-arm64.deb", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
+
+    def test_a_release_out_of_reach_changes_nothing(self):
+        shims = self.linux_machine("dnf")
+        completed = self.run_host_install(shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": "http://127.0.0.1:9"})
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("Could not fetch http://127.0.0.1:9/SHA256SUMS", completed.stderr)
+        self.assertIn("Nothing on this machine was changed", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
+
+    def test_a_failed_install_points_at_the_managers_own_output(self):
+        shims = self.linux_machine("apt-get", failing=True)
+        completed = self.run_host_install(
+            shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release()})
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("Installing internkim-arm64.deb failed", completed.stderr)
+
+    def test_a_machine_of_another_architecture_is_refused_before_anything_is_fetched(self):
+        shims = self.linux_machine("pacman")
+        completed = self.run_host_install(
+            shims, machine=("Linux", "riscv64"), extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": "http://127.0.0.1:9"})
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("published for arm64 and amd64, and this machine is riscv64", completed.stderr)
+        self.assertNotIn("Could not fetch", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
+
+    def github(self, newest_tag="v2026.10.01.090507"):
+        """A curl that answers GitHub's addresses from a release on disk, and
+        records every address it was asked for."""
+        served = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        lines = []
+        for name in declared_asset_names().values():
+            (served / name).write_bytes(name.encode())
+            lines.append(f"{hashlib.sha256(name.encode()).hexdigest()}  {name}\n")
+        (served / "SHA256SUMS").write_text("".join(lines))
+        (served / "releases.json").write_text(
+            '[\n  {\n    "url": "https://api.github.com/repos/yeomyeonggeori/internkim/releases/1",\n'
+            '    "author": {\n      "login": "sample"\n    },\n'
+            f'    "tag_name": "{newest_tag}",\n    "prerelease": true\n  }}\n]\n'
+        )
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.requested = directory / "requested.log"
+        shim = directory / "curl"
+        shim.write_text(
+            "#!/bin/sh\n"
+            'output=""; address=""\n'
+            'while [ $# -gt 0 ]; do\n'
+            '  case "$1" in -o) output="$2"; shift 2 ;; -*) shift ;; *) address="$1"; shift ;; esac\n'
+            "done\n"
+            f'printf "%s\\n" "$address" >> "{self.requested}"\n'
+            'case "$address" in\n'
+            f'  "{github_newest_release}") file=releases.json ;;\n'
+            f'  "{github_downloads}/latest/download/"*|"{github_downloads}/download/{newest_tag}/"*) file="${{address##*/}}" ;;\n'
+            '  *) echo "curl: (22) The requested URL returned error: 404" >&2; exit 22 ;;\n'
+            "esac\n"
+            f'if [ -n "$output" ]; then cp "{served}/$file" "$output"; else cat "{served}/$file"; fi\n'
+        )
+        shim.chmod(0o755)
+        return str(directory)
+
+    def requested_addresses(self):
+        return self.requested.read_text().splitlines()
+
+    def test_stable_installs_from_the_latest_release(self):
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(shims, first=[self.github()])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.requested_addresses(), [
+            f"{github_downloads}/latest/download/SHA256SUMS",
+            f"{github_downloads}/latest/download/internkim-arm64.deb",
+        ])
+
+    def test_testing_installs_from_the_newest_release_whatever_its_kind(self):
+        for arguments, environment in [
+            (("--channel", "testing"), {}),
+            (("--channel=testing",), {}),
+            ((), {"INTERNKIM_INSTALL_CHANNEL": "testing"}),
+        ]:
+            with self.subTest(arguments=arguments, environment=environment):
+                shims = self.linux_machine("dnf")
+                completed = self.run_host_install(
+                    shims, arguments=arguments, extra_environment=environment, first=[self.github(newest_tag="v9")])
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(self.requested_addresses(), [
+                    github_newest_release,
+                    f"{github_downloads}/download/v9/SHA256SUMS",
+                    f"{github_downloads}/download/v9/internkim-arm64.rpm",
+                ])
+
+    def test_a_channel_nobody_publishes_is_refused_before_anything_is_fetched(self):
+        shims = self.linux_machine("apt-get")
+        github = self.github()
+        for arguments in [("--channel", "beta"), ("--channel",), ("--chanel", "testing")]:
+            with self.subTest(arguments=arguments):
+                completed = self.run_host_install(shims, arguments=arguments, first=[github])
+                self.assertEqual(completed.returncode, 1, completed.stdout)
+                self.assertFalse(self.requested.exists())
+                self.assertFalse(self.manager_log.exists())
+
+    def test_testing_with_no_release_github_will_name_changes_nothing(self):
+        shims = self.linux_machine("apt-get")
+        github = self.github()
+        (Path(github) / "curl").write_text("#!/bin/sh\necho '[]'\n")
+        completed = self.run_host_install(shims, arguments=("--channel", "testing"), first=[github])
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn(f"Could not read the newest release from {github_newest_release}", completed.stderr)
+        self.assertFalse(self.manager_log.exists())
 
 if __name__ == "__main__":
     unittest.main()
