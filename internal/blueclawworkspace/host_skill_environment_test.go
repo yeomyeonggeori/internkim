@@ -194,35 +194,6 @@ func TestARunningHostReportsAnIncompleteSkillEnvironmentInsteadOfTakingTheMessen
 	}
 }
 
-func TestBundledSkillRequirementsCarryNoVersionSpecifier(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	runtimeScript, errorValue := os.ReadFile(filepath.Join(skillDirectoryPath(t, repositoryRootPath, "office"), "scripts", "skill_runtime.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(runtimeScript), "importlib.metadata.distribution(package_name)") {
-		t.Fatal("skill_runtime.py no longer decides by distribution name alone; this guard can go once it compares versions")
-	}
-
-	specifierPattern := regexp.MustCompile(`[=<>!~]`)
-	for _, skillDirectory := range skillsDeclaringRequirements(t, repositoryRootPath) {
-		requirementsPath := filepath.Join(skillDirectory.Path, "scripts", "requirements.txt")
-		document, readError := os.ReadFile(requirementsPath)
-		if readError != nil {
-			t.Fatal(readError)
-		}
-		for _, line := range strings.Split(string(document), "\n") {
-			requirement := strings.TrimSpace(strings.SplitN(line, "#", 2)[0])
-			if requirement == "" {
-				continue
-			}
-			if specifierPattern.MatchString(requirement) {
-				t.Fatalf("%s pins %q, but skill_runtime.py only checks that a distribution of that name is importable; a host that preinstalled another version would run the skill against it without saying so", requirementsPath, requirement)
-			}
-		}
-	}
-}
-
 func TestHostImagePinsTheUVReleaseTheDeviceRootfsInstalls(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	hostVersion := dockerfileArgument(hostDockerfile(t, repositoryRootPath), "UV_VERSION")

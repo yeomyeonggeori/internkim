@@ -496,11 +496,9 @@ class Measurement:
             "install -d /var/tmp/documents\n"
             f"cp {SHARE_PATH}/report.md /var/tmp/documents/report.md\n"
             "cd /var/tmp/documents\n"
-            f"office={SKILLS_PATH}/office/scripts/office
-"
+            f"office={SKILLS_PATH}/office/scripts/office\n"
             "python3 $office doc export "
-            "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20
-"
+            "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20\n"
             "python3 $office doc validate "
             "/var/tmp/documents/report.docx 2>&1 | tail -20\n"
             "ls -la /var/tmp/documents 2>&1 | tail -6\n",
