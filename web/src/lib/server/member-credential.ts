@@ -55,11 +55,34 @@ export type ConnectedMessengerAccount = {
 	secret: string;
 };
 
+export class MemberOfAnotherCompany extends Error {
+	constructor(readonly memberID: string) {
+		super(`member ${memberID} belongs to another company`);
+	}
+}
+
+export async function memberBelongsToCompany(
+	client: SupabaseClient,
+	memberID: string,
+	companyID: string,
+): Promise<boolean> {
+	const member = await client
+		.from('member')
+		.select('company_id')
+		.eq('id', memberID)
+		.maybeSingle<{ company_id: string }>();
+	if (member.error) throw new Error(member.error.message);
+	return member.data?.company_id === companyID;
+}
+
 export async function connectMessengerAccount(
 	client: SupabaseClient,
 	companyID: string,
 	account: ConnectedMessengerAccount,
 ): Promise<void> {
+	if (!(await memberBelongsToCompany(client, account.memberID, companyID))) {
+		throw new MemberOfAnotherCompany(account.memberID);
+	}
 	await keepMemberCredential(client, account.memberID, {
 		kind: account.kind,
 		externalID: account.externalID,

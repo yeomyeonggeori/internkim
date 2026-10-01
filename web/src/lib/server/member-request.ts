@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fullPublicAPIPermission, type PublicAPIPermission } from '$lib/public-api-permission';
+import { fullPublicAPIPermission, reachesPermission, type PublicAPIPermission } from '$lib/public-api-permission';
 import {
 	asMember,
 	controlPlane,
@@ -51,6 +51,16 @@ export async function memberAccessTokenOf(
 		tokenName: session.tokenName,
 		memberID: session.memberID,
 	};
+}
+
+export async function signedInAccessTokenOf(request: Request, credentials: SigningCredentials): Promise<string> {
+	const { accessToken, tokenName } = await memberAccessTokenOf(request, credentials);
+	if (tokenName) error(403, 'sign in to administer the company; a personal access token does not');
+	return accessToken;
+}
+
+export function refuseUnlessTheCallerWrites(member: Pick<CallingMember, 'permission'>): void {
+	if (!reachesPermission(member.permission, 'write')) error(403, 'this token may not write');
 }
 
 async function sessionOfTokenOrRefusal(
