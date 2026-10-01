@@ -57,7 +57,8 @@ source_repository="https://github.com/block/buzz"
 # https://<project>.supabase.co/storage/v1/s3. Fix: durch/rust-s3#474.
 patched_s3_repository="https://github.com/eastriverlee/rust-s3.git"
 patched_s3_revision="786653e1b4abd47cb046ef1227aa646d97073c2c"
-built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-1"
+fixed_rustls_version="0.23.45"
+built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-1+rustls-$fixed_rustls_version"
 
 relay_binary="$artifact_directory/buzz-relay"
 admin_binary="$artifact_directory/buzz-admin"
@@ -142,6 +143,7 @@ PATCH
 if [ "$target" = "darwin-arm64" ]; then
   (cd "$source_directory" \
     && cargo update --package rust-s3 \
+    && cargo update --package rustls --precise "$fixed_rustls_version" \
     && cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin)
 else
   container run --rm --platform "$container_platform" --memory 8G \
@@ -152,6 +154,7 @@ else
       apt-get update -qq
       DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential pkg-config libssl-dev git >/dev/null
       cargo update --package rust-s3
+      cargo update --package rustls --precise '"'$fixed_rustls_version'"'
       cargo build --release --locked -p buzz-relay --bin buzz-relay -p buzz-admin --bin buzz-admin
     '
 fi
