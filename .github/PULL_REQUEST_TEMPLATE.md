@@ -1,26 +1,15 @@
-## What
+<!-- Branch `<type>/<subject>`, one reviewable change. CONTRIBUTING.md has the rules. -->
 
-<!-- One or two sentences on what this pull request does. -->
+## What to look at
 
-## Why
+<!-- The files or behaviour a reviewer should read first, and the problem they fix. -->
 
-<!-- The problem with the current behaviour, or the background a reviewer needs. -->
-<!-- For a UI change, drag a screenshot in here. -->
+## Evidence
 
-## Changes
+<!-- The test that fails without this change, the scenario you ran, or a screenshot for a UI change. Paste the command as you ran it. -->
 
-<!-- A bullet per change. Delete this section when "What" already covers them. -->
+## What the model sees
 
--
+<!-- Only for a change to a skill, a tool descriptor or a prompt. Quote the added text if it is short; otherwise give its size and where it sits in the request. Delete this section otherwise. -->
 
-## Verification
-
-<!-- The commands you actually ran, as you ran them. Manual steps belong here too. -->
-
-- `cd web && bun test tests/unit`
-- `cd web && bun run check`
-
-## Issue
-
-<!-- Keep this only when there is one. -->
-<!-- Closes #N / Related to #N -->
+Closes #
