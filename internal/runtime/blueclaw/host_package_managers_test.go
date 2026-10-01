@@ -1,6 +1,9 @@
 package blueclaw_test
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -49,5 +52,26 @@ func TestEveryFormatStatesTheSameGlibcFloorFromOneConstant(t *testing.T) {
 		if !strings.Contains(depends, blueclaw.HostGlibcMinimum) {
 			t.Errorf("%s's dependency list does not name glibc %s: %s", manager, blueclaw.HostGlibcMinimum, depends)
 		}
+	}
+}
+
+// install.sh is shell and cannot read this list, so it carries its own copy of
+// the managers in the order it asks for them. This reads the script and fails
+// when the copy drifts.
+func TestInstallScriptAsksForTheDeclaredManagersInOrder(t *testing.T) {
+	document, readError := os.ReadFile(filepath.Join(repositoryRootFromHere, "web", "static", "install.sh"))
+	if readError != nil {
+		t.Fatal(readError)
+	}
+	candidates := regexp.MustCompile(`for candidate in ([^;]+); do`).FindStringSubmatch(string(document))
+	if candidates == nil {
+		t.Fatal("install.sh no longer looks for a package manager with `for candidate in ...; do`")
+	}
+	declared := []string{}
+	for _, manager := range blueclaw.PackageManagers() {
+		declared = append(declared, string(manager))
+	}
+	if strings.Join(strings.Fields(candidates[1]), " ") != strings.Join(declared, " ") {
+		t.Errorf("install.sh looks for %q and the declaration names %q", candidates[1], strings.Join(declared, " "))
 	}
 }

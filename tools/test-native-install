@@ -343,9 +343,7 @@ class Rig:
     def run_step_one(self, step):
         one_liner = (
             f"set -eu\n"
-            f"export INTERNKIM_INSTALL_RELEASE_URL={self.base_url}/{PACKAGE_NAME}\n"
-            f"export INTERNKIM_INSTALL_REPOSITORY_URL={self.repository_url}\n"
-            f"export INTERNKIM_INSTALL_KEYRING_URL={self.keyring_url}\n"
+            f"export INTERNKIM_INSTALL_BASE_URL={self.base_url}\n"
             f"curl -fsSL {self.base_url}/install.sh | sh -s -- host\n"
         )
         attempt = self.machine.shell(one_liner)
@@ -1044,7 +1042,7 @@ def main():
             print(
                 f"✗ native install rig\n"
                 f"    No {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}.\n"
-                f"    Build it with `internkim release deb`.\n"
+                f"    Build it with `internkim release packages --format deb --architecture {ARCHITECTURE}`.\n"
                 f"    To exercise the rig itself against a stand-in, pass --stand-in.",
                 file=sys.stderr,
             )

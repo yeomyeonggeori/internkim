@@ -7,7 +7,7 @@ import (
 
 func startedWith(t *testing.T, serviceName string, flag string) string {
 	t.Helper()
-	service, isBundled := CompanyHostServiceNamed(DebianCompanyHostLayout(), serviceName)
+	service, isBundled := CompanyHostServiceNamed(LinuxCompanyHostLayout(), serviceName)
 	if !isBundled {
 		t.Fatalf("the bundle carries no %s", serviceName)
 	}
@@ -45,7 +45,7 @@ func TestAdmindIsToldWhereTheBuzzSeedLives(t *testing.T) {
 }
 
 func TestBlueclawStartsWithTheSkillsThePackageShips(t *testing.T) {
-	service, _ := CompanyHostServiceNamed(DebianCompanyHostLayout(), BlueclawServiceName)
+	service, _ := CompanyHostServiceNamed(LinuxCompanyHostLayout(), BlueclawServiceName)
 	skillsPath, isSet := environmentSettingOf(service, "BLUECLAW_BUNDLED_SKILLS_PATH")
 	if !isSet || skillsPath != CompanyPackageSkillsPath {
 		t.Fatalf("blueclaw looks for its skills at %q and the package puts them at %s, so it starts with nothing", skillsPath, CompanyPackageSkillsPath)

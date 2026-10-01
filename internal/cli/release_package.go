@@ -10,6 +10,7 @@ import (
 
 	"github.com/goreleaser/nfpm/v2"
 	_ "github.com/goreleaser/nfpm/v2/arch"
+	_ "github.com/goreleaser/nfpm/v2/deb"
 	"github.com/goreleaser/nfpm/v2/files"
 	_ "github.com/goreleaser/nfpm/v2/rpm"
 
@@ -17,7 +18,7 @@ import (
 )
 
 // One payload, three package formats. The contents of the package are built
-// once (debPackageContents), and each format is that same list of files with
+// once (packageContents), and each format is that same list of files with
 // its own dependency dialect and its own maintainer-script prologue.
 type linuxPackageFormat struct {
 	// Name is nfpm's name for the packager and what --format takes.
@@ -32,10 +33,11 @@ type linuxPackageFormat struct {
 
 var (
 	debianPackageFormat = linuxPackageFormat{
-		Name:        "deb",
-		Manager:     blueclaw.PackageManagerApt,
-		HasPurge:    true,
-		Compression: debPayloadCompression,
+		Name:     "deb",
+		Manager:  blueclaw.PackageManagerApt,
+		HasPurge: true,
+		// dpkg has read xz since 1.15, older than every distribution the package is for.
+		Compression: "xz",
 	}
 	rpmPackageFormat = linuxPackageFormat{
 		Name:        "rpm",
@@ -107,20 +109,20 @@ func (format linuxPackageFormat) packageFileName(information *nfpm.Info) (string
 	return packager.ConventionalFileName(nfpm.WithDefaults(information)), nil
 }
 
-func linuxPackageInformation(format linuxPackageFormat, target debianTarget, version string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
+func linuxPackageInformation(format linuxPackageFormat, target packageTarget, version string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
 	return &nfpm.Info{
 		Name:          blueclaw.CompanyPackageName,
-		Arch:          target.DebianArchitecture,
+		Arch:          target.Architecture,
 		Platform:      "linux",
 		Version:       version,
 		VersionSchema: "none",
 		Section:       blueclaw.CompanyPackageSection,
 		Priority:      "optional",
 		Maintainer:    blueclaw.CompanyPackageMaintainer,
-		Description:   debPackageDescription,
+		Description:   packageDescription,
 		Vendor:        blueclaw.CompanyPackageVendor,
 		Homepage:      blueclaw.CompanyPackageHomepage,
-		License:       debReleaseLicense,
+		License:       packageLicense,
 		MTime:         time.Now().UTC().Truncate(time.Second),
 		Overridables: nfpm.Overridables{
 			Depends:   blueclaw.HostPackageDependsFor(format.Manager),
@@ -201,13 +203,13 @@ func writeMaintainerScripts(format linuxPackageFormat, stagingPath string) (nfpm
 
 // buildLinuxPackages stages the payload once and writes it as every format asked
 // for, so the three packages of one architecture carry byte-identical files.
-func buildLinuxPackages(repositoryRootPath string, target debianTarget, version string, outputDirectory string, formats []linuxPackageFormat, output io.Writer) ([]string, error) {
+func buildLinuxPackages(repositoryRootPath string, target packageTarget, version string, outputDirectory string, formats []linuxPackageFormat, output io.Writer) ([]string, error) {
 	stagingPath, errorValue := os.MkdirTemp("", "internkim-package-*")
 	if errorValue != nil {
 		return nil, errorValue
 	}
 	defer os.RemoveAll(stagingPath)
-	contents, errorValue := debPackageContents(repositoryRootPath, target, version, stagingPath, output)
+	contents, errorValue := packageContents(repositoryRootPath, target, version, stagingPath, output)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -243,12 +245,12 @@ func runReleasePackages(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	targets, errorValue := debTargetsNamed(commandArgumentValue(arguments, "--architecture", ""))
+	targets, errorValue := packageTargetsNamed(commandArgumentValue(arguments, "--architecture", ""))
 	if errorValue != nil {
 		return errorValue
 	}
-	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), debVersionFromRepository(repositoryRootPath))
-	outputDirectory := firstNonEmptyString(commandArgumentValue(arguments, "--out", ""), filepath.Join(repositoryRootPath, debDefaultOutputDirectory))
+	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), packageVersionFromRepository(repositoryRootPath))
+	outputDirectory := firstNonEmptyString(commandArgumentValue(arguments, "--out", ""), filepath.Join(repositoryRootPath, defaultPackageDirectory))
 	for _, target := range targets {
 		built, errorValue := buildLinuxPackages(repositoryRootPath, target, version, outputDirectory, formats, os.Stdout)
 		if errorValue != nil {

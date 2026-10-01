@@ -108,7 +108,7 @@ func TestTheDatabaseListensOnNoNetworkAddressAndTheCacheOnNoPort(t *testing.T) {
 }
 
 func TestEveryClientIsGivenASocketAddressOnALinuxHost(t *testing.T) {
-	layout := DebianCompanyHostLayout()
+	layout := LinuxCompanyHostLayout()
 	url := layout.DatabaseURL("internkim", "pass word", "blueclaw")
 	if !strings.Contains(url, "host=%2Frun%2Finternkim-postgres") || strings.Contains(url, "127.0.0.1") {
 		t.Errorf("the database address is %q and does not name the socket directory", url)

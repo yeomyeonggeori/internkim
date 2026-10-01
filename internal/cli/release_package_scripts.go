@@ -51,7 +51,7 @@ func postInstallBody(format linuxPackageFormat) string {
 		`systemd-sysusers ` + blueclaw.CompanyPackageSysusersPath + ` || refuse "systemd-sysusers could not create the service accounts declared in ` + blueclaw.CompanyPackageSysusersPath + `"`,
 		`systemd-tmpfiles --create ` + blueclaw.CompanyPackageTmpfilesPath + ` || refuse "systemd-tmpfiles could not create the directories declared in ` + blueclaw.CompanyPackageTmpfilesPath + `"`,
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
-		hostSetupLines(blueclaw.DebianCompanyHostLayout().DocumentEnvironmentCommands()),
+		hostSetupLines(blueclaw.LinuxCompanyHostLayout().DocumentEnvironmentCommands()),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
@@ -89,7 +89,7 @@ func preRemoveBody(format linuxPackageFormat) string {
 // rpm and pacman have no purge; their own rule keeps an edited configuration file
 // beside the removed one.
 func postRemoveBody(format linuxPackageFormat) string {
-	debianLayout := blueclaw.DebianCompanyHostLayout()
+	debianLayout := blueclaw.LinuxCompanyHostLayout()
 	lines := []string{
 		`if ` + format.RemovalTest("postrm") + `; then`,
 		`  rm -rf ` + debianLayout.DocumentInterpreterRoot() + ` ` + debianLayout.DocumentVirtualEnvironmentPath(),

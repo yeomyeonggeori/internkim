@@ -474,17 +474,13 @@
     "process": "install script",
     "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
   },
-  "INTERNKIM_INSTALL_KEYRING_URL": {
+  "INTERNKIM_INSTALL_PACKAGE": {
     "process": "install script",
-    "description": "where web/static/install.sh fetches the archive signing key it installs as the source's Signed-By; defaults to the keyring beside the repository"
+    "description": "a package file, by path or address, web/static/install.sh installs with the machine's own package manager instead of adding a repository"
   },
   "INTERNKIM_INSTALL_PACKAGE_SHA256": {
     "process": "install script",
     "description": "the SHA-256 web/static/install.sh checks a package file named by INTERNKIM_INSTALL_PACKAGE against before installing it"
-  },
-  "INTERNKIM_INSTALL_PACMAN_REPOSITORY_URL": {
-    "process": "install script",
-    "description": "the pacman repository web/static/install.sh adds on Arch; defaults to the base URL's arch/<channel>"
   },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
@@ -493,14 +489,6 @@
   "INTERNKIM_INSTALL_BASE_URL": {
     "process": "install script",
     "description": "where web/static/install.sh finds the deb/, rpm/ and arch/ repositories; defaults to https://updates.intern.kim"
-  },
-  "INTERNKIM_INSTALL_REPOSITORY_URL": {
-    "process": "install script",
-    "description": "the apt repository web/static/install.sh registers; defaults to the base URL's deb"
-  },
-  "INTERNKIM_INSTALL_RPM_REPOSITORY_URL": {
-    "process": "install script",
-    "description": "the rpm repository web/static/install.sh adds on Fedora; defaults to the base URL's rpm/<channel>"
   },
   "INTERNKIM_INSTALL_SCRIPT_URL": {
     "process": "install script",

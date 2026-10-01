@@ -20,8 +20,8 @@ import (
 // names the command that installs something.
 
 // The two services the company host opens and does not ship. They are named here
-// because each platform calls them something different — postgresql and
-// redis-server on Debian, postgresql@17 and redis under `brew services` — and a
+// because each platform calls them something different — internkim-postgresql and
+// internkim-cache under systemd, postgresql@17 and redis under `brew services` — and a
 // probe should not have to know which machine it is on.
 const (
 	databaseServiceName = "database"
@@ -35,8 +35,8 @@ type companyHostPlatform interface {
 	NameOfItsSupervisor() string
 	// Layout is where this machine keeps the company host's own files.
 	Layout() blueclaw.CompanyHostLayout
-	// EnsureServiceAccounts creates the two unprivileged accounts the bundle
-	// runs services as.
+	// EnsureServiceAccounts creates the unprivileged accounts the bundle runs
+	// services as, where the package did not declare them.
 	EnsureServiceAccounts(machine Machine) error
 	// StartTheDatabaseAndTheCache starts what the distribution supervises.
 	StartTheDatabaseAndTheCache(machine Machine) error
@@ -49,7 +49,7 @@ type companyHostPlatform interface {
 	// machine brings with it, so the machine is not asked for it.
 	CarriesItInThePackage(dependency blueclaw.HostDependency) bool
 	// WhereToLookFor is where this machine keeps a dependency that is not on
-	// PATH and not where Debian puts it. Any one of the paths satisfies it.
+	// PATH and not at the path the declaration names. Any one of them satisfies it.
 	// Empty means look the way the declaration says.
 	WhereToLookFor(dependency blueclaw.HostDependency) []string
 	// HowToInstallTheseByHand is the closing lines of the preflight refusal: the
@@ -81,29 +81,6 @@ func KeepTheBoxSessionFresh(machine Machine, progress io.Writer) error {
 
 func ThisMachine() (companyHostPlatform, error) {
 	return platformFor(runtime.GOOS, homebrewPrefix())
-}
-
-// companyHostServiceAccount is one unprivileged account the bundle runs a
-// service as. Two exist, and they are separate because the relay outlives the
-// agent: it keeps answering when the agent is down, so it does not share the
-// agent's identity or its files.
-type companyHostServiceAccount struct {
-	Name        string
-	HomePath    string
-	Description string
-}
-
-func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHostServiceAccount {
-	accounts := []companyHostServiceAccount{
-		{Name: blueclaw.BlueclawUser, HomePath: layout.AgentHomePath, Description: "internkim agent"},
-		{Name: blueclaw.RelayUserName, Description: "internkim relay"},
-	}
-	if !layout.OwnsItsDataServices() {
-		return accounts
-	}
-	return append(accounts,
-		companyHostServiceAccount{Name: blueclaw.CompanyHostDatabaseUser, Description: "internkim database"},
-		companyHostServiceAccount{Name: blueclaw.CompanyHostCacheUser, Description: "internkim cache"})
 }
 
 func platformFor(operatingSystem string, homebrewPrefix string) (companyHostPlatform, error) {

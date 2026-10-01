@@ -18,11 +18,11 @@ import (
 	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
-// The company host as a Homebrew bottle, built the way `internkim release deb`
-// builds the Debian package: every path, dependency and program name is read
+// The company host as a Homebrew bottle, built the way `internkim release packages`
+// builds the Linux packages: every path, dependency and program name is read
 // from internal/runtime/blueclaw, and nothing about the formula is written twice.
 //
-// Three things differ from the .deb, and each is Homebrew's rule rather than a
+// Three things differ from the Linux packages, and each is Homebrew's rule rather than a
 // choice. The keg holds no service definitions, because the plists carry baked
 // environment and are written by `internkim install` once there is a company to
 // bake. It holds no setuid helper bit, because a bottle is a tar extracted as an
@@ -35,7 +35,6 @@ import (
 
 const (
 	brewDefaultOutputDirectory = ".artifacts/homebrew"
-	brewPayloadCacheDirectory  = ".dependency/host-payload"
 	brewMessengerArtifactPath  = ".dependency/buzz-relay-darwin-arm64"
 )
 
@@ -64,7 +63,7 @@ func runReleaseBrew(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), debVersionFromRepository(repositoryRootPath))
+	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), packageVersionFromRepository(repositoryRootPath))
 	outputDirectory := firstNonEmptyString(
 		commandArgumentValue(arguments, "--out", ""),
 		filepath.Join(repositoryRootPath, brewDefaultOutputDirectory),
@@ -189,7 +188,7 @@ func buildHomebrewKeg(repositoryRootPath string, kegPath string, version string,
 }
 
 func buildBrewGoPrograms(repositoryRootPath string, binaryPath string, libraryPath string, version string, output io.Writer) error {
-	for _, program := range debGoPrograms() {
+	for _, program := range packagedGoPrograms() {
 		destination := filepath.Join(libraryPath, program.Name)
 		if program.Name == blueclaw.CompanyPackageName {
 			destination = filepath.Join(binaryPath, program.Name)
@@ -207,7 +206,7 @@ func buildBrewGoPrograms(repositoryRootPath string, binaryPath string, libraryPa
 }
 
 func buildBrewBunPrograms(repositoryRootPath string, libraryPath string, output io.Writer) error {
-	for _, program := range debBunPrograms() {
+	for _, program := range packagedBunPrograms() {
 		installArguments := []string{"install", "--frozen-lockfile"}
 		if program.InstallFilter != "" {
 			installArguments = append(installArguments, "--filter", program.InstallFilter)
@@ -247,7 +246,7 @@ func copyBrewMessengerPrograms(repositoryRootPath string, libraryPath string, ou
 }
 
 // requireMachOArm64 reads the header rather than shelling out to file(1), the
-// same way requireELFFor does for the Debian package. A Linux binary in the keg
+// same way requireELFFits does for the Linux packages. A Linux binary in the keg
 // would install and never start.
 func requireMachOArm64(sourcePath string, name string) error {
 	information, errorValue := os.Stat(sourcePath)
@@ -274,23 +273,16 @@ func fetchBrewVendoredPrograms(repositoryRootPath string, libraryPath string, ou
 	if errorValue != nil {
 		return errorValue
 	}
-	cachePath := filepath.Join(repositoryRootPath, brewPayloadCacheDirectory)
-	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
-		return errorValue
-	}
 	for _, download := range downloads {
-		downloadedPath, errorValue := fetchPinnedPayload(download, cachePath, output)
+		programPath, errorValue := fetchVendoredProgram(repositoryRootPath, download, libraryPath, output)
 		if errorValue != nil {
 			return errorValue
 		}
 		destination := filepath.Join(libraryPath, download.ProgramName)
-		if download.PathInsideArchive == "" {
-			if errorValue := copyFile(downloadedPath, destination, 0o755); errorValue != nil {
-				return errorValue
-			}
+		if programPath == destination {
 			continue
 		}
-		if _, errorValue := extractProgram(downloadedPath, download.PathInsideArchive, destination); errorValue != nil {
+		if errorValue := copyFile(programPath, destination, 0o755); errorValue != nil {
 			return errorValue
 		}
 	}

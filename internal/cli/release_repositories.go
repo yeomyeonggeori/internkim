@@ -60,7 +60,7 @@ func runReleaseRepositories(arguments []string) error {
 	}
 	packageDirectory := firstNonEmptyString(
 		commandArgumentValue(arguments, "--package-directory", ""),
-		filepath.Join(repositoryRootPath, debDefaultOutputDirectory),
+		filepath.Join(repositoryRootPath, defaultPackageDirectory),
 	)
 	packagesByFormat, errorValue := readPackageDirectory(packageDirectory, formats)
 	if errorValue != nil {

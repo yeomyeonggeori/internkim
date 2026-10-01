@@ -18,9 +18,9 @@ import (
 // package is ever built for is an index apt fetches and finds empty; one built
 // but not declared is a package nothing can install.
 func TestTheSuitePublishesExactlyTheArchitecturesTheBuilderBuilds(t *testing.T) {
-	built := make([]string, 0, len(debianTargets))
-	for _, target := range debianTargets {
-		built = append(built, target.DebianArchitecture)
+	built := make([]string, 0, len(packageTargets))
+	for _, target := range packageTargets {
+		built = append(built, target.Architecture)
 	}
 	published := append([]string(nil), aptrepository.Architectures...)
 	sort.Strings(built)
@@ -37,12 +37,12 @@ func TestTheSuitePublishesExactlyTheArchitecturesTheBuilderBuilds(t *testing.T) 
 
 func TestEveryFormatIsBuiltForTheSameChannelsAndTheBuilderArchitectures(t *testing.T) {
 	built := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}
-	for _, target := range debianTargets {
-		if !slices.Contains(rpmrepository.Architectures, built[target.DebianArchitecture]) || !slices.Contains(pacmanrepository.Architectures, built[target.DebianArchitecture]) {
-			t.Errorf("the builder builds %s and the rpm or pacman repository does not publish it", target.DebianArchitecture)
+	for _, target := range packageTargets {
+		if !slices.Contains(rpmrepository.Architectures, built[target.Architecture]) || !slices.Contains(pacmanrepository.Architectures, built[target.Architecture]) {
+			t.Errorf("the builder builds %s and the rpm or pacman repository does not publish it", target.Architecture)
 		}
 	}
-	if len(rpmrepository.Architectures) != len(debianTargets) || len(pacmanrepository.Architectures) != len(debianTargets) {
+	if len(rpmrepository.Architectures) != len(packageTargets) || len(pacmanrepository.Architectures) != len(packageTargets) {
 		t.Error("a repository publishes an architecture the builder never builds")
 	}
 }

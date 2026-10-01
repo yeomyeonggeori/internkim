@@ -15,7 +15,7 @@ func TestTheHostImageBuildsTheConversionEnvironmentTheWayThePackageDoes(t *testi
 		t.Fatal(readError)
 	}
 	dockerfile := strings.Join(logicalLinesOf(string(document)), "\n")
-	layout := blueclaw.DebianCompanyHostLayout()
+	layout := blueclaw.LinuxCompanyHostLayout()
 	for _, command := range layout.DocumentEnvironmentCommands()[:2] {
 		inTheImage := strings.ReplaceAll(strings.Join(command.Arguments, " "), layout.BinaryPath(blueclaw.PackageResolverName), blueclaw.PackageResolverName)
 		if !strings.Contains(dockerfile, inTheImage) {
