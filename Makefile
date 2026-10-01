@@ -3,7 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
 
-.PHONY: build build-maild build-relay build-companion build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay prepare-buzz-relay-linux smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
+.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay prepare-buzz-relay-linux smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -14,9 +14,6 @@ build-maild:
 build-relay:
 	cd host/relay && bun install --frozen-lockfile
 	cd host/relay && bun build --compile $(if $(RELAY_TARGET),--target=$(RELAY_TARGET)) --outfile ../../internkim-relay relay.ts
-
-build-companion:
-	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-companion ./cmd/internkim-companion
 
 build-company-host:
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim-host ./cmd/internkim-host

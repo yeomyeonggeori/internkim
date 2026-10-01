@@ -47,8 +47,8 @@ func (service Service) validatePlatformFile(attachment platformFileSpec) (platfo
 	if devicePath == "" {
 		return platformFile{}, errors.New("attachment devicePath is required")
 	}
-	if !isPathUnderDirectory(configuration.CompanionFileDirectory, devicePath) {
-		return platformFile{}, errors.New("attachment devicePath is outside the companion file directory")
+	if !isPathUnderDirectory(configuration.AttachmentFileDirectory, devicePath) {
+		return platformFile{}, errors.New("attachment devicePath is outside the attachment file directory")
 	}
 	information, errorValue := os.Stat(devicePath)
 	if errorValue != nil {
@@ -92,10 +92,10 @@ func (service Service) materializeInlinePlatformFile(configuration Configuration
 	if attachment.SizeBytes > 0 && attachment.SizeBytes != int64(len(document)) {
 		return platformFile{}, errors.New("attachment size does not match file")
 	}
-	if errorValue := os.MkdirAll(configuration.CompanionFileDirectory, 0o700); errorValue != nil {
+	if errorValue := os.MkdirAll(configuration.AttachmentFileDirectory, 0o700); errorValue != nil {
 		return platformFile{}, errorValue
 	}
-	devicePath := filepath.Join(configuration.CompanionFileDirectory, filename)
+	devicePath := filepath.Join(configuration.AttachmentFileDirectory, filename)
 	if errorValue := os.WriteFile(devicePath, document, 0o600); errorValue != nil {
 		return platformFile{}, errorValue
 	}

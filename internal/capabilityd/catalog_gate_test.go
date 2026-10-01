@@ -227,9 +227,9 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"action":"wait"`)
 			},
 		},
-		// The device browser cannot take a picture; the companion's can. Saying so
-		// is the whole of this tool on a device, and a case that expected a
-		// screenshot would be asserting a thing the product does not do.
+		// The device browser cannot take a picture. Saying so is the whole of this
+		// tool, and a case that expected a screenshot would be asserting a thing
+		// the product does not do.
 		"browser_screenshot": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
@@ -237,19 +237,6 @@ func gateCases() map[string]catalogGateCase {
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				if answered.Outcome == capabilities.ToolOutcomeSucceeded {
 					t.Fatalf("the device browser answered a screenshot: %s", answered.Result)
-				}
-				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
-			},
-		},
-		// Only the requester's companion has a computer to control; the device
-		// says so instead of pretending.
-		"computer_task": {
-			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{},
-			input:   `{"goal":"the inbox shows no unread mail"}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				if answered.Outcome == capabilities.ToolOutcomeSucceeded {
-					t.Fatalf("the device answered a computer task: %s", answered.Result)
 				}
 				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
 			},

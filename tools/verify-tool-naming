@@ -58,7 +58,6 @@ VERBS_BY_EXCEPTION = {
     "web_search": "search over the web, not over our records",
     "image_generate": "generate is the act",
     "artifact_review": "review is the act",
-    "computer_task": "hands one task to the companion computer",
     "task_vocabulary_set": "writes a vocabulary block whole",
     "crm_vocabulary_set": "writes a vocabulary block whole",
     "company_info_set": "writes a settings block whole",
@@ -85,7 +84,6 @@ VERBS_BY_EXCEPTION = {
 WORDS_BY_EXCEPTION = {
     "sha256": "the standard name of the algorithm",
     "crm": "the namespace, which the descriptions spell out as the customer record",
-    "computer": "names the companion machine the task is handed to",
 }
 
 ABBREVIATIONS = {

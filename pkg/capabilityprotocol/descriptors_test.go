@@ -382,23 +382,15 @@ func TestValidateDescriptorRejectsRequiredIdempotencyWithoutSupport(t *testing.T
 }
 
 func TestCanonicalDescriptorGroupsValidate(t *testing.T) {
-	for _, descriptors := range [][]Descriptor{CompanionToolDescriptors(), CompanionLLMDescriptors(), DeviceBrowserDescriptors()} {
+	for _, descriptors := range [][]Descriptor{BrowserToolDescriptors(), DeviceBrowserDescriptors()} {
 		if errorValue := ValidateDescriptorSet(descriptors); errorValue != nil {
 			t.Fatal(errorValue)
 		}
 	}
 }
 
-func TestNoCompanionJobIsAToolTheCatalogOffers(t *testing.T) {
-	for _, descriptor := range CompanionLLMDescriptors() {
-		if _, isInTheCatalog := generatedToolDescriptor(descriptor.Name); isInTheCatalog {
-			t.Errorf("%s is a job the companion answers, and the catalog offers it as a tool", descriptor.Name)
-		}
-	}
-}
-
 func TestBuiltInDescriptorsExposeCanonicalProviderMetadata(t *testing.T) {
-	for _, descriptors := range [][]Descriptor{CompanionToolDescriptors(), CompanionLLMDescriptors(), DeviceBrowserDescriptors()} {
+	for _, descriptors := range [][]Descriptor{BrowserToolDescriptors(), DeviceBrowserDescriptors()} {
 		for _, descriptor := range descriptors {
 			if descriptor.Name == "" || descriptor.CanonicalName == "" || descriptor.Namespace == "" || descriptor.ModelName == "" {
 				t.Fatalf("descriptor identity is incomplete: %+v", descriptor)

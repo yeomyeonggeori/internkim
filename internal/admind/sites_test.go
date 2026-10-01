@@ -1895,7 +1895,6 @@ func newTestSiteService(t *testing.T) (*Service, *[]string) {
 		SitesRoot:             filepath.Join(rootPath, "sites"),
 		SiteSecretDirectory:   filepath.Join(rootPath, "secrets", "sites"),
 		SiteSystemdDirectory:  filepath.Join(rootPath, "systemd"),
-		CompanionJobPath:      filepath.Join(rootPath, "state", "admin", "jobs.json"),
 		TaskDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
 		BlueclawWorkspacePath: filepath.Join(rootPath, "blueclaw"),
 		SiteScaffoldPath:      repositoryPath(".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app"),

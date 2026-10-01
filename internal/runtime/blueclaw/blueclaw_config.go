@@ -60,7 +60,6 @@ type RuntimeConfigOptions struct {
 	OutboundHostAddressCIDR    string
 	OutboundGuestAddressCIDR   string
 	OutboundGuestGateway       string
-	BridgeListenAddress        string
 	GenerationSeed             *int64
 	GenerationTemperature      *float64
 	MaximumModelTier           string
@@ -220,7 +219,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	outboundHostAddressCIDR := firstNonEmptyString(options.OutboundHostAddressCIDR, "172.31.0.1/30")
 	outboundGuestAddressCIDR := firstNonEmptyString(options.OutboundGuestAddressCIDR, "172.31.0.2/30")
 	outboundGuestGateway := firstNonEmptyString(options.OutboundGuestGateway, "172.31.0.1")
-	bridgeListenAddress := firstNonEmptyString(options.BridgeListenAddress, BlueclawBridgeListenAddress)
 	agentConfiguration := map[string]any{
 		"adminTaskLinkBaseURL":     strings.TrimRight(strings.TrimSpace(options.AdminTaskLinkBaseURL), "/"),
 		"allowAdminTaskDiagnostic": options.AllowAdminTaskDiagnostic,
@@ -319,12 +317,6 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 				"guestGateway":     outboundGuestGateway,
 			},
 			"guestListenerProxies": guestListenerProxiesFor(options.HostRunsNoCapabilityDaemon, capabilityVSockPort, capabilitySocketPath),
-		},
-		"bridge": map[string]any{
-			"mode":                     "localAgent",
-			"authMode":                 "sshKeyReuse",
-			"authorizedPublicKeysPath": BlueclawBridgeAuthorizedKeysPath,
-			"listenAddress":            bridgeListenAddress,
 		},
 		"database": map[string]any{
 			"driver":                      "postgres",

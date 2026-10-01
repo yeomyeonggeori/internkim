@@ -27,8 +27,8 @@ operator on the same network ── the appliance
 
 | Component | Job | Code |
 |---|---|---|
-| `internkim-admind` | the device admin API: admin UI reverse proxy, companion broker, backup and restore, OTA apply | `cmd/internkim-admind/`, `internal/admind/` |
-| `internkim-capabilityd` | holds the OpenRouter key, the local model, messenger and companion credentials; exposes only a capability API | `internal/capabilityd/` |
+| `internkim-admind` | the device admin API: admin UI reverse proxy, backup and restore, OTA apply | `cmd/internkim-admind/`, `internal/admind/` |
+| `internkim-capabilityd` | holds the OpenRouter key, the local model and messenger credentials; exposes only a capability API | `internal/capabilityd/` |
 | the blueclaw guest | the agent, isolated in a Cloud Hypervisor VM under `blueclaw-supervisor`, reading `/workspace/.blueclaw/config/*.json` | `.dependency/blueclaw/` |
 | the local model | a resident `llama-server`: gemma-4-E2B QAT with MTP drafting for generation, BGE-M3 Q8 on CPU for embedding | — |
 | the messenger | a Buzz relay on the box, with its media store and its `chatd` adapter | `internal/provisioning/steps/step_buzz_*.go` |
@@ -46,28 +46,15 @@ its own.
 |---|---|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` |
 | `/root/.internkim/models/*` | `internkim-capabilityd`, the model wrapper |
-| `/root/.internkim/state/companion-jobs.json` | `internkim-admind` |
 
 The agent's side is `/root/.blueclaw/`: `config/runtime.json` and
 `config/policy.json` are the runtime contract, and `workspace/` is mounted
 into the guest as `/workspace`. The workspace's permission model is in
 [Boundaries](/docs/boundaries).
 
-## The companion
+## The device browser
 
-[`internkim-companion`](/docs/companion) runs on a user's own computer and
-lends the agent that person's browser and desktop. Pairing starts from
-`/connect` in the messenger, which hands out a ten-minute one-time code bound
-to that user's own identity. A paired
-companion opens no inbound port; it long-polls the admind broker, and its
-jobs survive an admind restart through
-`/root/.internkim/state/companion-jobs.json`.
-
-A file the user picks is uploaded through the signed broker, so the agent sees
-a device-local path with a TTL and never the path on their own machine.
-Browser capabilities prefer the headed companion and capabilityd routes to it
-only while that person's companion is online. When no companion is available,
-the device's Moli browser handles plain public-text navigation. Each requester
+The device's Moli browser handles plain public-text navigation. Each requester
 gets a Moli of their own with its own profile, so one person's sign-ins never
 reach another's; capabilityd starts it on first use and stops it after ten idle
 minutes. At most four run at once (`--device-browser-capacity`): the least

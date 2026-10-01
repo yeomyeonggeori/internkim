@@ -354,7 +354,7 @@ func (runtime AgentBrowserRuntime) currentURL(ctx context.Context) (string, erro
 	}
 	currentURL := strings.TrimSpace(string(output))
 	if currentURL == "" {
-		return "", errors.New("companion browser current URL is empty")
+		return "", errors.New("browser current URL is empty")
 	}
 	return currentURL, nil
 }
@@ -424,7 +424,7 @@ func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request Scree
 	capturedAt := runtime.now().UTC()
 	directoryPath := runtime.temporaryDirectory()
 	if errorValue := os.MkdirAll(directoryPath, 0o700); errorValue != nil {
-		return ScreenshotResult{}, errors.New("companion browser screenshot directory is unavailable")
+		return ScreenshotResult{}, errors.New("browser screenshot directory is unavailable")
 	}
 	filename := "browser-screenshot-" + capturedAt.Format("20060102T150405.000000000Z") + ".png"
 	path := filepath.Join(directoryPath, filename)
@@ -433,7 +433,7 @@ func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request Scree
 	}
 	information, errorValue := os.Stat(path)
 	if errorValue != nil || information.IsDir() {
-		return ScreenshotResult{}, errors.New("companion browser screenshot was not created")
+		return ScreenshotResult{}, errors.New("browser screenshot was not created")
 	}
 	return ScreenshotResult{
 		LocalPath:   path,
@@ -518,7 +518,7 @@ func (runtime AgentBrowserRuntime) Check(ctx context.Context) RuntimeReadiness {
 	if _, errorValue := runtime.run(ctx, "doctor", "--offline", "--quick"); errorValue != nil {
 		return RuntimeReadiness{
 			Status: "unavailable",
-			Error:  "companion browser runtime unavailable",
+			Error:  "browser runtime unavailable",
 		}
 	}
 	return RuntimeReadiness{Status: "ready"}
@@ -674,9 +674,9 @@ func (runtime AgentBrowserRuntime) run(ctx context.Context, arguments ...string)
 	output, errorValue := runner.Run(ctx, runtime.commandPath(), arguments)
 	if errorValue != nil {
 		if isMissingCommandError(errorValue) {
-			return nil, errors.New("companion browser runtime unavailable: agent-browser is not installed")
+			return nil, errors.New("browser runtime unavailable: agent-browser is not installed")
 		}
-		return nil, errors.New("companion browser runtime command failed")
+		return nil, errors.New("browser runtime command failed")
 	}
 	return output, nil
 }
@@ -759,7 +759,7 @@ func (runtime AgentBrowserRuntime) browserRuntimeLabel() string {
 	if runtime.browserEngine() == BrowserEngineMoli {
 		return "device browser"
 	}
-	return "companion browser"
+	return "browser"
 }
 
 func macosApplicationPath(executablePath string) string {
@@ -794,7 +794,7 @@ func (runtime AgentBrowserRuntime) temporaryDirectory() string {
 	if strings.TrimSpace(runtime.TemporaryDirectory) != "" {
 		return strings.TrimSpace(runtime.TemporaryDirectory)
 	}
-	return filepath.Join(os.TempDir(), "internkim-companion-browser")
+	return filepath.Join(os.TempDir(), "internkim-browser")
 }
 
 func (runtime AgentBrowserRuntime) now() time.Time {

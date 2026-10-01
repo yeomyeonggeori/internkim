@@ -308,7 +308,6 @@ GROUPS = [
         "host-install",
         [
             "web/static/install.sh",
-            "web/static/companion/install.sh",
             "tools/tests/test_install_script.py",
             "tools/tests/test_company_host_source_build.py",
             "internal/cli/release_package.go",

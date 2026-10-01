@@ -211,30 +211,11 @@ directly.
 
 <ToolCatalog namespace="browser" />
 
-The handler lives in `internal/capabilityd/browser_tool.go`. Calls route to the
-companion on the user's own computer when it is connected, with the device
-browser as the other provider. `browser_open` requires the user present, and
+The handler lives in `internal/capabilityd/browser_tool.go`, and calls run in
+the device browser. `browser_open` requires the user present, and
 responses carry no cookies, profile paths, or local screenshot paths;
 `browser_screenshot` uploads to a temporary workspace-visible path instead.
 Login, MFA, and captcha steps are handed to the human.
-
-## Computer [#computer]
-
-<ToolCatalog namespace="computer" />
-
-Pairing starts in Settings → My computer of the web app: admind issues a
-ten-minute code addressed to the signed-in member
-(`internal/admind/companion_member_routes.go`) and the page shows the install,
-pair and service commands to run. Its handler lives in
-`internal/companion/computer`. The companion opens its own
-persistent browser profile through [Cua Driver](https://cua.ai/driver), and
-for each step asks the device to put the page and a bounded list of candidate
-actions to a decision model (`internal/capabilityd/llm_decide.go`, reached
-over `/_internkim/companion/decisions`). The decision model never sees the
-inference key and can only pick from the actions the companion listed; an
-answer outside that list ends the task. The result names its outcome
-(`verified` only when a fresh observation showed the goal reached) and carries
-the final page so the agent can judge for itself.
 
 ## Artifacts [#artifact]
 

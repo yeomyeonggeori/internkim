@@ -43,10 +43,6 @@ type Service struct {
 	jobs                    map[string]*Job
 	uploads                 map[string]*RestoreUpload
 	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
-	pairingCodes            map[string]*CompanionPairingCode
-	companions              map[string]*CompanionRecord
-	companionJobs           map[string]*CompanionJob
-	companionFileUploads    map[string]*CompanionFileUpload
 	buzzInviteStore         *buzzInviteStore
 	buzzInviteStoreOnce     sync.Once
 	buzzKeySeedOnce         sync.Once
@@ -81,10 +77,6 @@ func NewService(configuration Configuration) *Service {
 		jobs:                  map[string]*Job{},
 		uploads:               map[string]*RestoreUpload{},
 		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
-		pairingCodes:          map[string]*CompanionPairingCode{},
-		companions:            map[string]*CompanionRecord{},
-		companionJobs:         map[string]*CompanionJob{},
-		companionFileUploads:  map[string]*CompanionFileUpload{},
 		sites:                 map[string]*SiteRecord{},
 		mailBackend:           mail.StandardBackend{},
 		mailPasswords:         mail.BoxPasswords(blueclawruntime.CompanyHostBoxStatePath),
@@ -93,8 +85,6 @@ func NewService(configuration Configuration) *Service {
 		databaseSchemas:       newAdminDatabaseSchemas(),
 		startedAt:             time.Now().UTC(),
 	}
-	service.loadCompanions()
-	service.loadCompanionJobs()
 	service.loadSites()
 	return service
 }
@@ -148,7 +138,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	}
 	service.sweepUpdateLeftovers()
 	service.startPersonaSync(ctx)
-	service.startCompanionFileCleanup(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
 	service.startOrganizationSweep(ctx)

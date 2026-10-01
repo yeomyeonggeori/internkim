@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 // The device answers through Cloudflare over a WAN whose round trip spikes
@@ -17,10 +15,12 @@ import (
 // already allows for; one stalled read is not an address that is missing.
 const installAddressAttempts = 3
 
+const installScriptURL = "https://intern.kim/install.sh"
+
 type addressProbe func(address string) (int, error)
 
 func runVerifyInstallAddresses() error {
-	return reportInstallAddresses(capabilities.InstallScriptURLs(), fetchAddressStatus, os.Stdout)
+	return reportInstallAddresses([]string{installScriptURL}, fetchAddressStatus, os.Stdout)
 }
 
 func reportInstallAddresses(addresses []string, probe addressProbe, output io.Writer) error {

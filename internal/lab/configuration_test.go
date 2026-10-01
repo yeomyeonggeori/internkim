@@ -10,11 +10,6 @@ func TestLoadConfigurationAppliesDefaults(t *testing.T) {
 	workspacePath := t.TempDir()
 	configurationPath := filepath.Join(workspacePath, "lab.json")
 	errorValue := os.WriteFile(configurationPath, []byte(`{
-  "host": {
-    "companion": {
-      "listenAddress": "127.0.0.1:7780"
-    }
-  },
   "vm": {
     "container": {
       "cpuCount": 4

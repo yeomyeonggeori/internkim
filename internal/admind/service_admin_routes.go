@@ -48,9 +48,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminUserRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminCompanionRoute(responseWriter, request, path) {
-		return
-	}
 	if service.handleAdminAgentRoute(responseWriter, request, path) {
 		return
 	}
@@ -197,20 +194,6 @@ func (service *Service) handleAdminUserRoute(responseWriter http.ResponseWriter,
 		service.deleteBlueclawCircle(responseWriter, request, strings.TrimPrefix(path, "/circles/"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
 		service.proxyUsers(responseWriter, request)
-	default:
-		return false
-	}
-	return true
-}
-
-func (service *Service) handleAdminCompanionRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/companion/pairing-codes":
-		service.createCompanionPairingCode(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/companion/status":
-		service.writeCompanionStatus(responseWriter, request)
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/companion/"):
-		service.revokeCompanion(responseWriter, request, strings.TrimPrefix(path, "/companion/"))
 	default:
 		return false
 	}

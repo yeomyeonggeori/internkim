@@ -84,9 +84,8 @@ retry a declined call.
 ## Tools that come and go [#availability]
 
 Each descriptor carries an availability state (`ok`, `not_connected`,
-`not_ready`, `not_allowed`). Browser tools route to the
-[companion](/docs/companion) on your own computer when it is connected,
-and `browser_open` requires you to be present. Tools from configured
+`not_ready`, `not_allowed`). Browser tools run in a browser on the company's
+computer, one per requester with its own profile. Tools from configured
 [MCP](https://modelcontextprotocol.io) servers join the same registry and
 meet the same gate. `GET /api/v1/tools` answers the base set your token
 reaches; `?live=true` asks the company's computer what it can run right now.

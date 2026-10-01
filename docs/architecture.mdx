@@ -162,7 +162,7 @@ The package registers each as its own service with systemd or launchd;
 | the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter for Buzz | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, embeddings, the mail, site, web and browser tools | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
-| Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation when no companion is available; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
+| Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | the workspace screens, the roster, and the company tools the plane carries to the host | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |
 | the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, memory, policy | — |

@@ -233,9 +233,7 @@ func isInternKimAPIPath(path string) bool {
 		strings.HasPrefix(path, "/mail/api/") ||
 		strings.HasPrefix(path, "/attendance/api/") ||
 		strings.HasPrefix(path, "/runs/api/") ||
-		strings.HasPrefix(path, "/company/api/") ||
-		strings.HasPrefix(path, "/_internkim/companion/") ||
-		strings.HasPrefix(path, "/_internkim/runtime/")
+		strings.HasPrefix(path, "/company/api/")
 }
 
 func sanitizedRequestPath(path string) string {

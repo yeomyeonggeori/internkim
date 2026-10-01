@@ -18,7 +18,7 @@ import (
 
 // capabilityd reaches everything it does not do itself through one field of its
 // configuration naming an address: admind over HTTP or over the requester
-// socket, blueclaw, chatd, the companion, OpenRouter. There is no other
+// socket, blueclaw, chatd, OpenRouter. There is no other
 // shape. So a gate does not need a setup per tool — it needs one stand-in per
 // address, and a case that says which addresses its call reaches.
 type gateBackend string
@@ -28,7 +28,6 @@ const (
 	admindOverHTTP      gateBackend = "admind"
 	blueclawOverHTTP    gateBackend = "blueclaw"
 	chatdOverHTTP       gateBackend = "chatd"
-	companionOverHTTP   gateBackend = "companion"
 	openRouterOverHTTP  gateBackend = "openrouter"
 
 	// The browser is the one backend that is not an address. capabilityd runs
@@ -111,8 +110,6 @@ func serviceReaching(t *testing.T, reaches map[gateBackend]*standingIn) Service 
 		case chatdOverHTTP:
 			configuration.ChatdEndpoint = servedOnLoopback(t, standIn.handler(t))
 			configuration.ChatdPlatform = "buzz"
-		case companionOverHTTP:
-			configuration.CompanionBaseURL = servedOnLoopback(t, standIn.handler(t))
 		case openRouterOverHTTP:
 			configuration.OpenRouterBaseURL = servedOnLoopback(t, standIn.handler(t))
 			configuration.OpenRouterWebBaseURL = configuration.OpenRouterBaseURL

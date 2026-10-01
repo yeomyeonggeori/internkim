@@ -8,16 +8,12 @@ import (
 )
 
 const (
-	ExecutionModeDevice    = "device"
-	ExecutionModeCompanion = "companion"
-	ExecutionModeRemote    = "remote"
-	ExecutionModeAuto      = "auto"
+	ExecutionModeDevice = "device"
+	ExecutionModeRemote = "remote"
+	ExecutionModeAuto   = "auto"
 
-	LLMBackendDevice         = "device_local"
-	LLMBackendCompanionLocal = "companion_local"
-	LLMBackendRemote         = "remote"
-
-	AttentionTriageToolName = "attention_triage"
+	LLMBackendDevice = "device_local"
+	LLMBackendRemote = "remote"
 
 	CapabilityAvailable    = "ok"
 	CapabilityNotConnected = "not_connected"
@@ -71,36 +67,35 @@ func (identity ProtocolIdentity) Validate() error {
 }
 
 type Descriptor struct {
-	Name                     string                        `json:"name"`
-	CanonicalName            string                        `json:"canonicalName"`
-	Namespace                string                        `json:"namespace"`
-	NamespaceSummary         string                        `json:"namespaceSummary,omitempty"`
-	AnsweredBy               string                        `json:"answeredBy"`
-	ModelName                string                        `json:"modelName"`
-	ModelVisibility          string                        `json:"modelVisibility"`
-	ModelVisible             bool                          `json:"modelVisible"`
-	Description              string                        `json:"description,omitempty"`
-	Version                  string                        `json:"version"`
-	PrivacyClass             string                        `json:"privacyClass"`
-	EstimatedLatency         string                        `json:"estimatedLatency"`
-	RequiresUserPresence     bool                          `json:"requiresUserPresence"`
-	RequiresRequesterDevice  bool                          `json:"requiresRequesterDevice,omitempty"`
-	RequiresCompanionBrowser bool                          `json:"requiresCompanionBrowser,omitempty"`
-	ApprovalScope            string                        `json:"approvalScope,omitempty"`
-	WorksOffline             bool                          `json:"worksOffline"`
-	InputSchema              json.RawMessage               `json:"inputSchema,omitempty"`
-	InputIntentSchema        json.RawMessage               `json:"inputIntentSchema,omitempty"`
-	OutputSchema             json.RawMessage               `json:"outputSchema,omitempty"`
-	InputSchemaStrict        bool                          `json:"inputSchemaStrict"`
-	OutputSchemaStrict       bool                          `json:"outputSchemaStrict"`
-	ResultContract           *ToolResultContract           `json:"resultContract,omitempty"`
-	PolicyResource           string                        `json:"policyResource,omitempty"`
-	SideEffectClass          string                        `json:"sideEffectClass,omitempty"`
-	SideEffect               string                        `json:"sideEffect"`
-	RequiresApproval         bool                          `json:"requiresApproval,omitempty"`
-	CompletionEvidence       *CompletionEvidenceDescriptor `json:"completionEvidence,omitempty"`
-	Availability             AvailabilityMetadata          `json:"availability"`
-	Idempotency              IdempotencyMetadata           `json:"idempotency"`
+	Name                    string                        `json:"name"`
+	CanonicalName           string                        `json:"canonicalName"`
+	Namespace               string                        `json:"namespace"`
+	NamespaceSummary        string                        `json:"namespaceSummary,omitempty"`
+	AnsweredBy              string                        `json:"answeredBy"`
+	ModelName               string                        `json:"modelName"`
+	ModelVisibility         string                        `json:"modelVisibility"`
+	ModelVisible            bool                          `json:"modelVisible"`
+	Description             string                        `json:"description,omitempty"`
+	Version                 string                        `json:"version"`
+	PrivacyClass            string                        `json:"privacyClass"`
+	EstimatedLatency        string                        `json:"estimatedLatency"`
+	RequiresUserPresence    bool                          `json:"requiresUserPresence"`
+	RequiresRequesterDevice bool                          `json:"requiresRequesterDevice,omitempty"`
+	ApprovalScope           string                        `json:"approvalScope,omitempty"`
+	WorksOffline            bool                          `json:"worksOffline"`
+	InputSchema             json.RawMessage               `json:"inputSchema,omitempty"`
+	InputIntentSchema       json.RawMessage               `json:"inputIntentSchema,omitempty"`
+	OutputSchema            json.RawMessage               `json:"outputSchema,omitempty"`
+	InputSchemaStrict       bool                          `json:"inputSchemaStrict"`
+	OutputSchemaStrict      bool                          `json:"outputSchemaStrict"`
+	ResultContract          *ToolResultContract           `json:"resultContract,omitempty"`
+	PolicyResource          string                        `json:"policyResource,omitempty"`
+	SideEffectClass         string                        `json:"sideEffectClass,omitempty"`
+	SideEffect              string                        `json:"sideEffect"`
+	RequiresApproval        bool                          `json:"requiresApproval,omitempty"`
+	CompletionEvidence      *CompletionEvidenceDescriptor `json:"completionEvidence,omitempty"`
+	Availability            AvailabilityMetadata          `json:"availability"`
+	Idempotency             IdempotencyMetadata           `json:"idempotency"`
 }
 
 type ToolDescriptor = Descriptor
@@ -156,12 +151,10 @@ type ResourceEffect struct {
 
 type RegistryResponse struct {
 	ProtocolIdentity
-	LocalOnly             bool         `json:"localOnly"`
-	RoutingCandidates     []string     `json:"routingCandidates"`
-	DeviceCapabilities    []Descriptor `json:"deviceCapabilities,omitempty"`
-	CompanionStatus       string       `json:"companionStatus,omitempty"`
-	CompanionCapabilities []Descriptor `json:"companionCapabilities,omitempty"`
-	Capabilities          []Descriptor `json:"capabilities,omitempty"`
+	LocalOnly          bool         `json:"localOnly"`
+	RoutingCandidates  []string     `json:"routingCandidates"`
+	DeviceCapabilities []Descriptor `json:"deviceCapabilities,omitempty"`
+	Capabilities       []Descriptor `json:"capabilities,omitempty"`
 }
 
 type ToolInvokeRequest struct {
@@ -267,19 +260,6 @@ type ResourceScope struct {
 	Value string `json:"value,omitempty"`
 }
 
-type CompanionJobEnvelope struct {
-	JobID         string            `json:"jobID"`
-	ParentJobID   string            `json:"parentJobID,omitempty"`
-	GrantID       string            `json:"grantID,omitempty"`
-	ToolName      string            `json:"toolName"`
-	PrivacyClass  string            `json:"privacyClass"`
-	ResourceScope ResourceScope     `json:"resourceScope,omitempty"`
-	CreatedAt     string            `json:"createdAt,omitempty"`
-	ExpiresAt     string            `json:"expiresAt,omitempty"`
-	Depth         int               `json:"depth"`
-	Request       ToolInvokeRequest `json:"request"`
-}
-
 type DenialResult struct {
 	Status              string          `json:"status"`
 	Code                string          `json:"code"`
@@ -307,5 +287,5 @@ type RecoveryHint struct {
 }
 
 func RoutingCandidates() []string {
-	return []string{ExecutionModeDevice, ExecutionModeCompanion, ExecutionModeRemote}
+	return []string{ExecutionModeDevice, ExecutionModeRemote}
 }

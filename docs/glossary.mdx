@@ -142,13 +142,6 @@ browser binary or a model path. Model calls go through it too: the agent asks
 for a tier, and the tiers are named in `internal/modelladder`. Code in
 `internal/capabilityd/`.
 
-## The companion
-
-`internkim-companion`, a trusted runtime on a user's own computer for what
-needs a person: confirmation, input, file picking. It pairs
-with the company and long-polls a broker; its capabilities exist only while
-it is online. Code in `cmd/internkim-companion/` and `internal/companion/`.
-
 ## The agent's store
 
 The Postgres database on the host, with the `vector` extension, defined by

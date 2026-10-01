@@ -34,7 +34,6 @@ func resolvedStateDatabasePath(configuration Configuration, defaultConfiguration
 		configuration.MailDatabasePath,
 		configuration.AttendanceDatabasePath,
 		configuration.BridgeMapDatabasePath,
-		configuration.CompanionJobPath,
 	} {
 		if strings.TrimSpace(providedPath) == "" {
 			continue

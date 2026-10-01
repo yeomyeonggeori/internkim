@@ -15,9 +15,8 @@ the key's permission can call, and a `catalog` field saying which list you got.
 The base catalog is answered without asking the company machine, so it is the
 fast one and it is the same for everyone; it is also documented on the
 [tool catalog](/docs/tools/catalog) page. Whether a tool can run right now is
-known only on the machine, and tools that come and go with a companion are not
-in the base list at all. Ask for those with `?live=true`, which costs the round
-trip. `X-INTERNKIM-CATALOG` says `base` on either discovery answer.
+known only on the machine, and a company may carry tools the base list does
+not. Ask for those with `?live=true`, which costs the round trip. `X-INTERNKIM-CATALOG` says `base` on either discovery answer.
 
 ## Reading a descriptor [#reading-a-descriptor]
 
@@ -163,7 +162,7 @@ A tool carried to the company's computer answers the fuller shape below —
 
 | Field | Meaning |
 |---|---|
-| `provider`, `selectedBackend` | where the call ran: `device`, `companion`, or `remote` |
+| `provider`, `selectedBackend` | where the call ran: `device` or `remote` |
 | `outcome` | `succeeded`, `failed`, or `denied` |
 | `status` | a tool-specific status string |
 | `effects` | the record of what changed |
@@ -323,7 +322,7 @@ so nothing reaches the company's computer.
 |---|---|
 | List and read handlers | `discoveryAnswer` in `web/src/routes/api/v1/[...path]/+server.ts`, over `web/src/lib/server/public-api/catalog.ts` |
 | Invoke handler | `invokePublicTool` in `internal/admind/public_tool_gateway.go`, reached through the company's relay |
-| Descriptor fetch from `capabilityd` | `fetchCapabilityRegistry` over the unix socket; device and companion descriptors are merged in `exposableCapabilityDescriptors` |
+| Descriptor fetch from `capabilityd` | `fetchCapabilityRegistry` over the unix socket, read in `exposableCapabilityDescriptors` |
 | The actor override | `invokePublicTool` sets `Actor`, `Context`, `PrivacyClass`, `RequiresUserPresence` after decoding your body |
 | The approval-continuation flag | `publicToolInvokeContext`, keyed on `publicToolPermissionForDescriptor` |
 | Request and response types | `ToolInvokeRequest`, `ToolInvokeResponse`, `ResourceEffect` in `pkg/capabilityprotocol/protocol.go` |

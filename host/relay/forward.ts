@@ -20,7 +20,7 @@ const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
-const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.', 'person.persona.', 'person.agent_learning.', 'person.companion.'];
+const workspacePrefixes = ['person.memory.', 'person.files.', 'person.runs.', 'person.buzz.', 'person.task.', 'person.skills.', 'person.persona.', 'person.agent_learning.'];
 export const apiRequestCapability = 'person.api.request';
 export const apiFileCapability = 'person.api.file';
 export const tellCapability = 'person.message.tell';
@@ -583,8 +583,7 @@ export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.agent_learning.settings.get': '/agent-learning/api/settings',
 	'person.agent_learning.soul.get': '/agent-learning/api/soul',
 	'person.agent_learning.soul.history': '/agent-learning/api/soul/history',
-	'person.persona.soul': '/persona/api/soul',
-	'person.companion.mine': '/companion/api/mine'
+	'person.persona.soul': '/persona/api/soul'
 };
 
 export const workspaceWriteCapabilityPaths: Record<string, string> = {
@@ -597,8 +596,6 @@ export const workspaceWriteCapabilityPaths: Record<string, string> = {
 	'person.memory.schedule_update': '/memory/api/schedules/update',
 	'person.persona.user.update': '/persona/api/user',
 	'person.persona.identity.update': '/persona/api/identity',
-	'person.companion.pairing_code': '/companion/api/pairing-codes',
-	'person.companion.disconnect': '/companion/api/mine/disconnect',
 	'person.agent_learning.settings.update': '/agent-learning/api/settings',
 	'person.agent_learning.skills.action': '/agent-learning/api/skills/action'
 };

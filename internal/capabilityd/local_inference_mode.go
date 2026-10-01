@@ -10,7 +10,7 @@ import (
 
 func (service Service) applyLocalInferenceMode(ctx context.Context) {
 	switch service.localInferenceMode() {
-	case "companion_preferred", "companion_only", "remote":
+	case "remote":
 		service.runLocalInferenceServiceCommand(ctx, "stop", locallm.LlamaCppServiceName)
 		service.runLocalInferenceServiceCommand(ctx, "disable", locallm.LlamaCppServiceName)
 	case "device":

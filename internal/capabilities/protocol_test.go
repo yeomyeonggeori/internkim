@@ -20,7 +20,7 @@ func TestToolInvokeRequestRoundTrip(t *testing.T) {
 	request := ToolInvokeRequest{
 		ToolName:             "browser_open",
 		Input:                json.RawMessage(`{"url":"https://example.com"}`),
-		ExecutionMode:        ExecutionModeCompanion,
+		ExecutionMode:        ExecutionModeDevice,
 		RequiresUserPresence: true,
 		PrivacyClass:         "user_browser",
 		SessionID:            "session-1",
@@ -437,7 +437,7 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 		descriptors []Descriptor
 		toolNames   []string
 	}{
-		{descriptors: CompanionToolDescriptors(), toolNames: []string{"browser_open", "browser_snapshot", "browser_screenshot", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait"}},
+		{descriptors: BrowserToolDescriptors(), toolNames: []string{"browser_open", "browser_snapshot", "browser_screenshot", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait"}},
 		{descriptors: DeviceBrowserDescriptors(), toolNames: []string{"browser_open", "browser_snapshot", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait"}},
 	} {
 		for _, toolName := range descriptorSet.toolNames {
@@ -448,9 +448,9 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 		}
 	}
 
-	openSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser_open")
-	snapshotSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser_snapshot")
-	clickSchema := descriptorSchema(t, CompanionToolDescriptors(), "browser_click")
+	openSchema := descriptorSchema(t, BrowserToolDescriptors(), "browser_open")
+	snapshotSchema := descriptorSchema(t, BrowserToolDescriptors(), "browser_snapshot")
+	clickSchema := descriptorSchema(t, BrowserToolDescriptors(), "browser_click")
 	assertSchemaHasProperties(t, openSchema, "url")
 	assertSchemaRequires(t, openSchema, "url")
 	assertSchemaOmitsProperties(t, openSchema, "startURL")
@@ -530,7 +530,7 @@ func TestSiteAppDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 			t.Fatalf("site_unserve must require runtime approval")
 		}
 		if descriptor.Name == "site_unserve" && descriptor.RequiresUserPresence {
-			t.Fatalf("site_unserve executes on the device; requiring user presence routes it to the companion")
+			t.Fatalf("site_unserve executes on the device and must not ask for the requester to be present")
 		}
 	}
 	if !reflect.DeepEqual(actualToolNames, expectedToolNames) {
@@ -702,7 +702,7 @@ func TestSiteServeEffectsProjectByMode(t *testing.T) {
 
 func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 	descriptorGroups := [][]Descriptor{
-		CompanionToolDescriptors(),
+		BrowserToolDescriptors(),
 		WebDescriptors(),
 		FileDescriptors(),
 		PlatformMessageDescriptors(),

@@ -47,7 +47,6 @@ type CapabilityToolCommonDefinition = {
   requiresApproval?: boolean;
   requiresUserPresence?: boolean;
   requiresRequesterDevice?: boolean;
-  requiresCompanionBrowser?: boolean;
   approvalScope?: string;
   worksOffline?: boolean;
   completionEvidence?: {
@@ -135,7 +134,6 @@ export function buildCapabilityDescriptor(
     estimatedLatency: definition.estimatedLatency,
     requiresUserPresence: definition.requiresUserPresence ?? false,
     requiresRequesterDevice: definition.requiresRequesterDevice,
-    requiresCompanionBrowser: definition.requiresCompanionBrowser,
     approvalScope: definition.approvalScope,
     worksOffline: definition.worksOffline ?? false,
     inputSchema: z.toJSONSchema(definition.inputSchema),

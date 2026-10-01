@@ -74,12 +74,12 @@ func TestPlatformProgressManagerRefreshesLeaseWithoutDuplicateLoop(t *testing.T)
 }
 
 func TestPlatformAttachmentRejectsOutsideDevicePath(t *testing.T) {
-	companionDirectory := t.TempDir()
+	attachmentDirectory := t.TempDir()
 	outsidePath := t.TempDir() + "/secret.txt"
 	if errorValue := os.WriteFile(outsidePath, []byte("secret"), 0o600); errorValue != nil {
 		t.Fatalf("expected outside file: %v", errorValue)
 	}
-	service := Service{Configuration: Configuration{CompanionFileDirectory: companionDirectory}}
+	service := Service{Configuration: Configuration{AttachmentFileDirectory: attachmentDirectory}}
 
 	_, errorValue := service.validatePlatformFiles([]platformFileSpec{{DevicePath: outsidePath}})
 	if errorValue == nil {

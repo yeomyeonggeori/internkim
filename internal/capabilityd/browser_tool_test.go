@@ -120,7 +120,7 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	}
 }
 
-func TestDeviceBrowserScreenshotRequiresCompanion(t *testing.T) {
+func TestDeviceBrowserRefusesAScreenshot(t *testing.T) {
 	commandWasCalled := false
 	service := Service{RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
 		commandWasCalled = true
@@ -139,7 +139,7 @@ func TestDeviceBrowserScreenshotRequiresCompanion(t *testing.T) {
 		t.Fatalf("expected denial result: %v", errorValue)
 	}
 	if !response.IsError || response.Status != "denied" || result.Code != capabilities.CapabilityNotConnected {
-		t.Fatalf("expected companion-required screenshot denial, got response=%+v result=%+v", response, result)
+		t.Fatalf("expected a not-connected screenshot denial, got response=%+v result=%+v", response, result)
 	}
 	if commandWasCalled {
 		t.Fatal("expected device screenshot denial not to run agent-browser")

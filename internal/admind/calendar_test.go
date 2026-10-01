@@ -18,7 +18,6 @@ func newCalendarTestService(t *testing.T) *Service {
 	}
 	service := NewService(Configuration{
 		StateDirectory:       filepath.Join(rootPath, "state", "admin"),
-		CompanionJobPath:     filepath.Join(rootPath, "state", "companion-jobs.json"),
 		CalendarDatabasePath: filepath.Join(rootPath, "state", "calendar.sqlite"),
 		TaskDatabasePath:     filepath.Join(rootPath, "state", "flow.sqlite"),
 		AdminEmailPath:       writeTestFile(t, "admin@example.com"),
