@@ -504,7 +504,3 @@ PY`
 func BlueclawRootfsBaseContractCheckCommand() string {
 	return blueclawRootfsBaseContractCheckCommand()
 }
-
-func capabilitydHealthIsReady(context *Context) bool {
-	return trimmedRun(context, blueclaw.CapabilitydHealthCheckCommand()) == "ok"
-}

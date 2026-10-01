@@ -1,7 +1,6 @@
 package admind
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -228,22 +227,6 @@ func (service *Service) mattermostProxy() http.Handler {
 		proxy.Transport = service.HTTPClient.Transport
 	}
 	return proxy
-}
-
-type bodyRecordingResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-	body       bytes.Buffer
-}
-
-func (responseWriter *bodyRecordingResponseWriter) WriteHeader(statusCode int) {
-	responseWriter.statusCode = statusCode
-	responseWriter.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (responseWriter *bodyRecordingResponseWriter) Write(document []byte) (int, error) {
-	responseWriter.body.Write(document)
-	return responseWriter.ResponseWriter.Write(document)
 }
 
 func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {

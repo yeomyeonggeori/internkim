@@ -60,19 +60,6 @@ func (host *fakeDeviceBrowserHost) advance(duration time.Duration) {
 	host.now = host.now.Add(duration)
 }
 
-func (host *fakeDeviceBrowserHost) browserOnPort(t *testing.T, port int) *fakeDeviceBrowser {
-	t.Helper()
-	host.mutex.Lock()
-	defer host.mutex.Unlock()
-	for _, browser := range host.launched {
-		if browser.launch.Port == port && !browser.isStopped() {
-			return browser
-		}
-	}
-	t.Fatalf("no running browser on port %d", port)
-	return nil
-}
-
 func newFakeDeviceBrowsers(capacity int) (*DeviceBrowsers, *fakeDeviceBrowserHost) {
 	host := &fakeDeviceBrowserHost{now: time.Date(2026, 9, 18, 9, 0, 0, 0, time.UTC)}
 	browsers := NewDeviceBrowsers(DeviceBrowserSettings{

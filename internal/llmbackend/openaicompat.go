@@ -98,11 +98,6 @@ type openAIChoice struct {
 	Message      openAIChoiceMessage `json:"message"`
 }
 
-type openAIResponse struct {
-	Provider string         `json:"provider"`
-	Choices  []openAIChoice `json:"choices"`
-}
-
 type openAIResponseWithUsage struct {
 	Provider string         `json:"provider"`
 	Choices  []openAIChoice `json:"choices"`

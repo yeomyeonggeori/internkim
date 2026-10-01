@@ -653,93 +653,6 @@ func testHTTPResponse(statusCode int, document []byte) *http.Response {
 	}
 }
 
-func newReleaseUpdateUploadTestService(t *testing.T) *Service {
-	t.Helper()
-	directoryPath := t.TempDir()
-	fleetIDPath := filepath.Join(directoryPath, "fleet-id")
-	fleetSecretPath := filepath.Join(directoryPath, "fleet-secret")
-	releaseSigningKeyPath := filepath.Join(directoryPath, "release-signing-key")
-	writeFile(t, fleetIDPath, "fleet-1")
-	writeFile(t, fleetSecretPath, "fleet-secret-1")
-	writeFile(t, releaseSigningKeyPath, "release-secret-1")
-	service := NewService(Configuration{
-		StateDirectory:            filepath.Join(directoryPath, "state"),
-		FleetIDPath:               fleetIDPath,
-		FleetSecretPath:           fleetSecretPath,
-		ReleaseSigningKeyPath:     releaseSigningKeyPath,
-		BlueclawWorkspacePath:     filepath.Join(directoryPath, "blueclaw-workspace"),
-		AdminEmailPath:            writeTestFile(t, "admin@example.com"),
-		BlueclawRuntimeConfigPath: filepath.Join(directoryPath, "runtime.json"),
-	})
-	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
-		return []byte("ok\n"), nil
-	}
-	currentManifest := releaseset.NewManifest("release-current", "stable", map[string]releaseset.Component{
-		"skills": {Name: "skills"},
-	})
-	if errorValue := service.writeCurrentReleaseManifest(&currentManifest); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return service
-}
-
-func writeTestReleaseBundle(t *testing.T, service *Service) (string, releaseset.Manifest) {
-	t.Helper()
-	directoryPath := t.TempDir()
-	skillsSourcePath := filepath.Join(directoryPath, "skills")
-	skillSourcePath := filepath.Join(skillsSourcePath, "test-skill")
-	if errorValue := os.MkdirAll(skillSourcePath, 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	writeFile(t, filepath.Join(skillSourcePath, "SKILL.md"), "test skill\n")
-	componentArchivePath := filepath.Join(directoryPath, "skills.tar.gz")
-	writeTestTarGzipDirectory(t, componentArchivePath, skillsSourcePath)
-	componentSHA256 := fileSHA256(componentArchivePath)
-	componentSize := fileSize(t, componentArchivePath)
-	manifest, errorValue := releaseset.NewManifest("release-upload-test", "stable", map[string]releaseset.Component{
-		"skills": {
-			Name:         "skills",
-			Revision:     "test",
-			SHA256:       componentSHA256,
-			Size:         componentSize,
-			BlobPath:     "blobs/skills.tar.gz",
-			RestartGroup: "blueclaw",
-			HealthCheck:  "skills",
-		},
-	}).Sign(strings.TrimSpace(readTrimmedFile(service.Configuration.ReleaseSigningKeyPath)))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	bundlePath := filepath.Join(directoryPath, "release.tar.gz")
-	writeTestReleaseBundleArchive(t, bundlePath, manifest, componentArchivePath)
-	return bundlePath, manifest
-}
-
-func writeTestReleaseBundleArchive(t *testing.T, bundlePath string, manifest releaseset.Manifest, componentArchivePath string) {
-	t.Helper()
-	file, errorValue := os.Create(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	gzipWriter := gzip.NewWriter(file)
-	tarWriter := tar.NewWriter(gzipWriter)
-	manifestDocument, errorValue := json.Marshal(manifest)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := writeTestTarBytes(tarWriter, "manifest.json", manifestDocument); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := writeTestTarFile(tarWriter, "blobs/skills.tar.gz", componentArchivePath); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, closeError := range []error{tarWriter.Close(), gzipWriter.Close(), file.Close()} {
-		if closeError != nil {
-			t.Fatal(closeError)
-		}
-	}
-}
-
 func writeTestTarGzipDirectory(t *testing.T, archivePath string, sourcePath string) {
 	t.Helper()
 	file, errorValue := os.Create(archivePath)
@@ -809,22 +722,6 @@ func writeTestTarFile(writer *tar.Writer, name string, path string) error {
 	defer file.Close()
 	_, errorValue = file.WriteTo(writer)
 	return errorValue
-}
-
-func performReleaseUploadJSON(t *testing.T, service *Service, method string, path string, payload any, uploadToken string) *httptest.ResponseRecorder {
-	t.Helper()
-	document, errorValue := json.Marshal(payload)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	request := httptest.NewRequest(method, "/admin/api"+path, bytes.NewReader(document))
-	request.Header.Set("Content-Type", "application/json")
-	if uploadToken != "" {
-		request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", uploadToken)
-	}
-	response := httptest.NewRecorder()
-	service.handleAdmin(response, request)
-	return response
 }
 
 func signedTestFleetRequest(t *testing.T, service *Service, action string, nonce string) fleetSignedRequest {

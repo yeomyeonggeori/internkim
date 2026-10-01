@@ -80,33 +80,6 @@ var (
 	}
 )
 
-func jetsonUbuntuAptSourcesRepairScript() string {
-	return `if [ -f /etc/os-release ]; then
-  . /etc/os-release
-fi
-if [ "${ID:-}" = "ubuntu" ]; then
-  release="${VERSION_CODENAME:-jammy}"
-  dpkg-statoverride --list 2>/dev/null | while read -r overrideUser overrideGroup overrideMode overridePath; do
-    [ -n "$overridePath" ] || continue
-    getent passwd "$overrideUser" >/dev/null 2>&1 || { dpkg-statoverride --remove "$overridePath" 2>/dev/null || true; continue; }
-    getent group "$overrideGroup" >/dev/null 2>&1 || dpkg-statoverride --remove "$overridePath" 2>/dev/null || true
-  done
-  DEBIAN_FRONTEND=noninteractive dpkg --configure -a >/dev/null 2>&1 || true
-  if ! find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) -exec grep -Eq '^[[:space:]]*deb[[:space:]]' {} \; -print -quit | grep -q .; then
-    cat > /etc/apt/sources.list <<APT_SOURCES_EOF
-deb http://ports.ubuntu.com/ubuntu-ports/ ${release} main restricted universe multiverse
-deb http://ports.ubuntu.com/ubuntu-ports/ ${release}-updates main restricted universe multiverse
-deb http://ports.ubuntu.com/ubuntu-ports/ ${release}-backports main restricted universe multiverse
-deb http://ports.ubuntu.com/ubuntu-ports/ ${release}-security main restricted universe multiverse
-APT_SOURCES_EOF
-  fi
-  if [ -f /etc/apt/sources.list.d/nvidia-l4t-apt-source.list.banned ] && [ ! -f /etc/apt/sources.list.d/nvidia-l4t-apt-source.list ]; then
-    sed 's#<SOC>#t234#g' /etc/apt/sources.list.d/nvidia-l4t-apt-source.list.banned > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list
-  fi
-fi
-`
-}
-
 // flashSD detects an SD card, downloads Debian trixie arm64, and writes it.
 // After flashing, it mounts the boot partition and injects SSH keys + Wi-Fi config.
 // runSetupSD handles the full SD card provisioning flow for Raspberry Pi 5.

@@ -13,8 +13,6 @@ import (
 	"time"
 )
 
-var errorUnsupportedHostMode = errors.New("unsupported host mode")
-
 const sharedWorkspaceDestinationPath = "/mnt/shared/workspace"
 
 type containerListEntry struct {
@@ -497,53 +495,12 @@ func (service Service) buildSetupArguments(virtualMachineIPAddress string, board
 	return arguments
 }
 
-func (service Service) shouldSkipSimulationStep(stepName string, setupArguments []string) bool {
-	for _, skippedStep := range simulationSkippedSteps(setupArguments) {
-		if skippedStep == stepName {
-			return true
-		}
-	}
-
-	return false
-}
-
-func simulationSkippedSteps(setupArguments []string) []string {
-	skippedSteps := simulationDefaultSkippedSteps(setupArguments)
-	for index, argument := range setupArguments {
-		if argument == "--skip" && index+1 < len(setupArguments) {
-			skippedSteps = append(skippedSteps, strings.Split(setupArguments[index+1], ",")...)
-			continue
-		}
-		if strings.HasPrefix(argument, "--skip=") {
-			skippedSteps = append(skippedSteps, strings.Split(strings.TrimPrefix(argument, "--skip="), ",")...)
-		}
-	}
-
-	var normalizedSkippedSteps []string
-	for _, skippedStep := range skippedSteps {
-		if normalizedSkippedStep := strings.TrimSpace(skippedStep); normalizedSkippedStep != "" {
-			normalizedSkippedSteps = append(normalizedSkippedSteps, normalizedSkippedStep)
-		}
-	}
-
-	return normalizedSkippedSteps
-}
-
 func simulationDefaultSkippedSteps(setupArguments []string) []string {
 	if containsSetupSelector(setupArguments) {
 		return nil
 	}
 
 	return []string{"wifi"}
-}
-
-func containsSetupForce(arguments []string) bool {
-	for _, argument := range arguments {
-		if argument == "--force" || argument == "--force-all" {
-			return true
-		}
-	}
-	return false
 }
 
 func containsSetupSelector(arguments []string) bool {
@@ -554,16 +511,6 @@ func containsSetupSelector(arguments []string) bool {
 			return true
 		}
 	}
-	return false
-}
-
-func containsSetupPlan(arguments []string) bool {
-	for _, argument := range arguments {
-		if argument == "--plan" {
-			return true
-		}
-	}
-
 	return false
 }
 

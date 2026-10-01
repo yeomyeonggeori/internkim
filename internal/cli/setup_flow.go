@@ -2073,7 +2073,7 @@ func (state *setupFlowState) installDeviceBrowserRuntimeSSH() error {
 	output, errorValue := state.sshClient.runResult(deviceBrowserRuntimeInstallScript())
 	if errorValue != nil {
 		fmt.Println("failed")
-		diagnostic := strings.TrimSpace(output + "\n" + state.sshClient.run("journalctl -u " + browserruntime.DeviceBrowserServiceName + " -n 40 --no-pager 2>/dev/null"))
+		diagnostic := strings.TrimSpace(output + "\n" + state.sshClient.run("journalctl -u "+browserruntime.DeviceBrowserServiceName+" -n 40 --no-pager 2>/dev/null"))
 		if diagnostic == "" {
 			diagnostic = errorValue.Error()
 		}
@@ -2342,10 +2342,6 @@ chmod 640 %s %s %s %s %s %s %s /root/.internkim/env/tls-certificate-status`,
 	))
 }
 
-func (state *setupFlowState) isPendingFleetMember() bool {
-	return strings.TrimSpace(state.fleetRole) == "pending"
-}
-
 func defaultInt(value int, fallback int) int {
 	if value != 0 {
 		return value
@@ -2547,15 +2543,6 @@ func (state *setupFlowState) stageBootstrapSD(context *setup.Context) error {
 
 	fmt.Printf("  %s\n", state.messenger.t("부팅 스테이지 준비 완료", "Boot staging prepared"))
 	return nil
-}
-
-func (state *setupFlowState) restorePasswordFromBackup(name string) string {
-	passwordPath := filepath.Join(state.stateDir, "backup", name)
-	passwordBytes, err := os.ReadFile(passwordPath)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(passwordBytes))
 }
 
 func (state *setupFlowState) stageBlueclawMigrationsSD(stageRoot string) error {

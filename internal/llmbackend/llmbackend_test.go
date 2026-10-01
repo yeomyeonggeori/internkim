@@ -33,15 +33,6 @@ func setLiteRTConstrainedRunnerPath(t *testing.T, path string) {
 	})
 }
 
-func createLiteRTConstrainedRunner(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "internkim-litert-constrained")
-	if errorValue := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return path
-}
-
 func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
 	seed := int64(42)
 	temperature := 0.1
@@ -1554,30 +1545,6 @@ func testAgentActionSchema() StructuredOutputSchema {
 	}
 }
 
-func documentContainsKey(value any, key string) bool {
-	document, isObject := value.(map[string]any)
-	if isObject {
-		if _, isFound := document[key]; isFound {
-			return true
-		}
-		for _, fieldValue := range document {
-			if documentContainsKey(fieldValue, key) {
-				return true
-			}
-		}
-		return false
-	}
-	values, isArray := value.([]any)
-	if isArray {
-		for _, item := range values {
-			if documentContainsKey(item, key) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func testActionSchemaForDescriptors(t *testing.T, descriptors []capabilities.Descriptor) json.RawMessage {
 	t.Helper()
 	variants := make([]any, 0, len(descriptors))
@@ -1724,32 +1691,6 @@ func assertNativeRequiredFieldsHaveProperties(t *testing.T, toolName string, doc
 			t.Fatalf("schema for %s requires undefined field %q: %+v", toolName, fieldNameString, document)
 		}
 	}
-}
-
-func nativeToolInputProperties(parameters map[string]any) (map[string]any, bool) {
-	properties, isProperties := parameters["properties"].(map[string]any)
-	if !isProperties {
-		return nil, false
-	}
-	toolInput, isToolInput := properties["toolInput"].(map[string]any)
-	if !isToolInput {
-		return nil, false
-	}
-	toolInputProperties, isToolInputProperties := toolInput["properties"].(map[string]any)
-	return toolInputProperties, isToolInputProperties
-}
-
-func nativeToolInputRequired(parameters map[string]any) []any {
-	properties, isProperties := parameters["properties"].(map[string]any)
-	if !isProperties {
-		return nil
-	}
-	toolInput, isToolInput := properties["toolInput"].(map[string]any)
-	if !isToolInput {
-		return nil
-	}
-	required, _ := toolInput["required"].([]any)
-	return required
 }
 
 func requiredContains(required any, expected string) bool {

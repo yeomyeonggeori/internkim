@@ -106,15 +106,6 @@ func testJSONResponse(statusCode int, response any) *http.Response {
 	}
 }
 
-func writePlatformTestFile(t *testing.T, value string) string {
-	t.Helper()
-	path := t.TempDir() + "/secret"
-	if errorValue := os.WriteFile(path, []byte(value), 0600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return path
-}
-
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -163,4 +154,3 @@ func TestForwardedPlatformEventDoesNotLeakLegacyFields(t *testing.T) {
 		t.Fatalf("expected prompt in forwarded body, got %v", requestBody)
 	}
 }
-

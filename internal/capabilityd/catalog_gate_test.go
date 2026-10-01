@@ -1109,28 +1109,6 @@ func memberPolicyFor(personID string, email string) string {
 	return `{"people":[{"personID":"` + personID + `","displayName":"이샘플","emails":["` + email + `"],"circles":["member"]}]}`
 }
 
-// The task, calendar and person tools all read the same Flow state and write
-// through the same paths, so one stand-in answers for all nine of them.
-func recordAnsweringTasks() *standingIn {
-	state := `{"currentWeek":{"label":"2026-W36"},"members":[{"personID":"person-1","name":"이샘플","email":"member@example.com"}],"tasks":[{"id":"task-1","title":"분기 보고서 초안","status":"planned","size":"M","ownerID":"person-1","isEvent":false},{"id":"event-1","title":"주간 회의","status":"planned","ownerID":"person-1","isEvent":true,"startsAt":"2026-09-01T01:00:00Z","endsAt":"2026-09-01T02:00:00Z"}],"definitions":{"categories":["영업"],"types":["문서"],"sizes":[{"name":"M"}]}}`
-	written := `{"id":"task-1","title":"분기 보고서 초안","status":"planned","size":"M","ownerID":"person-1","isEvent":false}`
-	writtenEvent := `{"id":"event-1","title":"주간 회의","status":"planned","ownerID":"person-1","isEvent":true,"startsAt":"2026-09-01T01:00:00Z","endsAt":"2026-09-01T02:00:00Z"}`
-	return answeringPerCall(func(request *http.Request) (int, string) {
-		switch {
-		case strings.Contains(request.URL.Path, "/state") || strings.Contains(request.URL.Path, "/summary"):
-			return http.StatusOK, state
-		case strings.Contains(request.URL.Path, "event"):
-			return http.StatusOK, writtenEvent
-		default:
-			return http.StatusOK, written
-		}
-	})
-}
-
-func reachingTheRecord() map[gateBackend]*standingIn {
-	return map[gateBackend]*standingIn{admindOverTheSocket: recordAnsweringTasks()}
-}
-
 func arrivingCall(name string, gateCase catalogGateCase) capabilities.ToolInvokeRequest {
 	arriving := capabilities.ToolInvokeRequest{
 		ToolName: name,

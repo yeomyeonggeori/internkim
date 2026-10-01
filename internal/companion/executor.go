@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
@@ -97,12 +96,6 @@ var executorToolHandlers = map[string]executorToolHandler{
 func executorRequestHandler(handler func(Executor, context.Context, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
 	return func(executor Executor, ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 		return handler(executor, ctx, request)
-	}
-}
-
-func executorSimpleHandler(handler func(Executor, capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error)) executorToolHandler {
-	return func(executor Executor, ctx context.Context, envelope JobEnvelope, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-		return handler(executor, request)
 	}
 }
 
@@ -325,21 +318,6 @@ const attentionTriageSchema = `{
   }
 }`
 
-func (executor Executor) executeBrowserSessionStart(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	var input browserruntime.SessionStartRequest
-	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	if executor.BrowserRuntime == nil {
-		return capabilities.ToolInvokeResponse{}, errors.New("companion browser runtime unavailable")
-	}
-	result, errorValue := executor.BrowserRuntime.StartSession(ctx, input)
-	if errorValue != nil {
-		return capabilities.ToolInvokeResponse{}, errorValue
-	}
-	return toolResponse(request.ToolName, result)
-}
-
 func (executor Executor) executeBrowserNavigate(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
 	var input browserruntime.NavigateRequest
 	if errorValue := decodeInput(request.Input, &input); errorValue != nil {
@@ -510,20 +488,6 @@ func (executor Executor) browserActionFailureResponse(ctx context.Context, reque
 	response.IsError = true
 	response.Content = string(response.Result)
 	return response, nil
-}
-
-func extensionAllowed(filename string, allowedExtensions []string) bool {
-	if len(allowedExtensions) == 0 {
-		return true
-	}
-	extension := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
-	for _, allowedExtension := range allowedExtensions {
-		normalizedExtension := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(allowedExtension)), ".")
-		if normalizedExtension != "" && normalizedExtension == extension {
-			return true
-		}
-	}
-	return false
 }
 
 func MockStructuredContent(document []byte) string {

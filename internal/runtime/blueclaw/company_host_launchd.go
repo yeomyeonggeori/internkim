@@ -54,10 +54,6 @@ func (daemon CompanyHostLaunchDaemon) FileName() string {
 	return daemon.Label + ".plist"
 }
 
-func (daemon CompanyHostLaunchDaemon) InstalledPath() string {
-	return CompanyHostLaunchDaemonRoot + "/" + daemon.FileName()
-}
-
 // CompanyHostLaunchDaemonLabel is what launchctl calls a service.
 func CompanyHostLaunchDaemonLabel(serviceName string) string {
 	return CompanyHostLaunchDaemonLabelPrefix + serviceName

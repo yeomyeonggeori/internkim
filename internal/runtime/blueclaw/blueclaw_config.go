@@ -458,20 +458,6 @@ func optionalFloat64Environment(name string) (*float64, error) {
 	return &parsedValue, nil
 }
 
-func uniqueStringList(values []string) []string {
-	seenValues := map[string]bool{}
-	uniqueValues := []string{}
-	for _, value := range values {
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedValue == "" || seenValues[trimmedValue] {
-			continue
-		}
-		seenValues[trimmedValue] = true
-		uniqueValues = append(uniqueValues, trimmedValue)
-	}
-	return uniqueValues
-}
-
 func BlueclawPolicyDocument(adminEmail string) (string, error) {
 	if adminEmail == "" {
 		adminEmail = "admin@example.test"

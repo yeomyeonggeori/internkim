@@ -26,9 +26,10 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 	"sync"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/fleetdomain"
 )
 
 const (
@@ -3354,22 +3355,6 @@ func copyOptionalDirectory(sourcePath string, targetPath string) error {
 		return nil
 	}
 	return copyDirectory(trimmedSourcePath, targetPath)
-}
-
-func directoryHasFiles(path string) bool {
-	entries, errorValue := os.ReadDir(path)
-	if errorValue != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			return true
-		}
-		if directoryHasFiles(filepath.Join(path, entry.Name())) {
-			return true
-		}
-	}
-	return false
 }
 
 func directoryHasOperationalFiles(path string) bool {

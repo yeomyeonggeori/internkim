@@ -627,14 +627,6 @@ func releaseBlueclawServiceNames(tenantBasePath string) []string {
 	return releaseTenantServiceNames(tenantBasePath, "internkim-tenant-blueclaw-", blueclawruntime.BlueclawServiceName)
 }
 
-func (service *Service) releaseLocalLlamaProvisioned(ctx context.Context) bool {
-	output, errorValue := service.runCommand(ctx, "systemctl", "cat", locallm.LlamaCppServiceName)
-	if errorValue != nil {
-		return false
-	}
-	return strings.Contains(string(output), locallm.LlamaCppBinaryPath)
-}
-
 func (service *Service) restartReleaseChatd(ctx context.Context) error {
 	if output, errorValue := service.runCommand(ctx, "systemctl", "restart", blueclawruntime.ChatdServiceName); errorValue != nil {
 		return fmt.Errorf("restart chatd: %s: %w", strings.TrimSpace(string(output)), errorValue)

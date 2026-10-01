@@ -30,50 +30,46 @@ type Service struct {
 	HTTPClient    *http.Client
 	RunCommand    func(context.Context, string, ...string) ([]byte, error)
 
-	mutex                      sync.Mutex
-	adminSeating               sync.Mutex
-	centralPlaneOnce           sync.Once
-	siteScaffoldOnce           sync.Once
-	siteScaffoldDocuments      []siteScaffoldDocument
-	siteScaffoldError          error
-	centralPlaneClient         *centralplane.Client
-	mattermostAdminOnce        sync.Once
-	mattermostAdminClient      *mattermostadmin.Client
-	jobs                       map[string]*Job
-	uploads                    map[string]*RestoreUpload
-	blueclawUpdateUploads      map[string]*BlueclawUpdateUpload
-	pairingCodes               map[string]*CompanionPairingCode
-	companions                 map[string]*CompanionRecord
-	companionJobs              map[string]*CompanionJob
-	companionFileUploads       map[string]*CompanionFileUpload
-	buzzInviteStore            *buzzInviteStore
-	buzzInviteStoreOnce        sync.Once
-	buzzKeySeedOnce            sync.Once
-	buzzKeySeedValue           string
-	cloudflareAccessOnce       sync.Once
-	cloudflareAccessCheck      *cloudflareAccessVerifier
-	sites                      map[string]*SiteRecord
-	siteRuntimeMutex           sync.Mutex
-	siteRuntimeActivities      map[string]*siteRuntimeActivity
-	siteRuntimeStartupDone     <-chan struct{}
-	mailBackend                mail.Backend
-	calendarDeleteIntentWakeUp chan struct{}
-	calendarStoreWriteMutex    sync.Mutex
-	companyShareMutex          sync.Mutex
-	companyShareAccessMutex    sync.Mutex
-	companyShareAttempts       map[string]companyShareAttempt
-	companySettingsCache       heldCompanySettings
-	policyRecordCacheMutex     sync.Mutex
-	policyRecordCache          []adminUserMutation
-	requestMetrics             *adminRequestMetrics
-	databaseSchemas            *adminDatabaseSchemas
-	buzzDatabaseOwner          buzzDatabaseHandle
-	legacyDatabaseMigration    sync.Once
-	mailNotifyMarkMutex        sync.Mutex
-	taskNotifyMarkMutex        sync.Mutex
-	removeTokenQuarantineFile  func(string) error
-	promoteCalendarTokenFile   func(string, string) error
-	startedAt                  time.Time
+	mutex                   sync.Mutex
+	adminSeating            sync.Mutex
+	centralPlaneOnce        sync.Once
+	siteScaffoldOnce        sync.Once
+	siteScaffoldDocuments   []siteScaffoldDocument
+	siteScaffoldError       error
+	centralPlaneClient      *centralplane.Client
+	mattermostAdminOnce     sync.Once
+	mattermostAdminClient   *mattermostadmin.Client
+	jobs                    map[string]*Job
+	uploads                 map[string]*RestoreUpload
+	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
+	pairingCodes            map[string]*CompanionPairingCode
+	companions              map[string]*CompanionRecord
+	companionJobs           map[string]*CompanionJob
+	companionFileUploads    map[string]*CompanionFileUpload
+	buzzInviteStore         *buzzInviteStore
+	buzzInviteStoreOnce     sync.Once
+	buzzKeySeedOnce         sync.Once
+	buzzKeySeedValue        string
+	cloudflareAccessOnce    sync.Once
+	cloudflareAccessCheck   *cloudflareAccessVerifier
+	sites                   map[string]*SiteRecord
+	siteRuntimeMutex        sync.Mutex
+	siteRuntimeActivities   map[string]*siteRuntimeActivity
+	siteRuntimeStartupDone  <-chan struct{}
+	mailBackend             mail.Backend
+	companyShareMutex       sync.Mutex
+	companyShareAccessMutex sync.Mutex
+	companyShareAttempts    map[string]companyShareAttempt
+	companySettingsCache    heldCompanySettings
+	policyRecordCacheMutex  sync.Mutex
+	policyRecordCache       []adminUserMutation
+	requestMetrics          *adminRequestMetrics
+	databaseSchemas         *adminDatabaseSchemas
+	buzzDatabaseOwner       buzzDatabaseHandle
+	legacyDatabaseMigration sync.Once
+	mailNotifyMarkMutex     sync.Mutex
+	taskNotifyMarkMutex     sync.Mutex
+	startedAt               time.Time
 }
 
 func NewService(configuration Configuration) *Service {

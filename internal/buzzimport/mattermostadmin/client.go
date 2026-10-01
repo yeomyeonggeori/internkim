@@ -95,11 +95,6 @@ func IsNotFound(errorValue error) bool {
 	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusNotFound
 }
 
-func IsBadRequest(errorValue error) bool {
-	var apiError apiError
-	return errors.As(errorValue, &apiError) && apiError.StatusCode == http.StatusBadRequest
-}
-
 func (client *Client) httpClient() *http.Client {
 	if client.settings.HTTPClient != nil {
 		return client.settings.HTTPClient
@@ -223,10 +218,6 @@ func statusError(response *http.Response) error {
 
 func (client *Client) FindUserByEmail(ctx context.Context, token string, email string) (UserRecord, bool, error) {
 	return client.findUser(ctx, token, "/api/v4/users/email/"+url.PathEscape(email))
-}
-
-func (client *Client) FindUserByUsername(ctx context.Context, token string, username string) (UserRecord, bool, error) {
-	return client.findUser(ctx, token, "/api/v4/users/username/"+url.PathEscape(username))
 }
 
 func (client *Client) findUserByID(ctx context.Context, token string, userID string) (UserRecord, bool, error) {

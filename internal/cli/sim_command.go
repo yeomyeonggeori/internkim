@@ -119,30 +119,6 @@ func runDisposableLocalFleetRequest(request localfleet.JobRequest) error {
 	return service.Run(context.Background(), standardLocalFleetLogger{}, request)
 }
 
-func simGateSetupArguments(arguments []string) []string {
-	setupArguments := filterSimGateSetupArguments(arguments)
-	if !hasCommandArgument(setupArguments, "--force") && !hasCommandArgument(setupArguments, "--force-all") {
-		setupArguments = append(setupArguments, "--force")
-	}
-	if !hasCommandArgument(setupArguments, "--verify") && !hasCommandArgument(setupArguments, "--verify-browser") {
-		setupArguments = append(setupArguments, "--verify-browser")
-	}
-	return setupArguments
-}
-
-func filterSimGateSetupArguments(arguments []string) []string {
-	filteredArguments := []string{}
-	for _, argument := range arguments {
-		switch argument {
-		case "--help", "-h", "--keep-state":
-			continue
-		default:
-			filteredArguments = append(filteredArguments, argument)
-		}
-	}
-	return filteredArguments
-}
-
 func validateSimulationStateIsolation() error {
 	simulationStateDir := simulationStateDirectoryPath()
 	physicalStateDir := physicalStateDirectoryPath()

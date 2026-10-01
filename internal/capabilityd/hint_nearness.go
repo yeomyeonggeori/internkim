@@ -2,11 +2,6 @@ package capabilityd
 
 import "strings"
 
-const (
-	typoNearnessFloor  = 0.5
-	titleNearnessFloor = 0.34
-)
-
 // A short closed-vocabulary value fails by being mistyped, so nearness is how
 // few edits separate it from what was asked for.
 func typoNearness(hint string, value string) float64 {
@@ -31,28 +26,6 @@ func allowedTypoDistance(length int) int {
 		return 1
 	}
 	return 2
-}
-
-// A free-form title is remembered in pieces or paraphrased rather than
-// mistyped, so nearness is how much of it the two strings share.
-func titleNearness(hint string, value string) float64 {
-	hintBigrams := characterBigrams(hint)
-	valueBigrams := characterBigrams(value)
-	if len(hintBigrams) == 0 || len(valueBigrams) == 0 {
-		return 0
-	}
-	shared := 0
-	remaining := map[string]int{}
-	for _, bigram := range valueBigrams {
-		remaining[bigram]++
-	}
-	for _, bigram := range hintBigrams {
-		if remaining[bigram] > 0 {
-			remaining[bigram]--
-			shared++
-		}
-	}
-	return 2 * float64(shared) / float64(len(hintBigrams)+len(valueBigrams))
 }
 
 // The local part is who the address belongs to and the domain is where everyone
@@ -116,16 +89,4 @@ func minimumOf(values ...int) int {
 		}
 	}
 	return smallest
-}
-
-func characterBigrams(value string) []string {
-	runes := []rune(strings.Join(strings.Fields(value), ""))
-	if len(runes) < 2 {
-		return nil
-	}
-	bigrams := make([]string, 0, len(runes)-1)
-	for index := 0; index+1 < len(runes); index++ {
-		bigrams = append(bigrams, string(runes[index:index+2]))
-	}
-	return bigrams
 }

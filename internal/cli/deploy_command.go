@@ -192,15 +192,3 @@ func runDeployToBoard(scriptDir string, boardBinDir string, ssh *sshClient) {
 		fmt.Println("ok")
 	}
 }
-
-func toolBinEntries(boardBinDir string, names []string) []struct{ local, remote, name string } {
-	var entries []struct{ local, remote, name string }
-	for _, name := range names {
-		entries = append(entries, struct{ local, remote, name string }{
-			filepath.Join(boardBinDir, name),
-			"/usr/local/bin/" + name,
-			name,
-		})
-	}
-	return entries
-}

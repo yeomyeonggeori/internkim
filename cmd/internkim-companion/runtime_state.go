@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"net"
 	"sync"
@@ -21,12 +20,6 @@ type localLLMBackendStatus struct {
 type localLLMStatus struct {
 	Enabled  bool                    `json:"enabled"`
 	Backends []localLLMBackendStatus `json:"backends,omitempty"`
-}
-
-type runtimeStatusDocument struct {
-	LastHeartbeatAt string         `json:"lastHeartbeatAt,omitempty"`
-	LastError       string         `json:"lastError,omitempty"`
-	LocalLLM        localLLMStatus `json:"localLLM"`
 }
 
 type runtimeState struct {
@@ -89,57 +82,6 @@ func (state *runtimeState) localLLMAvailable() bool {
 
 func (state *runtimeState) LocalLLMAvailable() bool {
 	return state.localLLMAvailable()
-}
-
-func (state *runtimeState) refreshLocalLLM(ctx context.Context) localLLMStatus {
-	state.mutex.Lock()
-	if !state.localLLM.Enabled || len(state.localLLMBackends) == 0 {
-		summary := state.localLLM
-		state.mutex.Unlock()
-		return summary
-	}
-	if !state.localLLMLastCheckAt.IsZero() && time.Since(state.localLLMLastCheckAt) < state.localLLMCacheLifetime {
-		summary := state.localLLM
-		state.mutex.Unlock()
-		return summary
-	}
-	backends := state.localLLMBackends
-	modelByName := state.localLLMModelByName
-	state.mutex.Unlock()
-
-	statuses := make([]localLLMBackendStatus, 0, len(backends))
-	for _, backend := range backends {
-		pingContext, cancel := context.WithTimeout(ctx, time.Second)
-		errorValue := backend.Ping(pingContext)
-		cancel()
-		status := localLLMBackendStatus{
-			Name:          backend.Name(),
-			Model:         modelByName[backend.Name()],
-			Available:     errorValue == nil,
-			LastCheckedAt: time.Now().UTC().Format(time.RFC3339),
-		}
-		if errorValue != nil {
-			status.LastError = errorValue.Error()
-		}
-		statuses = append(statuses, status)
-	}
-	summary := localLLMStatus{Enabled: true, Backends: statuses}
-
-	state.mutex.Lock()
-	state.localLLM = summary
-	state.localLLMLastCheckAt = time.Now()
-	state.mutex.Unlock()
-	return summary
-}
-
-func (state *runtimeState) snapshot() runtimeStatusDocument {
-	state.mutex.Lock()
-	defer state.mutex.Unlock()
-	return runtimeStatusDocument{
-		LastHeartbeatAt: state.lastHeartbeatAt,
-		LastError:       state.lastError,
-		LocalLLM:        state.localLLM,
-	}
 }
 
 func listenLoopbackOnly(network string, address string, serverLabel string) (net.Listener, error) {

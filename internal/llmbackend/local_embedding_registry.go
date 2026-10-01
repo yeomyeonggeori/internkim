@@ -1,7 +1,6 @@
 package llmbackend
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -85,11 +84,4 @@ func localEmbeddingProviderModel(backend EmbeddingBackend, configuration LocalEm
 
 func localEmbeddingProviderAttemptTimeout(configuration LocalEmbeddingProviderConfig) time.Duration {
 	return configuration.AttemptTimeout
-}
-
-func pingEmbeddingBackend(ctx context.Context, backend EmbeddingBackend) error {
-	if backend == nil {
-		return nil
-	}
-	return backend.Ping(ctx)
 }

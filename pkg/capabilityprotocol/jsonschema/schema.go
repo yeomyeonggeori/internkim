@@ -66,10 +66,6 @@ func SafeInteger() Schema {
 	}}
 }
 
-func Number() Schema {
-	return typedSchema("number")
-}
-
 func Array(items Schema) Schema {
 	return Schema{document: map[string]any{
 		"type":  "array",
@@ -96,15 +92,6 @@ func Raw(document json.RawMessage) Schema {
 		return Object()
 	}
 	return Schema{document: value}
-}
-
-func (schema Schema) WithDescription(description string) Schema {
-	if description == "" {
-		return schema
-	}
-	document := cloneDocument(schema.document)
-	document["description"] = description
-	return Schema{document: document}
 }
 
 func (schema Schema) WithDialect(dialect string) Schema {
