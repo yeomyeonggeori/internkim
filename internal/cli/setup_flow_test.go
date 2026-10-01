@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	"testing"
 	"time"
+
+	"gitlab.com/eastriver/internkim/internal/deviceassets"
 
 	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
@@ -616,13 +617,12 @@ func pathsContain(paths []string, targetPath string) bool {
 	return false
 }
 
-func TestWiFiProfilesKeepSavedAndAddCurrent(t *testing.T) {
+func TestWiFiProfilesKeepSavedAndAddTheNamedOne(t *testing.T) {
 	stateDirectory := t.TempDir()
 	saveWiFiProfiles(stateDirectory, []wifiProfile{{SSID: "OfficeWiFi", IsOpen: true}})
-	getSSIDPath := createExecutableFixture(t, "StudioWiFi\n")
-	withArguments(t, "internkim", "setup", "--yes", "--wifi-password", "studio-secret")
+	withArguments(t, "internkim", "setup", "--yes", "--wifi-ssid", "StudioWiFi", "--wifi-password", "studio-secret")
 
-	profiles, errorValue := resolveWiFiProfiles(newMsg("en"), stateDirectory, getSSIDPath)
+	profiles, errorValue := resolveWiFiProfiles(newMsg("en"), stateDirectory)
 	if errorValue != nil {
 		t.Fatalf("expected Wi-Fi profiles: %v", errorValue)
 	}

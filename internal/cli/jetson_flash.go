@@ -54,7 +54,6 @@ func runFlash() {
 
 func runJetsonOEMUserFix(messenger *msg) error {
 	stateDirectory := internkimHomeDir()
-	scriptDirectory, _ := os.Getwd()
 	disk := argString("--disk", "")
 	if disk == "" {
 		disk = detectSDCard()
@@ -64,7 +63,7 @@ func runJetsonOEMUserFix(messenger *msg) error {
 	}
 
 	username := firstNonEmptyString(argString("--jetson-user", ""), jetsonDefaultUser)
-	wifiProfiles, errorValue := resolveWiFiProfiles(messenger, stateDirectory, filepath.Join(scriptDirectory, "bin", "get-ssid"))
+	wifiProfiles, errorValue := resolveWiFiProfiles(messenger, stateDirectory)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -129,17 +128,6 @@ func ensureSudoReady() error {
 		return fmt.Errorf("sudo authentication failed: %w", errorValue)
 	}
 	return nil
-}
-
-func resolveJetsonFlashWiFi(messenger *msg, stateDirectory string, getSSIDPath string) (string, string, error) {
-	wifiProfiles, errorValue := resolveWiFiProfiles(messenger, stateDirectory, getSSIDPath)
-	if errorValue != nil {
-		return "", "", errorValue
-	}
-	if len(wifiProfiles) == 0 {
-		return "", "", nil
-	}
-	return wifiProfiles[0].SSID, wifiProfiles[0].Password, nil
 }
 
 func runJetsonFlash(messenger *msg) error {

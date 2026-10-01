@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
@@ -62,7 +61,7 @@ func runWiFiAdd() error {
 		return errorValue
 	}
 
-	profiles, errorValue := resolveWiFiProfiles(messenger, target.stateDirectory, target.getSSIDPath)
+	profiles, errorValue := resolveWiFiProfiles(messenger, target.stateDirectory)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -99,13 +98,11 @@ type jetsonWiFiCommandTarget struct {
 	username       string
 	password       string
 	stateDirectory string
-	getSSIDPath    string
 }
 
 func resolveJetsonWiFiCommandTarget(boardType string) (jetsonWiFiCommandTarget, error) {
 	commandTarget := resolveCommandTarget(os.Args[2:])
 	stateDirectory := commandTarget.stateDir
-	scriptDirectory, _ := os.Getwd()
 	username, password := commandTarget.sshUser, commandTarget.sshPassword
 
 	hostAddress := strings.TrimSpace(commandTarget.host)
@@ -121,7 +118,6 @@ func resolveJetsonWiFiCommandTarget(boardType string) (jetsonWiFiCommandTarget, 
 		username:       username,
 		password:       password,
 		stateDirectory: stateDirectory,
-		getSSIDPath:    filepath.Join(scriptDirectory, "bin", "get-ssid"),
 	}, nil
 }
 

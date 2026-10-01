@@ -43,23 +43,19 @@ type resolvedWiFiProfile struct {
 	IsHidden bool
 }
 
-func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath string) ([]resolvedWiFiProfile, error) {
+func resolveWiFiProfiles(messenger *msg, stateDirectory string) ([]resolvedWiFiProfile, error) {
 	profiles := loadWiFiProfiles(stateDirectory)
 	selectedSSID := strings.TrimSpace(argString("--wifi-ssid", ""))
 	explicitPassword := argString("--wifi-password", "")
-	currentSSID := detectSSID(getSSIDPath)
 	isOpenWiFi := containsArg("--wifi-open") || containsArg("--open-wifi")
 	isHiddenWiFi := containsArg("--wifi-hidden") || containsArg("--hidden-wifi")
 
-	if selectedSSID == "" {
-		selectedSSID = currentSSID
-	}
 	if selectedSSID == "" && len(profiles) == 0 {
 		if containsArg("--no-wifi") {
 			return nil, nil
 		}
 		if isNonInteractiveWiFiResolution() {
-			return nil, errors.New(messenger.t("Wi-Fi SSID를 자동으로 찾지 못했습니다. Mac을 대상 Wi-Fi에 연결하거나 --wifi-ssid 를 지정하세요.", "Wi-Fi SSID was not detected automatically. Connect the Mac to the target Wi-Fi or pass --wifi-ssid."))
+			return nil, errors.New(messenger.t("저장된 Wi-Fi SSID가 없습니다. --wifi-ssid 를 지정하세요.", "No Wi-Fi SSID is saved. Pass --wifi-ssid."))
 		}
 		selectedSSID = strings.TrimSpace(readLine(messenger.t("  Wi-Fi SSID 입력: ", "  Enter Wi-Fi SSID: ")))
 	}
@@ -70,18 +66,15 @@ func resolveWiFiProfiles(messenger *msg, stateDirectory string, getSSIDPath stri
 		if !isHiddenWiFi {
 			isHiddenWiFi = isSavedHiddenWiFi(profiles, selectedSSID)
 		}
-		if !isHiddenWiFi && currentSSID != "" && strings.EqualFold(selectedSSID, currentSSID) {
-			isHiddenWiFi = detectCurrentWiFiHidden()
-		}
 		profiles = upsertWiFiProfile(profiles, wifiProfile{
 			SSID:       selectedSSID,
 			IsOpen:     isOpenWiFi,
 			IsHidden:   isHiddenWiFi,
 			LastUsedAt: time.Now().UTC().Format(time.RFC3339),
-			Source:     wifiProfileSource(selectedSSID, currentSSID),
+			Source:     "manual",
 		})
 		saveWiFiProfiles(stateDirectory, profiles)
-		printSelectedWiFi(messenger, selectedSSID, currentSSID, len(profiles))
+		printSelectedWiFi(selectedSSID, len(profiles))
 	}
 	return resolveWiFiProfilePasswords(messenger, stateDirectory, profiles, selectedSSID, explicitPassword)
 }
@@ -126,23 +119,11 @@ func resolveWiFiPassword(ssid string, selectedSSID string, explicitPassword stri
 	return ""
 }
 
-func printSelectedWiFi(messenger *msg, selectedSSID string, currentSSID string, profileCount int) {
-	switch {
-	case currentSSID != "" && selectedSSID == currentSSID:
-		fmt.Printf("  SSID: %s (%s)\n", selectedSSID, messenger.t("현재 Mac Wi-Fi", "current Mac Wi-Fi"))
-	default:
-		fmt.Printf("  SSID: %s\n", selectedSSID)
-	}
+func printSelectedWiFi(selectedSSID string, profileCount int) {
+	fmt.Printf("  SSID: %s\n", selectedSSID)
 	if profileCount > 1 {
 		fmt.Printf("  Wi-Fi profiles: %d\n", profileCount)
 	}
-}
-
-func wifiProfileSource(selectedSSID string, currentSSID string) string {
-	if currentSSID != "" && selectedSSID == currentSSID {
-		return "mac"
-	}
-	return "manual"
 }
 
 func loadWiFiProfiles(stateDirectory string) []wifiProfile {

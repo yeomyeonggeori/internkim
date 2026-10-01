@@ -401,18 +401,6 @@ func detectSDCard() string {
 	return ""
 }
 
-func detectSSID(bin string) string {
-	out, err := exec.Command(bin).Output()
-	if err != nil {
-		return ""
-	}
-	s := strings.TrimSpace(string(out))
-	if strings.Contains(s, "Unknown") {
-		return ""
-	}
-	return s
-}
-
 func localScanSubnets(stateDirectory string) []string {
 	subnetSet := make(map[string]bool)
 	if storedSubnet := strings.TrimSpace(loadState(stateDirectory, "subnet")); storedSubnet != "" {
@@ -453,32 +441,6 @@ func localScanSubnets(stateDirectory string) []string {
 	}
 	sort.Strings(subnets)
 	return subnets
-}
-
-func detectCurrentWiFiHidden() bool {
-	output, errorValue := exec.Command("system_profiler", "SPAirPortDataType").Output()
-	if errorValue != nil {
-		return false
-	}
-	text := string(output)
-	currentIndex := strings.Index(text, "Current Network Information:")
-	if currentIndex < 0 {
-		return false
-	}
-	otherIndex := strings.Index(text[currentIndex:], "Other Local Wi-Fi Networks:")
-	currentSection := text[currentIndex:]
-	if otherIndex >= 0 {
-		currentSection = text[currentIndex : currentIndex+otherIndex]
-	}
-	for _, line := range strings.Split(currentSection, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "Hidden Network:") {
-			continue
-		}
-		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "Hidden Network:"))
-		return strings.EqualFold(value, "yes") || strings.EqualFold(value, "true")
-	}
-	return false
 }
 
 func findExt4Partition(imgRaw string) (offset, size int64, err error) {

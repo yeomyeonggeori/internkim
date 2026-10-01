@@ -96,34 +96,11 @@ func TestHumanBytesFormatsGibibytes(t *testing.T) {
 	}
 }
 
-func TestResolveJetsonFlashWiFiPrefersCurrentSSID(t *testing.T) {
+func TestResolveWiFiProfilesYesFailsWithoutSSID(t *testing.T) {
 	temporaryDirectory := t.TempDir()
-	saveWiFiProfiles(temporaryDirectory, []wifiProfile{{SSID: "OldWiFi", IsOpen: true}})
-	getSSIDPath := createExecutableFixture(t, "dlee5G\n")
-	withArguments(t, "internkim", "flash", "--fix-oem-user", "--yes", "--wifi-password", "new-secret")
-
-	wifiSSID, wifiPassword, errorValue := resolveJetsonFlashWiFi(newMsg("en"), temporaryDirectory, getSSIDPath)
-	if errorValue != nil {
-		t.Fatalf("expected Wi-Fi resolution: %v", errorValue)
-	}
-	if wifiSSID != "dlee5G" {
-		t.Fatalf("expected current SSID, got %q", wifiSSID)
-	}
-	if wifiPassword != "new-secret" {
-		t.Fatalf("expected explicit password, got %q", wifiPassword)
-	}
-	profiles := loadWiFiProfiles(temporaryDirectory)
-	if len(profiles) != 2 {
-		t.Fatalf("expected saved and current Wi-Fi profiles to be preserved, got %+v", profiles)
-	}
-}
-
-func TestResolveJetsonFlashWiFiYesFailsWithoutSSID(t *testing.T) {
-	temporaryDirectory := t.TempDir()
-	getSSIDPath := createExecutableFixture(t, "Unknown\n")
 	withArguments(t, "internkim", "flash", "--fix-oem-user", "--yes")
 
-	_, _, errorValue := resolveJetsonFlashWiFi(newMsg("en"), temporaryDirectory, getSSIDPath)
+	_, errorValue := resolveWiFiProfiles(newMsg("en"), temporaryDirectory)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "SSID") {
 		t.Fatalf("expected missing SSID error, got %v", errorValue)
 	}
@@ -343,16 +320,6 @@ func createZipFixture(t *testing.T, zipPath string, entryName string, document [
 	if _, errorValue := entry.Write(document); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-}
-
-func createExecutableFixture(t *testing.T, output string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "get-ssid")
-	content := "#!/bin/sh\nprintf '%s' " + quoteShellValue(output) + "\n"
-	if errorValue := os.WriteFile(path, []byte(content), 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return path
 }
 
 func withArguments(t *testing.T, arguments ...string) {
