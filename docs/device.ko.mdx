@@ -27,8 +27,8 @@ Super에서 나왔습니다. [호스트](/ko/docs/running-the-host)는 회사가
 
 | 구성 요소 | 하는 일 | 코드 |
 |---|---|---|
-| `internkim-admind` | 디바이스 관리 API: 관리 UI 리버스 프록시, 컴패니언 브로커, 백업과 복원, OTA 적용 | `cmd/internkim-admind/`, `internal/admind/` |
-| `internkim-capabilityd` | OpenRouter 키, 로컬 모델, 메신저·컴패니언 자격증명을 쥐고 능력 API만 노출 | `internal/capabilityd/` |
+| `internkim-admind` | 디바이스 관리 API: 관리 UI 리버스 프록시, 백업과 복원, OTA 적용 | `cmd/internkim-admind/`, `internal/admind/` |
+| `internkim-capabilityd` | OpenRouter 키, 로컬 모델, 메신저 자격증명을 쥐고 능력 API만 노출 | `internal/capabilityd/` |
 | blueclaw 게스트 | `blueclaw-supervisor` 아래 Cloud Hypervisor VM에 격리된 에이전트, `/workspace/.blueclaw/config/*.json`을 읽음 | `.dependency/blueclaw/` |
 | 로컬 모델 | 상주 `llama-server`: 생성은 MTP 드래프팅을 붙인 gemma-4-E2B QAT, 임베딩은 CPU 위 BGE-M3 Q8 | — |
 | 메신저 | 그 컴퓨터 위의 Buzz 릴레이, 미디어 저장소와 `chatd` 어댑터까지 | `internal/provisioning/steps/step_buzz_*.go` |
@@ -45,27 +45,15 @@ Super에서 나왔습니다. [호스트](/ko/docs/running-the-host)는 회사가
 |---|---|
 | `/root/.internkim/secrets/openrouter-api-key` | `internkim-capabilityd` |
 | `/root/.internkim/models/*` | `internkim-capabilityd`, 모델 래퍼 |
-| `/root/.internkim/state/companion-jobs.json` | `internkim-admind` |
 
 에이전트 쪽은 `/root/.blueclaw/`입니다. `config/runtime.json`과
 `config/policy.json`이 런타임 계약이고, `workspace/`가 게스트에
 `/workspace`로 마운트됩니다. 워크스페이스의 권한 모델은
 [경계](/ko/docs/boundaries)에 있습니다.
 
-## 컴패니언 [#the-companion]
+## 디바이스 브라우저 [#the-device-browser]
 
-[`internkim-companion`](/ko/docs/companion)은 사용자 자신의 컴퓨터에서 돌며
-그 사람의 브라우저와 데스크탑을 에이전트에게 빌려줍니다. 페어링은
-메신저의 `/connect`에서 시작하고, 그 사용자 자신의 신원에 묶인 10분짜리
-일회용 코드를 받습니다. 페어링된 컴패니언은 인바운드 포트를 열지 않습니다.
-admind 브로커를 롱폴링하고, 작업은
-`/root/.internkim/state/companion-jobs.json` 덕분에 admind 재시작을 견딥니다.
-
-사용자가 고른 파일은 서명된 브로커를 통해 올라가고, 에이전트에게는 TTL이
-붙은 디바이스 로컬 경로만 보입니다. 사용자 컴퓨터의 경로는 보이지 않습니다.
-브라우저 능력은 화면 있는 컴패니언을 우선 사용하고, capabilityd는 그 사람의
-컴패니언이 온라인일 때만 그리로 라우팅합니다. 컴패니언이 없으면 디바이스의
-Moli 브라우저가 공개 페이지의 단순한 텍스트 탐색을 맡습니다. 요청자마다 자기
+디바이스의 Moli 브라우저가 공개 페이지의 단순한 텍스트 탐색을 맡습니다. 요청자마다 자기
 프로필을 가진 Moli가 따로 떠서 한 사람의 로그인이 다른 사람에게 닿지 않습니다.
 capabilityd가 처음 쓸 때 띄우고 10분 동안 쓰지 않으면 내립니다. 동시에 최대
 네 개까지 돌고(`--device-browser-capacity`), 자리가 없으면 가장 오래 안 쓴

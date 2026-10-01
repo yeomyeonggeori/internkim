@@ -24,14 +24,11 @@ func (service Service) createEmbedding(ctx context.Context, request EmbeddingReq
 }
 
 func (service Service) embeddingProviderForExecutionMode(executionMode, providerName string) (EmbeddingProvider, error) {
-	companionProvider := service.companionInferenceProvider()
 	remoteProvider := service.openRouterEmbeddingBackend()
 	localProviderSet := service.localEmbeddingProviderSet(providerName)
 	switch strings.ToLower(firstNonEmpty(executionMode, capabilities.ExecutionModeAuto)) {
 	case capabilities.ExecutionModeDevice:
 		return localProviderSet.Provider, nil
-	case capabilities.ExecutionModeCompanion:
-		return companionProvider, nil
 	case capabilities.ExecutionModeRemote:
 		if service.Configuration.LocalOnly {
 			return nil, errors.New("remote embedding execution is disabled by local-only mode")
@@ -39,7 +36,7 @@ func (service Service) embeddingProviderForExecutionMode(executionMode, provider
 		return remoteProvider, nil
 	case capabilities.ExecutionModeAuto:
 		return llmbackend.AutoEmbeddingProvider{
-			Providers:      service.automaticEmbeddingProviders(localProviderSet.Provider, companionProvider, remoteProvider),
+			Providers:      service.automaticEmbeddingProviders(localProviderSet.Provider, remoteProvider),
 			AttemptTimeout: service.Configuration.ProviderAttemptTimeout,
 		}, nil
 	default:
@@ -70,14 +67,10 @@ func (service Service) openRouterEmbeddingBackend() llmbackend.OpenRouterEmbeddi
 	}
 }
 
-func (service Service) automaticEmbeddingProviders(localProvider EmbeddingProvider, companionProvider EmbeddingProvider, remoteProvider EmbeddingProvider) []EmbeddingProvider {
+func (service Service) automaticEmbeddingProviders(localProvider EmbeddingProvider, remoteProvider EmbeddingProvider) []EmbeddingProvider {
 	switch service.localInferenceMode() {
 	case "device":
 		return service.localFirstEmbeddingProviders(localProvider, remoteProvider)
-	case "companion_preferred":
-		return []EmbeddingProvider{companionProvider}
-	case "companion_only":
-		return []EmbeddingProvider{companionProvider}
 	case "remote":
 		if service.Configuration.LocalOnly {
 			return []EmbeddingProvider{localProvider}

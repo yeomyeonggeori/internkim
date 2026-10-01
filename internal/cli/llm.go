@@ -15,7 +15,7 @@ func runLLM() {
 	mode := flagSet.String("mode", "", "Execution mode: device, remote, or both (overrides --remote)")
 	useRemote := flagSet.Bool("remote", false, "Use OpenRouter instead of the on-board LiteRT model")
 	model := flagSet.String("model", "", "Override model name")
-	provider := flagSet.String("provider", "", "Provider name: openrouter, litert, llamacpp, ollama, companion")
+	provider := flagSet.String("provider", "", "Provider name: openrouter, litert, llamacpp, ollama")
 	accelerator := flagSet.String("accelerator", "", "Device accelerator: gpu or cpu")
 	target := registerTargetFlags(flagSet)
 	flagArguments, positionalArguments := splitFlagsAndPositionals(os.Args[2:], map[string]bool{

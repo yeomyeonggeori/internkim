@@ -66,7 +66,7 @@ func TestOpenRouterLiveAgentActionSchemaFromEnv(t *testing.T) {
 		Messages: []Message{{Role: "user", Content: "Call browser_open for https://example.com."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "bluecollar_agent_turn_action",
-			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.CompanionToolDescriptors(), "browser_open")}),
+			Document:           testActionSchemaForDescriptors(t, []capabilities.Descriptor{findLiveDescriptor(t, capabilities.BrowserToolDescriptors(), "browser_open")}),
 			IsStrictlyEnforced: true,
 		},
 	}

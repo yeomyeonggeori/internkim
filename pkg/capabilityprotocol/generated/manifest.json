@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "8e4aa7572fb8baadb7cb5ecabf47e49d727ba870583dc37c6647b2a2ee4ceb36",
+  "aggregateHash": "f178e57fc8bd36b8cbe5e1c8432e3723bf8e137da030a8064f0a1080d3e5a952",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "d5c22031f5b9153556ef69c43782327d70c66c18572fcade72a26638dc76f1d6"
+    "hash": "76c5b368375e662d0998c4788b5890cab1879b57407bbe5bafd4d20e7136a7d4"
   },
   "protocolVersion": "0.4.0",
   "schemas": [
@@ -23,17 +23,17 @@
     },
     {
       "fileName": "capability-descriptor.schema.json",
-      "hash": "10d4af6628d063684df0a42a62da9536297d3fbc7f1ff199a230e3f5cd954aaf",
+      "hash": "94c2fe998e710a5b8aaf61ae915bd969bdc4843f5114227b13a3707f8ecb0a77",
       "name": "capability-descriptor"
     },
     {
       "fileName": "capability-registry-response.schema.json",
-      "hash": "d179ba22fa5f54528fdf6f132d07b8b0eb952f9416fa53811a88a64ec230163f",
+      "hash": "1a8c4af280e6029ede609cdc77d893548a999f57f15f83c78f5f6188d9a58b46",
       "name": "capability-registry-response"
     },
     {
       "fileName": "chat-completion-request.schema.json",
-      "hash": "094beafd4fb3fa2c1ff68824793d123e8ef2a5180cd8c0702ee6299e3738af87",
+      "hash": "8040e21a0ee9c99da72b841d57b21b59ef472c1e4823d2c068dd3776dc56c1c8",
       "name": "chat-completion-request"
     },
     {
@@ -73,7 +73,7 @@
     },
     {
       "fileName": "structured-response-request.schema.json",
-      "hash": "539b6c43c8ece16c9adb33a92f371cfb90d74ff1f15e5ddf92978bad23b3a4b8",
+      "hash": "db90d9da8e3eea0292bd75d81bd90f71a9672f4a6660f362012e55f38ddcf035",
       "name": "structured-response-request"
     },
     {
@@ -108,7 +108,7 @@
     },
     {
       "fileName": "tool-invoke-request.schema.json",
-      "hash": "19a655fd0608da4d85e6201ccb2edee46b3900127757ef7710783d84475e4405",
+      "hash": "0ea4cea1ddfb7f0bb8556be58d1afd8ff8a5ae5fb2ae66cef2a74f2db25442bf",
       "name": "tool-invoke-request"
     },
     {

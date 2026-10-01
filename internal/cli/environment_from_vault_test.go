@@ -75,7 +75,7 @@ func TestManifestNamesAreTheBareKeysOfTheProfilesThatListTheName(t *testing.T) {
 }
 
 func TestAProfileTheManifestDoesNotOpenHasNoNames(t *testing.T) {
-	if names := vaultManifestNames(exampleManifest, "companion"); len(names) != 0 {
+	if names := vaultManifestNames(exampleManifest, "staging"); len(names) != 0 {
 		t.Fatalf("a profile nothing declares read %v", names)
 	}
 }

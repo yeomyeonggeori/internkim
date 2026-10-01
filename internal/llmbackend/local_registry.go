@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-var DefaultCompanionLocalProviderOrder = []string{"llamacpp", "ollama", "mlx"}
 var DefaultDeviceLocalProviderOrder = []string{"llamacpp"}
 
 const DefaultOllamaBaseURL = "http://127.0.0.1:11434"

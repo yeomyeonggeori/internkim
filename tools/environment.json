@@ -208,8 +208,8 @@
     "description": "the Go module cache directory, forwarded unchanged to the `go build` tools/prepare-blueclaw-runtime runs when the caller has set one"
   },
   "HOME": {
-    "process": "companion, tools",
-    "description": "the invoking user's home directory (standard POSIX/Windows variable), read to locate default browser, SSH and cache paths"
+    "process": "tools",
+    "description": "the invoking user's home directory (standard POSIX variable), read to locate build caches"
   },
   "HOMEBREW_PREFIX": {
     "process": "cli",
@@ -255,14 +255,6 @@
     "process": "device",
     "description": "when \"1\", internal/runtime/blueclaw uses the uncommitted local .dependency/blueclaw checkout instead of the committed payload artifact"
   },
-  "INTERNKIM_BROWSER_EXECUTABLE_PATH": {
-    "process": "companion",
-    "description": "override path to the browser executable the companion's browser runtime launches"
-  },
-  "INTERNKIM_BROWSER_EXTENSION_PATH": {
-    "process": "companion",
-    "description": "override path to a browser extension directory the companion loads instead of unpacking the embedded one next to its browser profile"
-  },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "cli, tools/mirror-local",
     "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file",
@@ -303,10 +295,6 @@
     "process": "tools/prepare-container-kernel",
     "description": "the kernel version built for the Apple Container VM; defaults to 6.1.68"
   },
-  "INTERNKIM_CUA_DRIVER_PATH": {
-    "process": "companion",
-    "description": "path to the Cua Driver executable computer_task drives; when unset the companion looks on PATH and in ~/.local/bin"
-  },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
     "description": "the device's public admin address, from the @production vault profile; internal/deployops/registry.go reads it as the one deploy target",
@@ -338,21 +326,13 @@
     "process": "tools/verify-api",
     "description": "overrides which model tools/verify-api asks a live question through, gating the paid check behind an explicit opt-in"
   },
-  "INTERNKIM_INSTALL_BIN_DIR": {
-    "process": "install script",
-    "description": "the directory web/static/install.sh puts the downloaded binary in; defaults to ~/.local/bin"
-  },
   "INTERNKIM_INSTALL_HOMEBREW_TAP": {
     "process": "install script",
     "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
   },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
-    "description": "where web/static/install.sh downloads the product's files and their SHA256SUMS from; for the host it defaults to the GitHub release the channel names, and for the companion to https://updates.intern.kim/companion/latest. The native install rig points it at a release served from the Mac"
-  },
-  "INTERNKIM_INSTALL_SCRIPT_URL": {
-    "process": "install script",
-    "description": "the install script web/static/companion/install.sh forwards to; defaults to https://intern.kim/install.sh"
+    "description": "where web/static/install.sh downloads the host's files and their SHA256SUMS from; defaults to the GitHub release the channel names. The native install rig points it at a release served from the Mac"
   },
   "INTERNKIM_INSTALL_CHANNEL": {
     "process": "install script",
@@ -503,10 +483,6 @@
     "process": "tools/build-llama-cpp-jetson",
     "description": "the llama.cpp source version/ref to build"
   },
-  "LOCALAPPDATA": {
-    "process": "companion",
-    "description": "the Windows per-user app data directory, read to locate the default Chrome path on Windows"
-  },
   "LOCAL_PLANE_LOCK_HOLDER": {
     "process": "tools/with-local-plane",
     "description": "the process ID of the tools/with-local-plane run already holding this machine's local Supabase stack; a script or command that sees it set is already inside the lock and runs without taking it again"
@@ -619,10 +595,6 @@
   "POSIX_HELPER_PATH": {
     "process": "tools/render-company-runtime",
     "description": "the blueclaw POSIX helper the rendered runtime document names; defaults to /usr/local/bin/blueclaw-posix-helper, which is the device path rather than the package's"
-  },
-  "PROGRAMFILES": {
-    "process": "companion",
-    "description": "the Windows Program Files directory, read to locate the default Chrome path on Windows"
   },
   "RELAY_STATE_DIR": {
     "process": "relay, host",

@@ -13,7 +13,6 @@ import {
 import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
-import { computerToolDefinitions } from './computer';
 import { crmToolDefinitions } from './crm';
 import {
   taskLabelGetInputSchema,
@@ -1708,7 +1707,6 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: BrowserToolName.Screenshot,
     requiresRequesterDevice: true,
-    requiresCompanionBrowser: true,
     approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
@@ -2038,7 +2036,6 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...fileToolDefinitions,
   ...browserToolDefinitions,
   ...browserControlToolDefinitions,
-  ...computerToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...dataRoomToolDefinitions,

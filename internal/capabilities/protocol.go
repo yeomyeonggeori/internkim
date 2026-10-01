@@ -8,16 +8,12 @@ import (
 )
 
 const (
-	ExecutionModeDevice    = capabilityprotocol.ExecutionModeDevice
-	ExecutionModeCompanion = capabilityprotocol.ExecutionModeCompanion
-	ExecutionModeRemote    = capabilityprotocol.ExecutionModeRemote
-	ExecutionModeAuto      = capabilityprotocol.ExecutionModeAuto
+	ExecutionModeDevice = capabilityprotocol.ExecutionModeDevice
+	ExecutionModeRemote = capabilityprotocol.ExecutionModeRemote
+	ExecutionModeAuto   = capabilityprotocol.ExecutionModeAuto
 
-	LLMBackendDevice         = capabilityprotocol.LLMBackendDevice
-	LLMBackendCompanionLocal = capabilityprotocol.LLMBackendCompanionLocal
-	LLMBackendRemote         = capabilityprotocol.LLMBackendRemote
-
-	AttentionTriageToolName = capabilityprotocol.AttentionTriageToolName
+	LLMBackendDevice = capabilityprotocol.LLMBackendDevice
+	LLMBackendRemote = capabilityprotocol.LLMBackendRemote
 
 	CapabilityAvailable    = capabilityprotocol.CapabilityAvailable
 	CapabilityNotConnected = capabilityprotocol.CapabilityNotConnected
@@ -49,7 +45,6 @@ type ActorContext = capabilityprotocol.ActorContext
 type ToolInvokeResponse = capabilityprotocol.ToolInvokeResponse
 type ApprovalTarget = capabilityprotocol.ApprovalTarget
 type ResourceScope = capabilityprotocol.ResourceScope
-type CompanionJobEnvelope = capabilityprotocol.CompanionJobEnvelope
 type DenialResult = capabilityprotocol.DenialResult
 type RecoveryAction = capabilityprotocol.RecoveryAction
 type RecoveryHint = capabilityprotocol.RecoveryHint
@@ -62,12 +57,8 @@ func canonicalizeDescriptors(descriptors []Descriptor) []Descriptor {
 	return capabilityprotocol.MustCanonicalizeModelVisibleDescriptors(descriptors)
 }
 
-func CompanionToolDescriptors() []Descriptor {
-	return capabilityprotocol.CompanionToolDescriptors()
-}
-
-func CompanionLLMDescriptors() []Descriptor {
-	return capabilityprotocol.CompanionLLMDescriptors()
+func BrowserToolDescriptors() []Descriptor {
+	return capabilityprotocol.BrowserToolDescriptors()
 }
 
 func DeviceBrowserDescriptors() []Descriptor {
@@ -156,7 +147,7 @@ func ArtifactDescriptors() []Descriptor {
 }
 
 func DefaultToolDescriptors() []Descriptor {
-	descriptors := CompanionToolDescriptors()
+	descriptors := BrowserToolDescriptors()
 	descriptors = append(descriptors, descriptorsTheRecordAndTheCompanyAnswer()...)
 	return canonicalizeDescriptors(descriptors)
 }
@@ -165,54 +156,21 @@ func RoutingCandidates() []string {
 	return capabilityprotocol.RoutingCandidates()
 }
 
-func CompanionInstallURL() string {
-	return "https://docs.intern.kim/docs/companion"
-}
-
-func InstallScriptURL() string {
-	return "https://intern.kim/install.sh"
-}
-
-func RetiredCompanionInstallScriptURL() string {
-	return "https://intern.kim/companion/install.sh"
-}
-
-func InstallScriptURLs() []string {
-	return []string{InstallScriptURL(), RetiredCompanionInstallScriptURL()}
-}
-
-func CompanionInstallCommand() string {
-	return "curl -fsSL " + InstallScriptURL() + " | sh -s -- companion"
-}
-
-func CompanionServiceCommand() string {
-	return "internkim-companion service install"
-}
-
-func CompanionConnectRecovery() *RecoveryAction {
-	return &RecoveryAction{
-		Kind:           "companion_connect",
-		Delivery:       "dm_preferred",
-		DownloadURL:    CompanionInstallURL(),
-		ConnectCommand: "/connect",
-	}
-}
-
 func CapabilityUnavailableUserReason(toolName string, code string) string {
 	isBrowserTool := toolNamespaces[strings.TrimSpace(toolName)] == "browser"
 	switch code {
 	case CapabilityNotReady:
 		if isBrowserTool {
-			return "Companion은 연결되어 있지만 브라우저 런타임이 준비되지 않았습니다."
+			return "브라우저 런타임이 아직 준비되지 않았습니다."
 		}
-		return "Companion은 연결되어 있지만 이 기능이 준비되지 않았습니다."
+		return "이 기능이 아직 준비되지 않았습니다."
 	case CapabilityNotAllowed:
-		return "이 요청을 실행할 수 있는 Companion 권한이 없습니다."
+		return "이 요청을 실행할 권한이 없습니다."
 	default:
 		if isBrowserTool {
-			return "Companion이 연결되어 있지 않아 브라우저를 열 수 없습니다."
+			return "이 컴퓨터에서 브라우저를 열 수 없습니다."
 		}
-		return "Companion이 연결되어 있지 않습니다."
+		return "이 기능을 쓸 수 없습니다."
 	}
 }
 
@@ -220,9 +178,6 @@ var toolNamespaces = buildToolNamespaces()
 
 func buildToolNamespaces() map[string]string {
 	namespaceByToolName := map[string]string{}
-	for _, descriptor := range CompanionToolDescriptors() {
-		namespaceByToolName[descriptor.Name] = descriptor.Namespace
-	}
 	for _, descriptor := range DefaultToolDescriptors() {
 		namespaceByToolName[descriptor.Name] = descriptor.Namespace
 	}

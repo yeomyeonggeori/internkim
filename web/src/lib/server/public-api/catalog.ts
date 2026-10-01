@@ -96,8 +96,8 @@ export type BaseCatalogAnswer = {
 
 const baseCatalogExplanation =
 	'The base catalog is what every company has, answered from the published protocol. ' +
-	'Whether a tool can run right now is known only on your company machine: the companion tools come ' +
-	`and go with the companion, and a company may carry tools this list does not. Ask that machine for the ` +
+	'Whether a tool can run right now is known only on your company machine, and a company may carry ' +
+	`tools this list does not. Ask that machine for the ` +
 	`set it can run with ?${liveParameter}=true, which costs a round trip.`;
 
 export function baseCatalogAnswer(permission: PublicAPIPermission): BaseCatalogAnswer {

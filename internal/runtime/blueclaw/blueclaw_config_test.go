@@ -572,7 +572,6 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 		OutboundHostAddressCIDR:  "172.31.101.1/30",
 		OutboundGuestAddressCIDR: "172.31.101.2/30",
 		OutboundGuestGateway:     "172.31.101.1",
-		BridgeListenAddress:      "127.0.0.1:17781",
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -598,7 +597,6 @@ func TestBlueclawRuntimeConfigSupportsTenantRuntimeIsolation(t *testing.T) {
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "workspaceImagePath"}, "/srv/internkim/tenants/pilot-01/blueclaw/guest/workspace.ext4")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "hostHTTPListenAddress"}, "127.0.0.1:18100")
 	assertNestedValue(t, runtimeConfiguration, []string{"guest", "outboundNetwork", "hostDeviceName"}, "bctap101")
-	assertNestedValue(t, runtimeConfiguration, []string{"bridge", "listenAddress"}, "127.0.0.1:17781")
 }
 
 func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
@@ -788,13 +786,7 @@ func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T
 
 func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
 	serviceDocument := CapabilitydServiceUnit()
-	if strings.Contains(serviceDocument, "--prefer-companion-llm") {
-		t.Fatalf("expected capabilityd service not to prefer companion LLM by default, got %s", serviceDocument)
-	}
-	if !strings.Contains(serviceDocument, "--companion-url http://127.0.0.1:18080/_internkim/companion") {
-		t.Fatalf("expected capabilityd service to keep companion URL without making it first, got %s", serviceDocument)
-	}
-	for _, forbiddenValue := range []string{"workers", "--openrouter-gateway-secret"} {
+	for _, forbiddenValue := range []string{"workers", "--openrouter-gateway-secret", "companion"} {
 		if strings.Contains(serviceDocument, forbiddenValue) {
 			t.Fatalf("expected physical Jetson capabilityd service to avoid fronting gateway value %q, got %s", forbiddenValue, serviceDocument)
 		}

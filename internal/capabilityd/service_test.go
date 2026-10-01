@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -56,9 +55,6 @@ func TestProviderHTTPClientHasNoDefaultTimeout(t *testing.T) {
 	if service.providerHTTPClient().Timeout != 0 {
 		t.Fatalf("expected provider HTTP client without a default timeout, got %s", service.providerHTTPClient().Timeout)
 	}
-	if service.companionInferenceProvider().httpClient().Timeout != 0 {
-		t.Fatalf("expected companion inference client without a default timeout, got %s", service.companionInferenceProvider().httpClient().Timeout)
-	}
 }
 
 func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
@@ -99,27 +95,6 @@ func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
 	}
 	if response.ConstraintMode != "litert_llguidance_json_schema" {
 		t.Fatalf("expected LiteRT constrained decoding mode, got %q", response.ConstraintMode)
-	}
-}
-
-func TestCompanionInferenceModeStopsOnlyJetsonGenerationService(t *testing.T) {
-	commands := []string{}
-	service := Service{
-		Configuration: Configuration{LocalInferenceMode: "companion_only"},
-		RunCommand: func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
-			commands = append(commands, executablePath+" "+strings.Join(arguments, " "))
-			return []byte("ok"), nil
-		},
-		LookupExecutable: func(string) (string, error) { return "/usr/bin/systemctl", nil },
-	}
-	service.applyLocalInferenceMode(context.Background())
-
-	expectedCommands := []string{
-		"systemctl stop internkim-llamacpp.service",
-		"systemctl disable internkim-llamacpp.service",
-	}
-	if !reflect.DeepEqual(commands, expectedCommands) {
-		t.Fatalf("expected generation service only commands, got %+v", commands)
 	}
 }
 
@@ -508,7 +483,7 @@ func TestRemoteEmbeddingModePreservesRequestedEmbeddingModel(t *testing.T) {
 func TestAMachineWithoutSystemdIsNotReportedAsAFailure(t *testing.T) {
 	commands := []string{}
 	service := Service{
-		Configuration: Configuration{LocalInferenceMode: "companion_only"},
+		Configuration: Configuration{LocalInferenceMode: "remote"},
 		RunCommand: func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
 			commands = append(commands, executablePath+" "+strings.Join(arguments, " "))
 			return []byte("ok"), nil

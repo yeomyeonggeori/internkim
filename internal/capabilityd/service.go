@@ -53,10 +53,7 @@ type Configuration struct {
 	SocketGroupName               string
 	LiteRTModelPath               string
 	LocalLLMRunnerPath            string
-	CompanionBaseURL              string
-	PreferCompanionLLM            bool
 	LocalInferenceMode            string
-	PreferCompanionBrowser        bool
 	LocalOnly                     bool
 	LocalBackendOrder             []string
 	ProviderAttemptTimeout        time.Duration
@@ -66,9 +63,8 @@ type Configuration struct {
 	DeviceBrowserFirstPort        int
 	DeviceBrowserCapacity         int
 	DeviceBrowserUserName         string
-	CompanionFileDirectory        string
+	AttachmentFileDirectory       string
 	APIURLPath                    string
-	FleetIDPath                   string
 	BlueclawWorkspacePath         string
 	FileReadPythonPath            string
 	ChatdEndpoint                 string
@@ -116,8 +112,6 @@ func DefaultConfiguration() Configuration {
 		SocketGroupName:               "blueclaw",
 		LiteRTModelPath:               locallm.ModelPath(),
 		LocalLLMRunnerPath:            "/usr/local/bin/internkim-local-llm-runner",
-		CompanionBaseURL:              "",
-		PreferCompanionLLM:            false,
 		LocalInferenceMode:            "",
 		LocalOnly:                     false,
 		ProviderAttemptTimeout:        0,
@@ -127,9 +121,8 @@ func DefaultConfiguration() Configuration {
 		DeviceBrowserFirstPort:        browserruntime.DeviceBrowsersFirstPort,
 		DeviceBrowserCapacity:         browserruntime.DeviceBrowsersCapacity,
 		DeviceBrowserUserName:         browserruntime.DeviceBrowsersUserName,
-		CompanionFileDirectory:        "/tmp/internkim-companion-files",
+		AttachmentFileDirectory:       "/tmp/internkim-attachment-files",
 		APIURLPath:                    "/root/.internkim/env/api-url",
-		FleetIDPath:                   "/root/.internkim/env/fleet-id",
 		BlueclawWorkspacePath:         "/root/.blueclaw/workspace",
 		FileReadPythonPath:            blueclaw.LinuxCompanyHostLayout().DocumentPythonPath(),
 	}
@@ -560,14 +553,11 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.DeviceBrowserUserName == "" {
 		configuration.DeviceBrowserUserName = defaultConfiguration.DeviceBrowserUserName
 	}
-	if configuration.CompanionFileDirectory == "" {
-		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
+	if configuration.AttachmentFileDirectory == "" {
+		configuration.AttachmentFileDirectory = defaultConfiguration.AttachmentFileDirectory
 	}
 	if configuration.APIURLPath == "" {
 		configuration.APIURLPath = defaultConfiguration.APIURLPath
-	}
-	if configuration.FleetIDPath == "" {
-		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
 	}
 	if configuration.BlueclawWorkspacePath == "" {
 		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath

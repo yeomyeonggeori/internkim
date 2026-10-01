@@ -18,7 +18,6 @@ func (service *Service) router() http.Handler {
 	service.registerPublicAPIRoutes(multiplexer)
 	service.registerTaskRoutes(multiplexer)
 	service.registerMemoryRoutes(multiplexer)
-	service.registerCompanionMemberRoutes(multiplexer)
 	service.registerLearningRoutes(multiplexer)
 	service.registerAgentRoutes(multiplexer)
 	service.registerCalendarRoutes(multiplexer)
@@ -158,8 +157,6 @@ func (service *Service) registerCompanyRoutes(multiplexer *http.ServeMux) {
 func (service *Service) registerAssetRoutes(multiplexer *http.ServeMux) {
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
-	multiplexer.HandleFunc("/_internkim/companion/", service.handleCompanion)
-	multiplexer.HandleFunc("/_internkim/runtime/", service.handleRuntime)
 	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
 	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
 }
@@ -179,7 +176,7 @@ func (service *Service) withCORS(next http.Handler) http.Handler {
 		if isInternKimCORSPath(request.URL.Path) && service.isAllowedOrigin(origin) {
 			responseWriter.Header().Set("Access-Control-Allow-Origin", origin)
 			responseWriter.Header().Set("Access-Control-Allow-Credentials", "true")
-			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email, X-INTERNKIM-COMPANION-ID, X-INTERNKIM-COMPANION-TOKEN")
+			responseWriter.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, CF-Access-Authenticated-User-Email")
 			responseWriter.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PROPFIND,REPORT")
 			if request.Method == http.MethodOptions {
 				responseWriter.WriteHeader(http.StatusNoContent)

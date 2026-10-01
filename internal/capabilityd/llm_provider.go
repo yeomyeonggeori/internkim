@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
@@ -45,7 +44,7 @@ type providerAvailability struct {
 func (service Service) completeStructured(ctx context.Context, request StructuredLLMRequest) (LLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
 	request.ReasoningEffort = reasoningEffortForTier(request.ReasoningEffort, request.ModelTier)
-	provider, errorValue := service.providerForExecutionMode(ctx, "llm_structured", request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
@@ -55,7 +54,7 @@ func (service Service) completeStructured(ctx context.Context, request Structure
 func (service Service) completeText(ctx context.Context, request TextLLMRequest) (LLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
 	request.ReasoningEffort = reasoningEffortForTier(request.ReasoningEffort, request.ModelTier)
-	provider, errorValue := service.providerForExecutionMode(ctx, "llm_text", request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return LLMResponse{}, errorValue
 	}
@@ -65,7 +64,7 @@ func (service Service) completeText(ctx context.Context, request TextLLMRequest)
 func (service Service) completeChat(ctx context.Context, request ChatLLMRequest) (ChatLLMResponse, error) {
 	request.Model = service.llmRequestModel(request.Model)
 	request.ReasoningEffort = reasoningEffortForTier(request.ReasoningEffort, request.ModelTier)
-	provider, errorValue := service.providerForExecutionMode(ctx, "llm.chat", request.ExecutionMode, request.Provider, request.Accelerator)
+	provider, errorValue := service.providerForExecutionMode(request.ExecutionMode, request.Provider, request.Accelerator)
 	if errorValue != nil {
 		return ChatLLMResponse{}, errorValue
 	}
@@ -90,15 +89,12 @@ func (service Service) llmRequestModel(requestModel string) string {
 	return firstNonEmpty(service.Configuration.OpenRouterModel, requestModel)
 }
 
-func (service Service) providerForExecutionMode(ctx context.Context, toolName, executionMode, providerName, accelerator string) (LLMProvider, error) {
-	companionProvider := service.companionInferenceProvider()
+func (service Service) providerForExecutionMode(executionMode, providerName, accelerator string) (LLMProvider, error) {
 	remoteProvider := service.openRouterBackend()
 	localProviderSet := service.localProviderSet(providerName, accelerator, false)
 	switch strings.ToLower(firstNonEmpty(executionMode, "auto")) {
 	case "device":
 		return localProviderSet.Provider, nil
-	case "companion":
-		return companionProvider, nil
 	case "remote":
 		if service.Configuration.LocalOnly {
 			return nil, errors.New("remote llm execution is disabled by local-only mode")
@@ -112,40 +108,14 @@ func (service Service) providerForExecutionMode(ctx context.Context, toolName, e
 			return remoteProvider, nil
 		}
 		localProviderSet := service.localProviderSet(providerName, accelerator, true)
-		autoCompanionProvider := service.companionLLMProviderForAuto(ctx, toolName)
 		return AutoProvider{
-			Providers:               service.automaticLLMProviders(localProviderSet.Provider, autoCompanionProvider, remoteProvider),
+			Providers:               service.automaticLLMProviders(localProviderSet.Provider, remoteProvider),
 			AttemptTimeout:          service.Configuration.ProviderAttemptTimeout,
 			AllowStructuredFallback: true,
 		}, nil
 	default:
 		return nil, errors.New("llm execution mode is not supported")
 	}
-}
-
-func (service Service) companionLLMProviderForAuto(ctx context.Context, toolName string) LLMProvider {
-	if strings.TrimSpace(service.Configuration.CompanionBaseURL) == "" {
-		return nil
-	}
-	availabilityContext, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	descriptors, errorValue := service.companionProvider().capabilities(availabilityContext)
-	if errorValue != nil {
-		return nil
-	}
-	if !hasCapabilityDescriptor(descriptors, toolName) {
-		return nil
-	}
-	return service.companionInferenceProvider()
-}
-
-func hasCapabilityDescriptor(descriptors []capabilities.Descriptor, toolName string) bool {
-	for _, descriptor := range descriptors {
-		if descriptor.Name == toolName {
-			return true
-		}
-	}
-	return false
 }
 
 func (service Service) localProviderSet(providerName, accelerator string, allowStructuredFallback bool) llmbackend.LocalProviderSet {
@@ -197,44 +167,18 @@ func firstProviderOrder(values []string, fallback []string) []string {
 	return append([]string{}, fallback...)
 }
 
-func (service Service) automaticLLMProviders(localProvider LLMProvider, companionProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
-	switch service.localInferenceMode() {
-	case "device":
-		if service.Configuration.LocalOnly {
-			return []LLMProvider{localProvider, companionProvider}
-		}
-		return []LLMProvider{localProvider, remoteProvider, companionProvider}
-	case "companion_preferred":
-		if service.Configuration.LocalOnly {
-			return []LLMProvider{companionProvider, localProvider}
-		}
-		return []LLMProvider{companionProvider, remoteProvider, localProvider}
-	case "companion_only":
-		return []LLMProvider{companionProvider}
-	case "remote":
-		if service.Configuration.LocalOnly {
-			return []LLMProvider{companionProvider, localProvider}
-		}
-		return []LLMProvider{remoteProvider, companionProvider}
-	}
+func (service Service) automaticLLMProviders(localProvider LLMProvider, remoteProvider LLMProvider) []LLMProvider {
 	if service.Configuration.LocalOnly {
-		return []LLMProvider{companionProvider, localProvider}
+		return []LLMProvider{localProvider}
 	}
-	if service.Configuration.PreferCompanionLLM {
-		return []LLMProvider{companionProvider, remoteProvider, localProvider}
+	if service.localInferenceMode() == "device" {
+		return []LLMProvider{localProvider, remoteProvider}
 	}
-	return []LLMProvider{remoteProvider, companionProvider}
+	return []LLMProvider{remoteProvider}
 }
 
 func (service Service) localInferenceMode() string {
-	normalizedMode := strings.ToLower(strings.TrimSpace(service.Configuration.LocalInferenceMode))
-	if normalizedMode != "" {
-		return normalizedMode
-	}
-	if service.Configuration.PreferCompanionLLM {
-		return "companion_preferred"
-	}
-	return ""
+	return strings.ToLower(strings.TrimSpace(service.Configuration.LocalInferenceMode))
 }
 
 func (service Service) providerHealth(ctx context.Context) map[string]providerAvailability {

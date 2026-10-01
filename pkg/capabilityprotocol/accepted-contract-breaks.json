@@ -313,5 +313,10 @@
 		"path": "crm_activity_save.result.isNew",
 		"reason": "crm_activity_save now declares whether it created an activity or changed one, and isNew is the condition each effect reads. The plane answers it, so a device on an older release refuses the unknown field: the release carrying this catalog reaches the fleet before the plane is deployed with it.",
 		"release": "the release cut after the change declaring every write tool's effect merges, deployed to the fleet before the plane returns isNew"
+	},
+	{
+		"path": "computer_task",
+		"reason": "The companion leaves internkim, and computer_task was the companion's tool: the device's own capabilityd answered it only by refusing it as not connected, and the plane never answered it. Blueclaw never offered it to the model, because it requires the requester's own device. A device on an older release keeps the descriptor its own build embeds and its own capabilityd keeps refusing it until it takes this release, when both go together.",
+		"release": "the release cut after the change removing the companion merges"
 	}
 ]

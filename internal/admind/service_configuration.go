@@ -26,7 +26,6 @@ type Configuration struct {
 	BlueclawPolicyDeliveryPath     string
 	CapabilitySocketPath           string
 	StateDirectory                 string
-	CompanionJobPath               string
 	UsersSyncStatePath             string
 	DatabasePath                   string
 	TaskDatabasePath               string
@@ -58,7 +57,6 @@ type Configuration struct {
 	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
-	CompanionFileDirectory         string
 	SitesRoot                      string
 	SiteScaffoldPath               string
 	FontsDirectory                 string
@@ -104,7 +102,6 @@ func DefaultConfiguration() Configuration {
 		BlueclawPolicyDeliveryPath:     filepath.Join(blueclaw.BlueclawDeliveryConfigPath, "policy.json"),
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
-		CompanionJobPath:               "/root/.internkim/state/companion-jobs.json",
 		UsersSyncStatePath:             blueclawruntime.InternKimUsersSyncStatePath,
 		TaskDatabasePath:               "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:           "/root/.internkim/state/calendar.sqlite",
@@ -135,7 +132,6 @@ func DefaultConfiguration() Configuration {
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
-		CompanionFileDirectory:         "/tmp/internkim-companion-files",
 		SitesRoot:                      "/root/.internkim/sites",
 		SiteScaffoldPath:               filepath.Join(blueclaw.BlueclawDeliverySkillsPath, "website", "assets", "scaffold", "app"),
 		FontsDirectory:                 "/opt/internkim/fonts",
@@ -207,49 +203,22 @@ func (configuration Configuration) withEndpointDefaults(defaultConfiguration Con
 
 func (configuration Configuration) withDatabaseDefaults(defaultConfiguration Configuration) Configuration {
 	configuration.DatabasePath = resolvedStateDatabasePath(configuration, defaultConfiguration)
-	if configuration.CompanionJobPath == "" {
-		if configuration.StateDirectory == defaultConfiguration.StateDirectory {
-			configuration.CompanionJobPath = defaultConfiguration.CompanionJobPath
-		} else {
-			configuration.CompanionJobPath = filepath.Join(configuration.StateDirectory, "companion-jobs.json")
-		}
-	}
-	if configuration.TaskDatabasePath == "" {
-		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.TaskDatabasePath = defaultConfiguration.TaskDatabasePath
-		} else {
-			configuration.TaskDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "flow.sqlite")
-		}
-	}
-	if configuration.CalendarDatabasePath == "" {
-		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.CalendarDatabasePath = defaultConfiguration.CalendarDatabasePath
-		} else {
-			configuration.CalendarDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "calendar.sqlite")
-		}
-	}
-	if configuration.MailDatabasePath == "" {
-		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.MailDatabasePath = defaultConfiguration.MailDatabasePath
-		} else {
-			configuration.MailDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "mail.sqlite")
-		}
-	}
-	if configuration.AttendanceDatabasePath == "" {
-		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.AttendanceDatabasePath = defaultConfiguration.AttendanceDatabasePath
-		} else {
-			configuration.AttendanceDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "attendance.sqlite")
-		}
-	}
-	if configuration.BridgeMapDatabasePath == "" {
-		if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-			configuration.BridgeMapDatabasePath = defaultConfiguration.BridgeMapDatabasePath
-		} else {
-			configuration.BridgeMapDatabasePath = filepath.Join(filepath.Dir(configuration.CompanionJobPath), "bridge-map.sqlite")
-		}
-	}
+	configuration.TaskDatabasePath = stateFilePath(configuration, defaultConfiguration, configuration.TaskDatabasePath, defaultConfiguration.TaskDatabasePath, "flow.sqlite")
+	configuration.CalendarDatabasePath = stateFilePath(configuration, defaultConfiguration, configuration.CalendarDatabasePath, defaultConfiguration.CalendarDatabasePath, "calendar.sqlite")
+	configuration.MailDatabasePath = stateFilePath(configuration, defaultConfiguration, configuration.MailDatabasePath, defaultConfiguration.MailDatabasePath, "mail.sqlite")
+	configuration.AttendanceDatabasePath = stateFilePath(configuration, defaultConfiguration, configuration.AttendanceDatabasePath, defaultConfiguration.AttendanceDatabasePath, "attendance.sqlite")
+	configuration.BridgeMapDatabasePath = stateFilePath(configuration, defaultConfiguration, configuration.BridgeMapDatabasePath, defaultConfiguration.BridgeMapDatabasePath, "bridge-map.sqlite")
 	return configuration
+}
+
+func stateFilePath(configuration Configuration, defaultConfiguration Configuration, configuredPath string, defaultPath string, fileName string) string {
+	if configuredPath != "" {
+		return configuredPath
+	}
+	if configuration.StateDirectory == defaultConfiguration.StateDirectory {
+		return defaultPath
+	}
+	return filepath.Join(configuration.StateDirectory, fileName)
 }
 
 func (configuration Configuration) withCredentialDefaults(defaultConfiguration Configuration) Configuration {
@@ -351,9 +320,6 @@ func (configuration Configuration) withFleetDefaults(defaultConfiguration Config
 	if configuration.RepositoryRoot == "" {
 		configuration.RepositoryRoot = defaultConfiguration.RepositoryRoot
 	}
-	if configuration.CompanionFileDirectory == "" {
-		configuration.CompanionFileDirectory = defaultConfiguration.CompanionFileDirectory
-	}
 	return configuration
 }
 
@@ -377,12 +343,8 @@ func (configuration Configuration) withSiteDefaults(defaultConfiguration Configu
 }
 
 func (configuration Configuration) withPersonaDefaults(defaultConfiguration Configuration) Configuration {
-	if configuration.IdentityDocumentPath == "" {
-		configuration.IdentityDocumentPath = personaDocumentPath(configuration, defaultConfiguration, defaultConfiguration.IdentityDocumentPath, "identity.json")
-	}
-	if configuration.SoulDocumentPath == "" {
-		configuration.SoulDocumentPath = personaDocumentPath(configuration, defaultConfiguration, defaultConfiguration.SoulDocumentPath, "soul.json")
-	}
+	configuration.IdentityDocumentPath = stateFilePath(configuration, defaultConfiguration, configuration.IdentityDocumentPath, defaultConfiguration.IdentityDocumentPath, "identity.json")
+	configuration.SoulDocumentPath = stateFilePath(configuration, defaultConfiguration, configuration.SoulDocumentPath, defaultConfiguration.SoulDocumentPath, "soul.json")
 	if configuration.BotProfileImagePath == "" {
 		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
 	}
@@ -393,11 +355,4 @@ func (configuration Configuration) withPersonaDefaults(defaultConfiguration Conf
 		configuration.BlueclawWorkspacePath = defaultConfiguration.BlueclawWorkspacePath
 	}
 	return configuration
-}
-
-func personaDocumentPath(configuration Configuration, defaultConfiguration Configuration, defaultPath string, fileName string) string {
-	if configuration.CompanionJobPath == defaultConfiguration.CompanionJobPath {
-		return defaultPath
-	}
-	return filepath.Join(filepath.Dir(configuration.CompanionJobPath), fileName)
 }

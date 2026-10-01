@@ -691,16 +691,6 @@ test('a message is still the messenger, not the workspace', () => {
 	expect(isWorkspaceCapability('person.message.send')).toBe(false);
 });
 
-describe('companion forwarding', () => {
-	test('lists, pairs and disconnects a member\'s own companions on the workspace socket', () => {
-		expect(workspaceCallOf('person.companion.mine', {}, 'sample@example.test')).toEqual({ method: 'GET', url: 'http://internkim/companion/api/mine', requester: 'sample@example.test' });
-		expect(workspaceCallOf('person.companion.pairing_code', {}, 'sample@example.test')).toMatchObject({ method: 'POST', url: 'http://internkim/companion/api/pairing-codes', requester: 'sample@example.test' });
-		const disconnect = workspaceCallOf('person.companion.disconnect', { companionID: 'c1', actor: { kind: 'web' } }, 'sample@example.test');
-		expect(disconnect).toMatchObject({ method: 'POST', url: 'http://internkim/companion/api/mine/disconnect', requester: 'sample@example.test' });
-		expect(disconnect?.body).toBe('{"companionID":"c1"}');
-	});
-});
-
 describe('every capability the workspace family names', () => {
 	const capabilities = Object.keys(workspaceCapabilityPaths);
 

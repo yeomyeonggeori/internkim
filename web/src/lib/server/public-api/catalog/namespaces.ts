@@ -4,7 +4,6 @@ export const capabilityNamespaceSummaries = {
   browser: 'Operate a web page step by step: open it, read it, click, fill, and screenshot.',
   calendar: 'The company calendar: events, and the approved leave that falls in a time window.',
   company: "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
-  computer: "Carry out a goal on the requester's own computer.",
   crm: 'Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.',
   document: 'Read a document in the workspace as text.',
   image: 'Look at an image, or generate a new one.',

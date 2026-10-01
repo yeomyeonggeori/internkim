@@ -6,34 +6,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
-
-func TestEveryAddressAdmindPrintsIsVerified(t *testing.T) {
-	probed := map[string]bool{}
-	var output bytes.Buffer
-	probe := func(address string) (int, error) {
-		probed[address] = true
-		return http.StatusOK, nil
-	}
-
-	if errorValue := reportInstallAddresses(capabilities.InstallScriptURLs(), probe, &output); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, address := range []string{capabilities.InstallScriptURL(), capabilities.RetiredCompanionInstallScriptURL()} {
-		if !probed[address] {
-			t.Fatalf("%s was never probed", address)
-		}
-	}
-	if !strings.Contains(capabilities.CompanionInstallCommand(), capabilities.InstallScriptURL()) {
-		t.Fatal("the command admind prints names an address this check does not verify")
-	}
-}
 
 func TestAnAddressThatDoesNotAnswer200RefusesTheDeployForTheReasonItFound(t *testing.T) {
 	missing := "https://example.test/install.sh"
-	unreachable := "https://example.test/companion/install.sh"
+	unreachable := "https://unreachable.example.test/install.sh"
 	probe := func(address string) (int, error) {
 		if address == missing {
 			return http.StatusNotFound, nil

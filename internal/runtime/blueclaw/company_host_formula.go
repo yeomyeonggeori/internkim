@@ -29,15 +29,15 @@ const (
 	// root_url below, which is the part that matters.
 	//
 	// The tap is named after the organisation and not after this product,
-	// because one tap holds every formula the organisation publishes: the
-	// companion is a second formula in the same tap rather than a second tap
-	// for a person to add. charmbracelet/tap, supabase/tap and mobile-dev-inc/tap
-	// are all this shape.
+	// because one tap holds every formula the organisation publishes, and a
+	// second product is a second formula in the same tap rather than a second
+	// tap for a person to add. charmbracelet/tap, supabase/tap and
+	// mobile-dev-inc/tap are all this shape.
 	HomebrewTapOwner = "yeomyeonggeori"
 	HomebrewTapName  = "tap"
 
 	// HomebrewReleasePrefix is the object prefix the release registry serves
-	// the tarballs under, beside deb/, companion/ and host/.
+	// the tarballs under, beside deb/ and host/.
 	HomebrewReleasePrefix = "brew"
 
 	companyPackageDescription = "Run your company's agent, messenger and web app on this computer"

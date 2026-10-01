@@ -131,7 +131,6 @@ describe('canonical capability tools', () => {
       'company_record_update',
       'company_settings_get',
       'company_settings_update',
-      'computer_task',
       'conversation_mute',
       'conversation_unmute',
       'crm_activity_list',
@@ -301,7 +300,6 @@ describe('canonical capability tools', () => {
       'browser_fill',
       'browser_press',
       'browser_select',
-      'computer_task',
       'company_document_register',
       'company_document_update',
       'company_document_upload',
@@ -478,7 +476,7 @@ describe('canonical capability tools', () => {
       filename: 'site.png',
       sizeBytes: 1024,
       contentType: 'image/png',
-      devicePath: '/tmp/internkim-companion-files/site.png',
+      devicePath: '/tmp/internkim-attachment-files/site.png',
       expiresAt: '2026-07-19T00:05:00Z',
       capturedAt: '2026-07-19T00:00:00Z',
     }).success).toBe(true);
@@ -516,7 +514,7 @@ describe('canonical capability tools', () => {
       rubric: 'Verify hierarchy, text fit, and primary interaction',
       evidence: [{
         role: 'desktopScreenshot',
-        path: '/tmp/internkim-companion-files/site.png',
+        path: '/tmp/internkim-attachment-files/site.png',
         mimeType: 'image/png',
         label: 'Desktop preview',
       }],
@@ -1033,12 +1031,11 @@ describe('canonical capability tools', () => {
 
   test('says what every write changes, or why it names nothing', () => {
     const changesNoRecordItCanName: Record<string, string> = {
-      browser_open: 'the companion answers it and reports no effect',
-      browser_click: 'the companion answers it and reports no effect',
-      browser_fill: 'the companion answers it and reports no effect',
-      browser_press: 'the companion answers it and reports no effect',
-      browser_select: 'the companion answers it and reports no effect',
-      computer_task: 'the companion answers it and reports no effect',
+      browser_open: 'the device browser answers it and reports no effect',
+      browser_click: 'the device browser answers it and reports no effect',
+      browser_fill: 'the device browser answers it and reports no effect',
+      browser_press: 'the device browser answers it and reports no effect',
+      browser_select: 'the device browser answers it and reports no effect',
       mail_connection_start: 'it hands back a setup address and writes nothing',
       company_document_upload: 'it hands back an upload address; company_document_register records the document',
     };

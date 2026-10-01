@@ -440,10 +440,7 @@ func (service *Service) exposableCapabilityDescriptors(ctx context.Context) ([]c
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	descriptors := make([]capabilities.Descriptor, 0, len(registry.DeviceCapabilities)+len(registry.CompanionCapabilities))
-	descriptors = append(descriptors, registry.DeviceCapabilities...)
-	descriptors = append(descriptors, registry.CompanionCapabilities...)
-	return descriptors, nil
+	return registry.DeviceCapabilities, nil
 }
 
 func (service *Service) publicToolDescriptorsForActor(ctx context.Context, actor publicToolGatewayActor) ([]capabilities.Descriptor, error) {

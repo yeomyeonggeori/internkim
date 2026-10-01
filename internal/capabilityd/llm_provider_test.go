@@ -303,7 +303,6 @@ func TestAutoProviderDoesNotFallBackToLocalAfterRemoteFailure(t *testing.T) {
 	service := Service{}
 	providers := service.automaticLLMProviders(
 		staticLLMProvider{response: LLMResponse{Provider: "llamacpp", SelectedBackend: "llamacpp", Content: `{"reply":"local"}`}},
-		nil,
 		staticLLMProvider{errorValue: errTestProviderUnavailable},
 	)
 
@@ -324,9 +323,8 @@ func TestLocalProviderUsesExplicitOllamaProvider(t *testing.T) {
 			LiteRTModelPath:            "/missing-litert-model",
 			OpenRouterKeyPath:          "missing",
 			OpenRouterBaseURL:          "https://openrouter.test",
-			CompanionBaseURL:           "",
 			AgentBrowserPath:           "agent-browser",
-			CompanionFileDirectory:     t.TempDir(),
+			AttachmentFileDirectory:    t.TempDir(),
 			SocketPath:                 filepath.Join(t.TempDir(), "capability.sock"),
 			SocketGroupName:            "blueclaw",
 			OpenRouterEmbeddingBaseURL: "https://embedding.test",
@@ -450,7 +448,7 @@ func TestForceOpenRouterModelDisablesActionFallbackModels(t *testing.T) {
 func TestForceOpenRouterModelUsesRemoteProviderForAutoMode(t *testing.T) {
 	service := Service{Configuration: Configuration{ForceOpenRouterModel: true}}
 
-	provider, errorValue := service.providerForExecutionMode(context.Background(), "llm_structured", "auto", "", "")
+	provider, errorValue := service.providerForExecutionMode("auto", "", "")
 	if errorValue != nil {
 		t.Fatalf("expected forced OpenRouter auto provider: %v", errorValue)
 	}

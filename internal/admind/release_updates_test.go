@@ -452,13 +452,11 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 		FleetSecretPath:           writeTestFile(t, "secret"),
 		BlueclawRuntimeConfigPath: writeTestFile(t, "{}"),
 		StateDirectory:            t.TempDir(),
-		CompanionJobPath:          filepath.Join(t.TempDir(), "jobs.json"),
 		TaskDatabasePath:          filepath.Join(t.TempDir(), "flow.sqlite"),
 		CalendarDatabasePath:      filepath.Join(t.TempDir(), "calendar.sqlite"),
 		MailDatabasePath:          filepath.Join(t.TempDir(), "mail.sqlite"),
 		AttendanceDatabasePath:    filepath.Join(t.TempDir(), "attendance.sqlite"),
 		AdminUIPath:               t.TempDir(),
-		CompanionFileDirectory:    t.TempDir(),
 		SitesRoot:                 t.TempDir(),
 		SiteSecretDirectory:       t.TempDir(),
 		IdentityDocumentPath:      filepath.Join(t.TempDir(), "identity.json"),
@@ -478,12 +476,10 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 
 func TestReleaseHistoryEndpointFallsBackToStablePointer(t *testing.T) {
 	service := NewService(Configuration{
-		ReleaseRegistryURL:     "https://updates.test",
-		StateDirectory:         t.TempDir(),
-		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
-		BlueclawWorkspacePath:  t.TempDir(),
-		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
-		CompanionFileDirectory: t.TempDir(),
+		ReleaseRegistryURL:    "https://updates.test",
+		StateDirectory:        t.TempDir(),
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		BlueclawWorkspacePath: t.TempDir(),
 	})
 	currentManifest := testReleaseManifest("release-1")
 	if errorValue := service.writeCurrentReleaseManifest(currentManifest); errorValue != nil {
@@ -522,12 +518,10 @@ func TestReleaseHistoryEndpointFallsBackToStablePointer(t *testing.T) {
 func TestApplyReleaseUpdateWithReleaseIDUsesHistoryManifest(t *testing.T) {
 	blobDocument, blobSHA256, blobSize := testReleaseBlobDocument(t)
 	service := NewService(Configuration{
-		ReleaseRegistryURL:     "https://updates.test",
-		StateDirectory:         t.TempDir(),
-		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
-		BlueclawWorkspacePath:  t.TempDir(),
-		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
-		CompanionFileDirectory: t.TempDir(),
+		ReleaseRegistryURL:    "https://updates.test",
+		StateDirectory:        t.TempDir(),
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		BlueclawWorkspacePath: t.TempDir(),
 	})
 	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
 		return []byte("ok\n"), nil
@@ -892,14 +886,12 @@ func newSignedReleaseUpdateTestService(t *testing.T, requestedPaths *[]string) *
 	t.Helper()
 	blobDocument, blobSHA256, blobSize := testReleaseBlobDocument(t)
 	service := NewService(Configuration{
-		ReleaseRegistryURL:     "https://updates.test",
-		StateDirectory:         t.TempDir(),
-		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
-		FleetIDPath:            writeTestFile(t, "dc719d8e"),
-		FleetSecretPath:        writeTestFile(t, "secret-value"),
-		BlueclawWorkspacePath:  t.TempDir(),
-		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
-		CompanionFileDirectory: t.TempDir(),
+		ReleaseRegistryURL:    "https://updates.test",
+		StateDirectory:        t.TempDir(),
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		FleetIDPath:           writeTestFile(t, "dc719d8e"),
+		FleetSecretPath:       writeTestFile(t, "secret-value"),
+		BlueclawWorkspacePath: t.TempDir(),
 	})
 	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) {
 		return []byte("ok\n"), nil

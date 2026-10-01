@@ -96,8 +96,6 @@ const (
 	BlueclawGuestRuntimeCurrentPath       = "/workspace/.blueclaw/runtime/current"
 	BlueclawGuestBinaryPath               = "/workspace/.blueclaw/runtime/current/bin/blueclaw"
 	BlueclawSupervisorLogDirectoryPath    = "/var/log/blueclaw-supervisor"
-	BlueclawBridgeAuthorizedKeysPath      = "/var/lib/blueclaw/authorized_companions"
-	BlueclawBridgeListenAddress           = "127.0.0.1:7778"
 	BlueclawMessengerPlatform             = "buzz"
 	BuzzRelayName                         = "buzz-relay"
 	BuzzAdminName                         = "buzz-admin"

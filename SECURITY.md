@@ -20,8 +20,8 @@ acknowledgment, and a fix is coordinated with you before anything is disclosed.
   a tool runs as, the workspace permission boundary.
 - Credential exposure: a secret reaching a log, a browser, a workspace file or
   a published page.
-- The relay, the companion and the device path (admind, OTA) accepting a caller
-  they should refuse.
+- The relay and the device path (admind, OTA) accepting a caller they should
+  refuse.
 
 ## Out of scope
 

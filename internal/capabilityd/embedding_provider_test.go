@@ -24,7 +24,6 @@ func TestAutomaticEmbeddingProvidersRejectDifferentVectorSpaces(t *testing.T) {
 	}}
 	providers := service.automaticEmbeddingProviders(
 		namedEmbeddingProvider{name: "local"},
-		namedEmbeddingProvider{name: "companion"},
 		namedEmbeddingProvider{name: "remote"},
 	)
 
@@ -40,7 +39,6 @@ func TestAutomaticEmbeddingProvidersAllowSameModelFallback(t *testing.T) {
 	}}
 	providers := service.automaticEmbeddingProviders(
 		namedEmbeddingProvider{name: "local"},
-		namedEmbeddingProvider{name: "companion"},
 		namedEmbeddingProvider{name: "remote"},
 	)
 

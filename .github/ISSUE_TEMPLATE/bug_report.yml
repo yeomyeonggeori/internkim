@@ -28,7 +28,6 @@ body:
         - Company host (install.sh, apt/dnf/pacman package, Homebrew, host services)
         - Central plane (company web app, Supabase, relay)
         - Legacy device (Jetson, admind OTA, Local Fleet)
-        - Companion
         - Public API
         - Documentation
         - Not sure
