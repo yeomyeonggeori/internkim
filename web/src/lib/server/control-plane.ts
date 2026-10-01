@@ -193,9 +193,13 @@ export async function removeMember(
 	memberID: string,
 	options: { purge?: boolean } = {},
 ): Promise<{ wasRemoved: boolean }> {
+	const accountID = await accountOfMember(client, memberID);
 	if (options.purge) {
 		const removed = await client.from('member').delete().eq('company_id', companyID).eq('id', memberID);
-		if (!removed.error) return { wasRemoved: true };
+		if (!removed.error) {
+			await keepAccountSignedIn(client, accountID, false);
+			return { wasRemoved: true };
+		}
 		if (removed.error.code !== foreignKeyViolation) throw new Error(removed.error.message);
 	}
 	const withdrawn = await client
@@ -204,10 +208,42 @@ export async function removeMember(
 		.eq('company_id', companyID)
 		.eq('id', memberID);
 	if (withdrawn.error) throw new Error(withdrawn.error.message);
+	await keepAccountSignedIn(client, accountID, false);
 	return { wasRemoved: false };
 }
 
 const foreignKeyViolation = '23503';
+
+const bannedForGood = '876000h';
+
+async function accountOfMember(client: SupabaseClient, memberID: string): Promise<string | null> {
+	const { data, error } = await client
+		.from('member')
+		.select('user_id')
+		.eq('id', memberID)
+		.maybeSingle<{ user_id: string | null }>();
+	if (error) throw new Error(`account of ${memberID}: ${error.message}`);
+	return data?.user_id ?? null;
+}
+
+async function keepAccountSignedIn(client: SupabaseClient, accountID: string | null, isMember: boolean): Promise<void> {
+	if (!accountID) return;
+	const { error } = await client.auth.admin.updateUserById(accountID, {
+		ban_duration: isMember ? 'none' : bannedForGood,
+	});
+	if (error) throw new Error(`sign-in of ${accountID}: ${error.message}`);
+}
+
+export async function settleSignInOfMember(client: SupabaseClient, memberID: string): Promise<void> {
+	const { data, error } = await client
+		.from('member')
+		.select('user_id, status')
+		.eq('id', memberID)
+		.maybeSingle<{ user_id: string | null; status: string }>();
+	if (error) throw new Error(`sign-in of ${memberID}: ${error.message}`);
+	if (!data) return;
+	await keepAccountSignedIn(client, data.user_id, !hasLeftTheCompany(data.status));
+}
 
 export type FoundedCompany = {
 	companyID: string;
@@ -302,6 +338,7 @@ export async function inviteMember(client: SupabaseClient, memberID: string): Pr
 
 	const { error } = await client.from('member').update({ status: 'invited' }).eq('id', memberID);
 	if (error) throw new Error(`member ${memberID}: ${error.message}`);
+	await settleSignInOfMember(client, memberID);
 
 	return invitation;
 }

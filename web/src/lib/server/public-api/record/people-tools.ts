@@ -3,6 +3,7 @@ import {
 	AddressBelongsToAnotherCompany,
 	AlreadyAMember,
 	inviteMember,
+	settleSignInOfMember,
 	type Invitation
 } from '$lib/server/control-plane';
 import { personName } from '$lib/person-name';
@@ -128,6 +129,7 @@ export async function personUpdate(
 		organization_changes: homes.organization
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	if (input.employmentStatus !== undefined) await settleSignInOfMember(context.accountDirectory, person.personID);
 
 	return answeredPerson(await personWrittenBack(context, person.personID), context.people, teams, context.locale);
 }

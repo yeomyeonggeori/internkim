@@ -33,6 +33,10 @@ insert binds a `pending` member with the same address. A change of address
 carries over to the member. A delete marks the member `withdrawn`, unless the
 API already said `departed`.
 
+When the API marks someone `departed` or `withdrawn`, or erases the row, it
+bans their account in Supabase Auth, so neither their password nor a refresh
+token signs them in again. Inviting them back lifts the ban.
+
 The account's address is the source of truth and `member.email` is its
 projection. Changing someone's address is an update of the account, never a
 re-invitation, so `user_id` never moves.
