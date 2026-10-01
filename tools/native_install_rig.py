@@ -8,6 +8,7 @@ order to have a machine and something to install on it.
 """
 
 import base64
+import functools
 import hashlib
 import io
 import json
@@ -152,6 +153,7 @@ def checked(arguments, **keywords):
     return completed
 
 
+@functools.cache
 def internkim_command():
     """The dev CLI, built from this checkout because the repository it renders
     has to be the one this branch publishes.
@@ -160,8 +162,6 @@ def internkim_command():
     own copy instead so that running it never depends on a build step someone
     remembered, and never overwrites one someone is using.
     """
-    if BUILT_COMMAND_PATH.exists():
-        return BUILT_COMMAND_PATH
     BUILT_COMMAND_PATH.parent.mkdir(parents=True, exist_ok=True)
     checked(
         ["go", "build", "-o", str(BUILT_COMMAND_PATH), "./cmd/internkim"],
