@@ -69,8 +69,6 @@ const (
 	CompanyHostLogPath                     = "/var/log/internkim"
 	CompanyHostBrowserStatePath            = "/var/lib/internkim-moli"
 	CompanyHostRunPath                     = "/run/internkim"
-	CompanyHostRunSecretsPath              = "/run/internkim/secrets"
-	CompanyHostRunModelKeyPath             = "/run/internkim/secrets/openrouter-key"
 	CompanyHostRuntimeDocument             = "/run/internkim/runtime.json"
 	CompanyHostPolicyDocument              = "/run/internkim/policy.json"
 

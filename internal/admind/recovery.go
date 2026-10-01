@@ -927,8 +927,8 @@ ps -eo pcpu,pmem,rss,pid,comm --sort=-rss | head -8
 free -h
 [ "$health_status" = ok ]
 	`,
-		blueclaw.BlueclawGuestDefaultVirtualCPUCount,
-		blueclaw.BlueclawGuestDefaultMemoryMiB,
+		deviceGuestVirtualCPUCount,
+		deviceGuestMemoryMiB,
 		blueclaw.BlueclawRuntimeConfigPath,
 		workspaceRuntimeConfigPath,
 		blueclaw.BlueclawServiceName,
@@ -2333,3 +2333,8 @@ fi
 rm -rf "$lock_directory"
 echo "== released =="`
 }
+
+const (
+	deviceGuestVirtualCPUCount = 2
+	deviceGuestMemoryMiB       = 4096
+)

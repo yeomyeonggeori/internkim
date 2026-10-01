@@ -149,8 +149,14 @@ func forgetTheDeviceUsersSync(indentation string) string {
 		indentation + `systemctl reset-failed ` + unitNames + ` >/dev/null 2>&1 || true`
 }
 
+const (
+	deviceUsersSyncScriptPath  = "/usr/local/bin/internkim-users-sync"
+	deviceUsersSyncServicePath = "/etc/systemd/system/internkim-users-sync.service"
+	deviceUsersSyncTimerPath   = "/etc/systemd/system/internkim-users-sync.timer"
+)
+
 func deviceUsersSyncUnitNames() []string {
-	return []string{path.Base(blueclaw.InternKimUsersSyncTimerPath), path.Base(blueclaw.InternKimUsersSyncServicePath)}
+	return []string{path.Base(deviceUsersSyncTimerPath), path.Base(deviceUsersSyncServicePath)}
 }
 
 func forgetThePackageSettingsInTheRelayFile(filePath string) string {
@@ -164,7 +170,7 @@ func forgetThePackageSettingsInTheRelayFile(filePath string) string {
 }
 
 func deviceUsersSyncPaths() []string {
-	return []string{blueclaw.InternKimUsersSyncScriptPath, blueclaw.InternKimUsersSyncServicePath, blueclaw.InternKimUsersSyncTimerPath}
+	return []string{deviceUsersSyncScriptPath, deviceUsersSyncServicePath, deviceUsersSyncTimerPath}
 }
 
 func keptStatePaths() []string {

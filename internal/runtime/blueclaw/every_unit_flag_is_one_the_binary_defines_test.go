@@ -14,24 +14,12 @@ const fewestFlagsAnInternKimBinaryDefines = 5
 
 func TestEveryUnitFlagIsOneTheBinaryDefines(t *testing.T) {
 	commandDirectoryByBinaryPath := map[string]string{
-		CapabilitydBinaryPath:                     "internkim-capabilityd",
-		AdmindBinaryPath:                          "internkim-admind",
 		CompanyPackageBinaryPath(CapabilitydName): "internkim-capabilityd",
 		CompanyPackageBinaryPath(AdmindName):      "internkim-admind",
 	}
 
 	units := map[string]string{
-		"blueclaw":                     BlueclawServiceUnit(),
-		"internkim-capabilityd":        CapabilitydServiceUnit(),
-		"internkim-capabilityd-remote": CapabilitydServiceUnitForLocalInferenceMode("remote"),
-		"internkim-admind":             AdmindServiceUnit(),
-		"buzz-relay":                   BuzzRelayServiceUnit("wss://relay.example.test"),
-		"chatd":                        ChatdServiceUnit("wss://relay.example.test"),
-		"buzz-media":                   BuzzMediaServiceUnit(),
-		"llama-cpp":                    LlamaCppServiceUnit(),
-		"llama-cpp-embedding":          LlamaCppEmbeddingServiceUnit(),
-		"internkim-relay":              RelayServiceUnit(),
-		"internkim-users-sync":         InternKimUsersSyncServiceUnit(),
+		"internkim-relay": RelayServiceUnit(),
 	}
 	for _, unit := range CompanyPackageUnits() {
 		units["packaged "+unit.Name] = unit.Contents

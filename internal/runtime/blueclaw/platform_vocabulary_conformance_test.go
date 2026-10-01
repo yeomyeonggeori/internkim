@@ -17,19 +17,6 @@ func TestTheMessengerThisProductRunsOnIsDeclared(t *testing.T) {
 	}
 }
 
-func TestTheRenderedRuntimeEnablesOnlyDeclaredPlatforms(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocument(BlueclawDefaultModelName)
-	if errorValue != nil {
-		t.Fatalf("expected a runtime document: %v", errorValue)
-	}
-
-	for _, platform := range enabledPlatformsOf(t, []byte(document)) {
-		if !capabilityprotocol.IsMessengerPlatform(platform) {
-			t.Fatalf("the rendered runtime enables %q, which the protocol does not declare a messenger", platform)
-		}
-	}
-}
-
 func TestTheCompanyRuntimeTemplateNamesNoPlatformOfItsOwn(t *testing.T) {
 	document, errorValue := os.ReadFile(filepath.Clean(companyRuntimeTemplatePath))
 	if errorValue != nil {

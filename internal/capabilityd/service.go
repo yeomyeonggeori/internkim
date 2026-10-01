@@ -29,7 +29,6 @@ import (
 
 type Configuration struct {
 	SocketPath                    string
-	VSockPort                     int
 	OpenRouterKeyPath             string
 	BlueclawBaseURL               string
 	AdmindBaseURL                 string
@@ -90,7 +89,6 @@ type platformHealthState struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		SocketPath:                    "/run/internkim/capability.sock",
-		VSockPort:                     0,
 		OpenRouterKeyPath:             "/root/.internkim/secrets/openrouter-api-key",
 		BlueclawBaseURL:               "http://127.0.0.1:8080",
 		AdmindBaseURL:                 "http://127.0.0.1:18080",
@@ -143,15 +141,6 @@ func (service Service) Run(ctx context.Context) error {
 	}
 	defer listener.Close()
 
-	vsockListener, errorValue := service.listenVSock()
-	if errorValue != nil {
-		log.Printf("capabilityd vsock listener disabled: %v", errorValue)
-		vsockListener = nil
-	}
-	if vsockListener != nil {
-		defer vsockListener.Close()
-	}
-
 	server := &http.Server{
 		Handler:           service.router(),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -163,15 +152,6 @@ func (service Service) Run(ctx context.Context) error {
 		defer cancel()
 		_ = server.Shutdown(shutdownContext)
 	}()
-	if vsockListener != nil {
-		go func() {
-			errorValue := server.Serve(vsockListener)
-			if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
-				log.Printf("capabilityd vsock listener stopped: %v", errorValue)
-			}
-		}()
-	}
-
 	errorValue = server.Serve(listener)
 	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
 		return errorValue
@@ -328,13 +308,6 @@ func (service Service) listen() (net.Listener, error) {
 		_ = os.Chown(socketPath, 0, groupID)
 	}
 	return listener, nil
-}
-
-func (service Service) listenVSock() (net.Listener, error) {
-	if service.Configuration.VSockPort <= 0 {
-		return nil, nil
-	}
-	return listenVSock(service.Configuration.VSockPort)
 }
 
 func (service Service) httpClient() *http.Client {

@@ -9,20 +9,19 @@ import (
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
-	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-func TestTheLiveRegistryServesTheToolsTheStampedContractNames(t *testing.T) {
-	stampedContractDescriptors := roundTrippedDescriptors(t, blueclawruntime.CurrentCapabilityContract().ToolDescriptors)
+func TestTheLiveRegistryServesTheDefaultToolDescriptors(t *testing.T) {
+	stampedContractDescriptors := roundTrippedDescriptors(t, capabilities.DefaultToolDescriptors())
 	servedDescriptors := capabilities.RegistryDescriptors(servedCapabilityRegistry(t))
 
 	stampedNames, servedNames := sortedToolNames(stampedContractDescriptors), sortedToolNames(servedDescriptors)
 	if !reflect.DeepEqual(stampedNames, servedNames) {
-		t.Fatalf("the stamped contract names %v and the live registry serves %v", stampedNames, servedNames)
+		t.Fatalf("the default descriptors name %v and the live registry serves %v", stampedNames, servedNames)
 	}
 	for index, stamped := range stampedContractDescriptors {
 		if !reflect.DeepEqual(stamped, servedDescriptors[index]) {
-			t.Fatalf("%s is stamped as %+v and served as %+v", stamped.Name, stamped, servedDescriptors[index])
+			t.Fatalf("%s is declared as %+v and served as %+v", stamped.Name, stamped, servedDescriptors[index])
 		}
 	}
 }

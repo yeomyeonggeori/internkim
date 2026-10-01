@@ -93,7 +93,7 @@ func DefaultConfiguration() Configuration {
 		BlueclawPolicyDeliveryPath:     filepath.Join(blueclaw.BlueclawDeliveryConfigPath, "policy.json"),
 		CapabilitySocketPath:           blueclawruntime.CapabilitySocketPath,
 		StateDirectory:                 "/root/.internkim/state/admin",
-		UsersSyncStatePath:             blueclawruntime.InternKimUsersSyncStatePath,
+		UsersSyncStatePath:             "/root/.internkim/state/users-sync.json",
 		TaskDatabasePath:               "/root/.internkim/state/flow.sqlite",
 		CalendarDatabasePath:           "/root/.internkim/state/calendar.sqlite",
 		MailDatabasePath:               "/root/.internkim/state/mail.sqlite",
