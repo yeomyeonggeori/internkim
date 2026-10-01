@@ -155,3 +155,12 @@ func TestADetachedActionRunsTheSameWayAgainAfterItFailed(t *testing.T) {
 		t.Fatalf("calls:\n%s", calls)
 	}
 }
+
+func TestTheMediaMirrorHasADirectoryToWriteInto(t *testing.T) {
+	script := migrationExportScript("")
+	created := strings.Index(script, `install -d -m 0700 "$export_directory/media"`)
+	mirrored := strings.Index(script, `mc mirror`)
+	if created < 0 || mirrored < 0 || created > mirrored {
+		t.Fatal("mc mirror refuses a destination that does not exist, so the media directory is made first")
+	}
+}
