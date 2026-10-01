@@ -2,13 +2,13 @@ import { adminCallerOf, asMember, controlPlane, planeCredentialsOf, removeMember
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { memberAccessTokenOf } from '$lib/server/member-request';
+import { signedInAccessTokenOf } from '$lib/server/member-request';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const plane = planeCredentialsOf({ ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) });
 	if (!plane) error(500, 'the central plane is not configured');
 
-	const { accessToken } = await memberAccessTokenOf(request, plane);
+	const accessToken = await signedInAccessTokenOf(request, plane);
 
 	const caller = await adminCallerOf(asMember(plane, accessToken));
 	if (!caller) error(403, 'only an admin removes people');

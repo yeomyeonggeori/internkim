@@ -19,6 +19,8 @@ const { GET: listTokens } = await import('../../src/routes/api/v1/tokens/+server
 const { POST: mintToken, DELETE: revokeToken } = await import('../../src/routes/api/v1/token/+server');
 const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path]/+server');
 const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
+const { POST: resetPassword } = await import('../../src/routes/api/member/password-reset/+server');
+const { POST: issueCalendarFeed } = await import('../../src/routes/api/calendar/subscription/+server');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -818,5 +820,57 @@ describe('the documented endpoints', () => {
 			'get /agent/replies'
 		];
 		expect(served.filter((operation) => !documented.has(operation))).toEqual([]);
+	});
+});
+
+describe('a personal access token does not administer the company', () => {
+	function posting(path: string, token: string, body: unknown): Request {
+		return new Request(`https://space.example.test${path}`, {
+			method: 'POST',
+			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	function resetting(token: string, body: unknown): Promise<RouteAnswer> {
+		const request = posting('/api/member/password-reset', token, body);
+		const event = { request, url: new URL(request.url), platform: undefined };
+		return answerOf(() => Promise.resolve(resetPassword(event as unknown as Parameters<typeof resetPassword>[0])));
+	}
+
+	function issuingTheFeed(token: string): Promise<RouteAnswer> {
+		const request = posting('/api/calendar/subscription', token, {});
+		const event = { request, url: new URL(request.url), platform: undefined };
+		return answerOf(() =>
+			Promise.resolve(issueCalendarFeed(event as unknown as Parameters<typeof issueCalendarFeed>[0]))
+		);
+	}
+
+	test("an administrator's token resets nobody's password, whatever it may otherwise do", async () => {
+		const { data: administrator } = await client
+			.from('member')
+			.select('id')
+			.eq('company_id', companyID)
+			.eq('is_admin', true)
+			.single();
+		const readOnly = await issuePersonalAccessToken(client, administrator!.id, 'administrator-reads', 'read');
+
+		for (const token of [readOnly, administratorsToken]) {
+			const answer = await resetting(token, { memberID });
+			expect(answer.status).toBe(403);
+		}
+	});
+
+	test("a read-only token does not issue the company's calendar feed", async () => {
+		const { data: administrator } = await client
+			.from('member')
+			.select('id')
+			.eq('company_id', companyID)
+			.eq('is_admin', true)
+			.single();
+		const readOnly = await issuePersonalAccessToken(client, administrator!.id, 'administrator-reads-calendar', 'read');
+
+		const answer = await issuingTheFeed(readOnly);
+		expect(answer.status).toBe(403);
 	});
 });

@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
 	connectMessengerAccount,
-	memberCredential
+	memberCredential,
+	MemberOfAnotherCompany
 } from '../../../src/lib/server/member-credential';
 
 type Written = { table: string; row: Record<string, unknown> };
@@ -19,7 +20,8 @@ function aRecordThatRemembers(held: Record<string, string> = {}) {
 				},
 				select: () => ({
 					eq: () => ({
-						single: () => Promise.resolve({ data: { messenger: held }, error: null })
+						single: () => Promise.resolve({ data: { messenger: held }, error: null }),
+						maybeSingle: () => Promise.resolve({ data: { company_id: 'company-1' }, error: null })
 					})
 				}),
 				update: (row: Record<string, unknown>) => ({
@@ -52,6 +54,17 @@ const account = {
 };
 
 describe('connecting a member to their own messenger account', () => {
+	test('a member of another company is refused and nothing is written', async () => {
+		const { client, written, vaulted } = aRecordThatRemembers();
+
+		await expect(connectMessengerAccount(client, 'company-2', account)).rejects.toBeInstanceOf(
+			MemberOfAnotherCompany
+		);
+
+		expect(written).toEqual([]);
+		expect(vaulted).toEqual([]);
+	});
+
 	test('the secret goes to the vault rather than into a row', async () => {
 		const { client, written, vaulted } = aRecordThatRemembers();
 

@@ -1,4 +1,10 @@
-import { addMember, AddressBelongsToAnotherCompany, AlreadyAMember, inviteMember } from '$lib/server/control-plane';
+import {
+	addMember,
+	AddressBelongsToAnotherCompany,
+	AlreadyAMember,
+	inviteMember,
+	type Invitation
+} from '$lib/server/control-plane';
 import { personName } from '$lib/person-name';
 import type { DirectoryPerson, PersonInviteResult } from '../catalog/people';
 import type { RecordContext } from './company';
@@ -126,6 +132,17 @@ export async function personUpdate(
 	return answeredPerson(await personWrittenBack(context, person.personID), context.people, teams, context.locale);
 }
 
+async function invitationOf(context: RecordContext, personID: string): Promise<Invitation> {
+	try {
+		return await inviteMember(context.accountDirectory, personID);
+	} catch (refusal) {
+		if (refusal instanceof AddressBelongsToAnotherCompany) {
+			throw new RecordRefusedTheWrite('that address signs in to an account another member holds', 409, 'person_address_taken');
+		}
+		throw refusal;
+	}
+}
+
 async function personAddedAt(context: RecordContext, email: string, name: string): Promise<string> {
 	try {
 		return await addMember(context.accountDirectory, context.companyID, email, { name });
@@ -151,7 +168,7 @@ export async function personInvite(
 	refuseUnlessTheRequesterAdministers(context, 'invites people');
 
 	const personID = await personAddedAt(context, email, name);
-	const invitation = await inviteMember(context.accountDirectory, personID);
+	const invitation = await invitationOf(context, personID);
 	await writeTheOrganizationHomeOfANewPerson(context, personID, input);
 
 	const written = await personWrittenBack(context, personID);

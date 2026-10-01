@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { environmentOf } from '$lib/server/agent-request';
-import { callingMember } from '$lib/server/member-request';
+import { callingMember, refuseUnlessTheCallerWrites } from '$lib/server/member-request';
 import {
 	asShown,
 	asWritten,
@@ -16,7 +16,9 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 };
 
 export const PUT: RequestHandler = async ({ request, platform }) => {
-	const { record, memberID, email } = await callingMember(request, environmentOf(platform));
+	const member = await callingMember(request, environmentOf(platform));
+	refuseUnlessTheCallerWrites(member);
+	const { record, memberID, email } = member;
 
 	const written = (await request.json().catch(() => ({}))) as MailAccountAsWritten;
 	const held = await mailAccountOfMember(record, memberID);

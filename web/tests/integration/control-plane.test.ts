@@ -2,9 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import {
 	addMember,
 	AddressBelongsToAnotherCompany,
+	adminCallerOf,
 	AlreadyAMember,
+	asMember,
 	controlPlane,
 	foundCompany,
+	hostAddressOf,
 	inviteMember,
 	provisionCompany,
 	resetMemberPassword,
@@ -13,7 +16,8 @@ import {
 	connectMessengerAccount,
 	membersOfCompanyByExternalID,
 } from '../../src/lib/server/member-credential';
-import { projectURL, serviceRoleKey } from './supabase-environment';
+import { recordTokenFor } from '../../src/lib/server/record-token';
+import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 
 const networkHookTimeout = 60_000;
 
@@ -28,6 +32,7 @@ const fillerCount = 55;
 let companyID = '';
 let otherCompanyID = '';
 const fillerAccountIDs: string[] = [];
+const strayAccountIDs: string[] = [];
 
 function companyInput(companySlug: string) {
 	return { name: 'Control Plane Test', slug: companySlug, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' };
@@ -68,7 +73,7 @@ afterAll(async () => {
 			if (member.user_id) await client.auth.admin.deleteUser(member.user_id);
 		}
 	}
-	for (const accountID of fillerAccountIDs) await client.auth.admin.deleteUser(accountID);
+	for (const accountID of [...fillerAccountIDs, ...strayAccountIDs]) await client.auth.admin.deleteUser(accountID);
 }, networkHookTimeout);
 
 describe('provisioning a company', () => {
@@ -189,4 +194,83 @@ describe('an address belongs to one company', () => {
 		},
 		networkHookTimeout,
 	);
+});
+
+describe('a password is issued only to the account a member holds', () => {
+	test("a company computer's address is never taken in as a member", async () => {
+		await expect(addMember(client, companyID, hostAddressOf(otherCompanyID))).rejects.toBeInstanceOf(
+			AddressBelongsToAnotherCompany,
+		);
+
+		const { data } = await client.from('member').select('id').eq('email', hostAddressOf(otherCompanyID));
+		expect(data).toEqual([]);
+	});
+
+	test("a company computer's account is never handed a password, even through a member row naming it", async () => {
+		const hostAddress = hostAddressOf(otherCompanyID);
+		const host = await client.auth.admin.createUser({
+			email: hostAddress,
+			email_confirm: true,
+			app_metadata: { company_id: otherCompanyID },
+		});
+		if (host.error) throw new Error(host.error.message);
+		strayAccountIDs.push(host.data.user.id);
+		const { data: planted, error } = await client
+			.from('member')
+			.insert({ company_id: companyID, email: hostAddress, status: 'pending' })
+			.select('id')
+			.single();
+		if (error) throw new Error(error.message);
+
+		await expect(resetMemberPassword(client, planted.id)).rejects.toBeInstanceOf(AddressBelongsToAnotherCompany);
+		await expect(inviteMember(client, planted.id)).rejects.toBeInstanceOf(AddressBelongsToAnotherCompany);
+
+		await client.from('member').delete().eq('id', planted.id);
+	});
+
+	test('an account another member holds is not handed to whoever invites its address', async () => {
+		const heldEmail = `${otherSlug}-held@example.test`;
+		const movedEmail = `${otherSlug}-moved@example.test`;
+		const holderID = await addMember(client, otherCompanyID, heldEmail);
+		await inviteMember(client, holderID);
+		await client.from('member').update({ email: movedEmail }).eq('id', holderID);
+
+		const strangerID = await addMember(client, companyID, heldEmail);
+
+		await expect(inviteMember(client, strangerID)).rejects.toBeInstanceOf(AddressBelongsToAnotherCompany);
+		await client.from('member').delete().eq('id', strangerID);
+	});
+});
+
+describe('an administrator is one who administers now', () => {
+	async function administratorClient(memberID: string) {
+		const { data, error } = await client.from('member').select('user_id, email').eq('id', memberID).single();
+		if (error) throw new Error(error.message);
+		const token = await recordTokenFor(signingKey, projectURL, { userID: data.user_id, email: data.email });
+		return asMember({ projectURL, publishableKey }, token.accessToken);
+	}
+
+	test('an active administrator is answered, and one who has left is not', async () => {
+		const leavingEmail = `${slug}-leaving-admin@example.test`;
+		const memberID = await addMember(client, companyID, leavingEmail, { isAdmin: true });
+		await inviteMember(client, memberID);
+		await client.from('member').update({ status: 'active' }).eq('id', memberID);
+		const administrator = await administratorClient(memberID);
+
+		expect(await adminCallerOf(administrator)).toEqual({ memberID, companyID });
+
+		await client.from('member').update({ status: 'withdrawn' }).eq('id', memberID);
+		expect(await adminCallerOf(administrator)).toBeNull();
+
+		await client.from('member').update({ status: 'departed' }).eq('id', memberID);
+		expect(await adminCallerOf(administrator)).toBeNull();
+	});
+
+	test('an administrator who has not arrived yet does not administer', async () => {
+		const invitedEmail = `${slug}-invited-admin@example.test`;
+		const memberID = await addMember(client, companyID, invitedEmail, { isAdmin: true });
+		await inviteMember(client, memberID);
+
+		expect(await adminCallerOf(await administratorClient(memberID))).toBeNull();
+	});
 });
