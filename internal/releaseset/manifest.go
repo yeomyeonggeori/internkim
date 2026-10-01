@@ -1,13 +1,9 @@
 package releaseset
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -24,7 +20,6 @@ type Manifest struct {
 	CreatedAt               string               `json:"createdAt"`
 	MinimumInstallerVersion string               `json:"minimumInstallerVersion"`
 	Components              map[string]Component `json:"components"`
-	Signature               string               `json:"signature,omitempty"`
 }
 
 type Component struct {
@@ -108,61 +103,6 @@ func (component Component) Validate(componentName string) error {
 		return fmt.Errorf("release component %q has empty blob path", componentName)
 	}
 	return nil
-}
-
-func (manifest Manifest) Sign(secret string) (Manifest, error) {
-	if strings.TrimSpace(secret) == "" {
-		return manifest, nil
-	}
-	manifest.Signature = ""
-	document, errorValue := manifest.CanonicalDocument()
-	if errorValue != nil {
-		return manifest, errorValue
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(document)
-	manifest.Signature = hex.EncodeToString(mac.Sum(nil))
-	return manifest, nil
-}
-
-func (manifest Manifest) VerifySignature(secret string) error {
-	if strings.TrimSpace(secret) == "" {
-		return nil
-	}
-	signature := strings.TrimSpace(manifest.Signature)
-	if !isSHA256(signature) {
-		return errors.New("release manifest signature is missing or invalid")
-	}
-	unsignedManifest := manifest
-	unsignedManifest.Signature = ""
-	document, errorValue := unsignedManifest.CanonicalDocument()
-	if errorValue != nil {
-		return errorValue
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(document)
-	expectedSignature := hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
-		return errors.New("release manifest signature mismatch")
-	}
-	return nil
-}
-
-func (manifest Manifest) CanonicalDocument() ([]byte, error) {
-	if errorValue := manifest.Validate(); errorValue != nil {
-		return nil, errorValue
-	}
-	orderedComponents := map[string]Component{}
-	componentNames := make([]string, 0, len(manifest.Components))
-	for componentName := range manifest.Components {
-		componentNames = append(componentNames, componentName)
-	}
-	sort.Strings(componentNames)
-	for _, componentName := range componentNames {
-		orderedComponents[componentName] = manifest.Components[componentName]
-	}
-	manifest.Components = orderedComponents
-	return json.Marshal(manifest)
 }
 
 func isSHA256(value string) bool {

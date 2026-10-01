@@ -459,11 +459,6 @@
     "description": "the R2 bucket releases are uploaded to",
     "isInVault": true
   },
-  "INTERNKIM_RELEASE_SIGNING_KEY": {
-    "process": "cli",
-    "description": "the key a release manifest is signed with when published",
-    "isInVault": true
-  },
   "INTERNKIM_RELEASE_WRANGLER_BIN": {
     "process": "cli",
     "description": "override path to the wrangler binary used for PUBLISHER=wrangler release uploads"
