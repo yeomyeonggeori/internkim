@@ -26,10 +26,30 @@ var fontCandidateSourcesByFormat = []fontCandidateSource{
 }
 
 const fontCandidateProgram = `
+import importlib.abc
+import importlib.machinery
 import importlib.util
 import json
 import os
 import sys
+from unittest import mock
+
+THIRD_PARTY_ROOTS = {"docx", "docxtpl", "fpdf", "openpyxl", "pandas", "PIL", "pptx", "pypdf", "pypdfium2", "xlcalculator"}
+
+
+class ThirdPartyStubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+    def find_spec(self, name, path, target=None):
+        if name.split(".")[0] in THIRD_PARTY_ROOTS:
+            return importlib.machinery.ModuleSpec(name, self, is_package=True)
+
+    def create_module(self, spec):
+        return mock.MagicMock(__path__=[], __spec__=spec)
+
+    def exec_module(self, module):
+        pass
+
+
+sys.meta_path.insert(0, ThirdPartyStubFinder())
 
 script_path, expression, runtime_directory = sys.argv[1], sys.argv[2], sys.argv[3]
 sys.path.insert(0, runtime_directory)

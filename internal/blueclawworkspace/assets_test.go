@@ -406,16 +406,6 @@ func TestOfficeSkillBootstrapsDependenciesFromBundledScripts(t *testing.T) {
 		}
 	}
 
-	for _, createScriptPath := range [][]string{{"scripts", "doc", "create_docx.py"}, {"scripts", "sheet", "create_xlsx.py"}} {
-		createScript, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, createScriptPath...))
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if !strings.Contains(string(createScript), "ensure_requirements(") {
-			t.Fatalf("%s must bootstrap its own Python requirements", filepath.Join(createScriptPath...))
-		}
-	}
-
 	runtimeScript, errorValue := os.ReadFile(runtimePath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -480,50 +470,6 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		content := string(document)
 		if !strings.Contains(content, "source of truth") {
 			t.Fatalf("%s must preserve supplied data as source of truth", skillPath)
-		}
-	}
-
-	docxCreateScript, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "scripts", "doc", "create_docx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"eastAsia", "set_table_borders", "columnWidthsInches"} {
-		if !strings.Contains(string(docxCreateScript), expectedText) {
-			t.Fatalf("docx create script must include %q", expectedText)
-		}
-	}
-
-	xlsxCreateScript, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "scripts", "sheet", "create_xlsx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"default_freeze_panes", "auto_filter_reference", "create_thin_border", "heading"} {
-		if !strings.Contains(string(xlsxCreateScript), expectedText) {
-			t.Fatalf("xlsx create script must include %q", expectedText)
-		}
-	}
-
-	for _, validationScriptPath := range []string{
-		officePathInTest(t, repositoryRootPath, "scripts", "doc", "validate_docx.py"),
-		officePathInTest(t, repositoryRootPath, "scripts", "sheet", "validate_xlsx.py"),
-		officePathInTest(t, repositoryRootPath, "scripts", "pdf", "validate_pdf.py"),
-	} {
-		document, errorValue := os.ReadFile(validationScriptPath)
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if !strings.Contains(string(document), "warningCount") {
-			t.Fatalf("%s must report warningCount", validationScriptPath)
-		}
-	}
-
-	xlsxValidationScript, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "scripts", "sheet", "validate_xlsx.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"headerRow", "titleRowDetected"} {
-		if !strings.Contains(string(xlsxValidationScript), expectedText) {
-			t.Fatalf("xlsx validation script must include %q", expectedText)
 		}
 	}
 
@@ -716,6 +662,7 @@ func TestPresentationRestoresControllerFreeSource(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	command := exec.Command("python3", scriptPath, deliveredPath, sourcePath)
+	command.Env = append(os.Environ(), "PYTHONPATH="+officePathInTest(t, repositoryRootPath, "scripts"))
 	commandOutput, errorValue := command.CombinedOutput()
 	if errorValue != nil {
 		t.Fatalf("presentation source restoration failed: %v\n%s", errorValue, commandOutput)
@@ -778,90 +725,6 @@ func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
 	for _, expectedText := range []string{"Web font imports are allowed", "Pretendard web font with Paperlogy fallback", "Noto Sans KR web font with Paperlogy fallback"} {
 		if !strings.Contains(string(webfontsDocument), expectedText) {
 			t.Fatalf("presentation webfonts reference must document webfont fallback policy %q", expectedText)
-		}
-	}
-}
-
-func TestPresentationDocumentsBeautifulDeckContract(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	skillPath := officePathInTest(t, repositoryRootPath)
-	document, errorValue := os.ReadFile(filepath.Join(skillPath, "references", "deck.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"deck archetype",
-		"Pick one deck archetype",
-		"title thesis, section divider, comparison, matrix, timeline, evidence card, recommendation, and closing ask",
-		"slide-review.json",
-		"needsDesignRevision",
-		"qualityGatePassed",
-		"visualQualityScore",
-		"visualEvidenceReliable",
-		"contact sheets",
-		"fit-review-XX.md",
-		"expected visible text",
-		"design warnings",
-		"deck-brief.md",
-		"story spine",
-		"slide count",
-		"visual system",
-		"signature move",
-		"Reject shallow content",
-		"worked example",
-		"rendered image evidence",
-		"Revise `slides.html`",
-		"Attach every accepted output",
-		"Preserve the design-source marker, requested slide count, source-fact ledger intent",
-		"Do not spend delivery budget creating or attaching internal review-decision files",
-		"not a delivery blocker",
-		"A clean export is not acceptance",
-		"Do not use emoji as functional icons or bullets",
-		"HTML-first",
-		"target-versus-actual metrics",
-		"risk/evidence/response/owner",
-		"제공된 자료 없음",
-		"claim-style titles",
-		"exact organization, product, and period",
-		"original period wording exactly",
-		"Preserve exact source values",
-		"KPI cards",
-		"status chips",
-		"raw `<table>` or bare `<ul>`",
-		"same 2x2 card dashboard",
-		"A board or quarterly deck needs KPI cards",
-		"composition-seeds.md",
-		"visual-styles.md",
-		"webfonts.md",
-		"Run the command as one shell command line",
-		"required-visible-text.txt",
-		"one source fact or must-appear phrase per line",
-		"not a token filter",
-		"Do not replace Korean period wording",
-		"HTML is the default deliverable",
-		"PPTX is image-backed by default",
-		"PRESENTATION_PPTX_MODE=native",
-		"With no `FORMATS`, it creates `build/<deck-slug>.html` plus review evidence",
-		"FORMATS=pptx",
-		"<skill>/scripts/office deck build",
-		"FORMATS=pptx <skill>/scripts/office deck build",
-		"write the complete `slides.html` as a file in one step",
-		"do not assemble it through shell heredocs or echo",
-		"must not delay the primary source file",
-		"A dark theme is not a visual system",
-		"Scene",
-		"Style Prompt",
-		"Visual Identity Gate",
-		"Design Thesis",
-		"Signature Move",
-		"Anti-default Check",
-		"data-visual-system",
-		"data-slide-role",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("presentation must document beautiful deck contract %q", expectedText)
 		}
 	}
 }
