@@ -6,12 +6,22 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"gitlab.com/eastriver/internkim/internal/centralplane"
 )
+
+func writeNamedTestFile(t *testing.T, directory string, name string, contents string) string {
+	t.Helper()
+	path := filepath.Join(directory, name)
+	if errorValue := os.WriteFile(path, []byte(contents), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return path
+}
 
 func blueclawServingRuns(t *testing.T, runsByCall ...[]taskNotifyRun) (*httptest.Server, *int) {
 	t.Helper()
@@ -162,7 +172,7 @@ func TestARunThatChangedLongAgoIsMarkedWithoutNotifying(t *testing.T) {
 		CentralPlaneAppURL:         directory.URL,
 		CentralPlaneProjectURL:     companyProjectURLForTest,
 		CentralPlanePublishableKey: "publishable",
-		CentralPlaneAgentKeyPath:   writeLiveFile(t, state, "agent-key", "agent-key"),
+		CentralPlaneAgentKeyPath:   writeNamedTestFile(t, state, "agent-key", "agent-key"),
 	})
 	ctx := context.Background()
 

@@ -1003,9 +1003,6 @@ func (service *Service) fetchReleaseManifest(ctx context.Context, manifestURL st
 	if errorValue := json.NewDecoder(response.Body).Decode(&manifest); errorValue != nil {
 		return nil, errorValue
 	}
-	if errorValue := manifest.VerifySignature(service.releaseSigningKey()); errorValue != nil {
-		return nil, errorValue
-	}
 	if errorValue := manifest.Validate(); errorValue != nil {
 		return nil, errorValue
 	}
@@ -1022,14 +1019,6 @@ func (service *Service) addReleaseDownloadHeaders(request *http.Request) {
 		return
 	}
 	request.Header.Set("X-INTERNKIM-RELEASE-TOKEN", token)
-}
-
-func (service *Service) releaseSigningKey() string {
-	document, errorValue := os.ReadFile(service.Configuration.ReleaseSigningKeyPath)
-	if errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(document))
 }
 
 func (service *Service) readCurrentReleaseManifest() *releaseset.Manifest {
