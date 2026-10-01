@@ -106,6 +106,18 @@ REVISION_PROBE = ADMIN_GATEWAY_HEALTH
 # listens is answered `did not answer` and says nothing about the product.
 MESSENGER_BRIDGE = (18090, "/healthz")
 
+BACKUP_SERVICE_NAME = "internkim-backup"
+BACKUP_UNIT_NAME = BACKUP_SERVICE_NAME + ".service"
+BACKUP_TIMER_NAME = BACKUP_SERVICE_NAME + ".timer"
+BACKUPS_DIRECTORY = "/var/lib/internkim-backups"
+DATABASE_USER = "internkim-postgres"
+DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
+
+
+def expected_enablement(unit_name):
+    return "static" if unit_name == BACKUP_UNIT_NAME else "enabled"
+
+
 # The package's one configuration file dpkg protects, and the file every unit
 # waits on. Section 5 of the plan makes runtime.json an optional override the
 # package does not ship, so editing that would say nothing about whether dpkg
@@ -195,6 +207,27 @@ def dependency_names(depends_field):
         if first and first[0] not in names:
             names.append(first[0])
     return names
+
+
+def dependency_alternatives(depends_field):
+    clauses = []
+    for clause in depends_field.replace("\n", " ").split(","):
+        names = [alternative.split()[0] for alternative in clause.split("|") if alternative.split()]
+        if names and names not in clauses:
+            clauses.append(names)
+    return clauses
+
+
+CANDIDATE_CHOICE_COMMAND = r"""
+for clause in %s; do
+  chosen=""
+  for name in $(printf '%%s' "$clause" | tr '|' ' '); do
+    candidate="$(apt-cache policy "$name" 2>/dev/null | sed -n 's/^ *Candidate: //p')"
+    case "$candidate" in ""|"(none)") ;; *) chosen="$name"; break ;; esac
+  done
+  printf '%%s\n' "${chosen:-${clause%%%%|*}}"
+done
+"""
 
 
 def parse_control_paragraph(text):
@@ -780,10 +813,10 @@ def build_identity_reported(machine):
     return found
 
 
-def installed_units(machine):
-    """The units dpkg says this package put on the machine."""
+def installed_units(machine, files_command=f"dpkg-query -L {PACKAGE_NAME}"):
+    """The units the package manager says this package put on the machine."""
     listed = machine.shell(
-        f"dpkg-query -L {PACKAGE_NAME} 2>/dev/null"
+        f"{files_command} 2>/dev/null"
         r" | grep -E '^/(lib|usr/lib)/systemd/system/.*\.service$' | xargs -r -n1 basename | sort -u"
     )
     return [name for name in listed.stdout.split() if name]

@@ -40,7 +40,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_families import FAMILIES  # noqa: E402
 from native_install_rig import (  # noqa: E402
+    BACKUP_TIMER_NAME,
+    BACKUP_UNIT_NAME,
     CHECKSUMS_NAME,
+    DATA_SERVICE_PATH,
+    DATABASE_USER,
+    expected_enablement,
     COMPANY_CONDITION_PATH,
     DOCUMENT_ENVIRONMENT_PATHS,
     HOST_PYTHON_PATH,
@@ -76,14 +81,12 @@ def load_the_judge_of_the_debian_package():
 
 judge = load_the_judge_of_the_debian_package()
 
-DATABASE_USER = "internkim-postgres"
 CACHE_USER = "internkim-cache"
 AGENT_USER = "blueclaw"
 RELAY_USER = "internkim"
 DATABASE_SOCKET_DIRECTORY = "/run/internkim-postgres"
 CACHE_SOCKET_PATH = "/run/internkim-cache/cache.sock"
 DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
-DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
 HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
 TASK_USER = "bc_person_rigcheck"
 
@@ -375,16 +378,19 @@ class FamilyRig:
                 f"{self.family.files_command} | grep -E '^/(usr/)?lib/systemd/system/.*\\.service$' | xargs -r -n1 basename | sort -u"
             ).split()
         ]
-        enabled = self.machine.shell(f"systemctl is-enabled {' '.join(self.unit_names)} 2>&1")
+        judged = self.unit_names + [BACKUP_TIMER_NAME]
+        enabled = self.machine.shell(f"systemctl is-enabled {' '.join(judged)} 2>&1")
+        states = enabled.stdout.split()
         step.observe(
-            "every unit the package ships is enabled",
-            "`systemctl is-enabled` for each unit in the package's file list",
+            "every unit the package ships is enabled, the daily backup's timer among them, and the backup "
+            "service is started by that timer alone",
+            "`systemctl is-enabled` for each unit in the package's file list and for the backup timer",
             "a unit file under the unit directory says the file was copied; the symlink decides whether it "
             "comes back after a reboot",
         ).record(
-            bool(self.unit_names) and enabled.returncode == 0
-            and all(line.strip() == "enabled" for line in enabled.stdout.splitlines()),
-            " ".join(f"{name}={state}" for name, state in zip(self.unit_names, enabled.stdout.split())),
+            bool(self.unit_names) and len(states) == len(judged)
+            and all(state == expected_enablement(name) for name, state in zip(judged, states)),
+            " ".join(f"{name}={state}" for name, state in zip(judged, states)),
         )
         judge.observe_the_conversion_environment(self.machine, step)
         company_units = [name for name in self.unit_names if name != judge.BOX_UNIT_NAME]
@@ -420,7 +426,7 @@ class FamilyRig:
             + f"\ninternkim install exited {installed.returncode}\n"
             + (installed.stdout + installed.stderr).strip()[-1500:],
         )
-        running_units = [name for name in self.unit_names if name != judge.RELAY_UNIT_NAME]
+        running_units = [name for name in self.unit_names if name not in (judge.RELAY_UNIT_NAME, BACKUP_UNIT_NAME)]
         states = dict(
             line.split("=", 1)
             for line in self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(running_units)).stdout.split()

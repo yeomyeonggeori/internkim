@@ -74,10 +74,11 @@ that signs messages as each person, and `/var/lib/internkim-postgres` and
 package again brings the same company back. On Debian and Ubuntu,
 `sudo apt purge internkim` also deletes the settings in `/etc/internkim`.
 
-Neither key can be issued again, so deleting the company is left to you:
+Neither key can be issued again, so deleting the company is left to you. The
+last directory holds its backups:
 
 ```bash
-sudo rm -rf /var/lib/internkim /var/lib/internkim-postgres /var/lib/internkim-cache
+sudo rm -rf /var/lib/internkim /var/lib/internkim-postgres /var/lib/internkim-cache /var/lib/internkim-backups
 ```
 
 ## Check services
@@ -107,8 +108,141 @@ files out of the settings file.
 
 The computer holds the agent's conversation history, task history, memory,
 workspace files, and messages waiting for delivery. These are separate from
-company records in the hosted service. Review [What lives where](/what-lives-where)
-before backing up or replacing the host.
+company records in the hosted service, which [What lives where](/what-lives-where)
+describes. A backup of the host holds everything on this computer that the hosted
+service does not.
+
+## Back up and restore
+
+On Linux, one command writes the whole host to one archive and another brings it
+back:
+
+```bash
+sudo internkim backup
+sudo internkim restore /var/lib/internkim-backups/internkim-backup-20261001T031500Z.tar
+```
+
+The services keep running while a backup is taken. Each database is dumped with
+`pg_dump`, which reads it as of one moment, and every SQLite database among the
+files is copied through SQLite's own snapshot. The archive holds:
+
+| | |
+|---|---|
+| The agent's database | conversations, task history, the ledger, memory and its embeddings |
+| The messenger's database | every channel and message |
+| `/var/lib/internkim` | the company's keys, the seed that signs messages as each person, the messenger's attachments |
+| `/workspace` | every person's and circle's files, with their owners and modes |
+| `/var/lib/internkim-relay` | messages and approval questions still waiting for the agent |
+| `/root/.internkim` | the admin gateway's own databases and settings |
+| `/etc/internkim` | the operator's settings |
+
+It leaves out what the host rebuilds: the cache, which lives in memory, the
+dependency caches under `/workspace/shared/cache`, each person's `tmp`, the
+Python runtime, the browser's profiles and the logs.
+
+### The daily backup
+
+The package runs `internkim backup --keep 7` once a day through
+`internkim-backup.timer`. A day the computer was off is caught up when it next
+starts. To keep another number of backups, set `BACKUPS_KEPT` in
+`/etc/internkim/company-host.env`. To turn the daily backup off:
+
+```bash
+sudo systemctl mask --now internkim-backup.timer
+```
+
+An upgrade leaves a masked timer off. `sudo systemctl unmask internkim-backup.timer`
+and then `sudo systemctl enable --now internkim-backup.timer` turn it back on.
+A backup made by hand prunes nothing unless it is given `--keep`, and pruning only
+ever removes archives named `internkim-backup-<time>.tar`.
+
+### Keep a copy elsewhere
+
+An archive on the computer it protects does not survive that computer. It is
+also unencrypted: it holds the company's keys and its people's files, and the
+directory and every archive in it are readable by root alone. Encrypt it as it
+leaves the computer, to a key that does not live there. With
+[age](https://age-encryption.org) and a recipient whose private key the company
+keeps elsewhere:
+
+```bash
+sudo cat /var/lib/internkim-backups/internkim-backup-20261001T031500Z.tar \
+  | age -r age1… > internkim-backup-20261001T031500Z.tar.age
+```
+
+The encrypted file can then go to any S3-compatible store with `rclone copy` or
+`aws s3 cp`. A key kept on the host would make the backup readable by anyone who
+had the host, and lost with it.
+
+### Restore onto another computer
+
+Install the package on the new computer with the first command under
+Install, skip `internkim install`, and run `internkim restore` with
+the archive. The new computer takes over the old one's place on the hosted
+service, so turn the old one off first.
+
+The restore checks every part of the archive against its recorded checksum before
+it changes anything. It refuses an archive made by a newer internkim, and one whose
+databases came from a newer PostgreSQL major than this computer runs, because
+PostgreSQL restores a dump into the same or a newer major only. It then stops the
+services, puts the files back, recreates each person's account from the roster in
+the archive, gives every file back to its owner by account name, restores both
+databases and starts the services, which bring their schemas up to the installed
+version. A file whose owner has no account on the new computer stays owned by root,
+and the restore lists it.
+
+To restore onto the computer the backup came from, add `--replace`. The restore
+first backs up what the computer holds now, so `--replace` with that archive undoes
+it.
+
+On a Mac the database is Homebrew's PostgreSQL, which `internkim backup` and
+`internkim restore` do not manage. They refuse there.
+
+### The archive format
+
+This is a stable format. A tool that writes it is restored like a backup.
+
+The archive is an uncompressed tar of five members, in any order:
+
+| Member | Contents |
+|---|---|
+| `databases/blueclaw.dump` | `pg_dump --format custom` of the agent's database, its objects owned by the role `internkim` |
+| `databases/buzz.dump` | the same, of the messenger's database |
+| `roster.json` | the policy document the agent was running, whose people and circles become accounts |
+| `files.tar` | the files, each entry named `<root>/<path>` with its owner and group recorded by name |
+| `manifest.json` | what the archive is and what it holds |
+
+The manifest:
+
+| Field | |
+|---|---|
+| `format` | `internkim-host-backup` |
+| `formatVersion` | `1`. A restore refuses a version newer than it reads |
+| `createdAt` | when the backup was taken, RFC 3339 |
+| `packageVersion` | the internkim package that wrote it, empty for a build without one |
+| `companyID` | the company whose host this is |
+| `postgresqlMajor` | the PostgreSQL major the dumps were taken from |
+| `fileRoots` | the roots `files.tar` holds |
+| `members` | every other member, each with `name`, `size` in bytes and `sha256` in hex |
+
+A member the manifest does not list, or one whose size or checksum differs, makes
+the whole archive refused. A database dump may be absent, and that database then
+starts empty. `roster.json` may be absent, and a file whose owner has no account
+then stays owned by root. `files.tar` must hold the `state` root, with
+`companies/<companyID>/connection.json` and its `secrets` directory. Its entries
+are directories, regular files, symbolic links and hard links, and a restore
+resolves owners by name and never by number. The roots:
+
+| Root | On this computer |
+|---|---|
+| `state` | `/var/lib/internkim` |
+| `relay` | `/var/lib/internkim-relay` |
+| `configuration` | `/etc/internkim` |
+| `administration` | `/root/.internkim` |
+| `workspace` | `/workspace` |
+
+The dumps are compressed by `pg_dump` and nothing else is. Most of what
+`files.tar` holds, pictures and documents, is compressed already.
 
 ## Answer size
 

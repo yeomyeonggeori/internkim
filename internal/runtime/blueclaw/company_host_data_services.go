@@ -307,9 +307,11 @@ case "${1:-}" in
   postgres) run_postgres ;;
   postgres-ready) postgres_ready ;;
   psql) directory="$(postgres_directory)"; shift; exec "$directory/psql" --host "$socket_directory" --no-psqlrc "$@" ;;
+  pg_dump|pg_restore) directory="$(postgres_directory)"; program="$1"; shift; exec "$directory/$program" --host "$socket_directory" "$@" ;;
+  postgres-major) directory="$(postgres_directory)"; major_of "$directory" ;;
   cache) run_cache ;;
   cache-ready) wait_until cache_answers || fail "the cache did not answer on $cache_socket" ;;
   cache-ping) client="$(cache_client)"; exec "$client" -s "$cache_socket" ping ;;
-  *) fail "usage: data-service postgres|postgres-ready|psql|cache|cache-ready|cache-ping" ;;
+  *) fail "usage: data-service postgres|postgres-ready|psql|pg_dump|pg_restore|postgres-major|cache|cache-ready|cache-ping" ;;
 esac
 `

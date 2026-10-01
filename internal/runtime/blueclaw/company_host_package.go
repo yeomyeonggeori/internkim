@@ -76,6 +76,13 @@ const (
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 
+	CompanyHostBackupsPath          = "/var/lib/internkim-backups"
+	CompanyHostBackupServiceName    = "internkim-backup"
+	CompanyHostBackupsKeptSetting   = "BACKUPS_KEPT"
+	CompanyHostBackupsKeptByDefault = "7"
+	companyHostBackupRandomDelay    = "1h"
+	companyHostBackupDocumentation  = "https://docs.intern.kim/running-the-host/"
+
 	// The state root has one mode and every writer takes it from here. It is
 	// 0700 root:root because a company's identity on the plane and the seed that
 	// signs a message under a person's own name sit under it, and because

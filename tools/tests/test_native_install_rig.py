@@ -6,6 +6,7 @@ import json
 import sys
 import tarfile
 import re
+import subprocess
 import tempfile
 import unittest
 import urllib.request
@@ -161,6 +162,20 @@ class DependencyReadingTests(unittest.TestCase):
             rig.dependency_names("postgresql (>= 14), postgresql (<< 18), ca-certificates"),
             ["postgresql", "ca-certificates"],
         )
+
+    def test_every_alternative_of_a_clause_is_kept_in_order(self):
+        self.assertEqual(
+            rig.dependency_alternatives("postgresql, postgresql-18-pgvector | postgresql-17-pgvector, jq (>= 1.6)"),
+            [["postgresql"], ["postgresql-18-pgvector", "postgresql-17-pgvector"], ["jq"]],
+        )
+
+    def test_the_first_alternative_with_a_candidate_is_chosen(self):
+        policy = {"postgresql-18-pgvector": "(none)", "postgresql-17-pgvector": "0.8.0-1", "jq": "1.7"}
+        script = "set -o pipefail\napt-cache() { case \"$2\" in " + " ".join(
+            f"{name}) echo '  Candidate: {candidate}';;" for name, candidate in policy.items()
+        ) + " esac; }\n" + rig.CANDIDATE_CHOICE_COMMAND % "'postgresql-18-pgvector|postgresql-17-pgvector' 'jq' 'unknown-a|unknown-b'"
+        chosen = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.split()
+        self.assertEqual(chosen, ["postgresql-17-pgvector", "jq", "unknown-a"])
 
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
         self.assertEqual(
@@ -330,6 +345,13 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         self.assertIn('return layout.PythonCommandsPath() + "/python3"', layout)
         self.assertEqual(rig.HOST_PYTHON_PATH, rig.DOCUMENT_ENVIRONMENT_PATHS[0] + "/bin/python3")
         self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
+
+    def test_the_backup_the_rig_reads_is_the_one_the_package_schedules(self):
+        self.assertEqual(rig.BACKUP_SERVICE_NAME, self.declared("company_host_package.go", "CompanyHostBackupServiceName"))
+        self.assertEqual(rig.BACKUPS_DIRECTORY, self.declared("company_host_package.go", "CompanyHostBackupsPath"))
+        self.assertEqual(rig.DATABASE_USER, self.declared("company_host_data_services.go", "CompanyHostDatabaseUser"))
+        self.assertEqual(rig.expected_enablement(rig.BACKUP_UNIT_NAME), "static")
+        self.assertEqual(rig.expected_enablement(rig.BACKUP_TIMER_NAME), "enabled")
 
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
         self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])
