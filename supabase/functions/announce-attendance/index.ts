@@ -3,7 +3,7 @@ import { askedObject, json, refuse, serveRefusals } from '../_shared/http.ts';
 import { callingMember } from '../_shared/member-caller.ts';
 import { pushKeysFromVault, reachesSomeDevice } from '../_shared/push-keys.ts';
 
-type AnnounceRequest = { what?: unknown };
+type AnnounceRequest = { what?: unknown; colleagues?: unknown };
 
 Deno.serve(
 	serveRefusals(async (request) => {
@@ -15,7 +15,7 @@ Deno.serve(
 
 		const asked = (await askedObject(request)) as AnnounceRequest;
 		if (asked.what === 'clock') {
-			return json(await announceClock(caller, record, memberID, pushKeys, nowInSeconds));
+			return json(await announceClock(caller, record, memberID, pushKeys, nowInSeconds, asked.colleagues !== false));
 		}
 		if (asked.what === 'leave') {
 			return json(await announceLeaveRequest(caller, record, memberID, pushKeys, nowInSeconds));

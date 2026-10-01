@@ -10,6 +10,7 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supaba
 import { createOpenApiDocument } from '../../../docs/web/app/lib/openapi';
 import { savedAttendanceEventSchema } from '../../src/lib/attendance/recorded-attendance';
 import { createMockFetch } from '../unit/test-fetch';
+import { moveAttendanceEarlier } from '../support/move-attendance-earlier';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -224,6 +225,7 @@ describe('clocking attendance', () => {
 		expect((await invoke('attendance_add', readersToken, { kind: 'clock_out' })).status).toBe(403);
 		expect((await invoke('attendance_add', departedToken, { kind: 'clock_out' })).status).toBe(403);
 		expect((await invoke('attendance_add', 'invalid-session', { kind: 'clock_out' })).status).toBe(401);
+		await moveAttendanceEarlier(client, memberID, 2);
 		const answered = await invoke('attendance_add', holdersToken, { kind: 'clock_out' });
 		expect(answered.status).toBe(200);
 		expect(answered.body).toMatchObject({
@@ -248,6 +250,36 @@ describe('clocking attendance', () => {
 		]);
 		expect(answers.map((answer) => answer.status).sort()).toEqual([200, 422]);
 		expect((await invoke('attendance_add', sessionToken, { kind: 'clock_out' })).status).toBe(200);
+	});
+
+	test('a press taken back is announced to nobody but its owner', async () => {
+		const originalFetch = globalThis.fetch;
+		const backgroundWork: Promise<unknown>[] = [];
+		const announcements: unknown[] = [];
+		globalThis.fetch = createMockFetch(async (input, options) => {
+			const url = new URL(input instanceof Request ? input.url : String(input));
+			if (url.pathname === '/functions/v1/announce-attendance') {
+				announcements.push(
+					input instanceof Request ? await input.clone().json() : JSON.parse(String(options?.body))
+				);
+				return Response.json({ told: 0, reached: 0 });
+			}
+			return originalFetch(input, options);
+		});
+		try {
+			const answered = await reach('/tools/attendance_add/invoke', sessionToken, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ input: { kind: 'clock_in' } })
+			}, (work) => backgroundWork.push(work));
+			expect(answered.status).toBe(200);
+			expect(answered.body).toMatchObject({ result: { status: 'removed' } });
+			await Promise.all(backgroundWork);
+			expect(announcements).toEqual([{ what: 'clock', colleagues: false }]);
+		} finally {
+			await Promise.all(backgroundWork);
+			globalThis.fetch = originalFetch;
+		}
 	});
 });
 
@@ -502,23 +534,23 @@ describe('the CRM this company keeps', () => {
 		expect(words.status).toBe(200);
 
 		const organization = await invoke('crm_organization_add', holdersToken, {
-			name: 'ABC상사',
+			name: '샘플상사',
 			types: ['customer'],
 			importance: 'high'
 		});
 		expect(organization.status).toBe(200);
-		expect(resultOf(organization).name).toBe('ABC상사');
+		expect(resultOf(organization).name).toBe('샘플상사');
 
 		const contact = await invoke('crm_contact_add', holdersToken, {
-			organizationHint: 'ABC상사',
+			organizationHint: '샘플상사',
 			name: '박예시',
 			email: 'yesi@example.com'
 		});
 		expect(contact.status).toBe(200);
 
 		const deal = await invoke('crm_opportunity_add', holdersToken, {
-			organizationHint: 'ABC상사',
-			title: 'ABC상사 도입',
+			organizationHint: '샘플상사',
+			title: '샘플상사 도입',
 			contactHint: 'yesi',
 			amountMinor: 18000000,
 			currencyCode: 'KRW'
@@ -529,7 +561,7 @@ describe('the CRM this company keeps', () => {
 	});
 
 	test('is read by a signed-in session and by a token alike', async () => {
-		const throughASession = await invoke('crm_organization_list', sessionToken, { query: 'ABC' });
+		const throughASession = await invoke('crm_organization_list', sessionToken, { query: '샘플상사' });
 		const throughAToken = await invoke('crm_opportunity_list', holdersToken, { stage: 'waiting' });
 
 		expect((resultOf(throughASession).organizations as unknown[]).length).toBe(1);
@@ -539,7 +571,7 @@ describe('the CRM this company keeps', () => {
 
 	test('changes a deal, then moves it, and the closing move settles what it was worth', async () => {
 		const changed = await invoke('crm_opportunity_update', holdersToken, {
-			opportunityHint: 'ABC상사 도입',
+			opportunityHint: '샘플상사 도입',
 			amountMinor: 20000000,
 			expectedCloseDate: '2026-09-30'
 		});
@@ -548,14 +580,14 @@ describe('the CRM this company keeps', () => {
 		expect(resultOf(changed).expectedCloseTimeZone).toBe('Asia/Seoul');
 
 		const moved = await invoke('crm_opportunity_move', holdersToken, {
-			opportunityHint: 'ABC상사 도입',
+			opportunityHint: '샘플상사 도입',
 			stage: 'review',
 			position: 1
 		});
 		expect(resultOf(moved).stage).toBe('review');
 
 		const closed = await invoke('crm_opportunity_move', holdersToken, {
-			opportunityHint: 'ABC상사 도입',
+			opportunityHint: '샘플상사 도입',
 			stage: 'done'
 		});
 		expect(resultOf(closed).stage).toBe('done');
@@ -576,7 +608,7 @@ describe('the CRM this company keeps', () => {
 
 	test('refuses a stage the record does not name, before anything is carried', async () => {
 		const answered = await invoke('crm_opportunity_move', holdersToken, {
-			opportunityHint: 'ABC상사 도입',
+			opportunityHint: '샘플상사 도입',
 			stage: 'negotiating'
 		});
 
@@ -605,8 +637,8 @@ describe('the CRM this company keeps', () => {
 
 	test('records an activity and lists it back against the deal', async () => {
 		const recorded = await invoke('crm_activity_save', holdersToken, {
-			organizationHint: 'ABC상사',
-			opportunityHint: 'ABC상사 도입',
+			organizationHint: '샘플상사',
+			opportunityHint: '샘플상사 도입',
 			title: '킥오프 미팅',
 			kind: 'meeting',
 			note: '요구사항을 들었다',
@@ -615,7 +647,7 @@ describe('the CRM this company keeps', () => {
 		expect(recorded.status).toBe(200);
 		expect(resultOf(recorded).content).toBe('요구사항을 들었다');
 
-		const listed = await invoke('crm_activity_list', holdersToken, { opportunityHint: 'ABC상사 도입' });
+		const listed = await invoke('crm_activity_list', holdersToken, { opportunityHint: '샘플상사 도입' });
 		const kept = resultOf(listed).activities as { title: string; kind: string }[];
 		expect(kept.map((activity) => activity.title)).toContain('킥오프 미팅');
 		expect(kept.map((activity) => activity.kind)).toContain('stage_change');
@@ -623,13 +655,13 @@ describe('the CRM this company keeps', () => {
 
 	test('says what an archive would take away, then takes it away', async () => {
 		const target = await preview('crm_opportunity_archive', holdersToken, {
-			opportunityHint: 'ABC상사 도입'
+			opportunityHint: '샘플상사 도입'
 		});
 		expect(target.status).toBe(200);
-		expect((target.body as { target: { title: string } }).target.title).toBe('ABC상사 도입');
+		expect((target.body as { target: { title: string } }).target.title).toBe('샘플상사 도입');
 
 		const archived = await invoke('crm_opportunity_archive', holdersToken, {
-			opportunityHint: 'ABC상사 도입'
+			opportunityHint: '샘플상사 도입'
 		});
 		expect(archived.status).toBe(200);
 
