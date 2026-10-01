@@ -1067,18 +1067,31 @@ begin
 
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
-  perform public.push_device_claim('web-push', laptop, '{"auth": "k"}'::jsonb);
+  begin
+    perform public.push_device_claim('web-push', laptop, '{"auth": "k"}'::jsonb);
+  exception when insufficient_privilege then
+    null;
+  end;
   reset role;
 
   select count(*) into rows_for_laptop from public.push_device where address = laptop;
   assert rows_for_laptop = 1, 'a browser answers to one member at a time, got ' || rows_for_laptop;
 
   select member_id into reached from public.push_device where address = laptop;
-  assert reached = mine,
-    'whoever signed in last owns the browser, or the previous member keeps getting notified on it';
+  assert reached = theirs, 'a device another member holds stays theirs until they release it';
 
-  raise notice 'push: signing in on a colleague''s browser takes it over rather than being refused';
-end $$$block$, 'push: signing in on a colleague''s browser takes it over rather than being refused');
+  update public.member set status = 'withdrawn' where id = theirs;
+  set local role authenticated;
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000ffff0001"}', true);
+  perform public.push_device_claim('web-push', laptop, '{"auth": "k"}'::jsonb);
+  reset role;
+
+  select member_id into reached from public.push_device where address = laptop;
+  assert reached = mine, 'a device whose holder has left is claimed by whoever signs in on it';
+  update public.member set status = 'active' where id = theirs;
+
+  raise notice 'push: a device is taken from nobody but a member who has left';
+end $$$block$, 'push: a device is taken from nobody but a member who has left');
 
 select lives_ok($block$do $$
 declare
