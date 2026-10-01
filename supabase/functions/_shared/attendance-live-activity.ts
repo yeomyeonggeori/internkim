@@ -1,3 +1,4 @@
+import type { ApnsKey } from './apns.ts';
 import type { SupabaseClient } from './service-client.ts';
 import {
 	sendLiveActivity,
@@ -37,6 +38,16 @@ export function activityChangesFor(
 	];
 }
 
+export function activityEndsWithNothingOnRecord(
+	devices: ActivityDevice[],
+	nowInSeconds: number
+): { device: ActivityDevice; change: AttendanceActivityChange }[] {
+	const state: AttendanceActivityState = { startedAt: nowInSeconds, earlierMinutes: 0, location: '' };
+	return devices
+		.filter((device) => device.kind === activityKind)
+		.map((device) => ({ device, change: { event: 'end', state } as AttendanceActivityChange }));
+}
+
 export async function showClockOnOwnPhones(
 	record: SupabaseClient,
 	memberID: string,
@@ -47,6 +58,26 @@ export async function showClockOnOwnPhones(
 	companyTimeZone: string
 ): Promise<number> {
 	if (!pushKeys.apns) return 0;
+	const listening = await activityDevicesOf(record, memberID);
+	if (listening.length === 0) return 0;
+
+	const earlierMinutes =
+		clocked.kind === 'clock_in' ? await minutesWorkedBefore(record, memberID, clocked, companyTimeZone) : 0;
+	return sendActivityChanges(record, activityChangesFor(clocked, listening, alert, earlierMinutes), pushKeys.apns, nowInSeconds);
+}
+
+export async function endActivityOnOwnPhones(
+	record: SupabaseClient,
+	memberID: string,
+	pushKeys: PushKeys,
+	nowInSeconds: number
+): Promise<number> {
+	if (!pushKeys.apns) return 0;
+	const listening = await activityDevicesOf(record, memberID);
+	return sendActivityChanges(record, activityEndsWithNothingOnRecord(listening, nowInSeconds), pushKeys.apns, nowInSeconds);
+}
+
+async function activityDevicesOf(record: SupabaseClient, memberID: string): Promise<ActivityDevice[]> {
 	const { data, error } = await record
 		.from('push_device')
 		.select('kind, address')
@@ -54,16 +85,18 @@ export async function showClockOnOwnPhones(
 		.in('kind', [activityStartKind, activityKind])
 		.returns<ActivityDevice[]>();
 	if (error) throw new Error(error.message);
+	return data ?? [];
+}
 
-	const listening = data ?? [];
-	if (listening.length === 0) return 0;
-
-	const earlierMinutes =
-		clocked.kind === 'clock_in' ? await minutesWorkedBefore(record, memberID, clocked, companyTimeZone) : 0;
-
+async function sendActivityChanges(
+	record: SupabaseClient,
+	changes: { device: ActivityDevice; change: AttendanceActivityChange }[],
+	key: ApnsKey,
+	nowInSeconds: number
+): Promise<number> {
 	let reached = 0;
-	for (const { device, change } of activityChangesFor(clocked, listening, alert, earlierMinutes)) {
-		const outcome = await sendLiveActivity(device.address, change, pushKeys.apns, nowInSeconds);
+	for (const { device, change } of changes) {
+		const outcome = await sendLiveActivity(device.address, change, key, nowInSeconds);
 		if (outcome === 'delivered') reached += 1;
 		if (outcome === 'gone' || change.event === 'end') await forgetActivityDevice(record, device);
 	}

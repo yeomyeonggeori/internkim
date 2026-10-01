@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { liveActivityPayload } from '../../../supabase/functions/_shared/apns-live-activity.ts';
-import { activityChangesFor } from '../../../supabase/functions/_shared/attendance-live-activity.ts';
-import { widgetRefreshPayload } from '../../../supabase/functions/_shared/attendance-widget-refresh.ts';
+import { activityChangesFor, activityEndsWithNothingOnRecord } from '../../../supabase/functions/_shared/attendance-live-activity.ts';
+import { widgetClockOf, widgetRefreshPayload } from '../../../supabase/functions/_shared/attendance-widget-refresh.ts';
 
 const alert = { title: '출근', body: '사무실 · 09:02' };
 const starter = { kind: 'apns-activity-start', address: 'start-token' };
@@ -63,6 +63,18 @@ describe('the Live Activity a clock leaves on its own phones', () => {
 	});
 });
 
+describe('the Live Activity once the only clock was taken back', () => {
+	test('ends the running one and never starts anything', () => {
+		expect(activityEndsWithNothingOnRecord([starter, running], 1789603330)).toEqual([
+			{ device: running, change: { event: 'end', state: { startedAt: 1789603330, earlierMinutes: 0, location: '' } } }
+		]);
+	});
+
+	test('asks nothing of a phone with none running', () => {
+		expect(activityEndsWithNothingOnRecord([starter], 1789603330)).toEqual([]);
+	});
+});
+
 describe('the Live Activity payload', () => {
 	const state = { startedAt: 1789603320, earlierMinutes: 0, location: '사무실' };
 
@@ -87,6 +99,11 @@ describe('the Live Activity payload', () => {
 });
 
 describe("the push that refreshes a member's own widgets", () => {
+	test('carries the newest clock, and a clock-out once nothing is on record', () => {
+		expect(widgetClockOf({ kind: 'clock_in' })).toBe('clock_in');
+		expect(widgetClockOf(null)).toBe('clock_out');
+	});
+
 	test('wakes the app without showing anything and says which clock it carries', () => {
 		expect(widgetRefreshPayload('clock_out')).toEqual({
 			aps: { 'content-available': 1 },
