@@ -217,9 +217,11 @@ CHATD_BOT_USER_NAME=<the bot's display name>
 ```
 
 The relay runs unprivileged and outlives the agent, so it reads neither that
-file nor the company directory. Its settings and its own copy of the agent key
-sit in `/etc/internkim/relay.env` and `/etc/internkim/agent-key`, and it is
-handed the key as a path, so rotating the file is enough for it.
+file nor the company directory. The company's four addresses and its own copy
+of the agent key sit in `/etc/internkim/relay.env` and `/etc/internkim/agent-key`,
+and it is handed the key as a path, so rotating the file is enough for it. Every
+socket, port and path the package decides is set by the relay's unit, so an
+upgrade that moves one moves the relay with it.
 
 Keys are never values in the environment. They live in `current/secrets/`:
 the agent key, the model key, and the Buzz identity seed, without which a

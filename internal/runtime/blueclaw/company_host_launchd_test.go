@@ -31,7 +31,7 @@ func environmentFilesForTest() map[string]string {
 		CompanyHostRelayMediaPath:   "BUZZ_S3_ACCESS_KEY=access\nBUZZ_S3_SECRET_KEY=secret\n",
 		CompanyHostMediaSecretPath:  "ROOT_ACCESS_KEY_ID=access\nROOT_SECRET_ACCESS_KEY=secret\n",
 		CompanyHostChatdSecretPath:  "CHATD_BUZZ_PRIVATE_KEY=private\n",
-		RelayEnvironmentFilePath:    "SUPABASE_URL=https://example.supabase.test\nMESSENGER_PLATFORM=buzz\n",
+		RelayEnvironmentFilePath:    "SUPABASE_URL=https://example.supabase.test\nINTERNKIM_APP_URL=https://example.test\n",
 	}
 }
 
@@ -118,6 +118,23 @@ func TestTheOperatorSettingsFileStillWinsOnAMac(t *testing.T) {
 		return
 	}
 	t.Fatal("no messenger daemon was rendered")
+}
+
+func TestTheRelayOnAMacIsPointedAtTheLayoutsSocketsWhateverItsFileSays(t *testing.T) {
+	layout := MacCompanyHostLayout(testHomebrewPrefix)
+	files := environmentFilesForTest()
+	files[RelayEnvironmentFilePath] += "ADMIND_SOCKET_PATH=/run/internkim/admind.sock\nBLUECLAW_ACP_SOCKET_PATH=/run/internkim/blueclaw-acp.sock\n"
+	relay, _ := CompanyHostServiceNamed(layout, RelayServiceName)
+	environment, errorValue := companyHostServiceEnvironment(relay, files)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if environment["ADMIND_SOCKET_PATH"] != layout.AdmindSocketPath() || environment["BLUECLAW_ACP_SOCKET_PATH"] != layout.ACPSocketPath() {
+		t.Fatalf("the relay's plist names admind at %s and blueclaw at %s", environment["ADMIND_SOCKET_PATH"], environment["BLUECLAW_ACP_SOCKET_PATH"])
+	}
+	if environment["WORKSPACE_ROOT_PATH"] != layout.WorkspacePath {
+		t.Fatalf("the relay's plist names the workspace %s and the agent works in %s", environment["WORKSPACE_ROOT_PATH"], layout.WorkspacePath)
+	}
 }
 
 // The messenger and the agent both read DATABASE_URL and they are not the same

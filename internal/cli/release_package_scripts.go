@@ -53,6 +53,7 @@ func postInstallBody(format linuxPackageFormat) string {
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
 		hostSetupLines(blueclaw.LinuxCompanyHostLayout().PythonSetupCommands()),
 		forgetTheDeviceUsersSync(``),
+		forgetThePackageSettingsInTheRelayFile(blueclaw.RelayEnvironmentFilePath),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
@@ -119,8 +120,24 @@ func postRemoveBody(format linuxPackageFormat) string {
 // The first release's admind wrote the device's users sync onto the company host,
 // where it fails every hour, and the package owns none of its three files.
 func forgetTheDeviceUsersSync(indentation string) string {
-	return indentation + `systemctl disable --now internkim-users-sync.timer internkim-users-sync.service >/dev/null 2>&1 || true` + "\n" +
-		indentation + `rm -f ` + strings.Join(deviceUsersSyncPaths(), " ")
+	unitNames := strings.Join(deviceUsersSyncUnitNames(), " ")
+	return indentation + `systemctl disable --now ` + unitNames + ` >/dev/null 2>&1 || true` + "\n" +
+		indentation + `rm -f ` + strings.Join(deviceUsersSyncPaths(), " ") + "\n" +
+		indentation + `systemctl reset-failed ` + unitNames + ` >/dev/null 2>&1 || true`
+}
+
+func deviceUsersSyncUnitNames() []string {
+	return []string{path.Base(blueclaw.InternKimUsersSyncTimerPath), path.Base(blueclaw.InternKimUsersSyncServicePath)}
+}
+
+func forgetThePackageSettingsInTheRelayFile(filePath string) string {
+	pattern := `'^(` + strings.Join(blueclaw.CompanyHostRelaySettingNames(), "|") + `)='`
+	return strings.Join([]string{
+		`if [ -f ` + filePath + ` ] && grep -q -E ` + pattern + ` ` + filePath + `; then`,
+		`  relay_settings=$(grep -v -E ` + pattern + ` ` + filePath + ` || true)`,
+		`  printf '%s\n' "$relay_settings" > ` + filePath,
+		`fi`,
+	}, "\n")
 }
 
 func deviceUsersSyncPaths() []string {

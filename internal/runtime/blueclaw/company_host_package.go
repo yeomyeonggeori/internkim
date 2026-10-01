@@ -178,7 +178,7 @@ func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 		if service.Name == RelayServiceName {
 			units = append(units, CompanyPackageUnit{
 				Name:     service.Name,
-				Contents: relayServiceUnit(layout.BinaryPath(RelayName), CompanyHostRelayStateDirectoryName),
+				Contents: relayServiceUnit(layout.BinaryPath(RelayName), CompanyHostRelayStateDirectoryName, companyHostRelaySettings(layout)),
 			})
 			continue
 		}
@@ -313,9 +313,7 @@ func writeSystemdEnvironment(unit *strings.Builder, source CompanyHostEnvironmen
 		unit.WriteString("EnvironmentFile=" + prefix + source.FilePath + "\n")
 		return
 	}
-	for _, value := range source.Settings {
-		unit.WriteString("Environment=" + value.Name + "=" + value.Value + "\n")
-	}
+	unit.WriteString(systemdEnvironmentLines(source.Settings))
 }
 
 // CompanyHostSettingsFile is the shipped conffile. Every value in it is the default

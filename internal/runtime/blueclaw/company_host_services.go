@@ -150,12 +150,35 @@ func companyHostRelayService(layout CompanyHostLayout) CompanyHostService {
 		Account:     RelayUserName,
 		Environment: []CompanyHostEnvironmentSource{
 			environmentFile(RelayEnvironmentFilePath),
-			environmentSettings(setting("RELAY_STATE_DIR", RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName))),
+			environmentSettings(companyHostRelaySettings(layout)...),
 		},
 		RestartAfterSeconds:      30,
 		RestartsEvenOnACleanExit: true,
 		WaitsForTheFileAtPath:    RelayEnvironmentFilePath,
 	}
+}
+
+func companyHostRelaySettings(layout CompanyHostLayout) []EnvironmentSetting {
+	return []EnvironmentSetting{
+		setting("RELAY_STATE_DIR", RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName)),
+		setting("MESSENGER_PLATFORM", BlueclawMessengerPlatform),
+		setting("AGENT_API_KEY_PATH", RelayAgentKeyPath),
+		setting("CHATD_BASE_URL", CompanyHostChatdEndpoint),
+		setting("ADMIND_BASE_URL", "http://"+CompanyHostAdmindListenAddress),
+		setting("ADMIND_SOCKET_PATH", layout.AdmindSocketPath()),
+		setting("BLUECLAW_ACP_SOCKET_PATH", layout.ACPSocketPath()),
+		setting("WORKSPACE_ROOT_PATH", layout.WorkspacePath),
+	}
+}
+
+// systemd.exec(5): "Settings from these files override settings made with
+// Environment=", whatever order the two are written in.
+func CompanyHostRelaySettingNames() []string {
+	names := []string{}
+	for _, value := range companyHostRelaySettings(LinuxCompanyHostLayout()) {
+		names = append(names, value.Name)
+	}
+	return names
 }
 
 func companyHostPrepareService(layout CompanyHostLayout) CompanyHostService {
