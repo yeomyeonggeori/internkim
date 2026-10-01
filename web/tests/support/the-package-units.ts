@@ -4,9 +4,10 @@ import { basename, join } from 'node:path';
 const servicesPath = join(import.meta.dir, '..', '..', '..', '.local', 'company-plane', 'services.json');
 
 type AStartedService = { name: string; arguments: string[] };
-type AFlag = { name: string; value: string };
+type AFlag = { name: string; value: string; isJoinedToItsValue: boolean };
 
 const flagName = /^--?[A-Za-z][A-Za-z0-9-]*$/;
+const flagJoinedToItsValue = /^(--?[A-Za-z][A-Za-z0-9-]*)=(.*)$/;
 
 function theServices(): AStartedService[] {
 	if (!existsSync(servicesPath)) {
@@ -24,12 +25,20 @@ function theFlagsThatStart(program: string): AFlag[] {
 	if (!service) throw new Error(`the package's units start no ${program}`);
 	const [, ...rest] = service.arguments;
 	const flags: AFlag[] = [];
-	for (let index = 0; index < rest.length; index += 2) {
+	let index = 0;
+	while (index < rest.length) {
+		const joined = flagJoinedToItsValue.exec(rest[index]);
+		if (joined) {
+			flags.push({ name: joined[1], value: joined[2], isJoinedToItsValue: true });
+			index += 1;
+			continue;
+		}
 		const name = rest[index];
 		const value = rest[index + 1];
 		if (!flagName.test(name)) refuse(program, `with a bare ${name} that follows no flag`);
 		if (value === undefined || flagName.test(value)) refuse(program, `with ${name} and no value`);
-		flags.push({ name, value });
+		flags.push({ name, value, isJoinedToItsValue: false });
+		index += 2;
 	}
 	return flags;
 }
@@ -39,7 +48,8 @@ export function theArgumentsThatStart(
 	shared: Record<string, string>,
 	sandboxOnly: Record<string, string> = {}
 ): string[] {
-	const started = theFlagsThatStart(program).map((flag) => flag.name);
+	const startedFlags = theFlagsThatStart(program);
+	const started = startedFlags.map((flag) => flag.name);
 	for (const name of Object.keys(shared)) {
 		if (started.includes(name)) continue;
 		throw new Error(`this sandbox starts ${program} with ${name} as if the package did, and it does not`);
@@ -51,7 +61,7 @@ export function theArgumentsThatStart(
 				`give it the package's value rather than a sandbox-only one`
 		);
 	}
-	const fromThePackage = started.flatMap((name) => {
+	const fromThePackage = startedFlags.flatMap(({ name, isJoinedToItsValue }) => {
 		const value = shared[name];
 		if (value === undefined) {
 			throw new Error(
@@ -59,7 +69,7 @@ export function theArgumentsThatStart(
 					`so the plane it brings up is not the plane a company runs`
 			);
 		}
-		return [name, value];
+		return isJoinedToItsValue ? [`${name}=${value}`] : [name, value];
 	});
 	return [...fromThePackage, ...Object.entries(sandboxOnly).flat()];
 }
