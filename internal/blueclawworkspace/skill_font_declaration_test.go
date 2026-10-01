@@ -34,7 +34,7 @@ import os
 import sys
 from unittest import mock
 
-THIRD_PARTY_ROOTS = {"docx", "docxtpl", "fpdf", "openpyxl", "pandas", "PIL", "pptx", "pypdf", "pypdfium2", "xlcalculator"}
+THIRD_PARTY_ROOTS = {"docx", "docxtpl", "fpdf", "openpyxl", "PIL", "pptx", "pypdf", "pypdfium2"}
 
 
 class ThirdPartyStubFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):

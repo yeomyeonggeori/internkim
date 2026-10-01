@@ -4,11 +4,7 @@ package blueclaw
 // the two together name the interpreter's bytes. It is the host's only Python:
 // a requester's `python3`, every skill environment built on it, and the
 // conversion environment capabilityd runs.
-//
-// The office skill's xlcalculator holds numpy below 2 through yearfrac, and
-// numpy 1.26 publishes no wheel for CPython 3.13 or later, so on 3.13 the
-// skill installs only on a machine with a C compiler.
-const HostPythonVersion = "3.12.13"
+const HostPythonVersion = "3.13.13"
 
 const documentModulesTheConversionImports = "import plistlib, platform, xml.etree.ElementTree, " +
 	"anydoc, bs4, markdownify, pypdf, pypdfium2"

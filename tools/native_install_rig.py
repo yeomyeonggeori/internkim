@@ -53,7 +53,7 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "import plistlib, platform, xml.etree.ElementTree, "
     "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
-HOST_PYTHON_VERSION = "3.12.13"
+HOST_PYTHON_VERSION = "3.13.13"
 DOCUMENT_ENVIRONMENT_PATHS = ("/opt/internkim/python", "/opt/internkim/document-venv")
 HOST_PYTHON_PATH = DOCUMENT_ENVIRONMENT_PATHS[0] + "/bin/python3"
 OFFICE_COMMAND_PATH = "/opt/internkim/skills/office/scripts/office"
