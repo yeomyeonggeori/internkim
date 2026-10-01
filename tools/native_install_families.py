@@ -7,11 +7,10 @@ about an installed package, and how a package is removed. Nothing here decides
 what a correct install looks like.
 """
 
-import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
-from native_install_rig import ARCHITECTURE, BOOTSTRAP_SCRIPT, DISTRIBUTIONS, MACHINE_NAME, PACKAGE_NAME
+from native_install_rig import ARCHITECTURE, BOOTSTRAP_SCRIPT, DISTRIBUTIONS, PACKAGE_NAME, asset_name
 
 PRESENT_MARKER = "internkim-is-present"
 
@@ -56,39 +55,28 @@ ARCH_BOOTSTRAP = "\n".join(
 class Family:
     name: str
     image: str
-    package_pattern: str
+    suffix: str
     bootstrap: str
     tools_command: str
     installed_status_command: str
     installed_answer: str
+    version_command: str
     verify_command: str
     files_command: str
     remove_command: str
     package_manager: str
     unit_directories: tuple
-    repository_format: str
-    policy_command: str
-    policy_answer: str
-    signature_command: str
-    signature_answer: str
-    reset_command: str
-    install_command: str
-    metadata_tampering: tuple
     verify_ignored_lines: tuple = ("backup file",)
 
+    @property
+    def asset_name(self):
+        return asset_name(self.suffix)
+
     def package_in(self, directory):
-        found = sorted(
-            path for path in Path(directory).iterdir() if fnmatch.fnmatch(path.name, self.package_pattern)
-        )
-        return found[-1] if found else None
+        path = Path(directory) / self.asset_name
+        return path if path.is_file() else None
 
 
-RPM_SIGNATURE_COMMAND = (
-    f"rpm -q --qf '%{{RSAHEADER:pgpsig}}\\n' {PACKAGE_NAME}; rm -rf /tmp/downloaded; "
-    f"(dnf download --destdir /tmp/downloaded {PACKAGE_NAME} "
-    f"|| dnf reinstall -y --downloadonly --downloaddir /tmp/downloaded {PACKAGE_NAME}) >/dev/null 2>&1; "
-    "rpm -K /tmp/downloaded/*.rpm"
-)
 DEBIAN_TOOLS = "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq iproute2 procps"
 
 
@@ -96,29 +84,17 @@ def debian_family(name):
     return Family(
         name=name,
         image=DISTRIBUTIONS[name],
-        package_pattern=f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb",
+        suffix=".deb",
         bootstrap=BOOTSTRAP_SCRIPT,
         tools_command=DEBIAN_TOOLS,
         installed_status_command=f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}",
         installed_answer="install ok installed",
+        version_command=f"dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}",
         verify_command=f"dpkg --verify {PACKAGE_NAME}",
         files_command=f"dpkg-query -L {PACKAGE_NAME}",
         remove_command=f"export DEBIAN_FRONTEND=noninteractive; apt-get remove -y {PACKAGE_NAME}",
         package_manager="apt-get",
         unit_directories=("/lib/systemd/system", "/usr/lib/systemd/system"),
-        repository_format="deb",
-        policy_command="cat /etc/apt/sources.list.d/internkim.sources",
-        policy_answer="Signed-By: /usr/share/keyrings/internkim-archive-keyring.pgp",
-        signature_command=f"apt-cache policy {PACKAGE_NAME}",
-        signature_answer="/deb stable/main",
-        reset_command="apt-get clean; rm -rf /var/lib/apt/lists/*",
-        install_command=f"export DEBIAN_FRONTEND=noninteractive; apt-get update && apt-get install -y {PACKAGE_NAME}",
-        metadata_tampering=(
-            (
-                ("deb/dists/stable/InRelease", b"Origin: InternKim", b"Origin: InternKiM", False),
-                ("deb/dists/stable/Release", b"Origin: InternKim", b"Origin: InternKiM", False),
-            ),
-        ),
     )
 
 
@@ -126,24 +102,17 @@ def rpm_family(name, image, bootstrap):
     return Family(
         name=name,
         image=image,
-        package_pattern=f"{PACKAGE_NAME}-*.{MACHINE_NAME}.rpm",
+        suffix=".rpm",
         bootstrap=bootstrap,
         tools_command="dnf install -y -q iproute procps-ng",
         installed_status_command=f"rpm -q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
         installed_answer=PRESENT_MARKER,
+        version_command=f"rpm -q --qf '%{{VERSION}}' {PACKAGE_NAME}",
         verify_command=f"rpm -V {PACKAGE_NAME}",
         files_command=f"rpm -ql {PACKAGE_NAME}",
         remove_command=f"dnf remove -y {PACKAGE_NAME}",
         package_manager="dnf",
         unit_directories=("/usr/lib/systemd/system",),
-        repository_format="rpm",
-        policy_command="grep -E '^(repo_)?gpgcheck=' /etc/yum.repos.d/internkim.repo",
-        policy_answer="repo_gpgcheck=1",
-        signature_command=RPM_SIGNATURE_COMMAND,
-        signature_answer="digests signatures OK",
-        reset_command="dnf clean all",
-        install_command=f"dnf install -y {PACKAGE_NAME}",
-        metadata_tampering=(((f"rpm/stable/{MACHINE_NAME}/repodata/repomd.xml", b"<revision>", b"<revision>9", False),),),
     )
 
 
@@ -156,25 +125,18 @@ FAMILIES = {
         Family(
             name="archlinux",
             image="lopsided/archlinux:latest",
-            package_pattern=f"{PACKAGE_NAME}-*-{MACHINE_NAME}.pkg.tar.zst",
+            suffix=".pkg.tar.zst",
             bootstrap=ARCH_BOOTSTRAP,
             tools_command="pacman -S --noconfirm --needed iproute2 procps-ng",
             installed_status_command=f"pacman -Q {PACKAGE_NAME} && echo {PRESENT_MARKER}",
             installed_answer=PRESENT_MARKER,
+            version_command=f"pacman -Q {PACKAGE_NAME} | cut -d ' ' -f 2 | sed 's/-[0-9]*$//'",
             verify_command=f"pacman -Qkk {PACKAGE_NAME}",
             files_command=f"pacman -Qlq {PACKAGE_NAME}",
             remove_command=f"pacman -R --noconfirm {PACKAGE_NAME}",
             package_manager="pacman",
             unit_directories=("/usr/lib/systemd/system",),
             verify_ignored_lines=("backup file", " total files, 0 altered files"),
-            repository_format="archlinux",
-            policy_command="grep -A1 '^\\[internkim\\]' /etc/pacman.conf",
-            policy_answer="SigLevel = Required",
-            signature_command=f"pacman -Qi {PACKAGE_NAME} | grep '^Validated By'",
-            signature_answer="Signature",
-            reset_command=f"rm -f /var/cache/pacman/pkg/{PACKAGE_NAME}-*",
-            install_command=f"pacman -Syy --noconfirm && pacman -S --needed --noconfirm {PACKAGE_NAME}",
-            metadata_tampering=(((f"arch/stable/{MACHINE_NAME}/internkim.db", b"%NAME%\ninternkim", b"%NAME%\ninternkiM", True),),),
         ),
     )
 }

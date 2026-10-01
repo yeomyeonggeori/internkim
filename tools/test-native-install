@@ -3,7 +3,7 @@
 
 The rig boots one disposable arm64 guest, Debian 13, Ubuntu 22.04 or Ubuntu 24.04,
 with nothing of ours on it,
-serves an apt repository from this Mac, runs the install, and then reads the
+serves a release from this Mac the way GitHub serves one, runs the install, and then reads the
 guest's own state: dpkg's database, systemd's, the filesystem. Nothing here
 judges a transcript of what the install printed.
 
@@ -13,7 +13,6 @@ judges a transcript of what the install printed.
 import argparse
 import contextlib
 import json
-import shutil
 import sys
 import tempfile
 import time
@@ -23,28 +22,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_rig import (  # noqa: E402
-    APT_SOURCE_PATH,
     ARCHITECTURE,
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
     DOCUMENT_ENVIRONMENT_PATHS,
     DOCUMENT_INTERPRETER_VERSION,
     DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
-    COMPONENT,
     CONFFILE_EDIT,
     CONFFILE_PATH,
     KERNEL_IMAGE_PATH,
     RUNTIME_KERNEL,
-    KEYRING_NAME,
     READINESS_PROBES,
-    REPOSITORY_PREFIX,
     REVISION_PROBE,
     CONFIGURATION_DIRECTORY,
-    KEYRING_PATH,
     PACKAGE_NAME,
     PRESEEDED_PACKAGES,
     STATE_DIRECTORY,
-    SUITE,
     COMPANY_CONDITION_PATH,
     MESSENGER_BRIDGE,
     MESSENGER_DATABASE_PATH,
@@ -57,11 +50,13 @@ from native_install_rig import (  # noqa: E402
     RigFailure,
     a_docx_saying,
     a_pdf_saying,
+    asset_name,
     build_stand_in_package,
     capabilityd_argument,
     read_through_capabilityd,
     dependency_names,
     package_fields,
+    write_release_directory,
 )
 
 
@@ -123,9 +118,6 @@ find / -xdev \
 """
 
 UNOWNED_BY_DESIGN = [
-    (APT_SOURCE_PATH, "the file that teaches apt about the package cannot be shipped by that package (plan §6)"),
-    (KEYRING_PATH, "same: the key that verifies the package is installed before it"),
-    ("/etc/apt/keyrings", "the directory the keyring may land in"),
     ("/etc/systemd/system/multi-user.target.wants", "systemd's enable symlinks; dpkg never owns them"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
     *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
@@ -256,9 +248,6 @@ class Rig:
         self.machine = None
         self.release = None
         self.working_directory = None
-        self.base_url = None
-        self.repository_url = None
-        self.keyring_url = None
         self.installed_version = None
         self.dependencies = []
         self.plane = None
@@ -273,30 +262,27 @@ class Rig:
 
     # ------------------------------------------------------------------ setup
 
-    def packages_under_test(self):
+    def releases_under_test(self):
+        """The release to upgrade from, when there is one, then the release under test."""
         if self.options.stand_in:
             directory = self.working_directory / "stand-in"
             return [
-                build_stand_in_package(directory, "0.0.0+standin1", "standinrevision1"),
-                build_stand_in_package(directory, "0.0.0+standin2", "standinrevision2"),
+                write_release_directory(
+                    directory / version, build_stand_in_package(directory / "packages", version, revision)
+                )
+                for version, revision in (("0.0.0+standin1", "standinrevision1"), ("0.0.0+standin2", "standinrevision2"))
             ]
-        directory = Path(self.options.package_directory)
-        if not directory.is_absolute():
-            directory = Path.cwd() / directory
-        found = sorted(directory.glob(f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb")) if directory.exists() else []
-        return found
+        directories = [self.options.older_package_directory, self.options.package_directory]
+        return [
+            Path(directory).resolve()
+            for directory in directories
+            if directory and (Path(directory) / asset_name(".deb")).is_file()
+        ]
 
-    def prepare_release(self, packages):
+    def prepare_release(self, release_directory):
         self.release = Release(self.working_directory / "release")
-        self.release.directory.mkdir(parents=True, exist_ok=True)
-        self.release.generate_signing_key()
-        shutil.copyfile(
-            Path(__file__).resolve().parent.parent / "web" / "static" / "install.sh",
-            self.release.directory / "install.sh",
-        )
-        self.release.publish(packages[0])
-        port = self.release.serve()
-        return port
+        self.release.publish(release_directory)
+        return self.release.serve()
 
     def start_machine(self):
         share = self.working_directory / "share"
@@ -307,10 +293,6 @@ class Rig:
         self.machine.preflight()
         self.machine.create()
         self.machine.wait_until_running()
-        gateway = self.machine.host_gateway()
-        self.base_url = f"http://{gateway}:{self.release.port}"
-        self.repository_url = f"{self.base_url}/{REPOSITORY_PREFIX}"
-        self.keyring_url = f"{self.repository_url}/{KEYRING_NAME}"
 
     def install_declared_dependencies(self, package_path):
         """Bring the guest to a machine that already satisfies `Depends:`.
@@ -341,12 +323,7 @@ class Rig:
         return set(self.machine.checked_shell(SNAPSHOT_COMMAND).stdout.splitlines())
 
     def run_step_one(self, step):
-        one_liner = (
-            f"set -eu\n"
-            f"export INTERNKIM_INSTALL_BASE_URL={self.base_url}\n"
-            f"curl -fsSL {self.base_url}/install.sh | sh -s -- host\n"
-        )
-        attempt = self.machine.shell(one_liner)
+        attempt = self.machine.shell(self.release.install_line(self.machine.host_gateway()))
         installed = self.machine.shell(f"dpkg-query -W -f '${{Status}}' {PACKAGE_NAME}")
         reached = installed.returncode == 0 and "install ok installed" in installed.stdout
 
@@ -366,20 +343,10 @@ class Rig:
 
         self.machine.checked_shell(
             f"set -eu\n"
-            f"install -d -m 0755 /usr/share/keyrings\n"
-            f"curl -fsSL {self.keyring_url} -o {KEYRING_PATH}\n"
-            f"chmod 0644 {KEYRING_PATH}\n"
-            f"cat > {APT_SOURCE_PATH} <<'SOURCE'\n"
-            f"Types: deb\n"
-            f"URIs: {self.repository_url}\n"
-            f"Suites: {SUITE}\n"
-            f"Components: {COMPONENT}\n"
-            f"Architectures: {ARCHITECTURE}\n"
-            f"Signed-By: {KEYRING_PATH}\n"
-            f"SOURCE\n"
+            f"curl -fsSL {self.release.download_url(self.machine.host_gateway())}/{asset_name('.deb')} -o /tmp/{asset_name('.deb')}\n"
             f"export DEBIAN_FRONTEND=noninteractive\n"
             f"apt-get update\n"
-            f"apt-get install -y {PACKAGE_NAME}\n"
+            f"apt-get install -y /tmp/{asset_name('.deb')}\n"
         )
         return False
 
@@ -404,49 +371,16 @@ class Rig:
             "reads the files on disk",
         ).record(verified.returncode == 0 and not verified.stdout.strip(), verified.stdout.strip() or "no differences")
 
-        source = self.machine.shell(f"cat {APT_SOURCE_PATH}")
-        fields = dict(
-            (line.split(":", 1)[0].strip(), line.split(":", 1)[1].strip())
-            for line in source.stdout.splitlines()
-            if ":" in line
-        )
-        signed_by = fields.get("Signed-By", "")
-        keyring = self.machine.shell(f"test -s {signed_by} && echo present")
-        step.observe(
-            "the apt source is deb822 and names a keyring that is there",
-            f"the text of {APT_SOURCE_PATH} and a stat of the path its Signed-By names",
-            "the rig substitutes the URI for a local one and nothing else, so the Types/Suites/"
-            "Components/Signed-By shape it reads is the shape the real source will have",
-        ).record(
-            source.returncode == 0
-            and {"Types", "URIs", "Suites", "Components", "Signed-By"} <= set(fields)
-            and signed_by == KEYRING_PATH
-            and "present" in keyring.stdout,
-            source.stdout.strip(),
-        )
-
-        legacy = self.machine.shell(
-            "ls /etc/apt/trusted.gpg /etc/apt/trusted.gpg.d/*internkim* 2>/dev/null | head; true"
+        left = self.machine.shell(
+            "ls /etc/apt/sources.list.d /etc/apt/keyrings /usr/share/keyrings /etc/apt/trusted.gpg.d 2>/dev/null "
+            "| grep -i internkim; ls /etc/apt/trusted.gpg 2>/dev/null; true"
         )
         step.observe(
-            "no key was added the way Debian forbids",
-            "the contents of /etc/apt/trusted.gpg and /etc/apt/trusted.gpg.d",
-            "apt-key puts a key where it signs every repository, not just ours; the absence of "
-            "those files is the only way to see it was not used",
-        ).record(not legacy.stdout.strip(), legacy.stdout.strip() or "neither exists")
-
-        policy = self.machine.shell(f"apt-get update 2>&1 | tail -20; apt-cache policy {PACKAGE_NAME}")
-        step.observe(
-            "apt itself accepts the repository's signature",
-            f"`apt-get update` output and `apt-cache policy {PACKAGE_NAME}` naming our URI as a candidate",
-            "apt refuses an unsigned or wrongly-signed repository by default, so a candidate "
-            "appearing here is apt's own verdict on the keyring, not ours",
-            ).record(
-            "NO_PUBKEY" not in policy.stdout
-            and "not signed" not in policy.stdout
-            and self.base_url in policy.stdout,
-            policy.stdout.strip()[-800:],
-        )
+            "the install left no apt source and no key behind",
+            "/etc/apt/sources.list.d, both keyring directories, /etc/apt/trusted.gpg and trusted.gpg.d",
+            "the package arrives as a file apt installs and a re-run of the line is the upgrade, so a "
+            "source or key here would be a second way in that nothing maintains",
+        ).record(not left.stdout.strip(), left.stdout.strip() or "nothing of ours")
 
         satisfied = self.machine.shell(DEPENDENCY_SATISFACTION_COMMAND % " ".join(self.dependencies or ["true"]))
         provided = [line.split(None, 1)[1] for line in satisfied.stdout.split("\n") if line.startswith("PROVIDED ")]
@@ -586,29 +520,24 @@ class Rig:
             unexplained.append(path)
         return unexplained
 
-    def run_step_three(self, step, packages):
-        if len(packages) < 2:
+    def run_step_three(self, step, releases):
+        if len(releases) < 2:
             return step.block(
-                f"an upgrade needs two versions of {PACKAGE_NAME} to move between; "
-                f"{len(packages)} was found"
+                f"an upgrade needs two releases of {PACKAGE_NAME} to move between; "
+                f"{len(releases)} was given (--older-package-directory names the earlier one)"
             )
-        self.release.publish(packages[1])
-        newer = package_fields(packages[1])["Version"]
+        self.release.publish(releases[1])
+        newer = package_fields(releases[1] / asset_name(".deb"))["Version"]
 
-        candidate = self.machine.shell(f"apt-get update >/dev/null 2>&1; apt-cache policy {PACKAGE_NAME}")
-        step.observe(
-            "apt sees the newer version as the candidate",
-            f"`apt-cache policy {PACKAGE_NAME}` after the repository gained a version",
-            "the repository's Packages file having a new stanza says the index was written; the "
-            "candidate line says apt read and preferred it",
-        ).record(f"Candidate: {newer}" in candidate.stdout, candidate.stdout.strip()[-400:])
-
+        gateway = self.machine.host_gateway()
         upgraded = self.machine.shell(
-            "export DEBIAN_FRONTEND=noninteractive\napt-get upgrade -y </dev/null 2>&1 | tail -25"
+            f"set -eu\nexport INTERNKIM_INSTALL_RELEASE_URL={self.release.download_url(gateway)}\n"
+            f"curl -fsSL http://{gateway}:{self.release.port}/install.sh -o /tmp/install.sh\n"
+            "sh /tmp/install.sh host </dev/null 2>&1 | tail -25\n"
         )
         step.observe(
-            "the upgrade finished without asking the administrator a question",
-            "apt's output for a conffile prompt, with stdin closed as an unattended run has it",
+            "running the line again upgraded without asking the administrator a question",
+            "install.sh's output for a conffile prompt, with stdin closed as an unattended run has it",
             "a package that reships a configuration file the administrator edited stops dpkg at a "
             "prompt, and an unattended upgrade then halts half-configured with the old process "
             "still serving; DEBIAN_FRONTEND=noninteractive does not prevent it",
@@ -620,8 +549,8 @@ class Rig:
         recorded = self.machine.shell(f"dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}")
         step.observe(
             "dpkg records the newer version",
-            f"`dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}` after `apt-get upgrade`",
-            "apt printing 'upgraded 1' is apt's account of its own run; dpkg's version field is "
+            f"`dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}` after the line ran again",
+            "install.sh exiting 0 is its account of its own run; dpkg's version field is "
             "the machine's",
         ).record(recorded.stdout.strip() == newer, recorded.stdout.strip())
 
@@ -1005,7 +934,11 @@ def main():
     parser.add_argument(
         "--package-directory",
         default=str(DEFAULT_PACKAGE_DIRECTORY),
-        help="where the .deb files under test are (default: %(default)s)",
+        help="the release under test, as `internkim release packages` writes it (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--older-package-directory",
+        help="a release built from an earlier commit; it is installed first and step 3 upgrades from it",
     )
     parser.add_argument(
         "--stand-in",
@@ -1037,11 +970,11 @@ def main():
     # deleted cannot be driven: every command the rig runs is a script it writes there.
     with kept_or_temporary_directory(options.keep) as temporary:
         rig.working_directory = Path(temporary)
-        packages = rig.packages_under_test()
-        if not packages:
+        releases = rig.releases_under_test()
+        if not releases:
             print(
                 f"✗ native install rig\n"
-                f"    No {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}.\n"
+                f"    No {asset_name('.deb')} under {options.package_directory}.\n"
                 f"    Build it with `internkim release packages --format deb --architecture {ARCHITECTURE}`.\n"
                 f"    To exercise the rig itself against a stand-in, pass --stand-in.",
                 file=sys.stderr,
@@ -1049,15 +982,15 @@ def main():
             return 1
 
         print(f"the machine: {ARCHITECTURE} {options.distribution}, named {options.name}")
-        print(f"under test:  {', '.join(path.name for path in packages)}")
+        print(f"under test:  {', '.join(str(directory) for directory in releases)}")
         print(f"pre-seeded:  {', '.join(PRESEEDED_PACKAGES)}, then the package's own Depends:")
         print()
 
         try:
-            rig.package_under_test = packages[0]
-            rig.prepare_release(packages)
+            rig.package_under_test = releases[0] / asset_name(".deb")
+            rig.prepare_release(releases[0])
             rig.start_machine()
-            rig.dependencies = rig.install_declared_dependencies(packages[0])
+            rig.dependencies = rig.install_declared_dependencies(rig.package_under_test)
             baseline = rig.snapshot()
 
             step_one = rig.step(1, "one command installs the company host")
@@ -1087,8 +1020,8 @@ def main():
                 rig.observe_the_member_round_trip(step_five, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
 
-            step_three = rig.step(3, "apt upgrade moves it to a newer version")
-            rig.run_step_three(step_three, packages)
+            step_three = rig.step(3, "running the line again moves it to a newer release")
+            rig.run_step_three(step_three, releases)
 
             if not options.stand_in and not options.without_company:
                 rig.observe_the_processes_moved(
