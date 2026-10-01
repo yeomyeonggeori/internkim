@@ -45,6 +45,7 @@ export type CompanyRecordDeleteInput = { recordHint?: string };
 export type CompanyRecordListInput = { category?: string; query?: string };
 
 export type DataRoomDocumentInput = {
+	categoryCode?: string;
 	clearance?: number;
 	domain?: string;
 	date?: string;
@@ -75,6 +76,7 @@ export type CompanyDocumentUpdateInput = DataRoomDocumentInput & {
 };
 
 export type CompanyDocumentListInput = {
+	categoryCode?: string;
 	type?: string;
 	counterpart?: string;
 	query?: string;
@@ -82,7 +84,7 @@ export type CompanyDocumentListInput = {
 	clearance?: number;
 };
 
-export type CompanyDocumentUploadInput = { clearance?: number; sha256?: string; fileName?: string };
+export type CompanyDocumentUploadInput = { categoryCode?: string; clearance?: number; sha256?: string; fileName?: string };
 
 export type CompanyDocumentDownloadInput = {
 	documentHint?: string;
@@ -105,7 +107,7 @@ const metricColumns =
 	'id, metric, year, quarter, month, value, currency_code, value_usd, unit, note, updated_at';
 const recordColumns = 'id, category, record_date, title, detail, attributes, updated_at';
 const documentColumns =
-	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, issued_at, clearance, domain, document_date, period, status, supersedes, sha256, tags, storage_path, published_from, published_at, published_by';
+	'id, document_number, kind, document_type, title, counterpart, language, file_path, summary, requester_id, issued_at, category_code, clearance, domain, document_date, period, status, supersedes, sha256, tags, storage_path, published_from, published_at, published_by';
 
 const documentNumberPrefixes: Record<string, string> = {
 	'quote': 'Q',
@@ -167,6 +169,7 @@ type DocumentRow = {
 	requester_id: string | null;
 	issued_at: string;
 	clearance: number;
+	category_code: string | null;
 	domain: string | null;
 	document_date: string | null;
 	period: string | null;
@@ -221,6 +224,7 @@ function answeredDocument(row: DocumentRow): CompanyDocumentResult {
 		summary: row.summary,
 		requesterID: row.requester_id,
 		issuedAt: row.issued_at,
+		categoryCode: row.category_code,
 		clearance: row.clearance,
 		domain: row.domain,
 		date: row.document_date,
@@ -587,7 +591,8 @@ export async function companyDocumentRegister(
 		summary: orNull(input.summary),
 		requester_id: context.requesterID,
 		issued_at: context.now.toISOString(),
-		...(await dataRoomChangeOf(context, input, orNull(input.domain)))
+		...(await dataRoomChangeOf(context, input, orNull(input.domain))),
+		category_code: input.categoryCode ?? (input.domain || input.clearance !== undefined ? null : 'X')
 	};
 
 	for (let attempt = 0; attempt < documentNumberAttempts; attempt += 1) {
@@ -620,7 +625,7 @@ export async function companyDocumentUpdate(
 ): Promise<CompanyDocumentResult> {
 	const held = await companyDocumentOfHint(context, input.documentHint ?? '');
 	const domain = orNull(input.domain) ?? held.domain;
-	const change: Record<string, unknown> = await dataRoomChangeOf(context, input, domain);
+	const change: Record<string, unknown> = await dataRoomChangeOf(context, input, domain, held.category_code);
 	if (orNull(input.title)) change.title = input.title?.trim();
 	if (orNull(input.counterpart)) change.counterpart = input.counterpart?.trim();
 	if (orNull(input.filePath)) change.file_path = input.filePath?.trim();
@@ -651,6 +656,8 @@ export async function companyDocumentList(
 	const domain = orNull(input.domain);
 	const clearance = input.clearance === undefined ? undefined : clearanceOf(input.clearance);
 	const kept = (await documentRows(context))
+		.filter((row) => !input.categoryCode || row.category_code === input.categoryCode
+			|| (input.categoryCode.length === 1 && row.category_code?.startsWith(input.categoryCode)))
 		.filter((row) => !documentType || row.document_type === documentType)
 		.filter((row) => !counterpart || (row.counterpart ?? '').toLowerCase().includes(counterpart))
 		.filter((row) => !domain || row.domain === domain)
@@ -710,9 +717,11 @@ function tagsOf(tags: string[]): string[] {
 async function dataRoomChangeOf(
 	context: RecordContext,
 	input: DataRoomDocumentInput,
-	domain: string | null
+	domain: string | null,
+	categoryCode: string | null = null
 ): Promise<Record<string, unknown>> {
 	const change: Record<string, unknown> = {};
+	if (input.categoryCode !== undefined) change.category_code = input.categoryCode;
 	if (input.clearance !== undefined) change.clearance = clearanceOf(input.clearance);
 	if (orNull(input.domain)) change.domain = input.domain?.trim();
 	if (orNull(input.date)) change.document_date = input.date?.trim();
@@ -722,7 +731,7 @@ async function dataRoomChangeOf(
 	if (input.tags !== undefined) change.tags = tagsOf(input.tags);
 	if (orNull(input.storagePath)) change.storage_path = input.storagePath?.trim();
 	if (orNull(input.supersedesHint)) {
-		change.supersedes = (await supersededDocumentOfHint(context, input.supersedesHint ?? '', domain)).id;
+		change.supersedes = (await supersededDocumentOfHint(context, input.supersedesHint ?? '', domain, input.categoryCode ?? categoryCode)).id;
 	}
 	return change;
 }
@@ -730,14 +739,16 @@ async function dataRoomChangeOf(
 async function supersededDocumentOfHint(
 	context: RecordContext,
 	hint: string,
-	domain: string | null
+	domain: string | null,
+	categoryCode: string | null
 ): Promise<DocumentRow> {
-	const inTheDomain = (await documentRows(context)).filter((row) => row.domain === domain);
-	return documentAmong(inTheDomain, hint.trim());
+	const candidates = (await documentRows(context)).filter((row) =>
+		categoryCode ? row.category_code === categoryCode : row.category_code === null && row.domain === domain);
+	return documentAmong(candidates, hint.trim());
 }
 
-function dataRoomObjectPath(companyID: string, clearance: number, sha256: string, fileName: string | null): string {
-	const original = `${companyID}/dataroom/${clearance}/${sha256}`;
+function dataRoomObjectPath(companyID: string, category: string | number, sha256: string, fileName: string | null): string {
+	const original = `${companyID}/dataroom/${category}/${sha256}`;
 	return fileName === null ? original : `${original}/${fileName}`;
 }
 
@@ -745,10 +756,13 @@ export async function companyDocumentUpload(
 	context: RecordContext,
 	input: CompanyDocumentUploadInput
 ): Promise<CompanyDocumentUploadResult> {
-	if (input.clearance === undefined) throw new Error('an upload names the clearance the file is stored at');
+	if (input.categoryCode !== undefined && input.clearance !== undefined) {
+		throw new RecordRefusedTheWrite('choose categoryCode for new files or clearance for a legacy file, not both', 400);
+	}
+	const category = input.categoryCode ?? (input.clearance === undefined ? 'X' : clearanceOf(input.clearance));
 	const storagePath = dataRoomObjectPath(
 		context.companyID,
-		clearanceOf(input.clearance),
+		category,
 		sha256Of(input.sha256),
 		derivedFileNameOf(input.fileName)
 	);

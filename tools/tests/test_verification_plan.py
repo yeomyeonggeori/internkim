@@ -48,6 +48,7 @@ class VerificationPlanTests(unittest.TestCase):
             [
                 ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
                 ["tools/verify-agent-plugin"],
+                ["python3", ".dependency/internkim-plugin/kim.intern/tests/test_data_room.py"],
             ],
         )
 

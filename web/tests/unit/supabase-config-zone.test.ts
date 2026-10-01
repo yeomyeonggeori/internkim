@@ -16,7 +16,7 @@ describe('supabase/config.toml carries the same zone fleetdomain declares', () =
 
 	test('auth redirects to the declared zone', () => {
 		expect(config).toContain(`site_url = "https://${zone}"`);
-		expect(config).toContain(`additional_redirect_urls = ["https://${zone}/auth/claim"]`);
+		expect(config).toContain(`additional_redirect_urls = ["https://${zone}/auth/claim", "https://${zone}/share/**", "http://localhost:*/share/**", "http://127.0.0.1:*/share/**"]`);
 	});
 
 	test('the webauthn relying party is the declared zone', () => {

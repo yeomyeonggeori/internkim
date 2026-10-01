@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { z } from 'zod';
 import {
 	addMember,
+	asMember,
 	controlPlane,
 	issuePersonalAccessToken,
 	provisionCompany,
@@ -24,6 +26,9 @@ const { POST: resetPassword } = await import('../../src/routes/api/member/passwo
 const { POST: issueCalendarFeed } = await import('../../src/routes/api/calendar/subscription/+server');
 const { POST: removeMember } = await import('../../src/routes/api/member/remove/+server');
 const { POST: invitePerson } = await import('../../src/routes/api/member/invite/+server');
+const { GET: readDataRoom } = await import('../../src/routes/api/v1/data-room/[companyID]/+server');
+const { POST: acceptDataRoom } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/+server');
+const { POST: sendDataRoomInvitation } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/send/+server');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -36,6 +41,8 @@ let readersToken = '';
 let departedToken = '';
 let sessionToken = '';
 let administratorsToken = '';
+let administratorSession = '';
+let dataRoomInvitationID = '';
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -71,6 +78,13 @@ beforeAll(async () => {
 	await client.from('member').update({ status: 'departed' }).eq('id', departedID);
 
 	sessionToken = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, memberID)).accessToken;
+	administratorSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, provisioned.adminMemberID)).accessToken;
+	const administratorCaller = asMember({ projectURL, publishableKey }, administratorSession);
+	const invitation = await administratorCaller.rpc('data_room_share_create', {
+		target_company: companyID, role_code: 'investor', audience: 'email', recipient_email: `${slug}-holder@example.test`
+	});
+	if (invitation.error) throw new Error(invitation.error.message);
+	dataRoomInvitationID = z.string().uuid().parse(invitation.data);
 }, networkHookTimeout);
 
 afterAll(async () => {
@@ -822,6 +836,22 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 	const path = operation.path.replace('{name}', 'task_list');
 	if (path === '/mcp') return speakMCP(holdersToken);
 	if (path === '/tokens') return tokens(holdersToken);
+	if (path === '/data-room/{companyID}') {
+		const request = asking(`/data-room/${companyID}`, sessionToken);
+		return answerOf(() => Promise.resolve(readDataRoom({ request, url: new URL(request.url),
+			params: { companyID }, platform: undefined } as Parameters<typeof readDataRoom>[0])));
+	}
+	if (operation.path === '/data-room/invitations/{shareID}') {
+		const shareID = crypto.randomUUID();
+		const request = asking(`/data-room/invitations/${shareID}`, sessionToken, { method: 'POST' });
+		return answerOf(() => Promise.resolve(acceptDataRoom({ request,
+			params: { shareID }, platform: undefined } as Parameters<typeof acceptDataRoom>[0])));
+	}
+	if (operation.path === '/data-room/invitations/{shareID}/send') {
+		const request = asking(`/data-room/invitations/${dataRoomInvitationID}/send`, administratorSession, { method: 'POST' });
+		return answerOf(() => Promise.resolve(sendDataRoomInvitation({ request, url: new URL(request.url),
+			params: { shareID: dataRoomInvitationID }, platform: undefined } as Parameters<typeof sendDataRoomInvitation>[0])));
+	}
 	if (path === '/token' && method === 'POST') return mint(holdersToken, {});
 	if (path === '/token' && method === 'DELETE') return revoke(holdersToken, revocableName);
 	return reach(path, holdersToken, {
@@ -893,7 +923,10 @@ describe('the documented endpoints', () => {
 			'delete /company/profile-image',
 			'post /member/profile-image',
 			'post /agent/messages',
-			'get /agent/replies'
+			'get /agent/replies',
+			'get /data-room/{companyID}',
+			'post /data-room/invitations/{shareID}',
+			'post /data-room/invitations/{shareID}/send'
 		];
 		expect(served.filter((operation) => !documented.has(operation))).toEqual([]);
 	});

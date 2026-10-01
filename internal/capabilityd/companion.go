@@ -59,6 +59,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "schedule_update", Handler: Service.invokeScheduleTool},
 	{ToolName: "schedule_cancel", Handler: Service.invokeScheduleTool},
 	{ToolName: "task_label_get", Handler: Service.invokeTaskLabelTool},
+	{ToolName: "company_document_classify", Handler: Service.invokeDataRoomClassification},
 	{ToolName: "message_context", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_search", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_send", Handler: Service.invokePlatformMessageTool},

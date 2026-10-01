@@ -12,6 +12,7 @@ import {
 
 import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
+import { dataRoomToolDefinitions } from './data-room';
 import { computerToolDefinitions } from './computer';
 import { crmToolDefinitions } from './crm';
 import {
@@ -2040,6 +2041,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...computerToolDefinitions,
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
+  ...dataRoomToolDefinitions,
   ...crmToolDefinitions,
   ...settingsToolDefinitions,
   ...notificationToolDefinitions,

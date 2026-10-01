@@ -808,6 +808,38 @@ function createPaths(copy: ApiCopy) {
 		'/tokens': listTokensPath(copy),
 		'/token': tokenPath(copy),
 		'/files': uploadFilePath(copy),
+		'/data-room/{companyID}': {
+			get: {
+				operationId: 'readDataRoom', summary: 'Read a shared data room or request a permitted file URL',
+				description: 'Uses a Supabase session bearer token or an explicitly published anonymous grant. Guest invitations must be accepted first. Original downloads require a download grant. Signed URLs expire after ten minutes.',
+				security: [{ memberToken: [] }, {}],
+				parameters: [
+					{ name: 'companyID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+					{ name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } },
+					{ name: 'fileName', in: 'query', schema: { type: 'string' }, description: 'A derived file such as content.txt; omit to request the original.' }
+				],
+				responses: { '200': { description: 'Permitted categories and documents, or downloadURL' },
+					'401': errorResponse(copy.errors.unauthorized), '404': { description: 'Document unavailable' } }
+			}
+		},
+		'/data-room/invitations/{shareID}': {
+			post: {
+				operationId: 'acceptDataRoomInvitation', summary: 'Accept an invitation as its verified email recipient',
+				security: [{ memberToken: [] }],
+				parameters: [{ name: 'shareID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'companyID of the shared data room' },
+					'403': { description: 'Invitation unavailable to this account' } }
+			}
+		},
+		'/data-room/invitations/{shareID}/send': {
+			post: {
+				operationId: 'sendDataRoomInvitation', summary: 'Email a data room invitation',
+				description: 'A company administrator sends the selected recipient a sign-in link to their active invitation. Creates no company membership.',
+				security: [{ memberToken: [] }],
+				parameters: [{ name: 'shareID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'Invitation email sent' }, '403': { description: 'Administrator required or invitation inactive' }, '404': { description: 'Invitation unavailable' } }
+			}
+		},
 		'/company/profile-image': companyPicturePath(copy),
 		'/member/profile-image': memberPicturePath(copy),
 		'/agent/messages': agentMessagePath(copy),
