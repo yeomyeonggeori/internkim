@@ -222,7 +222,8 @@ CANDIDATE_CHOICE_COMMAND = r"""
 for clause in %s; do
   chosen=""
   for name in $(printf '%%s' "$clause" | tr '|' ' '); do
-    if apt-cache policy "$name" 2>/dev/null | grep -q '^ *Candidate: [^(]'; then chosen="$name"; break; fi
+    candidate="$(apt-cache policy "$name" 2>/dev/null | sed -n 's/^ *Candidate: //p')"
+    case "$candidate" in ""|"(none)") ;; *) chosen="$name"; break ;; esac
   done
   printf '%%s\n' "${chosen:-${clause%%%%|*}}"
 done

@@ -171,7 +171,7 @@ class DependencyReadingTests(unittest.TestCase):
 
     def test_the_first_alternative_with_a_candidate_is_chosen(self):
         policy = {"postgresql-18-pgvector": "(none)", "postgresql-17-pgvector": "0.8.0-1", "jq": "1.7"}
-        script = "apt-cache() { case \"$2\" in " + " ".join(
+        script = "set -o pipefail\napt-cache() { case \"$2\" in " + " ".join(
             f"{name}) echo '  Candidate: {candidate}';;" for name, candidate in policy.items()
         ) + " esac; }\n" + rig.CANDIDATE_CHOICE_COMMAND % "'postgresql-18-pgvector|postgresql-17-pgvector' 'jq' 'unknown-a|unknown-b'"
         chosen = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.split()
