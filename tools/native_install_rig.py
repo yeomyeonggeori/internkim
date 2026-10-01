@@ -507,7 +507,7 @@ if [ "$1" = purge ]; then
   if [ -d {STATE_DIRECTORY} ]; then
     echo "Your company is still at {STATE_DIRECTORY}. Removing it loses the keys that sign"
     echo "messages under your people's names, and nothing can recover them."
-    echo "Delete it with: internkim destroy --confirm"
+    echo "Delete it with: sudo rm -rf {STATE_DIRECTORY}"
   fi
 fi
 exit 0
