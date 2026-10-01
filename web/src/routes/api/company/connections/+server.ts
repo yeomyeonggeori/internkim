@@ -8,7 +8,7 @@ import {
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { memberAccessTokenOf } from '$lib/server/member-request';
+import { signedInAccessTokenOf } from '$lib/server/member-request';
 
 
 
@@ -19,7 +19,7 @@ function planeOf(platform: App.Platform | undefined): PlaneCredentials {
 }
 
 async function adminOf(request: Request, plane: PlaneCredentials) {
-	const { accessToken } = await memberAccessTokenOf(request, plane);
+	const accessToken = await signedInAccessTokenOf(request, plane);
 	const caller = await adminCallerOf(asMember(plane, accessToken));
 	if (!caller) error(403, 'only an admin keeps these');
 	return caller;

@@ -1,9 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { keepMemberCredential, memberCredential } from '$lib/server/member-credential';
+import { keepMemberCredential, memberBelongsToCompany, memberCredential } from '$lib/server/member-credential';
 import { memberCredentialKindSchema } from '$lib/server/public-api/catalog/credential';
 import type { RequestHandler } from './$types';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 // The company's own server asks for the credential it needs to act as a person
 // on their messenger. This is the only caller that may: the browser was handed
@@ -15,7 +14,7 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const kind = url.searchParams.get('kind')?.trim() ?? '';
 	if (!memberID) error(400, 'which member');
 	if (!kind) error(400, 'which credential kind the messenger accepts');
-	if (!(await belongsToCompany(client, memberID, companyID))) {
+	if (!(await memberBelongsToCompany(client, memberID, companyID))) {
 		error(403, 'that member belongs to another company');
 	}
 
@@ -43,24 +42,10 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!memberID) error(400, 'which member');
 	if (!kind.success) error(400, 'a credential has a kind the record declares');
 	if (!secret) error(400, 'a credential has a secret');
-	if (!(await belongsToCompany(client, memberID, companyID))) {
+	if (!(await memberBelongsToCompany(client, memberID, companyID))) {
 		error(403, 'that member belongs to another company');
 	}
 
 	await keepMemberCredential(client, memberID, { kind: kind.data, externalID, secret });
 	return json({ kept: { memberID, kind: kind.data } });
 };
-
-async function belongsToCompany(
-	client: SupabaseClient,
-	memberID: string,
-	companyID: string
-): Promise<boolean> {
-	const member = await client
-		.from('member')
-		.select('company_id')
-		.eq('id', memberID)
-		.maybeSingle<{ company_id: string }>();
-	if (member.error) throw new Error(member.error.message);
-	return member.data?.company_id === companyID;
-}

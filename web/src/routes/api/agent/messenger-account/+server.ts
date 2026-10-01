@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { connectMessengerAccount } from '$lib/server/member-credential';
+import { connectMessengerAccount, MemberOfAnotherCompany } from '$lib/server/member-credential';
 import { messengerIdentityCredentialKinds } from '$lib/server/public-api/catalog/credential';
 import { messengerPlatformNames } from '$lib/server/public-api/catalog/protocol';
 import type { RequestHandler } from './$types';
@@ -39,14 +39,21 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
 	const body = (await request.json().catch(() => ({}))) as ConnectRequest;
 
-	await connectMessengerAccount(client, companyID, {
+	const account = {
 		memberID: required(body.memberID, 'memberID'),
 		platform: declaredMessengerPlatform(body.platform),
 		kind: declaredMessengerIdentityKind(body.kind),
 		externalID: required(body.externalID, 'externalID'),
 		name: typeof body.name === 'string' ? body.name : '',
 		secret: required(body.secret, 'secret')
-	});
+	};
+
+	try {
+		await connectMessengerAccount(client, companyID, account);
+	} catch (refusal) {
+		if (refusal instanceof MemberOfAnotherCompany) error(403, 'that member belongs to another company');
+		throw refusal;
+	}
 
 	return json({ connected: true });
 };
