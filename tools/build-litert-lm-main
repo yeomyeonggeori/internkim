@@ -5,9 +5,9 @@ scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
 
 litertVersion="${LITERT_LM_VERSION:-v0.10.2}"
-buildHost="${LITERT_LM_BUILD_HOST:-}"
-buildUser="${LITERT_LM_BUILD_USER:-internkim}"
-buildPassword="${LITERT_LM_BUILD_PASSWORD:-}"
+buildHost="${INTERNKIM_SSH_HOSTNAME:-}"
+buildUser="internkim"
+buildPassword="${INTERNKIM_CONSOLE_PASSWORD:-}"
 remoteWorkRoot="${LITERT_LM_REMOTE_WORK_ROOT:-/var/cache/internkim/litert-lm-build}"
 bazeliskVersion="${LITERT_LM_BAZELISK_VERSION:-v1.22.1}"
 
@@ -23,9 +23,8 @@ plus the prebuilt linux_arm64 shared libraries in
 
 Environment overrides:
   LITERT_LM_VERSION          Source tag to build (default: v0.10.2)
-  LITERT_LM_BUILD_HOST       SSH host (default: cached board IP)
-  LITERT_LM_BUILD_USER       SSH user (default: internkim)
-  LITERT_LM_BUILD_PASSWORD   SSH password (omit for key auth or passwordless sudo)
+  INTERNKIM_SSH_HOSTNAME     SSH host (default: the device the vault names)
+  INTERNKIM_CONSOLE_PASSWORD SSH password (omit for key auth or passwordless sudo)
   LITERT_LM_REMOTE_WORK_ROOT Remote build directory
   LITERT_LM_BAZELISK_VERSION bazelisk release tag (default: v1.22.1)
 USAGE
@@ -55,10 +54,7 @@ if [ -x "$cachedBinaryPath" ] && [ -s "$cachedBinaryPath" ] && [ -d "$cachedLibr
 fi
 
 if [ -z "$buildHost" ]; then
-  buildHost="$(tr -d '\r\n' < "$HOME/.internkim/board_ip" 2>/dev/null || true)"
-fi
-if [ -z "$buildHost" ]; then
-  echo "No build host. Pass --host <ip> or set LITERT_LM_BUILD_HOST." >&2
+  echo "No build host. Pass --host <ip> or run under monkeys run @production, which names INTERNKIM_SSH_HOSTNAME." >&2
   exit 1
 fi
 

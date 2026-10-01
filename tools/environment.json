@@ -351,7 +351,7 @@
     "isInVault": true
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
-    "process": "cli",
+    "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
     "description": "the console password used for a Jetson's physical login during setup/flashing; flashing writes the one it generated back here",
     "isInVault": true
   },
@@ -620,7 +620,7 @@
     "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
   },
   "INTERNKIM_SSH_HOSTNAME": {
-    "process": "cli",
+    "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
     "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
     "isInVault": true
   },
@@ -656,21 +656,6 @@
     "process": "tools/build-litert-lm-main",
     "description": "the Bazelisk version used to build litert_lm_main"
   },
-  "LITERT_LM_BUILD_HOST": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the remote build host litert_lm_main is cross-built on",
-    "isInVault": true
-  },
-  "LITERT_LM_BUILD_PASSWORD": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the SSH password for the remote litert_lm_main build host",
-    "isInVault": true
-  },
-  "LITERT_LM_BUILD_USER": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the SSH user for the remote litert_lm_main build host",
-    "isInVault": true
-  },
   "LITERT_LM_REMOTE_WORK_ROOT": {
     "process": "tools/build-litert-lm-main",
     "description": "the working directory on the remote host litert_lm_main is built in"
@@ -688,24 +673,9 @@
     "process": "admind live tests",
     "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"
   },
-  "LLAMA_CPP_BUILD_HOST": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the remote build host llama.cpp is cross-built on for the Jetson",
-    "isInVault": true
-  },
   "LLAMA_CPP_BUILD_JOBS": {
     "process": "tools/build-llama-cpp-jetson",
     "description": "the parallel job count for the remote llama.cpp build"
-  },
-  "LLAMA_CPP_BUILD_PASSWORD": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the SSH password for the remote llama.cpp build host",
-    "isInVault": true
-  },
-  "LLAMA_CPP_BUILD_USER": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the SSH user for the remote llama.cpp build host",
-    "isInVault": true
   },
   "LLAMA_CPP_CUDA_ARCH": {
     "process": "tools/build-llama-cpp-jetson",
@@ -806,21 +776,6 @@
   "MODEL_ENDPOINT": {
     "process": "tools/render-company-runtime",
     "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"
-  },
-  "OLLAMA_INSTALL_HOST": {
-    "process": "tools/install-ollama-jetson",
-    "description": "the remote Jetson host Ollama is installed on",
-    "isInVault": true
-  },
-  "OLLAMA_INSTALL_PASSWORD": {
-    "process": "tools/install-ollama-jetson",
-    "description": "the SSH password for the remote Jetson host",
-    "isInVault": true
-  },
-  "OLLAMA_INSTALL_USER": {
-    "process": "tools/install-ollama-jetson",
-    "description": "the SSH user for the remote Jetson host",
-    "isInVault": true
   },
   "OPENROUTER_API_KEY": {
     "process": "cli",
