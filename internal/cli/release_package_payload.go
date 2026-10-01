@@ -533,6 +533,17 @@ func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
 			Mode:        0o644,
 		})
 	}
+	backup := blueclaw.CompanyPackageBackupUnits()
+	for _, unit := range []struct{ fileName, destination, contents string }{
+		{backup.Service.FileName(), backup.Service.InstalledPath(), backup.Service.Contents},
+		{backup.Timer.FileName(), backup.Timer.InstalledPath(), backup.Timer.Contents},
+	} {
+		unitPath := filepath.Join(stagingPath, unit.fileName)
+		if errorValue := os.WriteFile(unitPath, []byte(unit.contents), 0o644); errorValue != nil {
+			return nil, errorValue
+		}
+		packaged = append(packaged, packagedFile{SourcePath: unitPath, Destination: unit.destination, Mode: 0o644})
+	}
 	preparePath := filepath.Join(stagingPath, "prepare-company-host")
 	if errorValue := os.WriteFile(preparePath, []byte(blueclaw.CompanyHostPrepareScript()), 0o755); errorValue != nil {
 		return nil, errorValue

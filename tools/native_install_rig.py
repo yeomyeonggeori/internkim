@@ -106,6 +106,18 @@ REVISION_PROBE = ADMIN_GATEWAY_HEALTH
 # listens is answered `did not answer` and says nothing about the product.
 MESSENGER_BRIDGE = (18090, "/healthz")
 
+BACKUP_SERVICE_NAME = "internkim-backup"
+BACKUP_UNIT_NAME = BACKUP_SERVICE_NAME + ".service"
+BACKUP_TIMER_NAME = BACKUP_SERVICE_NAME + ".timer"
+BACKUPS_DIRECTORY = "/var/lib/internkim-backups"
+DATABASE_USER = "internkim-postgres"
+DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
+
+
+def expected_enablement(unit_name):
+    return "static" if unit_name == BACKUP_UNIT_NAME else "enabled"
+
+
 # The package's one configuration file dpkg protects, and the file every unit
 # waits on. Section 5 of the plan makes runtime.json an optional override the
 # package does not ship, so editing that would say nothing about whether dpkg

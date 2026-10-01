@@ -13,6 +13,8 @@ judges a transcript of what the install printed.
 import argparse
 import contextlib
 import json
+import shlex
+import shutil
 import sys
 import tempfile
 import time
@@ -21,8 +23,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from native_install_families import FAMILIES  # noqa: E402
 from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
+    BACKUP_TIMER_NAME,
+    BACKUP_UNIT_NAME,
+    BACKUPS_DIRECTORY,
+    DATA_SERVICE_PATH,
+    DATABASE_USER,
+    expected_enablement,
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
     DOCUMENT_ENVIRONMENT_PATHS,
@@ -37,6 +46,7 @@ from native_install_rig import (  # noqa: E402
     CONFIGURATION_DIRECTORY,
     PACKAGE_NAME,
     PRESEEDED_PACKAGES,
+    SHARE_PATH,
     STATE_DIRECTORY,
     COMPANY_CONDITION_PATH,
     MESSENGER_BRIDGE,
@@ -119,6 +129,7 @@ find / -xdev \
 
 UNOWNED_BY_DESIGN = [
     ("/etc/systemd/system/multi-user.target.wants", "systemd's enable symlinks; dpkg never owns them"),
+    ("/etc/systemd/system/timers.target.wants", "the same, for the daily backup's timer"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
     *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
 ]
@@ -153,6 +164,56 @@ done
 # is a real package on bookworm, jammy and noble and a pure virtual name on
 # trixie, where `postgresql` provides it; asking only dpkg's status would call an
 # honoured line missing.
+REMEMBERED_FACT_ROWS = """
+begin;
+insert into memory_episode (episode_id, source_kind, source_id, requester_person_id, content, occurred_at, receipt)
+  values ('rig-backup-episode', 'explicit', 'rig-backup-episode', 'rig-person', 'rig backup', now(), '{}');
+insert into memory_fact (fact_id, episode_id, owner_person_id, kind, content, valid_from)
+  values ('rig-backup-near', 'rig-backup-episode', 'rig-person', 'fact', '%(phrase)s', now()),
+         ('rig-backup-far', 'rig-backup-episode', 'rig-person', 'fact', 'far', now());
+insert into memory_fact_embedding (fact_id, embedding)
+  select fact_id, ('[' || string_agg(case when position = axis then '1' else '0' end, ',' order by position) || ']')::vector
+  from (values ('rig-backup-near', 1), ('rig-backup-far', 2)) facts (fact_id, axis), generate_series(1, 1024) position
+  group by fact_id;
+commit;
+"""
+
+NEAREST_REMEMBERED_FACT = """
+select current_setting('server_version_num')::int / 10000,
+  (select content from memory_fact where fact_id = (
+     select fact_id from memory_fact_embedding where fact_id like 'rig-backup-%'
+     order by embedding <=> ('[0.9,0.1' || repeat(',0', 1022) || ']')::vector limit 1));
+"""
+
+PERSONS_FILE_COMMAND = r"""
+set -eu
+person=""
+for attempt in $(seq 1 60); do
+  person="$(getent passwd | cut -d: -f1 | grep '^bc_person_' | head -n 1 || true)"
+  [ -n "$person" ] && break
+  sleep 5
+done
+[ -n "$person" ] || { echo "no person's account appeared"; exit 1; }
+home="$(getent passwd "$person" | cut -d: -f6)"
+printf '%%s' %(phrase)s > "$home/rig-backup.md"
+chown "$person:$person" "$home/rig-backup.md"
+chmod 0640 "$home/rig-backup.md"
+printf '%%s\n' "$home/rig-backup.md"
+"""
+
+OWNERSHIP_COMMAND = (
+    "stat -c '%%U:%%G %%a %%u' %(path)s 2>&1; cat %(path)s 2>&1; echo; "
+    "printf 'blueclaw=%%s postgres=%%s\n' \"$(id -u blueclaw)\" \"$(id -u " + "internkim-postgres" + ")\""
+)
+
+
+def in_the_agents_database(statements):
+    return (
+        f"printf '%s' {shlex.quote(statements)} | runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql "
+        "--dbname blueclaw --quiet --tuples-only --no-align --set ON_ERROR_STOP=1 2>&1"
+    )
+
+
 DEPENDENCY_SATISFACTION_COMMAND = r"""
 provided="$(dpkg-query -W -f '${Status}\t${Provides}\n' 2>/dev/null \
   | grep '^install ok installed' | cut -f2 | tr ',' '\n' | sed 's/ *(.*//' | tr -d ' ' | sort -u)"
@@ -254,6 +315,13 @@ class Rig:
         self.company_id = ""
         self.package_under_test = None
         self.message_text = f"native install rig {uuid.uuid4().hex}"
+        self.remembered_phrase = f"rig remembers {uuid.uuid4().hex[:12]}"
+        self.persons_file = ""
+        self.persons_phrase = f"rig keeps {uuid.uuid4().hex[:12]}"
+        self.archive_path = None
+        self.source_ownership = ""
+        self.restored_machine = None
+        self.sent_messages = []
 
     def step(self, number, name):
         step = Step(number, name)
@@ -465,15 +533,19 @@ class Rig:
             ).record(False, "the package ships no systemd unit")
             return
 
-        enabled = self.machine.shell(f"systemctl is-enabled {' '.join(unit_names)} 2>&1")
+        judged = unit_names + [BACKUP_TIMER_NAME]
+        enabled = self.machine.shell(f"systemctl is-enabled {' '.join(judged)} 2>&1")
+        states = enabled.stdout.split()
         step.observe(
-            "every unit the package ships is enabled",
-            "`systemctl is-enabled` for each unit dpkg lists, which reads the symlink farm",
+            "every unit the package ships is enabled, the daily backup's timer among them, and the backup "
+            "service is started by that timer alone",
+            "`systemctl is-enabled` for each unit dpkg lists and for the backup timer, which reads the symlink farm",
             "a unit file existing under /lib/systemd/system says the file was copied; the symlink "
             "is what decides whether it comes back after a reboot",
         ).record(
-            enabled.returncode == 0 and all(line.strip() == "enabled" for line in enabled.stdout.splitlines()),
-            " ".join(f"{name}={state}" for name, state in zip(unit_names, enabled.stdout.split())),
+            len(states) == len(judged)
+            and all(state == expected_enablement(name) for name, state in zip(judged, states)),
+            " ".join(f"{name}={state}" for name, state in zip(judged, states)),
         )
 
         declined = self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names))
@@ -695,7 +767,7 @@ class Rig:
         )
 
     def observe_running_services(self, step):
-        unit_names = self.units()
+        unit_names = [name for name in self.units() if name != BACKUP_UNIT_NAME]
         states = dict(
             line.split("=", 1)
             for line in self.machine.shell(UNIT_STATE_COMMAND % " ".join(unit_names)).stdout.split()
@@ -824,6 +896,7 @@ class Rig:
         )
 
         message_id = sent.get("messageID") or ""
+        self.sent_messages.append((message_id, self.message_text))
         stored = self.machine.shell(
             MESSENGER_STORE_COMMAND
             % {"path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"}
@@ -864,6 +937,130 @@ class Rig:
             f"journalctl -u {RELAY_UNIT_NAME} --no-pager -n 40 2>/dev/null | grep -i gateway | tail -5; true"
         )
         return reported.stdout.strip() or f"{RELAY_UNIT_NAME} said nothing about the gateway"
+
+    @contextlib.contextmanager
+    def driving(self, machine):
+        held = self.machine
+        self.machine = machine
+        try:
+            yield
+        finally:
+            self.machine = held
+
+    def take_a_backup(self, step):
+        remembered = self.machine.shell(in_the_agents_database(REMEMBERED_FACT_ROWS % {"phrase": self.remembered_phrase}))
+        written = self.machine.shell(PERSONS_FILE_COMMAND % {"phrase": shlex.quote(self.persons_phrase)})
+        self.persons_file = written.stdout.strip().splitlines()[-1] if written.returncode == 0 else ""
+        self.source_ownership = self.machine.shell(OWNERSHIP_COMMAND % {"path": self.persons_file or "/nonexistent"}).stdout
+        step.observe(
+            "the company has a remembered fact with its embedding, a message and a file a person owns",
+            "the agent's database after inserting two facts with embeddings, and a file written into the home "
+            "of the first bc_person_ account the roster made, owned by it",
+            "the restore can only be judged against data the backup was taken over",
+        ).record(
+            remembered.returncode == 0 and bool(self.persons_file),
+            f"{remembered.stdout.strip()[-200:]}\n{written.stdout.strip()[-200:]}\n{self.source_ownership.strip()}",
+        )
+
+        backed_up = self.machine.shell(f"{PACKAGE_NAME} backup 2>&1", timeout_seconds=1800)
+        listed = self.machine.shell(
+            f"archive=\"$(ls -1 {BACKUPS_DIRECTORY}/internkim-backup-*.tar | tail -n 1)\"; "
+            f"echo \"$archive\"; stat -c '%a %U:%G' {BACKUPS_DIRECTORY} \"$archive\"; tar -tf \"$archive\"; "
+            f"tar -xOf \"$archive\" manifest.json; "
+            "systemctl is-active blueclaw.service buzz-relay.service | tr '\\n' ' '"
+        )
+        lines = listed.stdout.splitlines()
+        archive = lines[0] if lines else ""
+        step.observe(
+            "`internkim backup` writes one archive only root can read while the services keep running",
+            f"the exit status of `{PACKAGE_NAME} backup`, the modes of {BACKUPS_DIRECTORY} and the archive, "
+            "the members `tar -tf` lists, and whether the agent and the messenger stayed active",
+            "the archive holds the company's keys and its people's data, so its mode is the whole of its "
+            "protection on this machine; and a backup that stopped the services would be an outage every night",
+        ).record(
+            backed_up.returncode == 0
+            and "700 root:root" in listed.stdout and "600 root:root" in listed.stdout
+            and all(member in listed.stdout for member in (
+                "manifest.json", "databases/blueclaw.dump", "databases/buzz.dump", "files.tar", "roster.json"))
+            and f'"companyID": "{self.company_id}"' in listed.stdout
+            and listed.stdout.strip().endswith("active active"),
+            f"{backed_up.stdout.strip()[-900:]}\n{listed.stdout.strip()[-1500:]}",
+        )
+        if archive and backed_up.returncode == 0:
+            self.machine.checked_shell(f"cp {archive} {SHARE_PATH}/")
+            self.archive_path = self.machine.share_directory / Path(archive).name
+
+    def restore_elsewhere(self, step, plane):
+        family = FAMILIES[self.options.restore_family]
+        if self.archive_path is None:
+            return step.block("no archive was written, so there is nothing to restore")
+        if family.package_in(self.options.package_directory) is None:
+            return step.block(f"no {family.asset_name} under {self.options.package_directory} to install on {family.name}")
+        share = self.working_directory / "restored-share"
+        (share / "scripts").mkdir(parents=True, exist_ok=True)
+        self.restored_machine = Machine(
+            self.options.name + "-restored", share, kernel_image_path=self.options.kernel,
+            image=family.image, bootstrap_script=family.bootstrap,
+        )
+        self.restored_machine.preflight()
+        self.restored_machine.create()
+        self.restored_machine.wait_until_running()
+        self.restored_machine.checked_shell(family.tools_command, timeout_seconds=900)
+        installed = self.restored_machine.shell(
+            self.release.install_line(self.restored_machine.host_gateway()), timeout_seconds=2400
+        )
+        shutil.copyfile(self.archive_path, share / self.archive_path.name)
+        restored = self.restored_machine.shell(
+            f"{PACKAGE_NAME} restore {SHARE_PATH}/{self.archive_path.name} 2>&1", timeout_seconds=1800
+        )
+        step.observe(
+            f"`internkim restore` brings the company back on a fresh {family.name} machine",
+            f"the exit status of `{PACKAGE_NAME} restore` on a guest that had only run `install.sh host`",
+            "a restore that needs anything but the package and the archive is not a restore a person can do "
+            "the morning after",
+        ).record(
+            installed.returncode == 0 and restored.returncode == 0,
+            f"install.sh exited {installed.returncode}\n{restored.stdout.strip()[-1800:]}",
+        )
+        with self.driving(self.restored_machine):
+            self.observe_what_came_back(step)
+            self.observe_running_services(step)
+            self.observe_the_host_holds_the_gateway_socket(step)
+            self.message_text = f"native install rig after restore {uuid.uuid4().hex}"
+            self.observe_the_member_round_trip(step, plane)
+        return step
+
+    def observe_what_came_back(self, step):
+        nearest = self.machine.shell(in_the_agents_database(NEAREST_REMEMBERED_FACT))
+        fields = nearest.stdout.strip().split("|")
+        step.observe(
+            "the remembered fact is found again by its embedding, on this machine's own PostgreSQL",
+            "the PostgreSQL major the restored database runs on and the fact a cosine-distance query ranks first",
+            "the dump crossing a major is what a logical backup is for, and the ranking is the vector "
+            "extension and the embedding table both having come back",
+        ).record(len(fields) == 2 and fields[1] == self.remembered_phrase, nearest.stdout.strip()[-300:])
+
+        sent_message_id, sent_message_text = self.sent_messages[0] if self.sent_messages else ("", "")
+        message = self.machine.shell(
+            MESSENGER_STORE_COMMAND % {"path": MESSENGER_DATABASE_PATH, "message": sent_message_id or "no-message"}
+        )
+        step.observe(
+            "the message sent before the backup is in the restored messenger's store",
+            f"the row the earlier message id names, read through {MESSENGER_DATABASE_PATH}",
+            "the messenger's database is the conversation; a restored box without it is a company with amnesia",
+        ).record(bool(sent_message_id) and sent_message_text in message.stdout, message.stdout.strip()[-300:])
+
+        owned = self.machine.shell(OWNERSHIP_COMMAND % {"path": self.persons_file or "/nonexistent"}).stdout
+        source_owner = self.source_ownership.split(" ")[0] if self.source_ownership else ""
+        step.observe(
+            "the person's file is back, owned by the same account name and mode, whatever number that account has here",
+            "`stat` of the file on both machines, and the numeric ids of the service accounts on each",
+            "tar restores numeric owners by default, and on a machine whose accounts were made in a different "
+            "order that hands one person's files to someone else",
+        ).record(
+            bool(source_owner) and owned.startswith(source_owner + " 640 ") and self.persons_phrase in owned,
+            f"before: {self.source_ownership.strip()}\nafter:  {owned.strip()}",
+        )
 
     # ----------------------------------------------------------------- report
 
@@ -956,6 +1153,12 @@ def main():
         action="store_true",
         help="do not give the guest a company, so no local plane is needed; step 5 is reported BLOCKED rather than passed",
     )
+    parser.add_argument(
+        "--restore-family",
+        choices=sorted(FAMILIES),
+        default="fedora",
+        help="the family of the fresh guest step 6 restores the backup onto (default: %(default)s)",
+    )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
     parser.add_argument(
@@ -1019,6 +1222,8 @@ def main():
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
                 rig.observe_the_member_round_trip(step_five, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
+                step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
+                rig.take_a_backup(step_six)
 
             step_three = rig.step(3, "running the line again moves it to a newer release")
             rig.run_step_three(step_three, releases)
@@ -1030,10 +1235,15 @@ def main():
 
             step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
             rig.run_step_four(step_four)
+
+            if rig.plane:
+                rig.restore_elsewhere(step_six, rig.plane)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
-            if not options.keep and rig.machine:
-                rig.machine.destroy()
+            if not options.keep:
+                for machine in (rig.machine, rig.restored_machine):
+                    if machine:
+                        machine.destroy()
             return 2
         finally:
             if rig.plane:
@@ -1047,9 +1257,13 @@ def main():
         print()
         if options.keep:
             print(f"the guest is still up: container exec {options.name} bash")
+            if rig.restored_machine:
+                print(f"the restored guest is still up: container exec {rig.restored_machine.name} bash")
             print(f"its shared directory is {rig.working_directory}")
         else:
-            rig.machine.destroy()
+            for machine in (rig.machine, rig.restored_machine):
+                if machine:
+                    machine.destroy()
 
         passed = rig.verdict()
         print(f"{'✓' if passed else '✗'} native install rig")

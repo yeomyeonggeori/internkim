@@ -624,6 +624,7 @@ func admindStampFlags(buildID string, revision string) string {
 	return strings.Join([]string{
 		"-X", "github.com/yeomyeonggeori/internkim/internal/admind.BuildID=" + buildID,
 		"-X", "github.com/yeomyeonggeori/internkim/internal/admind.GitRevision=" + revision,
+		"-X", "github.com/yeomyeonggeori/internkim/internal/companyhost.PackageVersion=" + buildID,
 	}, " ")
 }
 

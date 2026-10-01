@@ -35,6 +35,14 @@ func (thisComputer) Run(name string, arguments []string, environment []string, o
 	return command.Run()
 }
 
+func (thisComputer) Stream(name string, arguments []string, streams companyhost.Streams) error {
+	command := exec.Command(name, arguments...)
+	command.Stdin = streams.Input
+	command.Stdout = streams.Output
+	command.Stderr = streams.Errors
+	return command.Run()
+}
+
 // Output answers with what the command printed, and with an error carrying what
 // it complained about, because a failure a person has to act on is in the
 // program's own words rather than in an exit status.
@@ -76,6 +84,16 @@ func main() {
 		}
 	case "box":
 		runBox(os.Args[2:])
+	case "backup":
+		if errorValue := runBackup(os.Args[2:]); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nBackup stopped: %s\n", errorValue)
+			os.Exit(1)
+		}
+	case "restore":
+		if errorValue := runRestore(os.Args[2:]); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nRestore stopped: %s\n", errorValue)
+			os.Exit(1)
+		}
 	default:
 		printUsage(command)
 	}
@@ -85,6 +103,8 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
+	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	os.Exit(1)
 }
 

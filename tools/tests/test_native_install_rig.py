@@ -331,6 +331,13 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         self.assertEqual(rig.HOST_PYTHON_PATH, rig.DOCUMENT_ENVIRONMENT_PATHS[0] + "/bin/python3")
         self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
 
+    def test_the_backup_the_rig_reads_is_the_one_the_package_schedules(self):
+        self.assertEqual(rig.BACKUP_SERVICE_NAME, self.declared("company_host_package.go", "CompanyHostBackupServiceName"))
+        self.assertEqual(rig.BACKUPS_DIRECTORY, self.declared("company_host_package.go", "CompanyHostBackupsPath"))
+        self.assertEqual(rig.DATABASE_USER, self.declared("company_host_data_services.go", "CompanyHostDatabaseUser"))
+        self.assertEqual(rig.expected_enablement(rig.BACKUP_UNIT_NAME), "static")
+        self.assertEqual(rig.expected_enablement(rig.BACKUP_TIMER_NAME), "enabled")
+
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
         self.assertEqual(sorted(rig.DISTRIBUTIONS), ["debian-13", "ubuntu-22.04", "ubuntu-24.04"])
 

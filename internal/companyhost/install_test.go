@@ -27,6 +27,17 @@ func (machine *recordedMachine) Run(name string, arguments []string, environment
 	return machine.failures[name]
 }
 
+func (machine *recordedMachine) Stream(name string, arguments []string, streams Streams) error {
+	machine.runs = append(machine.runs, append([]string{name}, arguments...))
+	if streams.Input != nil {
+		io.Copy(io.Discard, streams.Input)
+	}
+	if streams.Output != nil {
+		io.WriteString(streams.Output, machine.printed[name])
+	}
+	return machine.failures[name]
+}
+
 func (machine *recordedMachine) ranStatementsCarrying(text string) bool {
 	for _, run := range machine.runs {
 		for _, argument := range run {

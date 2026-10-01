@@ -61,6 +61,7 @@ func postInstallBody(format linuxPackageFormat) string {
 		`  systemctl enable "$unit" >/dev/null 2>&1 || refuse "could not enable $unit"`,
 		`done`,
 		`systemctl restart ` + restartedUnitFileNames() + ` >/dev/null 2>&1 || true`,
+		scheduleTheBackupUnlessMasked(),
 		``,
 		`if [ ! -e ` + blueclaw.CompanyHostCurrentPath + ` ]; then`,
 		`  echo "internkim: installed. No company is configured yet, so every service but the box is idle."`,
@@ -75,8 +76,8 @@ func postInstallBody(format linuxPackageFormat) string {
 func preRemoveBody(format linuxPackageFormat) string {
 	return strings.Join([]string{
 		`if ` + format.RemovalTest("prerm") + `; then`,
-		`  systemctl stop ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
-		`  systemctl disable ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
+		`  systemctl stop ` + backupUnitFileNames() + ` ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
+		`  systemctl disable ` + backupUnitFileNames() + ` ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
 		forgetTheDeviceUsersSync(`  `),
 		`fi`,
 		`exit 0`,
@@ -168,12 +169,26 @@ func deviceUsersSyncPaths() []string {
 }
 
 func keptStatePaths() []string {
-	return []string{blueclaw.CompanyHostStateRoot, blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostCacheDataPath}
+	return []string{blueclaw.CompanyHostStateRoot, blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostCacheDataPath, blueclaw.CompanyHostBackupsPath}
 }
 
 func keptStateList() string {
 	paths := keptStatePaths()
 	return strings.Join(paths[:len(paths)-1], ", ") + " and " + paths[len(paths)-1]
+}
+
+func scheduleTheBackupUnlessMasked() string {
+	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
+	return strings.Join([]string{
+		`if [ "$(systemctl is-enabled ` + timer + ` 2>/dev/null)" != masked ]; then`,
+		`  systemctl enable --now ` + timer + ` >/dev/null 2>&1 || refuse "could not schedule the daily backup with ` + timer + `"`,
+		`fi`,
+	}, "\n")
+}
+
+func backupUnitFileNames() string {
+	backup := blueclaw.CompanyPackageBackupUnits()
+	return backup.Timer.FileName() + " " + backup.Service.FileName()
 }
 
 func restartedUnitFileNames() string {

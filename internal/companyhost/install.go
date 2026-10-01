@@ -19,9 +19,16 @@ import (
 // that cannot see the file it wrote is testing nothing.
 type Machine interface {
 	Run(name string, arguments []string, environment []string, output io.Writer) error
+	Stream(name string, arguments []string, streams Streams) error
 	Output(name string, arguments []string) (string, error)
 	CarriesProgram(programName string) error
 	CarriesFile(path string) error
+}
+
+type Streams struct {
+	Input  io.Reader
+	Output io.Writer
+	Errors io.Writer
 }
 
 type Installation struct {
