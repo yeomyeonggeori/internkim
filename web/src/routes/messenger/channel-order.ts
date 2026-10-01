@@ -2,9 +2,6 @@ import type { ChannelSummary } from '$lib/components/channel/channel-api';
 
 const storageKey = 'messenger-channel-order';
 
-// ponytail: name-based default so 광장·잡담 lead and 일정·업무·근태 (slated for
-// removal) trail; renamed channels simply fall to the middle. Users override
-// this by dragging, which persists an explicit id order in localStorage.
 const pinnedToTop = ['광장', '잡담'];
 const pinnedToBottom = ['일정', '업무', '근태'];
 

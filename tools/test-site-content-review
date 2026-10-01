@@ -13,7 +13,7 @@ from skill_paths import find_skill_directory
 REVIEW_SCRIPT = find_skill_directory(REPOSITORY_ROOT, "website") / "scripts" / "content_review.py"
 
 FILLER_CONTENT = {
-    "siteName": "연남로보틱스",
+    "siteName": "예시로보틱스",
     "tagline": "레거시 창고 자동화",
     "blocks": [
         {"variant": "features", "title": "Our Services", "items": [
@@ -29,7 +29,7 @@ FILLER_CONTENT = {
 }
 
 CLEAN_CONTENT = {
-    "siteName": "연남로보틱스",
+    "siteName": "예시로보틱스",
     "tagline": "좁은 통로 창고 자동화를 5일 만에",
     "blocks": [
         {"variant": "hero", "title": "공사 없이 도입하는 소형 AMR", "body": "80cm 통로에서 회전하는 YR-1으로 레거시 창고를 자동화하세요.", "actionLabel": "도입 상담", "backdrop": "grid", "image": "/images/hero.jpg", "imageAlt": "좁은 통로를 지나는 YR-1 로봇"},
@@ -37,7 +37,7 @@ CLEAN_CONTENT = {
             {"title": "공사비 0원", "body": "랙 재배치 없이 기존 창고 그대로 사용합니다.", "icon": "hammer"},
             {"title": "평균 5일 설치", "body": "경쟁 솔루션의 3~6주 대비 즉시 투입됩니다.", "icon": "clock"},
         ]},
-        {"variant": "contact", "title": "상담 문의", "body": "도입 상담은 hello@yeonnam-robotics.kr 로 신청하세요.", "actionLabel": "문의하기"},
+        {"variant": "contact", "title": "상담 문의", "body": "도입 상담은 hello@example.com 로 신청하세요.", "actionLabel": "문의하기"},
     ],
 }
 
@@ -53,7 +53,7 @@ style: editorial
 
 ## Overview
 
-연남로보틱스 도입 상담용 랜딩. 흑백 미니멀에 로봇 정밀함을 담은 얇은 괘선 그리드와 큰 수치 타이포가 시그니처. 버튼과 카드 모서리는 각지게 유지한다.
+예시로보틱스 도입 상담용 랜딩. 흑백 미니멀에 로봇 정밀함을 담은 얇은 괘선 그리드와 큰 수치 타이포가 시그니처. 버튼과 카드 모서리는 각지게 유지한다.
 """
 
 
@@ -76,7 +76,7 @@ def run_review(content: dict, design_document: str, ledger: str) -> str:
 def main() -> int:
     today_text = datetime.date.today().strftime("%Y-%m-%d")
     filler = json.loads(json.dumps(FILLER_CONTENT).replace("DATE_PLACEHOLDER", today_text))
-    filler_output = run_review(filler, "", "연남로보틱스\n가격 89만 원\n")
+    filler_output = run_review(filler, "", "예시로보틱스\n가격 89만 원\n")
     for expected in [
         "Content gate FAILED",
         "numberedFillerWarning",
@@ -91,7 +91,7 @@ def main() -> int:
     ]:
         assert expected in filler_output, f"missing {expected} in:\n{filler_output}"
 
-    clean_output = run_review(CLEAN_CONTENT, DESIGN_DOCUMENT, "연남로보틱스\n80cm\n5일\n")
+    clean_output = run_review(CLEAN_CONTENT, DESIGN_DOCUMENT, "예시로보틱스\n80cm\n5일\n")
     assert "Content gate PASSED" in clean_output, clean_output
     assert "Warning" not in clean_output, clean_output
 

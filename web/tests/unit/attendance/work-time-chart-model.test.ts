@@ -1,4 +1,3 @@
-// 근무 시간 차트 모델의 날짜 라벨 계산을 검증한다.
 import { describe, expect, test } from 'bun:test';
 import {
 	buildSeries,

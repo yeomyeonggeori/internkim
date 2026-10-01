@@ -1,4 +1,3 @@
-// 캘린더 이벤트 매핑의 날짜 변환 회귀를 검증합니다.
 import { createCalendarModelEvent as createEvent } from '../../../src/routes/calendar/embed/calendar-event-model';
 import { expect, test } from 'bun:test';
 

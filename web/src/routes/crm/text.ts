@@ -25,7 +25,7 @@ export const crmText = {
 		contactName: '연락처 이름',
 		activityTitle: '활동 제목',
 		address: '주소',
-		addressPlaceholder: '예: 서울특별시 성동구 왕십리로 222',
+		addressPlaceholder: '예: 서울특별시 예시구 예시로 1',
 		tags: '태그',
 		tagsPlaceholder: '태그 입력 후 Enter',
 		nextContactDate: '다음 연락일',

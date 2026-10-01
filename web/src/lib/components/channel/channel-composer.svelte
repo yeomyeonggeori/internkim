@@ -49,7 +49,7 @@
 		rows,
 		participants,
 		isGroup,
-		disabled,
+		disabled = false,
 		cancelsEditOnEscape,
 		isSending = $bindable(false),
 		editing = $bindable(null),
@@ -62,7 +62,7 @@
 		rows: number;
 		participants: MentionPerson[];
 		isGroup: boolean;
-		disabled: boolean;
+		disabled?: boolean;
 		cancelsEditOnEscape: boolean;
 		isSending?: boolean;
 		editing?: EditingMessage | null;

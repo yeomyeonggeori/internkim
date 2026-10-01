@@ -2,7 +2,6 @@
 	import '../app.css';
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	import ChannelSheet from '$lib/components/channel/channel-sheet.svelte';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
@@ -237,10 +236,6 @@
 							</Breadcrumb.Root>
 						</div>
 						<div class="flex items-center gap-2">
-							<!-- ponytail: 김인턴과 대화 버튼 임시 비활성화 (되돌리려면 false 제거) -->
-							{#if false && page.url.pathname.startsWith('/messenger')}
-								<ChannelSheet />
-							{/if}
 							<Button
 								variant="outline"
 								size="sm"

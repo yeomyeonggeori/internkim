@@ -98,7 +98,7 @@ export const taskReportFixtureMetrics: TaskReportFixtureMetrics = {
 		박예시: 2,
 		최견본: 0,
 		정의: 0,
-		장가칭: 0
+		장샘플: 0
 	},
 	memberScores: {
 		'member-kim': 144,
@@ -121,7 +121,7 @@ export const taskReportFixtureMembers: TaskReportFixtureMember[] = [
 	{ id: 'member-park', name: '박예시' },
 	{ id: 'member-leesample', name: '최견본' },
 	{ id: 'member-jeong', name: '정의' },
-	{ id: 'member-jang', name: '장가칭' }
+	{ id: 'member-jang', name: '장샘플' }
 ];
 
 export const taskReportFixtureDefinitions: TaskReportFixtureDefinitions = {
