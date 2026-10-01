@@ -69,9 +69,8 @@ df -h /var/lib 2>&1 | tail -1
 // leave, which the guest's ext4 journal and PostgreSQL's WAL both recover from.
 // A cutover export instead stops the device's writers and leaves them stopped.
 func migrationExportCommand(target string) string {
-	return "systemd-run --unit=internkim-migration-export --collect sh -c " +
-		quoteRecoveryShellValue(migrationExportScript(target)) +
-		" && echo 'export started; read " + migrationExportRoot + "/<stamp>.log, or run migration-inventory'"
+	return detachedRecoveryCommand("internkim-migration-export", migrationExportScript(target),
+		"export started; read "+migrationExportRoot+"/<stamp>.log, or run migration-inventory")
 }
 
 func migrationExportScript(target string) string {

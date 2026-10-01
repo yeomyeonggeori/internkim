@@ -1,6 +1,7 @@
 package admind
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -38,7 +39,7 @@ func TestOnlyACutoverExportStopsTheAgent(t *testing.T) {
 
 func TestTheExportIsStartedDetachedFromTheRequest(t *testing.T) {
 	command := migrationExportCommand("")
-	if !strings.HasPrefix(command, "systemd-run --unit=internkim-migration-export ") {
+	if !strings.Contains(command, "systemd-run --unit=internkim-migration-export ") {
 		t.Fatalf("the export outlives the recovery request only under its own unit, got %q", command[:60])
 	}
 }
@@ -113,5 +114,44 @@ func TestTheExportDumpsOnlyTheHostDatabasesTheMoveCarries(t *testing.T) {
 	}
 	if !strings.Contains(script, `pg_restore --file=/dev/null`) {
 		t.Fatal("each host dump is read back before the export trusts it")
+	}
+}
+
+func TestADetachedActionRefusesARunningUnitAndClearsAFailedOne(t *testing.T) {
+	commands := map[string]string{
+		"internkim-migration-export":          migrationExportCommand(""),
+		"internkim-blueclaw-workspace-repair": blueclawWorkspaceRepairCommand(),
+		"internkim-blueclaw-postgres-salvage": blueclawPostgresSalvageCommand(),
+	}
+	for unitName, command := range commands {
+		refuse := strings.Index(command, "systemctl is-active --quiet "+unitName+"; then")
+		clear := strings.Index(command, "systemctl reset-failed "+unitName)
+		start := strings.Index(command, "systemd-run --unit="+unitName+" ")
+		if refuse < 0 || clear < 0 || start < 0 || !(refuse < clear && clear < start) {
+			t.Errorf("%s must refuse a running unit, then clear a failed one, then start: refuse=%d clear=%d start=%d", unitName, refuse, clear, start)
+		}
+	}
+}
+
+func TestADetachedActionRunsTheSameWayAgainAfterItFailed(t *testing.T) {
+	directory := t.TempDir()
+	log := directory + "/calls"
+	fakeSystemctl := "#!/bin/sh\necho \"systemctl $*\" >>" + log + "\n[ \"$1\" = is-active ] && exit 3\nexit 0\n"
+	fakeSystemdRun := "#!/bin/sh\necho \"systemd-run $1\" >>" + log + "\n"
+	for name, body := range map[string]string{"systemctl": fakeSystemctl, "systemd-run": fakeSystemdRun} {
+		if errorValue := os.WriteFile(directory+"/"+name, []byte(body), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	command := detachedRecoveryCommand("internkim-example", "true", "started")
+	for attempt := 0; attempt < 2; attempt++ {
+		output, errorValue := exec.Command("sh", "-c", "PATH="+directory+":$PATH; "+command).CombinedOutput()
+		if errorValue != nil || !strings.Contains(string(output), "started") {
+			t.Fatalf("attempt %d: %v %s", attempt, errorValue, output)
+		}
+	}
+	calls, _ := os.ReadFile(log)
+	if strings.Count(string(calls), "systemd-run --unit=internkim-example") != 2 {
+		t.Fatalf("calls:\n%s", calls)
 	}
 }
