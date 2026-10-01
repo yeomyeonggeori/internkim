@@ -4,6 +4,10 @@ import { sayPushNotDelivered } from './push-diagnostics.ts';
 import type { PushKeys } from './push-keys.ts';
 import type { PushOutcome } from './push-vocabulary.ts';
 
+export function widgetClockOf(newestClock: { kind: string } | null): string {
+	return newestClock?.kind ?? 'clock_out';
+}
+
 export function widgetRefreshPayload(clock: string): Record<string, unknown> {
 	return { aps: { 'content-available': 1 }, widget: 'attendance', clock };
 }
