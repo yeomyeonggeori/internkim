@@ -542,15 +542,6 @@
     "process": "tools/build-litert-lm-main",
     "description": "the litert_lm_main source version/ref to build"
   },
-  "LIVE_PLANE_AGENT_KEY": {
-    "process": "admind live tests",
-    "description": "the company agent key internal/admind/task_notify_live_test.go (a live/manual test) authenticates to the plane named by SUPABASE_URL and CLOUDFLARE_DOMAIN with",
-    "isInVault": true
-  },
-  "LIVE_REQUESTER_PERSON_ID": {
-    "process": "admind live tests",
-    "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"
-  },
   "LLAMA_CPP_BUILD_JOBS": {
     "process": "tools/build-llama-cpp-jetson",
     "description": "the parallel job count for the remote llama.cpp build"
