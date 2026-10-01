@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""ProxyCommand for reaching a device over Cloudflare Access with its service token.
+"""ProxyCommand for reaching the Jetson over Cloudflare Access with its service token.
 
-A service token lasts a year and needs no browser;
-`tools/provision-cloudflare-ssh-service-token` creates one and attaches the
-policy that admits it. It lives in the @production vault profile.
+A service token lasts a year and needs no browser. It lives in the @production
+vault profile.
 
 ssh starts this with whatever environment it holds, so this re-executes itself
 under `monkeys run @production` to be handed the token:
@@ -21,8 +20,6 @@ import sys
 
 repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
 tokenProfile = "production"
-clientIDVariable = "INTERNKIM_CF_ACCESS_CLIENT_ID"
-clientSecretVariable = "INTERNKIM_CF_ACCESS_CLIENT_SECRET"
 vaultMarker = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
 
 
@@ -32,8 +29,8 @@ def refuse(reason):
 
 
 def heldToken():
-    clientID = os.environ.get(clientIDVariable, "").strip()
-    clientSecret = os.environ.get(clientSecretVariable, "").strip()
+    clientID = os.environ.get("INTERNKIM_CF_ACCESS_CLIENT_ID", "").strip()
+    clientSecret = os.environ.get("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "").strip()
     if clientID and clientSecret:
         return clientID, clientSecret
     return None
@@ -47,7 +44,7 @@ def monkeysPath():
 def runUnderTheTokenProfile():
     monkeys = monkeysPath()
     if monkeys is None:
-        refuse(f"no {clientIDVariable} in the environment and no monkeys to fetch it from @{tokenProfile}")
+        refuse(f"no INTERNKIM_CF_ACCESS_CLIENT_ID in the environment and no monkeys to fetch it from @{tokenProfile}")
     os.environ[vaultMarker] = tokenProfile
     os.chdir(repositoryRoot)
     os.execvpe(monkeys, [
@@ -64,8 +61,7 @@ if token is None and os.environ.get(vaultMarker) != tokenProfile:
     runUnderTheTokenProfile()
 if token is None:
     refuse(
-        f"@{tokenProfile} holds no {clientIDVariable} and {clientSecretVariable}; "
-        "run tools/provision-cloudflare-ssh-service-token"
+        f"@{tokenProfile} holds no INTERNKIM_CF_ACCESS_CLIENT_ID and INTERNKIM_CF_ACCESS_CLIENT_SECRET"
     )
 
 clientID, clientSecret = token
