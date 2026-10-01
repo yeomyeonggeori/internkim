@@ -713,9 +713,18 @@ for attempt in $(seq 1 120); do
 done
 printf 'blueclaw health failed\n'
 `)
-	return "systemd-run --unit=internkim-blueclaw-workspace-repair --collect sh -c " +
-		quoteRecoveryShellValue(repairScript) +
-		" && echo 'repair started; tail /var/log/internkim-workspace-repair.log for progress'"
+	return detachedRecoveryCommand("internkim-blueclaw-workspace-repair", repairScript,
+		"repair started; tail /var/log/internkim-workspace-repair.log for progress")
+}
+
+// A transient unit keeps its name after it fails, and systemd-run refuses
+// a name that is taken, so a failed run would block every later one. A
+// run that is still going is refused instead of being started twice.
+func detachedRecoveryCommand(unitName string, script string, startedMessage string) string {
+	return "if systemctl is-active --quiet " + unitName + "; then echo '" + unitName + " is still running; nothing started' >&2; exit 1; fi; " +
+		"systemctl reset-failed " + unitName + " 2>/dev/null; " +
+		"systemd-run --unit=" + unitName + " --collect sh -c " + quoteRecoveryShellValue(script) +
+		" && echo " + quoteRecoveryShellValue(startedMessage)
 }
 
 func quoteRecoveryShellValue(value string) string {
@@ -885,9 +894,8 @@ umount "$workspaceMount"; rmdir "$workspaceMount" 2>/dev/null
 systemctl start blueclaw
 echo "reverted to fresh cluster"
 `)
-	return "systemd-run --unit=internkim-blueclaw-postgres-salvage --collect sh -c " +
-		quoteRecoveryShellValue(salvageScript) +
-		" && echo 'salvage started; tail /var/log/internkim-postgres-salvage.log for progress'"
+	return detachedRecoveryCommand("internkim-blueclaw-postgres-salvage", salvageScript,
+		"salvage started; tail /var/log/internkim-postgres-salvage.log for progress")
 }
 
 func blueclawResourceLimitCommand() string {
@@ -1148,7 +1156,9 @@ systemctl restart ` + blueclaw.BuzzRelayServiceName + `
 for attempt in $(seq 1 30); do curl -fsS --max-time 3 ` + blueclaw.BuzzRelayReadinessURL() + ` >/dev/null 2>&1 && break; sleep 1; done
 echo "== effective relay env =="; systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | grep -iE 'REQUIRE_RELAY|WS_EVENTS' || true
 echo "relay permissive via drop-in — scheduling admind restart to resync member membership"
-systemd-run --on-active=3sec --unit=internkim-membership-admind-restart systemctl restart internkim-admind
+systemctl stop internkim-membership-admind-restart.timer 2>/dev/null
+systemctl reset-failed internkim-membership-admind-restart.timer internkim-membership-admind-restart.service 2>/dev/null
+systemd-run --on-active=3sec --timer-property=RemainAfterElapse=no --collect --unit=internkim-membership-admind-restart systemctl restart internkim-admind
 echo "admind restart scheduled"
 `)
 }
