@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"debug/macho"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,16 +12,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-// The company host as a Homebrew bottle, built the way `internkim release packages`
-// builds the Linux packages: every path, dependency and program name is read
-// from internal/runtime/blueclaw, and nothing about the formula is written twice.
+// The company host as a Homebrew bottle, built the way the Linux packages are:
+// every path, dependency and program name is read from internal/runtime/blueclaw,
+// and nothing about the formula is written twice. The bottle, the tarball the
+// formula's url names and the formula itself are assets of the same GitHub
+// Release as the Linux packages.
 //
 // Three things differ from the Linux packages, and each is Homebrew's rule rather than a
 // choice. The keg holds no service definitions, because the plists carry baked
@@ -29,134 +32,171 @@ import (
 // ordinary user and extraction drops the bit. And the messenger is built on this
 // Mac rather than in a container, because `tools/prepare-buzz-relay
 // --target darwin-arm64` is a native build.
-//
-// The build runs on the Mac it is for: a bottle is per macOS version, and
-// Homebrew's own tag for this machine is what names the file.
 
-const (
-	brewDefaultOutputDirectory = ".artifacts/homebrew"
-	brewMessengerArtifactPath  = ".dependency/buzz-relay-darwin-arm64"
-)
+const brewMessengerArtifactPath = ".dependency/buzz-relay-darwin-arm64"
 
 // One timestamp for every entry, so two releases cut from one tree publish the
 // same bytes and a bottle's checksum is a fact about the tree rather than about
 // the minute it was built in.
 var homebrewArchiveTime = time.Unix(0, 0).UTC()
 
-func argumentsCarry(arguments []string, name string) bool {
-	for _, argument := range arguments {
-		if argument == name {
-			return true
-		}
-	}
-	return false
-}
-
-func runReleaseBrew(arguments []string) error {
+// buildHomebrewRelease writes the bottle, the tarball and the formula into the
+// release directory. The programs are cross-compiled, but the messenger is a
+// native build and the bottle's tag is asked of Homebrew, so it runs on an
+// Apple-silicon Mac.
+func buildHomebrewRelease(repositoryRootPath string, version string, outputDirectory string, output io.Writer) error {
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
 		return fmt.Errorf(
-			"a bottle is built on the machine it is for: it is per macOS version, "+
-				"and Homebrew's tag for the builder is what names the file. This is %s/%s",
-			runtime.GOOS, runtime.GOARCH)
+			"the Homebrew bottle is built on an Apple-silicon Mac: its messenger is a native build "+
+				"and Homebrew names its tag. This is %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), packageVersionFromRepository(repositoryRootPath))
-	outputDirectory := firstNonEmptyString(
-		commandArgumentValue(arguments, "--out", ""),
-		filepath.Join(repositoryRootPath, brewDefaultOutputDirectory),
-	)
-	bottleTag, errorValue := homebrewBottleTag()
-	if errorValue != nil {
-		return errorValue
-	}
-
 	kegPath, errorValue := os.MkdirTemp("", "internkim-keg-*")
 	if errorValue != nil {
 		return errorValue
 	}
 	defer os.RemoveAll(kegPath)
-	if errorValue := buildHomebrewKeg(repositoryRootPath, kegPath, version, os.Stdout); errorValue != nil {
+	if errorValue := buildHomebrewKeg(repositoryRootPath, kegPath, version, output); errorValue != nil {
 		return errorValue
 	}
-
+	bottleTag, errorValue := homebrewBottleTagFor(kegPath)
+	if errorValue != nil {
+		return errorValue
+	}
 	if errorValue := os.MkdirAll(outputDirectory, 0o755); errorValue != nil {
 		return errorValue
 	}
-	sourcePath := filepath.Join(outputDirectory, blueclaw.HomebrewSourceTarballName(version))
-	sourceChecksum, errorValue := writeGzippedTar(sourcePath, kegPath, "")
+	sourceChecksum, errorValue := writeGzippedTar(filepath.Join(outputDirectory, blueclaw.HomebrewSourceTarballName()), kegPath, "")
 	if errorValue != nil {
 		return errorValue
 	}
-	fmt.Fprintf(os.Stdout, "built %s\n", sourcePath)
-
-	bottlePath := filepath.Join(outputDirectory, blueclaw.HomebrewBottleFileName(version, bottleTag))
-	bottleChecksum, errorValue := writeGzippedTar(bottlePath, kegPath, blueclaw.CompanyPackageName+"/"+version)
+	bottleName := blueclaw.HomebrewBottleFileName(version, bottleTag)
+	bottleChecksum, errorValue := writeGzippedTar(filepath.Join(outputDirectory, bottleName), kegPath, blueclaw.CompanyPackageName+"/"+version)
 	if errorValue != nil {
 		return errorValue
 	}
-	fmt.Fprintf(os.Stdout, "built %s\n", bottlePath)
-
-	rootURL := blueclaw.HomebrewBottleRootURL(fleetdomain.Default())
-	formula, errorValue := blueclaw.HomebrewFormula(blueclaw.HomebrewFormulaRequest{
-		Version:          version,
-		SourceTarballURL: rootURL + "/" + blueclaw.HomebrewSourceTarballName(version),
-		SourceSHA256:     sourceChecksum,
-		BottleRootURL:    rootURL,
-		Bottles:          []blueclaw.HomebrewBottle{{Tag: bottleTag, Cellar: ":any_skip_relocation", SHA256: bottleChecksum}},
-	})
+	fmt.Fprintf(output, "built %s and %s\n", blueclaw.HomebrewSourceTarballName(), bottleName)
+	formula, errorValue := homebrewReleaseFormula(version, sourceChecksum, homebrewBottle(bottleTag, bottleChecksum))
 	if errorValue != nil {
 		return errorValue
 	}
-	formulaPath := filepath.Join(outputDirectory, "tap", blueclaw.HomebrewFormulaFileName())
-	if errorValue := os.MkdirAll(filepath.Dir(formulaPath), 0o755); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := os.WriteFile(formulaPath, []byte(formula), 0o644); errorValue != nil {
-		return errorValue
-	}
-	fmt.Fprintf(os.Stdout, "rendered %s\n", formulaPath)
-
-	if !argumentsCarry(arguments, "--publish") {
-		fmt.Fprintf(os.Stdout,
-			"\nNothing was published. `internkim release brew --publish` puts the two tarballs under %s/,\n"+
-				"and the formula is committed by hand to %s, which is what `brew tap %s` clones.\n",
-			blueclaw.HomebrewReleasePrefix, blueclaw.HomebrewTapRepositoryURL(), blueclaw.HomebrewTap())
-		return nil
-	}
-	publisher, errorValue := releasePublisherFromEnvironment(repositoryRootPath)
-	if errorValue != nil {
-		return errorValue
-	}
-	for _, path := range []string{sourcePath, bottlePath} {
-		document, errorValue := os.ReadFile(path)
-		if errorValue != nil {
-			return errorValue
-		}
-		objectKey := blueclaw.HomebrewReleasePrefix + "/" + filepath.Base(path)
-		if errorValue := publisher.PutObject(objectKey, document, "application/gzip"); errorValue != nil {
-			return errorValue
-		}
-		fmt.Fprintf(os.Stdout, "published %s (%d bytes)\n", objectKey, len(document))
-	}
-	return nil
+	return os.WriteFile(filepath.Join(outputDirectory, blueclaw.HomebrewFormulaAssetName()), []byte(formula), 0o644)
 }
 
-// homebrewBottleTag asks Homebrew what it calls this machine. The list of tags
-// grows with every macOS release, so a table here would be a second account of
-// something Homebrew already knows.
-func homebrewBottleTag() (string, error) {
-	commandOutput, errorValue := exec.Command("brew", "ruby", "-e", "puts Utils::Bottles.tag").Output()
+func homebrewBottle(tag string, checksum string) blueclaw.HomebrewBottle {
+	return blueclaw.HomebrewBottle{Tag: tag, Cellar: ":any_skip_relocation", SHA256: checksum}
+}
+
+// homebrewReleaseFormula points the formula at the release it is uploaded with:
+// Homebrew fetches root_url/<bottle name>, which is the bottle's asset URL.
+func homebrewReleaseFormula(version string, sourceChecksum string, bottle blueclaw.HomebrewBottle) (string, error) {
+	return blueclaw.HomebrewFormula(blueclaw.HomebrewFormulaRequest{
+		Version:          version,
+		SourceTarballURL: hostReleaseDownloadURL(version) + "/" + blueclaw.HomebrewSourceTarballName(),
+		SourceSHA256:     sourceChecksum,
+		BottleRootURL:    hostReleaseDownloadURL(version),
+		Bottles:          []blueclaw.HomebrewBottle{bottle},
+	})
+}
+
+// homebrewBottleTagFor names the bottle after the oldest macOS every program in
+// the keg runs on, which Homebrew pours on that version and every later one. A
+// tag asked of the machine that builds it would make the release depend on which
+// Mac cut it, and a bottle cut on a newer macOS than a customer's is never poured.
+func homebrewBottleTagFor(kegPath string) (string, error) {
+	minimum, errorValue := kegMinimumMacOSVersion(kegPath)
 	if errorValue != nil {
-		return "", fmt.Errorf("ask Homebrew what it calls this machine: %w", errorValue)
+		return "", errorValue
 	}
-	tag := strings.TrimSpace(string(commandOutput))
-	if tag == "" {
-		return "", fmt.Errorf("Homebrew named no bottle tag for this machine")
+	symbol, errorValue := exec.Command("brew", "ruby", "-e", fmt.Sprintf("puts MacOSVersion.new(%q).to_sym", strconv.Itoa(minimum))).Output()
+	if errorValue != nil {
+		return "", fmt.Errorf("ask Homebrew what it calls macOS %d: %w", minimum, errorValue)
 	}
-	return tag, nil
+	name := strings.TrimSpace(string(symbol))
+	if name == "" {
+		return "", fmt.Errorf("Homebrew has no name for macOS %d", minimum)
+	}
+	return "arm64_" + name, nil
+}
+
+// kegMinimumMacOSVersion is the newest major version any Mach-O program in the
+// keg names as its minimum, read from LC_BUILD_VERSION or LC_VERSION_MIN_MACOSX.
+// Files that are not Mach-O, such as the skills and the runtime template, name
+// none.
+func kegMinimumMacOSVersion(kegPath string) (int, error) {
+	minimum := 0
+	errorValue := filepath.Walk(kegPath, func(path string, information fs.FileInfo, walkError error) error {
+		if walkError != nil || !information.Mode().IsRegular() {
+			return walkError
+		}
+		major, errorValue := machOMinimumMacOSVersion(path)
+		if errorValue != nil {
+			return fmt.Errorf("read the minimum macOS of %s: %w", strings.TrimPrefix(path, kegPath+"/"), errorValue)
+		}
+		minimum = max(minimum, major)
+		return nil
+	})
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	if minimum == 0 {
+		return 0, fmt.Errorf("no program in the keg at %s names the macOS it needs", kegPath)
+	}
+	return minimum, nil
+}
+
+const (
+	loadCommandBuildVersion  = 0x32
+	loadCommandVersionMinMac = 0x24
+	machOPlatformMacOS       = 1
+)
+
+// machOMinimumMacOSVersion answers 0 for a file that is not Mach-O, and for a
+// universal binary reads its arm64 slice, the one an Apple-silicon Mac runs.
+func machOMinimumMacOSVersion(path string) (int, error) {
+	universal, errorValue := macho.OpenFat(path)
+	if errorValue == nil {
+		defer universal.Close()
+		for _, architecture := range universal.Arches {
+			if architecture.Cpu == macho.CpuArm64 {
+				return minimumMacOSVersionOf(architecture.File), nil
+			}
+		}
+		return 0, fmt.Errorf("the universal binary carries no arm64 slice")
+	}
+	var formatError *macho.FormatError
+	if !errors.Is(errorValue, macho.ErrNotFat) && errors.As(errorValue, &formatError) {
+		return 0, nil
+	}
+	if !errors.Is(errorValue, macho.ErrNotFat) {
+		return 0, errorValue
+	}
+	file, errorValue := macho.Open(path)
+	if errorValue != nil {
+		return 0, errorValue
+	}
+	defer file.Close()
+	if file.Cpu != macho.CpuArm64 {
+		return 0, fmt.Errorf("it is built for %s and the keg is arm64", file.Cpu)
+	}
+	return minimumMacOSVersionOf(file), nil
+}
+
+func minimumMacOSVersionOf(file *macho.File) int {
+	for _, load := range file.Loads {
+		raw := load.Raw()
+		if len(raw) < 16 {
+			continue
+		}
+		switch file.ByteOrder.Uint32(raw[0:4]) {
+		case loadCommandBuildVersion:
+			if file.ByteOrder.Uint32(raw[8:12]) == machOPlatformMacOS {
+				return int(file.ByteOrder.Uint32(raw[12:16]) >> 16)
+			}
+		case loadCommandVersionMinMac:
+			return int(file.ByteOrder.Uint32(raw[8:12]) >> 16)
+		}
+	}
+	return 0
 }
 
 func buildHomebrewKeg(repositoryRootPath string, kegPath string, version string, output io.Writer) error {
@@ -167,13 +207,13 @@ func buildHomebrewKeg(repositoryRootPath string, kegPath string, version string,
 			return errorValue
 		}
 	}
+	if errorValue := copyBrewMessengerPrograms(repositoryRootPath, libraryPath, output); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := buildBrewGoPrograms(repositoryRootPath, binaryPath, libraryPath, version, output); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := buildBrewBunPrograms(repositoryRootPath, libraryPath, output); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := copyBrewMessengerPrograms(repositoryRootPath, libraryPath, output); errorValue != nil {
 		return errorValue
 	}
 	if errorValue := fetchBrewVendoredPrograms(repositoryRootPath, libraryPath, output); errorValue != nil {

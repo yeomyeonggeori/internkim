@@ -2,7 +2,6 @@ import { isTheSameSecret } from '../../../web/src/lib/server/same-secret';
 import type { ReleaseRegistryEnvironment } from './index';
 
 const releaseTokenHeader = 'X-INTERNKIM-RELEASE-TOKEN';
-const publicObjectPrefixes = ['host/', 'brew/'];
 
 export async function handleReleaseRegistryRequest(request: Request, environment: ReleaseRegistryEnvironment): Promise<Response> {
 	if (!isAllowedMethod(request.method)) {
@@ -12,7 +11,7 @@ export async function handleReleaseRegistryRequest(request: Request, environment
 	if (!objectKey) {
 		return textResponse('not found', 404);
 	}
-	if (!isPublicObject(objectKey) && !(await isAuthorized(request, environment.RELEASE_DOWNLOAD_TOKEN))) {
+	if (!(await isAuthorized(request, environment.RELEASE_DOWNLOAD_TOKEN))) {
 		return textResponse('unauthorized', 401);
 	}
 	const object = await environment.RELEASE_BUCKET.get(objectKey);
@@ -24,10 +23,6 @@ export async function handleReleaseRegistryRequest(request: Request, environment
 
 function isAllowedMethod(method: string): boolean {
 	return method === 'GET' || method === 'HEAD';
-}
-
-function isPublicObject(objectKey: string): boolean {
-	return publicObjectPrefixes.some((prefix) => objectKey.startsWith(prefix));
 }
 
 function isAuthorized(request: Request, expectedToken?: string): Promise<boolean> {

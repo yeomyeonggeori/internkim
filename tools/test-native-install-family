@@ -699,7 +699,7 @@ def main():
         print(
             f"✗ native install rig ({options.family})\n"
             f"    No {rig.family.asset_name} under {directory}.\n"
-            f"    Build it with `internkim release packages`.",
+            f"    Build it with `internkim release packages --format deb,rpm,archlinux`.",
             file=sys.stderr,
         )
         return 1

@@ -130,7 +130,7 @@ func TestEachFormatAndArchitectureShipsUnderANameNoVersionChanges(t *testing.T) 
 		"internkim-arm64.deb", "internkim-arm64.rpm", "internkim-arm64.pkg.tar.zst",
 		"internkim-amd64.deb", "internkim-amd64.rpm", "internkim-amd64.pkg.tar.zst",
 	}
-	if names := hostReleaseAssetNames(); strings.Join(names, " ") != strings.Join(expected, " ") {
+	if names := linuxPackageAssetNames(); strings.Join(names, " ") != strings.Join(expected, " ") {
 		t.Errorf("a release ships %v, and install.sh asks for %v", names, expected)
 	}
 }
@@ -176,7 +176,7 @@ func TestTheChecksumListNamesEveryPackageTheDirectoryHolds(t *testing.T) {
 			t.Fatal(errorValue)
 		}
 	}
-	if errorValue := writeReleaseChecksums(directory); errorValue != nil {
+	if errorValue := writeReleaseChecksums(directory, "1"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	written, errorValue := os.ReadFile(filepath.Join(directory, releaseChecksumsName))
@@ -195,12 +195,23 @@ func sha256Hex(contents string) string {
 }
 
 func TestAnUnknownFormatIsRefusedByName(t *testing.T) {
-	if _, errorValue := linuxPackageFormatsNamed("apk"); errorValue == nil {
+	if _, errorValue := releaseFormatsNamed("apk"); errorValue == nil {
 		t.Fatal("a format nothing builds was accepted")
 	}
-	chosen, errorValue := linuxPackageFormatsNamed("rpm,archlinux")
-	if errorValue != nil || len(chosen) != 2 {
-		t.Fatalf("rpm,archlinux chose %v (%v)", chosen, errorValue)
+	chosen, errorValue := releaseFormatsNamed("rpm,archlinux")
+	if errorValue != nil || len(chosen.Linux) != 2 || chosen.Homebrew {
+		t.Fatalf("rpm,archlinux chose %+v (%v)", chosen, errorValue)
+	}
+	chosen, errorValue = releaseFormatsNamed(homebrewFormatName)
+	if errorValue != nil || len(chosen.Linux) != 0 || !chosen.Homebrew {
+		t.Fatalf("homebrew chose %+v (%v)", chosen, errorValue)
+	}
+}
+
+func TestNoFormatNamedBuildsEverythingARelease(t *testing.T) {
+	chosen, errorValue := releaseFormatsNamed("")
+	if errorValue != nil || len(chosen.Linux) != len(linuxPackageFormats()) || !chosen.Homebrew {
+		t.Fatalf("the release directory a plain `release packages` writes is not the release: %+v (%v)", chosen, errorValue)
 	}
 }
 

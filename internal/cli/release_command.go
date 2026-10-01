@@ -53,9 +53,8 @@ type releaseSubcommand struct {
 var releaseSubcommands = []releaseSubcommand{
 	{name: "publish", summary: "Publish a device release to the stable channel", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
 	{name: "status", summary: "Show what the channel points at", flags: []string{"--channel"}, run: runReleaseStatus},
-	{name: "packages", summary: "Build the company host as deb, rpm and archlinux packages from one payload, with their SHA256SUMS", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
-	{name: "host", summary: "Build the company host packages for arm64 and amd64 and publish them as a GitHub Release on the stable or testing channel", flags: []string{"--channel"}, run: runReleaseHost},
-	{name: "brew", summary: "Build the company host as a Homebrew bottle on this Mac and render the tap's formula", flags: []string{"--out", "--version"}, run: runReleaseBrew},
+	{name: "packages", summary: "Build the release directory without publishing it: deb, rpm and archlinux packages, the Homebrew bottle and formula, and their SHA256SUMS", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
+	{name: "host", summary: "Build the company host for Linux and Apple-silicon Macs and publish it as a GitHub Release on the stable or testing channel; stable also gives the Homebrew tap its formula", flags: []string{"--channel"}, run: runReleaseHost},
 }
 
 func runRelease() {
