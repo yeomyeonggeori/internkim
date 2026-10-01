@@ -3,6 +3,8 @@ package admind
 import (
 	"regexp"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // A device leaves for the company host package by way of an export: every piece
@@ -134,7 +136,7 @@ if [ "$mode" = cutover ]; then
   cp --sparse=always "$image" "$work/workspace.ext4" || fail "could not copy the stopped image"
 else
   step "pause ingress and the guest for one copy of the image"
-  guest_api_socket=$(find /run /var/lib/blueclaw /root/.blueclaw /tmp -name cloud-hypervisor-api.socket 2>/dev/null | head -1)
+  guest_api_socket=$(find ` + blueclaw.BlueclawRuntimeInstanceDirectoryPath + ` -name cloud-hypervisor-api.socket -type s -printf "%T@ %p\n" 2>/dev/null | sort -rn | head -1 | cut -d" " -f2-)
   [ -n "$guest_api_socket" ] || fail "no Cloud Hypervisor API socket, so the guest cannot be paused for a consistent copy"
   curl -fsS -m 10 -X POST -H 'Content-Type: application/json' -d '{"holder":"migration-export"}' http://127.0.0.1:8080/admin/api/backup/prepare >/dev/null || fail "blueclaw refused to pause ingress"
   sync

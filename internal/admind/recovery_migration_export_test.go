@@ -4,6 +4,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestMigrationScriptsAreShellTheDeviceCanParse(t *testing.T) {
@@ -80,5 +82,11 @@ func TestSharingRefusesAnythingButAStamp(t *testing.T) {
 	}
 	if !strings.Contains(migrationExportShareCommand("20261001T142240Z"), "/var/lib/internkim-migration/20261001T142240Z") {
 		t.Error("a stamp names its export directory")
+	}
+}
+
+func TestTheLiveExportLooksForTheGuestWhereTheSupervisorPutsIt(t *testing.T) {
+	if !strings.Contains(migrationExportScript(""), "find "+blueclaw.BlueclawRuntimeInstanceDirectoryPath+" -name cloud-hypervisor-api.socket") {
+		t.Fatalf("the Cloud Hypervisor API socket lives under the supervisor's runtime directory %s", blueclaw.BlueclawRuntimeInstanceDirectoryPath)
 	}
 }

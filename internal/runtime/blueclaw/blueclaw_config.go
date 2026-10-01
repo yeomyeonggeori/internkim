@@ -209,7 +209,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 	healthPortOrService := firstNonEmptyString(options.HealthPortOrService, "8082")
 	guestHTTPPortOrService := firstNonEmptyString(options.GuestHTTPPortOrService, "8081")
 	logDirectoryPath := firstNonEmptyString(options.LogDirectoryPath, BlueclawSupervisorLogDirectoryPath)
-	runtimeDirectoryPath := firstNonEmptyString(options.RuntimeDirectoryPath, "/var/lib/bc")
+	runtimeDirectoryPath := firstNonEmptyString(options.RuntimeDirectoryPath, BlueclawRuntimeInstanceDirectoryPath)
 	deliveryDirectoryPath := firstNonEmptyString(options.DeliveryDirectoryPath, deliveryDirectoryPathForMonitor(virtualMachineMonitor))
 	kernelImagePath := firstNonEmptyString(options.KernelImagePath, BlueclawKernelImagePath)
 	vfkitPath := firstNonEmptyString(options.VfkitPath, BlueclawVfkitPath)
