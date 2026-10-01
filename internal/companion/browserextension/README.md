@@ -2,9 +2,7 @@
 
 Manifest V3 extension that reports DOM element coordinates from a plain,
 un-automated Chrome session to the companion Go daemon. It carries no CDP
-automation flags and sets no `navigator.webdriver` signal itself — see
-`.claude/plans/warm-kindling-sunrise.md` for why this replaces CDP-driven
-automation.
+automation flags and sets no `navigator.webdriver` signal itself.
 
 ## Loading
 
@@ -44,25 +42,20 @@ message shape over `chrome.runtime.sendMessage`/`chrome.tabs.sendMessage`
 That shape is not part of the daemon contract and can change freely as long
 as `background.js` keeps translating it into `ExtensionBridgeMessage` frames.
 
-## Open integration point: port discovery
+## Port discovery
 
 `ExtensionWebSocketBridge` binds to an ephemeral port by default
 (`ListenAddress` empty → `127.0.0.1:0`), and the port is only known at
-runtime via `bridge.Port()` after `Start(ctx)` — there is currently no
-mechanism in `internal/browser` for getting that port to the extension before
-Chrome launches.
+runtime via `bridge.Port()` after `Start(ctx)`.
 
-This extension resolves the port by fetching its own bundled
+The extension resolves the port by fetching its own bundled
 `runtime-config.json` (`background.js`, `internkimResolvePort`):
 
 ```json
 { "port": 12345 }
 ```
 
-That file does not exist in this directory yet — writing it is the
-responsibility of whichever task wires up the actual Chrome launch (see the
-plan's `internal/companion/executor.go` / `ExtensionInputRuntime.launchChrome`
-integration). The expected flow is: call `bridge.Start(ctx)`, read
+That file is not in this directory; the launcher writes it. The flow is: call `bridge.Start(ctx)`, read
 `bridge.Port()`, write `runtime-config.json` into the extension directory
 pointed at by `ExtensionInputRuntime.ExtensionPath`, then launch Chrome. Since
 Chrome reads an unpacked extension's directory fresh on each load, a file
@@ -70,7 +63,7 @@ written just before launch is picked up without repackaging.
 
 If `runtime-config.json` is missing or unreadable (for example, during manual
 smoke testing), `background.js` falls back to a fixed default port,
-`internkimDefaultBridgePort` (currently `8787`). Point a manually-started
+`internkimDefaultBridgePort` (`8787`). Point a manually-started
 `ExtensionWebSocketBridge{ListenAddress: "127.0.0.1:8787"}` at that port to
 test without wiring up the config file, or use the config file to test
 against an arbitrary ephemeral port.
@@ -105,8 +98,5 @@ against an arbitrary ephemeral port.
    ~25s) reconnects the WebSocket and re-sends `ready` without a full
    extension reload.
 
-There is no automated Go integration test for this extension from this task
-alone — `ExtensionBridge` is an interface specifically so `internal/browser`
-tests can inject a fake connection instead of a real browser. Wiring an
-end-to-end test that drives a real Chrome + this extension is out of this
-task's scope.
+`ExtensionBridge` is an interface so `internal/browser` tests can inject a fake
+connection instead of a real browser.

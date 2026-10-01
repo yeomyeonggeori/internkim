@@ -28,7 +28,7 @@ flowchart TB
         connector["The connector (chatd)"]
         agent["The agent (blueclaw)"]
         daemons["admind · capabilityd · maild"]
-        store[("The agent's store<br/>Postgres with pgvector")]
+        store[("The agent's store<br/>Postgres")]
     end
 
     messenger["The company's messenger server<br/>its network, or this same computer"]
@@ -56,14 +56,9 @@ Every arrow leaving the host points outward. None points in.
 
 ## One plugin across harnesses
 
-This section defines the shared-plugin design contract. Release compatibility
-is established by the verification and publication gates below; the diagram
-above describes the deployed topology.
-
-`internkim-plugin` is the shared client package for Bluecollar, Claude Code,
-Codex, and Pi. InternKim's own agent consumes the same versioned skills,
-scripts, assets, and service contracts that an external harness installs.
-An external harness can use the service while Bluecollar is stopped.
+`internkim-plugin` is the shared client package. InternKim's own agent loads the
+skills from it, and Claude Code, Codex and Pi can install the same package to
+use the company's tools from their own loop.
 
 ```mermaid
 flowchart TB
@@ -71,189 +66,29 @@ flowchart TB
     claude["Claude Code"] --> plugin
     codex["Codex"] --> plugin
     pi["Pi"] --> plugin
-    plugin["internkim-plugin<br/>shared skills, scripts and thin adapters"] --> service
-    service["InternKim tool service<br/>authenticated member and company"] --> record["Business records"]
-    service --> relay["Existing company relay connection"]
-    relay --> execution["Company and companion capabilities"]
+    plugin["internkim-plugin<br/>skills and the tool server address"] --> service
+    service["The public API, /api/v1/mcp<br/>authenticated member and company"] --> record["Business records"]
+    service --> relay["The company's relay connection"]
 ```
 
-### Ownership
+The plugin is a plain Agent Plugins checkout: `plugin.json`, `mcp.json` naming
+`https://api.intern.kim/v1/mcp`, and `skills/`. There is no harness adapter, and
+each client loads that layout its own way; the plugin's README has the recipes.
 
-| Layer | Responsibility |
-| --- | --- |
-| InternKim service | Canonical tool schemas, business behavior, authorization, durable approvals, operation state and effect receipts |
-| Plugin | Shared skills, scripts, assets, connection metadata and a common client |
-| Harness adapter | Installation, skill path binding, credential-store integration and tool/result presentation |
-| Harness | Model calls, reasoning, tool selection, context and execution-loop decisions |
-| Blueclaw host | Execution identity and isolation for work inside the managed host |
+The service authors each tool contract once, derives the actor from the
+caller's authentication and checks current company membership, so a model's
+arguments cannot select a more privileged identity. MCP carries tool calls. ACP
+is the separate boundary by which the relay hands messenger conversations to the
+agent, and using the plugin alone needs no ACP session. Installing the plugin
+does not expose blueclaw's workspace or terminal to an external agent.
 
-The service authors each business-tool contract once. Adapters translate
-connection and presentation details without copying business logic or skill
-bodies. Native MCP connections and extension-backed clients use the same
-contract. MCP carries business-tool calls; ACP is the separate session
-boundary for an agent joining the messenger. Using the plugin alone requires
-no ACP session.
-
-The same member, company, plugin version and available execution resources
-must provide the same business capabilities and authorization behavior.
-Model quality and local environments may differ. Installing the plugin does
-not expose Blueclaw's private workspace or raw terminal to an external agent.
-Standalone artifact skills use the external harness's local environment;
-managed host execution keeps the requester's POSIX identity. Missing local
-dependencies or companion capabilities are reported explicitly.
-
-### Connection and execution
-
-These examples are pseudocode for the proposed contract. They do not define
-released endpoints or promise that every harness can register tools during
-a turn. What is released, and on which harness versions, is in "Released
-behavior" below.
-
-```text
-function attachPlugin(adapter, package, account):
-    package.verifyRelease()
-    session = connect(package.server, account.credentialReference)
-    requireSupportedContract(session, package.supportedVersions)
-    adapter.installSkills(package.skillRoot)
-    adapter.exposeDiscovery(session.catalogSummaries())
-
-function invoke(session, toolID, arguments, operationKey):
-    descriptor = session.describeExact(toolID)
-    validatedArguments = descriptor.inputSchema.validate(arguments)
-    return session.call(descriptor.id, validatedArguments, operationKey)
-```
-
-The model selects relevant capabilities from a compact catalog. Detailed
-schemas are loaded when needed. An adapter without dynamic registration uses
-its supported refresh boundary or the shared client's validated invocation
-path. Discovery, schema size and invocation errors count toward the measured
-cost of that choice.
-
-The service derives the actor from authentication and checks current company
-membership. Credentials stay in the client's credential store. A model's
-arguments cannot select a more privileged execution identity.
-
-```text
-function submit(connection, request):
-    actor = authenticateAndResolveMember(connection)
-    descriptor = catalog.resolveExact(request.toolID)
-    arguments = descriptor.inputSchema.validate(request.arguments)
-    authorize(actor, descriptor, arguments)
-    operation = claimDurably(actor, request.operationKey, descriptor, arguments)
-    if operation.alreadyExists:
-        return operation.currentResult()
-    if requiresApproval(actor, descriptor, arguments):
-        return holdForAuthenticatedApproval(operation)
-    return dispatchDurably(operation)
-```
-
-An operation key stays stable across transport retries; reuse with different
-arguments is rejected. Approval binds to the actor, company, operation,
-arguments and expiry. Reconnection resumes the recorded operation and checks
-authorization again. A timeout after an external effect requires downstream
-idempotency or reconciliation before retrying. Cancellation reports effects
-already committed. Scheduled business work survives a harness disconnect.
-
-Results retain structured records, images and authorized artifact references.
-The service records what changed, and the harness explains those receipts to
-the user. Flattening an image or artifact into a success sentence loses a
-capability and fails parity.
-
-### Bluecollar's identity and Pi's mechanics
-
-Preserve Bluecollar's understanding of work, continuity across follow-ups,
-outcome judgment and recovery behavior. Generic tool names, argument shapes,
-file editing, shell sessions and execution plumbing can follow Pi directly.
-Reuse or adapt Pi where appropriate, retaining its license and attribution.
-
-Start from a pinned Pi revision and record a reuse, adaptation or retention
-decision for each generic component. A divergence needs a product, execution
-boundary, compatibility or measured performance reason. Existing tool
-spellings, action envelopes and prompt boilerplate are not product identity
-simply because Bluecollar already has them.
-
-### Verification and publication
-
-Run the same business scenarios through Bluecollar, Claude Code, Codex and
-Pi using one plugin release. Include installation, authentication, approvals,
-reconnects, cancellation, tenant isolation and artifact delivery. Prove
-external use with Bluecollar stopped. Compare matched model configurations
-where supported and label other combinations as product comparisons.
-
-Adoption requires preserved capabilities and measured success rate, cost per
-successful task, context size and completion latency. Publish the supported
-version matrix and evidence with the release. Deploy service compatibility
-before updating clients, retain a documented compatibility window, and
-verify the running versions. Keep this English page and its Korean
-counterpart aligned with the released behavior and remaining design work.
-
-### Released behavior
-
-The sections above are the target. This is what has shipped as of internkim
-`8a9b7dae5`, plugin `1be15af`, Blueclaw `8857d92a`, Bluecollar `bc91eee6`.
-
-- The plugin is a plain Agent Plugins 1.0.0 checkout: `plugin.json`,
-  `mcp.json` naming `https://api.intern.kim/v1/mcp`, and `skills/`. There is
-  no harness adapter; each client loads that layout its own way, and the
-  recipes are in the plugin's README.
-- The schedule tools (`schedule_list`, `schedule_create`, `schedule_update`,
-  `schedule_cancel`) are defined once in the catalog and answered on the
-  company machine; Bluecollar carries no native copies. The public server
-  serves the catalog of the web deployment it runs, so a client sees these
-  four once that deployment carries `b3b1406e3`.
-- Registering tools during a turn, the durable approval envelope and the
-  service receipts of "Connection and execution" are contract text, not
-  released endpoints.
-- The model's kernel is `read`, `write`, `edit`, `bash`, `plan`
-  and `equip`. The first four are the work. `plan` records the goal, its
-  steps and the level that sizes the run. `equip` takes a sentence
-  describing a need and answers with the tools that serve it, through the
-  same selector intake uses to pick a turn's likely tools. The rest of the
-  company catalog reaches the model as a shortlist settled once per plan
-  step, so what stands in front of it holds still while it works on one
-  thing.
-- The model speaks through a `reply`. It carries the words and any files it
-  attaches; `final` makes it the last word on the task, `expectsAnswer` parks
-  the run until somebody answers, and `choices` turns that question into
-  buttons where the messenger draws them. `file_deliver` and `ask_input` stay
-  registered as internal tools the runtime invokes behind the reply, so each
-  still leaves a tool observation the completion gate reads. `finish`,
-  `ask_input`, `file_deliver`, `request_tools` and `plan_update` are gone
-  from the model's vocabulary.
-- Model calls reach OpenRouter sorted by throughput, and every call of one
-  conversation carries that conversation as its session id, so a provider
-  already holding the prompt prefix keeps the work.
-- The pilot runner (`web/tests/pilot`, internkim#1842) drives thirty tasks.
-  Twenty end in a file the judge checks by the delivered attachment's
-  metadata, and a run intake parked before any turn ran is reported in its
-  own column instead of being scored as a kernel result.
-
-Thirty tasks, one repetition each, `z-ai/glm-5.3-flash` for every arm, on a
-disposable fleet with a judge that reads the resulting records. The kernel
-above is what the run `pilot-8` measured, and the seven-tool kernel it
-replaced is `pilot-6` (internkim#1832):
-
-| Arm | Passed | Reached the loop | Passed in the loop | Median prompt tokens per call | Median calls per run | Cost per passed task |
-| --- | --- | --- | --- | --- | --- | --- |
-| Seven-tool kernel (`pilot-6`) | 24/30 | 29/30 | 24/29 | 22,399 | 5.5 | $0.0354 |
-| This kernel (`pilot-8`) | 24/30 | 23/30 | 23/23 | 23,257 | 4 | $0.0220 |
-
-Read the reached-the-loop column first. All six of `pilot-8`'s failures
-happened before a turn ran: five were intake asking the requester a question
-and parking the task, which both kernels do and which no kernel change can
-fix, and one was a run the harness lost to its own settle timeout. The
-adoption gate as written rejects this row, because it asks for lower prompt
-tokens per call and was worded for an experiment about definition counts; the
-case for adopting anyway is the in-loop column together with the cost, and it
-is argued on the issue. Claude Code, Codex and Pi over the same thirty tasks
-with the same plugin release are the next arms in that program.
-
-| Harness | Version tested | Loads the plugin through | Status |
-| --- | --- | --- | --- |
-| Bluecollar (inside Blueclaw) | `f41ae448` | capabilityd, the same catalog | verified on Local Fleet and on the device (internkim#1819) |
-| Claude Code | 2.1.276 | the marketplace entry in the internkim repository | verified end to end (internkim#1823) |
-| Codex | 0.154.0 | reads the root layout natively | recipe published; not exercised against the service |
-| Pi | 0.83.0 | `pi-agent-plugins` and `pi-mcp-adapter` | recipe published; not exercised against the service |
+Inside blueclaw the model's kernel is `read`, `write`, `edit`, `bash`, `plan` and
+`equip`. `plan` records the goal, its steps and the level that sizes the run.
+`equip` takes a sentence describing a need and answers with the tools that serve
+it, and the rest of the company catalog reaches the model as a shortlist settled
+once per plan step. The model speaks through a single `reply` that carries the
+words and any files, and that can park the run until somebody answers or offer
+choices as buttons.
 
 ## The central side
 
@@ -324,7 +159,7 @@ and tells browsers whether the company's computer has a live connection.
 | Process | Answers on | Job | Code |
 |---|---|---|---|
 | the relay (`internkim-relay`) | outbound only; `127.0.0.1:18091` for the connector | answers the app's calls, turns messages into agent turns, serves the agent its tools | `host/relay/` |
-| the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter: Buzz or Mattermost | `.dependency/blueclaw/chatd/` |
+| the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter for Buzz | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `/run/internkim/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, embeddings, the mail, site, web and browser tools | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation when no companion is available; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
@@ -347,9 +182,9 @@ Memory is one Postgres fact store. When a run finishes, bluememo has a
 model extract atomic facts from it; a newer fact supersedes an older one, a
 repeated fact reinforces one, and a person can ask the agent to forget one.
 Each fact has an owner and the circles it is shared with, and recall returns
-only what the reader may see. Search fuses pgvector similarity with word
-similarity, which is why the host's Postgres carries the `vector` extension;
-without it the store still answers, lexically.
+only what the reader may see. Search fuses vector similarity with word
+similarity when Postgres has the `vector` extension. The company host installs
+Postgres without it, so there recall matches words.
 
 Models are named in one place, `internal/modelladder`. The agent asks for a
 tier, and capabilityd holds the key and makes the call, so the agent never sees

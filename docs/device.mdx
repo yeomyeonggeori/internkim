@@ -1,22 +1,18 @@
 ---
 title: The legacy device path
-description: The frozen per-company appliance that predates the central plane. Still shipped, still working, no longer designed against.
+description: The frozen per-company appliance. Still shipped, still working, no longer designed against.
 icon: Monitor
 ---
 
-Before the central plane there was one appliance per company: everything on
-one box, reached by people on the same network. This page is its map.
+The device path is one appliance per company: everything on one box, reached
+by people on the same network. This page is its map.
 
-That path was frozen on 2 September 2026. It still ships, it still works, and
-it still gets bug fixes, but nothing new is designed against it. If you are
-deciding how to run internkim, [the host](/docs/running-the-host) is the
-answer and this page is history.
+It still ships, works, and gets bug fixes, but nothing new is designed against
+it. To run internkim, use [the host](/docs/running-the-host).
 
-Nothing here needs a particular board. The model sizes below and the Cloud
-Hypervisor guest come from the Jetson Orin Nano Super this path was built on,
-and the board it is worked against now is a Raspberry Pi CM5.
-[The host](/docs/running-the-host) is the same software on any macOS or Linux
-computer a company already leaves on.
+The model sizes below and the Cloud Hypervisor guest come from the Jetson Orin
+Nano Super this path was built on. [The host](/docs/running-the-host) is the same
+software on any macOS or Linux computer a company already leaves on.
 
 ## What runs on the box
 
@@ -80,6 +76,22 @@ the agent tells the requester the browser is busy. Login, MFA, captcha,
 sensitive inputs and account-risky actions are not done in the device browser;
 the agent says what blocks it and stops.
 
+## Setting up a device
+
+From a Mac with an NVIDIA Jetson Orin Nano Super Developer Kit booted on JetPack
+(NVMe storage recommended), reachable over SSH, and an
+[OpenRouter API key](https://openrouter.ai/keys):
+
+```bash
+make build
+./internkim setup --board jetson-orin-nano --host <jetson-ip> --user <ssh-user>
+```
+
+`./internkim` is a local binary that does not rebuild itself, so run `make build`
+again after changing Go, provisioning or runtime configuration. A full setup runs
+every step in `internal/provisioning/steps/` in the order that package declares,
+and `--only` accepts those step names.
+
 ## Deploying to a device
 
 Everyday deployment goes through the OTA release engine over Admin HTTPS;
@@ -93,7 +105,7 @@ make build
 The rules that repay knowing before anything else:
 
 - The device agent ships as `blueclawPayload`, with the pre-built artifact at
-  pre-built artifact at `.dependency/blueclaw-payload/`. Any agent change
+  `.dependency/blueclaw-payload/`. Any agent change
   needs `make prepare-blueclaw-payload` first; the deploy fails loudly when
   the artifact's revision does not match the submodule's HEAD.
 - A new component takes two deploys because
@@ -106,6 +118,10 @@ The rules that repay knowing before anything else:
   changes agent input, check for a task run newer than the deploy.
 - `./internkim release publish` pushes a stable channel to R2 for several
   devices to pull with `./internkim update`.
+- Without `--components`, `deploy` rebuilds stale artifacts and ships every
+  component that differs from the device, with its protocol partner. It refuses a
+  component the device is ahead on, and `--plan` prints the selection without
+  publishing.
 
 The gate before any device deployment is the disposable local fleet, an ARM
 Linux VM on macOS running the current checkout against real service

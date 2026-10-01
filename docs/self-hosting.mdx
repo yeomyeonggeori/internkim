@@ -1,6 +1,6 @@
 ---
 title: Self-hosting levels
-description: Four ways to run internkim, from the host on your own computer to a host you can reach from any network.
+description: Three ways to run internkim, from the host on your own computer to a host you can reach from any network.
 icon: Layers
 ---
 
@@ -16,7 +16,7 @@ A company can run as much of internkim as it wants and leave the rest to
 ## Level 1: the host on your own computer
 
 Install [the host](/docs/running-the-host) on a computer the company leaves on,
-such as a Kim Mini or a Linux machine. The company's record, the web app and the
+such as a Kim Mini, a Mac or a Linux machine. The company's record, the web app and the
 sign-in address stay with `intern.kim`. The host connects outward and nothing
 listens off loopback, so the computer needs no public address.
 
@@ -34,6 +34,38 @@ Everyone signs in at your domain itself. Releases are published to a bucket in
 the same account, so sign-in, the web app and updates no longer depend on
 `intern.kim`.
 
+### Deploying the web app
+
+Which Supabase project the app talks to is decided when it runs: `hooks.server.ts`
+injects `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` into the page, read through
+`$env/dynamic/private`. One build therefore serves any company, and deploying it
+yourself only needs your project's values as Pages variables.
+
+```bash
+cd web
+bun install
+bun run build
+bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-kit/cloudflare --production
+```
+
+The script reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and deploys a
+preview unless `--production` is passed. Custom domains always serve the production
+deployment, so a preview answers only on `*.pages.dev`. Each hostname is attached
+explicitly with `scripts/pages-domains.ts`, because Pages custom domains do not take
+wildcards.
+
+- Store every Pages variable as a secret, including the public ones. `wrangler pages
+  deploy` rewrites plain-text variables from its own configuration, so a plain-text
+  value can vanish on the deploy that was meant to start using it.
+- `api.<zone>` attaches to the same project, because the public API is the same
+  routes.
+- `GATEWAY_URL` and `GATEWAY_ADMIN_TOKEN` let an API call reach the company's
+  computer through the connection gateway. Without them an invocation answers `503`,
+  while the catalog and the tokens still work.
+- `supabase config push` sends the whole `config.toml`, so any setting the file
+  omits returns to the CLI default. Read the diff it prints before trusting the exit
+  code.
+
 ## Level 4: reachable over SSH from any network
 
 The host still opens no way in, and the product provides none. A level 4
@@ -48,7 +80,6 @@ for [any host](/docs/architecture#why-the-host-has-no-inbound-port).
 
 ## The legacy device path
 
-Before these levels there was one appliance per company, reached through
-per-device hostnames on `intern.kim`. It is called the legacy device path, and
+The per-company appliance is the legacy device path, and
 [its page](/docs/device) describes it. It is not a level and nothing new is
 designed against it.
