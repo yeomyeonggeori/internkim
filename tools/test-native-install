@@ -656,7 +656,7 @@ class Rig:
             f"the presence of {CONFIGURATION_DIRECTORY} and the bytes of the planted agent-key after purge",
             "this departs from what purge usually means, so asserting the usual semantics would "
             "make the rig demand the bug; the plan's §5 reason is that the keys are not "
-            "recoverable and `internkim destroy --confirm` is the only thing that deletes them",
+            "recoverable, so deleting them is left to the person, by the command purge prints",
         ).record(
             "etc-gone" in state.stdout and PLANTED_SECRET in state.stdout,
             state.stdout.strip(),

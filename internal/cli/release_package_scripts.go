@@ -52,6 +52,7 @@ func postInstallBody(format linuxPackageFormat) string {
 		`systemd-tmpfiles --create ` + blueclaw.CompanyPackageTmpfilesPath + ` || refuse "systemd-tmpfiles could not create the directories declared in ` + blueclaw.CompanyPackageTmpfilesPath + `"`,
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
 		hostSetupLines(blueclaw.LinuxCompanyHostLayout().PythonSetupCommands()),
+		forgetTheDeviceUsersSync(``),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
@@ -75,6 +76,7 @@ func preRemoveBody(format linuxPackageFormat) string {
 		`if ` + format.RemovalTest("prerm") + `; then`,
 		`  systemctl stop ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
 		`  systemctl disable ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
+		forgetTheDeviceUsersSync(`  `),
 		`fi`,
 		`exit 0`,
 		``,
@@ -85,7 +87,9 @@ func preRemoveBody(format linuxPackageFormat) string {
 // and still leaves the state: the identity seed signs a message under a person's own
 // name and the agent key is the company's identity on the plane, neither is
 // recoverable, and a customer who typed purge to reinstall would lose the company.
-// Deleting them is `internkim destroy --confirm`, which is the command that says so.
+// The host's database and cache keep their own trees beside it, and the message names
+// all three in the one command that deletes them, because the package that could have
+// offered a command for it is gone by the time it prints.
 // rpm and pacman have no purge; their own rule keeps an edited configuration file
 // beside the removed one.
 func postRemoveBody(format linuxPackageFormat) string {
@@ -101,14 +105,35 @@ func postRemoveBody(format linuxPackageFormat) string {
 			`if [ "$1" = purge ]; then`,
 			`  rm -rf `+blueclaw.CompanyHostConfigurationRoot,
 			`  if [ -d `+blueclaw.CompanyHostStateRoot+` ]; then`,
-			`    echo "internkim: `+blueclaw.CompanyHostStateRoot+` was kept. It holds this company's identity on"`,
-			`    echo "internkim: the plane and the seed that signs messages as each person, and neither"`,
-			`    echo "internkim: can be recovered. 'internkim destroy --confirm' is what deletes it."`,
+			`    echo "internkim: `+keptStateList()+` were kept. They hold this company's"`,
+			`    echo "internkim: identity on the plane, the seed that signs messages as each person and the"`,
+			`    echo "internkim: host's database, and none of it can be recovered. To delete them:"`,
+			`    echo "internkim:   sudo rm -rf `+strings.Join(keptStatePaths(), " ")+`"`,
 			`  fi`,
 			`fi`,
 			``)
 	}
 	return strings.Join(append(lines, `systemctl daemon-reload >/dev/null 2>&1 || true`, `exit 0`, ``), "\n")
+}
+
+// The first release's admind wrote the device's users sync onto the company host,
+// where it fails every hour, and the package owns none of its three files.
+func forgetTheDeviceUsersSync(indentation string) string {
+	return indentation + `systemctl disable --now internkim-users-sync.timer internkim-users-sync.service >/dev/null 2>&1 || true` + "\n" +
+		indentation + `rm -f ` + strings.Join(deviceUsersSyncPaths(), " ")
+}
+
+func deviceUsersSyncPaths() []string {
+	return []string{blueclaw.InternKimUsersSyncScriptPath, blueclaw.InternKimUsersSyncServicePath, blueclaw.InternKimUsersSyncTimerPath}
+}
+
+func keptStatePaths() []string {
+	return []string{blueclaw.CompanyHostStateRoot, blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostCacheDataPath}
+}
+
+func keptStateList() string {
+	paths := keptStatePaths()
+	return strings.Join(paths[:len(paths)-1], ", ") + " and " + paths[len(paths)-1]
 }
 
 func restartedUnitFileNames() string {

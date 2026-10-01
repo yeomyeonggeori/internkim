@@ -188,11 +188,26 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 	if !strings.Contains(script, "rm -rf "+blueclaw.CompanyHostConfigurationRoot) {
 		t.Fatalf("purge does not remove %s", blueclaw.CompanyHostConfigurationRoot)
 	}
-	if strings.Contains(script, "rm -rf "+blueclaw.CompanyHostStateRoot) {
-		t.Fatalf("purge removes %s, and nothing in it can be recovered", blueclaw.CompanyHostStateRoot)
+	deletion := "sudo rm -rf " + strings.Join(keptStatePaths(), " ")
+	if !strings.Contains(script, deletion) {
+		t.Fatalf("purge keeps the company without naming the command that deletes it, %q", deletion)
 	}
-	if !strings.Contains(script, blueclaw.CompanyHostStateRoot+" was kept") {
-		t.Fatalf("purge keeps %s without saying so", blueclaw.CompanyHostStateRoot)
+	for _, line := range strings.Split(script, "\n") {
+		command := strings.TrimSpace(line)
+		for _, path := range keptStatePaths() {
+			if strings.HasPrefix(command, "rm ") && strings.Contains(command, path) {
+				t.Fatalf("purge runs %q, and nothing in %s can be recovered", command, path)
+			}
+		}
+	}
+}
+
+func TestUpgradeAndRemovalTakeTheDeviceUsersSync(t *testing.T) {
+	removal := "rm -f " + strings.Join(deviceUsersSyncPaths(), " ")
+	for _, script := range []packageScript{postInstallScript, preRemoveScript} {
+		if !strings.Contains(maintainerScript(debianPackageFormat, script), removal) {
+			t.Fatalf("%s leaves the device users sync the first release wrote, %q", script, removal)
+		}
 	}
 }
 

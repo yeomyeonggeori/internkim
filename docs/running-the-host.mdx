@@ -47,6 +47,29 @@ To follow the newest release, prereleases included, add `--channel testing`:
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
 ```
 
+## Remove
+
+```bash
+sudo apt remove internkim     # Debian, Ubuntu
+sudo dnf remove internkim     # Fedora, RHEL-compatible
+sudo pacman -R internkim      # Arch Linux
+```
+
+Removing the package stops and disables the host services and deletes the
+program files and the host's Python runtime. The install added no package
+source or signing key, so there is none to clean up. The company stays on the
+computer: `/var/lib/internkim` holds its key on the hosted service and the seed
+that signs messages as each person, and `/var/lib/internkim-postgres` and
+`/var/lib/internkim-cache` hold the host's database and cache. Installing the
+package again brings the same company back. On Debian and Ubuntu,
+`sudo apt purge internkim` also deletes the settings in `/etc/internkim`.
+
+Neither key can be issued again, so deleting the company is left to you:
+
+```bash
+sudo rm -rf /var/lib/internkim /var/lib/internkim-postgres /var/lib/internkim-cache
+```
+
 ## Check services
 
 On Linux, systemd shows the host service state and logs:
