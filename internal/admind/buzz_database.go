@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/lib/pq"
 	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -31,10 +33,15 @@ func (service *Service) buzzDatabase() (*sql.DB, error) {
 		reportBuzzDatabaseWaiting(handle)
 		return handle.database, nil
 	}
-	database, errorValue := sql.Open("postgres", connectionURL)
+	configuration, errorValue := postgresConfiguration(connectionURL)
 	if errorValue != nil {
 		return nil, errorValue
 	}
+	connector, errorValue := pq.NewConnectorConfig(configuration)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	database := sql.OpenDB(connector)
 	boundToTheConnectionBudget(database, blueclawruntime.AdminDatabaseConnections)
 	if handle.database != nil {
 		_ = handle.database.Close()
@@ -43,6 +50,28 @@ func (service *Service) buzzDatabase() (*sql.DB, error) {
 	handle.connectionURL = connectionURL
 	handle.waitCount = 0
 	return database, nil
+}
+
+// lib/pq v1.12.3 departs from libpq twice for a Unix socket: it sorts a URL's
+// settings, so the authority's host replaces the `host` query parameter that
+// libpq, pgx and sqlx let win, and it negotiates SSL there, which libpq never
+// does over a socket. The company host's URL names its socket directory that way.
+func postgresConfiguration(connectionURL string) (pq.Config, error) {
+	configuration, errorValue := pq.NewConfig(connectionURL)
+	if errorValue != nil {
+		return pq.Config{}, errorValue
+	}
+	parsed, errorValue := url.Parse(connectionURL)
+	if errorValue != nil {
+		return pq.Config{}, errorValue
+	}
+	socketDirectory := parsed.Query().Get("host")
+	if !strings.HasPrefix(socketDirectory, "/") {
+		return configuration, nil
+	}
+	configuration.Host = socketDirectory
+	configuration.SSLMode = pq.SSLModeDisable
+	return configuration, nil
 }
 
 // database/sql has no acquire timeout: a caller that finds the share full waits
