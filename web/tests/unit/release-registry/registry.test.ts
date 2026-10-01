@@ -32,8 +32,16 @@ describe('Release Registry Worker', () => {
 		expect(bucket.getCalls).toEqual(['channels/stable.json']);
 	});
 
-	test('keeps the rest of the bucket behind the token', async () => {
-		const objectKeys = ['debug/secret', 'deb/dists/stable/InRelease', 'rpm/stable/aarch64/repodata/repomd.xml', 'arch/stable/aarch64/internkim.db'];
+	test('keeps the whole bucket behind the token', async () => {
+		const objectKeys = [
+			'debug/secret',
+			'deb/dists/stable/InRelease',
+			'rpm/stable/aarch64/repodata/repomd.xml',
+			'arch/stable/aarch64/internkim.db',
+			'brew/internkim-macos-arm64.tar.gz',
+			'host/latest/internkim-host-darwin-arm64',
+			'companion/latest/internkim-companion-darwin-arm64'
+		];
 		const bucket = new MemoryR2Bucket(Object.fromEntries(objectKeys.map((objectKey) => [objectKey, 'secret'])));
 
 		for (const objectKey of objectKeys) {
