@@ -36,7 +36,7 @@ export async function keepTheMemberPicture(
 	if ((await pictureOnTheRow(member)) === path) return json({ kept: false }, { status: 200 });
 
 	const credentials = assetStoreCredentialsOf(environment);
-	await keepFileInTheBucket(credentials, member.companyID, memberPictureKind, bytes, contentType).catch(
+	const kept = await keepFileInTheBucket(credentials, member.companyID, memberPictureKind, bytes, contentType).catch(
 		(refusal: unknown) => {
 			if (refusal instanceof AssetStoreRefused) error(502, refusal.message);
 			throw refusal;
@@ -45,11 +45,11 @@ export async function keepTheMemberPicture(
 
 	const written = await member.caller.rpc(keepFunction, { picture_path: path });
 	if (written.error) {
-		await dropFileFromTheBucket(credentials, path).catch(() => undefined);
+		if (!kept.wasAlreadyKept) await dropFileFromTheBucket(credentials, path).catch(() => undefined);
 		error(422, written.error.message);
 	}
 	const isKept = written.data === true;
-	if (!isKept && (await pictureOnTheRow(member)) !== path) {
+	if (!isKept && !kept.wasAlreadyKept && (await pictureOnTheRow(member)) !== path) {
 		await dropFileFromTheBucket(credentials, path).catch(() => undefined);
 	}
 	return json({ kept: isKept }, { status: 200 });

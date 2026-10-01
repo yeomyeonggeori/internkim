@@ -132,7 +132,8 @@ describe('keeping the bytes in the company bucket', () => {
 			putDocument
 		);
 
-		expect(again).toEqual(first);
+		expect(again).toEqual({ ...first, wasAlreadyKept: true });
+		expect(first.wasAlreadyKept).toBe(false);
 		expect(put[0]).toBe(put[1]);
 	});
 

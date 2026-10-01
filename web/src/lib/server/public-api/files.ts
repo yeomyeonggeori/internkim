@@ -23,6 +23,7 @@ export type KeptFile = {
 	digest: string;
 	contentType: string;
 	sizeBytes: number;
+	wasAlreadyKept: boolean;
 };
 
 const putThroughTheRuntime: PutDocument = (url, options) => fetch(url, options);
@@ -86,10 +87,11 @@ export async function keepFileInTheBucket(
 		},
 		body: bytes
 	});
-	if (!response.ok && !(await namesAFileAlreadyKept(response))) {
+	const wasAlreadyKept = !response.ok;
+	if (wasAlreadyKept && !(await namesAFileAlreadyKept(response))) {
 		throw new AssetStoreRefused(`the asset store answered ${response.status} for this file`);
 	}
-	return { path, digest, contentType, sizeBytes: bytes.byteLength };
+	return { path, digest, contentType, sizeBytes: bytes.byteLength, wasAlreadyKept };
 }
 
 // The store answers a path it already holds with HTTP 400 and its own

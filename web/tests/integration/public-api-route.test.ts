@@ -932,3 +932,36 @@ describe('an administrator reaches only people below their own clearance', () =>
 		expect(promoted).toEqual({ is_admin: true, clearance: 2 });
 	});
 });
+
+describe('a refused picture write', () => {
+	test("takes down no picture another row still shows", async () => {
+		const { data: top } = await client
+			.from('member')
+			.select('id')
+			.eq('company_id', companyID)
+			.eq('email', `${slug}-admin@example.test`)
+			.single();
+		await client.from('member').update({ status: 'active' }).eq('id', top!.id);
+		const administratorSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, top!.id))
+			.accessToken;
+		const picture = () => {
+			const form = new FormData();
+			form.set('file', new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3, 4])], 'logo.png', { type: 'image/png' }));
+			return { method: 'POST', body: form };
+		};
+
+		const shown = await reach('/company/profile-image', administratorSession, picture());
+		expect(shown.status).toBe(200);
+		const { data: company } = await client.from('company').select('profile_image').eq('id', companyID).single();
+
+		const refused = await reach('/company/profile-image', sessionToken, picture());
+		expect(refused.status).toBe(403);
+
+		const { data: stillThere, error } = await client.storage.from('asset').download(company!.profile_image);
+		expect(error).toBeNull();
+		expect(stillThere?.size).toBeGreaterThan(0);
+
+		await client.from('company').update({ profile_image: null }).eq('id', companyID);
+		await client.storage.from('asset').remove([company!.profile_image]);
+	});
+});
