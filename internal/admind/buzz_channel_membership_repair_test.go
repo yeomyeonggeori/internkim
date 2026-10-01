@@ -51,7 +51,7 @@ func TestAPrivateRoomThatIsNoCirclesIsLeftAlone(t *testing.T) {
 
 func TestAnArchivedRoomIsSeenAsArchived(t *testing.T) {
 	shape := describeMattermostChannel(mattermostadmin.ChannelRecord{
-		Name:     "autoke-qa",
+		Name:     "client-qa",
 		Type:     "P",
 		DeleteAt: 1756000000000,
 	}, "channel-3")

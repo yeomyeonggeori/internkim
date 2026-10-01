@@ -57,18 +57,18 @@ var approvalTargetFixtures = []approvalTargetFixture{
 	{
 		toolName:      "event_delete",
 		inputField:    "eventHint",
-		titleHint:     "상하이 edatec 미팅",
-		absentHint:    "NVIDIA·젯슨 공급 미팅",
+		titleHint:     "부산 공급사 미팅",
+		absentHint:    "서울 거래처 미팅",
 		expectedID:    "event-1",
-		expectedTitle: "상하이 edatec 미팅",
-		newService:    recordApprovalTargetService("eventHint", "상하이 edatec 미팅", "event-1"),
+		expectedTitle: "부산 공급사 미팅",
+		newService:    recordApprovalTargetService("eventHint", "부산 공급사 미팅", "event-1"),
 		invoke:        Service.previewRecordToolTarget,
 	},
 	{
 		toolName:      "task_delete",
 		inputField:    "taskHint",
 		titleHint:     "고객지원 분기 결산 검토 완료",
-		absentHint:    "NVIDIA·젯슨 공급 미팅",
+		absentHint:    "서울 거래처 미팅",
 		expectedID:    "task-1",
 		expectedTitle: "고객지원 분기 결산 검토 완료",
 		newService:    recordApprovalTargetService("taskHint", "고객지원 분기 결산 검토 완료", "task-1"),
@@ -187,7 +187,7 @@ func TestResolvingATargetWritesNothing(t *testing.T) {
 
 func TestAToolThatResolvesNoTargetAheadIsReportedAsHavingNone(t *testing.T) {
 	paths := []string{}
-	service := recordApprovalTargetService("eventHint", "상하이 edatec 미팅", "event-1")(t, &paths)
+	service := recordApprovalTargetService("eventHint", "부산 공급사 미팅", "event-1")(t, &paths)
 
 	response := resolveApprovalTargetThroughRoute(t, service, "message_send", json.RawMessage(`{"targetType":"currentThread","message":"안녕하세요"}`))
 
@@ -275,8 +275,8 @@ func TestTheMessageDeleteTargetRouteAnswersOnItsOwnPath(t *testing.T) {
 
 func TestTheTargetResolutionRouteAnswersOnItsOwnPath(t *testing.T) {
 	paths := []string{}
-	service := recordApprovalTargetService("eventHint", "상하이 edatec 미팅", "event-1")(t, &paths)
-	requestBody := `{"input":{"eventHint":"상하이 edatec 미팅"},"context":{"requesterEmail":"member@example.com"}}`
+	service := recordApprovalTargetService("eventHint", "부산 공급사 미팅", "event-1")(t, &paths)
+	requestBody := `{"input":{"eventHint":"부산 공급사 미팅"},"context":{"requesterEmail":"member@example.com"}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/tools/event_delete/target.resolve", strings.NewReader(requestBody))
 	responseRecorder := httptest.NewRecorder()
 

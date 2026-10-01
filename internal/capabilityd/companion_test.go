@@ -694,7 +694,7 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 
 func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 	requesterContext := capabilities.ToolInvokeContext{
-		RequesterPersonID: "person-dongha",
+		RequesterPersonID: "person-yesi",
 		ConversationID:    "conversation-1",
 	}
 
@@ -764,7 +764,7 @@ func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
 		request := capabilities.ToolInvokeRequest{
 			ToolName: "message_send",
 			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
-			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-dongha", ConversationID: "conversation-1", IsScheduledRun: true},
+			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-yesi", ConversationID: "conversation-1", IsScheduledRun: true},
 		}
 		if service.isPreApprovedSelfDirectMessageSend(context.Background(), request) {
 			t.Fatal("expected scheduled runs to never qualify for the self direct-message pre-approval")
