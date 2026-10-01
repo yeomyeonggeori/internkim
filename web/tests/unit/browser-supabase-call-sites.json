@@ -13,7 +13,7 @@
    }
   },
   "realtime": {
-   "src/lib/task/task-live-refresh.ts": {
+   "src/lib/company-channel.ts": {
     "rpc('my_company_topic')": 1
    }
   },

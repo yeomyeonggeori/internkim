@@ -15,6 +15,7 @@
 	import { isSectionOpen, setSectionOpen } from './channel-sections.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { isUnreadEmphasized, unreadBadgeLabel } from '$lib/messenger/unread-badge';
+	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
 
 	let {
 		activeID,
@@ -171,6 +172,7 @@
 									image={conversation.avatarURL ?? ''}
 									memberID={conversation.counterpart?.memberID ?? ''}
 									externalID={conversation.counterpart?.externalID ?? ''}
+									{...avatarPresenceOf(conversation.counterpart?.memberID, text)}
 									class="size-4"
 								/>
 

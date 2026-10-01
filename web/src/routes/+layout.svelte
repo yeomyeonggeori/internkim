@@ -45,6 +45,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { personPicture } from '$lib/stores/person-picture.svelte';
 	import { keepMemberPicture } from '$lib/profile/keep-member-picture';
+	import { memberPresence } from '$lib/messenger/member-presence.svelte';
 
 
 	let { children, data } = $props();
@@ -66,6 +67,10 @@
 			}
 			if (!isAttendanceRoute && !myAttendanceToday.summary) void myAttendanceToday.load();
 		});
+	});
+	$effect(() => {
+		if (!data.session?.authenticated) return;
+		return memberPresence.keepMineShared();
 	});
 	$effect(() => {
 		if (!data.session?.authenticated) return;
