@@ -163,6 +163,7 @@ describe('connecting an empty box', () => {
 		await claimBox(client, companyID, box.publicKey, officeAddress);
 
 		expect(await connectedBoxOf(client, companyID)).toMatchObject({
+			companyID,
 			publicKey: box.publicKey,
 			encryptionKey: box.encryptionKey,
 			hasModelKey: false

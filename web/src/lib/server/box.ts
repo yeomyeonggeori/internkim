@@ -182,6 +182,7 @@ export async function connectedBoxOf(client: SupabaseClient, companyID: string):
 	const box = await boxOfCompany(client, companyID);
 	if (!box) return null;
 	return {
+		companyID: box.companyID,
 		publicKey: box.publicKey,
 		encryptionKey: box.settings.encryptionKey,
 		lastSeenAt: box.settings.lastSeenAt ?? null,

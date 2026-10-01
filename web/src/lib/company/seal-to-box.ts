@@ -45,6 +45,16 @@ export async function sealToBox(plaintext: string, boxEncryptionKey: string, pur
 	};
 }
 
-export function sealModelKey(modelKey: string, boxEncryptionKey: string): Promise<SealedSecret> {
-	return sealToBox(modelKey, boxEncryptionKey, { information: modelKeySealInformation, additionalData: '' });
+export function modelKeyPurpose(companyID: string, boxEncryptionKey: string): SealPurpose {
+	return {
+		information: modelKeySealInformation,
+		additionalData: additionalDataOf(companyID, boxEncryptionKey, 'model-key')
+	};
+}
+
+export function sealModelKey(
+	modelKey: string,
+	box: { companyID: string; encryptionKey: string }
+): Promise<SealedSecret> {
+	return sealToBox(modelKey, box.encryptionKey, modelKeyPurpose(box.companyID, box.encryptionKey));
 }

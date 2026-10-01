@@ -1,10 +1,11 @@
 {
 	"modelKey": "sk-or-v1-0000000000000000000000000000000000000000000000000000000000000000",
 	"boxSecretKey": "ERERERERERERERERERERERERERERERERERERERERERE",
+	"companyID": "00000000-0000-4000-8000-00000000000a",
 	"sealed": {
 		"version": 1,
 		"recipient": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
-		"enc": "eK7NapVVdZF3VjpzMYSfdQH8Yx7Rr6dhbJWMxY_QMFc",
-		"ciphertext": "MR3FJ3l3C8t6qnWFVWvX-ltlgWQKkBf1cZFw1b8-XvFhQtcNz_dAXGaGqMYyMvnn-cgXNPRg4pgdRrvg8zMgSTUqwQmiLSGR6TmJB5ujgE-Hw0RgZ879chE"
+		"enc": "AADDrz8_C0og9kklXWkDwsmPjE9RSZBexeFN67M8SAA",
+		"ciphertext": "xdJ2Qgfb2c9PTFb6s2mx1z0b2qTH7cEi4ZSg6CjiEMh-eQT546cAPwFMNTZ1l30-6ivBcXsff8K4PNCih7ezueyXivImOjZp2qfoAjljePCZny73KAV_T-A"
 	}
 }

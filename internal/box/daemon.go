@@ -74,7 +74,7 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 		log.Printf("%s connected this box and has not given it a model key yet", session.Configuration.Company.Name)
 		return announceInterval, nil
 	}
-	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey)
+	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {
 		return 0, errorValue
 	}
@@ -104,7 +104,7 @@ func (daemon Daemon) renew(session Session, identity Identity) error {
 	if session.SealedModelKey == nil {
 		return nil
 	}
-	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey)
+	modelKey, errorValue := identity.OpenModelKey(*session.SealedModelKey, session.Configuration.Company.ID)
 	if errorValue != nil {
 		return errorValue
 	}

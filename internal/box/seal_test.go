@@ -242,6 +242,7 @@ func TestTheBoxOpensTheRFC9180VectorForItsSuite(t *testing.T) {
 type modelKeyFixture struct {
 	ModelKey     string         `json:"modelKey"`
 	BoxSecretKey string         `json:"boxSecretKey"`
+	CompanyID    string         `json:"companyID"`
 	Sealed       SealedModelKey `json:"sealed"`
 }
 
@@ -255,7 +256,8 @@ func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 
-	modelKey, errorValue := identityWithEncryptionSeed(t, fixture.BoxSecretKey).OpenModelKey(fixture.Sealed)
+	identity := identityWithEncryptionSeed(t, fixture.BoxSecretKey)
+	modelKey, errorValue := identity.OpenModelKey(fixture.Sealed, fixture.CompanyID)
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -263,14 +265,17 @@ func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
 	if modelKey != fixture.ModelKey {
 		t.Fatalf("opened %q, sealed %q", modelKey, fixture.ModelKey)
 	}
-	if _, errorValue := freshTestIdentity(t).OpenModelKey(fixture.Sealed); errorValue == nil {
+	if _, errorValue := freshTestIdentity(t).OpenModelKey(fixture.Sealed, fixture.CompanyID); errorValue == nil {
 		t.Fatal("a box the model key was not sealed to opened it")
+	}
+	if _, errorValue := identity.OpenModelKey(fixture.Sealed, sampleCompanyID); errorValue == nil {
+		t.Fatal("a model key sealed for one company opened for another")
 	}
 }
 
 func TestAModelKeyDoesNotOpenAsAMailPassword(t *testing.T) {
 	identity := freshTestIdentity(t)
-	sealed := sealSecretTo(t, identity, "sk-or-v1-sample", SealPurpose{Information: modelKeySealInformation})
+	sealed := sealSecretTo(t, identity, "sk-or-v1-sample", ModelKeyPurpose("company-a", identity.EncryptionPublicKey()))
 
 	if _, errorValue := identity.OpenSecret(sealed, mailPurpose); errorValue == nil {
 		t.Fatal("a model key opened as a mail password")

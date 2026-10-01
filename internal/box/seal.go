@@ -46,6 +46,13 @@ func MailPasswordPurpose(companyID, memberID, field string, connection MailConne
 	}
 }
 
+func ModelKeyPurpose(companyID, boxEncryptionKey string) SealPurpose {
+	return SealPurpose{
+		Information:    modelKeySealInformation,
+		AdditionalData: additionalDataOf(companyID, boxEncryptionKey, "model-key"),
+	}
+}
+
 func additionalDataOf(parts ...string) string {
 	var joined strings.Builder
 	for _, part := range parts {

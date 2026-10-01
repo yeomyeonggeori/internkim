@@ -56,6 +56,6 @@ export async function connectBox(publicKey: string): Promise<ConnectedBox | null
 }
 
 export async function giveBoxModelKey(box: ConnectedBox, modelKey: string): Promise<ConnectedBox | null> {
-	const sealed = await sealModelKey(modelKey.trim(), box.encryptionKey);
+	const sealed = await sealModelKey(modelKey.trim(), box);
 	return connectedAnswerSchema.parse(await askCompanyRoute('/api/company/box/model-key', 'PUT', sealed)).connected;
 }

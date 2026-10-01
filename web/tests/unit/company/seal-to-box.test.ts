@@ -6,15 +6,15 @@ import {
 	base64URLOf,
 	boxSealingSuite,
 	bytesOfBase64URL,
-	modelKeySealInformation,
+	modelKeyPurpose,
 	sealModelKey
 } from '../../../src/lib/company/seal-to-box';
 import { openedBy } from './open-from-box';
 
-const modelKeyPurpose = { information: modelKeySealInformation, additionalData: '' };
+const companyID = '00000000-0000-4000-8000-00000000000a';
 
 type RFC9180Vector = { info: string; ikmE: string; skRm: string; pkRm: string; enc: string; aad: string; pt: string; ct: string };
-type ModelKeyFixture = { modelKey: string; boxSecretKey: string; sealed: SealedSecret };
+type ModelKeyFixture = { modelKey: string; boxSecretKey: string; companyID: string; sealed: SealedSecret };
 
 function testdata(name: string): string {
 	return readFileSync(new URL(`../../../../internal/box/testdata/${name}`, import.meta.url), 'utf8');
@@ -52,22 +52,36 @@ describe('sealing a model key to a box', () => {
 		const boxSecretKey = x25519.utils.randomSecretKey();
 		const boxEncryptionKey = base64URLOf(x25519.getPublicKey(boxSecretKey));
 
-		const sealed = await sealModelKey('sk-or-v1-example', boxEncryptionKey);
+		const sealed = await sealModelKey('sk-or-v1-example', { companyID, encryptionKey: boxEncryptionKey });
 
 		expect(sealedSecretSchema.safeParse(sealed).success).toBe(true);
-		expect(await openedBy(boxSecretKey, sealed, modelKeyPurpose)).toBe('sk-or-v1-example');
+		expect(await openedBy(boxSecretKey, sealed, modelKeyPurpose(companyID, boxEncryptionKey))).toBe('sk-or-v1-example');
+	});
+
+	test('a key sealed for one company does not open for another', async () => {
+		const boxSecretKey = x25519.utils.randomSecretKey();
+		const boxEncryptionKey = base64URLOf(x25519.getPublicKey(boxSecretKey));
+		const sealed = await sealModelKey('sk-or-v1-example', { companyID, encryptionKey: boxEncryptionKey });
+
+		await expect(
+			openedBy(boxSecretKey, sealed, modelKeyPurpose('00000000-0000-4000-8000-00000000000c', boxEncryptionKey))
+		).rejects.toThrow();
 	});
 
 	test('a key sealed to one box does not open on another', async () => {
 		const boxEncryptionKey = base64URLOf(x25519.getPublicKey(x25519.utils.randomSecretKey()));
-		const sealed = await sealModelKey('sk-or-v1-example', boxEncryptionKey);
+		const sealed = await sealModelKey('sk-or-v1-example', { companyID, encryptionKey: boxEncryptionKey });
 
-		await expect(openedBy(x25519.utils.randomSecretKey(), sealed, modelKeyPurpose)).rejects.toThrow();
+		await expect(
+			openedBy(x25519.utils.randomSecretKey(), sealed, modelKeyPurpose(companyID, boxEncryptionKey))
+		).rejects.toThrow();
 	});
 
 	test('the model key the box side opens in its tests opens here for the same purpose', async () => {
 		const fixture: ModelKeyFixture = JSON.parse(testdata('sealed-model-key.json'));
 
-		expect(await openedBy(bytesOfBase64URL(fixture.boxSecretKey), fixture.sealed, modelKeyPurpose)).toBe(fixture.modelKey);
+		const purpose = modelKeyPurpose(fixture.companyID, fixture.sealed.recipient);
+
+		expect(await openedBy(bytesOfBase64URL(fixture.boxSecretKey), fixture.sealed, purpose)).toBe(fixture.modelKey);
 	});
 });

@@ -11,7 +11,7 @@ type SealedModelKey struct {
 	Nonce              string `json:"nonce,omitempty"`
 }
 
-func (identity Identity) OpenModelKey(sealed SealedModelKey) (string, error) {
+func (identity Identity) OpenModelKey(sealed SealedModelKey, companyID string) (string, error) {
 	if sealed.Version == 0 {
 		return identity.openLegacyModelKey(sealed)
 	}
@@ -20,7 +20,7 @@ func (identity Identity) OpenModelKey(sealed SealedModelKey) (string, error) {
 		Recipient:  sealed.Recipient,
 		Enc:        sealed.Enc,
 		Ciphertext: sealed.Ciphertext,
-	}, SealPurpose{Information: modelKeySealInformation})
+	}, ModelKeyPurpose(companyID, identity.EncryptionPublicKey()))
 	if errorValue != nil {
 		return "", fmt.Errorf("the model key: %w", errorValue)
 	}

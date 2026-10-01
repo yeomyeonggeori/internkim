@@ -35,6 +35,7 @@ export const boxConfigurationSchema = hostConfigurationSchema.omit({ agentKey: t
 export type BoxConfiguration = z.infer<typeof boxConfigurationSchema>;
 
 export const connectedBoxSchema = z.object({
+	companyID: z.string(),
 	publicKey: boxKeySchema,
 	encryptionKey: boxKeySchema,
 	lastSeenAt: z.string().nullable(),

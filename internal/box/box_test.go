@@ -55,7 +55,7 @@ func TestBoxStillOpensAModelKeySealedBeforeHPKE(t *testing.T) {
 		t.Fatalf("encryption key = %s, the browser sealed to %s", identity.EncryptionPublicKey(), vector.BoxEncryptionKey)
 	}
 
-	modelKey, errorValue := identity.OpenModelKey(vector.Sealed)
+	modelKey, errorValue := identity.OpenModelKey(vector.Sealed, sampleCompanyID)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -68,7 +68,7 @@ func TestAnotherBoxCannotOpenAModelKeySealedBeforeHPKE(t *testing.T) {
 	vector := readSealingVector(t)
 	otherBox := identityWithEncryptionSeed(t, base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("\x44", seedLength))))
 
-	if _, errorValue := otherBox.OpenModelKey(vector.Sealed); errorValue == nil {
+	if _, errorValue := otherBox.OpenModelKey(vector.Sealed, sampleCompanyID); errorValue == nil {
 		t.Fatal("a box the key was not sealed to opened it")
 	}
 }

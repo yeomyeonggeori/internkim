@@ -97,7 +97,7 @@ func runSteps(t *testing.T, daemon Daemon, steps int) {
 
 func sealTo(t *testing.T, identity Identity, modelKey string) *SealedModelKey {
 	t.Helper()
-	sealed := sealSecretTo(t, identity, modelKey, SealPurpose{Information: modelKeySealInformation})
+	sealed := sealSecretTo(t, identity, modelKey, ModelKeyPurpose(sampleCompanyID, identity.EncryptionPublicKey()))
 	return &SealedModelKey{Version: sealed.Version, Recipient: sealed.Recipient, Enc: sealed.Enc, Ciphertext: sealed.Ciphertext}
 }
 
