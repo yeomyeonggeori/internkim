@@ -97,7 +97,6 @@ export type CompanyDocumentSearchInput = { query?: string; limit?: number };
 const earliestMetricYear = 1900;
 const documentSearchDefaultLimit = 5;
 const documentSearchLimit = 50;
-const documentNumberAttempts = 5;
 const downloadableForTenMinutes = 10 * 60;
 const lowestClearance = 0;
 const highestClearance = 3;
@@ -556,16 +555,6 @@ function documentNumberPrefix(documentType: string): string {
 	return initials || 'DOC';
 }
 
-function nextDocumentNumber(held: DocumentRow[], prefix: string): string {
-	const highest = held.reduce((standing, row) => {
-		const number = row.document_number ?? '';
-		if (!number.startsWith(prefix)) return standing;
-		const sequence = Number.parseInt(number.slice(prefix.length), 10);
-		return Number.isNaN(sequence) ? standing : Math.max(standing, sequence);
-	}, 0);
-	return `${prefix}${String(highest + 1).padStart(3, '0')}`;
-}
-
 function kindOfDocument(kind: string | undefined): string {
 	const asked = kind?.trim().toLowerCase() ?? '';
 	return documentKinds.includes(asked) ? asked : 'issued';
@@ -595,28 +584,26 @@ export async function companyDocumentRegister(
 		category_code: input.categoryCode ?? (input.domain || input.clearance !== undefined ? null : 'X')
 	};
 
-	for (let attempt = 0; attempt < documentNumberAttempts; attempt += 1) {
-		const documentNumber = kind === 'issued' ? nextDocumentNumber(await documentRows(context), prefix) : null;
-		const { data, error } = await context.caller
-			.from('company_document')
-			.insert({ ...written, document_number: documentNumber })
-			.select(documentColumns)
-			.single<DocumentRow>();
-		if (!error) {
-			return {
-				...answeredDocument(data),
-				storageDirectory: `/workspace/circles/member/documents/${documentType}`
-			};
-		}
-		if (error.code !== '23505' || documentNumber === null) {
-			throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
-		}
-	}
-	throw new RecordRefusedTheWrite(
-		`the ledger kept handing out ${prefix} numbers somebody else took first`,
-		409,
-		'record_duplicate'
-	);
+	const documentNumber = kind === 'issued' ? await reservedDocumentNumber(context, prefix) : null;
+	const { data, error } = await context.caller
+		.from('company_document')
+		.insert({ ...written, document_number: documentNumber })
+		.select(documentColumns)
+		.single<DocumentRow>();
+	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	return {
+		...answeredDocument(data),
+		storageDirectory: `/workspace/circles/member/documents/${documentType}`
+	};
+}
+
+async function reservedDocumentNumber(context: RecordContext, prefix: string): Promise<string> {
+	const { data, error } = await context.caller.rpc('reserve_document_number', {
+		target_company: context.companyID,
+		requested_prefix: prefix
+	});
+	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	return String(data);
 }
 
 export async function companyDocumentUpdate(
