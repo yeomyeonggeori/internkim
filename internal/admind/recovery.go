@@ -180,6 +180,9 @@ var SSHRecoveryActions = []string{
 	"mattermost-unlock-users",
 	"postgres-repair",
 	"release-setup-lock",
+	"migration-inventory",
+	"migration-export",
+	"migration-export-remove",
 }
 
 func isAllowedSSHRecoveryAction(action string) bool {
@@ -497,6 +500,14 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		pgContext, cancelPg := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(pgContext, "diagnose + restart postgres", "sh", "-lc", postgresRepairCommand()))
 		cancelPg()
+	case "migration-inventory":
+		inventoryContext, cancelInventory := context.WithTimeout(context.Background(), 300*time.Second)
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(inventoryContext, "list what the device keeps, by name and size", "sh", "-c", migrationInventoryCommand()))
+		cancelInventory()
+	case "migration-export":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "export the company state for the company host package", "sh", "-c", migrationExportCommand(actionTarget)))
+	case "migration-export-remove":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove the exports", "sh", "-c", migrationExportRemoveCommand()))
 	case "buzz-snapshot":
 		snapshotContext, cancelSnapshot := context.WithTimeout(context.Background(), 180*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(snapshotContext, "snapshot buzz relay database", "sh", "-lc", buzzSnapshotCommand()))
