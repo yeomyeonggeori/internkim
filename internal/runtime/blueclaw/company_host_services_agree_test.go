@@ -33,6 +33,16 @@ func TestAdmindAndBlueclawShareOnePolicyFile(t *testing.T) {
 	}
 }
 
+func TestAdmindAndCapabilitydWorkInTheWorkspaceBlueclawRunsIn(t *testing.T) {
+	workspace := LinuxCompanyHostLayout().WorkspacePath
+	for serviceName, flag := range map[string]string{AdmindServiceName: "-blueclaw-workspace", CapabilitydServiceName: "--blueclaw-workspace"} {
+		if startedWith(t, serviceName, flag) != workspace {
+			t.Errorf("%s works in %s while blueclaw runs in %s, so sites, attachments and file tools land in a directory nobody else reads",
+				serviceName, startedWith(t, serviceName, flag), workspace)
+		}
+	}
+}
+
 func TestThePolicyAdmindRewritesIsWritable(t *testing.T) {
 	if strings.HasPrefix(startedWith(t, AdmindServiceName, "-blueclaw-policy"), "/etc/") {
 		t.Fatal("admind replaces the policy by writing a temp beside it and renaming, so a path under a read-only /etc fails every reconcile")
