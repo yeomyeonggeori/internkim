@@ -28,17 +28,3 @@ func TestEveryPublishedMachineResolvesToAPinnedTarball(t *testing.T) {
 			"would download a tarball that does not exist instead of saying which architectures exist")
 	}
 }
-
-func checksumsAssignedTo(document string, assignment string) []string {
-	checksums := []string{}
-	for _, logicalLine := range logicalLinesOf(document) {
-		for _, field := range strings.Fields(logicalLine) {
-			trimmed := strings.TrimSuffix(strings.TrimSuffix(field, ";"), ";;")
-			value, isAssignment := strings.CutPrefix(trimmed, assignment)
-			if isAssignment && value != "" {
-				checksums = append(checksums, value)
-			}
-		}
-	}
-	return checksums
-}

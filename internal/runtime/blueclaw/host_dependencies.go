@@ -4,15 +4,11 @@ import (
 	"strings"
 )
 
-// HostPart is who in the company host needs a dependency. The agent image
-// carries what its entrypoint, the daemons and the bundled skills reach for; a
-// native package carries all but the entrypoint's, and the messenger's, the
-// cache's and the database's as well, because on that path nothing else brings
-// them.
+// HostPart is who in the company host needs a dependency: the daemons, the
+// bundled skills, the messenger, the cache or the database.
 type HostPart string
 
 const (
-	HostPartEntrypoint     HostPart = "entrypoint"
 	HostPartAgent          HostPart = "agent"
 	HostPartDocumentSkills HostPart = "documentSkills"
 	HostPartMessenger      HostPart = "messenger"
@@ -64,9 +60,6 @@ type HostDependency struct {
 	// DebianAlternatives are other apt names that satisfy the dependency, in
 	// the order apt should try them after DebianPackage.
 	DebianAlternatives []string
-	// DebianCallsItEssential is also true of every other family's base system
-	// for the two packages that carry it, so no manager names them.
-	DebianCallsItEssential bool
 	// The other managers' names. Several names are alternatives, tried in
 	// order; pacman has no syntax for them and names one.
 	DnfPackages    []string
@@ -77,9 +70,7 @@ type HostDependency struct {
 	// on it.
 	WhatBringsItInstead map[PackageManager]string
 	// WhatThePackageCarriesInstead is for a dependency the native packages
-	// do not ask the distribution for because the package brings its own. The
-	// host image is a container and still installs DebianPackage, so the name
-	// stays.
+	// do not ask the distribution for because the package brings its own.
 	WhatThePackageCarriesInstead string
 	HomebrewFormula              string
 	ArrivesAsPayload             bool
@@ -180,32 +171,7 @@ var hostDependencies = []HostDependency{
 		PacmanPackages:      []string{"postgresql"},
 		HomebrewFormula:     "postgresql@17",
 		ProgramsTheHostRuns: []string{"pg_isready"},
-		NeededBy:            []HostPart{HostPartEntrypoint, HostPartDatabase},
-	},
-	{
-		DebianPackage:       "netcat-openbsd",
-		DnfPackages:         []string{"nmap-ncat"},
-		PacmanPackages:      []string{"openbsd-netcat"},
-		WhatAnswersItOnAMac: "macOS ships nc",
-		ProgramsTheHostRuns: []string{"nc"},
-		NeededBy:            []HostPart{HostPartEntrypoint},
-	},
-	{
-		DebianPackage:          "coreutils",
-		DebianCallsItEssential: true,
-		WhatAnswersItOnAMac:    "BSD userland supplies all of them, and install(1) takes the same -d -o -g -m the preparation script uses",
-		ProgramsTheHostRuns:    []string{"cat", "cp", "dirname", "install", "mkdir", "chown", "sleep"},
-		NeededBy:               []HostPart{HostPartEntrypoint},
-	},
-	{
-		DebianPackage:          "util-linux",
-		DebianCallsItEssential: true,
-		// setpriv belongs to host/entrypoint.sh, which is the container path the
-		// package retires. Nothing the package installs runs it: a unit says
-		// User= and a LaunchDaemon says UserName=.
-		WhatAnswersItOnAMac: "nothing, and nothing needs to: setpriv is the container entrypoint's, and the supervisor drops privilege instead",
-		ProgramsTheHostRuns: []string{"setpriv"},
-		NeededBy:            []HostPart{HostPartEntrypoint},
+		NeededBy:            []HostPart{HostPartDatabase},
 	},
 	{
 		DebianPackage:                "python3",
@@ -249,13 +215,13 @@ var hostDependencies = []HostDependency{
 		ArrivesAsPayload:    true,
 		WhatAnswersItOnAMac: "the package carries it",
 		ProgramsTheHostRuns: []string{DeviceBrowserName},
-		NeededBy:            []HostPart{HostPartEntrypoint, HostPartAgent},
+		NeededBy:            []HostPart{HostPartAgent},
 	},
 	{
 		ArrivesAsPayload:    true,
 		WhatAnswersItOnAMac: "the package carries it",
 		ProgramsTheHostRuns: []string{AgentBrowserName},
-		NeededBy:            []HostPart{HostPartEntrypoint, HostPartAgent},
+		NeededBy:            []HostPart{HostPartAgent},
 	},
 	{
 		ArrivesAsPayload:    true,
@@ -285,20 +251,11 @@ func (dependency HostDependency) isInstalledByAPackageManager() bool {
 	return dependency.DebianPackage != "" && !dependency.ArrivesAsPayload
 }
 
-// OnlyTheImageEntrypointRuns is a dependency of host/entrypoint.sh alone. A
-// native host is supervised by systemd or launchd and runs no such script, so
-// neither its package nor `internkim install` asks for one.
-func (dependency HostDependency) OnlyTheImageEntrypointRuns() bool {
-	return len(dependency.NeededBy) == 1 && dependency.NeededBy[0] == HostPartEntrypoint
-}
-
 // HostDebianPackagesFor names what apt-get installs for the parts asked about.
-// Essential packages are left out: Debian guarantees them, and naming one in a
-// dependency list is noise a reader has to re-derive.
 func HostDebianPackagesFor(parts ...HostPart) []string {
 	packages := []string{}
 	for _, dependency := range hostDependencies {
-		if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential {
+		if !dependency.isInstalledByAPackageManager() {
 			continue
 		}
 		if dependency.neededByAnyOf(parts) {
@@ -306,13 +263,6 @@ func HostDebianPackagesFor(parts ...HostPart) []string {
 		}
 	}
 	return packages
-}
-
-// HostImageDebianPackages is what host/Dockerfile installs: the agent image
-// reaches its database, cache and messenger over the network rather than
-// carrying them.
-func HostImageDebianPackages() []string {
-	return HostDebianPackagesFor(HostPartEntrypoint, HostPartAgent, HostPartDocumentSkills)
 }
 
 // PackagesFor is every name the manager accepts for this dependency, in the
@@ -331,12 +281,11 @@ func (dependency HostDependency) PackagesFor(manager PackageManager) []string {
 }
 
 // IsNamedIn is whether a native package's dependency list names this
-// dependency for the manager. What the package carries, what the base system
-// guarantees and what another row already pulls in are left out: a name in the
-// list is something every distribution has to spell the same way and keep
-// patched.
+// dependency for the manager. What the package carries and what another row
+// already pulls in are left out: a name in the list is something every
+// distribution has to spell the same way and keep patched.
 func (dependency HostDependency) IsNamedIn(manager PackageManager) bool {
-	if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential || dependency.OnlyTheImageEntrypointRuns() {
+	if !dependency.isInstalledByAPackageManager() {
 		return false
 	}
 	if dependency.WhatThePackageCarriesInstead != "" {
@@ -443,8 +392,8 @@ func HostProgramsThatArriveAsPayload() []string {
 	return names
 }
 
-// HostProgramsThePackageShips are the company host's own binaries, which the
-// entrypoint checks for beside everything it did not build.
+// HostProgramsThePackageShips are the company host's own binaries, which
+// `internkim install` looks for beside everything it did not build.
 func HostProgramsThePackageShips() []string {
 	return []string{
 		CapabilitydName,
@@ -455,12 +404,6 @@ func HostProgramsThePackageShips() []string {
 		RelayName,
 		RenderCompanyRuntimeName,
 	}
-}
-
-// ProgramsTheHostEntrypointRuns is every name host/entrypoint.sh invokes, so a
-// box missing one is refused at the door rather than partway through bring-up.
-func ProgramsTheHostEntrypointRuns() []string {
-	return append(HostProgramsThePackageShips(), hostProgramsNeededBy(HostPartEntrypoint)...)
 }
 
 // ProgramsTheBundledSkillsRun is what the skills that write documents and decks

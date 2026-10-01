@@ -4,16 +4,18 @@
 # out of the installed capabilityd rather than kept in the template, where they
 # would age out of step.
 #
-# The container calls this and so does the sandbox, because a sandbox that
-# renders its own document proves nothing about the one a company runs.
+# The package's prepare script calls this and so does the local plane, because
+# a plane that renders its own document proves nothing about the one a company
+# runs.
 set -e
 
 usage() {
   cat >&2 <<'USAGE'
 usage: render-company-runtime --template <path> --capabilityd <path> --out <path> [--work <dir>]
 
-Every address is taken from the environment, and each one defaults to what a
-container gets:
+Every address is taken from the environment, and each one defaults to the
+device layout the local plane runs on; the package's prepare script names its
+own:
 
   DATABASE_URL              (required)
   MESSENGER_PLATFORM        (required)

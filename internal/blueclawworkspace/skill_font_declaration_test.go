@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 var fontPathsThatCarryNoHangul = map[string]string{
@@ -157,16 +159,13 @@ func TestEveryOfficePDFFontListHoldsEveryFontItsSourceWritesOutInFull(t *testing
 	}
 }
 
-func TestTheFontTheHostImageGuaranteesIsOneTheOfficeSkillWalks(t *testing.T) {
+func TestTheFontThePackageCarriesIsOneTheOfficeSkillWalks(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	guaranteedFontPath := shellAssignment(hostEntrypoint(t, repositoryRootPath), "koreanCapableFontPath")
-	if guaranteedFontPath == "" {
-		t.Fatal("host entrypoint must name the Korean-capable font path it checks for")
-	}
+	guaranteedFontPath := blueclaw.CompanyPackageDocumentFontPath
 	skillDirectory := officeSkillDirectory(t, repositoryRootPath)
 	for _, source := range fontCandidateSourcesByFormat {
 		if !contains(hostFontCandidatesOf(t, skillDirectory, source), guaranteedFontPath) {
-			t.Fatalf("the image guarantees %s and %s never looks there", guaranteedFontPath, source.scriptName)
+			t.Fatalf("the package carries %s and %s never looks there", guaranteedFontPath, source.scriptName)
 		}
 	}
 }

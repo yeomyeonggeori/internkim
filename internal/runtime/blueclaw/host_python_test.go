@@ -9,24 +9,6 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-func TestTheHostImageBuildsTheConversionEnvironmentTheWayThePackageDoes(t *testing.T) {
-	document, readError := os.ReadFile(filepath.Join(repositoryRootFromHere, "host", "Dockerfile"))
-	if readError != nil {
-		t.Fatal(readError)
-	}
-	dockerfile := strings.Join(logicalLinesOf(string(document)), "\n")
-	layout := blueclaw.LinuxCompanyHostLayout()
-	if !strings.Contains(dockerfile, "ENV PATH="+layout.PythonCommandsPath()+":") {
-		t.Errorf("host/Dockerfile does not put %s first on PATH, so a requester's python3 in the image is not the host's", layout.PythonCommandsPath())
-	}
-	for _, command := range layout.PythonSetupCommands()[:3] {
-		inTheImage := strings.ReplaceAll(strings.Join(command.Arguments, " "), layout.BinaryPath(blueclaw.PackageResolverName), blueclaw.PackageResolverName)
-		if !strings.Contains(dockerfile, inTheImage) {
-			t.Errorf("host/Dockerfile does not run %q, which is how the package builds the conversion environment", inTheImage)
-		}
-	}
-}
-
 func TestEveryRequirementTheConversionNamesIsLocked(t *testing.T) {
 	directory := filepath.Join(repositoryRootFromHere, "assets", "document-conversion")
 	named, readError := os.ReadFile(filepath.Join(directory, "requirements.in"))

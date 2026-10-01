@@ -578,7 +578,7 @@ func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
 	return packaged, nil
 }
 
-// carriedTrees are the files the image copies in unchanged. A missing one is a
+// carriedTrees are the files the package carries unchanged. A missing one is a
 // refusal: a box whose skills directory is empty answers and does nothing.
 func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
 	carried := []packagedFile{

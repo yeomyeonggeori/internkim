@@ -55,7 +55,7 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 			HomebrewFormula: dependency.HomebrewFormula,
 		}
 	}
-	if platform.CarriesItInThePackage(dependency) || dependency.OnlyTheImageEntrypointRuns() {
+	if platform.CarriesItInThePackage(dependency) {
 		return nil
 	}
 	if candidates := platform.WhereToLookFor(dependency); len(candidates) > 0 {

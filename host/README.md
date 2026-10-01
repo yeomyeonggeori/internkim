@@ -22,7 +22,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **admind** | the workspace screens and the tools the central plane cannot run itself arrive on its socket; without it a person's memory, files, tasks and buzz claim answer `500` |
 | **the relay** | everything the web messenger shows — channels, people, pictures, emoji — is answered by this process; when it is not running the screen is empty, by design, because the company holds its own messenger |
 | **Moli** | the device browser, a headless engine agent-browser drives over the Chrome DevTools Protocol; without it the browser tools report unavailable and everything else answers |
-| **the POSIX helper** | `bash` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
+| **the POSIX helper** | `bash` and the file tools run as the person who asked, through the setuid `blueclaw-posix-helper` the package installs (`/usr/lib/internkim/` on Linux), called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
 A virtual-machine guest and cloudflared are **not** needed.
 
@@ -31,28 +31,24 @@ A virtual-machine guest and cloudflared are **not** needed.
 The bundled skills that write a document, a spreadsheet, a PDF or a deck run as
 the requester, through the PATH blueclaw fixes. Each skill resolves its own
 packages from its `scripts/requirements.txt` into the shared uv cache the first
-time it runs, from the system `python3`. The image carries the rest:
+time it runs, from the host's own `python3`. The package carries the rest:
 
 | | Why |
 |---|---|
-| **fonts-nanum** | `NanumGothic.ttf` is the one system path every skill that embeds a font into a PDF looks for; without it fpdf2 falls back to DejaVu, which has no Hangul, and writes the file anyway |
-| **python3 and uv** | the interpreter and the installer each skill's bootstrap runs |
-| **the conversion venv** | `/opt/internkim/document-venv`, on uv's pinned CPython, synced from the hashed lock `assets/document-conversion/requirements.txt` when the image is built (and by the package's install step on a native host). capabilityd runs `file_read` conversions under it (`--file-read-python`) and never resolves anything itself; the skills do not use it and it is not on the requester's PATH |
+| **NanumGothic** | the Linux package installs it at `/usr/share/fonts/truetype/internkim/NanumGothic.ttf`, a path every skill that embeds a font into a PDF looks for, and a Mac answers with its own AppleSDGothicNeo; without a Hangul face fpdf2 falls back to DejaVu, which has none, and writes the file anyway |
+| **python3 and uv** | the interpreter and the installer each skill's bootstrap runs; the install step puts uv's pinned CPython first on every service's PATH |
+| **the conversion venv** | `/opt/internkim/document-venv`, on that CPython, synced from the hashed lock `assets/document-conversion/requirements.txt` by the package's install step. capabilityd runs `file_read` conversions under it (`--file-read-python`) and never resolves anything itself; the skills do not use it and it is not on the requester's PATH |
 
-Each absence produces a plausible file rather than an error, so the image build
-refuses over it: `entrypoint.sh --check-programs` names every missing piece and
-what to install, and the Dockerfile runs it. A box that is already running does
-not refuse — `entrypoint.sh` starts the relay first and then says the same
-sentences, and its closing line reads `up, incomplete`. The relay is what
-answers when the agent cannot, and a company that cannot be talked to cannot be
-told what is wrong with it.
+Each absence produces a plausible file rather than an error, so `internkim
+install` checks for everything the host runs before it starts anything, and
+names what to install for whatever is missing.
 
 ## The relay
 
 The relay **depends on nothing else in this bundle**. It never speaks to
-blueclaw, chatd, capabilityd or Postgres — only Supabase, the central
-plane and the tenant's messenger. So `entrypoint.sh` starts it **first**, before
-the postgres wait: the agent can be down and the messenger screen still answers.
+blueclaw, chatd, capabilityd or Postgres, only to Supabase, the central plane
+and the tenant's messenger. Its unit waits on none of the others, so the agent
+can be down and the messenger screen still answers.
 
 That independence is also why it runs anywhere. The POSIX boundary below
 constrains where the *agent* runs; the relay only needs an outbound network and
@@ -114,31 +110,23 @@ read, whether required or optional, in one table:
 | Name | Used by | What it is |
 | --- | --- | --- |
 | `ADMIND_BASE_URL` | relay | admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080 |
-| `ADMIND_PORT` | host | the loopback port host/entrypoint.sh starts admind on; defaults to 18080 |
 | `ADMIND_SOCKET_PATH` | relay | the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock |
 | `AGENT_API_KEY` | relay | the company agent key as a value, read only when AGENT_API_KEY_PATH is unset; for a shell driven by hand, never a deployment |
 | `AGENT_API_KEY_PATH` | relay | the path to the file holding the company agent key, so the key never lands in the process environment (ps eww) |
 | `ANSWER_BYTE_CEILING` | relay | maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit |
 | `ARRIVALS_PORT` | relay | the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091 |
 | `BLUECLAW_ACP_SOCKET_PATH` | relay | the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock |
-| `BLUECLAW_BUNDLED_SKILLS_PATH` | host | where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills |
 | `CHATD_BASE_URL` | relay | chatd's base URL the relay calls; defaults to http://127.0.0.1:18090 |
-| `CHATD_BOT_USER_NAME` | host | the messenger bot's display name, required by host/entrypoint.sh |
-| `CHATD_LISTEN_PORT` | host | the loopback port host/entrypoint.sh starts chatd on; defaults to 18090 |
-| `DATABASE_URL` | host | the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime) |
-| `DEVICE_BROWSER_CAPACITY` | host | the most device browsers capabilityd runs at once, one per requester; the least recently used is stopped to make room, and while every one is still starting the next requester is told the browser is busy; defaults to 4 |
-| `DEVICE_BROWSER_PORT` | host | the first loopback port capabilityd starts a requester's moli serve on, each further browser taking the next free port; defaults to 9230 |
-| `DEVICE_BROWSER_STATE_DIR` | host | where each requester's device browser keeps its profile and HTTP cache across restarts, under members/<key>; defaults to /var/lib/internkim-moli |
+| `DATABASE_URL` | host | the host's own Postgres connection string, which internkim install writes to the host's environment file; the host's prepare script refuses to run without it, and tools/render-company-runtime renders it into the runtime document |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
 | `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |
-| `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh |
+| `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file |
 | `LARGEST_FILE_BYTES` | relay | the largest attachment the relay holds in memory while copying it into the asset bucket; defaults to 200,000,000 |
 | `MAILD_BASE_URL` | relay | maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092 |
-| `MAILD_PORT` | host | the loopback port host/entrypoint.sh starts maild on; defaults to 18092 |
-| `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it |
+| `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); the relay and the host's prepare script refuse to start without it, and the host's capabilityd and admind are handed it from its environment file |
 | `RELAY_STATE_DIR` | relay + host | where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay |
-| `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
-| `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
+| `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
+| `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
 | `WORKSPACE_ROOT_PATH` | relay | the workspace root rendered into the company plane's runtime document, and the cwd the relay opens an ACP session with; defaults to /workspace |
 
 <!-- END GENERATED -->
@@ -185,7 +173,6 @@ after a crash or a reboot:
 |---|---|
 | systemd | `internkim-relay.service` — settings in `/etc/internkim/relay.env`, `Restart=always` |
 | launchd | `launchagent.plist.template` — `KeepAlive` |
-| the bundle | `entrypoint.sh` already starts and restarts it |
 
 Restarting matters: the relay is the only thing answering the messenger
 screen, and a process that dies without coming back leaves that screen empty.
@@ -214,42 +201,45 @@ job**.
 
 ## Configuration
 
-`entrypoint.sh` needs six values and passes the rest through:
+`internkim install` writes the company's directory under
+`/var/lib/internkim/companies/` and points `/var/lib/internkim/current` at it.
+Every agent unit reads `current/host.env`, which carries what only this company
+knows:
 
 ```
+DATABASE_URL=postgres://…            # the host's own Postgres
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
 INTERNKIM_APP_URL=https://intern.kim
-CHATD_BOT_USER_NAME=<the bot's display name>
+GATEWAY_URL=…
 MESSENGER_PLATFORM=buzz
-DATABASE_URL=postgres://…            # the host's own Postgres
+CHATD_BOT_USER_NAME=<the bot's display name>
 ```
 
-The agent key is never a value in the environment. It lives in
-`/root/.internkim/secrets/agent-key`, mode 0600, beside `/root/.internkim/secrets/openrouter-key`, and the relay
-is handed the path, so rotating the file is enough for it. blueclaw runs as the
-`blueclaw` user and cannot open `/root`, so the entrypoint copies both keys to
-`/run/internkim/secrets` as it starts; blueclaw sees a rotated key after a restart.
+The relay runs unprivileged and outlives the agent, so it reads neither that
+file nor the company directory. Its settings and its own copy of the agent key
+sit in `/etc/internkim/relay.env` and `/etc/internkim/agent-key`, and it is
+handed the key as a path, so rotating the file is enough for it.
 
-Plus the connection to the messenger the tenant runs:
+Keys are never values in the environment. They live in `current/secrets/`:
+the agent key, the model key, and the Buzz identity seed, without which a
+message the agent sends under a person's own name cannot be signed. blueclaw
+runs as the `blueclaw` user and cannot open that directory, so
+`internkim-prepare` stages the keys it needs in `/run/internkim/secrets` before
+the services start; blueclaw sees a rotated key after a restart.
 
-```
-CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
-```
-
-`runtime.template.json` is rendered with `DATABASE_URL` and `MESSENGER_PLATFORM`
-to `/run/internkim/runtime.json`, unless a `runtime.json` is mounted at
-`/etc/blueclaw`, which is read instead. The roster goes the other way: admind
-rewrites `/run/internkim/policy.json` whenever the company changes, so a
-`policy.json` mounted there seeds that file rather than being it. The seed is
-`/root/.internkim/secrets/buzz-key-seed`, beside the agent key, and without it a message the
-agent sends under a person's own name cannot be signed. `MESSENGER_PLATFORM`
-names the messenger the company runs, and the relay refuses to start without it.
+The same step renders `runtime.template.json` with `DATABASE_URL` and
+`MESSENGER_PLATFORM` to `/run/internkim/runtime.json`, unless
+`/etc/internkim/runtime.json` exists, which is taken instead. The roster goes
+the other way: admind rewrites `/run/internkim/policy.json` whenever the company
+changes, so an `/etc/internkim/policy.json` seeds that file rather than being
+it. `/etc/internkim/company-host.env` is the one file an operator is expected to
+open.
 
 ## Acceptance
 
 `internkim-maild` answers mail for whichever account the call carries, on
-`127.0.0.1:${MAILD_PORT:-18092}`. It holds nothing between calls: the relay
+`127.0.0.1:18092`. It holds nothing between calls: the relay
 reads the caller's own mail account from the record and hands it over, so a
 password is never at rest on this box and never in the browser.
 

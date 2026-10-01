@@ -126,8 +126,8 @@ func (layout CompanyHostLayout) POSIXHelperPath() string {
 	return layout.HelperRoot + "/" + POSIXHelperProgramName
 }
 
-// PrepareScriptPath is the half of host/entrypoint.sh the supervisor does not
-// take over.
+// PrepareScriptPath is the script that prepares the runtime document, the
+// roster and the staged keys before the supervisor starts the services.
 func (layout CompanyHostLayout) PrepareScriptPath() string {
 	return layout.HelperRoot + "/" + companyHostPrepareProgramName
 }

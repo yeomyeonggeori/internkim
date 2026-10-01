@@ -25,15 +25,12 @@ skipped rather than passed over in silence, because a URL nobody probes is
 exactly the one that died.
 
 The pins are the exception to reading source text, and they have to be. A Go
-constant assembled from pieces reads as its first fragment, so the Linux pins
-were only ever probed because `host/Dockerfile` happened to spell the same URLs
-out in full, and the macOS ones would have been probed by nothing at all. So
-this asks the package instead: a throwaway program prints what
-`HostPayloadDownloads` resolves to, for every target it
+constant assembled from pieces reads as its first fragment, so a scan of the
+source would probe none of them. So this asks the package instead: a throwaway
+program prints what `HostPayloadDownloads` resolves to, for every target it
 knows.
 """
 
-import itertools
 import pathlib
 import re
 import shutil
@@ -43,77 +40,9 @@ import urllib.error
 import urllib.request
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent
-DOCKERFILE_PATH = REPOSITORY_ROOT / "host" / "Dockerfile"
 SOURCE_DIRECTORIES = ("internal/provisioning/steps", "internal/runtime/blueclaw")
 URL_PATTERN = re.compile(r'https://[A-Za-z0-9._~:/?#@!$&*+,;=%${}-]+')
-VARIABLE_PATTERN = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}')
 REQUEST_TIMEOUT_SECONDS = 20
-
-
-def logical_lines(document):
-    joined = []
-    pending = ""
-    for line in document.split("\n"):
-        continues = line.rstrip().endswith("\\")
-        if continues:
-            line = line.rstrip()[:-1]
-        pending = line if not pending else pending + " " + line.strip()
-        if continues:
-            continue
-        if pending.strip():
-            joined.append(pending.strip())
-        pending = ""
-    return joined
-
-
-def dockerfile_variable_values(lines):
-    """ARG defaults are one value; the per-architecture case arms are several."""
-    values = {}
-    for line in lines:
-        for name, value in re.findall(r'^ARG\s+([A-Za-z_][A-Za-z0-9_]*)=(\S+)', line):
-            values.setdefault(name, []).append(value)
-        for name, value in re.findall(r'(?:^|[\s;(])([A-Za-z_][A-Za-z0-9_]*)=([A-Za-z0-9._-]+)', line):
-            if name.isupper():
-                continue
-            existing = values.setdefault(name, [])
-            if value not in existing:
-                existing.append(value)
-    return values
-
-
-def expand(url, values):
-    names = sorted(set(VARIABLE_PATTERN.findall(url)))
-    unresolved = [name for name in names if name not in values]
-    if unresolved:
-        return [], unresolved
-    if not names:
-        return [url], []
-    expanded = []
-    for combination in itertools.product(*(values[name] for name in names)):
-        candidate = url
-        for name, value in zip(names, combination):
-            candidate = candidate.replace("${" + name + "}", value)
-        if candidate not in expanded:
-            expanded.append(candidate)
-    return expanded, []
-
-
-def urls_the_host_image_fetches():
-    lines = logical_lines(DOCKERFILE_PATH.read_text(encoding="utf-8"))
-    values = dockerfile_variable_values(lines)
-    resolved, skipped = [], []
-    for line in lines:
-        if not line.startswith("RUN "):
-            continue
-        for raw in URL_PATTERN.findall(line):
-            url = raw.strip('"\'')
-            expansions, unresolved = expand(url, values)
-            if unresolved:
-                skipped.append((url, "host/Dockerfile", unresolved))
-                continue
-            for expansion in expansions:
-                resolved.append((expansion, "host/Dockerfile"))
-    return resolved, skipped
 
 
 PIN_PROGRAM = """package main
@@ -220,10 +149,8 @@ def ask(url):
 
 
 def main():
-    resolved, skipped = urls_the_host_image_fetches()
-    more_resolved, more_skipped = urls_provisioning_fetches()
-    resolved = without_prefixes_of_other_urls(resolved + more_resolved + urls_the_pins_name())
-    skipped += more_skipped
+    resolved, skipped = urls_provisioning_fetches()
+    resolved = without_prefixes_of_other_urls(resolved + urls_the_pins_name())
 
     seen = set()
     gone, unreachable = [], []

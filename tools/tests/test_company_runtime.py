@@ -8,22 +8,6 @@ import unittest
 
 
 class CompanyRuntimeTests(unittest.TestCase):
-    def test_host_carries_no_memory_sidecar_and_preserves_relay_import_layout(self):
-        repository_root = Path(__file__).resolve().parents[2]
-        dockerfile = (repository_root / "host/Dockerfile").read_text()
-        entrypoint = (repository_root / "host/entrypoint.sh").read_text()
-        compose = (repository_root / "host/docker-compose.yml").read_text()
-        self.assertNotIn("graphiti", dockerfile)
-        self.assertNotIn("graphiti", entrypoint)
-        self.assertIn("pgvector/pgvector:pg17", compose)
-        self.assertIn("/opt/internkim/host/relay", dockerfile)
-        self.assertIn("/opt/internkim/web/src/lib/person-name.ts", dockerfile)
-        self.assertIn("install -d -o root -g root -m 0700 /root/.internkim", entrypoint)
-        self.assertIn('ADMIN_ASSERTION_KEY_PATH="${blueclawAgentKeyPath}"', entrypoint)
-        self.assertIn('install -o root -g blueclaw -m 0440 "${agentKeyPath}" "${blueclawAgentKeyPath}"', entrypoint)
-        self.assertIn("./secrets:/root/.internkim/secrets:ro", compose)
-        self.assertNotIn("./secrets:/secrets:ro", compose)
-
     def test_rendered_runtime_embeds_with_the_ladders_model(self):
         repository_root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as temporary_directory:

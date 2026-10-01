@@ -8,14 +8,12 @@ import (
 	"testing"
 )
 
-const companyImageDockerfilePath = "../../../host/Dockerfile"
-
 const companyRuntimeRendererPath = "../../../tools/render-company-runtime"
 
-// The image and the package install the helper in different places, because a
+// The device and the package install the helper in different places, because a
 // Debian package may not write /usr/local. The template therefore names neither:
-// it carries the hole, the renderer's default fills it with what the image
-// installs, and the packaged prepare script fills it with what dpkg installs.
+// it carries the hole, the renderer's default fills it with where the device
+// keeps it, and the packaged prepare script fills it with what dpkg installs.
 // A runtime document naming a helper that is not there costs every shell and
 // file tool, and reports ok while doing it.
 func TestTheRenderedRuntimeNamesAHelperWhicheverInstalledIt(t *testing.T) {
@@ -40,19 +38,9 @@ func TestTheRenderedRuntimeNamesAHelperWhicheverInstalledIt(t *testing.T) {
 		t.Fatalf("expected the company runtime renderer: %v", errorValue)
 	}
 	if !strings.Contains(string(renderer), `: "${POSIX_HELPER_PATH:=`+BlueclawPOSIXHelperPath+`}"`) {
-		t.Fatalf("render-company-runtime does not default the helper to %s, which is what the image installs", BlueclawPOSIXHelperPath)
+		t.Fatalf("render-company-runtime does not default the helper to %s, which is where the device keeps it", BlueclawPOSIXHelperPath)
 	}
 	if !strings.Contains(CompanyHostPrepareScript(), "POSIX_HELPER_PATH="+CompanyHostPOSIXHelperPath) {
 		t.Fatalf("the packaged prepare script does not render the helper as %s, which is what the package installs", CompanyHostPOSIXHelperPath)
-	}
-}
-
-func TestTheCompanyImageInstallsTheHelperWhereTheTemplateNamesIt(t *testing.T) {
-	dockerfile, errorValue := os.ReadFile(filepath.Clean(companyImageDockerfilePath))
-	if errorValue != nil {
-		t.Fatalf("expected the company image Dockerfile: %v", errorValue)
-	}
-	if !strings.Contains(string(dockerfile), "chmod 4755 "+BlueclawPOSIXHelperPath) {
-		t.Fatalf("host/Dockerfile does not install a setuid helper at %s, so the runtime names a helper the image does not carry", BlueclawPOSIXHelperPath)
 	}
 }

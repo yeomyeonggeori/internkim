@@ -3,10 +3,6 @@
     "process": "relay",
     "description": "admind's base URL the relay calls for workspace screens; defaults to http://127.0.0.1:18080"
   },
-  "ADMIND_PORT": {
-    "process": "host",
-    "description": "the loopback port host/entrypoint.sh starts admind on; defaults to 18080"
-  },
   "ADMIND_SOCKET_PATH": {
     "process": "relay",
     "description": "the admind Unix socket the relay calls for workspace screens; defaults to /run/internkim/admind.sock"
@@ -42,10 +38,6 @@
   "BLUECLAW_BUILD_KERNEL": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "when \"1\", builds the guest Linux kernel from source instead of requiring BLUECLAW_KERNEL_IMAGE_SOURCE"
-  },
-  "BLUECLAW_BUNDLED_SKILLS_PATH": {
-    "process": "host",
-    "description": "where host/entrypoint.sh and blueclaw look for the bundled skills directory; defaults to /opt/internkim/skills"
   },
   "BLUECLAW_BUN_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",
@@ -127,17 +119,9 @@
     "process": "relay",
     "description": "chatd's base URL the relay calls; defaults to http://127.0.0.1:18090"
   },
-  "CHATD_BOT_USER_NAME": {
-    "process": "host",
-    "description": "the messenger bot's display name, required by host/entrypoint.sh"
-  },
   "CHATD_ENDPOINT": {
     "process": "tools/render-company-runtime",
     "description": "chatd's endpoint rendered into the company plane's runtime document; defaults to http://127.0.0.1:18090"
-  },
-  "CHATD_LISTEN_PORT": {
-    "process": "host",
-    "description": "the loopback port host/entrypoint.sh starts chatd on; defaults to 18090"
   },
   "CLOUDFLARE_ACCOUNT_ID": {
     "process": "cli",
@@ -185,23 +169,11 @@
   },
   "DATABASE_URL": {
     "process": "host",
-    "description": "the host's own Postgres connection string, required by host/entrypoint.sh (also rendered into the runtime document by tools/render-company-runtime)"
+    "description": "the host's own Postgres connection string, which internkim install writes to the host's environment file; the host's prepare script refuses to run without it, and tools/render-company-runtime renders it into the runtime document"
   },
   "DEV": {
     "process": "docs site",
     "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
-  },
-  "DEVICE_BROWSER_CAPACITY": {
-    "process": "host",
-    "description": "the most device browsers capabilityd runs at once, one per requester; the least recently used is stopped to make room, and while every one is still starting the next requester is told the browser is busy; defaults to 4"
-  },
-  "DEVICE_BROWSER_PORT": {
-    "process": "host",
-    "description": "the first loopback port capabilityd starts a requester's moli serve on, each further browser taking the next free port; defaults to 9230"
-  },
-  "DEVICE_BROWSER_STATE_DIR": {
-    "process": "host",
-    "description": "where each requester's device browser keeps its profile and HTTP cache across restarts, under members/<key>; defaults to /var/lib/internkim-moli"
   },
   "GATEWAY_ADMIN_TOKEN": {
     "process": "web, connection-gateway worker",
@@ -257,7 +229,7 @@
   },
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
-    "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
+    "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file"
   },
   "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
     "process": "tools/prepare-blueclaw-payload",
@@ -547,10 +519,6 @@
     "process": "relay",
     "description": "maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092"
   },
-  "MAILD_PORT": {
-    "process": "host",
-    "description": "the loopback port host/entrypoint.sh starts maild on; defaults to 18092"
-  },
   "MATTERMOST_IMPORT_TEST_DATABASE_URL": {
     "process": "buzzimport live tests",
     "description": "the Mattermost database internal/buzzimport's live end-to-end and mattermost-import tests read from"
@@ -601,7 +569,7 @@
   },
   "MESSENGER_PLATFORM": {
     "process": "relay, host",
-    "description": "which messenger the company runs (buzz or mattermost); required by both the relay and host/entrypoint.sh, which refuse to start without it"
+    "description": "which messenger the company runs (buzz or mattermost); the relay and the host's prepare script refuse to start without it, and the host's capabilityd and admind are handed it from its environment file"
   },
   "MIGRATION_DIRECTORY_PATH": {
     "process": "tools/render-company-runtime",
@@ -692,7 +660,7 @@
   },
   "SUPABASE_PUBLISHABLE_KEY": {
     "process": "relay, host, web, connection-gateway worker, web scripts",
-    "description": "the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
+    "description": "the Supabase project's publishable (anon) key; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
     "isRequiredOnPages": true,
     "isInVault": true
   },
@@ -704,7 +672,7 @@
   },
   "SUPABASE_URL": {
     "process": "relay, host, web, connection-gateway worker, web scripts",
-    "description": "the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
+    "description": "the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
     "isRequiredOnPages": true,
     "isInVault": true
   },
