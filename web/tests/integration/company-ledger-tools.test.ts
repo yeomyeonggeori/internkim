@@ -19,8 +19,10 @@ const now = new Date('2026-09-04T00:00:00.000Z');
 
 let companyID = '';
 let sampleID = '';
+let colleagueID = '';
 let adminID = '';
 let sample: ReturnType<typeof asMember>;
+let colleague: ReturnType<typeof asMember>;
 let admin: ReturnType<typeof asMember>;
 
 async function signedInMember(memberID: string, email: string): Promise<ReturnType<typeof asMember>> {
@@ -43,6 +45,8 @@ beforeAll(async () => {
 	await client.from('member').update({ name: '이샘플' }).eq('id', sampleID);
 	await client.from('member').update({ name: '최견본' }).eq('id', adminID);
 
+	colleagueID = await addMember(client, companyID, `${slug}-colleague@example.test`);
+	colleague = await signedInMember(colleagueID, `${slug}-colleague@example.test`);
 	sample = await signedInMember(sampleID, `${slug}-sample@example.test`);
 	admin = await signedInMember(adminID, `${slug}-admin@example.test`);
 }, networkHookTimeout);
@@ -58,6 +62,10 @@ afterAll(async () => {
 
 async function asSample(name: string, input: Record<string, unknown> = {}) {
 	return heldToTheContract(name, await runToolOverTheRecord(sample, client, sampleID, name, input, now, leavesTaskLabelsUndecided));
+}
+
+async function asColleague(name: string, input: Record<string, unknown> = {}) {
+	return heldToTheContract(name, await runToolOverTheRecord(colleague, client, colleagueID, name, input, now, leavesTaskLabelsUndecided));
 }
 
 async function asAdmin(name: string, input: Record<string, unknown> = {}) {
@@ -358,6 +366,16 @@ describe('the document ledger', () => {
 		});
 
 		expect(resultOf(second).documentNumber).toBe('Q-2026-002');
+	});
+
+	test('numbers a second colleague\'s document after one it cannot see', async () => {
+		const first = await asSample('company_document_register', { documentType: 'invoice', title: 'Sample invoice one' });
+		const second = await asColleague('company_document_register', { documentType: 'invoice', title: 'Sample invoice two' });
+
+		expect(resultOf(first).documentNumber).toBe('INV-2026-001');
+		expect(second.status).toBe(200);
+		expect(resultOf(second).documentNumber).toBe('INV-2026-002');
+		expect(resultOf(await asColleague('company_document_list', { type: 'invoice' })).count).toBe(1);
 	});
 
 	test('gives a received document no number of ours', async () => {

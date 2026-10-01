@@ -105,6 +105,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `read_company_secret` | `secret_id uuid` | `text` | definer | service_role |
 | `read_member_secret` | `target_member uuid, target_kind text` | `text` | definer | service_role |
 | `reopen_parent_for_an_unfinished_child` | `parent_id uuid` | `void` | definer | service_role |
+| `reserve_document_number` | `target_company uuid, requested_prefix text` | `text` | definer | authenticated, service_role |
 | `status_my_leave_request_takes` | — | `leave_status` | definer | authenticated, service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |

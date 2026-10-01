@@ -990,6 +990,16 @@
       ]
     },
     {
+      "name": "reserve_document_number",
+      "arguments": "target_company uuid, requested_prefix text",
+      "returns": "text",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "status_my_leave_request_takes",
       "arguments": "",
       "returns": "leave_status",
