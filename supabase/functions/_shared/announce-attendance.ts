@@ -1,6 +1,6 @@
 import type { SupabaseClient } from './service-client.ts';
-import { showClockOnOwnPhones } from './attendance-live-activity.ts';
-import { refreshOwnWidgets } from './attendance-widget-refresh.ts';
+import { endActivityOnOwnPhones, showClockOnOwnPhones } from './attendance-live-activity.ts';
+import { refreshOwnWidgets, widgetClockOf } from './attendance-widget-refresh.ts';
 import { pictureURLOfMember } from './member-directory.ts';
 import { notifyMember, type Notification } from './notify-member.ts';
 import { whoAnswersFor } from './who-answers.ts';
@@ -27,7 +27,11 @@ export async function announceClock(
 	tellsColleagues: boolean
 ): Promise<Announced> {
 	const clocked = await newestClock(caller, memberID);
-	if (!clocked) return { told: 0, reached: 0 };
+	if (!clocked) {
+		await endActivityOnOwnPhones(record, memberID, pushKeys, nowInSeconds);
+		await refreshOwnWidgets(record, memberID, widgetClockOf(null), pushKeys, nowInSeconds);
+		return { told: 0, reached: 0 };
+	}
 
 	const [announcer, announcerPicture] = await Promise.all([
 		memberOf(record, memberID),
@@ -44,7 +48,7 @@ export async function announceClock(
 	};
 	const ownAlert = { title: clocked.kind === 'clock_in' ? '출근' : '퇴근', body: notification.body };
 	await showClockOnOwnPhones(record, memberID, clocked, ownAlert, pushKeys, nowInSeconds, companyZoneOf(announcer));
-	await refreshOwnWidgets(record, memberID, clocked.kind, pushKeys, nowInSeconds);
+	await refreshOwnWidgets(record, memberID, widgetClockOf(clocked), pushKeys, nowInSeconds);
 	if (!tellsColleagues) return { told: 0, reached: 0 };
 	return tellEachExcept(record, announcer.company_id, memberID, 'attendance', notification, pushKeys, nowInSeconds);
 }
