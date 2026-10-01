@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,15 +63,6 @@ func runVerifyAPI(arguments []string) error {
 	return verifyTarget.runRemoteVerification(verifyAPIScript())
 }
 
-func hasExplicitVerifyTargetArgument(arguments []string) bool {
-	for _, flagName := range []string{"--host", "--node", "--board", "--cloudflare-ssh", "--sim"} {
-		if hasCommandArgument(arguments, flagName) {
-			return true
-		}
-	}
-	return false
-}
-
 func verifyTargetArguments(host string, user string, password string, node string, cloudflareSSH bool, board string, simulation bool) []string {
 	targetArguments := []string{}
 	if strings.TrimSpace(host) != "" {
@@ -118,17 +107,6 @@ func (flagValue *repeatedStringFlag) Set(value string) error {
 
 func (flagValue repeatedStringFlag) Values() []string {
 	return append([]string{}, flagValue.values...)
-}
-
-func trimmedNonEmptyValues(values []string) []string {
-	trimmedValues := []string{}
-	for _, value := range values {
-		trimmedValue := strings.TrimSpace(value)
-		if trimmedValue != "" {
-			trimmedValues = append(trimmedValues, trimmedValue)
-		}
-	}
-	return trimmedValues
 }
 
 func runVerifyBrowser(arguments []string) error {
@@ -237,59 +215,6 @@ func (target verifyTarget) runRemoteVerificationWithTimeout(script string, timeo
 	return nil
 }
 
-func redactBase64Attachments(payload map[string]any, fieldName string) {
-	files, isArray := payload[fieldName].([]any)
-	if !isArray {
-		return
-	}
-	for _, value := range files {
-		fileDocument, isDocument := value.(map[string]any)
-		if !isDocument {
-			continue
-		}
-		contentBase64, isString := fileDocument["contentBase64"].(string)
-		if isString && contentBase64 != "" {
-			fileDocument["contentBase64"] = fmt.Sprintf("<redacted %d base64 chars>", len(contentBase64))
-		}
-	}
-}
-
-func parseLastJSONDocument(output string) ([]byte, bool) {
-	trimmedOutput := strings.TrimSpace(output)
-	for index := len(trimmedOutput) - 1; index >= 0; index-- {
-		if trimmedOutput[index] != '{' {
-			continue
-		}
-		if index > 0 && trimmedOutput[index-1] != '\n' && trimmedOutput[index-1] != '\r' {
-			continue
-		}
-		candidate := trimmedOutput[index:]
-		var document map[string]any
-		decoder := json.NewDecoder(strings.NewReader(candidate))
-		if decoder.Decode(&document) == nil {
-			return []byte(candidate[:int(decoder.InputOffset())]), true
-		}
-	}
-	return nil, false
-}
-
-func replaceLastJSONDocument(output string, replacement string) string {
-	trimmedOutput := strings.TrimSpace(output)
-	document, found := parseLastJSONDocument(trimmedOutput)
-	if !found {
-		return output
-	}
-	index := strings.LastIndex(trimmedOutput, string(document))
-	if index < 0 {
-		return output
-	}
-	prefix := trimmedOutput[:index]
-	if prefix == "" {
-		return replacement + "\n"
-	}
-	return prefix + replacement + "\n"
-}
-
 func runPublicBrowserVerification(target verifyTarget) error {
 	publicURL := strings.TrimSpace(target.sshClient.run("cat /root/.internkim/env/device-url 2>/dev/null"))
 	if publicURL == "" {
@@ -298,19 +223,6 @@ func runPublicBrowserVerification(target verifyTarget) error {
 	return runPlaywright("tests/e2e/public-url.spec.ts", map[string]string{
 		"INTERNKIM_PUBLIC_URL": publicURL,
 	})
-}
-
-func reserveLocalPort() (int, error) {
-	listener, errorValue := net.Listen("tcp", "127.0.0.1:0")
-	if errorValue != nil {
-		return 0, errorValue
-	}
-	defer listener.Close()
-	address, isTCPAddress := listener.Addr().(*net.TCPAddr)
-	if !isTCPAddress {
-		return 0, errors.New("failed to reserve local tcp port")
-	}
-	return address.Port, nil
 }
 
 func runPlaywright(specPath string, environmentVariables map[string]string) error {
@@ -552,12 +464,4 @@ func verifyAdminOnlyRunsScript() string {
       ;;
   esac
 done`
-}
-
-// Site tools are named exactly; matching a name prefix silently reclassifies any
-// future tool that happens to start the same way.
-var siteToolNames = map[string]bool{"site_serve": true, "site_list": true, "site_unserve": true}
-
-func isSiteToolName(toolName string) bool {
-	return siteToolNames[strings.TrimSpace(toolName)]
 }

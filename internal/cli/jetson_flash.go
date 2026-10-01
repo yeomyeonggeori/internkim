@@ -22,7 +22,6 @@ const jetsonOrinNanoSDKPageURL = "https://developer.nvidia.com/embedded/jetpack-
 const minimumJetsonFlashCacheBytes = 45 * 1024 * 1024 * 1024
 const jetsonFirstbootScriptPath = "/usr/local/bin/internkim-jetson-firstboot.sh"
 const jetsonFirstbootServicePath = "/etc/systemd/system/internkim-jetson-firstboot.service"
-const jetsonAutologinOverridePath = "/etc/systemd/system/getty@tty1.service.d/override.conf"
 const jetsonLegacyNetworkManagerConnectionPath = "/etc/NetworkManager/system-connections/internkim-wifi.nmconnection"
 
 type flashImage struct {

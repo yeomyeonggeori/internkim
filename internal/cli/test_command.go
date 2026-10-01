@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -158,20 +157,6 @@ func optionalFloat64(isProvided bool, value float64) *float64 {
 		return nil
 	}
 	return &value
-}
-
-func formatOptionalInt64(value *int64) string {
-	if value == nil {
-		return ""
-	}
-	return strconv.FormatInt(*value, 10)
-}
-
-func formatOptionalFloat64(value *float64) string {
-	if value == nil {
-		return ""
-	}
-	return strconv.FormatFloat(*value, 'f', -1, 64)
 }
 
 func normalizeTestLanguageModelProvider(provider string) (string, error) {

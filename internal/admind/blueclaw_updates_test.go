@@ -611,15 +611,6 @@ func TestRefreshBlueclawCapabilityContractLeavesAnExplicitProviderAlone(t *testi
 	}
 }
 
-func refreshedDocumentIsCurrent(t *testing.T, document string) bool {
-	t.Helper()
-	refreshedAgain, errorValue := refreshedBlueclawRuntimeConfiguration(document, blueclawruntime.CurrentCapabilityContract())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return refreshedAgain == document
-}
-
 func TestRepairWorkspaceImageOnlyRunsOnCorruptProbe(t *testing.T) {
 	target := canonicalBlueclawPayloadInstallTarget()
 	cases := []struct {

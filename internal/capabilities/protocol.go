@@ -228,7 +228,3 @@ func buildToolNamespaces() map[string]string {
 	}
 	return namespaceByToolName
 }
-
-func IsToolInNamespace(toolName string, namespace string) bool {
-	return toolNamespaces[strings.TrimSpace(toolName)] == namespace
-}

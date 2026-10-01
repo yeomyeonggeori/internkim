@@ -12,16 +12,6 @@ import (
 	"time"
 )
 
-func detectBoardWifi(_ string) string {
-	ip, _ := detectBoardRPi("", internkimHomeDir())
-	return ip
-}
-
-func findBoardIP(sshpassBin, stateDir string) string {
-	ip, _ := detectBoardRPi(sshpassBin, stateDir)
-	return ip
-}
-
 func sshCheckHostnameForCredentials(sshpassBin string, ip string, username string, password string) bool {
 	hostname, err := runSSHHostnameForCredentials(sshpassBin, ip, username, password)
 	return err == nil && strings.TrimSpace(hostname) == "internkim"
@@ -49,12 +39,6 @@ func runSSHHostnameForCredentials(sshpassBin string, ip string, username string,
 	}
 	out, err := exec.Command(commandName, commandArguments...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
-}
-
-// detectBoardRPi is the legacy entrypoint for saved IP, mDNS, and subnet SSH detection.
-// Returns (ip, sshOK). ip may be non-empty with sshOK=false if board responds to ping but not SSH.
-func detectBoardRPi(_ string, stateDir string) (string, bool) {
-	return detectBoardForSSHCredentials("", stateDir, "root", "")
 }
 
 func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsername string, sshPassword string) (string, bool) {

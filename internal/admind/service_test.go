@@ -945,39 +945,6 @@ func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
 	}
 }
 
-func taskNotificationTestTask(status string) Task {
-	return Task{
-		ID:               "task-1",
-		OwnerID:          "member-1",
-		OwnerName:        "김민수",
-		ParticipantIDs:   []string{"member-1"},
-		ParticipantNames: []string{"김민수"},
-		Type:             "회의",
-		Content:          "10분 회의",
-		Size:             "XS",
-		Status:           status,
-		WeekCode:         "26W18",
-	}
-}
-
-func taskReportTestTask(id string, weekCode string, participantIDs []string, participantNames []string, size string, status string, startDate string, endDate string) Task {
-	return Task{
-		ID:               id,
-		OwnerID:          participantIDs[0],
-		OwnerName:        participantNames[0],
-		ParticipantIDs:   participantIDs,
-		ParticipantNames: participantNames,
-		Business:         "개발",
-		Type:             "회의",
-		Content:          id,
-		Size:             size,
-		Status:           status,
-		StartDate:        startDate,
-		EndDate:          endDate,
-		WeekCode:         weekCode,
-	}
-}
-
 func newTaskAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
 	fleetIDPath := writeTestFile(t, "device-1")
@@ -1017,31 +984,6 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 	return service
 }
 
-func newTaskRequest(callerEmail string, ownerEmail string) *http.Request {
-	payload := taskWriteRequest{
-		OwnerID:        stableTaskID(ownerEmail),
-		ParticipantIDs: []string{stableTaskID(ownerEmail)},
-		Type:           "회의",
-		Content:        "10분 회의",
-		Size:           "XS",
-		Status:         "in_progress",
-		WeekCode:       "26W18",
-	}
-	document, _ := json.Marshal(payload)
-	request := httptest.NewRequest(http.MethodPost, "/flow/api/tasks", bytes.NewReader(document))
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", callerEmail)
-	return request
-}
-
-func newTaskDefinitionsRequest(callerEmail string) *http.Request {
-	document := `{"types":["회의"],"sizes":[{"name":"XS","distanceKM":1,"maxHours":1,"developmentExample":"dev","otherExample":"other","note":"note"}]}`
-	request := httptest.NewRequest(http.MethodPut, "/flow/api/definitions", strings.NewReader(document))
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", callerEmail)
-	return request
-}
-
 func writeFile(t *testing.T, path string, document string) {
 	t.Helper()
 	if errorValue := os.WriteFile(path, []byte(document), 0o600); errorValue != nil {
@@ -1059,19 +1001,6 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     header,
 	}
-}
-
-func newWorkspaceSettingsTestService(t *testing.T) *Service {
-	t.Helper()
-	service := NewService(Configuration{
-		StateDirectory: t.TempDir(),
-		AdminEmailPath: writeTestFile(t, "admin@example.com"),
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		t.Fatalf("unexpected workspace settings request %s %s", request.Method, request.URL.String())
-		return nil, nil
-	})}
-	return service
 }
 
 func TestEncryptDecryptRoundTrip(t *testing.T) {
@@ -2381,12 +2310,6 @@ func requestAdminSession(t *testing.T, service *Service, email string) map[strin
 	return document
 }
 
-func isBlueclawInviteRequest(t *testing.T, request *http.Request, expectedEmail string) bool {
-	t.Helper()
-	_ = expectedEmail
-	return isBlueclawPolicyReload(request)
-}
-
 func isBlueclawPolicyReload(request *http.Request) bool {
 	return request.Method == http.MethodPost && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy/reload"
 }
@@ -2447,10 +2370,6 @@ func blueclawPolicyWithSeedAdmin() string {
 	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true}],"channels":[],"retention":{"rawEventDays":60}}`
 }
 
-func blueclawPolicyWithClaimedMember() string {
-	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true},{"personID":"member-1","displayName":"leesample","emails":["member1@example.com"],"securityLevelName":"member","securityLevelRank":10,"grantedClasses":["internal"],"isAdmin":false}],"channels":[],"retention":{"rawEventDays":60}}`
-}
-
 func writeTestFile(t *testing.T, document string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "file")
@@ -2471,23 +2390,6 @@ func readJSONFile(t *testing.T, path string) map[string]any {
 		t.Fatal(errorValue)
 	}
 	return result
-}
-
-func stringFieldsMatch(document string, expectedFields []string) bool {
-	actualFields := strings.Fields(document)
-	if len(actualFields) != len(expectedFields) {
-		return false
-	}
-	expectedFieldSet := map[string]bool{}
-	for _, expectedField := range expectedFields {
-		expectedFieldSet[expectedField] = true
-	}
-	for _, actualField := range actualFields {
-		if !expectedFieldSet[actualField] {
-			return false
-		}
-	}
-	return true
 }
 
 func TestCompanionJobTimeoutSecond(t *testing.T) {

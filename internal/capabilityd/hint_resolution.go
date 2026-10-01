@@ -137,14 +137,3 @@ func itemsWithTitleMatching[Item hintMatchable](title string, items []Item) []It
 	}
 	return found
 }
-
-func unresolvedHintMessage(subject string, hintField string, listTool string, outcome hintOutcome) string {
-	switch outcome {
-	case hintAmbiguous:
-		return hintField + " matched more than one " + subject + "; ask the user which one, offering the candidates as choices"
-	case hintApproximate:
-		return "no " + subject + " matched " + hintField + ", and these are the closest; ask the user whether they meant one of them, offering none of them as a choice too. Do not choose one yourself"
-	default:
-		return "no " + subject + " matched " + hintField + " and nothing came close; tell the user that, or run " + listTool + " if they want to see what is there"
-	}
-}

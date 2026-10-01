@@ -52,10 +52,6 @@ func (response *registerResponse) registeredFleetID() string {
 	return response.FleetID
 }
 
-func (response *registerResponse) registeredOldFleetID() string {
-	return response.OldFleetID
-}
-
 func (response *registerResponse) registeredNodeID() string {
 	return response.NodeID
 }

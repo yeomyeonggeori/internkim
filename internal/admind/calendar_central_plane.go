@@ -182,14 +182,6 @@ func (service *Service) companyHoldsCalendarEvent(ctx context.Context, requester
 	return event, true
 }
 
-func (service *Service) removeCompanyCalendarEvent(ctx context.Context, requesterEmail string, eventID string) error {
-	client := service.centralPlane()
-	if client == nil || strings.TrimSpace(requesterEmail) == "" {
-		return nil
-	}
-	return client.DeleteEvent(ctx, "email", requesterEmail, eventID)
-}
-
 // A task the company holds stands at requested until the person asked answers,
 // and the company reads who asked from that. An event somebody files for
 // themselves says nothing about a requester and keeps the default.

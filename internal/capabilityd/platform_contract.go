@@ -1,12 +1,5 @@
 package capabilityd
 
-import (
-	"encoding/base64"
-	"encoding/json"
-	"errors"
-	"strings"
-)
-
 type platformInboundEvent struct {
 	ConversationID string               `json:"conversationID"`
 	MessageID      string               `json:"messageID"`
@@ -105,36 +98,3 @@ type platformContextMessage struct {
 	SentAt             string                    `json:"sentAt,omitempty"`
 	InputAttachments   []platformInputAttachment `json:"inputAttachments,omitempty"`
 }
-
-type platformHandle struct {
-	Platform       string `json:"platform"`
-	ConversationID string `json:"conversationID"`
-	RootID         string `json:"rootID,omitempty"`
-	MessageID      string `json:"messageID,omitempty"`
-	TeamID         string `json:"teamID,omitempty"`
-}
-
-func encodePlatformHandle(handle platformHandle) (string, error) {
-	document, errorValue := json.Marshal(handle)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return base64.RawURLEncoding.EncodeToString(document), nil
-}
-
-func decodePlatformHandle(value string) (platformHandle, error) {
-	trimmedValue := strings.TrimSpace(value)
-	if trimmedValue == "" {
-		return platformHandle{}, errors.New("platform handle is empty")
-	}
-	document, errorValue := base64.RawURLEncoding.DecodeString(trimmedValue)
-	if errorValue != nil {
-		return platformHandle{}, errorValue
-	}
-	var handle platformHandle
-	if errorValue := json.Unmarshal(document, &handle); errorValue != nil {
-		return platformHandle{}, errorValue
-	}
-	return handle, nil
-}
-

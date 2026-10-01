@@ -170,34 +170,8 @@ func platformDMRecipientList(recipients []platformDMRecipient) string {
 	return strings.Join(parts, "; ")
 }
 
-func safePlatformDMError(errorValue error) string {
-	if errorValue == nil {
-		return ""
-	}
-	return strings.TrimSpace(errorValue.Error())
-}
-
 func normalizePlatformDMMatchValue(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func platformDMDeniedResponse(toolName string, failure platformDMFailure) capabilities.ToolInvokeResponse {
-	resultDocument, _ := json.Marshal(failure)
-	return capabilities.ToolInvokeResponse{
-		Provider:        "internkim",
-		SelectedBackend: "device",
-		ToolName:        toolName,
-		Outcome:         capabilities.ToolOutcomeDenied,
-		Status:          "denied",
-		Content:         failure.Message,
-		IsError:         true,
-		Message:         failure.Message,
-		ErrorCode:       failure.ErrorCode,
-		FailureStage:    failure.FailureStage,
-		Retryable:       failure.Retryable,
-		SafeRetry:       failure.SafeRetry,
-		Result:          resultDocument,
-	}
 }
 
 func platformDMErrorResponse(toolName string, failure platformDMFailure) capabilities.ToolInvokeResponse {

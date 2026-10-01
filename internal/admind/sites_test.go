@@ -2189,17 +2189,6 @@ func containsCommandFragment(commands []string, expected string) bool {
 	return false
 }
 
-func assertPathPermission(t *testing.T, path string, expected os.FileMode) {
-	t.Helper()
-	information, errorValue := os.Stat(path)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if information.Mode().Perm() != expected {
-		t.Fatalf("%s permission = %o, expected %o", path, information.Mode().Perm(), expected)
-	}
-}
-
 func repositoryPath(pathParts ...string) string {
 	return filepath.Join(append([]string{"..", ".."}, pathParts...)...)
 }
@@ -2211,56 +2200,6 @@ func readRepositoryFile(t *testing.T, pathParts ...string) string {
 		t.Fatal(errorValue)
 	}
 	return string(document)
-}
-
-func assertDirectoriesMatch(t *testing.T, expectedRootPath string, actualRootPath string) {
-	t.Helper()
-	expectedFiles := readDirectoryFiles(t, expectedRootPath)
-	actualFiles := readDirectoryFiles(t, actualRootPath)
-	for relativePath, expectedContent := range expectedFiles {
-		actualContent, isFound := actualFiles[relativePath]
-		if !isFound {
-			t.Fatalf("%s missing mirrored scaffold file %s", actualRootPath, relativePath)
-		}
-		if actualContent != expectedContent {
-			t.Fatalf("%s differs from canonical scaffold file %s", actualRootPath, relativePath)
-		}
-	}
-	for relativePath := range actualFiles {
-		if _, isFound := expectedFiles[relativePath]; !isFound {
-			t.Fatalf("%s has extra scaffold file %s", actualRootPath, relativePath)
-		}
-	}
-}
-
-func readDirectoryFiles(t *testing.T, rootPath string) map[string]string {
-	t.Helper()
-	files := map[string]string{}
-	errorValue := filepath.Walk(rootPath, func(path string, information os.FileInfo, walkError error) error {
-		if walkError != nil {
-			return walkError
-		}
-		if information.IsDir() {
-			return nil
-		}
-		if !information.Mode().IsRegular() {
-			return nil
-		}
-		relativePath, errorValue := filepath.Rel(rootPath, path)
-		if errorValue != nil {
-			return errorValue
-		}
-		document, errorValue := os.ReadFile(path)
-		if errorValue != nil {
-			return errorValue
-		}
-		files[filepath.ToSlash(relativePath)] = string(document)
-		return nil
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return files
 }
 
 func TestValidateSiteStagingPathsQuarantinesOrphanedAlias(t *testing.T) {

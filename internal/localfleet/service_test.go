@@ -438,25 +438,6 @@ func TestVirtualSessionScenarioRunsLinuxVirtualSession(t *testing.T) {
 	}
 }
 
-func containsEnvironmentValue(environment []string, expectedValue string) bool {
-	for _, value := range environment {
-		if value == expectedValue {
-			return true
-		}
-	}
-	return false
-}
-
-func containsEnvironmentName(environment []string, name string) bool {
-	prefix := name + "="
-	for _, value := range environment {
-		if strings.HasPrefix(value, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 func TestEphemeralCleanupRemovesVirtualMachineAndKeepsEvidenceState(t *testing.T) {
 	service, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo",

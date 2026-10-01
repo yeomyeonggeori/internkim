@@ -61,14 +61,6 @@ func calendarParticipantsFromIdentities(identities []calendarParticipantIdentity
 	return participants
 }
 
-func calendarParticipantPrimaryKey(participant calendarParticipant) string {
-	return calendarParticipantIdentityPrimaryKey(calendarParticipantIdentity{
-		PersonID: participant.PersonID,
-		Name:     participant.Name,
-		Email:    participant.Email,
-	})
-}
-
 func calendarParticipantIdentityPrimaryKey(participant calendarParticipantIdentity) string {
 	if participant.PersonID != "" {
 		return "id:" + strings.ToLower(participant.PersonID)
@@ -82,20 +74,6 @@ func calendarParticipantIdentityPrimaryKey(participant calendarParticipantIdenti
 	return ""
 }
 
-func calendarParticipantsIncludeParticipant(participants []calendarParticipant, candidate calendarParticipant) bool {
-	normalizedCandidates := normalizeCalendarParticipants([]calendarParticipant{candidate})
-	if len(normalizedCandidates) == 0 {
-		return true
-	}
-	normalizedCandidate := normalizedCandidates[0]
-	for _, participant := range normalizeCalendarParticipants(participants) {
-		if calendarParticipantsSamePerson(participant, normalizedCandidate) {
-			return true
-		}
-	}
-	return false
-}
-
 func calendarParticipantNames(participants []calendarParticipant) []string {
 	names := make([]string, 0, len(participants))
 	for _, participant := range normalizeCalendarParticipants(participants) {
@@ -104,39 +82,4 @@ func calendarParticipantNames(participants []calendarParticipant) []string {
 		}
 	}
 	return names
-}
-
-func calendarParticipantsEqual(left []calendarParticipant, right []calendarParticipant) bool {
-	normalizedLeft := normalizeCalendarParticipants(left)
-	normalizedRight := normalizeCalendarParticipants(right)
-	if len(normalizedLeft) != len(normalizedRight) {
-		return false
-	}
-	for index, leftParticipant := range normalizedLeft {
-		rightParticipant := normalizedRight[index]
-		if leftParticipant.PersonID != rightParticipant.PersonID || leftParticipant.Name != rightParticipant.Name || leftParticipant.Email != rightParticipant.Email {
-			return false
-		}
-	}
-	return true
-}
-
-func calendarParticipantsSamePerson(left calendarParticipant, right calendarParticipant) bool {
-	return calendarParticipantIdentitiesSamePerson(
-		calendarParticipantIdentity{PersonID: left.PersonID, Name: left.Name, Email: left.Email},
-		calendarParticipantIdentity{PersonID: right.PersonID, Name: right.Name, Email: right.Email},
-	)
-}
-
-func calendarParticipantIdentitiesSamePerson(left calendarParticipantIdentity, right calendarParticipantIdentity) bool {
-	if left.PersonID != "" && right.PersonID != "" {
-		return strings.EqualFold(left.PersonID, right.PersonID)
-	}
-	if left.Email != "" && right.Email != "" {
-		return strings.EqualFold(left.Email, right.Email)
-	}
-	if left.PersonID == "" && right.PersonID == "" && left.Email == "" && right.Email == "" && left.Name != "" && right.Name != "" {
-		return strings.EqualFold(left.Name, right.Name)
-	}
-	return false
 }

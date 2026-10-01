@@ -77,10 +77,6 @@ func (service Service) Run(contextValue context.Context, logger Logger, request 
 	return service.runAction(contextValue, logger, request)
 }
 
-func (service Service) ConfigurationPath() string {
-	return service.configurationPath()
-}
-
 func (service Service) reapOrphanedEphemeralContainers(contextValue context.Context, logger Logger) {
 	reapContext, cancel := context.WithTimeout(contextValue, time.Minute)
 	defer cancel()
@@ -94,10 +90,6 @@ func (service Service) CleanupEphemeral(contextValue context.Context, logger Log
 	cleanupContext, cancel := newEphemeralCleanupContext(contextValue)
 	defer cancel()
 	return service.runCleanupPlans(cleanupContext, logger, service.ephemeralCleanupPlans())
-}
-
-func (service Service) ConnectPreparedFleet(contextValue context.Context, logger Logger) error {
-	return service.runPlans(contextValue, logger, service.preparedFleetPlans())
 }
 
 func (service Service) runWithEphemeralCleanup(contextValue context.Context, logger Logger, request JobRequest) error {

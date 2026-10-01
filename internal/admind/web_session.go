@@ -414,14 +414,6 @@ func safeWebReturnPath(value string) string {
 	return ""
 }
 
-func webAuthBaseURLFromRequest(request *http.Request) string {
-	scheme := firstNonEmpty(request.Header.Get("X-Forwarded-Proto"), "https")
-	if isLocalRequest(request) {
-		scheme = "http"
-	}
-	return scheme + "://" + request.Host
-}
-
 func logAuditEvent(message string) {
 	log.Printf("auth audit: %s", message)
 }

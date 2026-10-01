@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"crypto/rand"
 	"fmt"
 	"os"
 	"strings"
@@ -40,18 +39,6 @@ func readSecret(prompt string) string {
 	return strings.TrimSpace(string(b))
 }
 
-func generatePassword(n int) string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	for i, v := range b {
-		b[i] = chars[int(v)%len(chars)]
-	}
-	return string(b)
-}
-
 func readLine(prompt string) string {
 	fmt.Print(prompt)
 	reader := bufio.NewReader(os.Stdin)
@@ -65,15 +52,4 @@ func promptYN(question string) bool {
 	line, _ := reader.ReadString('\n')
 	line = strings.TrimSpace(strings.ToLower(line))
 	return line == "y" || line == "yes"
-}
-
-func maskString(s string) string {
-	return strings.Repeat("*", len(s))
-}
-
-func maskKey(s string) string {
-	if len(s) <= 12 {
-		return strings.Repeat("*", len(s))
-	}
-	return s[:8] + strings.Repeat("*", len(s)-12) + s[len(s)-4:]
 }

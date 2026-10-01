@@ -1,7 +1,6 @@
 package capabilityd
 
 import (
-	"io"
 	"net/http"
 	"strings"
 )
@@ -12,17 +11,6 @@ const directoryPeopleTestPath = "/admin/api/directory/people"
 // up has to answer that question before its own.
 func isDirectoryPeopleRequest(request *http.Request) bool {
 	return request.Method == http.MethodGet && strings.HasSuffix(request.URL.Path, directoryPeopleTestPath)
-}
-
-func directoryPeopleTestResponse(document string) *http.Response {
-	if strings.TrimSpace(document) == "" {
-		document = `{"people":[]}`
-	}
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(document)),
-		Header:     http.Header{"Content-Type": []string{"application/json"}},
-	}
 }
 
 // The people these tests name. Resolution is the company's answer now, so a test

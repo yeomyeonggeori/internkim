@@ -146,15 +146,6 @@ type blueclawUsersPolicyHealthBoardConnection struct {
 	runCount int
 }
 
-func containsString(values []string, expectedValue string) bool {
-	for _, value := range values {
-		if value == expectedValue {
-			return true
-		}
-	}
-	return false
-}
-
 func (connection *blueclawUsersPolicyHealthBoardConnection) Run(command string) string {
 	connection.command = command
 	connection.runCount++

@@ -6,55 +6,6 @@ import (
 	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
-func browserFillInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-		jsonschema.Required("text", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserSelectInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-		jsonschema.Required("value", jsonschema.String()),
-	).RawMessage()
-}
-
-func browserPressInputSchema() json.RawMessage {
-	return jsonschema.Object(jsonschema.Required("key", jsonschema.String())).RawMessage()
-}
-
-func browserWaitInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Field("target", jsonschema.String()),
-		jsonschema.Field("ref", jsonschema.String()),
-		jsonschema.Field("selector", jsonschema.String()),
-		jsonschema.Field("milliseconds", jsonschema.Integer()),
-	).RawMessage()
-}
-
-func userConfirmInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("reason", jsonschema.String()),
-	).RawMessage()
-}
-
-func userInputSchema() json.RawMessage {
-	return jsonschema.Object(
-		jsonschema.Required("message", jsonschema.String()),
-		jsonschema.Field("placeholder", jsonschema.String()),
-	).RawMessage()
-}
-
-func emptyToolInputSchema() json.RawMessage {
-	return jsonschema.Object().RawMessage()
-}
-
 func TextLLMInputSchema() json.RawMessage {
 	return jsonschema.Object(
 		jsonschema.Field("model", jsonschema.String()),

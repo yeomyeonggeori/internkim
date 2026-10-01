@@ -55,20 +55,6 @@ const (
 	LlamaCppEmbeddingUBatchSize    = "2048"
 )
 
-func BinaryPath() string {
-	if Default == BackendLlamaCpp {
-		return LlamaCppBinaryPath
-	}
-	return LiteRTBinaryPath
-}
-
-func LibraryDir() string {
-	if Default == BackendLlamaCpp {
-		return LlamaCppLibraryDir
-	}
-	return LiteRTLibraryDir
-}
-
 func ModelPath() string {
 	if Default == BackendLlamaCpp {
 		return LlamaCppModelPath
