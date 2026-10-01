@@ -5,9 +5,10 @@ import (
 )
 
 // HostPart is who in the company host needs a dependency. The agent image
-// carries what the entrypoint, the daemons and the bundled skills reach for; a
-// native package carries those and the messenger's, the cache's and the
-// database's as well, because on that path nothing else brings them.
+// carries what its entrypoint, the daemons and the bundled skills reach for; a
+// native package carries all but the entrypoint's, and the messenger's, the
+// cache's and the database's as well, because on that path nothing else brings
+// them.
 type HostPart string
 
 const (
@@ -174,20 +175,12 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartAgent},
 	},
 	{
-		DebianPackage:       "unzip",
-		DnfPackages:         []string{"unzip"},
-		PacmanPackages:      []string{"unzip"},
-		WhatAnswersItOnAMac: "macOS ships unzip",
-		ProgramsTheHostRuns: []string{"unzip"},
-		NeededBy:            []HostPart{HostPartAgent},
-	},
-	{
 		DebianPackage:       "postgresql-client",
 		DnfPackages:         []string{"postgresql"},
 		PacmanPackages:      []string{"postgresql"},
 		HomebrewFormula:     "postgresql@17",
 		ProgramsTheHostRuns: []string{"pg_isready"},
-		NeededBy:            []HostPart{HostPartEntrypoint},
+		NeededBy:            []HostPart{HostPartEntrypoint, HostPartDatabase},
 	},
 	{
 		DebianPackage:       "netcat-openbsd",
@@ -257,13 +250,13 @@ var hostDependencies = []HostDependency{
 		ArrivesAsPayload:    true,
 		WhatAnswersItOnAMac: "the package carries it",
 		ProgramsTheHostRuns: []string{DeviceBrowserName},
-		NeededBy:            []HostPart{HostPartEntrypoint},
+		NeededBy:            []HostPart{HostPartEntrypoint, HostPartAgent},
 	},
 	{
 		ArrivesAsPayload:    true,
 		WhatAnswersItOnAMac: "the package carries it",
 		ProgramsTheHostRuns: []string{AgentBrowserName},
-		NeededBy:            []HostPart{HostPartEntrypoint},
+		NeededBy:            []HostPart{HostPartEntrypoint, HostPartAgent},
 	},
 	{
 		ArrivesAsPayload:    true,
@@ -291,6 +284,13 @@ func (dependency HostDependency) neededByAnyOf(parts []HostPart) bool {
 
 func (dependency HostDependency) isInstalledByAPackageManager() bool {
 	return dependency.DebianPackage != "" && !dependency.ArrivesAsPayload
+}
+
+// OnlyTheImageEntrypointRuns is a dependency of host/entrypoint.sh alone. A
+// native host is supervised by systemd or launchd and runs no such script, so
+// neither its package nor `internkim install` asks for one.
+func (dependency HostDependency) OnlyTheImageEntrypointRuns() bool {
+	return len(dependency.NeededBy) == 1 && dependency.NeededBy[0] == HostPartEntrypoint
 }
 
 // HostDebianPackagesFor names what apt-get installs for the parts asked about.
@@ -337,7 +337,7 @@ func (dependency HostDependency) PackagesFor(manager PackageManager) []string {
 // list is something every distribution has to spell the same way and keep
 // patched.
 func (dependency HostDependency) IsNamedIn(manager PackageManager) bool {
-	if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential {
+	if !dependency.isInstalledByAPackageManager() || dependency.DebianCallsItEssential || dependency.OnlyTheImageEntrypointRuns() {
 		return false
 	}
 	if dependency.WhatTheDebianPackageCarriesInstead != "" {
@@ -409,8 +409,8 @@ func HostPackagesToInstallFor(manager PackageManager, dependency HostDependency)
 
 // HostHomebrewDependencies is every `depends_on` line of the formula, and only
 // those. It is a shorter list than Debian's because Homebrew's PostgreSQL
-// carries contrib and macOS supplies python3, curl, unzip, netcat and the CA
-// bundle itself; none of it means the Mac needs less.
+// carries contrib and macOS supplies python3, curl and the CA bundle itself;
+// none of it means the Mac needs less.
 func HostHomebrewDependencies() []string {
 	formulas := []string{}
 	named := map[string]bool{}

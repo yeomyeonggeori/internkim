@@ -27,7 +27,7 @@ RUN cd relay && bun install --frozen-lockfile
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd unzip curl jq python3 libfontconfig1 fonts-nanum \
+	&& apt-get install -y --no-install-recommends ca-certificates postgresql-client netcat-openbsd curl jq python3 libfontconfig1 fonts-nanum \
 	&& rm -rf /var/lib/apt/lists/*
 ARG MOLI_VERSION=1.1.5
 ARG AGENT_BROWSER_VERSION=0.32.3
@@ -55,7 +55,7 @@ RUN case "${TARGETARCH}" in \
 	&& rm -rf /tmp/versitygw.tar.gz "/tmp/versitygw_v${VERSITYGW_VERSION}_Linux_${versitygwTarget}" \
 	&& curl -fsSL -o /tmp/bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${bunMachine}.zip" \
 	&& echo "${bunSHA256}  /tmp/bun.zip" | sha256sum -c - \
-	&& unzip -q -d /tmp /tmp/bun.zip "bun-linux-${bunMachine}/bun" \
+	&& python3 -m zipfile -e /tmp/bun.zip /tmp \
 	&& install -m 0755 "/tmp/bun-linux-${bunMachine}/bun" /usr/local/bin/bun \
 	&& rm -rf /tmp/bun.zip "/tmp/bun-linux-${bunMachine}" \
 	&& curl -fsSL -o /tmp/uv.tar.gz "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uvTriple}.tar.gz" \

@@ -182,6 +182,15 @@ func TestThePreflightDoesNotAskADebianMachineForWhatThePackageCarries(t *testing
 	}
 }
 
+func TestThePreflightAsksNoNativeHostForWhatOnlyTheImageEntrypointRuns(t *testing.T) {
+	machine := &recordedMachine{missing: map[string]bool{"nc": true, "setpriv": true, "dirname": true}}
+	for _, platform := range []companyHostPlatform{linuxPlatform{}, macPlatformForTest()} {
+		if errorValue := requireWhatTheCompanyHostRuns(platform, machine); errorValue != nil {
+			t.Fatalf("a host was refused for what only host/entrypoint.sh runs:\n%v", errorValue)
+		}
+	}
+}
+
 func TestThePreflightPassesAMachineThatCarriesEverything(t *testing.T) {
 	if errorValue := requireWhatTheCompanyHostRuns(linuxPlatform{}, &recordedMachine{}); errorValue != nil {
 		t.Fatalf("a complete machine was refused: %v", errorValue)

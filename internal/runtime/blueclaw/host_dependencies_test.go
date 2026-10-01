@@ -233,7 +233,14 @@ func TestThePackageDependsOnEverythingTheImageInstallsThatItDoesNotCarry(t *test
 	}
 	for _, packageName := range blueclaw.HostImageDebianPackages() {
 		isNamed := strings.Contains(depends, packageName)
-		if dependencyNamingIt(packageName).WhatBringsItInstead[blueclaw.PackageManagerApt] != "" {
+		dependency := dependencyNamingIt(packageName)
+		if dependency.WhatBringsItInstead[blueclaw.PackageManagerApt] != "" {
+			continue
+		}
+		if dependency.OnlyTheImageEntrypointRuns() {
+			if isNamed {
+				t.Errorf("only host/entrypoint.sh runs what %s brings, and the package, which runs no entrypoint, still asks for it", packageName)
+			}
 			continue
 		}
 		if carried[packageName] && isNamed {
