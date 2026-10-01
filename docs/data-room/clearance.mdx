@@ -7,7 +7,17 @@ A role contains `readableCategories`, an array of codes. `F` includes all
 finance children, including ones added later. `FS` grants financial
 statements alone. Multiple active grants combine; there are no deny overrides.
 Reader roles grant reading. Company administration and document editing are
-separate permissions.
+separate permissions. Filing eligibility does not limit permission scopes:
+both parent and intermediate codes can appear in a role.
+
+| readableCategories | Access |
+|---|---|
+| `["F"]` | Finance and every current or future child |
+| `["FS"]` | Financial statements only |
+| `["FS", "FP"]` | Financial statements and payroll |
+
+A category without children can hold documents. A category with children
+groups their documents and remains a valid permission scope.
 
 Company administrators assign roles to members, internal circles, external
 emails or explicitly public audiences. A verified email recipient must accept

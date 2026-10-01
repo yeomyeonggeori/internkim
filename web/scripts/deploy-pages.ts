@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { domainsOf, hostnamesNotAnswering, hostnamesToAnswerFor } from './pages-hostnames';
 import { mainCommitOfLiveBuild, refusalToReplaceProduction, stampOfMainCommit } from './production-guard';
-import { ensureProductionSchemaIsCurrent } from './production-schema';
+import { ensurePagesProductionSchemaIsCurrent } from './production-schema';
 import { requiredSetting } from './repository-setting';
 import {
 	refusalOfPagesVariables,
@@ -90,7 +90,7 @@ if (isProduction) {
 			process.exit(1);
 		}
 	}
-	await ensureProductionSchemaIsCurrent();
+	await ensurePagesProductionSchemaIsCurrent(project);
 }
 
 const output = resolve(process.cwd(), outputArgument);

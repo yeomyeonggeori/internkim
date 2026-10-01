@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { requiresPagesRuntimeVariables } from './pages-variables';
 
 const migrationVersionPattern = /^(\d{14})_(.+)\.sql$/;
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -35,6 +36,14 @@ export async function ensureProductionSchemaIsCurrent(
 	directory = fileURLToPath(new URL('../../supabase/migrations/', import.meta.url))
 ): Promise<void> {
 	compareMigrationVersions(localMigrationFiles(directory), await loadAppliedVersions());
+}
+
+export async function ensurePagesProductionSchemaIsCurrent(
+	projectName: string,
+	loadAppliedVersions: AppliedMigrationLoader = linkedAppliedVersions
+): Promise<void> {
+	if (!requiresPagesRuntimeVariables(projectName)) return;
+	await ensureProductionSchemaIsCurrent(loadAppliedVersions);
 }
 
 async function linkedAppliedVersions(): Promise<string[]> {
