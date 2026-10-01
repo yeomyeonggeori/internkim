@@ -18,6 +18,7 @@ export type AttendanceWriteEvent = SavedAttendanceEvent;
 export type AttendanceWriteResult = {
 	outcome: 'saved' | 'asked';
 	event?: AttendanceWriteEvent;
+	removed?: true;
 };
 
 const writtenStatuses = ['added', 'corrected', 'removed'];
@@ -57,6 +58,7 @@ export function attendanceWriteResultFrom(data: unknown): AttendanceWriteResult 
 	if (!writtenStatuses.includes(status)) {
 		throw new Error(`the attendance write answered an unknown status ${status}`);
 	}
+	if (status === 'removed') return { outcome: 'saved', removed: true };
 	if (answered.event === undefined) return { outcome: 'saved' };
 	return { outcome: 'saved', event: savedAttendanceEventSchema.parse(answered.event) };
 }
