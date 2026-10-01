@@ -2,7 +2,7 @@ import { isTheSameSecret } from '../../../web/src/lib/server/same-secret';
 import type { ReleaseRegistryEnvironment } from './index';
 
 const releaseTokenHeader = 'X-INTERNKIM-RELEASE-TOKEN';
-const publicObjectPrefixes = ['companion/', 'host/', 'deb/', 'rpm/', 'arch/', 'brew/'];
+const publicObjectPrefixes = ['companion/', 'host/', 'brew/'];
 
 export async function handleReleaseRegistryRequest(request: Request, environment: ReleaseRegistryEnvironment): Promise<Response> {
 	if (!isAllowedMethod(request.method)) {

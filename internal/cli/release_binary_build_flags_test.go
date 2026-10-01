@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 func TestReleaseBinaryBuildFlagsCarryTheCheckedOutRevision(t *testing.T) {
@@ -20,11 +23,11 @@ func TestReleaseBinaryBuildFlagsCarryTheCheckedOutRevision(t *testing.T) {
 	}
 }
 
-func TestAdmindIsBuiltWithTheCentralPlaneTheVaultNames(t *testing.T) {
+func TestTheDevicesAdmindIsBuiltWithTheCentralPlaneTheVaultNames(t *testing.T) {
 	t.Setenv("SUPABASE_URL", "https://plane.example.test")
 	t.Setenv("SUPABASE_PUBLISHABLE_KEY", "publishable-for-the-test")
 
-	stamped, errorValue := admindStampFlags("build", "revision")
+	stamped, errorValue := deviceAdmindStampFlags("build", "revision")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -38,17 +41,35 @@ func TestAdmindIsBuiltWithTheCentralPlaneTheVaultNames(t *testing.T) {
 	}
 }
 
-func TestAdmindIsNotBuiltWhenTheVaultNamesNoCentralPlane(t *testing.T) {
+func TestTheDevicesAdmindIsNotBuiltWhenTheVaultNamesNoCentralPlane(t *testing.T) {
 	t.Setenv("SUPABASE_URL", "")
 	t.Setenv("SUPABASE_PUBLISHABLE_KEY", "")
 
-	_, errorValue := admindStampFlags("build", "revision")
+	_, errorValue := deviceAdmindStampFlags("build", "revision")
 	if errorValue == nil {
-		t.Fatal("admind was built with no central plane to default to")
+		t.Fatal("the device's admind was built with no central plane to default to")
 	}
 	for _, wanted := range []string{"SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "monkeys run @production"} {
 		if !strings.Contains(errorValue.Error(), wanted) {
 			t.Fatalf("the refusal %q does not name %s", errorValue, wanted)
 		}
+	}
+}
+
+func TestAHostPackagesAdmindBuildsFromACloneWithNoVault(t *testing.T) {
+	t.Setenv("SUPABASE_URL", "")
+	t.Setenv("SUPABASE_PUBLISHABLE_KEY", "")
+	if stamped := admindStampFlags("build", "revision"); strings.Contains(stamped, "centralplane") {
+		t.Fatalf("a host package's admind carries a central plane: %s", stamped)
+	}
+
+	repositoryRootPath, errorValue := filepath.Abs("../..")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	admind := packagedGoProgram{Name: blueclaw.AdmindName, Package: "./cmd/" + blueclaw.AdmindName}
+	outputPath := filepath.Join(t.TempDir(), blueclaw.AdmindName)
+	if errorValue := crossCompilePackagedProgram(repositoryRootPath, admind, packageTargets[0], "1.2.3", outputPath); errorValue != nil {
+		t.Fatalf("release packages could not build admind with no SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY: %v", errorValue)
 	}
 }

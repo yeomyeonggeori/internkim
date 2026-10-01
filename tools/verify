@@ -305,6 +305,8 @@ GROUPS = [
             "web/static/companion/install.sh",
             "tools/tests/test_install_script.py",
             "tools/tests/test_company_host_source_build.py",
+            "internal/cli/release_package.go",
+            "internal/cli/release_package_payload.go",
             "cmd/internkim-host/*",
             "internal/companyhost/*",
             "Makefile",
@@ -318,22 +320,18 @@ GROUPS = [
         "native-install-rig",
         [
             "tools/test-native-install",
-            "tools/test-apt-repository",
             "tools/native_install_rig.py",
             "tools/native-install-member-session.ts",
             "tools/tests/test_native_install_rig.py",
-            "internal/aptrepository/*",
-            "internal/rpmrepository/*",
-            "internal/pacmanrepository/*",
-            "internal/packagerepository/*",
+            "internal/cli/release_package.go",
             "tools/test-native-install-family",
             "tools/native_install_families.py",
             "web/static/install.sh",
         ],
-        # The half that needs no guest. Both rigs take a disposable Debian and
+        # The half that needs no guest. The rigs take a disposable guest and
         # about ten minutes, so they are run by hand:
         # tools/test-native-install --stand-in
-        # tools/test-apt-repository
+        # tools/test-native-install-family --family <family>
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"]],
     ),
     Group(

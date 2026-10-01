@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,6 +30,9 @@ type linuxPackageFormat struct {
 	HasPurge bool
 	// Compression is what the payload is compressed with.
 	Compression string
+	// Suffix ends the file the format is shipped as, and is what the format's
+	// manager asks a local file to end with.
+	Suffix string
 }
 
 var (
@@ -38,15 +42,18 @@ var (
 		HasPurge: true,
 		// dpkg has read xz since 1.15, older than every distribution the package is for.
 		Compression: "xz",
+		Suffix:      ".deb",
 	}
 	rpmPackageFormat = linuxPackageFormat{
 		Name:        "rpm",
 		Manager:     blueclaw.PackageManagerDnf,
 		Compression: "zstd",
+		Suffix:      ".rpm",
 	}
 	archlinuxPackageFormat = linuxPackageFormat{
 		Name:    "archlinux",
 		Manager: blueclaw.PackageManagerPacman,
+		Suffix:  ".pkg.tar.zst",
 	}
 )
 
@@ -101,12 +108,12 @@ func (format linuxPackageFormat) RemovalTest(script string) string {
 	return "true"
 }
 
-func (format linuxPackageFormat) packageFileName(information *nfpm.Info) (string, error) {
-	packager, errorValue := nfpm.Get(format.Name)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	return packager.ConventionalFileName(nfpm.WithDefaults(information)), nil
+// assetName is the file one format and architecture is shipped as. The version
+// lives in the package and in the release tag, so the name stays put and
+// releases/latest/download/<name> always answers; web/static/install.sh spells
+// the same name.
+func (format linuxPackageFormat) assetName(architecture string) string {
+	return blueclaw.CompanyPackageName + "-" + architecture + format.Suffix
 }
 
 func linuxPackageInformation(format linuxPackageFormat, target packageTarget, version string, contents files.Contents, scripts nfpm.Scripts) *nfpm.Info {
@@ -223,11 +230,7 @@ func buildLinuxPackages(repositoryRootPath string, target packageTarget, version
 			return nil, errorValue
 		}
 		information := linuxPackageInformation(format, target, version, contents, scripts)
-		fileName, errorValue := format.packageFileName(information)
-		if errorValue != nil {
-			return nil, errorValue
-		}
-		packagePath := filepath.Join(outputDirectory, fileName)
+		packagePath := filepath.Join(outputDirectory, format.assetName(target.Architecture))
 		if errorValue := writeLinuxPackage(format, information, packagePath); errorValue != nil {
 			return nil, fmt.Errorf("write the %s package: %w", format.Name, errorValue)
 		}
@@ -251,14 +254,47 @@ func runReleasePackages(arguments []string) error {
 	}
 	version := firstNonEmptyString(commandArgumentValue(arguments, "--version", ""), packageVersionFromRepository(repositoryRootPath))
 	outputDirectory := firstNonEmptyString(commandArgumentValue(arguments, "--out", ""), filepath.Join(repositoryRootPath, defaultPackageDirectory))
+	return buildHostRelease(repositoryRootPath, targets, version, outputDirectory, formats, os.Stdout)
+}
+
+// buildHostRelease writes the directory a release is uploaded from: one package
+// per format and architecture, and the SHA256SUMS install.sh checks them against.
+func buildHostRelease(repositoryRootPath string, targets []packageTarget, version string, outputDirectory string, formats []linuxPackageFormat, output io.Writer) error {
 	for _, target := range targets {
-		built, errorValue := buildLinuxPackages(repositoryRootPath, target, version, outputDirectory, formats, os.Stdout)
+		built, errorValue := buildLinuxPackages(repositoryRootPath, target, version, outputDirectory, formats, output)
 		if errorValue != nil {
 			return errorValue
 		}
 		for _, packagePath := range built {
-			fmt.Fprintf(os.Stdout, "built %s\n", packagePath)
+			fmt.Fprintf(output, "built %s\n", packagePath)
 		}
 	}
-	return nil
+	return writeReleaseChecksums(outputDirectory)
+}
+
+// writeReleaseChecksums lists every package asset the directory holds, so a
+// directory built one architecture at a time still has one list naming both.
+func writeReleaseChecksums(directory string) error {
+	var checksums strings.Builder
+	for _, name := range hostReleaseAssetNames() {
+		checksum, _, errorValue := releaseFileSHA256AndSize(filepath.Join(directory, name))
+		if errors.Is(errorValue, os.ErrNotExist) {
+			continue
+		}
+		if errorValue != nil {
+			return errorValue
+		}
+		fmt.Fprintf(&checksums, "%s  %s\n", checksum, name)
+	}
+	return os.WriteFile(filepath.Join(directory, releaseChecksumsName), []byte(checksums.String()), 0o644)
+}
+
+func hostReleaseAssetNames() []string {
+	names := []string{}
+	for _, target := range packageTargets {
+		for _, format := range linuxPackageFormats() {
+			names = append(names, format.assetName(target.Architecture))
+		}
+	}
+	return names
 }

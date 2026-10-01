@@ -25,6 +25,18 @@ services. They start with the computer and recover after a service exits. When
 installation finishes, open the printed company setup address and choose
 Check connection.
 
+## Upgrade
+
+Run the first command again. On Linux it downloads the latest release from
+GitHub, checks it against the release's checksums, and installs it over the
+version you have; on macOS Homebrew upgrades the formula. The company and its
+data stay in place. To follow release candidates before they become the latest
+release, add `--channel testing`:
+
+```bash
+curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
+```
+
 ## Check services
 
 On Linux, systemd shows the host service state and logs:

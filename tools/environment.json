@@ -259,11 +259,6 @@
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
   },
-  "INTERNKIM_PACKAGE_SIGNING_KEY": {
-    "process": "internkim release repositories",
-    "description": "the exported OpenPGP secret key that signs the apt, rpm and pacman repositories (Release, repomd.xml, each package and each database), held in the operating system's vault under this name and handed to one command by `monkeys run`; release repositories writes it to a mode-0600 file it removes and never lets a child inherit the value",
-    "isInVault": true
-  },
   "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
     "process": "tools/prepare-blueclaw-payload",
     "description": "where the built Blueclaw payload artifact is written; defaults under .dependency/blueclaw-payload"
@@ -379,29 +374,17 @@
     "process": "install script",
     "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
   },
-  "INTERNKIM_INSTALL_PACKAGE": {
-    "process": "install script",
-    "description": "a package file, by path or address, web/static/install.sh installs with the machine's own package manager instead of adding a repository"
-  },
-  "INTERNKIM_INSTALL_PACKAGE_SHA256": {
-    "process": "install script",
-    "description": "the SHA-256 web/static/install.sh checks a package file named by INTERNKIM_INSTALL_PACKAGE against before installing it"
-  },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
-    "description": "the release registry prefix web/static/install.sh downloads from; defaults to https://updates.intern.kim/<product>/latest"
-  },
-  "INTERNKIM_INSTALL_BASE_URL": {
-    "process": "install script",
-    "description": "where web/static/install.sh finds the deb/, rpm/ and arch/ repositories; defaults to https://updates.intern.kim"
+    "description": "where web/static/install.sh downloads the product's files and their SHA256SUMS from; for the host it defaults to the GitHub release the channel names, and for the companion to https://updates.intern.kim/companion/latest. The native install rig points it at a release served from the Mac"
   },
   "INTERNKIM_INSTALL_SCRIPT_URL": {
     "process": "install script",
     "description": "the install script web/static/companion/install.sh forwards to; defaults to https://intern.kim/install.sh"
   },
-  "INTERNKIM_INSTALL_SUITE": {
+  "INTERNKIM_INSTALL_CHANNEL": {
     "process": "install script",
-    "description": "the channel (stable or testing) web/static/install.sh follows for apt, dnf and pacman alike; defaults to stable"
+    "description": "the channel web/static/install.sh installs the company host from, the same as --channel: stable, the latest GitHub release, or testing, the newest release prerelease or not; defaults to stable"
   },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",

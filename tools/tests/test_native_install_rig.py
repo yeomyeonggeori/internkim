@@ -1,9 +1,8 @@
-import gzip
+import hashlib
 import importlib.machinery
 import importlib.util
 import io
 import json
-import subprocess
 import sys
 import tarfile
 import re
@@ -82,65 +81,53 @@ class StandInPackageTests(unittest.TestCase):
         self.assertNotIn("@REVISION@", server)
 
 
-class RepositoryTests(unittest.TestCase):
-    def repository(self):
+class ReleaseTests(unittest.TestCase):
+    def published(self):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        release = rig.Release(directory / "release")
-        release.directory.mkdir(parents=True)
+        package = rig.build_stand_in_package(directory / "packages", "1.0.0", "one")
+        built = rig.write_release_directory(directory / "built", package)
+        release = rig.Release(directory / "served")
+        release.publish(built)
+        release.serve()
         self.addCleanup(release.stop)
-        release.generate_signing_key()
-        return release, directory
+        return release, built
 
-    def test_the_index_names_every_published_package_with_its_checksum(self):
-        release, directory = self.repository()
-        for version in ("1.0.0", "1.0.1"):
-            release.publish(rig.build_stand_in_package(directory / "packages", version, version))
-        index = (
-            release.repository_directory / "dists" / rig.SUITE / "main" / "binary-arm64" / "Packages"
-        ).read_text()
-        self.assertIn("Version: 1.0.0", index)
-        self.assertIn("Version: 1.0.1", index)
-        self.assertEqual(index.count("SHA256: "), 2)
-        self.assertEqual(index.count("Filename: pool/main/i/internkim/"), 2)
+    def fetch(self, release, name):
+        with urllib.request.urlopen(f"{release.download_url('127.0.0.1')}/{name}") as answered:
+            return answered.read()
 
-    def test_the_compressed_index_holds_the_same_bytes(self):
-        release, directory = self.repository()
-        release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
-        binary = release.repository_directory / "dists" / rig.SUITE / "main" / "binary-arm64"
-        self.assertEqual(gzip.decompress((binary / "Packages.gz").read_bytes()), (binary / "Packages").read_bytes())
+    def test_the_package_and_its_checksum_are_served_where_github_serves_the_latest_release(self):
+        release, built = self.published()
+        name = rig.asset_name(".deb")
+        package = self.fetch(release, name)
+        self.assertEqual(package, (built / name).read_bytes())
+        listed = self.fetch(release, rig.CHECKSUMS_NAME).decode()
+        self.assertEqual(listed, f"{hashlib.sha256(package).hexdigest()}  {name}\n")
+        self.assertIn(f"/{rig.RELEASE_DOWNLOAD_PATH}", release.download_url("127.0.0.1"))
 
-    def test_the_release_file_is_signed_and_checksums_the_indices(self):
-        release, directory = self.repository()
-        release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
-        suite = release.repository_directory / "dists" / rig.SUITE
-        signed = (suite / "InRelease").read_text()
-        self.assertIn("BEGIN PGP SIGNED MESSAGE", signed)
-        self.assertIn(f"Suite: {rig.SUITE}", signed)
-        for name in ("main/binary-arm64/Packages", "main/binary-arm64/Packages.gz"):
-            self.assertIn(name, (suite / "Release").read_text())
+    def test_the_install_script_is_served_beside_the_release(self):
+        release, _ = self.published()
+        with urllib.request.urlopen(f"http://127.0.0.1:{release.port}/install.sh") as answered:
+            self.assertEqual(answered.read(), rig.INSTALL_SCRIPT_PATH.read_bytes())
 
-    def test_the_signature_verifies_against_the_exported_keyring(self):
-        release, directory = self.repository()
-        release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
-        verified = subprocess.run(
-            [
-                "gpg", "--homedir", str(release.keyring_directory), "--batch", "--verify",
-                str(release.repository_directory / "dists" / rig.SUITE / "InRelease"),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(verified.returncode, 0, verified.stderr)
-        self.assertTrue(release.public_keyring_path.read_bytes())
+    def test_a_replaced_file_is_served_and_putting_it_back_leaves_the_build_untouched(self):
+        release, built = self.published()
+        name = rig.asset_name(".deb")
+        original = (built / name).read_bytes()
+        restore = release.replace(name, b"tampered")
+        self.assertEqual(self.fetch(release, name), b"tampered")
+        self.assertEqual((built / name).read_bytes(), original)
+        restore()
+        self.assertEqual(self.fetch(release, name), original)
 
-    def test_the_server_answers_a_conditional_request_with_the_body(self):
-        release, directory = self.repository()
-        release.publish(rig.build_stand_in_package(directory / "packages", "1.0.0", "one"))
-        port = release.serve()
-        address = f"http://127.0.0.1:{port}/deb/dists/{rig.SUITE}/InRelease"
-        first = urllib.request.urlopen(address)
-        request = urllib.request.Request(address, headers={"If-Modified-Since": first.headers["Last-Modified"]})
-        self.assertEqual(urllib.request.urlopen(request).status, 200)
+    def test_the_rig_asks_for_the_names_the_build_writes(self):
+        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_package.go").read_text()
+        suffixes = re.findall(r'^\t\tSuffix:\s+"([^"]+)"', source, re.MULTILINE)
+        self.assertEqual(suffixes, [".deb", ".rpm", ".pkg.tar.zst"])
+        builder = re.search(
+            r'return blueclaw\.CompanyPackageName \+ "-" \+ architecture \+ format\.Suffix', source)
+        self.assertIsNotNone(builder, "release_package.go no longer names an asset <package>-<architecture><suffix>")
+        self.assertEqual(rig.asset_name(".rpm"), f"{rig.PACKAGE_NAME}-{rig.ARCHITECTURE}.rpm")
 
 
 class MergedUsrTests(unittest.TestCase):
@@ -186,38 +173,6 @@ class DependencyReadingTests(unittest.TestCase):
             rig.dependency_names("ca-certificates, curl, git,\n openssl, python3-venv"),
             ["ca-certificates", "curl", "git", "openssl", "python3-venv"],
         )
-
-
-class RepositoryShapeTests(unittest.TestCase):
-    """The repository's shape belongs to `internal/aptrepository`.
-
-    The rig spells two of its names in a URL. A Go constant and a Python
-    constant that mean the same thing are two copies, so this reads the
-    canonical one and fails when they drift.
-    """
-
-    def declared_in_go(self, name, package="aptrepository", file="repository.go"):
-        source = (rig.REPOSITORY_ROOT / "internal" / package / file).read_text()
-        match = re.search(rf'^\t{name}\s*=\s*"([^"]+)"', source, re.MULTILINE)
-        self.assertIsNotNone(match, f"internal/aptrepository no longer declares {name}")
-        return match.group(1)
-
-    def test_the_prefix_the_rig_serves_from_is_the_one_the_builder_publishes_to(self):
-        self.assertEqual(rig.REPOSITORY_PREFIX, self.declared_in_go("Prefix"))
-
-    def test_the_keyring_the_rig_installs_is_the_one_the_builder_exports(self):
-        self.assertEqual(rig.KEYRING_NAME, self.declared_in_go("KeyringName"))
-
-    def test_the_suite_the_rig_asks_apt_for_is_one_the_builder_publishes(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "packagerepository" / "channel.go").read_text()
-        self.assertEqual(rig.SUITE, self.declared_in_go("StableChannel", "packagerepository", "channel.go"))
-        self.assertEqual(rig.TESTING_SUITE, self.declared_in_go("TestingChannel", "packagerepository", "channel.go"))
-        declared = re.search(r"^const DefaultChannel = (.+)$", source, re.MULTILINE)
-        self.assertIsNotNone(declared, "internal/packagerepository no longer declares DefaultChannel")
-        self.assertEqual(declared.group(1).strip(), "StableChannel")
-
-    def test_the_guest_installs_that_keyring_where_the_source_looks_for_it(self):
-        self.assertTrue(rig.KEYRING_PATH.endswith("/" + rig.KEYRING_NAME))
 
 
 if __name__ == "__main__":
@@ -337,38 +292,6 @@ class StandInDeclinesTests(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(control), mode="r:*") as archive:
             conffiles = archive.extractfile("./conffiles").read().decode()
         self.assertEqual(conffiles.strip(), rig.CONFFILE_PATH)
-
-
-class TheSigningKeyVariableHasOneSpelling(unittest.TestCase):
-    """The rig names the vault variable in Python and the CLI names it in Go.
-
-    Two hand-kept copies of one name is the defect this repository keeps
-    finding, so the Go constant is the canonical one and this reads it.
-    """
-
-    def test_the_rig_names_the_same_signing_key_variable(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "packagerepository" / "signing.go").read_text()
-        declared = re.search(r'SigningKeyVariable\s*=\s*"([^"]+)"', source)
-        self.assertIsNotNone(declared, "packagerepository.SigningKeyVariable is not declared as a literal")
-        self.assertEqual(declared.group(1), rig.SIGNING_KEY_VARIABLE)
-
-    def test_no_flag_offers_the_signing_key_a_second_home(self):
-        source = (rig.REPOSITORY_ROOT / "internal" / "cli" / "release_repositories.go").read_text()
-        self.assertNotIn("--signing-key", source)
-
-    def test_the_profile_the_rig_runs_under_leaves_its_signing_key_alone(self):
-        manifest = (rig.REPOSITORY_ROOT / ".monkeys").read_text().splitlines()
-        profiles = [line.strip()[1:].split(",") for line in manifest if line.strip().startswith("@")]
-        self.assertTrue(profiles, ".monkeys declares no profile")
-        default_profile = profiles[0][0].strip()
-        declared, is_open = [], False
-        for line in (line.strip() for line in manifest):
-            if line.startswith("@"):
-                is_open = default_profile in [name.strip() for name in line[1:].split(",")]
-            elif is_open and line and "=" not in line and not line.startswith(("#", "+")):
-                declared.append(line)
-        self.assertNotIn(rig.SIGNING_KEY_VARIABLE, declared,
-                         f"@{default_profile} would hand the rig's CLI the vault's signing key over its throwaway one")
 
 
 class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):

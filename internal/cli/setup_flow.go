@@ -546,7 +546,7 @@ func admindBuildFlags(state *setupFlowState) (string, error) {
 	if revision == "" {
 		revision = "unknown"
 	}
-	return admindStampFlags(buildID, revision)
+	return deviceAdmindStampFlags(buildID, revision)
 }
 
 func (state *setupFlowState) binariesVersion() string {
