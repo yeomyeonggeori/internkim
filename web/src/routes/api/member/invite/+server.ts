@@ -6,6 +6,8 @@ import {
 	asMember,
 	controlPlane,
 	inviteMember,
+	isAboveCaller,
+	promoteToAdministrator,
 	planeCredentialsOf
 } from '$lib/server/control-plane';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -20,7 +22,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	const accessToken = await signedInAccessTokenOf(request, plane);
 
-	const caller = await adminCallerOf(asMember(plane, accessToken));
+	const callerClient = asMember(plane, accessToken);
+	const caller = await adminCallerOf(callerClient);
 	if (!caller) error(403, 'only an admin invites people');
 
 	const body = (await request.json().catch(() => ({}))) as { email?: unknown; name?: unknown; isAdmin?: unknown };
@@ -30,7 +33,11 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	if (!name) error(400, 'a name is required');
 
 	const client = controlPlane(plane);
-	const memberID = await memberAddedAt(client, caller.companyID, email, { isAdmin: body.isAdmin === true, name });
+	const memberID = await memberAddedAt(client, caller.companyID, email, { name });
+	if (await isAboveCaller(callerClient, caller.memberID, memberID)) {
+		error(403, 'an administrator invites nobody above their own clearance');
+	}
+	if (body.isAdmin === true) await promoteToAdministrator(callerClient, memberID);
 	const invitation = await inviteMember(client, memberID);
 	return json(invitation);
 };
@@ -39,7 +46,7 @@ async function memberAddedAt(
 	client: SupabaseClient,
 	companyID: string,
 	email: string,
-	options: { isAdmin: boolean; name: string }
+	options: { name: string }
 ): Promise<string> {
 	try {
 		return await addMember(client, companyID, email, options);

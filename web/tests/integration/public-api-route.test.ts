@@ -21,6 +21,8 @@ const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path
 const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 const { POST: resetPassword } = await import('../../src/routes/api/member/password-reset/+server');
 const { POST: issueCalendarFeed } = await import('../../src/routes/api/calendar/subscription/+server');
+const { POST: removeMember } = await import('../../src/routes/api/member/remove/+server');
+const { POST: invitePerson } = await import('../../src/routes/api/member/invite/+server');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -823,29 +825,41 @@ describe('the documented endpoints', () => {
 	});
 });
 
+function posting(path: string, token: string, body: unknown): Request {
+	return new Request(`https://space.example.test${path}`, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+		body: JSON.stringify(body)
+	});
+}
+
+function eventOf(request: Request) {
+	return { request, url: new URL(request.url), platform: undefined };
+}
+
+function resetting(token: string, body: unknown): Promise<RouteAnswer> {
+	const event = eventOf(posting('/api/member/password-reset', token, body));
+	return answerOf(() => Promise.resolve(resetPassword(event as unknown as Parameters<typeof resetPassword>[0])));
+}
+
+function removing(token: string, body: unknown): Promise<RouteAnswer> {
+	const event = eventOf(posting('/api/member/remove', token, body));
+	return answerOf(() => Promise.resolve(removeMember(event as unknown as Parameters<typeof removeMember>[0])));
+}
+
+function inviting(token: string, body: unknown): Promise<RouteAnswer> {
+	const event = eventOf(posting('/api/member/invite', token, body));
+	return answerOf(() => Promise.resolve(invitePerson(event as unknown as Parameters<typeof invitePerson>[0])));
+}
+
+function issuingTheFeed(token: string): Promise<RouteAnswer> {
+	const event = eventOf(posting('/api/calendar/subscription', token, {}));
+	return answerOf(() =>
+		Promise.resolve(issueCalendarFeed(event as unknown as Parameters<typeof issueCalendarFeed>[0]))
+	);
+}
+
 describe('a personal access token does not administer the company', () => {
-	function posting(path: string, token: string, body: unknown): Request {
-		return new Request(`https://space.example.test${path}`, {
-			method: 'POST',
-			headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-			body: JSON.stringify(body)
-		});
-	}
-
-	function resetting(token: string, body: unknown): Promise<RouteAnswer> {
-		const request = posting('/api/member/password-reset', token, body);
-		const event = { request, url: new URL(request.url), platform: undefined };
-		return answerOf(() => Promise.resolve(resetPassword(event as unknown as Parameters<typeof resetPassword>[0])));
-	}
-
-	function issuingTheFeed(token: string): Promise<RouteAnswer> {
-		const request = posting('/api/calendar/subscription', token, {});
-		const event = { request, url: new URL(request.url), platform: undefined };
-		return answerOf(() =>
-			Promise.resolve(issueCalendarFeed(event as unknown as Parameters<typeof issueCalendarFeed>[0]))
-		);
-	}
-
 	test("an administrator's token resets nobody's password, whatever it may otherwise do", async () => {
 		const { data: administrator } = await client
 			.from('member')
@@ -872,5 +886,49 @@ describe('a personal access token does not administer the company', () => {
 
 		const answer = await issuingTheFeed(readOnly);
 		expect(answer.status).toBe(403);
+	});
+});
+
+describe('an administrator reaches only people below their own clearance', () => {
+	let middleSession = '';
+	let topAdministratorID = '';
+
+	beforeAll(async () => {
+		const { data: top } = await client
+			.from('member')
+			.select('id')
+			.eq('company_id', companyID)
+			.eq('email', `${slug}-admin@example.test`)
+			.single();
+		topAdministratorID = top!.id;
+		const middleID = await addMember(client, companyID, `${slug}-middle-admin@example.test`);
+		await client.from('member').update({ is_admin: true, clearance: 2, status: 'active' }).eq('id', middleID);
+		middleSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, middleID)).accessToken;
+	}, networkHookTimeout);
+
+	test('resets the password of somebody below, and of nobody above', async () => {
+		expect((await resetting(middleSession, { memberID })).status).toBe(200);
+		expect((await resetting(middleSession, { memberID: topAdministratorID })).status).toBe(403);
+	});
+
+	test('removes nobody above', async () => {
+		expect((await removing(middleSession, { memberID: topAdministratorID })).status).toBe(403);
+		const { data: top } = await client.from('member').select('status').eq('id', topAdministratorID).single();
+		expect(top!.status).toBe('active');
+	});
+
+	test('invites an administrator at their own clearance, never above it', async () => {
+		const answer = await inviting(middleSession, {
+			email: `${slug}-promoted@example.test`,
+			name: 'Promoted',
+			isAdmin: true
+		});
+		expect(answer.status).toBe(200);
+		const { data: promoted } = await client
+			.from('member')
+			.select('is_admin, clearance')
+			.eq('email', `${slug}-promoted@example.test`)
+			.single();
+		expect(promoted).toEqual({ is_admin: true, clearance: 2 });
 	});
 });
