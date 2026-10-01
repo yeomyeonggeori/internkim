@@ -1,4 +1,3 @@
-// 캘린더 선택 일정의 키보드 삭제 동작을 설치합니다.
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 
 export type CalendarKeyboardDeleteContext = {

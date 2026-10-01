@@ -1,4 +1,3 @@
-// Flow 업무 컨트롤러의 권한 방어를 검증한다.
 import { describe, expect, test } from 'bun:test';
 import { taskText } from '../../src/routes/task/text';
 import type { TaskMember, TaskSummary, Task } from '../../src/routes/task/task-types';

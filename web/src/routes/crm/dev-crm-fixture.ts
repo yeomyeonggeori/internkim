@@ -56,7 +56,7 @@ export async function loadFixtureConvertedAmount(amountMinor: number, from: stri
 
 export const crmOrganizations: CRMOrganization[] = [
 	{
-		id: 'organization-hanyang-startup',
+		id: 'organization-example-startup',
 		name: '예시 스타트업 지원단',
 		types: ['partner', 'sponsor'],
 		status: 'active',
@@ -65,7 +65,7 @@ export const crmOrganizations: CRMOrganization[] = [
 		ownerPersonID: 'person-owner04',
 		ownerEmail: 'owner04@example.com',
 		team: '운영',
-		address: '서울특별시 성동구 왕십리로 222',
+		address: '서울특별시 예시구 예시로 1',
 		tags: ['행사', '멘토링', '장기 파트너'],
 		description: '상반기 행사 운영과 멘토링 프로그램을 같이 진행하는 핵심 파트너입니다.',
 		lastContactDate: '2026-07-18',
@@ -400,8 +400,8 @@ export const crmOrganizations: CRMOrganization[] = [
 
 export const crmContacts: CRMContact[] = [
 	{
-		id: 'contact-hanyang-leesample',
-		organizationID: 'organization-hanyang-startup',
+		id: 'contact-example-startup-leesample',
+		organizationID: 'organization-example-startup',
 		name: '김테스트17',
 		title: '프로그램 매니저',
 		email: 'contact01@example.com',
@@ -564,8 +564,8 @@ export const crmContacts: CRMContact[] = [
 
 const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 	{
-		id: 'opportunity-hanyang-mentoring',
-		organizationID: 'organization-hanyang-startup',
+		id: 'opportunity-example-startup-mentoring',
+		organizationID: 'organization-example-startup',
 		name: '하반기 멘토링 운영 계약',
 		stage: 'review',
 		currency: 'KRW',
@@ -579,8 +579,8 @@ const crmOpportunityFixtures: Array<Omit<CRMOpportunity, 'business'>> = [
 		staleDays: 4
 	},
 	{
-		id: 'opportunity-hanyang-demo-day',
-		organizationID: 'organization-hanyang-startup',
+		id: 'opportunity-example-startup-demo-day',
+		organizationID: 'organization-example-startup',
 		name: '데모데이 운영 후원',
 		stage: 'in_progress',
 		currency: 'KRW',
@@ -1077,9 +1077,9 @@ const crmActivityFixtures: Array<Omit<CRMActivity, 'business' | 'opportunityID'>
 		summary: 'SSO, 데이터 보관 기간, 관리자 감사 로그 항목을 포함한 체크리스트를 받았습니다.'
 	},
 	{
-		id: 'activity-hanyang-meeting',
-		taskID: 'crm-task-hanyang-meeting',
-		organizationID: 'organization-hanyang-startup',
+		id: 'activity-example-startup-meeting',
+		taskID: 'crm-task-example-startup-meeting',
+		organizationID: 'organization-example-startup',
 		taskStatus: 'planned',
 		participantIDs: ['person-owner04'],
 		participantNames: ['김테스트04'],
@@ -1362,7 +1362,7 @@ export const crmIntakeDrafts: CRMIntakeDraft[] = [
 		suggestedAction: '진행 건 금액과 세부 메모 업데이트'
 	},
 	{
-		id: 'draft-calendar-hanyang',
+		id: 'draft-calendar-example-startup',
 		source: 'calendar',
 		title: '캘린더 회의록 초안 생성',
 		organizationName: '예시 스타트업 지원단',

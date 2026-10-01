@@ -1,4 +1,3 @@
-// i18n 페이지 텍스트 helper 동작을 검증합니다.
 import { describe, expect, mock, test } from 'bun:test';
 
 let localeValue = 'ko';

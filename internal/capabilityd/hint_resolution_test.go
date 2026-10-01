@@ -94,17 +94,17 @@ func TestANameWithAndWithoutAMiddleIsAQuestion(t *testing.T) {
 
 func TestTwoPeopleWithOneNameAreAQuestion(t *testing.T) {
 	people := []directoryPerson{
-		{MemberID: "person-work", Email: "chanhee@example.com", Name: "이찬희(dawn.kim)"},
-		{MemberID: "person-personal", Email: "chanhee2468@example.com", Name: "찬희 이"},
+		{MemberID: "person-work", Email: "sample@example.com", Name: "이샘플(work)"},
+		{MemberID: "person-personal", Email: "sample2468@example.com", Name: "샘플 이"},
 		{MemberID: "person-other", Email: "other@example.com", Name: "예시 김"},
 	}
-	for _, hint := range []string{"이찬희", "찬희", "찬희 이"} {
+	for _, hint := range []string{"이샘플", "샘플", "샘플 이"} {
 		resolution := resolveHint(hint, people, nil)
 		if resolution.Outcome != hintAmbiguous || len(resolution.Candidates) != 2 {
 			t.Errorf("%q names two people and nothing here may pick one, got %+v", hint, resolution)
 		}
 	}
-	if resolution := resolveHint("chanhee2468@example.com", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-personal" {
+	if resolution := resolveHint("sample2468@example.com", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-personal" {
 		t.Fatalf("an address tells two people with one name apart, got %+v", resolution)
 	}
 	if resolution := resolveHint("예시", people, nil); resolution.Outcome != hintResolved || resolution.Match.MemberID != "person-other" {

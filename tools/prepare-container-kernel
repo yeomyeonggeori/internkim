@@ -87,7 +87,6 @@ curl -fsSL -o "$stage_directory/config-arm64" \
 grep -q '^CONFIG_VIRTUALIZATION=y' "$stage_directory/config-arm64"
 grep -q '^CONFIG_KVM=y' "$stage_directory/config-arm64"
 if [ "$page_size" = "16k" ]; then
-  # Raspberry Pi's arch/arm64/configs/bcm2712_defconfig, the CM5 kernel.
   sed -i.original \
     -e 's/^CONFIG_ARM64_4K_PAGES=y/# CONFIG_ARM64_4K_PAGES is not set/' \
     -e 's/^# CONFIG_ARM64_16K_PAGES is not set/CONFIG_ARM64_16K_PAGES=y/' \

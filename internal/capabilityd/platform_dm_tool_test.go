@@ -347,13 +347,13 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 func TestPlatformMessageSendTellsTwoPeopleWithOneNameApartByAddress(t *testing.T) {
 	recorder := &chatdDirectMessageRecorder{}
 	service := platformDMChatdTestService(t, []directoryPerson{
-		{MemberID: "person-work", Email: "chanhee@example.com", Name: "이찬희(dawn.kim)"},
-		{MemberID: "person-personal", Email: "chanhee2468@example.com", Name: "찬희 이"},
+		{MemberID: "person-work", Email: "sample@example.com", Name: "이샘플(work)"},
+		{MemberID: "person-personal", Email: "sample2468@example.com", Name: "샘플 이"},
 	}, recorder)
 
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
-		Input:    []byte(`{"targetType":"directMessage","personHint":"이찬희","message":"안녕"}`),
+		Input:    []byte(`{"targetType":"directMessage","personHint":"이샘플","message":"안녕"}`),
 		Context:  capabilities.ToolInvokeContext{IsScheduledRun: true},
 	})
 	if errorValue != nil {
@@ -362,7 +362,7 @@ func TestPlatformMessageSendTellsTwoPeopleWithOneNameApartByAddress(t *testing.T
 	if response.Status != "error" || response.ErrorCode != "recipient_ambiguous" {
 		t.Fatalf("two people with one name are a question, got %+v", response)
 	}
-	for _, address := range []string{"chanhee@example.com", "chanhee2468@example.com"} {
+	for _, address := range []string{"sample@example.com", "sample2468@example.com"} {
 		if !strings.Contains(response.Content, address) {
 			t.Fatalf("the question tells the two apart by address, got %q", response.Content)
 		}

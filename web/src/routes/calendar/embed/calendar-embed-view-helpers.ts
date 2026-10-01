@@ -1,4 +1,3 @@
-// 캘린더 embed 페이지의 순수 view helper를 제공합니다.
 import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { ViewType } from '../calendar-view-type';
 import type { CalendarViewValue } from '../calendar-navigation-message';

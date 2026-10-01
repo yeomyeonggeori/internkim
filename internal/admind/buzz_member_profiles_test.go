@@ -3,14 +3,14 @@ package admind
 import "testing"
 
 func TestBuzzProfileNameToWriteReadsARecordedNameTheWayTheCompanyReadsIt(t *testing.T) {
-	if actual := buzzProfileNameToWrite(buzzProfileContent{}, "찬희 이", "ko"); actual != "이찬희" {
-		t.Errorf("buzzProfileNameToWrite = %q, want 이찬희", actual)
+	if actual := buzzProfileNameToWrite(buzzProfileContent{}, "샘플 이", "ko"); actual != "이샘플" {
+		t.Errorf("buzzProfileNameToWrite = %q, want 이샘플", actual)
 	}
 }
 
 func TestBuzzProfileNameToWriteLeavesTheNameTheRelayAlreadyHolds(t *testing.T) {
-	held := buzzProfileContent{Display: "찬희"}
-	if actual := buzzProfileNameToWrite(held, "찬희 이", "ko"); actual != "" {
+	held := buzzProfileContent{Display: "샘플"}
+	if actual := buzzProfileNameToWrite(held, "샘플 이", "ko"); actual != "" {
 		t.Errorf("buzzProfileNameToWrite = %q, want the held name left alone", actual)
 	}
 }

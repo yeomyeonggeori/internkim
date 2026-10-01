@@ -37,20 +37,20 @@ describe('organization organization model', () => {
 		const groups: OrgGroup[] = [
 			{ id: 'development', name: '개발팀' },
 			{ id: 'taskforce', name: '태스크포스' },
-			{ id: 'otok', name: '오토케팀' },
+			{ id: 'osample', name: '오샘플팀' },
 			{ id: 'management', name: '경영팀' }
 		];
 		const allRecords = [
 			{ ...record('cto', 'development'), jobTitle: 'CTO' },
 			record('taskforce-member', 'taskforce'),
-			record('otok-member', 'otok'),
+			record('osample-member', 'osample'),
 			{ ...record('ceo', 'management'), jobTitle: 'CEO' }
 		];
 		const visibleRecords = allRecords.filter((item) => item.memberID !== 'ceo');
 
 		const sections = organizationOrganizationSections(visibleRecords, groups, '전체 조직', '', allRecords);
 
-		expect(sections.map((section) => section.id)).toEqual(['', 'management', 'development', 'otok', 'taskforce']);
+		expect(sections.map((section) => section.id)).toEqual(['', 'management', 'development', 'osample', 'taskforce']);
 	});
 
 	test('places people with unknown organizations in the root without creating a group', () => {
