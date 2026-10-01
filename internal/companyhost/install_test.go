@@ -146,6 +146,15 @@ func TestThePreflightDoesNotAskADebianMachineForWhatThePackageCarries(t *testing
 	}
 }
 
+func TestThePreflightAsksNoNativeHostForAPythonOfItsOwn(t *testing.T) {
+	machine := &recordedMachine{missing: map[string]bool{"python3": true}}
+	for _, platform := range []companyHostPlatform{linuxPlatform{}, macPlatformForTest()} {
+		if errorValue := requireWhatTheCompanyHostRuns(platform, machine); errorValue != nil {
+			t.Fatalf("a host was refused for a python3 the package's install step brings:\n%v", errorValue)
+		}
+	}
+}
+
 func TestThePreflightAsksNoNativeHostForWhatOnlyTheImageEntrypointRuns(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{"nc": true, "setpriv": true, "dirname": true}}
 	for _, platform := range []companyHostPlatform{linuxPlatform{}, macPlatformForTest()} {

@@ -40,8 +40,8 @@ for programThisScriptRuns in ${programsThisScriptRuns}; do
 done
 
 # What the bundled skills need is not what this script needs, and the two do not
-# fail the same way. The skills reach these through the requester's shell, whose
-# PATH blueclaw fixes to /usr/local/bin:/usr/bin:/bin and friends. The image
+# fail the same way. The skills reach these through the requester's shell, which
+# blueclaw gives the PATH the image starts it with, the host's Python first. The image
 # build refuses over a gap; a box already running says so and comes up anyway,
 # because this script also starts the one process that answers when the agent
 # cannot.

@@ -81,7 +81,9 @@ The host opens outbound connections and listens only on local interfaces. To
 administer the computer, use a shell on the same network or a remote access
 method your company controls.
 
-Installing or upgrading the package also downloads the Python runtime that
-reads attached documents from `github.com` and its pinned libraries from
-`pypi.org` and `files.pythonhosted.org`. If either is unreachable, the
-install stops and names what it could not fetch.
+Installing or upgrading the package also downloads the host's one Python
+runtime from `github.com`, and the pinned libraries that read attached
+documents from `pypi.org` and `files.pythonhosted.org`. If either is
+unreachable, the install stops and names what it could not fetch. The skills
+run on the same runtime, as `python3` in each person's commands, and fetch
+their own libraries from PyPI the first time they run.

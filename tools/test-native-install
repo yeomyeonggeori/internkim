@@ -26,7 +26,7 @@ from native_install_rig import (  # noqa: E402
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
     DOCUMENT_ENVIRONMENT_PATHS,
-    DOCUMENT_INTERPRETER_VERSION,
+    HOST_PYTHON_VERSION,
     DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
     CONFFILE_EDIT,
     CONFFILE_PATH,
@@ -899,10 +899,10 @@ def observe_the_conversion_environment(machine, step):
     ).record(imported.stdout.strip().endswith("imported"), imported.stdout.strip()[-400:])
     resolved = machine.shell(f"readlink -f {python}").stdout.strip()
     step.observe(
-        f"the conversion environment runs on uv's CPython {DOCUMENT_INTERPRETER_VERSION}, not the distribution's",
+        f"the conversion environment runs on uv's CPython {HOST_PYTHON_VERSION}, not the distribution's",
         f"where {python} resolves to",
         "a venv whose link pointed at /usr/bin/python3 would import on this guest and not on the next one",
-    ).record(f"/cpython-{DOCUMENT_INTERPRETER_VERSION}-" in resolved and not resolved.startswith("/usr/"), resolved)
+    ).record(f"/cpython-{HOST_PYTHON_VERSION}-" in resolved and not resolved.startswith("/usr/"), resolved)
 
 
 def observe_a_real_conversion(machine, step):

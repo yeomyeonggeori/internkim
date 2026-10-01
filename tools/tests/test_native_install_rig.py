@@ -257,9 +257,15 @@ class TheSigningKeyIsTheOneTheStackPublishes(unittest.TestCase):
         self.assertEqual(key["alg"], "ES256")
         self.assertIn("d", key)
 
+    def local_plane_address(self):
+        try:
+            return rig.local_plane_settings()["API_URL"]
+        except rig.RigFailure as refusal:
+            self.skipTest(str(refusal))
+
     def test_that_key_is_the_one_the_record_publishes(self):
         key = self.signing_key()
-        address = rig.local_plane_settings()["API_URL"] + "/auth/v1/.well-known/jwks.json"
+        address = self.local_plane_address() + "/auth/v1/.well-known/jwks.json"
         with urllib.request.urlopen(address, timeout=10) as answered:
             published = json.loads(answered.read())
         self.assertIn(key["kid"], [held["kid"] for held in published["keys"]])
@@ -306,7 +312,7 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         return match.group(1)
 
     def test_the_modules_the_rig_imports_are_the_ones_the_build_checks(self):
-        source = self.blueclaw_source("document_interpreter.go")
+        source = self.blueclaw_source("host_python.go")
         declared = re.search(r"const documentModulesTheConversionImports = ((?:\"[^\"]*\"\s*\+?\s*)+)", source)
         self.assertIsNotNone(declared, "documentModulesTheConversionImports is no longer a string literal")
         joined = "".join(re.findall(r'"([^"]*)"', declared.group(1)))
@@ -314,12 +320,15 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
 
     def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
         driver = load_driver()
-        self.assertEqual(rig.DOCUMENT_INTERPRETER_VERSION, self.declared("document_interpreter.go", "DocumentInterpreterVersion"))
+        self.assertEqual(rig.HOST_PYTHON_VERSION, self.declared("host_python.go", "HostPythonVersion"))
         library = self.declared("company_host_package.go", "CompanyPackageLibraryRoot")
         layout = self.blueclaw_source("company_host_layout.go")
         for path in rig.DOCUMENT_ENVIRONMENT_PATHS:
             self.assertTrue(path.startswith(library + "/"), path)
             self.assertIn(f'layout.LibraryRoot + "{path[len(library):]}"', layout)
+        self.assertIn('return layout.PythonRoot() + "/bin"', layout)
+        self.assertIn('return layout.PythonCommandsPath() + "/python3"', layout)
+        self.assertEqual(rig.HOST_PYTHON_PATH, rig.DOCUMENT_ENVIRONMENT_PATHS[0] + "/bin/python3")
         self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
 
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):
