@@ -206,8 +206,8 @@ The archive is an uncompressed tar of five members, in any order:
 
 | Member | Contents |
 |---|---|
-| `databases/blueclaw.dump` | `pg_dump --format custom` of the agent's database, its objects owned by the role `internkim` |
-| `databases/buzz.dump` | the same, of the messenger's database |
+| `databases/blueclaw.dump` | `pg_dump --format custom` of the agent's database. A restore gives objects owned by any other role to `internkim` |
+| `databases/buzz.dump` | the same, of the messenger's database. When it holds one community, that community is moved to the host's relay address, `127.0.0.1:3000` |
 | `roster.json` | the policy document the agent was running, whose people and circles become accounts |
 | `files.tar` | the files, each entry named `<root>/<path>` with its owner and group recorded by name |
 | `manifest.json` | what the archive is and what it holds |

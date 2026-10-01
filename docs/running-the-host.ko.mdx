@@ -197,8 +197,8 @@ Mac에서는 데이터베이스가 Homebrew의 PostgreSQL이고, `internkim back
 
 | 멤버 | 내용 |
 |---|---|
-| `databases/blueclaw.dump` | 에이전트 데이터베이스의 `pg_dump --format custom`, 객체 소유자는 `internkim` 역할 |
-| `databases/buzz.dump` | 메신저 데이터베이스의 같은 덤프 |
+| `databases/blueclaw.dump` | 에이전트 데이터베이스의 `pg_dump --format custom`. 다른 역할이 소유한 객체는 복원할 때 `internkim`에게 넘어갑니다 |
+| `databases/buzz.dump` | 메신저 데이터베이스의 같은 덤프. 커뮤니티가 하나뿐이면 호스트 릴레이 주소 `127.0.0.1:3000`으로 옮겨집니다 |
 | `roster.json` | 에이전트가 쓰던 정책 문서. 사람과 서클이 계정이 됩니다 |
 | `files.tar` | 파일. 항목 이름은 `<루트>/<경로>`이고 소유자와 그룹은 이름으로 기록합니다 |
 | `manifest.json` | 아카이브가 무엇이고 무엇을 담았는지 |
