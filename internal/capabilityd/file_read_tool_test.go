@@ -223,6 +223,29 @@ func TestFileReadHelperIgnoresStderrNoise(t *testing.T) {
 	}
 }
 
+func TestAMissingConversionEnvironmentSaysToReinstallAndTriesNoOtherPython(t *testing.T) {
+	workspacePath := t.TempDir()
+	missingPythonPath := filepath.Join(workspacePath, "document-venv", "bin", "python")
+	service := Service{
+		Configuration: Configuration{
+			BlueclawWorkspacePath: workspacePath,
+			FileReadPythonPath:    missingPythonPath,
+		}.WithDefaults(),
+	}
+
+	_, _, _, errorValue := service.convertDocument(context.Background(), filepath.Join(workspacePath, "report.docx"), 0)
+	if errorValue == nil {
+		t.Fatal("a conversion with no environment succeeded")
+	}
+	if !strings.Contains(errorValue.Error(), "no document conversion environment at "+missingPythonPath) ||
+		!strings.Contains(errorValue.Error(), "reinstall the package") {
+		t.Fatalf("the error does not say which environment is missing and how to get it back: %v", errorValue)
+	}
+	if strings.Contains(errorValue.Error(), "builtin-skills-venv") {
+		t.Fatalf("the conversion fell back to another interpreter: %v", errorValue)
+	}
+}
+
 func TestDocumentReadFallsBackToOCRWhenLocalExtractionNeedsIt(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeFileReadTestFile(t, filepath.Join(workspacePath, "scan.pdf"), "pdf")

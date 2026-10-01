@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -144,13 +143,4 @@ func requirePackagedProgramsFit(packaged []debPackagedFile, target debianTarget)
 		}
 	}
 	return nil
-}
-
-func requireELFTreeFits(root string, target debianTarget) error {
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkError error) error {
-		if walkError != nil || !entry.Type().IsRegular() {
-			return walkError
-		}
-		return requireELFFits(path, target)
-	})
 }

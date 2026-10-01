@@ -41,7 +41,7 @@ func requireWhatTheCompanyHostRuns(platform companyHostPlatform, machine Machine
 func whatThisComputerIsMissing(platform companyHostPlatform, machine Machine) []missingPiece {
 	missing := []missingPiece{}
 	for _, program := range blueclaw.HostProgramsThePackageShips() {
-		if machine.CarriesProgram(program) != nil {
+		if !carriesWhatThePackageShips(platform, machine, program) {
 			missing = append(missing, missingPiece{What: program, IsOurs: true})
 		}
 	}
@@ -62,7 +62,7 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 			HomebrewFormula: dependency.HomebrewFormula,
 		}
 	}
-	if platform.CarriesItInThePackage(dependency) {
+	if platform.CarriesItInThePackage(dependency) || dependency.OnlyTheImageEntrypointRuns() {
 		return nil
 	}
 	if candidates := platform.WhereToLookFor(dependency); len(candidates) > 0 {
@@ -78,7 +78,10 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 		missing = append(missing, describe(strings.Join(dependency.OneOfThesePrograms, " or ")))
 	}
 	for _, program := range dependency.ProgramsTheHostRuns {
-		if machine.CarriesProgram(program) != nil {
+		if dependency.ArrivesAsPayload && !carriesWhatThePackageShips(platform, machine, program) {
+			missing = append(missing, describe(program))
+		}
+		if !dependency.ArrivesAsPayload && machine.CarriesProgram(program) != nil {
 			missing = append(missing, describe(program))
 		}
 	}
@@ -86,6 +89,13 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 		missing = append(missing, describe(dependency.ReadableFilePath))
 	}
 	return missing
+}
+
+// A program the package ships is where the layout puts it, which on a Mac is
+// the keg's libexec and never on PATH. PATH answers only for what the
+// operating system or its package manager provides.
+func carriesWhatThePackageShips(platform companyHostPlatform, machine Machine, program string) bool {
+	return machine.CarriesFile(platform.Layout().BinaryPath(program)) == nil
 }
 
 func machineCarriesAnyOf(machine Machine, programs []string) bool {

@@ -2,6 +2,8 @@ package cli
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,8 +32,7 @@ func TestThePackageDependsOnTheDeclaredListAndNothingElse(t *testing.T) {
 }
 
 // The skills build their own environment from the distribution's python3, so Depends
-// names it; what the package carries is the interpreter its conversion wheels were
-// built for, which is why no python3-venv is asked for.
+// names it; the conversion environment is uv's, which is why no python3-venv is asked for.
 func TestThePackageAsksTheDistributionForPythonAndNoVenvModule(t *testing.T) {
 	depends := strings.Join(debianPackageInformation(debianTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
 	if !strings.Contains(depends, "python3") {
@@ -159,6 +160,42 @@ func TestThePostInstallRefusesEveryStepItCannotComplete(t *testing.T) {
 	}
 	if !strings.Contains(script, "exit 1") {
 		t.Fatal("the postinst never exits non-zero, so dpkg would call a broken install successful")
+	}
+}
+
+func TestThePostInstallBuildsTheConversionEnvironmentBeforeItRestartsTheServices(t *testing.T) {
+	for _, format := range linuxPackageFormats() {
+		script := maintainerScript(format, postInstallScript)
+		restart := strings.Index(script, "systemctl restart")
+		for _, command := range blueclaw.DebianCompanyHostLayout().DocumentEnvironmentCommands() {
+			position := strings.Index(script, shellWords(command.Arguments)+" || refuse")
+			if position < 0 || position > restart {
+				t.Fatalf("the %s postinst does not %s before it restarts the services:\n%s", format.Name, command.Purpose, script)
+			}
+		}
+	}
+}
+
+func TestAnEnvironmentTheInstallCannotFetchFailsTheInstallNamingIt(t *testing.T) {
+	root := t.TempDir()
+	layout := blueclaw.CompanyHostLayout{BinaryRoot: filepath.Join(root, "bin"), LibraryRoot: filepath.Join(root, "lib")}
+	if errorValue := os.MkdirAll(layout.BinaryRoot, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	unreachable := "#!/bin/sh\necho 'error: Failed to download cpython-" + blueclaw.DocumentInterpreterVersion + "' >&2\nexit 2\n"
+	if errorValue := os.WriteFile(layout.BinaryPath(blueclaw.PackageResolverName), []byte(unreachable), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := "set -e\nrefuse() {\n  echo \"internkim: $1\" >&2\n  exit 1\n}\n" + hostSetupLines(layout.DocumentEnvironmentCommands()) + "\necho reached-the-services\n"
+	command := exec.Command("/bin/sh", "-c", script)
+	output, errorValue := command.CombinedOutput()
+	if errorValue == nil || strings.Contains(string(output), "reached-the-services") {
+		t.Fatalf("an install that could not fetch the interpreter carried on:\n%s", output)
+	}
+	for _, named := range []string{"Failed to download", "could not make " + layout.DocumentVirtualEnvironmentPath() + " on CPython " + blueclaw.DocumentInterpreterVersion} {
+		if !strings.Contains(string(output), named) {
+			t.Fatalf("the failed install does not say %q:\n%s", named, output)
+		}
 	}
 }
 
