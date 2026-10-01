@@ -426,7 +426,6 @@ cd web && bun run build:board && cd ..
 make prepare-blueclaw-payload
 ./internkim release publish
 ./internkim release companion
-./internkim release host
 
 ./internkim @production update check
 ./internkim @production update apply
