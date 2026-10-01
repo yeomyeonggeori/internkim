@@ -1,6 +1,10 @@
 package admind
 
 import (
+	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -26,5 +30,21 @@ func TestAChatdReleaseWritesTheUnitSetupWouldWrite(t *testing.T) {
 func TestAChatdReleaseKeepsTheUnitWhenNoRelayAddressIsRecorded(t *testing.T) {
 	if _, isKnown := releaseChatdUnit("  "); isKnown {
 		t.Fatal("with no relay address the release would point chatd at the loopback relay instead of leaving the provisioned unit")
+	}
+}
+
+func TestRemovingFilesToleratesTheOnesAlreadyGone(t *testing.T) {
+	present := filepath.Join(t.TempDir(), "present.conf")
+	if errorValue := os.WriteFile(present, nil, 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	errorValue := removeFilesIfPresent([]string{present, present + ".absent"})
+
+	if errorValue != nil {
+		t.Fatalf("a file already gone is the common case: %v", errorValue)
+	}
+	if _, statError := os.Stat(present); !errors.Is(statError, fs.ErrNotExist) {
+		t.Fatalf("the present file was left behind: %v", statError)
 	}
 }

@@ -167,6 +167,10 @@ func BuzzRelayReadinessURL() string {
 	return "http://" + BuzzRelayBindAddress + BuzzRelayReadinessPath
 }
 
+func ChatdLegacyTLSDropInPaths() []string {
+	return []string{ChatdDropInDirectory + "/tls.conf", ChatdDropInDirectory + "/tls-debug.conf"}
+}
+
 func ChatdServiceUnit(relayPublicURL string) string {
 	relayURL := relayPublicURL
 	if relayURL == "" {
@@ -182,8 +186,7 @@ User=root
 EnvironmentFile=%s
 Environment=CHATD_BOT_USER_NAME=%s
 Environment=CHATD_BUZZ_RELAY_URL=%s
-Environment=NODE_EXTRA_CA_CERTS=%s
-Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
+Environment=`+BuzzRelayCertificateVariable+`=%s
 Environment=CHATD_BUZZ_ACCOUNT_LINKS_PATH=%s
 Environment=CHATD_LISTEN_HOSTNAME=`+ChatdListenHostname+`
 Environment=CHATD_LISTEN_PORT=%s
