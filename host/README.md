@@ -74,12 +74,8 @@ How much a broadcast carries is set by the Supabase plan:
 | Enterprise | negotiated |
 | Self-hosted | whatever the proxy in front of it accepts |
 
-Those figures are decimal, which is worth knowing before somebody writes
-`3 * 1024 * 1024` and lands 145 KB over. `measure-broadcast-ceiling.ts` settles
-it against a project by binary search. The local tenant and the hosted Pro
-project both accepted 3,000,491 bytes and answered the next with the 422, to the
-byte, so the wall is a fixed 3,000,000 rather than something a plan tunes
-upward.
+Those figures are decimal: `3 * 1024 * 1024` lands 145 KB over.
+`measure-broadcast-ceiling.ts` finds a project's ceiling by binary search.
 
 The default ceiling is the whole Pro figure, because `httpSend` puts the topic
 and the event in the URL and sends the answer as the entire body, so there is no
@@ -89,14 +85,11 @@ payload setting (`ENVS.md` carries only `MAX_HEADER_LENGTH`, which is headers),
 so run the script against it.
 
 Unset or empty takes the default; anything that is not a positive number stops
-the boot. A value like `1MB` used to become `NaN` and an empty one `0`, either
-of which refused every answer for as long as the process ran.
+the boot, so a value like `1MB` is refused at startup.
 
 The profile-picture limit is derived from the ceiling
-(`largestRawBytesThatFit`), because base64 inflates by a third and the two used
-to disagree: pictures were accepted up to 200,000 raw bytes, which is about
-267 KB on the wire. Anything larger comes back without a picture, and the call
-survives.
+(`largestRawBytesThatFit`), because base64 inflates by a third. Anything
+larger comes back without a picture, and the call survives.
 
 ### Files never cross it
 
@@ -104,8 +97,7 @@ A message attachment is not answered with the file. The messenger stores it on
 this machine and the browser asking for it is somewhere else, so the relay puts
 a copy in the company's `asset` bucket and answers with its address; the reader
 signs for that with their own session. Nothing about the file's size touches the
-ceiling above, and the 91 MB archive in one company's history opens the same way
-a screenshot does.
+ceiling above, and a 91 MB archive opens the same way a screenshot does.
 
 `LARGEST_FILE_BYTES` bounds only what the relay holds in memory while copying
 one across, and defaults to 200,000,000. The bucket is addressed by content and

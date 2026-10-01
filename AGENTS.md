@@ -6,9 +6,9 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 ## Core Rules
 
 - This document describes the central plane: a company the customer signs into,
-  with the agent running on a computer they bring. On 2026-09-02 the device path
-  was frozen: Jetson, OTA, the cloud-hypervisor guest, vsock. It keeps working
-  and keeps getting bug fixes, and no new design is implemented against it.
+  with the agent running on a computer they bring. The device path (Jetson, OTA,
+  the cloud-hypervisor guest, vsock) is frozen: it keeps working and keeps
+  getting bug fixes, and no new design is implemented against it.
   `docs/device.mdx` describes it, and "Deploying" below keeps the rules for
   shipping to one. Mattermost is not part of the freeze: it is being removed.
 - Prefer existing codebase patterns over new abstractions.
@@ -48,8 +48,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 - Keep generated test artifacts, platform users, memories, and remote messages
   cleaned up after real-platform tests.
 - No real person's name, address, or phone number belongs in a tracked file.
-  `main`'s history was rewritten once to take them back out, so reintroducing
-  one undoes that. Fixtures, seeds, and documentation use sample names
+  Fixtures, seeds, and documentation use sample names
   (이샘플, 박예시, 최견본) and `example.com` addresses. Real people live in
   the database.
 - New documentation is public: a page under `docs/` with its `.ko.mdx` sibling
@@ -67,7 +66,7 @@ what your diff touches and runs only the groups that diff can break, at once;
 the groups, and what each one runs, are declared at the top of the file. `--all`
 runs every group and `--only <names>` runs the ones you name. Nothing runs it
 for you after you push: a private repository on the free plan cannot require a
-GitHub Actions check, so the workflows went away (#774) and a push that skipped
+GitHub Actions check, so there are no workflows and a push that skipped
 `verify` is a push nobody checked.
 
 ### Branch names
@@ -401,7 +400,7 @@ and delete the duplicates.
   run, each of which resets the database itself; a suite nothing runs is not a
   gate. It is its own group and lane, never pulled in by `--only web`: a group
   that resets the shared local database is opted into by name or by touching
-  its code (#1381). Playwright orders spec files alphabetically, so a spec that
+  its code. Playwright orders spec files alphabetically, so a spec that
   changes shared company state gets a database of its own.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: the local loop below, and hand over a real
@@ -431,9 +430,7 @@ and delete the duplicates.
   endpoint is added, and run it before deploying the web app.
 - **The web UI reaches the record through that API, never through Supabase
   itself.** A browser `.rpc()` or `.from(...).insert()` is a second
-  implementation of something the API already answers, and the two drift: the
-  attendance approval notification was written twice, once client-side and once
-  in the route, and only one of them survived the feature being removed. Call
+  implementation of something the API already answers, and the two drift. Call
   `invokeTool` in `web/src/lib/public-api-call.ts`.
   Where the browser's behaviour is the better one, move that behaviour into the
   API and retire the browser copy; do not weaken the screen to fit a thinner
