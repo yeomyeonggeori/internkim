@@ -58,7 +58,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 
 ## Working on this repository
 
-Nothing lands on `main` or `design/saas` by direct push. Branch, run
+Nothing lands on `main` by direct push. Branch, run
 `tools/verify`, open a pull request, merge.
 
 `tools/verify` is the whole check, and `make check` is that command. It reads
@@ -84,13 +84,11 @@ chore/prune-expensive-artifacts
 ci/skip-docs-only-runs
 ```
 
-Branch off the line you are targeting — product work off `design/saas`, device
-and runtime work off `main` — rebase rather than merge when it moves under you,
-and delete the branch once the pull request is merged.
+Branch off `main`, rebase rather than merge when it moves under you, and
+delete the branch once the pull request is merged.
 
-`main` and `design/saas` are checked out in one worktree each and nowhere else.
-Every other worktree reads them as `origin/main` and `origin/design/saas` after a
-fetch, and never checks them out: git refuses the second checkout, and the reason
+`main` is checked out in one worktree and nowhere else. Every other worktree
+reads it as `origin/main` after a fetch, and never checks it out: git refuses the second checkout, and the reason
 it refuses is that two working trees on one branch pointer means two dirty states
 and a silent winner. Wanting to see what merged is a fetch, not a checkout.
 
