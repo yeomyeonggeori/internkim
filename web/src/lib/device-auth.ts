@@ -1,3 +1,4 @@
+import { isTheSameSecret } from '$lib/server/same-secret';
 import type { Device } from './types';
 
 export function normalizeFleetID(fleetID: string): string {
@@ -18,5 +19,11 @@ export async function isNodeRequest(request: Request, device: Device, fleetID: s
 	const fleetSecretHash = device.fleet_secret_hash ?? '';
 	if (!headerFleetID || !fleetSecret || headerFleetID !== normalizeFleetID(fleetID)) return false;
 	if (!fleetSecretHash) return false;
-	return (await hashFleetSecret(fleetSecret)) === fleetSecretHash;
+	return isTheSameSecret(await hashFleetSecret(fleetSecret), fleetSecretHash);
+}
+
+export async function isTheRegisterSecret(authorization: string | null, registerSecret: string | undefined): Promise<boolean> {
+	const secret = (registerSecret ?? '').trim();
+	if (!secret) return false;
+	return isTheSameSecret(authorization ?? '', `Bearer ${secret}`);
 }

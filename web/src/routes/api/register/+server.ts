@@ -2,7 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { kv } from '$lib/kv';
 import type { Device, FleetMember } from '$lib/types';
-import { hashFleetSecret, normalizeFleetID } from '$lib/device-auth';
+import { hashFleetSecret, isTheRegisterSecret, normalizeFleetID } from '$lib/device-auth';
+import { isTheSameSecret } from '$lib/server/same-secret';
 import {
 	activeFleetMembers,
 	findFleetMember,
@@ -26,7 +27,7 @@ function isValidDNSLabel(value: string): boolean {
 async function ensureSameFleet(device: Device, fleetSecret: string): Promise<Device> {
 	const fleetSecretHash = await hashFleetSecret(fleetSecret);
 	const existingFleetSecretHash = device.fleet_secret_hash;
-	if (existingFleetSecretHash && existingFleetSecretHash !== fleetSecretHash) {
+	if (existingFleetSecretHash && !(await isTheSameSecret(fleetSecretHash, existingFleetSecretHash))) {
 		throw error(409, 'Fleet ID already registered');
 	}
 	return {
@@ -85,8 +86,7 @@ async function handleRegister(request: Request, platform: App.Platform | undefin
 	if (!nodeKey) throw error(400, 'node_key required');
 
 	const existing = await kv.getDevice(env.KV, fleetID);
-	const registerSecret = env.INTERNKIM_REGISTER_SECRET.trim();
-	const hasRegisterSecret = registerSecret !== '' && auth === `Bearer ${registerSecret}`;
+	const hasRegisterSecret = await isTheRegisterSecret(auth, env.INTERNKIM_REGISTER_SECRET);
 	if (!existing && !hasRegisterSecret) {
 		throw error(401, 'Invalid registration secret');
 	}
@@ -151,8 +151,7 @@ async function handleRegistrationDelete(request: Request, platform: App.Platform
 	const env = platform?.env;
 	if (!env?.KV) throw error(500, 'KV not available');
 
-	const auth = request.headers.get('authorization');
-	if (auth !== `Bearer ${env.INTERNKIM_REGISTER_SECRET}`) {
+	if (!(await isTheRegisterSecret(request.headers.get('authorization'), env.INTERNKIM_REGISTER_SECRET))) {
 		throw error(401, 'Invalid registration secret');
 	}
 

@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isNodeRequest, normalizeFleetID } from '$lib/device-auth';
+import { isTheSameSecret } from '$lib/server/same-secret';
 import { kv } from '$lib/kv';
 import type { Device, FleetMember } from '$lib/types';
 import { activeFleetMembers, fleetQuorumSize, pendingFleetMembers } from '$lib/fleet';
@@ -27,7 +28,7 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 
 	const adminToken = url.searchParams.get('admin_token') ?? '';
 	const isAuthorizedNode = await isNodeRequest(request, device, fleetID);
-	if (!isAuthorizedNode && adminToken !== env.INTERNKIM_REGISTER_SECRET) {
+	if (!isAuthorizedNode && !(await isTheSameSecret(adminToken, (env.INTERNKIM_REGISTER_SECRET ?? '').trim()))) {
 		throw error(403, 'Fleet metadata requires node auth');
 	}
 
