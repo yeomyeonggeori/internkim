@@ -209,11 +209,20 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+class ReleaseServer(http.server.ThreadingHTTPServer):
+    """Homebrew's curl closes a connection partway through a download it has
+    already cached, which is a broken pipe here and not a failure."""
+
+    def handle_error(self, request, client_address):
+        if not isinstance(sys.exc_info()[1], ConnectionError):
+            super().handle_error(request, client_address)
+
+
 def serve_release_directory(artifact_directory):
     """Serve the directory on an ephemeral 127.0.0.1 port, the way GitHub serves
     one release's assets under releases/download/<tag>/."""
     handler = functools.partial(QuietHandler, directory=str(artifact_directory.resolve()))
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = ReleaseServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
