@@ -1,6 +1,7 @@
 package blueclaw
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -14,6 +15,7 @@ const (
 	HostPartMessenger      HostPart = "messenger"
 	HostPartCache          HostPart = "cache"
 	HostPartDatabase       HostPart = "database"
+	HostPartMemoryStore    HostPart = "memoryStore"
 )
 
 // PackageManager is one of the tools that installs the host's dependencies on
@@ -118,6 +120,7 @@ var hostDependencies = []HostDependency{
 		WhatAnswersItOnAMac: "Homebrew's postgresql@17 carries contrib",
 		NeededBy:            []HostPart{HostPartDatabase},
 	},
+	vectorExtensionDependency(),
 	{
 		DebianPackage:      "redis-server",
 		DebianAlternatives: []string{"valkey-server"},
@@ -229,6 +232,47 @@ var hostDependencies = []HostDependency{
 		ProgramsTheHostRuns: []string{BuzzMediaProgramName},
 		NeededBy:            []HostPart{HostPartMessenger},
 	},
+}
+
+// The PostgreSQL majors whose pgvector a Debian or Ubuntu machine may install,
+// newest first, so apt takes the newest its archive carries. The oldest is the
+// oldest the agent's schema runs on.
+const (
+	hostPostgresqlNewestMajor = 18
+	hostPostgresqlOldestMajor = 14
+)
+
+// The agent's memory store searches by embedding only where the agent's
+// database has pgvector's `vector` extension, and without it the store keeps
+// answering by words alone. So the extension is a dependency like the server,
+// and the install step refuses a database that does not offer it.
+func vectorExtensionDependency() HostDependency {
+	debianNames := []string{}
+	for major := hostPostgresqlNewestMajor; major >= hostPostgresqlOldestMajor; major-- {
+		debianNames = append(debianNames, debianVectorExtensionPackage(major))
+	}
+	return HostDependency{
+		DebianPackage:      debianNames[0],
+		DebianAlternatives: debianNames[1:],
+		DnfPackages:        []string{"pgvector"},
+		PacmanPackages:     []string{"pgvector"},
+		HomebrewFormula:    "pgvector",
+		NeededBy:           []HostPart{HostPartMemoryStore},
+	}
+}
+
+func debianVectorExtensionPackage(major int) string {
+	return fmt.Sprintf("postgresql-%d-pgvector", major)
+}
+
+// VectorExtensionDependencyFor is the vector extension for the PostgreSQL
+// major a cluster runs: Debian names one package per major, and a machine that
+// lacks it is told the one its own server loads.
+func VectorExtensionDependencyFor(major int) HostDependency {
+	dependency := vectorExtensionDependency()
+	dependency.DebianPackage = debianVectorExtensionPackage(major)
+	dependency.DebianAlternatives = nil
+	return dependency
 }
 
 // HostDependencies is the company host's dependency list, and the only one.

@@ -4,10 +4,11 @@ description: Install the company host, check its services, and find local data a
 icon: ServerCog
 ---
 
-The company host runs on Debian 13, Ubuntu 22.04 or 24.04, Fedora,
-RHEL-compatible 10 (Rocky, AlmaLinux) or Arch Linux, on arm64 or amd64, or on a
-Mac with Apple silicon through Homebrew. The Linux packages need glibc 2.35 or
-newer. The host needs an outbound internet connection and must stay awake. The
+The company host runs on Debian 13, Ubuntu 24.04, Fedora, RHEL-compatible 10
+(Rocky, AlmaLinux) or Arch Linux, on arm64 or amd64, or on a Mac with Apple
+silicon through Homebrew. Each of them carries pgvector for its own PostgreSQL,
+which the agent's memory search needs. Ubuntu 22.04's archive does not, so the
+package does not install there. The Linux packages need glibc 2.35 or newer. The host needs an outbound internet connection and must stay awake. The
 installer registers native services with systemd on Linux or launchd on macOS.
 It needs no public address, inbound port, or Docker installation.
 
