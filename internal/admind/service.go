@@ -148,7 +148,7 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startMailAccountSweep(ctx)
 	service.startTaskSweep(ctx)
 	service.startSiteRuntimeJanitor(ctx)
-	service.startScheduledBackups(ctx)
+	removeAbandonedBackupIntermediates(abandonedBackupDirectory)
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzCredentialSweep(ctx)
 	go service.sayIfTheRelayIsOpen(ctx)
