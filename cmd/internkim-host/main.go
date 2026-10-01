@@ -94,6 +94,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "\nRestore stopped: %s\n", errorValue)
 			os.Exit(1)
 		}
+	case "import-device":
+		if errorValue := runImportDevice(os.Args[2:]); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nImport stopped: %s\n", errorValue)
+			os.Exit(1)
+		}
 	default:
 		printUsage(command)
 	}
@@ -105,6 +110,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
 	os.Exit(1)
 }
 
