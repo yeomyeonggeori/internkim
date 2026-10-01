@@ -291,9 +291,17 @@ func runSetupSD(m *msg) {
 
 		// Inject Wi-Fi, SSH, hostname, firstboot service into ext4 via debugfs
 		fmt.Printf("  %s...\n", m.t("이미지에 파일 주입 중 (debugfs)", "Injecting files into image (debugfs)"))
-		if err := injectFilesIntoImage(imgRaw, flowState.wifiSSID, flowState.wifiPassword, flowState.publicKey, stageDir); err != nil {
+		consolePassword, err := resolveConsolePassword()
+		if err != nil {
+			fatal(err.Error())
+		}
+		if err := injectFilesIntoImage(imgRaw, flowState.wifiSSID, flowState.wifiPassword, flowState.publicKey, consolePassword, stageDir); err != nil {
 			fatal(fmt.Sprintf("%s: %v", m.t("파일 주입 실패", "File injection failed"), err))
 		}
+		if err := saveConsolePassword(consolePassword); err != nil {
+			fatal(err.Error())
+		}
+		fmt.Printf("  %s: %s\n", m.t("root·internkim 콘솔 비밀번호", "root and internkim console password"), consolePassword)
 		fmt.Printf("  %s\n", m.t("파일 주입 완료", "Files injected"))
 
 		// Write to SD
@@ -549,7 +557,7 @@ umount /mnt/armbian/dev /mnt/armbian/proc 2>/dev/null; umount /mnt/armbian 2>/de
 	return nil
 }
 
-func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error {
+func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, consolePassword, stageDir string) error {
 	binDir := e2fsprogsBinDir()
 	debugfsBin := "debugfs"
 	if binDir != "" {
@@ -666,12 +674,12 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	armbianConf += "SET_LANG_BASED_ON_LOCATION=\"n\"\n"
 	armbianConf += "PRESET_LOCALE=\"en_US.UTF-8\"\n"
 	armbianConf += "PRESET_TIMEZONE=\"Asia/Seoul\"\n"
-	armbianConf += "PRESET_ROOT_PASSWORD=\"internkim\"\n"
+	armbianConf += fmt.Sprintf("PRESET_ROOT_PASSWORD=\"%s\"\n", consolePassword)
 	armbianConf += "PRESET_USER_NAME=\"internkim\"\n"
-	armbianConf += "PRESET_USER_PASSWORD=\"internkim\"\n"
+	armbianConf += fmt.Sprintf("PRESET_USER_PASSWORD=\"%s\"\n", consolePassword)
 	armbianConf += "PRESET_DEFAULT_REALNAME=\"Intern Kim\"\n"
 	armbianConf += "PRESET_USER_SHELL=\"bash\"\n"
-	writeContent(armbianConf, "/root/.not_logged_in_yet", "0100644")
+	writeContent(armbianConf, "/root/.not_logged_in_yet", "0100600")
 
 	// ── 3. Hostname ──
 	fmt.Println("    hostname")
