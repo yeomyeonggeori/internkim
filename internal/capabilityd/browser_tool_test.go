@@ -2,7 +2,6 @@ package capabilityd
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
@@ -117,31 +116,5 @@ func TestDeviceBrowserToolRunsThroughMoliRuntime(t *testing.T) {
 	if calls[2].arguments[len(calls[2].arguments)-4] != "snapshot" ||
 		calls[2].arguments[len(calls[2].arguments)-3] != "-i" {
 		t.Fatalf("expected third call to be snapshot, got %+v", calls[2].arguments)
-	}
-}
-
-func TestDeviceBrowserRefusesAScreenshot(t *testing.T) {
-	commandWasCalled := false
-	service := Service{RunCommand: func(_ context.Context, _ string, _ []string, _ []byte) ([]byte, error) {
-		commandWasCalled = true
-		return nil, nil
-	}}
-
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "browser_screenshot", strings.NewReader(`{"input":{"ttlSeconds":600}}`))
-	if errorValue != nil {
-		t.Fatalf("expected structured screenshot denial: %v", errorValue)
-	}
-	var result struct {
-		Status string `json:"status"`
-		Code   string `json:"code"`
-	}
-	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil {
-		t.Fatalf("expected denial result: %v", errorValue)
-	}
-	if !response.IsError || response.Status != "denied" || result.Code != capabilities.CapabilityNotConnected {
-		t.Fatalf("expected a not-connected screenshot denial, got response=%+v result=%+v", response, result)
-	}
-	if commandWasCalled {
-		t.Fatal("expected device screenshot denial not to run agent-browser")
 	}
 }

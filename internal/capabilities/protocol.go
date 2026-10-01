@@ -61,10 +61,6 @@ func BrowserToolDescriptors() []Descriptor {
 	return capabilityprotocol.BrowserToolDescriptors()
 }
 
-func DeviceBrowserDescriptors() []Descriptor {
-	return capabilityprotocol.DeviceBrowserDescriptors()
-}
-
 func RegistryDescriptors(registry RegistryResponse) []Descriptor {
 	if len(registry.Capabilities) > 0 {
 		return registry.Capabilities

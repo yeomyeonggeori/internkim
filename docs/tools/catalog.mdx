@@ -212,10 +212,9 @@ directly.
 <ToolCatalog namespace="browser" />
 
 The handler lives in `internal/capabilityd/browser_tool.go`, and calls run in
-the device browser. `browser_open` requires the user present, and
-responses carry no cookies, profile paths, or local screenshot paths;
-`browser_screenshot` uploads to a temporary workspace-visible path instead.
-Login, MFA, and captcha steps are handed to the human.
+the company computer's browser: a Moli per requester, each with its own
+profile. Responses carry no cookies or profile paths. A page that shows a bot
+check comes back as a refusal the agent reports to the person who asked.
 
 ## Artifacts [#artifact]
 

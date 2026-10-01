@@ -26,8 +26,6 @@ import {
   browserClickResultSchema,
   browserOpenInputSchema,
   browserOpenResultSchema,
-  browserScreenshotInputSchema,
-  browserScreenshotResultSchema,
   browserSnapshotInputSchema,
   browserSnapshotResultSchema,
   buildCapabilityToolCatalog,
@@ -101,7 +99,6 @@ describe('canonical capability tools', () => {
       'browser_fill',
       'browser_open',
       'browser_press',
-      'browser_screenshot',
       'browser_select',
       'browser_snapshot',
       'browser_wait',
@@ -242,16 +239,15 @@ describe('canonical capability tools', () => {
     expect(catalog.tools.filter(tool => tool.answeredBy === CapabilityAnsweredBy.Local).length).toBeGreaterThan(0);
   });
 
-  // A browser tool drives one session on one machine, so it is the requester's
-  // to hold and a grant's to gate, whichever browser answers it.
-  test('gives every browser tool the requester and a grant', () => {
+  test('runs every browser tool in the company browser under one grant', () => {
     const catalog = buildCapabilityToolCatalog(protocolVersion);
-    const browserTools = catalog.tools.filter(tool => tool.namespace === 'browser' && tool.privacyClass !== 'device_browser');
+    const browserTools = catalog.tools.filter(tool => tool.namespace === 'browser');
 
     expect(browserTools.length).toBeGreaterThan(0);
     for (const tool of browserTools) {
       expect(tool.answeredBy).toBe(CapabilityAnsweredBy.Local);
-      expect(tool.requiresRequesterDevice).toBe(true);
+      expect(tool.privacyClass).toBe('device_browser');
+      expect(tool.requiresUserPresence).toBe(false);
       expect(tool.approvalScope).toBe('browser');
     }
   });
@@ -447,12 +443,10 @@ describe('canonical capability tools', () => {
   test('defines exact browser inputs and successful results', () => {
     expect(browserOpenInputSchema.safeParse({ url: 'https://preview.example/site-1' }).success).toBe(true);
     expect(browserSnapshotInputSchema.safeParse({}).success).toBe(true);
-    expect(browserScreenshotInputSchema.safeParse({ ttlSeconds: 300 }).success).toBe(true);
     expect(browserClickInputSchema.safeParse({ ref: '@e1' }).success).toBe(true);
 
     expect(browserOpenInputSchema.safeParse({ startURL: 'https://preview.example/site-1' }).success).toBe(false);
     expect(browserSnapshotInputSchema.safeParse({ interactive: true }).success).toBe(false);
-    expect(browserScreenshotInputSchema.safeParse({ ttlSeconds: -1 }).success).toBe(false);
     expect(browserClickInputSchema.safeParse({}).success).toBe(false);
 
     expect(browserOpenResultSchema.safeParse({
@@ -469,15 +463,6 @@ describe('canonical capability tools', () => {
       snapshotText: '- button "Open report" [ref=e1]',
       interactiveRefs: ['@e1'],
       hasMore: false,
-      capturedAt: '2026-07-19T00:00:00Z',
-    }).success).toBe(true);
-    expect(browserScreenshotResultSchema.safeParse({
-      fileID: 'file-1',
-      filename: 'site.png',
-      sizeBytes: 1024,
-      contentType: 'image/png',
-      devicePath: '/tmp/internkim-attachment-files/site.png',
-      expiresAt: '2026-07-19T00:05:00Z',
       capturedAt: '2026-07-19T00:00:00Z',
     }).success).toBe(true);
     expect(browserClickResultSchema.safeParse({
@@ -548,7 +533,6 @@ describe('canonical capability tools', () => {
     for (const toolName of [
       BrowserToolName.Open,
       BrowserToolName.Snapshot,
-      BrowserToolName.Screenshot,
       BrowserToolName.Click,
       ArtifactToolName.Review,
     ]) {

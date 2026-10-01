@@ -15,9 +15,6 @@ import (
 )
 
 func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
-	if request.ToolName == "browser_screenshot" {
-		return capabilityUnavailableResponse(request.ToolName, capabilities.CapabilityNotConnected), nil
-	}
 	browserRuntime, errorValue := service.deviceBrowserRuntime(ctx, request.Context)
 	if errors.Is(errorValue, browserruntime.ErrDeviceBrowsersFull) {
 		return service.deviceBrowsersFullResponse(request.ToolName), nil

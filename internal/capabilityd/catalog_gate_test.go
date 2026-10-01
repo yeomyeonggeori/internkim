@@ -227,20 +227,6 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"action":"wait"`)
 			},
 		},
-		// The device browser cannot take a picture. Saying so is the whole of this
-		// tool, and a case that expected a screenshot would be asserting a thing
-		// the product does not do.
-		"browser_screenshot": {
-			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{browserAsACommand: runningTheBrowser()},
-			input:   `{}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				if answered.Outcome == capabilities.ToolOutcomeSucceeded {
-					t.Fatalf("the device browser answered a screenshot: %s", answered.Result)
-				}
-				expectResultHolds(t, answered, capabilities.CapabilityNotConnected)
-			},
-		},
 		"site_serve": {
 			kind:    provesBehaviour,
 			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"siteID":"s1","slug":"q3-report","status":"published","publishedURL":"https://example.test/q3-report","previewURL":"https://example.test/preview/q3-report"}`)},

@@ -19,18 +19,6 @@ import (
 	"time"
 )
 
-type Runtime interface {
-	StartSession(context.Context, SessionStartRequest) (SessionStartResult, error)
-	Navigate(context.Context, NavigateRequest) (NavigateResult, error)
-	Observe(context.Context, ObserveRequest) (ObserveResult, error)
-	Screenshot(context.Context, ScreenshotRequest) (ScreenshotResult, error)
-	Click(context.Context, ClickRequest) (ActionResult, error)
-	Fill(context.Context, FillRequest) (ActionResult, error)
-	Select(context.Context, SelectRequest) (ActionResult, error)
-	Press(context.Context, PressRequest) (ActionResult, error)
-	Wait(context.Context, WaitRequest) (ActionResult, error)
-}
-
 type CommandRunner interface {
 	Run(context.Context, string, []string) ([]byte, error)
 }
@@ -43,7 +31,6 @@ type AgentBrowserRuntime struct {
 	ProfilePath          string
 	SessionName          string
 	Headed               bool
-	TemporaryDirectory   string
 	Runner               CommandRunner
 	Now                  func() time.Time
 	Sleep                func(context.Context, time.Duration) error
@@ -98,16 +85,6 @@ type ObserveResult struct {
 	InteractiveRefs []string `json:"interactiveRefs"`
 	HasMore         bool     `json:"hasMore"`
 	CapturedAt      string   `json:"capturedAt"`
-}
-
-type ScreenshotRequest struct{}
-
-type ScreenshotResult struct {
-	LocalPath   string `json:"-"`
-	Filename    string `json:"filename"`
-	SizeBytes   int64  `json:"sizeBytes"`
-	ContentType string `json:"contentType"`
-	CapturedAt  string `json:"capturedAt"`
 }
 
 type ClickRequest struct {
@@ -417,31 +394,6 @@ func (runtime AgentBrowserRuntime) observeCurrentPage(ctx context.Context) (Obse
 		return ObserveResult{}, errorValue
 	}
 	return observeResultFromOutput(output, capturedAt), nil
-}
-
-func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request ScreenshotRequest) (ScreenshotResult, error) {
-	_ = request
-	capturedAt := runtime.now().UTC()
-	directoryPath := runtime.temporaryDirectory()
-	if errorValue := os.MkdirAll(directoryPath, 0o700); errorValue != nil {
-		return ScreenshotResult{}, errors.New("browser screenshot directory is unavailable")
-	}
-	filename := "browser-screenshot-" + capturedAt.Format("20060102T150405.000000000Z") + ".png"
-	path := filepath.Join(directoryPath, filename)
-	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "screenshot", path)...); errorValue != nil {
-		return ScreenshotResult{}, errorValue
-	}
-	information, errorValue := os.Stat(path)
-	if errorValue != nil || information.IsDir() {
-		return ScreenshotResult{}, errors.New("browser screenshot was not created")
-	}
-	return ScreenshotResult{
-		LocalPath:   path,
-		Filename:    filename,
-		SizeBytes:   information.Size(),
-		ContentType: "image/png",
-		CapturedAt:  capturedAt.UTC().Format(time.RFC3339),
-	}, nil
 }
 
 func (runtime AgentBrowserRuntime) Click(ctx context.Context, request ClickRequest) (ActionResult, error) {
@@ -788,13 +740,6 @@ func (runtime AgentBrowserRuntime) browserEngine() string {
 
 func (runtime AgentBrowserRuntime) sessionName() string {
 	return firstNonEmpty(runtime.SessionName, "internkim")
-}
-
-func (runtime AgentBrowserRuntime) temporaryDirectory() string {
-	if strings.TrimSpace(runtime.TemporaryDirectory) != "" {
-		return strings.TrimSpace(runtime.TemporaryDirectory)
-	}
-	return filepath.Join(os.TempDir(), "internkim-browser")
 }
 
 func (runtime AgentBrowserRuntime) now() time.Time {
