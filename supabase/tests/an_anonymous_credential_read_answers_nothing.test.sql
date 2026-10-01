@@ -15,9 +15,9 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('000000ee-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000e0', 'holder@example.test', '00000000-0000-0000-0000-0000000000e1', 'active', false),
   ('000000ee-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000e0', 'colleague@example.test', '00000000-0000-0000-0000-0000000000e2', 'active', false);
 
-insert into public.credential (member_id, kind, external_id, name) values
-  ('000000ee-0000-0000-0000-000000000001', 'buzz-secret', 'public-key-hex', ''),
-  ('000000ee-0000-0000-0000-000000000001', 'api_key', 'ik_token_hash', '');
+insert into public.credential (member_id, kind, external_id, name, settings) values
+  ('000000ee-0000-0000-0000-000000000001', 'buzz-secret', 'public-key-hex', '', '{}'),
+  ('000000ee-0000-0000-0000-000000000001', 'api_key', 'ik_token_hash', '', '{"expiresAt": "2099-01-01T00:00:00Z"}');
 
 select lives_ok($block$do $$
 declare

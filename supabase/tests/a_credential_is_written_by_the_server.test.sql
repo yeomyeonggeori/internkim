@@ -17,8 +17,8 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('7f000000-0000-0000-0000-0000000000a2', '7f000000-0000-0000-0000-0000000000c1',
    'admin@example.test', '7f000000-0000-0000-0000-000000000012', 'active', true);
 
-insert into public.credential (member_id, kind, name, external_id, permission) values
-  ('7f000000-0000-0000-0000-0000000000a1', 'api_key', 'widget', repeat('a', 64), 'read');
+insert into public.credential (member_id, kind, name, external_id, permission, settings) values
+  ('7f000000-0000-0000-0000-0000000000a1', 'api_key', 'widget', repeat('a', 64), 'read', '{"expiresAt": "2099-01-01T00:00:00Z"}');
 insert into public.credential (company_id, kind, external_id) values
   ('7f000000-0000-0000-0000-0000000000c1', 'fleet', 'fleet-y');
 
@@ -31,8 +31,8 @@ select throws_ok(
   'a holder does not raise their own token'
 );
 select throws_ok(
-  $$insert into public.credential (member_id, kind, name, external_id, permission)
-    values ('7f000000-0000-0000-0000-0000000000a1', 'api_key', 'minted', repeat('b', 64), 'delete')$$,
+  $$insert into public.credential (member_id, kind, name, external_id, permission, settings)
+    values ('7f000000-0000-0000-0000-0000000000a1', 'api_key', 'minted', repeat('b', 64), 'delete', '{"expiresAt": "2099-01-01T00:00:00Z"}')$$,
   '42501', null,
   'a holder does not mint a token by writing its row'
 );

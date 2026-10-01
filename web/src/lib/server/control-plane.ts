@@ -7,6 +7,7 @@ import {
 import { memberOfCompanyByEmail, membersOfCompanyByExternalID } from './member-credential';
 import { personalAccessTokenCredentialKind } from './public-api/catalog/credential';
 import { recordTokenFor, verifiedRecordToken } from './record-token';
+import { defaultTokenLifetimeDays, expiryAfter } from '$lib/token-lifetime';
 import { z } from 'zod';
 
 export type ControlPlaneCredentials = {
@@ -193,9 +194,13 @@ export async function removeMember(
 	memberID: string,
 	options: { purge?: boolean } = {},
 ): Promise<{ wasRemoved: boolean }> {
+	const accountID = await accountOfMember(client, memberID);
 	if (options.purge) {
 		const removed = await client.from('member').delete().eq('company_id', companyID).eq('id', memberID);
-		if (!removed.error) return { wasRemoved: true };
+		if (!removed.error) {
+			await keepAccountSignedIn(client, accountID, false);
+			return { wasRemoved: true };
+		}
 		if (removed.error.code !== foreignKeyViolation) throw new Error(removed.error.message);
 	}
 	const withdrawn = await client
@@ -204,10 +209,42 @@ export async function removeMember(
 		.eq('company_id', companyID)
 		.eq('id', memberID);
 	if (withdrawn.error) throw new Error(withdrawn.error.message);
+	await keepAccountSignedIn(client, accountID, false);
 	return { wasRemoved: false };
 }
 
 const foreignKeyViolation = '23503';
+
+const bannedForGood = '876000h';
+
+async function accountOfMember(client: SupabaseClient, memberID: string): Promise<string | null> {
+	const { data, error } = await client
+		.from('member')
+		.select('user_id')
+		.eq('id', memberID)
+		.maybeSingle<{ user_id: string | null }>();
+	if (error) throw new Error(`account of ${memberID}: ${error.message}`);
+	return data?.user_id ?? null;
+}
+
+async function keepAccountSignedIn(client: SupabaseClient, accountID: string | null, isMember: boolean): Promise<void> {
+	if (!accountID) return;
+	const { error } = await client.auth.admin.updateUserById(accountID, {
+		ban_duration: isMember ? 'none' : bannedForGood,
+	});
+	if (error) throw new Error(`sign-in of ${accountID}: ${error.message}`);
+}
+
+export async function settleSignInOfMember(client: SupabaseClient, memberID: string): Promise<void> {
+	const { data, error } = await client
+		.from('member')
+		.select('user_id, status')
+		.eq('id', memberID)
+		.maybeSingle<{ user_id: string | null; status: string }>();
+	if (error) throw new Error(`sign-in of ${memberID}: ${error.message}`);
+	if (!data) return;
+	await keepAccountSignedIn(client, data.user_id, !hasLeftTheCompany(data.status));
+}
 
 export type FoundedCompany = {
 	companyID: string;
@@ -302,6 +339,7 @@ export async function inviteMember(client: SupabaseClient, memberID: string): Pr
 
 	const { error } = await client.from('member').update({ status: 'invited' }).eq('id', memberID);
 	if (error) throw new Error(`member ${memberID}: ${error.message}`);
+	await settleSignInOfMember(client, memberID);
 
 	return invitation;
 }
@@ -468,13 +506,30 @@ export type PersonalAccessTokenSession = MemberSession & {
 export type PersonalAccessToken = {
 	name: string;
 	permission: PublicAPIPermission;
+	expiresAt: string;
+	lastUsedAt: string | null;
 };
+
+const tokenSettingsSchema = z.object({
+	expiresAt: z.iso.datetime({ offset: true }),
+	lastUsedAt: z.iso.datetime({ offset: true }).optional(),
+});
+
+type TokenSettings = z.infer<typeof tokenSettingsSchema>;
+
+function storedTokenSettings(stored: unknown): TokenSettings {
+	const settings = tokenSettingsSchema.safeParse(stored);
+	if (!settings.success) throw new Error('personal access token: its settings carry no expiry');
+	return settings.data;
+}
 
 export async function issuePersonalAccessToken(
 	client: SupabaseClient,
 	memberID: string,
 	name: string,
 	permission: PublicAPIPermission = fullPublicAPIPermission,
+	lifetimeDays: number = defaultTokenLifetimeDays,
+	now: Date = new Date(),
 ): Promise<string> {
 	const apiKey =
 		personalAccessTokenPrefix +
@@ -490,6 +545,7 @@ export async function issuePersonalAccessToken(
 				name,
 				external_id: await hashOf(apiKey),
 				permission,
+				settings: { expiresAt: expiryAfter(lifetimeDays, now) },
 			},
 			{ onConflict: 'member_id,kind,name' },
 		);
@@ -500,15 +556,20 @@ export async function issuePersonalAccessToken(
 export async function personalAccessTokens(client: SupabaseClient, memberID: string): Promise<PersonalAccessToken[]> {
 	const { data, error } = await client
 		.from('credential')
-		.select('name, permission')
+		.select('name, permission, settings')
 		.eq('member_id', memberID)
 		.eq('kind', personalAccessTokenCredentialKind)
 		.order('name');
 	if (error) throw new Error(`personal access tokens: ${error.message}`);
-	return (data ?? []).map((row) => ({
-		name: row.name as string,
-		permission: storedTokenPermission(row.permission),
-	}));
+	return (data ?? []).map((row) => {
+		const settings = storedTokenSettings(row.settings);
+		return {
+			name: row.name as string,
+			permission: storedTokenPermission(row.permission),
+			expiresAt: settings.expiresAt,
+			lastUsedAt: settings.lastUsedAt ?? null,
+		};
+	});
 }
 
 export async function forgetPersonalAccessToken(
@@ -537,10 +598,18 @@ export class TokenOwnerHasLeft extends Error {
 	}
 }
 
+export class TokenHasExpired extends Error {
+	constructor() {
+		super('this token has expired; make another by the same name to renew it');
+	}
+}
+
 type PersonalAccessTokenRow = {
+	id: string;
 	member_id: string;
 	permission: unknown;
 	name: string | null;
+	settings: unknown;
 	member: { status: string } | null;
 };
 
@@ -550,23 +619,41 @@ type PersonalAccessTokenRow = {
 export async function sessionForPersonalAccessToken(
 	credentials: SigningCredentials,
 	apiKey: string,
+	now: Date = new Date(),
 ): Promise<PersonalAccessTokenSession | null> {
 	const client = controlPlane(credentials);
 	const { data, error } = await client
 		.from('credential')
-		.select('member_id, permission, name, member(status)')
+		.select('id, member_id, permission, name, settings, member(status)')
 		.eq('kind', personalAccessTokenCredentialKind)
 		.eq('external_id', await hashOf(apiKey))
 		.maybeSingle<PersonalAccessTokenRow>();
 	if (error) throw new Error(`personal access token: ${error.message}`);
 	if (!data) return null;
+	const settings = storedTokenSettings(data.settings);
+	if (Date.parse(settings.expiresAt) <= now.getTime()) throw new TokenHasExpired();
 	if (hasLeftTheCompany(data.member?.status ?? '')) throw new TokenOwnerHasLeft();
+	await noteTokenUse(client, data.id, settings, now);
 	const session = await sessionForMember(credentials, data.member_id);
 	return {
 		...session,
 		permission: storedTokenPermission(data.permission),
 		tokenName: typeof data.name === 'string' ? data.name : '',
 	};
+}
+
+async function noteTokenUse(
+	client: SupabaseClient,
+	credentialID: string,
+	settings: TokenSettings,
+	now: Date,
+): Promise<void> {
+	if (!isLastSeenStale(settings.lastUsedAt ?? null, now.getTime())) return;
+	const { error } = await client
+		.from('credential')
+		.update({ settings: { ...settings, lastUsedAt: now.toISOString() } })
+		.eq('id', credentialID);
+	if (error) throw new Error(`personal access token: ${error.message}`);
 }
 
 export const fleetCredentialKind = 'fleet';

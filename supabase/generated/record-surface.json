@@ -551,6 +551,16 @@
       ]
     },
     {
+      "name": "member_is_below_me",
+      "arguments": "target_member uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "member_leave_days",
       "arguments": "target_member uuid",
       "returns": "numeric",
@@ -966,7 +976,6 @@
       "returns": "text",
       "security": "definer",
       "callableBy": [
-        "anon",
         "authenticated",
         "service_role"
       ]
@@ -996,10 +1005,12 @@
     "announce_task_write",
     "bind_member_to_new_user",
     "derive_task_status_from_dates",
+    "document_is_lowered_only_from_its_own_clearance",
     "enforce_crm_reference_consistency",
     "follow_children_completion",
     "guard_task_authority_shape",
     "guard_task_status_against_dates",
+    "leave_carries_the_terms_of_its_kind",
     "leave_granted_to_a_new_member",
     "leave_grants_restart_when_the_opening_rule_changes",
     "leave_stays_within_its_units",

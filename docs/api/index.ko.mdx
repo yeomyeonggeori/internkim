@@ -36,7 +36,7 @@ curl -X POST https://api.intern.kim/v1/token \
 ```
 
 ```json
-{ "name": "reporting script", "permission": "write", "token": "ik_..." }
+{ "name": "reporting script", "permission": "write", "expiresAt": "2027-01-01T09:00:00.000Z", "token": "ik_..." }
 ```
 
 `token`은 한 번만 답하고 기록에는 SHA-256 해시만 남습니다. 잃어버린 토큰은 되찾는 게
@@ -44,7 +44,12 @@ curl -X POST https://api.intern.kim/v1/token \
 높은 등급은 만들 수 없습니다. `name`도 생략할 수 있고, 그러면 아직 안 쓰인 첫 번째
 번호를 붙여 `pat-1`, `pat-2` 식으로 이름이 붙습니다.
 
-`GET /v1/tokens`만 복수입니다. 목록을 돌려주기 때문입니다. `POST /v1/token`이 하나를
+토큰은 만든 지 90일 뒤에 만료됩니다. `expiresInDays`에 1부터 365까지의 정수를 주면
+그 일수 뒤에 만료됩니다. 만료된 토큰으로 부르면 `401`로 답하고, 같은 이름으로 새로
+만들면 갱신됩니다.
+
+`GET /v1/tokens`는 구성원이 가진 토큰의 이름, 등급, 만료 시각, 마지막으로 쓰인 시각을
+나열하고, 유일하게 복수입니다. 목록을 돌려주기 때문입니다. `POST /v1/token`이 하나를
 만들고 `DELETE /v1/token?name=<name>`이 하나를 폐기합니다. 둘 다 언제나 토큰 하나만
 건드립니다.
 
