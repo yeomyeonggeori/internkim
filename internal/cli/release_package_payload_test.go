@@ -13,14 +13,20 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-// The skills build their own environment from the distribution's python3, so Depends
-// names it; the conversion environment is uv's, which is why no python3-venv is asked for.
-func TestThePackageAsksTheDistributionForPythonAndNoVenvModule(t *testing.T) {
-	depends := strings.Join(linuxPackageInformation(debianPackageFormat, packageTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
-	if !strings.Contains(depends, "python3") {
-		t.Fatalf("the package's Depends is %q and leaves the skills with no interpreter", depends)
+// The install step puts uv's CPython first on every service's PATH, and the skills
+// build their environments from that, so no format asks its distribution for a Python.
+func TestThePackageAsksTheDistributionForNoPython(t *testing.T) {
+	for _, format := range linuxPackageFormats() {
+		depends := strings.Join(linuxPackageInformation(format, packageTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
+		if strings.Contains(depends, "python") {
+			t.Fatalf("the %s package's Depends is %q and still asks the distribution for a Python", format.Name, depends)
+		}
 	}
-	for _, carried := range []string{"python3-venv", "fonts-nanum", "chromium"} {
+}
+
+func TestThePackageAsksTheDistributionForNothingItCarries(t *testing.T) {
+	depends := strings.Join(linuxPackageInformation(debianPackageFormat, packageTargets[0], "1.2.3", files.Contents{}, nfpm.Scripts{}).Depends, ", ")
+	for _, carried := range []string{"fonts-nanum", "chromium"} {
 		if strings.Contains(depends, carried) {
 			t.Fatalf("the package's Depends is %q and still asks the distribution for %s", depends, carried)
 		}
@@ -143,7 +149,7 @@ func TestThePostInstallBuildsTheConversionEnvironmentBeforeItRestartsTheServices
 	for _, format := range linuxPackageFormats() {
 		script := maintainerScript(format, postInstallScript)
 		restart := strings.Index(script, "systemctl restart")
-		for _, command := range blueclaw.LinuxCompanyHostLayout().DocumentEnvironmentCommands() {
+		for _, command := range blueclaw.LinuxCompanyHostLayout().PythonSetupCommands() {
 			position := strings.Index(script, shellWords(command.Arguments)+" || refuse")
 			if position < 0 || position > restart {
 				t.Fatalf("the %s postinst does not %s before it restarts the services:\n%s", format.Name, command.Purpose, script)
@@ -158,17 +164,17 @@ func TestAnEnvironmentTheInstallCannotFetchFailsTheInstallNamingIt(t *testing.T)
 	if errorValue := os.MkdirAll(layout.BinaryRoot, 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	unreachable := "#!/bin/sh\necho 'error: Failed to download cpython-" + blueclaw.DocumentInterpreterVersion + "' >&2\nexit 2\n"
+	unreachable := "#!/bin/sh\necho 'error: Failed to download cpython-" + blueclaw.HostPythonVersion + "' >&2\nexit 2\n"
 	if errorValue := os.WriteFile(layout.BinaryPath(blueclaw.PackageResolverName), []byte(unreachable), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	script := "set -e\nrefuse() {\n  echo \"internkim: $1\" >&2\n  exit 1\n}\n" + hostSetupLines(layout.DocumentEnvironmentCommands()) + "\necho reached-the-services\n"
+	script := "set -e\nrefuse() {\n  echo \"internkim: $1\" >&2\n  exit 1\n}\n" + hostSetupLines(layout.PythonSetupCommands()) + "\necho reached-the-services\n"
 	command := exec.Command("/bin/sh", "-c", script)
 	output, errorValue := command.CombinedOutput()
 	if errorValue == nil || strings.Contains(string(output), "reached-the-services") {
 		t.Fatalf("an install that could not fetch the interpreter carried on:\n%s", output)
 	}
-	for _, named := range []string{"Failed to download", "could not make " + layout.DocumentVirtualEnvironmentPath() + " on CPython " + blueclaw.DocumentInterpreterVersion} {
+	for _, named := range []string{"Failed to download", "could not install CPython " + blueclaw.HostPythonVersion} {
 		if !strings.Contains(string(output), named) {
 			t.Fatalf("the failed install does not say %q:\n%s", named, output)
 		}

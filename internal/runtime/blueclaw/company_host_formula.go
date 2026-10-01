@@ -166,7 +166,7 @@ func writeHomebrewInstallBlock(formula *strings.Builder) {
 	formula.WriteString("  end\n\n")
 
 	formula.WriteString("  def post_install\n")
-	for _, command := range MacCompanyHostLayout(homebrewPrefixInRuby).DocumentEnvironmentCommands() {
+	for _, command := range MacCompanyHostLayout(homebrewPrefixInRuby).PythonSetupCommands() {
 		formula.WriteString("    system " + rubyArguments(command.Arguments) + "\n")
 	}
 	formula.WriteString("  end\n\n")

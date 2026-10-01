@@ -80,12 +80,8 @@ func companyHostLaunchDaemon(layout CompanyHostLayout, service CompanyHostServic
 	if errorValue != nil {
 		return CompanyHostLaunchDaemon{}, errorValue
 	}
-	// launchd starts a daemon with /usr/bin:/bin:/usr/sbin:/sbin and nothing
-	// else, so psql, redis-cli, git, jq, bun and uv are all absent from a
-	// service that shells out to them. systemd's default is no better; it costs
-	// nothing on Linux because everything the bundle runs is in /usr/bin.
-	if _, isSet := environment["PATH"]; !isSet && layout.SearchPath != "" {
-		environment["PATH"] = layout.SearchPath
+	if _, isSet := environment["PATH"]; !isSet {
+		environment["PATH"] = layout.SearchPath()
 	}
 	command, errorValue := resolveCommandReferences(service, environment)
 	if errorValue != nil {

@@ -79,8 +79,11 @@ COPY host/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY tools/render-company-runtime /usr/local/bin/render-company-runtime
 COPY host/runtime.template.json /opt/internkim/runtime.template.json
 
-RUN env UV_PYTHON_INSTALL_DIR=/opt/internkim/python uv --no-cache venv --clear --managed-python --python 3.13.13 /opt/internkim/document-venv \
+RUN env UV_PYTHON_INSTALL_DIR=/opt/internkim/python UV_PYTHON_BIN_DIR=/opt/internkim/python/bin uv --no-cache python install --default --preview-features python-install-default 3.12.13 \
+	&& uv --no-cache venv --clear --no-python-downloads --python /opt/internkim/python/bin/python3 /opt/internkim/document-venv \
 	&& uv --no-cache pip sync --require-hashes --no-build --python /opt/internkim/document-venv/bin/python /opt/internkim/document-conversion/requirements.txt
+
+ENV PATH=/opt/internkim/python/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # entrypoint.sh calls these by name; a wrapper keeps the script free of paths.
 RUN printf '#!/bin/sh\nexec bun run /opt/blueclaw-workspace/chatd/src/main.ts "$@"\n' > /usr/local/bin/chatd \

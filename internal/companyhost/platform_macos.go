@@ -313,8 +313,10 @@ func (macPlatform) HowToInstallTheseByHand(machine Machine, missing []missingPie
 	return append(lines, sortedAndUnique(unavailable)...)
 }
 
-func (macPlatform) CarriesItInThePackage(blueclaw.HostDependency) bool {
-	return false
+// The keg carries what the Linux packages carry, except what the Mac already
+// keeps in a place of its own, such as the system's Hangul face.
+func (macPlatform) CarriesItInThePackage(dependency blueclaw.HostDependency) bool {
+	return dependency.WhatThePackageCarriesInstead != "" && len(dependency.MacFilePathCandidates) == 0
 }
 
 func (macPlatform) WhereToLookFor(dependency blueclaw.HostDependency) []string {
