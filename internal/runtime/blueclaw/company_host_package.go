@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// The company host installed by a package manager is the same set of processes host/entrypoint.sh
-// starts, supervised by systemd instead of by a shell. It is not the device, and four
-// of the seven services differ from their device units in ways no argument bridges:
+// The company host installed by a package manager is the relay, capabilityd, blueclaw,
+// admind, maild and chatd, supervised by systemd. It is not the device, and four of
+// those services differ from their device units in ways no argument bridges:
 // blueclaw runs its own binary here and a Cloud Hypervisor guest there, capabilityd is
 // reached over a unix socket here and a vsock there, admind carries the central plane's
 // addresses here and none there, and a package may not write /usr/local, so every path moves
@@ -94,8 +94,8 @@ const (
 	// it, in the company directory, because a package manager keeps a conffile readable.
 	CompanyHostSettingsPath = "/etc/internkim/company-host.env"
 
-	// An override the container reads from /etc/blueclaw keeps the same meaning
-	// here: present, it wins over the rendered template; absent, nothing happens.
+	// An operator's own runtime document or roster, placed here, wins over the
+	// rendered template and the empty roster; absent, nothing happens.
 	CompanyHostRuntimeOverridePath = "/etc/internkim/runtime.json"
 	CompanyHostPolicyOverridePath  = "/etc/internkim/policy.json"
 
@@ -331,10 +331,10 @@ func CompanyHostSettingsFile() string {
 	}, "\n")
 }
 
-// CompanyHostPrepareScript is the part of host/entrypoint.sh systemd does not take
-// over: the runtime document, the roster the agent starts from, and staging the two
+// CompanyHostPrepareScript is what runs once before the services start: it writes
+// the runtime document and the roster the agent starts from, and stages the two
 // private files the unprivileged blueclaw user has to read out of a directory only
-// root can open. Everything after it in that script is a process systemd supervises.
+// root can open. Everything else is a process systemd supervises.
 //
 // It is rendered here rather than kept as a file of its own so the paths it touches
 // are the same constants the units name.

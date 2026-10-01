@@ -31,8 +31,7 @@ test('the agent on the plane can see every skill it can run, and no other', asyn
 		for (const skillName of ['internkim-task', 'office']) {
 			expect(
 				names,
-				`the plane shipped no ${skillName}: host/Dockerfile copies binaries only and the ` +
-					`workspace volume is empty, so the agent answers every request without it`
+				`the plane shipped no ${skillName}, so the agent answers every request without it`
 			).toContain(skillName);
 		}
 		expect(new Set(names).size, `a skill read once per instruction root is in the prompt twice`).toBe(

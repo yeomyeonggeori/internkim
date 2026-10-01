@@ -39,7 +39,7 @@ func placeStubPrograms(t *testing.T, directory string, names []string) {
 func whatTheOperatingSystemProvides() []string {
 	programs := []string{}
 	for _, dependency := range blueclaw.HostDependencies() {
-		if dependency.ArrivesAsPayload || dependency.OnlyTheImageEntrypointRuns() {
+		if dependency.ArrivesAsPayload {
 			continue
 		}
 		programs = append(programs, dependency.ProgramsTheHostRuns...)

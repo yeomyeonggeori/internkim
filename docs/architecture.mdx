@@ -153,8 +153,8 @@ and tells browsers whether the company's computer has a live connection.
 
 ## The processes on the host
 
-`host/entrypoint.sh` starts these, in the order
-[Running the host](/docs/running-the-host) explains.
+The package registers each as its own service with systemd or launchd;
+[Running the host](/docs/running-the-host) shows how to check them.
 
 | Process | Answers on | Job | Code |
 |---|---|---|---|
@@ -311,8 +311,8 @@ The diagram puts it outside the host, which is one of three places it can be.
 
 The last row is ordinary. A company that runs its own Buzz relay
 often runs it on the machine already kept awake for the agent, and the
-connector reaches it over loopback; `host/buzz/` is a compose file that brings
-the Buzz stack up exactly there. Because the chat screen always goes through
+connector reaches it over loopback; the package runs the Buzz stack exactly
+there, as `buzz-relay` and `buzz-media`. Because the chat screen always goes through
 the relay, one screen works wherever the messenger lives, and the
 conversation is never written centrally: the relay sends back only the answer
 to the call it was asked.

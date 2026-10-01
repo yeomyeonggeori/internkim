@@ -134,8 +134,8 @@ func TestTheOperatorSettingsFileIsReadLast(t *testing.T) {
 	}
 }
 
-// The preparation script is the half of host/entrypoint.sh systemd does not take over.
-// It must refuse rather than leave a box whose agent has no identity to act with.
+// The preparation script must refuse rather than leave a box whose agent has no
+// identity to act with.
 func TestThePreparationScriptRefusesWithoutACompany(t *testing.T) {
 	script := CompanyHostPrepareScript()
 	if !strings.Contains(script, "set -e") {

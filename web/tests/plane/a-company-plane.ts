@@ -422,8 +422,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		droppableDatabase = databaseName;
 		const blueclawDatabaseURL = databaseURLFor(databaseName);
 
-		// The same renderer the container calls. A sandbox that writes its own
-		// runtime document proves nothing about the one a company runs on.
+		// The same renderer the package's prepare script calls. A plane that writes
+		// its own runtime document proves nothing about the one a company runs on.
 		const runtimeConfigurationPath = join(runDirectory, 'runtime.json');
 		const policyPath = join(runDirectory, 'policy.json');
 		// blueclaw starts with nobody in it, exactly as internkim-prepare writes it

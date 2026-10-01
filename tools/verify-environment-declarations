@@ -244,7 +244,7 @@ def shell_reads(relative_path, text):
 
 
 def is_shell_suffixed_path(relative_path):
-    return relative_path.suffix == ".sh" or str(relative_path) == "host/entrypoint.sh"
+    return relative_path.suffix == ".sh"
 
 
 def is_tools_path(relative_path):

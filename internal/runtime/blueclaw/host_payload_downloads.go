@@ -16,13 +16,6 @@ import (
 // both directions, because a program declared and not pinned ships a package
 // `internkim install` refuses at its first check.
 //
-// They used to live in host/Dockerfile, which is the only place that could hold them
-// while the image was the only thing that installed them. A .deb cannot read a
-// Dockerfile and neither can the device's provisioning step, so the pin is raised here
-// and the Dockerfile is held to it by TestTheHostImagePinsWhatTheDeclarationPins. Bump
-// a version here; the image that has not followed fails rather than building an image
-// carrying a different binary than the package does.
-//
 // `tools/verify-vendored-downloads` reads this file for the URLs it probes, so a
 // release whose upstream has withdrawn a file is found before a box is.
 type HostPayloadDownload struct {
@@ -32,11 +25,6 @@ type HostPayloadDownload struct {
 	SHA256      string
 	// PathInsideArchive is empty when the download is the program itself.
 	PathInsideArchive string
-	// DockerfileVersionArgument and DockerfileChecksumVariable are what
-	// host/Dockerfile calls this pin, which is what lets one test read the image
-	// in both directions rather than trusting that it was updated too.
-	DockerfileVersionArgument  string
-	DockerfileChecksumVariable string
 }
 
 const (
@@ -97,37 +85,31 @@ var hostPayloadDownloadsByTarget = map[string][]HostPayloadDownload{
 
 func deviceBrowserPayload(targetTriple string, checksum string) HostPayloadDownload {
 	return HostPayloadDownload{
-		ProgramName:                DeviceBrowserName,
-		Version:                    deviceBrowserVersion,
-		URL:                        "https://github.com/lexmount/moli/releases/download/v" + deviceBrowserVersion + "/moli-" + targetTriple + ".tar.gz",
-		SHA256:                     checksum,
-		PathInsideArchive:          "moli-v" + deviceBrowserVersion + "-" + targetTriple + "/moli",
-		DockerfileVersionArgument:  "MOLI_VERSION",
-		DockerfileChecksumVariable: "moliSHA256",
+		ProgramName:       DeviceBrowserName,
+		Version:           deviceBrowserVersion,
+		URL:               "https://github.com/lexmount/moli/releases/download/v" + deviceBrowserVersion + "/moli-" + targetTriple + ".tar.gz",
+		SHA256:            checksum,
+		PathInsideArchive: "moli-v" + deviceBrowserVersion + "-" + targetTriple + "/moli",
 	}
 }
 
 func agentBrowserPayload(assetName string, checksum string) HostPayloadDownload {
 	return HostPayloadDownload{
-		ProgramName:                AgentBrowserName,
-		Version:                    agentBrowserVersion,
-		URL:                        "https://github.com/vercel-labs/agent-browser/releases/download/v" + agentBrowserVersion + "/" + assetName,
-		SHA256:                     checksum,
-		DockerfileVersionArgument:  "AGENT_BROWSER_VERSION",
-		DockerfileChecksumVariable: "agentBrowserSHA256",
+		ProgramName: AgentBrowserName,
+		Version:     agentBrowserVersion,
+		URL:         "https://github.com/vercel-labs/agent-browser/releases/download/v" + agentBrowserVersion + "/" + assetName,
+		SHA256:      checksum,
 	}
 }
 
 func mediaServerPayload(operatingSystem string, releaseTarget string, checksum string) HostPayloadDownload {
 	assetName := fmt.Sprintf("versitygw_v%s_%s_%s.tar.gz", BuzzMediaVersion, operatingSystem, releaseTarget)
 	return HostPayloadDownload{
-		ProgramName:                BuzzMediaProgramName,
-		Version:                    BuzzMediaVersion,
-		URL:                        "https://github.com/versity/versitygw/releases/download/v" + BuzzMediaVersion + "/" + assetName,
-		SHA256:                     checksum,
-		PathInsideArchive:          strings.TrimSuffix(assetName, ".tar.gz") + "/" + BuzzMediaProgramName,
-		DockerfileVersionArgument:  "VERSITYGW_VERSION",
-		DockerfileChecksumVariable: "versitygwSHA256",
+		ProgramName:       BuzzMediaProgramName,
+		Version:           BuzzMediaVersion,
+		URL:               "https://github.com/versity/versitygw/releases/download/v" + BuzzMediaVersion + "/" + assetName,
+		SHA256:            checksum,
+		PathInsideArchive: strings.TrimSuffix(assetName, ".tar.gz") + "/" + BuzzMediaProgramName,
 	}
 }
 
@@ -136,26 +118,22 @@ func mediaServerPayload(operatingSystem string, releaseTarget string, checksum s
 func bunPayload(platformName string, checksum string) HostPayloadDownload {
 	assetName := "bun-" + platformName + ".zip"
 	return HostPayloadDownload{
-		ProgramName:                BunProgramName,
-		Version:                    bunVersion,
-		URL:                        "https://github.com/oven-sh/bun/releases/download/bun-v" + bunVersion + "/" + assetName,
-		SHA256:                     checksum,
-		PathInsideArchive:          strings.TrimSuffix(assetName, ".zip") + "/" + BunProgramName,
-		DockerfileVersionArgument:  "BUN_VERSION",
-		DockerfileChecksumVariable: "bunSHA256",
+		ProgramName:       BunProgramName,
+		Version:           bunVersion,
+		URL:               "https://github.com/oven-sh/bun/releases/download/bun-v" + bunVersion + "/" + assetName,
+		SHA256:            checksum,
+		PathInsideArchive: strings.TrimSuffix(assetName, ".zip") + "/" + BunProgramName,
 	}
 }
 
 // uv's tarball carries uvx beside uv; the package installs the one the skills run.
 func packageResolverPayload(targetTriple string, checksum string) HostPayloadDownload {
 	return HostPayloadDownload{
-		ProgramName:                PackageResolverName,
-		Version:                    uvVersion,
-		URL:                        "https://github.com/astral-sh/uv/releases/download/" + uvVersion + "/uv-" + targetTriple + ".tar.gz",
-		SHA256:                     checksum,
-		PathInsideArchive:          "uv-" + targetTriple + "/" + PackageResolverName,
-		DockerfileVersionArgument:  "UV_VERSION",
-		DockerfileChecksumVariable: "uvSHA256",
+		ProgramName:       PackageResolverName,
+		Version:           uvVersion,
+		URL:               "https://github.com/astral-sh/uv/releases/download/" + uvVersion + "/uv-" + targetTriple + ".tar.gz",
+		SHA256:            checksum,
+		PathInsideArchive: "uv-" + targetTriple + "/" + PackageResolverName,
 	}
 }
 

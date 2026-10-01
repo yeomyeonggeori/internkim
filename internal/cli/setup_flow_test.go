@@ -15,6 +15,7 @@ import (
 
 	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
 	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
@@ -306,31 +307,27 @@ func TestRequiredBinaryAssetsIncludePocketBase(t *testing.T) {
 	}
 }
 
-func TestHostBundlePinsTheBrowserReleasesDeviceSetupInstalls(t *testing.T) {
-	dockerfile, errorValue := os.ReadFile(filepath.Join("..", "..", "host", "Dockerfile"))
+func TestThePackagePinsTheBrowserReleasesDeviceSetupInstalls(t *testing.T) {
+	pins, errorValue := blueclaw.HostPayloadDownloads("arm64")
 	if errorValue != nil {
-		t.Fatalf("read host Dockerfile: %v", errorValue)
+		t.Fatal(errorValue)
 	}
 	state := &setupFlowState{boardBinDir: t.TempDir()}
-	for _, pin := range []struct{ argument, assetName string }{{"MOLI_VERSION", "moli"}, {"AGENT_BROWSER_VERSION", "agent-browser"}} {
-		version := dockerfileArgumentValue(string(dockerfile), pin.argument)
-		if version == "" {
-			t.Fatalf("host Dockerfile declares no ARG %s", pin.argument)
+	for _, programName := range []string{blueclaw.DeviceBrowserName, blueclaw.AgentBrowserName} {
+		packageURL := ""
+		for _, pin := range pins {
+			if pin.ProgramName == programName {
+				packageURL = pin.URL
+			}
 		}
-		downloadURL := binaryAssetDownloadURL(state.requiredBinaryAssets(), pin.assetName)
-		if !strings.Contains(downloadURL, "/v"+version+"/") {
-			t.Fatalf("host bundle pins %s %s but device setup downloads %s", pin.assetName, version, downloadURL)
+		if packageURL == "" {
+			t.Fatalf("the package pins no %s for arm64", programName)
 		}
-	}
-}
-
-func dockerfileArgumentValue(dockerfile string, argument string) string {
-	for _, line := range strings.Split(dockerfile, "\n") {
-		if value, isDeclared := strings.CutPrefix(strings.TrimSpace(line), "ARG "+argument+"="); isDeclared {
-			return strings.TrimSpace(value)
+		deviceURL := binaryAssetDownloadURL(state.requiredBinaryAssets(), programName)
+		if deviceURL != packageURL {
+			t.Fatalf("the package downloads %s from %s but device setup downloads %s", programName, packageURL, deviceURL)
 		}
 	}
-	return ""
 }
 
 func binaryAssetDownloadURL(assets []localBinaryAsset, name string) string {

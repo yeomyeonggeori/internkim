@@ -344,7 +344,7 @@ and delete the duplicates.
 - Anything on the company plane — a message tool, the public API, how a daemon is
   started or what it is told — goes through `./internkim dev plane` first. It runs
   the bring-up in a disposable Linux Local Fleet with the real POSIX helper and
-  the same `tools/render-company-runtime` used by `host/entrypoint.sh`, so a plane
+  the same `tools/render-company-runtime` the package's prepare step runs, so a plane
   that is wired wrong fails under its filesystem and process identity rules.
   The run keeps memory facts in its isolated guest database
   and workspace, and removes them with the fleet.
