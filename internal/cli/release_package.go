@@ -72,9 +72,13 @@ type releaseFormats struct {
 
 const homebrewFormatName = "homebrew"
 
+func everyReleaseFormat() releaseFormats {
+	return releaseFormats{Linux: linuxPackageFormats(), Homebrew: true}
+}
+
 func releaseFormatsNamed(requested string) (releaseFormats, error) {
 	if requested == "" {
-		return releaseFormats{Linux: linuxPackageFormats(), Homebrew: true}, nil
+		return everyReleaseFormat(), nil
 	}
 	chosen := releaseFormats{}
 	for _, name := range strings.Split(requested, ",") {

@@ -63,11 +63,7 @@ func runReleaseHost(arguments []string) error {
 		return errorValue
 	}
 	defer os.RemoveAll(directory)
-	everyFormat, errorValue := releaseFormatsNamed("")
-	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := buildHostRelease(repositoryRootPath, packageTargets, version, directory, everyFormat, os.Stdout); errorValue != nil {
+	if errorValue := buildHostRelease(repositoryRootPath, packageTargets, version, directory, everyReleaseFormat(), os.Stdout); errorValue != nil {
 		return errorValue
 	}
 	return createHostRelease(version, gitRevision(repositoryRootPath), channel, directory, os.Stdout)
