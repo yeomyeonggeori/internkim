@@ -3,7 +3,7 @@ title: Agent workflow
 ---
 
 For filing, extract text and call `company_document_classify`. One Jev
-request judges two halves of the company's intermediate categories, each
+request judges two groups of categories without children, each
 with an `other` option. Parent categories declare their semantic group in
 the template; children inherit it. One category wins directly; two category answers
 are compared by their selected-option probabilities. Two `other` answers

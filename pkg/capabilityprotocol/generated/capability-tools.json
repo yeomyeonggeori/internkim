@@ -12743,8 +12743,8 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact intermediate category code from company_dataroom_get, such as FS (financial statements), FP (payroll), or X (unclassified). Choose by the document's business function, not its format or intended audience. Use X when the context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
-            "pattern": "^(?:[A-Z]{2}|X)$",
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
           "clearance": {
@@ -12824,8 +12824,8 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact intermediate category code from company_dataroom_get, such as FS (financial statements), FP (payroll), or X (unclassified). Choose by the document's business function, not its format or intended audience. Use X when the context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
-            "pattern": "^(?:[A-Z]{2}|X)$",
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
           "clearance": {
@@ -13997,8 +13997,8 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact intermediate category code from company_dataroom_get, such as FS (financial statements), FP (payroll), or X (unclassified). Choose by the document's business function, not its format or intended audience. Use X when the context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
-            "pattern": "^(?:[A-Z]{2}|X)$",
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
           "clearance": {
@@ -14066,8 +14066,8 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact intermediate category code from company_dataroom_get, such as FS (financial statements), FP (payroll), or X (unclassified). Choose by the document's business function, not its format or intended audience. Use X when the context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
-            "pattern": "^(?:[A-Z]{2}|X)$",
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
           "clearance": {
@@ -14657,8 +14657,8 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "The exact filing category code or X. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
-            "pattern": "^(?:[A-Z]{2}|X)$",
+            "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
+            "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
           "clearance": {
@@ -14683,8 +14683,8 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "The exact filing category code or X. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
-            "pattern": "^(?:[A-Z]{2}|X)$",
+            "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
+            "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
           "clearance": {
@@ -17085,7 +17085,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_classify",
-      "description": "Classify a document against the company data room taxonomy in one model request. Supply its title and extracted text or a factual summary. The result is an exact permitted intermediate category code, or X when ambiguous. Classify before uploading and registering a new document.",
+      "description": "Classify a document against the company data room taxonomy in one model request. Supply its title and extracted text or a factual summary. The result is an exact permitted leaf category code, including a parent without children, or X when ambiguous. Parents with children are never choices. Classify before uploading and registering a new document.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,

@@ -22,7 +22,7 @@ const dataRoomDomainSchema = z.string().describe("Legacy filing domain, preserve
 const dataRoomSha256Schema = z.string().describe("Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.");
 
 const dataRoomDocumentFields = {
-  categoryCode: z.string().regex(/^(?:[A-Z]{2}|X)$/).describe("Exact intermediate category code from company_dataroom_get, such as FS (financial statements), FP (payroll), or X (unclassified). Choose by the document's business function, not its format or intended audience. Use X when the context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.").optional(),
+  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.").optional(),
   clearance: dataRoomClearanceSchema.describe("Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.").optional(),
   date: z.string().describe("The date the document speaks from, in YYYY-MM-DD format.").optional(),
   domain: dataRoomDomainSchema.optional(),
@@ -73,7 +73,7 @@ const companyDocumentUpdateInputSchema = z.strictObject({
 const companyDocumentUpdateInputIntentSchema = companyDocumentUpdateInputSchema.omit({ documentHint: true }).partial();
 
 const companyDocumentUploadInputSchema = z.strictObject({
-  categoryCode: z.string().regex(/^(?:[A-Z]{2}|X)$/).describe("The exact filing category code or X. Files and their document must use the same category. Existing recipients of this category can read new registered files.").optional(),
+  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.").optional(),
   clearance: dataRoomClearanceSchema.describe("Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.").optional(),
   fileName: z.string().describe("Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.").optional(),
   sha256: dataRoomSha256Schema,

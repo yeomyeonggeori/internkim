@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(37);
 
 insert into auth.users (id, email, email_confirmed_at) values
   ('62000000-0000-0000-0000-000000000001', 'data-admin@example.com', now()),
@@ -108,6 +108,21 @@ select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-0000000
 select public.data_room_share_accept(:'new_guest_share');
 select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a',64) || '/content.txt'), 'reclassification protects the old object path');
 select ok(not public.data_room_may_read('62000000-0000-0000-0000-000000000010', 'HA'), 'reclassification does not retain old category grants');
+
+select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
+insert into public.data_room_category (company_id, code, slug, name)
+values ('62000000-0000-0000-0000-000000000010', 'Z', 'sample', 'Sample');
+select ok(public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/Z/' || repeat('b',64)), 'a parent without children accepts uploads');
+select ok(not public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/F/' || repeat('b',64)), 'a parent with children refuses uploads');
+select lives_ok($$insert into public.company_document (company_id, document_type, title, category_code)
+  values ('62000000-0000-0000-0000-000000000010', 'report', 'Sample leaf', 'Z')$$, 'a parent without children accepts documents');
+select throws_ok($$insert into public.company_document (company_id, document_type, title, category_code)
+  values ('62000000-0000-0000-000000000010', 'report', 'Sample branch', 'F')$$,
+  '22023', 'file a document in a category without children', 'a parent with children refuses documents');
+insert into public.data_room_category (company_id, code, parent, slug, name)
+values ('62000000-0000-0000-0000-000000000010', 'ZA', 'Z', 'child', 'Sample child');
+select ok(not public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/Z/' || repeat('b',64)), 'adding a child removes the parent as an upload destination');
+select ok(public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/ZA/' || repeat('b',64)), 'the new child accepts uploads');
 
 select * from finish();
 rollback;

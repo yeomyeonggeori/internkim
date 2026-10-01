@@ -28,7 +28,8 @@ export const dataRoomTemplate = z.strictObject({
 }).parse(defaultTemplate);
 
 export function filingCategories(categories: DataRoomCategory[]): DataRoomCategory[] {
-	return categories.filter((category) => category.parent !== null || category.code === 'X');
+	const parentCodes = new Set(categories.map((category) => category.parent));
+	return categories.filter((category) => !parentCodes.has(category.code));
 }
 
 export function normalizeCategoryGrants(codes: string[], categories: DataRoomCategory[]): string[] | undefined {

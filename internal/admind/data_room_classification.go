@@ -97,7 +97,11 @@ func dataRoomChoiceGroups(categories []centralplane.DataRoomCategory) map[int][]
 	}
 	groups := make(map[int][]centralplane.DataRoomCategory)
 	for _, category := range dataRoomFilingCategories(categories) {
-		group := parents[*category.Parent]
+		parentCode := category.Code
+		if category.Parent != nil {
+			parentCode = *category.Parent
+		}
+		group := parents[parentCode]
 		groups[group] = append(groups[group], category)
 	}
 	return groups
@@ -112,9 +116,15 @@ func dataRoomChoiceQuestion(categories []centralplane.DataRoomCategory) llmbacke
 }
 
 func dataRoomFilingCategories(categories []centralplane.DataRoomCategory) []centralplane.DataRoomCategory {
-	filing := make([]centralplane.DataRoomCategory, 0, len(categories))
+	parents := make(map[string]bool)
 	for _, category := range categories {
 		if category.Parent != nil {
+			parents[*category.Parent] = true
+		}
+	}
+	filing := make([]centralplane.DataRoomCategory, 0, len(categories))
+	for _, category := range categories {
+		if category.Code != "X" && !parents[category.Code] {
 			filing = append(filing, category)
 		}
 	}

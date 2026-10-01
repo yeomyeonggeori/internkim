@@ -28,8 +28,8 @@ def template_reference(template, language="en", is_document=False):
     is_korean = language == "ko"
     title = "분류와 기본 역할" if is_korean else "Categories and default roles"
     lines = ["---", f"title: {title}", "---", ""] if is_document else []
-    lines += ["문서는 업무 목적에 따라 중분류 또는 X에 보관합니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다." if is_korean
-              else "File by business function in an intermediate category or X. A parent grant includes current and future children.", "",
+    lines += ["문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다." if is_korean
+              else "File by business function in a category without children or X. A parent without children is a filing destination. A parent grant includes current and future children.", "",
               "| Code | Category | Parent | Scope |", "|---|---|---|---|"]
     for category in template["categories"]:
         name = category["nameKO"] if is_korean else category["name"]

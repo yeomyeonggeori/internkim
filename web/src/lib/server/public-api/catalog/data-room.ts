@@ -48,7 +48,7 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 	{
 		name: 'company_document_classify', namespace: 'company', answeredBy: CapabilityAnsweredBy.Company,
 		privacyClass: 'workspace_company', policyResource: 'tool:company_document_classify', version: '1',
-		description: 'Classify a document against the company data room taxonomy in one model request. Supply its title and extracted text or a factual summary. The result is an exact permitted intermediate category code, or X when ambiguous. Classify before uploading and registering a new document.',
+		description: 'Classify a document against the company data room taxonomy in one model request. Supply its title and extracted text or a factual summary. The result is an exact permitted leaf category code, including a parent without children, or X when ambiguous. Parents with children are never choices. Classify before uploading and registering a new document.',
 		estimatedLatency: CapabilityEstimatedLatency.Medium,
 		inputSchema: z.strictObject({ title: z.string().min(1), text: z.string().max(100000) }),
 		result: { schema: z.strictObject({ categoryCode: z.string().regex(/^[A-Z]{1,2}$/) }), effects: [] },

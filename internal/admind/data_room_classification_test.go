@@ -73,6 +73,24 @@ func TestDataRoomClassificationOffersEveryFilingCategoryOnceWithinChoiceLimits(t
 	}
 }
 
+func TestDataRoomClassificationOffersParentsOnlyWithoutChildren(t *testing.T) {
+	categories := defaultDataRoomCategories(t)
+	withoutFinanceChildren := make([]centralplane.DataRoomCategory, 0, len(categories))
+	for _, category := range categories {
+		if category.Parent == nil || *category.Parent != "F" {
+			withoutFinanceChildren = append(withoutFinanceChildren, category)
+		}
+	}
+	questions := dataRoomClassificationQuestions(withoutFinanceChildren)
+	if optionsOf(t, questions["group1part1"])["F"] == "" {
+		t.Fatal("finance without children must be a filing choice in its own semantic group")
+	}
+	questions = dataRoomClassificationQuestions(categories)
+	if optionsOf(t, questions["group1part1"])["F"] != "" {
+		t.Fatal("finance with children must not be a filing choice")
+	}
+}
+
 func TestDataRoomClassificationSelectsTheHigherProbabilityAndKeepsTiesInTheInbox(t *testing.T) {
 	questions := map[string]llmbackend.DecisionQuestion{
 		"partition1": llmbackend.ChoiceQuestion("first", map[string]string{"FS": "Statements", "other": "Other"}),

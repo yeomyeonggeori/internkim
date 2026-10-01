@@ -16,7 +16,7 @@ describe('the company data room template', () => {
 		}
 	});
 
-	test('filing choices include the inbox and exclude business parents', () => {
+	test('filing choices include the inbox and exclude parents with children', () => {
 		const choices = filingCategories(dataRoomTemplate.categories);
 		expect(choices).toHaveLength(38);
 		expect(choices.some((category) => category.code === 'X')).toBe(true);
@@ -26,6 +26,13 @@ describe('the company data room template', () => {
 	test('unknown codes are refused instead of silently removed', () => {
 		expect(normalizeCategoryGrants(['F', 'FS', 'F'], dataRoomTemplate.categories)).toEqual(['F']);
 		expect(normalizeCategoryGrants(['missing'], dataRoomTemplate.categories)).toBeUndefined();
+	});
+
+	test('a parent is a filing destination only while it has no children', () => {
+		const categories = dataRoomTemplate.categories;
+		const withoutFinanceChildren = categories.filter((category) => category.parent !== 'F');
+		expect(filingCategories(withoutFinanceChildren).some((category) => category.code === 'F')).toBe(true);
+		expect(filingCategories(categories).some((category) => category.code === 'F')).toBe(false);
 	});
 
 	test('database initialization and the portable skill derive from the same source', () => {
