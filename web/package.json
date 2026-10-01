@@ -50,6 +50,7 @@
 		"@types/bun": "^1.3.14",
 		"@types/node": "^25.0.0",
 		"emoji-datasource": "^16.0.0",
+		"happy-dom": "^20.14.5",
 		"jsrepo": "^3.7.0",
 		"layerchart": "2.0.0-next.48",
 		"mode-watcher": "^1.1.0",
