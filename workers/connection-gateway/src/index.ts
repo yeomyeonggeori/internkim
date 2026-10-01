@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { JSONWebKeyCache, TokenRefused, resolveMember, verifyToken } from './identity';
+import { JSONWebKeyCache, TokenRefused, companyOfHost, resolveMember, verifyToken } from './identity';
 import {
 	CallLedger,
 	WaitingCalls,
@@ -103,6 +103,9 @@ async function joinAsHost(
 		);
 		if (claims.hostCompanyID !== companyID) {
 			return jsonResponse({ error: 'this token is not the company host' }, 403);
+		}
+		if ((await companyOfHost(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, token)) !== companyID) {
+			return jsonResponse({ error: 'this computer is no longer the company host' }, 403);
 		}
 		return connectionFor(environment, companyID).fetch(
 			new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/host-session`, {

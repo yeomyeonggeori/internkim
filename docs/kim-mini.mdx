@@ -52,7 +52,10 @@ also logs each code, and `sudo internkim box code` prints the current one.
 
 Disconnect in company setup undoes a claim. The box belongs to no company again,
 announces itself, is given a new code and reopens its page. The session it
-already holds ends within the hour.
+already holds is refused from that moment, by the record, the web app and the
+gateway alike, because a host session names the box it was issued to and holds
+only while that box is the company's. Claiming another box ends the first one's
+session the same way.
 
 ## The box's identity replaces the agent key
 

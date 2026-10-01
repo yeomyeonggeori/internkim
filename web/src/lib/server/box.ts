@@ -354,7 +354,7 @@ export async function boxSessionFor(
 	await writeBoxSettings(client, box, { ...box.settings, lastSeenAt: new Date().toISOString() });
 	return {
 		configuration: await boxConfigurationOf(client, companyID, environment, appURL),
-		session: await hostSessionOfCompany(credentials, companyID),
+		session: await hostSessionOfCompany(credentials, companyID, { fleetID: publicKey }),
 		sealedModelKey: box.settings.sealedModelKey ?? null
 	};
 }

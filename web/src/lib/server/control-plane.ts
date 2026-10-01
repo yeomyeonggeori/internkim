@@ -794,7 +794,7 @@ export async function hashOf(secret: string): Promise<string> {
 }
 
 export async function sessionForPlatformIdentity(
-	credentials: SigningCredentials,
+	credentials: PlaneCredentials,
 	apiKey: string,
 	kind: string,
 	externalID: string,
@@ -829,31 +829,39 @@ function isHostAddress(address: string): boolean {
 }
 
 export async function sessionForHost(
-	credentials: SigningCredentials,
+	credentials: PlaneCredentials,
 	presented: string,
 ): Promise<HostSession> {
 	if (presented.split('.').length === 3) return presentedHostSession(credentials, presented);
 	const agent = await agentOfKey(controlPlane(credentials), presented);
 	if (!agent) throw new Error('that key belongs to no agent');
-	return hostSessionOfCompany(credentials, agent.companyID);
+	return hostSessionOfCompany(credentials, agent.companyID, { agentKeyHash: await hashOf(presented) });
 }
 
-async function presentedHostSession(credentials: SigningCredentials, accessToken: string): Promise<HostSession> {
+async function presentedHostSession(credentials: PlaneCredentials, accessToken: string): Promise<HostSession> {
 	const session = await verifiedHostSession(credentials, accessToken);
 	if (!session) throw new Error('that session belongs to no company computer');
 	return session;
 }
 
+type HostComputer = { fleetID: string } | { agentKeyHash: string };
+
+function claimsNaming(computer: HostComputer): Record<string, string> {
+	if ('fleetID' in computer) return { fleet_id: computer.fleetID };
+	return { agent_key_hash: computer.agentKeyHash };
+}
+
 export async function hostSessionOfCompany(
 	credentials: SigningCredentials,
 	companyID: string,
+	computer: HostComputer,
 ): Promise<HostSession> {
 	const address = hostAddressOf(companyID);
 	const userID = await keepHostAccount(controlPlane(credentials), address, companyID);
 	const token = await recordTokenFor(credentials.signingKey, credentials.projectURL, {
 		userID,
 		email: address,
-		appMetadata: { company_id: companyID },
+		appMetadata: { company_id: companyID, ...claimsNaming(computer) },
 	});
 	return { companyID, ...token };
 }
@@ -865,7 +873,7 @@ const hostSessionClaimsSchema = z.object({
 });
 
 async function verifiedHostSession(
-	credentials: SigningCredentials,
+	credentials: PlaneCredentials,
 	accessToken: string,
 ): Promise<HostSession | null> {
 	const payload = await verifiedRecordToken(credentials.signingKey, credentials.projectURL, accessToken);
@@ -873,18 +881,25 @@ async function verifiedHostSession(
 	if (!claims.success) return null;
 	const companyID = claims.data.app_metadata.company_id;
 	if (claims.data.email !== hostAddressOf(companyID)) return null;
+	if ((await companyTheRecordGrantsTo(credentials, accessToken)) !== companyID) return null;
 	return { companyID, accessToken, expiresAt: claims.data.exp };
 }
 
+async function companyTheRecordGrantsTo(credentials: MemberCredentials, accessToken: string): Promise<string | null> {
+	const { data, error, status } = await asMember(credentials, accessToken).rpc('my_app_company');
+	if (error && status !== 401) throw new Error(`host session: ${error.message}`);
+	return typeof data === 'string' ? data : null;
+}
+
 export async function companyOfHostSession(
-	credentials: SigningCredentials,
+	credentials: PlaneCredentials,
 	accessToken: string,
 ): Promise<string | null> {
 	return (await verifiedHostSession(credentials, accessToken))?.companyID ?? null;
 }
 
 export async function companyOfHostCredential(
-	credentials: SigningCredentials,
+	credentials: PlaneCredentials,
 	presented: string,
 ): Promise<string | null> {
 	if (presented.split('.').length === 3) return companyOfHostSession(credentials, presented);

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(42);
+select plan(43);
 
 delete from public.company;
 
@@ -996,15 +996,79 @@ begin
     'an ordinary member carries no host company, got ' || coalesce(claimed_company::text, 'null');
 
   perform set_config('request.jwt.claims',
-    '{"sub":"00000000-0000-0000-0000-0000ffff0001","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e"}}',
+    '{"sub":"00000000-0000-0000-0000-0000ffff0001","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e","agent_key_hash":"hash-e"}}',
     true);
   select public.my_app_company() into claimed_company;
   assert claimed_company = '00000000-0000-0000-0000-0000ffffff0e',
-    'a host reads its company from the token, got ' || coalesce(claimed_company::text, 'null');
+    'a host whose agent key stands reads its company from the token, got ' || coalesce(claimed_company::text, 'null');
+
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-0000-0000-0000ffff0001","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e"}}',
+    true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company is null,
+    'a token naming a company and none of its computers is no host, got ' || coalesce(claimed_company::text, 'null');
 
   reset role;
   raise notice 'channel: host powers come from the token, and a member has none';
 end $$$block$, 'channel: host powers come from the token, and a member has none');
+
+select lives_ok($block$do $$
+declare
+  claimed_company uuid;
+  hosted_contacts integer;
+  planted boolean := true;
+begin
+  insert into public.credential (company_id, kind, external_id) values
+    ('00000000-0000-0000-0000-0000ffffff0e', 'fleet', 'box-e-before');
+
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-0000-0000-00000000e0e0","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e","fleet_id":"box-e-before"}}',
+    true);
+  select count(*) into hosted_contacts from public.contact;
+  assert hosted_contacts = 1, 'the connected computer keeps its company''s contacts, saw ' || hosted_contacts;
+
+  reset role;
+  update public.credential set external_id = 'box-e-now'
+    where company_id = '00000000-0000-0000-0000-0000ffffff0e' and kind = 'fleet';
+  set local role authenticated;
+
+  select public.my_app_company() into claimed_company;
+  assert claimed_company is null,
+    'a computer the company moved off holds an unexpired session that names nothing, got ' || coalesce(claimed_company::text, 'null');
+  select count(*) into hosted_contacts from public.contact;
+  assert hosted_contacts = 0, 'a computer the company moved off reads none of its contacts, saw ' || hosted_contacts;
+  begin
+    insert into public.contact (company_id, name, messenger)
+    values ('00000000-0000-0000-0000-0000ffffff0e', 'Planted By The Old Box', '{"mattermost": "U-old-box"}'::jsonb);
+  exception when insufficient_privilege then
+    planted := false;
+  end;
+  assert not planted, 'a computer the company moved off writes nothing';
+
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-0000-0000-00000000e0e0","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e","fleet_id":"box-e-now"}}',
+    true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company = '00000000-0000-0000-0000-0000ffffff0e',
+    'the computer the company moved to is its host, got ' || coalesce(claimed_company::text, 'null');
+
+  reset role;
+  update public.agent set revoked_at = now() where api_key_hash = 'hash-e';
+  set local role authenticated;
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-0000-0000-00000000e0e0","app_metadata":{"company_id":"00000000-0000-0000-0000-0000ffffff0e","agent_key_hash":"hash-e"}}',
+    true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company is null,
+    'a session bought with an agent key the company revoked names nothing, got ' || coalesce(claimed_company::text, 'null');
+
+  reset role;
+  update public.agent set revoked_at = null where api_key_hash = 'hash-e';
+  delete from public.credential where company_id = '00000000-0000-0000-0000-0000ffffff0e' and kind = 'fleet';
+  raise notice 'channel: a host session holds only while its computer is the company''s';
+end $$$block$, 'channel: a host session holds only while its computer is the company''s');
 
 select lives_ok($block$do $$
 declare
