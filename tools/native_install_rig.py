@@ -693,11 +693,15 @@ CONNECTION_FILE_NAME = "internkim-host.json"
 MESSENGER_DATABASE_PATH = f"{STATE_DIRECTORY}/current/secrets/buzz-database.env"
 MODEL_KEY_FILE_NAME = "rig-model-key"
 
-# The guest is given a company whose agent never reaches a model provider. What
-# any rig here judges is whether a message crosses the gateway and reaches the
-# company's store, which no model is asked about; a key that could buy tokens
-# has no business in a disposable guest.
+# The agent answers a member only through a model. Run under
+# `monkeys run OPENROUTER_API_KEY` to give the guest a key that reaches one;
+# without it the guest holds a key that reaches nothing, and the agent's turn
+# fails before it can answer.
 RIG_MODEL_KEY = "sk-or-v1-this-rig-never-reaches-a-model-provider"
+
+
+def rig_model_key():
+    return os.environ.get("OPENROUTER_API_KEY") or RIG_MODEL_KEY
 
 
 def capabilityd_argument(machine, flag):
@@ -789,13 +793,17 @@ def install_the_company(machine, connection):
     """Everything a person does between downloading the file and a running box."""
     share = machine.share_directory
     (share / CONNECTION_FILE_NAME).write_text(json.dumps(connection, indent=2))
-    (share / MODEL_KEY_FILE_NAME).write_text(RIG_MODEL_KEY + "\n")
-    return machine.shell(
-        f"set -eu\n"
-        f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
-        f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
-        timeout_seconds=1800,
-    )
+    key_path = share / MODEL_KEY_FILE_NAME
+    key_path.write_text(rig_model_key() + "\n")
+    try:
+        return machine.shell(
+            f"set -eu\n"
+            f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
+            f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
+            timeout_seconds=1800,
+        )
+    finally:
+        key_path.unlink()
 
 
 def build_identity_reported(machine):

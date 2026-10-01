@@ -23,6 +23,9 @@ func (service *Service) startAdminChannelSeatSync(ctx context.Context) {
 	}
 	log.Printf("buzz admin seats: every %s, every administrator is given an owner seat in every channel", adminSeatSyncInterval)
 	go func() {
+		if errorValue := service.waitUntilBlueclawAnswers(ctx); errorValue != nil {
+			return
+		}
 		ticker := time.NewTicker(adminSeatSyncInterval)
 		defer ticker.Stop()
 		for {

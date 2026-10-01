@@ -108,3 +108,28 @@ func TestThePackageCarriesTheBackupTimerAndItsService(t *testing.T) {
 		}
 	}
 }
+
+// systemd.exec(5): "Settings from these files override settings made with
+// Environment=", whatever order the two are written in.
+func systemdEnvironment(t *testing.T, unit string, files map[string]string) map[string]string {
+	t.Helper()
+	environment := map[string]string{}
+	filePaths := []string{}
+	for _, line := range strings.Split(unit, "\n") {
+		if assignment, isSetting := strings.CutPrefix(line, "Environment="); isSetting {
+			name, value, _ := strings.Cut(assignment, "=")
+			environment[name] = value
+		}
+		if filePath, isFile := strings.CutPrefix(line, "EnvironmentFile="); isFile {
+			filePaths = append(filePaths, strings.TrimPrefix(filePath, "-"))
+		}
+	}
+	for _, filePath := range filePaths {
+		for _, line := range strings.Split(files[filePath], "\n") {
+			if name, value, isAssignment := strings.Cut(line, "="); isAssignment {
+				environment[name] = value
+			}
+		}
+	}
+	return environment
+}

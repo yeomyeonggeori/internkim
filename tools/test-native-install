@@ -119,8 +119,8 @@ printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'y
 # Whether the agent took the message and said something back. The task is the
 # agent's own ledger entry for it, found by the message's text, and the answer is
 # a message in the same store from anyone but the member, written after theirs.
-# The rig's model key buys nothing, so the answer is the agent saying its model
-# refused; it crossed the same path a real answer would.
+# Without a model key the answer is the agent saying its model refused, which
+# crossed the same path a real answer would.
 AGENT_ANSWER_COMMAND = r"""
 agent_url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
 messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
@@ -130,7 +130,7 @@ printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from event
 
 VECTOR_EXTENSION_COMMAND = r"""
 url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
-psql "$url" -tAc "select extname from pg_extension where extname = 'vector'" 2>&1
+psql "$url" -tAc "select (select extname from pg_extension where extname = 'vector') || ' ' || coalesce(to_regclass('public.memory_fact_embedding')::text, 'no-embedding-table')" 2>&1
 """
 
 BRIDGE_COMMAND = (
@@ -175,6 +175,11 @@ READINESS_COMMAND = "; ".join(
 def every_probe_answered(reading):
     lines = [line for line in reading.splitlines() if line.strip()]
     return bool(lines) and all(line.split()[-1] == "200" for line in lines)
+
+
+def message_asking_for_an_answer(occasion):
+    marker = " ".join(part for part in ("native install rig", occasion, uuid.uuid4().hex) if part)
+    return f"Please confirm in one short sentence that this message reached you. {marker}"
 
 
 def the_agent_answered(reading):
@@ -352,7 +357,7 @@ class Rig:
         self.plane = None
         self.company_id = ""
         self.package_under_test = None
-        self.message_text = f"native install rig {uuid.uuid4().hex}"
+        self.message_text = message_asking_for_an_answer("")
         self.remembered_phrase = f"rig remembers {uuid.uuid4().hex[:12]}"
         self.persons_file = ""
         self.persons_phrase = f"rig keeps {uuid.uuid4().hex[:12]}"
@@ -361,6 +366,7 @@ class Rig:
         self.restored_machine = None
         self.sent_messages = []
         self.files_command = f"dpkg-query -L {PACKAGE_NAME}"
+        self.is_an_upgrade = False
 
     def step(self, number, name):
         step = Step(number, name)
@@ -553,7 +559,8 @@ class Rig:
             "same way, which the font package does not",
         ).record(not asked_for, ", ".join(asked_for) or "none of " + ", ".join(NAMES_THE_PACKAGE_CARRIES))
 
-        observe_the_conversion_environment(self.machine, step)
+        if not self.is_an_upgrade:
+            observe_the_conversion_environment(self.machine, step)
 
         font = self.machine.shell(f"fc-match -f '%{{file}}' 'NanumGothic' 2>/dev/null || true; echo; ls -l {CARRIED_FONT_PATH}")
         step.observe(
@@ -969,7 +976,7 @@ class Rig:
                 "message": self.last_sent_message_id() or "no-message",
             },
             the_agent_answered,
-            timeout_seconds=300,
+            timeout_seconds=600,
         )
         step.observe(
             "the agent took the member's message as a task and answered in the conversation",
@@ -999,17 +1006,18 @@ class Rig:
     def observe_the_vector_extension_after_the_upgrade(self, step):
         extensions = self.machine.shell(VECTOR_EXTENSION_COMMAND % {"agent_path": COMPANY_CONDITION_PATH}).stdout.strip()
         step.observe(
-            "the agent's database carries the vector extension this release's memory store searches with",
-            f"pg_extension in the database {COMPANY_CONDITION_PATH} names",
+            "the agent's database carries the vector extension and the memory store its embedding table",
+            f"pg_extension and memory_fact_embedding in the database {COMPANY_CONDITION_PATH} names",
             "the install creates the extension as the cluster's superuser, which the agent's own migration "
-            "cannot do, so a host connected by an earlier release has it only if the upgrade prepares the "
-            "database again",
-        ).record(extensions == "vector", extensions or "no vector extension")
+            "cannot do, and the memory store's migration had already run without it on a host an earlier "
+            "release connected; without both, recall matches words alone and nothing fails",
+        ).record(extensions == "vector memory_fact_embedding", extensions or "no vector extension")
 
     def observe_the_upgraded_host_answers(self, step, plane):
         self.observe_readiness_after_the_upgrade(step)
         self.observe_the_vector_extension_after_the_upgrade(step)
-        self.message_text = f"native install rig after the upgrade {uuid.uuid4().hex}"
+        observe_the_conversion_environment(self.machine, step)
+        self.message_text = message_asking_for_an_answer("after the upgrade")
         self.observe_the_host_holds_the_gateway_socket(step)
         self.observe_the_member_round_trip(step, plane)
         self.observe_the_agent_answered(step)
@@ -1128,7 +1136,7 @@ class Rig:
             self.observe_what_came_back(step)
             self.observe_running_services(step)
             self.observe_the_host_holds_the_gateway_socket(step)
-            self.message_text = f"native install rig after restore {uuid.uuid4().hex}"
+            self.message_text = message_asking_for_an_answer("after restore")
             self.observe_the_member_round_trip(step, plane)
         return step
 
@@ -1295,6 +1303,7 @@ def main():
 
         try:
             rig.package_under_test = releases[0] / asset_name(".deb")
+            rig.is_an_upgrade = len(releases) > 1
             rig.prepare_release(releases[0])
             rig.start_machine()
             rig.dependencies = rig.install_declared_dependencies(rig.package_under_test)
@@ -1333,13 +1342,12 @@ def main():
             rig.run_step_three(step_three, releases)
 
             if not options.stand_in and not options.without_company:
-                moved_step = step_five
                 if len(releases) > 1:
-                    moved_step = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
-                    rig.observe_the_upgraded_host_answers(moved_step, rig.plane)
-                rig.observe_the_processes_moved(
-                    moved_step, revision_before, rig.build_identity_the_guest_reports()
-                )
+                    step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
+                    rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
+                    rig.observe_the_processes_moved(
+                        step_seven, revision_before, rig.build_identity_the_guest_reports()
+                    )
                 step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
                 rig.take_a_backup(step_six)
 
