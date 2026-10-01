@@ -12,6 +12,7 @@
 	import { fetchChannelCandidates, type ChannelCandidate } from '$lib/messenger/channel-candidates';
 	import { MessengerRefusal, addChannelMembers, removeChannelMember } from '$lib/messenger/messenger-api';
 	import { displayPersonName } from '$lib/person-name.svelte';
+	import { avatarPresenceOf } from '$lib/messenger/member-presence.svelte';
 	import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 	import { toast } from 'svelte-sonner';
 
@@ -141,6 +142,7 @@
 								seed={member.memberID ?? member.externalID ?? ''}
 								memberID={member.memberID ?? ''}
 								externalID={member.externalID ?? ''}
+								{...avatarPresenceOf(member.memberID, text)}
 								class="size-8"
 							/>
 							<span class="truncate">{displayPersonName(member.name) || text.unnamedMember}</span>
