@@ -13,6 +13,8 @@
 		image = '',
 		memberID = '',
 		externalID = '',
+		isOnline,
+		presenceLabel = '',
 		class: className
 	}: {
 		name?: string;
@@ -21,6 +23,8 @@
 		image?: string;
 		memberID?: string;
 		externalID?: string;
+		isOnline?: boolean;
+		presenceLabel?: string;
 		class?: string;
 	} = $props();
 
@@ -35,11 +39,29 @@
 
 </script>
 
-<Avatar.Root class={cn('size-8 overflow-hidden rounded-full bg-background', className)}>
-	{#if drawn}
-		<Avatar.Image src={drawn} alt={avatarLabel} />
-	{/if}
-	<Avatar.Fallback class="relative size-full rounded-[inherit] p-0">
-		<GradientAvatar seed={avatarSeed} class="size-full rounded-[inherit]" />
-	</Avatar.Fallback>
-</Avatar.Root>
+{#snippet avatar()}
+	<Avatar.Root class={cn('size-8 overflow-hidden rounded-full bg-background', className)}>
+		{#if drawn}
+			<Avatar.Image src={drawn} alt={avatarLabel} />
+		{/if}
+		<Avatar.Fallback class="relative size-full rounded-[inherit] p-0">
+			<GradientAvatar seed={avatarSeed} class="size-full rounded-[inherit]" />
+		</Avatar.Fallback>
+	</Avatar.Root>
+{/snippet}
+
+{#if isOnline === undefined}
+	{@render avatar()}
+{:else}
+	<span class="relative inline-flex shrink-0">
+		{@render avatar()}
+		<span
+			data-presence={isOnline ? 'online' : 'offline'}
+			class={cn(
+				'absolute -right-px -bottom-px size-[38%] rounded-full ring-[1.5px] ring-background',
+				isOnline ? 'bg-success' : 'bg-muted-foreground'
+			)}
+		></span>
+		<span class="sr-only">{presenceLabel}</span>
+	</span>
+{/if}
