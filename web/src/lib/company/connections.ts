@@ -1,8 +1,13 @@
+import { z } from 'zod';
 import { supabase } from '$lib/supabase';
 
 export const companyConnectionKinds = ['buzz'] as const;
 
 export type CompanyConnectionKind = (typeof companyConnectionKinds)[number];
+
+export const companyConnectionSettingsSchemas = {
+	buzz: z.strictObject({ port: z.number().int().min(1).max(65535).optional() })
+} satisfies Record<CompanyConnectionKind, z.ZodType>;
 
 export type CompanyConnection = {
 	kind: string;

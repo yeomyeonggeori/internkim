@@ -33,7 +33,7 @@ function keyCacheServing(document: string, status = 200): JSONWebKeyCache {
 }
 
 const issuer = 'https://issuer.test/auth/v1';
-const validClaims = { sub: 'account-1', iss: issuer, exp: 4102444800 };
+const validClaims = { sub: 'account-1', iss: issuer, aud: 'authenticated', exp: 4102444800 };
 
 describe('verifyToken', () => {
 	test('accepts a token the issuer signed', async () => {
@@ -55,7 +55,7 @@ describe('verifyToken', () => {
 	test('keeps ordinary tokens free of a host identity', async () => {
 		const { token, jwks } = await signedToken({ ...validClaims, user_metadata: { company_id: 'company-1' } });
 		const claims = await verifyToken(token, keyCacheServing(jwks), issuer, 1786000000);
-		expect(claims).toEqual(validClaims);
+		expect(claims).toEqual({ sub: 'account-1', iss: issuer, exp: 4102444800 });
 	});
 
 	test('refuses a token whose payload was edited after signing', async () => {
@@ -63,6 +63,17 @@ describe('verifyToken', () => {
 		const [header, , signature] = token.split('.');
 		const forged = `${header}.${encodeSegment({ ...validClaims, sub: 'account-2' })}.${signature}`;
 		expect(verifyToken(forged, keyCacheServing(jwks), issuer, 1786000000)).rejects.toThrow(TokenRefused);
+	});
+
+	test('refuses a token issued for another audience', async () => {
+		const { token, jwks } = await signedToken({ ...validClaims, aud: 'another-service' });
+		expect(verifyToken(token, keyCacheServing(jwks), issuer, 1786000000)).rejects.toThrow('signed-in accounts');
+	});
+
+	test('refuses a token that names no audience', async () => {
+		const { aud: _omitted, ...withoutAudience } = validClaims;
+		const { token, jwks } = await signedToken(withoutAudience);
+		expect(verifyToken(token, keyCacheServing(jwks), issuer, 1786000000)).rejects.toThrow('signed-in accounts');
 	});
 
 	test('refuses an expired token', async () => {

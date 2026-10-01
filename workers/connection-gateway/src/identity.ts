@@ -12,6 +12,8 @@ export type TokenClaims = {
 	hostCompanyID?: string;
 };
 
+export const expectedAudience = 'authenticated';
+
 export class TokenRefused extends Error {
 	constructor(reason: string) {
 		super(reason);
@@ -37,12 +39,18 @@ function isClaimRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
 
+function isAudience(audience: unknown): boolean {
+	if (Array.isArray(audience)) return audience.includes(expectedAudience);
+	return audience === expectedAudience;
+}
+
 function claimsOf(payload: unknown, expectedIssuer: string, nowSeconds: number): TokenClaims {
 	if (!isClaimRecord(payload)) throw new TokenRefused('the token carries no claims');
 	const claims = payload;
 	const { sub, iss, exp } = claims;
 	if (typeof sub !== 'string' || sub.trim() === '') throw new TokenRefused('the token names no account');
 	if (iss !== expectedIssuer) throw new TokenRefused(`the token was issued by ${String(iss)}`);
+	if (!isAudience(claims.aud)) throw new TokenRefused('the token was not issued for signed-in accounts');
 	if (typeof exp !== 'number') throw new TokenRefused('the token carries no expiry');
 	if (exp <= nowSeconds) throw new TokenRefused('the token has expired');
 	const appMetadata = claims.app_metadata;

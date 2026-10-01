@@ -1,5 +1,5 @@
 import { type PlaneCredentials, adminCallerOf, asMember, controlPlane, planeCredentialsOf } from '$lib/server/control-plane';
-import { companyConnectionKinds } from '$lib/company/connections';
+import { companyConnectionKinds, companyConnectionSettingsSchemas } from '$lib/company/connections';
 import {
 	companyConnections,
 	forgetCompanyConnection,
@@ -39,14 +39,14 @@ export const PUT: RequestHandler = async ({ request, platform }) => {
 	const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 	const kind = typeof body.kind === 'string' ? body.kind.trim() : '';
 	const host = typeof body.host === 'string' ? body.host.trim() : '';
-	if (!companyConnectionKinds.some((known) => known === kind)) error(400, 'unknown kind of connection');
+	const knownKind = companyConnectionKinds.find((known) => known === kind);
+	if (!knownKind) error(400, 'unknown kind of connection');
 	if (!host) error(400, 'a host is required');
 
-	await saveCompanyConnection(controlPlane(plane), caller.companyID, {
-		kind,
-		host,
-		settings: isRecord(body.settings) ? body.settings : {}
-	});
+	const settings = companyConnectionSettingsSchemas[knownKind].safeParse(body.settings ?? {});
+	if (!settings.success) error(400, `the settings of a ${knownKind} connection are not recognized`);
+
+	await saveCompanyConnection(controlPlane(plane), caller.companyID, { kind, host, settings: settings.data });
 	return json({ kind, host });
 };
 
@@ -58,7 +58,3 @@ export const DELETE: RequestHandler = async ({ request, platform, url }) => {
 	await forgetCompanyConnection(controlPlane(plane), caller.companyID, kind);
 	return json({ kind });
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
