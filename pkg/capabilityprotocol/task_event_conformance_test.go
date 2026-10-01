@@ -21,8 +21,6 @@ const (
 
 var taskEventNameConsumerPaths = []string{
 	"../../web/src/routes/runs/runs-api.ts",
-	"../../tools/e2e-crud-remote.sh",
-	"../../tools/e2e-ask-flow-remote.sh",
 }
 
 var (

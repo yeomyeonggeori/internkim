@@ -298,13 +298,6 @@ def vault_manifest_values():
 
 def static_file_disagreements(manifest_values):
     disagreements = []
-    config_text = (REPOSITORY_ROOT / "supabase" / "config.toml").read_text(encoding="utf-8")
-    for project_reference in re.findall(r'^project_id = "([^"]*)"', config_text, re.MULTILINE):
-        if project_reference != manifest_values.get("SUPABASE_PROJECT_REF"):
-            disagreements.append(
-                f"supabase/config.toml names project {project_reference}, "
-                f"{VAULT_MANIFEST_PATH.name} names {manifest_values.get('SUPABASE_PROJECT_REF')}"
-            )
     registry = json.loads(
         re.sub(r",(\s*[}\]])", r"\1", (REPOSITORY_ROOT / "workers" / "release-registry" / "wrangler.jsonc").read_text(encoding="utf-8"))
     )

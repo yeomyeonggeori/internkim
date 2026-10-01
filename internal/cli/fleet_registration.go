@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -246,13 +245,5 @@ func saveDefaultFleetNode(stateDir string, response *registerResponse) {
 }
 
 func remoteSetupAdminEmail(stateDir string) string {
-	for _, value := range []string{
-		strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL")),
-		loadState(stateDir, "admin_email"),
-	} {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
+	return loadState(stateDir, "admin_email")
 }

@@ -445,7 +445,6 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 	service := NewService(Configuration{
 		ReleaseRegistryURL:        server.URL,
 		ReleaseDownloadTokenPath:  tokenPath,
-		ReleaseSigningKeyPath:     writeTestFile(t, ""),
 		AdminEmailPath:            writeTestFile(t, "admin@example.com"),
 		OpenRouterKeyPath:         writeTestFile(t, "openrouter"),
 		FleetIDPath:               writeTestFile(t, "fleet-1"),
@@ -481,7 +480,6 @@ func TestReleaseHistoryEndpointFallsBackToStablePointer(t *testing.T) {
 	service := NewService(Configuration{
 		ReleaseRegistryURL:     "https://updates.test",
 		StateDirectory:         t.TempDir(),
-		ReleaseSigningKeyPath:  writeTestFile(t, ""),
 		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
 		BlueclawWorkspacePath:  t.TempDir(),
 		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
@@ -526,7 +524,6 @@ func TestApplyReleaseUpdateWithReleaseIDUsesHistoryManifest(t *testing.T) {
 	service := NewService(Configuration{
 		ReleaseRegistryURL:     "https://updates.test",
 		StateDirectory:         t.TempDir(),
-		ReleaseSigningKeyPath:  writeTestFile(t, ""),
 		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
 		BlueclawWorkspacePath:  t.TempDir(),
 		CompanionJobPath:       filepath.Join(t.TempDir(), "jobs.json"),
@@ -897,7 +894,6 @@ func newSignedReleaseUpdateTestService(t *testing.T, requestedPaths *[]string) *
 	service := NewService(Configuration{
 		ReleaseRegistryURL:     "https://updates.test",
 		StateDirectory:         t.TempDir(),
-		ReleaseSigningKeyPath:  writeTestFile(t, ""),
 		AdminEmailPath:         writeTestFile(t, "admin@example.com"),
 		FleetIDPath:            writeTestFile(t, "dc719d8e"),
 		FleetSecretPath:        writeTestFile(t, "secret-value"),

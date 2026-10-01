@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { compareMigrationVersions, ensureProductionSchemaIsCurrent } from '../../scripts/production-schema';
+import {
+	appliedVersionsOfMigrationList,
+	compareMigrationVersions,
+	ensureProductionSchemaIsCurrent
+} from '../../scripts/production-schema';
 
 describe('production schema preflight', () => {
 	test('refuses when a local migration is missing remotely', () => {
@@ -31,8 +35,23 @@ describe('production schema preflight', () => {
 		).toThrow('duplicate migration version');
 	});
 
-	test('propagates remote query failures', async () => {
-		const queryError = new Error('remote schema query failed');
-		await expect(ensureProductionSchemaIsCurrent(() => Promise.reject(queryError))).rejects.toBe(queryError);
+	test('propagates failures to list the applied migrations', async () => {
+		const listingError = new Error('supabase migration list failed');
+		await expect(ensureProductionSchemaIsCurrent(() => Promise.reject(listingError))).rejects.toBe(listingError);
+	});
+
+	test('reads applied versions from the CLI listing and skips local-only rows', () => {
+		const listing = JSON.stringify({
+			migrations: [
+				{ local: '20260914000005', remote: '20260914000005', time: '2026-09-14 00:00:05' },
+				{ local: '20260915000001', remote: '', time: '2026-09-15 00:00:01' },
+				{ local: '', remote: '20260916000001', time: '2026-09-16 00:00:01' }
+			]
+		});
+		expect(appliedVersionsOfMigrationList(listing)).toEqual(['20260914000005', '20260916000001']);
+	});
+
+	test('refuses a listing that is not the CLI document', () => {
+		expect(() => appliedVersionsOfMigrationList('{"message":"ok"}')).toThrow('unrecognized document');
 	});
 });

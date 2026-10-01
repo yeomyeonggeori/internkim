@@ -31,10 +31,6 @@
     "process": "relay",
     "description": "the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091"
   },
-  "BLUECLAW": {
-    "process": "tools/e2e-ask-flow-remote.sh",
-    "description": "the fleet VM's Blueclaw admin API base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://127.0.0.1:8080"
-  },
   "BLUECLAW_ACP_SOCKET_PATH": {
     "process": "relay",
     "description": "the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock"
@@ -207,14 +203,6 @@
     "process": "host",
     "description": "where each requester's device browser keeps its profile and HTTP cache across restarts, under members/<key>; defaults to /var/lib/internkim-moli"
   },
-  "E2E_NONCE": {
-    "process": "tools/e2e-crud-remote.sh",
-    "description": "the per-run nonce (forwarded from INTERNKIM_E2E_NONCE) this remote script suffixes its test person, channel and entity names with"
-  },
-  "E2E_SKIP_RESET": {
-    "process": "tools/e2e-crud-remote.sh",
-    "description": "when \"1\", skips this remote script's global admind/entity reset for a parallel-safe run"
-  },
   "GATEWAY_ADMIN_TOKEN": {
     "process": "web, connection-gateway worker",
     "description": "the bearer token the web app's public-API gateway caller and the connection-gateway worker's admin endpoints share",
@@ -255,16 +243,6 @@
     "process": "cli",
     "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
   },
-  "INTERNKIM_ADMIN_EMAIL": {
-    "process": "cli, web e2e tests",
-    "description": "the console/admin sign-in email the CLI's setup flow and the CRUD/delete/matrix e2e specs use",
-    "isInVault": true
-  },
-  "INTERNKIM_ADMIN_PASSWORD": {
-    "process": "web e2e tests",
-    "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use",
-    "isInVault": true
-  },
   "INTERNKIM_AGENT_BROWSER_PATH": {
     "process": "internal/browser test",
     "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"
@@ -276,18 +254,6 @@
   "INTERNKIM_API_URL": {
     "process": "cli",
     "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
-  },
-  "INTERNKIM_APPROVE_BUTTON": {
-    "process": "web e2e tests",
-    "description": "the approval button's label text tests/e2e/crud-evidence.spec.ts looks for; defaults to the Korean confirm label"
-  },
-  "INTERNKIM_APPROVE_PROMPT": {
-    "process": "web e2e tests",
-    "description": "overrides the approval-triggering prompt tools/e2e-approve-button sends"
-  },
-  "INTERNKIM_APPROVE_TIMEOUT_MS": {
-    "process": "web e2e tests",
-    "description": "how long tests/e2e/crud-approve.spec.ts waits for the ephemeral approval button; defaults to 150000"
   },
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
@@ -321,11 +287,6 @@
   "INTERNKIM_BLUECLAW_USE_LOCAL": {
     "process": "device",
     "description": "when \"1\", internal/runtime/blueclaw uses the uncommitted local .dependency/blueclaw checkout instead of the committed payload artifact"
-  },
-  "INTERNKIM_BOT_TOKEN": {
-    "process": "web e2e tests",
-    "description": "the messenger bot's own token, read by tests/e2e/ephemeral-render-check.spec.ts and matrix-evidence.spec.ts",
-    "isInVault": true
   },
   "INTERNKIM_BROWSER_EXECUTABLE_PATH": {
     "process": "companion",
@@ -375,41 +336,9 @@
     "process": "tools/prepare-container-kernel",
     "description": "the kernel version built for the Apple Container VM; defaults to 6.1.68"
   },
-  "INTERNKIM_CRUD_CHANNEL": {
-    "process": "web e2e tests",
-    "description": "the Mattermost channel name the CRUD/delete e2e specs post to and screenshot"
-  },
-  "INTERNKIM_CRUD_CHANNEL_PATH": {
-    "process": "web e2e tests",
-    "description": "the channel's URL path tests/e2e/crud-evidence.spec.ts navigates to for its screenshot"
-  },
-  "INTERNKIM_CRUD_EXPECT_APPROVAL": {
-    "process": "web e2e tests",
-    "description": "when set, tells tests/e2e/crud-evidence.spec.ts to wait for the ephemeral approval control before screenshotting"
-  },
-  "INTERNKIM_CRUD_MIN_POSTS": {
-    "process": "web e2e tests",
-    "description": "the minimum post count tests/e2e/crud-evidence.spec.ts requires in the channel; defaults to 2"
-  },
-  "INTERNKIM_CRUD_SCREENSHOT": {
-    "process": "web e2e tests",
-    "description": "the file path the CRUD/delete Playwright specs save their channel screenshot to"
-  },
   "INTERNKIM_CUA_DRIVER_PATH": {
     "process": "companion",
     "description": "path to the Cua Driver executable computer_task drives; when unset the companion looks on PATH and in ~/.local/bin"
-  },
-  "INTERNKIM_DELETE_AFTER_SHOT": {
-    "process": "web e2e tests",
-    "description": "the file path tests/e2e/delete-evidence.spec.ts saves its after-delete screenshot to"
-  },
-  "INTERNKIM_DELETE_BEFORE_SHOT": {
-    "process": "web e2e tests",
-    "description": "the file path tests/e2e/delete-evidence.spec.ts saves its before-delete screenshot to"
-  },
-  "INTERNKIM_DELETE_PROMPT": {
-    "process": "web e2e tests",
-    "description": "the delete-triggering prompt tests/e2e/delete-evidence.spec.ts records alongside its screenshots"
   },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
@@ -419,38 +348,6 @@
   "INTERNKIM_E2E_CONFIG": {
     "process": "tools/e2e-crud",
     "description": "overrides the fleet run config.json path the e2e-crud/e2e-approve-button/e2e-ask-flow/reprovision-local-fleet drivers use instead of the newest one under .local/local-fleet/runs"
-  },
-  "INTERNKIM_E2E_HEADLESS": {
-    "process": "tools/e2e-crud",
-    "description": "when \"1\", runs the e2e drivers' Playwright screenshot steps headless instead of headed"
-  },
-  "INTERNKIM_E2E_INGRESS_READY_SECONDS": {
-    "process": "tools/e2e-crud",
-    "description": "how long tools/e2e-crud sleeps after setup for the messenger ingress to be ready; defaults to 12"
-  },
-  "INTERNKIM_E2E_MODEL": {
-    "process": "tools/e2e-crud",
-    "description": "overrides the model the e2e-crud/e2e-approve-button drivers pin capabilityd to before running cases"
-  },
-  "INTERNKIM_E2E_NONCE": {
-    "process": "tools/e2e-crud",
-    "description": "overrides the per-run nonce the e2e-crud/e2e-approve-button drivers use for a fresh test person and channel"
-  },
-  "INTERNKIM_E2E_PACE_SECONDS": {
-    "process": "tools/e2e-crud",
-    "description": "how long tools/e2e-crud sleeps between cases; defaults to 40"
-  },
-  "INTERNKIM_E2E_RESTART_BLUECLAW": {
-    "process": "tools/e2e-crud",
-    "description": "when \"1\", tools/e2e-crud restarts Blueclaw's messenger ingress before running cases"
-  },
-  "INTERNKIM_E2E_SKIP_MODEL": {
-    "process": "tools/e2e-crud",
-    "description": "when \"1\", skips the e2e-crud/e2e-approve-button drivers' model-pin step because it is already set"
-  },
-  "INTERNKIM_E2E_SKIP_RESET": {
-    "process": "tools/e2e-crud",
-    "description": "forwarded to tools/e2e-crud-remote.sh's setup step to skip the global admind/entity reset"
   },
   "INTERNKIM_ENVIRONMENT_FROM_VAULT": {
     "process": "cli",
@@ -530,18 +427,6 @@
     "process": "cli",
     "description": "when \"1\", internal/cli/llm.go prints extra debug output for a model call"
   },
-  "INTERNKIM_MATRIX_SHOT": {
-    "process": "web e2e tests",
-    "description": "the file path tests/e2e/matrix-evidence.spec.ts saves its screenshot to"
-  },
-  "INTERNKIM_MATTERMOST_TEAM_NAME": {
-    "process": "web e2e tests",
-    "description": "the Mattermost team name the e2e specs sign into; defaults to \"internkim\""
-  },
-  "INTERNKIM_MATTERMOST_URL": {
-    "process": "web e2e tests",
-    "description": "the Mattermost base URL the e2e specs drive; defaults to http://127.0.0.1:8065"
-  },
   "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
     "process": "tools/mirror-local",
     "description": "path to the local Mattermost admin password file, passed to admind's -mattermost-admin-password flag"
@@ -574,18 +459,9 @@
     "description": "the R2 bucket releases are uploaded to",
     "isInVault": true
   },
-  "INTERNKIM_RELEASE_SIGNING_KEY": {
-    "process": "cli",
-    "description": "the key a release manifest is signed with when published",
-    "isInVault": true
-  },
   "INTERNKIM_RELEASE_WRANGLER_BIN": {
     "process": "cli",
     "description": "override path to the wrangler binary used for PUBLISHER=wrangler release uploads"
-  },
-  "INTERNKIM_RENDER_SHOT": {
-    "process": "web e2e tests",
-    "description": "the file path tests/e2e/ephemeral-render-check.spec.ts saves its screenshot to"
   },
   "INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES": {
     "process": "tools/prepare-blueclaw-runtime",
@@ -619,10 +495,6 @@
     "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
     "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
     "isInVault": true
-  },
-  "INTERNKIM_TARGET_USERNAME": {
-    "process": "web e2e tests",
-    "description": "the messenger username the ephemeral-render-check and matrix-evidence specs target"
   },
   "INTERNKIM_TEST_MOLI": {
     "process": "go tests",
@@ -660,15 +532,6 @@
     "process": "tools/build-litert-lm-main",
     "description": "the litert_lm_main source version/ref to build"
   },
-  "LIVE_PLANE_AGENT_KEY": {
-    "process": "admind live tests",
-    "description": "the company agent key internal/admind/task_notify_live_test.go (a live/manual test) authenticates to the plane named by SUPABASE_URL and CLOUDFLARE_DOMAIN with",
-    "isInVault": true
-  },
-  "LIVE_REQUESTER_PERSON_ID": {
-    "process": "admind live tests",
-    "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"
-  },
   "LLAMA_CPP_BUILD_JOBS": {
     "process": "tools/build-llama-cpp-jetson",
     "description": "the parallel job count for the remote llama.cpp build"
@@ -704,10 +567,6 @@
   "MAILD_PORT": {
     "process": "host",
     "description": "the loopback port host/entrypoint.sh starts maild on; defaults to 18092"
-  },
-  "MATTERMOST": {
-    "process": "tools/e2e-ask-flow-remote.sh",
-    "description": "the fleet VM's Mattermost base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://localhost:8065"
   },
   "MATTERMOST_IMPORT_TEST_DATABASE_URL": {
     "process": "buzzimport live tests",
@@ -826,15 +685,6 @@
     "process": "release-registry worker",
     "description": "the bearer token the release-registry worker requires on every download request"
   },
-  "REMOTE_TIMEOUT": {
-    "process": "tools/e2e-crud",
-    "description": "how long the e2e-crud/e2e-ask-flow drivers wait for one SSH command to the fleet VM; defaults to 120 (e2e-crud) or 600 (e2e-ask-flow) seconds, and is raised per case for long-running ones"
-  },
-  "SUPABASE_ACCESS_TOKEN": {
-    "process": "web scripts",
-    "description": "a Supabase management API access token, read by web/scripts/remote-query.ts",
-    "isInVault": true
-  },
   "SUPABASE_AUTH_SIGNING_KEYS_PATH": {
     "process": "tools/with-local-plane",
     "description": "the signing key set the Supabase CLI's local stack signs with; tools/with-local-plane writes it once to supabase/.temp/local-signing-keys.json and exports this for every command it runs, and tools/with-local-plane-test's fake CLI records it"
@@ -853,13 +703,8 @@
   },
   "SUPABASE_JWT_SIGNING_KEY": {
     "process": "web, web scripts",
-    "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, registered with the Supabase project by web/scripts/issue-record-signing-key.ts; locally the ES256 key tools/with-local-plane writes to supabase/.temp/local-signing-keys.json, which web/scripts/local-plane-signing-key.sh reads",
+    "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, minted by web/scripts/issue-record-signing-key.ts and imported in the Supabase dashboard; locally the ES256 key tools/with-local-plane writes to supabase/.temp/local-signing-keys.json, which web/scripts/local-plane-signing-key.sh reads",
     "isRequiredOnPages": true,
-    "isInVault": true
-  },
-  "SUPABASE_PROJECT_REF": {
-    "process": "web scripts",
-    "description": "the Supabase project reference web/scripts/remote-query.ts targets",
     "isInVault": true
   },
   "SUPABASE_PUBLISHABLE_KEY": {

@@ -127,7 +127,6 @@ func printReleaseUsage() {
 	fmt.Println("  CLOUDFLARE_ACCOUNT_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_BUCKET")
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
-	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
 	fmt.Println("Environment for repositories:")
@@ -174,8 +173,8 @@ func publishRelease(
 	if errorValue := carryTheRestOfTheDevice(repositoryRootPath, channel, components); errorValue != nil {
 		return errorValue
 	}
-	manifest, errorValue := releaseset.NewManifest(releaseID, channel, components).Sign(os.Getenv("INTERNKIM_RELEASE_SIGNING_KEY"))
-	if errorValue != nil {
+	manifest := releaseset.NewManifest(releaseID, channel, components)
+	if errorValue := manifest.Validate(); errorValue != nil {
 		return errorValue
 	}
 	manifestDocument, errorValue := json.MarshalIndent(manifest, "", "  ")
