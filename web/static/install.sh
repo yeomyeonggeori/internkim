@@ -3,44 +3,45 @@ set -eu
 
 # The front door onto the package rather than a second installer. On a Linux
 # machine `host` means its package manager, found by asking which of apt-get,
-# dnf and pacman is there. With apt that is the keyring, a deb822
-# source naming it, and `apt-get install internkim`, so the box ends in the
-# state it would have reached had the person typed those commands themselves
-# and `apt upgrade` and `apt remove` work on it afterwards. A package file the
-# person already has is installed the same way with INTERNKIM_INSTALL_PACKAGE,
-# which is a path or an address. On a Mac with Homebrew it means the tap
-# and `brew install internkim`, for the same reason and with the same result:
-# `brew upgrade` and `brew uninstall` work afterwards because nothing was put
-# on the machine behind Homebrew's back. A machine with neither is refused
-# before anything changes. `companion` is the published binary, fetched
-# against its checksum.
+# dnf and pacman is there: the one package file for this machine is fetched
+# from a GitHub Release of yeomyeonggeori/internkim, checked against the
+# release's SHA256SUMS, and handed to that manager, which resolves its
+# dependencies from the repositories the machine already trusts. Running the
+# line again installs whatever the channel now points at, which is how the host
+# is upgraded. `stable` is the latest release; `testing` is the newest one,
+# prerelease or not, so a machine on it is never behind stable. On a Mac with
+# Homebrew it means the tap and `brew install internkim`, so `brew upgrade` and
+# `brew uninstall` work afterwards. A machine with neither is refused before
+# anything changes. `companion` is the published binary, fetched against its
+# checksum.
 
 product="${1:-}"
 case "$product" in
-  companion|host) ;;
-  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- <companion|host>" >&2; exit 1 ;;
+  companion|host) shift ;;
+  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- <companion|host> [--channel stable|testing]" >&2; exit 1 ;;
 esac
 
 package_name="internkim"
-package_file_source="${INTERNKIM_INSTALL_PACKAGE:-}"
-package_file_checksum="${INTERNKIM_INSTALL_PACKAGE_SHA256:-}"
-repository_base_url="${INTERNKIM_INSTALL_BASE_URL:-https://updates.intern.kim}"
-repository_channel="${INTERNKIM_INSTALL_SUITE:-stable}"
-repository_url="$repository_base_url/deb"
-rpm_repository_url="$repository_base_url/rpm/$repository_channel"
-rpm_repository_key_name="internkim-rpm-signing.asc"
-pacman_repository_url="$repository_base_url/arch/$repository_channel"
-pacman_repository_key_name="internkim-pacman-signing.asc"
-keyring_path="/usr/share/keyrings/internkim-archive-keyring.pgp"
-keyring_url="$repository_url/internkim-archive-keyring.pgp"
-apt_source_path="/etc/apt/sources.list.d/internkim.sources"
-apt_component="main"
+release_repository="yeomyeonggeori/internkim"
+channel="${INTERNKIM_INSTALL_CHANNEL:-stable}"
 homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
 
 stop() {
   echo "$1" >&2
   exit 1
 }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --channel) [ $# -ge 2 ] || stop "--channel needs stable or testing."; channel="$2"; shift 2 ;;
+    --channel=*) channel="${1#--channel=}"; shift ;;
+    *) stop "install.sh takes --channel stable|testing after the product, and was given $1." ;;
+  esac
+done
+case "$channel" in
+  stable|testing) ;;
+  *) stop "The channel is stable or testing, and this install asked for $channel." ;;
+esac
 
 privileged() {
   if [ "$(id -u)" = 0 ]; then
@@ -61,57 +62,6 @@ Run the same command as root:
   sudo -v || stop "sudo refused this account. Run the same command as root."
 }
 
-install_through_apt_repository() {
-  debian_architecture="$(dpkg --print-architecture)"
-  case "$debian_architecture" in
-    arm64|amd64) ;;
-    *) stop "The company host is published for arm64 and amd64, and this machine is $debian_architecture." ;;
-  esac
-
-  curl -fsSL "$keyring_url" -o "$package_work_dir/keyring.pgp" || stop \
-"Could not fetch the package signing key from $keyring_url.
-Check that this machine can reach that address, then run the same command again.
-Nothing on this machine was changed."
-  [ -s "$package_work_dir/keyring.pgp" ] || stop \
-"$keyring_url served an empty signing key, so apt would refuse every package it
-signs. Nothing on this machine was changed; try again, and report it if it
-happens twice."
-
-  refuse_a_suite_the_repository_does_not_publish
-
-  # /usr/share/keyrings, never apt-key: a key in the legacy keyring signs every
-  # repository on the machine rather than only this one.
-  privileged install -d -m 0755 /usr/share/keyrings
-  privileged install -m 0644 "$package_work_dir/keyring.pgp" "$keyring_path"
-
-  printf '%s\n' \
-    "Types: deb" \
-    "URIs: $repository_url" \
-    "Suites: $repository_channel" \
-    "Components: $apt_component" \
-    "Architectures: $debian_architecture" \
-    "Signed-By: $keyring_path" \
-    > "$package_work_dir/internkim.sources"
-  privileged install -d -m 0755 /etc/apt/sources.list.d
-  privileged install -m 0644 "$package_work_dir/internkim.sources" "$apt_source_path"
-
-  privileged apt-get update || stop \
-"apt-get update failed, and its own output is above.
-If the failure names $repository_url this machine cannot reach the package
-repository; if it names another address, that source was already failing and
-this install did not cause it.
-Undo what this script wrote with:
-  sudo rm -f $apt_source_path $keyring_path"
-
-
-  privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$package_name" || stop \
-"apt-get install $package_name failed, and its own output above names what it
-could not resolve. A dependency apt cannot find usually means this release of
-Debian or Ubuntu does not carry it; send that line when you report this.
-Undo what this script wrote with:
-  sudo rm -f $apt_source_path $keyring_path"
-}
-
 # The package manager this machine has, asked in a fixed order because some
 # machines carry two: a Fedora with apt-get installed for a build is still a
 # Fedora. Empty means none of the three the package is published for.
@@ -124,24 +74,103 @@ find_the_package_manager() {
   done
 }
 
+package_architecture() {
+  machine_architecture="$(uname -m)"
+  case "$machine_architecture" in
+    arm64|aarch64) printf 'arm64' ;;
+    amd64|x86_64) printf 'amd64' ;;
+    *) stop "The company host is published for arm64 and amd64, and this machine is $machine_architecture." ;;
+  esac
+}
+
+package_suffix() {
+  case "$package_manager" in
+    apt-get) printf '.deb' ;;
+    dnf) printf '.rpm' ;;
+    pacman) printf '.pkg.tar.zst' ;;
+  esac
+}
+
+# Where the release's files are. INTERNKIM_INSTALL_RELEASE_URL stands in for
+# GitHub when a test serves a release of its own.
+release_download_url() {
+  if [ -n "${INTERNKIM_INSTALL_RELEASE_URL:-}" ]; then
+    printf '%s' "$INTERNKIM_INSTALL_RELEASE_URL"
+  elif [ "$channel" = stable ]; then
+    printf '%s' "https://github.com/$release_repository/releases/latest/download"
+  else
+    newest_tag="$(newest_release_tag)" || exit 1
+    printf '%s' "https://github.com/$release_repository/releases/download/$newest_tag"
+  fi
+}
+
+# GitHub lists releases newest first, prereleases included, and one is all this
+# asks for, so the response holds exactly one tag_name.
+newest_release_tag() {
+  releases_url="https://api.github.com/repos/$release_repository/releases?per_page=1"
+  listed_tag="$(curl -fsSL "$releases_url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')"
+  [ -n "$listed_tag" ] || stop \
+"Could not read the newest release from $releases_url.
+Check that this machine can reach it, then run the same command again.
+Nothing on this machine was changed."
+  printf '%s' "$listed_tag"
+}
+
+fetch() {
+  curl -fsSL "$1" -o "$2" || stop \
+"Could not fetch $1.
+Check that this machine can reach it, then run the same command again.
+Nothing on this machine was changed."
+}
+
+# The checksum SHA256SUMS lists for one file, compared by whole name so that no
+# other line can answer for it.
+published_checksum() {
+  while read -r listed_checksum listed_name; do
+    if [ "$listed_name" = "$2" ]; then
+      printf '%s' "$listed_checksum"
+      return 0
+    fi
+  done < "$1"
+}
+
+verify_the_package() {
+  expected_checksum="$(published_checksum "$work_dir/SHA256SUMS" "$asset_name")"
+  [ -n "$expected_checksum" ] || stop \
+"The release's SHA256SUMS lists no $asset_name, so it cannot be checked.
+Nothing on this machine was changed."
+  actual_checksum="$(sha256sum "$work_dir/$asset_name" | cut -d ' ' -f 1)"
+  [ "$actual_checksum" = "$expected_checksum" ] || stop \
+"$asset_name hashes to $actual_checksum, and the release's SHA256SUMS says
+$expected_checksum. Nothing was installed, and nothing on this machine was changed."
+}
+
 install_the_package() {
   require_administrator
-  refuse_an_architecture_the_package_is_not_built_for
-  package_work_dir="$(mktemp -d)"
-  trap 'rm -rf "$package_work_dir"' EXIT
-  if [ -n "$package_file_source" ]; then
-    install_the_package_file
-  else
-    install_through_the_repository
-  fi
+  architecture="$(package_architecture)" || exit 1
+  asset_name="$package_name-$architecture$(package_suffix)"
+  download_url="$(release_download_url)" || exit 1
+  work_dir="$(mktemp -d)"
+  trap 'rm -rf "$work_dir"' EXIT
+  fetch "$download_url/SHA256SUMS" "$work_dir/SHA256SUMS"
+  fetch "$download_url/$asset_name" "$work_dir/$asset_name"
+  verify_the_package
+  install_the_package_file "$work_dir/$asset_name" || stop \
+"Installing $asset_name failed, and the package manager's own output above
+names what it could not resolve. A dependency it cannot find usually means this
+release of this distribution does not carry it."
   tell_what_to_do_next
 }
 
-refuse_an_architecture_the_package_is_not_built_for() {
-  machine_architecture="$(uname -m)"
-  case "$machine_architecture" in
-    arm64|aarch64|amd64|x86_64) ;;
-    *) stop "The company host is published for arm64 and amd64, and this machine is $machine_architecture." ;;
+# The manager's own command for a file, so the manager resolves the file's
+# dependencies, which is the one thing a bare `dpkg -i` or `rpm -i` would not do.
+install_the_package_file() {
+  case "$package_manager" in
+    apt-get)
+      privileged apt-get update || stop "apt-get update failed, and its own output is above. Nothing on this machine was changed."
+      privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$1" ;;
+    dnf) privileged dnf install -y "$1" ;;
+    pacman) privileged pacman -U --needed --noconfirm "$1" ;;
   esac
 }
 
@@ -150,136 +179,6 @@ tell_what_to_do_next() {
   echo "Installed $package_name. Every service stays idle until this box has a company."
   echo "Give it one with the connection file you downloaded from company setup:"
   echo "  sudo internkim install ~/Downloads/internkim-host.json"
-}
-
-# The repository is how the package arrives by default, and one channel
-# variable picks stable or testing for all three.
-install_through_the_repository() {
-  case "$package_manager" in
-    apt-get) install_through_apt_repository ;;
-    dnf) install_through_rpm_repository ;;
-    pacman) install_through_pacman_repository ;;
-  esac
-}
-
-install_through_rpm_repository() {
-  rpm_key_url="$rpm_repository_url/$rpm_repository_key_name"
-  printf '%s\n' \
-    "[$package_name]" \
-    "name=$package_name" \
-    "baseurl=$rpm_repository_url/\$basearch" \
-    "enabled=1" \
-    "gpgcheck=1" \
-    "repo_gpgcheck=1" \
-    "gpgkey=$rpm_key_url" \
-    > "$package_work_dir/$package_name.repo"
-  privileged install -m 0644 "$package_work_dir/$package_name.repo" "/etc/yum.repos.d/$package_name.repo"
-  privileged dnf install -y "$package_name" || stop \
-"dnf install $package_name failed, and its own output above names what it could
-not resolve. Undo what this script wrote with:
-  sudo rm -f /etc/yum.repos.d/$package_name.repo"
-}
-
-install_through_pacman_repository() {
-  curl -fsSL "$pacman_repository_url/$pacman_repository_key_name" -o "$package_work_dir/key.asc" || stop \
-"Could not fetch the package signing key from $pacman_repository_url/$pacman_repository_key_name.
-Nothing on this machine was changed."
-  pacman_key_fingerprint="$(gpg --show-keys --with-colons "$package_work_dir/key.asc" | sed -n 's/^fpr:::::::::\([0-9A-F]*\):$/\1/p' | head -n 1)"
-  [ -n "$pacman_key_fingerprint" ] || stop "$pacman_repository_url served no signing key. Nothing on this machine was changed."
-  privileged pacman-key --add "$package_work_dir/key.asc"
-  privileged pacman-key --lsign-key "$pacman_key_fingerprint"
-  printf '\n[%s]\nSigLevel = Required\nServer = %s/$arch\n' "$package_name" "$pacman_repository_url" > "$package_work_dir/pacman-source.conf"
-  privileged sh -c "cat '$package_work_dir/pacman-source.conf' >> /etc/pacman.conf"
-  privileged pacman -Sy --noconfirm
-  privileged pacman -S --needed --noconfirm "$package_name" || stop \
-"pacman -S $package_name failed, and its own output above names what it could
-not resolve. The [$package_name] section this script appended to /etc/pacman.conf
-is still there; remove it to undo this."
-}
-
-# A package file the person already has, by path or by address. The file is
-# installed with the manager's own command for one, so the manager resolves its
-# dependencies from the repositories the machine already trusts, which is the
-# one thing a bare `dpkg -i` or `rpm -i` would not do.
-install_the_package_file() {
-  case "$package_manager" in
-    apt-get) package_file_suffix=".deb" ;;
-    dnf) package_file_suffix=".rpm" ;;
-    pacman) package_file_suffix=".pkg.tar.zst" ;;
-  esac
-  case "$package_file_source" in
-    http://*|https://*)
-      package_file_path="$package_work_dir/$(basename "$package_file_source")"
-      curl -fsSL "$package_file_source" -o "$package_file_path" || stop \
-"Could not fetch $package_file_source. Nothing on this machine was changed." ;;
-    *)
-      [ -f "$package_file_source" ] || stop \
-"$package_file_source is not a file. Nothing on this machine was changed."
-      package_file_path="$(cd "$(dirname "$package_file_source")" && pwd)/$(basename "$package_file_source")" ;;
-  esac
-  case "$package_file_path" in
-    *"$package_file_suffix") ;;
-    *) stop \
-"$package_manager installs $package_file_suffix files and $package_file_path is not one.
-Nothing on this machine was changed." ;;
-  esac
-  verify_the_package_file_checksum "$package_file_path"
-  if [ "$package_manager" = apt-get ]; then
-    privileged apt-get update || stop "apt-get update failed, and its own output is above. Nothing on this machine was changed."
-  fi
-  case "$package_manager" in
-    apt-get) privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$package_file_path" ;;
-    dnf) privileged dnf install -y "$package_file_path" ;;
-    pacman) privileged pacman -U --needed --noconfirm "$package_file_path" ;;
-  esac || stop \
-"Installing $package_file_path failed, and the package manager's own output above
-names what it could not resolve. A dependency it cannot find usually means this
-release of this distribution does not carry it."
-}
-
-verify_the_package_file_checksum() {
-  [ -n "$package_file_checksum" ] || return 0
-  if command -v sha256sum >/dev/null 2>&1; then
-    actual_package_checksum="$(sha256sum "$1" | cut -d ' ' -f 1)"
-  else
-    actual_package_checksum="$(shasum -a 256 "$1" | cut -d ' ' -f 1)"
-  fi
-  [ "$actual_package_checksum" = "$package_file_checksum" ] || stop \
-"$1 hashes to $actual_package_checksum and INTERNKIM_INSTALL_PACKAGE_SHA256 says
-$package_file_checksum. Nothing on this machine was changed."
-}
-
-# A suite nobody published makes `apt-get update` fail on the whole source, and
-# that failure reads as this machine or this address being wrong when neither
-# is. The suite's own index answers it directly, and the answer has two shapes
-# that want different sentences: a status is a suite this repository does not
-# carry, and no status at all is the repository being out of reach. This runs
-# after the signing key has already been fetched, so the repository has served
-# this machine something by the time it is asked.
-refuse_a_suite_the_repository_does_not_publish() {
-  suite_index_url="$repository_url/dists/$repository_channel/InRelease"
-  suite_probe_status=0
-  suite_index_code="$(curl -sSL -o /dev/null -w '%{http_code}' "$suite_index_url")" || suite_probe_status=$?
-
-  case "$suite_index_code" in
-    2??) return 0 ;;
-  esac
-
-  if [ "$suite_probe_status" != 0 ] || [ "$suite_index_code" = 000 ]; then
-    stop \
-"Could not reach the repository to see whether $repository_channel is published, and
-curl's own reason is above.
-$suite_index_url
-Check that this machine can reach it, then run the same command again.
-Nothing on this machine was changed."
-  fi
-
-  stop \
-"This repository publishes nothing at $repository_channel, which is the suite
-this install asked for. If INTERNKIM_INSTALL_SUITE is set, check it against what
-the repository publishes.
-$suite_index_url answered $suite_index_code.
-Nothing on this machine was changed."
 }
 
 # Homebrew is not run as root. It refuses to be, and the files it writes belong

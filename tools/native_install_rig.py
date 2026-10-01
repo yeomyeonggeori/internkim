@@ -1,7 +1,6 @@
 """The parts of the native-install rig that run on this Mac.
 
-Serving the repositories `internkim release repositories` renders, and driving
-one disposable guest, arm64 or (INTERNKIM_RIG_ARCHITECTURE=amd64) amd64 under
+Serving a release the way GitHub serves one, and driving one disposable guest, arm64 or (INTERNKIM_RIG_ARCHITECTURE=amd64) amd64 under
 Rosetta. The assertions that read the guest live in `tools/test-native-install`
 and `tools/test-native-install-family`; everything here is what they need in
 order to have a machine and something to install on it.
@@ -20,7 +19,6 @@ import shutil
 import socket
 import subprocess
 import tarfile
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -58,14 +56,8 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
 DOCUMENT_INTERPRETER_VERSION = "3.13.13"
 DOCUMENT_ENVIRONMENT_PATHS = ("/opt/internkim/python", "/opt/internkim/document-venv")
 CAPABILITYD_UNIT = "internkim-capabilityd.service"
-SUITE = "stable"
-KEY_ALGORITHM = "rsa4096"
-TESTING_SUITE = "testing"
-COMPONENT = "main"
 PACKAGE_NAME = "internkim"
 SHARE_PATH = "/srv/internkim-rig"
-APT_SOURCE_PATH = "/etc/apt/sources.list.d/internkim.sources"
-KEYRING_PATH = "/usr/share/keyrings/internkim-archive-keyring.pgp"
 STATE_DIRECTORY = "/var/lib/internkim"
 CONFIGURATION_DIRECTORY = "/etc/internkim"
 # Where anything asks whether a service is up, and which of those answers
@@ -120,18 +112,11 @@ CONFFILE_PATH = "/etc/internkim/company-host.env"
 CONFFILE_EDIT = "# edited-by-the-rig"
 COMPANY_CONDITION_PATH = "/var/lib/internkim/current/host.env"
 
-# The repository's own shape is `internal/aptrepository`'s to declare. These
-# names are what the rig has to spell in a URL, and
-# `tools/tests/test_native_install_rig.py` reads the Go source to fail when
-# they drift.
-REPOSITORY_PREFIX = "deb"
-KEYRING_NAME = "internkim-archive-keyring.pgp"
-
-# The name the vault holds the archive signing key under. The canonical copy is
-# packagerepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
-# reads that constant and fails if this drifts from it.
-SIGNING_KEY_VARIABLE = "INTERNKIM_PACKAGE_SIGNING_KEY"
-BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
+# Where GitHub answers for a repository's latest release, and the list each
+# release carries of its files' checksums.
+RELEASE_DOWNLOAD_PATH = "releases/latest/download"
+CHECKSUMS_NAME = "SHA256SUMS"
+INSTALL_SCRIPT_PATH = REPOSITORY_ROOT / "web" / "static" / "install.sh"
 
 
 class RigFailure(Exception):
@@ -151,23 +136,6 @@ def checked(arguments, **keywords):
     if completed.returncode != 0:
         raise RigFailure(f"{' '.join(arguments)} failed: {completed.stderr.strip() or completed.stdout.strip()}")
     return completed
-
-
-@functools.cache
-def internkim_command():
-    """The dev CLI, built from this checkout because the repository it renders
-    has to be the one this branch publishes.
-
-    `make build` writes ./internkim at the repository root; the rig builds its
-    own copy instead so that running it never depends on a build step someone
-    remembered, and never overwrites one someone is using.
-    """
-    BUILT_COMMAND_PATH.parent.mkdir(parents=True, exist_ok=True)
-    checked(
-        ["go", "build", "-o", str(BUILT_COMMAND_PATH), "./cmd/internkim"],
-        cwd=str(REPOSITORY_ROOT),
-    )
-    return BUILT_COMMAND_PATH
 
 
 def read_archive_member(archive_path, wanted_name):
@@ -241,135 +209,94 @@ def parse_control_paragraph(text):
     return fields
 
 
-class Release:
-    """An apt repository on this Mac, served to the guest over HTTP.
+def asset_name(suffix):
+    """The name `internkim release packages` gives this architecture's package of one format.
 
-    The repository itself is built by `internkim release repositories`, which is what
-    publishes it to R2 for real. The rig substitutes the address it is served
-    from and nothing else, so what a guest installs from here is what a
-    customer installs from.
+    install.sh asks a release for the same name; `tools/tests/test_native_install_rig.py`
+    holds this to the Go declaration.
+    """
+    return f"{PACKAGE_NAME}-{ARCHITECTURE}{suffix}"
+
+
+def write_release_directory(directory, package_path, suffix=".deb"):
+    """A directory shaped like the one `internkim release packages` writes, holding one package."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    name = asset_name(suffix)
+    shutil.copyfile(package_path, directory / name)
+    checksum = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+    (directory / CHECKSUMS_NAME).write_text(f"{checksum}  {name}\n")
+    return directory
+
+
+class Release:
+    """A GitHub release's download directory, served to the guest over HTTP.
+
+    `internkim release packages` writes the directory a release is uploaded
+    from: each package under its asset name and their SHA256SUMS. The rig serves
+    that directory where GitHub serves releases/latest/download and puts
+    install.sh beside it, so the guest runs the published line with one
+    address substituted and nothing else.
     """
 
     def __init__(self, directory):
         self.directory = Path(directory)
-        self.repository_directory = self.directory / REPOSITORY_PREFIX
-        self.staging_directory = self.directory.with_name(self.directory.name + "-packages")
-        self.keyring_directory = Path(tempfile.mkdtemp(prefix="/tmp/ikrig-"))
-        self.archive_key_path = self.keyring_directory / "archive-key.asc"
-        self.public_keyring_path = self.repository_directory / KEYRING_NAME
-        self.published = []
-        self.served = []
+        self.download_directory = self.directory / RELEASE_DOWNLOAD_PATH
         self.server = None
         self.port = None
 
-    def generate_signing_key(self):
-        """A throwaway key, named so that nothing mistakes it for the archive key.
+    def publish(self, release_directory):
+        """Make the packages `release_directory`'s SHA256SUMS lists the latest release.
 
-        The real key's home is an open decision. The rig needs a key only so
-        that apt has a signature to check, and it destroys this one on the way
-        out.
+        The packages are linked rather than copied, because a release is six
+        files of about 300 MB; `replace` swaps a link for a file of its own, so
+        a tampering never writes through to the build.
         """
-        if shutil.which("gpg") is None:
-            raise RigFailure(
-                "gpg is not on PATH; the rig signs its repository because an unsigned one would "
-                "not exercise the Signed-By path the install is supposed to take"
-            )
-        self.keyring_directory.chmod(0o700)
-        checked(
-            [
-                "gpg", "--homedir", str(self.keyring_directory), "--batch", "--yes", "--no-tty",
-                "--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
-                "InternKim Install Rig TEST KEY <rig@invalid.internkim.test>", KEY_ALGORITHM, "sign", "never",
-            ]
-        )
-        exported = checked(
-            [
-                "gpg", "--homedir", str(self.keyring_directory), "--batch", "--no-tty",
-                "--pinentry-mode", "loopback", "--passphrase", "", "--armor", "--export-secret-keys",
-            ]
-        )
-        self.archive_key_path.write_text(exported.stdout)
-        self.archive_key_path.chmod(0o600)
+        release_directory = Path(release_directory).resolve()
+        shutil.rmtree(self.download_directory, ignore_errors=True)
+        self.download_directory.mkdir(parents=True)
+        listed = (release_directory / CHECKSUMS_NAME).read_text()
+        for line in listed.splitlines():
+            name = line.split()[1]
+            (self.download_directory / name).symlink_to(release_directory / name)
+        (self.download_directory / CHECKSUMS_NAME).write_text(listed)
+        shutil.copyfile(INSTALL_SCRIPT_PATH, self.directory / "install.sh")
 
-    def stage(self, package_path):
-        self.staging_directory.mkdir(parents=True, exist_ok=True)
-        destination = self.staging_directory / Path(package_path).name
-        shutil.copyfile(package_path, destination)
-        self.published.append(destination)
-        return destination
+    def replace(self, name, contents):
+        """Serve `contents` as `name` and return what puts the published file back."""
+        path = self.download_directory / name
+        target = os.readlink(path) if path.is_symlink() else None
+        original = None if target else path.read_bytes()
+        path.unlink()
+        path.write_bytes(contents)
 
-    def publish(self, package_path, suite=SUITE):
-        destination = self.stage(package_path)
-        self.rebuild(suite)
-        return destination
+        def restore():
+            path.unlink()
+            if target:
+                path.symlink_to(target)
+            else:
+                path.write_bytes(original)
 
-    def rebuild(self, suite=SUITE, formats="deb"):
-        """Render the repository with the command that publishes it for real."""
-        checked(
-            [
-                str(internkim_command()), "release", "repositories",
-                "--channel", suite,
-                "--format", formats,
-                "--package-directory", str(self.staging_directory),
-                "--output", str(self.directory),
-            ],
-            cwd=str(REPOSITORY_ROOT),
-            environment={
-                SIGNING_KEY_VARIABLE: self.archive_key_path.read_text(),
-            },
+        return restore
+
+    def published(self, name):
+        return (self.download_directory / name).read_bytes()
+
+    def download_url(self, host):
+        return f"http://{host}:{self.port}/{RELEASE_DOWNLOAD_PATH}"
+
+    def install_line(self, host):
+        """The published one line, with only the release address pointed at this Mac."""
+        return (
+            f"set -eu\nexport INTERNKIM_INSTALL_RELEASE_URL={self.download_url(host)}\n"
+            f"curl -fsSL http://{host}:{self.port}/install.sh | sh -s -- host\n"
         )
 
     def serve(self):
-        """Serve the repository the way `workers/release-registry` serves it.
-
-        The worker answers GET and HEAD from R2 and sets etag and
-        content-length; it passes no conditional headers to R2 and so never
-        answers 304. Dropping them here is what makes the rig's server
-        wrong in the same way, rather than kinder than production.
-
-        Every response is recorded, because what `apt-get update` costs
-        against a server that cannot answer 304 is a number rather than an
-        opinion.
-        """
-        import functools
         import http.server
         import threading
 
-        served = self.served
-
         class QuietHandler(http.server.SimpleHTTPRequestHandler):
-            def send_head(self):
-                del self.headers["If-Modified-Since"]
-                del self.headers["If-None-Match"]
-                del self.headers["Range"]
-                return super().send_head()
-
-            def send_response(self, code, message=None):
-                self.served_status = code
-                self.served_length = 0
-                return super().send_response(code, message)
-
-            def send_header(self, keyword, value):
-                if keyword.lower() == "content-length":
-                    self.served_length = int(value)
-                return super().send_header(keyword, value)
-
-            def end_headers(self):
-                # Recorded here rather than from log_request, which runs inside
-                # send_response and so before Content-Length has been set.
-                served.append(
-                    {
-                        "method": self.command,
-                        "path": self.path,
-                        "status": getattr(self, "served_status", 0),
-                        "bytes": self.served_length if self.command == "GET" else 0,
-                    }
-                )
-                return super().end_headers()
-
-            def log_request(self, code="-", size=0):
-                pass
-
             def log_message(self, format, *arguments):
                 pass
 
@@ -380,8 +307,6 @@ class Release:
         return self.port
 
     def stop(self):
-        run(["gpgconf", "--homedir", str(self.keyring_directory), "--kill", "gpg-agent"])
-        shutil.rmtree(self.keyring_directory, ignore_errors=True)
         if self.server:
             self.server.shutdown()
             self.server.server_close()

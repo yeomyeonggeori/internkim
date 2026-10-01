@@ -23,6 +23,17 @@ OpenRouter API 키를 받은 뒤 호스트 서비스를 등록합니다. 컴퓨�
 서비스가 자동으로 시작하고, 서비스가 종료되면 다시 시작합니다. 설치가 끝나면
 화면에 나온 회사 설정 주소에서 연결 확인을 누르세요.
 
+## 업그레이드하기
+
+첫 명령을 다시 실행하세요. Linux에서는 GitHub의 최신 릴리스를 받아 릴리스의
+체크섬과 대조한 뒤 지금 버전 위에 설치하고, macOS에서는 Homebrew가 formula를
+업그레이드합니다. 회사와 데이터는 그대로 남습니다. 최신 릴리스가 되기 전의 릴리스
+후보를 따라가려면 `--channel testing`을 붙이세요.
+
+```bash
+curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
+```
+
 ## 서비스 확인하기
 
 Linux에서는 systemd에서 상태와 로그를 확인합니다.

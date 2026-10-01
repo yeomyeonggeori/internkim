@@ -18,7 +18,6 @@ where a service dies, because which service dies first is the answer.
 
 import argparse
 import json
-import shutil
 import sys
 import time
 import uuid
@@ -40,6 +39,7 @@ from native_install_rig import (  # noqa: E402
     Machine,
     Release,
     RigFailure,
+    asset_name,
     install_the_company,
     installed_units,
 )
@@ -259,19 +259,13 @@ class Measurement:
         self.company_id = ""
 
 
-    def packages_under_test(self):
-        directory = Path(self.options.package_directory)
-        if not directory.is_absolute():
-            directory = Path.cwd() / directory
-        found = sorted(directory.glob(f"{PACKAGE_NAME}_*_{ARCHITECTURE}.deb")) if directory.exists() else []
-        return found
+    def package_under_test(self):
+        package = Path(self.options.package_directory).resolve() / asset_name(".deb")
+        return package if package.is_file() else None
 
     def prepare_release(self, package_path):
         self.release = Release(self.working_directory / "release")
-        self.release.directory.mkdir(parents=True, exist_ok=True)
-        self.release.generate_signing_key()
-        shutil.copyfile(REPOSITORY_ROOT / "web" / "static" / "install.sh", self.release.directory / "install.sh")
-        self.release.publish(package_path)
+        self.release.publish(package_path.parent)
         self.release.serve()
 
 
@@ -447,14 +441,7 @@ class Measurement:
             return
 
     def install_the_package(self, machine):
-        gateway = machine.host_gateway()
-        base = f"http://{gateway}:{self.release.port}"
-        return machine.shell(
-            "set -eu\n"
-            f"export INTERNKIM_INSTALL_BASE_URL={base}\n"
-            f"curl -fsSL {base}/install.sh | sh -s -- host\n",
-            timeout_seconds=2400,
-        )
+        return machine.shell(self.release.install_line(machine.host_gateway()), timeout_seconds=2400)
 
     def wait_until_ready(self, machine, timeout_seconds=900):
         probes = "; ".join(
@@ -648,26 +635,26 @@ def main():
     working.mkdir(parents=True, exist_ok=True)
     measurement.working_directory = working
 
-    packages = measurement.packages_under_test()
-    if not packages:
+    package = measurement.package_under_test()
+    if package is None:
         print(
-            f"✗ no {PACKAGE_NAME}_*_{ARCHITECTURE}.deb under {options.package_directory}; "
+            f"✗ no {asset_name('.deb')} under {options.package_directory}; "
             "`internkim release packages --format deb --architecture arm64` builds one",
             file=sys.stderr,
         )
         return 1
 
-    print(f"the package:  {packages[0].name}")
+    print(f"the package:  {package}")
     print(f"the sizes:    {', '.join(str(size) + ' MiB' for size in options.sizes)}")
     print(f"the kernel:   {options.kernel}")
     print(f"the workings: {working}")
     print()
 
     try:
-        measurement.prepare_release(packages[0])
+        measurement.prepare_release(package)
         for size in options.sizes:
             print(f"── {size} MiB ──", flush=True)
-            reading = measurement.measure(size, packages[0])
+            reading = measurement.measure(size, package)
             print(measurement.summarize(reading), flush=True)
             if reading.stopped_at:
                 print(f"   stopped at: {reading.stopped_at}", flush=True)
