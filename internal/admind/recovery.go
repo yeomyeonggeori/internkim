@@ -487,7 +487,7 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelRead()
 	case "buzz-chatd-repair":
 		chatdContext, cancelChatd := context.WithTimeout(context.Background(), 60*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(chatdContext, "restart chatd with TLS bypass + relay debug", "sh", "-lc", buzzChatdRepairCommand()))
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(chatdContext, "restart chatd without the legacy TLS bypass", "sh", "-lc", buzzChatdRepairCommand()))
 		cancelChatd()
 	case "mattermost-unlock-users":
 		unlockContext, cancelUnlock := context.WithTimeout(context.Background(), 60*time.Second)
@@ -1296,12 +1296,7 @@ func buzzChatdRepairCommand() string {
 	chatd := blueclaw.ChatdServiceName
 	return strings.TrimSpace(`
 set +e
-mkdir -p /etc/systemd/system/` + chatd + `.service.d
-rm -f /etc/systemd/system/` + chatd + `.service.d/tls-debug.conf
-cat > /etc/systemd/system/` + chatd + `.service.d/tls.conf <<'DROPIN'
-[Service]
-Environment=NODE_TLS_REJECT_UNAUTHORIZED=0
-DROPIN
+rm -f ` + strings.Join(blueclaw.ChatdLegacyTLSDropInPaths(), " ") + `
 systemctl daemon-reload
 systemctl restart ` + chatd + `
 for attempt in $(seq 1 15); do ss -ltn 2>/dev/null | grep -q ':18090' && break; sleep 1; done

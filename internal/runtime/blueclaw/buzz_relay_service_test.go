@@ -47,12 +47,12 @@ func TestBuzzRelayServiceUnitUsesPublicRelayURL(t *testing.T) {
 	}
 }
 
-func TestChatdServiceUnitRelayURLAndCACerts(t *testing.T) {
+func TestChatdServiceUnitRelayURLAndCertificate(t *testing.T) {
 	loopback := ChatdServiceUnit("")
 	if !strings.Contains(loopback, "Environment=CHATD_BUZZ_RELAY_URL=ws://"+BuzzRelayBindAddress) {
 		t.Fatalf("chatd unit missing loopback relay URL fallback, got:\n%s", loopback)
 	}
-	if !strings.Contains(loopback, "Environment=NODE_EXTRA_CA_CERTS="+BuzzRelayCertificatePath) {
+	if !strings.Contains(loopback, "Environment="+BuzzRelayCertificateVariable+"="+BuzzRelayCertificatePath) {
 		t.Fatalf("chatd unit missing relay CA cert, got:\n%s", loopback)
 	}
 	public := ChatdServiceUnit("wss://example-device-relay.example.test")

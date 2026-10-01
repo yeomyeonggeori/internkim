@@ -22,3 +22,12 @@ func TestChatdOnTheCompanyHostKeepsItsDeliveryRecordOnDisk(t *testing.T) {
 		t.Fatalf("chatd is told %q as its state directory, want %s", directory, CompanyHostChatdStatePath)
 	}
 }
+
+func TestChatdUnitNeverSwitchesCertificateVerificationOff(t *testing.T) {
+	for _, relayPublicURL := range []string{"", "wss://relay.example.test"} {
+		unit := ChatdServiceUnit(relayPublicURL)
+		if strings.Contains(unit, "NODE_TLS_REJECT_UNAUTHORIZED") {
+			t.Fatalf("chatd would stop verifying every outbound TLS connection, got:\n%s", unit)
+		}
+	}
+}

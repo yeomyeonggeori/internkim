@@ -149,6 +149,8 @@ const (
 	ChatdName                      = "chatd"
 	ChatdServiceName               = "chatd"
 	ChatdServicePath               = "/etc/systemd/system/chatd.service"
+	ChatdDropInDirectory           = "/etc/systemd/system/chatd.service.d"
+	BuzzRelayCertificateVariable   = "CHATD_BUZZ_RELAY_CA_PATH"
 	ChatdStateDirectoryPath        = "/root/.internkim/state/chatd"
 	ChatdBinaryPath                = "/usr/local/bin/chatd"
 	ChatdEnvironmentFilePath       = "/root/.internkim/secrets/chatd-env"
