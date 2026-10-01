@@ -9,10 +9,9 @@ than in the web app: a tool like `attendance_add` resolves the caller, decides
 whether they may write, and either writes or turns the request into something an
 administrator was asked, all inside one function.
 
-That has a cost worth knowing about. A rule written in SQL is invisible to the
-TypeScript above it, so the two drift unless the rule is stated once. It has
-happened: the tool schema demanded a reason `public.attendance_add` does not,
-and the attendance screen was refused before the record ever saw the call.
+That has a cost. A rule written in SQL is invisible to the TypeScript above it,
+so the two drift unless the rule is stated once. A tool schema that demands a
+field the function does not refuses the call before the record sees it.
 
 The lists of functions are generated from a database with every migration
 applied, so they say what is actually there.
