@@ -222,18 +222,29 @@ if [ -r /root/.internkim/secrets/buzz-minio-env ]; then
   set -a; . /root/.internkim/secrets/buzz-minio-env; set +a
   export MC_CONFIG_DIR="$work/mc"
   /usr/local/bin/mc alias set migration http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null || fail "the media store refused its own credentials"
-  /usr/local/bin/mc mirror --quiet migration "$export_directory/media" || fail "mirroring the media store failed"
+  install -d -m 0700 "$export_directory/media"
+  /usr/local/bin/mc mirror --overwrite --quiet migration "$export_directory/media" || fail "mirroring the media store failed"
   /usr/local/bin/mc stat --recursive --json migration >"$export_directory/media-objects.json" || fail "reading the media metadata failed"
 fi
 [ -d /var/lib/buzz-media ] && { tar --numeric-owner --xattrs -C /var/lib -cf - buzz-media | zstd -q -T0 -3 >"$export_directory/buzz-media.tar.zst" || fail "packing /var/lib/buzz-media failed"; }
 
 step "pack the host's own state"
-units=$(ls -d /etc/systemd/system/blueclaw* /etc/systemd/system/buzz-* /etc/systemd/system/chatd* /etc/systemd/system/cloudflared* /etc/systemd/system/graphiti* /etc/systemd/system/internkim-* /etc/systemd/system/moli* /etc/systemd/system/var-lib-blueclaw* 2>/dev/null)
-tar --numeric-owner --xattrs -cf - \
-  --exclude=/root/.internkim/backups --exclude=/root/.internkim/models --exclude=/root/.internkim/state/admin/jobs \
-  /root/.internkim /root/.blueclaw/config /root/.blueclaw/workspace /etc/internkim /var/lib/internkim /etc/cloudflared \
+host_paths=""
+for path in /root/.internkim /root/.blueclaw/config /root/.blueclaw/workspace /etc/internkim /var/lib/internkim \
   /var/lib/blueclaw/delivery/config /var/lib/blueclaw/skills-sync-manifest.json /opt/internkim/blueclaw-runtime/manifest.json \
-  /opt/internkim/blueclaw-runtime/payload-manifest.json $units | zstd -q -T0 -3 >"$export_directory/host-state.tar.zst"
+  /opt/internkim/blueclaw-runtime/payload-manifest.json /etc/systemd/system/blueclaw* /etc/systemd/system/buzz-* \
+  /etc/systemd/system/chatd* /etc/systemd/system/cloudflared* /etc/systemd/system/graphiti* /etc/systemd/system/internkim-* \
+  /etc/systemd/system/moli* /etc/systemd/system/var-lib-blueclaw*; do
+  [ -e "$path" ] && host_paths="$host_paths $path"
+done
+{
+  tar --numeric-owner --xattrs -cf - \
+    --exclude=/root/.internkim/backups --exclude=/root/.internkim/models --exclude=/root/.internkim/state/admin/jobs $host_paths
+  echo $? >"$work/host-state-tar-status"
+} | zstd -q -T0 -3 >"$export_directory/host-state.tar.zst"
+host_state_tar_status=$(cat "$work/host-state-tar-status")
+[ "$host_state_tar_status" -le 1 ] || fail "tar could not read the host's state (status $host_state_tar_status)"
+[ "$host_state_tar_status" -eq 0 ] || echo "some host files changed while tar read them; the archive holds what it saw"
 zstd -q -t "$export_directory/host-state.tar.zst" || fail "the host state archive is unreadable"
 
 step "checksum and hand the portable core to $readerGroup"
