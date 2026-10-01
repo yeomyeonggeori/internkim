@@ -8,7 +8,7 @@
 		"build": "vite build",
 		"build:board": "BUILD_TARGET=board VITE_BUILD_TARGET=board vite build",
 		"preview": "wrangler pages dev .svelte-kit/cloudflare --port 4173",
-		"prepare": "svelte-kit sync || echo ''",
+		"prepare": "bun install --cwd ../.dependency/blueclaw/protocol && svelte-kit sync",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "if test -d tests/unit; then bun test tests/unit; else echo 'No unit tests'; fi",
