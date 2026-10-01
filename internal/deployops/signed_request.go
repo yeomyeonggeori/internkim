@@ -44,9 +44,7 @@ func targetIdentity(target Target) (targetFleetIdentity, error) {
 
 func randomSignedRequestNonce() string {
 	document := make([]byte, 16)
-	if _, errorValue := rand.Read(document); errorValue != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
+	rand.Read(document)
 	return hex.EncodeToString(document)
 }
 

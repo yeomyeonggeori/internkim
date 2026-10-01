@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -676,7 +677,7 @@ func (service *Service) authorizedCompanion(request *http.Request) *CompanionRec
 	if companion == nil || !companion.RevokedAt.IsZero() {
 		return nil
 	}
-	if companion.TokenHash != companionTokenHash(token) {
+	if subtle.ConstantTimeCompare([]byte(companion.TokenHash), []byte(companionTokenHash(token))) != 1 {
 		return nil
 	}
 	body, _ := io.ReadAll(request.Body)

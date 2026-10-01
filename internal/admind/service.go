@@ -60,6 +60,7 @@ type Service struct {
 	calendarDeleteIntentWakeUp chan struct{}
 	calendarStoreWriteMutex    sync.Mutex
 	companyShareMutex          sync.Mutex
+	companyShareAccessMutex    sync.Mutex
 	companyShareAttempts       map[string]companyShareAttempt
 	companySettingsCache       heldCompanySettings
 	policyRecordCacheMutex     sync.Mutex

@@ -205,7 +205,7 @@ func (service *Service) verifyKeyLoginChallenge(challenge string) error {
 		return errors.New("bad challenge encoding")
 	}
 	payload := string(payloadBytes)
-	if signChallengePayload(key, payload) != signature {
+	if !hmac.Equal([]byte(signChallengePayload(key, payload)), []byte(signature)) {
 		return errors.New("bad challenge signature")
 	}
 	_, expiryText, found := strings.Cut(payload, ":")

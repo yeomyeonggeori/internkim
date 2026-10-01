@@ -1,5 +1,5 @@
 import { normalizeFleet } from './fleet';
-import type { Device, Invite } from './types';
+import type { Device } from './types';
 
 export type KVStore = {
 	get<T = unknown>(key: string, type: 'json'): Promise<T | null>;
@@ -36,18 +36,5 @@ export const kv = {
 
 	async deleteDevice(kv: KVStore, id: string): Promise<void> {
 		await kv.delete(fleetKey(id));
-	},
-
-	async getInvite(kv: KVStore, token: string): Promise<Invite | null> {
-		return kv.get<Invite>(`invite:${token}`, 'json');
-	},
-
-	async putInvite(kv: KVStore, token: string, invite: Invite): Promise<void> {
-		const ttl = Math.max(Math.floor((invite.expires_at - Date.now()) / 1000), 60);
-		await kv.put(`invite:${token}`, JSON.stringify(invite), { expirationTtl: ttl });
-	},
-
-	async deleteInvite(kv: KVStore, token: string): Promise<void> {
-		await kv.delete(`invite:${token}`);
 	}
 };
