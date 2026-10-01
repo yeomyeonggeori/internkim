@@ -2,9 +2,6 @@ package box
 
 import (
 	"context"
-	"crypto/ecdh"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -100,26 +97,8 @@ func runSteps(t *testing.T, daemon Daemon, steps int) {
 
 func sealTo(t *testing.T, identity Identity, modelKey string) *SealedModelKey {
 	t.Helper()
-	ephemeral, errorValue := ecdh.X25519().GenerateKey(rand.Reader)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	boxKey := identity.encryptionKey.PublicKey()
-	sharedSecret, errorValue := ephemeral.ECDH(boxKey)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	sealing, errorValue := modelKeySealing(sharedSecret, ephemeral.PublicKey().Bytes(), boxKey.Bytes())
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	nonce := make([]byte, sealing.NonceSize())
-	rand.Read(nonce)
-	return &SealedModelKey{
-		EphemeralPublicKey: encodedKey(ephemeral.PublicKey().Bytes()),
-		Nonce:              base64.RawURLEncoding.EncodeToString(nonce),
-		Ciphertext:         base64.RawURLEncoding.EncodeToString(sealing.Seal(nil, nonce, []byte(modelKey), nil)),
-	}
+	sealed := sealSecretTo(t, identity, modelKey, SealPurpose{Information: modelKeySealInformation})
+	return &SealedModelKey{Version: sealed.Version, Recipient: sealed.Recipient, Enc: sealed.Enc, Ciphertext: sealed.Ciphertext}
 }
 
 func identityOf(t *testing.T, places Places) Identity {

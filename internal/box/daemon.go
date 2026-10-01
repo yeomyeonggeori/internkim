@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -43,7 +42,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	if daemon.connectedByFile() {
 		return ErrConnectedByFile
 	}
-	identity, errorValue := LoadOrCreateIdentity(filepath.Join(daemon.Places.StateDirectoryPath, "identity.json"))
+	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -113,7 +112,7 @@ func (daemon Daemon) renew(session Session, identity Identity) error {
 }
 
 func (daemon Daemon) InstallWithConnectionFile(ctx context.Context, connectionKey string, modelKey string) error {
-	identity, errorValue := LoadOrCreateIdentity(filepath.Join(daemon.Places.StateDirectoryPath, "identity.json"))
+	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -169,11 +168,7 @@ func (daemon Daemon) connectedByFile() bool {
 }
 
 func (daemon Daemon) installedCompany() string {
-	document, errorValue := os.ReadFile(daemon.companyMarkerPath())
-	if errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(document))
+	return installedCompanyIn(daemon.Places.StateDirectoryPath)
 }
 
 func (daemon Daemon) companyMarkerPath() string {

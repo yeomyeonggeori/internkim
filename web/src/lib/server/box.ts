@@ -5,11 +5,11 @@ import { companyComputerName } from '$lib/company/host-setup';
 import {
 	boxConfigurationSchema,
 	boxKeySchema,
-	sealedModelKeySchema,
+	sealedSecretSchema,
 	type BoxConfiguration,
 	type ConnectedBox,
 	type EmptyBox,
-	type SealedModelKey
+	type SealedSecret
 } from '$lib/company/box';
 import type { Environment } from './agent-request';
 import {
@@ -135,10 +135,20 @@ export async function claimBoxWithConnectionFile(
 	return companyID;
 }
 
+const legacySealedModelKeySchema = z.object({
+	ephemeralPublicKey: boxKeySchema,
+	nonce: z.string().regex(/^[A-Za-z0-9_-]{16}$/),
+	ciphertext: z.string().regex(/^[A-Za-z0-9_-]+$/).max(4096)
+}).strict();
+
+const heldModelKeySchema = z.union([sealedSecretSchema, legacySealedModelKeySchema]);
+
+type HeldModelKey = z.infer<typeof heldModelKeySchema>;
+
 const boxSettingsSchema = z.object({
 	encryptionKey: boxKeySchema,
 	lastSeenAt: z.string().optional(),
-	sealedModelKey: sealedModelKeySchema.optional()
+	sealedModelKey: heldModelKeySchema.optional()
 });
 
 type BoxSettings = z.infer<typeof boxSettingsSchema>;
@@ -182,7 +192,7 @@ export async function connectedBoxOf(client: SupabaseClient, companyID: string):
 export async function keepSealedModelKey(
 	client: SupabaseClient,
 	companyID: string,
-	sealedModelKey: SealedModelKey
+	sealedModelKey: SealedSecret
 ): Promise<void> {
 	const box = await boxOfCompany(client, companyID);
 	if (!box) throw new BoxRefused('connect the company computer before giving it a model key');
@@ -192,7 +202,7 @@ export async function keepSealedModelKey(
 export type BoxSession = {
 	configuration: BoxConfiguration;
 	session: HostSession;
-	sealedModelKey: SealedModelKey | null;
+	sealedModelKey: HeldModelKey | null;
 };
 
 export async function boxSessionFor(

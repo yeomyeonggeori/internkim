@@ -20,6 +20,7 @@ import (
 
 	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
 	"gitlab.com/eastriver/internkim/internal/centralplane"
+	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
 )
 
 var BuildID = "unknown"
@@ -57,6 +58,7 @@ type Service struct {
 	siteRuntimeActivities   map[string]*siteRuntimeActivity
 	siteRuntimeStartupDone  <-chan struct{}
 	mailBackend             mail.Backend
+	mailPasswords           mail.PasswordOpener
 	companyShareMutex       sync.Mutex
 	companyShareAccessMutex sync.Mutex
 	companyShareAttempts    map[string]companyShareAttempt
@@ -85,6 +87,7 @@ func NewService(configuration Configuration) *Service {
 		companionFileUploads:  map[string]*CompanionFileUpload{},
 		sites:                 map[string]*SiteRecord{},
 		mailBackend:           mail.StandardBackend{},
+		mailPasswords:         mail.BoxPasswords(blueclawruntime.CompanyHostBoxStatePath),
 		companyShareAttempts:  map[string]companyShareAttempt{},
 		requestMetrics:        newAdminRequestMetrics(),
 		databaseSchemas:       newAdminDatabaseSchemas(),

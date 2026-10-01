@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 	for (const credential of credentials.data) {
 		if (!credential.member_id || !worksHere.has(credential.member_id)) continue;
 		const account = await mailAccountOfMember(client, credential.member_id);
-		if (account?.IMAPHost) accounts.push(account);
+		if (account?.IMAPHost) accounts.push({ ...account, MemberID: credential.member_id });
 	}
 	return json({ accounts });
 };

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { supabase } from '$lib/supabase';
 import { connectedBoxSchema, emptyBoxSchema, type ConnectedBox, type EmptyBox } from '$lib/company/box';
 import { hostConfigurationSchema, hostSetupStatusSchema, type HostConfiguration } from '$lib/company/host-setup';
-import { freshSealingMaterial, sealModelKey } from '$lib/company/seal-model-key';
+import { sealModelKey } from '$lib/company/seal-to-box';
 
 async function askCompanyRoute(path: string, method: 'GET' | 'POST' | 'PUT', body?: unknown): Promise<unknown> {
 	const { data } = await supabase().auth.getSession();
@@ -56,6 +56,6 @@ export async function connectBox(publicKey: string): Promise<ConnectedBox | null
 }
 
 export async function giveBoxModelKey(box: ConnectedBox, modelKey: string): Promise<ConnectedBox | null> {
-	const sealed = await sealModelKey(modelKey.trim(), box.encryptionKey, freshSealingMaterial());
+	const sealed = await sealModelKey(modelKey.trim(), box.encryptionKey);
 	return connectedAnswerSchema.parse(await askCompanyRoute('/api/company/box/model-key', 'PUT', sealed)).connected;
 }

@@ -18,12 +18,11 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 export const PUT: RequestHandler = async ({ request, platform }) => {
 	const member = await callingMember(request, environmentOf(platform));
 	refuseUnlessTheCallerWrites(member);
-	const { record, memberID, email } = member;
+	const { record, memberID, companyID, email } = member;
 
 	const written = (await request.json().catch(() => ({}))) as MailAccountAsWritten;
 	const held = await mailAccountOfMember(record, memberID);
-	const account = asWritten(written, email, held);
-	await keepMailAccount(record, memberID, account);
+	const kept = await keepMailAccount(record, { companyID, memberID }, asWritten(written, email, held));
 
-	return json({ account: asShown(account) });
+	return json({ account: asShown(kept) });
 };

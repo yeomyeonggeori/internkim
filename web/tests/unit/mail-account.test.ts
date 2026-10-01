@@ -1,5 +1,18 @@
 import { describe, expect, test } from 'bun:test';
-import { asShown, asWritten, type MailAccount } from '../../src/lib/server/mail-account';
+import { x25519 } from '@noble/curves/ed25519.js';
+import { readFileSync } from 'node:fs';
+import type { SealedSecret } from '../../src/lib/company/box';
+import { base64URLOf, bytesOfBase64URL } from '../../src/lib/company/seal-to-box';
+import {
+	asShown,
+	asWritten,
+	mailPasswordPurpose,
+	passwordSealer,
+	sealedPasswords,
+	type MailAccount,
+	type MailPasswordField
+} from '../../src/lib/server/mail-account';
+import { openedBy } from './company/open-from-box';
 
 const written = {
 	email: 'first@example.com',
@@ -17,6 +30,16 @@ const written = {
 	defaultMailbox: 'INBOX',
 	sentMailbox: '보낸편지함'
 };
+
+const boxSecretKey = x25519.utils.randomSecretKey();
+const boxEncryptionKey = base64URLOf(x25519.getPublicKey(boxSecretKey));
+const owner = { companyID: 'company-a', memberID: 'member-a' };
+const seal = passwordSealer(boxEncryptionKey, owner);
+
+function sealed(field: SealedSecret | null): SealedSecret {
+	if (!field) throw new Error('the password was not sealed');
+	return field;
+}
 
 describe('asWritten', () => {
 	test('what the mail tab already sends becomes what maild already takes', () => {
@@ -86,4 +109,91 @@ describe('asShown', () => {
 	test('a member who has connected nothing is shown nothing', () => {
 		expect(asShown(null)).toBeNull();
 	});
+});
+
+describe('sealing the passwords to the company box', () => {
+	test('what is kept holds no password anyone but the box can read', async () => {
+		const kept = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+		const stored = JSON.stringify(kept);
+
+		expect(stored.includes('imap-secret')).toBe(false);
+		expect(stored.includes('smtp-secret')).toBe(false);
+		expect(JSON.parse(stored).IMAPPassword).toBe('');
+		expect(JSON.parse(stored).SMTPPassword).toBe('');
+		expect(await openedBy(boxSecretKey, sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword'))).toBe(
+			'imap-secret'
+		);
+		expect(await openedBy(boxSecretKey, sealed(kept.SealedSMTPPassword), mailPasswordPurpose(owner, 'SMTPPassword'))).toBe(
+			'smtp-secret'
+		);
+	});
+
+	test('a blank password keeps the sealed one exactly as it was', async () => {
+		const held = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+
+		const again = await sealedPasswords(
+			asWritten({ ...written, imapHost: 'imap.changed.example.com', imapPassword: '', smtpPassword: '' }, 'first@example.com', held),
+			seal
+		);
+
+		expect(again.SealedIMAPPassword).toEqual(held.SealedIMAPPassword);
+		expect(again.SealedSMTPPassword).toEqual(held.SealedSMTPPassword);
+		expect(again.IMAPHost).toBe('imap.changed.example.com');
+		expect(asShown(again)?.isConfigured).toBe(true);
+	});
+
+	test('a new password is sealed afresh and the other is left alone', async () => {
+		const held = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+
+		const changed = await sealedPasswords(
+			asWritten({ ...written, imapPassword: 'changed', smtpPassword: '' }, 'first@example.com', held),
+			seal
+		);
+
+		expect(changed.SealedIMAPPassword).not.toEqual(held.SealedIMAPPassword);
+		expect(changed.SealedSMTPPassword).toEqual(held.SealedSMTPPassword);
+		expect(await openedBy(boxSecretKey, sealed(changed.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword'))).toBe(
+			'changed'
+		);
+	});
+
+	test('a password kept readable before the company had a box is sealed the next time it is kept', async () => {
+		const readable = asWritten(written, 'first@example.com', null);
+
+		const kept = await sealedPasswords(readable, seal);
+
+		expect(kept.IMAPPassword).toBe('');
+		expect(kept.SealedIMAPPassword?.recipient).toBe(boxEncryptionKey);
+	});
+
+	test('a password sealed for one member does not open for another, nor as the other password', async () => {
+		const kept = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+		const imapPassword = sealed(kept.SealedIMAPPassword);
+
+		const elsewhere: [typeof owner, MailPasswordField][] = [
+			[{ companyID: 'company-a', memberID: 'member-b' }, 'IMAPPassword'],
+			[{ companyID: 'company-b', memberID: 'member-a' }, 'IMAPPassword'],
+			[owner, 'SMTPPassword']
+		];
+		for (const [someoneElse, field] of elsewhere) {
+			await expect(openedBy(boxSecretKey, imapPassword, mailPasswordPurpose(someoneElse, field))).rejects.toThrow();
+		}
+	});
+
+	test('a password sealed to one box does not open on another', async () => {
+		const kept = await sealedPasswords(asWritten(written, 'first@example.com', null), seal);
+
+		await expect(
+			openedBy(x25519.utils.randomSecretKey(), sealed(kept.SealedIMAPPassword), mailPasswordPurpose(owner, 'IMAPPassword'))
+		).rejects.toThrow();
+	});
+
+	test('the password the box side opens in its tests opens here for the same member and field', async () => {
+		const fixture = JSON.parse(
+			readFileSync(new URL('../../../internal/box/testdata/sealed-mail-password.json', import.meta.url), 'utf8')
+		);
+		const purpose = mailPasswordPurpose({ companyID: fixture.companyID, memberID: fixture.memberID }, fixture.field);
+
+		expect(await openedBy(bytesOfBase64URL(fixture.boxSecretKey), fixture.sealed, purpose)).toBe(fixture.password);
+});
 });

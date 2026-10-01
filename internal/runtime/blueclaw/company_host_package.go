@@ -46,6 +46,7 @@ const (
 	// build time cannot name an id nobody has chosen yet. `internkim install` points
 	// this symlink at the company it prepared, and every unit reads through it.
 	CompanyHostStateRoot        = "/var/lib/internkim"
+	CompanyHostBoxStatePath     = "/var/lib/internkim/box"
 	CompanyHostCompaniesRoot    = "/var/lib/internkim/companies"
 	CompanyHostCurrentPath      = "/var/lib/internkim/current"
 	CompanyHostEnvironmentPath  = "/var/lib/internkim/current/host.env"

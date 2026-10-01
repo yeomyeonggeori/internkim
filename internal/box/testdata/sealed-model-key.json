@@ -1,12 +1,10 @@
 {
 	"modelKey": "sk-or-v1-0000000000000000000000000000000000000000000000000000000000000000",
 	"boxSecretKey": "ERERERERERERERERERERERERERERERERERERERERERE",
-	"boxEncryptionKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
-	"ephemeralSecretKey": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
-	"nonce": "MzMzMzMzMzMzMzMz",
 	"sealed": {
-		"ephemeralPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
-		"nonce": "MzMzMzMzMzMzMzMz",
-		"ciphertext": "IsKzudg9rvZUiqkN0HUacH8AzdlMw_IIR7_d6xyNe8A3wfu4k5ltTQbt_cGXOdmIITVzPGVV6_Tbq1xK8--F-SssNc-SocyKhTxJwQEAgdYo_GSrR9jWzyI"
+		"version": 1,
+		"recipient": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+		"enc": "eK7NapVVdZF3VjpzMYSfdQH8Yx7Rr6dhbJWMxY_QMFc",
+		"ciphertext": "MR3FJ3l3C8t6qnWFVWvX-ltlgWQKkBf1cZFw1b8-XvFhQtcNz_dAXGaGqMYyMvnn-cgXNPRg4pgdRrvg8zMgSTUqwQmiLSGR6TmJB5ujgE-Hw0RgZ879chE"
 	}
 }

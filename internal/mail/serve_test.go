@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"gitlab.com/eastriver/internkim/internal/box"
 )
 
 type recordingBackend struct {
@@ -88,7 +90,7 @@ func ask(t *testing.T, backend Backend, capability string, body map[string]any) 
 	}
 	request := httptest.NewRequest(http.MethodPost, servePrefix+capability, strings.NewReader(string(payload)))
 	recorder := httptest.NewRecorder()
-	Handler(backend).ServeHTTP(recorder, request)
+	Handler(backend, BoxPasswords(t.TempDir())).ServeHTTP(recorder, request)
 	return recorder
 }
 
@@ -166,9 +168,28 @@ func TestHandlerAnswersNothingItDoesNotKnow(t *testing.T) {
 	}
 	request := httptest.NewRequest(http.MethodGet, servePrefix+"mailboxes", nil)
 	recorder := httptest.NewRecorder()
-	Handler(backend).ServeHTTP(recorder, request)
+	Handler(backend, BoxPasswords(t.TempDir())).ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("a read of a mail capability = %d", recorder.Code)
+	}
+	if len(backend.asked) != 0 {
+		t.Fatalf("backend was reached: %v", backend.asked)
+	}
+}
+
+func TestHandlerRefusesASealedPasswordThisComputerHasNoBoxToOpen(t *testing.T) {
+	backend := &recordingBackend{}
+	account := aConfiguredAccount()
+	account.IMAPPassword = ""
+	account.SealedIMAPPassword = &box.SealedSecret{Version: 1, Recipient: strings.Repeat("A", 43)}
+
+	recorder := ask(t, backend, "mailboxes", map[string]any{"account": account, "memberID": "member-a"})
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("status = %d", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), "no box key") {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 	if len(backend.asked) != 0 {
 		t.Fatalf("backend was reached: %v", backend.asked)

@@ -24,7 +24,7 @@ type sealingVector struct {
 
 func readSealingVector(t *testing.T) sealingVector {
 	t.Helper()
-	document, errorValue := os.ReadFile(filepath.Join("testdata", "sealed-model-key.json"))
+	document, errorValue := os.ReadFile(filepath.Join("testdata", "legacy-sealed-model-key.json"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -48,7 +48,7 @@ func identityWithEncryptionSeed(t *testing.T, encoded string) Identity {
 	return Identity{signingKey: ed25519.NewKeyFromSeed(make([]byte, seedLength)), encryptionKey: encryptionKey}
 }
 
-func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
+func TestBoxStillOpensAModelKeySealedBeforeHPKE(t *testing.T) {
 	vector := readSealingVector(t)
 	identity := identityWithEncryptionSeed(t, vector.BoxSecretKey)
 	if identity.EncryptionPublicKey() != vector.BoxEncryptionKey {
@@ -64,7 +64,7 @@ func TestBoxOpensTheModelKeyTheBrowserSealed(t *testing.T) {
 	}
 }
 
-func TestAnotherBoxCannotOpenTheModelKey(t *testing.T) {
+func TestAnotherBoxCannotOpenAModelKeySealedBeforeHPKE(t *testing.T) {
 	vector := readSealingVector(t)
 	otherBox := identityWithEncryptionSeed(t, base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("\x44", seedLength))))
 
