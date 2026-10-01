@@ -19,19 +19,23 @@ export const boxFileClaimSchema = z.object({
 	connectionKey: z.string().regex(/^[a-f0-9]{64}$/)
 }).strict();
 
-export const sealedModelKeySchema = z.object({
-	ephemeralPublicKey: boxKeySchema,
-	nonce: z.string().regex(/^[A-Za-z0-9_-]{16}$/),
+export const sealedSecretVersion = 1;
+
+export const sealedSecretSchema = z.object({
+	version: z.literal(sealedSecretVersion),
+	recipient: boxKeySchema,
+	enc: boxKeySchema,
 	ciphertext: z.string().regex(/^[A-Za-z0-9_-]+$/).max(4096)
 }).strict();
 
-export type SealedModelKey = z.infer<typeof sealedModelKeySchema>;
+export type SealedSecret = z.infer<typeof sealedSecretSchema>;
 
 export const boxConfigurationSchema = hostConfigurationSchema.omit({ agentKey: true });
 
 export type BoxConfiguration = z.infer<typeof boxConfigurationSchema>;
 
 export const connectedBoxSchema = z.object({
+	companyID: z.string(),
 	publicKey: boxKeySchema,
 	encryptionKey: boxKeySchema,
 	lastSeenAt: z.string().nullable(),

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { x25519 } from '@noble/curves/ed25519.js';
-import { base64URLOf } from '../../src/lib/company/seal-model-key';
+import { base64URLOf } from '../../src/lib/company/seal-to-box';
 import { companyComputerName } from '../../src/lib/company/host-setup';
 import { callingAgent } from '../../src/lib/server/agent-request';
 import {
@@ -19,6 +19,7 @@ import {
 import {
 	companyOfHostSession,
 	controlPlane,
+	fleetCredentialKind,
 	issueAgentKey,
 	provisionCompany,
 	sessionForHost,
@@ -162,6 +163,7 @@ describe('connecting an empty box', () => {
 		await claimBox(client, companyID, box.publicKey, officeAddress);
 
 		expect(await connectedBoxOf(client, companyID)).toMatchObject({
+			companyID,
 			publicKey: box.publicKey,
 			encryptionKey: box.encryptionKey,
 			hasModelKey: false
@@ -175,7 +177,7 @@ describe('connecting an empty box', () => {
 		const box = await aBox();
 		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
 		await claimBox(client, companyID, box.publicKey, officeAddress);
-		const sealedModelKey = { ephemeralPublicKey: box.encryptionKey, nonce: 'MzMzMzMzMzMzMzMz', ciphertext: 'c2VhbGVk' };
+		const sealedModelKey = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
 		await keepSealedModelKey(client, companyID, sealedModelKey);
 
 		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
@@ -185,6 +187,23 @@ describe('connecting an empty box', () => {
 		expect(answered?.sealedModelKey).toEqual(sealedModelKey);
 		expect(await companyOfHostSession(credentials, answered?.session.accessToken ?? '')).toBe(companyID);
 		expect((await connectedBoxOf(client, companyID))?.lastSeenAt).not.toBeNull();
+	});
+
+	test('a model key sealed before HPKE still reaches its box until it is given again', async () => {
+		const box = await aBox();
+		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress);
+		await claimBox(client, companyID, box.publicKey, officeAddress);
+		const sealedBeforeHPKE = { ephemeralPublicKey: box.encryptionKey, nonce: 'MzMzMzMzMzMzMzMz', ciphertext: 'c2VhbGVk' };
+		const { error } = await client
+			.from('credential')
+			.update({ settings: { encryptionKey: box.encryptionKey, sealedModelKey: sealedBeforeHPKE } })
+			.eq('company_id', companyID)
+			.eq('kind', fleetCredentialKind);
+		expect(error).toBeNull();
+
+		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
+
+		expect(answered?.sealedModelKey).toEqual(sealedBeforeHPKE);
 	});
 
 	test('an unclaimed box gets no session', async () => {
@@ -208,7 +227,8 @@ describe('connecting an empty box', () => {
 
 	test('a model key waits for a connected box', async () => {
 		const empty = await aCompany('empty');
-		const sealedModelKey = { ephemeralPublicKey: 'e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM', nonce: 'MzMzMzMzMzMzMzMz', ciphertext: 'c2VhbGVk' };
+		const boxKey = 'e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM';
+		const sealedModelKey = { version: 1 as const, recipient: boxKey, enc: boxKey, ciphertext: 'c2VhbGVk' };
 
 		await expect(keepSealedModelKey(client, empty.companyID, sealedModelKey)).rejects.toBeInstanceOf(BoxRefused);
 	});

@@ -1,5 +1,7 @@
 package mail
 
+import "gitlab.com/eastriver/internkim/internal/box"
+
 const (
 	securityTLS      = "tls"
 	securityStartTLS = "starttls"
@@ -24,6 +26,9 @@ type Account struct {
 	DefaultMailbox string
 	SentMailbox    string
 	UpdatedAt      string
+
+	SealedIMAPPassword *box.SealedSecret
+	SealedSMTPPassword *box.SealedSecret
 }
 
 type AccountResponse struct {

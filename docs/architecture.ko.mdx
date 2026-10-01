@@ -368,7 +368,11 @@ Postgres에 `vector` 확장이 있는 이유가 이것입니다. 확장이 없�
   `person.credential.issue`가 계정을 연결하는 호출입니다.
 - `person.mail.*`은 멤버의 메일 계정을 호출마다 가져와
   `internkim-maild`로 갑니다. 메일 비밀번호가 그 컴퓨터에 저장된 채로 남는
-  일은 없습니다.
+  일은 없습니다. 웹 앱은 비밀번호를 저장할 때 회사, 멤버, 필드, 로그인할 서버에 묶어 상자의
+  암호화 키로 하나씩 HPKE(RFC 9180) 봉인하고, maild가 `/var/lib/internkim/box`의 키로 엽니다.
+  서버, 포트, 보안 방식, 로그인 계정을 바꾸면 비밀번호를 다시 입력해야 합니다.
+  상자 키가 없는 회사는 읽을 수 있는 형태로 남고, 그렇게 저장할 때마다
+  `mail_account.kept_unsealed`가 기록됩니다.
 - 워크스페이스 화면(`person.memory.*`, `person.files.*`, `person.runs.*`,
   `person.skills.*`, `person.persona.*`와 그 이웃들)과 공개 API의 회사
   도구(`person.api.request`, `person.api.file`)는 `admind`의 unix 소켓으로

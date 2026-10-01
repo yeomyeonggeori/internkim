@@ -16,9 +16,15 @@ async function askTheRecord(method: string, payload?: MailAccountWritePayload): 
 		},
 		body: payload ? JSON.stringify(payload) : undefined
 	});
-	if (!response.ok) throw new Error(`the mail account answered ${response.status}`);
+	if (!response.ok) throw new Error((await refusalOf(response)) || `the mail account answered ${response.status}`);
 	const answered = (await response.json()) as { account: unknown };
 	return answered.account;
+}
+
+async function refusalOf(response: Response): Promise<string> {
+	const body: unknown = await response.json().catch(() => null);
+	if (typeof body !== 'object' || body === null || !('message' in body)) return '';
+	return typeof body.message === 'string' ? body.message : '';
 }
 
 export async function recordMailAccount() {

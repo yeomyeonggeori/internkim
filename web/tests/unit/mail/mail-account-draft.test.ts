@@ -4,6 +4,9 @@ import {
 	composeDraftPayload,
 	createMailAccountDraft,
 	emptyMailAccount,
+	isPasswordNeededAgain,
+	keepsSavedIMAPPassword,
+	keepsSavedSMTPPassword,
 	mailAccountDraftPayload,
 	splitMailAddressList
 } from '../../../src/routes/mail/mail-account-draft';
@@ -82,5 +85,46 @@ describe('mail account draft', () => {
 			subject: 'Subject',
 			body: 'Body'
 		});
+	});
+});
+
+describe('a saved password and the server it belongs to', () => {
+	const saved = {
+		...emptyMailAccount,
+		imapHost: 'imap.example.com',
+		imapUsername: 'first',
+		smtpHost: 'smtp.example.com',
+		smtpUsername: 'first',
+		isConfigured: true,
+		hasIMAPPassword: true,
+		hasSMTPPassword: true
+	};
+
+	test('the saved password stays when the server does', () => {
+		const draft = { ...createMailAccountDraft(saved), displayName: '박예시' };
+
+		expect(keepsSavedIMAPPassword(saved, draft)).toBe(true);
+		expect(isPasswordNeededAgain(saved, draft)).toBe(false);
+	});
+
+	test('a changed server, port, security or login asks for the password again', () => {
+		for (const change of [
+			{ imapHost: 'imap.changed.example.com' },
+			{ imapPort: 143 },
+			{ imapSecurity: 'none' },
+			{ smtpUsername: 'second' }
+		]) {
+			const draft = { ...createMailAccountDraft(saved), ...change };
+
+			expect(isPasswordNeededAgain(saved, draft)).toBe(true);
+			expect(isPasswordNeededAgain(saved, { ...draft, imapPassword: 'new', smtpPassword: 'new' })).toBe(false);
+		}
+	});
+
+	test('the SMTP field shows the saved password only while the SMTP server is unchanged', () => {
+		const draft = { ...createMailAccountDraft(saved), smtpHost: 'smtp.changed.example.com' };
+
+		expect(keepsSavedSMTPPassword(saved, draft)).toBe(false);
+		expect(keepsSavedIMAPPassword(saved, draft)).toBe(true);
 	});
 });

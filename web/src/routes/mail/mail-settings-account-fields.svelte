@@ -6,6 +6,7 @@
 		DEFAULT_MAIL_PROVIDER_ID,
 		type MailProviderID
 	} from './mail-provider-presets';
+	import { isPasswordNeededAgain, keepsSavedIMAPPassword, keepsSavedSMTPPassword } from './mail-account-draft';
 	import MailProviderSetupGuide from './mail-provider-setup-guide.svelte';
 	import { mailProviderSetupGuide } from './mail-provider-setup-guides';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
@@ -36,6 +37,10 @@
 		syncCommonAppPassword
 	}: Props = $props();
 	let setupGuide = $derived(mailProviderSetupGuide(emailProviderID, text));
+	let keepsSavedPassword = $derived(
+		keepsSavedIMAPPassword(account, accountDraft) || keepsSavedSMTPPassword(account, accountDraft)
+	);
+	let isPasswordNeeded = $derived(isPasswordNeededAgain(account, accountDraft));
 </script>
 
 <div class="grid gap-4">
@@ -101,9 +106,13 @@
 					type="password"
 					autocomplete="current-password"
 					value={accountDraft.imapPassword}
-					placeholder={account.hasIMAPPassword || account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
+					placeholder={keepsSavedPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
+					aria-invalid={isPasswordNeeded}
 					oninput={syncCommonAppPassword}
 				/>
+			{#if isPasswordNeeded}
+				<p class="text-xs leading-5 text-destructive">{text.settingsSheet.passwordNeededAgain}</p>
+			{/if}
 			<p class="text-xs leading-5 text-muted-foreground">{text.fieldDescriptions.appPassword}</p>
 		</div>
 		<div class="w-full space-y-2">

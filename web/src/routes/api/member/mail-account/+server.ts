@@ -1,4 +1,4 @@
-import { json } from '@sveltejs/kit';
+import { error, json } from '@sveltejs/kit';
 import { environmentOf } from '$lib/server/agent-request';
 import { callingMember, refuseUnlessTheCallerWrites } from '$lib/server/member-request';
 import {
@@ -6,6 +6,7 @@ import {
 	asWritten,
 	keepMailAccount,
 	mailAccountOfMember,
+	passwordsLostToAServerChange,
 	type MailAccountAsWritten
 } from '$lib/server/mail-account';
 import type { RequestHandler } from './$types';
@@ -18,12 +19,16 @@ export const GET: RequestHandler = async ({ request, platform }) => {
 export const PUT: RequestHandler = async ({ request, platform }) => {
 	const member = await callingMember(request, environmentOf(platform));
 	refuseUnlessTheCallerWrites(member);
-	const { record, memberID, email } = member;
+	const { record, memberID, companyID, email } = member;
 
 	const written = (await request.json().catch(() => ({}))) as MailAccountAsWritten;
 	const held = await mailAccountOfMember(record, memberID);
 	const account = asWritten(written, email, held);
-	await keepMailAccount(record, memberID, account);
+	const lost = passwordsLostToAServerChange(account, held);
+	if (lost.length > 0) {
+		error(400, `the ${lost.join(' and ')} server settings changed, so enter the ${lost.join(' and ')} password again`);
+	}
+	const kept = await keepMailAccount(record, { companyID, memberID }, account);
 
-	return json({ account: asShown(account) });
+	return json({ account: asShown(kept) });
 };

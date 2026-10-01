@@ -19,7 +19,11 @@ func (service *Service) readMailAccount(ctx context.Context, actorEmail string) 
 	if !found {
 		return mail.DefaultAccount(actorEmail), false, nil
 	}
-	return mail.NormalizeAccount(accountOfRecord(actorEmail, held)), true, nil
+	opened, errorValue := service.mailPasswords(accountOfRecord(actorEmail, held), held.MemberID)
+	if errorValue != nil {
+		return mail.Account{}, false, errorValue
+	}
+	return mail.NormalizeAccount(opened), true, nil
 }
 
 func (service *Service) saveMailAccountRecord(ctx context.Context, account mail.Account) error {
@@ -52,6 +56,9 @@ func accountOfRecord(actorEmail string, held centralplane.MailAccount) mail.Acco
 		SMTPPassword:   held.SMTPPassword,
 		DefaultMailbox: held.DefaultMailbox,
 		SentMailbox:    held.SentMailbox,
+
+		SealedIMAPPassword: held.SealedIMAPPassword,
+		SealedSMTPPassword: held.SealedSMTPPassword,
 	}
 }
 

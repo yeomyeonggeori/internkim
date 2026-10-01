@@ -39,7 +39,12 @@ func (service *Service) announceMailOnce(ctx context.Context) {
 		return
 	}
 	for _, held := range accounts {
-		service.announceMailFor(ctx, client, accountOfRecord(held.ActorEmail, held))
+		account, errorValue := service.mailPasswords(accountOfRecord(held.ActorEmail, held), held.MemberID)
+		if errorValue != nil {
+			log.Printf("mail notify: %v", errorValue)
+			continue
+		}
+		service.announceMailFor(ctx, client, account)
 	}
 }
 

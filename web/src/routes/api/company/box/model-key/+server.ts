@@ -1,5 +1,5 @@
 import { error, json } from '@sveltejs/kit';
-import { sealedModelKeySchema } from '$lib/company/box';
+import { sealedSecretSchema } from '$lib/company/box';
 import { environmentOfPlatform } from '$lib/server/agent-request';
 import { BoxRefused, connectedBoxOf, keepSealedModelKey } from '$lib/server/box';
 import { callingHostAdministrator } from '$lib/server/company-host-setup';
@@ -7,7 +7,7 @@ import type { RequestHandler } from './$types';
 
 export const PUT: RequestHandler = async ({ request, platform }) => {
 	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
-	const sealed = sealedModelKeySchema.safeParse(await request.json().catch(() => null));
+	const sealed = sealedSecretSchema.safeParse(await request.json().catch(() => null));
 	if (!sealed.success) error(400, 'a model key arrives sealed to the box encryption key');
 
 	try {

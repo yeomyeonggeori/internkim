@@ -381,7 +381,12 @@ What "serves it" means depends on the capability, and each branch is in
   A member who has connected no account gets a `409`, and
   `person.credential.issue` is the call that connects one.
 - Mail (`person.mail.*`) goes to `internkim-maild` with the member's mail
-  account fetched per call, so no mail password is at rest on the box.
+  account fetched per call, so no mail password is at rest on the box. The web
+  app seals each password to the box's encryption key with HPKE (RFC 9180) when
+  it is saved, bound to the company, the member, the field and the server it
+  signs in to, and maild opens it with the key in `/var/lib/internkim/box`.
+  Changing that server, port, security or login asks for the password again. A company with no box key keeps the readable form,
+  and every such save is logged as `mail_account.kept_unsealed`.
 - Workspace views (`person.memory.*`, `person.files.*`, `person.runs.*`,
   `person.skills.*`, `person.persona.*` and their siblings) and the public
   API's company tools (`person.api.request`, `person.api.file`) are forwarded

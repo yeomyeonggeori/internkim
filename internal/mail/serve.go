@@ -11,6 +11,7 @@ const servePrefix = "/v1/mail/"
 
 type call struct {
 	Account       Account            `json:"account"`
+	MemberID      string             `json:"memberID"`
 	Mailbox       string             `json:"mailbox"`
 	UID           uint32             `json:"uid"`
 	TargetMailbox string             `json:"targetMailbox"`
@@ -19,7 +20,7 @@ type call struct {
 	Mark          MessageMarkRequest `json:"mark"`
 }
 
-func Handler(backend Backend) http.Handler {
+func Handler(backend Backend, openPasswords PasswordOpener) http.Handler {
 	return http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || !strings.HasPrefix(request.URL.Path, servePrefix) {
 			http.NotFound(responseWriter, request)
@@ -31,6 +32,12 @@ func Handler(backend Backend) http.Handler {
 			refuse(responseWriter, http.StatusBadRequest, "that is not a mail call")
 			return
 		}
+		opened, errorValue := openPasswords(asked.Account, asked.MemberID)
+		if errorValue != nil {
+			refuse(responseWriter, http.StatusConflict, errorValue.Error())
+			return
+		}
+		asked.Account = opened
 		if !asked.Account.IsConfigured() {
 			refuse(responseWriter, http.StatusBadRequest, "this call named no account")
 			return

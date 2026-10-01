@@ -4,6 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
+	import { keepsSavedSMTPPassword } from './mail-account-draft';
 	import type { MailAccount, MailAccountDraft } from './mail-types';
 	import type { mailText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
@@ -110,7 +111,7 @@
 							type="password"
 							autocomplete="current-password"
 							value={accountDraft.smtpPassword}
-							placeholder={account.hasSMTPPassword ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
+							placeholder={keepsSavedSMTPPassword(account, accountDraft) ? text.settingsSheet.savedPassword : text.settingsSheet.appPassword}
 							oninput={syncSMTPAppPassword}
 						/>
 				</div>
