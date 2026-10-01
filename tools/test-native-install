@@ -64,7 +64,9 @@ from native_install_rig import (  # noqa: E402
     build_stand_in_package,
     capabilityd_argument,
     read_through_capabilityd,
+    dependency_alternatives,
     dependency_names,
+    CANDIDATE_CHOICE_COMMAND,
     package_fields,
     write_release_directory,
 )
@@ -372,16 +374,19 @@ class Rig:
         readline-common's; whether the dependency line is honest is a separate
         observation, made against the same field.
         """
-        declared = self.declared_dependencies(package_path)
-        if not declared:
+        clauses = dependency_alternatives(package_fields(package_path).get("Depends", ""))
+        if not clauses:
             return []
+        self.machine.checked_shell("export DEBIAN_FRONTEND=noninteractive\napt-get update\n", timeout_seconds=900)
+        chosen = self.machine.checked_shell(
+            CANDIDATE_CHOICE_COMMAND % " ".join(shlex.quote("|".join(clause)) for clause in clauses)
+        ).stdout.split()
         self.machine.checked_shell(
             "export DEBIAN_FRONTEND=noninteractive\n"
-            "apt-get update\n"
-            f"apt-get install -y --no-install-recommends {' '.join(declared)}\n",
+            f"apt-get install -y --no-install-recommends {' '.join(chosen)}\n",
             timeout_seconds=1800,
         )
-        return declared
+        return chosen
 
     def declared_dependencies(self, package_path):
         return dependency_names(package_fields(package_path).get("Depends", ""))

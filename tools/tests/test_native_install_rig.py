@@ -6,6 +6,7 @@ import json
 import sys
 import tarfile
 import re
+import subprocess
 import tempfile
 import unittest
 import urllib.request
@@ -161,6 +162,20 @@ class DependencyReadingTests(unittest.TestCase):
             rig.dependency_names("postgresql (>= 14), postgresql (<< 18), ca-certificates"),
             ["postgresql", "ca-certificates"],
         )
+
+    def test_every_alternative_of_a_clause_is_kept_in_order(self):
+        self.assertEqual(
+            rig.dependency_alternatives("postgresql, postgresql-18-pgvector | postgresql-17-pgvector, jq (>= 1.6)"),
+            [["postgresql"], ["postgresql-18-pgvector", "postgresql-17-pgvector"], ["jq"]],
+        )
+
+    def test_the_first_alternative_with_a_candidate_is_chosen(self):
+        policy = {"postgresql-18-pgvector": "(none)", "postgresql-17-pgvector": "0.8.0-1", "jq": "1.7"}
+        script = "apt-cache() { case \"$2\" in " + " ".join(
+            f"{name}) echo '  Candidate: {candidate}';;" for name, candidate in policy.items()
+        ) + " esac; }\n" + rig.CANDIDATE_CHOICE_COMMAND % "'postgresql-18-pgvector|postgresql-17-pgvector' 'jq' 'unknown-a|unknown-b'"
+        chosen = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.split()
+        self.assertEqual(chosen, ["postgresql-17-pgvector", "jq", "unknown-a"])
 
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
         self.assertEqual(

@@ -209,6 +209,26 @@ def dependency_names(depends_field):
     return names
 
 
+def dependency_alternatives(depends_field):
+    clauses = []
+    for clause in depends_field.replace("\n", " ").split(","):
+        names = [alternative.split()[0] for alternative in clause.split("|") if alternative.split()]
+        if names and names not in clauses:
+            clauses.append(names)
+    return clauses
+
+
+CANDIDATE_CHOICE_COMMAND = r"""
+for clause in %s; do
+  chosen=""
+  for name in $(printf '%%s' "$clause" | tr '|' ' '); do
+    if apt-cache policy "$name" 2>/dev/null | grep -q '^ *Candidate: [^(]'; then chosen="$name"; break; fi
+  done
+  printf '%%s\n' "${chosen:-${clause%%%%|*}}"
+done
+"""
+
+
 def parse_control_paragraph(text):
     fields = {}
     name = None
