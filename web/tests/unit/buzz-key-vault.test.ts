@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import {
 	generateRecoveryCode,
 	normalizeRecoveryCode,
@@ -55,6 +55,21 @@ describe("buzz key vault — recovery code", () => {
 		const code = generateRecoveryCode();
 		expect(code).toMatch(/^[A-Z0-9]{4}(-[A-Z0-9]{4}){5}$/);
 		expect(code).not.toMatch(/[ILO01]/);
+	});
+
+	test("draws every character uniformly, discarding the bytes a modulo would bias", () => {
+		const biasedBytes = Array<number>(24).fill(255);
+		const uniformBytes = Array<number>(24).fill(1);
+		const scriptedBytes = [...biasedBytes, ...uniformBytes];
+		const randomValues = spyOn(crypto, "getRandomValues").mockImplementation(<T extends ArrayBufferView | null>(array: T): T => {
+			if (array instanceof Uint8Array) array.forEach((_, index) => (array[index] = scriptedBytes.shift() ?? 1));
+			return array;
+		});
+		try {
+			expect(generateRecoveryCode()).toBe("BBBB-BBBB-BBBB-BBBB-BBBB-BBBB");
+		} finally {
+			randomValues.mockRestore();
+		}
 	});
 
 	test("round-trips the secret through a recovery code, ignoring spacing and case", async () => {
