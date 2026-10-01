@@ -113,7 +113,7 @@ class MyAttendanceToday {
 			} else {
 				await this.load();
 			}
-			toast.success(this.recordedClockMessage(kind));
+			toast.success(result?.removed ? this.takenBackClockMessage(kind) : this.recordedClockMessage(kind));
 			if (kind === 'clock_in' && (await lockScreenRefusesTheClock())) toast.info(text.lockScreenOff);
 		} catch (failure) {
 			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
@@ -169,6 +169,9 @@ class MyAttendanceToday {
 			this.isSubmitting = false;
 		}
 	};
+
+	private takenBackClockMessage = (kind: AttendanceKind): string =>
+		kind === 'clock_out' ? text.clockInTakenBack : text.clockOutTakenBack;
 
 	private recordedClockMessage = (kind: AttendanceKind): string => {
 		if (kind === 'clock_out') return text.clockedOut;

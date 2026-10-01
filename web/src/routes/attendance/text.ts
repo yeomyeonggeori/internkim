@@ -26,6 +26,8 @@ export const attendanceText = {
 		clockedInAtTemplate: '{location} 출근했습니다',
 		lockScreenOff: '잠금화면에 근무 카드를 띄우려면 설정 → internkim → 실시간 현황을 켜주세요.',
 		clockedOut: '퇴근했습니다',
+		clockInTakenBack: '방금 누른 출근을 취소했습니다',
+		clockOutTakenBack: '방금 누른 퇴근을 취소하고 근무를 이어갑니다',
 		clockOut: '퇴근',
 		clockOutNobodyRecordedTitle: '퇴근 기록이 없습니다',
 		clockOutNobodyRecordedDescriptionTemplate:
@@ -427,6 +429,8 @@ export const attendanceText = {
 		clockedInAtTemplate: 'Clocked in at {location}',
 		lockScreenOff: 'To see the working card on the Lock Screen, turn on Live Activities for internkim in Settings.',
 		clockedOut: 'Clocked out',
+		clockInTakenBack: 'The clock-in you just made was taken back',
+		clockOutTakenBack: 'The clock-out you just made was taken back, so you are still at work',
 		clockOut: 'Clock out',
 		clockOutNobodyRecordedTitle: 'A clock-out is missing',
 		clockOutNobodyRecordedDescriptionTemplate:

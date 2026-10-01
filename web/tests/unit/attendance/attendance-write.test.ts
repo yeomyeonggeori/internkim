@@ -94,9 +94,16 @@ describe('combined attendance write outcome', () => {
 
 describe('attendance write result', () => {
 	test('reads every status the record writes as saved', () => {
-		for (const status of ['added', 'corrected', 'removed']) {
+		for (const status of ['added', 'corrected']) {
 			expect(attendanceWriteResultFrom({ status })).toEqual({ outcome: 'saved' });
 		}
+	});
+
+	test('says when the write removed a record instead of adding one', () => {
+		expect(attendanceWriteResultFrom({ status: 'removed', eventID: 'event-1', backdated: false })).toEqual({
+			outcome: 'saved',
+			removed: true
+		});
 	});
 
 	test('reads a write the record handed to an administrator as an asking', () => {
