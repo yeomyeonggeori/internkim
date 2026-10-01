@@ -2,7 +2,6 @@ import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { companyOfHostCredential, controlPlane } from './control-plane';
-export { fleetDirectory } from './fleet-directory';
 
 export type Environment = Record<string, string | undefined>;
 

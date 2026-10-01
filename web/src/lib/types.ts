@@ -1,33 +1,3 @@
-import type { MemberRole, MemberStatus } from '$lib/member-vocabulary';
-
-export interface Device {
-	fleet_id: string;
-	fleet_secret_hash?: string;
-	admin_email: string;
-	created_at: string;
-	versions: {
-		blueclaw: string;
-		cli: string;
-	};
-	fleet?: Fleet;
-}
-
-export type FleetMemberStatus = 'active' | 'pending';
-
-export interface FleetMember {
-	nodeID: string;
-	nodeKey?: string;
-	status: FleetMemberStatus;
-	joinedAt: string;
-	activatedAt?: string;
-}
-
-export interface Fleet {
-	fleetID: string;
-	members: FleetMember[];
-	workspaceHead?: string;
-	ledgerRevision?: number;
-}
+import type { MemberRole } from '$lib/member-vocabulary';
 
 export type UserRole = MemberRole;
-

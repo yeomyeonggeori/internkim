@@ -137,7 +137,6 @@ if [ "$repositoryRoot" = "$mainWorktreePath" ]; then
   fail "main worktree path must be different from this worktree"
 fi
 
-syncLocalState ".local/ops"
 syncLocalState ".agents"
 syncLocalState "docs/private"
 syncSharedDependencyArtifacts

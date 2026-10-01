@@ -88,30 +88,7 @@ export const appShellText = {
 		notInvitedTitle: '초대되지 않은 계정입니다',
 		notInvitedDescription: '{email} 은(는) 아직 구성원으로 초대되지 않았습니다. 관리자에게 초대를 요청하세요.',
 		signOutTryAnother: '로그아웃하고 다른 계정으로',
-		webSessionUnavailable: '로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.',
-		apiTokenSheet: {
-			title: 'API 토큰',
-			description: '외부 개발 도구가 김인턴 API를 호출할 때 쓰는 사용자 토큰입니다.',
-			label: '토큰 이름',
-			labelPlaceholder: 'Claude Code',
-			create: '토큰 발급',
-			createSuccess: '토큰이 발급되었습니다. 이 값은 다시 볼 수 없습니다.',
-			createError: '토큰 발급에 실패했습니다.',
-			shownOnce: '한 번만 표시됩니다. 지금 복사해 두세요.',
-			ownerBoundary: '요청 본문에 다른 사용자가 들어 있어도 항상 이 토큰을 발급받은 사용자 권한으로 실행됩니다.',
-			scopesTitle: '권한 범위',
-			copy: '토큰 복사',
-			scopes: {
-				read: '읽기',
-				write: '쓰기',
-				delete: '삭제'
-			},
-			scopeDescriptions: {
-				read: '업무, 일정, 메일, 메시지를 조회합니다.',
-				write: '업무·일정 생성/수정, DM·메일·메시지 전송, 김인턴에게 DM까지 허용합니다.',
-				delete: '쓰기 권한에 더해 삭제 같은 되돌리기 어려운 작업까지 허용합니다.'
-			}
-		}
+		webSessionUnavailable: '로그인 상태 확인에 실패했습니다. 다시 로그인해 주세요.'
 	},
 	en: {
 		apps: 'Apps',
@@ -202,29 +179,6 @@ export const appShellText = {
 		notInvitedTitle: 'Account not invited',
 		notInvitedDescription: '{email} has not been invited as a member yet. Ask an administrator for an invite.',
 		signOutTryAnother: 'Sign out and use another account',
-		webSessionUnavailable: 'Could not check your session. Please sign in again.',
-		apiTokenSheet: {
-			title: 'API Tokens',
-			description: 'User-scoped tokens for external developer tools that call the internkim API.',
-			label: 'Token name',
-			labelPlaceholder: 'Claude Code',
-			create: 'Create token',
-			createSuccess: 'Token created. This value cannot be shown again.',
-			createError: 'Could not create the token.',
-			shownOnce: 'Shown once. Copy it now.',
-			ownerBoundary: 'Even if the request body names another user, calls always run as the token owner.',
-			scopesTitle: 'Scopes',
-			copy: 'Copy token',
-			scopes: {
-				read: 'Read',
-				write: 'Write',
-				delete: 'Delete'
-			},
-			scopeDescriptions: {
-				read: 'Read tasks, events, mail, and messages.',
-				write: 'Create/update tasks and events, send DMs, mail, and messages, and message internkim.',
-				delete: 'Everything in Write plus irreversible operations such as delete.'
-			}
-		}
+		webSessionUnavailable: 'Could not check your session. Please sign in again.'
 	}
 } as const;

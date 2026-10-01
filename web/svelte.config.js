@@ -1,8 +1,5 @@
 import adapterCloudflare from '@sveltejs/adapter-cloudflare';
-import adapterStatic from '@sveltejs/adapter-static';
 import { relative, sep } from 'node:path';
-
-const isBoard = process.env.BUILD_TARGET === 'board';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -15,9 +12,7 @@ const config = {
 		}
 	},
 	kit: {
-		adapter: isBoard
-			? adapterStatic({ pages: '../build/board-ui', assets: '../build/board-ui', fallback: 'index.html' })
-			: adapterCloudflare(),
+		adapter: adapterCloudflare(),
 		paths: { relative: false },
 		...(process.env.INTERNKIM_WEB_REVISION ? { version: { name: process.env.INTERNKIM_WEB_REVISION } } : {})
 	}

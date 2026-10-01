@@ -7,11 +7,6 @@ import { withReturnPath } from '$lib/return-path';
 import { signedOutSession, webAuthSessionDependency, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
 import type { LayoutLoad } from './$types';
 
-const isBoard = import.meta.env.VITE_BUILD_TARGET === 'board';
-
-export const prerender = isBoard;
-export const ssr = !isBoard;
-
 export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string }> = async ({ fetch, depends, url }) => {
 	depends(webAuthSessionDependency);
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };

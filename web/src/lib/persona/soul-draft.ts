@@ -1,14 +1,4 @@
-import type { AgentSoul, AgentToneRegister, AgentUser } from '../../routes/admin/admin-types';
-
-export type SoulDraft = {
-	valuesText: string;
-	boundariesText: string;
-	workingStyleText: string;
-	register: AgentToneRegister;
-	traits: string[];
-	languageDefault: string;
-	matchRequester: boolean;
-};
+import type { AgentToneRegister, AgentUser } from '../../routes/admin/admin-types';
 
 export type UserDraft = {
 	callMe: string;
@@ -50,34 +40,6 @@ function traitTokensOf(traits: string[] | undefined): string[] {
 	return (traits ?? []).map((trait) => legacyTraitTokens[trait] ?? trait);
 }
 
-export function soulToDraft(soul: AgentSoul): SoulDraft {
-	return {
-		valuesText: linesOf(soul.values),
-		boundariesText: linesOf(soul.boundaries),
-		workingStyleText: linesOf(soul.workingStyle),
-		register: soul.tone?.register ?? defaultToneRegister,
-		traits: traitTokensOf(soul.tone?.traits),
-		languageDefault: soul.language?.default ?? '',
-		matchRequester: soul.language?.matchRequester ?? false
-	};
-}
-
-export function draftToSoul(draft: SoulDraft): AgentSoul {
-	const soul: AgentSoul = { schemaVersion: 1 };
-	const values = listFrom(draft.valuesText);
-	const boundaries = listFrom(draft.boundariesText);
-	const workingStyle = listFrom(draft.workingStyleText);
-	if (values.length) soul.values = values;
-	if (boundaries.length) soul.boundaries = boundaries;
-	if (workingStyle.length) soul.workingStyle = workingStyle;
-	soul.tone = toneFrom(draft.register, draft.traits);
-	const languageDefault = draft.languageDefault.trim();
-	if (languageDefault || draft.matchRequester) {
-		soul.language = { ...(languageDefault ? { default: languageDefault } : {}), matchRequester: draft.matchRequester };
-	}
-	return soul;
-}
-
 export function userToDraft(user: AgentUser): UserDraft {
 	return {
 		callMe: user.callMe ?? '',
@@ -105,7 +67,7 @@ export function draftToUser(draft: UserDraft): AgentUser {
 	return user;
 }
 
-function toneFrom(register: AgentToneRegister, traits: string[]): AgentSoul['tone'] {
+function toneFrom(register: AgentToneRegister, traits: string[]): AgentUser['tone'] {
 	const selectedTraits = traits.slice(0, toneTraitLimit);
 	return { register, ...(selectedTraits.length ? { traits: selectedTraits } : {}) };
 }

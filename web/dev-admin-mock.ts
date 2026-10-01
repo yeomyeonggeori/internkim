@@ -1,6 +1,7 @@
 import { devLocale, setDevLocale } from './dev-locale-state';
 import type { MemberRole } from './src/lib/member-vocabulary';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Plugin } from 'vite';
 
 export type DevAdminMockState = {
 	userEmail: string;
@@ -21,6 +22,44 @@ export type DevMockResponse = {
 	status: number;
 	body: unknown;
 };
+
+type DevAdminMockPluginOptions = {
+	isEnabled: boolean;
+	userEmail: string;
+};
+
+export function devAdminMockPlugin(options: DevAdminMockPluginOptions): Plugin {
+	const state = createDevAdminMockState(options.userEmail);
+
+	return {
+		name: 'internkim-dev-admin-mock',
+		configureServer(server) {
+			if (!options.isEnabled) return;
+
+			server.middlewares.use((request, response, next) => {
+				const requestURL = new URL(request.url ?? '/', 'http://localhost');
+				const method = request.method ?? 'GET';
+				if (!shouldHandleDevAdminMockRequest(method, requestURL.pathname)) {
+					next();
+					return;
+				}
+				readRequestBody(request, (body) => {
+					const mockResponse = createDevAdminMockResponse(state, {
+						method,
+						pathname: requestURL.pathname,
+						searchParams: requestURL.searchParams,
+						body
+					});
+					if (!mockResponse) {
+						next();
+						return;
+					}
+					writeJSON(response, mockResponse.status, mockResponse.body);
+				});
+			});
+		}
+	};
+}
 
 export function createDevAdminMockState(userEmail: string, userRole: DevAdminMockUserRole = 'admin'): DevAdminMockState {
 	return {
@@ -50,9 +89,7 @@ export function createDevAdminMockResponse(
 				email: state.userEmail,
 				claimedAdminEmail: state.userEmail,
 				isAdmin: state.userRole === 'admin',
-				role: state.userRole,
-				isClaimed: true,
-				bootstrapStatus: 'claimed'
+				role: state.userRole
 			}
 		};
 	}

@@ -616,10 +616,6 @@
     "process": "release-registry worker",
     "description": "the R2 bucket binding the release-registry worker serves published release objects from"
   },
-  "RELEASE_DOWNLOAD_TOKEN": {
-    "process": "release-registry worker",
-    "description": "the bearer token the release-registry worker requires on every download request"
-  },
   "SUPABASE_AUTH_SIGNING_KEYS_PATH": {
     "process": "tools/with-local-plane",
     "description": "the signing key set the Supabase CLI's local stack signs with; tools/with-local-plane writes it once to supabase/.temp/local-signing-keys.json and exports this for every command it runs, and tools/with-local-plane-test's fake CLI records it"

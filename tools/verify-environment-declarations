@@ -8,10 +8,7 @@ the reads this script finds in the code and the declarations it checks them
 against. A name in it that nothing declares is a name the vault is asked for
 and no process here reads. A declaration marked `isInVault` is a key or a
 deployment value that belongs in the manifest, and one that is not marked must
-not be there, so neither list can gain a name the other lacks. A value the
-manifest writes down that a static file must repeat (the Supabase project
-reference in supabase/config.toml, the release bucket in a wrangler file) is
-read back from that file and compared.
+not be there, so neither list can gain a name the other lacks.
 
 Scans exact syntax only: Go's os.Getenv and os.LookupEnv, TypeScript and
 Svelte's process.env dot and bracket forms plus env/environment dot access
@@ -287,29 +284,6 @@ def collect_reads():
     return reads
 
 
-def vault_manifest_values():
-    values = {}
-    for line in VAULT_MANIFEST_PATH.read_text(encoding="utf-8").splitlines():
-        name, separator, value = line.strip().partition("=")
-        if separator and not name.startswith(("#", "+", "@")):
-            values[name.strip()] = value.strip()
-    return values
-
-
-def static_file_disagreements(manifest_values):
-    disagreements = []
-    registry = json.loads(
-        re.sub(r",(\s*[}\]])", r"\1", (REPOSITORY_ROOT / "workers" / "release-registry" / "wrangler.jsonc").read_text(encoding="utf-8"))
-    )
-    for bucket in registry.get("r2_buckets", []):
-        if bucket["bucket_name"] != manifest_values.get("INTERNKIM_RELEASE_R2_BUCKET"):
-            disagreements.append(
-                f"workers/release-registry/wrangler.jsonc serves bucket {bucket['bucket_name']}, "
-                f"{VAULT_MANIFEST_PATH.name} names {manifest_values.get('INTERNKIM_RELEASE_R2_BUCKET')}"
-            )
-    return disagreements
-
-
 def vault_manifest_names():
     """Every environment variable name the vault manifest carries, by profile.
 
@@ -365,9 +339,8 @@ def check():
     held_by_declaration = {name for name, declaration in declarations.items() if declaration.get("isInVault")}
     marked_but_absent = sorted(held_by_declaration - set(manifest_names))
     present_but_unmarked = sorted((set(manifest_names) & set(declarations)) - held_by_declaration)
-    disagreements = static_file_disagreements(vault_manifest_values())
 
-    if not (undeclared or unread or undeclared_in_manifest or marked_but_absent or present_but_unmarked or disagreements):
+    if not (undeclared or unread or undeclared_in_manifest or marked_but_absent or present_but_unmarked):
         print(f"ok   {len(read_names)} environment variables read, all declared in "
               f"{DECLARATIONS_PATH.relative_to(REPOSITORY_ROOT)}; "
               f"{len(manifest_names)} in {VAULT_MANIFEST_PATH.name} declared there too")
@@ -387,8 +360,6 @@ def check():
         print(f"FAIL {name} is marked isInVault and {VAULT_MANIFEST_PATH.name} does not name it", file=sys.stderr)
     for name in present_but_unmarked:
         print(f"FAIL {name} is in {VAULT_MANIFEST_PATH.name} and its declaration is not marked isInVault", file=sys.stderr)
-    for disagreement in disagreements:
-        print(f"FAIL {disagreement}", file=sys.stderr)
     print(
         f"\n{len(undeclared)} read with no declaration, {len(unread)} declared with no reader, "
         f"{len(undeclared_in_manifest)} in {VAULT_MANIFEST_PATH.name} with no declaration.\n"

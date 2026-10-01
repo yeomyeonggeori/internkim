@@ -209,8 +209,7 @@ GROUPS = [
             ["bun", "test", "tests/unit"],
             holding_the_local_plane(["bun", "run", "test:integration"]),
             # Only the Cloudflare build reads what a route exports, and a route that
-            # exports a helper is refused there and nowhere else. build:board uses the
-            # static adapter, which never looks.
+            # exports a helper is refused there and nowhere else.
             ["bun", "run", "build"],
         ],
         working_directory="web",

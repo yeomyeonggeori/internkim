@@ -119,9 +119,6 @@ func newAdminConsoleAuthorizationTestService(t *testing.T) *Service {
 		if isCompanyDirectoryRequest(request) {
 			return directory.respond(t, request)
 		}
-		if strings.Contains(request.URL.Path, "/api/agent/key") {
-			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
-		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}

@@ -1,55 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { draftToSoul, draftToUser, soulToDraft, toneTraitLimit, userToDraft } from '../../../src/lib/persona/soul-draft';
-
-describe('soul draft', () => {
-	test('a soul round-trips through the form draft', () => {
-		const soul = {
-			schemaVersion: 1 as const,
-			values: ['Lead with the result.'],
-			boundaries: ["Never read another person's direct messages."],
-			tone: { register: 'polite' as const, traits: ['warm'] },
-			language: { default: 'ko', matchRequester: true }
-		};
-		expect(draftToSoul(soulToDraft(soul))).toEqual(soul);
-	});
-
-	test('an empty document drafts to formal with no traits and keeps only the tone', () => {
-		const draft = soulToDraft({ schemaVersion: 1 });
-		expect(draft.register).toBe('formal');
-		expect(draft.traits).toEqual([]);
-		const soul = draftToSoul({
-			valuesText: '\n  \n',
-			boundariesText: '',
-			workingStyleText: 'Ask once, then act.\n\n',
-			register: 'formal',
-			traits: [],
-			languageDefault: ' ',
-			matchRequester: false
-		});
-		expect(soul).toEqual({ schemaVersion: 1, workingStyle: ['Ask once, then act.'], tone: { register: 'formal' } });
-	});
-
-	test('legacy korean traits become canonical tokens and unknown traits survive', () => {
-		const draft = soulToDraft({
-			schemaVersion: 1,
-			tone: { register: 'polite', traits: ['차분한', '또렷한', '간결한', '따뜻한', 'stoic'] }
-		});
-		expect(draft.traits).toEqual(['calm', 'clear', 'concise', 'warm', 'stoic']);
-	});
-
-	test('the trait limit caps what a draft emits', () => {
-		const soul = draftToSoul({
-			valuesText: '',
-			boundariesText: '',
-			workingStyleText: '',
-			register: 'casual',
-			traits: ['calm', 'warm', 'clear', 'concise', 'direct', 'playful', 'meticulous'],
-			languageDefault: '',
-			matchRequester: false
-		});
-		expect(soul.tone?.traits).toHaveLength(toneTraitLimit);
-	});
-});
+import { draftToUser, toneTraitLimit, userToDraft } from '../../../src/lib/persona/soul-draft';
 
 describe('user draft', () => {
 	test('a user document round-trips and carries no matchRequester', () => {
@@ -68,6 +18,20 @@ describe('user draft', () => {
 		const draft = userToDraft({ schemaVersion: 1, morningBriefing: { enabled: false, time: '09:30' } });
 		draft.register = 'casual';
 		expect(draftToUser(draft).morningBriefing).toEqual({ enabled: false, time: '09:30' });
+	});
+
+	test('legacy korean traits become canonical tokens and unknown traits survive', () => {
+		const draft = userToDraft({
+			schemaVersion: 1,
+			tone: { register: 'polite', traits: ['차분한', '또렷한', '간결한', '따뜻한', 'stoic'] }
+		});
+		expect(draft.traits).toEqual(['calm', 'clear', 'concise', 'warm', 'stoic']);
+	});
+
+	test('the trait limit caps what a draft emits', () => {
+		const draft = userToDraft({ schemaVersion: 1 });
+		draft.traits = ['calm', 'warm', 'clear', 'concise', 'direct', 'playful', 'meticulous'];
+		expect(draftToUser(draft).tone?.traits).toHaveLength(toneTraitLimit);
 	});
 
 	test('an empty user document still saves a formal tone', () => {

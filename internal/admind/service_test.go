@@ -742,9 +742,6 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		}
-		if request.URL.Path == "/api/agent/key" {
-			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
-		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
 	})}
