@@ -540,7 +540,7 @@ class Rig:
             ).record(False, "the package ships no systemd unit")
             return
 
-        judged = unit_names + [BACKUP_TIMER_NAME]
+        judged = unit_names + ([BACKUP_TIMER_NAME] if BACKUP_UNIT_NAME in unit_names else [])
         enabled = self.machine.shell(f"systemctl is-enabled {' '.join(judged)} 2>&1")
         states = enabled.stdout.split()
         step.observe(
@@ -969,6 +969,18 @@ class Rig:
             f"{remembered.stdout.strip()[-200:]}\n{written.stdout.strip()[-200:]}\n{self.source_ownership.strip()}",
         )
 
+        scheduled = self.machine.shell(
+            f"systemctl is-enabled {BACKUP_TIMER_NAME}; systemctl show -p NextElapseUSecRealtime --value {BACKUP_TIMER_NAME}"
+        )
+        step.observe(
+            "the daily backup is scheduled on a host the line installed or upgraded",
+            f"`systemctl is-enabled` of {BACKUP_TIMER_NAME} and when it next fires",
+            "a timer file under the unit directory schedules nothing until it is enabled and started, and an "
+            "upgraded host is the one a fresh-install check would never see",
+        ).record(
+            scheduled.stdout.startswith("enabled\n") and len(scheduled.stdout.split("\n", 1)[1].strip()) > 0,
+            scheduled.stdout.strip(),
+        )
         backed_up = self.machine.shell(f"{PACKAGE_NAME} backup 2>&1", timeout_seconds=1800)
         listed = self.machine.shell(
             f"archive=\"$(ls -1 {BACKUPS_DIRECTORY}/internkim-backup-*.tar | tail -n 1)\"; "
@@ -1231,8 +1243,6 @@ def main():
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
                 rig.observe_the_member_round_trip(step_five, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
-                step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
-                rig.take_a_backup(step_six)
 
             step_three = rig.step(3, "running the line again moves it to a newer release")
             rig.run_step_three(step_three, releases)
@@ -1241,6 +1251,8 @@ def main():
                 rig.observe_the_processes_moved(
                     step_five, revision_before, rig.build_identity_the_guest_reports()
                 )
+                step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
+                rig.take_a_backup(step_six)
 
             step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
             rig.run_step_four(step_four)
