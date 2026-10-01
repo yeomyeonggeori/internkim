@@ -205,8 +205,15 @@ func TestPurgeKeepsTheCompanyAndSaysSo(t *testing.T) {
 func TestUpgradeAndRemovalTakeTheDeviceUsersSync(t *testing.T) {
 	removal := "rm -f " + strings.Join(deviceUsersSyncPaths(), " ")
 	for _, script := range []packageScript{postInstallScript, preRemoveScript} {
-		if !strings.Contains(maintainerScript(debianPackageFormat, script), removal) {
+		rendered := maintainerScript(debianPackageFormat, script)
+		if !strings.Contains(rendered, removal) {
 			t.Fatalf("%s leaves the device users sync the first release wrote, %q", script, removal)
+		}
+		for _, unitName := range deviceUsersSyncUnitNames() {
+			resetAt := strings.Index(rendered, "systemctl reset-failed ")
+			if resetAt < strings.Index(rendered, removal) || !strings.Contains(rendered[resetAt:], unitName) {
+				t.Fatalf("%s removes %s but leaves its failed record, so `systemctl list-units --state=failed` names a unit nothing ships", script, unitName)
+			}
 		}
 	}
 }

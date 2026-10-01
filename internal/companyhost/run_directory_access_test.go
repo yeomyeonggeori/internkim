@@ -149,12 +149,15 @@ func commandArgument(t *testing.T, layout blueclaw.CompanyHostLayout, serviceNam
 
 func relaySetting(t *testing.T, layout blueclaw.CompanyHostLayout, name string) string {
 	t.Helper()
-	for _, entry := range relayEnvironment(layout, Connection{}) {
-		if entry.Name == name {
-			return entry.Value
+	relay, _ := blueclaw.CompanyHostServiceNamed(layout, blueclaw.RelayServiceName)
+	for _, source := range relay.Environment {
+		for _, value := range source.Settings {
+			if value.Name == name {
+				return value.Value
+			}
 		}
 	}
-	t.Fatalf("the relay's environment does not name %s, so it falls back to a Linux path on every machine", name)
+	t.Fatalf("the relay's unit does not set %s, so it falls back to a Linux path on every machine", name)
 	return ""
 }
 
@@ -194,6 +197,14 @@ func TestTheRelayIsPointedAtTheSocketsTheDaemonsListenOn(t *testing.T) {
 		}
 		if relayPath, daemonPath := relaySetting(t, layout, "BLUECLAW_ACP_SOCKET_PATH"), commandArgument(t, layout, blueclaw.BlueclawServiceName, "-acp-socket"); relayPath != daemonPath {
 			t.Errorf("%s: the relay opens sessions at %s and blueclaw serves them at %s", name, relayPath, daemonPath)
+		}
+	}
+}
+
+func TestTheRelayFileCarriesOnlyWhatTheCompanyDecides(t *testing.T) {
+	for _, entry := range relayEnvironment(Connection{}) {
+		if slices.Contains(blueclaw.CompanyHostRelaySettingNames(), entry.Name) {
+			t.Errorf("internkim install writes %s into %s, which outranks the unit, so the next package that moves it leaves the relay behind", entry.Name, blueclaw.RelayEnvironmentFilePath)
 		}
 	}
 }

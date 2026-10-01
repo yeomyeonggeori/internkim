@@ -93,11 +93,11 @@ func TestTheObjectStoreIsNamedOnlyWhereAnOperatorCanChangeIt(t *testing.T) {
 }
 
 // The relay is the one service whose device unit and packaged unit are the same
-// unit. They differ in two values of one declaration: the binary path dpkg is
-// allowed to write, and the state directory an unprivileged account can reach on
-// a host whose state root is 0700. Anything else differing means the renderer
-// grew a second definition.
-func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesTwoValues(t *testing.T) {
+// unit. They differ in two values of one declaration, the binary path dpkg is
+// allowed to write and the state directory an unprivileged account can reach on
+// a host whose state root is 0700, and in the settings the packaged unit carries
+// itself. Anything else differing means the renderer grew a second definition.
+func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesValues(t *testing.T) {
 	packaged := ""
 	for _, unit := range CompanyPackageUnits() {
 		if unit.Name == RelayServiceName {
@@ -112,6 +112,9 @@ func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesTwoValues(t *testing.
 		RelayStateDirectoryPath(RelayStateDirectoryName), RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName))
 	expected = strings.ReplaceAll(expected,
 		"StateDirectory="+RelayStateDirectoryName, "StateDirectory="+CompanyHostRelayStateDirectoryName)
+	expected = strings.ReplaceAll(expected,
+		"Environment=RELAY_STATE_DIR="+RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName)+"\n",
+		systemdEnvironmentLines(companyHostRelaySettings(LinuxCompanyHostLayout())))
 	if packaged != expected {
 		t.Fatalf("the packaged relay unit differs from the device one by more than those two values:\n%s", packaged)
 	}
