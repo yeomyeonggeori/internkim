@@ -71,11 +71,17 @@ GROUPS = [
         [["tools/verify-blueclaw-pointer"]],
     ),
     Group(
+        "data-room-template",
+        ["web/src/lib/data-room/*", "tools/generate-data-room-template", "docs/data-room/layout*", ".dependency/internkim-plugin*", "supabase/migrations/20261003000006*"],
+        [["python3", "tools/generate-data-room-template", "--check"]],
+    ),
+    Group(
         "internkim-plugin",
         [".dependency/internkim-plugin*", "tools/verify-agent-plugin", "tools/tests/test_verify_agent_plugin.py"],
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_agent_plugin.py"],
             ["tools/verify-agent-plugin"],
+            ["python3", ".dependency/internkim-plugin/tests/test_data_room.py"],
         ],
     ),
     Group(

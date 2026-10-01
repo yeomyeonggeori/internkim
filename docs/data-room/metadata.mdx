@@ -1,101 +1,17 @@
 ---
-title: Metadata
-description: The label every document carries, the sidecar a binary needs, and what internkim fills in.
+title: Document metadata
 ---
 
-Every document in the data room carries a label: a short block of fields at the
-top of the file, called frontmatter. A text document carries it itself. A PDF,
-a spreadsheet, an image or a video carries it in a sidecar, a Markdown file
-named after the binary with `.md` added, sitting beside it:
-`2026-03-15-audit-report-fy2025.pdf.md` next to the PDF. The fields are the
-same either way.
+Each document has an identifier, title, kind, factual summary, language and
+date. `categoryCode` names a category without children or `X`. Optional fields
+include counterpart, covered period, tags, status and the document it supersedes.
+A replacement preserves earlier documents.
 
-The label is the only thing a person writes. Everything else the data room
-shows, the index, each domain's catalog, the search results, is generated from
-the labels and checked against them.
+`sha256` identifies the original bytes. `storagePath` identifies the original
+in the private asset bucket. Derived `content.txt` provides its text preview.
+The original remains unchanged; a standalone tree stores metadata in its
+`<file>.md` sidecar and generates catalogs from those labels.
 
-```yaml
----
-id: fin-2025-audit-report
-title: 2025 회계연도 감사보고서
-kind: report
-domain: finance
-date: 2026-03-15
-period: 2025
-status: current
-supersedes: fin-2024-audit-report
-source: 삼일회계법인
-language: ko
-summary: 감사 적정 의견, 매출 42억, 영업손실 3억.
-tags: [audit, k-ifrs]
-sha256: ab12…
----
-```
-
-| Field | What it holds |
-|---|---|
-| `id` | a stable name that survives moves; every reference to the document uses it, never a path |
-| `title` | the document's own title, in whatever language it has |
-| `kind` | `contract`, `policy`, `report`, `deck`, `dataset`, `image` or `video` |
-| `domain` | the domain it is filed in, which must agree with where the file sits |
-| `date` | the date the document speaks from |
-| `period` | the period it covers, when there is one: a fiscal year, a quarter |
-| `status` | `current`, `superseded` or `draft` |
-| `supersedes` | the `id` of the version this one replaces |
-| `source` | who produced it: the audit firm, the counterparty, the team |
-| `language` | the document's language |
-| `summary` | at most 200 characters: the fact and its size |
-| `tags` | a few words for search |
-| `sha256` | binaries only: the hash of the original, which keys its derived text |
-| `published` | `00-public` copies only: when, by whom, and `from`, the `id` it was published from |
-
-There is no clearance field. The clearance is the domain's, so a document's
-clearance is changed by moving it, and the same document cannot sit at two
-clearances at once.
-
-## The summary line [#summary]
-
-`summary` is the one line internkim reads to decide whether a document is the
-one being asked for, and it is copied verbatim into the catalog. It carries
-what the document says, with the numbers in it: "audit opinion unqualified,
-revenue 4.2 billion, operating loss 300 million" answers most questions on its
-own. "The FY2025 audit report" answers none, because the title already said
-that.
-
-## Sidecars for binaries [#sidecars]
-
-internkim reads text; it never puts a scanned contract or an hour of video into
-its context. So a binary does not exist in the data room without its sidecar,
-and filing one produces both. The sidecar holds the label, and for a long
-document a list of the parts derived from it, which live under
-`.derived/<sha256>/` beside the original.
-
-| Kind | In the sidecar | Derived beside it |
-|---|---|---|
-| image | caption, OCR text, event and place | a thumbnail |
-| video | summary, opening of the transcript | the full transcript in parts, a keyframe sheet |
-| PDF, DOCX | summary, list of the derived parts | the text split by section |
-| XLSX | the sheet list, one line per sheet | one CSV per sheet |
-
-The hash keys the derived folder, so replacing an original invalidates its
-derivatives and they are made again.
-
-## Supersede, never overwrite [#supersede]
-
-A document is never edited in place. A revised contract, a corrected statement
-or a new edition of a policy is added as a new document whose `supersedes`
-names the old one's `id`. The old document's `status` becomes `superseded` and
-it stays where it is, or moves to the domain's `archive/`. A reference made to
-the old `id` last year still resolves to what was true then, and the chain of
-`supersedes` is the document's history.
-
-A `supersedes` that names an `id` nobody has is an error the check reports.
-
-## What internkim fills in [#generated]
-
-When a member files a document, internkim does the label work. It computes the
-hash, detects the kind, derives the text, and drafts the sidecar with an `id`,
-a summary and a proposed domain. The member confirms or corrects the draft, and
-a document bound for a domain at clearance 2 or 3 is always confirmed by a
-person before it moves. What the member supplies is the document and, if the
-draft got it wrong, the title, the date or the domain.
+Write a summary that states the document's facts, amounts and dates. Review
+extraction warnings when OCR, transcription or a format converter is unavailable.
+A missing derivative does not change the document's permissions.

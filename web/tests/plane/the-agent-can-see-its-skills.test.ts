@@ -28,7 +28,7 @@ test('the agent on the plane can see every skill it can run, and no other', asyn
 		const inventory = (await answer.json()) as SkillInventory;
 		const names = inventory.skills.map((skill) => skill.name);
 
-		for (const skillName of ['internkim-task', 'presentation']) {
+		for (const skillName of ['internkim-task', 'office']) {
 			expect(
 				names,
 				`the plane shipped no ${skillName}: host/Dockerfile copies binaries only and the ` +

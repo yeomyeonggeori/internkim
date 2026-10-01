@@ -46,6 +46,7 @@ func (service *Service) registerPublicAPIRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
+	multiplexer.HandleFunc(dataRoomClassificationPath, service.answerDataRoomClassification)
 	multiplexer.HandleFunc("/task", service.serveTaskPage)
 	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleTaskAPI)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)

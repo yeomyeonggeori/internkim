@@ -12148,7 +12148,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_list",
-      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by type, counterpart, domain, clearance, or keyword. Only documents at or below the requester's clearance are listed. Use to answer 'what quotes did we send to X'.",
+      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility; legacy documents retain clearance access. Use to answer 'what quotes did we send to X'.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -12159,6 +12159,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "Exact parent or intermediate category code; a parent includes its children.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
             "description": "Data room clearance to filter by, 0 to 3; only documents filed at exactly that clearance.",
             "maximum": 3,
@@ -12170,7 +12175,7 @@
             "type": "string"
           },
           "domain": {
-            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "query": {
@@ -12204,6 +12209,16 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "categoryCode": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "clearance": {
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
@@ -12414,6 +12429,7 @@
                 "summary",
                 "requesterID",
                 "issuedAt",
+                "categoryCode",
                 "clearance",
                 "domain",
                 "date",
@@ -12455,6 +12471,16 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "categoryCode": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "clearance": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
@@ -12665,6 +12691,7 @@
                   "summary",
                   "requesterID",
                   "issuedAt",
+                  "categoryCode",
                   "clearance",
                   "domain",
                   "date",
@@ -12704,7 +12731,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room also names its domain, clearance, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
+      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -12715,6 +12742,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
             "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
             "maximum": 3,
@@ -12734,7 +12766,7 @@
             "type": "string"
           },
           "domain": {
-            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -12770,7 +12802,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -12791,6 +12823,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
             "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
             "maximum": 3,
@@ -12810,7 +12847,7 @@
             "type": "string"
           },
           "domain": {
-            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -12846,7 +12883,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -12879,6 +12916,16 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "clearance": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
@@ -13092,6 +13139,7 @@
           "summary",
           "requesterID",
           "issuedAt",
+          "categoryCode",
           "clearance",
           "domain",
           "date",
@@ -13123,6 +13171,16 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "categoryCode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "clearance": {
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
@@ -13336,6 +13394,7 @@
             "summary",
             "requesterID",
             "issuedAt",
+            "categoryCode",
             "clearance",
             "domain",
             "date",
@@ -13409,6 +13468,16 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "categoryCode": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "clearance": {
                   "maximum": 9007199254740991,
                   "minimum": -9007199254740991,
@@ -13619,6 +13688,7 @@
                 "summary",
                 "requesterID",
                 "issuedAt",
+                "categoryCode",
                 "clearance",
                 "domain",
                 "date",
@@ -13660,6 +13730,16 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "categoryCode": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "clearance": {
                     "maximum": 9007199254740991,
                     "minimum": -9007199254740991,
@@ -13870,6 +13950,7 @@
                   "summary",
                   "requesterID",
                   "issuedAt",
+                  "categoryCode",
                   "clearance",
                   "domain",
                   "date",
@@ -13904,7 +13985,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_update",
-      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its domain, clearance, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when a submission is raised into its domain. Raising a clearance is refused above the requester's own.",
+      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access; legacy clearance rules still apply.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -13915,6 +13996,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
             "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
             "maximum": 3,
@@ -13930,7 +14016,7 @@
             "type": "string"
           },
           "domain": {
-            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -13958,7 +14044,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -13979,6 +14065,11 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
             "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
             "maximum": 3,
@@ -13998,7 +14089,7 @@
             "type": "string"
           },
           "domain": {
-            "description": "Data room domain the document is filed under, e.g. 'finance', 'contracts', 'governance'. The domain decides who reads it: a domain is a folder and a clearance.",
+            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -14026,7 +14117,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same domain. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -14057,6 +14148,16 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "clearance": {
             "maximum": 9007199254740991,
             "minimum": -9007199254740991,
@@ -14267,6 +14368,7 @@
           "summary",
           "requesterID",
           "issuedAt",
+          "categoryCode",
           "clearance",
           "domain",
           "date",
@@ -14297,6 +14399,16 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
+            "categoryCode": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "clearance": {
               "maximum": 9007199254740991,
               "minimum": -9007199254740991,
@@ -14507,6 +14619,7 @@
             "summary",
             "requesterID",
             "issuedAt",
+            "categoryCode",
             "clearance",
             "domain",
             "date",
@@ -14532,7 +14645,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_upload",
-      "description": "Ask for a place in the company data room to put one file. Answers the storagePath the file will sit at, keyed by its clearance and SHA-256, and a signed URL to PUT the bytes to; the record's own policy decides whether the requester may write at that clearance, so a refusal here is the clearance rule. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
+      "description": "Ask for a place in the company data room to put one file. Answers the storagePath the file will sit at, keyed by its categoryCode and SHA-256, and a signed URL to PUT the bytes to. Category permissions decide whether the requester may write there; omitted categories default to X. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14543,8 +14656,13 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
-            "description": "Data room clearance the file is stored at: 0 public, 1 every member, 2 management, 3 representative and board. The bucket refuses a clearance above the requester's own.",
+            "description": "Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.",
             "maximum": 3,
             "minimum": 0,
             "type": "integer"
@@ -14564,8 +14682,13 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "categoryCode": {
+            "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
           "clearance": {
-            "description": "Data room clearance the file is stored at: 0 public, 1 every member, 2 management, 3 representative and board. The bucket refuses a clearance above the requester's own.",
+            "description": "Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.",
             "maximum": 3,
             "minimum": 0,
             "type": "integer"
@@ -14580,7 +14703,6 @@
           }
         },
         "required": [
-          "clearance",
           "sha256"
         ],
         "type": "object"
@@ -14644,7 +14766,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_download",
-      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; a document above the requester's clearance does not exist for them, so it is refused as not found. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Legacy documents retain clearance rules. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -16948,6 +17070,1068 @@
             "detail",
             "attributes",
             "updatedAt"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_document_classify",
+      "description": "Classify a document against the company data room taxonomy in one model request. Supply its title and extracted text or a factual summary. The result is an exact permitted leaf category code, including a parent without children, or X when ambiguous. Parents with children are never choices. Classify before uploading and registering a new document.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 100000,
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "text"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_document_classify",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_document_classify",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "categoryCode": {
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryCode"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_document_classify",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "categoryCode": {
+              "pattern": "^[A-Z]{1,2}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "categoryCode"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "computation",
+      "sideEffectClass": "computation",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_dataroom_get",
+      "description": "Company dataroom: Read the company data room categories, reader roles and active invitations. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_dataroom_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_dataroom_get",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "canManage": {
+            "type": "boolean"
+          },
+          "categories": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "choiceGroup": {
+                  "anyOf": [
+                    {
+                      "maximum": 2,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "code": {
+                  "pattern": "^[A-Z]{1,2}$",
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "nameKO": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "parent": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "slug": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "slug",
+                "name",
+                "nameKO",
+                "parent",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "nameKO": {
+                  "type": "string"
+                },
+                "readableCategories": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "nameKO",
+                "readableCategories"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "shares": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "acceptedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "audience": {
+                  "enum": [
+                    "member",
+                    "circle",
+                    "email",
+                    "public"
+                  ],
+                  "type": "string"
+                },
+                "canDownload": {
+                  "type": "boolean"
+                },
+                "circleID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "email": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "expiresAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "memberID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "revokedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "roleCode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "roleCode",
+                "audience",
+                "email",
+                "memberID",
+                "circleID",
+                "acceptedAt",
+                "expiresAt",
+                "revokedAt",
+                "canDownload"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "categories",
+          "roles",
+          "shares",
+          "canManage"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_dataroom_get",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "canManage": {
+              "type": "boolean"
+            },
+            "categories": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "choiceGroup": {
+                    "anyOf": [
+                      {
+                        "maximum": 2,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "code": {
+                    "pattern": "^[A-Z]{1,2}$",
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nameKO": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "parent": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "slug": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "slug",
+                  "name",
+                  "nameKO",
+                  "parent",
+                  "description"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "roles": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nameKO": {
+                    "type": "string"
+                  },
+                  "readableCategories": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "code",
+                  "name",
+                  "nameKO",
+                  "readableCategories"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "shares": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "acceptedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "audience": {
+                    "enum": [
+                      "member",
+                      "circle",
+                      "email",
+                      "public"
+                    ],
+                    "type": "string"
+                  },
+                  "canDownload": {
+                    "type": "boolean"
+                  },
+                  "circleID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "memberID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "revokedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "roleCode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "roleCode",
+                  "audience",
+                  "email",
+                  "memberID",
+                  "circleID",
+                  "acceptedAt",
+                  "expiresAt",
+                  "revokedAt",
+                  "canDownload"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "categories",
+            "roles",
+            "shares",
+            "canManage"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_dataroom_category_update",
+      "description": "Company dataroom: Create or rename a data room category. Use one uppercase mnemonic letter for a parent and two for a filing category. Code identity and ancestry remain stable. X is the reserved unclassified inbox. A new child is readable by every existing recipient of its parent; confirm that audience first.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "choiceGroup": {
+            "anyOf": [
+              {
+                "maximum": 2,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "choiceGroup": {
+            "anyOf": [
+              {
+                "maximum": 2,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "code": {
+            "pattern": "^[A-Z]{1,2}$",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "slug",
+          "name",
+          "nameKO",
+          "parent",
+          "description"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_dataroom_category_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_dataroom_category_update",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_dataroom_category_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_dataroom_role_update",
+      "description": "Company dataroom: Create or edit a reader role using readableCategories. A parent grants all descendants; otherwise name intermediate codes. Existing recipients of this role change access immediately. Read company_dataroom_get and confirm the affected recipients first. Read roles confer no administrative or editing rights.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "type": "string"
+          },
+          "readableCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "type": "string"
+          },
+          "readableCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "nameKO",
+          "readableCategories"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_dataroom_role_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_dataroom_role_update",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_dataroom_role_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_dataroom_share_add",
+      "description": "Company dataroom: Share live data room categories by assigning a reader role to a member, internal circle, external email or explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "enum": [
+              "member",
+              "circle",
+              "email",
+              "public"
+            ],
+            "type": "string"
+          },
+          "canDownload": {
+            "type": "boolean"
+          },
+          "circleID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "email": {
+            "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "memberID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "roleCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "audience": {
+            "enum": [
+              "member",
+              "circle",
+              "email",
+              "public"
+            ],
+            "type": "string"
+          },
+          "canDownload": {
+            "type": "boolean"
+          },
+          "circleID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "email": {
+            "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "memberID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "roleCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "roleCode",
+          "audience"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_dataroom_share_add",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_dataroom_share_add",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "shareID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shareID"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_dataroom_share_add",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "shareID": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "shareID"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "company_dataroom_share_delete",
+      "description": "Company dataroom: Revoke a data room share by its exact shareID from company_dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "shareID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "shareID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "shareID"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_dataroom_share_delete",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_dataroom_share_delete",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_dataroom_share_delete",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
           ],
           "type": "object"
         }

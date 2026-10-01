@@ -291,6 +291,42 @@ describe('what happened to the company', () => {
 	});
 });
 
+describe('the category data room', () => {
+	test('starts with the default template and assigns live scopes through a custom role', async () => {
+		const initial = await asAdmin('company_dataroom_get');
+		expect(resultOf(initial).canManage).toBe(true);
+		expect(resultOf(initial).categories).toHaveLength(48);
+		const category = await asAdmin('company_dataroom_category_update', {
+			code: 'FZ', parent: 'F', slug: 'custom', name: 'Custom finance', nameKO: '추가 재무', description: 'Company-specific finance records.'
+		});
+		expect(category.status).toBe(200);
+		const role = await asAdmin('company_dataroom_role_update', {
+			code: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F', 'FS']
+		});
+		expect(role.status).toBe(200);
+		const filed = await asAdmin('company_document_register', {
+			documentType: 'report', categoryCode: 'FZ', title: 'Sample categorized statement', summary: 'A sample financial record.'
+		});
+		expect(filed.status).toBe(200);
+		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
+		const shared = await asAdmin('company_dataroom_share_add', { roleCode: 'room-test', audience: 'member', memberID: sampleID });
+		expect(shared.status).toBe(200);
+		const shareID = resultOf(shared).shareID;
+		expect(typeof shareID).toBe('string');
+		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(1);
+		const revoked = await asAdmin('company_dataroom_share_delete', { shareID });
+		expect(revoked.status).toBe(200);
+		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
+	});
+
+	test('a colleague cannot expand their own role', async () => {
+		const refused = await asSample('company_dataroom_role_update', {
+			code: 'employee', name: 'Employee', nameKO: '', readableCategories: ['F']
+		});
+		expect(refused.status).toBe(403);
+	});
+});
+
 describe('the document ledger', () => {
 	let quoteID = '';
 
@@ -298,6 +334,7 @@ describe('the document ledger', () => {
 		const registered = await asSample('company_document_register', {
 			documentType: 'quote',
 			title: 'ABC Trading onboarding consulting quote',
+			clearance: 1,
 			counterpart: 'ABC Trading',
 			language: 'ko',
 			summary: 'A quote for onboarding consulting, 12,000,000 KRW, payable within 30 days of delivery.'
@@ -315,6 +352,7 @@ describe('the document ledger', () => {
 		const second = await asAdmin('company_document_register', {
 			documentType: 'quote',
 			title: 'BCD Manufacturing quote',
+			clearance: 1,
 			counterpart: 'BCD Manufacturing',
 			summary: 'A quote for a second engagement.'
 		});
@@ -327,6 +365,7 @@ describe('the document ledger', () => {
 			kind: 'received',
 			documentType: 'award-certificate',
 			title: 'Excellence award certificate',
+			clearance: 1,
 			counterpart: 'The Ministry',
 			summary: 'The certificate naming the reason the award was given.'
 		});

@@ -1,5 +1,25 @@
 [
 	{
+		"path": "company_document_list.result.documents[].categoryCode",
+		"reason": "Documents identify their company filing category. Legacy documents return null and retain clearance access. Row-level security still decides which documents appear.",
+		"release": "the #2111 catalog release must reach all document-tool consumers before deploying the plane that returns categoryCode"
+	},
+	{
+		"path": "company_document_search.result.documents[].categoryCode",
+		"reason": "Search returns the same category-bearing document shape as the ledger.",
+		"release": "the #2111 catalog release must reach all document-tool consumers before deploying the plane that returns categoryCode"
+	},
+	{
+		"path": "company_document_register.result.categoryCode",
+		"reason": "Registration returns the category in which a document was filed, including X when unclassified.",
+		"release": "the #2111 catalog release must reach all document-tool consumers before deploying the plane that returns categoryCode"
+	},
+	{
+		"path": "company_document_update.result.categoryCode",
+		"reason": "An administrator's reclassification returns the new filing category and its resulting reader scope is enforced centrally.",
+		"release": "the #2111 catalog release must reach all document-tool consumers before deploying the plane that returns categoryCode"
+	},
+	{
 		"path": "browser_handoff",
 		"reason": "The browser handoff is removed: the device browser is no longer handed to the requester on the website, and login, MFA, captcha and sensitive steps are not done in the device browser at all. browser_handoff was answered only by the device's own capabilityd, which ships in the same release as this catalog, and the plane never answered it. A device on an older release keeps the descriptor its own build embeds and its own capabilityd still answers it until it takes this release, when both go together.",
 		"release": "the release cut after this change merges, which drops the descriptor and the capabilityd handler together"

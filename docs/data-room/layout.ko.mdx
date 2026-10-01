@@ -1,89 +1,71 @@
 ---
-title: 구조
-description: 열네 개 도메인과 각각의 열람 권한, 파일 이름과 놓이는 자리.
+title: 분류와 기본 역할
 ---
 
-데이터룸은 고정된 폴더 묶음입니다. 이 목록은 투자 유치나 인수 전에 실사팀이
-보내는 자료 요청 목록으로, 모든 로펌과 회계법인이 수백 개 회사를 상대로 쓰다
-보니 한 모양으로 수렴한 것입니다. 그래서 업종을 가리지 않고, 회사 문서가 결국
-그렇게 정리되기 마련인 자리입니다. 거기서 도메인 하나가 열람 권한 하나만
-갖도록 잘라냈고, 그래서 법인과 사람 관련 자료가 구성원용 하나와 이사회용
-하나로 두 번 나타납니다. 앞의 번호는 어디서 나열되든 폴더 순서를 같게 만듭니다.
+문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다.
 
-| 도메인 | 열람 권한 | 들어가는 것 |
+| Code | Category | Parent | Scope |
+|---|---|---|---|
+| `C-corporate` | 법인·지배구조 | — | Legal entity, ownership and corporate decisions. |
+| `CR-registration` | 설립·등록·정관 | C | Formation, articles, registrations and legal entity records. |
+| `CO-ownership` | 주주·지분 | C | Shareholder registers, capitalization tables and ownership records. |
+| `CG-governance` | 이사회·주주총회 | C | Board and shareholder decisions, minutes and delegated authorities. |
+| `H-human-resources` | 인사·조직 | — | Employment, organization and employee records. |
+| `HO-organization` | 조직·인원 현황 | H | Organization charts, job descriptions and aggregate workforce information. |
+| `HP-policies` | 인사 규정 | H | Employment rules, benefits policies and employee handbooks. |
+| `HE-employment` | 고용·입퇴사 | H | Individual employment agreements, onboarding, leave and departure records. Payroll payments belong to FP. |
+| `HR-recruiting` | 채용 | H | Job postings, applications and hiring records. |
+| `HA-appraisals` | 평가 | H | Individual performance, disciplinary and development records. |
+| `F-finance` | 재무 | — | Financial position, accounting, tax and payments. |
+| `FS-statements` | 재무제표·감사보고서 | F | Financial statements, financial audit reports and consolidated results. Supporting accounting evidence belongs to FA. |
+| `FB-budgets` | 예산·재무계획 | F | Budgets, financial forecasts and financial models. |
+| `FT-tax` | 세무 | F | Tax returns, assessments and tax authority correspondence. Employee withholding belongs to FP. |
+| `FC-cash` | 은행·자금 | F | Bank statements, payments, treasury and account documentation. Excludes credentials and financing agreements, which belong to RA. |
+| `FA-accounting` | 회계장부·증빙 | F | Ledgers, invoices, receipts and accounting evidence. Underlying contracts follow the relationship. |
+| `FP-payroll` | 급여·원천징수 | F | Payroll registers, payslips, payroll calculations and employee tax withholding. Employment terms belong to HE. |
+| `S-sales` | 영업·마케팅 | — | Customers, commercial partnerships and market-facing work. |
+| `SS-sales` | 영업자료·견적·제안 | S | Proposals, quotes, sales materials and commercial analysis. Fundraising presentations belong to RP. |
+| `SM-marketing` | 브랜드·마케팅·시장조사 | S | Brand assets, campaigns, advertising and market research, including images and video. |
+| `SC-customers` | 고객 거래·계약 | S | Customer agreements, orders, correspondence and service records. Invoice originals belong to FA. |
+| `SP-partners` | 사업 파트너 | S | Distribution, referral and commercial partnership records. Procurement belongs to OS. |
+| `P-product` | 제품·서비스 | — | What the company delivers to customers. |
+| `PO-overview` | 제품소개·사용설명 | P | Product and service descriptions, catalogs and user-facing manuals. Persuasive sales materials belong to SS. |
+| `PD-development` | 명세·설계·개발·로드맵 | P | Specifications, designs, architecture, roadmaps and development records. |
+| `PQ-quality` | 시험·품질 | P | Testing, quality control, defects and acceptance records. Formal certifications belong to LC. |
+| `O-operations` | 운영 | — | Operating the company, facilities, procurement and internal systems. |
+| `OP-procedures` | 업무 절차 | O | Internal operating procedures and continuity plans. Employment rules belong to HP and security policies to LS. |
+| `OA-assets` | 시설·자산·임대차 | O | Asset registers, premises, leases, equipment and maintenance records. |
+| `OS-suppliers` | 구매·공급사·공급망 | O | Procurement, supplier agreements, correspondence and supply-chain records. |
+| `OI-it` | 사내 IT·시스템 | O | Internal IT administration, software subscriptions and routine incidents. Security incidents belong to LS. Never store credentials. |
+| `I-ip` | 지식재산 | — | Ownership, registration and licensing of intellectual property. |
+| `IR-rights` | 권리·등록 | I | Patents, trademarks, copyright ownership and intellectual property registrations. |
+| `IL-licenses` | 권리 양도·사용권 | I | Grants, assignments and acquisition of IP rights. Routine software subscriptions belong to OI. |
+| `L-legal` | 법무·준법 | — | Legal obligations, regulation and risk. |
+| `LC-compliance` | 인허가·인증·규제 | L | Permits, certifications, regulatory filings and compliance assessments. |
+| `LS-security` | 보안·개인정보 | L | Security and privacy policies, assessments and incidents. |
+| `LD-disputes` | 분쟁·법률 자문 | L | Claims, litigation, legal opinions and dispute records. |
+| `LI-insurance` | 보험 | L | Insurance policies, coverage and claims. |
+| `R-fundraising` | 자금 조달 | — | Raising equity or debt and communicating with capital providers. |
+| `RP-presentations` | 투자·조달 발표자료 | R | Fundraising decks and investment or financing narratives. Source financial statements remain in FS. |
+| `RA-agreements` | 투자·대출 계약·협상 | R | Equity and debt agreements, term sheets and financing negotiations. Resulting ownership registers belong to CO and resolutions to CG. |
+| `RR-reporting` | 투자자·금융기관 보고 | R | Investor and lender updates and correspondence outside agreement negotiations. |
+| `G-general` | 전사 기록 | — | Company-wide records outside a specific business function; not miscellaneous storage. |
+| `GP-profile` | 회사소개·연혁·전사 계획 | G | Company introductions, history, mission and general company plans. Financing presentations belong to RP. |
+| `GC-communications` | 전사 공지·커뮤니케이션 | G | General company announcements and communication records. |
+| `GE-events` | 행사·문화 기록 | G | Company events and culture records, including event photos and recordings. |
+| `X-inbox` | 분류 대기 | — | Unclassified or ambiguous documents. Choose X when context does not identify a destination. Do not invent missing facts. |
+
+## 기본 역할
+
+읽기 범위는 역할별 코드 배열입니다. 여러 역할을 받으면 범위를 합칩니다. 커스텀 역할을 추가하거나 기본 역할을 편집할 수 있습니다.
+
+| Role | Name | readableCategories |
 |---|---|---|
-| `00-public` | 0 | 공개된 사본: 브랜드 자산, 보도자료, 인증서, 공개용 회사소개서 |
-| `01-corporate` | 1 | 정관, 등기부 등본, 사업자등록 |
-| `02-governance` | 3 | 주주명부, 이사회 의사록, 캡테이블, 텀시트, 소송 |
-| `03-finance` | 2 | 재무제표, 감사보고서, 예산, 세무, 은행 |
-| `04-contracts` | 2 | 고객, 공급사, NDA, 임대차 계약; 거래처마다 폴더 하나 |
-| `05-people` | 1 | 조직도, 취업규칙, 사내 규정 |
-| `06-hr-records` | 3 | 근로계약서, 급여, 평가 |
-| `07-ip` | 1 | 특허, 상표, 라이선스 |
-| `08-product` | 1 | 제품 문서, 로드맵, 아키텍처 |
-| `09-marketing` | 1 | 브랜드 자산, 레퍼런스 |
-| `10-operations` | 1 | 업무 프로세스, 공급망, 시설 |
-| `11-compliance` | 1 | 인증, 인허가, 보안 정책 |
-| `12-fundraising` | 2 | 투자자 자료, 투자자 서신 |
-| `13-media` | 1 | 사진과 영상 |
-
-도메인 옆에는 `inbox/`와 `INDEX.md`가 있습니다. `inbox/`는 문서가 자리를 찾기
-전까지 기다리는 곳이고 이레를 넘겨 머무는 것은 없습니다. `INDEX.md`는 도메인
-하나에 한 줄씩 열람 권한, 문서 수, 마지막 변경을 적은 생성된 지도입니다.
-
-목록에 없는 도메인이 필요한 회사는 이름과 열람 권한을 정해 하나 더합니다.
-이를테면 열람 권한 3의 `14-clinical`. 관리자가 김인턴에게 추가를 부탁합니다.
-
-## 어느 도메인인가 [#which-domain]
-
-문서는 주제의 도메인에 속하되, 열람 권한이 달리 말하면 그쪽을 따릅니다. 인수
-텀시트는 회사에 관한 문서지만 이사회가 읽을 것이므로 거버넌스입니다. NDA는
-구성원이 읽어도 아무도 개의치 않겠지만 열람 권한 2의 계약입니다. 두 갈래가
-가능하면 높은 열람 권한이 이깁니다. 이 구조가 허용하는 한 가지 실수는 문서를
-필요 이상으로 높게 분류하는 것이고, 그것은 안전한 방향입니다.
-
-세무는 재무와 함께 갑니다. 영업 파이프라인은 CRM 테이블에 남고, 데이터룸은
-서명된 계약서를 보관합니다. 한 팀만 봐야 할 문서는 그 팀의 워크스페이스 폴더에
-둡니다. 데이터룸은 누가 열람할 수 있는지에 답하고, 서클은 누가 그 일에 속하는지에
-답하기 때문입니다.
-
-## 도메인 안쪽 [#inside-a-domain]
-
-모든 도메인은 자기 목록 `catalog.jsonl`을 갖습니다. 문서 하나에 한 줄이고,
-검색이 읽는 것이 이 파일입니다. 안의 문서는 어느 디렉터리도 마흔 개를 넘지
-않도록 놓입니다. 그래서 디렉터리 하나로 좁힌 검색은 보관소가 아무리 커져도
-한정된 조각만 돌려줍니다.
-
-- 재무와 미디어는 연도별 경로를 씁니다: `03-finance/2026/`,
-  `13-media/photos/2026/`, `13-media/videos/2026/`.
-- 계약은 거래처별 경로를 씁니다. `04-contracts/acme/`에는 그 회사와 맺은 모든
-  계약이 날짜순으로 있습니다.
-- 다른 도메인은 나눌 필요가 생길 때까지 평평하게 둡니다.
-- 도메인마다 `archive/`가 있습니다. 대체되었거나 더는 찾지 않는 문서를 두며,
-  인덱스는 이 폴더를 제외합니다.
-
-```
-03-finance/
-├── catalog.jsonl
-├── 2026/
-│   ├── 2026-03-15-audit-report-fy2025.pdf
-│   └── 2026-03-15-audit-report-fy2025.pdf.md
-├── policies/
-│   └── expense-policy.md
-└── archive/
-
-04-contracts/acme/
-├── 2025-11-01-nda.pdf
-├── 2025-11-01-nda.pdf.md
-├── 2026-01-10-msa.pdf
-└── 2026-01-10-msa.pdf.md
-```
-
-## 파일 이름 [#file-names]
-
-파일 이름은 `YYYY-MM-DD-slug.ext`이고, 소문자 ASCII 케밥 케이스입니다:
-`2026-03-15-audit-report-fy2025.pdf`. 날짜는 문서가 말하는 시점, 즉 감사보고서에
-서명한 날이나 계약이 발효한 날입니다. 슬러그는 무엇인지 말해 주는 영어 단어
-몇 개입니다. 문서 자체의 제목은 어느 언어든 라벨에 들어가므로, 한국어 제목과
-ASCII 파일 이름이 나란히 있습니다. 문서를 보관할 때 이름은 김인턴이 짓습니다.
-구성원은 문서와 제목을 보내고 이름을 돌려받습니다.
+| `employee` | 일반 구성원 | [HO, HP, PO, GP, GC, GE] |
+| `leadership` | 경영진 | [C, H, F, S, P, O, I, L, R, G, X] |
+| `finance` | 재무 담당 | [CR, F, SC, SP, OA, OS, LI, RA, RR] |
+| `people` | 인사 담당 | [CR, H, FP, GP, GC, GE] |
+| `investor` | 투자자 | [CR, CO, FS, FB, PO, RP, RR, GP] |
+| `accountant` | 회계사·세무사 | [CR, F, SC, SP, OA, OS, LI, RA] |
+| `legal` | 법률 자문 | [C, HP, HE, SC, SP, OA, OS, I, L, RA] |
+| `lender` | 금융기관 | [CR, CO, FS, FB, FT, FC, RA, RR, GP] |

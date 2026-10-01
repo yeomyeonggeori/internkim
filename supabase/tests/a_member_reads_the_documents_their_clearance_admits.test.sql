@@ -41,8 +41,9 @@ select is(
 
 select policies_are(
   'public', 'company_document',
-  array['company_document_readable_by_a_cleared_colleague', 'company_document_written_by_a_cleared_colleague'],
-  'one policy per verb compares the reader with the document'
+  array['company_document_category_read', 'company_document_category_insert',
+    'company_document_category_update', 'company_document_category_delete'],
+  'category policies preserve the clearance boundary for legacy documents'
 );
 
 do $$

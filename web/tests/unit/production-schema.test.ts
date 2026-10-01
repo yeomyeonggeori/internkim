@@ -2,10 +2,19 @@ import { describe, expect, test } from 'bun:test';
 import {
 	appliedVersionsOfMigrationList,
 	compareMigrationVersions,
-	ensureProductionSchemaIsCurrent
+	ensureProductionSchemaIsCurrent,
+	ensurePagesProductionSchemaIsCurrent
 } from '../../scripts/production-schema';
 
 describe('production schema preflight', () => {
+	test('static documentation deploys do not read the company database', async () => {
+		await ensurePagesProductionSchemaIsCurrent('internkim-docs', () => Promise.reject(new Error('database unavailable')));
+	});
+
+	test('company app deployment still refuses unapplied migrations', async () => {
+		await expect(ensurePagesProductionSchemaIsCurrent('internkim', () => Promise.resolve([]))).rejects.toThrow('migrations are not applied');
+	});
+
 	test('refuses when a local migration is missing remotely', () => {
 		expect(() => compareMigrationVersions(['20260914000005_a_write_is_remembered_by_its_key.sql'], [])).toThrow(
 			'20260914000005_a_write_is_remembered_by_its_key.sql'

@@ -12,6 +12,7 @@ const appShellSections = [
 	'/attendance/',
 	'/organization/',
 	'/files/',
+	'/data-room/',
 	'/runs/',
 	'/assistant/'
 ];
