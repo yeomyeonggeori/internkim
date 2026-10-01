@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_families import FAMILIES  # noqa: E402
 from native_install_rig import (  # noqa: E402
     COMPANY_CONDITION_PATH,
+    DOCUMENT_ENVIRONMENT_PATHS,
     ARCHITECTURE,
     KERNEL_IMAGE_PATH,
     RUNTIME_KERNEL,
@@ -390,6 +391,7 @@ class FamilyRig:
             and all(line.strip() == "enabled" for line in enabled.stdout.splitlines()),
             " ".join(f"{name}={state}" for name, state in zip(self.unit_names, enabled.stdout.split())),
         )
+        judge.observe_the_conversion_environment(self.machine, step)
         company_units = [name for name in self.unit_names if name != BOX_UNIT]
         declined = self.machine.shell(judge.UNIT_STATE_COMMAND % " ".join(company_units))
         states = dict(line.split("=", 1) for line in declined.stdout.split() if "=" in line)
@@ -452,6 +454,7 @@ class FamilyRig:
             for port, path in READINESS_PROBES
         )
         answers = self.machine.shell(probes)
+        judge.observe_a_real_conversion(self.machine, step)
         step.observe(
             "the messenger, the agent and the admin gateway answer their readiness endpoints",
             "an HTTP GET inside the guest to " + ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES),
@@ -603,6 +606,15 @@ class FamilyRig:
             "a stat of every regular file in the package's file list before the removal",
             "the package database reporting the package removed is its bookkeeping; these are the files",
         ).record(not survivors, survivors or f"{len(shipped)} paths gone")
+        environment = self.shell_value(
+            "for path in " + " ".join(DOCUMENT_ENVIRONMENT_PATHS) + "; do [ -e \"$path\" ] && echo \"$path\"; done; true"
+        )
+        step.observe(
+            "removal takes the conversion environment the install step built",
+            "a stat of " + " and ".join(DOCUMENT_ENVIRONMENT_PATHS) + " after the removal",
+            "the package manager owns none of it, so only the package's own removal script can take it, and "
+            "nothing else would",
+        ).record(not environment, environment or "both gone")
         kept = self.shell_value(
             f"test -d {STATE_DIRECTORY}/companies/{self.company_id} && echo company-kept; "
             f"test -s {DATABASE_DATA_DIRECTORY}/PG_VERSION && echo database-kept"

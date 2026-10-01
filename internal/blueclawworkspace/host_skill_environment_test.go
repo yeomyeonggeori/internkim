@@ -67,15 +67,12 @@ func skillsDeclaringRequirements(t *testing.T, repositoryRootPath string) []Skil
 	return declaring
 }
 
-func TestHostImageInstallsOnlyTheDocumentConversionRequirementsIntoItsVenv(t *testing.T) {
+func TestHostImageLeavesTheSkillsRequirementsToTheSkills(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	dockerfile := hostDockerfile(t, repositoryRootPath)
 
 	if !strings.Contains(dockerfile, "COPY .dependency/internkim-plugin/skills "+hostSkillsImagePath) {
 		t.Fatalf("host Dockerfile must copy the bundled skills to %s", hostSkillsImagePath)
-	}
-	if !strings.Contains(dockerfile, "--requirement /opt/internkim/document-conversion/requirements.txt") {
-		t.Fatal("host Dockerfile must install assets/document-conversion/requirements.txt into the interpreter capabilityd reads")
 	}
 	if strings.Contains(dockerfile, hostSkillsImagePath+"/*/scripts/requirements.txt") {
 		t.Fatal("host Dockerfile must leave the skills' requirements to the skills, which resolve them on first use")

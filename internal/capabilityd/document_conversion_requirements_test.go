@@ -36,7 +36,7 @@ var importPattern = regexp.MustCompile(`(?m)^\s*(?:from\s+([A-Za-z_][A-Za-z0-9_.
 
 func TestDocumentConversionRequirementsCoverEveryHelperImport(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
-	requirementsDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "document-conversion", "requirements.txt"))
+	requirementsDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "document-conversion", "requirements.in"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -60,7 +60,7 @@ func TestDocumentConversionRequirementsCoverEveryHelperImport(t *testing.T) {
 			continue
 		}
 		if !declared[packageName] {
-			t.Fatalf("file_read_helper.py imports %q but assets/document-conversion/requirements.txt does not declare %q; the interpreter capabilityd runs would fail on the device", rootModule, packageName)
+			t.Fatalf("file_read_helper.py imports %q but assets/document-conversion/requirements.in does not declare %q; the interpreter capabilityd runs would fail on the device", rootModule, packageName)
 		}
 	}
 }

@@ -378,7 +378,7 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         return (rig.REPOSITORY_ROOT / "internal" / "runtime" / "blueclaw" / file_name).read_text()
 
     def declared(self, file_name, name):
-        match = re.search(rf'^\s*{name}\s+=\s*"([^"]+)"', self.blueclaw_source(file_name), re.MULTILINE)
+        match = re.search(rf'^\s*(?:const\s+)?{name}\s+=\s*"([^"]+)"', self.blueclaw_source(file_name), re.MULTILINE)
         self.assertIsNotNone(match, f"internal/runtime/blueclaw no longer declares {name}")
         return match.group(1)
 
@@ -391,10 +391,12 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
 
     def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
         driver = load_driver()
-        directory = self.declared("document_interpreter.go", "documentInterpreterDirectoryName")
-        minor = self.declared("document_interpreter.go", "DocumentInterpreterMinor")
-        self.assertEqual(driver.CARRIED_INTERPRETER_PATH, f"/opt/internkim/{directory}/bin/python{minor}")
-        self.assertEqual(driver.CARRIED_DOCUMENT_PYTHON_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentVenvPath") + "/bin/python")
+        self.assertEqual(rig.DOCUMENT_INTERPRETER_VERSION, self.declared("document_interpreter.go", "DocumentInterpreterVersion"))
+        library = self.declared("company_host_package.go", "CompanyPackageLibraryRoot")
+        layout = self.blueclaw_source("company_host_layout.go")
+        for path in rig.DOCUMENT_ENVIRONMENT_PATHS:
+            self.assertTrue(path.startswith(library + "/"), path)
+            self.assertIn(f'layout.LibraryRoot + "{path[len(library):]}"', layout)
         self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
 
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):

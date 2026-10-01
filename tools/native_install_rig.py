@@ -6,6 +6,7 @@ Debian guest, arm64 or (INTERNKIM_RIG_ARCHITECTURE=amd64) amd64 under Rosetta. T
 a machine and something to install on it.
 """
 
+import base64
 import hashlib
 import io
 import json
@@ -22,6 +23,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 
 
@@ -52,6 +54,9 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
     "import plistlib, platform, xml.etree.ElementTree, "
     "anydoc, bs4, markdownify, pypdf, pypdfium2"
 )
+DOCUMENT_INTERPRETER_VERSION = "3.13.13"
+DOCUMENT_ENVIRONMENT_PATHS = ("/opt/internkim/python", "/opt/internkim/document-venv")
+CAPABILITYD_UNIT = "internkim-capabilityd.service"
 SUITE = "stable"
 KEY_ALGORITHM = "rsa4096"
 TESTING_SUITE = "testing"
@@ -732,6 +737,91 @@ MODEL_KEY_FILE_NAME = "rig-model-key"
 # company's store, which no model is asked about; a key that could buy tokens
 # has no business in a disposable guest.
 RIG_MODEL_KEY = "sk-or-v1-this-rig-never-reaches-a-model-provider"
+
+
+def capabilityd_argument(machine, flag):
+    """What the installed capabilityd unit passes for one flag, read from systemd rather than from here."""
+    shown = machine.shell(f"systemctl show -p ExecStart --value {CAPABILITYD_UNIT}").stdout
+    words = shown.split("argv[]=", 1)[-1].split(";", 1)[0].split()
+    return words[words.index(flag) + 1] if flag in words[:-1] else ""
+
+
+def a_docx_saying(text):
+    parts = {
+        "[Content_Types].xml": (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/word/document.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+            "</Types>"
+        ),
+        "_rels/.rels": (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+            'Target="word/document.xml"/>'
+            "</Relationships>"
+        ),
+        "word/document.xml": (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            f"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>"
+        ),
+    }
+    held = io.BytesIO()
+    with zipfile.ZipFile(held, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, contents in parts.items():
+            archive.writestr(name, contents)
+    return held.getvalue()
+
+
+def a_pdf_saying(text):
+    stream = f"BT /F1 18 Tf 72 720 Td ({text}) Tj ET".encode()
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    document = b"%PDF-1.4\n"
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(document))
+        document += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
+    table = len(document)
+    document += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    document += b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets)
+    document += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{table}\n%%EOF\n".encode()
+    return document
+
+
+def read_through_capabilityd(machine, file_name, content):
+    """Ask the running capabilityd to read a file the way blueclaw does: the file carried, the tool on its socket."""
+    workspace_path = f"/workspace/{file_name}"
+    request = {
+        "toolName": "document_read",
+        "input": {"path": workspace_path},
+        "transport": {
+            "workspaceFile": {
+                "workspacePath": workspace_path,
+                "filename": file_name,
+                "contentBase64": base64.b64encode(content).decode(),
+            }
+        },
+    }
+    request_name = f"document-read-{file_name}.json"
+    (machine.share_directory / request_name).write_text(json.dumps(request))
+    socket_path = capabilityd_argument(machine, "--socket")
+    return machine.shell(
+        f"curl -sS --max-time 120 --unix-socket {socket_path} -H 'Content-Type: application/json' "
+        f"--data-binary @{SHARE_PATH}/{request_name} http://capabilityd/v1/tools/document_read/invoke",
+        timeout_seconds=180,
+    )
 
 
 def install_the_company(machine, connection):

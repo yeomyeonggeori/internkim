@@ -21,7 +21,7 @@ What it can judge, and does:
   * that the keg links: the one command lands in the prefix's bin and the
     vendored programs do not collide with the formulas of the same name
   * that every file the formula claims is on disk and runs on this machine
-  * that the document interpreter the keg carries opens what the skills open
+  * that the conversion environment post_install builds opens what file_read opens
   * that `brew uninstall` leaves the prefix as it found it
 
 What it cannot judge, and says so rather than pretending:
@@ -299,19 +299,17 @@ def programs_the_plists_name():
 
 
 def step_four_the_document_interpreter_opens_what_conversion_opens(keg):
-    """Homebrew's python@3.13 bottle for macOS 26 cannot load pyexpat on 26.1,
-    which takes plistlib, xml.etree and every .docx write with it. The keg
-    carries its own interpreter for that reason, and this is the check that says
-    whether the one that landed is the working one."""
+    """post_install builds the conversion environment on uv's CPython; this says
+    whether the one that landed imports what file_read conversion opens."""
     interpreter = keg / "libexec/document-venv/bin/python"
     if not interpreter.is_file():
-        raise RigFailure(f"the keg carries no document interpreter at {interpreter}")
+        raise RigFailure(f"post_install left no conversion environment at {interpreter}")
     completed = run([str(interpreter), "-c", DOCUMENT_MODULES], check=False)
     if completed.returncode != 0:
         raise RigFailure(
-            f"the interpreter in the keg cannot open what file_read conversion opens:\n{completed.stdout}"
+            f"the conversion environment cannot open what file_read conversion opens:\n{completed.stdout}"
         )
-    return "the keg's document interpreter imports every module conversion imports"
+    return "the conversion environment imports every module conversion imports"
 
 
 def step_five_the_formula_passes_its_own_test():

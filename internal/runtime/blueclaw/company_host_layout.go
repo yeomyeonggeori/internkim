@@ -148,15 +148,16 @@ func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
 }
 
-func (layout CompanyHostLayout) DocumentVirtualEnvironmentPath() string {
-	return layout.LibraryRoot + "/" + documentVirtualEnvironmentDirectoryName
+func (layout CompanyHostLayout) DocumentInterpreterRoot() string {
+	return layout.LibraryRoot + "/python"
 }
 
-// DocumentRequirementsPath is the resolved requirement list the package carries,
-// so a Mac whose Homebrew prefix no bottle was built for can resolve the
-// interpreter again against the same list.
+func (layout CompanyHostLayout) DocumentVirtualEnvironmentPath() string {
+	return layout.LibraryRoot + "/document-venv"
+}
+
 func (layout CompanyHostLayout) DocumentRequirementsPath() string {
-	return layout.LibraryRoot + "/" + documentRequirementsFileName
+	return layout.LibraryRoot + "/document-conversion/requirements.txt"
 }
 
 func (layout CompanyHostLayout) DocumentPythonPath() string {

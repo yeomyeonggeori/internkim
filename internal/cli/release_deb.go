@@ -41,9 +41,10 @@ every unit stays inactive rather than restarting into a failure.`
 
 	debPayloadCacheDirectory = ".dependency/host-payload"
 
-	// xz, because the payload carries a CPython tree and gzip leaves a third more
-	// on the wire. dpkg has read xz since 1.15, which predates every distribution
-	// the package is for.
+	documentConversionLockPath = "assets/document-conversion/requirements.txt"
+
+	// dpkg has read xz since 1.15, which predates every distribution the package
+	// is for.
 	debPayloadCompression = "xz"
 	debReleaseLicense     = "Apache-2.0"
 )
@@ -152,11 +153,6 @@ func debPackageContents(repositoryRootPath string, target debianTarget, version 
 		return nil, errorValue
 	}
 	packaged = append(packaged, carried...)
-	interpreter, errorValue := buildDocumentInterpreter(repositoryRootPath, target, stagingPath, output)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	packaged = append(packaged, interpreter...)
 	font, errorValue := debCarriedFont(repositoryRootPath, output)
 	if errorValue != nil {
 		return nil, errorValue
@@ -624,137 +620,6 @@ func writeDebRenderedFiles(stagingPath string) ([]debPackagedFile, error) {
 	return packaged, nil
 }
 
-// The document conversion imports wheels, and a wheel is built for one operating system,
-// one processor and one Python minor version. The package carries the interpreter the
-// wheels are built for, so the build resolves them inside a throwaway guest of the
-// target architecture with that interpreter mounted at the path it will have on a
-// customer's machine: the venv's pyvenv.cfg and its bin/python link then name a place
-// that exists there. The guest runs the oldest glibc the package supports, which is
-// what makes a wheel tagged manylinux for it load on every newer one.
-const (
-	documentVenvBuildImage   = "ubuntu:22.04"
-	documentVenvBuildRuntime = "container"
-)
-
-func buildDocumentInterpreter(repositoryRootPath string, target debianTarget, stagingPath string, output io.Writer) ([]debPackagedFile, error) {
-	if _, errorValue := exec.LookPath(documentVenvBuildRuntime); errorValue != nil {
-		return nil, fmt.Errorf(
-			"the document interpreter is resolved inside a %s guest of the target architecture, and `%s` is not on PATH. "+
-				"Build the release on a machine that has it, or on a %s machine of that architecture",
-			documentVenvBuildImage, documentVenvBuildRuntime, target.DebianArchitecture)
-	}
-	workPath := filepath.Join(stagingPath, "document-venv-build")
-	if errorValue := os.MkdirAll(workPath, 0o755); errorValue != nil {
-		return nil, errorValue
-	}
-	interpreterPath, errorValue := carryDocumentInterpreterFor(repositoryRootPath, target, workPath, output)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	requirements, errorValue := documentConversionRequirements(repositoryRootPath)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	if errorValue := os.WriteFile(filepath.Join(workPath, "requirements.txt"), []byte(requirements), 0o644); errorValue != nil {
-		return nil, errorValue
-	}
-	resolverPath := filepath.Join(stagingPath, blueclaw.PackageResolverName)
-	if _, errorValue := os.Stat(resolverPath); errorValue != nil {
-		return nil, fmt.Errorf("the package resolver is staged at %s before the interpreter is built: %w", resolverPath, errorValue)
-	}
-	if errorValue := os.Link(resolverPath, filepath.Join(workPath, blueclaw.PackageResolverName)); errorValue != nil {
-		return nil, errorValue
-	}
-
-	fmt.Fprintf(output, "  resolving the document interpreter for %s\n", target.DebianArchitecture)
-	build := exec.Command(documentVenvBuildRuntime, "run", "--rm",
-		"--platform", "linux/"+target.DebianArchitecture,
-		"--volume", workPath+":/work",
-		"--volume", interpreterPath+":"+blueclaw.CompanyPackageInterpreterPath+":ro",
-		documentVenvBuildImage, "sh", "-c", documentVenvBuildScript())
-	build.Stdout = output
-	build.Stderr = output
-	if errorValue := build.Run(); errorValue != nil {
-		return nil, fmt.Errorf("resolving the document interpreter for %s: %w", target.DebianArchitecture, errorValue)
-	}
-	builtPath := filepath.Join(workPath, "document-venv")
-	if _, errorValue := os.Lstat(filepath.Join(builtPath, "bin", "python")); errorValue != nil {
-		return nil, fmt.Errorf("the resolved interpreter has no %s/bin/python", builtPath)
-	}
-	for _, tree := range []string{interpreterPath, builtPath} {
-		if errorValue := requireELFTreeFits(tree, target); errorValue != nil {
-			return nil, errorValue
-		}
-	}
-	return []debPackagedFile{
-		{SourcePath: interpreterPath, Destination: blueclaw.CompanyPackageInterpreterPath, Mode: 0o755, IsDirectoryTree: true},
-		{SourcePath: builtPath, Destination: blueclaw.CompanyPackageDocumentVenvPath, Mode: 0o755, IsDirectoryTree: true},
-	}, nil
-}
-
-// debSkippedInterpreterDirectories is what of the interpreter's tree the package leaves
-// behind: share/ holds terminfo entries and manual pages, and two terminfo names differ
-// only in case, which a case-insensitive build machine cannot hold and which no document
-// skill reads.
-var debSkippedInterpreterDirectories = []string{"share"}
-
-// carryDocumentInterpreterFor unpacks the pinned CPython for this target, the same pin
-// the Mac keg reads.
-func carryDocumentInterpreterFor(repositoryRootPath string, target debianTarget, workPath string, output io.Writer) (string, error) {
-	payloadTarget, errorValue := blueclaw.HostPayloadTargetForDebianArchitecture(target.DebianArchitecture)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	pin, errorValue := blueclaw.DocumentInterpreterForTarget(payloadTarget)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	cachePath := filepath.Join(repositoryRootPath, debPayloadCacheDirectory)
-	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
-		return "", errorValue
-	}
-	archivePath, errorValue := fetchPinnedPayload(blueclaw.HostPayloadDownload{
-		ProgramName: "python", Version: pin.Version, URL: pin.URL, SHA256: pin.SHA256,
-	}, cachePath, output)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	interpreterPath := filepath.Join(workPath, pin.DirectoryInsideArchive)
-	if errorValue := extractGzippedTarTree(archivePath, pin.DirectoryInsideArchive, interpreterPath, debSkippedInterpreterDirectories...); errorValue != nil {
-		return "", errorValue
-	}
-	return interpreterPath, nil
-}
-
-func documentVenvBuildScript() string {
-	interpreter := blueclaw.CompanyPackageInterpreterPath + "/bin/python" + blueclaw.DocumentInterpreterMinor
-	resolver := "/work/" + blueclaw.PackageResolverName
-	return strings.Join([]string{
-		"set -eu",
-		"export DEBIAN_FRONTEND=noninteractive",
-		"apt-get update -qq >/dev/null",
-		"apt-get install -y -qq --no-install-recommends ca-certificates >/dev/null",
-		resolver + " venv --python " + interpreter + " " + blueclaw.CompanyPackageDocumentVenvPath + " >/dev/null",
-		resolver + " pip install --quiet --python " + blueclaw.CompanyPackageDocumentPythonPath + " --requirements /work/requirements.txt",
-		blueclaw.CompanyPackageDocumentPythonPath + " -c " + shellQuoted(blueclaw.DocumentModulesTheConversionImports()),
-		"rm -rf /work/document-venv",
-		"cp -a " + blueclaw.CompanyPackageDocumentVenvPath + " /work/document-venv",
-	}, "\n")
-}
-
-func shellQuoted(text string) string {
-	return "'" + strings.ReplaceAll(text, "'", `'\''`) + "'"
-}
-
-func documentConversionRequirements(repositoryRootPath string) (string, error) {
-	path := filepath.Join(repositoryRootPath, "assets/document-conversion/requirements.txt")
-	document, errorValue := os.ReadFile(path)
-	if errorValue != nil {
-		return "", fmt.Errorf("the document interpreter is resolved from %s: %w", path, errorValue)
-	}
-	return strings.TrimSpace(string(document)) + "\n", nil
-}
-
 // debCarriedTrees are the files the image copies in unchanged. A missing one is a
 // refusal: a box whose skills directory is empty answers and does nothing.
 func debCarriedTrees(repositoryRootPath string) ([]debPackagedFile, error) {
@@ -774,6 +639,11 @@ func debCarriedTrees(repositoryRootPath string) ([]debPackagedFile, error) {
 		{
 			SourcePath:  filepath.Join(repositoryRootPath, "host/runtime.template.json"),
 			Destination: blueclaw.CompanyPackageTemplatePath,
+			Mode:        0o644,
+		},
+		{
+			SourcePath:  filepath.Join(repositoryRootPath, documentConversionLockPath),
+			Destination: blueclaw.DebianCompanyHostLayout().DocumentRequirementsPath(),
 			Mode:        0o644,
 		},
 	}

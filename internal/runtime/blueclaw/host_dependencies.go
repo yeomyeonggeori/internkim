@@ -219,7 +219,7 @@ var hostDependencies = []HostDependency{
 		DnfPackages:         []string{"python3"},
 		PacmanPackages:      []string{"python"},
 		ProgramsTheHostRuns: []string{"python3"},
-		WhatAnswersItOnAMac: "the keg carries a pinned relocatable CPython for file_read, because Homebrew's python@3.13 cannot load pyexpat on macOS 26.1",
+		WhatAnswersItOnAMac: "the Command Line Tools Homebrew requires put python3 in /usr/bin",
 		NeededBy:            []HostPart{HostPartDocumentSkills},
 	},
 	{
@@ -409,8 +409,8 @@ func HostPackagesToInstallFor(manager PackageManager, dependency HostDependency)
 
 // HostHomebrewDependencies is every `depends_on` line of the formula, and only
 // those. It is a shorter list than Debian's because Homebrew's PostgreSQL
-// carries contrib, the keg carries its own Python, and macOS supplies curl,
-// unzip, netcat and the CA bundle itself; none of it means the Mac needs less.
+// carries contrib and macOS supplies python3, curl, unzip, netcat and the CA
+// bundle itself; none of it means the Mac needs less.
 func HostHomebrewDependencies() []string {
 	formulas := []string{}
 	named := map[string]bool{}
