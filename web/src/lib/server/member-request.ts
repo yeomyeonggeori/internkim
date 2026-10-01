@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { decodeJwt, errors } from 'jose';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fullPublicAPIPermission, reachesPermission, type PublicAPIPermission } from '$lib/public-api-permission';
 import {
@@ -56,7 +57,19 @@ export async function memberAccessTokenOf(
 export async function signedInAccessTokenOf(request: Request, credentials: SigningCredentials): Promise<string> {
 	const { accessToken, tokenName } = await memberAccessTokenOf(request, credentials);
 	if (tokenName) error(403, 'sign in to administer the company; a personal access token does not');
+	if (isGrantedToAnOAuthClient(accessToken)) {
+		error(403, 'sign in to administer the company; a token granted to another application does not');
+	}
 	return accessToken;
+}
+
+function isGrantedToAnOAuthClient(accessToken: string): boolean {
+	try {
+		return typeof decodeJwt(accessToken).client_id === 'string';
+	} catch (failure) {
+		if (failure instanceof errors.JWTInvalid) return false;
+		throw failure;
+	}
 }
 
 export function refuseUnlessTheCallerWrites(member: Pick<CallingMember, 'permission'>): void {

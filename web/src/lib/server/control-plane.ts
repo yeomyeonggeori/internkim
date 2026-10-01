@@ -82,6 +82,28 @@ export async function adminCallerOf(client: SupabaseClient): Promise<AdminCaller
 	return { memberID: member.id, companyID: member.company_id };
 }
 
+export async function isBelowCaller(caller: SupabaseClient, memberID: string): Promise<boolean> {
+	const { data, error } = await caller.rpc('member_is_below_me', { target_member: memberID });
+	if (error) throw new Error(`clearance of ${memberID}: ${error.message}`);
+	return data === true;
+}
+
+export async function isAboveCaller(caller: SupabaseClient, callerID: string, memberID: string): Promise<boolean> {
+	const { data, error } = await caller.from('member').select('id, clearance').in('id', [callerID, memberID]);
+	if (error) throw new Error(`clearance of ${memberID}: ${error.message}`);
+	const clearanceOf = (id: string) => data.find((row) => row.id === id)?.clearance ?? Number.POSITIVE_INFINITY;
+	return clearanceOf(memberID) > clearanceOf(callerID);
+}
+
+export async function promoteToAdministrator(caller: SupabaseClient, memberID: string): Promise<void> {
+	const { error } = await caller.rpc('person_set', {
+		target_member: memberID,
+		account_changes: { isAdmin: true },
+		organization_changes: {},
+	});
+	if (error) throw new Error(`administrator ${memberID}: ${error.message}`);
+}
+
 export async function provisionCompany(
 	client: SupabaseClient,
 	company: CompanyInput,

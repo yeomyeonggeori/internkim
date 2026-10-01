@@ -11,7 +11,7 @@
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isPasskeySupported, refusalOf, registerPasskey } from '$lib/supabase-passkey';
-	import { askToClaim, askToStartCompany, setSupabasePassword, signInWithSupabase, verifyClaimCode } from '$lib/supabase-session';
+	import { askToClaim, askToStartCompany, setSupabasePassword, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import { claimCodeLength } from './claim-code';
 	import { hasThePasswordStepExpired } from './password-step';
@@ -22,11 +22,10 @@
 	const fieldID = $props.id();
 
 	let servesCompanies = $state(true);
-	let step = $state<'address' | 'signedIn' | 'sent' | 'issued' | 'password' | 'passkey'>('address');
+	let step = $state<'address' | 'signedIn' | 'sent' | 'password' | 'passkey'>('address');
 	let email = $state('');
 	let code = $state('');
 	let password = $state('');
-	let issuedPassword = $state('');
 	let busy = $state(false);
 	let errorMessage = $state('');
 	let passwordStepOpenedAt = 0;
@@ -38,7 +37,6 @@
 		address: isStartingCompany ? text.startCompanyAddressDescription : text.claimAddressDescription,
 		signedIn: isStartingCompany ? text.startCompanySignedInDescription : text.claimSignedInDescription,
 		sent: (isStartingCompany ? text.startCompanySentDescription : text.claimSentDescription).replace('{email}', email),
-		issued: text.claimIssuedDescription,
 		password: isStartingCompany ? text.startCompanyPasswordDescription : text.claimPasswordDescription,
 		passkey: isStartingCompany ? text.startCompanyPasskeyDescription : text.claimPasskeyDescription
 	});
@@ -57,7 +55,6 @@
 	}
 
 	const refusalText: Record<string, string> = {
-		alreadyClaimed: text.claimAlreadyClaimed,
 		tooManyLately: text.claimTooManyLately,
 		failed: text.claimFailed
 	};
@@ -71,11 +68,6 @@
 				step = 'sent';
 				return;
 			}
-			if (outcome.kind === 'issued') {
-				issuedPassword = outcome.password;
-				step = 'issued';
-				return;
-			}
 			errorMessage = refusalText[outcome.kind] ?? text.claimFailed;
 		});
 
@@ -84,16 +76,6 @@
 			hasChosenAnAddress = true;
 			await askToStartCompany(email);
 			step = 'sent';
-		});
-
-	const goInWithTheIssuedPassword = () =>
-		run(async () => {
-			await signInWithSupabase(email, issuedPassword);
-			if (isPasskeySupported()) {
-				step = 'passkey';
-				return;
-			}
-			await goto(whereToGoNext);
 		});
 
 	function openThePasswordStep() {
@@ -216,16 +198,6 @@
 						<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 					</FieldGroup>
 				</form>
-			{:else if step === 'issued'}
-				<FieldGroup>
-					<Field>
-						<FieldLabel for="claim-issued-{fieldID}">{text.claimNewPasswordLabel}</FieldLabel>
-						<Input id="claim-issued-{fieldID}" readonly value={issuedPassword} class="font-mono" />
-						<FieldDescription>{text.claimIssuedHint}</FieldDescription>
-					</Field>
-					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-					<Button class="w-full" onclick={goInWithTheIssuedPassword} disabled={busy}>{text.claimIssuedContinue}</Button>
-				</FieldGroup>
 			{:else if step === 'password'}
 				<form onsubmit={(event) => { event.preventDefault(); keepThePassword(); }}>
 					<FieldGroup>

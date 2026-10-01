@@ -20,7 +20,7 @@ insert into public.member (id, company_id, email, name, user_id, status, is_admi
 create function pg_temp.covering_leave(target_member uuid, whole_days numeric)
 returns uuid language sql as $$
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values (target_member, '연차', true, true, -(whole_days), 'approved',
+  values (target_member, 'annual', true, true, -(whole_days), 'approved',
           now() - interval '2 hours', now() + interval '2 hours')
   returning id;
 $$;
@@ -84,7 +84,7 @@ begin
   delete from public.leave;
   delete from public.attendance;
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, -1, 'approved',
+  values ('1005aa00-0000-0000-0000-000000000001', 'annual', true, true, -1, 'approved',
           now() - interval '5 hours', now() - interval '1 hour')
   returning id into finished;
 
@@ -112,7 +112,7 @@ begin
   delete from public.leave;
   delete from public.attendance;
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, -1, 'requested',
+  values ('1005aa00-0000-0000-0000-000000000001', 'annual', true, true, -1, 'requested',
           now() - interval '2 hours', now() + interval '2 hours')
   returning id into pending;
 
@@ -136,7 +136,7 @@ begin
   delete from public.leave;
   delete from public.attendance;
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-  values ('1005aa00-0000-0000-0000-000000000001', '연차', true, true, -1, 'approved',
+  values ('1005aa00-0000-0000-0000-000000000001', 'annual', true, true, -1, 'approved',
           now() - interval '1 minute', now() + interval '4 hours')
   returning id into shortened.id;
 

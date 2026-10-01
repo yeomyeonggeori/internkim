@@ -82,7 +82,7 @@ async function companyWithAnEvent(slug: string, title: string): Promise<Company>
 	const dayOff = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 	const { error: leaveRefused } = await record.from('leave').insert({
 		member_id: colleagueID,
-		kind: '연차',
+		kind: 'annual',
 		is_paid: true,
 		is_deducted: true,
 		days: -1,

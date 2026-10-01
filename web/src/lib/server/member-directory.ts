@@ -30,18 +30,6 @@ export async function circlesOfTheCompany(directory: CompanyDirectory): Promise<
 	return circleNamesByMemberID(circles.data ?? []);
 }
 
-export async function adminEmailsOfTheCompany(directory: CompanyDirectory): Promise<string[]> {
-	const admins = await directory.client
-		.from('member')
-		.select('email')
-		.eq('company_id', directory.companyID)
-		.eq('is_admin', true)
-		.neq('status', 'withdrawn')
-		.returns<{ email: string | null }[]>();
-	if (admins.error) throw new Error(admins.error.message);
-	return (admins.data ?? []).flatMap((row) => (row.email ? [row.email.toLowerCase()] : []));
-}
-
 export const memberWriteSchema = z.object({
 	email: z.string().trim().toLowerCase().min(1),
 	name: z.string().trim().optional(),

@@ -663,7 +663,6 @@ updates distinguish an omitted type (keep it) from an empty string (clear it to 
 | Method | Path | Does |
 |---|---|---|
 | POST | `/api/register` | records a device and its place in a fleet |
-| GET/POST | `/api/ota/*` | OTA checks and reports for blueclaw and the CLI |
 
 A browser request to a device proves identity through a Mattermost session or an
 Intern Kim web session, and is then checked again against current policy for
