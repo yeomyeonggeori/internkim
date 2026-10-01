@@ -390,7 +390,7 @@ func TestNonJetsonSetupKeepsLegacySSHUser(t *testing.T) {
 }
 
 func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
-	client := newSSH("sshpass", "internkim", "blueclaw", "192.0.2.1")
+	client := newSSH("internkim", "blueclaw", "192.0.2.1")
 	command := client.privilegedCommand("echo ok")
 	if !strings.Contains(command, "sudo -S -p '' bash -lc") {
 		t.Fatalf("expected sudo command to suppress password prompt, got %s", command)
@@ -413,7 +413,7 @@ func TestUploadMoveCommandIsNotPreWrappedWithSudo(t *testing.T) {
 }
 
 func TestRemoteSSHNamesNoTransport(t *testing.T) {
-	client := newSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
+	client := newSSH("internkim", "blueclaw", "ssh.device.example.test")
 	sshArguments := strings.Join(client.sshArgs("internkim@ssh.device.example.test", "true"), "\n")
 	scpArguments := strings.Join(client.scpArgs("local", "internkim@ssh.device.example.test:/tmp/file"), "\n")
 	rsyncCommand := client.rsyncSSHCommand("ssh")

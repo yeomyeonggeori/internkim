@@ -4,18 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
 func runDeviceSSH() {
 	configuration := loadConfig()
-	scriptDir, _ := os.Getwd()
-	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	arguments := commandControlArguments(os.Args[2:])
 	shouldElevate := hasControlFlag(arguments, "--sudo")
 	target := resolveCommandTarget(withoutControlFlag(arguments, "--sudo"))
-	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}
@@ -59,37 +56,37 @@ func hasControlFlag(arguments []string, name string) bool {
 	return false
 }
 
-func resolveDeviceSSHConnection(configuration config, sshpassBin string, target commandTarget) (*sshClient, bool, error) {
+func resolveDeviceSSHConnection(configuration config, target commandTarget) (*sshClient, bool, error) {
 	if target.useRemoteSSH {
-		return resolveRemoteSSHConnection(configuration, sshpassBin, target, true)
+		return resolveRemoteSSHConnection(configuration, target, true)
 	}
-	if connection := resolveLocalSSHConnection(sshpassBin, target); connection != nil {
+	if connection := resolveLocalSSHConnection(target); connection != nil {
 		return connection, false, nil
 	}
-	return resolveRemoteSSHConnection(configuration, sshpassBin, target, false)
+	return resolveRemoteSSHConnection(configuration, target, false)
 }
 
-func resolveLocalSSHConnection(sshpassBin string, target commandTarget) *sshClient {
+func resolveLocalSSHConnection(target commandTarget) *sshClient {
 	if strings.TrimSpace(target.host) != "" {
-		connection := newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+		connection := newSSH(target.sshUser, target.sshPassword, target.host)
 		if _, errorValue := connection.runResult("true"); errorValue == nil {
 			return connection
 		}
 		return nil
 	}
-	host := findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
+	host := findBoardIPForCredentials(target.stateDir, target.sshUser, target.sshPassword)
 	if host == "" {
 		return nil
 	}
-	return newSSH(sshpassBin, target.sshUser, target.sshPassword, host)
+	return newSSH(target.sshUser, target.sshPassword, host)
 }
 
-func resolveRemoteSSHConnection(configuration config, sshpassBin string, target commandTarget, isRequired bool) (*sshClient, bool, error) {
+func resolveRemoteSSHConnection(configuration config, target commandTarget, isRequired bool) (*sshClient, bool, error) {
 	target.sshHostname = savedRemoteSSHHostname(target)
 	if target.sshHostname == "" {
 		return nil, false, errors.New("device is not reachable locally and no ssh hostname is known; run setup once on the device network first")
 	}
-	connection := newSSH(sshpassBin, target.sshUser, target.sshPassword, target.sshHostname)
+	connection := newSSH(target.sshUser, target.sshPassword, target.sshHostname)
 	if output, errorValue := connection.runResult("true"); errorValue != nil {
 		return nil, false, remoteSSHError(target.sshHostname, output, errorValue)
 	}

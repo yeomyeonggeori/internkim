@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -12,12 +11,12 @@ import (
 	"time"
 )
 
-func sshCheckHostnameForCredentials(sshpassBin string, ip string, username string, password string) bool {
-	hostname, err := runSSHHostnameForCredentials(sshpassBin, ip, username, password)
+func sshCheckHostnameForCredentials(ip string, username string, password string) bool {
+	hostname, err := runSSHHostnameForCredentials(ip, username, password)
 	return err == nil && strings.TrimSpace(hostname) == "internkim"
 }
 
-func runSSHHostnameForCredentials(sshpassBin string, ip string, username string, password string) (string, error) {
+func runSSHHostnameForCredentials(ip string, username string, password string) (string, error) {
 	sshArguments := []string{
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
@@ -31,17 +30,17 @@ func runSSHHostnameForCredentials(sshpassBin string, ip string, username string,
 	commandName := "ssh"
 	commandArguments := sshArguments
 	if password != "" {
-		if sshpassBin == "" {
-			return "", errors.New("sshpass is required for password SSH")
+		if errorValue := requireSSHPass(); errorValue != nil {
+			return "", errorValue
 		}
-		commandName = sshpassBin
+		commandName = "sshpass"
 		commandArguments = append([]string{"-p", password, "ssh"}, sshArguments...)
 	}
 	out, err := exec.Command(commandName, commandArguments...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
 
-func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsername string, sshPassword string) (string, bool) {
+func detectBoardForSSHCredentials(stateDir string, sshUsername string, sshPassword string) (string, bool) {
 	// 1. Quick check: saved IPs and boot partition
 	candidates := []string{}
 	for _, vol := range []string{"/Volumes/RPICFG", "/Volumes/bootfs", "/Volumes/boot"} {
@@ -78,7 +77,7 @@ func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsernam
 		conn, err := net.DialTimeout("tcp", ip+":22", 3*time.Second)
 		if err == nil {
 			conn.Close()
-			if sshCheckHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword) {
+			if sshCheckHostnameForCredentials(ip, sshUsername, sshPassword) {
 				saveState(stateDir, "board_ip", ip)
 				return ip, true
 			}
@@ -115,7 +114,7 @@ func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsernam
 					conn, err := net.DialTimeout("tcp", ip+":22", 2*time.Second)
 					if err == nil {
 						conn.Close()
-						if sshCheckHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword) {
+						if sshCheckHostnameForCredentials(ip, sshUsername, sshPassword) {
 							found <- result{ip, true}
 						}
 					}
@@ -146,15 +145,15 @@ func detectBoardForSSHCredentials(sshpassBin string, stateDir string, sshUsernam
 	return "", false
 }
 
-func findBoardIPForCredentials(sshpassBin string, stateDir string, sshUsername string, sshPassword string) string {
-	ip, isSSHReady := detectBoardForSSHCredentials(sshpassBin, stateDir, sshUsername, sshPassword)
+func findBoardIPForCredentials(stateDir string, sshUsername string, sshPassword string) string {
+	ip, isSSHReady := detectBoardForSSHCredentials(stateDir, sshUsername, sshPassword)
 	if !isSSHReady {
 		return ""
 	}
 	return ip
 }
 
-func describeJetsonSSHFailure(sshpassBin string, stateDir string, sshUsername string, sshPassword string) string {
+func describeJetsonSSHFailure(stateDir string, sshUsername string, sshPassword string) string {
 	candidates := uniqueNonEmptyStrings([]string{
 		loadState(stateDir, "board_ip"),
 		loadState(stateDir, "board_wifi_ip"),
@@ -173,7 +172,7 @@ func describeJetsonSSHFailure(sshpassBin string, stateDir string, sshUsername st
 			continue
 		}
 		_ = conn.Close()
-		hostname, err := runSSHHostnameForCredentials(sshpassBin, ip, sshUsername, sshPassword)
+		hostname, err := runSSHHostnameForCredentials(ip, sshUsername, sshPassword)
 		if err != nil {
 			lines = append(lines, fmt.Sprintf("%s: SSH port open but login failed (%s)", ip, err))
 			continue

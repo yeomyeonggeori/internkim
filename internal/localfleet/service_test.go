@@ -324,7 +324,7 @@ func TestStartTunnelCommandKeepsSSHAliveAfterShellExit(t *testing.T) {
 	}
 	command := service.startTunnelCommand()
 	for _, expectedFragment := range []string{
-		"(nohup '/repo/bin/sshpass'",
+		"(nohup sshpass -p admin",
 		"tunnel.log' 2>&1 < /dev/null & echo $! >",
 		"tunnel.pid')",
 	} {

@@ -181,7 +181,7 @@ ssh_base_command() {
   fi
 
   if [ -n "$ssh_password" ]; then
-    "$repository_root/bin/sshpass" -p "$ssh_password" ssh "${ssh_options[@]}" "$@"
+    sshpass -p "$ssh_password" ssh "${ssh_options[@]}" "$@"
     return
   fi
   ssh "${ssh_options[@]}" "$@"
@@ -194,7 +194,7 @@ rsync_ssh_command() {
     ssh_command="$ssh_command -o 'ProxyCommand=$repository_root/tools/cloudflared-access-ssh %h'"
   fi
   if [ -n "$ssh_password" ]; then
-    echo "'$repository_root/bin/sshpass' -p '$ssh_password' $ssh_command"
+    echo "sshpass -p '$ssh_password' $ssh_command"
     return
   fi
   echo "$ssh_command"

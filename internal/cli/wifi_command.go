@@ -72,7 +72,7 @@ func runWiFiAdd() error {
 
 	shouldConnect := !containsArg("--no-connect")
 	shouldWait := shouldConnect && (containsArg("--wait") || target.hostAddress == jetsonUSBHostAddress)
-	sshConnection := newSSH(target.sshpassPath, target.username, target.password, target.hostAddress)
+	sshConnection := newSSH(target.username, target.password, target.hostAddress)
 	fmt.Printf("Target: %s (ssh)\n", target.hostAddress)
 
 	output, errorValue := sshConnection.runResult(buildJetsonWiFiApplyCommand(profiles, shouldConnect, shouldWait))
@@ -98,7 +98,6 @@ type jetsonWiFiCommandTarget struct {
 	hostAddress    string
 	username       string
 	password       string
-	sshpassPath    string
 	stateDirectory string
 	getSSIDPath    string
 }
@@ -107,12 +106,11 @@ func resolveJetsonWiFiCommandTarget(boardType string) (jetsonWiFiCommandTarget, 
 	commandTarget := resolveCommandTarget(os.Args[2:])
 	stateDirectory := commandTarget.stateDir
 	scriptDirectory, _ := os.Getwd()
-	sshpassPath := filepath.Join(scriptDirectory, "bin", "sshpass")
 	username, password := commandTarget.sshUser, commandTarget.sshPassword
 
 	hostAddress := strings.TrimSpace(commandTarget.host)
 	if hostAddress == "" {
-		hostAddress = findJetsonWiFiCommandHost(sshpassPath, stateDirectory, username, password)
+		hostAddress = findJetsonWiFiCommandHost(stateDirectory, username, password)
 	}
 	if hostAddress == "" {
 		return jetsonWiFiCommandTarget{}, errors.New("Jetson을 SSH로 찾을 수 없습니다. USB-C로 연결한 뒤 잠시 기다리거나 --host 192.168.55.1 를 지정하세요.")
@@ -122,19 +120,18 @@ func resolveJetsonWiFiCommandTarget(boardType string) (jetsonWiFiCommandTarget, 
 		hostAddress:    hostAddress,
 		username:       username,
 		password:       password,
-		sshpassPath:    sshpassPath,
 		stateDirectory: stateDirectory,
 		getSSIDPath:    filepath.Join(scriptDirectory, "bin", "get-ssid"),
 	}, nil
 }
 
-func findJetsonWiFiCommandHost(sshpassPath string, stateDirectory string, username string, password string) string {
+func findJetsonWiFiCommandHost(stateDirectory string, username string, password string) string {
 	for _, hostAddress := range jetsonWiFiCommandHostCandidates(stateDirectory) {
-		if sshCheckHostnameForCredentials(sshpassPath, hostAddress, username, password) {
+		if sshCheckHostnameForCredentials(hostAddress, username, password) {
 			return hostAddress
 		}
 	}
-	return findBoardIPForCredentials(sshpassPath, stateDirectory, username, password)
+	return findBoardIPForCredentials(stateDirectory, username, password)
 }
 
 func jetsonWiFiCommandHostCandidates(stateDirectory string) []string {

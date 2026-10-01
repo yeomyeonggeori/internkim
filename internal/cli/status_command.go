@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -30,29 +29,28 @@ func runStatusArguments(arguments []string) error {
 		return errorValue
 	}
 	configuration := loadConfig()
-	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
 	if hasCommandArgument(arguments, "--recover-ssh") {
-		return runSSHRecoveryForTarget(m, configuration, sshpassBin, target, "restart-cloudflared-node-ssh", "", false)
+		return runSSHRecoveryForTarget(m, configuration, target, "restart-cloudflared-node-ssh", "", false)
 	}
-	return printStatusForCommandTarget(m, configuration, sshpassBin, target)
+	return printStatusForCommandTarget(m, configuration, target)
 }
 
-func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string, target commandTarget) error {
+func printStatusForCommandTarget(m *msg, configuration config, target commandTarget) error {
 	if strings.TrimSpace(target.host) == "" {
 		target.host = findSavedSSHHostForStatus(target.stateDir)
 	}
 	if strings.TrimSpace(target.host) != "" {
 		printCommandTargetEvidence(target)
 		fmt.Printf("=== %s (%s: %s) ===\n\n", m.t("기기 상태", "Device Status"), target.boardType, target.host)
-		printBoardStatus(m, target, newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host))
+		printBoardStatus(m, target, newSSH(target.sshUser, target.sshPassword, target.host))
 		return nil
 	}
 	if !target.useRemoteSSH && printPublicStatusForCommandTarget(m, target) {
 		return nil
 	}
-	if connection, isRemote, errorValue := resolveRemoteSSHConnection(configuration, sshpassBin, target, false); errorValue == nil && connection != nil {
+	if connection, isRemote, errorValue := resolveRemoteSSHConnection(configuration, target, false); errorValue == nil && connection != nil {
 		target.host = connection.host
 		target.useRemoteSSH = isRemote
 		printCommandTargetEvidence(target)
@@ -67,7 +65,7 @@ func printStatusForCommandTarget(m *msg, configuration config, sshpassBin string
 		return errorValue
 	}
 
-	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue == nil && connection != nil {
 		target.host = connection.host
 		target.useRemoteSSH = isRemote

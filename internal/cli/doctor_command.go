@@ -24,6 +24,11 @@ func simulationDependencies(configuration internkimlab.Configuration) []hostDepe
 			purpose:     "container CLI lab simulation",
 			installHint: "install the container CLI from https://github.com/apple/container/releases",
 		},
+		{
+			name:        "sshpass",
+			purpose:     "password SSH into the lab VM and boards",
+			installHint: "brew install sshpass, or apt install sshpass",
+		},
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -139,10 +138,9 @@ func resolveAdminAPIClient(arguments []string) (adminAPIClient, error) {
 		return nil, errorValue
 	}
 	configuration := loadConfig()
-	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
-	connection, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	connection, _, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue != nil {
 		return nil, errorValue
 	}
