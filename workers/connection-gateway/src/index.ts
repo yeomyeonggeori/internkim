@@ -116,12 +116,18 @@ async function joinAsHost(
 	}
 }
 
-function takeCompanyCall(
+async function holdsTheGatewayToken(request: Request, environment: WorkerEnvironment): Promise<boolean> {
+	const expected = environment.GATEWAY_ADMIN_TOKEN;
+	if (!expected) return false;
+	return digestsMatch(await digestOf(bearerOf(request) ?? ''), await digestOf(expected));
+}
+
+async function takeCompanyCall(
 	request: Request,
 	environment: WorkerEnvironment,
 	companyID: string
-): Promise<Response> | Response {
-	if (!environment.GATEWAY_ADMIN_TOKEN || bearerOf(request) !== environment.GATEWAY_ADMIN_TOKEN) {
+): Promise<Response> {
+	if (!(await holdsTheGatewayToken(request, environment))) {
 		return jsonResponse({ error: 'this call may not speak to a company' }, 401);
 	}
 	return connectionFor(environment, companyID).fetch(request);
@@ -132,7 +138,7 @@ async function storeServerKey(
 	environment: WorkerEnvironment,
 	companyID: string
 ): Promise<Response> {
-	if (!environment.GATEWAY_ADMIN_TOKEN || bearerOf(request) !== environment.GATEWAY_ADMIN_TOKEN) {
+	if (!(await holdsTheGatewayToken(request, environment))) {
 		return jsonResponse({ error: 'this call may not set a server key' }, 401);
 	}
 	return connectionFor(environment, companyID).fetch(request);
