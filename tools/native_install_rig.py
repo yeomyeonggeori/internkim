@@ -792,10 +792,10 @@ def build_identity_reported(machine):
     return found
 
 
-def installed_units(machine):
-    """The units dpkg says this package put on the machine."""
+def installed_units(machine, files_command=f"dpkg-query -L {PACKAGE_NAME}"):
+    """The units the package manager says this package put on the machine."""
     listed = machine.shell(
-        f"dpkg-query -L {PACKAGE_NAME} 2>/dev/null"
+        f"{files_command} 2>/dev/null"
         r" | grep -E '^/(lib|usr/lib)/systemd/system/.*\.service$' | xargs -r -n1 basename | sort -u"
     )
     return [name for name in listed.stdout.split() if name]

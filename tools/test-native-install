@@ -322,6 +322,7 @@ class Rig:
         self.source_ownership = ""
         self.restored_machine = None
         self.sent_messages = []
+        self.files_command = f"dpkg-query -L {PACKAGE_NAME}"
 
     def step(self, number, name):
         step = Step(number, name)
@@ -521,7 +522,7 @@ class Rig:
         ).record(CARRIED_FONT_PATH in font.stdout, font.stdout.strip())
 
     def units(self):
-        return installed_units(self.machine)
+        return installed_units(self.machine, self.files_command)
 
     def observe_services(self, step):
         unit_names = self.units()
@@ -939,13 +940,13 @@ class Rig:
         return reported.stdout.strip() or f"{RELAY_UNIT_NAME} said nothing about the gateway"
 
     @contextlib.contextmanager
-    def driving(self, machine):
-        held = self.machine
-        self.machine = machine
+    def driving(self, machine, files_command):
+        held = (self.machine, self.files_command)
+        self.machine, self.files_command = machine, files_command
         try:
             yield
         finally:
-            self.machine = held
+            self.machine, self.files_command = held
 
     def take_a_backup(self, step):
         remembered = self.machine.shell(in_the_agents_database(REMEMBERED_FACT_ROWS % {"phrase": self.remembered_phrase}))
@@ -1022,7 +1023,7 @@ class Rig:
             installed.returncode == 0 and restored.returncode == 0,
             f"install.sh exited {installed.returncode}\n{restored.stdout.strip()[-1800:]}",
         )
-        with self.driving(self.restored_machine):
+        with self.driving(self.restored_machine, family.files_command):
             self.observe_what_came_back(step)
             self.observe_running_services(step)
             self.observe_the_host_holds_the_gateway_socket(step)

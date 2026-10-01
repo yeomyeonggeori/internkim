@@ -35,7 +35,11 @@ type extraction struct {
 }
 
 func ExtractFiles(input io.Reader, destinations map[string]string) (ExtractionReport, error) {
-	extracting := &extraction{destinations: destinations, verified: map[string]bool{}, accounts: NewAccounts()}
+	resolved, errorValue := resolveDestinations(destinations)
+	if errorValue != nil {
+		return ExtractionReport{}, errorValue
+	}
+	extracting := &extraction{destinations: resolved, verified: map[string]bool{}, accounts: NewAccounts()}
 	reader := tar.NewReader(input)
 	for {
 		header, errorValue := reader.Next()
@@ -51,6 +55,21 @@ func ExtractFiles(input io.Reader, destinations map[string]string) (ExtractionRe
 	}
 }
 
+func resolveDestinations(destinations map[string]string) (map[string]string, error) {
+	resolved := map[string]string{}
+	for role, root := range destinations {
+		if errorValue := os.MkdirAll(root, 0o700); errorValue != nil {
+			return nil, errorValue
+		}
+		path, errorValue := filepath.EvalSymlinks(root)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		resolved[role] = path
+	}
+	return resolved, nil
+}
+
 func (extracting *extraction) destinationOf(archivedName string) (string, error) {
 	role, relative, errorValue := splitArchivedName(archivedName)
 	if errorValue != nil {
@@ -60,9 +79,6 @@ func (extracting *extraction) destinationOf(archivedName string) (string, error)
 	if !isKnown {
 		return "", fmt.Errorf("it belongs to %q, which is not a root this backup lists", role)
 	}
-	if errorValue := extracting.ensureRoot(root); errorValue != nil {
-		return "", errorValue
-	}
 	if relative == "." {
 		return root, nil
 	}
@@ -71,17 +87,6 @@ func (extracting *extraction) destinationOf(archivedName string) (string, error)
 		return "", errorValue
 	}
 	return destination, nil
-}
-
-func (extracting *extraction) ensureRoot(root string) error {
-	if extracting.verified[root] {
-		return nil
-	}
-	if errorValue := os.MkdirAll(root, 0o700); errorValue != nil {
-		return errorValue
-	}
-	extracting.verified[root] = true
-	return nil
 }
 
 func (extracting *extraction) refuseLinkedAncestors(root string, directory string) error {

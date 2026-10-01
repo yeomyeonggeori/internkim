@@ -43,6 +43,11 @@ func WriteFiles(output io.Writer, roots []FileRoot, snapshots Snapshotter) (File
 }
 
 func (writer *fileTreeWriter) writeRoot(root FileRoot) error {
+	resolved, errorValue := filepath.EvalSymlinks(root.Path)
+	if errorValue != nil {
+		return errorValue
+	}
+	root.Path = resolved
 	return filepath.WalkDir(root.Path, func(filePath string, entry fs.DirEntry, walkError error) error {
 		if errors.Is(walkError, fs.ErrNotExist) {
 			writer.warn("%s disappeared while it was being read", filePath)

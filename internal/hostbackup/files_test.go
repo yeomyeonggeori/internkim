@@ -198,3 +198,22 @@ func TestALiveSQLiteDatabaseIsTakenWholeWithWhatItsLogHolds(t *testing.T) {
 		t.Fatalf("the restored database lost the row its log held: %q %v", name, errorValue)
 	}
 }
+
+func TestARootThatIsASymlinkIsFollowedOnBothSides(t *testing.T) {
+	sourceTarget := t.TempDir()
+	writeTree(t, sourceTarget, map[string]string{"shared/public/deck.pdf": "deck"})
+	sourceLink := filepath.Join(t.TempDir(), "workspace")
+	os.Symlink(sourceTarget, sourceLink)
+	destinationTarget := t.TempDir()
+	destinationLink := filepath.Join(t.TempDir(), "workspace")
+	os.Symlink(destinationTarget, destinationLink)
+
+	archiveAndExtract(t, []FileRoot{{Role: "workspace", Path: sourceLink}}, map[string]string{"workspace": destinationLink})
+
+	if document, _ := os.ReadFile(filepath.Join(destinationTarget, "shared/public/deck.pdf")); string(document) != "deck" {
+		t.Errorf("the file did not land behind the destination's symlink: %q", document)
+	}
+	if information, errorValue := os.Lstat(destinationLink); errorValue != nil || information.Mode()&os.ModeSymlink == 0 {
+		t.Error("the destination's symlink was replaced")
+	}
+}
