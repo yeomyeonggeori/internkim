@@ -155,7 +155,7 @@
   },
   "CLOUDFLARE_DOMAIN": {
     "process": "web, cli",
-    "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's fallback zone when INTERNKIM_DOMAIN is unset; falls back to the compiled-in default zone",
+    "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's zone; falls back to the compiled-in default zone",
     "isRequiredOnPages": true,
     "isInVault": true
   },
@@ -415,10 +415,6 @@
     "process": "cli",
     "description": "the device's public admin address, from the @production vault profile; internal/deployops/registry.go reads it as the one deploy target",
     "isInVault": true
-  },
-  "INTERNKIM_DOMAIN": {
-    "process": "cli",
-    "description": "overrides the CLI's compiled-in zone; everything else (the API URL, hostnames) derives from it"
   },
   "INTERNKIM_E2E_CONFIG": {
     "process": "tools/e2e-crud",

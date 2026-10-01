@@ -397,7 +397,7 @@ monkeys run @production bun run web/scripts/deploy-worker.ts workers/release-reg
 ```
 
 `deploy-worker.ts` renders the route as `<subdomain>.<zone>` from the zone
-`CLOUDFLARE_DOMAIN` or `INTERNKIM_DOMAIN` names, falling back to
+`CLOUDFLARE_DOMAIN` names, falling back to
 `fleetdomain.defaultZone`. No `wrangler.jsonc` writes the domain down, and
 `web/tests/unit/scripts/worker-route.test.ts` fails when one starts to.
 A route already pointing at this Worker is left alone, id and all; wrangler

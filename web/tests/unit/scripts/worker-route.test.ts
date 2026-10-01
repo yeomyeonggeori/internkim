@@ -13,8 +13,7 @@ describe('the zone a worker route is rendered under', () => {
 
 	test('takes configuration over the default, as every other consumer does', () => {
 		expect(zoneOfSettings({ CLOUDFLARE_DOMAIN: 'example.test' })).toBe('example.test');
-		expect(zoneOfSettings({ INTERNKIM_DOMAIN: 'Self.Hosted.Test' })).toBe('self.hosted.test');
-		expect(zoneOfSettings({ CLOUDFLARE_DOMAIN: 'first.test', INTERNKIM_DOMAIN: 'second.test' })).toBe('first.test');
+		expect(zoneOfSettings({ CLOUDFLARE_DOMAIN: 'Self.Hosted.Test' })).toBe('self.hosted.test');
 	});
 });
 
