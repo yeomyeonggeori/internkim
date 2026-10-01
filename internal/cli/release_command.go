@@ -591,7 +591,11 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 		if errorValue := os.MkdirAll(filepath.Dir(outputPath), 0o755); errorValue != nil {
 			return errorValue
 		}
-		arguments := append([]string{"build"}, releaseBinaryBuildFlags(repositoryRootPath)...)
+		buildFlags, errorValue := releaseBinaryBuildFlags(repositoryRootPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		arguments := append([]string{"build"}, buildFlags...)
 		command := exec.Command("go", append(arguments, "-o", outputPath, packagePath)...)
 		command.Dir = repositoryRootPath
 		command.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
@@ -603,9 +607,13 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 	}
 }
 
-func releaseBinaryBuildFlags(repositoryRootPath string) []string {
+func releaseBinaryBuildFlags(repositoryRootPath string) ([]string, error) {
 	revision := releaseBinaryRevision(repositoryRootPath)
-	return []string{"-ldflags", admindStampFlags(revision, revision)}
+	stamped, errorValue := admindStampFlags(revision, revision)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return []string{"-ldflags", stamped}, nil
 }
 
 func releaseBinaryRevision(repositoryRootPath string) string {
@@ -620,24 +628,35 @@ func releaseBinaryRevision(repositoryRootPath string) string {
 // the only way to see whether an upgrade moved the running process rather than the
 // file. A build that leaves these at their defaults answers `unknown` and that check
 // can never be made.
-func admindStampFlags(buildID string, revision string) string {
+func admindStampFlags(buildID string, revision string) (string, error) {
+	centralPlaneFlags, errorValue := centralPlaneStampFlags()
+	if errorValue != nil {
+		return "", errorValue
+	}
 	flags := []string{
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
 	}
-	return strings.Join(append(flags, centralPlaneStampFlags()...), " ")
+	return strings.Join(append(flags, centralPlaneFlags...), " "), nil
 }
 
-func centralPlaneStampFlags() []string {
+func centralPlaneStampFlags() ([]string, error) {
 	projectURL := os.Getenv("SUPABASE_URL")
 	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
-	if projectURL == "" || publishableKey == "" {
-		return nil
+	var missing []string
+	if projectURL == "" {
+		missing = append(missing, "SUPABASE_URL")
+	}
+	if publishableKey == "" {
+		missing = append(missing, "SUPABASE_PUBLISHABLE_KEY")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("%s not set: admind is built carrying the central plane they name, so run this under `monkeys run @production`", strings.Join(missing, " and "))
 	}
 	return []string{
 		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultProjectURL=" + projectURL,
 		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultPublishableKey=" + publishableKey,
-	}
+	}, nil
 }
 
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {

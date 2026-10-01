@@ -518,7 +518,12 @@ func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 	fmt.Printf("  %s %s... ", state.messenger.t("빌드 중", "Building"), asset.name)
 	arguments := []string{"build", "-o", asset.localPath}
 	if asset.name == blueclaw.AdmindName {
-		arguments = append(arguments, "-ldflags", admindBuildFlags(state))
+		stampFlags, errorValue := admindBuildFlags(state)
+		if errorValue != nil {
+			fmt.Println("FAILED")
+			return errorValue
+		}
+		arguments = append(arguments, "-ldflags", stampFlags)
 	}
 	arguments = append(arguments, "./cmd/"+asset.name+"/")
 	buildCommand := exec.Command("go", arguments...)
@@ -532,7 +537,7 @@ func buildGoBinaryAsset(state *setupFlowState, asset localBinaryAsset) error {
 	return nil
 }
 
-func admindBuildFlags(state *setupFlowState) string {
+func admindBuildFlags(state *setupFlowState) (string, error) {
 	revision := strings.TrimSpace(runCmd("git", "-C", state.scriptDir, "rev-parse", "--short", "HEAD"))
 	buildID := strings.TrimSpace(state.setupBuildID)
 	if buildID == "" {
