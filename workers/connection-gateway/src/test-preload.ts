@@ -1,4 +1,9 @@
 import { plugin } from 'bun';
+import { timingSafeEqual } from 'node:crypto';
+
+Object.assign(crypto.subtle, {
+	timingSafeEqual: (first: Uint8Array, second: Uint8Array) => timingSafeEqual(first, second)
+});
 
 class WorkerEntrypointStandIn {
 	constructor(
