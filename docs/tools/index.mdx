@@ -35,7 +35,7 @@ people, leave and attendance tools run on the central plane against the
 record, the browser and model tools run only beside the agent, and the rest
 are carried to the company's computer. On the host the agent calls them over
 MCP through the relay, the same catalog the [HTTP API](/docs/api/tools)
-serves; on the device path it reaches them through `internkim-capabilityd`.
+serves.
 The [catalog](/docs/tools/catalog) lists every one.
 
 Workspace tools touch your files and the terminal: read, write, edit,
@@ -138,7 +138,7 @@ flowchart LR
   TS["web/src/lib/server/public-api/catalog/<br/>(source of truth)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|embedded, hash-checked| Go["pkg/capabilityprotocol"]
   Go -->|admind stamps runtime.json| Blueclaw["blueclaw<br/>capability_tool_provider"]
-  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(vsock in the guest)"]
+  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock"]
   Socket --> Capabilityd["internkim-capabilityd<br/>executes the operation"]
 ```
 

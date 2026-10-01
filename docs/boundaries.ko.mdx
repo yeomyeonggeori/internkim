@@ -37,8 +37,8 @@ icon: ShieldCheck
 `root:root 4755` setuid 다리이고, 실행할 수 있다는 것이 곧 권한은 아닙니다.
 자신을 부른 real UID가 `root`나 `blueclaw`인지 확인한 뒤, 무엇을 하기 전에
 요청자의 UID, GID, 보조 그룹으로 내려갑니다. 호스트 패키지는 헬퍼를 Linux에서는
-`/usr/lib/internkim/blueclaw-posix-helper`에, Mac에서는 keg의 `libexec`에 설치하고,
-디바이스는 같은 바이너리를 게스트 rootfs 안에 둡니다. 헬퍼가 없으면 blueclaw는 워크스페이스 도구를 모두
+`/usr/lib/internkim/blueclaw-posix-helper`에, Mac에서는 keg의 `libexec`에 설치합니다.
+헬퍼가 없으면 blueclaw는 워크스페이스 도구를 모두
 거부합니다. 양쪽 모두 blueclaw 서비스 자신은 `blueclaw` 사용자로 돕니다. 터미널이
 root로는 실행을 거부하기 때문입니다.
 

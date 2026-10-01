@@ -34,7 +34,7 @@ description: 에이전트가 부를 수 있는 것들, 각 호출의 대가, 그
 대고 돌고, 브라우저와 모델 도구는 에이전트 곁에서만 돌며, 나머지는 회사의
 컴퓨터로 실려 갑니다. 호스트에서 에이전트는
 [HTTP API](/ko/docs/api/tools)가 서빙하는 바로 그 카탈로그를 릴레이를 거쳐
-MCP로 부르고, 디바이스 경로에서는 `internkim-capabilityd`를 거쳐 닿습니다.
+MCP로 부릅니다.
 전체 목록은 [카탈로그](/ko/docs/tools/catalog)에 있습니다.
 
 워크스페이스 도구는 요청자의 파일과 터미널을 다룹니다. 읽기, 쓰기,
@@ -137,7 +137,7 @@ flowchart LR
   TS["web/src/lib/server/public-api/catalog/<br/>(단일 정본)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|임베드, 해시 검증| Go["pkg/capabilityprotocol"]
   Go -->|admind가 runtime.json에 스탬프| Blueclaw["blueclaw<br/>capability_tool_provider"]
-  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(게스트에서는 vsock)"]
+  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock"]
   Socket --> Capabilityd["internkim-capabilityd<br/>조작을 실행"]
 ```
 

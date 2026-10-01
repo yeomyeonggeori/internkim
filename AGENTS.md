@@ -6,11 +6,11 @@ the codebase. Keep it short, concrete, and updated when workflows change.
 ## Core Rules
 
 - This document describes the central plane: a company the customer signs into,
-  with the agent running on a computer they bring. The device path (Jetson, OTA,
-  the cloud-hypervisor guest, vsock) is frozen: it keeps working and keeps
-  getting bug fixes, and no new design is implemented against it.
-  `docs/device.mdx` describes it, and "Deploying" below keeps the rules for
-  shipping to one. Mattermost is not part of the freeze: it is being removed.
+  with the agent running on a computer they bring, installed from the host
+  package. The per-company device path (Jetson setup, OTA, the cloud-hypervisor
+  guest, the fleet registry) is retired. What is left of it serves the Jetson's
+  cutover onto the host package and goes when that is done; "Deploying" below
+  names it. Mattermost is being removed as well.
 - Prefer existing codebase patterns over new abstractions.
 - Use `rg` or `rg --files` for searches.
 - Use `apply_patch` for manual edits.
@@ -18,19 +18,7 @@ the codebase. Keep it short, concrete, and updated when workflows change.
   `tools/sync-worktree-local-state <main-worktree-path>` from the new worktree
   before tests or deployments that need local ignored state. Read the script for
   what it links; it is short, and a list repeated here goes stale. Missing paths
-  are reported as skipped, and re-running is idempotent (`kept`). **A local fleet
-  run needs `--copy`**: the guest mounts the worktree at `/mnt/shared/workspace`
-  and nothing else, so a linked artifact points at a host path it cannot follow,
-  and provisioning dies minutes in on a missing file. `dev fleet run` refuses a
-  linked one up front, naming which.
-- **Then run `make prepare-buzz-relay` in the worktree.** Syncing copies
-  `.dependency/buzz-relay` because the Rust relay is 2 GB and built from its own
-  pinned source, but the same directory carries `chatd`, which is built from
-  whatever `.dependency/blueclaw` points at. A copied one is some other
-  worktree's chatd: setup installs it, the unit reports active, and the scenario
-  fails on a listen address and a health route that binary never had.
-  `dev fleet run` refuses a `CHATD_REVISION` that is missing or does not match
-  the pointer, naming both.
+  are reported as skipped, and re-running is idempotent (`kept`).
 - Do not revert user or generated changes unless explicitly asked.
 - Before commit, push, or deploy, check the current branch, upstream status,
   and working tree state.
@@ -314,8 +302,8 @@ and delete the duplicates.
   connector permits it; report any artifacts that remain.
 - Mattermost self-hosted counts active and inactive users toward
   `TeamSettings.MaxUsersPerTeam = 50`; delete test users as well as messages.
-- Do not leave test-only memories in Blueclaw. Isolate memory tests or run
-  `internkim reset blueclaw-history --confirm <deviceID>` after verification.
+- Do not leave test-only memories in Blueclaw. Isolate memory tests in
+  `./internkim dev plane`, whose guest database goes with the run.
 - Keep people, policy, platform account links, and secrets intact unless the task
   explicitly asks to reset them.
 
@@ -325,9 +313,7 @@ and delete the duplicates.
   behavior changes, start with `./internkim dev simulate --scenario <name>`. The
   scenarios are registered in `BuiltinScenario`
   (`.dependency/blueclaw/internal/e2e/virtual_session.go`). Read that switch; a
-  list kept anywhere else goes stale. `dev fleet run --scenario` reads a
-  different registry, `localfleet.ScenarioNames()`
-  (`internal/localfleet/service.go`), which its own `--help` prints.
+  list kept anywhere else goes stale.
 - Use scripted virtual sessions only for deterministic runtime invariants such
   as state transitions, approval, cancellation, effects, and evidence.
 - Keep default tests deterministic. Model evaluations require `llmeval`; preserve
@@ -337,31 +323,23 @@ and delete the duplicates.
 
   | gate | question | cost |
   | --- | --- | --- |
-  | `./internkim dev plane` | does Linux startup, requester memory access, messaging and the public API work | minutes |
   | `./internkim dev simulate --scenario <name>` | does the agent loop decide correctly, against a scripted model | seconds |
-  | `./internkim dev fleet run --scenario <name>` | does it work on Linux — the cloud-hypervisor guest, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
+  | `./internkim dev plane` | do the company's daemons start, resolve requesters, carry messages and answer the public API on Linux | minutes |
+  | `tools/test-native-install` | does the package install, upgrade and remove on a fresh machine, and does a person's message reach its messenger | ~10 minutes |
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
-  started or what it is told — goes through `./internkim dev plane` first. It runs
-  the bring-up in a disposable Linux Local Fleet with the real POSIX helper and
-  the same `tools/render-company-runtime` the package's prepare step runs, so a plane
-  that is wired wrong fails under its filesystem and process identity rules.
-  The run keeps memory facts in its isolated guest database
-  and workspace, and removes them with the fleet.
-- Anything on the messenger path is verified with
-  `./internkim dev fleet run --scenario buzz-attachment`. Buzz is what a
-  company's messages travel over. The scenario invites a person, derives their key from the device seed
-  the way `buzzidentity.Secret` does, sends the agent a picture through chatd's
-  person capabilities, and reads the task ledger. A message going the other way —
-  the agent writing to a person — is
-  `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
-  public API the way an outside client does, then reads the recipient's
-  own Buzz inbox for it.
-- The fleet VM is the Linux gate for both paths: a run starts a local central
-  plane and joins the VM to it, so the `buzz-*` scenarios above are plane work
-  even though the VM they run in is device machinery.
-  `./internkim dev fleet reprovision` pushes the working tree onto it, but the
-  guest skips a Blueclaw SHA it already has: commit a Blueclaw Go change first.
+  started or what it is told — goes through `./internkim dev plane` first. It
+  runs admind, capabilityd and blueclaw in a disposable Linux guest against the
+  local record, with the real POSIX helper and the same
+  `tools/render-company-runtime` the package's prepare step runs, so a plane that
+  is wired wrong fails under its filesystem and process identity rules. The
+  messengers stand in as recorders, and the guest, its database and its
+  workspace go with the run.
+- Anything that depends on how the package lays the machine out (units, users,
+  the host's PostgreSQL and cache, the relay, the real Buzz relay) goes through
+  `tools/test-native-install`, and `tools/test-native-install-family --family
+  <name>` for the other distributions. It installs the package the way a company
+  does and signs a person in to send a message through it.
 
 ## Blueclaw Skill Size Budget
 
@@ -403,7 +381,7 @@ and delete the duplicates.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: the local loop below, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
-  explicit `VITE_DEV_USER_EMAIL`) is for device-backed screens that have no
+  explicit `VITE_DEV_USER_EMAIL`) is for admind-backed screens that have no
   Supabase path yet; with those, verify `/auth/session` returns
   `authenticated: true` before giving the URL.
 - Unit tests must not reach the central plane. The app receives it at runtime
@@ -471,7 +449,7 @@ and delete the duplicates.
   under `tools/with-local-plane <command>`. It queues a second worktree behind
   the first, starts the stack, and stops it after fifteen idle minutes.
   `tools/verify`'s stack groups, `test:integration`, the `test:e2e:*:central`
-  scripts, `./internkim dev plane` and `dev fleet run` already do.
+  scripts and `./internkim dev plane` already do.
 - `supabase/seed.dev.sql` is the only place local fixtures live, wired through
   `[db.seed]` in `config.toml`. Do not write a second seeding script; a reset
   wipes anything the file does not carry.
@@ -496,8 +474,8 @@ and delete the duplicates.
 
 - Which Supabase project the app talks to is decided at **runtime**, injected by
   `hooks.server.ts` into the `#central-plane` element, not baked in by `VITE_*`.
-  One build therefore serves both a device host and a company host — keep it
-  that way, and reach the values through `$env/dynamic/private`.
+  One build therefore serves every company host — keep it that way, and reach
+  the values through `$env/dynamic/private`.
 - Custom domains always serve the **production** deployment; preview builds only
   ever answer on `*.pages.dev`. A hostname cannot point at a preview.
 - `web/scripts/deploy-pages.ts` deploys a preview unless `--production` is
@@ -551,29 +529,20 @@ and delete the duplicates.
 
 ## Deploying
 
-- `./internkim @production deploy` with no flags rebuilds stale artifacts,
-  ships every component that differs from the device plus its protocol
-  partner, refuses one the device is ahead on or holds at an unknown commit,
-  and fails if a shipped component's device revision differs from the
-  tree's. `--plan` prints the selection and publishes nothing; `--components`
-  narrows on purpose.
-- Deploy fetches first and refuses a tree with uncommitted edits to a shipped
-  component's sources, a HEAD or `.dependency/blueclaw` that lacks its
-  `origin/main`, or a submodule checkout off the recorded pointer;
-  `./internkim verify deploy-tree` runs that check alone. `--rollback [<id>]`
-  reapplies the release before the current one, and refuses when its payload
-  cannot run against the migrated database; `--plan` shows either.
-- A company on the central plane is deployed by
-  [docs/self-hosting.mdx](docs/self-hosting.mdx)'s "Deploying the web app". The rest is the device.
-- The running `admind` applies a device release, so a new component takes two
-  deploys, `admind` first; a release it cannot accept is escaped with
-  `./internkim setup --only admind --force`.
-- Ship `capabilityd`, `blueclawPayload` and `admind` together for any contract
-  or config change; an unknown component name is dropped silently.
-- A green `systemctl` is not a working agent: look for a run newer than the
-  deploy in `internkim task list`.
-- `tools/deploy-main` ships `origin/main` to the device as one operation; it
-  refuses a dirty tree, a device ahead of this tree, or a second run.
+- A company host is upgraded by its package. `./internkim release host
+  --channel testing`, run on an Apple-silicon Mac, builds the Linux packages
+  and the Homebrew bottle and publishes them as a GitHub Release;
+  `--channel stable` promotes one and gives the Homebrew tap its formula. It
+  refuses a dirty tree, a commit `main` lacks, or a submodule checkout off the
+  recorded pointer. A host takes it by running the install line again.
+- The web app is deployed as "SaaS Web Deployment" above says.
+- A green `systemctl` is not a working agent: look for a task run newer than
+  the upgrade.
+- The Jetson that ran the device path is reached only for its cutover:
+  `./internkim @production recover --action migration-export` asks its admind
+  for the export, and `tools/cloudflared-access-ssh` is the ProxyCommand that
+  copies it off. Both, the fleet ID and secret, the device URL and the Access
+  token in the vault, and admind's recovery actions go once the Jetson is off.
 
 ## Blueclaw Terminal Permission Boundary
 

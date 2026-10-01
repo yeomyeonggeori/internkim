@@ -25,21 +25,11 @@ and that name belongs to the company: point a tunnel (Cloudflare Tunnel, a
 Tailscale funnel, an ordinary reverse proxy) at `127.0.0.1:3000` on the machine
 this stack runs on, and hand the domain to whatever configures the relay.
 
-| Where the relay runs | How the name gets in |
-|---|---|
-| a company host the package installed | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
-| a device this repository provisions | `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>` |
-
-Nothing works the domain out for you. A relay with no domain stays on loopback,
-which is what the paragraph above describes, and the provisioning step that would
-configure one does nothing.
-
-The device path does the rest of what a public name needs: an `/etc/hosts` alias
-so clients on the box resolve it to loopback, a self-signed certificate for it,
-stunnel terminating TLS on `127.0.0.1:443`, and the community row re-keyed to it,
-since the relay picks the community from the `Host` header. Setup remembers the
-domain, so later runs keep it, and a run with a different `--relay-domain` moves
-the community across.
+On a company host the package installed, the name gets in as
+`BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and as
+`CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it. Nothing works the
+domain out for you. A relay with no domain stays on loopback, which is what the
+paragraph above describes.
 
 Pick the name once if you can. Every attachment the relay has stored is addressed
 at the name it carried at the time, so a rename leaves those addresses pointing
@@ -101,7 +91,7 @@ silent. History signed under one seed belongs to keys a person signing in under
 another seed never derives, so they cannot see or own it.
 
 - Keep it in one place a reader can find: `INTERNKIM_BUZZ_KEY_SEED` in the
-  vault on a development machine, the service secrets directory on a device,
+  vault on a development machine, `/var/lib/internkim` on a company host,
   and a copy in the operations vault off the box. A second local copy that
   disagrees derives identities nobody can sign in as.
 - Never set it inline for one command. `tools/mirror-local` writes it to a seed

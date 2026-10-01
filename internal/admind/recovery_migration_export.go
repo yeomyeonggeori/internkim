@@ -20,7 +20,7 @@ import (
 const (
 	migrationExportRoot = "/var/lib/internkim-migration"
 	// migrationExportReaderGroup is the device's login account, the one
-	// `internkim ssh` arrives as and the one that copies the export off.
+	// ssh arrives as and the one that copies the export off.
 	migrationExportReaderGroup = "internkim"
 )
 
