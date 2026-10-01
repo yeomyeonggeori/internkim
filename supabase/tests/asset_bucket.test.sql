@@ -31,6 +31,9 @@ insert into public.member (id, company_id, email, user_id, status, team_id, is_a
     true
   );
 
+insert into public.credential (company_id, kind, external_id) values
+  ('43000000-0000-0000-0000-0000000000a0', 'fleet', 'asset-test-box');
+
 insert into public.member (id, company_id, email, user_id, status, team_id) values
   (
     '43000000-0000-0000-0000-0000000000a1',
@@ -146,7 +149,7 @@ begin
   set local role authenticated;
   perform set_config(
     'request.jwt.claims',
-    '{"sub":"43000000-0000-0000-0000-000000000001","app_metadata":{"company_id":"43000000-0000-0000-0000-0000000000a0"}}',
+    '{"sub":"43000000-0000-0000-0000-000000000001","app_metadata":{"company_id":"43000000-0000-0000-0000-0000000000a0","fleet_id":"asset-test-box"}}',
     true
   );
 

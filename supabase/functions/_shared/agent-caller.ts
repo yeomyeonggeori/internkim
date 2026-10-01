@@ -1,4 +1,4 @@
-import { hostAddressOf } from './host-address.ts';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { refuse } from './http.ts';
 import { serviceClient, type SupabaseClient } from './service-client.ts';
 
@@ -14,17 +14,20 @@ export async function callingAgent(request: Request): Promise<CallingAgent> {
 
 	const client = serviceClient();
 	const companyID = presented.split('.').length === 3
-		? await companyOfHostSession(client, presented)
+		? await companyOfHostSession(presented)
 		: await companyOfAgentKey(client, presented);
 	if (!companyID) refuse(403, 'refused');
 	return { client, companyID };
 }
 
-async function companyOfHostSession(client: SupabaseClient, accessToken: string): Promise<string | null> {
-	const { data } = await client.auth.getUser(accessToken);
-	const companyID = data.user?.app_metadata?.company_id;
-	if (typeof companyID !== 'string') return null;
-	return data.user?.email === hostAddressOf(companyID) ? companyID : null;
+async function companyOfHostSession(accessToken: string): Promise<string | null> {
+	const caller = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+		auth: { autoRefreshToken: false, persistSession: false },
+		global: { headers: { Authorization: `Bearer ${accessToken}` } }
+	});
+	const { data, error, status } = await caller.rpc('my_app_company');
+	if (error && status !== 401) refuse(502, `the record could not say whose computer this is: ${error.message}`);
+	return typeof data === 'string' ? data : null;
 }
 
 async function companyOfAgentKey(client: SupabaseClient, apiKey: string): Promise<string | null> {

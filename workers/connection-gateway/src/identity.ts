@@ -166,3 +166,18 @@ export async function resolveMember(
 		email: (rows[0].email ?? '').trim().toLowerCase()
 	};
 }
+
+export async function companyOfHost(
+	supabaseURL: string,
+	apiKey: string,
+	token: string,
+	fetchDocument: FetchDocument = fetchThroughTheRuntime
+): Promise<string | null> {
+	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/rpc/my_app_company`;
+	const response = await fetchDocument(url, {
+		headers: { apikey: apiKey, Authorization: `Bearer ${token}` }
+	});
+	if (!response.ok) throw new TokenRefused(`the record answered ${response.status} for this computer`);
+	const company = await response.json();
+	return typeof company === 'string' ? company : null;
+}

@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { error } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { companyOfHostCredential, controlPlane } from './control-plane';
+import { companyOfHostCredential, controlPlane, planeCredentialsOf } from './control-plane';
 export { fleetDirectory } from './fleet-directory';
 
 export type Environment = Record<string, string | undefined>;
@@ -16,14 +16,8 @@ export function environmentOf(platform: App.Platform | undefined): Environment {
 }
 
 export async function callingAgent(request: Request, environment: Environment): Promise<CallingAgent> {
-	const credentials = {
-		projectURL: environment.SUPABASE_URL ?? '',
-		serviceRoleKey: environment.SUPABASE_SECRET_KEY ?? '',
-		signingKey: environment.SUPABASE_JWT_SIGNING_KEY ?? '',
-	};
-	if (!credentials.projectURL || !credentials.serviceRoleKey || !credentials.signingKey) {
-		error(500, 'the control plane is not configured');
-	}
+	const credentials = planeCredentialsOf(environment);
+	if (!credentials) error(500, 'the control plane is not configured');
 
 	const presented = bearerTokenOf(request);
 	if (!presented) error(401, 'no company computer credential');

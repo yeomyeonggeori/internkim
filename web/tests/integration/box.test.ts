@@ -20,6 +20,7 @@ import {
 	releaseBox
 } from '../../src/lib/server/box';
 import {
+	asMember,
 	companyOfHostSession,
 	controlPlane,
 	fleetCredentialKind,
@@ -32,7 +33,7 @@ import { recordTokenFor } from '../../src/lib/server/record-token';
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 
 const networkHookTimeout = 60_000;
-const credentials = { projectURL, serviceRoleKey, signingKey };
+const credentials = { projectURL, publishableKey, serviceRoleKey, signingKey };
 const client = controlPlane(credentials);
 const stamp = Date.now();
 const officeAddress = `198.51.100.${stamp % 200}`;
@@ -450,6 +451,51 @@ describe('the routes a company computer calls accept its session', () => {
 		if (!presented) throw new Error('a claimed box gets a session');
 
 		expect(await sessionForHost(credentials, presented.accessToken)).toEqual(presented);
+	});
+
+	test('a computer the company moved off can neither call its routes nor touch its record, though its session has not expired', async () => {
+		const first = await aBox();
+		const second = await aBox();
+		await claimWithCode(companyID, first.publicKey, await announcedCode(first));
+		const forgotten = (await boxSessionFor(credentials, first.publicKey, environment, appURL))?.session.accessToken ?? '';
+		await claimWithCode(companyID, second.publicKey, await announcedCode(second));
+		const current = (await boxSessionFor(credentials, second.publicKey, environment, appURL))?.session.accessToken ?? '';
+
+		await expect(callingAgent(requestBearing(forgotten), environment)).rejects.toMatchObject({ status: 403 });
+		await expect(sessionForHost(credentials, forgotten)).rejects.toThrow('no company computer');
+		const planted = await asMember({ projectURL, publishableKey }, forgotten)
+			.from('contact')
+			.insert({ company_id: companyID, name: `Planted by a forgotten computer ${stamp}` });
+		expect(planted.error?.code).toBe('42501');
+
+		expect((await callingAgent(requestBearing(current), environment)).companyID).toBe(companyID);
+		const kept = await asMember({ projectURL, publishableKey }, current)
+			.from('contact')
+			.insert({ company_id: companyID, name: `Kept by the connected computer ${stamp}` });
+		expect(kept.error).toBeNull();
+	});
+
+	test('a computer the administrator disconnected is refused at once', async () => {
+		const disconnecting = await aCompany('disconnecting');
+		const box = await aBox();
+		await claimWithCode(disconnecting.companyID, box.publicKey, await announcedCode(box));
+		const held = (await boxSessionFor(credentials, box.publicKey, environment, appURL))?.session.accessToken ?? '';
+		expect(await companyOfHostSession(credentials, held)).toBe(disconnecting.companyID);
+
+		await releaseBox(client, disconnecting.companyID);
+
+		expect(await companyOfHostSession(credentials, held)).toBeNull();
+	});
+
+	test('a session bought with an agent key ends when the company replaces that key', async () => {
+		const name = `replaced-key-${stamp}`;
+		const first = await issueAgentKey(client, companyID, name);
+		const bought = await sessionForHost(credentials, first.apiKey);
+		expect(await companyOfHostSession(credentials, bought.accessToken)).toBe(companyID);
+
+		await issueAgentKey(client, companyID, name, { replaceStanding: true });
+
+		expect(await companyOfHostSession(credentials, bought.accessToken)).toBeNull();
 	});
 
 	test('a member’s own session buys no host session', async () => {

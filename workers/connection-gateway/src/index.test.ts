@@ -41,8 +41,10 @@ Object.assign(globalThis, { WebSocketPair: TestWebSocketPair });
 const serverKey = 'company-server-key';
 const companyID = 'c1';
 const callBody = { method: 'POST', path: '/tools/message_send/invoke', requester: 'someone@example.com' };
-const issuer = 'https://issuer.test/auth/v1';
 const hostCompanyID = 'host-company';
+let recordURL = '';
+let issuer = '';
+let companyTheRecordGrants: string | null = hostCompanyID;
 let signingKey: CryptoKey;
 let keyServer: ReturnType<typeof Bun.serve>;
 
@@ -87,7 +89,7 @@ function environmentReaching(object: CompanyConnectionObject): WorkerEnvironment
 function hostEnvironment(object: CompanyConnectionObject): WorkerEnvironment {
 	return {
 		...environmentReaching(object),
-		SUPABASE_URL: 'https://issuer.test',
+		SUPABASE_URL: recordURL,
 		SUPABASE_PUBLISHABLE_KEY: 'publishable',
 		SUPABASE_JWKS_URL: `${keyServer.url}jwks`
 	};
@@ -131,10 +133,14 @@ beforeAll(async () => {
 	keyServer = Bun.serve({
 		port: 0,
 		fetch(request) {
-			const isJWKS = new URL(request.url).pathname === '/jwks';
-			return new Response(isJWKS ? publicKeyDocument : 'not found', { status: isJWKS ? 200 : 404 });
+			const path = new URL(request.url).pathname;
+			if (path === '/jwks') return new Response(publicKeyDocument);
+			if (path === '/rest/v1/rpc/my_app_company') return Response.json(companyTheRecordGrants);
+			return new Response('not found', { status: 404 });
 		}
 	});
+	recordURL = keyServer.url.href.replace(/\/+$/, '');
+	issuer = `${recordURL}/auth/v1`;
 });
 
 afterAll(() => keyServer.stop());
@@ -207,6 +213,27 @@ describe('the public fetch handler', () => {
 			hostEnvironment(object)
 		);
 		expect(privatePath.status).toBe(404);
+	});
+
+	test('refuses a signed host token once the company has moved off that computer', async () => {
+		const token = await signedHostToken({
+			sub: 'account-1',
+			iss: issuer, aud: 'authenticated',
+			exp: 4102444800,
+			app_metadata: { company_id: hostCompanyID }
+		});
+		companyTheRecordGrants = null;
+		try {
+			const refused = await worker.fetch(
+				new Request(`https://gateway/company/${hostCompanyID}/host`, {
+					headers: { Upgrade: 'websocket', Authorization: `Bearer ${token}` }
+				}),
+				hostEnvironment(new CompanyConnectionObject(newState()))
+			);
+			expect(refused.status).toBe(403);
+		} finally {
+			companyTheRecordGrants = hostCompanyID;
+		}
 	});
 
 	test('refuses a one-shot call that does not hold the gateway token', async () => {

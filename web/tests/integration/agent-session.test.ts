@@ -13,7 +13,7 @@ import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supaba
 
 const networkHookTimeout = 60_000;
 
-const credentials = { projectURL, serviceRoleKey, signingKey };
+const credentials = { projectURL, publishableKey, serviceRoleKey, signingKey };
 
 const client = controlPlane(credentials);
 const stamp = Date.now();
