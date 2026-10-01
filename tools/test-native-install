@@ -888,7 +888,6 @@ class Rig:
         return all(step.verdict == "PASS" for step in self.steps)
 
 
-@contextlib.contextmanager
 def observe_the_conversion_environment(machine, step):
     python = capabilityd_argument(machine, "--file-read-python")
     imported = machine.shell(f"{python} -c '{DOCUMENT_MODULES_THE_CONVERSION_IMPORTS}' 2>&1 && echo imported")
@@ -921,6 +920,7 @@ def observe_a_real_conversion(machine, step):
         )
 
 
+@contextlib.contextmanager
 def kept_or_temporary_directory(is_kept):
     if not is_kept:
         with tempfile.TemporaryDirectory(prefix="internkim-install-rig-") as temporary:
