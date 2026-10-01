@@ -16,9 +16,10 @@ A company can run as much of internkim as it wants and leave the rest to
 ## Level 1: the host on your own computer
 
 Install [the host](/docs/running-the-host) on a computer the company leaves on,
-such as a Kim Mini, a Mac or a Linux machine. The company's record, the web app and the
-sign-in address stay with `intern.kim`. The host connects outward and nothing
-listens off loopback, so the computer needs no public address.
+such as a Kim mini, a Mac or a Linux machine. The company's record, the web app and the
+sign-in address stay with `intern.kim`. The host connects outward, and once it
+belongs to a company nothing listens off loopback, so the computer needs no
+public address.
 
 ## Level 3: your own Supabase and your own Cloudflare
 
@@ -30,16 +31,29 @@ says which data that project holds. Self-hosted Supabase ships the same
 Postgres and the same row level security, so the schema in `supabase/migrations`
 applies unchanged.
 
-Everyone signs in at your domain itself. Releases are published to a bucket in
-the same account, so sign-in, the web app and updates no longer depend on
-`intern.kim`.
+Everyone signs in at your domain itself, so sign-in and the web app no longer
+depend on `intern.kim`. Your web app serves `install.sh` as well, and the host
+package that script installs still comes from our GitHub Releases.
 
 ### Deploying the web app
 
 Which Supabase project the app talks to is decided when it runs: `hooks.server.ts`
 injects `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` into the page, read through
-`$env/dynamic/private`. One build therefore serves any company, and deploying it
-yourself only needs your project's values as Pages variables.
+`$env/dynamic/private`. One build therefore serves any company. The Pages
+project carries every variable `tools/environment.json` marks
+`isRequiredOnPages`, and `web/scripts/set-pages-secrets.ts` sets them all as
+secrets.
+
+Among them, `SUPABASE_JWT_SIGNING_KEY` is the private key the web app signs
+personal access tokens, agent sessions and host sessions with.
+`web/scripts/issue-record-signing-key.ts` mints one and prints it; import it in
+the Supabase dashboard under Project Settings → JWT Keys as a standby key, so
+the project verifies what the app signs.
+
+A production deploy first checks that every migration in `supabase/migrations`
+is applied to your project, through the Supabase CLI. Sign in with your own
+`supabase login` and run `supabase link --project-ref <ref>` before deploying;
+no Supabase access token is kept with the project's keys.
 
 ```bash
 cd web

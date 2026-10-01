@@ -9,7 +9,9 @@ hardware. The same software runs on any computer a company already has, and
 [the host](/docs/running-the-host) is what both install.
 
 This page describes how a box that has never been configured becomes one
-company's host, and how it proves itself afterwards.
+company's host, and how it proves itself afterwards. A Linux computer that
+installed the host package without a connection file waits in the same way, as
+an empty box.
 
 ## Every box starts identical
 
@@ -20,8 +22,7 @@ encryption key in `/var/lib/internkim/box`. The private halves never leave its d
 ## Claiming a box
 
 1. The box joins the office network and announces its public key to the central
-   plane every thirty seconds, as a box that belongs to no company yet. Nothing
-   listens on the box.
+   plane every thirty seconds, as a box that belongs to no company yet.
 2. An administrator opens `intern.kim` from the same office network. The address the
    box announced from and the address of the browser match, so the empty box appears
    in a list.
@@ -48,6 +49,10 @@ when it announces, and the setup page tells the administrator where to look.
 Anyone on that network can read the code, which the owner accepted in exchange
 for a box that needs no screen. The page closes once the box is claimed. The box
 also logs each code, and `sudo internkim box code` prints the current one.
+
+Disconnect in company setup undoes a claim. The box belongs to no company again,
+announces itself, is given a new code and reopens its page. The session it
+already holds ends within the hour.
 
 ## The box's identity replaces the agent key
 

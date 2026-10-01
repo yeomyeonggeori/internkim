@@ -4,7 +4,9 @@ description: 회사 호스트를 설치하고 서비스를 확인하며 로컬 �
 icon: ServerCog
 ---
 
-회사 호스트는 arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora, RHEL 호환 10(Rocky, AlmaLinux), Arch Linux, 혹은 Homebrew를 설치한 macOS에서 실행됩니다. 인터넷에
+회사 호스트는 arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora,
+RHEL 호환 10(Rocky, AlmaLinux), Arch Linux, 그리고 Homebrew를 설치한 Apple
+실리콘 Mac에서 실행됩니다. Linux 패키지는 glibc 2.35 이상이 필요합니다. 인터넷에
 연결하고 계속 켜 두어야 합니다. 설치 프로그램은 Linux의 systemd나 macOS의
 launchd에 서비스를 등록합니다. 공개 주소, 외부에서 들어오는 포트, Docker 설치는
 필요하지 않습니다.
@@ -18,17 +20,26 @@ curl -fsSL https://intern.kim/install.sh | sh -s -- host
 sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-첫 명령은 apt, dnf, pacman 또는 Homebrew 패키지를 설치합니다. 둘째 명령은 회사를 설정하고
-OpenRouter API 키를 받은 뒤 호스트 서비스를 등록합니다. 컴퓨터가 켜지면
-서비스가 자동으로 시작하고, 서비스가 종료되면 다시 시작합니다. 설치가 끝나면
-화면에 나온 회사 설정 주소에서 연결 확인을 누르세요.
+첫 명령은 apt, dnf, pacman 또는 Homebrew 패키지를 설치합니다. Linux에서는 이
+컴퓨터에 맞는 패키지를 저희 GitHub 릴리스에서 받아 릴리스의 `SHA256SUMS`와
+대조한 다음 패키지 관리자에게 넘깁니다. 둘째 명령은 회사를 설정하고 OpenRouter
+API 키를 받은 뒤 호스트 서비스를 등록합니다. 컴퓨터가 켜지면 서비스가 자동으로
+시작하고, 서비스가 종료되면 다시 시작합니다. 설치가 끝나면 화면에 나온 회사 설정
+주소에서 연결 확인을 누르세요.
+
+Linux에서는 연결 파일 없이도 됩니다. 첫 명령만 실행하면 컴퓨터는 회사를 기다리며
+같은 네트워크의 `http://<컴퓨터>.local:18088/`에 8자리 연결 코드를 띄웁니다.
+`sudo internkim box code`로도 같은 코드를 볼 수 있습니다. 같은 네트워크에 있는
+관리자가 회사 설정 화면에 코드를 넣고, 컴퓨터 키의 마지막 네 글자를 확인한 뒤
+연결을 누르면 됩니다. 그다음 설정 화면이 OpenRouter 키를 묻습니다. 연결이 어떻게
+이뤄지고 연결 해제가 무엇을 되돌리는지는 [김미니](/ko/kim-mini)에 있습니다.
 
 ## 업그레이드하기
 
-첫 명령을 다시 실행하세요. Linux에서는 GitHub의 최신 릴리스를 받아 릴리스의
-체크섬과 대조한 뒤 지금 버전 위에 설치하고, macOS에서는 Homebrew가 formula를
-업그레이드합니다. 회사와 데이터는 그대로 남습니다. 최신 릴리스가 되기 전의 릴리스
-후보를 따라가려면 `--channel testing`을 붙이세요.
+첫 명령을 다시 실행하세요. Linux에서는 채널이 지금 가리키는 릴리스를 지금 버전
+위에 설치하고, macOS에서는 Homebrew가 formula를 업그레이드합니다. 회사와 데이터는
+그대로 남습니다. 기본 채널은 최신 정식 릴리스입니다. 사전 릴리스까지 포함해 가장
+새 릴리스를 따라가려면 `--channel testing`을 붙이세요.
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
@@ -70,11 +81,13 @@ macOS에서는 `launchctl print system/kim.intern.<service>`로 서비스를 확
 
 ## 네트워크 연결
 
-호스트는 바깥으로 연결하고 로컬 인터페이스에서만 요청을 받습니다. 컴퓨터 관리는
-같은 네트워크의 셸이나 회사가 관리하는 원격 접속 방법을 사용하세요.
+호스트는 바깥으로 연결하고 로컬 인터페이스에서만 요청을 받습니다. 아직 회사가
+없는 Linux 호스트만 예외로, 연결될 때까지 포트 18088에 연결 코드를 띄웁니다.
+컴퓨터 관리는 같은 네트워크의 셸이나 회사가 관리하는 원격 접속 방법을 사용하세요.
 
-패키지를 설치하거나 업그레이드할 때는 호스트가 쓰는 하나뿐인 Python 런타임을
-`github.com`에서, 첨부 문서를 읽는 고정된 라이브러리를 `pypi.org`와
-`files.pythonhosted.org`에서 내려받습니다. 둘 중 하나라도 닿지 않으면 설치가
-멈추고 무엇을 받지 못했는지 알려 줍니다. 스킬도 같은 런타임에서 각 사람 명령의
-`python3`로 돌고, 처음 실행할 때 필요한 라이브러리를 PyPI에서 받습니다.
+Linux에서 패키지를 설치하거나 업그레이드할 때는 호스트가 쓰는 하나뿐인 Python
+런타임을 `github.com`에서 받아 `/opt/internkim/python`에 두고, 첨부 문서를 읽는
+고정된 라이브러리를 `pypi.org`와 `files.pythonhosted.org`에서 내려받습니다. 둘 중
+하나라도 닿지 않으면 설치가 멈추고 무엇을 받지 못했는지 알려 줍니다. 배포판의
+Python은 필요하지 않습니다. 스킬도 같은 런타임에서 각 사람 명령의 `python3`로
+돌고, 처음 실행할 때 필요한 라이브러리를 PyPI에서 받습니다.

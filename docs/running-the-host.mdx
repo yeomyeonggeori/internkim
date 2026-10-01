@@ -4,11 +4,12 @@ description: Install the company host, check its services, and find local data a
 icon: ServerCog
 ---
 
-The company host runs on Debian 13, Ubuntu 22.04 or 24.04, Fedora, RHEL-compatible 10 (Rocky, AlmaLinux) or Arch Linux, on arm64 or amd64, or on macOS with
-Homebrew. It
-needs an outbound internet connection and must stay awake. The installer registers native
-services with systemd on Linux or launchd on macOS. The host needs no public
-address, inbound port, or Docker installation.
+The company host runs on Debian 13, Ubuntu 22.04 or 24.04, Fedora,
+RHEL-compatible 10 (Rocky, AlmaLinux) or Arch Linux, on arm64 or amd64, or on a
+Mac with Apple silicon through Homebrew. The Linux packages need glibc 2.35 or
+newer. The host needs an outbound internet connection and must stay awake. The
+installer registers native services with systemd on Linux or launchd on macOS.
+It needs no public address, inbound port, or Docker installation.
 
 ## Install
 
@@ -19,19 +20,28 @@ curl -fsSL https://intern.kim/install.sh | sh -s -- host
 sudo internkim install ~/Downloads/internkim-host.json
 ```
 
-The first command installs the package through apt, dnf, pacman or Homebrew. The second
-configures the company, asks for the OpenRouter API key, and registers the host
-services. They start with the computer and recover after a service exits. When
-installation finishes, open the printed company setup address and choose
-Check connection.
+The first command installs the package through apt, dnf, pacman or Homebrew. On
+Linux it fetches the package for this machine from our GitHub Releases and
+checks it against the release's `SHA256SUMS` before the package manager installs
+it. The second command configures the company, asks for the OpenRouter API key,
+and registers the host services. They start with the computer and recover after
+a service exits. When installation finishes, open the printed company setup
+address and choose Check connection.
+
+On Linux the connection file is optional. After the first command alone, the
+computer waits for a company and shows an eight-character code at
+`http://<computer>.local:18088/` on its own network; `sudo internkim box code`
+prints the same code. An administrator on that network enters it on the company
+setup page, checks the last four characters of the computer's key, and confirms.
+The setup page then asks for the OpenRouter key. [Kim mini](/kim-mini)
+describes how the claim works and how Disconnect undoes it.
 
 ## Upgrade
 
-Run the first command again. On Linux it downloads the latest release from
-GitHub, checks it against the release's checksums, and installs it over the
-version you have; on macOS Homebrew upgrades the formula. The company and its
-data stay in place. To follow release candidates before they become the latest
-release, add `--channel testing`:
+Run the first command again. On Linux it installs the release the channel now
+points at over the version you have; on macOS Homebrew upgrades the formula. The
+company and its data stay in place. The default channel is the latest release.
+To follow the newest release, prereleases included, add `--channel testing`:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
@@ -77,13 +87,15 @@ increases their size.
 
 ## Network access
 
-The host opens outbound connections and listens only on local interfaces. To
-administer the computer, use a shell on the same network or a remote access
-method your company controls.
+The host opens outbound connections and listens only on local interfaces. The
+exception is a Linux host that belongs to no company yet, which serves its
+pairing code on port 18088 until it is claimed. To administer the computer, use
+a shell on the same network or a remote access method your company controls.
 
-Installing or upgrading the package also downloads the host's one Python
-runtime from `github.com`, and the pinned libraries that read attached
-documents from `pypi.org` and `files.pythonhosted.org`. If either is
-unreachable, the install stops and names what it could not fetch. The skills
-run on the same runtime, as `python3` in each person's commands, and fetch
-their own libraries from PyPI the first time they run.
+On Linux, installing or upgrading the package also downloads the host's one
+Python runtime from `github.com` into `/opt/internkim/python`, and the pinned
+libraries that read attached documents from `pypi.org` and
+`files.pythonhosted.org`. If either is unreachable, the install stops and names
+what it could not fetch. The host needs no Python from the distribution. The
+skills run on the same runtime, as `python3` in each person's commands, and
+fetch their own libraries from PyPI the first time they run.

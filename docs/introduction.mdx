@@ -74,7 +74,8 @@ around them, and a Postgres of its own holding conversations, what the agent
 did, and what it remembers. [Running the host](/docs/running-the-host) lists
 the processes and what each needs.
 
-Nothing on it listens. Every connection it makes goes outward, so there is no
+Once it belongs to a company, nothing on it listens beyond the machine itself.
+Every connection it makes goes outward, so there is no
 tunnel to keep alive, no port to forward, and no hostname pointing at a
 machine in your office.
 
@@ -92,7 +93,9 @@ relay, the surrounding daemons, the operator CLI (`cmd/internkim/`), the web
 app and its tool catalog (`web/`) and the schema (`supabase/migrations`).
 blueclaw is vendored at `.dependency/blueclaw/`, the other two inside it.
 [Architecture](/docs/architecture#what-the-agent-is-made-of) shows how they
-fit.
+fit. Every repository named here is public, and
+[CONTRIBUTING.md](https://github.com/yeomyeonggeori/internkim/blob/main/CONTRIBUTING.md)
+says how to build, check and send a change.
 
 ## What stays yours
 

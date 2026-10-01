@@ -323,7 +323,8 @@ Exposing a company's computer means a tunnel, a certificate, a hostname, and
 a new way in. Instead both the browser and the host connect outward to the
 gateway, which passes calls between them. Your firewall stays as it was.
 
-The host proves this about itself with one command:
+Once it belongs to a company, the host proves this about itself with one
+command:
 
 ```bash
 ss -ltnp | grep -v '127.0.0.1\|::1'    # prints nothing

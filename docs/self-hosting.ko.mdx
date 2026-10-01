@@ -17,8 +17,8 @@ icon: Layers
 
 회사가 계속 켜 두는 컴퓨터(김미니, Mac, Linux 컴퓨터 등)에 [호스트](/docs/running-the-host)를
 설치합니다. 회사 기록, 웹 앱, 로그인 주소는 `intern.kim`에 있습니다. 호스트는
-바깥으로만 연결하고 로컬 인터페이스 밖에서는 아무것도 요청을 받지 않으므로, 컴퓨터에
-공개 주소가 필요 없습니다.
+바깥으로만 연결하고, 회사에 연결된 뒤로는 로컬 인터페이스 밖에서 아무것도 요청을
+받지 않으므로 컴퓨터에 공개 주소가 필요 없습니다.
 
 ## 3단계: 직접 운영하는 Supabase와 Cloudflare
 
@@ -29,15 +29,27 @@ icon: Layers
 Supabase도 같은 Postgres와 같은 row level security를 제공하므로 `supabase/migrations`의
 스키마가 그대로 적용됩니다.
 
-모두가 내 도메인 자체에서 로그인합니다. 릴리스는 같은 계정의 버킷에 발행하므로, 로그인,
-웹 앱, 업데이트가 더는 `intern.kim`에 기대지 않습니다.
+모두가 내 도메인 자체에서 로그인하므로 로그인과 웹 앱은 더는 `intern.kim`에 기대지
+않습니다. `install.sh`도 내 웹 앱이 내려주지만, 그 스크립트가 설치하는 호스트 패키지는
+여전히 저희 GitHub 릴리스에서 받습니다.
 
 ### 웹 앱 배포
 
 웹 앱이 어느 Supabase 프로젝트와 통신할지는 실행할 때 정해집니다. `hooks.server.ts`가
 `SUPABASE_URL`과 `SUPABASE_PUBLISHABLE_KEY`를 페이지에 주입하고, 값은
-`$env/dynamic/private`로 읽습니다. 그래서 빌드 하나가 어느 회사에나 쓰이고, 직접 배포할
-때는 내 프로젝트의 값을 Pages 변수로 넣기만 하면 됩니다.
+`$env/dynamic/private`로 읽습니다. 그래서 빌드 하나가 어느 회사에나 쓰입니다. Pages
+프로젝트에는 `tools/environment.json`이 `isRequiredOnPages`로 표시한 변수가 모두 있어야
+하고, `web/scripts/set-pages-secrets.ts`가 그 변수를 전부 시크릿으로 넣습니다.
+
+그중 `SUPABASE_JWT_SIGNING_KEY`는 웹 앱이 개인 액세스 토큰, 에이전트 세션, 호스트
+세션에 서명하는 개인 키입니다. `web/scripts/issue-record-signing-key.ts`가 키를 만들어
+출력하면, Supabase 대시보드의 Project Settings → JWT Keys에서 대기 키로 가져오세요.
+그래야 프로젝트가 앱이 서명한 토큰을 검증합니다.
+
+프로덕션 배포는 먼저 Supabase CLI로 `supabase/migrations`의 마이그레이션이 프로젝트에
+모두 적용됐는지 확인합니다. 배포 전에 본인 계정으로 `supabase login`을 하고
+`supabase link --project-ref <ref>`를 실행하세요. 프로젝트 키와 함께 보관하는 Supabase
+액세스 토큰은 없습니다.
 
 ```bash
 cd web
