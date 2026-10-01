@@ -218,6 +218,13 @@
       ]
     },
     {
+      "name": "box_pairing_attempts_remain",
+      "arguments": "claiming_company uuid",
+      "returns": "boolean",
+      "security": "definer",
+      "callableBy": []
+    },
+    {
       "name": "calendar_subscription_company",
       "arguments": "target_token_hash text",
       "returns": "uuid",
@@ -244,7 +251,7 @@
     },
     {
       "name": "claim_empty_box",
-      "arguments": "claiming_company uuid, box_key text, code_hash text, fresh_since timestamp with time zone",
+      "arguments": "claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone",
       "returns": "TABLE(outcome text, encryption_key text)",
       "security": "definer",
       "callableBy": [
@@ -963,6 +970,15 @@
       "name": "vault_secret_keep",
       "arguments": "secret_name text, secret_value text",
       "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "verify_box_pairing_code",
+      "arguments": "claiming_company uuid, box_key text, code_hash text, ticket_hash text, fresh_since timestamp with time zone",
+      "returns": "TABLE(outcome text, host_name text, public_address text)",
       "security": "definer",
       "callableBy": [
         "service_role"

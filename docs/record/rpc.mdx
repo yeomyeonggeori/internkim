@@ -29,10 +29,11 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `attendance_server_time` | — | `timestamp with time zone` | invoker | authenticated, service_role |
 | `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | definer | anon, authenticated, service_role |
 | `attendance_work_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
+| `box_pairing_attempts_remain` | `claiming_company uuid` | `boolean` | definer | nobody |
 | `calendar_subscription_company` | `target_token_hash text` | `uuid` | definer | service_role |
 | `calendar_subscription_save` | `target_token_hash text` | `void` | definer | authenticated |
 | `can_manage_task_relationship` | `target_task_id uuid` | `boolean` | definer | nobody |
-| `claim_empty_box` | `claiming_company uuid, box_key text, code_hash text, fresh_since timestamp with time zone` | `TABLE(outcome text, encryption_key text)` | definer | service_role |
+| `claim_empty_box` | `claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone` | `TABLE(outcome text, encryption_key text)` | definer | service_role |
 | `company_documents_matching` | `target_query text, target_limit integer` | `SETOF company_document` | invoker | authenticated |
 | `company_holidays_merge` | `target_company uuid, target_holidays jsonb` | `jsonb` | invoker | service_role |
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
@@ -104,6 +105,7 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `vapid_keys_read` | — | `jsonb` | definer | service_role |
 | `vapid_public_key` | — | `text` | definer | authenticated, service_role |
 | `vault_secret_keep` | `secret_name text, secret_value text` | `void` | definer | service_role |
+| `verify_box_pairing_code` | `claiming_company uuid, box_key text, code_hash text, ticket_hash text, fresh_since timestamp with time zone` | `TABLE(outcome text, host_name text, public_address text)` | definer | service_role |
 | `work_location_names` | `company_id uuid` | `text[]` | invoker | anon, authenticated, service_role |
 | `work_mode_of_member` | `target_member uuid` | `text` | definer | authenticated, service_role |
 | `write_company_secret` | `secret_id uuid, secret_name text, secret_value text` | `uuid` | definer | service_role |
