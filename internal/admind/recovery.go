@@ -182,6 +182,7 @@ var SSHRecoveryActions = []string{
 	"release-setup-lock",
 	"migration-inventory",
 	"migration-export",
+	"migration-export-share",
 	"migration-export-remove",
 }
 
@@ -506,6 +507,8 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		cancelInventory()
 	case "migration-export":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "export the company state for the company host package", "sh", "-c", migrationExportCommand(actionTarget)))
+	case "migration-export-share":
+		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "let the login account read an export's portable core", "sh", "-c", migrationExportShareCommand(actionTarget)))
 	case "migration-export-remove":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove the exports", "sh", "-c", migrationExportRemoveCommand()))
 	case "buzz-snapshot":

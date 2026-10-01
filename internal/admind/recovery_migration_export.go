@@ -1,6 +1,9 @@
 package admind
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // A device leaves for the company host package by way of an export: every piece
 // of company state, pulled out of the guest image and the root-only directories
@@ -216,13 +219,35 @@ tar --numeric-owner --xattrs -cf - \
   /opt/internkim/blueclaw-runtime/payload-manifest.json $units | zstd -q -T0 -3 >"$export_directory/host-state.tar.zst"
 zstd -q -t "$export_directory/host-state.tar.zst" || fail "the host state archive is unreadable"
 
-step "checksum and hand to $readerGroup"
+step "checksum and hand the portable core to $readerGroup"
 (cd "$export_directory" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >SHA256SUMS)
-chown -R root:"$readerGroup" "$export_directory"
-chmod -R u=rwX,g=rX,o= "$export_directory"
+` + migrationExportShareSnippet + `
 du -sh "$export_directory"
 echo done >"$status_file"
 step "export ready at $export_directory"
+`)
+}
+
+// The login account reads the portable core and copies it off the board. The
+// trimmed image stays root's: it is the backup that never leaves the board.
+const migrationExportShareSnippet = `chown -R root:"$readerGroup" "$export_directory"
+chmod -R u=rwX,g=rX,o= "$export_directory"
+[ ! -e "$export_directory/workspace.ext4.tar.zst" ] || { chgrp root "$export_directory/workspace.ext4.tar.zst"; chmod 0600 "$export_directory/workspace.ext4.tar.zst"; }`
+
+var migrationExportStampPattern = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}Z$`)
+
+func migrationExportShareCommand(stamp string) string {
+	if !migrationExportStampPattern.MatchString(stamp) {
+		return "echo 'name the export with -target <stamp>, for example 20261001T142240Z' >&2; exit 2"
+	}
+	return strings.TrimSpace(`
+set -eu
+readerGroup=` + migrationExportReaderGroup + `
+export_directory=` + migrationExportRoot + `/` + stamp + `
+[ -d "$export_directory" ] || { echo "no export at $export_directory" >&2; exit 1; }
+echo "status: $(cat "$export_directory.status" 2>/dev/null || echo unknown)"
+` + migrationExportShareSnippet + `
+ls -la "$export_directory"
 `)
 }
 
