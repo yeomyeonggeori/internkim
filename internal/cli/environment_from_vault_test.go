@@ -107,6 +107,22 @@ func TestAProfileWithNoGapReportsNothing(t *testing.T) {
 	}
 }
 
+func TestAGapInAnotherProfileDoesNotStopThisOne(t *testing.T) {
+	doctorPath := filepath.Join(t.TempDir(), "monkeys")
+	doctor := "#!/bin/sh\necho 'missing @production: INTERNKIM_PACKAGE_SIGNING_KEY'\nexit 1\n"
+	if errorValue := os.WriteFile(doctorPath, []byte(doctor), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	missing, errorValue := vaultProfileGap(doctorPath, t.TempDir(), "test")
+	if errorValue != nil || len(missing) != 0 {
+		t.Fatalf("a gap in @production stopped @test: missing %v, error %v", missing, errorValue)
+	}
+	missing, errorValue = vaultProfileGap(doctorPath, t.TempDir(), "production")
+	if errorValue != nil || !slices.Equal(missing, []string{"INTERNKIM_PACKAGE_SIGNING_KEY"}) {
+		t.Fatalf("the @production gap read %v, error %v", missing, errorValue)
+	}
+}
+
 // The marker is read as a literal so `tools/verify-environment-declarations`
 // can see the read, and set from the constant when the CLI re-executes itself.
 // The two have to stay the same name.
