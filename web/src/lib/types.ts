@@ -31,10 +31,6 @@ export interface Fleet {
 
 export type UserRole = MemberRole;
 
-export interface Invite {
-	fleet_id: string;
-	expires_at: number;
-}
 
 export interface OTAInfo {
 	blueclaw: { version: string; url: string; sha256: string };
