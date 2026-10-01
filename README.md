@@ -48,7 +48,7 @@ sudo internkim install ~/Downloads/internkim-host.json
 ```
 
 The first command installs `internkim` from the latest GitHub Release. It uses apt on
-Debian 13 and Ubuntu 22.04 or 24.04, dnf on Fedora and on RHEL-compatible 10 (Rocky,
+Debian 13 and Ubuntu 24.04, dnf on Fedora and on RHEL-compatible 10 (Rocky,
 AlmaLinux), pacman on Arch Linux, and the Homebrew tap on macOS. Linux machines can
 be arm64 or amd64. The second command asks for an
 [OpenRouter API key](https://openrouter.ai/settings/keys) and registers the services.

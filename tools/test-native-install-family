@@ -89,6 +89,26 @@ TASK_USER = "bc_person_rigcheck"
 
 NOWHERE = "127.0.0.1:9"
 
+VECTOR_ROUND_TRIP = """
+begin;
+insert into memory_episode (episode_id, source_kind, source_id, requester_person_id, content, occurred_at)
+  values ('rig-episode', 'explicit', 'rig-episode', 'rig-person', 'rig', now());
+insert into memory_fact (fact_id, episode_id, owner_person_id, kind, content, valid_from)
+  values ('rig-near', 'rig-episode', 'rig-person', 'fact', 'near', now()),
+         ('rig-far', 'rig-episode', 'rig-person', 'fact', 'far', now());
+insert into memory_fact_embedding (fact_id, embedding)
+  select fact_id, ('[' || string_agg(case when position = axis then '1' else '0' end, ',' order by position) || ']')::vector
+  from (values ('rig-near', 1), ('rig-far', 2)) facts (fact_id, axis), generate_series(1, 1024) position
+  group by fact_id;
+select
+  (select extversion from pg_extension where extname = 'vector'),
+  to_regclass('public.memory_fact_embedding') is not null,
+  to_regclass('public.memory_fact_embedding_hnsw_idx') is not null,
+  (select fact_id from memory_fact_embedding
+   order by embedding <=> ('[0.9,0.1' || repeat(',0', 1022) || ']')::vector limit 1);
+rollback;
+"""
+
 
 def connection_document(app_url):
     """A connection file that is valid, whose app is the stub and whose other addresses go nowhere."""
@@ -462,6 +482,7 @@ class FamilyRig:
             "`information_schema.tables` in the blueclaw database, read as the cluster's own account",
             "the agent's health answering says it opened a connection; tables say its schema was made in this cluster",
         ).record(schema == "t", schema)
+        self.observe_vector_search(step)
 
         self.machine.shell(f"id {TASK_USER} >/dev/null 2>&1 || useradd --system --shell /bin/false {TASK_USER}")
         agent_groups = self.shell_value(
@@ -500,6 +521,25 @@ class FamilyRig:
             and "PONG" not in cache_as_task_user.stdout
             and cache_as_task_user.returncode != 0,
             f"root: {cache_as_root}\ntask user: {cache_as_task_user.stdout.strip()[-200:]}",
+        )
+
+    def observe_vector_search(self, step):
+        answer = self.machine.shell(
+            f"printf '%s' {shlex.quote(VECTOR_ROUND_TRIP)} | runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql "
+            "--dbname blueclaw --quiet --tuples-only --no-align --set ON_ERROR_STOP=1 2>&1"
+        )
+        fields = answer.stdout.strip().split("|")
+        step.observe(
+            "the agent's database has the vector extension, the memory store's embedding table and its HNSW index, "
+            "and a stored embedding is found again by its nearest neighbour",
+            "the extension's version in pg_extension, to_regclass of memory_fact_embedding and its index, and the "
+            "fact a cosine-distance query ranks first among two written in a transaction that is rolled back",
+            "the memory store's migration skips its embedding tables when the server has no vector extension and "
+            "recall then matches words alone with nothing failing; the table is what its search checks for, and the "
+            "ranking is the operator its hybrid search orders by",
+        ).record(
+            answer.returncode == 0 and len(fields) == 4 and fields[0] != "" and fields[1:] == ["t", "t", "rig-near"],
+            answer.stdout.strip() or f"exit {answer.returncode}",
         )
 
     def observe_a_requesters_python(self, step):

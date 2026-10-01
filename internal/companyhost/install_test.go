@@ -15,6 +15,7 @@ import (
 type recordedMachine struct {
 	runs     [][]string
 	answers  map[string]string
+	printed  map[string]string
 	failures map[string]error
 	missing  map[string]bool
 }
@@ -22,7 +23,19 @@ type recordedMachine struct {
 func (machine *recordedMachine) Run(name string, arguments []string, environment []string, output io.Writer) error {
 	run := append([]string{name}, arguments...)
 	machine.runs = append(machine.runs, append(run, environment...))
+	io.WriteString(output, machine.printed[name])
 	return machine.failures[name]
+}
+
+func (machine *recordedMachine) ranStatementsCarrying(text string) bool {
+	for _, run := range machine.runs {
+		for _, argument := range run {
+			if strings.HasPrefix(argument, databasePreparationVariable+"=") && strings.Contains(argument, text) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (machine *recordedMachine) Output(name string, arguments []string) (string, error) {
@@ -206,7 +219,7 @@ func TestTheWaitKeepsTheBudgetTheComposeStackHad(t *testing.T) {
 // Every account on this box can read another process's command line, and the
 // database password opens everything the company remembers.
 func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *testing.T) {
-	machine := &recordedMachine{}
+	machine := &recordedMachine{printed: map[string]string{"runuser": "17|t\n"}}
 	password := strings.Repeat("2", 64)
 	if errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
@@ -225,6 +238,42 @@ func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *
 	}
 	if !prepared {
 		t.Fatal("nothing created the role and the databases")
+	}
+}
+
+func TestTheVectorExtensionIsCreatedInTheAgentsDatabaseByTheClustersSuperuser(t *testing.T) {
+	machine := &recordedMachine{printed: map[string]string{"runuser": "17|t\n"}}
+	if errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard); errorValue != nil {
+		t.Fatalf("prepare the databases: %v", errorValue)
+	}
+	if !machine.ranStatementsCarrying("\\connect blueclaw\nCREATE EXTENSION IF NOT EXISTS vector;") {
+		t.Fatalf("nothing created the vector extension in the agent's database, so its migration skips the embedding tables: %v", machine.runs)
+	}
+}
+
+func TestADatabaseWithoutTheVectorExtensionIsRefusedNamingThePackageItsServerLoads(t *testing.T) {
+	for _, example := range []struct {
+		manager string
+		missing map[string]bool
+		command string
+	}{
+		{"apt-get", map[string]bool{}, "sudo apt-get install postgresql-16-pgvector"},
+		{"dnf", map[string]bool{"apt-get": true}, "sudo dnf install pgvector"},
+		{"pacman", map[string]bool{"apt-get": true, "dnf": true}, "sudo pacman -S --needed pgvector"},
+	} {
+		machine := &recordedMachine{printed: map[string]string{"runuser": "16|f\n"}, missing: example.missing}
+		errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard)
+		if errorValue == nil {
+			t.Fatalf("%s: a PostgreSQL without the vector extension was accepted, so recall would match words alone", example.manager)
+		}
+		for _, named := range []string{"PostgreSQL 16", "vector extension", example.command} {
+			if !strings.Contains(errorValue.Error(), named) {
+				t.Errorf("%s: the refusal does not name %q:\n%s", example.manager, named, errorValue)
+			}
+		}
+		if machine.ranStatementsCarrying("CREATE EXTENSION") {
+			t.Errorf("%s: the extension was created on a server that does not offer it", example.manager)
+		}
 	}
 }
 
