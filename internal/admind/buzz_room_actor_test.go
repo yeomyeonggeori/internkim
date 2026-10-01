@@ -1,6 +1,8 @@
 package admind
 
 import (
+	"bytes"
+	"log"
 	"strings"
 	"testing"
 )
@@ -19,7 +21,7 @@ func TestTheAgentSignsARoomItAdministersEvenWithAnAdminAlsoElevated(t *testing.T
 func TestAnAdminSignsOnlyAsALastResortAndTheFallbackIsLogged(t *testing.T) {
 	service := &Service{}
 	heldRoles := map[string]string{"admin-pubkey": "owner", "someone-pubkey": "member"}
-	output := captureBlueclawTaskDrainLogs(t)
+	output := captureLogs(t)
 
 	secret := service.pickBuzzRoomActor(heldRoles, map[string]string{"admin-pubkey": "admin-secret"}, "agent-secret", "agent-pubkey", "bootstrap-secret")
 
@@ -63,4 +65,15 @@ func TestTheCompanyAccountLeavesOnlyARoomSomebodyElseAdministers(t *testing.T) {
 	if holdsAnotherAdministrator(alone, "bootstrap-pubkey") {
 		t.Fatal("a room the company account alone administers must keep it")
 	}
+}
+
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var output bytes.Buffer
+	previousWriter := log.Writer()
+	log.SetOutput(&output)
+	t.Cleanup(func() {
+		log.SetOutput(previousWriter)
+	})
+	return &output
 }

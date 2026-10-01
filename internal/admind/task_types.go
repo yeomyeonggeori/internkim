@@ -1,11 +1,11 @@
 package admind
 
 type taskMember struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	Email              string `json:"email"`
-	HireDate           string `json:"hireDate,omitempty"`
-	Role               string `json:"role"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	HireDate string `json:"hireDate,omitempty"`
+	Role     string `json:"role"`
 }
 
 type Task struct {

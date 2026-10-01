@@ -22,7 +22,6 @@ func TestAdminSessionReadsTheRoleFromTheDirectory(t *testing.T) {
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
-		AdminUIPath:           t.TempDir(),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	directory := companyDirectoryHolding(memberForTest("colleague@example.com", "박예시", "member"))
@@ -54,7 +53,6 @@ func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
-		AdminUIPath:           t.TempDir(),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	directory := companyDirectoryHolding()
@@ -114,7 +112,6 @@ func newAdminConsoleAuthorizationTestService(t *testing.T) *Service {
 		FleetSecretPath:       writeTestFile(t, "secret-value"),
 		CalendarDatabasePath:  filepath.Join(rootPath, "calendar.sqlite"),
 		StateDirectory:        filepath.Join(rootPath, "state"),
-		AdminUIPath:           t.TempDir(),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	directory := companyDirectoryHolding(memberForTest("colleague@example.com", "박예시", "member"), memberForTest("admin@example.com", "이샘플", "admin"))

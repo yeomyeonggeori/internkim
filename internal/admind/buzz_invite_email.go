@@ -2,9 +2,10 @@ package admind
 
 import (
 	"encoding/json"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 type buzzInviteEmailRequest struct {

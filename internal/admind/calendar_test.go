@@ -21,7 +21,6 @@ func newCalendarTestService(t *testing.T) *Service {
 		CalendarDatabasePath: filepath.Join(rootPath, "state", "calendar.sqlite"),
 		TaskDatabasePath:     filepath.Join(rootPath, "state", "flow.sqlite"),
 		AdminEmailPath:       writeTestFile(t, "admin@example.com"),
-		AdminUIPath:          adminUIPath,
 	})
 	return service
 }

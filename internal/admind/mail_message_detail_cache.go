@@ -2,9 +2,10 @@ package admind
 
 import (
 	"context"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"strings"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) saveCachedMailMessageDetail(ctx context.Context, actorEmail string, message mail.MessageDetailResponse) error {

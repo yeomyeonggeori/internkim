@@ -29,6 +29,6 @@ func (service *Service) sayIfTheRelayIsOpen(ctx context.Context) {
 	if !strings.Contains(string(output), "BUZZ_REQUIRE_RELAY_MEMBERSHIP=false") {
 		return
 	}
-	log.Printf("the messenger relay is running open: BUZZ_REQUIRE_RELAY_MEMBERSHIP=false admits any key that can sign, "+
+	log.Printf("the messenger relay is running open: BUZZ_REQUIRE_RELAY_MEMBERSHIP=false admits any key that can sign, " +
 		"whoever holds it. A recovery leaves this behind. Close it with: internkim recover --action buzz-membership-close")
 }

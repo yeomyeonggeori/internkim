@@ -92,11 +92,11 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 		}
 		id := stableTaskID(email)
 		members = append(members, taskMember{
-			ID:                 id,
-			Name:               name,
-			Email:              email,
-			HireDate:           strings.TrimSpace(record.HireDate),
-			Role:               normalizeAdminUserRole(record.Role),
+			ID:       id,
+			Name:     name,
+			Email:    email,
+			HireDate: strings.TrimSpace(record.HireDate),
+			Role:     normalizeAdminUserRole(record.Role),
 		})
 	}
 	sort.Slice(members, func(leftIndex int, rightIndex int) bool {
@@ -120,7 +120,6 @@ func membersFromUserRecords(records []adminUserMutation) []taskMember {
 	})
 	return members
 }
-
 
 func memberIDs(members []taskMember) []string {
 	values := make([]string, 0, len(members))

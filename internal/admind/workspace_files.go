@@ -42,40 +42,6 @@ type workspaceAccess struct {
 	circles   []adminCircleRecord
 }
 
-func (service *Service) serveFilesPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/files" {
-		http.Redirect(responseWriter, request, "/files/", http.StatusFound)
-		return
-	}
-	if service.serveFilesStaticFile(responseWriter, request) {
-		return
-	}
-	service.serveFilesIndex(responseWriter, request)
-}
-
-func (service *Service) serveFilesStaticFile(responseWriter http.ResponseWriter, request *http.Request) bool {
-	relativePath := strings.TrimPrefix(request.URL.Path, "/files/")
-	if relativePath == "" {
-		return false
-	}
-	filePath := filepath.Join(service.Configuration.AdminUIPath, "files", relativePath)
-	fileInformation, errorValue := os.Stat(filePath)
-	if errorValue != nil || fileInformation.IsDir() {
-		return false
-	}
-	http.ServeFile(responseWriter, request, filePath)
-	return true
-}
-
-func (service *Service) serveFilesIndex(responseWriter http.ResponseWriter, request *http.Request) {
-	filesIndexPath := filepath.Join(service.Configuration.AdminUIPath, "files", "index.html")
-	if fileInformation, errorValue := os.Stat(filesIndexPath); errorValue == nil && !fileInformation.IsDir() {
-		http.ServeFile(responseWriter, request, filesIndexPath)
-		return
-	}
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
-}
-
 func (service *Service) handleFiles(responseWriter http.ResponseWriter, request *http.Request) {
 	access, found, errorValue := service.resolveWorkspaceAccess(request)
 	if errorValue != nil {

@@ -34,7 +34,6 @@ func (service *Service) taskRequesterEmail(request *http.Request, payload taskQu
 	return strings.ToLower(strings.TrimSpace(service.authenticatedCallerEmail(request)))
 }
 
-
 func preferExplicitTaskValue(explicitValue string, inferredValue string) string {
 	return firstNonEmpty(strings.TrimSpace(explicitValue), inferredValue)
 }
@@ -51,7 +50,6 @@ func statusCompletedWhenEnded(status string, endDate string, today string) strin
 	}
 	return taskStatusCompleted
 }
-
 
 func cleanParticipantIDs(values []string, members []taskMember) []string {
 	allowed := map[string]bool{}

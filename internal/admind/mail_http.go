@@ -3,9 +3,10 @@ package admind
 import (
 	"encoding/json"
 	"errors"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) handleMail(responseWriter http.ResponseWriter, request *http.Request) {

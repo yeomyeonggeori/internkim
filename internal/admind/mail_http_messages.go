@@ -3,11 +3,12 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) writeMailboxes(responseWriter http.ResponseWriter, request *http.Request) {

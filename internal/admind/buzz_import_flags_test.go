@@ -20,7 +20,6 @@ func TestEveryFlagTheImportCallersPassIsDefined(t *testing.T) {
 	for name, command := range map[string]string{
 		"recovery.go: re-import":        buzzReimportCommand(),
 		"recovery.go: refresh profiles": buzzRefreshProfilesCommand(),
-		"step_buzz_migrate.go":          readImportStep(t),
 	} {
 		for _, flagName := range passedImporterFlags(command) {
 			if !defined[flagName] {

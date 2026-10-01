@@ -42,7 +42,6 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-
 func firstNonEmptySlice(values ...[]string) []string {
 	for _, value := range values {
 		cleanedValue := uniqueNonEmpty(value)

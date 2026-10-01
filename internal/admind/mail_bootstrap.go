@@ -1,8 +1,9 @@
 package admind
 
 import (
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 type mailBootstrapResponse struct {

@@ -311,7 +311,6 @@ func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {
 			"-blueclaw-assertion-key", CompanyHostAssertionKeyPath,
 			"-central-plane-project-url", "${SUPABASE_URL}",
 			"-central-plane-publishable-key", "${SUPABASE_PUBLISHABLE_KEY}",
-			"-install-users-sync=false",
 		},
 		Environment:           companyHostCommonEnvironment(),
 		RestartAfterSeconds:   5,

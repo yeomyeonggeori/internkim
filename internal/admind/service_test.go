@@ -1,9 +1,7 @@
 package admind
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -126,73 +124,6 @@ func TestOpenSQLiteDatabaseUsesWALAndBusyTimeout(t *testing.T) {
 	}
 }
 
-func TestCredentialProviderStatusMasksOpenRouterKey(t *testing.T) {
-	rootPath := t.TempDir()
-	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
-	if errorValue := os.MkdirAll(filepath.Dir(keyPath), 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(keyPath, []byte("sk-secret-value"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service := NewService(Configuration{
-		StateDirectory:    filepath.Join(rootPath, "state"),
-		AdminEmailPath:    writeTestFile(t, "admin@example.com"),
-		OpenRouterKeyPath: keyPath,
-	})
-	request := httptest.NewRequest(http.MethodGet, "/admin/api/credentials/providers", nil)
-	request.RemoteAddr = "127.0.0.1:12345"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected status success, got %d: %s", response.Code, response.Body.String())
-	}
-	responseBody := response.Body.String()
-	if strings.Contains(responseBody, "sk-secret-value") {
-		t.Fatalf("expected response to omit secret, got %s", responseBody)
-	}
-	if !strings.Contains(responseBody, `"configured":true`) || !strings.Contains(responseBody, `"fingerprint":"sha256:`) {
-		t.Fatalf("expected masked configured status, got %s", responseBody)
-	}
-}
-
-func TestCredentialProviderSavesValidatedOpenRouterKey(t *testing.T) {
-	rootPath := t.TempDir()
-	keyPath := filepath.Join(rootPath, "secrets", "openrouter-api-key")
-	service := NewService(Configuration{
-		StateDirectory:      filepath.Join(rootPath, "state"),
-		AdminEmailPath:      writeTestFile(t, "admin@example.com"),
-		OpenRouterKeyPath:   keyPath,
-		OpenRouterModelsURL: "https://openrouter.test/models",
-	})
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.String() != "https://openrouter.test/models" {
-			t.Fatalf("unexpected validation url: %s", request.URL.String())
-		}
-		if request.Header.Get("Authorization") != "Bearer sk-new" {
-			t.Fatalf("unexpected authorization header: %q", request.Header.Get("Authorization"))
-		}
-		return jsonResponse(http.StatusOK, `{"data":[]}`, nil), nil
-	})}
-	request := httptest.NewRequest(http.MethodPut, "/admin/api/credentials/openrouter-key", strings.NewReader(`{"apiKey":"sk-new"}`))
-	request.RemoteAddr = "127.0.0.1:12345"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("expected save success, got %d: %s", response.Code, response.Body.String())
-	}
-	if readTrimmedFile(keyPath) != "sk-new" {
-		t.Fatalf("expected key to be stored")
-	}
-	if strings.Contains(response.Body.String(), "sk-new") {
-		t.Fatalf("expected response to omit key, got %s", response.Body.String())
-	}
-}
-
 func TestCredentialProviderRejectsNonAdmin(t *testing.T) {
 	service := NewService(Configuration{
 		StateDirectory: t.TempDir(),
@@ -244,67 +175,6 @@ func TestAdminIdentityReadsLegacyTopLevelFallbacks(t *testing.T) {
 	}
 	if service.claimedAdminEmail() != "claimed@example.com" {
 		t.Fatalf("claimed admin email = %q", service.claimedAdminEmail())
-	}
-}
-
-func TestBackupIncludedPathsUseCanonicalConfigurationAndStateDirectories(t *testing.T) {
-	paths := strings.Join(backupIncludedPaths(), "\n")
-
-	for _, fragment := range []string{
-		"/root/.internkim/config",
-		"/root/.internkim/state",
-		"/root/.internkim/secrets",
-		"/root/.blueclaw/config",
-		"/root/.blueclaw/workspace",
-	} {
-		if !strings.Contains(paths, fragment) {
-			t.Fatalf("expected backup paths to include %q", fragment)
-		}
-	}
-	if strings.Contains(paths, "/root/.internkim/admin-email") {
-		t.Fatalf("backup paths should not include legacy admin email file: %s", paths)
-	}
-}
-
-func TestGatewayRedirectsAdminPage(t *testing.T) {
-	adminUIPath := t.TempDir()
-	if errorValue := os.WriteFile(filepath.Join(adminUIPath, "index.html"), []byte("admin ui"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	service := NewService(Configuration{
-		AdminEmailPath: writeTestFile(t, "admin@example.com"),
-		AdminUIPath:    adminUIPath,
-	})
-	handler := service.router()
-
-	request := httptest.NewRequest(http.MethodGet, "https://dc719d8e.example.test/admin", nil)
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusFound {
-		t.Fatalf("admin page status = %d", response.Code)
-	}
-	if response.Header().Get("Location") != "/admin/" {
-		t.Fatalf("admin page location = %q", response.Header().Get("Location"))
-	}
-
-	request = httptest.NewRequest(http.MethodGet, "https://dc719d8e.example.test/admin/", nil)
-	response = httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("admin ui status = %d", response.Code)
-	}
-	if !strings.Contains(response.Body.String(), "admin ui") {
-		t.Fatalf("admin ui body = %q", response.Body.String())
-	}
-
-	request = httptest.NewRequest(http.MethodGet, "https://dc719d8e.example.test/admin/users", nil)
-	response = httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("admin fallback status = %d", response.Code)
-	}
-	if !strings.Contains(response.Body.String(), "admin ui") {
-		t.Fatalf("admin fallback body = %q", response.Body.String())
 	}
 }
 
@@ -383,7 +253,6 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
-		AdminUIPath:           t.TempDir(),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	directory := companyDirectoryHolding(memberForTest("setup@example.com", "이샘플", "admin"))
@@ -413,73 +282,10 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	}
 }
 
-func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
-	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
-	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
-	adminUIPath := t.TempDir()
-	writeFile(t, filepath.Join(adminUIPath, "index.html"), "admin ui")
-
-	deliveredPolicyPath := filepath.Join(t.TempDir(), "policy.json")
-	service := NewService(Configuration{
-		BlueclawPolicyDeliveryPath: deliveredPolicyPath,
-		APIBaseURL:                 "https://api.example.test",
-		AdminEmailPath:             filepath.Join(deviceDirectory, "admin-email"),
-		ClaimedAdminEmailPath:      claimedAdminEmailPath,
-		FleetIDPath:                fleetIDPath,
-		FleetSecretPath:            fleetSecretPath,
-		StateDirectory:             t.TempDir(),
-		AdminUIPath:                adminUIPath,
-	})
-	seatPeopleInACompanyDirectoryForTest(t, service)
-	directory := companyDirectoryHolding()
-	blueclawInvited := false
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch {
-		case isCompanyDirectoryRequest(request):
-			return directory.respond(t, request)
-		case isBlueclawPolicyGet(request):
-			return jsonResponse(http.StatusOK, blueclawPolicyWithSeedAdmin(), nil), nil
-		case isBlueclawAdminPolicyDelivered(t, request, deliveredPolicyPath, "member1@example.com"):
-			blueclawInvited = true
-			return jsonResponse(http.StatusOK, `{}`, nil), nil
-		default:
-			t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
-			return nil, nil
-		}
-	})}
-
-	request := httptest.NewRequest(http.MethodGet, "/admin/", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "member1@example.com")
-	response := httptest.NewRecorder()
-	service.router().ServeHTTP(response, request)
-	if response.Code != http.StatusOK {
-		t.Fatalf("admin page status = %d body = %s", response.Code, response.Body.String())
-	}
-	if strings.TrimSpace(readTrimmedFile(claimedAdminEmailPath)) != "member1@example.com" {
-		t.Fatalf("claimed admin = %q", readTrimmedFile(claimedAdminEmailPath))
-	}
-	if !blueclawInvited {
-		t.Fatal("first admin was not invited in Blueclaw policy")
-	}
-	if len(directory.writes) != 1 || directory.writes[0].Email != "member1@example.com" || directory.writes[0].Role != "admin" {
-		t.Fatalf("the claim did not reach the company as an admin role write: %+v", directory.writes)
-	}
-	bootstrapResult := service.readFirstAdminBootstrapResult()
-	if bootstrapResult.PolicyVersion != firstAdminPolicyVersion {
-		t.Fatalf("bootstrap policy version = %#v", bootstrapResult)
-	}
-}
-
 func TestAdminSessionReportsMissingAccessIdentity(t *testing.T) {
 	service := NewService(Configuration{
 		AdminEmailPath: writeTestFile(t, ""),
 		StateDirectory: t.TempDir(),
-		AdminUIPath:    t.TempDir(),
 	})
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/session", nil)
 	request.RemoteAddr = "198.51.100.10:443"
@@ -512,7 +318,6 @@ func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 		FleetIDPath:           fleetIDPath,
 		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
-		AdminUIPath:           t.TempDir(),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	directory := companyDirectoryHolding()
@@ -547,7 +352,6 @@ func adminUsersProxyTestService(t *testing.T, directory *companyDirectoryForTest
 		ClaimedAdminEmailPath:      writeTestFile(t, "admin@example.com"),
 		BlueclawPolicyDeliveryPath: filepath.Join(t.TempDir(), "policy.json"),
 		StateDirectory:             t.TempDir(),
-		AdminUIPath:                t.TempDir(),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
@@ -775,36 +579,6 @@ func TestWebLogoutSuppressesAuthenticationWithMarkerCookie(t *testing.T) {
 	}
 }
 
-func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
-	adminUIPath := t.TempDir()
-	writeFile(t, filepath.Join(adminUIPath, "index.html"), "application shell")
-	service := NewService(Configuration{
-		AdminUIPath: adminUIPath,
-	})
-	request := httptest.NewRequest(http.MethodGet, "/runs/run-1", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "application shell" {
-		t.Fatalf("tasks page status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestTasksPageRedirectsBarePath(t *testing.T) {
-	service := NewService(Configuration{AdminUIPath: t.TempDir()})
-	request := httptest.NewRequest(http.MethodGet, "/runs", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound || response.Header().Get("Location") != "/runs/" {
-		t.Fatalf("runs redirect status = %d location = %q", response.Code, response.Header().Get("Location"))
-	}
-}
-
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
@@ -996,97 +770,6 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 	}
 }
 
-func TestEncryptDecryptRoundTrip(t *testing.T) {
-	directoryPath := t.TempDir()
-	plainPath := filepath.Join(directoryPath, "plain.tar.gz")
-	encryptedPath := filepath.Join(directoryPath, "backup.ikbak")
-	decryptedPath := filepath.Join(directoryPath, "decrypted.tar.gz")
-	document := []byte("backup document")
-	if errorValue := os.WriteFile(plainPath, document, 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if errorValue := encryptFile(plainPath, encryptedPath, "passphrase"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := decryptFile(encryptedPath, decryptedPath, "passphrase"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	decryptedDocument, errorValue := os.ReadFile(decryptedPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(decryptedDocument) != string(document) {
-		t.Fatalf("decrypted document = %q", string(decryptedDocument))
-	}
-}
-
-func TestRestoreUploadAssembly(t *testing.T) {
-	directoryPath := t.TempDir()
-	chunksPath := filepath.Join(directoryPath, "chunks")
-	if errorValue := os.MkdirAll(chunksPath, 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(chunksPath, "0"), []byte("hello "), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(chunksPath, "1"), []byte("world"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	service := NewService(Configuration{})
-	bundlePath := filepath.Join(directoryPath, "bundle.ikbak")
-	errorValue := service.assembleRestoreUpload(&RestoreUpload{DirectoryPath: directoryPath}, 2, bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	document, errorValue := os.ReadFile(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(document) != "hello world" {
-		t.Fatalf("assembled document = %q", string(document))
-	}
-}
-
-func TestRestoreUploadAssemblyRequiresEveryChunk(t *testing.T) {
-	service := NewService(Configuration{})
-	errorValue := service.assembleRestoreUpload(&RestoreUpload{DirectoryPath: t.TempDir()}, 1, filepath.Join(t.TempDir(), "bundle.ikbak"))
-	if errorValue == nil {
-		t.Fatal("expected missing chunk error")
-	}
-}
-
-func TestExtractBundleRejectsUnsafePath(t *testing.T) {
-	bundlePath := filepath.Join(t.TempDir(), "backup.tar.gz")
-	bundleFile, errorValue := os.Create(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	gzipWriter := gzip.NewWriter(bundleFile)
-	tarWriter := tar.NewWriter(gzipWriter)
-	if errorValue := tarWriter.WriteHeader(&tar.Header{Name: "../evil", Mode: 0o600, Size: 4}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if _, errorValue := tarWriter.Write([]byte("evil")); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := tarWriter.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := gzipWriter.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := bundleFile.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	_, errorValue = extractBundle(bundlePath, t.TempDir())
-	if errorValue == nil {
-		t.Fatal("expected unsafe path error")
-	}
-}
-
 func TestCORSHeaderIsLimitedToInternKimPaths(t *testing.T) {
 	service := NewService(Configuration{})
 	handler := service.withCORS(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
@@ -1141,58 +824,6 @@ func isBlueclawPolicyGet(request *http.Request) bool {
 	return request.Method == http.MethodGet && request.URL.String() == "http://127.0.0.1:8080/admin/api/policy"
 }
 
-func isBlueclawAdminPolicyDelivered(t *testing.T, request *http.Request, policyPath string, expectedEmail string) bool {
-	t.Helper()
-	if !isBlueclawPolicyReload(request) {
-		return false
-	}
-	delivered, errorValue := os.ReadFile(policyPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	var policyDocument map[string]any
-	if errorValue := json.Unmarshal(delivered, &policyDocument); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	people, _ := policyDocument["people"].([]any)
-	if len(people) == 0 {
-		t.Fatalf("Blueclaw policy people = %#v", policyDocument["people"])
-	}
-	adminPerson, _ := people[0].(map[string]any)
-	if adminPerson["personID"] != "00000000-0000-0000-0000-000000000001" || adminPerson["isAdmin"] != true {
-		t.Fatalf("Blueclaw admin person = %#v", adminPerson)
-	}
-	adminEmails, _ := adminPerson["emails"].([]any)
-	if len(adminEmails) != 1 || adminEmails[0] != expectedEmail {
-		t.Fatalf("Blueclaw admin emails = %#v", adminPerson["emails"])
-	}
-	for _, value := range people[1:] {
-		person, _ := value.(map[string]any)
-		for _, emailValue := range personEmailsForTest(person) {
-			if emailValue == expectedEmail {
-				t.Fatalf("claimed admin left duplicated as member: %#v", policyDocument)
-			}
-		}
-	}
-	return true
-}
-
-func personEmailsForTest(person map[string]any) []string {
-	values, _ := person["emails"].([]any)
-	emails := make([]string, 0, len(values))
-	for _, value := range values {
-		email, _ := value.(string)
-		if email != "" {
-			emails = append(emails, email)
-		}
-	}
-	return emails
-}
-
-func blueclawPolicyWithSeedAdmin() string {
-	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true}],"channels":[],"retention":{"rawEventDays":60}}`
-}
-
 func writeTestFile(t *testing.T, document string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "file")
@@ -1200,19 +831,6 @@ func writeTestFile(t *testing.T, document string) string {
 		t.Fatal(errorValue)
 	}
 	return path
-}
-
-func readJSONFile(t *testing.T, path string) map[string]any {
-	t.Helper()
-	document, errorValue := os.ReadFile(path)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	var result map[string]any
-	if errorValue := json.Unmarshal(document, &result); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return result
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

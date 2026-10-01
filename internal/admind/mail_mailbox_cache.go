@@ -2,10 +2,11 @@ package admind
 
 import (
 	"context"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) readCachedMailboxes(ctx context.Context, actorEmail string) ([]mail.MailboxResponse, bool, error) {

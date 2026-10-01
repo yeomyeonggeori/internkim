@@ -157,8 +157,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
 			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
 			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
-			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey,
-			'-install-users-sync': 'false'
+			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
 		},
 		{
 			'-listen-socket': argumentsForPlane.listenSocketPath,
@@ -170,7 +169,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 
 function environmentValue(name: string): string {
 	const value = process.env[name];
-	if (!value) throw new Error(`${name} is not set; run this through tools/company-plane`);
+	if (!value) throw new Error(`${name} is not set; run this through ./internkim dev plane`);
 	return value;
 }
 

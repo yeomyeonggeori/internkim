@@ -56,7 +56,6 @@ func taskInferencePrompt(prompt string, weekCode string, owner taskMember, membe
 	}, "\n")
 }
 
-
 func memberIDOptions(members []taskMember) []string {
 	values := make([]string, 0, len(members))
 	for _, member := range members {
@@ -64,4 +63,3 @@ func memberIDOptions(members []taskMember) []string {
 	}
 	return values
 }
-

@@ -43,10 +43,6 @@ type Configuration struct {
 	BridgeMapDatabasePath          string
 	MattermostAdminPasswordPath    string
 	MattermostTokenPath            string
-	OpenRouterKeyPath              string
-	OpenRouterModelsURL            string
-	ReleaseRegistryURL             string
-	ReleaseDownloadTokenPath       string
 	MattermostBotTokenPath         string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
@@ -55,7 +51,6 @@ type Configuration struct {
 	DeviceURLPath                  string
 	TaskPublicURLPath              string
 	FleetSecretPath                string
-	AdminUIPath                    string
 	RepositoryRoot                 string
 	SitesRoot                      string
 	SiteScaffoldPath               string
@@ -78,13 +73,10 @@ type Configuration struct {
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
 	BuzzRelayKeyPath               string
-	CloudflareAccessTeamDomain     string
-	CloudflareAccessAUDs           string
 	TrustProxyForwardedEmail       bool
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
 	MailNotifyEnabled              bool
-	UsersSyncInstallEnabled        bool
 }
 
 func DefaultConfiguration() Configuration {
@@ -94,7 +86,6 @@ func DefaultConfiguration() Configuration {
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
 		MailNotifyEnabled:              true,
-		UsersSyncInstallEnabled:        true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
@@ -111,9 +102,6 @@ func DefaultConfiguration() Configuration {
 		BuzzKeySeedPath:                "/root/.internkim/secrets/buzz-key-seed",
 		MattermostAdminPasswordPath:    "/root/.internkim/secrets/mm-admin-pass",
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
-		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
-		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
-		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
@@ -130,7 +118,6 @@ func DefaultConfiguration() Configuration {
 		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
 		TaskPublicURLPath:              "/root/.internkim/env/flow-public-url",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
-		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
 		SitesRoot:                      "/root/.internkim/sites",
 		SiteScaffoldPath:               filepath.Join(blueclaw.BlueclawDeliverySkillsPath, "website", "assets", "scaffold", "app"),
@@ -228,15 +215,6 @@ func (configuration Configuration) withCredentialDefaults(defaultConfiguration C
 	if configuration.MattermostTokenPath == "" {
 		configuration.MattermostTokenPath = defaultConfiguration.MattermostTokenPath
 	}
-	if configuration.OpenRouterKeyPath == "" {
-		configuration.OpenRouterKeyPath = defaultConfiguration.OpenRouterKeyPath
-	}
-	if configuration.OpenRouterModelsURL == "" {
-		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
-	}
-	if configuration.ReleaseDownloadTokenPath == "" {
-		configuration.ReleaseDownloadTokenPath = defaultConfiguration.ReleaseDownloadTokenPath
-	}
 	if configuration.MattermostBotTokenPath == "" {
 		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
 	}
@@ -296,9 +274,6 @@ func (configuration Configuration) withCentralPlaneDefaults(defaultConfiguration
 }
 
 func (configuration Configuration) withFleetDefaults(defaultConfiguration Configuration) Configuration {
-	if configuration.ReleaseRegistryURL == "" {
-		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
-	}
 	if configuration.FleetIDPath == "" {
 		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
 	}
@@ -313,9 +288,6 @@ func (configuration Configuration) withFleetDefaults(defaultConfiguration Config
 	}
 	if configuration.FleetSecretPath == "" {
 		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath
-	}
-	if configuration.AdminUIPath == "" {
-		configuration.AdminUIPath = defaultConfiguration.AdminUIPath
 	}
 	if configuration.RepositoryRoot == "" {
 		configuration.RepositoryRoot = defaultConfiguration.RepositoryRoot

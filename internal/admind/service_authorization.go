@@ -24,25 +24,10 @@ func (service *Service) adminConsoleActorEmail(request *http.Request) string {
 }
 
 func (service *Service) authenticatedCallerEmail(request *http.Request) string {
-	if email := service.cloudflareAccessVerifier().verifiedEmail(request.Context(), request); email != "" {
-		return email
-	}
-	// Deployments that do not use Cloudflare front the app with their own
-	// identity-aware reverse proxy (oauth2-proxy, Authelia, Authentik, Pomerium)
-	// that authenticates the user and injects a trusted email header. The
-	// operator opts in with TrustProxyForwardedEmail, asserting the proxy is the
-	// only ingress. Absent that, a verified Cloudflare Access JWT is required,
-	// except on loopback for local development and tests.
-	if service.Configuration.TrustProxyForwardedEmail {
+	if service.Configuration.TrustProxyForwardedEmail || trustsForwardedIdentity(service.Configuration.ListenAddress) {
 		return forwardedProxyEmail(request)
 	}
-	if service.cloudflareAccessVerifier().isConfigured() {
-		return ""
-	}
-	if !trustsForwardedIdentity(service.Configuration.ListenAddress) {
-		return ""
-	}
-	return forwardedProxyEmail(request)
+	return ""
 }
 
 func forwardedProxyEmail(request *http.Request) string {
@@ -52,18 +37,6 @@ func forwardedProxyEmail(request *http.Request) string {
 		request.Header.Get("X-Forwarded-Email"),
 		request.Header.Get("X-Auth-Request-Email"),
 	)))
-}
-
-func (service *Service) cloudflareAccessVerifier() *cloudflareAccessVerifier {
-	service.cloudflareAccessOnce.Do(func() {
-		audiences := strings.Split(service.Configuration.CloudflareAccessAUDs, ",")
-		service.cloudflareAccessCheck = newCloudflareAccessVerifier(
-			service.Configuration.CloudflareAccessTeamDomain,
-			audiences,
-			service.httpClient(),
-		)
-	})
-	return service.cloudflareAccessCheck
 }
 
 func trustsForwardedIdentity(listenAddress string) bool {

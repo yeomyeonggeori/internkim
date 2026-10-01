@@ -39,7 +39,6 @@ func canonicalTaskWeekCodeOfValue(value string, now time.Time) string {
 	return weekCode
 }
 
-
 func weekStartForCode(weekCode string, fallback time.Time) time.Time {
 	trimmedCode := strings.TrimSpace(strings.ToUpper(weekCode))
 	if len(trimmedCode) != 5 || trimmedCode[2] != 'W' {

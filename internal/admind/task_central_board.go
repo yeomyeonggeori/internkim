@@ -151,5 +151,3 @@ func tasksInWeek(tasks []Task, weekCode string) []Task {
 	}
 	return kept
 }
-
-

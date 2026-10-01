@@ -3,9 +3,10 @@ package admind
 import (
 	"context"
 	"encoding/json"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestCachedMailMessagesRequireMatchingCursor(t *testing.T) {

@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
-	"path/filepath"
 
 	"strings"
 
@@ -29,15 +27,12 @@ func (service *Service) router() http.Handler {
 	service.registerTaskRunRoutes(multiplexer)
 	service.registerCompanyRoutes(multiplexer)
 	service.registerAssetRoutes(multiplexer)
-	service.registerBoardRoutes(multiplexer)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
 }
 
 func (service *Service) registerAdminRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/admin", service.serveAdminPage)
 	multiplexer.HandleFunc("/admin/api/", service.handleAdmin)
-	multiplexer.HandleFunc("/admin/", service.serveAdminPage)
 }
 
 func (service *Service) registerPublicAPIRoutes(multiplexer *http.ServeMux) {
@@ -46,21 +41,15 @@ func (service *Service) registerPublicAPIRoutes(multiplexer *http.ServeMux) {
 
 func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc(dataRoomClassificationPath, service.answerDataRoomClassification)
-	multiplexer.HandleFunc("/task", service.serveTaskPage)
 	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleTaskAPI)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
 	multiplexer.HandleFunc(tellDirectMessagePath, service.handleTellDirectMessage)
-	multiplexer.HandleFunc("/task/", service.serveTaskPage)
 	multiplexer.HandleFunc(retiredTaskAPIPrefix+"/", http.NotFound)
-	multiplexer.HandleFunc("/flow", service.serveTaskPage)
-	multiplexer.HandleFunc("/flow/", service.serveTaskPage)
 }
 
 func (service *Service) registerMemoryRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
 	multiplexer.HandleFunc("/persona/api/", service.handlePersona)
-	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 }
 
 func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
@@ -101,9 +90,7 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerCalendarRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
-	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 }
 
 func (service *Service) registerAuthenticationRoutes(multiplexer *http.ServeMux) {
@@ -118,15 +105,11 @@ func (service *Service) registerAuthenticationRoutes(multiplexer *http.ServeMux)
 }
 
 func (service *Service) registerMailRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
-	multiplexer.HandleFunc("/mail/", service.serveMailPage)
 }
 
 func (service *Service) registerOrganizationRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
-	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
 }
 
 func (service *Service) registerBuzzRoutes(multiplexer *http.ServeMux) {
@@ -135,39 +118,22 @@ func (service *Service) registerBuzzRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerFileRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/files", service.serveFilesPage)
 	multiplexer.HandleFunc("/files/api/", service.handleFiles)
-	multiplexer.HandleFunc("/files/", service.serveFilesPage)
 	multiplexer.HandleFunc(skillInventoryPath, service.handleSkillInventory)
 }
 
 func (service *Service) registerTaskRunRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/runs", service.serveTaskRunsPage)
 	multiplexer.HandleFunc("/runs/api", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/api/", service.handleTaskRuns)
-	multiplexer.HandleFunc("/runs/", service.serveTaskRunsPage)
 }
 
 func (service *Service) registerCompanyRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
 	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
-	multiplexer.HandleFunc("/company/", service.serveCompanySharePage)
 }
 
 func (service *Service) registerAssetRoutes(multiplexer *http.ServeMux) {
-	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
-	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
 	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
-}
-
-func (service *Service) registerBoardRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/messenger", service.serveBoardSection("messenger"))
-	multiplexer.HandleFunc("/messenger/", service.serveBoardSection("messenger"))
-	multiplexer.HandleFunc("/settings", service.serveBoardSection("settings"))
-	multiplexer.HandleFunc("/settings/", service.serveBoardSection("settings"))
-	multiplexer.HandleFunc("/assistant", service.serveBoardSection("assistant"))
-	multiplexer.HandleFunc("/assistant/", service.serveBoardSection("assistant"))
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
@@ -225,30 +191,6 @@ func (service *Service) mattermostProxy() http.Handler {
 		proxy.Transport = service.HTTPClient.Transport
 	}
 	return proxy
-}
-
-func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if !isLocalRequest(request) {
-		service.ensureFirstAdminClaim(request.Context(), service.authenticatedCallerEmail(request))
-	}
-	if request.URL.Path == "/admin" {
-		http.Redirect(responseWriter, request, "/admin/", http.StatusFound)
-		return
-	}
-	relativePath := strings.TrimPrefix(request.URL.Path, "/admin/")
-	if relativePath == "" {
-		relativePath = "index.html"
-	}
-	filePath := filepath.Join(service.Configuration.AdminUIPath, relativePath)
-	if fileInfo, errorValue := os.Stat(filePath); errorValue == nil && !fileInfo.IsDir() {
-		http.ServeFile(responseWriter, request, filePath)
-		return
-	}
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
-}
-
-func (service *Service) serveAdminAsset(responseWriter http.ResponseWriter, request *http.Request) {
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, strings.TrimPrefix(request.URL.Path, "/")))
 }
 
 func (service *Service) fleetZone() string {

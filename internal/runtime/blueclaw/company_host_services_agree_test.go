@@ -1,7 +1,6 @@
 package blueclaw
 
 import (
-	"slices"
 	"strings"
 	"testing"
 )
@@ -50,19 +49,5 @@ func TestBlueclawStartsWithTheSkillsThePackageShips(t *testing.T) {
 	skillsPath, isSet := environmentSettingOf(service, "BLUECLAW_BUNDLED_SKILLS_PATH")
 	if !isSet || skillsPath != CompanyPackageSkillsPath {
 		t.Fatalf("blueclaw looks for its skills at %q and the package puts them at %s, so it starts with nothing", skillsPath, CompanyPackageSkillsPath)
-	}
-}
-
-func TestTheCompanyHostAdmindInstallsNoDeviceUsersSync(t *testing.T) {
-	service, _ := CompanyHostServiceNamed(LinuxCompanyHostLayout(), AdmindServiceName)
-	if !slices.Contains(service.Command, "-install-users-sync=false") {
-		t.Fatalf("the package starts admind without -install-users-sync=false, so it writes the device's users-sync timer onto the host, " +
-			"where the script finds no company directory and fails every hour from units the package does not own")
-	}
-}
-
-func TestTheDeviceAdmindStillInstallsItsUsersSync(t *testing.T) {
-	if strings.Contains(AdmindServiceUnit(), "-install-users-sync") {
-		t.Fatal("the device's admind unit turns off the users sync the device has always installed, a change the frozen device path does not take")
 	}
 }

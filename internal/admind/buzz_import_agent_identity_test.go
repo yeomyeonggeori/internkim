@@ -1,8 +1,6 @@
 package admind
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -15,7 +13,6 @@ func TestEveryImportPathAsksWhoOwnsAPersonsKey(t *testing.T) {
 	callers := map[string]string{
 		"recovery.go: re-import":        buzzReimportCommand(),
 		"recovery.go: refresh profiles": buzzRefreshProfilesCommand(),
-		"step_buzz_migrate.go":          readImportStep(t),
 	}
 	for name, command := range callers {
 		if !strings.Contains(command, "--bridge-url") {
@@ -25,13 +22,4 @@ func TestEveryImportPathAsksWhoOwnsAPersonsKey(t *testing.T) {
 			t.Errorf("%s still names the agent by address; the bridge is what knows the agent's identity", name)
 		}
 	}
-}
-
-func readImportStep(t *testing.T) string {
-	t.Helper()
-	document, errorValue := os.ReadFile(filepath.Join("..", "provisioning", "steps", "step_buzz_migrate.go"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return string(document)
 }

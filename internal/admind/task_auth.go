@@ -160,7 +160,6 @@ func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
 	return false
 }
 
-
 func (service *Service) isTaskAdminEmail(ctx context.Context, actorEmail string) bool {
 	if strings.TrimSpace(actorEmail) == "" {
 		return false

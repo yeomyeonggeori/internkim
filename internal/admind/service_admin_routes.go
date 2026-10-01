@@ -32,14 +32,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminRecoveryRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminSignedUpdateRoute(responseWriter, request, path) {
-		return
-	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
-		return
-	}
-	if service.handleAdminUpdateRoute(responseWriter, request, path) {
 		return
 	}
 	if service.handleAdminDiagnosticsRoute(responseWriter, request, path) {
@@ -58,9 +52,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 	if service.handleAdminSiteRoute(responseWriter, request, path) {
-		return
-	}
-	if service.handleAdminBackupRoute(responseWriter, request, path) {
 		return
 	}
 	http.NotFound(responseWriter, request)
@@ -114,48 +105,6 @@ func (service *Service) handleAdminRecoveryRoute(responseWriter http.ResponseWri
 	return false
 }
 
-func (service *Service) handleAdminSignedUpdateRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	if strings.HasPrefix(path, "/updates/blueclaw/uploads") {
-		service.handleBlueclawUpdateUpload(responseWriter, request, path)
-		return true
-	}
-	if request.Method == http.MethodGet && path == "/updates/status" {
-		service.writeReleaseUpdateStatus(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodGet && path == "/updates/releases" {
-		service.writeReleaseHistory(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
-		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
-		return true
-	}
-	if request.Method == http.MethodPost && path == "/updates/apply" && !service.isAuthorized(request) {
-		service.applyReleaseUpdateSigned(responseWriter, request)
-		return true
-	}
-	return false
-}
-
-func (service *Service) handleAdminUpdateRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/updates/apply":
-		service.applyReleaseUpdate(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/updates/rollback":
-		service.rollbackReleaseUpdate(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/updates/blueclaw/status":
-		service.writeBlueclawUpdateStatus(responseWriter)
-	case request.Method == http.MethodPost && path == "/updates/blueclaw/apply":
-		service.applyLatestBlueclawUpdate(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/blueclaw/jobs/"):
-		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/blueclaw/jobs/"))
-	default:
-		return false
-	}
-	return true
-}
-
 func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
 	switch {
 	case request.Method == http.MethodGet && path == "/diagnostics/requests":
@@ -206,12 +155,6 @@ func (service *Service) handleAdminAgentRoute(responseWriter http.ResponseWriter
 		service.writeSoul(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/soul":
 		service.updateSoul(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/credentials/providers":
-		service.writeCredentialProviders(responseWriter)
-	case request.Method == http.MethodPut && path == "/credentials/openrouter-key":
-		service.updateOpenRouterKey(responseWriter, request)
-	case request.Method == http.MethodDelete && path == "/credentials/openrouter-key":
-		service.deleteOpenRouterKey(responseWriter)
 	default:
 		return false
 	}
@@ -228,14 +171,6 @@ func (service *Service) handleAdminSettingsRoute(responseWriter http.ResponseWri
 		service.writeWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/wifi-profiles":
-		service.writeWifiProfiles(responseWriter)
-	case request.Method == http.MethodPost && path == "/wifi-profiles":
-		service.addWifiProfile(responseWriter, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/wifi-profiles/"):
-		service.updateWifiPassword(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/wifi-profiles/"):
-		service.removeWifiProfile(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
 	default:
 		return false
 	}
@@ -270,30 +205,6 @@ func (service *Service) handleAdminSiteRoute(responseWriter http.ResponseWriter,
 		service.serveSiteFromRequest(responseWriter, request)
 	case strings.HasPrefix(path, "/sites/"):
 		service.handleSite(responseWriter, request, strings.TrimPrefix(path, "/sites/"))
-	default:
-		return false
-	}
-	return true
-}
-
-func (service *Service) handleAdminBackupRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/backups":
-		service.createBackup(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):
-		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/status"))
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/download"):
-		service.downloadBackup(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/download"))
-	case request.Method == http.MethodPost && path == "/restore/uploads":
-		service.createRestoreUpload(responseWriter, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/restore/uploads/") && strings.Contains(path, "/chunks/"):
-		service.writeRestoreUploadChunk(responseWriter, request, path)
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/restore/uploads/") && strings.HasSuffix(path, "/complete"):
-		service.completeRestoreUpload(responseWriter, request, path)
-	case request.Method == http.MethodPost && path == "/restore":
-		service.createRestore(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/restore/") && strings.HasSuffix(path, "/status"):
-		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/restore/"), "/status"))
 	default:
 		return false
 	}

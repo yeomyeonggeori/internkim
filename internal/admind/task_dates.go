@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-
 type normalizedTaskDates struct {
 	StartDate string
 	EndDate   string
@@ -82,4 +81,3 @@ func weekCodeForTaskDate(dateText string, fallback time.Time) string {
 	}
 	return weekCodeForDate(date)
 }
-

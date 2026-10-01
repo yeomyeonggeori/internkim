@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"strings"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) readCachedMailMessages(ctx context.Context, actorEmail string, input mail.MessageListRequest) (mail.MessageListResponse, bool, error) {
