@@ -459,3 +459,33 @@ describe('a call that leaves the thing it acts on blank', () => {
 		expect((answered.body as { errorCode: string }).errorCode).toBe('person_not_found');
 	});
 });
+
+describe('a leave asked under autonomous work', () => {
+	test('is taken without anyone deciding, asked by a colleague with their own session', async () => {
+		const { data: company } = await client
+			.from('company')
+			.select('rules')
+			.eq('id', companyID)
+			.single<{ rules: Record<string, unknown> }>();
+		const rules = company!.rules;
+		await client
+			.from('company')
+			.update({ rules: { ...rules, attendanceWorkPolicy: { revisions: [{ workMode: 'autonomous' }] } } })
+			.eq('id', companyID);
+
+		try {
+			const taken = resultOf(
+				await asSample('leave_request', {
+					kind: '연차',
+					startsAt: '2026-10-14',
+					endsAt: '2026-10-14',
+					days: 1,
+					note: '개인 일정'
+				})
+			);
+			expect(taken.status).toBe('approved');
+		} finally {
+			await client.from('company').update({ rules }).eq('id', companyID);
+		}
+	});
+});
