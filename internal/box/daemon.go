@@ -25,6 +25,7 @@ var ErrConnectedByFile = errors.New("this computer was connected to its company 
 
 type Places struct {
 	StateDirectoryPath        string
+	PairingPageListenAddress  string
 	ConnectionFilePath        string
 	CredentialPaths           []string
 	ModelKeyPath              string
@@ -48,8 +49,14 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
+	page := daemon.openPairingPage()
+	defer page.close()
 	for {
-		wait, errorValue := daemon.step(ctx, identity)
+		wait, isClaimed, errorValue := daemon.step(ctx, identity, page.localPage())
+		if isClaimed {
+			page.close()
+			page = nil
+		}
 		if errorValue != nil {
 			log.Printf("%v; trying again in %s", errorValue, announceInterval)
 			wait = announceInterval
@@ -60,17 +67,22 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	}
 }
 
-func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration, error) {
+func (daemon Daemon) step(ctx context.Context, identity Identity, page LocalPage) (time.Duration, bool, error) {
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
 	if errorValue != nil {
-		return 0, errorValue
+		return 0, false, errorValue
 	}
 	if !isClaimed {
-		return announceInterval, daemon.announce(ctx, identity)
+		return announceInterval, false, daemon.announce(ctx, identity, page)
 	}
 	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
-		return 0, errorValue
+		return 0, true, errorValue
 	}
+	wait, errorValue := daemon.serveClaimed(session, identity)
+	return wait, true, errorValue
+}
+
+func (daemon Daemon) serveClaimed(session Session, identity Identity) (time.Duration, error) {
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilRenewal(session.Session), daemon.renew(session, identity)
 	}
@@ -88,12 +100,15 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 	return daemon.untilRenewal(session.Session), nil
 }
 
-func (daemon Daemon) announce(ctx context.Context, identity Identity) error {
+func (daemon Daemon) announce(ctx context.Context, identity Identity, page LocalPage) error {
 	_, hasLiveCode, errorValue := ShownPairingCode(daemon.Places.StateDirectoryPath, daemon.now())
 	if errorValue != nil {
 		return errorValue
 	}
-	announcement, errorValue := daemon.Client.Announce(ctx, identity, !hasLiveCode)
+	announcement, errorValue := daemon.Client.Announce(ctx, identity, AnnouncementRequest{
+		WantsPairingCode: !hasLiveCode,
+		LocalPage:        page,
+	})
 	if errorValue != nil {
 		return errorValue
 	}

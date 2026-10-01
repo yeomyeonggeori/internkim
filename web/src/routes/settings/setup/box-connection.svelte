@@ -7,6 +7,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { boxStepOf, shortBoxName } from './box-step';
+	import type { EmptyBox } from '$lib/company/box';
 	import { connectBox, fetchBoxes, giveBoxModelKey, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
@@ -37,6 +38,11 @@
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;
 		}
+	}
+
+	function whereTheCodeIs(box: EmptyBox): string {
+		const [address] = box.pairingPageAddresses;
+		return address ? text.pairingCodeAt.replace('{address}', address) : text.pairingCodeOnTheBox;
 	}
 
 	async function connect(event: SubmitEvent, publicKey: string) {
@@ -85,13 +91,13 @@
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
 		</div>
 	{:else if step === 'choosing'}
-		<p class="text-sm text-muted-foreground">{text.pairingCodeHint}</p>
 		<Item.Group class="gap-2">
 			{#each boxes.empty as box (box.publicKey)}
 				<Item.Root variant="outline">
 					<Item.Content>
-						<Item.Title>{text.foundBox}</Item.Title>
+						<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
 						<Item.Description class="font-mono">{shortBoxName(box.publicKey)}</Item.Description>
+						<Item.Description>{whereTheCodeIs(box)}</Item.Description>
 					</Item.Content>
 					<Item.Actions>
 						<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => connect(event, box.publicKey)}>

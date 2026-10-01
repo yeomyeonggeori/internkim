@@ -184,7 +184,7 @@ func TestAnnouncementNamesTheEncryptionKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	announcement, errorValue := Client{AppURL: server.URL}.Announce(context.Background(), identity, true)
+	announcement, errorValue := Client{AppURL: server.URL}.Announce(context.Background(), identity, AnnouncementRequest{WantsPairingCode: true})
 	if errorValue != nil || announcement.IsClaimed || announcement.PairingCode == nil || announcement.PairingCode.Code != "ABCD-EFGH" {
 		t.Fatalf("announcement = %+v, error = %v", announcement, errorValue)
 	}

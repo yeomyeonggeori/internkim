@@ -44,11 +44,28 @@ type Announcement struct {
 	PairingCode *PairingCode
 }
 
-func (client Client) Announce(ctx context.Context, identity Identity, wantsPairingCode bool) (Announcement, error) {
-	body, errorValue := json.Marshal(map[string]any{
+type LocalPage struct {
+	HostName  string
+	Addresses []string
+}
+
+type AnnouncementRequest struct {
+	WantsPairingCode bool
+	LocalPage        LocalPage
+}
+
+func (client Client) Announce(ctx context.Context, identity Identity, asked AnnouncementRequest) (Announcement, error) {
+	announcement := map[string]any{
 		"encryptionKey":    identity.EncryptionPublicKey(),
-		"wantsPairingCode": wantsPairingCode,
-	})
+		"wantsPairingCode": asked.WantsPairingCode,
+	}
+	if asked.LocalPage.HostName != "" {
+		announcement["hostName"] = asked.LocalPage.HostName
+	}
+	if len(asked.LocalPage.Addresses) > 0 {
+		announcement["pairingPageAddresses"] = asked.LocalPage.Addresses
+	}
+	body, errorValue := json.Marshal(announcement)
 	if errorValue != nil {
 		return Announcement{}, errorValue
 	}

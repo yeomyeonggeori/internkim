@@ -76,26 +76,37 @@ function claimedBoxKeyOf(assertion: string): string | null {
 	}
 }
 
+export type BoxAnnouncement = {
+	publicKey: string;
+	encryptionKey: string;
+	publicAddress: string;
+	wantsPairingCode: boolean;
+	hostName?: string;
+	pairingPageAddresses?: string[];
+};
+
 export async function announceBox(
 	client: SupabaseClient,
-	publicKey: string,
-	encryptionKey: string,
-	publicAddress: string,
-	wantsPairingCode: boolean,
+	announcement: BoxAnnouncement,
 	now: Date = new Date()
 ): Promise<BoxAnnounced> {
+	const { publicKey } = announcement;
 	if (await companyOfFleet(client, publicKey)) return { isClaimed: true };
 	const { error } = await client.from('empty_box').upsert(
 		{
 			public_key: publicKey,
-			encryption_key: encryptionKey,
-			public_address: publicAddress,
+			encryption_key: announcement.encryptionKey,
+			public_address: announcement.publicAddress,
+			host_name: announcement.hostName ?? null,
+			pairing_page_addresses: announcement.pairingPageAddresses ?? [],
 			announced_at: now.toISOString()
 		},
 		{ onConflict: 'public_key' }
 	);
 	if (error) throw new Error(`announcing box ${publicKey}: ${error.message}`);
-	if (!wantsPairingCode && (await holdsLivePairingCode(client, publicKey, now))) return { isClaimed: false };
+	if (!announcement.wantsPairingCode && (await holdsLivePairingCode(client, publicKey, now))) {
+		return { isClaimed: false };
+	}
 	return { isClaimed: false, ...(await issuePairingCode(client, publicKey, now)) };
 }
 
@@ -150,13 +161,18 @@ export async function emptyBoxesAt(
 ): Promise<EmptyBox[]> {
 	const { data, error } = await client
 		.from('empty_box')
-		.select('public_key, announced_at')
+		.select('public_key, announced_at, host_name, pairing_page_addresses')
 		.eq('public_address', publicAddress)
 		.gte('announced_at', freshSince(now))
 		.order('announced_at', { ascending: false })
 		.limit(emptyBoxesListed);
 	if (error) throw new Error(`empty boxes at ${publicAddress}: ${error.message}`);
-	return data.map((row) => ({ publicKey: row.public_key, announcedAt: row.announced_at }));
+	return data.map((row) => ({
+		publicKey: row.public_key,
+		announcedAt: row.announced_at,
+		hostName: row.host_name,
+		pairingPageAddresses: row.pairing_page_addresses
+	}));
 }
 
 export async function claimBox(

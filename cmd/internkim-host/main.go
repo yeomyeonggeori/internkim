@@ -135,6 +135,7 @@ func boxDaemon(appURL string) box.Daemon {
 		Client: box.Client{AppURL: appURL},
 		Places: box.Places{
 			StateDirectoryPath:        blueclaw.CompanyHostBoxStatePath,
+			PairingPageListenAddress:  blueclaw.CompanyHostBoxPairingPageListenAddress,
 			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,

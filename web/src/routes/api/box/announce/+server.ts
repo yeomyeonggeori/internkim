@@ -15,9 +15,14 @@ export const POST: RequestHandler = async ({ request, platform, getClientAddress
 	const announcement = boxAnnouncementSchema.safeParse(await request.json().catch(() => null));
 	if (!announcement.success) error(400, 'an announcement carries the box encryption key');
 
-	const { encryptionKey, wantsPairingCode } = announcement.data;
-	return json(
-		await announceBox(controlPlane(plane), publicKey, encryptionKey, getClientAddress(), wantsPairingCode ?? false),
-		{ headers: { 'Cache-Control': 'no-store' } }
-	);
+	const { encryptionKey, wantsPairingCode, hostName, pairingPageAddresses } = announcement.data;
+	const announced = await announceBox(controlPlane(plane), {
+		publicKey,
+		encryptionKey,
+		publicAddress: getClientAddress(),
+		wantsPairingCode: wantsPairingCode ?? false,
+		hostName,
+		pairingPageAddresses
+	});
+	return json(announced, { headers: { 'Cache-Control': 'no-store' } });
 };

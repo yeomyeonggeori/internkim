@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import { x25519 } from '@noble/curves/ed25519.js';
 import { base64URLOf } from '../../src/lib/company/seal-to-box';
+import { pairingPageAddressSchema } from '../../src/lib/company/box';
 import { companyComputerName } from '../../src/lib/company/host-setup';
 import { callingAgent } from '../../src/lib/server/agent-request';
 import {
@@ -78,7 +79,7 @@ async function aCompany(label: string) {
 }
 
 async function announcedCode(box: Box, address = officeAddress): Promise<string> {
-	const announced = await announceBox(client, box.publicKey, box.encryptionKey, address, true);
+	const announced = await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: address, wantsPairingCode: true });
 	if (announced.isClaimed || !announced.pairingCode) throw new Error('an empty box that asks for a code is given one');
 	return announced.pairingCode;
 }
@@ -142,9 +143,27 @@ describe('a box proves itself with the key it names', () => {
 });
 
 describe('connecting an empty box', () => {
+	test('a box says where on its own network it shows its code, and only an address there', async () => {
+		const box = await aBox();
+		const pairingPageAddresses = ['http://kimmini.local:18088/', 'http://192.168.0.23:18088/'];
+		await announceBox(client, {
+			publicKey: box.publicKey,
+			encryptionKey: box.encryptionKey,
+			publicAddress: officeAddress,
+			wantsPairingCode: true,
+			hostName: 'kimmini',
+			pairingPageAddresses
+		});
+
+		const listed = (await emptyBoxesAt(client, officeAddress)).find((empty) => empty.publicKey === box.publicKey);
+		expect(listed).toMatchObject({ hostName: 'kimmini', pairingPageAddresses });
+		expect(pairingPageAddressSchema.safeParse('https://phishing.example.test/').success).toBe(false);
+		expect(pairingPageAddressSchema.safeParse('http://8.8.8.8:18088/').success).toBe(false);
+	});
+
 	test('an announced box is listed only at the address it announced from', async () => {
 		const box = await aBox();
-		expect(await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, false)).toMatchObject({ isClaimed: false });
+		expect(await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false })).toMatchObject({ isClaimed: false });
 
 		expect((await emptyBoxesAt(client, officeAddress)).map((listed) => listed.publicKey)).toContain(box.publicKey);
 		expect((await emptyBoxesAt(client, neighbourAddress)).map((listed) => listed.publicKey)).not.toContain(box.publicKey);
@@ -152,7 +171,7 @@ describe('connecting an empty box', () => {
 
 	test('a box that stopped announcing drops out of the list', async () => {
 		const box = await aBox();
-		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, false);
+		await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false });
 		const later = new Date(Date.now() + 11 * 60 * 1000);
 
 		expect((await emptyBoxesAt(client, officeAddress, later)).map((listed) => listed.publicKey)).not.toContain(box.publicKey);
@@ -160,14 +179,14 @@ describe('connecting an empty box', () => {
 
 	test('a box is given a short code, keeps it while it lives, and gets a new one when it asks', async () => {
 		const box = await aBox();
-		const first = await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, false);
+		const first = await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false });
 		if (first.isClaimed || !first.pairingCode || !first.pairingCodeExpiresAt) throw new Error('a new box is given a code');
 
 		expect(first.pairingCode).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
 		expect(Date.parse(first.pairingCodeExpiresAt) - Date.now()).toBeLessThanOrEqual(15 * 60 * 1000);
-		expect(await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, false)).toEqual({ isClaimed: false });
+		expect(await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false })).toEqual({ isClaimed: false });
 
-		const asked = await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, true);
+		const asked = await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: true });
 		if (asked.isClaimed || !asked.pairingCode) throw new Error('a box that asks for a code is given one');
 		expect(asked.pairingCode).not.toBe(first.pairingCode);
 	});
@@ -207,7 +226,7 @@ describe('connecting an empty box', () => {
 		}
 
 		await expect(claimBox(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
-		expect(await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, false)).toMatchObject({
+		expect(await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false })).toMatchObject({
 			pairingCode: expect.any(String)
 		});
 		await clearRefusalsOf(companyID);
@@ -253,7 +272,7 @@ describe('connecting an empty box', () => {
 			hasModelKey: false
 		});
 		expect((await emptyBoxesAt(client, officeAddress)).map((listed) => listed.publicKey)).not.toContain(box.publicKey);
-		expect(await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, true)).toEqual({ isClaimed: true });
+		expect(await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: true })).toEqual({ isClaimed: true });
 		expect((await emptyBoxesAt(client, officeAddress)).map((listed) => listed.publicKey)).not.toContain(box.publicKey);
 	});
 
@@ -290,7 +309,7 @@ describe('connecting an empty box', () => {
 
 	test('an unclaimed box gets no session', async () => {
 		const box = await aBox();
-		await announceBox(client, box.publicKey, box.encryptionKey, officeAddress, false);
+		await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false });
 
 		expect(await boxSessionFor(credentials, box.publicKey, environment, appURL)).toBeNull();
 	});

@@ -37,9 +37,14 @@ What binds a box is its pairing code. The central plane draws one when the box
 asks: eight characters from a 32-symbol alphabet without `0`, `O`, `1` or `I`,
 good for fifteen minutes and kept only as its SHA-256 hash. Five wrong codes spend
 it and the box is given another, and twenty wrong codes in an hour stop that
-company from trying until the hour is up. The box logs each code it is given, and
-`sudo internkim box code` prints the current one. How a box with no screen shows
-its code to someone without a terminal is still open.
+company from trying until the hour is up.
+
+While it is empty, the box shows its current code on a read-only page on its own
+network, port 18088, at its `.local` name and its LAN address. It reports both
+when it announces, and the setup page tells the administrator where to look.
+Anyone on that network can read the code, which the owner accepted in exchange
+for a box that needs no screen. The page closes once the box is claimed. The box
+also logs each code, and `sudo internkim box code` prints the current one.
 
 ## The box's identity replaces the agent key
 

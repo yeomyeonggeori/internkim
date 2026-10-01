@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ type fakePlane struct {
 	sealedModelKey *SealedModelKey
 	announcements  int
 	codesAskedFor  int
+	pageAddresses  []string
 	claimedWith    []string
 }
 
@@ -31,9 +34,11 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 		case "/api/box/announce":
 			plane.announcements++
 			var body struct {
-				WantsPairingCode bool `json:"wantsPairingCode"`
+				WantsPairingCode     bool     `json:"wantsPairingCode"`
+				PairingPageAddresses []string `json:"pairingPageAddresses"`
 			}
 			json.NewDecoder(request.Body).Decode(&body)
+			plane.pageAddresses = body.PairingPageAddresses
 			if !body.WantsPairingCode {
 				writer.Write([]byte(`{"isClaimed":false}`))
 				return
@@ -156,6 +161,52 @@ func TestAnEmptyBoxAsksForACodeOnlyWhileItHoldsNoLiveOne(t *testing.T) {
 	if plane.codesAskedFor != 2 {
 		t.Fatalf("an expired code was not replaced: asked %d times", plane.codesAskedFor)
 	}
+}
+
+func TestAnEmptyBoxShowsItsCodeOnItsNetworkUntilItIsClaimed(t *testing.T) {
+	plane := &fakePlane{}
+	daemon, _ := daemonFor(t, plane, &installs{})
+	daemon.Places.PairingPageListenAddress = "127.0.0.1:0"
+	pageAddress := ""
+	taken := 0
+	daemon.Sleep = func(ctx context.Context, wait time.Duration) error {
+		taken++
+		if taken == 1 {
+			if len(plane.pageAddresses) == 0 {
+				t.Fatal("the box announced no local page")
+			}
+			port := plane.pageAddresses[0][strings.LastIndex(plane.pageAddresses[0], ":")+1:]
+			pageAddress = "http://127.0.0.1:" + strings.TrimSuffix(port, "/") + "/"
+			if shown := pageText(t, pageAddress); !strings.Contains(shown, "ABCD-EFGH") {
+				t.Fatalf("the local page shows %q", shown)
+			}
+			plane.isClaimed = true
+			plane.accessToken = "header.claims.signature"
+			return nil
+		}
+		return context.Canceled
+	}
+	if errorValue := daemon.Run(context.Background()); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+
+	if _, errorValue := http.Get(pageAddress); errorValue == nil {
+		t.Fatal("a claimed box still answers on its network")
+	}
+}
+
+func pageText(t *testing.T, address string) string {
+	t.Helper()
+	response, errorValue := http.Get(address)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer response.Body.Close()
+	document, errorValue := io.ReadAll(response.Body)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(document)
 }
 
 func TestAClaimedBoxShowsNoCode(t *testing.T) {
