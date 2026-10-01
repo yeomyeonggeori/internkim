@@ -19,6 +19,7 @@ import shutil
 import socket
 import subprocess
 import tarfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -868,6 +869,45 @@ def seeded_administrator():
     return fields["member1Email"], fields["seedPassword"]
 
 
+class RecordForward:
+    def __init__(self, listen, target):
+        self.listener = socket.create_server(listen)
+        self.port = self.listener.getsockname()[1]
+        self.target = target
+        threading.Thread(target=self.accept_forever, daemon=True).start()
+
+    def accept_forever(self):
+        while True:
+            try:
+                arriving, _ = self.listener.accept()
+            except OSError:
+                return
+            try:
+                departing = socket.create_connection(self.target)
+            except OSError:
+                arriving.close()
+                continue
+            for source, destination in ((arriving, departing), (departing, arriving)):
+                threading.Thread(target=carry_bytes, args=(source, destination), daemon=True).start()
+
+    def close(self):
+        self.listener.close()
+
+
+def carry_bytes(source, destination):
+    try:
+        while chunk := source.recv(65536):
+            destination.sendall(chunk)
+    except OSError:
+        pass
+    finally:
+        for held in (source, destination):
+            try:
+                held.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+
 def free_port():
     with socket.socket() as held:
         held.bind(("127.0.0.1", 0))
@@ -951,6 +991,7 @@ class CompanyPlane:
         self.gateway_port = free_port()
         self.application_port = free_port()
         self.processes = []
+        self.record_forward = None
 
     @property
     def gateway_url(self):
@@ -967,9 +1008,26 @@ class CompanyPlane:
     @property
     def project_url(self):
         held = urllib.parse.urlsplit(self.settings["API_URL"])
-        return f"{held.scheme}://{self.address}:{held.port}"
+        return f"{held.scheme}://{self.address}:{self.record_forward.port}"
+
+    @property
+    def record_port(self):
+        return urllib.parse.urlsplit(self.settings["API_URL"]).port
+
+    def reach_the_record_from(self, machine):
+        shutil.copyfile(Path(__file__), machine.share_directory / "native_install_rig.py")
+        holding = (
+            f"import sys, threading; sys.path.insert(0, '{SHARE_PATH}'); "
+            f"from native_install_rig import RecordForward; "
+            f"RecordForward(('127.0.0.1', {self.record_port}), ('{self.address}', {self.record_forward.port})); "
+            f"threading.Event().wait()"
+        )
+        machine.checked_shell(
+            f"systemd-run --unit=rig-record-forward {HOST_PYTHON_PATH} -c \"{holding}\"\n"
+        )
 
     def start(self):
+        self.record_forward = RecordForward((self.address, 0), ("127.0.0.1", self.record_port))
         self.start_gateway()
         self.start_application()
 
@@ -1168,6 +1226,8 @@ class CompanyPlane:
         )
 
     def stop(self):
+        if self.record_forward:
+            self.record_forward.close()
         for _, process, _, handle in reversed(self.processes):
             process.terminate()
             try:

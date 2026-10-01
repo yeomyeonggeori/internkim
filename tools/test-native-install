@@ -116,6 +116,23 @@ url="$(sed -n 's/^DATABASE_URL=//p' %(path)s 2>/dev/null | head -1)"
 printf 'roster=%%s\n' "$(psql "$url" -tAc "select case when count(*) > 0 then 'yes' else 'no' end from relay_members where lower(pubkey) = lower('%(pubkey)s')" 2>&1 | tr -d ' \n')"
 """
 
+# Whether the agent took the message and said something back. The task is the
+# agent's own ledger entry for it, found by the message's text, and the answer is
+# a message in the same store from anyone but the member, written after theirs.
+# The rig's model key buys nothing, so the answer is the agent saying its model
+# refused; it crossed the same path a real answer would.
+AGENT_ANSWER_COMMAND = r"""
+agent_url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
+messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
+printf 'task=%%s\n' "$(psql "$agent_url" -tAc "select status from task_run where position('%(text)s' in prompt) > 0 order by created_at desc limit 1" 2>&1 | tr -d ' \n')"
+printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at" 2>&1 | tr -d ' \n')"
+"""
+
+VECTOR_EXTENSION_COMMAND = r"""
+url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
+psql "$url" -tAc "select extname from pg_extension where extname = 'vector'" 2>&1
+"""
+
 BRIDGE_COMMAND = (
     "printf 'bridge=%(port)s%(path)s=%%s\\n' "
     "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
@@ -147,6 +164,24 @@ MERGED_USR_ALIASES = [("/lib/", "/usr/lib/"), ("/bin/", "/usr/bin/"), ("/sbin/",
 
 
 APT_PROGRESS = ("(Reading database", "Selecting previously", "Adding 'diversion")
+
+READINESS_COMMAND = "; ".join(
+    f"printf '%s %s\\n' {port}{path} "
+    f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
+    for port, path in READINESS_PROBES
+)
+
+
+def every_probe_answered(reading):
+    lines = [line for line in reading.splitlines() if line.strip()]
+    return bool(lines) and all(line.split()[-1] == "200" for line in lines)
+
+
+def the_agent_answered(reading):
+    reported = dict(line.split("=", 1) for line in reading.splitlines() if "=" in line)
+    answers = reported.get("answers", "")
+    return bool(reported.get("task")) and answers.isdigit() and int(answers) > 0
+
 
 # What systemd reports for a unit that refused to start because its condition is
 # unmet: it declined, it is not running, nothing failed, and nothing retried.
@@ -793,23 +828,14 @@ class Rig:
             "\n".join(f"{name}={state}" for name, state in sorted(states.items())),
         )
 
-        probes = "; ".join(
-            f"printf '%s %s\\n' {port}{path} "
-            f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 10 http://127.0.0.1:{port}{path})\""
-            for port, path in READINESS_PROBES
-        )
-        answers = self.machine.shell(probes)
+        answers = self.machine.shell(READINESS_COMMAND)
         step.observe(
             "the services answer their readiness endpoints",
             "an HTTP GET inside the guest to "
             + ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES),
             "systemd reports active for a process that answers a socket while refusing all work, "
             "so a green service table says nothing about whether work is being taken",
-        ).record(
-            bool(answers.stdout.strip())
-            and all(line.split()[-1] == "200" for line in answers.stdout.splitlines() if line.strip()),
-            answers.stdout.strip() or "nothing answered",
-        )
+        ).record(every_probe_answered(answers.stdout), answers.stdout.strip() or "nothing answered")
 
     def build_identity_the_guest_reports(self):
         return build_identity_reported(self.machine)
@@ -930,6 +956,63 @@ class Rig:
             f"{roster.stdout.strip()}; {bridge.stdout.strip()}\n"
             + json.dumps({"status": sent.get("status"), "messageID": message_id, "body": sent.get("body")})[:500],
         )
+
+    def last_sent_message_id(self):
+        return self.sent_messages[-1][0] if self.sent_messages else ""
+
+    def observe_the_agent_answered(self, step):
+        answered = self.wait_in_the_guest(
+            AGENT_ANSWER_COMMAND % {
+                "agent_path": COMPANY_CONDITION_PATH,
+                "messenger_path": MESSENGER_DATABASE_PATH,
+                "text": self.message_text,
+                "message": self.last_sent_message_id() or "no-message",
+            },
+            the_agent_answered,
+            timeout_seconds=300,
+        )
+        step.observe(
+            "the agent took the member's message as a task and answered in the conversation",
+            "the agent's task ledger for a task carrying the message's text, and the messenger's store for a "
+            "message from anyone but the member written after theirs",
+            "the member's message landing in the messenger says the relay stored it; whether the relay could "
+            "hand it to the agent and post what the agent said is what a person waits for",
+        ).record(
+            the_agent_answered(answered.stdout),
+            answered.stdout.strip() + "\n" + self.machine.shell(
+                f"journalctl -u {RELAY_UNIT_NAME} -u blueclaw.service -u chatd.service --no-pager -n 30 2>/dev/null; true"
+            ).stdout.strip()[-1500:],
+        )
+
+    def observe_readiness_after_the_upgrade(self, step):
+        answers = self.machine.shell(READINESS_COMMAND).stdout.strip()
+        step.observe(
+            "the services answer their readiness endpoints the moment the upgrade returns",
+            "an HTTP GET inside the guest to "
+            + ", ".join(f"127.0.0.1:{port}{path}" for port, path in READINESS_PROBES)
+            + ", sent as soon as install.sh exits",
+            "the package restarts every unit, and a unit is active the moment its process starts, whether or "
+            "not that process will ever take work; an upgrade that returns before the company answers hands "
+            "a person a host that drops what they say next",
+        ).record(every_probe_answered(answers), answers or "nothing answered")
+
+    def observe_the_vector_extension_after_the_upgrade(self, step):
+        extensions = self.machine.shell(VECTOR_EXTENSION_COMMAND % {"agent_path": COMPANY_CONDITION_PATH}).stdout.strip()
+        step.observe(
+            "the agent's database carries the vector extension this release's memory store searches with",
+            f"pg_extension in the database {COMPANY_CONDITION_PATH} names",
+            "the install creates the extension as the cluster's superuser, which the agent's own migration "
+            "cannot do, so a host connected by an earlier release has it only if the upgrade prepares the "
+            "database again",
+        ).record(extensions == "vector", extensions or "no vector extension")
+
+    def observe_the_upgraded_host_answers(self, step, plane):
+        self.observe_readiness_after_the_upgrade(step)
+        self.observe_the_vector_extension_after_the_upgrade(step)
+        self.message_text = f"native install rig after the upgrade {uuid.uuid4().hex}"
+        self.observe_the_host_holds_the_gateway_socket(step)
+        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_agent_answered(step)
 
     def wait_in_the_guest(self, script, is_ready, timeout_seconds=300):
         deadline = time.monotonic() + timeout_seconds
@@ -1237,19 +1320,25 @@ def main():
             else:
                 rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
                 rig.plane.start()
+                rig.plane.reach_the_record_from(rig.machine)
                 rig.give_the_guest_a_company(step_five, rig.plane)
                 rig.observe_running_services(step_five)
                 observe_a_real_conversion(rig.machine, step_five)
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
                 rig.observe_the_member_round_trip(step_five, rig.plane)
+                rig.observe_the_agent_answered(step_five)
                 revision_before = rig.build_identity_the_guest_reports()
 
             step_three = rig.step(3, "running the line again moves it to a newer release")
             rig.run_step_three(step_three, releases)
 
             if not options.stand_in and not options.without_company:
+                moved_step = step_five
+                if len(releases) > 1:
+                    moved_step = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
+                    rig.observe_the_upgraded_host_answers(moved_step, rig.plane)
                 rig.observe_the_processes_moved(
-                    step_five, revision_before, rig.build_identity_the_guest_reports()
+                    moved_step, revision_before, rig.build_identity_the_guest_reports()
                 )
                 step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
                 rig.take_a_backup(step_six)

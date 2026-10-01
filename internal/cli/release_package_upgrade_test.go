@@ -4,122 +4,90 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-const relayFileTheFirstReleaseWrote = `SUPABASE_URL=https://example.supabase.test
-SUPABASE_PUBLISHABLE_KEY=publishable
-INTERNKIM_APP_URL=https://example.test
-GATEWAY_URL=wss://gateway.example.test
-MESSENGER_PLATFORM=buzz
-AGENT_API_KEY_PATH=/etc/internkim/agent-key
-CHATD_BASE_URL=http://127.0.0.1:18090
-ADMIND_BASE_URL=http://127.0.0.1:18080
-ADMIND_SOCKET_PATH=/run/internkim/admind.sock
-BLUECLAW_ACP_SOCKET_PATH=/run/internkim/blueclaw-acp.sock
-WORKSPACE_ROOT_PATH=/workspace
-`
+type postInstallRun struct {
+	exitedCleanly bool
+	output        string
+	calls         []string
+}
 
-// systemd.exec(5): "Settings from these files override settings made with
-// Environment=", whatever order the two are written in.
-func systemdEnvironment(t *testing.T, unit string, files map[string]string) map[string]string {
+func runTheUpgradeBranch(t *testing.T, hasACompany bool, refreshSucceeds bool) postInstallRun {
 	t.Helper()
-	environment := map[string]string{}
-	filePaths := []string{}
-	for _, line := range strings.Split(unit, "\n") {
-		if assignment, isSetting := strings.CutPrefix(line, "Environment="); isSetting {
-			name, value, _ := strings.Cut(assignment, "=")
-			environment[name] = value
-		}
-		if filePath, isFile := strings.CutPrefix(line, "EnvironmentFile="); isFile {
-			filePaths = append(filePaths, strings.TrimPrefix(filePath, "-"))
+	directory := t.TempDir()
+	callsPath := filepath.Join(directory, "calls")
+	currentPath := filepath.Join(directory, "current")
+	if hasACompany {
+		if errorValue := os.Mkdir(currentPath, 0o700); errorValue != nil {
+			t.Fatal(errorValue)
 		}
 	}
-	for _, filePath := range filePaths {
-		for _, line := range strings.Split(files[filePath], "\n") {
-			if name, value, isAssignment := strings.Cut(line, "="); isAssignment {
-				environment[name] = value
-			}
+	refreshExit := map[bool]string{true: "0", false: "1"}[refreshSucceeds]
+	stubs := map[string]string{
+		"systemctl": `echo "systemctl $*" >> ` + callsPath,
+		"refresh":   `echo "refresh" >> ` + callsPath + "\nexit " + refreshExit,
+	}
+	for name, body := range stubs {
+		if errorValue := os.WriteFile(filepath.Join(directory, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
 		}
 	}
-	return environment
-}
-
-func packagedUnitNamed(t *testing.T, name string) string {
-	t.Helper()
-	for _, unit := range blueclaw.CompanyPackageUnits() {
-		if unit.Name == name {
-			return unit.Contents
-		}
-	}
-	t.Fatalf("the package installs no %s", name)
-	return ""
-}
-
-func startArgument(t *testing.T, serviceName string, flag string) string {
-	t.Helper()
-	service, _ := blueclaw.CompanyHostServiceNamed(blueclaw.LinuxCompanyHostLayout(), serviceName)
-	index := slices.Index(service.Command, flag)
-	if index < 0 || index+1 >= len(service.Command) {
-		t.Fatalf("%s is started without %s", serviceName, flag)
-	}
-	return service.Command[index+1]
-}
-
-func relayFileAfterThePostInstall(t *testing.T, contents string) string {
-	t.Helper()
-	filePath := filepath.Join(t.TempDir(), "relay.env")
-	if errorValue := os.WriteFile(filePath, []byte(contents), 0o640); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	output, errorValue := exec.Command("sh", "-c", forgetThePackageSettingsInTheRelayFile(filePath)).CombinedOutput()
-	if errorValue != nil {
-		t.Fatalf("the post-install's relay file step fails: %v: %s", errorValue, output)
-	}
-	cleaned, errorValue := os.ReadFile(filePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	return string(cleaned)
-}
-
-func TestAnUpgradedHostsRelayIsPointedAtTheSocketsThePackageShips(t *testing.T) {
-	relayFile := relayFileAfterThePostInstall(t, relayFileTheFirstReleaseWrote)
-	environment := systemdEnvironment(t, packagedUnitNamed(t, blueclaw.RelayServiceName), map[string]string{
-		blueclaw.RelayEnvironmentFilePath: relayFile,
-	})
-	sockets := map[string]string{
-		"ADMIND_SOCKET_PATH":       startArgument(t, blueclaw.AdmindServiceName, "-listen-socket"),
-		"BLUECLAW_ACP_SOCKET_PATH": startArgument(t, blueclaw.BlueclawServiceName, "-acp-socket"),
-	}
-	for name, daemonPath := range sockets {
-		if environment[name] != daemonPath {
-			t.Errorf("after the upgrade the relay reads %s=%s and the daemon listens at %s, so no message reaches the agent", name, environment[name], daemonPath)
-		}
-	}
-	if environment["SUPABASE_URL"] != "https://example.supabase.test" || environment["GATEWAY_URL"] != "wss://gateway.example.test" {
-		t.Errorf("the upgrade lost the company's own settings from %s:\n%s", blueclaw.RelayEnvironmentFilePath, relayFile)
+	script := "refuse() {\n  echo \"internkim: $1\" >&2\n  exit 1\n}\n" +
+		bringTheCompanyBackOnThisRelease(currentPath, filepath.Join(directory, "refresh")) + "\n"
+	command := exec.Command("sh", "-c", script)
+	command.Env = append(os.Environ(), "PATH="+directory+":"+os.Getenv("PATH"))
+	output, errorValue := command.CombinedOutput()
+	recorded, _ := os.ReadFile(callsPath)
+	return postInstallRun{
+		exitedCleanly: errorValue == nil,
+		output:        string(output),
+		calls:         strings.Split(strings.TrimSpace(string(recorded)), "\n"),
 	}
 }
 
-func TestThePostInstallCleansTheRelayFileBeforeItRestartsTheRelay(t *testing.T) {
+func TestAnUpgradeBringsTheConnectedCompanyBackThroughRefresh(t *testing.T) {
+	run := runTheUpgradeBranch(t, true, true)
+	if !run.exitedCleanly || len(run.calls) == 0 || run.calls[0] != "refresh" {
+		t.Fatalf("an upgrade of a connected host did not refresh its company first, so the files the install rendered keep the last release's values and nothing waits for the services: %v\n%s", run.calls, run.output)
+	}
+	for _, call := range run.calls[1:] {
+		if call != "systemctl restart "+boxUnitFileName() {
+			t.Errorf("an upgrade of a connected host also ran %q; the refresh restarts the bundle itself once its files are rewritten", call)
+		}
+	}
+}
+
+func TestAnUpgradeWhoseCompanyDoesNotComeBackFailsAndSaysHowToRetry(t *testing.T) {
+	run := runTheUpgradeBranch(t, true, false)
+	if run.exitedCleanly {
+		t.Fatalf("the upgrade reported success while the company's server did not answer:\n%s", run.output)
+	}
+	if !strings.Contains(run.output, "refresh'") {
+		t.Fatalf("the refusal does not name the command that retries:\n%s", run.output)
+	}
+}
+
+func TestAnUpgradeOfAnEmptyBoxRestartsTheUnitsAndRefreshesNothing(t *testing.T) {
+	run := runTheUpgradeBranch(t, false, true)
+	if !run.exitedCleanly || len(run.calls) != 1 || run.calls[0] != "systemctl restart "+restartedUnitFileNames() {
+		t.Fatalf("an upgrade with no company ran %v\n%s", run.calls, run.output)
+	}
+}
+
+func TestThePostInstallRefreshesWithTheProgramThePackageInstalls(t *testing.T) {
 	script := maintainerScript(debianPackageFormat, postInstallScript)
-	cleanedAt := strings.Index(script, forgetThePackageSettingsInTheRelayFile(blueclaw.RelayEnvironmentFilePath))
-	if cleanedAt < 0 {
-		t.Fatalf("the post-install leaves the package's settings in %s, where they outrank the unit", blueclaw.RelayEnvironmentFilePath)
+	if !strings.Contains(script, bringTheCompanyBackOnThisRelease(blueclaw.CompanyHostCurrentPath, refreshCommand())) {
+		t.Fatalf("the post-install does not bring a connected company back:\n%s", script)
 	}
-	if cleanedAt > strings.Index(script, "systemctl restart ") {
-		t.Fatal("the post-install restarts the relay before it cleans its settings file, so the relay keeps the old values until its next restart")
+	isInstalled := false
+	for _, program := range packagedGoPrograms() {
+		isInstalled = isInstalled || program.InstalledPath()+" refresh" == refreshCommand()
 	}
-}
-
-func TestThePostInstallLeavesACurrentRelayFileAlone(t *testing.T) {
-	current := "SUPABASE_URL=https://example.supabase.test\nGATEWAY_URL=wss://gateway.example.test\n"
-	if cleaned := relayFileAfterThePostInstall(t, current); cleaned != current {
-		t.Fatalf("the post-install rewrote a relay file that carried nothing of the package's:\n%q", cleaned)
+	if !isInstalled {
+		t.Fatalf("the post-install runs %q, which is no program the package installs", refreshCommand())
 	}
 }
