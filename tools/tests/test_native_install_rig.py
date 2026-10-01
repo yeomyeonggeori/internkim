@@ -306,7 +306,7 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         return match.group(1)
 
     def test_the_modules_the_rig_imports_are_the_ones_the_build_checks(self):
-        source = self.blueclaw_source("document_interpreter.go")
+        source = self.blueclaw_source("host_python.go")
         declared = re.search(r"const documentModulesTheConversionImports = ((?:\"[^\"]*\"\s*\+?\s*)+)", source)
         self.assertIsNotNone(declared, "documentModulesTheConversionImports is no longer a string literal")
         joined = "".join(re.findall(r'"([^"]*)"', declared.group(1)))
@@ -314,12 +314,15 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
 
     def test_the_paths_the_rig_reads_are_the_ones_the_package_installs(self):
         driver = load_driver()
-        self.assertEqual(rig.DOCUMENT_INTERPRETER_VERSION, self.declared("document_interpreter.go", "DocumentInterpreterVersion"))
+        self.assertEqual(rig.HOST_PYTHON_VERSION, self.declared("host_python.go", "HostPythonVersion"))
         library = self.declared("company_host_package.go", "CompanyPackageLibraryRoot")
         layout = self.blueclaw_source("company_host_layout.go")
         for path in rig.DOCUMENT_ENVIRONMENT_PATHS:
             self.assertTrue(path.startswith(library + "/"), path)
             self.assertIn(f'layout.LibraryRoot + "{path[len(library):]}"', layout)
+        self.assertIn('return layout.PythonRoot() + "/bin"', layout)
+        self.assertIn('return layout.PythonCommandsPath() + "/python3"', layout)
+        self.assertEqual(rig.HOST_PYTHON_PATH, rig.DOCUMENT_ENVIRONMENT_PATHS[0] + "/bin/python3")
         self.assertEqual(driver.CARRIED_FONT_PATH, self.declared("company_host_package.go", "CompanyPackageDocumentFontPath"))
 
     def test_every_distribution_the_rig_boots_is_one_the_package_is_promised_to_install_on(self):

@@ -171,7 +171,7 @@ func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 			})
 			continue
 		}
-		units = append(units, CompanyPackageUnit{Name: service.Name, Contents: systemdUnitFor(service)})
+		units = append(units, CompanyPackageUnit{Name: service.Name, Contents: systemdUnitFor(layout, service)})
 	}
 	return units
 }
@@ -236,7 +236,7 @@ func companyHostOrderingFor(serviceName string) companyHostUnitOrdering {
 	return companyHostUnitOrdering{}
 }
 
-func systemdUnitFor(service CompanyHostService) string {
+func systemdUnitFor(layout CompanyHostLayout, service CompanyHostService) string {
 	ordering := companyHostOrderingFor(service.Name)
 	unit := &strings.Builder{}
 	unit.WriteString("[Unit]\nDescription=" + service.Description + "\n")
@@ -264,6 +264,7 @@ func systemdUnitFor(service CompanyHostService) string {
 	if service.WorkingDirectory != "" {
 		unit.WriteString("WorkingDirectory=" + service.WorkingDirectory + "\n")
 	}
+	unit.WriteString("Environment=PATH=" + layout.SearchPath() + "\n")
 	for _, source := range service.Environment {
 		writeSystemdEnvironment(unit, source)
 	}

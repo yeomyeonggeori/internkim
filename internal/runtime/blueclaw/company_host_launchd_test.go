@@ -192,7 +192,7 @@ func TestEveryDaemonIsGivenAPathThatHoldsWhatItShellsOutTo(t *testing.T) {
 		if !strings.Contains(daemon.Contents, "<key>PATH</key>") {
 			t.Fatalf("%s is started with launchd's own PATH, which holds neither Homebrew nor this package", daemon.FileName())
 		}
-		if !strings.Contains(daemon.Contents, escapePlistText(layout.SearchPath)) {
+		if !strings.Contains(daemon.Contents, escapePlistText(layout.SearchPath())) {
 			t.Fatalf("%s carries a PATH that is not the layout's:\n%s", daemon.FileName(), daemon.Contents)
 		}
 	}

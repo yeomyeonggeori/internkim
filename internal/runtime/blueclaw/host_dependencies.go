@@ -208,12 +208,11 @@ var hostDependencies = []HostDependency{
 		NeededBy:            []HostPart{HostPartEntrypoint},
 	},
 	{
-		DebianPackage:       "python3",
-		DnfPackages:         []string{"python3"},
-		PacmanPackages:      []string{"python"},
-		ProgramsTheHostRuns: []string{"python3"},
-		WhatAnswersItOnAMac: "the Command Line Tools Homebrew requires put python3 in /usr/bin",
-		NeededBy:            []HostPart{HostPartDocumentSkills},
+		DebianPackage:                "python3",
+		ProgramsTheHostRuns:          []string{"python3"},
+		WhatThePackageCarriesInstead: "CPython " + HostPythonVersion + ", which the install step puts first on every service's PATH",
+		WhatAnswersItOnAMac:          "the formula's post_install installs the same CPython",
+		NeededBy:                     []HostPart{HostPartDocumentSkills},
 	},
 	{
 		DebianPackage:   "libfontconfig1",
@@ -404,8 +403,8 @@ func HostPackagesToInstallFor(manager PackageManager, dependency HostDependency)
 
 // HostHomebrewDependencies is every `depends_on` line of the formula, and only
 // those. It is a shorter list than Debian's because Homebrew's PostgreSQL
-// carries contrib and macOS supplies python3, curl and the CA bundle itself;
-// none of it means the Mac needs less.
+// carries contrib and macOS supplies curl and the CA bundle itself; none of it
+// means the Mac needs less.
 func HostHomebrewDependencies() []string {
 	formulas := []string{}
 	named := map[string]bool{}

@@ -28,6 +28,7 @@ import http.server
 import importlib.machinery
 import importlib.util
 import json
+import shlex
 import sys
 import tempfile
 import threading
@@ -42,6 +43,9 @@ from native_install_rig import (  # noqa: E402
     CHECKSUMS_NAME,
     COMPANY_CONDITION_PATH,
     DOCUMENT_ENVIRONMENT_PATHS,
+    HOST_PYTHON_PATH,
+    HOST_PYTHON_VERSION,
+    OFFICE_COMMAND_PATH,
     ARCHITECTURE,
     KERNEL_IMAGE_PATH,
     RUNTIME_KERNEL,
@@ -498,6 +502,56 @@ class FamilyRig:
             f"root: {cache_as_root}\ntask user: {cache_as_task_user.stdout.strip()[-200:]}",
         )
 
+    def observe_a_requesters_python(self, step):
+        """What the agent hands a requester's command, without the agent: its own PATH, through the helper."""
+        agent_path = self.shell_value(
+            "tr '\\0' '\\n' < /proc/\"$(systemctl show -p MainPID --value blueclaw.service)\"/environ "
+            "| sed -n 's/^PATH=//p'"
+        )
+        home = f"/tmp/{TASK_USER}"
+        self.machine.shell(
+            f"id {TASK_USER} >/dev/null 2>&1 || useradd --system --shell /bin/false {TASK_USER}; "
+            f"rm -rf {home} && install -d -o {TASK_USER} -g {TASK_USER} -m 0700 {home}"
+        )
+        requester_script = (
+            "command -v python3; python3 -c 'import sys; print(sys.version.split()[0])'; "
+            f"{OFFICE_COMMAND_PATH} doc create {home}/rig.docx --title rig --paragraph rig; "
+            f"stat -c '%U %s' {home}/rig.docx; "
+            f"sed -n 's/^home = //p' {home}/.cache/internkim-skills/environments/office/pyvenv.cfg"
+        )
+        ran = self.machine.shell(
+            f"env -i HOME={home} PATH={shlex.quote(agent_path)} XDG_CACHE_HOME={home}/.cache UV_PYTHON_DOWNLOADS=never "
+            f"{HELPER_PATH} exec --uid \"$(id -u {TASK_USER})\" --gid \"$(id -g {TASK_USER})\" --groups '' --cwd {home} "
+            f"-- /bin/sh -c {shlex.quote(requester_script)} 2>&1",
+            timeout_seconds=1800,
+        )
+        lines = ran.stdout.strip().splitlines()
+        distribution_python = self.shell_value("ls /usr/bin/python3 2>/dev/null || echo none")
+        step.observe(
+            f"a requester's python3 is the host's CPython {HOST_PYTHON_VERSION}",
+            f"`command -v python3` and its version, run as {TASK_USER} through {HELPER_PATH} with the PATH "
+            "blueclaw.service's main process carries",
+            "blueclaw hands every command a requester runs its own PATH, so the unit's PATH is what decides which "
+            "interpreter a skill gets; a distribution python3 there would build every skill environment on it",
+        ).record(
+            agent_path.startswith(HOST_PYTHON_PATH.rsplit("/", 1)[0] + ":") and lines[:2] == [HOST_PYTHON_PATH, HOST_PYTHON_VERSION],
+            f"agent PATH: {agent_path or 'none'}\nrequester saw: {' | '.join(lines[:2])}\n"
+            f"the distribution's /usr/bin/python3: {distribution_python}",
+        )
+        office_result = next((line for line in lines if '"status"' in line), "")
+        step.observe(
+            "the office skill builds a fresh environment on that interpreter, downloads no interpreter, and writes a .docx",
+            f"`office doc create` as {TASK_USER} with UV_PYTHON_DOWNLOADS=never, the file's owner, and the "
+            "`home` its skill environment's pyvenv.cfg names",
+            "skill_runtime makes the skill's environment with `uv venv --python <sys.executable>`, so an interpreter "
+            "the requester cannot read, or one uv would have to fetch, fails here first",
+        ).record(
+            '"ok"' in office_result
+            and any(line.startswith(f"{TASK_USER} ") for line in lines)
+            and lines[-1:] != [] and lines[-1].startswith(DOCUMENT_ENVIRONMENT_PATHS[0] + "/"),
+            "\n".join(lines[-12:]) or "nothing ran",
+        )
+
     def observe_removal(self, step):
         shipped = [path for path in self.shell_value(self.family.files_command).split() if path.startswith(("/usr/", "/lib/"))]
         removed = self.machine.shell(self.family.remove_command, timeout_seconds=900)
@@ -592,7 +646,7 @@ def main():
     parser.add_argument("--name", default=f"internkim-familyrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
     parser.add_argument(
-        "--stop-after", type=int, default=5, metavar="STEP",
+        "--stop-after", type=int, default=6, metavar="STEP",
         help="stop once this step has run, so a guest can be examined before the next one changes it",
     )
     parser.add_argument("--kernel", default=str(RUNTIME_KERNEL if ARCHITECTURE == "amd64" else KERNEL_IMAGE_PATH), help="the guest kernel (default: %(default)s)")
@@ -627,7 +681,9 @@ def main():
             if options.stop_after >= 4:
                 rig.observe_the_data_services(rig.step(4, "the database and the cache keep to their sockets and their accounts"))
             if options.stop_after >= 5:
-                rig.observe_removal(rig.step(5, "removing the package leaves the company"))
+                rig.observe_a_requesters_python(rig.step(5, "a requester's python3 is the host's, and a skill runs on it"))
+            if options.stop_after >= 6:
+                rig.observe_removal(rig.step(6, "removing the package leaves the company"))
         except RigFailure as failure:
             print(f"✗ native install rig ({options.family})\n    {failure}", file=sys.stderr)
             return 2

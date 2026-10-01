@@ -31,13 +31,11 @@ type CompanyHostLayout struct {
 	// AgentHomePath is the home directory of the unprivileged account the agent
 	// runs as. /home is an autofs mount point on macOS, so it is not one there.
 	AgentHomePath string
-	// SearchPath is the PATH the services are given, for a supervisor that does
-	// not inherit a useful one. Empty means the supervisor's own default is
-	// already right, which under systemd it is: everything the bundle shells out to
-	// is in /usr/bin. launchd's default is /usr/bin:/bin:/usr/sbin:/sbin, which
-	// holds neither Homebrew's prefix nor this package's own tree, so a service
-	// that shells out to psql, git, jq, bun or uv would find none of them.
-	SearchPath string
+	// ProgramDirectories are where the services find the programs they shell
+	// out to, after the host's own Python. launchd's default is
+	// /usr/bin:/bin:/usr/sbin:/sbin, which holds neither Homebrew's prefix nor
+	// this package's own tree, so a Mac names both.
+	ProgramDirectories []string
 	// DatabaseSocketDirectory and CacheSocketPath are where the host's own
 	// database and cache answer, on a machine whose supervisor the package
 	// installs units into. Empty means the machine's own PostgreSQL and Redis
@@ -71,6 +69,8 @@ func LinuxCompanyHostLayout() CompanyHostLayout {
 		RunPath:       CompanyHostRunPath,
 		AgentHomePath: BlueclawHomePath,
 
+		ProgramDirectories: []string{"/usr/sbin", "/usr/bin", "/sbin", "/bin"},
+
 		DatabaseSocketDirectory: CompanyHostDatabaseSocketDirectory,
 		CacheSocketPath:         CompanyHostCacheSocketPath,
 	}
@@ -103,10 +103,10 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 		BinaryRoot:  keg + "/libexec",
 		HelperRoot:  keg + "/libexec",
 		LibraryRoot: keg + "/libexec",
-		SearchPath: strings.Join([]string{
+		ProgramDirectories: []string{
 			keg + "/libexec", prefix + "/bin", prefix + "/sbin",
 			"/usr/bin", "/bin", "/usr/sbin", "/sbin",
-		}, ":"),
+		},
 		WorkspacePath: macCompanyHostWorkspacePath,
 		RunPath:       macCompanyHostRunPath,
 		AgentHomePath: macBlueclawHomePath,
@@ -140,8 +140,27 @@ func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
 }
 
-func (layout CompanyHostLayout) DocumentInterpreterRoot() string {
+// SearchPath is the PATH every service is started with. The agent hands it on
+// to every command a requester runs, so the host's own Python comes first and
+// a requester's `python3` is that interpreter on every machine the package
+// installs on.
+func (layout CompanyHostLayout) SearchPath() string {
+	return strings.Join(append([]string{layout.PythonCommandsPath()}, layout.ProgramDirectories...), ":")
+}
+
+func (layout CompanyHostLayout) PythonRoot() string {
 	return layout.LibraryRoot + "/python"
+}
+
+// PythonCommandsPath holds python3 and python, which lead to the interpreter
+// through uv's minor-version link, so the path does not name a build and a
+// patch release does not move it.
+func (layout CompanyHostLayout) PythonCommandsPath() string {
+	return layout.PythonRoot() + "/bin"
+}
+
+func (layout CompanyHostLayout) PythonPath() string {
+	return layout.PythonCommandsPath() + "/python3"
 }
 
 func (layout CompanyHostLayout) DocumentVirtualEnvironmentPath() string {
