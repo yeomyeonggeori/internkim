@@ -127,10 +127,14 @@ export async function memberOfCompanyByEmail(
 		.from('member')
 		.select('id')
 		.eq('company_id', companyID)
-		.ilike('email', email.trim())
+		.ilike('email', likePatternMatchingOnly(email.trim()))
 		.maybeSingle<{ id: string }>();
 	if (error) throw new Error(error.message);
 	return data?.id ?? null;
+}
+
+function likePatternMatchingOnly(literal: string): string {
+	return literal.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
 // Who to tell is a question about people, and the company's own directory is
