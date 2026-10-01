@@ -608,7 +608,7 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 
 func releaseBinaryBuildFlags(repositoryRootPath string) ([]string, error) {
 	revision := releaseBinaryRevision(repositoryRootPath)
-	stamped, errorValue := admindStampFlags(revision, revision)
+	stamped, errorValue := deviceAdmindStampFlags(revision, revision)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -627,16 +627,23 @@ func releaseBinaryRevision(repositoryRootPath string) string {
 // the only way to see whether an upgrade moved the running process rather than the
 // file. A build that leaves these at their defaults answers `unknown` and that check
 // can never be made.
-func admindStampFlags(buildID string, revision string) (string, error) {
+func admindStampFlags(buildID string, revision string) string {
+	return strings.Join([]string{
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
+		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
+	}, " ")
+}
+
+// deviceAdmindStampFlags is for the device's admind, which can start with neither a
+// flag nor a record file naming its central plane and so carries one compiled in.
+// A host package learns its plane from the company's connection file, so the
+// packages and the keg build from a clone with no vault at all.
+func deviceAdmindStampFlags(buildID string, revision string) (string, error) {
 	centralPlaneFlags, errorValue := centralPlaneStampFlags()
 	if errorValue != nil {
 		return "", errorValue
 	}
-	flags := []string{
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
-	}
-	return strings.Join(append(flags, centralPlaneFlags...), " "), nil
+	return admindStampFlags(buildID, revision) + " " + strings.Join(centralPlaneFlags, " "), nil
 }
 
 func centralPlaneStampFlags() ([]string, error) {
