@@ -3,9 +3,16 @@
 	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
+	import * as Select from '$lib/components/ui/select';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { answerConsent, consentRequestOf, type ConsentRequest } from '$lib/connected-apps';
+	import { allowConnection, answerConsent, consentRequestOf, type ConsentRequest } from '$lib/connected-apps';
+	import {
+		connectedAppPermissions,
+		unchosenConnectedAppPermission,
+		type ConnectedAppPermission
+	} from '$lib/public-api-permission';
 	import { hostOf, returnsToThisComputer } from '$lib/consent-return';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { consentText } from './consent-text';
@@ -18,6 +25,12 @@
 	let request = $state<ConsentRequest | null>(null);
 	let isAnswering = $state(false);
 	let failure = $state('');
+	let permission = $state<ConnectedAppPermission>(unchosenConnectedAppPermission);
+
+	const permissionLabels = $derived<Record<ConnectedAppPermission, string>>({
+		read: text.reads,
+		write: text.writes
+	});
 
 	$effect(() => {
 		if (!data.session?.authenticated || !authorizationID) return;
@@ -28,10 +41,16 @@
 	});
 
 	async function answer(isApproved: boolean) {
+		if (request?.kind !== 'asking') return;
 		isAnswering = true;
 		failure = '';
 		try {
-			location.assign(await answerConsent(authorizationID, isApproved));
+			const clientID = request.details.client.id;
+			location.assign(
+				isApproved
+					? await allowConnection(authorizationID, clientID, permission)
+					: await answerConsent(authorizationID, false)
+			);
 		} catch (refusal) {
 			failure = refusal instanceof Error ? refusal.message : text.unreadable;
 			isAnswering = false;
@@ -65,6 +84,17 @@
 			{#if request?.kind === 'asking'}
 				<Card.Content class="space-y-4">
 					<p class="text-sm">{text.grants}</p>
+					<Field.Field>
+						<Field.Label for="connected-app-permission">{text.permission}</Field.Label>
+						<Select.Root type="single" bind:value={permission} disabled={isAnswering}>
+							<Select.Trigger id="connected-app-permission">{permissionLabels[permission]}</Select.Trigger>
+							<Select.Content>
+								{#each connectedAppPermissions as choice (choice)}
+									<Select.Item value={choice} label={permissionLabels[choice]}>{permissionLabels[choice]}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</Field.Field>
 					{#if returnsToThisComputer(request.details.redirect_uri)}
 						<p class="text-sm text-muted-foreground">
 							{text.returnsTo.replace('{host}', hostOf(request.details.redirect_uri))}

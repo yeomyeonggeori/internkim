@@ -11,3 +11,13 @@ export function publicAPIPermissionOf(presented: unknown): PublicAPIPermission |
 export function reachesPermission(held: PublicAPIPermission, asked: PublicAPIPermission): boolean {
 	return publicAPIPermissions.indexOf(asked) <= publicAPIPermissions.indexOf(held);
 }
+
+export const connectedAppPermissions = ['read', 'write'] as const satisfies readonly PublicAPIPermission[];
+
+export type ConnectedAppPermission = (typeof connectedAppPermissions)[number];
+
+export const unchosenConnectedAppPermission: ConnectedAppPermission = 'read';
+
+export function connectedAppPermissionOf(presented: unknown): ConnectedAppPermission | null {
+	return connectedAppPermissions.find((permission) => permission === presented) ?? null;
+}
