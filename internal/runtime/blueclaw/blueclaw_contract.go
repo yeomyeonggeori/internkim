@@ -189,6 +189,17 @@ const (
 	BuzzPremigrateSnapshotPath = "/root/.internkim/state/buzz-premigrate.sql"
 )
 
+// Who may connect to a socket in the run directory is said by its mode, its
+// owner and its group; the run directory itself only lets accounts pass through.
+const (
+	CapabilitySocketMode = 0o660
+	AdmindSocketMode     = 0o660
+	// BlueclawACPSocketMode is what blueclaw's internal/acpsession chmods its
+	// socket to, held there by TestTheSocketLetsTheGroupItsDirectoryGivesItConnect.
+	// It is written down here because that package cannot be imported.
+	BlueclawACPSocketMode = 0o660
+)
+
 var secretsTheBlueclawUserMustNotRead = []string{
 	"/root/.internkim/secrets/openrouter-api-key",
 	BlueclawMattermostTokenPath,

@@ -168,7 +168,7 @@ func companyHostFiles(layout blueclaw.CompanyHostLayout, directoryPath string, c
 		{path: filepath.Join(secretsPath, messengerBridgeFileName), entries: []EnvironmentEntry{
 			{"CHATD_BUZZ_PRIVATE_KEY", identity.AgentPrivateKey},
 		}},
-		{path: blueclaw.RelayEnvironmentFilePath, owner: blueclaw.RelayUserName, entries: relayEnvironment(connection)},
+		{path: blueclaw.RelayEnvironmentFilePath, owner: blueclaw.RelayUserName, entries: relayEnvironment(layout, connection)},
 	}
 	files := []companyFile{}
 	for _, file := range environmentFiles {
@@ -213,7 +213,7 @@ func companyEnvironment(layout blueclaw.CompanyHostLayout, password string, conn
 // file, because it runs unprivileged and outlives the agent. Its settings and
 // its own copy of the agent key sit in the configuration directory its unit
 // already names.
-func relayEnvironment(connection Connection) []EnvironmentEntry {
+func relayEnvironment(layout blueclaw.CompanyHostLayout, connection Connection) []EnvironmentEntry {
 	return []EnvironmentEntry{
 		{"SUPABASE_URL", connection.CentralPlane.ProjectURL},
 		{"SUPABASE_PUBLISHABLE_KEY", connection.CentralPlane.PublishableKey},
@@ -223,7 +223,8 @@ func relayEnvironment(connection Connection) []EnvironmentEntry {
 		{"AGENT_API_KEY_PATH", blueclaw.RelayAgentKeyPath},
 		{"CHATD_BASE_URL", blueclaw.CompanyHostChatdEndpoint},
 		{"ADMIND_BASE_URL", "http://" + blueclaw.CompanyHostAdmindListenAddress},
-		{"BLUECLAW_ACP_SOCKET_PATH", blueclaw.CompanyHostACPSocketPath},
+		{"ADMIND_SOCKET_PATH", layout.AdmindSocketPath()},
+		{"BLUECLAW_ACP_SOCKET_PATH", layout.ACPSocketPath()},
 		{"WORKSPACE_ROOT_PATH", blueclaw.CompanyHostWorkspacePath},
 	}
 }

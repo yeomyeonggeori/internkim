@@ -18,7 +18,7 @@ const (
 	requesterEmailHeader      = "X-INTERNKIM-REQUESTER-EMAIL"
 	requesterPermissionHeader = "X-INTERNKIM-REQUESTER-PERMISSION"
 
-	requesterSocketMode      = 0o660
+	requesterSocketMode      = blueclawruntime.AdmindSocketMode
 	requesterSocketOwnerName = blueclawruntime.RelayUserName
 )
 

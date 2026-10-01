@@ -224,6 +224,7 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 			"--local-inference-mode", "remote",
 			"--blueclaw-url", BlueclawBaseURL,
 			"--admind-url", "http://" + CompanyHostAdmindListenAddress,
+			"--admind-socket", layout.AdmindSocketPath(),
 			"--chatd-endpoint", CompanyHostChatdEndpoint,
 			"--chatd-platform", "${MESSENGER_PLATFORM}",
 			"--device-browser", layout.BinaryPath(DeviceBrowserName),
@@ -269,6 +270,7 @@ func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {
 		Command: []string{
 			layout.BinaryPath(AdmindName),
 			"-listen", CompanyHostAdmindListenAddress,
+			"-listen-socket", layout.AdmindSocketPath(),
 			"-capability-socket", layout.CapabilitySocketPath(),
 			"-chatd-endpoint", CompanyHostChatdEndpoint,
 			"-chatd-platform", "${MESSENGER_PLATFORM}",

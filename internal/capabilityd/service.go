@@ -326,7 +326,7 @@ func (service Service) listen() (net.Listener, error) {
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	if errorValue := os.Chmod(socketPath, 0o660); errorValue != nil {
+	if errorValue := os.Chmod(socketPath, blueclaw.CapabilitySocketMode); errorValue != nil {
 		_ = listener.Close()
 		return nil, errorValue
 	}

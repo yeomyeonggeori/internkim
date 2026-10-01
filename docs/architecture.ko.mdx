@@ -154,7 +154,7 @@ WebSocket을 열고, Worker는 그 토큰을 프로젝트의 JWKS로 검증해 �
 |---|---|---|---|
 | 릴레이 (`internkim-relay`) | 바깥으로만; 커넥터를 위해 `127.0.0.1:18091` | 앱의 호출에 답하고, 메시지를 에이전트의 턴으로 바꾸고, 에이전트에게 도구를 서빙 | `host/relay/` |
 | 커넥터 (`chatd`) | `127.0.0.1:18090` | Buzz용 메신저 어댑터 | `.dependency/blueclaw/chatd/` |
-| 에이전트 (`blueclaw`) | `/run/internkim/blueclaw-acp.sock`; 관리 API는 `127.0.0.1:8080` | ACP 에이전트: 실행, 승인, 태스크 원장, 기억 | `.dependency/blueclaw/` |
+| 에이전트 (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; 관리 API는 `127.0.0.1:8080` | ACP 에이전트: 실행, 승인, 태스크 원장, 기억 | `.dependency/blueclaw/` |
 | `internkim-capabilityd` | `/run/internkim/capability.sock` | 프로바이더 자격증명을 쥠: 모델 호출, 임베딩, 메일·사이트·웹·브라우저 도구 | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), 요청자마다 하나 | `127.0.0.1:9230`부터 | 컴패니언이 없을 때 공개 페이지의 단순한 텍스트를 탐색하는 디바이스 브라우저. capabilityd가 사람마다 처음 쓸 때 그 사람의 프로필로 띄우고, 쓰지 않으면 내립니다 | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | 워크스페이스 화면, 명부, 그리고 평면이 호스트로 실어 오는 회사 도구 | `cmd/internkim-admind/`, `internal/admind/` |
@@ -246,7 +246,7 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
    릴레이는 그것을 `RELAY_STATE_DIR` 아래에 쓰고, 디스크에 남은 뒤에야
    `202`로 답합니다. chatd는 그 답을 받을 때까지 다시 보내므로, 어느 쪽
    프로세스가 재시작해도 메시지는 살아남습니다.
-2. 릴레이는 `/run/internkim/blueclaw-acp.sock`으로 대화마다 ACP 세션 하나를
+2. 릴레이는 `/run/internkim/acp/blueclaw-acp.sock`으로 대화마다 ACP 세션 하나를
    열고 메시지를 프롬프트로 보냅니다. 세션은 누가 묻는지와 어디로 답할지를
    밝히고, 에이전트의 도구 서버로 릴레이 자신의 `/mcp/<ticket>`을 지목합니다.
 3. blueclaw가 턴을 돌립니다. 그 주소로 오는 도구 호출을 릴레이는 요청자를

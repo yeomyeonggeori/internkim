@@ -111,6 +111,39 @@ class CompanyRuntimeTests(unittest.TestCase):
             runtime = json.loads(output_path.read_text())
         self.assertEqual(runtime["database"]["connectionString"], address)
 
+    def test_the_work_directory_keeps_nothing_but_the_runtime_document(self):
+        """The host renders into its run directory, which the relay's account may
+        pass through, and the rendered template carries the database password."""
+        repository_root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory)
+            capabilityd_path = temporary_path / "capabilityd"
+            capabilityd_path.write_text(
+                "#!/bin/sh\n"
+                "case \"$1\" in\n"
+                "--print-capabilities) printf '{\"tools\":[]}' ;;\n"
+                "--print-model-ladder) printf '{\"embedding\":{\"model\":\"example/embedding\"}}' ;;\n"
+                "*) exit 1 ;;\n"
+                "esac\n"
+            )
+            capabilityd_path.chmod(capabilityd_path.stat().st_mode | stat.S_IXUSR)
+            run_directory = temporary_path / "run"
+            subprocess.run(
+                [
+                    str(repository_root / "tools/render-company-runtime"),
+                    "--template", str(repository_root / "host/runtime.template.json"),
+                    "--capabilityd", str(capabilityd_path),
+                    "--out", str(run_directory / "runtime.json"),
+                    "--work", str(run_directory),
+                ],
+                check=True,
+                env=os.environ | {"DATABASE_URL": "postgres://u:secret@localhost/db", "MESSENGER_PLATFORM": "buzz"},
+                capture_output=True,
+                text=True,
+            )
+            left_behind = sorted(entry.name for entry in run_directory.iterdir())
+        self.assertEqual(left_behind, ["runtime.json"])
+
 
 if __name__ == "__main__":
     unittest.main()

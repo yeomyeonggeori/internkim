@@ -73,7 +73,6 @@ const (
 	CompanyHostRunModelKeyPath             = "/run/internkim/secrets/openrouter-key"
 	CompanyHostRuntimeDocument             = "/run/internkim/runtime.json"
 	CompanyHostPolicyDocument              = "/run/internkim/policy.json"
-	CompanyHostACPSocketPath               = "/run/internkim/blueclaw-acp.sock"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 
@@ -86,6 +85,18 @@ const (
 	// prepare service re-creates it, and `internkim install` creates it on a box
 	// that never saw a package; all three name this.
 	CompanyHostStateRootMode = 0o700
+
+	// The run directory is the agent's group's, and others may pass through it
+	// without listing it, because the relay runs as its own account and has to
+	// reach two sockets inside: admind's, which admind gives to the relay, and
+	// blueclaw's, which sits in a directory of its own. Every entry keeps its own
+	// mode, so passing through grants nothing a name inside does not, and the
+	// prepare script runs under umask 077 so what it writes there grants others
+	// nothing. The relay is never put in the blueclaw group, which reads the keys.
+	CompanyHostRunPathMode = 0o771
+	// The ACP socket's directory is blueclaw's so blueclaw can create the socket,
+	// and setgid with the relay's group so that socket is the relay's group's.
+	CompanyHostACPSocketDirectoryMode = 0o2750
 
 	// The one file an operator is expected to open. Every value in it is the
 	// default the unit would use anyway, and it is the single place the object
@@ -354,9 +365,11 @@ set -e
 
 [ -r %[2]s ] || { echo "no company identity at %[2]s; run internkim install" >&2; exit 1; }
 
-install -d -o root -g %[3]s -m 0770 %[4]s
+umask 077
+install -d -o root -g %[3]s -m %[26]s %[4]s
+install -d -o %[3]s -g %[27]s -m %[28]s %[29]s
 install -d -o root -g %[3]s -m 0750 %[5]s
-[ -s %[25]s ] || (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s)
+[ -s %[25]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s
 install -o root -g %[3]s -m 0440 %[25]s %[6]s
 [ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
 install -d -o %[3]s -g %[3]s -m 0750 %[9]s
@@ -414,5 +427,9 @@ fi
 		layout.PolicyDocumentPath(),
 		layout.POSIXHelperPath(),
 		fmt.Sprintf("%04o", CompanyHostStateRootMode),
-		CompanyHostAssertionKeyPath)
+		CompanyHostAssertionKeyPath,
+		fmt.Sprintf("%04o", CompanyHostRunPathMode),
+		RelayUserName,
+		fmt.Sprintf("%04o", CompanyHostACPSocketDirectoryMode),
+		layout.ACPSocketDirectoryPath())
 }
