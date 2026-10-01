@@ -50,25 +50,25 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, statu
   (
     '44000000-0000-0000-0000-0000000000e1',
     '44000000-0000-0000-0000-0000000000a2',
-    'leave', true, true, -1, 'requested',
+    'annual', true, true, -1, 'requested',
     '2026-07-01 00:00:00+09', '2026-07-01 23:59:00+09'
   ),
   (
     '44000000-0000-0000-0000-0000000000e2',
     '44000000-0000-0000-0000-0000000000a2',
-    'leave', true, true, -1, 'approved',
+    'annual', true, true, -1, 'approved',
     '2026-07-02 00:00:00+09', '2026-07-02 23:59:00+09'
   ),
   (
     '44000000-0000-0000-0000-0000000000e3',
     '44000000-0000-0000-0000-0000000000a2',
-    'leave', true, true, -1, 'requested',
+    'annual', true, true, -1, 'requested',
     '2026-07-03 00:00:00+09', '2026-07-03 23:59:00+09'
   ),
   (
     '44000000-0000-0000-0000-0000000000e4',
     '44000000-0000-0000-0000-0000000000a2',
-    'leave', true, true, -1, 'requested',
+    'annual', true, true, -1, 'requested',
     '2026-07-04 00:00:00+09', '2026-07-04 23:59:00+09'
   );
 
@@ -191,7 +191,7 @@ begin
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
   values (
     '44000000-0000-0000-0000-0000000000a2',
-    'leave', true, true, -1, 'approved',
+    'annual', true, true, -1, 'approved',
     '2026-06-01 00:00:00+09', '2026-06-01 23:59:00+09'
   );
   select count(*) into recorded from public.leave

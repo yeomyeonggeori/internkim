@@ -50,8 +50,9 @@ select lives_ok($$select pg_temp.take('unpaid', 0.25, date '2030-03-12')$$,
 select throws_ok($$select pg_temp.take('unpaid', 0.3, date '2030-03-12')$$, '22023', null,
   'and nothing finer, since no type can express it');
 
-select lives_ok($$select pg_temp.take('경조사', 0.5, date '2030-03-13')$$,
-  'a kind the policy names no type for is left alone');
+select throws_ok($$select pg_temp.take('경조사', 0.5, date '2030-03-13')$$, '22023',
+  'leave kind 경조사 is not one this company registers',
+  'a kind the policy names no type for is refused');
 
 -- A request written before the type narrowed its units is still decided, and a
 -- correction that changes what it consumes is asked again.

@@ -24,7 +24,7 @@ insert into public.leave (id, member_id, kind, is_paid, is_deducted, days, statu
   (
     '45000000-0000-0000-0000-0000000000e1',
     '45000000-0000-0000-0000-0000000000a1',
-    'leave', true, true, -4, 'approved',
+    'annual', true, true, -4, 'approved',
     '2026-12-30 00:00:00+09', '2027-01-03 00:00:00+09'
   );
 

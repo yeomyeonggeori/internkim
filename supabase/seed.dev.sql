@@ -218,7 +218,7 @@ where member.company_id = '000000cc-0000-0000-0000-000000000001'
   and not exists (select 1 from public.leave where days >= 0);
 
 insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at, note)
-select '000000ee-0000-0000-0000-000000000003', '연차', true, -2, 'requested',
+select '000000ee-0000-0000-0000-000000000003', 'annual', true, -2, 'requested',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '7 days') at time zone 'Asia/Seoul',
   (date_trunc('day', now() at time zone 'Asia/Seoul') + interval '9 days') at time zone 'Asia/Seoul',
   '가족 행사'

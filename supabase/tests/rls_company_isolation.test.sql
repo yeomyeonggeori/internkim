@@ -44,7 +44,7 @@ insert into public.task (company_id, title, starts_at, ends_at, is_event) values
   ('00000000-0000-0000-0000-0000000000b0', 'Other company meeting', '2026-08-04 09:00+09', '2026-08-04 10:00+09', true);
 
 insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at) values
-  ('000000aa-0000-0000-0000-000000000001', '연차', true, -3, 'requested', '2026-08-10 00:00+09', '2026-08-12 23:59+09');
+  ('000000aa-0000-0000-0000-000000000001', 'annual', true, -3, 'requested', '2026-08-10 00:00+09', '2026-08-12 23:59+09');
 
 select lives_ok($block$do $$
 declare
@@ -446,7 +446,7 @@ begin
 
   begin
     insert into public.leave (member_id, kind, is_paid, days, starts_at, ends_at)
-    values ('000000aa-0000-0000-0000-000000000002', '무급휴가', false, -2, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
+    values ('000000aa-0000-0000-0000-000000000002', 'unpaid', false, -2, '2026-09-01 00:00+09', '2026-09-02 23:59+09');
   exception when insufficient_privilege then
     colleague_request_blocked := true;
   end;
@@ -775,12 +775,12 @@ begin
     'an approved leave is deducted';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
-    values (veteran, '반차', true, -0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
+    values (veteran, 'annual', true, -0.5, 'approved', '2026-08-13 09:00+09', '2026-08-13 13:00+09');
   assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'a half day consumes half a day';
 
   insert into public.leave (member_id, kind, is_paid, is_deducted, days, status, starts_at, ends_at)
-    values (veteran, '경조사', true, false, -3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
+    values (veteran, 'paid', true, false, -3, 'approved', '2026-08-17 00:00+09', '2026-08-19 23:59+09');
   assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'leave granted outside the entitlement does not consume it';
 
@@ -788,7 +788,7 @@ begin
     'last year is counted separately';
 
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at)
-    values (veteran, '연차', true, -1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
+    values (veteran, 'annual', true, -1, 'approved', '2027-01-01 09:00+09', '2027-01-01 18:00+09');
   assert internal.member_leave_remaining(veteran, 2026) = 16.5,
     'a new year leave in Seoul must not be charged to the year that is still running in UTC';
   assert internal.member_leave_remaining(veteran, 2027) = 19,
@@ -1248,7 +1248,7 @@ declare
   reason_refused boolean := false;
 begin
   insert into public.leave (member_id, kind, is_paid, days, status, starts_at, ends_at, note)
-    values ('0f0000aa-0000-0000-0000-000000000002', '연차', true, -1, 'requested',
+    values ('0f0000aa-0000-0000-0000-000000000002', 'annual', true, -1, 'requested',
             '2026-09-01 00:00+09', '2026-09-01 23:59+09', 'a reason of their own');
 
   set local role authenticated;
