@@ -37,7 +37,7 @@ time it runs, from the system `python3`. The image carries the rest:
 |---|---|
 | **fonts-nanum** | `NanumGothic.ttf` is the one system path every skill that embeds a font into a PDF looks for; without it fpdf2 falls back to DejaVu, which has no Hangul, and writes the file anyway |
 | **python3 and uv** | the interpreter and the installer each skill's bootstrap runs |
-| **the conversion venv** | `/opt/internkim/document-venv`, resolved from `assets/document-conversion/requirements.txt` at build time. capabilityd runs `file_read` conversions under it (`--file-read-python`); the skills do not use it and it is not on the requester's PATH |
+| **the conversion venv** | `/opt/internkim/document-venv`, on uv's pinned CPython, synced from the hashed lock `assets/document-conversion/requirements.txt` when the image is built (and by the package's install step on a native host). capabilityd runs `file_read` conversions under it (`--file-read-python`) and never resolves anything itself; the skills do not use it and it is not on the requester's PATH |
 
 Each absence produces a plausible file rather than an error, so the image build
 refuses over it: `entrypoint.sh --check-programs` names every missing piece and

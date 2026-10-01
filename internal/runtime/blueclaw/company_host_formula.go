@@ -88,13 +88,8 @@ type HomebrewBottle struct {
 	// grows with every macOS release.
 	Tag string
 	// Cellar is what the bottle may be poured into. It is :any_skip_relocation
-	// because nothing in the keg names the prefix: the programs are static, the
-	// interpreter is python-build-standalone and finds itself through
-	// @executable_path, and the one thing that would have named an absolute
-	// path — the document virtualenv — is built by the install block after the
-	// pour. Saying anything else makes Homebrew run fix_dynamic_linkage over
-	// the keg, which cannot rewrite a Python wheel's compiled module and fails
-	// the pour outright.
+	// because nothing in the keg names the prefix: the programs are static, and
+	// the document environment is built by post_install after the pour.
 	Cellar string
 	SHA256 string
 }
@@ -135,16 +130,7 @@ func HomebrewFormula(request HomebrewFormulaRequest) (string, error) {
 	return formula.String(), nil
 }
 
-const (
-	companyPackageLicense = "Apache-2.0"
-
-	// The two names the keg and the layout agree on. They are here because the
-	// formula's Ruby names them relative to libexec and CompanyHostLayout names
-	// them absolutely, and a third spelling is how they drift apart.
-	documentVirtualEnvironmentDirectoryName = "document-venv"
-	documentRequirementsFileName            = "document-requirements.txt"
-	documentWheelDirectoryName              = "document-wheels"
-)
+const companyPackageLicense = "Apache-2.0"
 
 func writeHomebrewBottleBlock(formula *strings.Builder, rootURL string, bottles []HomebrewBottle) {
 	if len(bottles) == 0 {
@@ -168,23 +154,11 @@ func writeHomebrewDependencies(formula *strings.Builder) {
 	formula.WriteString("  depends_on :macos\n\n")
 }
 
-// Installing the keg is a copy. Building the document virtualenv is not part of
-// it, and the reason is that a bottle is poured rather than installed: Homebrew
-// runs `install` only when it builds from source, and runs `post_install` after
-// either. A virtualenv created in `install` would exist on a Mac that built the
-// formula and be missing on every Mac that poured it.
-//
-// It is built on the machine rather than shipped for two reasons that are both
-// about absolute paths. A virtualenv's pyvenv.cfg names its interpreter
-// absolutely, so one made at release time names the directory the release built
-// in and nothing else. And a Python wheel's compiled module carries no header
-// padding, so Homebrew's relocation cannot rewrite its install name and a bottle
-// holding one refuses to pour outright: "Updated load commands do not fit in the
-// header of …/_anydoc.abi3.so".
-//
-// Nothing is resolved on the machine, though. The keg carries the exact wheels
-// the release resolved, so this is --no-index against a directory: offline,
-// deterministic, and the same versions on every Mac that installs the release.
+// Installing the keg is a copy. The conversion environment is built in
+// post_install because Homebrew runs `install` only when it builds from source
+// and `post_install` after a pour as well. It is named through the opt link,
+// which Homebrew points at the new keg before post_install runs, so the
+// environment's interpreter path survives the next upgrade's keg.
 func writeHomebrewInstallBlock(formula *strings.Builder) {
 	formula.WriteString("  def install\n")
 	formula.WriteString("    bin.install Dir[\"bin/*\"]\n")
@@ -192,22 +166,21 @@ func writeHomebrewInstallBlock(formula *strings.Builder) {
 	formula.WriteString("  end\n\n")
 
 	formula.WriteString("  def post_install\n")
-	formula.WriteString("    venv = libexec/" + rubyString(documentVirtualEnvironmentDirectoryName) + "\n")
-	formula.WriteString("    return if (venv/\"bin/python\").exist?\n")
-	formula.WriteString("\n")
-	formula.WriteString("    system libexec/" + rubyString(PackageResolverName) +
-		", \"venv\", \"--python\", libexec/" + rubyString(documentInterpreterDirectoryName+"/bin/python"+DocumentInterpreterMinor) + ", venv\n")
-	formula.WriteString("    system libexec/" + rubyString(PackageResolverName) +
-		", \"pip\", \"install\", \"--python\", venv/\"bin/python\", \"--no-index\", " +
-		"\"--find-links\", libexec/" + rubyString(documentWheelDirectoryName) + ", " +
-		"\"--requirements\", libexec/" + rubyString(documentRequirementsFileName) + "\n")
+	for _, command := range MacCompanyHostLayout(homebrewPrefixInRuby).DocumentEnvironmentCommands() {
+		formula.WriteString("    system " + rubyArguments(command.Arguments) + "\n")
+	}
 	formula.WriteString("  end\n\n")
 }
 
-// The default prefix on Apple silicon. It is named here only so the install
-// block can tell "this is the prefix the bottle was resolved against" from
-// "this is somewhere else and the interpreter has to be resolved again".
-const defaultHomebrewPrefix = "/opt/homebrew"
+const homebrewPrefixInRuby = "#{HOMEBREW_PREFIX}"
+
+func rubyArguments(arguments []string) string {
+	quoted := make([]string, len(arguments))
+	for index, argument := range arguments {
+		quoted[index] = rubyString(argument)
+	}
+	return strings.Join(quoted, ", ")
+}
 
 // The caveats say the two things `brew install` cannot do: the second line, and
 // the casks a formula is forbidden to depend on.
@@ -236,8 +209,6 @@ func writeHomebrewTestBlock(formula *strings.Builder) {
 	formula.WriteString("  test do\n")
 	formula.WriteString("    assert_predicate libexec/" + rubyString(POSIXHelperProgramName) + ", :exist?\n")
 	formula.WriteString("    assert_predicate libexec/\"skills\", :directory?\n")
-	formula.WriteString("    system libexec/" + rubyString(documentVirtualEnvironmentDirectoryName+"/bin/python") +
-		", \"-c\", " + rubyString(documentModulesTheConversionImports) + "\n")
 	formula.WriteString("    assert_match " + rubyString(CompanyPackageName) +
 		", shell_output(\"#{bin}/" + CompanyPackageName + " --help 2>&1\", 1)\n")
 	formula.WriteString("  end\n")

@@ -30,9 +30,8 @@ import (
 // Mac rather than in a container, because `tools/prepare-buzz-relay
 // --target darwin-arm64` is a native build.
 //
-// The build runs on the Mac it is for: a bottle is per macOS version, the
-// document interpreter resolves wheels for one operating system and processor,
-// and Homebrew's own tag for this machine is what names the file.
+// The build runs on the Mac it is for: a bottle is per macOS version, and
+// Homebrew's own tag for this machine is what names the file.
 
 const (
 	brewDefaultOutputDirectory = ".artifacts/homebrew"
@@ -57,7 +56,7 @@ func argumentsCarry(arguments []string, name string) bool {
 func runReleaseBrew(arguments []string) error {
 	if runtime.GOOS != "darwin" || runtime.GOARCH != "arm64" {
 		return fmt.Errorf(
-			"a bottle is built on the machine it is for: it is per macOS version, its wheels are per processor, "+
+			"a bottle is built on the machine it is for: it is per macOS version, "+
 				"and Homebrew's tag for the builder is what names the file. This is %s/%s",
 			runtime.GOOS, runtime.GOARCH)
 	}
@@ -162,7 +161,6 @@ func homebrewBottleTag() (string, error) {
 }
 
 func buildHomebrewKeg(repositoryRootPath string, kegPath string, version string, output io.Writer) error {
-	layout := blueclaw.MacCompanyHostLayout("")
 	binaryPath := filepath.Join(kegPath, "bin")
 	libraryPath := filepath.Join(kegPath, "libexec")
 	for _, path := range []string{binaryPath, libraryPath} {
@@ -187,14 +185,7 @@ func buildHomebrewKeg(repositoryRootPath string, kegPath string, version string,
 		filepath.Join(libraryPath, blueclaw.RenderCompanyRuntimeName), 0o755); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := copyBrewCarriedTrees(repositoryRootPath, libraryPath); errorValue != nil {
-		return errorValue
-	}
-	interpreterPath, errorValue := carryDocumentInterpreter(repositoryRootPath, libraryPath, output)
-	if errorValue != nil {
-		return errorValue
-	}
-	return buildBrewDocumentWheels(repositoryRootPath, libraryPath, layout, interpreterPath, output)
+	return copyBrewCarriedTrees(repositoryRootPath, libraryPath)
 }
 
 func buildBrewGoPrograms(repositoryRootPath string, binaryPath string, libraryPath string, version string, output io.Writer) error {
@@ -317,179 +308,18 @@ func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
 			return fmt.Errorf("the keg carries %s: %w", carried.destination, errorValue)
 		}
 	}
-	return copyFile(
-		filepath.Join(repositoryRootPath, "host/runtime.template.json"),
-		filepath.Join(libraryPath, "runtime.template.json"), 0o644)
-}
-
-// The wheels file_read_helper.py imports are resolved here, against the
-// interpreter the keg carries and this Mac's processor, because a wheel is built
-// for one of each. What the keg carries is the wheels rather than a virtualenv:
-// a virtualenv names its interpreter by absolute path, so one built here would
-// name a directory that exists only on this machine, and Homebrew cannot pour a
-// bottle holding a compiled Python module because it cannot rewrite its install
-// name. The formula's install block builds the virtualenv from these wheels with
-// --no-index, so nothing is resolved twice and nothing needs the network.
-func buildBrewDocumentWheels(repositoryRootPath string, libraryPath string, layout blueclaw.CompanyHostLayout, interpreterPath string, output io.Writer) error {
-	requirements, errorValue := documentConversionRequirements(repositoryRootPath)
-	if errorValue != nil {
-		return errorValue
-	}
-	requirementsPath := filepath.Join(libraryPath, filepath.Base(layout.DocumentRequirementsPath()))
-	if errorValue := os.WriteFile(requirementsPath, []byte(requirements), 0o644); errorValue != nil {
-		return errorValue
-	}
-	wheelPath := filepath.Join(libraryPath, blueclaw.MacDocumentWheelDirectoryName())
-	fmt.Fprintf(output, "  resolving the document conversion wheels for this Mac\n")
-	build := exec.Command(interpreterPath, "-m", "pip", "wheel", "--quiet", "--no-cache-dir",
-		"--wheel-dir", wheelPath, "--requirement", requirementsPath)
-	if commandOutput, errorValue := build.CombinedOutput(); errorValue != nil {
-		return fmt.Errorf("resolve the document conversion wheels: %s", strings.TrimSpace(string(commandOutput)))
-	}
-	return requireTheWheelsInstallAndImport(libraryPath, wheelPath, requirementsPath, interpreterPath, output)
-}
-
-// A wheelhouse that resolves and then will not install is a `brew install` that
-// fails on every Mac, and the release is where that is cheap to find. The
-// virtualenv built here is thrown away; the one that matters is the one the
-// formula builds on the machine it installs on.
-func requireTheWheelsInstallAndImport(libraryPath string, wheelPath string, requirementsPath string, interpreterPath string, output io.Writer) error {
-	venvPath, errorValue := os.MkdirTemp("", "internkim-document-venv-*")
-	if errorValue != nil {
-		return errorValue
-	}
-	defer os.RemoveAll(venvPath)
-	resolver := filepath.Join(libraryPath, blueclaw.PackageResolverName)
-	for _, step := range [][]string{
-		{"venv", "--python", interpreterPath, venvPath},
-		{"pip", "install", "--quiet", "--python", filepath.Join(venvPath, "bin", "python"),
-			"--no-index", "--find-links", wheelPath, "--requirements", requirementsPath},
+	layout := blueclaw.MacCompanyHostLayout("")
+	for _, carried := range []struct{ source, destination string }{
+		{"host/runtime.template.json", layout.RuntimeTemplatePath()},
+		{documentConversionLockPath, layout.DocumentRequirementsPath()},
 	} {
-		if commandOutput, errorValue := exec.Command(resolver, step...).CombinedOutput(); errorValue != nil {
-			return fmt.Errorf("the wheels the keg carries will not install: %s", strings.TrimSpace(string(commandOutput)))
-		}
-	}
-	commandOutput, errorValue := exec.Command(
-		filepath.Join(venvPath, "bin", "python"), "-c", blueclaw.DocumentModulesTheConversionImports()).CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf(
-			"the document conversion modules do not import out of the wheels this keg carries:\n%s",
-			strings.TrimSpace(string(commandOutput)))
-	}
-	fmt.Fprintf(output, "  every module document conversion opens imports\n")
-	return nil
-}
-
-// The interpreter comes into the keg as a pinned download rather than from
-// Homebrew, for the reason company_host_mac_interpreter.go gives. It is checked
-// here as well as pinned: a Python that cannot import what document conversion
-// imports is a Mac host whose every file_read fails on an import, and finding
-// that at release time rather than at a customer's desk is the whole point of
-// resolving anything in advance.
-func carryDocumentInterpreter(repositoryRootPath string, libraryPath string, output io.Writer) (string, error) {
-	pin, errorValue := blueclaw.DocumentInterpreterForTarget(blueclaw.HostPayloadDarwinArm64)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	cachePath := filepath.Join(repositoryRootPath, brewPayloadCacheDirectory)
-	if errorValue := os.MkdirAll(cachePath, 0o755); errorValue != nil {
-		return "", errorValue
-	}
-	archivePath, errorValue := fetchPinnedPayload(blueclaw.HostPayloadDownload{
-		ProgramName: "python", Version: pin.Version, URL: pin.URL, SHA256: pin.SHA256,
-	}, cachePath, output)
-	if errorValue != nil {
-		return "", errorValue
-	}
-	if errorValue := extractGzippedTarTree(archivePath, pin.DirectoryInsideArchive, filepath.Join(libraryPath, pin.DirectoryInsideArchive)); errorValue != nil {
-		return "", errorValue
-	}
-	interpreterPath := filepath.Join(libraryPath, pin.DirectoryInsideArchive, "bin", "python"+blueclaw.DocumentInterpreterMinor)
-	return interpreterPath, requireTheInterpreterOpensWhatConversionOpens(interpreterPath)
-}
-
-// The standard-library modules a broken build of CPython loses, which is how
-// Homebrew's python@3.13 fails on macOS 26.1. The wheels conversion imports are
-// checked separately, once they exist.
-const interpreterStandardLibraryConversionNeeds = "import plistlib, platform, xml.etree.ElementTree, zlib, sqlite3, ssl, lzma; " +
-	"assert platform.mac_ver()[0], 'platform.mac_ver() is empty'"
-
-func requireTheInterpreterOpensWhatConversionOpens(interpreterPath string) error {
-	commandOutput, errorValue := exec.Command(interpreterPath, "-c", interpreterStandardLibraryConversionNeeds).CombinedOutput()
-	if errorValue == nil {
-		return nil
-	}
-	return fmt.Errorf(
-		"%s cannot open what document conversion opens, so this keg would read no file:\n%s",
-		interpreterPath, strings.TrimSpace(string(commandOutput)))
-}
-
-// extractGzippedTarTree unpacks one directory out of a tarball, which is what
-// an interpreter is: a tree rather than the single program every other pinned
-// download carries.
-func extractGzippedTarTree(archivePath string, directoryInsideArchive string, destinationPath string, skippedDirectories ...string) error {
-	if errorValue := os.RemoveAll(destinationPath); errorValue != nil {
-		return errorValue
-	}
-	file, errorValue := os.Open(archivePath)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer file.Close()
-	decompressed, errorValue := gzip.NewReader(file)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer decompressed.Close()
-	archive := tar.NewReader(decompressed)
-	for {
-		header, errorValue := archive.Next()
-		if errorValue == io.EOF {
-			return nil
-		}
-		if errorValue != nil {
+		destinationPath := filepath.Join(libraryPath, strings.TrimPrefix(carried.destination, layout.LibraryRoot))
+		if errorValue := os.MkdirAll(filepath.Dir(destinationPath), 0o755); errorValue != nil {
 			return errorValue
 		}
-		relative, isInside := strings.CutPrefix(filepath.Clean(header.Name), directoryInsideArchive+"/")
-		if !isInside || isInsideAny(relative, skippedDirectories) {
-			continue
-		}
-		if errorValue := writeExtractedEntry(archive, header, filepath.Join(destinationPath, relative)); errorValue != nil {
+		if errorValue := copyFile(filepath.Join(repositoryRootPath, carried.source), destinationPath, 0o644); errorValue != nil {
 			return errorValue
 		}
-	}
-}
-
-func isInsideAny(relativePath string, directories []string) bool {
-	for _, directory := range directories {
-		if relativePath == directory || strings.HasPrefix(relativePath, directory+"/") {
-			return true
-		}
-	}
-	return false
-}
-
-func writeExtractedEntry(archive *tar.Reader, header *tar.Header, destination string) error {
-	switch header.Typeflag {
-	case tar.TypeDir:
-		return os.MkdirAll(destination, 0o755)
-	case tar.TypeSymlink:
-		if errorValue := os.MkdirAll(filepath.Dir(destination), 0o755); errorValue != nil {
-			return errorValue
-		}
-		os.Remove(destination)
-		return os.Symlink(header.Linkname, destination)
-	case tar.TypeReg:
-		if errorValue := os.MkdirAll(filepath.Dir(destination), 0o755); errorValue != nil {
-			return errorValue
-		}
-		file, errorValue := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, header.FileInfo().Mode().Perm())
-		if errorValue != nil {
-			return errorValue
-		}
-		defer file.Close()
-		_, errorValue = io.Copy(file, archive)
-		return errorValue
 	}
 	return nil
 }

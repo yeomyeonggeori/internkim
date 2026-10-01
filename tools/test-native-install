@@ -27,6 +27,8 @@ from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
+    DOCUMENT_ENVIRONMENT_PATHS,
+    DOCUMENT_INTERPRETER_VERSION,
     DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
     COMPONENT,
     CONFFILE_EDIT,
@@ -53,7 +55,11 @@ from native_install_rig import (  # noqa: E402
     installed_units,
     Release,
     RigFailure,
+    a_docx_saying,
+    a_pdf_saying,
     build_stand_in_package,
+    capabilityd_argument,
+    read_through_capabilityd,
     dependency_names,
     package_fields,
 )
@@ -63,8 +69,6 @@ DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 RELAY_UNIT_NAME = "internkim-relay.service"
 BOX_UNIT_NAME = "internkim-box.service"
 RUNNING_STATE = "yes/active/success/0"
-CARRIED_INTERPRETER_PATH = "/opt/internkim/python/bin/python3.13"
-CARRIED_DOCUMENT_PYTHON_PATH = "/opt/internkim/document-venv/bin/python"
 CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 NAMES_THE_PACKAGE_CARRIES = ("python3-venv", "fonts-nanum", "chromium")
 PLANTED_COMPANY_ID = "00000000-0000-4000-8000-0000000019a7"
@@ -124,6 +128,7 @@ UNOWNED_BY_DESIGN = [
     ("/etc/apt/keyrings", "the directory the keyring may land in"),
     ("/etc/systemd/system/multi-user.target.wants", "systemd's enable symlinks; dpkg never owns them"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
+    *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
 ]
 
 UNOWNED_BY_DEBIAN = [
@@ -491,9 +496,9 @@ class Rig:
         self.observe_services(step)
 
     def observe_the_package_carries_what_it_does_not_ask_for(self, step):
-        """The interpreter, its wheels and the Hangul face come with the package.
+        """The conversion environment and the Hangul face come with the package.
 
-        Read on the guest, which asked apt for none of them: a distribution whose
+        Read on the guest, which asked apt for neither: a distribution whose
         python3 is another minor version is the machine where a conversion venv
         built against the distribution's would have failed.
         """
@@ -506,23 +511,7 @@ class Rig:
             "same way, which the font package does not",
         ).record(not asked_for, ", ".join(asked_for) or "none of " + ", ".join(NAMES_THE_PACKAGE_CARRIES))
 
-        imported = self.machine.shell(
-            f"{CARRIED_DOCUMENT_PYTHON_PATH} -c '{DOCUMENT_MODULES_THE_CONVERSION_IMPORTS}' 2>&1 && echo imported"
-        )
-        step.observe(
-            "the carried interpreter imports every module file_read conversion opens",
-            f"`{CARRIED_DOCUMENT_PYTHON_PATH}` run in the guest with the conversion import list",
-            "the file existing says it was unpacked; the import is what needs the wheels, the "
-            "interpreter and this machine's glibc to agree",
-        ).record(imported.stdout.strip().endswith("imported"), imported.stdout.strip()[-400:])
-
-        linked = self.machine.shell(f"readlink -f {CARRIED_DOCUMENT_PYTHON_PATH}; {CARRIED_INTERPRETER_PATH} -V")
-        step.observe(
-            "the document venv runs on the interpreter the package carries, not the distribution's",
-            f"where {CARRIED_DOCUMENT_PYTHON_PATH} resolves to",
-            "a venv whose link pointed at /usr/bin/python3 would import on this guest and not on "
-            "the next one",
-        ).record(linked.stdout.splitlines()[:1] == [CARRIED_INTERPRETER_PATH], linked.stdout.strip())
+        observe_the_conversion_environment(self.machine, step)
 
         font = self.machine.shell(f"fc-match -f '%{{file}}' 'NanumGothic' 2>/dev/null || true; echo; ls -l {CARRIED_FONT_PATH}")
         step.observe(
@@ -973,6 +962,38 @@ class Rig:
 
 
 @contextlib.contextmanager
+def observe_the_conversion_environment(machine, step):
+    python = capabilityd_argument(machine, "--file-read-python")
+    imported = machine.shell(f"{python} -c '{DOCUMENT_MODULES_THE_CONVERSION_IMPORTS}' 2>&1 && echo imported")
+    step.observe(
+        "the conversion environment imports every module file_read conversion opens",
+        f"`{python}`, the interpreter the capabilityd unit names, run in the guest with the conversion import list",
+        "the file existing says the install step ran; the import is what needs the wheels, the interpreter and "
+        "this machine's glibc to agree",
+    ).record(imported.stdout.strip().endswith("imported"), imported.stdout.strip()[-400:])
+    resolved = machine.shell(f"readlink -f {python}").stdout.strip()
+    step.observe(
+        f"the conversion environment runs on uv's CPython {DOCUMENT_INTERPRETER_VERSION}, not the distribution's",
+        f"where {python} resolves to",
+        "a venv whose link pointed at /usr/bin/python3 would import on this guest and not on the next one",
+    ).record(f"/cpython-{DOCUMENT_INTERPRETER_VERSION}-" in resolved and not resolved.startswith("/usr/"), resolved)
+
+
+def observe_a_real_conversion(machine, step):
+    phrase = f"internkim rig {uuid.uuid4().hex[:12]}"
+    for file_name, content in (("rig.docx", a_docx_saying(phrase)), ("rig.pdf", a_pdf_saying(phrase))):
+        answer = read_through_capabilityd(machine, file_name, content)
+        step.observe(
+            f"the running capabilityd reads {file_name} through its conversion environment",
+            f"document_read invoked on capabilityd's socket with {file_name} carried the way blueclaw sends it",
+            "the imports passing says the modules load; the text coming back is the helper, the wheels and the "
+            "service's own account converting a file",
+        ).record(
+            phrase in answer.stdout and '"isError":true' not in answer.stdout,
+            (answer.stdout + answer.stderr).strip()[-600:],
+        )
+
+
 def kept_or_temporary_directory(is_kept):
     if not is_kept:
         with tempfile.TemporaryDirectory(prefix="internkim-install-rig-") as temporary:
@@ -1063,6 +1084,7 @@ def main():
                 rig.plane.start()
                 rig.give_the_guest_a_company(step_five, rig.plane)
                 rig.observe_running_services(step_five)
+                observe_a_real_conversion(rig.machine, step_five)
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
                 rig.observe_the_member_round_trip(step_five, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()

@@ -51,6 +51,7 @@ func postInstallBody(format linuxPackageFormat) string {
 		`systemd-sysusers ` + blueclaw.CompanyPackageSysusersPath + ` || refuse "systemd-sysusers could not create the service accounts declared in ` + blueclaw.CompanyPackageSysusersPath + `"`,
 		`systemd-tmpfiles --create ` + blueclaw.CompanyPackageTmpfilesPath + ` || refuse "systemd-tmpfiles could not create the directories declared in ` + blueclaw.CompanyPackageTmpfilesPath + `"`,
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
+		hostSetupLines(blueclaw.DebianCompanyHostLayout().DocumentEnvironmentCommands()),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
@@ -88,9 +89,10 @@ func preRemoveBody(format linuxPackageFormat) string {
 // rpm and pacman have no purge; their own rule keeps an edited configuration file
 // beside the removed one.
 func postRemoveBody(format linuxPackageFormat) string {
+	debianLayout := blueclaw.DebianCompanyHostLayout()
 	lines := []string{
 		`if ` + format.RemovalTest("postrm") + `; then`,
-		`  rm -rf ` + blueclaw.CompanyPackageInterpreterPath + ` ` + blueclaw.CompanyPackageDocumentVenvPath,
+		`  rm -rf ` + debianLayout.DocumentInterpreterRoot() + ` ` + debianLayout.DocumentVirtualEnvironmentPath(),
 		`fi`,
 		``,
 	}
@@ -125,4 +127,27 @@ func unitFileNames() string {
 		names = append(names, unit.FileName())
 	}
 	return strings.Join(names, " ")
+}
+
+func hostSetupLines(commands []blueclaw.HostSetupCommand) string {
+	lines := []string{}
+	for _, command := range commands {
+		lines = append(lines, shellWords(command.Arguments)+` || refuse "could not `+command.Purpose+`; the output above names what failed"`)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func shellWords(words []string) string {
+	quoted := make([]string, len(words))
+	for index, word := range words {
+		quoted[index] = shellWord(word)
+	}
+	return strings.Join(quoted, " ")
+}
+
+func shellWord(word string) string {
+	if word != "" && strings.Trim(word, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./=:+-") == "" {
+		return word
+	}
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
 }

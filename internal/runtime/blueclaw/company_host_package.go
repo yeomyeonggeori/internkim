@@ -29,13 +29,6 @@ const (
 	CompanyPackageSkillsPath   = "/opt/internkim/skills"
 	CompanyPackageTemplatePath = "/opt/internkim/runtime.template.json"
 
-	// The interpreter capabilityd runs file_read conversions under. Its
-	// site-packages are resolved once, when the package is built, so no customer
-	// machine resolves a wheel. The bundled skills do not use it: they build
-	// their own environment from the distribution's python3.
-	CompanyPackageDocumentVenvPath        = "/opt/internkim/document-venv"
-	CompanyPackageInterpreterPath         = "/opt/internkim/" + documentInterpreterDirectoryName
-	CompanyPackageDocumentPythonPath      = CompanyPackageDocumentVenvPath + "/bin/python"
 	CompanyPackageDocumentFontPath        = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 	CompanyPackageDocumentFontLicensePath = "/usr/share/fonts/truetype/internkim/NanumGothic-OFL.txt"
 	CompanyPackageMigrationPath           = "/opt/blueclaw/migrations"
