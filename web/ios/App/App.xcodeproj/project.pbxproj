@@ -30,6 +30,8 @@
 		7A11C0DE0000000000000124 /* AttendanceWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000105 /* AttendanceWidgetBundle.swift */; };
 		7A11C0DE0000000000000125 /* AttendanceWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000106 /* AttendanceWidgetProvider.swift */; };
 		7A11C0DE0000000000000126 /* AttendanceWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000107 /* AttendanceWidgetView.swift */; };
+		7A11C0DE0000000000000502 /* AttendanceClockPress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000501 /* AttendanceClockPress.swift */; };
+		7A11C0DE0000000000000503 /* AttendanceClockPress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000501 /* AttendanceClockPress.swift */; };
 		7A11C0DE0000000000000127 /* AttendanceWidgetIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000108 /* AttendanceWidgetIntents.swift */; };
 		7A11C0DE0000000000000131 /* AttendanceWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010B /* AttendanceWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7A11C0DE0000000000000128 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010C /* Localizable.xcstrings */; };
@@ -124,6 +126,7 @@
 		7A11C0DE0000000000000105 /* AttendanceWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetBundle.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000106 /* AttendanceWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetProvider.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000107 /* AttendanceWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetView.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000501 /* AttendanceClockPress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceClockPress.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000108 /* AttendanceWidgetIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceWidgetIntents.swift; sourceTree = "<group>"; };
 		7A11C0DE0000000000000109 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7A11C0DE000000000000010A /* AttendanceWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AttendanceWidget.entitlements; sourceTree = "<group>"; };
@@ -275,6 +278,7 @@
 				7A11C0DE0000000000000106 /* AttendanceWidgetProvider.swift */,
 				7A11C0DE0000000000000107 /* AttendanceWidgetView.swift */,
 				7A11C0DE0000000000000108 /* AttendanceWidgetIntents.swift */,
+				7A11C0DE0000000000000501 /* AttendanceClockPress.swift */,
 				7A11C0DE000000000000010D /* AttendanceRefusal.swift */,
 				7A11C0DE0000000000000113 /* AttendanceLocationChoice.swift */,
 				7A11C0DE0000000000000119 /* AttendanceLocationPicker.swift */,
@@ -483,6 +487,7 @@
 				7A11C0DE0000000000000402 /* AttendanceToday.swift in Sources */,
 				7A11C0DE0000000000000403 /* AttendanceWidgetCache.swift in Sources */,
 				7A11C0DE0000000000000404 /* AttendanceWidgetIntents.swift in Sources */,
+				7A11C0DE0000000000000503 /* AttendanceClockPress.swift in Sources */,
 				7A11C0DE0000000000000405 /* AttendanceRefusal.swift in Sources */,
 				7A11C0DE0000000000000406 /* AttendanceLocationChoice.swift in Sources */,
 			);
@@ -499,6 +504,7 @@
 				7A11C0DE0000000000000125 /* AttendanceWidgetProvider.swift in Sources */,
 				7A11C0DE0000000000000126 /* AttendanceWidgetView.swift in Sources */,
 				7A11C0DE0000000000000127 /* AttendanceWidgetIntents.swift in Sources */,
+				7A11C0DE0000000000000502 /* AttendanceClockPress.swift in Sources */,
 				7A11C0DE0000000000000129 /* AttendanceRefusal.swift in Sources */,
 				7A11C0DE000000000000012D /* AttendanceLocationChoice.swift in Sources */,
 				7A11C0DE000000000000012E /* AttendanceLocationPicker.swift in Sources */,

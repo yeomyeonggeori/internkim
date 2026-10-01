@@ -121,7 +121,7 @@ struct AttendanceWidgetView: View {
     private func actionButtons(showingLocations: Bool) -> some View {
         if #available(iOS 17.0, *) {
             if entry.today.isWorking {
-                Button(intent: ClockOutIntent()) {
+                Button(intent: HomeClockOutIntent()) {
                     Label("Clock out", systemImage: "arrow.right.from.line").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
