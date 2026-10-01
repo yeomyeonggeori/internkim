@@ -188,3 +188,37 @@ test('a failed clock-in leaves the original action available', async ({ page }) 
 	await expect.poll(recordedClockKinds).toEqual([]);
 	await page.unroute('**/api/v1/tools/attendance_add/invoke');
 });
+
+test('a clock-out within a minute of the clock-in says the clock-in was taken back', async ({ page }) => {
+	await removeAttendanceOf(member1ID);
+	await signInToAttendance(page);
+	await openCommandPalette(page, false);
+	await paletteItem(page, `clock-in-${home}`).click();
+	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual(['clock_in']);
+
+	await openClockMenu(page);
+	await page.getByRole('menuitem', { name: '퇴근', exact: true }).click();
+
+	await expect(page.getByText('방금 누른 출근을 취소했습니다')).toBeVisible({ timeout: 20000 });
+	await expect(quickActions(page).getByRole('button', { name: '출근', exact: true })).toBeVisible();
+});
+
+test('a clock-in within a minute of the clock-out says the work goes on', async ({ page }) => {
+	await removeAttendanceOf(member1ID);
+	await signInToAttendance(page);
+	await openCommandPalette(page, false);
+	await paletteItem(page, `clock-in-${home}`).click();
+	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual(['clock_in']);
+	await moveAttendanceEarlier(centralPlaneAdminClient(), member1ID, minutesPastTakingBack);
+	await signInToAttendance(page);
+
+	await openClockMenu(page);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('menuitem', { name: '퇴근', exact: true }).click();
+	await expect.poll(recordedClockKinds, { timeout: 20000 }).toEqual(['clock_in', 'clock_out']);
+	await openClockMenu(page, false);
+	await page.getByRole('menuitemradio', { name: home, exact: true }).click();
+
+	await expect(page.getByText('방금 누른 퇴근을 취소하고 근무를 이어갑니다')).toBeVisible({ timeout: 20000 });
+	await expect(quickActions(page).getByRole('button', { name: '퇴근', exact: true })).toBeVisible();
+});
