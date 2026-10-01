@@ -121,7 +121,6 @@ export enum ImageToolName {
 export enum BrowserToolName {
   Open = 'browser_open',
   Snapshot = 'browser_snapshot',
-  Screenshot = 'browser_screenshot',
   Click = 'browser_click',
 }
 
@@ -904,20 +903,6 @@ export const browserSnapshotResultSchema = z.strictObject({
   capturedAt: resourceIDSchema,
 });
 
-export const browserScreenshotInputSchema = z.strictObject({
-  ttlSeconds: z.number().int().nonnegative().optional(),
-});
-
-export const browserScreenshotResultSchema = z.strictObject({
-  fileID: resourceIDSchema,
-  filename: resourceIDSchema,
-  sizeBytes: z.number().int().nonnegative(),
-  contentType: resourceIDSchema,
-  devicePath: resourceIDSchema,
-  expiresAt: resourceIDSchema,
-  capturedAt: resourceIDSchema,
-});
-
 const browserClickObjectSchema = z.strictObject({
   target: resourceIDSchema.optional(),
   ref: resourceIDSchema.optional(),
@@ -1674,28 +1659,25 @@ const fileToolDefinitions: CapabilityToolDefinition[] = [
 const browserToolDefinitions: CapabilityToolDefinition[] = [
   {
     name: BrowserToolName.Open,
-    requiresRequesterDevice: true,
     approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
-    privacyClass: 'user_browser',
+    privacyClass: 'device_browser',
     policyResource: 'tool:browser_open',
-    description: 'Open an exact HTTP or HTTPS URL in the available browser and return the resulting page identity and initial structure.',
+    description: 'Open an exact HTTP or HTTPS URL in the browser and return the resulting page identity and initial structure.',
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
     inputSchema: browserOpenInputSchema,
     inputIntentSchema: browserOpenInputIntentSchema,
     result: { schema: browserOpenResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Connect,
-    requiresUserPresence: true,
   },
   {
     name: BrowserToolName.Snapshot,
-    requiresRequesterDevice: true,
     approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
-    privacyClass: 'user_browser',
+    privacyClass: 'device_browser',
     policyResource: 'tool:browser_snapshot',
     description: 'Read the current browser page structure and return stable interactive references for inspection and control.',
     version: '2',
@@ -1705,27 +1687,11 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Read,
   },
   {
-    name: BrowserToolName.Screenshot,
-    requiresRequesterDevice: true,
-    approvalScope: 'browser',
-    namespace: 'browser',
-    answeredBy: CapabilityAnsweredBy.Local,
-    privacyClass: 'user_browser',
-    policyResource: 'tool:browser_screenshot',
-    description: 'Capture the visible browser page and upload it to a temporary workspace-visible device path for visual review.',
-    version: '2',
-    estimatedLatency: CapabilityEstimatedLatency.Interactive,
-    inputSchema: browserScreenshotInputSchema,
-    result: { schema: browserScreenshotResultSchema, effects: [] },
-    sideEffect: CapabilitySideEffect.Read,
-  },
-  {
     name: BrowserToolName.Click,
-    requiresRequesterDevice: true,
     approvalScope: 'browser',
     namespace: 'browser',
     answeredBy: CapabilityAnsweredBy.Local,
-    privacyClass: 'user_browser',
+    privacyClass: 'device_browser',
     policyResource: 'tool:browser_click',
     description: 'Click one exact target from the current browser snapshot and return the completed action.',
     version: '2',
@@ -2096,8 +2062,6 @@ export type BrowserOpenInput = z.infer<typeof browserOpenInputSchema>;
 export type BrowserOpenResult = z.infer<typeof browserOpenResultSchema>;
 export type BrowserSnapshotInput = z.infer<typeof browserSnapshotInputSchema>;
 export type BrowserSnapshotResult = z.infer<typeof browserSnapshotResultSchema>;
-export type BrowserScreenshotInput = z.infer<typeof browserScreenshotInputSchema>;
-export type BrowserScreenshotResult = z.infer<typeof browserScreenshotResultSchema>;
 export type BrowserClickInput = z.infer<typeof browserClickInputSchema>;
 export type BrowserClickResult = z.infer<typeof browserClickResultSchema>;
 export type ArtifactReviewInput = z.infer<typeof artifactReviewInputSchema>;

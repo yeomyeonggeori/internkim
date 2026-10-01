@@ -216,8 +216,8 @@
     "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
   },
   "INTERNKIM_AGENT_BROWSER_PATH": {
-    "process": "internal/browser test",
-    "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"
+    "process": "internal/browser and internal/capabilityd tests",
+    "description": "path to an agent-browser binary for internal/browser's real-Chrome test, which is skipped when unset, and for internal/capabilityd/company_browser_test.go, which otherwise finds agent-browser on PATH"
   },
   "INTERNKIM_RIG_ARCHITECTURE": {
     "process": "tools/native_install_rig.py",
@@ -430,6 +430,10 @@
     "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
     "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
     "isInVault": true
+  },
+  "INTERNKIM_TEST_CDP_BROWSER": {
+    "process": "go tests",
+    "description": "a Chromium-family executable internal/capabilityd/company_browser_test.go starts headless, with --password-store=basic and --use-mock-keychain, to stand in for Moli while browser_fill, browser_select, browser_press and browser_wait drive a real page; unset skips that test"
   },
   "INTERNKIM_TEST_MOLI": {
     "process": "go tests",

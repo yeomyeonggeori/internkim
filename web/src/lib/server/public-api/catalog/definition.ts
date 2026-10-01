@@ -46,7 +46,6 @@ type CapabilityToolCommonDefinition = {
   idempotency?: z.infer<typeof capabilityIdempotencySchema>;
   requiresApproval?: boolean;
   requiresUserPresence?: boolean;
-  requiresRequesterDevice?: boolean;
   approvalScope?: string;
   worksOffline?: boolean;
   completionEvidence?: {
@@ -133,7 +132,6 @@ export function buildCapabilityDescriptor(
     privacyClass: definition.privacyClass,
     estimatedLatency: definition.estimatedLatency,
     requiresUserPresence: definition.requiresUserPresence ?? false,
-    requiresRequesterDevice: definition.requiresRequesterDevice,
     approvalScope: definition.approvalScope,
     worksOffline: definition.worksOffline ?? false,
     inputSchema: z.toJSONSchema(definition.inputSchema),

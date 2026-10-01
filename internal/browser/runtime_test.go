@@ -213,7 +213,6 @@ func TestAgentBrowserRuntimeOpenReturnsObservedRedirectSnapshot(t *testing.T) {
 		SessionName:          "internkim-test",
 		Runner:               runner,
 		DisableHumanPacing:   true,
-		TemporaryDirectory:   "/tmp/internkim-test",
 		EngineExecutablePath: "/Applications/Google Chrome.app",
 	}
 
@@ -539,27 +538,6 @@ func TestAgentBrowserRuntimeObserveAvoidsRawJSONLeak(t *testing.T) {
 	}
 }
 
-func TestAgentBrowserRuntimeScreenshotRunsCommandAndReturnsOmittedPath(t *testing.T) {
-	temporaryDirectory := t.TempDir()
-	runner := &screenshotCommandRunner{}
-	runtime := AgentBrowserRuntime{
-		TemporaryDirectory: temporaryDirectory,
-		Runner:             runner,
-		Now:                func() time.Time { return time.Date(2026, 4, 27, 1, 2, 3, 4, time.UTC) },
-	}
-
-	result, errorValue := runtime.Screenshot(context.Background(), ScreenshotRequest{})
-	if errorValue != nil {
-		t.Fatalf("expected screenshot success: %v", errorValue)
-	}
-	if result.LocalPath == "" || result.ContentType != "image/png" || result.SizeBytes != 3 {
-		t.Fatalf("unexpected screenshot result: %+v", result)
-	}
-	if filepath.Dir(result.LocalPath) != temporaryDirectory {
-		t.Fatalf("unexpected screenshot directory: %s", result.LocalPath)
-	}
-}
-
 func TestAgentBrowserRuntimeControlCommands(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	runtime := AgentBrowserRuntime{
@@ -673,21 +651,6 @@ func TestAgentBrowserRuntimeChromeMissingExecutableIsNotReady(t *testing.T) {
 	if len(runner.calls) != 0 {
 		t.Fatalf("expected no doctor command for missing real Chrome, got %+v", runner.calls)
 	}
-}
-
-type screenshotCommandRunner struct{}
-
-func (runner *screenshotCommandRunner) Run(ctx context.Context, commandPath string, arguments []string) ([]byte, error) {
-	_ = ctx
-	_ = commandPath
-	if len(arguments) == 0 {
-		return nil, errors.New("missing arguments")
-	}
-	path := arguments[len(arguments)-1]
-	if errorValue := os.WriteFile(path, []byte("png"), 0o600); errorValue != nil {
-		return nil, errorValue
-	}
-	return []byte("ok"), nil
 }
 
 type commandResult struct {

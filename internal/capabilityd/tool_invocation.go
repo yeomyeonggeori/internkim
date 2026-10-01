@@ -25,7 +25,6 @@ type capabilityToolRoute struct {
 }
 
 var capabilityToolRoutes = []capabilityToolRoute{
-	{ToolName: "browser_screenshot", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_open", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_snapshot", Handler: Service.invokeDeviceBrowserTool},
 	{ToolName: "browser_click", Handler: Service.invokeDeviceBrowserTool},

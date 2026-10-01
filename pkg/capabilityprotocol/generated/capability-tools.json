@@ -10494,7 +10494,7 @@
         "state": "ok"
       },
       "canonicalName": "browser_open",
-      "description": "Open an exact HTTP or HTTPS URL in the available browser and return the resulting page identity and initial structure.",
+      "description": "Open an exact HTTP or HTTPS URL in the browser and return the resulting page identity and initial structure.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -10536,7 +10536,7 @@
       "modelVisible": true,
       "name": "browser_open",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10580,9 +10580,8 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_open",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
-      "requiresUserPresence": true,
+      "privacyClass": "device_browser",
+      "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
         "schema": {
@@ -10658,7 +10657,7 @@
       "modelVisible": true,
       "name": "browser_snapshot",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10701,8 +10700,7 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_snapshot",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
+      "privacyClass": "device_browser",
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -10742,154 +10740,6 @@
             "snapshotText",
             "interactiveRefs",
             "hasMore",
-            "capturedAt"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "read",
-      "sideEffectClass": "read",
-      "version": "2",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "local",
-      "approvalScope": "browser",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "browser_screenshot",
-      "description": "Capture the visible browser page and upload it to a temporary workspace-visible device path for visual review.",
-      "estimatedLatency": "interactive",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "ttlSeconds": {
-            "maximum": 9007199254740991,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "browser_screenshot",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "browser_screenshot",
-      "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "capturedAt": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "contentType": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "devicePath": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "expiresAt": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "fileID": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "filename": {
-            "minLength": 1,
-            "pattern": "^\\S(?:.*\\S)?$",
-            "type": "string"
-          },
-          "sizeBytes": {
-            "maximum": 9007199254740991,
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "fileID",
-          "filename",
-          "sizeBytes",
-          "contentType",
-          "devicePath",
-          "expiresAt",
-          "capturedAt"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:browser_screenshot",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "capturedAt": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "contentType": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "devicePath": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "expiresAt": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "fileID": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "filename": {
-              "minLength": 1,
-              "pattern": "^\\S(?:.*\\S)?$",
-              "type": "string"
-            },
-            "sizeBytes": {
-              "maximum": 9007199254740991,
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "fileID",
-            "filename",
-            "sizeBytes",
-            "contentType",
-            "devicePath",
-            "expiresAt",
             "capturedAt"
           ],
           "type": "object"
@@ -10965,7 +10815,7 @@
       "modelVisible": true,
       "name": "browser_click",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -10999,8 +10849,7 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_click",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
+      "privacyClass": "device_browser",
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -11048,7 +10897,7 @@
         "state": "ok"
       },
       "canonicalName": "browser_fill",
-      "description": "Fill text into a target in the user's local browser.",
+      "description": "Fill text into a target on the current browser page.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -11102,7 +10951,7 @@
       "modelVisible": true,
       "name": "browser_fill",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11136,8 +10985,7 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_fill",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
+      "privacyClass": "device_browser",
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -11185,7 +11033,7 @@
         "state": "ok"
       },
       "canonicalName": "browser_press",
-      "description": "Press a key in the user's local browser.",
+      "description": "Press a key on the current browser page.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -11221,7 +11069,7 @@
       "modelVisible": true,
       "name": "browser_press",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11249,8 +11097,7 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_press",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
+      "privacyClass": "device_browser",
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -11292,7 +11139,7 @@
         "state": "ok"
       },
       "canonicalName": "browser_select",
-      "description": "Select a value in the user's local browser.",
+      "description": "Select a value in a target on the current browser page.",
       "estimatedLatency": "interactive",
       "idempotency": {
         "required": false,
@@ -11346,7 +11193,7 @@
       "modelVisible": true,
       "name": "browser_select",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11380,8 +11227,7 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_select",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
+      "privacyClass": "device_browser",
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],
@@ -11463,7 +11309,7 @@
       "modelVisible": true,
       "name": "browser_wait",
       "namespace": "browser",
-      "namespaceSummary": "Operate a web page step by step: open it, read it, click, fill, and screenshot.",
+      "namespaceSummary": "Operate a web page step by step in the company computer's browser: open it, read it, click, fill, and press keys.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -11497,8 +11343,7 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:browser_wait",
-      "privacyClass": "user_browser",
-      "requiresRequesterDevice": true,
+      "privacyClass": "device_browser",
       "requiresUserPresence": false,
       "resultContract": {
         "effects": [],

@@ -318,5 +318,10 @@
 		"path": "computer_task",
 		"reason": "The companion leaves internkim, and computer_task was the companion's tool: the device's own capabilityd answered it only by refusing it as not connected, and the plane never answered it. Blueclaw never offered it to the model, because it requires the requester's own device. A device on an older release keeps the descriptor its own build embeds and its own capabilityd keeps refusing it until it takes this release, when both go together.",
 		"release": "the release cut after the change removing the companion merges"
+	},
+	{
+		"path": "browser_screenshot",
+		"reason": "Browser tools now run in the company computer's browser, which cannot take a picture, and the companion that could is gone. The device's own capabilityd answered browser_screenshot only by refusing it as not connected, and the plane never answered it, because the plane's API offers no tool that is answered locally. Blueclaw never offered it to the model, because it required the requester's own device. A device on an older release keeps the descriptor its own build embeds and its own capabilityd keeps refusing it until it takes this release, when both go together.",
+		"release": "the release cut after the change moving browser tools to the company browser merges"
 	}
 ]

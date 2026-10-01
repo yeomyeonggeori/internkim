@@ -78,7 +78,6 @@ VERBS_BY_EXCEPTION = {
     "browser_select": "drives a browser rather than touching a record",
     "browser_wait": "drives a browser rather than touching a record",
     "browser_snapshot": "drives a browser rather than touching a record",
-    "browser_screenshot": "drives a browser rather than touching a record",
 }
 
 WORDS_BY_EXCEPTION = {
