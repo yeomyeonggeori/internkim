@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -32,6 +33,33 @@ func TestTheBuzzDatabaseIsOpenedOnceAndBounded(t *testing.T) {
 	assertBuzzPoolSetting(t, first, "maxIdleCount", int64(blueclawruntime.AdminDatabaseConnections))
 	assertBuzzPoolSetting(t, first, "maxIdleTime", int64(blueclawruntime.DatabaseConnectionMaxIdleTime))
 	assertBuzzPoolSetting(t, first, "maxLifetime", int64(blueclawruntime.DatabaseConnectionMaxLifetime))
+}
+
+func TestTheCompanyHostReachesTheMessengerDatabaseOnItsSocket(t *testing.T) {
+	layout := blueclawruntime.LinuxCompanyHostLayout()
+	configuration, errorValue := postgresConfiguration(layout.DatabaseURL("internkim", "a+/=password", blueclawruntime.BuzzRelayDatabaseName))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.Host != layout.DatabaseSocketDirectory {
+		t.Fatalf("admind dials %q, and the host's database listens only on %s", configuration.Host, layout.DatabaseSocketDirectory)
+	}
+	if configuration.SSLMode != pq.SSLModeDisable {
+		t.Fatalf("admind asks the socket for SSL (%q), which the host's database does not offer", configuration.SSLMode)
+	}
+	if configuration.Password != "a+/=password" {
+		t.Fatalf("the password arrived as %q", configuration.Password)
+	}
+}
+
+func TestATCPDatabaseURLKeepsItsHost(t *testing.T) {
+	configuration, errorValue := postgresConfiguration("postgres://nobody@127.0.0.1:5433/buzz?sslmode=disable")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if configuration.Host != "127.0.0.1" || configuration.Port != 5433 {
+		t.Fatalf("a TCP URL became %s:%d", configuration.Host, configuration.Port)
+	}
 }
 
 func TestNothingElseOpensTheBuzzDatabase(t *testing.T) {
