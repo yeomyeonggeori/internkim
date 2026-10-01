@@ -117,7 +117,7 @@ select ok(not public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-00
 select lives_ok($$insert into public.company_document (company_id, document_type, title, category_code)
   values ('62000000-0000-0000-0000-000000000010', 'report', 'Sample leaf', 'Z')$$, 'a parent without children accepts documents');
 select throws_ok($$insert into public.company_document (company_id, document_type, title, category_code)
-  values ('62000000-0000-0000-000000000010', 'report', 'Sample branch', 'F')$$,
+  values ('62000000-0000-0000-0000-000000000010', 'report', 'Sample branch', 'F')$$,
   '22023', 'file a document in a category without children', 'a parent with children refuses documents');
 insert into public.data_room_category (company_id, code, parent, slug, name)
 values ('62000000-0000-0000-0000-000000000010', 'ZA', 'Z', 'child', 'Sample child');
