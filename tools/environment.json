@@ -145,16 +145,19 @@
   },
   "CLOUDFLARE_ACCOUNT_ID": {
     "process": "cli",
-    "description": "the Cloudflare account ID for R2 release uploads, falling back from INTERNKIM_RELEASE_R2_ACCOUNT_ID"
+    "description": "the Cloudflare account ID for R2 release uploads and Pages deploys",
+    "isInVault": true
   },
   "CLOUDFLARE_API_TOKEN": {
     "process": "tools/provision-cloudflare-ssh-service-token",
-    "description": "a Cloudflare API token with Pages edit rights, used to provision an SSH Access service token and implicitly by Wrangler for Pages deploys"
+    "description": "a Cloudflare API token with Pages edit rights, used to provision an SSH Access service token and implicitly by Wrangler for Pages deploys",
+    "isInVault": true
   },
   "CLOUDFLARE_DOMAIN": {
     "process": "web, cli",
-    "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's fallback zone when INTERNKIM_DOMAIN is unset; falls back to the compiled-in default zone",
-    "isRequiredOnPages": true
+    "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's zone; falls back to the compiled-in default zone",
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "CLOUD_HYPERVISOR_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",
@@ -215,7 +218,8 @@
   "GATEWAY_ADMIN_TOKEN": {
     "process": "web, connection-gateway worker",
     "description": "the bearer token the web app's public-API gateway caller and the connection-gateway worker's admin endpoints share",
-    "isRequiredOnPages": true
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "GATEWAY_SERVER_KEY": {
     "process": "relay",
@@ -224,7 +228,8 @@
   "GATEWAY_URL": {
     "process": "relay, web, connection-gateway worker",
     "description": "the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway",
-    "isRequiredOnPages": true
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "GEMMA_GGUF_NAME": {
     "process": "tools/fetch-gemma-gguf",
@@ -252,11 +257,13 @@
   },
   "INTERNKIM_ADMIN_EMAIL": {
     "process": "cli, web e2e tests",
-    "description": "the console/admin sign-in email the CLI's setup flow and the CRUD/delete/matrix e2e specs use"
+    "description": "the console/admin sign-in email the CLI's setup flow and the CRUD/delete/matrix e2e specs use",
+    "isInVault": true
   },
   "INTERNKIM_ADMIN_PASSWORD": {
     "process": "web e2e tests",
-    "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use"
+    "description": "the admin sign-in password the CRUD/delete/matrix Playwright specs use",
+    "isInVault": true
   },
   "INTERNKIM_AGENT_BROWSER_PATH": {
     "process": "internal/browser test",
@@ -286,9 +293,10 @@
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
   },
-  "INTERNKIM_APT_SIGNING_KEY": {
+  "INTERNKIM_PACKAGE_SIGNING_KEY": {
     "process": "internkim release repositories",
-    "description": "the exported OpenPGP secret key that signs the apt, rpm and pacman repositories (Release, repomd.xml, each package and each database), held in the operating system's vault under this name and handed to one command by `monkeys run`; release repositories writes it to a mode-0600 file it removes and never lets a child inherit the value"
+    "description": "the exported OpenPGP secret key that signs the apt, rpm and pacman repositories (Release, repomd.xml, each package and each database), held in the operating system's vault under this name and handed to one command by `monkeys run`; release repositories writes it to a mode-0600 file it removes and never lets a child inherit the value",
+    "isInVault": true
   },
   "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
     "process": "tools/prepare-blueclaw-payload",
@@ -316,7 +324,8 @@
   },
   "INTERNKIM_BOT_TOKEN": {
     "process": "web e2e tests",
-    "description": "the messenger bot's own token, read by tests/e2e/ephemeral-render-check.spec.ts and matrix-evidence.spec.ts"
+    "description": "the messenger bot's own token, read by tests/e2e/ephemeral-render-check.spec.ts and matrix-evidence.spec.ts",
+    "isInVault": true
   },
   "INTERNKIM_BROWSER_EXECUTABLE_PATH": {
     "process": "companion",
@@ -328,19 +337,23 @@
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "cli, tools/mirror-local",
-    "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file"
+    "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file",
+    "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_ID": {
     "process": "cli, tools/cloudflared-access-ssh",
-    "description": "the client id half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault and handed to a command by `monkeys run`; an unattended deploy and the ssh ProxyCommand authenticate with it where an operator would answer a browser login"
+    "description": "the client id half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault and handed to a command by `monkeys run`; an unattended deploy and the ssh ProxyCommand authenticate with it where an operator would answer a browser login",
+    "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_SECRET": {
     "process": "cli, tools/cloudflared-access-ssh",
-    "description": "the client secret half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault beside its client id"
+    "description": "the client secret half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault beside its client id",
+    "isInVault": true
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
-    "process": "cli",
-    "description": "the console password used for a Jetson's physical login during setup/flashing; flashing writes the one it generated back here"
+    "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
+    "description": "the console password used for a Jetson's physical login during setup/flashing; flashing writes the one it generated back here",
+    "isInVault": true
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
     "process": "tools/prepare-container-kernel",
@@ -400,11 +413,8 @@
   },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
-    "description": "the device's public admin address, from the @production vault profile; internal/deployops/registry.go reads it as the one deploy target"
-  },
-  "INTERNKIM_DOMAIN": {
-    "process": "cli",
-    "description": "overrides the CLI's compiled-in zone; everything else (the API URL, hostnames) derives from it"
+    "description": "the device's public admin address, from the @production vault profile; internal/deployops/registry.go reads it as the one deploy target",
+    "isInVault": true
   },
   "INTERNKIM_E2E_CONFIG": {
     "process": "tools/e2e-crud",
@@ -452,19 +462,17 @@
   },
   "INTERNKIM_FLEET_ID": {
     "process": "cli",
-    "description": "the device's fleet ID, from the @production vault profile; internal/deployops/registry.go reads it as the name signed requests carry"
+    "description": "the device's fleet ID, from the @production vault profile; internal/deployops/registry.go reads it as the name signed requests carry",
+    "isInVault": true
   },
   "INTERNKIM_FLEET_SECRET": {
     "process": "cli",
-    "description": "the device's fleet secret, from the @production vault profile; internal/deployops/registry.go reads it to sign release applies and recovery requests"
+    "description": "the device's fleet secret, from the @production vault profile; internal/deployops/registry.go reads it to sign release applies and recovery requests",
+    "isInVault": true
   },
   "INTERNKIM_GATE_MODEL": {
     "process": "tools/verify-api",
     "description": "overrides which model tools/verify-api asks a live question through, gating the paid check behind an explicit opt-in"
-  },
-  "INTERNKIM_GATE_OPENROUTER_KEY_PATH": {
-    "process": "tools/verify-api",
-    "description": "the OpenRouter key file path required when INTERNKIM_GATE_MODEL is set, also read by internal/capabilityd's gate backend test"
   },
   "INTERNKIM_INSTALL_BIN_DIR": {
     "process": "install script",
@@ -548,39 +556,28 @@
   },
   "INTERNKIM_REGISTER_SECRET": {
     "process": "web",
-    "description": "the shared secret a device presents to the fleet registration API (the older device-fleet path's Cloudflare Pages KV binding, web/src/routes/api/fleet and api/register)"
+    "description": "the shared secret a device presents to the fleet registration API (the older device-fleet path's Cloudflare Pages KV binding, web/src/routes/api/fleet and api/register)",
+    "isInVault": true
   },
   "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
     "process": "cli",
-    "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows; the same value is the release-registry Worker's RELEASE_DOWNLOAD_TOKEN secret"
+    "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows; the same value is the release-registry Worker's RELEASE_DOWNLOAD_TOKEN secret",
+    "isInVault": true
   },
   "INTERNKIM_RELEASE_PUBLIC_BASE_URL": {
     "process": "cli",
-    "description": "the public base URL published releases are served from"
-  },
-  "INTERNKIM_RELEASE_R2_ACCESS_KEY_ID": {
-    "process": "cli",
-    "description": "the R2 access key ID used when publishing a release with PUBLISHER=s3"
-  },
-  "INTERNKIM_RELEASE_R2_ACCOUNT_ID": {
-    "process": "cli",
-    "description": "the Cloudflare account ID for R2 release uploads, preferred over CLOUDFLARE_ACCOUNT_ID when set"
+    "description": "the public base URL published releases are served from",
+    "isInVault": true
   },
   "INTERNKIM_RELEASE_R2_BUCKET": {
     "process": "cli",
-    "description": "the R2 bucket releases are uploaded to"
-  },
-  "INTERNKIM_RELEASE_R2_PUBLISHER": {
-    "process": "cli",
-    "description": "which uploader publishes a release to R2: \"wrangler\" (OAuth session, R2 keys unused) or \"s3\" (R2 keys used)"
-  },
-  "INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY": {
-    "process": "cli",
-    "description": "the R2 secret access key used when publishing a release with PUBLISHER=s3"
+    "description": "the R2 bucket releases are uploaded to",
+    "isInVault": true
   },
   "INTERNKIM_RELEASE_SIGNING_KEY": {
     "process": "cli",
-    "description": "the key a release manifest is signed with when published"
+    "description": "the key a release manifest is signed with when published",
+    "isInVault": true
   },
   "INTERNKIM_RELEASE_WRANGLER_BIN": {
     "process": "cli",
@@ -619,8 +616,9 @@
     "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
   },
   "INTERNKIM_SSH_HOSTNAME": {
-    "process": "cli",
-    "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network"
+    "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
+    "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
+    "isInVault": true
   },
   "INTERNKIM_TARGET_USERNAME": {
     "process": "web e2e tests",
@@ -654,18 +652,6 @@
     "process": "tools/build-litert-lm-main",
     "description": "the Bazelisk version used to build litert_lm_main"
   },
-  "LITERT_LM_BUILD_HOST": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the remote build host litert_lm_main is cross-built on"
-  },
-  "LITERT_LM_BUILD_PASSWORD": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the SSH password for the remote litert_lm_main build host"
-  },
-  "LITERT_LM_BUILD_USER": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the SSH user for the remote litert_lm_main build host"
-  },
   "LITERT_LM_REMOTE_WORK_ROOT": {
     "process": "tools/build-litert-lm-main",
     "description": "the working directory on the remote host litert_lm_main is built in"
@@ -676,39 +662,16 @@
   },
   "LIVE_PLANE_AGENT_KEY": {
     "process": "admind live tests",
-    "description": "the company agent key internal/admind/task_notify_live_test.go (a live/manual test) authenticates to the plane with"
-  },
-  "LIVE_PLANE_APP_URL": {
-    "process": "admind live tests",
-    "description": "the central plane app URL internal/admind/task_notify_live_test.go (a live/manual test) sends a real task notification through"
-  },
-  "LIVE_PLANE_PROJECT_URL": {
-    "process": "admind live tests",
-    "description": "the Supabase project URL internal/admind/task_notify_live_test.go (a live/manual test) connects to"
-  },
-  "LIVE_PLANE_PUBLISHABLE_KEY": {
-    "process": "admind live tests",
-    "description": "the Supabase publishable key internal/admind/task_notify_live_test.go (a live/manual test) connects with"
+    "description": "the company agent key internal/admind/task_notify_live_test.go (a live/manual test) authenticates to the plane named by SUPABASE_URL and CLOUDFLARE_DOMAIN with",
+    "isInVault": true
   },
   "LIVE_REQUESTER_PERSON_ID": {
     "process": "admind live tests",
     "description": "the requester's person ID internal/admind/task_notify_live_test.go (a live/manual test) sends the notification as"
   },
-  "LLAMA_CPP_BUILD_HOST": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the remote build host llama.cpp is cross-built on for the Jetson"
-  },
   "LLAMA_CPP_BUILD_JOBS": {
     "process": "tools/build-llama-cpp-jetson",
     "description": "the parallel job count for the remote llama.cpp build"
-  },
-  "LLAMA_CPP_BUILD_PASSWORD": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the SSH password for the remote llama.cpp build host"
-  },
-  "LLAMA_CPP_BUILD_USER": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the SSH user for the remote llama.cpp build host"
   },
   "LLAMA_CPP_CUDA_ARCH": {
     "process": "tools/build-llama-cpp-jetson",
@@ -810,25 +773,22 @@
     "process": "tools/render-company-runtime",
     "description": "the OpenAI-compatible endpoint the rendered model ladder reaches, for a company running its models through a gateway of its own; defaults to the ladder's own endpoint"
   },
-  "OLLAMA_INSTALL_HOST": {
-    "process": "tools/install-ollama-jetson",
-    "description": "the remote Jetson host Ollama is installed on"
-  },
-  "OLLAMA_INSTALL_PASSWORD": {
-    "process": "tools/install-ollama-jetson",
-    "description": "the SSH password for the remote Jetson host"
-  },
-  "OLLAMA_INSTALL_USER": {
-    "process": "tools/install-ollama-jetson",
-    "description": "the SSH user for the remote Jetson host"
-  },
   "OPENROUTER_API_KEY": {
     "process": "cli",
-    "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test"
+    "description": "the OpenRouter API key for remote model inference from tooling run on this machine; also read by internal/llmbackend's live OpenRouter test",
+    "isInVault": true
   },
   "PATH": {
     "process": "cli verification tests",
     "description": "the inherited executable search path, preserved after a temporary curl stub directory when testing verification scripts without network calls"
+  },
+  "PILOT_APP_URL": {
+    "process": "web pilot",
+    "description": "the local app the pilot runner's external harness reaches over MCP (claude-code arm)"
+  },
+  "PILOT_FLEET_CONFIG": {
+    "process": "web pilot",
+    "description": "the kept Local Fleet's config.json the pilot runner's bluecollar arms drive"
   },
   "PLAYWRIGHT_BASE_URL": {
     "process": "web e2e tests",
@@ -872,7 +832,8 @@
   },
   "SUPABASE_ACCESS_TOKEN": {
     "process": "web scripts",
-    "description": "a Supabase management API access token, read by web/scripts/remote-query.ts"
+    "description": "a Supabase management API access token, read by web/scripts/remote-query.ts",
+    "isInVault": true
   },
   "SUPABASE_AUTH_SIGNING_KEYS_PATH": {
     "process": "tools/with-local-plane",
@@ -893,30 +854,31 @@
   "SUPABASE_JWT_SIGNING_KEY": {
     "process": "web, web scripts",
     "description": "the private JWK the web app signs record tokens with for personal access tokens, agent sessions and the host, registered with the Supabase project by web/scripts/issue-record-signing-key.ts; locally the ES256 key tools/with-local-plane writes to supabase/.temp/local-signing-keys.json, which web/scripts/local-plane-signing-key.sh reads",
-    "isRequiredOnPages": true
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "SUPABASE_PROJECT_REF": {
     "process": "web scripts",
-    "description": "the Supabase project reference web/scripts/remote-query.ts targets"
+    "description": "the Supabase project reference web/scripts/remote-query.ts targets",
+    "isInVault": true
   },
   "SUPABASE_PUBLISHABLE_KEY": {
     "process": "relay, host, web, connection-gateway worker, web scripts",
     "description": "the Supabase project's publishable (anon) key; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
-    "isRequiredOnPages": true
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "SUPABASE_SECRET_KEY": {
     "process": "web, web scripts",
     "description": "the Supabase project's service-role secret key, read by the web app's server routes and by web/scripts' one-off ops scripts",
-    "isRequiredOnPages": true
-  },
-  "SUPABASE_SERVICE_ROLE_KEY": {
-    "process": "web scripts",
-    "description": "fallback name for the Supabase service-role key, read when SUPABASE_SECRET_KEY is unset"
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "SUPABASE_URL": {
     "process": "relay, host, web, connection-gateway worker, web scripts",
     "description": "the Supabase project URL; required across the relay, host bring-up, the web app and the gateway worker, and used by web/scripts' one-off ops scripts",
-    "isRequiredOnPages": true
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "TMPDIR": {
     "process": "tools",
@@ -933,7 +895,8 @@
   "VAPID_PUBLIC_KEY": {
     "process": "web",
     "description": "the VAPID public key injected into the page for push-notification subscription; the matching private key lives in Supabase Vault, not the environment",
-    "isRequiredOnPages": true
+    "isRequiredOnPages": true,
+    "isInVault": true
   },
   "VIRTIOFSD_VERSION": {
     "process": "tools/prepare-blueclaw-runtime",
@@ -982,10 +945,6 @@
   "VITE_MOCK_TASKS": {
     "process": "web",
     "description": "when \"1\", enables the local dev server's mocked tasks screen (a second, distinct mock flag from VITE_MOCK_TASK) instead of the Supabase-backed one"
-  },
-  "VITE_SUPABASE_PUBLISHABLE_KEY": {
-    "process": "web scripts",
-    "description": "fallback name for the Supabase publishable key, read by web/scripts/send-magic-link.ts when SUPABASE_PUBLISHABLE_KEY is unset"
   },
   "WORKSPACE_ROOT_PATH": {
     "process": "tools/render-company-runtime, relay",

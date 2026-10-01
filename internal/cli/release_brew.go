@@ -193,7 +193,11 @@ func buildBrewGoPrograms(repositoryRootPath string, binaryPath string, libraryPa
 		if program.Name == blueclaw.CompanyPackageName {
 			destination = filepath.Join(binaryPath, program.Name)
 		}
-		stamped := "-s -w " + admindStampFlags(version, releaseBinaryRevision(repositoryRootPath))
+		stampFlags, errorValue := admindStampFlags(version, releaseBinaryRevision(repositoryRootPath))
+		if errorValue != nil {
+			return errorValue
+		}
+		stamped := "-s -w " + stampFlags
 		command := exec.Command("go", "build", "-trimpath", "-ldflags", stamped, "-o", destination, program.Package)
 		command.Dir = filepath.Join(repositoryRootPath, program.ModuleRoot)
 		command.Env = append(os.Environ(), "GOOS=darwin", "GOARCH=arm64", "CGO_ENABLED=0")

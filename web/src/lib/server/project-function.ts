@@ -11,7 +11,7 @@ export function projectFunctionURL(environment: Environment, name: string): stri
 }
 
 export function planeKeyOf(environment: Environment): string {
-	return environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	return environment.SUPABASE_SECRET_KEY ?? '';
 }
 
 export async function askTheProject(

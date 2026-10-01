@@ -13,7 +13,7 @@ if (!companyID || !fleetID) throw new Error('pass --company <uuid> --fleet <flee
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
-	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? '',
 });
 
 await claimFleetForCompany(client, companyID, fleetID);

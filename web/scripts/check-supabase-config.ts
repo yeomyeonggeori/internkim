@@ -16,7 +16,7 @@ type NetworkRestrictions = { config: { dbAllowedCidrs: string[]; dbAllowedCidrsV
 type SslEnforcement = { currentConfig: { database: boolean } };
 
 async function managementGet<Response>(path: string): Promise<Response> {
-	const response = await fetch(`https://api.supabase.com/v1/projects/${projectReference}/${path}`, {
+	const response = await fetch(`https://api.supabase.com/v1/projects/${projectReference()}/${path}`, {
 		headers: { Authorization: `Bearer ${accessToken()}` }
 	});
 	const body = await response.text();
@@ -196,7 +196,7 @@ const mismatched = comparisons.filter(
 	({ local, live }) => live !== undefined && JSON.stringify(local) !== JSON.stringify(live)
 );
 
-console.log(`project      ${projectReference}`);
+console.log(`project      ${projectReference()}`);
 console.log(`checked      ${comparisons.length} settings across auth, api, storage, db`);
 
 if (mismatched.length === 0) {

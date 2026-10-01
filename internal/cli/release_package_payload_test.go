@@ -220,7 +220,12 @@ func TestPreRemoveStopsEveryUnitTheInstallStarted(t *testing.T) {
 // these answers `unknown` for both. The install rig asks the guest; this is the cheap
 // tripwire that fails before a twenty-minute run has to.
 func TestThePackagedBinariesCarryABuildIdentity(t *testing.T) {
-	stamped := admindStampFlags("0.0.7", "abc1234")
+	t.Setenv("SUPABASE_URL", "https://plane.example.test")
+	t.Setenv("SUPABASE_PUBLISHABLE_KEY", "publishable-for-the-test")
+	stamped, errorValue := admindStampFlags("0.0.7", "abc1234")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
 	for _, required := range []string{
 		"internal/admind.BuildID=0.0.7",
 		"internal/admind.GitRevision=abc1234",

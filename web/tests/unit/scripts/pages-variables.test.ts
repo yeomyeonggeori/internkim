@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import declarations from '../../../../tools/environment.json';
 import {
+	pagesVariablesFromVault,
 	refusalOfPagesVariables,
 	requiresPagesRuntimeVariables,
 	variablesRequiredOnPages
@@ -26,6 +27,22 @@ describe('the settings a production deploy needs on the Pages project', () => {
 
 	test('nothing is refused when every one is held as a secret', () => {
 		expect(refusalOfPagesVariables(['GATEWAY_URL'], { GATEWAY_URL: { type: 'secret_text' } })).toBeNull();
+	});
+
+	test('every one of them is in the vault the script ships from', () => {
+		for (const name of variablesRequiredOnPages(declarations)) {
+			expect(declarations[name as keyof typeof declarations]).toHaveProperty('isInVault', true);
+		}
+	});
+
+	test('the vault ships each one as a secret, and refuses to ship with one missing', () => {
+		const held: Record<string, string> = { GATEWAY_URL: 'https://gateway.example.test' };
+		expect(pagesVariablesFromVault(['GATEWAY_URL'], (name) => held[name] ?? '')).toEqual({
+			GATEWAY_URL: { type: 'secret_text', value: 'https://gateway.example.test' }
+		});
+		expect(() => pagesVariablesFromVault(['GATEWAY_URL', 'VAPID_PUBLIC_KEY'], (name) => held[name] ?? '')).toThrow(
+			'VAPID_PUBLIC_KEY not set'
+		);
 	});
 
 	test('a missing setting is refused by name', () => {

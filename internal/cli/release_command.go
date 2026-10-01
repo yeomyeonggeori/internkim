@@ -124,17 +124,14 @@ func printReleaseUsage() {
 	}
 	fmt.Println()
 	fmt.Println("Environment for publish:")
-	fmt.Println("  INTERNKIM_RELEASE_R2_ACCOUNT_ID falls back to CLOUDFLARE_ACCOUNT_ID")
+	fmt.Println("  CLOUDFLARE_ACCOUNT_ID")
 	fmt.Println("  INTERNKIM_RELEASE_R2_BUCKET")
-	fmt.Println("  INTERNKIM_RELEASE_R2_ACCESS_KEY_ID")
-	fmt.Println("  INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY")
 	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
-	fmt.Println("  INTERNKIM_RELEASE_R2_PUBLISHER optional: s3 or wrangler")
 	fmt.Println("  INTERNKIM_RELEASE_SIGNING_KEY optional")
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
 	fmt.Println("Environment for repositories:")
-	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_APT_SIGNING_KEY, and signs all three formats:")
+	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_PACKAGE_SIGNING_KEY, and signs all three formats:")
 	fmt.Printf("    internkim @production release repositories --channel %s\n", packagerepository.TestingChannel)
 	fmt.Println("  there is no flag that names a key on disk: the vault is the key's one home,")
 	fmt.Println("  and the rigs put their own throwaway key in the same variable")
@@ -594,7 +591,11 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 		if errorValue := os.MkdirAll(filepath.Dir(outputPath), 0o755); errorValue != nil {
 			return errorValue
 		}
-		arguments := append([]string{"build"}, releaseBinaryBuildFlags(repositoryRootPath)...)
+		buildFlags, errorValue := releaseBinaryBuildFlags(repositoryRootPath)
+		if errorValue != nil {
+			return errorValue
+		}
+		arguments := append([]string{"build"}, buildFlags...)
 		command := exec.Command("go", append(arguments, "-o", outputPath, packagePath)...)
 		command.Dir = repositoryRootPath
 		command.Env = append(os.Environ(), "GOOS=linux", "GOARCH=arm64")
@@ -606,9 +607,13 @@ func buildReleaseBinary(packagePath string) func(string, string) error {
 	}
 }
 
-func releaseBinaryBuildFlags(repositoryRootPath string) []string {
+func releaseBinaryBuildFlags(repositoryRootPath string) ([]string, error) {
 	revision := releaseBinaryRevision(repositoryRootPath)
-	return []string{"-ldflags", admindStampFlags(revision, revision)}
+	stamped, errorValue := admindStampFlags(revision, revision)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return []string{"-ldflags", stamped}, nil
 }
 
 func releaseBinaryRevision(repositoryRootPath string) string {
@@ -623,11 +628,35 @@ func releaseBinaryRevision(repositoryRootPath string) string {
 // the only way to see whether an upgrade moved the running process rather than the
 // file. A build that leaves these at their defaults answers `unknown` and that check
 // can never be made.
-func admindStampFlags(buildID string, revision string) string {
-	return strings.Join([]string{
+func admindStampFlags(buildID string, revision string) (string, error) {
+	centralPlaneFlags, errorValue := centralPlaneStampFlags()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	flags := []string{
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
 		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
-	}, " ")
+	}
+	return strings.Join(append(flags, centralPlaneFlags...), " "), nil
+}
+
+func centralPlaneStampFlags() ([]string, error) {
+	projectURL := os.Getenv("SUPABASE_URL")
+	publishableKey := os.Getenv("SUPABASE_PUBLISHABLE_KEY")
+	var missing []string
+	if projectURL == "" {
+		missing = append(missing, "SUPABASE_URL")
+	}
+	if publishableKey == "" {
+		missing = append(missing, "SUPABASE_PUBLISHABLE_KEY")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("%s not set: admind is built carrying the central plane they name, so run this under `monkeys run @production`", strings.Join(missing, " and "))
+	}
+	return []string{
+		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultProjectURL=" + projectURL,
+		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultPublishableKey=" + publishableKey,
+	}, nil
 }
 
 func buildBlueclawSupervisorReleaseBinary(repositoryRootPath string, outputPath string) error {
@@ -728,34 +757,12 @@ func writeReleaseArchiveEntry(writer *tar.Writer, sourcePath string, currentPath
 	return errorValue
 }
 
-func releaseR2Client() (releaseset.R2Client, error) {
-	return releaseset.NewR2Client(releaseset.R2Configuration{
-		AccountID:       releaseR2AccountID(),
-		Bucket:          os.Getenv("INTERNKIM_RELEASE_R2_BUCKET"),
-		AccessKeyID:     os.Getenv("INTERNKIM_RELEASE_R2_ACCESS_KEY_ID"),
-		SecretAccessKey: os.Getenv("INTERNKIM_RELEASE_R2_SECRET_ACCESS_KEY"),
-		PublicBaseURL:   os.Getenv("INTERNKIM_RELEASE_PUBLIC_BASE_URL"),
-		HTTPClient:      statusHTTPClient,
-	})
-}
-
-// R2 shares the same Cloudflare account as the rest of the workspace, so CLOUDFLARE_ACCOUNT_ID is a valid fallback.
 func releaseR2AccountID() string {
-	if accountID := strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_ACCOUNT_ID")); accountID != "" {
-		return accountID
-	}
 	return strings.TrimSpace(os.Getenv("CLOUDFLARE_ACCOUNT_ID"))
 }
 
 func releasePublisherFromEnvironment(repositoryRootPath string) (releaseObjectPublisher, error) {
-	publisherName := strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_RELEASE_R2_PUBLISHER")))
-	if publisherName == "" || publisherName == "s3" {
-		return releaseR2Client()
-	}
-	if publisherName == "wrangler" {
-		return releaseWranglerPublisher(repositoryRootPath)
-	}
-	return nil, fmt.Errorf("unsupported INTERNKIM_RELEASE_R2_PUBLISHER %q", publisherName)
+	return releaseWranglerPublisher(repositoryRootPath)
 }
 
 func releaseWranglerPublisher(repositoryRootPath string) (wranglerReleasePublisher, error) {

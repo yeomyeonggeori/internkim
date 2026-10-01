@@ -16,7 +16,7 @@ import { setUpNotificationsFor } from '$lib/server/notifications-at-founding';
 export const GET: RequestHandler = async ({ platform, url }) => {
 	const environment = { ...env, ...((platform?.env ?? {}) as Record<string, string | undefined>) };
 	const projectURL = environment.SUPABASE_URL ?? '';
-	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? environment.SUPABASE_SERVICE_ROLE_KEY ?? '';
+	const serviceRoleKey = environment.SUPABASE_SECRET_KEY ?? '';
 	if (!projectURL || !serviceRoleKey) error(500, 'the central plane is not configured');
 
 	const slug = (url.searchParams.get('slug') ?? '').trim().toLowerCase();

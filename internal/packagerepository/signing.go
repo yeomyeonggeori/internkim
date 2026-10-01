@@ -19,7 +19,7 @@ import (
 // program is a file that program opens rather than a value in its environment.
 // MaterialiseSigningKey is the seam between the two, and it is the one function
 // that changes when the key moves to a smartcard.
-const SigningKeyVariable = "INTERNKIM_APT_SIGNING_KEY"
+const SigningKeyVariable = "INTERNKIM_PACKAGE_SIGNING_KEY"
 
 // GPGSigner signs repository metadata and packages with an exported OpenPGP
 // secret key, in a homedir it creates and destroys around the run.
@@ -188,13 +188,13 @@ func (signer *GPGSigner) run(input []byte, arguments ...string) ([]byte, error) 
 // `tools/verify-environment-declarations` reads the literal at the call site;
 // TestTheConfiguredVariableIsTheOneThatIsRead holds the two together.
 func MaterialiseSigningKey() (string, func(), error) {
-	key := strings.TrimSpace(os.Getenv("INTERNKIM_APT_SIGNING_KEY"))
+	key := strings.TrimSpace(os.Getenv("INTERNKIM_PACKAGE_SIGNING_KEY"))
 	if key == "" {
 		return "", func() {}, fmt.Errorf(
 			"no archive signing key: run this as `internkim @production release repositories`, which hands it %s "+
 				"out of the vault for the length of the command", SigningKeyVariable)
 	}
-	if errorValue := os.Unsetenv("INTERNKIM_APT_SIGNING_KEY"); errorValue != nil {
+	if errorValue := os.Unsetenv("INTERNKIM_PACKAGE_SIGNING_KEY"); errorValue != nil {
 		return "", func() {}, errorValue
 	}
 	directory, errorValue := makeShortLivedHomeDirectory()

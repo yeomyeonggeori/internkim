@@ -19,7 +19,7 @@
 		"generate:protocol": "bun run scripts/generate-capability-protocol.ts",
 		"report:plugin-tools": "bun run scripts/plugin-tool-provenance.ts --json",
 		"test:integration": "./scripts/test-integration.sh",
-		"pilot": "bun --env-file=../.env run tests/pilot/run-pilot.ts",
+		"pilot": "monkeys run @test bun run tests/pilot/run-pilot.ts",
 		"pilot:summary": "bun run tests/pilot/summarize-pilot.ts",
 		"test:unit:pilot": "bun test tests/unit/pilot",
 		"test:e2e:messenger": "PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5196} bunx playwright test tests/e2e/messenger-thread-sheet.spec.ts tests/e2e/messenger-unread-badge.spec.ts tests/e2e/messenger-mentions.spec.ts tests/e2e/messenger-message-edit.spec.ts tests/e2e/messenger-conversation-menu.spec.ts tests/e2e/messenger-agent-working.spec.ts tests/e2e/messenger-composer-toolbar.spec.ts tests/e2e/messenger-failed-send.spec.ts tests/e2e/messenger-channel-sections.spec.ts --workers=1",

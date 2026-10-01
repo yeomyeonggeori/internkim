@@ -7,7 +7,7 @@ const apiKey = index >= 0 ? process.argv[index + 1] : undefined;
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
-	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? '',
 });
 
 const { data: agents, error } = await client

@@ -15,6 +15,21 @@ export function variablesRequiredOnPages(declarations: Record<string, Declaratio
 		.sort();
 }
 
+export type PagesEnvironmentVariables = Record<string, { type: 'secret_text'; value: string }>;
+
+export function pagesVariablesFromVault(
+	required: string[],
+	valueOf: (name: string) => string
+): PagesEnvironmentVariables {
+	const missing = required.filter((name) => !valueOf(name));
+	if (missing.length > 0) {
+		throw new Error(
+			`${missing.join(', ')} not set: run this through \`monkeys run @production\`, which hands it the vault`
+		);
+	}
+	return Object.fromEntries(required.map((name) => [name, { type: secretType, value: valueOf(name) }]));
+}
+
 export function refusalOfPagesVariables(required: string[], held: HeldVariables): string | null {
 	const missing = required.filter((name) => !held[name]);
 	const plain = required.filter((name) => held[name] && held[name].type !== secretType);

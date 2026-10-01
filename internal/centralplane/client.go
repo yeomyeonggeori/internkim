@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-const (
-	DefaultProjectURL     = "https://mutvimjbvmoludotyehk.supabase.co"
-	DefaultPublishableKey = "sb_publishable_HwxbmtaLFeHiOAZLIUvIZw_V17mbX44"
+var (
+	DefaultProjectURL     string
+	DefaultPublishableKey string
 )
 
 type Settings struct {

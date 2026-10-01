@@ -119,7 +119,7 @@ func TestTheConfiguredVariableIsTheOneThatIsRead(t *testing.T) {
 	if keyPath == "" {
 		t.Fatalf("MaterialiseSigningKey read %s and wrote nowhere", SigningKeyVariable)
 	}
-	if SigningKeyVariable != "INTERNKIM_APT_SIGNING_KEY" {
+	if SigningKeyVariable != "INTERNKIM_PACKAGE_SIGNING_KEY" {
 		t.Fatalf("the signing key is held under %s", SigningKeyVariable)
 	}
 }

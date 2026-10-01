@@ -21,7 +21,7 @@ const [directory] = given.filter(
 if (!directory) throw new Error('name the worker directory to deploy');
 
 const environment = { ...process.env, CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: accountID };
-const zone = zoneOfSettings({ CLOUDFLARE_DOMAIN: setting('CLOUDFLARE_DOMAIN'), INTERNKIM_DOMAIN: setting('INTERNKIM_DOMAIN') });
+const zone = zoneOfSettings({ CLOUDFLARE_DOMAIN: setting('CLOUDFLARE_DOMAIN') });
 const routes = routeSubdomains.map((label) => routePatternOfSubdomain(label, zone));
 
 function runWrangler(wranglerArguments: string[], input?: string): void {

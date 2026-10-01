@@ -345,7 +345,7 @@ class RepositoryTrial:
         print(f"{passed}/{len(self.judgement.results)} observations held · {destination}")
 
 
-SIGNING_KEY_NAME = "INTERNKIM_APT_SIGNING_KEY"
+SIGNING_KEY_NAME = "INTERNKIM_PACKAGE_SIGNING_KEY"
 
 
 def vault_holds_a_key(monkeys):

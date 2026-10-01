@@ -10,7 +10,7 @@ const local = localFiles.map((name) => name.split('_')[0]);
 const unrecorded = local.filter((version) => !recorded.includes(version));
 const unknownLocally = recorded.filter((version) => !local.includes(version));
 
-console.log(`project        ${projectReference}`);
+console.log(`project        ${projectReference()}`);
 console.log(`local files    ${local.length}, newest ${local[local.length - 1]}`);
 console.log(`recorded       ${recorded.length}, newest ${recorded[recorded.length - 1]}`);
 

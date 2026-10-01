@@ -4,7 +4,7 @@ import { controlPlane } from '../src/lib/server/control-plane';
 
 const client = controlPlane({
 	projectURL: process.env.SUPABASE_URL ?? '',
-	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+	serviceRoleKey: process.env.SUPABASE_SECRET_KEY ?? '',
 });
 
 const { data: companies, error: companyError } = await client
