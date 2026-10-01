@@ -55,22 +55,6 @@ describe('company sign-up email', () => {
 		expect(template).toContain('{{ .Token }}');
 	});
 
-	test('refuses sign-up when email delivery is disabled instead of issuing a password', async () => {
-		let wasCalled = false;
-		const attempt = requestCompanySignupEmail(
-			{ SUPABASE_URL: 'https://project.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'publishable', AUTH_CLAIM_WITHOUT_EMAIL: '1' },
-			'founder@example.com',
-			'https://intern.example.com',
-			async () => {
-				wasCalled = true;
-				return { error: null };
-			}
-		);
-
-		await expect(attempt).rejects.toEqual(new CompanySignupError(503, 'company sign-up email is unavailable'));
-		expect(wasCalled).toBe(false);
-	});
-
 	test('requires the hosted Supabase settings before contacting auth', async () => {
 		let wasCalled = false;
 		const attempt = requestCompanySignupEmail({}, 'founder@example.com', 'https://intern.example.com', async () => {

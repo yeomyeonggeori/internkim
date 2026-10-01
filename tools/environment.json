@@ -31,10 +31,6 @@
     "process": "relay",
     "description": "the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091"
   },
-  "AUTH_CLAIM_WITHOUT_EMAIL": {
-    "process": "web",
-    "description": "when \"1\", lets a member claim (register) an account without email verification; off by default"
-  },
   "BLUECLAW": {
     "process": "tools/e2e-ask-flow-remote.sh",
     "description": "the fleet VM's Blueclaw admin API base URL; the file's own text never assigns it, but the driver always concatenates it after e2e-crud-remote.sh, which hardcodes it to http://127.0.0.1:8080"
