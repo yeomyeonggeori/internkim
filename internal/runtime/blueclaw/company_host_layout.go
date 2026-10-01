@@ -183,8 +183,22 @@ func (layout CompanyHostLayout) PolicyDocumentPath() string {
 	return layout.RunPath + "/policy.json"
 }
 
+// ACPSocketDirectoryPath holds the one socket blueclaw serves the relay on, and
+// nothing else. It is blueclaw's, setgid with the relay's group, so the socket
+// blueclaw creates in it takes that group and the relay connects through the
+// group bits without being given the blueclaw group, which reads the keys.
+func (layout CompanyHostLayout) ACPSocketDirectoryPath() string {
+	return layout.RunPath + "/acp"
+}
+
 func (layout CompanyHostLayout) ACPSocketPath() string {
-	return layout.RunPath + "/blueclaw-acp.sock"
+	return layout.ACPSocketDirectoryPath() + "/blueclaw-acp.sock"
+}
+
+// AdmindSocketPath is where admind answers the relay and the capability daemon
+// with an asserted requester. admind hands the socket to the relay's account.
+func (layout CompanyHostLayout) AdmindSocketPath() string {
+	return layout.RunPath + "/admind.sock"
 }
 
 func (layout CompanyHostLayout) RunSecretsPath() string {

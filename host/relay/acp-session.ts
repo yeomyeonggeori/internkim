@@ -11,7 +11,7 @@ import {
 } from '@agentclientprotocol/sdk';
 import type { HeldQuestion, HeldQuestionStore } from './held-question-store';
 
-export const defaultBlueclawACPSocketPath = '/run/internkim/blueclaw-acp.sock';
+export const defaultBlueclawACPSocketPath = '/run/internkim/acp/blueclaw-acp.sock';
 export const sessionMetaKey = 'kim.intern/session';
 export const messageMetaKey = 'kim.intern/message';
 

@@ -115,7 +115,7 @@ read, whether required or optional, in one table:
 | `AGENT_API_KEY_PATH` | relay | the path to the file holding the company agent key, so the key never lands in the process environment (ps eww) |
 | `ANSWER_BYTE_CEILING` | relay | maximum bytes the relay will broadcast through Supabase Realtime before answering 413; defaults to the Supabase Pro plan's 3,000,000-byte limit |
 | `ARRIVALS_PORT` | relay | the loopback port the relay listens on for the messenger connector's arrival notifications; defaults to 18091 |
-| `BLUECLAW_ACP_SOCKET_PATH` | relay | the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock |
+| `BLUECLAW_ACP_SOCKET_PATH` | relay | the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/acp/blueclaw-acp.sock |
 | `CHATD_BASE_URL` | relay | chatd's base URL the relay calls; defaults to http://127.0.0.1:18090 |
 | `DATABASE_URL` | host | the host's own Postgres connection string, which internkim install writes to the host's environment file; the host's prepare script refuses to run without it, and tools/render-company-runtime renders it into the runtime document |
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
@@ -227,6 +227,15 @@ message the agent sends under a person's own name cannot be signed. blueclaw
 runs as the `blueclaw` user and cannot open that directory, so
 `internkim-prepare` stages the keys it needs in `/run/internkim/secrets` before
 the services start; blueclaw sees a rotated key after a restart.
+
+The relay runs as the `internkim` user and is never in the `blueclaw` group,
+which reads those keys. It reaches the two sockets it needs by their own modes.
+`/run/internkim` is `0771 root:blueclaw`, so any account may pass through it but
+none outside the group may list it. `admind.sock` is `0660` and belongs to the
+relay, and blueclaw's socket is `0660` in `/run/internkim/acp`, a
+`2750 blueclaw:internkim` directory whose setgid bit gives the socket the
+relay's group. Everything else there grants others nothing, and the prepare
+step writes under `umask 077`.
 
 The same step renders `runtime.template.json` with `DATABASE_URL` and
 `MESSENGER_PLATFORM` to `/run/internkim/runtime.json`, unless

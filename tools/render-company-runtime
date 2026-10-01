@@ -7,6 +7,11 @@
 # The package's prepare script calls this and so does the local plane, because
 # a plane that renders its own document proves nothing about the one a company
 # runs.
+#
+# Its intermediates are removed on the way out, and removed before they are
+# written so they are created under the caller's umask: the rendered template
+# carries the database password, and the work directory is the host's run
+# directory, which the relay's account may pass through.
 set -e
 
 usage() {
@@ -74,6 +79,8 @@ mkdir -p "${workDirectory}"
 renderedPath="${workDirectory}/runtime.rendered.json"
 capabilitiesPath="${workDirectory}/capabilities.json"
 languageModelPath="${workDirectory}/language-model.json"
+rm -f "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}"
+trap 'rm -f "${renderedPath}" "${capabilitiesPath}" "${languageModelPath}"' EXIT
 
 jq \
   --arg DATABASE_URL "${DATABASE_URL}" \

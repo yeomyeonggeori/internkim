@@ -29,7 +29,7 @@
   },
   "BLUECLAW_ACP_SOCKET_PATH": {
     "process": "relay",
-    "description": "the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/blueclaw-acp.sock"
+    "description": "the Unix socket blueclaw serves its ACP agent on, which the relay opens sessions over; defaults to /run/internkim/acp/blueclaw-acp.sock"
   },
   "BLUECLAW_BASE_URL": {
     "process": "tools/render-company-runtime",
