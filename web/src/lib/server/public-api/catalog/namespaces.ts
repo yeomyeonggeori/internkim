@@ -13,7 +13,6 @@ export const capabilityNamespaceSummaries = {
   notification: 'What the requester is told about, and which conversations are muted.',
   person: 'The company directory: who works here, what it holds about them, and inviting someone new.',
   schedule: 'Reminders and recurring work done later, once or on a repeat.',
-  site: 'Publish a website built in the workspace, preview it, or take it down.',
   task: "The team's work items: add, find, update, and who takes part.",
   team: "The organization chart's teams: create, rename, move, and remove.",
   web: 'Search the public web and read its pages.',

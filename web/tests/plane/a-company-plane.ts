@@ -94,7 +94,6 @@ type AdmindPlaneArguments = {
 	buzzAdminCommandPath: string;
 	buzzRelayURL: string;
 	buzzAccountLinksPath: string;
-	siteScaffoldPath: string;
 	centralPlaneAppURL: string;
 	centralPlaneAgentKeyPath: string;
 	blueclawAssertionKeyPath: string;
@@ -152,7 +151,6 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-buzz-admin-command': argumentsForPlane.buzzAdminCommandPath,
 			'-buzz-relay-url': argumentsForPlane.buzzRelayURL,
 			'-buzz-account-links': argumentsForPlane.buzzAccountLinksPath,
-			'-site-scaffold': argumentsForPlane.siteScaffoldPath,
 			'-central-plane-app-url': argumentsForPlane.centralPlaneAppURL,
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
 			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
@@ -524,7 +522,6 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						buzzAdminCommandPath: join(binaryDirectory, 'buzz-admin'),
 						buzzRelayURL: 'ws://127.0.0.1:1',
 						buzzAccountLinksPath: join(runDirectory, 'state', 'buzz-account-links.json'),
-						siteScaffoldPath: join(environmentValue('COMPANY_PLANE_SKILLS'), 'website', 'assets', 'scaffold', 'app'),
 						centralPlaneAppURL: environmentValue('INTERNKIM_APP_URL'),
 						centralPlaneAgentKeyPath: agentKeyPath,
 						blueclawAssertionKeyPath,

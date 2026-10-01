@@ -31,7 +31,7 @@ func (service *Service) router() http.Handler {
 	service.registerAssetRoutes(multiplexer)
 	service.registerBoardRoutes(multiplexer)
 	multiplexer.Handle("/", service.mattermostProxy())
-	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(service.withSiteGateway(multiplexer))))
+	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(multiplexer)))
 }
 
 func (service *Service) registerAdminRoutes(multiplexer *http.ServeMux) {

@@ -81,8 +81,8 @@ const (
 
 // The device's administration directory, less what the host has no place for or
 // writes itself: local models, the old backups, the fleet's environment and
-// credentials, the TLS terminator's key. Site credentials stay, because the
-// host's admin gateway reads them from the same place.
+// credentials, the TLS terminator's key. Site credentials stay beside the site
+// data they open.
 var administrationLeftOut = []string{
 	"models", "backups", "env", "tls", "recovery", "state/admin/jobs",
 }

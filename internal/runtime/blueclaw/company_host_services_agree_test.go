@@ -37,7 +37,7 @@ func TestAdmindAndCapabilitydWorkInTheWorkspaceBlueclawRunsIn(t *testing.T) {
 	workspace := LinuxCompanyHostLayout().WorkspacePath
 	for serviceName, flag := range map[string]string{AdmindServiceName: "-blueclaw-workspace", CapabilitydServiceName: "--blueclaw-workspace"} {
 		if startedWith(t, serviceName, flag) != workspace {
-			t.Errorf("%s works in %s while blueclaw runs in %s, so sites, attachments and file tools land in a directory nobody else reads",
+			t.Errorf("%s works in %s while blueclaw runs in %s, so attachments and file tools land in a directory nobody else reads",
 				serviceName, startedWith(t, serviceName, flag), workspace)
 		}
 	}

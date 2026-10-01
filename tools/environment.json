@@ -376,7 +376,7 @@
   },
   "INTERNKIM_PUBLIC_URL": {
     "process": "web e2e tests",
-    "description": "the published site's public URL tests/e2e/public-url.spec.ts and site-evidence.spec.ts check"
+    "description": "the public URL tests/e2e/public-url.spec.ts checks"
   },
   "INTERNKIM_REAL_CHROME_BROWSER_TEST": {
     "process": "internal/browser tests",
@@ -413,22 +413,6 @@
   "INTERNKIM_RUNTIME_BUILDER_PROBE_SECONDS": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "how long the remote runtime-builder waits when probing the transfer; defaults to 120"
-  },
-  "INTERNKIM_SITE_ABSENT_TEXT": {
-    "process": "web e2e tests",
-    "description": "text tests/e2e/site-evidence.spec.ts asserts is absent from the published site"
-  },
-  "INTERNKIM_SITE_EVIDENCE_MODE": {
-    "process": "web e2e tests",
-    "description": "which mode tests/e2e/site-evidence.spec.ts checks the site in (\"published\" or \"deleted\"); defaults to \"published\""
-  },
-  "INTERNKIM_SITE_EXPECT_TEXT": {
-    "process": "web e2e tests",
-    "description": "text tests/e2e/site-evidence.spec.ts asserts is present on the published site"
-  },
-  "INTERNKIM_SITE_SCREENSHOT": {
-    "process": "web e2e tests",
-    "description": "the file path tests/e2e/site-evidence.spec.ts saves its site screenshot to"
   },
   "INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": {
     "process": "cli",

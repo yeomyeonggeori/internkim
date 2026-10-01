@@ -331,8 +331,6 @@ echo "Staged files installed."
 NOLOGIN_BINARY=$(command -v nologin || echo /usr/sbin/nologin)
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BINARY" blueclaw
-getent group internkim-site >/dev/null 2>&1 || groupadd --system internkim-site
-id internkim-site &>/dev/null || useradd -r -g internkim-site -d /nonexistent -s "$NOLOGIN_BINARY" internkim-site
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chown blueclaw:blueclaw /root/.blueclaw/workspace/AGENTS.md 2>/dev/null || true
 chmod 711 /root
@@ -343,10 +341,7 @@ chown root:root /root/.internkim/config
 chmod 700 /root/.internkim/config
 chown root:blueclaw /root/.internkim/env
 chmod 750 /root/.internkim/env
-mkdir -p /root/.internkim/sites /root/.internkim/secrets/sites
-chown root:internkim-site /root/.internkim /root/.internkim/sites /root/.internkim/secrets/sites
 chmod 755 /root/.internkim
-chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chown root:root /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 chmod 600 /root/.internkim/secrets/openrouter-api-key 2>/dev/null || true
 install -d -o root -g root -m 700 /root/.internkim/models

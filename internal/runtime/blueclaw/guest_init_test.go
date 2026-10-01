@@ -48,8 +48,6 @@ func TestGuestInitDelegatesWorkspaceLayoutToPOSIXPolicy(t *testing.T) {
 		"blueclaw-posix-helper sync",
 		"--policy /delivery/config/policy.json",
 		"--workspace /workspace",
-		"seed_blueclaw_bun_cache",
-		"/opt/blueclaw/bun-cache",
 	} {
 		if !strings.Contains(document, expectedFragment) {
 			t.Fatalf("expected guest init to contain %q", expectedFragment)

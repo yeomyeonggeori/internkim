@@ -34,9 +34,6 @@ type Service struct {
 	mutex                   sync.Mutex
 	adminSeating            sync.Mutex
 	centralPlaneOnce        sync.Once
-	siteScaffoldOnce        sync.Once
-	siteScaffoldDocuments   []siteScaffoldDocument
-	siteScaffoldError       error
 	centralPlaneClient      *centralplane.Client
 	mattermostAdminOnce     sync.Once
 	mattermostAdminClient   *mattermostadmin.Client
@@ -49,10 +46,6 @@ type Service struct {
 	buzzKeySeedValue        string
 	cloudflareAccessOnce    sync.Once
 	cloudflareAccessCheck   *cloudflareAccessVerifier
-	sites                   map[string]*SiteRecord
-	siteRuntimeMutex        sync.Mutex
-	siteRuntimeActivities   map[string]*siteRuntimeActivity
-	siteRuntimeStartupDone  <-chan struct{}
 	mailBackend             mail.Backend
 	mailPasswords           mail.PasswordOpener
 	companyShareMutex       sync.Mutex
@@ -77,7 +70,6 @@ func NewService(configuration Configuration) *Service {
 		jobs:                  map[string]*Job{},
 		uploads:               map[string]*RestoreUpload{},
 		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
-		sites:                 map[string]*SiteRecord{},
 		mailBackend:           mail.StandardBackend{},
 		mailPasswords:         mail.BoxPasswords(blueclawruntime.CompanyHostBoxStatePath),
 		companyShareAttempts:  map[string]companyShareAttempt{},
@@ -85,15 +77,12 @@ func NewService(configuration Configuration) *Service {
 		databaseSchemas:       newAdminDatabaseSchemas(),
 		startedAt:             time.Now().UTC(),
 	}
-	service.loadSites()
 	return service
 }
 
 func (service *Service) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	service.reconcileSiteSourcesToMemberCircle()
-	service.startSiteRuntimeReconcile(ctx)
 	handler := service.router()
 	server := &http.Server{
 		Addr:    service.Configuration.ListenAddress,
@@ -147,7 +136,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startCRMSweep(ctx)
 	service.startMailAccountSweep(ctx)
 	service.startTaskSweep(ctx)
-	service.startSiteRuntimeJanitor(ctx)
 	removeAbandonedBackupIntermediates(abandonedBackupDirectory)
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzCredentialSweep(ctx)
@@ -157,7 +145,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startCircleRoomMembershipSync(ctx)
 	service.startAdminChannelSeatSync(ctx)
 	service.ensureBuzzRelayTerminator()
-	service.warnWhenFontAssetsMissing()
 }
 
 func (service *Service) startRequesterSocketListener(socketServer *http.Server) error {

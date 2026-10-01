@@ -8,14 +8,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
 
-func TestRunServesRequesterMemoryWhileSiteCleanupWaits(t *testing.T) {
-	service, _ := newTestSiteService(t)
-	publishStaticTestSite(t, service, "startup-static")
+func TestRunServesRequesterMemoryOverTheSocket(t *testing.T) {
+	rootPath := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:        filepath.Join(rootPath, "state", "admin"),
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		TaskDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
+		BlueclawWorkspacePath: filepath.Join(rootPath, "blueclaw"),
+	})
 	socketDirectory, errorValue := os.MkdirTemp("/tmp", "admind-startup-")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -35,20 +39,7 @@ func TestRunServesRequesterMemoryWhileSiteCleanupWaits(t *testing.T) {
 	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "test-agent-key")
 	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, "test-assertion-key")
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
-	cleanupStarted := make(chan struct{})
-	releaseCleanup := make(chan struct{})
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		if name == "systemctl" && strings.Contains(strings.Join(arguments, " "), "disable --now") {
-			close(cleanupStarted)
-			select {
-			case <-releaseCleanup:
-				return []byte("ok"), nil
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-		return []byte("ok"), nil
-	}
+	service.RunCommand = func(context.Context, string, ...string) ([]byte, error) { return []byte("ok"), nil }
 	personaSeeded := make(chan struct{})
 	service.HTTPClient = memoryFactsClient(personaSeeded)
 	contextValue, cancel := context.WithCancel(context.Background())
@@ -68,11 +59,6 @@ func TestRunServesRequesterMemoryWhileSiteCleanupWaits(t *testing.T) {
 
 	awaitFile(t, requesterSocketPath)
 	select {
-	case <-cleanupStarted:
-	case <-time.After(5 * time.Second):
-		t.Fatal("site cleanup did not block startup")
-	}
-	select {
 	case <-personaSeeded:
 	case <-time.After(5 * time.Second):
 		t.Fatal("persona fixture was not seeded")
@@ -90,11 +76,16 @@ func TestRunServesRequesterMemoryWhileSiteCleanupWaits(t *testing.T) {
 	if _, exists := facts["facts"]; !exists {
 		t.Fatalf("requester memory response = %+v", facts)
 	}
-	close(releaseCleanup)
 }
 
 func TestRunReturnsConfiguredRequesterSocketBindError(t *testing.T) {
-	service, _ := newTestSiteService(t)
+	rootPath := t.TempDir()
+	service := NewService(Configuration{
+		StateDirectory:        filepath.Join(rootPath, "state", "admin"),
+		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
+		TaskDatabasePath:      filepath.Join(rootPath, "state", "admin", "flow.sqlite"),
+		BlueclawWorkspacePath: filepath.Join(rootPath, "blueclaw"),
+	})
 	service.Configuration.ListenAddress = "127.0.0.1:0"
 	parentPath := filepath.Join(t.TempDir(), "ordinary-file")
 	service.Configuration.ListenSocketPath = filepath.Join(parentPath, "admind.sock")
@@ -111,36 +102,22 @@ func TestRunReturnsConfiguredRequesterSocketBindError(t *testing.T) {
 	}
 }
 
-func TestSiteRuntimeReconcileWaitHonorsContextCancellation(t *testing.T) {
-	service, _ := newTestSiteService(t)
-	staticSite := publishStaticTestSite(t, service, "startup-cancel")
-	started := make(chan struct{})
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		if name == "systemctl" && strings.Contains(strings.Join(arguments, " "), "disable --now") {
-			close(started)
-			<-ctx.Done()
-			return nil, ctx.Err()
+func memoryFactsClient(personaSeeded chan<- struct{}) *http.Client {
+	return &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path == "/admin/api/persona/agent" {
+			if personaSeeded != nil {
+				close(personaSeeded)
+			}
+			return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
 		}
-		return []byte("ok"), nil
-	}
-	startupContext, cancelStartup := context.WithCancel(context.Background())
-	defer cancelStartup()
-	service.startSiteRuntimeReconcile(startupContext)
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("site cleanup did not start")
-	}
-	requestContext, cancelRequest := context.WithCancel(context.Background())
-	cancelRequest()
-	if errorValue := service.reconcileSitePocketBaseRuntime(requestContext, staticSite, staticSite.CurrentVersionID); !errors.Is(errorValue, context.Canceled) {
-		t.Fatalf("wait error = %v, want context canceled", errorValue)
-	}
-	if errorValue := service.ensureSitePocketBaseRunning(requestContext, staticSite); !errors.Is(errorValue, context.Canceled) {
-		t.Fatalf("start error = %v, want context canceled", errorValue)
-	}
-	cancelStartup()
-	<-service.siteRuntimeStartupDone
+		if request.URL.String() == "https://app.example.test/api/agent/member" {
+			return jsonResponse(http.StatusOK, `{"members":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
+		}
+		if request.URL.Path == "/admin/api/memory/facts" {
+			return jsonResponse(http.StatusOK, `{"personID":"person-1","profile":{"identityLines":[],"currentLines":[]},"facts":[]}`, nil), nil
+		}
+		return nil, errors.New("unexpected memory startup request: " + request.URL.String())
+	})}
 }
 
 func awaitFile(t *testing.T, path string) {
@@ -172,22 +149,4 @@ func requesterMemoryFacts(t *testing.T, socketPath string) *http.Response {
 		t.Fatal(errorValue)
 	}
 	return response
-}
-
-func memoryFactsClient(personaSeeded chan<- struct{}) *http.Client {
-	return &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path == "/admin/api/persona/agent" {
-			if personaSeeded != nil {
-				close(personaSeeded)
-			}
-			return jsonResponse(http.StatusServiceUnavailable, `{}`, nil), nil
-		}
-		if request.URL.String() == "https://app.example.test/api/agent/member" {
-			return jsonResponse(http.StatusOK, `{"members":[{"email":"member@example.com","memberID":"user:person-1","name":"Member","role":"member","status":"active"}]}`, nil), nil
-		}
-		if request.URL.Path == "/admin/api/memory/facts" {
-			return jsonResponse(http.StatusOK, `{"personID":"person-1","profile":{"identityLines":[],"currentLines":[]},"facts":[]}`, nil), nil
-		}
-		return nil, errors.New("unexpected memory startup request: " + request.URL.String())
-	})}
 }

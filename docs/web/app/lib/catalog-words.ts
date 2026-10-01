@@ -5,7 +5,6 @@ const koreanSideEffectWords: Record<string, string> = {
   workspace_write: '워크스페이스 쓰기',
   external_write: '외부 수정',
   external_send: '외부 발송',
-  site_publish: '사이트 게시',
   connect: '연결',
   destructive: '삭제',
 };

@@ -152,7 +152,7 @@ function createDevTaskDetail(taskRun: TaskRunSummary): Omit<TaskDetail, 'taskEve
 			updatedAt: secondsAfter(taskRun.createdAt, 11.2),
 			result:
 				taskRun.status === 'completed'
-					? '요청한 작업을 완료했고 게시 URL과 주요 변경 사항을 사용자에게 전달했습니다.'
+					? '요청한 작업을 완료했고 결과 파일 경로와 주요 변경 사항을 사용자에게 전달했습니다.'
 					: taskRun.result
 		},
 		taskEvents: createDevTaskEvents(taskRun)
@@ -188,47 +188,43 @@ function createDevTaskEvents(taskRun: TaskRunSummary): WireTaskEvent[] {
 		}, at(4.6), `${taskRun.taskRunID}-turn`),
 		taskEvent('agent.action', {
 			action: 'continue',
-			toolName: 'site_serve',
+			toolName: 'image_generate',
 			toolInput: {
-				title: '맛있는 귤 세상',
-				slug: 'tasty-tangerine',
-				description: '귤 소개 웹사이트'
+				prompt: '맛있는 귤이 가득 쌓여 있는 소개 이미지',
+				path: '/workspace/shared/tangerine.png',
+				aspectRatio: '16:9'
 			},
-			reason: '사용자가 사이트 생성을 요청했으므로 사이트 생성 도구를 호출합니다.'
+			reason: '사용자가 이미지 생성을 요청했으므로 이미지 생성 도구를 호출합니다.'
 		}, at(4.7)),
-		taskEvent('tool.site_serve.requested', {
+		taskEvent('tool.image_generate.requested', {
 			observationID: 'obs-006',
-			toolName: 'site_serve',
+			toolName: 'image_generate',
 			input: {
-				title: '맛있는 귤 세상',
-				slug: 'tasty-tangerine',
-				audience: '귤을 좋아하는 사람들'
+				prompt: '맛있는 귤이 가득 쌓여 있는 소개 이미지',
+				path: '/workspace/shared/tangerine.png'
 			}
 		}, at(4.8)),
 		isFailed
-			? taskEvent('tool.site_serve.result', {
+			? taskEvent('tool.image_generate.result', {
 				observationID: 'obs-012',
-				tool: 'site_serve',
-				output: { content: '게시 서버가 30초 안에 응답하지 않았습니다.' },
+				tool: 'image_generate',
+				output: { content: '이미지 생성 서버가 30초 안에 응답하지 않았습니다.' },
 				failure: { kind: 'timeout' }
 			}, at(34.8))
-			: taskEvent('tool.site_serve.result', {
+			: taskEvent('tool.image_generate.result', {
 				observationID: 'obs-012',
-				tool: 'site_serve',
+				tool: 'image_generate',
 				output: {
 					data: {
-						siteID: '0da25b8c036e2cb7a05e3200',
-						slug: 'tangerine-hub',
-						publishedURL: 'https://tangerine-hub.example-device.example.test',
-						status: 'published',
-						tlsStatus: 'active'
+						path: '/workspace/shared/tangerine.png',
+						status: 'ok'
 					}
 				}
 			}, at(9.3)),
 		taskEvent('agent.action', {
 			action: taskRun.status === 'completed' ? 'finish' : 'continue',
 			message: taskRun.status === 'completed'
-				? '요청하신 작업이 완료되어 게시되었습니다.'
+				? '요청하신 이미지를 만들었습니다.'
 				: '작업을 계속 진행합니다.',
 			goalStatus: taskRun.status === 'completed' ? 'satisfied' : 'working',
 			goalSatisfied: taskRun.status === 'completed'
@@ -256,8 +252,8 @@ function serviceLogsResponse(searchParams: URLSearchParams): DevMockResponse {
 			taskRunID,
 			count: 3,
 			lines: [
-				`2026-06-25T07:29:04Z task=${taskRunID ?? 'unknown'} tool.site_serve started`,
-				`2026-06-25T07:29:05Z task=${taskRunID ?? 'unknown'} publish URL https://tangerine-hub.example-device.example.test`,
+				`2026-06-25T07:29:04Z task=${taskRunID ?? 'unknown'} tool.image_generate started`,
+				`2026-06-25T07:29:05Z task=${taskRunID ?? 'unknown'} saved /workspace/shared/tangerine.png`,
 				`2026-06-25T07:29:06Z task=${taskRunID ?? 'unknown'} task completed`
 			]
 		}
@@ -385,9 +381,9 @@ function devLLMCallExchange(llmCallID: string) {
 			model: 'google/gemini-3.1-flash-lite',
 			messages: [
 				{ role: 'system', content: '당신은 회사의 에이전트 김인턴입니다. 요청을 끝까지 처리하고, 한 일을 증거로 남깁니다.' },
-				{ role: 'user', content: [{ type: 'text', text: '귤 소개 사이트 만들어줘' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw0KGgo' } }] }
+				{ role: 'user', content: [{ type: 'text', text: '귤 소개 이미지 만들어줘' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw0KGgo' } }] }
 			],
-			tools: ['site_serve', 'file_read', 'file_write', 'message_send'].map((name) => ({ type: 'function', function: { name, parameters: {} } })),
+			tools: ['image_generate', 'file_read', 'file_write', 'message_send'].map((name) => ({ type: 'function', function: { name, parameters: {} } })),
 			response_format: { type: 'json_schema', json_schema: { name: 'bluecollar_agent_turn_action', schema: { type: 'object' } } },
 			seed: 1234567
 		}),
@@ -397,8 +393,8 @@ function devLLMCallExchange(llmCallID: string) {
 				finish_reason: 'tool_calls',
 				message: {
 					role: 'assistant',
-					reasoning: '사이트 생성 요청이므로 site_serve를 호출한다.',
-					tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'site_serve', arguments: '{"title":"맛있는 귤 세상","slug":"tasty-tangerine"}' } }]
+					reasoning: '이미지 생성 요청이므로 image_generate를 호출한다.',
+					tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'image_generate', arguments: '{"prompt":"맛있는 귤이 가득 쌓여 있는 소개 이미지","path":"/workspace/shared/tangerine.png"}' } }]
 				}
 			}]
 		})
@@ -409,8 +405,8 @@ function devTurnInput() {
 	return {
 		RequesterName: '이샘플',
 		ConversationType: 'dm',
-		Prompt: '귤 소개 사이트 만들어줘',
-		ToolSet: { toolNames: ['file_read', 'file_write', 'message_send', 'site_serve'] },
+		Prompt: '귤 소개 이미지 만들어줘',
+		ToolSet: { toolNames: ['file_read', 'file_write', 'message_send', 'image_generate'] },
 		TurnStartedAt: '2026-06-17T01:00:00Z'
 	};
 }

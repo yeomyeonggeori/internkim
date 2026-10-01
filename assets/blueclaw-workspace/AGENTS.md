@@ -61,8 +61,8 @@ leaf directories enforce privacy and membership.
 Allowed workspace paths for raw terminal and file kernel tools:
 
 - `home/<path>`: requester-private durable source workspace. Use this for
-  editable site/app source or other private work that should survive beyond the
-  task tmp cleanup window.
+  editable source or other private work that should survive beyond the task tmp
+  cleanup window.
 - `tmp/<artifact-slug>`: normal draft path, relative to the default writable
   directory. Use it for generated specs, scripts, fallback environments, and
   intermediate files.

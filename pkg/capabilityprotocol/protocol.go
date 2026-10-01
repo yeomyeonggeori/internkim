@@ -174,9 +174,8 @@ type ToolInvokeRequest struct {
 }
 
 type ToolInvokeTransport struct {
-	SiteSourceBundle *SiteSourceBundle `json:"siteSourceBundle,omitempty"`
-	WorkspaceFile    *WorkspaceFile    `json:"workspaceFile,omitempty"`
-	WorkspaceFiles   []WorkspaceFile   `json:"workspaceFiles,omitempty"`
+	WorkspaceFile  *WorkspaceFile  `json:"workspaceFile,omitempty"`
+	WorkspaceFiles []WorkspaceFile `json:"workspaceFiles,omitempty"`
 }
 
 // A person's file reaches a capability as its content. The capability daemon
@@ -187,13 +186,6 @@ type WorkspaceFile struct {
 	Filename      string `json:"filename,omitempty"`
 	ContentBase64 string `json:"contentBase64"`
 	SHA256        string `json:"sha256,omitempty"`
-}
-
-type SiteSourceBundle struct {
-	WorkspacePath string `json:"workspacePath"`
-	ContentBase64 string `json:"contentBase64"`
-	Format        string `json:"format"`
-	SHA256        string `json:"sha256"`
 }
 
 type ToolInvokeContext struct {

@@ -457,8 +457,6 @@ func TestFetchReleaseStablePointerUsesDownloadToken(t *testing.T) {
 		MailDatabasePath:          filepath.Join(t.TempDir(), "mail.sqlite"),
 		AttendanceDatabasePath:    filepath.Join(t.TempDir(), "attendance.sqlite"),
 		AdminUIPath:               t.TempDir(),
-		SitesRoot:                 t.TempDir(),
-		SiteSecretDirectory:       t.TempDir(),
 		IdentityDocumentPath:      filepath.Join(t.TempDir(), "identity.json"),
 		SoulDocumentPath:          filepath.Join(t.TempDir(), "soul.json"),
 		BotProfileImagePath:       writeTestFile(t, "image"),

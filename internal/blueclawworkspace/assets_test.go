@@ -212,7 +212,7 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
 	documentPaths := append(
-		[]string{AgentsPath(repositoryRootPath), skillPathInTest(t, repositoryRootPath, "website", "SKILL.md")},
+		[]string{AgentsPath(repositoryRootPath)},
 		officeDocumentPaths(t, repositoryRootPath)...,
 	)
 	for _, documentPath := range documentPaths {
@@ -222,130 +222,6 @@ func TestModelFacingWorkspaceDocsDoNotExposeConcretePrivatePaths(t *testing.T) {
 		}
 		if strings.Contains(string(document), "/workspace/private/people/") {
 			t.Fatalf("%s must use virtual home/tmp/artifacts paths instead of concrete private paths", documentPath)
-		}
-	}
-}
-
-func TestSitePrototypeUsesManagedScaffoldContract(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := skillPathInTest(t, repositoryRootPath, "website", "SKILL.md")
-	document, errorValue := os.ReadFile(skillPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"source of truth",
-		"source checklist",
-		"site_serve",
-		"site_list",
-		"site_unserve",
-		"scripts/scaffold.sh ~/sites/<short-name>",
-		"scripts/build.sh ~/sites/<short-name>",
-		"scripts/validate.py ~/sites/<short-name>",
-		"artifact_review",
-		"app/public/site-content.json",
-		"TODO(design)",
-		"colors, typography, rounded, spacing, components",
-		"dark navy shell",
-		"Make small value changes as targeted edits",
-		"publishedURL",
-		"sourceSHA256",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("website must document managed scaffold contract %q", expectedText)
-		}
-	}
-	for _, forbiddenText := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "tmp/<slug>", "create missing `app/package.json`", `"workingDirectoryPath": "<sourceWorkspacePath>/app"`, "warm limestone", "green secondary accents", "amber tertiary"} {
-		if strings.Contains(content, forbiddenText) {
-			t.Fatalf("website must not document stale site workspace pattern %q", forbiddenText)
-		}
-	}
-}
-
-func TestWebsiteSkillBundlesManagedScaffoldAndScripts(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	skillPath := skillPathInTest(t, repositoryRootPath, "website")
-
-	for _, scriptName := range []string{"scaffold.sh", "build.sh", "validate.py"} {
-		scriptInfo, errorValue := os.Stat(filepath.Join(skillPath, "scripts", scriptName))
-		if errorValue != nil {
-			t.Fatalf("website skill must bundle scripts/%s: %v", scriptName, errorValue)
-		}
-		if scriptInfo.Mode()&0o111 == 0 {
-			t.Fatalf("website skill scripts/%s must be executable", scriptName)
-		}
-	}
-
-	scaffoldPath := filepath.Join(skillPath, "assets", "scaffold")
-	designDocument, errorValue := os.ReadFile(filepath.Join(scaffoldPath, "DESIGN.md"))
-	if errorValue != nil {
-		t.Fatalf("website scaffold must seed DESIGN.md: %v", errorValue)
-	}
-	for _, expectedText := range []string{"__SITE_TITLE__", "TODO(design)", "colors:", "typography:", "rounded:", "spacing:", "components:"} {
-		if !strings.Contains(string(designDocument), expectedText) {
-			t.Fatalf("website scaffold DESIGN.md seed must contain %q", expectedText)
-		}
-	}
-
-	packageDocument, errorValue := os.ReadFile(filepath.Join(scaffoldPath, "app", "package.json"))
-	if errorValue != nil {
-		t.Fatalf("website scaffold must include the app template: %v", errorValue)
-	}
-	for _, expectedText := range []string{"__SITE_PACKAGE_NAME__", `"build": "bun scripts/build.ts"`} {
-		if !strings.Contains(string(packageDocument), expectedText) {
-			t.Fatalf("website scaffold app/package.json must contain %q", expectedText)
-		}
-	}
-
-	for _, templatePath := range []string{
-		filepath.Join("app", "scripts", "build.ts"),
-		filepath.Join("app", "public", "site-content.json"),
-		filepath.Join("app", "src", "App.tsx"),
-		filepath.Join("app", "src", "site-content.ts"),
-	} {
-		if _, errorValue := os.Stat(filepath.Join(scaffoldPath, templatePath)); errorValue != nil {
-			t.Fatalf("website scaffold must include %s: %v", templatePath, errorValue)
-		}
-	}
-
-	scaffoldScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "scaffold.sh"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"__SITE_PACKAGE_NAME__", "__SITE_TITLE__", "&amp;", "already exists"} {
-		if !strings.Contains(string(scaffoldScript), expectedText) {
-			t.Fatalf("website scaffold script must perform admind-equivalent instantiation, missing %q", expectedText)
-		}
-	}
-
-	validateScript, errorValue := os.ReadFile(filepath.Join(skillPath, "scripts", "validate.py"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{`["colors", "typography", "rounded", "spacing", "components"]`, "TODO(design)", "build-quality", "stale"} {
-		if !strings.Contains(string(validateScript), expectedText) {
-			t.Fatalf("website validate script must enforce the pre-serve gate, missing %q", expectedText)
-		}
-	}
-}
-
-func TestVendoredSiteScaffoldIncludesBuildManifest(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	packagePath := filepath.Join(repositoryRootPath, ".dependency", "internkim-plugin", "skills", "website", "assets", "scaffold", "app", "package.json")
-	document, errorValue := os.ReadFile(packagePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{`"build": "bun scripts/build.ts"`, `"preview": "vite preview --host 0.0.0.0 --port 4173"`, `"dependencies"`, `"devDependencies"`} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("vendored site scaffold package manifest must contain %q", expectedText)
-		}
-	}
-	for _, forbiddenText := range []string{`"latest"`, "@google/design.md", `": "^`} {
-		if strings.Contains(content, forbiddenText) {
-			t.Fatalf("vendored site scaffold package manifest must not use an unpinned version %q", forbiddenText)
 		}
 	}
 }
@@ -458,7 +334,6 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 	requirePluginSkills(t, repositoryRootPath)
 	for _, skillPath := range []string{
 		officePathInTest(t, repositoryRootPath, "SKILL.md"),
-		skillPathInTest(t, repositoryRootPath, "website", "SKILL.md"),
 	} {
 		document, errorValue := os.ReadFile(skillPath)
 		if errorValue != nil {
@@ -480,25 +355,6 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 		}
 	}
 
-	siteSkillDocument, errorValue := os.ReadFile(skillPathInTest(t, repositoryRootPath, "website", "SKILL.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"must-show source content", "rendered text", "source checklist"} {
-		if !strings.Contains(string(siteSkillDocument), expectedText) {
-			t.Fatalf("website skill must include %q", expectedText)
-		}
-	}
-	for _, removedToolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.edit", "site.history", "site.diff", "site.logs", "site.rollback", "site.unpublish", "site.restore", "site.repair"} {
-		if strings.Contains(string(siteSkillDocument), removedToolName) {
-			t.Fatalf("website skill must not reference %q", removedToolName)
-		}
-	}
-	for _, expectedText := range []string{"targeted edit", "sourceSHA256"} {
-		if !strings.Contains(string(siteSkillDocument), expectedText) {
-			t.Fatalf("website skill must include %q", expectedText)
-		}
-	}
 }
 
 func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
@@ -864,7 +720,7 @@ func TestEverySkillComesFromAPlugin(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for _, skillName := range []string{"office", "calculator", "website", "messages"} {
+	for _, skillName := range []string{"office", "calculator", "messages"} {
 		if !containsSkillNamed(skillDirectories, skillName) {
 			t.Fatalf("%s is in no plugin under %v", skillName, pluginSkillPaths)
 		}

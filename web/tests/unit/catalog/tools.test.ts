@@ -13,10 +13,7 @@ import {
   MessageSearchScope,
   MessageTargetType,
   MessageToolName,
-  SiteLifecycleStatus,
-  SiteServeMode,
   ScheduleToolName,
-  SiteToolName,
   WebToolName,
   WorkspaceTaskInitialStatus,
   WorkspaceTaskSize,
@@ -56,13 +53,6 @@ import {
   scheduleCreateInputSchema,
   scheduleUpdateInputIntentSchema,
   scheduleUpdateInputSchema,
-  siteListInputSchema,
-  siteListResultSchema,
-  siteServeInputSchema,
-  siteServeInputIntentSchema,
-  siteServeResultSchema,
-  siteUnserveInputSchema,
-  siteUnserveResultSchema,
   leaveGrantSetInputSchema,
   leaveReturnEarlyInputSchema,
   taskAddInputSchema,
@@ -188,9 +178,6 @@ describe('canonical capability tools', () => {
       'schedule_create',
       'schedule_list',
       'schedule_update',
-      'site_list',
-      'site_serve',
-      'site_unserve',
       'task_add',
       'task_delete',
       'task_label_get',
@@ -291,8 +278,6 @@ describe('canonical capability tools', () => {
       MessageToolName.Send,
       MessageToolName.Update,
       MessageToolName.Delete,
-      SiteToolName.Serve,
-      SiteToolName.Unserve,
       'image_generate',
       BrowserToolName.Open,
       BrowserToolName.Click,
@@ -347,8 +332,8 @@ describe('canonical capability tools', () => {
       expect(intentSchema.safeParse({ unexpected: true }).success).toBe(false);
     }
 
-    expect(siteServeInputIntentSchema.safeParse({ title: 'Team Dashboard' }).success).toBe(true);
-    expect(siteServeInputIntentSchema.safeParse({ mode: 'publish', unexpected: true }).success).toBe(false);
+    expect(taskUpdateInputIntentSchema.safeParse({ status: 'completed' }).success).toBe(true);
+    expect(taskUpdateInputIntentSchema.safeParse({ status: 'completed', unexpected: true }).success).toBe(false);
   });
 
   test('defines exact web search inputs and normalized results', () => {
@@ -505,12 +490,12 @@ describe('canonical capability tools', () => {
 
   test('defines exact artifact review evidence and result contracts', () => {
     const reviewInput = {
-      artifactKind: ArtifactKind.Site,
+      artifactKind: ArtifactKind.Slides,
       intent: 'Check the customer support landing page',
       rubric: 'Verify hierarchy, text fit, and primary interaction',
       evidence: [{
         role: 'desktopScreenshot',
-        path: '/tmp/internkim-attachment-files/site.png',
+        path: '/tmp/internkim-attachment-files/slide.png',
         mimeType: 'image/png',
         label: 'Desktop preview',
       }],
@@ -857,121 +842,6 @@ describe('canonical capability tools', () => {
       },
     });
     expect(calendarUpdateTool?.inputSchema).toMatchObject({ minProperties: 2 });
-  });
-
-  test('keeps the hosting boundary to serve, list, and unserve', () => {
-    const catalog = buildCapabilityToolCatalog(protocolVersion);
-    const siteTools = catalog.tools.filter(tool => tool.namespace === 'site');
-
-    expect(siteTools.map(tool => tool.name)).toEqual([
-      SiteToolName.Serve,
-      SiteToolName.List,
-      SiteToolName.Unserve,
-    ]);
-    expect(siteTools.every(tool => tool.resultContract !== undefined)).toBe(true);
-    expect(siteTools.every(tool => tool.resultContract?.schema.additionalProperties === false)).toBe(true);
-  });
-
-  test('requires exact site identities for hosting mutations', () => {
-    expect(siteServeInputSchema.safeParse({
-      title: 'customer support quarterly settlement',
-      sourceWorkspacePath: '~/sites/customer-support-quarterly',
-      mode: SiteServeMode.Publish,
-    }).success).toBe(true);
-    expect(siteServeInputSchema.safeParse({
-      title: 'Customer Support Quarterly',
-      sourceWorkspacePath: '~/sites/customer-support-quarterly',
-      mode: SiteServeMode.Preview,
-      siteReference: 'customer-support-quarterly',
-    }).success).toBe(true);
-    expect(siteListInputSchema.safeParse({}).success).toBe(true);
-    expect(siteListInputSchema.safeParse({ siteReference: 'site-1' }).success).toBe(true);
-    expect(siteUnserveInputSchema.safeParse({ siteReference: 'site-1', reason: 'The campaign ended.' }).success).toBe(true);
-
-    expect(siteServeInputSchema.safeParse({ title: '', sourceWorkspacePath: '~/sites/a', mode: 'publish' }).success).toBe(false);
-    expect(siteServeInputSchema.safeParse({ title: 'A', mode: 'publish' }).success).toBe(false);
-    expect(siteServeInputSchema.safeParse({ title: 'A', sourceWorkspacePath: '~/sites/a' }).success).toBe(false);
-    expect(siteServeInputSchema.safeParse({ title: 'A', sourceWorkspacePath: '~/sites/a', mode: 'deploy' }).success).toBe(false);
-    expect(siteServeInputSchema.safeParse({ title: 'A', sourceWorkspacePath: '~/sites/a', mode: 'publish', slug: 'a' }).success).toBe(false);
-    expect(siteListInputSchema.safeParse({ siteReference: ' site-1 ' }).success).toBe(false);
-    expect(siteUnserveInputSchema.safeParse({}).success).toBe(false);
-    expect(siteUnserveInputSchema.safeParse({ siteID: 'site-1' }).success).toBe(false);
-  });
-
-  test('requires operation-specific site result shapes', () => {
-    const previewServeResult = {
-      siteID: 'site-1',
-      slug: 'customer-support-quarterly',
-      mode: SiteServeMode.Preview,
-      previewURL: 'https://customer-support-quarterly.example/__preview/preview-1',
-      sourceSHA256: '254cc09182b94752e96474af9ba307f74dcfff4e8dfa5b0c4a76f97e634c1c28',
-    };
-    const publishServeResult = {
-      siteID: 'site-1',
-      slug: 'customer-support-quarterly',
-      mode: SiteServeMode.Publish,
-      publishedURL: 'https://customer-support-quarterly.example',
-      sourceSHA256: '254cc09182b94752e96474af9ba307f74dcfff4e8dfa5b0c4a76f97e634c1c28',
-    };
-    const listResult = {
-      sites: [{
-        siteID: 'site-1',
-        slug: 'customer-support-quarterly',
-        title: 'customer support quarterly settlement',
-        status: SiteLifecycleStatus.Published,
-        publishedURL: 'https://customer-support-quarterly.example',
-        updatedAt: '2026-07-19T12:00:00Z',
-      }],
-    };
-    const unserveResult = { siteID: 'site-1', slug: 'customer-support-quarterly', unserved: true };
-
-    expect(siteServeResultSchema.safeParse(previewServeResult).success).toBe(true);
-    expect(siteServeResultSchema.safeParse(publishServeResult).success).toBe(true);
-    expect(siteListResultSchema.safeParse(listResult).success).toBe(true);
-    expect(siteListResultSchema.safeParse({ sites: [] }).success).toBe(true);
-    expect(siteUnserveResultSchema.safeParse(unserveResult).success).toBe(true);
-
-    expect(siteServeResultSchema.safeParse({ ...publishServeResult, sourceSHA256: undefined }).success).toBe(false);
-    expect(siteServeResultSchema.safeParse({ ...publishServeResult, mode: undefined }).success).toBe(false);
-    expect(siteServeResultSchema.safeParse({ ...publishServeResult, slug: 'Invalid Slug' }).success).toBe(false);
-    expect(siteListResultSchema.safeParse({ sites: [{ siteID: 'site-1' }] }).success).toBe(false);
-    expect(siteUnserveResultSchema.safeParse({ siteID: 'site-1', slug: 'a', unserved: false }).success).toBe(false);
-    expect(siteServeResultSchema.safeParse({ ...publishServeResult, extra: true }).success).toBe(false);
-  });
-
-  test('publishes mode-conditional serve effects and unserve completion evidence', () => {
-    const catalog = buildCapabilityToolCatalog(protocolVersion);
-    const serveTool = catalog.tools.find(tool => tool.name === SiteToolName.Serve);
-    const listTool = catalog.tools.find(tool => tool.name === SiteToolName.List);
-    const unserveTool = catalog.tools.find(tool => tool.name === SiteToolName.Unserve);
-
-    expect(serveTool?.resultContract?.effects).toEqual([
-      {
-        objectType: 'website',
-        effect: 'previewed',
-        resultField: 'previewURL',
-        effectIdentity: ResourceEffectIdentity.URL,
-        when: { resultField: 'mode', equals: 'preview' },
-      },
-      {
-        objectType: 'website',
-        effect: 'published',
-        resultField: 'publishedURL',
-        effectIdentity: ResourceEffectIdentity.URL,
-        when: { resultField: 'mode', equals: 'publish' },
-      },
-    ]);
-    expect(serveTool?.requiresApproval).toBeUndefined();
-    expect(listTool?.resultContract?.effects).toEqual([]);
-    expect(unserveTool?.resultContract?.effects).toEqual([
-      { objectType: 'website', effect: 'deleted', resultField: 'siteID', effectIdentity: ResourceEffectIdentity.ID },
-    ]);
-    expect(unserveTool?.requiresApproval).toBe(true);
-    expect(unserveTool?.completionEvidence).toEqual({
-      mode: 'success',
-      action: 'delete_site',
-      targetKind: 'site',
-    });
   });
 
   test('validates document and image read inputs without material aliases', () => {

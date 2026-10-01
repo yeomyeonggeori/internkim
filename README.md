@@ -70,7 +70,7 @@ browser or messenger app, any network
     ├── relay ───────── answers the web app, carries messages to the agent
     ├── blueclaw ────── the agent: runs tools as the requester, approval, task ledger
     ├── chatd ───────── messenger adapter (Buzz)
-    ├── capabilityd ─── holds provider keys: model calls, mail, sites, web, browser
+    ├── capabilityd ─── holds provider keys: model calls, mail, web, browser
     └── Postgres ────── the agent's own store: conversations, runs, memory
 ```
 

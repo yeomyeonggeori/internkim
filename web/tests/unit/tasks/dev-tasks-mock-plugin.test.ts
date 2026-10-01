@@ -63,7 +63,7 @@ describe('dev tasks mock plugin', () => {
 		const body = response?.body as TaskDetail;
 		expect(body.taskRun.taskRunID).toBe('dev-task-run-001');
 		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'llm.call')).toBe(true);
-		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'tool.site_serve.result')).toBe(true);
+		expect(body.taskEvents.some((taskEvent) => taskEvent.name === 'tool.image_generate.result')).toBe(true);
 	});
 
 	test('deletes terminal task runs from the mock list', async () => {
@@ -96,7 +96,7 @@ describe('dev tasks mock plugin', () => {
 		expect(response?.status).toBe(200);
 		const body = response?.body as ServiceLogsResponse;
 		expect(body.taskRunID).toBe('dev-task-run-001');
-		expect(body.lines.some((line) => line.includes('publish URL'))).toBe(true);
+		expect(body.lines.some((line) => line.includes('saved /workspace'))).toBe(true);
 	});
 
 	test('returns an authenticated development session', async () => {

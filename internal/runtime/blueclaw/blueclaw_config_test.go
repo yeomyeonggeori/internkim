@@ -655,16 +655,6 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:mail_message_search", "member") {
 		t.Fatalf("expected member mail search tool rule, got %+v", resourceAccess)
 	}
-	for _, toolName := range []string{"site_serve", "site_list", "site_unserve"} {
-		if !containsPolicyResource(resourceAccess, "tool:"+toolName, "member") {
-			t.Fatalf("expected member %s tool rule, got %+v", toolName, resourceAccess)
-		}
-	}
-	for _, toolName := range []string{"site.create", "site.status", "site.preview", "site.publish", "site.delete", "site.history", "site.diff", "site.logs", "site.restore", "site.repair", "site.rollback", "site.unpublish"} {
-		if containsPolicyResource(resourceAccess, "tool:"+toolName, "member") {
-			t.Fatalf("expected removed %s policy to be absent, got %+v", toolName, resourceAccess)
-		}
-	}
 	if !containsPolicyResource(resourceAccess, "tool:company.broadcast.send", "representative") {
 		t.Fatalf("expected representative broadcast tool rule, got %+v", resourceAccess)
 	}

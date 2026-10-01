@@ -133,7 +133,7 @@ answers it:
 | `answeredBy` | Who runs it | Examples |
 |---|---|---|
 | `record` | the app itself, against the record, as the calling member | tasks, the calendar, people, leave, attendance, CRM |
-| `company` | the company's computer, reached through the gateway | messages, mail, sites, web search, reading a document |
+| `company` | the company's computer, reached through the gateway | messages, mail, web search, reading a document |
 | `local` | only the agent's own machine; the API refuses it | the browser, model calls, embeddings |
 
 `/api/v1/mcp` serves the same catalog to any MCP client, and it is also how the
@@ -161,7 +161,7 @@ The package registers each as its own service with systemd or launchd;
 | the relay (`internkim-relay`) | outbound only; `127.0.0.1:18091` for the connector | answers the app's calls, turns messages into agent turns, serves the agent its tools | `host/relay/` |
 | the connector (`chatd`) | `127.0.0.1:18090` | the messenger adapter for Buzz | `.dependency/blueclaw/chatd/` |
 | the agent (`blueclaw`) | `/run/internkim/acp/blueclaw-acp.sock`; admin API on `127.0.0.1:8080` | the ACP agent: runs, approval, the task ledger, memory | `.dependency/blueclaw/` |
-| `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, embeddings, the mail, site, web and browser tools | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
+| `internkim-capabilityd` | `/run/internkim/capability.sock` | holds provider credentials: model calls, embeddings, the mail, web and browser tools | `cmd/internkim-capabilityd/`, `internal/capabilityd/` |
 | Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | the workspace screens, the roster, and the company tools the plane carries to the host | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |

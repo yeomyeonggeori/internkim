@@ -610,8 +610,8 @@ and delete the duplicates.
   access by matching path strings (denied prefixes, workspace-root escapes,
   protected-file name checks). Ownership and mode bits are the only access
   boundary; a path outside the workspace resolves as-is and POSIX decides.
-  Product invariants (for example managed site manifests) are enforced by
-  outcome gates such as build and publish validation, never by write blocks.
+  Product invariants (for example a deck's layout rules) are enforced by
+  outcome gates such as validation before delivery, never by write blocks.
   Service-side reads made on a person's behalf must impersonate that person
   through the POSIX actor rather than consulting a Go-side ACL model; any
   remaining Go-side access pre-check is a migration leftover slated for

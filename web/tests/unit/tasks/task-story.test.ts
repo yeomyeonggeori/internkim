@@ -13,25 +13,25 @@ const turnInput = event('task.turn_input', { $part: 'x' }, '2026-06-17T01:00:01.
 describe('a task story', () => {
 	test('tells a tool call as one step: the model call that chose it, its reason, its input and its result', () => {
 		const story = buildTaskStory([
-			event('task.created', '귤 소개 사이트 만들어줘', '2026-06-17T01:00:00.000Z'),
+			event('task.created', '귤 소개 이미지 만들어줘', '2026-06-17T01:00:00.000Z'),
 			decisionCall,
 			turnInput,
 			turnCall,
-			event('agent.action', { action: 'continue', toolName: 'site_serve', reason: '사이트를 만든다' }, '2026-06-17T01:00:05.100Z'),
-			event('tool.site_serve.requested', { input: { title: '맛있는 귤 세상' } }, '2026-06-17T01:00:05.200Z', 'request-1'),
-			event('tool.site_serve.result', { output: { data: { slug: 'tangerine-hub' } } }, '2026-06-17T01:00:09.000Z'),
-			event('agent.action', { action: 'finish', message: '게시했습니다.' }, '2026-06-17T01:00:10.000Z', 'finish-1')
+			event('agent.action', { action: 'continue', toolName: 'image_generate', reason: '이미지를 만든다' }, '2026-06-17T01:00:05.100Z'),
+			event('tool.image_generate.requested', { input: { prompt: '맛있는 귤 소개 이미지' } }, '2026-06-17T01:00:05.200Z', 'request-1'),
+			event('tool.image_generate.result', { output: { data: { path: '/workspace/shared/tangerine.png' } } }, '2026-06-17T01:00:09.000Z'),
+			event('agent.action', { action: 'finish', message: '만들었습니다.' }, '2026-06-17T01:00:10.000Z', 'finish-1')
 		]);
 
 		expect(story.intakeDecision?.event.id).toBe('decision-1');
 		expect(story.steps.map((step) => [step.kind, step.title])).toEqual([
-			['tool', '사이트를 만든다'],
-			['reply', '게시했습니다.']
+			['tool', '이미지를 만든다'],
+			['reply', '만들었습니다.']
 		]);
 		const [toolStep] = story.steps;
 		expect(toolStep.modelCalls.map((call) => call.event.id)).toEqual(['turn-call-1']);
 		expect(toolStep.turnInput?.id).toBe('turn-input-1');
-		expect(toolStep.output).toEqual({ slug: 'tangerine-hub' });
+		expect(toolStep.output).toEqual({ path: '/workspace/shared/tangerine.png' });
 		expect(stepDurationMS(toolStep)).toBe(7000);
 	});
 

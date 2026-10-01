@@ -13,8 +13,6 @@ func TestTheAdministrationRootHoldsWhatTheHostsAdmindWrites(t *testing.T) {
 	for name, path := range map[string]string{
 		"state directory":        defaults.StateDirectory,
 		"state databases":        defaults.TaskDatabasePath,
-		"sites":                  defaults.SitesRoot,
-		"site secrets":           defaults.SiteSecretDirectory,
 		"identity document":      defaults.IdentityDocumentPath,
 		"soul document":          defaults.SoulDocumentPath,
 		"central plane app file": defaults.CentralPlaneAppURLPath,

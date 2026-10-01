@@ -45,7 +45,6 @@ test('the plane starts every daemon with the current company-box contract', () =
 		buzzAdminCommandPath: '/usr/bin/buzz-admin',
 		buzzRelayURL: 'ws://127.0.0.1:8084',
 		buzzAccountLinksPath: '/tmp/buzz-account-links.json',
-		siteScaffoldPath: '/tmp/site-scaffold',
 		centralPlaneAppURL: 'https://app.example.test',
 		centralPlaneAgentKeyPath: '/tmp/agent-key',
 		blueclawAssertionKeyPath: '/tmp/blueclaw-assertion-key',
