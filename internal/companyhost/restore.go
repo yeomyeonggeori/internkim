@@ -363,6 +363,9 @@ func restoredCompany(manifest hostbackup.Manifest) (Connection, string, error) {
 }
 
 func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, machine Machine, directoryPath string, connection Connection, progress io.Writer) error {
+	if _, errorValue := PrepareStateDirectory(directoryPath, connection); errorValue != nil {
+		return errorValue
+	}
 	if errorValue := pointTheUnitsAtThisCompany(directoryPath); errorValue != nil {
 		return errorValue
 	}
@@ -385,7 +388,7 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 			return errorValue
 		}
 	}
-	return nil
+	return rehomeTheMessengerCommunity(platform, machine, progress)
 }
 
 func databaseRemovalStatements() string {
@@ -402,9 +405,7 @@ func restoreOneDatabase(platform backupPlatform, archive hostbackup.Archive, mac
 		fmt.Fprintf(progress, "  the backup carries no %s database; it starts empty and its service makes its schema\n", database)
 		return nil
 	}
-	if errorValue := archive.ReadMember(member.Name, func(input io.Reader) error {
-		return platform.RestoreDatabase(machine, database, input)
-	}); errorValue != nil {
+	if errorValue := restoreUnderForeignOwners(platform, archive, machine, database, member, progress); errorValue != nil {
 		return errorValue
 	}
 	fmt.Fprintf(progress, "  %s restored (%s)\n", database, DescribeSize(member.Size))

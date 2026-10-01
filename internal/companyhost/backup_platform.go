@@ -15,6 +15,7 @@ type backupPlatform interface {
 	DatabaseMajor(machine Machine) (int, error)
 	DumpDatabase(machine Machine, database string, output io.Writer) error
 	RestoreDatabase(machine Machine, database string, input io.Reader) error
+	OwnersInDump(machine Machine, input io.Reader) ([]string, error)
 	StopTheHost(machine Machine, progress io.Writer) error
 	StartTheBox(machine Machine, progress io.Writer) error
 }
@@ -62,6 +63,21 @@ func (platform linuxPlatform) RestoreDatabase(machine Machine, database string, 
 		return fmt.Errorf("pg_restore into the %s database failed (%w): %s", database, errorValue, strings.TrimSpace(complaint.String()))
 	}
 	return nil
+}
+
+func (platform linuxPlatform) OwnersInDump(machine Machine, input io.Reader) ([]string, error) {
+	script, writer := io.Pipe()
+	var complaint bytes.Buffer
+	arguments := platform.asTheDatabaseAccount("pg_restore", "--schema-only", "--file", "-")
+	go func() {
+		writer.CloseWithError(machine.Stream("runuser", arguments, Streams{Input: input, Output: writer, Errors: &complaint}))
+	}()
+	owners, errorValue := foreignOwners(script)
+	io.Copy(io.Discard, script)
+	if errorValue != nil {
+		return nil, fmt.Errorf("pg_restore could not list the dump's owners (%w): %s", errorValue, strings.TrimSpace(complaint.String()))
+	}
+	return owners, nil
 }
 
 func (platform linuxPlatform) StopTheHost(machine Machine, progress io.Writer) error {
