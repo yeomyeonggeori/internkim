@@ -29,7 +29,7 @@ and conversations, and where it hands work to an AI coworker. People ask it for 
 in the web app or the company messenger, and it does that work under the identity of
 whoever asked, on a computer the company owns.
 
-It is pre-alpha. Yeomyeonggeori, the company that builds it, runs its workday on it;
+It is pre-alpha. We build it at Yeomyeonggeori and run our own workday on it;
 setting it up anywhere else still takes some knowledge of how it is built.
 
 Everyone signs in at [intern.kim](https://intern.kim). The company's records sit in
