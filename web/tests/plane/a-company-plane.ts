@@ -157,7 +157,8 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
 			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
 			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
-			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
+			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey,
+			'-install-users-sync': 'false'
 		},
 		{
 			'-listen-socket': argumentsForPlane.listenSocketPath,

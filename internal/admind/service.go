@@ -137,7 +137,9 @@ func (service *Service) Run(ctx context.Context) error {
 func (service *Service) startBackgroundWork(ctx context.Context) {
 	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
-	go service.keepUsersSyncInstalled(ctx)
+	if service.Configuration.UsersSyncInstallEnabled {
+		go service.keepUsersSyncInstalled(ctx)
+	}
 	if service.Configuration.TaskRunNotifyEnabled {
 		go service.keepTaskRunsNotified(ctx)
 	}

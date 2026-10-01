@@ -90,6 +90,7 @@ func main() {
 	flag.BoolVar(&configuration.TaskRunNotifyEnabled, "task-run-notify", configuration.TaskRunNotifyEnabled, "push a notification to the central plane when a task run needs approval, completes, or fails")
 	flag.BoolVar(&configuration.AttendanceNotifyEnabled, "attendance-notify", configuration.AttendanceNotifyEnabled, "push a notification when somebody clocks in or out, and when a leave request reaches the administrators")
 	flag.BoolVar(&configuration.MailNotifyEnabled, "mail-notify", configuration.MailNotifyEnabled, "push a notification when unread mail arrives for somebody with a connected account")
+	flag.BoolVar(&configuration.UsersSyncInstallEnabled, "install-users-sync", configuration.UsersSyncInstallEnabled, "write, enable and start the device's hourly users-sync script and timer under /usr/local/bin and /etc/systemd/system; the company host takes its roster from the central plane and turns this off")
 	flag.Parse()
 
 	if configuration.BuzzDatabaseURL == "" && *buzzDatabaseURLPath != "" {

@@ -80,3 +80,9 @@ func TestUsersSyncStatePathMatchesWhatTheScriptWrites(t *testing.T) {
 		t.Fatalf("UsersSyncStatePath default = %s, want %s", DefaultConfiguration().UsersSyncStatePath, blueclawruntime.InternKimUsersSyncStatePath)
 	}
 }
+
+func TestAdmindInstallsTheUsersSyncUnlessToldNotTo(t *testing.T) {
+	if !DefaultConfiguration().UsersSyncInstallEnabled {
+		t.Fatal("admind no longer installs the users sync by default, so the device, whose unit passes no flag for it, loses it")
+	}
+}
