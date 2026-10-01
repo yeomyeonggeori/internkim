@@ -2,6 +2,7 @@ package capabilityd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +46,9 @@ func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capa
 			}
 			result = observation
 		}
+	case "browser_screenshot":
+		screenshot, screenshotError := browserRuntime.Screenshot(ctx, browserruntime.ScreenshotRequest{})
+		result, errorValue = browserScreenshotResultOf(screenshot), screenshotError
 	case "browser_click":
 		var input browserruntime.ClickRequest
 		errorValue = decodeBrowserToolInput(request.Input, &input)
@@ -172,6 +176,28 @@ func captchaBlockedResponse(toolName string, snapshotText string) (capabilities.
 		Content:         message,
 		IsError:         true,
 	}, true
+}
+
+type browserScreenshotResult struct {
+	OK          bool                       `json:"ok"`
+	Action      string                     `json:"action"`
+	Attachments []workspaceImageAttachment `json:"attachments"`
+	CapturedAt  string                     `json:"capturedAt"`
+}
+
+func browserScreenshotResultOf(screenshot browserruntime.ScreenshotResult) browserScreenshotResult {
+	return browserScreenshotResult{
+		OK:     true,
+		Action: "screenshot",
+		Attachments: []workspaceImageAttachment{{
+			DevicePath:    screenshot.Filename,
+			Filename:      screenshot.Filename,
+			ContentType:   screenshot.ContentType,
+			SizeBytes:     screenshot.SizeBytes,
+			ContentBase64: base64.StdEncoding.EncodeToString(screenshot.Content),
+		}},
+		CapturedAt: screenshot.CapturedAt,
+	}
 }
 
 func decodeBrowserToolInput(input json.RawMessage, value any) error {

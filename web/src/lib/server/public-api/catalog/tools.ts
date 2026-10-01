@@ -121,6 +121,7 @@ export enum ImageToolName {
 export enum BrowserToolName {
   Open = 'browser_open',
   Snapshot = 'browser_snapshot',
+  Screenshot = 'browser_screenshot',
   Click = 'browser_click',
 }
 
@@ -900,6 +901,15 @@ export const browserSnapshotResultSchema = z.strictObject({
   snapshotText: z.string(),
   interactiveRefs: z.array(resourceIDSchema),
   hasMore: z.boolean(),
+  capturedAt: resourceIDSchema,
+});
+
+export const browserScreenshotInputSchema = z.strictObject({});
+
+export const browserScreenshotResultSchema = z.strictObject({
+  ok: z.literal(true),
+  action: z.literal('screenshot'),
+  attachments: z.array(imageReadAttachmentSchema).min(1),
   capturedAt: resourceIDSchema,
 });
 
@@ -1687,6 +1697,20 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.Read,
   },
   {
+    name: BrowserToolName.Screenshot,
+    approvalScope: 'browser',
+    namespace: 'browser',
+    answeredBy: CapabilityAnsweredBy.Local,
+    privacyClass: 'device_browser',
+    policyResource: 'tool:browser_screenshot',
+    description: 'Capture the visible browser page as a PNG attachment for visual inspection.',
+    version: '3',
+    estimatedLatency: CapabilityEstimatedLatency.Interactive,
+    inputSchema: browserScreenshotInputSchema,
+    result: { schema: browserScreenshotResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
     name: BrowserToolName.Click,
     approvalScope: 'browser',
     namespace: 'browser',
@@ -2062,6 +2086,8 @@ export type BrowserOpenInput = z.infer<typeof browserOpenInputSchema>;
 export type BrowserOpenResult = z.infer<typeof browserOpenResultSchema>;
 export type BrowserSnapshotInput = z.infer<typeof browserSnapshotInputSchema>;
 export type BrowserSnapshotResult = z.infer<typeof browserSnapshotResultSchema>;
+export type BrowserScreenshotInput = z.infer<typeof browserScreenshotInputSchema>;
+export type BrowserScreenshotResult = z.infer<typeof browserScreenshotResultSchema>;
 export type BrowserClickInput = z.infer<typeof browserClickInputSchema>;
 export type BrowserClickResult = z.infer<typeof browserClickResultSchema>;
 export type ArtifactReviewInput = z.infer<typeof artifactReviewInputSchema>;

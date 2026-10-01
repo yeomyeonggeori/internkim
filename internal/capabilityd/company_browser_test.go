@@ -1,9 +1,13 @@
 package capabilityd
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -66,6 +70,54 @@ func TestCompanyBrowserToolsDriveARealPage(t *testing.T) {
 		invokeCompanyBrowserTool(t, service, "browser_wait", `{"selector":"#received"}`)
 		expectCompanyBrowserPageShows(t, service, "received 이샘플 support")
 	})
+}
+
+func TestCompanyBrowserScreenshotReturnsTheRenderedPage(t *testing.T) {
+	service := companyBrowserService(t)
+	page := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = writer.Write([]byte(`<!doctype html><body style="margin:0;background:#fff"><div style="width:300px;height:200px;background:#0a0"></div></body>`))
+	}))
+	t.Cleanup(page.Close)
+	invokeCompanyBrowserTool(t, service, "browser_open", fmt.Sprintf(`{"url":%q}`, page.URL))
+
+	response := invokeCompanyBrowserTool(t, service, "browser_screenshot", `{}`)
+
+	var result struct {
+		Attachments []struct {
+			ContentType   string `json:"contentType"`
+			SizeBytes     int64  `json:"sizeBytes"`
+			ContentBase64 string `json:"contentBase64"`
+		} `json:"attachments"`
+	}
+	if errorValue := json.Unmarshal(response.Result, &result); errorValue != nil || len(result.Attachments) != 1 {
+		t.Fatalf("expected one screenshot attachment, got %s (%v)", response.Result, errorValue)
+	}
+	content, errorValue := base64.StdEncoding.DecodeString(result.Attachments[0].ContentBase64)
+	if errorValue != nil || int64(len(content)) != result.Attachments[0].SizeBytes || result.Attachments[0].ContentType != "image/png" {
+		t.Fatalf("expected a PNG attachment whose size matches its bytes: %v", errorValue)
+	}
+	picture, errorValue := png.Decode(bytes.NewReader(content))
+	if errorValue != nil {
+		t.Fatalf("screenshot is not a PNG: %v", errorValue)
+	}
+	if !showsMoreThanOneColor(picture) {
+		t.Fatal("screenshot is blank: the green block on the white page did not render")
+	}
+}
+
+func showsMoreThanOneColor(picture image.Image) bool {
+	bounds := picture.Bounds()
+	firstRed, firstGreen, firstBlue, _ := picture.At(bounds.Min.X, bounds.Min.Y).RGBA()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y += 8 {
+		for x := bounds.Min.X; x < bounds.Max.X; x += 8 {
+			red, green, blue, _ := picture.At(x, y).RGBA()
+			if red != firstRed || green != firstGreen || blue != firstBlue {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func companyBrowserService(t *testing.T) Service {

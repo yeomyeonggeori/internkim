@@ -213,7 +213,8 @@ directly.
 
 The handler lives in `internal/capabilityd/browser_tool.go`, and calls run in
 the company computer's browser: a Moli per requester, each with its own
-profile. Responses carry no cookies or profile paths. A page that shows a bot
+profile. Responses carry no cookies or profile paths, and `browser_screenshot`
+returns the page as a PNG attachment. A page that shows a bot
 check comes back as a refusal the agent reports to the person who asked.
 
 ## Artifacts [#artifact]

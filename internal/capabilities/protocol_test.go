@@ -437,7 +437,7 @@ func TestWebsiteBrowserDescriptorsUseCanonicalGeneratedContracts(t *testing.T) {
 		descriptors []Descriptor
 		toolNames   []string
 	}{
-		{descriptors: BrowserToolDescriptors(), toolNames: []string{"browser_open", "browser_snapshot", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait"}},
+		{descriptors: BrowserToolDescriptors(), toolNames: []string{"browser_open", "browser_snapshot", "browser_screenshot", "browser_click", "browser_fill", "browser_select", "browser_press", "browser_wait"}},
 	} {
 		for _, toolName := range descriptorSet.toolNames {
 			descriptor := descriptorForTool(t, descriptorSet.descriptors, toolName)
@@ -465,6 +465,7 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 	for _, toolName := range []string{
 		"browser_open",
 		"browser_snapshot",
+		"browser_screenshot",
 		"browser_click",
 		"browser_fill",
 		"browser_select",

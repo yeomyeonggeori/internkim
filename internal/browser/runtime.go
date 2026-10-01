@@ -87,6 +87,16 @@ type ObserveResult struct {
 	CapturedAt      string   `json:"capturedAt"`
 }
 
+type ScreenshotRequest struct{}
+
+type ScreenshotResult struct {
+	Content     []byte `json:"-"`
+	Filename    string `json:"filename"`
+	SizeBytes   int64  `json:"sizeBytes"`
+	ContentType string `json:"contentType"`
+	CapturedAt  string `json:"capturedAt"`
+}
+
 type ClickRequest struct {
 	Selector string `json:"selector,omitempty"`
 	Ref      string `json:"ref,omitempty"`
@@ -394,6 +404,31 @@ func (runtime AgentBrowserRuntime) observeCurrentPage(ctx context.Context) (Obse
 		return ObserveResult{}, errorValue
 	}
 	return observeResultFromOutput(output, capturedAt), nil
+}
+
+func (runtime AgentBrowserRuntime) Screenshot(ctx context.Context, request ScreenshotRequest) (ScreenshotResult, error) {
+	capturedAt := runtime.now().UTC()
+	directoryPath, errorValue := os.MkdirTemp("", "internkim-browser-screenshot-")
+	if errorValue != nil {
+		return ScreenshotResult{}, errors.New("browser screenshot directory is unavailable")
+	}
+	defer os.RemoveAll(directoryPath)
+	filename := "browser-screenshot-" + capturedAt.Format("20060102T150405.000000000Z") + ".png"
+	path := filepath.Join(directoryPath, filename)
+	if _, errorValue := runtime.run(ctx, append(runtime.sessionCommandArguments(), "screenshot", path)...); errorValue != nil {
+		return ScreenshotResult{}, errorValue
+	}
+	content, errorValue := os.ReadFile(path)
+	if errorValue != nil {
+		return ScreenshotResult{}, errors.New("browser screenshot was not created")
+	}
+	return ScreenshotResult{
+		Content:     content,
+		Filename:    filename,
+		SizeBytes:   int64(len(content)),
+		ContentType: "image/png",
+		CapturedAt:  capturedAt.Format(time.RFC3339),
+	}, nil
 }
 
 func (runtime AgentBrowserRuntime) Click(ctx context.Context, request ClickRequest) (ActionResult, error) {

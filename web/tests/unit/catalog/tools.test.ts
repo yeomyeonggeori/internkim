@@ -26,6 +26,8 @@ import {
   browserClickResultSchema,
   browserOpenInputSchema,
   browserOpenResultSchema,
+  browserScreenshotInputSchema,
+  browserScreenshotResultSchema,
   browserSnapshotInputSchema,
   browserSnapshotResultSchema,
   buildCapabilityToolCatalog,
@@ -99,6 +101,7 @@ describe('canonical capability tools', () => {
       'browser_fill',
       'browser_open',
       'browser_press',
+      'browser_screenshot',
       'browser_select',
       'browser_snapshot',
       'browser_wait',
@@ -443,10 +446,12 @@ describe('canonical capability tools', () => {
   test('defines exact browser inputs and successful results', () => {
     expect(browserOpenInputSchema.safeParse({ url: 'https://preview.example/site-1' }).success).toBe(true);
     expect(browserSnapshotInputSchema.safeParse({}).success).toBe(true);
+    expect(browserScreenshotInputSchema.safeParse({}).success).toBe(true);
     expect(browserClickInputSchema.safeParse({ ref: '@e1' }).success).toBe(true);
 
     expect(browserOpenInputSchema.safeParse({ startURL: 'https://preview.example/site-1' }).success).toBe(false);
     expect(browserSnapshotInputSchema.safeParse({ interactive: true }).success).toBe(false);
+    expect(browserScreenshotInputSchema.safeParse({ ttlSeconds: 1 }).success).toBe(false);
     expect(browserClickInputSchema.safeParse({}).success).toBe(false);
 
     expect(browserOpenResultSchema.safeParse({
@@ -463,6 +468,12 @@ describe('canonical capability tools', () => {
       snapshotText: '- button "Open report" [ref=e1]',
       interactiveRefs: ['@e1'],
       hasMore: false,
+      capturedAt: '2026-07-19T00:00:00Z',
+    }).success).toBe(true);
+    expect(browserScreenshotResultSchema.safeParse({
+      ok: true,
+      action: 'screenshot',
+      attachments: [{ devicePath: 'shot.png', filename: 'shot.png', contentType: 'image/png', sizeBytes: 3, contentBase64: 'AAAA' }],
       capturedAt: '2026-07-19T00:00:00Z',
     }).success).toBe(true);
     expect(browserClickResultSchema.safeParse({
@@ -533,6 +544,7 @@ describe('canonical capability tools', () => {
     for (const toolName of [
       BrowserToolName.Open,
       BrowserToolName.Snapshot,
+      BrowserToolName.Screenshot,
       BrowserToolName.Click,
       ArtifactToolName.Review,
     ]) {
