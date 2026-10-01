@@ -31,7 +31,6 @@ export interface Fleet {
 
 export type UserRole = MemberRole;
 
-
 export interface OTAInfo {
 	blueclaw: { version: string; url: string; sha256: string };
 	cli: { version: string; url: string; sha256: string };

@@ -652,7 +652,7 @@
   },
   "KV": {
     "process": "web",
-    "description": "the Cloudflare Pages KV namespace binding backing the device fleet registry (web/src/routes/api/fleet, api/invite, api/register)"
+    "description": "the Cloudflare Pages KV namespace binding backing the device fleet registry (web/src/routes/api/fleet, api/register)"
   },
   "LARGEST_FILE_BYTES": {
     "process": "relay",
