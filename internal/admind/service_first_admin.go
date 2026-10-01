@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type firstAdminPasswordDocument struct {

@@ -17,7 +17,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 //go:embed file_read_helper.py

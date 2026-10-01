@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

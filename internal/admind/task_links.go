@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 func (service *Service) linkedTaskID(taskID string) string {

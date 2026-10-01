@@ -4,7 +4,7 @@ import (
 	"path"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The maintainer scripts are one program for every format. The accounts and the

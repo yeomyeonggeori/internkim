@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The compose file got its databases from an image that created them on first

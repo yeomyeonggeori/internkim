@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 var blueclawServiceHealthAttempts = 360

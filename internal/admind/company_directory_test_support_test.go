@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 const companyDirectoryURLForTest = "https://app.example.test"

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 func runDeploy() {

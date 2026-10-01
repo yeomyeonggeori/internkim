@@ -12,8 +12,8 @@ import (
 
 	"github.com/lib/pq"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostrest"
 )
 
 // The channel timeline reads "X added by 여명거리, along with ..." from the

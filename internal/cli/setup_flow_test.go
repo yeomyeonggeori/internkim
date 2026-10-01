@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/deviceassets"
+	"github.com/yeomyeonggeori/internkim/internal/deviceassets"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {

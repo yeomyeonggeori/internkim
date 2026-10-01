@@ -17,7 +17,7 @@ import (
 
 	"github.com/goreleaser/nfpm/v2/files"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The company host's payload, which every package format carries. Everything it

@@ -3,7 +3,7 @@ package admind
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestOnlyUnreadMailAboveTheMarkIsNews(t *testing.T) {

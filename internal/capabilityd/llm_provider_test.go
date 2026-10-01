@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 func newOpenRouterBackend(secretPath, baseURL, modelName string, transport http.RoundTripper) OpenRouterBackend {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 const (

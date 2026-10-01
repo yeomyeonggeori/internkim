@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func (service Service) runPlans(contextValue context.Context, logger Logger, plans []CommandPlan) error {

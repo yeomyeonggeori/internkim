@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/admind"
+	"github.com/yeomyeonggeori/internkim/internal/admind"
 )
 
 type recoveryRequest struct {

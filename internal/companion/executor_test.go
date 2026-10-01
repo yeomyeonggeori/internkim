@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 type stubLLMChain struct {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 var organizationFieldsForTest = []string{"hireDate", "jobTitle", "groupID", "teamID", "phoneNumber", "supervisorID", "supervisorEmail", "positionLevel", "teamRole", "employmentStatus"}

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func runVerifyDeployTree() error {

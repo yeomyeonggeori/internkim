@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
 var errDirectoryNamesNobody = errors.New("this device names nobody")

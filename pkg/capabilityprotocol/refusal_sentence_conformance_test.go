@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 type refusedCall struct {

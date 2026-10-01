@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
 )
 
 func releaseBlobTestService(t *testing.T, registryURL string) *Service {

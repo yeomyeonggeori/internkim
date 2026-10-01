@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 type approvalTargetFixture struct {

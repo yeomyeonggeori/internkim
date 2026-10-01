@@ -15,7 +15,7 @@ import (
 	"github.com/goreleaser/nfpm/v2/files"
 	_ "github.com/goreleaser/nfpm/v2/rpm"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // One payload, three package formats. The contents of the package are built

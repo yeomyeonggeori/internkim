@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 const jetsonUSBHostAddress = "192.168.55.1"

@@ -3,7 +3,7 @@ package admind
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/tasksize"
+	"github.com/yeomyeonggeori/internkim/internal/tasksize"
 )
 
 func TestAdminTaskSizeDefinitionsMatchCanonicalSource(t *testing.T) {

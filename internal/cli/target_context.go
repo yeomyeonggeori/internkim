@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/deployops"
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/deployops"
+	internkimlab "github.com/yeomyeonggeori/internkim/internal/lab"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 type commandTargetMode string

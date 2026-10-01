@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
 )
 
 // A scenario names the skills the agent has to pick. The names used to be

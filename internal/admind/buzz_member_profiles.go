@@ -6,7 +6,7 @@ import (
 	"log"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/personname"
+	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
 // A messenger that cannot name somebody draws the first bytes of their key

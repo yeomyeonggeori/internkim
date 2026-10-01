@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 const liteRTMainBinaryPath = "/usr/local/bin/litert_lm_main"

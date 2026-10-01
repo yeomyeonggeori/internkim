@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/box"
 )
 
 // One person's mail account, in the shape /api/agent/mail-account answers it.

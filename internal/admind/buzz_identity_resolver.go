@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	nostr "github.com/nbd-wtf/go-nostr"
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
 var errBuzzKeySeedMissing = errors.New("buzz key seed is not configured")

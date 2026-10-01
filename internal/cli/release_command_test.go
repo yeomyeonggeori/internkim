@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
 )
 
 type testReleasePublisher struct {

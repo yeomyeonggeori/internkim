@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {

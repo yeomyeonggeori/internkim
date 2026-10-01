@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 // These tools live in the record, so this carries the call to admind, which

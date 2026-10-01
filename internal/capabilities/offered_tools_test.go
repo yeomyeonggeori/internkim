@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 func TestTheAgentIsOfferedEveryToolTheRecordOrTheCompanyAnswers(t *testing.T) {

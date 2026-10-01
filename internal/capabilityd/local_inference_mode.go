@@ -5,7 +5,7 @@ import (
 	"log"
 	"os/exec"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func (service Service) applyLocalInferenceMode(ctx context.Context) {

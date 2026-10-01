@@ -3,7 +3,7 @@ package admind
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestACircleRoomNamesTheCircleThatDecidesWhoBelongs(t *testing.T) {

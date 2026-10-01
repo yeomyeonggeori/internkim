@@ -1,7 +1,7 @@
 package admind
 
 import (
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 )
 

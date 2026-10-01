@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 // The company's member table is the one place a person is added, renamed, given a

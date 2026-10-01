@@ -9,7 +9,7 @@ import (
 
 	nostr "github.com/nbd-wtf/go-nostr"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
 func TestEveryKeyHeldByCarriesEveryVersionAPersonHasHad(t *testing.T) {

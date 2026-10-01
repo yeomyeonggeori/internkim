@@ -12,9 +12,9 @@ import (
 
 	nostr "github.com/nbd-wtf/go-nostr"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 type setupLiveOptions struct {

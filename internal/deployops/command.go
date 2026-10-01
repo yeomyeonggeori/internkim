@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/localfleet"
+	"github.com/yeomyeonggeori/internkim/internal/localfleet"
 )
 
 type CommandPlan struct {

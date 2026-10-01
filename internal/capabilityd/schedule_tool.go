@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 // Where a schedule tool is answered, and whether the schedule it writes has to

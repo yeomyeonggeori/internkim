@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 const attendanceCarryRecoveryAction = "attendance-carry-into-the-record"

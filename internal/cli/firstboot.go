@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func buildFirstbootScript(isLocalLlamaProvisioned bool) string {

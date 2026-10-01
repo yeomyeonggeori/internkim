@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/box"
 )
 
 type recordingBackend struct {

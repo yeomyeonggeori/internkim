@@ -2,7 +2,7 @@ package admind
 
 import (
 	"context"
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"sort"
 	"strings"
 	"time"

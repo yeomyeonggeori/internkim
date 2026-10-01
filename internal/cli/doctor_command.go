@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
+	internkimlab "github.com/yeomyeonggeori/internkim/internal/lab"
 )
 
 type hostDependency struct {

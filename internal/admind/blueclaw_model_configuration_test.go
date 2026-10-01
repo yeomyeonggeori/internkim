@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/modelladder"
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestRefreshMigratesDeployedLegacyModelConfiguration(t *testing.T) {

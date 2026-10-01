@@ -19,10 +19,10 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	"gitlab.com/eastriver/internkim/internal/deviceassets"
-	"gitlab.com/eastriver/internkim/internal/releaseset"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	"github.com/yeomyeonggeori/internkim/internal/deviceassets"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type releaseBlob struct {
@@ -624,8 +624,8 @@ func releaseBinaryRevision(repositoryRootPath string) string {
 // can never be made.
 func admindStampFlags(buildID string, revision string) string {
 	return strings.Join([]string{
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.BuildID=" + buildID,
-		"-X", "gitlab.com/eastriver/internkim/internal/admind.GitRevision=" + revision,
+		"-X", "github.com/yeomyeonggeori/internkim/internal/admind.BuildID=" + buildID,
+		"-X", "github.com/yeomyeonggeori/internkim/internal/admind.GitRevision=" + revision,
 	}, " ")
 }
 
@@ -655,8 +655,8 @@ func centralPlaneStampFlags() ([]string, error) {
 		return nil, fmt.Errorf("%s not set: admind is built carrying the central plane they name, so run this under `monkeys run @production`", strings.Join(missing, " and "))
 	}
 	return []string{
-		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultProjectURL=" + projectURL,
-		"-X", "gitlab.com/eastriver/internkim/internal/centralplane.DefaultPublishableKey=" + publishableKey,
+		"-X", "github.com/yeomyeonggeori/internkim/internal/centralplane.DefaultProjectURL=" + projectURL,
+		"-X", "github.com/yeomyeonggeori/internkim/internal/centralplane.DefaultPublishableKey=" + publishableKey,
 	}, nil
 }
 
@@ -1221,7 +1221,7 @@ var componentSourcePaths = map[string][]string{
 	},
 }
 
-const internkimModulePath = "gitlab.com/eastriver/internkim/"
+const internkimModulePath = "github.com/yeomyeonggeori/internkim/"
 
 // Everything the main package compiles from this module, so a change anywhere
 // in its dependency graph moves its revision. Asking the toolchain keeps this

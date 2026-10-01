@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/deployops"
+	"github.com/yeomyeonggeori/internkim/internal/deployops"
 )
 
 func internkimHomeDir() string {

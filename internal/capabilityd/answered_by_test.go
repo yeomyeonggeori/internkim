@@ -5,8 +5,8 @@ import (
 	"sort"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 func toolNamesAnsweredBy(answerer string) []string {

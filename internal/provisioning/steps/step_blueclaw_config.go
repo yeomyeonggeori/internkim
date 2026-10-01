@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 var StepBlueclawConfiguration = Step{

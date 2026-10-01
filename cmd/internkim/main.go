@@ -1,6 +1,6 @@
 package main
 
-import "gitlab.com/eastriver/internkim/internal/cli"
+import "github.com/yeomyeonggeori/internkim/internal/cli"
 
 func main() {
 	cli.Main()

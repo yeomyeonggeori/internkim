@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // backupFromExt4 extracts workspace files from the SD card's ext4 partition

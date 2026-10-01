@@ -121,7 +121,7 @@ PIN_PROGRAM = """package main
 import (
 	"fmt"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func main() {

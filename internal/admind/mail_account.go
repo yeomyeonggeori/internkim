@@ -3,8 +3,8 @@ package admind
 import (
 	"context"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) readMailAccount(ctx context.Context, actorEmail string) (mail.Account, bool, error) {

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 func rosterPolicyWithEmails(emails ...string) map[string]any {

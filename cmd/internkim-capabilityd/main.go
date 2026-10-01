@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilityd"
-	"gitlab.com/eastriver/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/capabilityd"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 func main() {

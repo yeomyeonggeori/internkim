@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 var admindToolOrigin = capabilityResponseOrigin{Provider: "internkim", SelectedBackend: "device"}

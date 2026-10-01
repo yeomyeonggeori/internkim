@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 type webSearchInput struct {

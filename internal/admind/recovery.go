@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // ensureBuzzRelayTerminator keeps the TLS terminator (:443 -> relay :3000)

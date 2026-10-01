@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"gitlab.com/eastriver/internkim/internal/deployops"
+	"github.com/yeomyeonggeori/internkim/internal/deployops"
 )
 
 func runOps() {
