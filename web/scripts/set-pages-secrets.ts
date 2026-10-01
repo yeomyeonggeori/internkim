@@ -1,12 +1,11 @@
 //   monkeys run @production bun run web/scripts/set-pages-secrets.ts --project internkim
 
-import { requiredSetting } from './repository-setting';
+import declarations from '../../tools/environment.json';
+import { pagesVariablesFromVault, variablesRequiredOnPages } from './pages-variables';
+import { requiredSetting, setting } from './repository-setting';
 
 const token = requiredSetting('CLOUDFLARE_API_TOKEN');
-const projectURL = requiredSetting('SUPABASE_URL');
-const publishableKey = requiredSetting('SUPABASE_PUBLISHABLE_KEY');
-const secretKey = requiredSetting('SUPABASE_SECRET_KEY');
-const signingKey = requiredSetting('SUPABASE_JWT_SIGNING_KEY');
+const variables = pagesVariablesFromVault(variablesRequiredOnPages(declarations), setting);
 
 function argument(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -15,13 +14,6 @@ function argument(name: string): string | undefined {
 
 const accountID = argument('account') ?? requiredSetting('CLOUDFLARE_ACCOUNT_ID');
 const project = argument('project') ?? 'internkim';
-
-const variables = {
-	SUPABASE_URL: { type: 'secret_text', value: projectURL },
-	SUPABASE_PUBLISHABLE_KEY: { type: 'secret_text', value: publishableKey },
-	SUPABASE_SECRET_KEY: { type: 'secret_text', value: secretKey },
-	SUPABASE_JWT_SIGNING_KEY: { type: 'secret_text', value: signingKey },
-};
 
 const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountID}/pages/projects/${project}`, {
 	method: 'PATCH',
@@ -36,4 +28,4 @@ const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ac
 
 const body = (await response.json()) as { success: boolean; errors?: unknown };
 if (!body.success) throw new Error(JSON.stringify(body.errors));
-console.log(`${project} now carries the central plane credentials`);
+console.log(`${project} now carries ${Object.keys(variables).join(', ')}`);
