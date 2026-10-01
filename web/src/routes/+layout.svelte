@@ -153,6 +153,7 @@
 		if (routePath.startsWith('/crm')) return text.crm;
 		if (routePath.startsWith('/organization')) return text.organization;
 		if (routePath.startsWith('/files')) return text.files;
+		if (routePath.startsWith('/data-room')) return text.dataRoom;
 		if (routePath.startsWith('/assistant')) return text.assistant;
 		if (routePath.startsWith('/messenger')) return text.messenger;
 		return text.task;

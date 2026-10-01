@@ -1,92 +1,31 @@
 ---
-title: Clearance
-description: Four numbers, who sets whose, and how a document crosses from one to another.
+title: Access and sharing
+description: Reader roles, invitations and publication.
 ---
 
-Every member has a clearance and every domain has one. A member opens every
-domain at their clearance or below. The comparison is made by the company
-record, on each row and each stored file, so a document above a reader's
-clearance is absent for them: a search does not list it, a tool does not open
-it, and a script they run finds nothing.
+A role contains `readableCategories`, an array of codes. `F` includes all
+finance children, including ones added later. `FS` grants financial
+statements alone. Multiple active grants combine; there are no deny overrides.
+Reader roles grant reading. Company administration and document editing are
+separate permissions.
 
-| Clearance | Reader | Domains |
-|---|---|---|
-| 0 | anyone outside the company | `00-public`, mirrored to the public share |
-| 1 | every member | corporate, people, ip, product, marketing, operations, compliance, media |
-| 2 | management | finance, contracts, fundraising |
-| 3 | representative, board | governance, hr-records |
+Company administrators assign roles to members, internal circles, external
+emails or explicitly public audiences. A verified email recipient must accept
+the invitation. They gain no company membership, circle or host filesystem
+identity. An expired or revoked grant stops new reads. Original file downloads
+require `canDownload`; text previews follow read access. A downloaded copy
+cannot be recalled, and issued file links expire within ten minutes.
 
-## Who sets whose [#who-sets-whose]
+Publication requires an explicit public grant. It never publishes `X`.
+Editing a role immediately changes every active recipient's scope. Adding a
+child immediately extends existing parent grants. Review those recipients
+before changing either. Category codes and ancestry are stable.
 
-A new member starts at 1. The first administrator of a company holds 3, and
-promoting someone to administrator sets their clearance to the promoter's.
+New members receive the employee role; administrators created with a company
+also receive leadership. Later changes to company administrator status do not
+assign or revoke a reader role. Manage these grants separately.
 
-An administrator may change the clearance of a member below them to any value
-up to their own. Three requests are refused however they
-are phrased: raising a peer or a superior, a non-administrator setting anyone's
-clearance, and an administrator lowering themself when it would leave the
-company without a member at 3.
-
-Clearance is one number per person. It says nothing about which projects or
-conversations someone is part of; that is a circle, and it lives in the
-messenger and the workspace. A document meant for one circle belongs in that
-circle's workspace folder rather than the data room.
-
-## Adding a document [#adding]
-
-Every member may add. Three rules decide what happens.
-
-1. A document for a domain at or below your clearance is filed directly.
-   internkim drafts the label; you confirm it, and the document is in place.
-2. A document for a higher-clearance domain is submitted. It is registered at
-   your clearance with the intended domain written on it,
-   and waits in `inbox/` until a member cleared for that domain raises it. An
-   accountant at clearance 1 filing an audit report into finance does exactly
-   this, and the finance manager's confirmation is the raise.
-3. You must be able to read a document before moving it, marking it superseded,
-   or requesting its original.
-
-A submission older than seven days in `inbox/` is flagged by the data room's
-check, so a raise nobody made is noticed.
-
-## Publishing to `00-public` [#publishing]
-
-A published document is a copy in `00-public`, made by an administrator, with
-`published.from` naming the source and the date and person recorded. The source
-stays where it was, at its own clearance. The public domain is mirrored to the
-company's public share, which is what a visitor or the company site reads.
-
-A copy whose contents equal the source is the source published. A copy whose
-contents differ is a redacted edition: the same document with a section removed
-for the outside, still naming what it came from. A public document without a
-`published` field, or one whose `from` names nothing, fails the data room's
-check.
-
-## Originals [#originals]
-
-Reading a summary is one thing; holding the file is another. An original is
-delivered only to the person who asked, as a message to them or into their own
-`artifacts/` folder. Posting it on from there, to a channel or to someone
-outside, is their own act and is logged as one. No system can stop a cleared
-person from passing on what they read; the ledger, which names each document a
-task touched, is what answers the question afterwards.
-
-## The ways around the question [#around]
-
-Row level security answers who may read a document. These are the ways a
-document could leave its clearance without going through that question, and
-what closes each.
-
-| Way around | What closes it |
-|---|---|
-| a stale or forged clearance | the policy reads the member's own row on every query, so there is nothing to reload |
-| a copy or a successor pointing elsewhere | `supersedes` and `published_from` are foreign keys inside the company, and only a member who can read a row can change it |
-| a download link passed on | a signed URL lasts ten minutes, and it is issued only after the storage policy checked the clearance in its path |
-| a list that counts what one cannot read | a list is built from the rows the reader's session returns, so a hidden domain is absent from the count too |
-
-## An external data room [#external]
-
-An investor, a law firm or an acquirer doing due diligence receives an export:
-chosen documents copied to a separate share opened for them. The live data
-room stays member-only, and the export is a snapshot that does not change when
-the archive does.
+Legacy documents retain their numeric clearance policies until an
+administrator individually reclassifies them. Moving a legacy document into a
+category changes its readers. Old folders are not mechanically mapped to new
+codes.

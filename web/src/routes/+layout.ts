@@ -19,7 +19,7 @@ export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: 
 	if (isSupabaseConfigured()) {
 		const session = await supabaseWebAuthSession(returnPath);
 		const settlingIn = returnPath.startsWith('/start') || returnPath.startsWith('/auth/');
-		if (session.authenticated && !settlingIn && !(await belongsToACompany())) {
+		if (session.authenticated && !settlingIn && !url.pathname.startsWith('/share/') && !(await belongsToACompany())) {
 			redirect(307, withReturnPath('/start', returnPath));
 		}
 		if (session.authenticated) {
