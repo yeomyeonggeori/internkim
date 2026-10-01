@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
 )
 
 func TestTheSkillsComponentNamesTheRootsItShips(t *testing.T) {

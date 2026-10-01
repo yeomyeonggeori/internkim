@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
 const adminSeatSyncInterval = 6 * time.Hour

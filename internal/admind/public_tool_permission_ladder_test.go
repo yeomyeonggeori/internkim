@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 const descriptorSchemaPath = "../../pkg/capabilityprotocol/generated/json-schema/capability-descriptor.schema.json"

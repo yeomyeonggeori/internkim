@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	capabilities "gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	capabilities "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 func TestAPublicFailureSaysEachThingOnce(t *testing.T) {

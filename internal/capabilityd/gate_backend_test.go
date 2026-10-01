@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
 )
 
 // capabilityd reaches everything it does not do itself through one field of its

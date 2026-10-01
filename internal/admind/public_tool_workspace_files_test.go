@@ -14,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]string, downloads *[]url.Values) *Service {

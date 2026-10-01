@@ -3,7 +3,7 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func (service *Service) openMailDatabase(ctx context.Context) (*sql.DB, error) {

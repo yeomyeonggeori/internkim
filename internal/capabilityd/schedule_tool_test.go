@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 const aWrittenSchedule = `{"scheduleID":"schedule-1","description":"주간 보고","taskInstruction":"주간 보고서를 정리해 올린다","timeZone":"Asia/Seoul","kind":"cron","cronExpression":"0 9 * * 1","nextRunAt":"2026-09-21T00:00:00Z","conversationID":"channel-1","replyTargetID":"message-1","agentProfileName":"internkim"}`

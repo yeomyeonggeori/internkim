@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func startPlaneHoldingASealedMailAccount(t *testing.T) *httptest.Server {

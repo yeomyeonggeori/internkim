@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 // The gate over the tools the catalog offers. A case says what a valid call

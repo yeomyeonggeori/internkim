@@ -39,10 +39,10 @@ test('builds participant payloads without response-only images', () => {
 });
 
 test('filters participant candidates by name email and id', () => {
-	const participant = { personID: 'person-dongha', name: '이샘플', email: 'dongha@example.com' };
+	const participant = { personID: 'person-sample', name: '이샘플', email: 'sample@example.com' };
 
 	expect(calendarParticipantMatchesSearch(participant, '샘플')).toBe(true);
-	expect(calendarParticipantMatchesSearch(participant, 'dongha')).toBe(true);
-	expect(calendarParticipantMatchesSearch(participant, 'person-dongha')).toBe(true);
+	expect(calendarParticipantMatchesSearch(participant, 'sample')).toBe(true);
+	expect(calendarParticipantMatchesSearch(participant, 'person-sample')).toBe(true);
 	expect(calendarParticipantMatchesSearch(participant, '김예시')).toBe(false);
 });

@@ -14,7 +14,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
 
 type circleRoomOutcome struct {

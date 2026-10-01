@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/localfleet"
+	"github.com/yeomyeonggeori/internkim/internal/localfleet"
 )
 
 type Server struct {

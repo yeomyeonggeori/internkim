@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
+	internkimlab "github.com/yeomyeonggeori/internkim/internal/lab"
 )
 
 type hostDependency struct {
@@ -23,6 +23,11 @@ func simulationDependencies(configuration internkimlab.Configuration) []hostDepe
 			name:        configuration.VirtualMachine.Container.BinaryPath,
 			purpose:     "container CLI lab simulation",
 			installHint: "install the container CLI from https://github.com/apple/container/releases",
+		},
+		{
+			name:        "sshpass",
+			purpose:     "password SSH into the lab VM and boards",
+			installHint: "brew install sshpass, or apt install sshpass",
 		},
 	}
 }

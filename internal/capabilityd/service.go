@@ -19,12 +19,12 @@ import (
 	"syscall"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/internal/modelladder"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 type Configuration struct {

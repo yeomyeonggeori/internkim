@@ -6,9 +6,10 @@ their own packages and are listed in the lockfiles.
 
 ## Fonts
 
-The font files under `assets/fonts/files/` are distributed under the SIL Open
-Font License 1.1 (https://openfontlicense.org). Each family keeps its
-upstream copyright notice; the fonts are not sold by themselves.
+The font files under `assets/fonts/files/` and `web/src/lib/fonts/` are
+distributed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+Each family's directory holds an `OFL.txt` with its copyright notice and the
+license text. The fonts are not sold by themselves.
 
 | Family | Directory | Upstream |
 | --- | --- | --- |
@@ -20,6 +21,7 @@ upstream copyright notice; the fonts are not sold by themselves.
 | MaruBuri (마루부리) | `maruburi` | https://hangeul.naver.com/font/maru |
 | Paperlogy | `paperlogy` | https://github.com/Freesentation/paperlogy |
 | Pretendard | `pretendard` | https://github.com/orioncactus/pretendard |
+| Freesentation (프리젠테이션) | `web/src/lib/fonts` | https://github.com/Freesentation/freesentation |
 
 `assets/fonts/files/MANIFEST.txt` records the exact source and version of each
 file.

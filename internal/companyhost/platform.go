@@ -5,7 +5,7 @@ import (
 	"io"
 	"runtime"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The same install, on the two machines a company host runs on. Six steps, and

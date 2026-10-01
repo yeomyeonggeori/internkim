@@ -12,15 +12,14 @@ import (
 
 	nostr "github.com/nbd-wtf/go-nostr"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 type setupLiveOptions struct {
 	target                 commandTarget
 	scriptDir              string
-	sshpassBin             string
 	setupBuildID           string
 	requestedSSH           bool
 	requestedSD            bool
@@ -96,7 +95,6 @@ func resolveSetupLiveOptions(configuration config, scriptDir string, setupBuildI
 	return setupLiveOptions{
 		target:                 target,
 		scriptDir:              scriptDir,
-		sshpassBin:             filepath.Join(scriptDir, "bin", "sshpass"),
 		setupBuildID:           setupBuildID,
 		requestedSSH:           request.requestedSSH,
 		requestedSD:            request.requestedSD,
@@ -211,7 +209,7 @@ func resolveRequestedSetupSSHBackend(messenger *msg, configuration config, optio
 }
 
 func fatalJetsonSSHFailure(messenger *msg, options setupLiveOptions) {
-	failureDetails := describeJetsonSSHFailure(options.sshpassBin, options.target.stateDir, options.target.sshUser, options.target.sshPassword)
+	failureDetails := describeJetsonSSHFailure(options.target.stateDir, options.target.sshUser, options.target.sshPassword)
 	fatal(messenger.t(
 		"Jetson을 SSH로 찾을 수 없습니다.\n"+failureDetails+"\nJetson 콘솔에서 `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, `tail /var/log/internkim-jetson-firstboot.log`를 확인하세요. IP를 알면 --host <ip>를 지정하면 됩니다.",
 		"Jetson was not found over SSH.\n"+failureDetails+"\nOn the Jetson console, check `ip addr`, `nmcli device status`, `systemctl status ssh --no-pager`, `systemctl status internkim-wifi-recovery.timer --no-pager`, `journalctl -u internkim-wifi-recovery.service -n 80 --no-pager`, and `tail /var/log/internkim-jetson-firstboot.log`. If you know the IP, pass --host <ip>.",
@@ -268,18 +266,18 @@ func setupBackendIsReady(options setupLiveOptions, selection *setupBackendSelect
 func setupSSHBackendIsReady(options setupLiveOptions, selection *setupBackendSelection) bool {
 	if options.target.host != "" {
 		selection.boardIP = options.target.host
-		candidateConnection := newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+		candidateConnection := newSSH(options.target.sshUser, options.target.sshPassword, selection.boardIP)
 		if _, errorValue := candidateConnection.runResult("true"); errorValue != nil {
 			return false
 		}
 		selection.sshConnection = candidateConnection
 		return true
 	}
-	selection.boardIP = findBoardIPForCredentials(options.sshpassBin, options.target.stateDir, options.target.sshUser, options.target.sshPassword)
+	selection.boardIP = findBoardIPForCredentials(options.target.stateDir, options.target.sshUser, options.target.sshPassword)
 	if selection.boardIP == "" {
 		return false
 	}
-	selection.sshConnection = newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+	selection.sshConnection = newSSH(options.target.sshUser, options.target.sshPassword, selection.boardIP)
 	return true
 }
 
@@ -290,7 +288,7 @@ func attemptSetupRemoteSSH(options setupLiveOptions) (setupBackendSelection, err
 		return selection, nil, false
 	}
 	selection.boardIP = remoteSSHHostname
-	selection.sshConnection = newSSH(options.sshpassBin, options.target.sshUser, options.target.sshPassword, selection.boardIP)
+	selection.sshConnection = newSSH(options.target.sshUser, options.target.sshPassword, selection.boardIP)
 	output, errorValue := selection.sshConnection.runResult("true")
 	if errorValue != nil {
 		return selection, remoteSSHError(selection.boardIP, output, errorValue), false

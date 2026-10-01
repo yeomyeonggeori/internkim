@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestTheLiveRegistryServesTheToolsTheStampedContractNames(t *testing.T) {

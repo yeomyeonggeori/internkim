@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
+	internkimlab "github.com/yeomyeonggeori/internkim/internal/lab"
 )
 
 func resolveLabVirtualMachineIPAddress() string {

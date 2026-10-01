@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 // A company writes every row as the person who asked, so a caller this device

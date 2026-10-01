@@ -3,7 +3,7 @@ package capabilityprotocol
 import (
 	"encoding/json"
 
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 func TextLLMInputSchema() json.RawMessage {

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/internal/modelladder"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 type (

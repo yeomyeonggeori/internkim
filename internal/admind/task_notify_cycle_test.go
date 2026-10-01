@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 func writeNamedTestFile(t *testing.T, directory string, name string, contents string) string {

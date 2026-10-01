@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/machost"
-	blueclaw "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/machost"
+	blueclaw "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 const (

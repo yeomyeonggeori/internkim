@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 func TestCheckReleaseProtocolIdentityRequiresCapabilitydAndBlueclawAgreement(t *testing.T) {

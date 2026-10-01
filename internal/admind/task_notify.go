@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 const (

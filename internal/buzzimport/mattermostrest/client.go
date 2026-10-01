@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/buzzimport"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
 )
 
 type Client struct {

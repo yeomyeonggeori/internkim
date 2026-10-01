@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 type schemaDocument struct {

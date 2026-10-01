@@ -8,13 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/deviceassets"
 	"testing"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/deviceassets"
+
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func TestUsersSyncDependencyInstallScriptInstallsJQ(t *testing.T) {
@@ -390,7 +391,7 @@ func TestNonJetsonSetupKeepsLegacySSHUser(t *testing.T) {
 }
 
 func TestSSHPrivilegedCommandSuppressesSudoPrompt(t *testing.T) {
-	client := newSSH("sshpass", "internkim", "blueclaw", "192.0.2.1")
+	client := newSSH("internkim", "blueclaw", "192.0.2.1")
 	command := client.privilegedCommand("echo ok")
 	if !strings.Contains(command, "sudo -S -p '' bash -lc") {
 		t.Fatalf("expected sudo command to suppress password prompt, got %s", command)
@@ -413,7 +414,7 @@ func TestUploadMoveCommandIsNotPreWrappedWithSudo(t *testing.T) {
 }
 
 func TestRemoteSSHNamesNoTransport(t *testing.T) {
-	client := newSSH("sshpass", "internkim", "blueclaw", "ssh.device.example.test")
+	client := newSSH("internkim", "blueclaw", "ssh.device.example.test")
 	sshArguments := strings.Join(client.sshArgs("internkim@ssh.device.example.test", "true"), "\n")
 	scpArguments := strings.Join(client.scpArgs("local", "internkim@ssh.device.example.test:/tmp/file"), "\n")
 	rsyncCommand := client.rsyncSSHCommand("ssh")
@@ -616,13 +617,12 @@ func pathsContain(paths []string, targetPath string) bool {
 	return false
 }
 
-func TestWiFiProfilesKeepSavedAndAddCurrent(t *testing.T) {
+func TestWiFiProfilesKeepSavedAndAddTheNamedOne(t *testing.T) {
 	stateDirectory := t.TempDir()
 	saveWiFiProfiles(stateDirectory, []wifiProfile{{SSID: "OfficeWiFi", IsOpen: true}})
-	getSSIDPath := createExecutableFixture(t, "StudioWiFi\n")
-	withArguments(t, "internkim", "setup", "--yes", "--wifi-password", "studio-secret")
+	withArguments(t, "internkim", "setup", "--yes", "--wifi-ssid", "StudioWiFi", "--wifi-password", "studio-secret")
 
-	profiles, errorValue := resolveWiFiProfiles(newMsg("en"), stateDirectory, getSSIDPath)
+	profiles, errorValue := resolveWiFiProfiles(newMsg("en"), stateDirectory)
 	if errorValue != nil {
 		t.Fatalf("expected Wi-Fi profiles: %v", errorValue)
 	}

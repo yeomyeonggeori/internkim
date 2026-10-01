@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 const (

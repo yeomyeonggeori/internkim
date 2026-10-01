@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/deployops"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/deployops"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 const blueclawUpdateUploadAction = "blueclaw-update-upload"

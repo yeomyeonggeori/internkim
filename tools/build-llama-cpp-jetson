@@ -59,16 +59,15 @@ fi
 echo "llama.cpp build target: $llamaVersion on $buildUser@$buildHost (CUDA arch $cudaArchitecture)"
 echo "cache miss: $cachedBinaryPath"
 
-sshpassBin="$repositoryRoot/bin/sshpass"
 sshOptions=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=240)
 if [[ "$buildHost" == *.example.test ]]; then
   sshOptions+=(-o "ProxyCommand=$repositoryRoot/tools/cloudflared-access-ssh %h")
 fi
 sshCommand=(ssh "${sshOptions[@]}" "$buildUser@$buildHost")
 scpCommand=(scp "${sshOptions[@]}")
-if [ -n "$buildPassword" ] && [ -x "$sshpassBin" ]; then
-  sshCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e ssh "${sshOptions[@]}" "$buildUser@$buildHost")
-  scpCommand=(env "SSHPASS=$buildPassword" "$sshpassBin" -e scp "${sshOptions[@]}")
+if [ -n "$buildPassword" ] && command -v sshpass >/dev/null; then
+  sshCommand=(env "SSHPASS=$buildPassword" sshpass -e ssh "${sshOptions[@]}" "$buildUser@$buildHost")
+  scpCommand=(env "SSHPASS=$buildPassword" sshpass -e scp "${sshOptions[@]}")
 fi
 
 remoteScript=$(cat <<REMOTE

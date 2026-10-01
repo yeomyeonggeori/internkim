@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	companionruntime "github.com/yeomyeonggeori/internkim/internal/companion"
 )
 
 const companionOnlineWindow = 45 * time.Second

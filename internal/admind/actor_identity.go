@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/personname"
+	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
 type userActor struct {

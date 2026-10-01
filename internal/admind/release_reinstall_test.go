@@ -3,7 +3,7 @@ package admind
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
 )
 
 func releaseOf(components map[string]string) *releaseset.Manifest {

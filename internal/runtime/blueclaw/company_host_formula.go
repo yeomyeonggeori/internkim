@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 // The company host as a Homebrew formula. Everything it declares is read from

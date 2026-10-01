@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 	"golang.org/x/crypto/bcrypt"
 )
 

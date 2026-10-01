@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/relaypublish"
 )
 
 // Rooms drift between passes: somebody joins the company, somebody leaves it,

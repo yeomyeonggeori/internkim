@@ -9,7 +9,7 @@ import (
 var errRetryableForTest = errors.New("ssh refused this attempt")
 
 func TestEverySSHTransportPinsPasswordAuthentication(t *testing.T) {
-	client := &sshClient{user: "admin", host: "127.0.0.1", port: "22", pass: "secret", sshpassBin: "sshpass"}
+	client := &sshClient{user: "admin", host: "127.0.0.1", port: "22", pass: "secret"}
 	transports := map[string]string{
 		"ssh":   strings.Join(client.sshArgs(), " "),
 		"scp":   strings.Join(client.scpArgs(), " "),

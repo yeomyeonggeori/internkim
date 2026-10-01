@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestRuntimeRestampIncludesTheDeliveredGuestConfiguration(t *testing.T) {

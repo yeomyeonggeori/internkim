@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 func TestLLMFailureEvidenceRequiresAdminAndPreservesDocument(t *testing.T) {

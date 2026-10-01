@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 func TestOpenRouterLiveDocumentedToolSchemaFromEnv(t *testing.T) {

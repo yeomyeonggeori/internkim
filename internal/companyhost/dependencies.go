@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The package expresses this list as its dependencies and the package manager

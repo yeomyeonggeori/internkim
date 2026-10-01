@@ -247,8 +247,8 @@ func TestProvisionUbuntuUsesRemoteScriptExecution(t *testing.T) {
 	if len(commandRunner.runCommands) != 4 {
 		t.Fatalf("expected ssh readiness, writable checks, and remote script execution, got %d", len(commandRunner.runCommands))
 	}
-	if commandRunner.runCommands[0].ExecutableName != "/repo/bin/sshpass" {
-		t.Fatalf("expected repo sshpass invocation, got %q", commandRunner.runCommands[0].ExecutableName)
+	if commandRunner.runCommands[0].ExecutableName != "sshpass" {
+		t.Fatalf("expected sshpass invocation, got %q", commandRunner.runCommands[0].ExecutableName)
 	}
 	if !strings.Contains(strings.Join(commandRunner.runCommands[0].Arguments, " "), "ConnectTimeout=5") {
 		t.Fatalf("expected ssh readiness check before provisioning, got %v", commandRunner.runCommands[0].Arguments)
@@ -390,8 +390,8 @@ func TestVirtualMachineSSHUsesConfiguredPasswordAuthentication(t *testing.T) {
 		t.Fatalf("expected one ssh command, got %d", len(commandRunner.runCommands))
 	}
 	command := commandRunner.runCommands[0]
-	if command.ExecutableName != "/repo/bin/sshpass" {
-		t.Fatalf("expected vm ssh to use repo sshpass, got %q", command.ExecutableName)
+	if command.ExecutableName != "sshpass" {
+		t.Fatalf("expected vm ssh to use sshpass, got %q", command.ExecutableName)
 	}
 	joinedArguments := strings.Join(command.Arguments, " ")
 	for _, expectedFragment := range []string{"-p admin", "ssh", "StrictHostKeyChecking=no", "LogLevel=ERROR", "ControlMaster=auto", "ControlPersist=600", "ControlPath=", "admin@192.168.65.10", "cd /mnt/shared && true"} {

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestMailMessageSendRequiresDescriptorApproval(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 const mailAccountCarryRecoveryAction = "mail-account-carry-into-the-record"

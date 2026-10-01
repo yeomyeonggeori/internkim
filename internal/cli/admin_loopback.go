@@ -4,8 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -30,20 +28,12 @@ func adminLoopbackCommand(method string, path string, body []byte) string {
 	return fmt.Sprintf("printf %%s %s | base64 -d | %s", base64.StdEncoding.EncodeToString(body), command)
 }
 
-func sshpassBinaryPath() string {
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		repositoryRootPath, _ = os.Getwd()
-	}
-	return filepath.Join(repositoryRootPath, "bin", "sshpass")
-}
-
 type deviceAdmin struct {
 	connection *sshClient
 }
 
 func reachDeviceAdmin(target commandTarget) (deviceAdmin, error) {
-	connection, _, errorValue := resolveDeviceSSHConnection(loadConfig(), sshpassBinaryPath(), target)
+	connection, _, errorValue := resolveDeviceSSHConnection(loadConfig(), target)
 	if errorValue != nil {
 		return deviceAdmin{}, errorValue
 	}

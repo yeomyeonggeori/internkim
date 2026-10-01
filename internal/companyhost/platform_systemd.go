@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The Linux half, which is what the package installs onto and what

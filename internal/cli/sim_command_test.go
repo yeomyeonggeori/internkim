@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/localfleet"
+	"github.com/yeomyeonggeori/internkim/internal/localfleet"
 )
 
 func TestSimGatePlanPrintsAliasWithoutRunningFleet(t *testing.T) {

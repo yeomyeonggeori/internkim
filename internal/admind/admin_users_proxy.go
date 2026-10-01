@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 var errBadRequestBody = errors.New("invalid request body")

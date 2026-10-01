@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The relay reads settings a device only has once its company is set up, so the

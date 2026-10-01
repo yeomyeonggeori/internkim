@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 func (service *Service) router() http.Handler {

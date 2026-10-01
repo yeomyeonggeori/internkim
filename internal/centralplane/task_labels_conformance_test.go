@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 func TestTaskLabelsReadAnAnswerTheCatalogPromises(t *testing.T) {

@@ -1,4 +1,4 @@
-module gitlab.com/eastriver/internkim
+module github.com/yeomyeonggeori/internkim
 
 go 1.26.4
 

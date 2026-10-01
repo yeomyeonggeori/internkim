@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type buzzDatabaseHandle struct {

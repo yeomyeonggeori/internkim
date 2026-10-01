@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/deployops"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/deployops"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 func TestResolveCommandTargetDefaultsToJetsonState(t *testing.T) {

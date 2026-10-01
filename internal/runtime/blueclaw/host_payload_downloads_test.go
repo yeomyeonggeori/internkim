@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The image, the device's provisioning step and the .deb install the same

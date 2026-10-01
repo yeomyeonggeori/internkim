@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The relay reaches a company's messenger on behalf of people who are not on

@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	companionruntime "github.com/yeomyeonggeori/internkim/internal/companion"
 )
 
 func TestGatewayRoutesAdminAndMattermost(t *testing.T) {

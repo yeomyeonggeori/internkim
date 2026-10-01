@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 func (service Service) invokeDeviceBrowserTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {

@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	companionruntime "github.com/yeomyeonggeori/internkim/internal/companion"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 func llmHandler(settings *localLLMProvider, devMock bool, isStructured bool) http.HandlerFunc {

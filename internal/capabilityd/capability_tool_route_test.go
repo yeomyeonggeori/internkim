@@ -3,7 +3,7 @@ package capabilityd
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 func TestEveryRegisteredToolHasARoute(t *testing.T) {

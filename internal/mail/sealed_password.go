@@ -3,7 +3,7 @@ package mail
 import (
 	"fmt"
 
-	"gitlab.com/eastriver/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/box"
 )
 
 type PasswordOpener func(account Account, memberID string) (Account, error)

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	companionruntime "github.com/yeomyeonggeori/internkim/internal/companion"
 )
 
 func companionMemberTestService(t *testing.T) http.Handler {

@@ -1,6 +1,6 @@
 package mail
 
-import "gitlab.com/eastriver/internkim/internal/box"
+import "github.com/yeomyeonggeori/internkim/internal/box"
 
 const (
 	securityTLS      = "tls"

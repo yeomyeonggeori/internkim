@@ -10,19 +10,18 @@ import (
 	"strings"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type verifyTarget struct {
-	host       string
-	user       string
-	password   string
-	nodeID     string
-	scriptDir  string
-	stateDir   string
-	sshpassBin string
-	sshClient  *sshClient
+	host      string
+	user      string
+	password  string
+	nodeID    string
+	scriptDir string
+	stateDir  string
+	sshClient *sshClient
 }
 
 func runVerify() {
@@ -147,7 +146,6 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 		return verifyTarget{}, errorValue
 	}
 
-	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	if strings.TrimSpace(*host) != "" {
 		target.host = strings.TrimSpace(*host)
@@ -165,13 +163,13 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 		target.host = savedRemoteSSHHostname(target)
 	}
 	if !target.useRemoteSSH && strings.TrimSpace(target.host) == "" && target.mode != commandTargetModeSimulation {
-		target.host = findBoardIPForCredentials(sshpassBin, target.stateDir, target.sshUser, target.sshPassword)
+		target.host = findBoardIPForCredentials(target.stateDir, target.sshUser, target.sshPassword)
 	}
 	sshClient := (*sshClient)(nil)
 	if strings.TrimSpace(target.host) != "" {
-		sshClient = newVerifySSHClient(sshpassBin, target)
+		sshClient = newVerifySSHClient(target)
 	} else {
-		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+		connection, isRemote, connectionError := resolveDeviceSSHConnection(configuration, target)
 		if connectionError != nil || connection == nil {
 			return verifyTarget{}, errors.New("verify target not found; pass --host <ip>")
 		}
@@ -182,19 +180,18 @@ func resolveVerifyTarget(arguments []string) (verifyTarget, error) {
 
 	printCommandTargetEvidence(target)
 	return verifyTarget{
-		host:       target.host,
-		user:       target.sshUser,
-		password:   target.sshPassword,
-		nodeID:     target.nodeID,
-		scriptDir:  repositoryRootPath,
-		stateDir:   target.stateDir,
-		sshpassBin: sshpassBin,
-		sshClient:  sshClient,
+		host:      target.host,
+		user:      target.sshUser,
+		password:  target.sshPassword,
+		nodeID:    target.nodeID,
+		scriptDir: repositoryRootPath,
+		stateDir:  target.stateDir,
+		sshClient: sshClient,
 	}, nil
 }
 
-func newVerifySSHClient(sshpassBin string, target commandTarget) *sshClient {
-	return newSSH(sshpassBin, target.sshUser, target.sshPassword, target.host)
+func newVerifySSHClient(target commandTarget) *sshClient {
+	return newSSH(target.sshUser, target.sshPassword, target.host)
 }
 
 func (target verifyTarget) runRemoteVerification(script string) error {

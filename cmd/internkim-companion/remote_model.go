@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
+	companionruntime "github.com/yeomyeonggeori/internkim/internal/companion"
 )
 
 type remoteModelResponse struct {

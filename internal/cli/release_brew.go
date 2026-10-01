@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The company host as a Homebrew bottle, built the way `internkim release packages`

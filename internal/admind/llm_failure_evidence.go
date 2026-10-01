@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 func (service *Service) writeLLMFailureEvidence(responseWriter http.ResponseWriter, request *http.Request) {

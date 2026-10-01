@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // Every unit the package installs carries a ConditionPathExists over one of the

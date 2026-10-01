@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 func runMigrate() {
@@ -22,11 +21,6 @@ func runMigrateArguments(arguments []string) error {
 
 func runMigrateFleetID(arguments []string) error {
 	configuration := loadConfig()
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	sshpassBin := filepath.Join(repositoryRootPath, "bin", "sshpass")
 	target := resolveCommandTarget(arguments)
 	oldFleetID := loadOrCreateFleetID(target.stateDir)
 	if oldFleetID == "" {
@@ -39,7 +33,7 @@ func runMigrateFleetID(arguments []string) error {
 	if oldFleetID == newFleetID {
 		return errors.New("new fleet id is the same as current fleet id")
 	}
-	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	connection, isRemote, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue != nil {
 		return errorValue
 	}

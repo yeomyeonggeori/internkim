@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/localfleet"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/localfleet"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {

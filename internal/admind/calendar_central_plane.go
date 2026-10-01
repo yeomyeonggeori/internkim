@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 // A company writes and reads every event as the person who asked, which is what

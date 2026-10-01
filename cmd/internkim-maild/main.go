@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/mail"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func main() {

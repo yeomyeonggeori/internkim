@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	nostr "github.com/nbd-wtf/go-nostr"
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostrest"
 
 	_ "github.com/lib/pq"
 )

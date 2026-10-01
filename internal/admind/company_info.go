@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 func (service *Service) companyProfile(ctx context.Context, requesterEmail string, language string) (centralplane.CompanyProfile, error) {

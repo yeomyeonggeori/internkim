@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 const companyShareActivityWindowDays = 52 * 7

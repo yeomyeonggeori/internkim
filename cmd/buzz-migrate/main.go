@@ -30,12 +30,12 @@ import (
 	_ "github.com/lib/pq"
 	nostr "github.com/nbd-wtf/go-nostr"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/assetkeep"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostrest"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/media"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/assetkeep"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostrest"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/media"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/relaypublish"
 )
 
 const channelWorkers = 6

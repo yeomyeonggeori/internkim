@@ -12,8 +12,8 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/modelladder"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 )
 
 type OpenRouterBackend struct {

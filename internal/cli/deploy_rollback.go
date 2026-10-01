@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type rollbackRequest struct {

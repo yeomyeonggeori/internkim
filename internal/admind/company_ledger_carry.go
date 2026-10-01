@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 const companyLedgerCarryRecoveryAction = "company-ledger-carry-into-the-record"
