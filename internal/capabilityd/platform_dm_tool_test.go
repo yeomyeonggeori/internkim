@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
@@ -25,7 +25,7 @@ func TestPlatformDMSendImmediateRunRequiresApprovalContext(t *testing.T) {
 func TestPlatformDMSendImmediateSelfRequiresDescriptorApproval(t *testing.T) {
 	service := Service{}
 
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "message_send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"본인 확인"},"context":{"requesterPersonID":"person-gamyeong","requesterPlatformUserID":"user-gamyeong"}}`))
+	response, errorValue := service.invokeCapabilityTool(context.Background(), "message_send", strings.NewReader(`{"input":{"targetType":"directMessage","personHint":"샘플","message":"본인 확인"},"context":{"requesterPersonID":"person-yesi","requesterPlatformUserID":"user-yesi"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -61,10 +61,10 @@ func TestResolvePlatformDMRecipientUsesBlueclawResolvedRecipient(t *testing.T) {
 	if requestBody["platform"] != "buzz" || requestBody["hint"] != "sample@example.com" {
 		t.Fatalf("unexpected resolve request body: %+v", requestBody)
 	}
-	if recipient.PersonID != "person-gamyeong" || recipient.ExternalUserID != "user-gamyeong" || recipient.Username != "gamyeong" || recipient.Mention != "@gamyeong" {
+	if recipient.PersonID != "person-yesi" || recipient.ExternalUserID != "user-yesi" || recipient.Username != "yesi" || recipient.Mention != "@yesi" {
 		t.Fatalf("unexpected resolved recipient: %+v", recipient)
 	}
-	if strings.Join(recipient.Emails, ",") != "gamyeong@example.com" {
+	if strings.Join(recipient.Emails, ",") != "yesi@example.com" {
 		t.Fatalf("unexpected recipient emails: %+v", recipient.Emails)
 	}
 }
@@ -142,11 +142,11 @@ func platformDMResolverTestServiceForPeople(t *testing.T, resolutionDocument str
 }
 
 func platformDMTestDirectoryPeople() []directoryPerson {
-	return []directoryPerson{{MemberID: "person-gamyeong", Email: "gamyeong@example.com", Name: "이샘플"}}
+	return []directoryPerson{{MemberID: "person-yesi", Email: "yesi@example.com", Name: "이샘플"}}
 }
 
 func platformDMResolvedSampleResponse() string {
-	return `{"status":"resolved","recipient":{"personID":"person-gamyeong","displayName":"이샘플","emails":["gamyeong@example.com"],"externalUserID":"user-gamyeong","username":"gamyeong"}}`
+	return `{"status":"resolved","recipient":{"personID":"person-yesi","displayName":"이샘플","emails":["yesi@example.com"],"externalUserID":"user-yesi","username":"yesi"}}`
 }
 
 func TestPlatformMessageBroadcastImmediateRunRequiresApproval(t *testing.T) {

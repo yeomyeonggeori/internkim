@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 type registerResponse struct {

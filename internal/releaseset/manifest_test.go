@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 func TestManifestPublishedWithASignatureStillReads(t *testing.T) {

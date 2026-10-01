@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 const skillsManifestPath = "/root/.blueclaw/workspace/skills/.internkim-skills-manifest.json"

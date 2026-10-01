@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
 )
 
 func TestMattermostChannelShapeMirrorsWhoCanRead(t *testing.T) {

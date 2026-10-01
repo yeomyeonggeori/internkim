@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 const sampleCompanyID = "00000000-0000-4000-8000-000000000001"

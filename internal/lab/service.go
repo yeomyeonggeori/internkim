@@ -272,7 +272,7 @@ func (service Service) VirtualMachineSSH(ctx context.Context, remoteArguments []
 	commandArguments = append(commandArguments, remoteArguments...)
 
 	return service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName:       service.sshpassExecutablePath(),
+		ExecutableName:       "sshpass",
 		Arguments:            commandArguments,
 		WorkingDirectoryPath: service.repositoryRootPath,
 	})
@@ -643,7 +643,7 @@ func (service Service) runRemoteScript(ctx context.Context, relativeScriptPath s
 	}
 
 	return service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName:       service.sshpassExecutablePath(),
+		ExecutableName:       "sshpass",
 		Arguments:            commandArguments,
 		WorkingDirectoryPath: service.repositoryRootPath,
 		StandardInputPath:    filepath.Join(service.repositoryRootPath, relativeScriptPath),
@@ -659,11 +659,6 @@ func (service Service) remoteScriptCommand(relativeScriptPath string, scriptArgu
 		return command
 	}
 	return "sudo " + command
-}
-
-func (service Service) sshpassExecutablePath() string {
-	repositorySSHPath := filepath.Join(service.repositoryRootPath, "bin", "sshpass")
-	return repositorySSHPath
 }
 
 func (service Service) resolveVirtualMachineIPAddress(ctx context.Context) (string, error) {
@@ -755,7 +750,7 @@ func (service Service) virtualMachineSSHReady(ctx context.Context) bool {
 	}
 
 	errorValue = service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName: service.sshpassExecutablePath(),
+		ExecutableName: "sshpass",
 		Arguments: []string{
 			"-p",
 			service.configuration.VirtualMachine.SSHPassword,
@@ -781,7 +776,7 @@ func (service Service) ensureVirtualMachineWritableRoot(ctx context.Context) err
 	}
 
 	errorValue = service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName: service.sshpassExecutablePath(),
+		ExecutableName: "sshpass",
 		Arguments: []string{
 			"-p",
 			service.configuration.VirtualMachine.SSHPassword,

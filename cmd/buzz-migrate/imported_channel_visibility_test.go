@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/buzzimport"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
 )
 
 func TestOnlyAnOpenRoomImportsAsAnOpenChannel(t *testing.T) {

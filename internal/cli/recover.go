@@ -13,12 +13,11 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/admind"
+	"github.com/yeomyeonggeori/internkim/internal/admind"
 )
 
 type recoveryRequest struct {
@@ -97,10 +96,10 @@ func runRecoverSSH(arguments []string) error {
 	}
 	target := resolveCommandTarget(verifyTargetArguments(*host, *user, *password, *node, true, *board, false))
 	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
-	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), filepath.Join(repositoryRootPath, "bin", "sshpass"), target, *action, *actionTarget, *diagnose)
+	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), target, *action, *actionTarget, *diagnose)
 }
 
-func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, target commandTarget, action string, actionTarget string, diagnose bool) error {
+func runSSHRecoveryForTarget(m *msg, configuration config, target commandTarget, action string, actionTarget string, diagnose bool) error {
 	action = strings.TrimSpace(action)
 	if !isAllowedCLIRecoveryAction(action) {
 		return fmt.Errorf("unsupported recovery action: %s", action)
@@ -129,7 +128,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 		fmt.Printf("\n--- recovery snapshot ---\n%s\n-------------------------\n", response.Snapshot)
 	}
 	if diagnose {
-		printSSHRecoveryLocalDiagnostics(configuration, sshpassBin, target)
+		printSSHRecoveryLocalDiagnostics(configuration, target)
 	}
 	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "calendar-record-coverage" || action == "calendar-carry-into-the-record" || action == "attendance-record-coverage" || action == "attendance-carry-into-the-record" || action == "task-record-coverage" || action == "task-carry-into-the-record" || action == "retire-mattermost-mirror" || action == "stop-mattermost" || action == "organization-record-coverage" || action == "organization-carry-into-the-record" || action == "company-profile-carry-into-the-record" || action == "crm-record-coverage" || action == "crm-carry-into-the-record" || action == "company-ledger-record-coverage" || action == "company-ledger-carry-into-the-record" || action == "mail-account-carry-into-the-record" || action == "buzz-device-link-count" || action == "buzz-rewrite-old-links" || action == "buzz-rewrite-old-links-dryrun" || action == "buzz-named-reaction-count" || action == "buzz-stranger-members" || action == "buzz-stranger-members-remove" || action == "buzz-sweep-seats" || action == "buzz-sweep-seats-apply" || action == "buzz-orphan-inspect" || action == "buzz-profile-inspect" || action == "buzz-probe-profile-count" || action == "buzz-probe-profile-purge" || action == "buzz-reconcile-channels" || action == "buzz-republish-rooms" || action == "buzz-link-edits" || action == "buzz-remove-link-edits" || action == "buzz-restore-dm-discovery" || action == "buzz-channel-visibility" || action == "buzz-channel-visibility-repair" || action == "buzz-close-channels-their-room-closed" || action == "buzz-channel-members-their-room-lacks" || action == "buzz-remove-members-their-room-lacks" || action == "buzz-rooms-nobody-is-in" || action == "buzz-retire-rooms-nobody-is-in" || action == "buzz-retire-room" || action == "circle-room-read" || action == "buzz-whose-key" || action == "circle-room-reconcile" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-refresh-profiles" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "policy-circle-roster" || action == "buzz-room-roster" || action == "buzz-room-messages" || action == "buzz-deletion-markers" || action == "buzz-window-probe" || action == "buzz-joining-notices" || action == "buzz-forget-joining-notices" || action == "buzz-remove-deletion-markers" || action == "buzz-room-visibility" || action == "restart-buzz-relay" || action == "buzz-relay-service-journal" || action == "buzz-close-rooms-except" || action == "buzz-rename-room" || action == "buzz-retire-room-by-name" || action == "admind-journal" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" || action == "release-setup-lock" {
 		return nil
@@ -138,7 +137,7 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 		fmt.Println(m.t("재부팅이 예약되었습니다. 약 2분 후 `internkim status`로 확인하세요.", "Reboot scheduled. Check `internkim status` in about two minutes."))
 		return nil
 	}
-	if connection, _, retryError := resolveRemoteSSHConnection(configuration, sshpassBin, target, false); retryError == nil && connection != nil {
+	if connection, _, retryError := resolveRemoteSSHConnection(configuration, target, false); retryError == nil && connection != nil {
 		fmt.Println(m.t("SSH 복구 확인 완료", "SSH recovery verified"))
 		return nil
 	}
@@ -148,8 +147,8 @@ func runSSHRecoveryForTarget(m *msg, configuration config, sshpassBin string, ta
 	return errors.New("SSH recovery action completed, but SSH still did not recover")
 }
 
-func printSSHRecoveryLocalDiagnostics(configuration config, sshpassBin string, target commandTarget) {
-	connection, _, errorValue := resolveRemoteSSHConnection(configuration, sshpassBin, target, false)
+func printSSHRecoveryLocalDiagnostics(configuration config, target commandTarget) {
+	connection, _, errorValue := resolveRemoteSSHConnection(configuration, target, false)
 	if errorValue != nil || connection == nil {
 		fmt.Printf("  %-22s %s\n", "local admind", "SSH unavailable")
 		return

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,15 +14,21 @@ import (
 )
 
 type sshClient struct {
-	sshpassBin string
-	user       string
-	pass       string
-	host       string
-	port       string
+	user string
+	pass string
+	host string
+	port string
 }
 
-func newSSH(sshpassBin, user, pass, host string) *sshClient {
-	return &sshClient{sshpassBin: sshpassBin, user: user, pass: pass, host: host, port: "22"}
+func newSSH(user, pass, host string) *sshClient {
+	return &sshClient{user: user, pass: pass, host: host, port: "22"}
+}
+
+func requireSSHPass() error {
+	if _, errorValue := exec.LookPath("sshpass"); errorValue != nil {
+		return errors.New("password SSH needs sshpass on PATH: brew install sshpass, or apt install sshpass")
+	}
+	return nil
 }
 
 func (s *sshClient) sshArgs(extra ...string) []string {
@@ -55,8 +62,11 @@ func (s *sshClient) runResultWithTimeout(cmd string, timeout time.Duration) (str
 		return runSSHCommandWithRetry("ssh", args, timeout)
 	}
 
+	if errorValue := requireSSHPass(); errorValue != nil {
+		return "", errorValue
+	}
 	args = append([]string{"-p", s.pass, "ssh"}, s.sshArgs(fmt.Sprintf("%s@%s", s.user, s.host), remoteCommand)...)
-	return runSSHCommandWithRetry(s.sshpassBin, args, timeout)
+	return runSSHCommandWithRetry("sshpass", args, timeout)
 }
 
 func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
@@ -64,7 +74,10 @@ func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
 	commandName := "ssh"
 	commandArguments := append(s.sshArgs(target), remoteArguments...)
 	if s.pass != "" {
-		commandName = s.sshpassBin
+		if errorValue := requireSSHPass(); errorValue != nil {
+			return errorValue
+		}
+		commandName = "sshpass"
 		commandArguments = append([]string{"-p", s.pass, "ssh"}, append(s.sshArgs(target), remoteArguments...)...)
 	}
 	command := exec.Command(commandName, commandArguments...)
@@ -195,6 +208,11 @@ func (s *sshClient) rsyncSparse(localPath string, remotePath string) error {
 }
 
 func (s *sshClient) runRsyncSparse(localPath string, remotePath string, target string) error {
+	if s.pass != "" {
+		if errorValue := requireSSHPass(); errorValue != nil {
+			return errorValue
+		}
+	}
 	output, errorValue := retryWhileSSHFailureIsTransient(func() (string, error) {
 		return runCommandWithLiveOutput(s.rsyncSparseCommand(localPath, target))
 	})
@@ -208,7 +226,7 @@ func (s *sshClient) rsyncSparseCommand(localPath string, target string) *exec.Cm
 	if s.pass == "" {
 		return exec.Command("rsync", rsyncSparseArguments(s.rsyncSSHCommand("ssh"), localPath, target)...)
 	}
-	sshCommand := s.rsyncSSHCommand(quoteShellValue(s.sshpassBin) + " -e ssh")
+	sshCommand := s.rsyncSSHCommand("sshpass -e ssh")
 	command := exec.Command("rsync", rsyncSparseArguments(sshCommand, localPath, target)...)
 	command.Env = append(os.Environ(), "SSHPASS="+s.pass)
 	return command
@@ -246,7 +264,10 @@ func runCommandWithLiveOutput(command *exec.Cmd) (string, error) {
 func (s *sshClient) scpDirect(localPath, remotePath string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remotePath)
 	if s.pass != "" {
-		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...), 60*time.Second)
+		if errorValue := requireSSHPass(); errorValue != nil {
+			return errorValue
+		}
+		output, err := runSSHCommandWithRetry("sshpass", append([]string{"-p", s.pass, "scp"}, s.scpArgs(localPath, target)...), 60*time.Second)
 		if err != nil {
 			return fmt.Errorf("scp %s to %s failed: %s: %w", localPath, remotePath, strings.TrimSpace(output), err)
 		}
@@ -320,7 +341,10 @@ func (s *sshClient) runTarToRemoteOnce(localDir string, remoteCommand string) (s
 	commandName := "ssh"
 	commandArguments := s.sshArgs(target, remoteCommand)
 	if s.pass != "" {
-		commandName = s.sshpassBin
+		if errorValue := requireSSHPass(); errorValue != nil {
+			return "", errorValue
+		}
+		commandName = "sshpass"
 		commandArguments = append([]string{"-e", "ssh"}, commandArguments...)
 	}
 	sshCommand := exec.Command(commandName, commandArguments...)
@@ -350,7 +374,10 @@ func (s *sshClient) runTarToRemoteOnce(localDir string, remoteCommand string) (s
 func (s *sshClient) scpDirDirect(localDir, remoteDir string) error {
 	target := fmt.Sprintf("%s@%s:%s", s.user, s.host, remoteDir)
 	if s.pass != "" {
-		output, err := runSSHCommandWithRetry(s.sshpassBin, append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...), 60*time.Second)
+		if errorValue := requireSSHPass(); errorValue != nil {
+			return errorValue
+		}
+		output, err := runSSHCommandWithRetry("sshpass", append([]string{"-p", s.pass, "scp", "-r"}, s.scpArgs(localDir+"/.", target)...), 60*time.Second)
 		if err != nil {
 			return fmt.Errorf("scp directory %s to %s failed: %s: %w", localDir, remoteDir, strings.TrimSpace(output), err)
 		}

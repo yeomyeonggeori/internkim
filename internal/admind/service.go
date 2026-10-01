@@ -12,15 +12,15 @@ import (
 	"os"
 	"os/exec"
 
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 
 	"strings"
 	"sync"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
-	"gitlab.com/eastriver/internkim/internal/centralplane"
-	blueclawruntime "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 var BuildID = "unknown"

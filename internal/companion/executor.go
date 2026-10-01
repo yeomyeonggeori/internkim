@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 type BrowserActionFailureResult struct {

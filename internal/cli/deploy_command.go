@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 func runDeploy() {
@@ -36,8 +36,6 @@ func runDeploy() {
 func runDeployLegacySSH() {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
-	binDir := filepath.Join(scriptDir, "bin")
-	sshpassBin := filepath.Join(binDir, "sshpass")
 	boardBinDir := filepath.Join(scriptDir, "build", "board-bin")
 	arguments := commandControlArguments(os.Args[2:])
 	setupStepNames, hasSelectedSetupSteps, errorValue := legacySSHDeploySetupStepNames(arguments)
@@ -49,7 +47,7 @@ func runDeployLegacySSH() {
 	if strings.TrimSpace(target.fleetRole) == "pending" {
 		fatal("Refusing to deploy to pending node " + target.nodeID)
 	}
-	ssh, isRemote, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	ssh, isRemote, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}

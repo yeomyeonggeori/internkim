@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
 )
 
 func carriedComponents(t *testing.T, rebuilt map[string]releaseset.Component, published map[string]releaseset.Component, revisionOf func(string) string) (map[string]releaseset.Component, error) {

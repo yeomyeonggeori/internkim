@@ -8,7 +8,7 @@ import (
 	"strings"
 	_ "time/tzdata"
 
-	"gitlab.com/eastriver/internkim/internal/admind"
+	"github.com/yeomyeonggeori/internkim/internal/admind"
 )
 
 func readBuzzDatabaseURL(path string) (string, error) {

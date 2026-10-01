@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 var (

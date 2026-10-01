@@ -1,6 +1,6 @@
 package companion
 
-import "gitlab.com/eastriver/internkim/internal/capabilities"
+import "github.com/yeomyeonggeori/internkim/internal/capabilities"
 
 type State struct {
 	DeviceURL    string                    `json:"deviceURL"`

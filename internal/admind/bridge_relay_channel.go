@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/relaypublish"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/relaypublish"
 )
 
 var errBridgeChannelKindUnknown = errors.New("bridge channel kind is only known for mattermost")

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 const companyRuntimeTemplatePath = "../../../host/runtime.template.json"

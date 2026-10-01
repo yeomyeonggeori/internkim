@@ -10,8 +10,8 @@ import (
 	"time"
 
 	nostr "github.com/nbd-wtf/go-nostr"
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport"
 
 	_ "github.com/lib/pq"
 )

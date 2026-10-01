@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 
-	blueclawworkspace "gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	blueclaw "gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	blueclawworkspace "github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	blueclaw "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type InstallRequest struct {

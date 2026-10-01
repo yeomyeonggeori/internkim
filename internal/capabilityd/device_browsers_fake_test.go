@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
 )
 
 type fakeRunningBrowser struct {

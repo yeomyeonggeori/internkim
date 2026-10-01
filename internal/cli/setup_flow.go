@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/deviceassets"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/deviceassets"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 type setupFlowState struct {
@@ -30,7 +30,6 @@ type setupFlowState struct {
 	stateDir       string
 	scriptDir      string
 	boardBinDir    string
-	getSSIDPath    string
 	setupBuildID   string
 	sshClient      *sshClient
 	publicKey      string
@@ -155,7 +154,6 @@ func newSetupFlowState(
 		boardBinDir:    filepath.Join(scriptDir, "build", "board-bin"),
 		fleetID:        loadOrCreateFleetID(stateDir),
 		nodeID:         loadNodeID(stateDir),
-		getSSIDPath:    filepath.Join(scriptDir, "bin", "get-ssid"),
 		setupBuildID:   setupBuildID,
 		sshClient:      sshClient,
 		publicKey:      getLocalSSHPubKey(),
@@ -203,7 +201,7 @@ func (state *setupFlowState) ensureWiFiCredentials() error {
 		return nil
 	}
 
-	wifiProfiles, errorValue := resolveWiFiProfiles(state.messenger, state.stateDir, state.getSSIDPath)
+	wifiProfiles, errorValue := resolveWiFiProfiles(state.messenger, state.stateDir)
 	if errorValue != nil {
 		return errorValue
 	}

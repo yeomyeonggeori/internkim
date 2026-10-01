@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/personname"
+	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
 const approximateHintCandidateLimit = 8

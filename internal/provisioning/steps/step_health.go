@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 const (

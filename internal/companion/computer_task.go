@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/companion/computer"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/companion/computer"
 )
 
 type ComputerTaskRunner interface {

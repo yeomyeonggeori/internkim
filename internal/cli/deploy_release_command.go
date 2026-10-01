@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/releaseset"
+	"github.com/yeomyeonggeori/internkim/internal/releaseset"
 )
 
 const releaseUpdateHTTPTimeout = 2 * time.Minute

@@ -3,7 +3,7 @@ package blueclaw
 import (
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/locallm"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func TestTheRenderedModelUnitsAreWhatDriftDetectionExpects(t *testing.T) {

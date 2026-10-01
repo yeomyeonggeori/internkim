@@ -3,7 +3,7 @@ package admind
 import (
 	"encoding/json"
 	"errors"
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"strings"
 )

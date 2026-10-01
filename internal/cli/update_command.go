@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type updateCommandRunner func(directoryPath string, name string, arguments ...string) error

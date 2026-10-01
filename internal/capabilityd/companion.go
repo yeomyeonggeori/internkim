@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
-	"gitlab.com/eastriver/internkim/pkg/capabilityprotocol"
-	capabilityschema "gitlab.com/eastriver/internkim/pkg/capabilityprotocol/jsonschema"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
+	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 type CapabilityRouter struct {

@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The relay admits any key that can sign unless it is told to check the

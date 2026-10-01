@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"strings"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/companion/browserextension"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/companion/browserextension"
 )
 
 func defaultBrowserProfilePath() string {

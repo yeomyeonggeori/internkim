@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 const (

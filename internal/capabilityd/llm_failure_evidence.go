@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gitlab.com/eastriver/internkim/internal/llmbackend"
+	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 )
 
 func (service Service) writeLLMResponse(responseWriter http.ResponseWriter, response any, failure error, request any, capture *llmbackend.ExchangeCapture) {

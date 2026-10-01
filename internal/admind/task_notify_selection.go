@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode"
 
-	"gitlab.com/eastriver/internkim/internal/centralplane"
+	"github.com/yeomyeonggeori/internkim/internal/centralplane"
 )
 
 type taskNotifyRun struct {

@@ -14,10 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	browserruntime "gitlab.com/eastriver/internkim/internal/browser"
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	companionruntime "gitlab.com/eastriver/internkim/internal/companion"
-	"gitlab.com/eastriver/internkim/internal/companion/computer"
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	companionruntime "github.com/yeomyeonggeori/internkim/internal/companion"
+	"github.com/yeomyeonggeori/internkim/internal/companion/computer"
 )
 
 func main() {

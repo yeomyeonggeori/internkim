@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type chatdMessagePostAttachment struct {

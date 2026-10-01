@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 type Configuration struct {

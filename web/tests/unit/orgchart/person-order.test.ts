@@ -23,14 +23,14 @@ describe('organization person ordering', () => {
 	test('orders Korean names before English names on the same hire date', () => {
 		const people = [
 			{ memberID: 'pptx', name: 'PPTX Tester', hireDate: '2026-04-01' },
-			{ memberID: 'gamyeong', name: '이샘플', hireDate: '2026-04-01' },
+			{ memberID: 'sample', name: '이샘플', hireDate: '2026-04-01' },
 			{ memberID: 'pyobon', name: '김예시', hireDate: '2026-04-01' },
 			{ memberID: 'aaron', name: 'Aaron', hireDate: '2026-04-01' }
 		];
 
 		expect([...people].sort(compareOrganizationPeople).map((person) => person.memberID)).toEqual([
 			'pyobon',
-			'gamyeong',
+			'sample',
 			'aaron',
 			'pptx'
 		]);
@@ -39,14 +39,14 @@ describe('organization person ordering', () => {
 	test('orders Korean names before English names when hire dates are missing', () => {
 		const people = [
 			{ memberID: 'pptx', name: 'PPTX Tester' },
-			{ memberID: 'gamyeong', name: '이샘플' },
+			{ memberID: 'sample', name: '이샘플' },
 			{ memberID: 'pyobon', name: '김예시' },
 			{ memberID: 'aaron', name: 'Aaron' }
 		];
 
 		expect([...people].sort(compareOrganizationPeople).map((person) => person.memberID)).toEqual([
 			'pyobon',
-			'gamyeong',
+			'sample',
 			'aaron',
 			'pptx'
 		]);

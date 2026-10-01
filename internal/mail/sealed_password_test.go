@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/box"
 )
 
 func connectedBoxIn(t *testing.T, companyID string) (string, box.Identity) {

@@ -3,7 +3,7 @@ package capabilityd
 import (
 	"context"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 const taskLabelAdmindPath = "/task/api/labels"

@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strconv"
 
-	"gitlab.com/eastriver/internkim/internal/buzzidentity"
-	"gitlab.com/eastriver/internkim/internal/buzzimport/mattermostadmin"
+	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/buzzimport/mattermostadmin"
 )
 
 var errBridgeSeedMissing = errors.New("buzz key seed is not configured")

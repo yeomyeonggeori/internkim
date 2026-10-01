@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/mail"
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func newMailTestService(t *testing.T) *Service {

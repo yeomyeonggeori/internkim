@@ -14,9 +14,9 @@ import (
 	"strings"
 	"syscall"
 
-	"gitlab.com/eastriver/internkim/internal/box"
-	"gitlab.com/eastriver/internkim/internal/companyhost"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"golang.org/x/term"
 )
 

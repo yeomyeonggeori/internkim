@@ -39,7 +39,7 @@ test('maps calendar participants through event meta and payload', () => {
 		isAllDay: false,
 		color: '#2563eb',
 		participants: [
-			{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com', image: '/calendar/api/participants/person-gamyeong/image' },
+			{ personID: 'person-sample', name: '이샘플', email: 'sample@example.com', image: '/calendar/api/participants/person-sample/image' },
 			{ personID: 'person-pyobon', name: '김예시', email: 'pyobon@example.com' }
 		],
 		createdByEmail: 'admin@example.com',
@@ -48,14 +48,14 @@ test('maps calendar participants through event meta and payload', () => {
 	});
 
 	expect(event.meta?.participants).toEqual([
-		{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com', image: '/calendar/api/participants/person-gamyeong/image' },
+		{ personID: 'person-sample', name: '이샘플', email: 'sample@example.com', image: '/calendar/api/participants/person-sample/image' },
 		{ personID: 'person-pyobon', name: '김예시', email: 'pyobon@example.com' }
 	]);
 
 	const payload = calendarEventPayloadFromDayTaskEvent(event, '#2563eb');
 
 	expect(payload.participants).toEqual([
-		{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com' },
+		{ personID: 'person-sample', name: '이샘플', email: 'sample@example.com' },
 		{ personID: 'person-pyobon', name: '김예시', email: 'pyobon@example.com' }
 	]);
 });

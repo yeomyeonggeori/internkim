@@ -21,14 +21,14 @@ test('calendar draft popover carries participants through changes', () => {
 		calendarId: 'internkim',
 		meta: {
 			location: 'Studio',
-			participants: [{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com' }]
+			participants: [{ personID: 'person-sample', name: '이샘플', email: 'sample@example.com' }]
 		}
 	});
 	const popover = draftPopoverStateFromEvent(event, 'edit', null, null);
 
-	expect(popover.participants).toEqual([{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com' }]);
+	expect(popover.participants).toEqual([{ personID: 'person-sample', name: '이샘플', email: 'sample@example.com' }]);
 	expect(draftPopoverChanges(popover).meta.participants).toEqual([
-		{ personID: 'person-gamyeong', name: '이샘플', email: 'gamyeong@example.com' }
+		{ personID: 'person-sample', name: '이샘플', email: 'sample@example.com' }
 	]);
 	expect(hasDraftPopoverEventChanges({ ...popover, participants: [] }, event)).toBe(true);
 });

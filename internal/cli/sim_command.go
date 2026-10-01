@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	internkimlab "gitlab.com/eastriver/internkim/internal/lab"
-	"gitlab.com/eastriver/internkim/internal/localfleet"
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
+	internkimlab "github.com/yeomyeonggeori/internkim/internal/lab"
+	"github.com/yeomyeonggeori/internkim/internal/localfleet"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
 var runSimCommand updateCommandRunner = runStreamingUpdateCommand

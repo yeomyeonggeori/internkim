@@ -13,7 +13,7 @@ import (
 	"path"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 type publicToolNamedWorkspacePaths struct {

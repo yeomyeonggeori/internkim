@@ -188,11 +188,10 @@ async function main(): Promise<number> {
 	const vmAddressProcess = Bun.spawn(['./internkim', 'lab', 'vm-ip', '--config', fleetConfigPath], { stdout: 'pipe', stderr: 'pipe' });
 	const vmAddress = (await new Response(vmAddressProcess.stdout).text()).trim();
 	if (!vmAddress) throw new Error('the Local Fleet VM has no address');
-	const sshpass = join(repositoryRoot, 'bin/sshpass');
 	const tunnel = start(
 		'the Local Fleet socket tunnel',
 		[
-			sshpass,
+			'sshpass',
 			'-p',
 			'admin',
 			'ssh',

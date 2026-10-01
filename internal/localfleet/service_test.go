@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/eastriver/internkim/internal/blueclawworkspace"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type recordingLogger struct {
@@ -324,7 +324,7 @@ func TestStartTunnelCommandKeepsSSHAliveAfterShellExit(t *testing.T) {
 	}
 	command := service.startTunnelCommand()
 	for _, expectedFragment := range []string{
-		"(nohup '/repo/bin/sshpass'",
+		"(nohup sshpass -p admin",
 		"tunnel.log' 2>&1 < /dev/null & echo $! >",
 		"tunnel.pid')",
 	} {

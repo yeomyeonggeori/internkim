@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 )
 
 const (

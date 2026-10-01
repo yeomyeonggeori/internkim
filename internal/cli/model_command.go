@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func runModel() {
@@ -22,10 +22,9 @@ func runModel() {
 
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
-	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	target := resolveCommandTarget(commandControlArguments(os.Args[2:]))
 	target = resolveLabHostForCommandTarget(target, scriptDir)
-	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}
@@ -50,10 +49,9 @@ func runModel() {
 func runSyncTools() {
 	configuration := loadConfig()
 	scriptDir, _ := os.Getwd()
-	sshpassBin := filepath.Join(scriptDir, "bin", "sshpass")
 	target := resolveCommandTarget(commandControlArguments(os.Args[2:]))
 	target = resolveLabHostForCommandTarget(target, scriptDir)
-	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, sshpassBin, target)
+	ssh, _, errorValue := resolveDeviceSSHConnection(configuration, target)
 	if errorValue != nil {
 		fatal(errorValue.Error())
 	}

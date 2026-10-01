@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/eastriver/internkim/internal/personname"
+	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
 func (service *Service) inviteBlueclawPerson(ctx context.Context, userID string, email string, name string) error {

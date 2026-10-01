@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -2171,7 +2171,7 @@ func TestOpenRouterBackendRetriesOnceWhenTheModelAnswersWithNothing(t *testing.T
 	}
 
 	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages: []Message{{Role: "user", Content: "견양 님한테 테스트로 뭐라고 dm 보내봐."}},
+		Messages: []Message{{Role: "user", Content: "박예시 님한테 테스트로 뭐라고 dm 보내봐."}},
 		StructuredOutputSchema: StructuredOutputSchema{
 			Name:               "bluecollar_turn_router",
 			Document:           json.RawMessage(`{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false}`),

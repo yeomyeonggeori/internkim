@@ -1,7 +1,7 @@
 package companion
 
 import (
-	"gitlab.com/eastriver/internkim/internal/capabilities"
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
 
 // The person who asked for the work approves it in chat, and the agent remembers

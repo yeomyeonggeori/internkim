@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	setup "gitlab.com/eastriver/internkim/internal/provisioning/steps"
-	"gitlab.com/eastriver/internkim/internal/runtime/blueclaw"
+	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // backupFromExt4 extracts workspace files from the SD card's ext4 partition
@@ -291,9 +291,17 @@ func runSetupSD(m *msg) {
 
 		// Inject Wi-Fi, SSH, hostname, firstboot service into ext4 via debugfs
 		fmt.Printf("  %s...\n", m.t("이미지에 파일 주입 중 (debugfs)", "Injecting files into image (debugfs)"))
-		if err := injectFilesIntoImage(imgRaw, flowState.wifiSSID, flowState.wifiPassword, flowState.publicKey, stageDir); err != nil {
+		consolePassword, err := resolveConsolePassword()
+		if err != nil {
+			fatal(err.Error())
+		}
+		if err := injectFilesIntoImage(imgRaw, flowState.wifiSSID, flowState.wifiPassword, flowState.publicKey, consolePassword, stageDir); err != nil {
 			fatal(fmt.Sprintf("%s: %v", m.t("파일 주입 실패", "File injection failed"), err))
 		}
+		if err := saveConsolePassword(consolePassword); err != nil {
+			fatal(err.Error())
+		}
+		fmt.Printf("  %s: %s\n", m.t("root·internkim 콘솔 비밀번호", "root and internkim console password"), consolePassword)
 		fmt.Printf("  %s\n", m.t("파일 주입 완료", "Files injected"))
 
 		// Write to SD
@@ -401,18 +409,6 @@ func detectSDCard() string {
 	return ""
 }
 
-func detectSSID(bin string) string {
-	out, err := exec.Command(bin).Output()
-	if err != nil {
-		return ""
-	}
-	s := strings.TrimSpace(string(out))
-	if strings.Contains(s, "Unknown") {
-		return ""
-	}
-	return s
-}
-
 func localScanSubnets(stateDirectory string) []string {
 	subnetSet := make(map[string]bool)
 	if storedSubnet := strings.TrimSpace(loadState(stateDirectory, "subnet")); storedSubnet != "" {
@@ -453,32 +449,6 @@ func localScanSubnets(stateDirectory string) []string {
 	}
 	sort.Strings(subnets)
 	return subnets
-}
-
-func detectCurrentWiFiHidden() bool {
-	output, errorValue := exec.Command("system_profiler", "SPAirPortDataType").Output()
-	if errorValue != nil {
-		return false
-	}
-	text := string(output)
-	currentIndex := strings.Index(text, "Current Network Information:")
-	if currentIndex < 0 {
-		return false
-	}
-	otherIndex := strings.Index(text[currentIndex:], "Other Local Wi-Fi Networks:")
-	currentSection := text[currentIndex:]
-	if otherIndex >= 0 {
-		currentSection = text[currentIndex : currentIndex+otherIndex]
-	}
-	for _, line := range strings.Split(currentSection, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "Hidden Network:") {
-			continue
-		}
-		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "Hidden Network:"))
-		return strings.EqualFold(value, "yes") || strings.EqualFold(value, "true")
-	}
-	return false
 }
 
 func findExt4Partition(imgRaw string) (offset, size int64, err error) {
@@ -587,7 +557,7 @@ umount /mnt/armbian/dev /mnt/armbian/proc 2>/dev/null; umount /mnt/armbian 2>/de
 	return nil
 }
 
-func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error {
+func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, consolePassword, stageDir string) error {
 	binDir := e2fsprogsBinDir()
 	debugfsBin := "debugfs"
 	if binDir != "" {
@@ -704,12 +674,12 @@ func injectFilesIntoImage(imgRaw, ssid, wifiPass, pubKey, stageDir string) error
 	armbianConf += "SET_LANG_BASED_ON_LOCATION=\"n\"\n"
 	armbianConf += "PRESET_LOCALE=\"en_US.UTF-8\"\n"
 	armbianConf += "PRESET_TIMEZONE=\"Asia/Seoul\"\n"
-	armbianConf += "PRESET_ROOT_PASSWORD=\"internkim\"\n"
+	armbianConf += fmt.Sprintf("PRESET_ROOT_PASSWORD=\"%s\"\n", consolePassword)
 	armbianConf += "PRESET_USER_NAME=\"internkim\"\n"
-	armbianConf += "PRESET_USER_PASSWORD=\"internkim\"\n"
+	armbianConf += fmt.Sprintf("PRESET_USER_PASSWORD=\"%s\"\n", consolePassword)
 	armbianConf += "PRESET_DEFAULT_REALNAME=\"Intern Kim\"\n"
 	armbianConf += "PRESET_USER_SHELL=\"bash\"\n"
-	writeContent(armbianConf, "/root/.not_logged_in_yet", "0100644")
+	writeContent(armbianConf, "/root/.not_logged_in_yet", "0100600")
 
 	// ── 3. Hostname ──
 	fmt.Println("    hostname")

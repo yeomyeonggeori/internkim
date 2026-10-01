@@ -3,7 +3,7 @@ package admind
 import (
 	"fmt"
 
-	"gitlab.com/eastriver/internkim/internal/tasksize"
+	"github.com/yeomyeonggeori/internkim/internal/tasksize"
 )
 
 func defaultTaskSizeDefinitions() []taskSizeDefinition {
