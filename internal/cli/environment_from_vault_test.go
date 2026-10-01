@@ -13,7 +13,7 @@ const exampleManifest = `+internkim
 OPENROUTER_API_KEY
 # the archive key signs what every company host installs as root
 @production,scripts
-INTERNKIM_APT_SIGNING_KEY
+INTERNKIM_PACKAGE_SIGNING_KEY
 INTERNKIM_REGISTER_SECRET
 CLOUDFLARE_DOMAIN
 INTERNKIM_BOARD_PORT=8080
@@ -68,7 +68,7 @@ func TestALeadingProfileArgumentIsTakenOffTheCommand(t *testing.T) {
 
 func TestManifestNamesAreTheBareKeysOfTheProfilesThatListTheName(t *testing.T) {
 	names := vaultManifestNames(exampleManifest, "production")
-	wanted := []string{"INTERNKIM_APT_SIGNING_KEY", "INTERNKIM_REGISTER_SECRET", "CLOUDFLARE_DOMAIN"}
+	wanted := []string{"INTERNKIM_PACKAGE_SIGNING_KEY", "INTERNKIM_REGISTER_SECRET", "CLOUDFLARE_DOMAIN"}
 	if !slices.Equal(names, wanted) {
 		t.Fatalf("the production profile read %v, wanted %v", names, wanted)
 	}

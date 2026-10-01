@@ -293,7 +293,7 @@
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by both the relay and host/entrypoint.sh"
   },
-  "INTERNKIM_APT_SIGNING_KEY": {
+  "INTERNKIM_PACKAGE_SIGNING_KEY": {
     "process": "internkim release repositories",
     "description": "the exported OpenPGP secret key that signs the apt, rpm and pacman repositories (Release, repomd.xml, each package and each database), held in the operating system's vault under this name and handed to one command by `monkeys run`; release repositories writes it to a mode-0600 file it removes and never lets a child inherit the value",
     "isInVault": true

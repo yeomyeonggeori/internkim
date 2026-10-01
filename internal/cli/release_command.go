@@ -131,7 +131,7 @@ func printReleaseUsage() {
 	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
 	fmt.Println("Environment for repositories:")
-	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_APT_SIGNING_KEY, and signs all three formats:")
+	fmt.Println("  the archive signing key lives in the OS vault as INTERNKIM_PACKAGE_SIGNING_KEY, and signs all three formats:")
 	fmt.Printf("    internkim @production release repositories --channel %s\n", packagerepository.TestingChannel)
 	fmt.Println("  there is no flag that names a key on disk: the vault is the key's one home,")
 	fmt.Println("  and the rigs put their own throwaway key in the same variable")

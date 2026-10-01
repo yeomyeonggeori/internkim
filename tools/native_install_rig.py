@@ -129,7 +129,7 @@ KEYRING_NAME = "internkim-archive-keyring.pgp"
 # The name the vault holds the archive signing key under. The canonical copy is
 # packagerepository.SigningKeyVariable in Go; TestTheRigNamesTheSameSigningKeyVariable
 # reads that constant and fails if this drifts from it.
-SIGNING_KEY_VARIABLE = "INTERNKIM_APT_SIGNING_KEY"
+SIGNING_KEY_VARIABLE = "INTERNKIM_PACKAGE_SIGNING_KEY"
 BUILT_COMMAND_PATH = REPOSITORY_ROOT / ".artifacts" / "native-install-rig" / "internkim"
 
 
