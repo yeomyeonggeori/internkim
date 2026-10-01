@@ -4,6 +4,7 @@ import {
 	toolInvokeOutcomes
 } from '../../../../web/src/lib/server/public-api/catalog/contract';
 import { publicAPIPermissions } from '../../../../web/src/lib/public-api-permission';
+import { defaultTokenLifetimeDays, longestTokenLifetimeDays } from '../../../../web/src/lib/token-lifetime';
 import { defaultZone } from '../../../../web/src/lib/server/fleet-domain';
 
 export type ApiDocumentationLanguage = 'ko' | 'en';
@@ -97,12 +98,12 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			listTokens: {
 				summary: '토큰 목록',
 				description:
-					'이 토큰의 주인이 가진 토큰의 이름과 등급을 나열합니다. 토큰 값은 어디에도 남아 있지 않아 답하지 않습니다.'
+					'이 토큰의 주인이 가진 토큰의 이름과 등급, 만료 시각, 마지막으로 쓰인 시각을 나열합니다. 토큰 값은 어디에도 남아 있지 않아 답하지 않습니다.'
 			},
 			createToken: {
 				summary: '토큰 발급',
 				description:
-					'부른 토큰과 같은 사람 앞으로 새 토큰을 발급합니다. `permission`을 생략하면 부른 토큰과 같은 등급이 되고, 그보다 높은 등급은 만들 수 없습니다. `name`을 생략하면 아직 안 쓰인 첫 번째 번호를 붙입니다. 응답의 `token`은 이때 한 번만 보여집니다.'
+					'부른 토큰과 같은 사람 앞으로 새 토큰을 발급합니다. `permission`을 생략하면 부른 토큰과 같은 등급이 되고, 그보다 높은 등급은 만들 수 없습니다. `name`을 생략하면 아직 안 쓰인 첫 번째 번호를 붙입니다. `expiresInDays`를 생략하면 90일 뒤에 만료되고, 1일부터 365일까지 고를 수 있습니다. 만료된 토큰은 같은 이름으로 새로 발급해 갱신합니다. 응답의 `token`은 이때 한 번만 보여집니다.'
 			},
 			revokeToken: {
 				summary: '토큰 폐기',
@@ -216,12 +217,12 @@ const localizedCopy: Record<ApiDocumentationLanguage, ApiCopy> = {
 			listTokens: {
 				summary: 'List tokens',
 				description:
-					"The names and rungs of the tokens this token's owner holds. No token value is kept anywhere, so none is answered."
+					"The names, rungs, expiry and last use of the tokens this token's owner holds. No token value is kept anywhere, so none is answered."
 			},
 			createToken: {
 				summary: 'Make a token',
 				description:
-					'Issues a token to the same person as the one calling. `permission` defaults to the calling rung and may not reach past it. Omitting `name` takes the first ordinal nobody holds. The `token` field is shown this once and never again.'
+					'Issues a token to the same person as the one calling. `permission` defaults to the calling rung and may not reach past it. Omitting `name` takes the first ordinal nobody holds. A token expires after `expiresInDays`, 90 when omitted and at most 365; an expired one is renewed by making another by the same name. The `token` field is shown this once and never again.'
 			},
 			revokeToken: {
 				summary: 'Revoke a token',
@@ -842,15 +843,22 @@ function createComponents(copy: ApiCopy) {
 				type: 'object',
 				properties: {
 					name: { type: 'string', maxLength: 64 },
-					permission: { type: 'string', enum: [...publicAPIPermissions] }
+					permission: { type: 'string', enum: [...publicAPIPermissions] },
+					expiresInDays: {
+						type: 'integer',
+						minimum: 1,
+						maximum: longestTokenLifetimeDays,
+						default: defaultTokenLifetimeDays
+					}
 				}
 			},
 			TokenResponse: {
 				type: 'object',
-				required: ['name', 'permission', 'token'],
+				required: ['name', 'permission', 'expiresAt', 'token'],
 				properties: {
 					name: { type: 'string' },
 					permission: { type: 'string', enum: [...publicAPIPermissions] },
+					expiresAt: { type: 'string', format: 'date-time' },
 					token: { type: 'string' }
 				}
 			},
@@ -862,10 +870,12 @@ function createComponents(copy: ApiCopy) {
 						type: 'array',
 						items: {
 							type: 'object',
-							required: ['name', 'permission'],
+							required: ['name', 'permission', 'expiresAt', 'lastUsedAt'],
 							properties: {
 								name: { type: 'string' },
-								permission: { type: 'string', enum: [...publicAPIPermissions] }
+								permission: { type: 'string', enum: [...publicAPIPermissions] },
+								expiresAt: { type: 'string', format: 'date-time' },
+								lastUsedAt: { type: 'string', format: 'date-time', nullable: true }
 							}
 						}
 					}

@@ -4,6 +4,8 @@ import type { PublicAPIPermission } from '$lib/public-api-permission';
 export type PersonalAccessToken = {
 	name: string;
 	permission: PublicAPIPermission;
+	expiresAt: string;
+	lastUsedAt: string | null;
 };
 
 async function signedInHeaders(): Promise<Record<string, string>> {

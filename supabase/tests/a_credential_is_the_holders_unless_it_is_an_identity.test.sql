@@ -15,11 +15,11 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('000000dd-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000d0', 'holder@example.test', '00000000-0000-0000-0000-0000000000d1', 'active', false),
   ('000000dd-0000-0000-0000-000000000002', '00000000-0000-0000-0000-0000000000d0', 'colleague@example.test', '00000000-0000-0000-0000-0000000000d2', 'active', false);
 
-insert into public.credential (member_id, kind, external_id, name) values
-  ('000000dd-0000-0000-0000-000000000001', 'buzz-secret', 'public-key-hex', ''),
-  ('000000dd-0000-0000-0000-000000000001', 'mail', '000000dd-0000-0000-0000-000000000001', ''),
-  ('000000dd-0000-0000-0000-000000000001', 'api_key', 'ik_token_hash', ''),
-  ('000000dd-0000-0000-0000-000000000001', 'a-kind-nobody-named-yet', 'whatever', '');
+insert into public.credential (member_id, kind, external_id, name, settings) values
+  ('000000dd-0000-0000-0000-000000000001', 'buzz-secret', 'public-key-hex', '', '{}'),
+  ('000000dd-0000-0000-0000-000000000001', 'mail', '000000dd-0000-0000-0000-000000000001', '', '{}'),
+  ('000000dd-0000-0000-0000-000000000001', 'api_key', 'ik_token_hash', '', '{"expiresAt": "2099-01-01T00:00:00Z"}'),
+  ('000000dd-0000-0000-0000-000000000001', 'a-kind-nobody-named-yet', 'whatever', '', '{}');
 
 select is(public.is_public_identity_credential('buzz-secret'), true,
   'who somebody is on the company messenger is public');

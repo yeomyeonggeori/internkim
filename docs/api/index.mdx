@@ -37,7 +37,7 @@ curl -X POST https://api.intern.kim/v1/token \
 ```
 
 ```json
-{ "name": "reporting script", "permission": "write", "token": "ik_..." }
+{ "name": "reporting script", "permission": "write", "expiresAt": "2027-01-01T09:00:00.000Z", "token": "ik_..." }
 ```
 
 `token` is answered once and only its SHA-256 hash is kept, so a lost token is
@@ -46,7 +46,12 @@ token holds, and a token may never mint one that reaches further than itself.
 `name` may be left out, and the token is called `pat-1`, `pat-2`, and so on by
 the first ordinal the member does not already hold.
 
-`GET /v1/tokens` lists the names and rungs the member holds, and is the only
+A token expires 90 days after it is made, or after `expiresInDays`, a whole
+number from 1 to 365. Calling with an expired token answers `401`, and making
+another by the same name renews it.
+
+`GET /v1/tokens` lists the names, rungs, expiry and last use of the tokens the
+member holds, and is the only
 plural path: `POST /v1/token` makes one and `DELETE /v1/token?name=<name>`
 revokes one, because each acts on exactly one token.
 

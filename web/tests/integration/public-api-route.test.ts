@@ -368,6 +368,48 @@ describe('the tokens a member holds', () => {
 	});
 });
 
+describe('a token that has lived its lifetime', () => {
+	const dayMilliseconds = 24 * 60 * 60 * 1000;
+
+	test('lives ninety days unless the maker asks for another whole number of days up to a year', async () => {
+		const madeAt = Date.now();
+		const made = (await mint(holdersToken, { name: 'ninety-days' })).body as { expiresAt: string };
+		expect(Date.parse(made.expiresAt) - madeAt).toBeGreaterThanOrEqual(90 * dayMilliseconds - 60_000);
+		expect(Date.parse(made.expiresAt) - madeAt).toBeLessThanOrEqual(90 * dayMilliseconds + 60_000);
+
+		const week = (await mint(holdersToken, { name: 'a-week', expiresInDays: 7 })).body as { expiresAt: string };
+		expect(Date.parse(week.expiresAt) - madeAt).toBeLessThanOrEqual(7 * dayMilliseconds + 60_000);
+
+		expect((await mint(holdersToken, { name: 'none', expiresInDays: 0 })).status).toBe(400);
+		expect((await mint(holdersToken, { name: 'forever', expiresInDays: 366 })).status).toBe(400);
+		expect((await mint(holdersToken, { name: 'half', expiresInDays: 1.5 })).status).toBe(400);
+	});
+
+	test('is refused, and making one by the same name renews it', async () => {
+		const longAgo = new Date(Date.now() - 2 * dayMilliseconds);
+		const expired = await issuePersonalAccessToken(client, memberID, 'expired', 'read', 1, longAgo);
+
+		const refused = await reach('/tools', expired);
+		expect(refused.status).toBe(401);
+		expect(messageOf(refused)).toBe('this token has expired; make another by the same name to renew it');
+
+		const renewed = (await mint(holdersToken, { name: 'expired', permission: 'read' })).body as { token: string };
+		expect((await reach('/tools', renewed.token)).status).toBe(200);
+	});
+
+	test('is listed with when it expires and when it was last used', async () => {
+		const used = await issuePersonalAccessToken(client, memberID, 'used', 'read');
+		expect((await reach('/tools', used)).status).toBe(200);
+
+		const listed = (await tokens(holdersToken)).body as {
+			tokens: { name: string; expiresAt: string; lastUsedAt: string | null }[];
+		};
+		const entry = listed.tokens.find((token) => token.name === 'used');
+		expect(Date.parse(entry?.expiresAt ?? '')).toBeGreaterThan(Date.now());
+		expect(Date.parse(entry?.lastUsedAt ?? '')).toBeGreaterThan(Date.now() - 60_000);
+	});
+});
+
 describe('a tool whose rows live in the record', () => {
 	test('answers every call one token makes at once, the way a home screen widget reads what it shows', async () => {
 		const email = `${slug}-widget@example.test`;

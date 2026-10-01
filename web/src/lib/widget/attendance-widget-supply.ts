@@ -1,5 +1,6 @@
 import { issuePersonalAccessToken, personalAccessTokens } from '$lib/member/personal-access-tokens';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
+import { expiresWithin } from '$lib/token-lifetime';
 import { attendanceWidgetShell, type WidgetInstall } from './attendance-widget-bridge';
 
 export const widgetTokenPermission: PublicAPIPermission = 'write';
@@ -10,9 +11,16 @@ export function widgetTokenNameFor(installID: string): string {
 	return `${widgetTokenPrefix}${installID.replace(/[^0-9a-zA-Z]/g, '').slice(0, 8).toLowerCase()}`;
 }
 
-export function widgetNeedsToken(held: WidgetInstall, tokens: { name: string }[]): boolean {
+const renewWithinDays = 30;
+
+export function widgetNeedsToken(
+	held: WidgetInstall,
+	tokens: { name: string; expiresAt: string }[],
+	now: Date = new Date()
+): boolean {
 	if (!held.tokenName) return true;
-	return !tokens.some((token) => token.name === held.tokenName);
+	const supplied = tokens.find((token) => token.name === held.tokenName);
+	return !supplied || expiresWithin(supplied.expiresAt, renewWithinDays, now);
 }
 
 let supplying: Promise<void> | null = null;

@@ -15,9 +15,9 @@ insert into public.member (id, company_id, user_id, email, name, status) values
   ('49000000-0000-0000-0000-0000000000b2', '49000000-0000-0000-0000-0000000000a0',
    '49000000-0000-0000-0000-000000000002', 'colleague@example.test', '박예시', 'active');
 
-insert into public.credential (member_id, kind, name, external_id) values
-  ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the laptop', 'the-hash-of-a-key'),
-  ('49000000-0000-0000-0000-0000000000b1', 'buzz-secret', '', 'a-public-key-hex');
+insert into public.credential (member_id, kind, name, external_id, settings) values
+  ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the laptop', 'the-hash-of-a-key', '{"expiresAt": "2099-01-01T00:00:00Z"}'),
+  ('49000000-0000-0000-0000-0000000000b1', 'buzz-secret', '', 'a-public-key-hex', '{}');
 
 -- The kinds there is one of stay one of: their name is the empty one.
 select throws_ok(
@@ -29,8 +29,8 @@ select throws_ok(
 );
 
 -- A key is told from another key by what its holder calls it.
-insert into public.credential (member_id, kind, name, external_id) values
-  ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the overnight one', 'another-hash');
+insert into public.credential (member_id, kind, name, external_id, settings) values
+  ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the overnight one', 'another-hash', '{"expiresAt": "2099-01-01T00:00:00Z"}');
 
 select is(
   (select count(*)::integer from public.credential
@@ -40,8 +40,8 @@ select is(
 );
 
 select throws_ok(
-  $$insert into public.credential (member_id, kind, name, external_id) values
-      ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the overnight one', 'a-third-hash')$$,
+  $$insert into public.credential (member_id, kind, name, external_id, settings) values
+      ('49000000-0000-0000-0000-0000000000b1', 'api_key', 'the overnight one', 'a-third-hash', '{"expiresAt": "2099-01-01T00:00:00Z"}')$$,
   '23505',
   null,
   'one name belongs to one key'

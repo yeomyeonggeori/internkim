@@ -7,6 +7,7 @@ import {
 } from '$lib/server/control-plane';
 import { issueRefusal, nextUnusedName, revocationRefusal } from '$lib/server/public-api/tokens';
 import { publicAPIPermissionOf } from '$lib/public-api-permission';
+import { expiryAfter, longestTokenLifetimeDays, tokenLifetimeDaysOf } from '$lib/token-lifetime';
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -15,7 +16,11 @@ import type { RequestHandler } from './$types';
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const member = await callingMember(request, environmentOf(platform));
 
-	const asked = (await request.json().catch(() => null)) as { name?: unknown; permission?: unknown } | null;
+	const asked = (await request.json().catch(() => null)) as {
+		name?: unknown;
+		permission?: unknown;
+		expiresInDays?: unknown;
+	} | null;
 	if (!asked || typeof asked !== 'object') error(400, 'this call carried a body that is not a json object');
 
 	const namedByTheCaller = typeof asked.name === 'string' ? asked.name.trim() : '';
@@ -26,13 +31,18 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		asked.permission === undefined ? member.permission : publicAPIPermissionOf(asked.permission);
 	if (!permission) error(400, 'a token reads, writes or deletes');
 
+	const lifetimeDays = tokenLifetimeDaysOf(asked.expiresInDays);
+	if (!lifetimeDays) error(400, `a token lives a whole number of days, from 1 to ${longestTokenLifetimeDays}`);
+
 	const refused = issueRefusal(member, name, permission);
 	if (refused) error(refused.status, refused.message);
 
+	const now = new Date();
 	return json({
 		name,
 		permission,
-		token: await issuePersonalAccessToken(member.record, member.memberID, name, permission),
+		expiresAt: expiryAfter(lifetimeDays, now),
+		token: await issuePersonalAccessToken(member.record, member.memberID, name, permission, lifetimeDays, now),
 	});
 };
 

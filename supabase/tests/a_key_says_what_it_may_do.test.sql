@@ -13,8 +13,8 @@ insert into public.member (id, company_id, user_id, email, name, status) values
    '4a000000-0000-0000-0000-000000000001', 'keyholder@example.test', '이샘플', 'active');
 
 -- A key made without saying what it may do may do everything its holder may.
-insert into public.credential (member_id, kind, name, external_id) values
-  ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the laptop', 'the-hash-of-a-key');
+insert into public.credential (member_id, kind, name, external_id, settings) values
+  ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the laptop', 'the-hash-of-a-key', '{"expiresAt": "2099-01-01T00:00:00Z"}');
 
 select is(
   (select permission from public.credential
@@ -24,9 +24,9 @@ select is(
 );
 
 -- The three rungs are the whole ladder.
-insert into public.credential (member_id, kind, name, external_id, permission) values
-  ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the reader', 'another-hash', 'read'),
-  ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the writer', 'a-third-hash', 'write');
+insert into public.credential (member_id, kind, name, external_id, permission, settings) values
+  ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the reader', 'another-hash', 'read', '{"expiresAt": "2099-01-01T00:00:00Z"}'),
+  ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the writer', 'a-third-hash', 'write', '{"expiresAt": "2099-01-01T00:00:00Z"}');
 
 select is(
   (select count(*)::integer from public.credential
@@ -36,8 +36,8 @@ select is(
 );
 
 select throws_ok(
-  $$insert into public.credential (member_id, kind, name, external_id, permission) values
-      ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the admin one', 'a-fourth-hash', 'admin')$$,
+  $$insert into public.credential (member_id, kind, name, external_id, permission, settings) values
+      ('4a000000-0000-0000-0000-0000000000b1', 'api_key', 'the admin one', 'a-fourth-hash', 'admin', '{"expiresAt": "2099-01-01T00:00:00Z"}')$$,
   '23514',
   null,
   'a rung the ladder does not have is refused'
