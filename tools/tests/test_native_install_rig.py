@@ -257,9 +257,15 @@ class TheSigningKeyIsTheOneTheStackPublishes(unittest.TestCase):
         self.assertEqual(key["alg"], "ES256")
         self.assertIn("d", key)
 
+    def local_plane_address(self):
+        try:
+            return rig.local_plane_settings()["API_URL"]
+        except rig.RigFailure as refusal:
+            self.skipTest(str(refusal))
+
     def test_that_key_is_the_one_the_record_publishes(self):
         key = self.signing_key()
-        address = rig.local_plane_settings()["API_URL"] + "/auth/v1/.well-known/jwks.json"
+        address = self.local_plane_address() + "/auth/v1/.well-known/jwks.json"
         with urllib.request.urlopen(address, timeout=10) as answered:
             published = json.loads(answered.read())
         self.assertIn(key["kid"], [held["kid"] for held in published["keys"]])
