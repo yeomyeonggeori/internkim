@@ -221,28 +221,3 @@ func splitAndTrim(value, separator string) []string {
 	}
 	return parts
 }
-
-// A credential the CLI generates has the same home as one it reads, so it goes
-// back into the vault, into the profile this run was handed.
-func rememberInVault(name, value string) error {
-	monkeysPath := vaultCommandPath()
-	if monkeysPath == "" {
-		return fmt.Errorf("monkeys is not installed, and the vault is where %s lives", name)
-	}
-	if os.Getenv("INTERNKIM_ENVIRONMENT_FROM_VAULT") == "" {
-		return fmt.Errorf("this run was not handed a vault profile, so there is no profile to keep %s in; "+
-			"run it as `internkim @<profile> …`", name)
-	}
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	command := exec.Command(monkeysPath, "remember", vaultManifestProfileMark+os.Getenv("INTERNKIM_ENVIRONMENT_FROM_VAULT"), name)
-	command.Dir = repositoryRootPath
-	command.Stdin = strings.NewReader(value)
-	output, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return fmt.Errorf("monkeys remember %s: %w: %s", name, errorValue, strings.TrimSpace(string(output)))
-	}
-	return nil
-}

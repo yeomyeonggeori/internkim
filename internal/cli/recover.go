@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -37,7 +39,6 @@ type recoveryResponse struct {
 	JournalTail string            `json:"journalTail"`
 	Snapshot    string            `json:"snapshot"`
 	NextStep    string            `json:"nextStep"`
-	ObservedAt  time.Time         `json:"observedAt"`
 }
 
 type recoveryResult struct {
@@ -46,16 +47,20 @@ type recoveryResult struct {
 	Output string `json:"output"`
 }
 
+type recoveryDevice struct {
+	URL         string
+	FleetID     string
+	FleetSecret string
+}
+
 const recoveryResponseBodyLimitBytes = 256 * 1024
 
-var (
-	recoveryHTTPClient = &http.Client{
-		Timeout: 10 * time.Minute,
-		CheckRedirect: func(request *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-)
+var recoveryHTTPClient = &http.Client{
+	Timeout: 10 * time.Minute,
+	CheckRedirect: func(request *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
 
 func runRecover() {
 	if errorValue := runRecoverArguments(os.Args[2:]); errorValue != nil {
@@ -64,163 +69,89 @@ func runRecover() {
 }
 
 func runRecoverArguments(arguments []string) error {
-	subcommand := "ssh"
-	if len(arguments) > 0 && !strings.HasPrefix(arguments[0], "-") {
-		subcommand = arguments[0]
-		arguments = arguments[1:]
-	}
-	switch subcommand {
-	case "ssh":
-		return runRecoverSSH(arguments)
-	default:
-		return fmt.Errorf("unknown recover subcommand: %s", subcommand)
-	}
-}
-
-func runRecoverSSH(arguments []string) error {
-	flagSet := flag.NewFlagSet("recover ssh", flag.ContinueOnError)
-	action := flagSet.String("action", "restart-cloudflared-node-ssh", "Recovery action, one of: "+strings.Join(admind.SSHRecoveryActions, ", "))
-	host := flagSet.String("host", "", "Board host")
-	user := flagSet.String("user", "", "SSH user")
-	password := flagSet.String("password", "", "SSH password")
-	node := flagSet.String("node", "", "Fleet node target")
-	board := flagSet.String("board", "", "Board target")
+	flagSet := flag.NewFlagSet("recover", flag.ContinueOnError)
+	action := flagSet.String("action", "status", "Recovery action, one of: "+strings.Join(admind.SSHRecoveryActions, ", "))
 	actionTarget := flagSet.String("target", "", "What the action acts on, for the actions that name one")
-	diagnose := flagSet.Bool("diagnose", false, "Also check the local admind route when SSH is available")
 	if errorValue := flagSet.Parse(arguments); errorValue != nil {
 		return errorValue
 	}
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if !slices.Contains(admind.SSHRecoveryActions, *action) {
+		return fmt.Errorf("unsupported recovery action: %s", *action)
+	}
+	device, errorValue := recoveryDeviceFromEnvironment()
 	if errorValue != nil {
 		return errorValue
 	}
-	target := resolveCommandTarget(verifyTargetArguments(*host, *user, *password, *node, true, *board, false))
-	target = resolveLabHostForCommandTarget(target, repositoryRootPath)
-	return runSSHRecoveryForTarget(newMsg("ko"), loadConfig(), target, *action, *actionTarget, *diagnose)
+	response, errorValue := performRecoveryRequest(device, *action, *actionTarget)
+	if errorValue != nil {
+		return errorValue
+	}
+	printRecoveryResponse(response)
+	return nil
 }
 
-func runSSHRecoveryForTarget(m *msg, configuration config, target commandTarget, action string, actionTarget string, diagnose bool) error {
-	action = strings.TrimSpace(action)
-	if !isAllowedCLIRecoveryAction(action) {
-		return fmt.Errorf("unsupported recovery action: %s", action)
+func recoveryDeviceFromEnvironment() (recoveryDevice, error) {
+	device := recoveryDevice{
+		URL:         strings.TrimRight(strings.TrimSpace(os.Getenv("INTERNKIM_DEVICE_URL")), "/"),
+		FleetID:     strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_ID"))),
+		FleetSecret: strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_SECRET")),
 	}
-	response, errorValue := performSSHRecoveryRequest(target, action, actionTarget)
-	if errorValue != nil {
-		return errorValue
+	if device.URL == "" || device.FleetID == "" || device.FleetSecret == "" {
+		return device, errors.New("recover needs INTERNKIM_DEVICE_URL, INTERNKIM_FLEET_ID and INTERNKIM_FLEET_SECRET; run it as ./internkim @production recover")
 	}
-	printCommandTargetEvidence(target)
-	fmt.Printf("Recovery action: %s\n", response.Action)
-	for _, serviceName := range []string{"ssh", "cloudflared-node-ssh", "cloudflared", "blueclaw", "buzz-relay", "buzz-relay-stunnel", "chatd", "relay-tls-443", "mattermost-8065", "mattermost-state", "mattermost-why", "mattermost-how", "disk-root", "postgres-dbs", "pg-clusters", "mm-config-db", "mm-pat-enabled", "buzz-media", "media-ready", "mm-db-data", "mm-env-ds"} {
-		if serviceState := strings.TrimSpace(response.Services[serviceName]); serviceState != "" {
-			fmt.Printf("  %-22s %s\n", serviceName, serviceState)
-		}
+	if !strings.HasPrefix(device.URL, "http://") && !strings.HasPrefix(device.URL, "https://") {
+		device.URL = "https://" + device.URL
+	}
+	return device, nil
+}
+
+func printRecoveryResponse(response recoveryResponse) {
+	fmt.Printf("Recovery action: %s (%s)\n", response.Action, response.Status)
+	serviceNames := make([]string, 0, len(response.Services))
+	for name := range response.Services {
+		serviceNames = append(serviceNames, name)
+	}
+	sort.Strings(serviceNames)
+	for _, name := range serviceNames {
+		fmt.Printf("  %-22s %s\n", name, strings.TrimSpace(response.Services[name]))
 	}
 	for _, result := range response.Results {
 		fmt.Printf("  %-22s %s\n", result.Name, result.Status)
-		if strings.TrimSpace(result.Output) != "" {
-			fmt.Printf("%s\n", strings.TrimSpace(result.Output))
+		if output := strings.TrimSpace(result.Output); output != "" {
+			fmt.Println(output)
 		}
 	}
-	if strings.TrimSpace(response.JournalTail) != "" {
-		fmt.Printf("\n--- recovery journal tail ---\n%s\n-----------------------------\n", response.JournalTail)
+	if journal := strings.TrimSpace(response.JournalTail); journal != "" {
+		fmt.Printf("\n--- recovery journal tail ---\n%s\n", journal)
 	}
-	if strings.TrimSpace(response.Snapshot) != "" {
-		fmt.Printf("\n--- recovery snapshot ---\n%s\n-------------------------\n", response.Snapshot)
+	if snapshot := strings.TrimSpace(response.Snapshot); snapshot != "" {
+		fmt.Printf("\n--- recovery snapshot ---\n%s\n", snapshot)
 	}
-	if diagnose {
-		printSSHRecoveryLocalDiagnostics(configuration, target)
+	if nextStep := strings.TrimSpace(response.NextStep); nextStep != "" {
+		fmt.Printf("\nNext: %s\n", nextStep)
 	}
-	if action == "status" || action == "snapshot" || action == "journal-tail" || action == "limit-blueclaw" || action == "restart-blueclaw" || action == "blueclaw-boot-diagnose" || action == "blueclaw-journal" || action == "buzz-mirror-status" || action == "calendar-record-coverage" || action == "calendar-carry-into-the-record" || action == "attendance-record-coverage" || action == "attendance-carry-into-the-record" || action == "task-record-coverage" || action == "task-carry-into-the-record" || action == "retire-mattermost-mirror" || action == "stop-mattermost" || action == "organization-record-coverage" || action == "organization-carry-into-the-record" || action == "company-profile-carry-into-the-record" || action == "crm-record-coverage" || action == "crm-carry-into-the-record" || action == "company-ledger-record-coverage" || action == "company-ledger-carry-into-the-record" || action == "mail-account-carry-into-the-record" || action == "buzz-device-link-count" || action == "buzz-rewrite-old-links" || action == "buzz-rewrite-old-links-dryrun" || action == "buzz-named-reaction-count" || action == "buzz-stranger-members" || action == "buzz-stranger-members-remove" || action == "buzz-sweep-seats" || action == "buzz-sweep-seats-apply" || action == "buzz-orphan-inspect" || action == "buzz-profile-inspect" || action == "buzz-probe-profile-count" || action == "buzz-probe-profile-purge" || action == "buzz-reconcile-channels" || action == "buzz-republish-rooms" || action == "buzz-link-edits" || action == "buzz-remove-link-edits" || action == "buzz-restore-dm-discovery" || action == "buzz-channel-visibility" || action == "buzz-channel-visibility-repair" || action == "buzz-close-channels-their-room-closed" || action == "buzz-channel-members-their-room-lacks" || action == "buzz-remove-members-their-room-lacks" || action == "buzz-rooms-nobody-is-in" || action == "buzz-retire-rooms-nobody-is-in" || action == "buzz-retire-room" || action == "circle-room-read" || action == "buzz-whose-key" || action == "circle-room-reconcile" || action == "buzz-snapshot" || action == "buzz-membership-recover" || action == "buzz-restore" || action == "buzz-repair-dryrun" || action == "buzz-repair-apply" || action == "buzz-reimport" || action == "buzz-refresh-profiles" || action == "buzz-reimport-log" || action == "buzz-read-test" || action == "policy-circle-roster" || action == "buzz-room-roster" || action == "buzz-room-messages" || action == "buzz-deletion-markers" || action == "buzz-window-probe" || action == "buzz-joining-notices" || action == "buzz-forget-joining-notices" || action == "buzz-remove-deletion-markers" || action == "buzz-room-visibility" || action == "restart-buzz-relay" || action == "buzz-relay-service-journal" || action == "buzz-close-rooms-except" || action == "buzz-rename-room" || action == "buzz-retire-room-by-name" || action == "admind-journal" || action == "buzz-chatd-repair" || action == "mattermost-unlock-users" || action == "postgres-repair" || action == "release-setup-lock" {
-		return nil
-	}
-	if action == "reboot" {
-		fmt.Println(m.t("재부팅이 예약되었습니다. 약 2분 후 `internkim status`로 확인하세요.", "Reboot scheduled. Check `internkim status` in about two minutes."))
-		return nil
-	}
-	if connection, _, retryError := resolveRemoteSSHConnection(configuration, target, false); retryError == nil && connection != nil {
-		fmt.Println(m.t("SSH 복구 확인 완료", "SSH recovery verified"))
-		return nil
-	}
-	if action == "restart-cloudflared-node-ssh" {
-		return errors.New("cloudflared-node-ssh restart was requested, but SSH still did not recover; try `./internkim recover ssh --action restart-ssh`")
-	}
-	return errors.New("SSH recovery action completed, but SSH still did not recover")
 }
 
-func printSSHRecoveryLocalDiagnostics(configuration config, target commandTarget) {
-	connection, _, errorValue := resolveRemoteSSHConnection(configuration, target, false)
-	if errorValue != nil || connection == nil {
-		fmt.Printf("  %-22s %s\n", "local admind", "SSH unavailable")
-		return
-	}
-	output, runError := connection.runResult("curl -fsS http://127.0.0.1:18080/admin/api/health")
-	if runError != nil {
-		fmt.Printf("  %-22s %s\n", "local admind", strings.TrimSpace(output))
-		return
-	}
-	fmt.Printf("  %-22s %s\n", "local admind", strings.TrimSpace(output))
-}
-
-func isAllowedCLIRecoveryAction(action string) bool {
-	return slices.Contains(admind.SSHRecoveryActions, action)
-}
-
-func performSSHRecoveryRequest(target commandTarget, action string, actionTarget string) (recoveryResponse, error) {
+func performRecoveryRequest(device recoveryDevice, action string, actionTarget string) (recoveryResponse, error) {
 	var response recoveryResponse
-	deviceURL := strings.TrimSpace(target.deviceURL)
-	if deviceURL == "" {
-		return response, errors.New("device URL is not configured; run setup on the device network first")
-	}
-	fleetID, fleetSecret, errorValue := target.fleetIdentity()
+	endpointURL, errorValue := url.JoinPath(device.URL, "/admin/api/recovery/ssh-tunnel/restart")
 	if errorValue != nil {
 		return response, errorValue
 	}
-	endpointURL, errorValue := publicEndpointURL(deviceURL, "/admin/api/recovery/ssh-tunnel/restart")
+	document, errorValue := json.Marshal(signedRecoveryRequestPayload(device.FleetSecret, action, actionTarget, device.FleetID))
 	if errorValue != nil {
 		return response, errorValue
 	}
-	payload := signedRecoveryRequestPayload(fleetSecret, action, actionTarget, fleetID)
-	document, errorValue := json.Marshal(payload)
-	if errorValue != nil {
-		return response, errorValue
-	}
-	request, errorValue := http.NewRequest(http.MethodPost, endpointURL, bytes.NewReader(document))
-	if errorValue != nil {
-		return response, errorValue
-	}
-	request.Header.Set("Content-Type", "application/json")
-	httpResponse, errorValue := recoveryHTTPClient.Do(request)
+	httpResponse, errorValue := recoveryHTTPClient.Post(endpointURL, "application/json", bytes.NewReader(document))
 	if errorValue != nil {
 		return response, errorValue
 	}
 	defer httpResponse.Body.Close()
 	responseBody, _ := io.ReadAll(io.LimitReader(httpResponse.Body, recoveryResponseBodyLimitBytes))
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-		return response, recoveryHTTPStatusError(target, httpResponse, string(responseBody))
+		return response, fmt.Errorf("recovery endpoint %s answered HTTP %d: %s", endpointURL, httpResponse.StatusCode, strings.TrimSpace(string(responseBody)))
 	}
-	if errorValue := json.NewDecoder(bytes.NewReader(responseBody)).Decode(&response); errorValue != nil {
-		return response, errorValue
-	}
-	return response, nil
-}
-
-func recoveryHTTPStatusError(target commandTarget, response *http.Response, body string) error {
-	location := strings.TrimSpace(response.Header.Get("Location"))
-	healthStatus, healthBody, healthError := fetchPublicEndpoint(target.deviceURL, "/admin/api/health")
-	healthSummary := fmt.Sprintf("health=HTTP %d %s", healthStatus, strings.TrimSpace(healthBody))
-	if healthError != nil {
-		healthSummary = "health=" + healthError.Error()
-	}
-	switch response.StatusCode {
-	case http.StatusFound, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
-		return fmt.Errorf("recovery endpoint redirected: HTTP %d location=%q %s; public route is not reaching the recovery handler", response.StatusCode, location, healthSummary)
-	case http.StatusForbidden:
-		return fmt.Errorf("recovery endpoint rejected the signed request: HTTP 403 %s; check fleet id, fleet secret, timestamp, and nonce", healthSummary)
-	case http.StatusNotFound:
-		return fmt.Errorf("recovery endpoint not found: HTTP 404 %s; admind route is missing or reverse proxy path is wrong", healthSummary)
-	default:
-		return fmt.Errorf("recovery endpoint returned HTTP %d body=%q %s", response.StatusCode, strings.TrimSpace(body), healthSummary)
-	}
+	return response, json.Unmarshal(responseBody, &response)
 }
 
 func signedRecoveryRequestPayload(secret string, action string, target string, deviceID string) recoveryRequest {

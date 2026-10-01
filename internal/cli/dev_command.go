@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,8 +12,7 @@ import (
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
-	"github.com/yeomyeonggeori/internkim/internal/localfleet"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
+	"github.com/yeomyeonggeori/internkim/internal/devplane"
 )
 
 type devVirtualSessionArguments struct {
@@ -81,8 +78,6 @@ func runDevArguments(arguments []string) error {
 	switch subcommand {
 	case "simulate":
 		return runDevSimulateArguments(commandArguments)
-	case "fleet":
-		return runDevFleetArguments(commandArguments)
 	case "plane":
 		return runDevPlaneArguments(commandArguments)
 	case "help":
@@ -91,343 +86,6 @@ func runDevArguments(arguments []string) error {
 	default:
 		return fmt.Errorf("unknown dev subcommand: %s", subcommand)
 	}
-}
-
-type standardLocalFleetLogger struct{}
-
-func (logger standardLocalFleetLogger) Info(message string) {
-	fmt.Println(message)
-}
-
-func runDevFleetArguments(arguments []string) error {
-	if len(arguments) == 0 {
-		service, errorValue := newLocalFleetService()
-		if errorValue != nil {
-			return errorValue
-		}
-		return printLocalFleetStatus(service)
-	}
-	subcommand := arguments[0]
-	commandArguments := arguments[1:]
-	switch subcommand {
-	case "up":
-		service, errorValue := newLocalFleetService()
-		if errorValue != nil {
-			return errorValue
-		}
-		contextValue, stop := interruptContext()
-		defer stop()
-		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionUp})
-	case "down":
-		service, errorValue := newLocalFleetService()
-		if errorValue != nil {
-			return errorValue
-		}
-		contextValue, stop := interruptContext()
-		defer stop()
-		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionDown})
-	case "status":
-		service, errorValue := newLocalFleetService()
-		if errorValue != nil {
-			return errorValue
-		}
-		return printLocalFleetStatus(service)
-	case "reset":
-		service, errorValue := newLocalFleetService()
-		if errorValue != nil {
-			return errorValue
-		}
-		contextValue, stop := interruptContext()
-		defer stop()
-		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
-	case "run":
-		if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
-			return runDevFleetRunHoldingTheLocalPlane()
-		}
-		return runDevFleetRunArguments(commandArguments)
-	case "reprovision":
-		return runDevFleetReprovision(commandArguments)
-	case "verify-regression":
-		service, errorValue := newLocalFleetService()
-		if errorValue != nil {
-			return errorValue
-		}
-		return runDevFleetVerifyRegressionArguments(service, commandArguments)
-	case "help":
-		printDevFleetUsage()
-		return nil
-	default:
-		return fmt.Errorf("unknown dev fleet subcommand: %s", subcommand)
-	}
-}
-
-type devFleetRunConfiguration struct {
-	ServiceOptions localfleet.Options
-	Request        localfleet.JobRequest
-}
-
-// Reprovision the running local fleet VM in place from the current working tree.
-// The guest runs from a baked rootfs, so Blueclaw, skill, prompt, and
-// runtime changes only reach it through a reprovision; copying files onto the host
-// and restarting the service does not update the guest. GO_MOD_CACHE must point at
-// the real module cache or the payload build fails on the empty isolated cache.
-func runDevFleetReprovision(arguments []string) error {
-	flagSet := flag.NewFlagSet("dev fleet reprovision", flag.ContinueOnError)
-	configurationPathArgument := flagSet.String("config", "", "Local Fleet configuration path")
-	modelTierArgument := flagSet.String("model-tier", "", "Pin every test model tier to this tier; defaults to low")
-	if errorValue := flagSet.Parse(arguments); errorValue != nil {
-		return errorValue
-	}
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	executablePath, errorValue := currentExecutablePath()
-	if errorValue != nil {
-		return errorValue
-	}
-	configurationPath := strings.TrimSpace(*configurationPathArgument)
-	if configurationPath == "" {
-		configurationPath, errorValue = latestLocalFleetConfigurationPath(repositoryRootPath)
-		if errorValue != nil {
-			return errorValue
-		}
-	} else if !filepath.IsAbs(configurationPath) {
-		configurationPath = filepath.Join(repositoryRootPath, configurationPath)
-	}
-	vmInternetProtocolAddress, errorValue := localFleetVMInternetProtocolAddress(executablePath, configurationPath)
-	if errorValue != nil {
-		return errorValue
-	}
-	fmt.Printf("reprovisioning local fleet at %s from the working tree\n", vmInternetProtocolAddress)
-
-	command := exec.Command(executablePath, "setup", "--board", "lab", "--ssh", "--host", vmInternetProtocolAddress,
-		"--user", "admin", "--password", "admin",
-		"--admin-email", "local-fleet-admin@internkim.test",
-		"--wait-lock", "--force", "--skip", "wifi,local-llm,web,blueclaw-runtime-base")
-	command.Env = devFleetReprovisionEnvironment(os.Environ(), goModuleCachePath(), *modelTierArgument)
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	return command.Run()
-}
-
-func devFleetReprovisionEnvironment(environment []string, moduleCachePath string, modelTier string) []string {
-	normalizedModelTier := strings.TrimSpace(modelTier)
-	if normalizedModelTier == "" {
-		normalizedModelTier = "low"
-	}
-	environment = append(environment,
-		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
-		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-		"INTERNKIM_TEST_MODEL_TIER=low",
-		blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+normalizedModelTier,
-		blueclaw.BlueclawTestMinimumModelTierEnvironment+"="+normalizedModelTier,
-		"INTERNKIM_BLUECLAW_VCPU_COUNT=4")
-	if moduleCachePath == "" {
-		return environment
-	}
-	return append(environment, "GO_MOD_CACHE="+moduleCachePath)
-}
-
-func latestLocalFleetConfigurationPath(repositoryRootPath string) (string, error) {
-	canonicalPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "config.json")
-	fileInfo, errorValue := os.Stat(canonicalPath)
-	if errorValue == nil && fileInfo.Mode().IsRegular() {
-		return canonicalPath, nil
-	}
-	if errorValue != nil && !errors.Is(errorValue, os.ErrNotExist) {
-		return "", errorValue
-	}
-
-	matches, errorValue := filepath.Glob(filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "*", "config.json"))
-	if errorValue != nil {
-		return "", errorValue
-	}
-	latestPath := ""
-	var latestModificationTime int64
-	for _, match := range matches {
-		fileInfo, statError := os.Stat(match)
-		if statError != nil {
-			continue
-		}
-		if latestPath == "" || fileInfo.ModTime().UnixNano() > latestModificationTime {
-			latestPath = match
-			latestModificationTime = fileInfo.ModTime().UnixNano()
-		}
-	}
-	if latestPath == "" {
-		return "", errors.New("no local fleet run config found; bring up a fleet first")
-	}
-	return latestPath, nil
-}
-
-func localFleetVMInternetProtocolAddress(executablePath string, configurationPath string) (string, error) {
-	command := exec.Command(executablePath, "lab", "vm-ip", "--config", configurationPath)
-	output, errorValue := command.Output()
-	if errorValue != nil {
-		return "", fmt.Errorf("could not resolve fleet VM IP: %w", errorValue)
-	}
-	lines := strings.Fields(strings.TrimSpace(string(output)))
-	if len(lines) == 0 {
-		return "", errors.New("fleet VM IP lookup returned no address")
-	}
-	return lines[len(lines)-1], nil
-}
-
-func goModuleCachePath() string {
-	output, errorValue := exec.Command("go", "env", "GOMODCACHE").Output()
-	if errorValue != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(output))
-}
-
-func runDevFleetRunHoldingTheLocalPlane() error {
-	repositoryRootPath, errorValue := os.Getwd()
-	if errorValue != nil {
-		return errorValue
-	}
-	executablePath, errorValue := os.Executable()
-	if errorValue != nil {
-		return errorValue
-	}
-	command := holdingTheLocalPlane(repositoryRootPath, executablePath, os.Args[1:])
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	return command.Run()
-}
-
-func runDevFleetRunArguments(arguments []string) error {
-	configuration, errorValue := parseDevFleetRunArguments(arguments)
-	if errorValue != nil {
-		return errorValue
-	}
-	service, errorValue := newLocalFleetServiceWithOptions(configuration.ServiceOptions)
-	if errorValue != nil {
-		return errorValue
-	}
-	contextValue, stop := interruptContext()
-	defer stop()
-	return service.Run(contextValue, standardLocalFleetLogger{}, configuration.Request)
-}
-
-func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, error) {
-	flagSet := flag.NewFlagSet("dev fleet run", flag.ContinueOnError)
-	recipe := flagSet.String("recipe", "", "Local fleet recipe to run")
-	scenario := flagSet.String("scenario", "", "Local fleet scenario to run")
-	ephemeral := flagSet.Bool("ephemeral", false, "Deprecated; disposable local fleet runs are now the default")
-	reuseFleet := flagSet.Bool("reuse", false, "Reuse the shared local fleet instead of creating a disposable run")
-	keepArtifacts := flagSet.Bool("keep", false, "Keep disposable VM test artifacts; run evidence is kept by default")
-	virtualSession := flagSet.Bool("virtual-session", false, "Run the scenario as a scripted Linux virtual session instead of the full local fleet")
-	runID := flagSet.String("run-id", "", "Optional disposable run identifier")
-	adminHostPort := flagSet.Int("admin-port", 0, "Host port for the local admind tunnel")
-	useRealModels := flagSet.Bool("real", false, "Use production model configuration instead of the Local Fleet test model")
-	upgradeGate := flagSet.Bool("upgrade-gate", false, "Regress persisted fleet state to the previous generation, apply the current release over OTA, then run the scenario")
-	flagSet.Usage = func() {
-		fmt.Fprintln(flagSet.Output(), "Usage: internkim dev fleet run [flags]")
-		flagSet.PrintDefaults()
-		fmt.Fprintln(flagSet.Output(), "\nScenarios:")
-		for _, name := range localfleet.ScenarioNames() {
-			fmt.Fprintln(flagSet.Output(), "  "+name)
-		}
-	}
-	if errorValue := flagSet.Parse(arguments); errorValue != nil {
-		return devFleetRunConfiguration{}, errorValue
-	}
-	trimmedScenario := strings.TrimSpace(*scenario)
-	if len(flagSet.Args()) > 0 && trimmedScenario != "company-plane" {
-		return devFleetRunConfiguration{}, errors.New("test arguments require --scenario company-plane")
-	}
-	if *virtualSession && trimmedScenario == "" {
-		return devFleetRunConfiguration{}, errors.New("virtual session mode requires --scenario")
-	}
-	if *upgradeGate && trimmedScenario == "" {
-		return devFleetRunConfiguration{}, errors.New("upgrade gate requires --scenario")
-	}
-	if *ephemeral && *reuseFleet {
-		return devFleetRunConfiguration{}, errors.New("use either --ephemeral or --reuse, not both")
-	}
-	if *reuseFleet && strings.TrimSpace(*runID) != "" {
-		return devFleetRunConfiguration{}, errors.New("--run-id requires a disposable run; remove --reuse")
-	}
-	serviceOptions := localfleet.Options{
-		IsEphemeral:         !*reuseFleet,
-		RunID:               strings.TrimSpace(*runID),
-		AdminHostPort:       *adminHostPort,
-		ShouldUseRealModels: *useRealModels,
-		ScenarioArguments:   flagSet.Args(),
-	}
-	request := localfleet.JobRequest{
-		KeepArtifacts:  *keepArtifacts,
-		VirtualSession: *virtualSession,
-	}
-	switch {
-	case *upgradeGate:
-		request.Action = localfleet.ActionUpgradeGate
-		request.Scenario = trimmedScenario
-	case trimmedScenario != "":
-		request.Action = localfleet.ActionRunScenario
-		request.Scenario = trimmedScenario
-	default:
-		request.Action = localfleet.ActionRunRecipe
-		request.Recipe = firstNonEmptyLocalFleetValue(*recipe, localfleet.DefaultRecipe)
-	}
-	return devFleetRunConfiguration{ServiceOptions: serviceOptions, Request: request}, nil
-}
-
-func runDevFleetVerifyRegressionArguments(service localfleet.Service, arguments []string) error {
-	flagSet := flag.NewFlagSet("dev fleet verify-regression", flag.ContinueOnError)
-	base := flagSet.String("base", "main", "Base branch or revision that should fail the scenario")
-	scenario := flagSet.String("scenario", "", "Scenario that should fail on base and pass on current checkout")
-	if errorValue := flagSet.Parse(arguments); errorValue != nil {
-		return errorValue
-	}
-	contextValue, stop := interruptContext()
-	defer stop()
-	return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionVerifyRegression, Base: *base, Scenario: *scenario})
-}
-
-func newLocalFleetService() (localfleet.Service, error) {
-	return newLocalFleetServiceWithOptions(localfleet.Options{})
-}
-
-func newLocalFleetServiceWithOptions(options localfleet.Options) (localfleet.Service, error) {
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return localfleet.Service{}, errorValue
-	}
-	executablePath, errorValue := currentExecutablePath()
-	if errorValue != nil {
-		return localfleet.Service{}, errorValue
-	}
-	options.RepositoryRootPath = repositoryRootPath
-	options.ExecutablePath = executablePath
-	return localfleet.NewService(options)
-}
-
-func printLocalFleetStatus(service localfleet.Service) error {
-	status := service.Status(context.Background())
-	fmt.Printf("VM: %s %s\n", status.VirtualMachine.State, status.VirtualMachine.Message)
-	fmt.Printf("SSH: %s %s\n", status.SSH.State, status.SSH.Message)
-	fmt.Printf("Admin: %s %s\n", status.Admin.State, status.Admin.Message)
-	if status.AdminURL != "" {
-		fmt.Println("Admin URL: " + status.AdminURL)
-	}
-	if status.LastResult != "" {
-		fmt.Println("Last result: " + status.LastResult)
-	}
-	return nil
-}
-
-func firstNonEmptyLocalFleetValue(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 func runDevSimulateArguments(arguments []string) error {
@@ -652,6 +310,12 @@ func flagWasPassed(flagSet *flag.FlagSet, name string) bool {
 	return isFound
 }
 
+type standardDevPlaneLogger struct{}
+
+func (logger standardDevPlaneLogger) Info(message string) {
+	fmt.Println(message)
+}
+
 func holdingTheLocalPlane(repositoryRootPath string, commandPath string, arguments []string) *exec.Cmd {
 	command := exec.Command(
 		filepath.Join(repositoryRootPath, "tools", "with-local-plane"),
@@ -661,50 +325,37 @@ func holdingTheLocalPlane(repositoryRootPath string, commandPath string, argumen
 	return command
 }
 
-func devPlaneCommand(repositoryRootPath string, arguments []string) *exec.Cmd {
-	return holdingTheLocalPlane(
-		repositoryRootPath,
-		filepath.Join(repositoryRootPath, "tools", "company-plane"),
-		arguments,
-	)
-}
-
-// The company plane a customer runs: admind, capabilityd and blueclaw against the
-// local record, with the two messengers standing in as recorders. It answers what
-// the fleet gate cannot answer quickly — which messenger a message leaves on, who
-// a requester resolves to, what the public API will take — in seconds rather than
-// the ten minutes a device costs.
 func runDevPlaneArguments(arguments []string) error {
-	repositoryRootPath, errorValue := os.Getwd()
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
 	}
-	command := devPlaneCommand(repositoryRootPath, arguments)
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	return command.Run()
+	executablePath, errorValue := currentExecutablePath()
+	if errorValue != nil {
+		return errorValue
+	}
+	if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
+		command := holdingTheLocalPlane(repositoryRootPath, executablePath, append([]string{"dev", "plane"}, arguments...))
+		command.Stdin = os.Stdin
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		return command.Run()
+	}
+	options := devplane.Options{RepositoryRootPath: repositoryRootPath, ExecutablePath: executablePath, TestArguments: arguments}
+	service, errorValue := devplane.NewService(options)
+	if errorValue != nil {
+		return errorValue
+	}
+	contextValue, stop := interruptContext()
+	defer stop()
+	return service.Run(contextValue, standardDevPlaneLogger{})
 }
 
 func printDevUsage() {
-	fmt.Println("Usage: internkim dev <simulate|fleet|plane> [options]")
+	fmt.Println("Usage: internkim dev <simulate|plane> [options]")
 	fmt.Println("  internkim dev simulate --scenario dm_send_confirm_acceptance")
 	fmt.Println("  internkim dev plane")
 	fmt.Println("  internkim dev plane -t \"leaves on the messenger\"")
-	fmt.Println("  internkim dev fleet run")
-	fmt.Println("  internkim dev fleet run --scenario buzz-direct-message")
-	fmt.Println("  internkim dev fleet run --scenario buzz-attachment")
-	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
-	fmt.Println("  internkim dev fleet verify-regression --base main --scenario regression-proof")
-}
-
-func printDevFleetUsage() {
-	fmt.Println("Usage: internkim dev fleet <up|down|status|reset|run|reprovision|verify-regression>")
-	fmt.Println("  internkim dev fleet reprovision [--config path]")
-	fmt.Println("  internkim dev fleet run")
-	fmt.Println("  internkim dev fleet run --scenario buzz-direct-message")
-	fmt.Println("  internkim dev fleet run --scenario buzz-attachment")
-	fmt.Println("  internkim dev fleet run --reuse --recipe predeploy-gate")
 }
 
 type repeatedDevStringFlag struct {

@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Brings up the company the dev plane's guest belongs to: the local Supabase
+# stack and the app that fronts it.
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+
+if [ -z "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
+  exec "$repositoryRoot/tools/with-local-plane" "$0" "$@"
+fi
+
+stateRoot=""
+appPort="5183"
+adminPort="18080"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --state-root) stateRoot="$2"; shift 2 ;;
+    --app-port) appPort="$2"; shift 2 ;;
+    --admin-port) adminPort="$2"; shift 2 ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+if [ -z "$stateRoot" ]; then
+  echo "usage: $0 --state-root <directory> [--app-port <port>] [--admin-port <port>]" >&2
+  exit 2
+fi
+
+mkdir -p "$stateRoot"
+appPIDPath="$stateRoot/app.pid"
+appLogPath="$stateRoot/app.log"
+
+# The fixture company the seed builds, so every run has the same company.
+fixtureCompanyID="000000cc-0000-0000-0000-000000000001"
+
+cd "$repositoryRoot"
+
+eval "$(supabase status --env --output-format text | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+. "$repositoryRoot/web/scripts/local-plane-signing-key.sh"
+
+recordServes() {
+  curl --silent --fail --output /dev/null --header "apikey: $PUBLISHABLE_KEY" "$API_URL/rest/v1/company?select=id&limit=1"
+}
+for attempt in $(seq 1 60); do
+  if recordServes; then break; fi
+  if [ "$attempt" -eq 60 ]; then echo "the record did not start serving" >&2; exit 1; fi
+  sleep 1
+done
+
+# The fixture company is the seed's, and rebuilding the local stack is the
+# developer's call rather than a side effect of asking for a plane.
+companyFound="$(
+  curl --silent --fail \
+    --header "apikey: $SECRET_KEY" --header "Authorization: Bearer $SECRET_KEY" \
+    "$API_URL/rest/v1/company?select=id&id=eq.$fixtureCompanyID" || true
+)"
+if ! printf '%s' "$companyFound" | grep -q "$fixtureCompanyID"; then
+  echo "the local record holds no fixture company." >&2
+  echo "Build one from the seed, then ask for the plane again." >&2
+  exit 1
+fi
+
+portHolderPID="$(lsof -nP -iTCP:"$appPort" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
+if [ -n "$portHolderPID" ]; then
+  portHolderCommand="$(ps -p "$portHolderPID" -o comm= 2>/dev/null || echo unknown)"
+  echo "port $appPort is already held by pid $portHolderPID ($portHolderCommand); refusing to adopt a stranger's app" >&2
+  exit 1
+fi
+
+(
+  cd "$repositoryRoot/web"
+  SUPABASE_URL="$API_URL" \
+  SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+  SUPABASE_SECRET_KEY="$SECRET_KEY" \
+  SUPABASE_JWT_SIGNING_KEY="$(local_plane_signing_key "$repositoryRoot")" \
+  VITE_ADMIND_TARGET="http://127.0.0.1:$adminPort" \
+  nohup bunx vite dev --host 127.0.0.1 --port "$appPort" --strictPort > "$appLogPath" 2>&1 < /dev/null &
+  echo $! > "$appPIDPath"
+)
+
+# A path the app answers itself, not one vite proxies away: /api/v1 goes straight
+# to admind, so polling it proved only that vite was listening and left the app's
+# platform proxy unbooted. The first caller after that then raced every other
+# caller into booting it, and each one opened the same emulator database —
+# SQLITE_BUSY, and a company that will not say who works here. One completed
+# request closes that window for the life of the dev server.
+for attempt in $(seq 1 60); do
+  if curl --silent --output /dev/null "http://127.0.0.1:$appPort/api/agent/company"; then break; fi
+  if [ "$attempt" -eq 60 ]; then
+    cat "$appLogPath" >&2 || true
+    echo "the app did not start serving on port $appPort" >&2
+    exit 1
+  fi
+  sleep 1
+done
+echo "the record serves at $API_URL and the app at http://127.0.0.1:$appPort"

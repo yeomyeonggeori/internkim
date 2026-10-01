@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 )
 
 func runCmd(name string, args ...string) string {
@@ -12,80 +15,32 @@ func runCmd(name string, args ...string) string {
 	return string(out)
 }
 
-func uniqueNonEmptyStrings(values []string) []string {
-	seenValues := map[string]bool{}
-	var uniqueValues []string
+func fatal(text string) {
+	fmt.Fprintf(os.Stderr, "\n✗ %s\n", text)
+	os.Exit(1)
+}
+
+func interruptContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+}
+
+func firstNonEmptyString(values ...string) string {
 	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" || seenValues[value] {
-			continue
-		}
-		seenValues[value] = true
-		uniqueValues = append(uniqueValues, value)
-	}
-	return uniqueValues
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
-
-func containsArg(flag string) bool {
-	for _, a := range os.Args {
-		if a == flag {
-			return true
+		if strings.TrimSpace(value) != "" {
+			return value
 		}
 	}
-	return false
+	return ""
 }
 
-func hasFlag(flag string) bool {
-	for _, argument := range os.Args {
-		if argument == flag || strings.HasPrefix(argument, flag+"=") {
-			return true
+func commandArgumentValue(arguments []string, name string, defaultValue string) string {
+	for index, argument := range arguments {
+		if argument == name && index+1 < len(arguments) {
+			return strings.TrimSpace(arguments[index+1])
+		}
+		if strings.HasPrefix(argument, name+"=") {
+			return strings.TrimSpace(strings.TrimPrefix(argument, name+"="))
 		}
 	}
-	return false
-}
-
-func argInt(flag string, fallback int) int {
-	for i, a := range os.Args {
-		if a == flag && i+1 < len(os.Args) {
-			var v int
-			fmt.Sscanf(os.Args[i+1], "%d", &v)
-			return v
-		}
-	}
-	return fallback
-}
-
-func argString(flag, fallback string) string {
-	for i, a := range os.Args {
-		if a == flag && i+1 < len(os.Args) {
-			return os.Args[i+1]
-		}
-		if strings.HasPrefix(a, flag+"=") {
-			return strings.TrimPrefix(a, flag+"=")
-		}
-	}
-	return fallback
-}
-
-func containsName(names []string, expectedName string) bool {
-	for _, name := range names {
-		if name == expectedName {
-			return true
-		}
-	}
-	return false
-}
-
-func appendMissingName(names []string, name string) []string {
-	if containsName(names, name) {
-		return names
-	}
-	return append(names, name)
+	return defaultValue
 }

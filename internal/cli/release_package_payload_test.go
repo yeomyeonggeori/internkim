@@ -219,7 +219,7 @@ func TestRemovalNamesThePostgresqlRepositoryInstallShAddedAndKeepsIt(t *testing.
 }
 
 func TestThePostgresqlRepositoryPathsAreTheOnesInstallShWrites(t *testing.T) {
-	document, errorValue := os.ReadFile(filepath.Join(runtimeSourceGateRepositoryRoot(t), "web", "static", "install.sh"))
+	document, errorValue := os.ReadFile(filepath.Join("..", "..", "web", "static", "install.sh"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

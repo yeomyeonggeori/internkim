@@ -79,10 +79,10 @@ func hostReleaseDownloadURL(version string) string {
 	return "https://github.com/" + hostReleaseRepository + "/releases/download/" + hostReleaseTag(version)
 }
 
-// refuseUnreleasableTree holds a release to what deploy holds a device to, and
-// one thing more: the commit is already on main, because a tag is public and
-// permanent and a branch is neither. Together the two leave origin/main's tip,
-// so no release is ever older than the one before it.
+// refuseUnreleasableTree holds a release to a clean tree whose commit is
+// already on main, because a tag is public and permanent and a branch is
+// neither. That leaves origin/main's tip, so no release is ever older than the
+// one before it.
 func refuseUnreleasableTree(repositoryRootPath string) error {
 	blueclawPath := filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath)
 	if output, errorValue := gitOutput(repositoryRootPath, "fetch", "--quiet", "origin"); errorValue != nil {

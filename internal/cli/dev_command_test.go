@@ -1,17 +1,11 @@
 package cli
 
 import (
-	"io"
-	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/yeomyeonggeori/internkim/internal/localfleet"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
@@ -49,245 +43,6 @@ func TestDevReplaySubcommandIsRemoved(t *testing.T) {
 	}
 	if !strings.Contains(errorValue.Error(), "unknown dev subcommand") {
 		t.Fatalf("expected unknown subcommand error, got %q", errorValue.Error())
-	}
-}
-
-func TestParseDevFleetRunDefaultsToDisposablePredeploy(t *testing.T) {
-	configuration, errorValue := parseDevFleetRunArguments(nil)
-	if errorValue != nil {
-		t.Fatalf("expected parse to pass: %v", errorValue)
-	}
-	if !configuration.ServiceOptions.IsEphemeral {
-		t.Fatalf("expected disposable service options: %+v", configuration.ServiceOptions)
-	}
-	if configuration.Request.Action != "runRecipe" || configuration.Request.Recipe != "predeploy-gate" {
-		t.Fatalf("request = %+v", configuration.Request)
-	}
-}
-
-func TestParseDevFleetRunCarriesCompanyPlaneTestArguments(t *testing.T) {
-	arguments := []string{"--scenario", "company-plane", "--", "-t", "the agent's directory"}
-	configuration, errorValue := parseDevFleetRunArguments(arguments)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !reflect.DeepEqual(configuration.ServiceOptions.ScenarioArguments, arguments[3:]) {
-		t.Fatalf("test arguments = %q", configuration.ServiceOptions.ScenarioArguments)
-	}
-	if _, errorValue := parseDevFleetRunArguments([]string{"--scenario", "workspace-ownership", "--", "-t", "example"}); errorValue == nil {
-		t.Fatal("another scenario accepted company-plane test arguments")
-	}
-}
-
-func TestParseDevFleetRunBuzzScenarioUsesDisposableFleet(t *testing.T) {
-	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--keep",
-		"--run-id", "dm-smoke",
-		"--admin-port", "19080",
-		"--scenario", "buzz-direct-message",
-	})
-	if errorValue != nil {
-		t.Fatalf("expected parse to pass: %v", errorValue)
-	}
-	if !configuration.ServiceOptions.IsEphemeral || configuration.ServiceOptions.RunID != "dm-smoke" {
-		t.Fatalf("service options = %+v", configuration.ServiceOptions)
-	}
-	if configuration.ServiceOptions.AdminHostPort != 19080 {
-		t.Fatalf("ports = %+v", configuration.ServiceOptions)
-	}
-	if configuration.ServiceOptions.ShouldUseRealModels {
-		t.Fatalf("expected test models by default: %+v", configuration.ServiceOptions)
-	}
-	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
-		t.Fatalf("request = %+v", configuration.Request)
-	}
-	if !configuration.Request.KeepArtifacts {
-		t.Fatalf("expected keep artifacts request: %+v", configuration.Request)
-	}
-}
-
-func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
-	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--real",
-		"--scenario", "buzz-direct-message",
-	})
-	if errorValue != nil {
-		t.Fatalf("expected parse to pass: %v", errorValue)
-	}
-	if !configuration.ServiceOptions.ShouldUseRealModels {
-		t.Fatalf("expected real model option: %+v", configuration.ServiceOptions)
-	}
-}
-
-func TestDevFleetReprovisionPreservesModelRuntime(t *testing.T) {
-	environment := devFleetReprovisionEnvironment(nil, "", "")
-	expectedValues := []string{
-		"INTERNKIM_TEST_MODEL_TIER=low",
-		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=low",
-		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=low",
-	}
-	for _, expectedValue := range expectedValues {
-		if !slices.Contains(environment, expectedValue) {
-			t.Fatalf("expected %q in %#v", expectedValue, environment)
-		}
-	}
-}
-
-func TestDevFleetReprovisionPinsRequestedModelTier(t *testing.T) {
-	environment := devFleetReprovisionEnvironment(nil, "", "medium")
-	expectedValues := []string{
-		"INTERNKIM_TEST_MODEL_TIER=low",
-		blueclaw.BlueclawTestMaximumModelTierEnvironment + "=medium",
-		blueclaw.BlueclawTestMinimumModelTierEnvironment + "=medium",
-	}
-	for _, expectedValue := range expectedValues {
-		if !slices.Contains(environment, expectedValue) {
-			t.Fatalf("expected %q in %#v", expectedValue, environment)
-		}
-	}
-}
-
-func TestLatestLocalFleetConfigurationPathPrefersCanonicalConfiguration(t *testing.T) {
-	repositoryRootPath := t.TempDir()
-	canonicalPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "config.json")
-	runPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "stale", "config.json")
-	if errorValue := os.MkdirAll(filepath.Dir(runPath), 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, path := range []string{canonicalPath, runPath} {
-		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-
-	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
-	if errorValue != nil {
-		t.Fatalf("expected canonical configuration: %v", errorValue)
-	}
-	if configurationPath != canonicalPath {
-		t.Fatalf("configuration path = %q, want %q", configurationPath, canonicalPath)
-	}
-}
-
-func TestLatestLocalFleetConfigurationPathFallsBackToLatestRun(t *testing.T) {
-	repositoryRootPath := t.TempDir()
-	oldRunPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "old", "config.json")
-	latestRunPath := filepath.Join(repositoryRootPath, ".local", "local-fleet", "runs", "latest", "config.json")
-	for _, path := range []string{oldRunPath, latestRunPath} {
-		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		if errorValue := os.WriteFile(path, []byte("{}"), 0o600); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-	oldModificationTime := time.Now().Add(-time.Hour)
-	if errorValue := os.Chtimes(oldRunPath, oldModificationTime, oldModificationTime); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	configurationPath, errorValue := latestLocalFleetConfigurationPath(repositoryRootPath)
-	if errorValue != nil {
-		t.Fatalf("expected run configuration: %v", errorValue)
-	}
-	if configurationPath != latestRunPath {
-		t.Fatalf("configuration path = %q, want %q", configurationPath, latestRunPath)
-	}
-}
-
-func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
-	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--reuse",
-		"--scenario", "buzz-direct-message",
-	})
-	if errorValue != nil {
-		t.Fatalf("expected parse to pass: %v", errorValue)
-	}
-	if configuration.ServiceOptions.IsEphemeral {
-		t.Fatalf("expected reusable service options: %+v", configuration.ServiceOptions)
-	}
-	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
-		t.Fatalf("request = %+v", configuration.Request)
-	}
-}
-
-func TestParseDevFleetRunHelpListsScenariosFromTheRegistry(t *testing.T) {
-	readEnd, writeEnd, errorValue := os.Pipe()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	previousStderr := os.Stderr
-	os.Stderr = writeEnd
-	_, parseError := parseDevFleetRunArguments([]string{"--help"})
-	os.Stderr = previousStderr
-	writeEnd.Close()
-	if parseError == nil {
-		t.Fatal("expected --help to report flag.ErrHelp")
-	}
-	helpOutput, errorValue := io.ReadAll(readEnd)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, scenarioName := range localfleet.ScenarioNames() {
-		if !strings.Contains(string(helpOutput), scenarioName) {
-			t.Fatalf("expected --help output to list scenario %q, got:\n%s", scenarioName, helpOutput)
-		}
-	}
-}
-
-func TestParseDevFleetRunRejectsConflictingFleetModes(t *testing.T) {
-	_, errorValue := parseDevFleetRunArguments([]string{
-		"--ephemeral",
-		"--reuse",
-		"--scenario", "buzz-direct-message",
-	})
-	if errorValue == nil {
-		t.Fatal("expected conflicting fleet modes to fail")
-	}
-	if !strings.Contains(errorValue.Error(), "--reuse") {
-		t.Fatalf("expected reuse guidance, got %q", errorValue.Error())
-	}
-}
-
-func TestParseDevFleetRunRejectsRunIDWithReusableFleet(t *testing.T) {
-	_, errorValue := parseDevFleetRunArguments([]string{
-		"--reuse",
-		"--run-id", "debug",
-		"--scenario", "buzz-direct-message",
-	})
-	if errorValue == nil {
-		t.Fatal("expected run id with reusable fleet to fail")
-	}
-	if !strings.Contains(errorValue.Error(), "--run-id") {
-		t.Fatalf("expected run id guidance, got %q", errorValue.Error())
-	}
-}
-
-func TestParseDevFleetRunVirtualSessionRequiresScenario(t *testing.T) {
-	_, errorValue := parseDevFleetRunArguments([]string{
-		"--virtual-session",
-	})
-	if errorValue == nil {
-		t.Fatal("expected virtual session recipe to fail")
-	}
-	if !strings.Contains(errorValue.Error(), "--scenario") {
-		t.Fatalf("expected scenario guidance, got %q", errorValue.Error())
-	}
-}
-
-func TestParseDevFleetRunVirtualSessionScenario(t *testing.T) {
-	configuration, errorValue := parseDevFleetRunArguments([]string{
-		"--virtual-session",
-		"--scenario", "dm_send_confirm_acceptance",
-	})
-	if errorValue != nil {
-		t.Fatalf("expected parse to pass: %v", errorValue)
-	}
-	if !configuration.ServiceOptions.IsEphemeral {
-		t.Fatalf("expected ephemeral service options: %+v", configuration.ServiceOptions)
-	}
-	if !configuration.Request.VirtualSession || configuration.Request.Scenario != "dm_send_confirm_acceptance" {
-		t.Fatalf("request = %+v", configuration.Request)
 	}
 }
 
@@ -378,36 +133,20 @@ func TestDevVirtualSessionScriptedRunOmitsLiveGenerationFlags(t *testing.T) {
 }
 
 func TestDevPlaneHoldsTheLocalPlaneLock(t *testing.T) {
-	command := devPlaneCommand("/repository", []string{"-t", "leaves on the messenger"})
-
+	command := holdingTheLocalPlane(
+		"/repository",
+		"/repository/internkim",
+		[]string{"dev", "plane", "-t", "leaves on the messenger"},
+	)
 	expected := []string{
 		"/repository/tools/with-local-plane",
-		"/repository/tools/company-plane",
+		"/repository/internkim",
+		"dev",
+		"plane",
 		"-t",
 		"leaves on the messenger",
 	}
 	if !slices.Equal(command.Args, expected) {
 		t.Fatalf("dev plane runs %v, expected %v", command.Args, expected)
-	}
-}
-
-func TestDevFleetRunHoldsTheLocalPlaneLock(t *testing.T) {
-	command := holdingTheLocalPlane(
-		"/repository",
-		"/repository/internkim",
-		[]string{"dev", "fleet", "run", "--scenario", "buzz-attachment"},
-	)
-
-	expected := []string{
-		"/repository/tools/with-local-plane",
-		"/repository/internkim",
-		"dev",
-		"fleet",
-		"run",
-		"--scenario",
-		"buzz-attachment",
-	}
-	if !slices.Equal(command.Args, expected) {
-		t.Fatalf("dev fleet run runs %v, expected %v", command.Args, expected)
 	}
 }

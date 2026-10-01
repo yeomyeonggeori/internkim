@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
-exec "$repositoryRoot/internkim" dev fleet run --scenario company-plane -- "$@"
