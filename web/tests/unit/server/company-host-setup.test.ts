@@ -168,6 +168,21 @@ describe('company host administrator authorization', () => {
 			.rejects.toMatchObject({ status: 403 });
 	});
 
+	test('rejects a token the administrator granted to another application', async () => {
+		const member = companyHostMember({ agentWrites: 0 });
+		const claims = Buffer.from(JSON.stringify({ sub: 'admin-account', client_id: 'a-registered-client' })).toString('base64url');
+		const administrator = Object.assign(async (): Promise<Response> => responseBody({ is_admin: true, status: 'active' }), { preconnect() {} });
+		const connectedApp = {
+			...member,
+			caller: supabaseClient(administrator, 'publishable-key'),
+			accessToken: `eyJhbGciOiJFUzI1NiJ9.${claims}.signature`,
+			permission: 'write' as const
+		};
+
+		await expect(callingHostAdministrator(requestWith(connectedApp), environment, async () => connectedApp))
+			.rejects.toMatchObject({ status: 403 });
+	});
+
 	test('rejects an ordinary member', async () => {
 		const member = companyHostMember({ agentWrites: 0 });
 		const fetcher = Object.assign(async (): Promise<Response> => responseBody([{ is_admin: false, status: 'active' }]), { preconnect() {} });

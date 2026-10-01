@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { companyComputerName, hostConfigurationSchema, type HostConfiguration, type HostSetupStatus } from '$lib/company/host-setup';
 import { issueAgentKey } from './control-plane';
-import { callingMember, type CallingMember } from './member-request';
+import { callingMember, isConnectedAppToken, type CallingMember } from './member-request';
 import type { Environment } from './agent-request';
 
 export async function callingHostAdministrator(
@@ -10,7 +10,7 @@ export async function callingHostAdministrator(
 	resolveCaller: typeof callingMember = callingMember
 ): Promise<CallingMember> {
 	const member = await resolveCaller(request, environment);
-	if (member.tokenName) error(403, 'sign in to manage the company computer');
+	if (member.tokenName || isConnectedAppToken(member.accessToken)) error(403, 'sign in to manage the company computer');
 	const administrator = await member.caller.from('member')
 		.select('is_admin, status').eq('id', member.memberID)
 		.single<{ is_admin: boolean; status: string }>();

@@ -3,7 +3,7 @@ import { boxStepOf, shortBoxName } from '../../../src/routes/settings/setup/box-
 
 const publicKey = 'oYwaGe-VYDGlZRd4ButkPDL65UP6m3BBNTUfLugolZI';
 const connected = { companyID: 'company-a', publicKey, encryptionKey: publicKey, lastSeenAt: null, hasModelKey: false };
-const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z' };
+const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z', hostName: null, pairingPageAddresses: [] };
 
 describe('the company computer step', () => {
 	test('waits for a box when none is announcing on this network', () => {
@@ -23,6 +23,6 @@ describe('the company computer step', () => {
 	});
 });
 
-test('a box is named by the start of its public key', () => {
-	expect(shortBoxName(publicKey)).toBe('oYwaGe-V');
+test('a box is named by the last four characters of its public key, the ones its own page shows', () => {
+	expect(shortBoxName(publicKey)).toBe('…olZI');
 });

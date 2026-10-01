@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +25,7 @@ var ErrConnectedByFile = errors.New("this computer was connected to its company 
 
 type Places struct {
 	StateDirectoryPath        string
+	PairingPageListenAddress  string
 	ConnectionFilePath        string
 	CredentialPaths           []string
 	ModelKeyPath              string
@@ -47,8 +49,16 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
+	var page *pairingPage
+	if daemon.installedCompany() == "" {
+		page = daemon.openPairingPage(identity)
+	}
+	defer func() { page.close() }()
 	for {
-		wait, errorValue := daemon.step(ctx, identity)
+		wait, isClaimed, errorValue := daemon.step(ctx, identity, page.localPage())
+		if errorValue == nil || isClaimed {
+			page = daemon.pairingPageFor(isClaimed, page, identity)
+		}
 		if errorValue != nil {
 			log.Printf("%v; trying again in %s", errorValue, announceInterval)
 			wait = announceInterval
@@ -59,14 +69,33 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	}
 }
 
-func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration, error) {
+func (daemon Daemon) pairingPageFor(isClaimed bool, page *pairingPage, identity Identity) *pairingPage {
+	if isClaimed {
+		page.close()
+		return nil
+	}
+	if page == nil {
+		return daemon.openPairingPage(identity)
+	}
+	return page
+}
+
+func (daemon Daemon) step(ctx context.Context, identity Identity, page LocalPage) (time.Duration, bool, error) {
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
 	if errorValue != nil {
-		return 0, errorValue
+		return 0, false, errorValue
 	}
 	if !isClaimed {
-		return announceInterval, daemon.announce(ctx, identity)
+		return announceInterval, false, daemon.announce(ctx, identity, page)
 	}
+	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
+		return 0, true, errorValue
+	}
+	wait, errorValue := daemon.serveClaimed(session, identity)
+	return wait, true, errorValue
+}
+
+func (daemon Daemon) serveClaimed(session Session, identity Identity) (time.Duration, error) {
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilRenewal(session.Session), daemon.renew(session, identity)
 	}
@@ -84,15 +113,29 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 	return daemon.untilRenewal(session.Session), nil
 }
 
-func (daemon Daemon) announce(ctx context.Context, identity Identity) error {
-	isClaimed, errorValue := daemon.Client.Announce(ctx, identity)
+func (daemon Daemon) announce(ctx context.Context, identity Identity, page LocalPage) error {
+	_, hasLiveCode, errorValue := ShownPairingCode(daemon.Places.StateDirectoryPath, daemon.now())
 	if errorValue != nil {
 		return errorValue
 	}
-	if isClaimed {
-		log.Printf("a company claimed this box; asking for its session")
+	announcement, errorValue := daemon.Client.Announce(ctx, identity, AnnouncementRequest{
+		WantsPairingCode: !hasLiveCode,
+		LocalPage:        page,
+	})
+	if errorValue != nil {
+		return errorValue
 	}
-	return nil
+	if announcement.IsClaimed {
+		log.Printf("a company claimed this box; asking for its session")
+		return forgetPairingCode(daemon.Places.StateDirectoryPath)
+	}
+	if announcement.PairingCode == nil {
+		return nil
+	}
+	log.Printf("connect this box at %s/settings/setup with the code %s before %s",
+		strings.TrimRight(daemon.Client.AppURL, "/"), announcement.PairingCode.Code,
+		announcement.PairingCode.ExpiresAt.Local().Format("15:04"))
+	return showPairingCode(daemon.Places.StateDirectoryPath, *announcement.PairingCode)
 }
 
 func (daemon Daemon) renew(session Session, identity Identity) error {

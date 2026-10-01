@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
@@ -83,10 +84,15 @@ func main() {
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	os.Exit(1)
 }
 
 func runBox(arguments []string) {
+	if len(arguments) > 0 && arguments[0] == "code" {
+		printPairingCode()
+		return
+	}
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
 	flags.Parse(arguments)
@@ -107,11 +113,29 @@ func runBox(arguments []string) {
 	}
 }
 
+func printPairingCode() {
+	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue)
+		os.Exit(1)
+	}
+	shown, isLive, errorValue := box.ShownPairingCode(blueclaw.CompanyHostBoxStatePath, time.Now())
+	if errorValue != nil {
+		fmt.Fprintln(os.Stderr, errorValue)
+		os.Exit(1)
+	}
+	if !isLive {
+		fmt.Fprintf(os.Stderr, "This box shows no code right now. Check that %s is running; a new code arrives within a minute.\n", blueclaw.BoxServiceName)
+		os.Exit(1)
+	}
+	fmt.Printf("%s\nEnter it on the company setup page before %s.\n", shown.Code, shown.ExpiresAt.Local().Format("15:04"))
+}
+
 func boxDaemon(appURL string) box.Daemon {
 	return box.Daemon{
 		Client: box.Client{AppURL: appURL},
 		Places: box.Places{
 			StateDirectoryPath:        blueclaw.CompanyHostBoxStatePath,
+			PairingPageListenAddress:  blueclaw.CompanyHostBoxPairingPageListenAddress,
 			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,

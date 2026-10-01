@@ -62,7 +62,7 @@ function presentedTokenOf(request: Request): string {
 }
 
 export async function signedInAccessTokenOf(request: Request, credentials: SigningCredentials): Promise<string> {
-	if (connectedAppOf(presentedTokenOf(request))) {
+	if (isConnectedAppToken(presentedTokenOf(request))) {
 		error(403, 'sign in to administer the company; a token granted to another application does not');
 	}
 	const { accessToken, tokenName } = await memberAccessTokenOf(request, credentials);
@@ -71,6 +71,10 @@ export async function signedInAccessTokenOf(request: Request, credentials: Signi
 }
 
 type ConnectedApp = { accountID: string; clientID: string };
+
+export function isConnectedAppToken(accessToken: string): boolean {
+	return connectedAppOf(accessToken) !== null;
+}
 
 function connectedAppOf(accessToken: string): ConnectedApp | null {
 	try {
