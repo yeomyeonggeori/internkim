@@ -1,0 +1,48 @@
+name: Bug report
+description: Something behaves differently from what the documentation says.
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report security problems privately, following SECURITY.md. Do not post credentials, tokens or other people's messages here.
+  - type: textarea
+    id: background
+    attributes:
+      label: What happens
+      description: What you did, what you expected and what you got. Include file and line when you know where the cause lives.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce
+      description: The commands you ran, as you ran them.
+    validations:
+      required: true
+  - type: dropdown
+    id: path
+    attributes:
+      label: Which path
+      options:
+        - Company host (install.sh, apt/dnf/pacman package, Homebrew, host services)
+        - Central plane (company web app, Supabase, relay)
+        - Legacy device (Jetson, admind OTA, Local Fleet)
+        - Companion
+        - Public API
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Revision
+      description: The commit or release you ran, and the operating system.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and evidence
+      description: Relevant log lines, task ledger entries or screenshots, with secrets removed.

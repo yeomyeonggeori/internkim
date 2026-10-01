@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/yeomyeonggeori/internkim/security/advisories/new
+    about: Private reports only. SECURITY.md says what is in scope.
+  - name: Ask a question
+    url: https://docs.intern.kim
+    about: The documentation answers most setup and usage questions.
