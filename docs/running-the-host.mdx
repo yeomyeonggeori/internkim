@@ -23,7 +23,9 @@ sudo internkim install ~/Downloads/internkim-host.json
 The first command installs the package through apt, dnf, pacman or Homebrew. On
 Linux it fetches the package for this machine from our GitHub Releases and
 checks it against the release's `SHA256SUMS` before the package manager installs
-it. The second command configures the company, asks for the OpenRouter API key,
+it. On a Mac it adds our Homebrew tap, `yeomyeonggeori/tap`, and installs the
+`internkim` formula, whose bottle comes from the same GitHub Release and is
+checked against the checksum the formula carries. The second command configures the company, asks for the OpenRouter API key,
 and registers the host services. They start with the computer and recover after
 a service exits. When installation finishes, open the printed company setup
 address and choose Check connection.
@@ -41,11 +43,14 @@ describes how the claim works and how Disconnect undoes it.
 Run the first command again. On Linux it installs the release the channel now
 points at over the version you have; on macOS Homebrew upgrades the formula. The
 company and its data stay in place. The default channel is the latest release.
-To follow the newest release, prereleases included, add `--channel testing`:
+On Linux, to follow the newest release, prereleases included, add
+`--channel testing`:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
 ```
+
+The tap carries only the latest release, so a Mac stays on the default channel.
 
 ## Remove
 

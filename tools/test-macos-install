@@ -7,11 +7,11 @@ disposable guest on this machine, so **this rig installs into the Mac it runs
 on**. It says what it is about to change before it changes anything, it refuses
 to run until you agree in as many words, and everything it does has an undo.
 
-By default it stands a throwaway tap up against the bottle
-`internkim release brew` left in .artifacts, which judges the builder.
-`--published` judges instead what a person gets: `install.sh` itself, run
-against the tap on GitHub and the bottle `updates.intern.kim` serves, with no
-address substituted anywhere.
+By default it serves the release directory `internkim release packages` wrote
+on 127.0.0.1 and stands a throwaway tap up whose formula names that address
+instead of the GitHub Release, which judges the builder. `--published` judges
+instead what a person gets: `install.sh` itself, run against the tap on GitHub
+and the bottle its GitHub Release carries, with no address substituted anywhere.
 
 What it can judge, and does:
 
@@ -39,12 +39,15 @@ What it cannot judge, and says so rather than pretending:
 """
 
 import argparse
+import functools
+import http.server
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
@@ -54,7 +57,8 @@ LAUNCH_DAEMON_ROOT = Path("/Library/LaunchDaemons")
 LAUNCH_DAEMON_PREFIX = "kim.intern."
 STATE_ROOT = Path("/var/lib/internkim")
 SERVICE_ACCOUNTS = ("blueclaw", "internkim-relay")
-DEFAULT_ARTIFACT_DIRECTORY = Path(".artifacts/homebrew")
+DEFAULT_ARTIFACT_DIRECTORY = Path(".artifacts/native-package")
+RELEASE_DOWNLOAD_PREFIX = "https://github.com/yeomyeonggeori/internkim/releases/download/"
 
 # The modules file_read conversion reaches for before it reaches for a wheel. The
 # release build checks the same list against the interpreter it carries; this
@@ -130,10 +134,10 @@ def what_this_will_change(artifact_directory, with_company, published):
         ]
         return changes + what_a_company_would_change(with_company)
     changes = [
+        f"serve {artifact_directory} on 127.0.0.1 while this runs",
         f"create a throwaway Homebrew tap at {tap_directory()}",
         f"install the {PACKAGE_NAME} formula from it into {homebrew_prefix()}/Cellar",
         f"link {homebrew_prefix()}/bin/{PACKAGE_NAME}",
-        f"read the bottle and the tarball from {artifact_directory}",
         "uninstall the formula and remove the tap when it finishes",
     ]
     return changes + what_a_company_would_change(with_company)
@@ -158,24 +162,29 @@ def formula_path_in_tap():
     return tap_directory() / "Formula" / f"{PACKAGE_NAME}.rb"
 
 
-def install_the_formula(artifact_directory):
-    """Stand the tap up against the locally built bottle.
+def install_the_formula(artifact_directory, served_address):
+    """Stand the tap up against the release directory served on 127.0.0.1.
 
-    The one substitution is the address: the formula's url and its bottle's
-    root_url point at this directory instead of updates.intern.kim. Everything
-    else about the formula is the one `internkim release brew` rendered, and
-    every assertion below reads the machine rather than the formula.
+    The one substitution is the address: the formula names its own GitHub
+    Release as root_url and as the prefix of its url, and that prefix is swapped
+    for the local server, which serves the directory the way GitHub serves the
+    release's assets. Everything else about the formula is the one the release
+    carries, and every assertion below reads the machine rather than the formula.
     """
-    rendered = artifact_directory / "tap/Formula" / f"{PACKAGE_NAME}.rb"
+    rendered = artifact_directory / f"{PACKAGE_NAME}.rb"
     if not rendered.is_file():
         raise RigFailure(
             f"no formula at {rendered}. Build one first:\n"
-            f"  internkim release brew --version 0.0.1"
+            f"  internkim release packages --format homebrew --out {artifact_directory}"
         )
     formula = rendered.read_text()
-    local = f"file://{artifact_directory.resolve()}"
-    formula = re.sub(r'root_url "[^"]+"', f'root_url "{local}"', formula)
-    formula = re.sub(r'url "https://[^"]+/([^/"]+)"', rf'url "{local}/\1"', formula)
+    named = re.search(r'root_url "([^"]+)"', formula)
+    if named is None or not named.group(1).startswith(RELEASE_DOWNLOAD_PREFIX):
+        raise RigFailure(f"the formula's bottle does not come from a GitHub Release of this repository:\n{formula}")
+    release_address = named.group(1)
+    if f'url "{release_address}/' not in formula:
+        raise RigFailure(f"the formula's url is not an asset of the release its bottle comes from:\n{formula}")
+    formula = formula.replace(release_address, served_address)
 
     shutil.rmtree(tap_owner_directory(), ignore_errors=True)
     formula_path_in_tap().parent.mkdir(parents=True, exist_ok=True)
@@ -193,6 +202,20 @@ def install_the_formula(artifact_directory):
             "the formula was built from source rather than poured, so this run says nothing about the bottle:\n"
             + installed.stdout
         )
+
+
+class QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *arguments):
+        pass
+
+
+def serve_release_directory(artifact_directory):
+    """Serve the directory on an ephemeral 127.0.0.1 port, the way GitHub serves
+    one release's assets under releases/download/<tag>/."""
+    handler = functools.partial(QuietHandler, directory=str(artifact_directory.resolve()))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
 
 
 def install_through_the_one_line():
@@ -412,10 +435,10 @@ def undo(with_company):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--artifacts", type=Path, default=DEFAULT_ARTIFACT_DIRECTORY,
-                        help="where `internkim release brew` put the bottle and the formula")
+                        help="the release directory `internkim release packages` wrote the bottle and the formula into")
     parser.add_argument("--published", action="store_true",
-                        help="run install.sh against the tap on GitHub and the bottle on "
-                             "updates.intern.kim, rather than standing a throwaway tap on --artifacts")
+                        help="run install.sh against the tap on GitHub and the bottle its GitHub Release carries, "
+                             "rather than standing a throwaway tap on --artifacts")
     parser.add_argument("--yes-change-this-mac", action="store_true",
                         help="agree to the changes printed above. Without it this run prints them and stops")
     parser.add_argument("--install-the-company", type=Path, metavar="CONNECTION.JSON",
@@ -446,11 +469,13 @@ def main():
 
     prefix_before = set(path.name for path in (homebrew_prefix() / "bin").iterdir())
     passed = []
+    server = None
     try:
         if arguments.published:
             install_through_the_one_line()
         else:
-            install_the_formula(arguments.artifacts)
+            server = serve_release_directory(arguments.artifacts)
+            install_the_formula(arguments.artifacts, f"http://127.0.0.1:{server.server_address[1]}")
         passed.append(step_one_the_bottle_poured_and_homebrew_records_it())
         keg = installed_keg_path()
         passed.append(step_two_the_one_command_is_linked_and_nothing_else_is(keg, prefix_before))
@@ -462,6 +487,8 @@ def main():
         if not arguments.keep and not with_company:
             passed.append(step_six_uninstall_leaves_the_prefix_as_it_was(prefix_before))
     except RigFailure as failure:
+        if server is not None:
+            server.shutdown()
         for observation in passed:
             print(f"✓ {observation}")
         print(f"✗ {failure}")
@@ -472,6 +499,7 @@ def main():
         brew("untrust", "--formula", f"{published_tap()}/{PACKAGE_NAME}", check=False)
         brew("untap", published_tap(), check=False)
     else:
+        server.shutdown()
         shutil.rmtree(tap_owner_directory(), ignore_errors=True)
     for observation in passed:
         print(f"✓ {observation}")

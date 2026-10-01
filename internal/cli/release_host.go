@@ -1,8 +1,8 @@
 package cli
 
 import (
+	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +15,8 @@ import (
 
 // The company host ships as a GitHub Release of this repository: stable is the
 // latest release, and testing is the newest one, prerelease or not, which is
-// what web/static/install.sh resolves each channel to.
+// what web/static/install.sh resolves each channel to on Linux. A Mac installs
+// through the Homebrew tap, whose formula is the one the stable release carries.
 const (
 	hostReleaseRepository = "yeomyeonggeori/internkim"
 	stableChannel         = "stable"
@@ -50,8 +51,7 @@ func runReleaseHost(arguments []string) error {
 		return errorValue
 	}
 	version := packageVersionFromRepository(repositoryRootPath)
-	tag := "v" + version
-	existing, isPublished, errorValue := publishedHostRelease(tag)
+	existing, isPublished, errorValue := publishedHostRelease(hostReleaseTag(version))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -63,10 +63,24 @@ func runReleaseHost(arguments []string) error {
 		return errorValue
 	}
 	defer os.RemoveAll(directory)
-	if errorValue := buildHostRelease(repositoryRootPath, packageTargets, version, directory, linuxPackageFormats(), os.Stdout); errorValue != nil {
+	everyFormat, errorValue := releaseFormatsNamed("")
+	if errorValue != nil {
 		return errorValue
 	}
-	return createHostRelease(tag, gitRevision(repositoryRootPath), channel, directory, os.Stdout)
+	if errorValue := buildHostRelease(repositoryRootPath, packageTargets, version, directory, everyFormat, os.Stdout); errorValue != nil {
+		return errorValue
+	}
+	return createHostRelease(version, gitRevision(repositoryRootPath), channel, directory, os.Stdout)
+}
+
+func hostReleaseTag(version string) string {
+	return "v" + version
+}
+
+// hostReleaseDownloadURL is where GitHub serves one release's assets, which the
+// formula names as its url and its bottle's root_url.
+func hostReleaseDownloadURL(version string) string {
+	return "https://github.com/" + hostReleaseRepository + "/releases/download/" + hostReleaseTag(version)
 }
 
 // refuseUnreleasableTree holds a release to what deploy holds a device to, and
@@ -114,16 +128,19 @@ func publishedHostRelease(tag string) (gitHubRelease, bool, error) {
 }
 
 // promoteHostRelease makes a tested build stable without rebuilding it, so
-// stable carries the bytes testing carried.
+// stable carries the bytes testing carried. Stable over stable gives the tap the
+// release's formula again, which is how a tap update that failed is retried.
 func promoteHostRelease(release gitHubRelease, channel string, output io.Writer) error {
-	if channel == testingChannel || !release.IsPrerelease {
+	if channel == testingChannel {
 		return fmt.Errorf("%s is already released on %s; a new release needs a new commit on main", release.TagName, releasedChannel(release))
 	}
-	if _, errorValue := runGitHubCommand("release", "edit", release.TagName, "--repo", hostReleaseRepository, "--prerelease=false", "--latest"); errorValue != nil {
-		return errorValue
+	if release.IsPrerelease {
+		if _, errorValue := runGitHubCommand("release", "edit", release.TagName, "--repo", hostReleaseRepository, "--prerelease=false", "--latest"); errorValue != nil {
+			return errorValue
+		}
+		fmt.Fprintf(output, "promoted %s from testing to stable\n", release.TagName)
 	}
-	fmt.Fprintf(output, "promoted %s from testing to stable\n", release.TagName)
-	return nil
+	return publishFormulaToTap(release.TagName, output)
 }
 
 func releasedChannel(release gitHubRelease) string {
@@ -133,15 +150,12 @@ func releasedChannel(release gitHubRelease) string {
 	return stableChannel
 }
 
-func createHostRelease(tag string, revision string, channel string, directory string, output io.Writer) error {
-	assets := []string{}
-	for _, name := range append(hostReleaseAssetNames(), releaseChecksumsName) {
-		path := filepath.Join(directory, name)
-		if _, errorValue := os.Stat(path); errorValue != nil {
-			return errors.Join(fmt.Errorf("the release is missing %s", name), errorValue)
-		}
-		assets = append(assets, path)
+func createHostRelease(version string, revision string, channel string, directory string, output io.Writer) error {
+	assets, errorValue := completeReleaseAssets(directory, version)
+	if errorValue != nil {
+		return errorValue
 	}
+	tag := hostReleaseTag(version)
 	arguments := []string{"release", "create", tag, "--repo", hostReleaseRepository, "--target", revision, "--title", tag, "--notes", hostReleaseNotes(channel)}
 	if channel == testingChannel {
 		arguments = append(arguments, "--prerelease")
@@ -152,7 +166,41 @@ func createHostRelease(tag string, revision string, channel string, directory st
 		return errorValue
 	}
 	fmt.Fprintf(output, "released %s on %s: https://github.com/%s/releases/tag/%s\n", tag, channel, hostReleaseRepository, tag)
-	return nil
+	if channel == testingChannel {
+		return nil
+	}
+	return publishFormulaToTap(tag, output)
+}
+
+// completeReleaseAssets is the paths a release uploads, refused unless the
+// directory holds every package, the Homebrew tarball and formula, exactly one
+// bottle, and the checksums.
+func completeReleaseAssets(directory string, version string) ([]string, error) {
+	present, errorValue := releaseAssetsIn(directory, version)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	missing := []string{}
+	for _, name := range append(releaseAssetNamesWithoutBottle(), releaseChecksumsName) {
+		if _, errorValue := os.Stat(filepath.Join(directory, name)); errorValue != nil {
+			missing = append(missing, name)
+		}
+	}
+	bottles, errorValue := homebrewBottlesIn(directory, version)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	if len(bottles) != 1 {
+		missing = append(missing, fmt.Sprintf("exactly one Homebrew bottle of %s (it holds %d)", version, len(bottles)))
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("the release is missing %s", strings.Join(missing, ", "))
+	}
+	paths := []string{}
+	for _, name := range append(present, releaseChecksumsName) {
+		paths = append(paths, filepath.Join(directory, name))
+	}
+	return paths, nil
 }
 
 func hostReleaseNotes(channel string) string {
@@ -161,4 +209,85 @@ func hostReleaseNotes(channel string) string {
 		installLine += " --channel testing"
 	}
 	return "Install or upgrade the company host:\n\n```sh\n" + installLine + "\n```\n"
+}
+
+// publishFormulaToTap commits the formula a stable release carries to the tap,
+// which is the only way a formula reaches it. The copy is the release's own
+// asset, so a promoted testing build gives the tap the formula it was tested with.
+func publishFormulaToTap(tag string, output io.Writer) error {
+	formula, errorValue := releasedFormula(tag)
+	if errorValue != nil {
+		return errorValue
+	}
+	current, errorValue := tapFormula()
+	if errorValue != nil {
+		return errorValue
+	}
+	if current.Content == formula {
+		fmt.Fprintf(output, "%s already carries the formula of %s\n", blueclaw.HomebrewTap(), tag)
+		return nil
+	}
+	arguments := []string{
+		"api", "--method", "PUT", tapFormulaPath(),
+		"-f", "message=Carry " + blueclaw.CompanyPackageName + " " + tag,
+		"-f", "content=" + base64.StdEncoding.EncodeToString([]byte(formula)),
+	}
+	if current.SHA != "" {
+		arguments = append(arguments, "-f", "sha="+current.SHA)
+	}
+	if _, errorValue := runGitHubCommand(arguments...); errorValue != nil {
+		return errorValue
+	}
+	fmt.Fprintf(output, "gave %s the formula of %s\n", blueclaw.HomebrewTap(), tag)
+	return nil
+}
+
+func releasedFormula(tag string) (string, error) {
+	directory, errorValue := os.MkdirTemp("", "internkim-formula-*")
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer os.RemoveAll(directory)
+	if _, errorValue := runGitHubCommand("release", "download", tag, "--repo", hostReleaseRepository,
+		"--pattern", blueclaw.HomebrewFormulaAssetName(), "--dir", directory); errorValue != nil {
+		return "", errorValue
+	}
+	formula, errorValue := os.ReadFile(filepath.Join(directory, blueclaw.HomebrewFormulaAssetName()))
+	if errorValue != nil {
+		return "", fmt.Errorf("%s carries no %s: %w", tag, blueclaw.HomebrewFormulaAssetName(), errorValue)
+	}
+	return string(formula), nil
+}
+
+type tapFile struct {
+	SHA     string
+	Content string
+}
+
+// tapFormula is the formula the tap carries now, and its blob SHA, which the
+// contents API needs to replace it. A tap with no formula yet answers empty.
+func tapFormula() (tapFile, error) {
+	answer, errorValue := runGitHubCommand("api", tapFormulaPath())
+	if errorValue != nil && strings.Contains(answer, "HTTP 404") {
+		return tapFile{}, nil
+	}
+	if errorValue != nil {
+		return tapFile{}, errorValue
+	}
+	var contents struct {
+		SHA     string `json:"sha"`
+		Content string `json:"content"`
+	}
+	if errorValue := json.Unmarshal([]byte(answer), &contents); errorValue != nil {
+		return tapFile{}, fmt.Errorf("the contents API answered something other than its JSON for %s: %w", tapFormulaPath(), errorValue)
+	}
+	decoded, errorValue := base64.StdEncoding.DecodeString(strings.ReplaceAll(contents.Content, "\n", ""))
+	if errorValue != nil {
+		return tapFile{}, fmt.Errorf("the tap's formula is not base64: %w", errorValue)
+	}
+	return tapFile{SHA: contents.SHA, Content: string(decoded)}, nil
+}
+
+func tapFormulaPath() string {
+	return "repos/" + blueclaw.HomebrewTapRepository() + "/contents/" + blueclaw.HomebrewFormulaFileName()
 }

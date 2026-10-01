@@ -63,25 +63,42 @@ func linuxPackageFormats() []linuxPackageFormat {
 	return []linuxPackageFormat{debianPackageFormat, rpmPackageFormat, archlinuxPackageFormat}
 }
 
-func linuxPackageFormatsNamed(requested string) ([]linuxPackageFormat, error) {
+// releaseFormats is what one build writes into the release directory: the
+// Linux packages asked for and, unless left out, the Homebrew bottle.
+type releaseFormats struct {
+	Linux    []linuxPackageFormat
+	Homebrew bool
+}
+
+const homebrewFormatName = "homebrew"
+
+func releaseFormatsNamed(requested string) (releaseFormats, error) {
 	if requested == "" {
-		return linuxPackageFormats(), nil
+		return releaseFormats{Linux: linuxPackageFormats(), Homebrew: true}, nil
 	}
-	chosen := []linuxPackageFormat{}
+	chosen := releaseFormats{}
 	for _, name := range strings.Split(requested, ",") {
 		name = strings.TrimSpace(name)
-		found := false
-		for _, format := range linuxPackageFormats() {
-			if format.Name == name {
-				chosen = append(chosen, format)
-				found = true
-			}
+		if name == homebrewFormatName {
+			chosen.Homebrew = true
+			continue
 		}
-		if !found {
-			return nil, fmt.Errorf("no package is built as %q; the formats are deb, rpm and archlinux", name)
+		format, isKnown := linuxPackageFormatNamed(name)
+		if !isKnown {
+			return releaseFormats{}, fmt.Errorf("no package is built as %q; the formats are deb, rpm, archlinux and %s", name, homebrewFormatName)
 		}
+		chosen.Linux = append(chosen.Linux, format)
 	}
 	return chosen, nil
+}
+
+func linuxPackageFormatNamed(name string) (linuxPackageFormat, bool) {
+	for _, format := range linuxPackageFormats() {
+		if format.Name == name {
+			return format, true
+		}
+	}
+	return linuxPackageFormat{}, false
 }
 
 // RunsOnlyWhen is the first line of a script that only one of dpkg's calls is
@@ -246,7 +263,7 @@ func runReleasePackages(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
-	formats, errorValue := linuxPackageFormatsNamed(commandArgumentValue(arguments, "--format", ""))
+	formats, errorValue := releaseFormatsNamed(commandArgumentValue(arguments, "--format", ""))
 	if errorValue != nil {
 		return errorValue
 	}
@@ -260,8 +277,25 @@ func runReleasePackages(arguments []string) error {
 }
 
 // buildHostRelease writes the directory a release is uploaded from: one package
-// per format and architecture, and the SHA256SUMS install.sh checks them against.
-func buildHostRelease(repositoryRootPath string, targets []packageTarget, version string, outputDirectory string, formats []linuxPackageFormat, output io.Writer) error {
+// per format and architecture, the Homebrew bottle with its tarball and formula,
+// and the SHA256SUMS that lists them. The bottle goes first because it is the
+// part that needs this machine to be an Apple-silicon Mac.
+func buildHostRelease(repositoryRootPath string, targets []packageTarget, version string, outputDirectory string, formats releaseFormats, output io.Writer) error {
+	if formats.Homebrew {
+		if errorValue := buildHomebrewRelease(repositoryRootPath, version, outputDirectory, output); errorValue != nil {
+			return errorValue
+		}
+	}
+	if errorValue := buildLinuxReleasePackages(repositoryRootPath, targets, version, outputDirectory, formats.Linux, output); errorValue != nil {
+		return errorValue
+	}
+	return writeReleaseChecksums(outputDirectory, version)
+}
+
+func buildLinuxReleasePackages(repositoryRootPath string, targets []packageTarget, version string, outputDirectory string, formats []linuxPackageFormat, output io.Writer) error {
+	if len(formats) == 0 {
+		return nil
+	}
 	for _, target := range targets {
 		built, errorValue := buildLinuxPackages(repositoryRootPath, target, version, outputDirectory, formats, output)
 		if errorValue != nil {
@@ -271,18 +305,20 @@ func buildHostRelease(repositoryRootPath string, targets []packageTarget, versio
 			fmt.Fprintf(output, "built %s\n", packagePath)
 		}
 	}
-	return writeReleaseChecksums(outputDirectory)
+	return nil
 }
 
-// writeReleaseChecksums lists every package asset the directory holds, so a
-// directory built one architecture at a time still has one list naming both.
-func writeReleaseChecksums(directory string) error {
+// writeReleaseChecksums lists every release asset the directory holds, so a
+// directory built one format or architecture at a time still has one list
+// naming all of them.
+func writeReleaseChecksums(directory string, version string) error {
+	names, errorValue := releaseAssetsIn(directory, version)
+	if errorValue != nil {
+		return errorValue
+	}
 	var checksums strings.Builder
-	for _, name := range hostReleaseAssetNames() {
+	for _, name := range names {
 		checksum, _, errorValue := releaseFileSHA256AndSize(filepath.Join(directory, name))
-		if errors.Is(errorValue, os.ErrNotExist) {
-			continue
-		}
 		if errorValue != nil {
 			return errorValue
 		}
@@ -291,7 +327,44 @@ func writeReleaseChecksums(directory string) error {
 	return os.WriteFile(filepath.Join(directory, releaseChecksumsName), []byte(checksums.String()), 0o644)
 }
 
-func hostReleaseAssetNames() []string {
+// releaseAssetsIn is every asset of this version the directory holds. The
+// bottle is found rather than named, because its tag is read from the keg.
+func releaseAssetsIn(directory string, version string) ([]string, error) {
+	present := []string{}
+	for _, name := range releaseAssetNamesWithoutBottle() {
+		_, errorValue := os.Stat(filepath.Join(directory, name))
+		if errors.Is(errorValue, os.ErrNotExist) {
+			continue
+		}
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		present = append(present, name)
+	}
+	bottles, errorValue := homebrewBottlesIn(directory, version)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return append(present, bottles...), nil
+}
+
+func homebrewBottlesIn(directory string, version string) ([]string, error) {
+	paths, errorValue := filepath.Glob(filepath.Join(directory, blueclaw.HomebrewBottleFileName(version, "*")))
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	names := []string{}
+	for _, path := range paths {
+		names = append(names, filepath.Base(path))
+	}
+	return names, nil
+}
+
+func releaseAssetNamesWithoutBottle() []string {
+	return append(linuxPackageAssetNames(), blueclaw.HomebrewSourceTarballName(), blueclaw.HomebrewFormulaAssetName())
+}
+
+func linuxPackageAssetNames() []string {
 	names := []string{}
 	for _, target := range packageTargets {
 		for _, format := range linuxPackageFormats() {

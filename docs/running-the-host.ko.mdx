@@ -22,7 +22,9 @@ sudo internkim install ~/Downloads/internkim-host.json
 
 첫 명령은 apt, dnf, pacman 또는 Homebrew 패키지를 설치합니다. Linux에서는 이
 컴퓨터에 맞는 패키지를 저희 GitHub 릴리스에서 받아 릴리스의 `SHA256SUMS`와
-대조한 다음 패키지 관리자에게 넘깁니다. 둘째 명령은 회사를 설정하고 OpenRouter
+대조한 다음 패키지 관리자에게 넘깁니다. Mac에서는 저희 Homebrew 탭
+`yeomyeonggeori/tap`을 추가하고 `internkim` formula를 설치합니다. 이 formula의
+bottle은 같은 GitHub 릴리스에서 받고, formula에 적힌 체크섬과 대조합니다. 둘째 명령은 회사를 설정하고 OpenRouter
 API 키를 받은 뒤 호스트 서비스를 등록합니다. 컴퓨터가 켜지면 서비스가 자동으로
 시작하고, 서비스가 종료되면 다시 시작합니다. 설치가 끝나면 화면에 나온 회사 설정
 주소에서 연결 확인을 누르세요.
@@ -38,12 +40,14 @@ Linux에서는 연결 파일 없이도 됩니다. 첫 명령만 실행하면 컴
 
 첫 명령을 다시 실행하세요. Linux에서는 채널이 지금 가리키는 릴리스를 지금 버전
 위에 설치하고, macOS에서는 Homebrew가 formula를 업그레이드합니다. 회사와 데이터는
-그대로 남습니다. 기본 채널은 최신 정식 릴리스입니다. 사전 릴리스까지 포함해 가장
-새 릴리스를 따라가려면 `--channel testing`을 붙이세요.
+그대로 남습니다. 기본 채널은 최신 정식 릴리스입니다. Linux에서 사전 릴리스까지
+포함해 가장 새 릴리스를 따라가려면 `--channel testing`을 붙이세요.
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
 ```
+
+탭에는 최신 정식 릴리스만 올라가므로 Mac은 기본 채널을 따라갑니다.
 
 ## 제거하기
 

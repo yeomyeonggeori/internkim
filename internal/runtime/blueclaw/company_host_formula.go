@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 // The company host as a Homebrew formula. Everything it declares is read from
@@ -25,8 +23,8 @@ import (
 const (
 	// HomebrewTapOwner and HomebrewTapName are what `brew tap` is given. The
 	// convention turns them into github.com/<owner>/homebrew-<name>, which is
-	// where the formula lives; the bottle comes from our own host through
-	// root_url below, which is the part that matters.
+	// where the formula lives; the bottle is an asset of the GitHub Release the
+	// formula names through root_url below.
 	//
 	// The tap is named after the organisation and not after this product,
 	// because one tap holds every formula the organisation publishes, and a
@@ -36,10 +34,6 @@ const (
 	HomebrewTapOwner = "yeomyeonggeori"
 	HomebrewTapName  = "tap"
 
-	// HomebrewReleasePrefix is the object prefix the release registry serves
-	// the tarballs under, beside deb/ and host/.
-	HomebrewReleasePrefix = "brew"
-
 	companyPackageDescription = "Run your company's agent, messenger and web app on this computer"
 )
 
@@ -48,33 +42,32 @@ func HomebrewTap() string {
 	return HomebrewTapOwner + "/" + HomebrewTapName
 }
 
-// HomebrewTapRepositoryURL is the repository `brew tap` clones, and the one
-// place the rendered formula is committed to.
-func HomebrewTapRepositoryURL() string {
-	return "https://github.com/" + HomebrewTapOwner + "/homebrew-" + HomebrewTapName
-}
-
-// HomebrewBottleRootURL is where a bottle is fetched from. Homebrew appends
-// "<name>-<version>.<tag>.bottle.tar.gz" to it for anything that is not GitHub
-// Packages (Utils::Bottles.path_resolved_basename). The zone is asked of
-// fleetdomain rather than written down, which is what lets a company hosting
-// its own releases point the formula at its own address.
-func HomebrewBottleRootURL(zone string) string {
-	return fleetdomain.Subdomain("updates", zone) + "/" + HomebrewReleasePrefix
+// HomebrewTapRepository is the repository `brew tap` clones, as owner/name.
+func HomebrewTapRepository() string {
+	return HomebrewTapOwner + "/homebrew-" + HomebrewTapName
 }
 
 // HomebrewFormulaFileName is where the formula sits inside the tap.
 func HomebrewFormulaFileName() string {
-	return "Formula/" + CompanyPackageName + ".rb"
+	return "Formula/" + HomebrewFormulaAssetName()
+}
+
+// HomebrewFormulaAssetName is the formula as a release asset, which is the copy
+// the tap is given when the release becomes stable.
+func HomebrewFormulaAssetName() string {
+	return CompanyPackageName + ".rb"
 }
 
 // HomebrewSourceTarballName is the tarball the formula's url names, which is
-// what a Mac whose prefix no bottle was built for installs from.
-func HomebrewSourceTarballName(version string) string {
-	return fmt.Sprintf("%s-%s.tar.gz", CompanyPackageName, version)
+// what a Mac no bottle fits installs from. Like the Linux packages it carries no
+// version, which lives in the release tag the formula's url names.
+func HomebrewSourceTarballName() string {
+	return CompanyPackageName + "-macos-arm64.tar.gz"
 }
 
-// HomebrewBottleFileName is what Homebrew asks root_url for.
+// HomebrewBottleFileName is what Homebrew asks root_url for. Homebrew builds
+// the name itself from the formula's version and the bottle's tag
+// (Bottle::Filename), so this is the one asset whose name carries a version.
 func HomebrewBottleFileName(version string, bottleTag string) string {
 	return fmt.Sprintf("%s-%s.%s.bottle.tar.gz", CompanyPackageName, version, bottleTag)
 }
@@ -83,9 +76,8 @@ func HomebrewBottleFileName(version string, bottleTag string) string {
 // which Cellar it was laid out against, and what it hashes to.
 type HomebrewBottle struct {
 	// Tag is Homebrew's own name for a macOS version and architecture, such as
-	// arm64_tahoe. It comes from `brew ruby -e 'puts Utils::Bottles.tag'` on
-	// the machine that built it rather than from a table here, because the list
-	// grows with every macOS release.
+	// arm64_ventura. It names the oldest macOS every program in the keg runs on,
+	// and Homebrew pours a bottle on that version and every later one.
 	Tag string
 	// Cellar is what the bottle may be poured into. It is :any_skip_relocation
 	// because nothing in the keg names the prefix: the programs are static, and
@@ -111,7 +103,7 @@ func HomebrewFormula(request HomebrewFormulaRequest) (string, error) {
 	}
 	formula := &strings.Builder{}
 	formula.WriteString("# typed: false\n# frozen_string_literal: true\n\n")
-	formula.WriteString("# Rendered by `internkim release brew` from internal/runtime/blueclaw.\n")
+	formula.WriteString("# Rendered by `internkim release host` from internal/runtime/blueclaw.\n")
 	formula.WriteString("# Edit that package, not this file: a hand edit here is a second\n")
 	formula.WriteString("# declaration of the same dependency list.\n")
 	formula.WriteString("class " + homebrewClassName(CompanyPackageName) + " < Formula\n")
