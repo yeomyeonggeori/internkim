@@ -139,8 +139,7 @@ and which write through the writers `task_add` and `event_add` already use.
 
 <ToolCatalog namespace="message" />
 
-The handler lives in `internal/capabilityd/platform_message_tool.go` and
-`mattermost_tool.go`. `message_search` has two modes: keyword `queries`
+The handler lives in `internal/capabilityd/platform_message_tool.go`. `message_search` has two modes: keyword `queries`
 return IDs with a preview around the match, and `messageIDs` returns those
 messages complete. `message_update` edits one exact span of the agent's own
 earlier message: `oldText` must occur exactly once, and the rest of the
@@ -148,12 +147,36 @@ message stays untouched. `message_send` targets a direct message, a named
 channel, or the current conversation; only the current-conversation targets
 skip approval.
 
-## Channels [#channel]
+## Teams [#team]
 
-<ToolCatalog namespace="channel" />
+<ToolCatalog namespace="team" />
 
-The handler lives in `internal/capabilityd/mattermost_tool.go`. Display name,
-header, and membership changes all go through this one gated tool.
+The organization chart's teams: listing them, creating one under another, renaming,
+moving and removing.
+
+## Company records [#company]
+
+<ToolCatalog namespace="company" />
+
+The company's own ledger and settings: registered documents, recorded metrics,
+records, holidays and company information. Documents registered here are the ones
+the [data room](/docs/data-room) files.
+
+## Mail [#mail]
+
+<ToolCatalog namespace="mail" />
+
+Mail is answered by the company's computer, which reads the requester's own mail
+account for each call, so no mail password is stored there.
+
+## Schedules and notifications [#schedule]
+
+<ToolCatalog namespace="schedule" />
+
+<ToolCatalog namespace="notification" />
+
+A schedule is work the agent does later or on repeat.
+[Notifications](/docs/notifications) says what each setting controls.
 
 ## Web [#web]
 

@@ -9,10 +9,9 @@ than in the web app: a tool like `attendance_add` resolves the caller, decides
 whether they may write, and either writes or turns the request into something an
 administrator was asked, all inside one function.
 
-That has a cost worth knowing about. A rule written in SQL is invisible to the
-TypeScript above it, so the two drift unless the rule is stated once. It has
-happened: the tool schema demanded a reason `public.attendance_add` does not,
-and the attendance screen was refused before the record ever saw the call.
+That has a cost. A rule written in SQL is invisible to the TypeScript above it,
+so the two drift unless the rule is stated once. A tool schema that demands a
+field the function does not refuses the call before the record sees it.
 
 The lists of functions are generated from a database with every migration
 applied, so they say what is actually there.
@@ -43,3 +42,22 @@ and everything it can reach.
 
 The schema of record is `supabase/migrations`, and
 [What the tables mean](/docs/record/schema) explains the tables.
+
+## Running it locally [#running-locally]
+
+The local stack is the Supabase CLI's native runtime, with no Docker. `tools/with-local-plane`
+starts it, holds it for one command at a time and stops it after fifteen idle minutes.
+
+```bash
+tools/with-local-plane supabase db reset                      # schema and fixtures
+tools/with-local-plane supabase test db                       # pgTAP
+cd web && ../tools/with-local-plane bun run dev               # the web app against it
+```
+
+The reset alone gives a company to sign into, as `member1@example.com` with
+`seed-password`. Fixtures live only in `supabase/seed.dev.sql`, so a reset wipes
+anything that file does not carry. Run `supabase test db` after every schema change:
+SQL function bodies resolve at call time, so a rename in the migration that created a
+function breaks it silently, and pgTAP is what notices. A migration that creates a
+table must also grant it, because `anon`, `authenticated` and `service_role` start with
+no privileges on a fresh database.

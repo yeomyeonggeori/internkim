@@ -3,21 +3,17 @@
 Each JSON file is one ordered scenario. Its steps share one session, stop at the
 first failure, and pass only when every step satisfies its strict assertions.
 
-**Nothing runs these today.** They were driven through a real Mattermost, and
-that driver went with Mattermost. They are kept as the specification a Buzz
-driver has to satisfy, and `internkim test expensive` refuses and says so.
+**Nothing runs these.** `internkim test expensive` refuses and says so. They are
+the specification a Buzz driver has to satisfy.
 
-Four of them still speak the old dialect and need rewriting before a Buzz driver
-can run them: `05-message-lifecycle` names a town-square channel in its prompt,
-and `06`, `07` and `08` assert `conversationType: "O"`, which is Mattermost's
-name for a public channel.
+Scenarios `05-message-lifecycle`, `06`, `07` and `08` need rewriting before a
+driver can run them: `05` names a town-square channel in its prompt, and the
+others assert `conversationType: "O"`, a public channel in another messenger's
+vocabulary. The scenarios that mutate wait on an approval button, and the Buzz
+path has no such surface, so a driver must define what "the user approved"
+means before it can assert on it.
 
-Approval is the other gap. The scenarios that mutate wait on an approval button
-in a messenger, and the Buzz path has no such surface — blueclaw's
-`/admin/api/run/approve` bypasses the messenger entirely — so a driver has to
-decide what "the user approved" means before these can assert on it.
-
-The Linux acceptance gate in the meantime is the fleet:
+The Linux acceptance gate is the fleet:
 
 ```bash
 ./internkim dev fleet run --scenario buzz-attachment

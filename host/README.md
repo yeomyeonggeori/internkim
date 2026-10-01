@@ -24,7 +24,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **Moli** | the device browser, a headless engine agent-browser drives over the Chrome DevTools Protocol; without it the browser tools report unavailable and everything else answers |
 | **the POSIX helper** | `bash` and the file tools run as the person who asked, through `/usr/local/bin/blueclaw-posix-helper`, called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
-A virtual-machine guest, Mattermost and cloudflared are **not** needed.
+A virtual-machine guest and cloudflared are **not** needed.
 
 ### What the skills need
 
@@ -74,12 +74,8 @@ How much a broadcast carries is set by the Supabase plan:
 | Enterprise | negotiated |
 | Self-hosted | whatever the proxy in front of it accepts |
 
-Those figures are decimal, which is worth knowing before somebody writes
-`3 * 1024 * 1024` and lands 145 KB over. `measure-broadcast-ceiling.ts` settles
-it against a project by binary search. The local tenant and the hosted Pro
-project both accepted 3,000,491 bytes and answered the next with the 422, to the
-byte, so the wall is a fixed 3,000,000 rather than something a plan tunes
-upward.
+Those figures are decimal: `3 * 1024 * 1024` lands 145 KB over.
+`measure-broadcast-ceiling.ts` finds a project's ceiling by binary search.
 
 The default ceiling is the whole Pro figure, because `httpSend` puts the topic
 and the event in the URL and sends the answer as the entire body, so there is no
@@ -89,14 +85,11 @@ payload setting (`ENVS.md` carries only `MAX_HEADER_LENGTH`, which is headers),
 so run the script against it.
 
 Unset or empty takes the default; anything that is not a positive number stops
-the boot. A value like `1MB` used to become `NaN` and an empty one `0`, either
-of which refused every answer for as long as the process ran.
+the boot, so a value like `1MB` is refused at startup.
 
 The profile-picture limit is derived from the ceiling
-(`largestRawBytesThatFit`), because base64 inflates by a third and the two used
-to disagree: pictures were accepted up to 200,000 raw bytes, which is about
-267 KB on the wire. Anything larger comes back without a picture, and the call
-survives.
+(`largestRawBytesThatFit`), because base64 inflates by a third. Anything
+larger comes back without a picture, and the call survives.
 
 ### Files never cross it
 
@@ -104,8 +97,7 @@ A message attachment is not answered with the file. The messenger stores it on
 this machine and the browser asking for it is somewhere else, so the relay puts
 a copy in the company's `asset` bucket and answers with its address; the reader
 signs for that with their own session. Nothing about the file's size touches the
-ceiling above, and the 91 MB archive in one company's history opens the same way
-a screenshot does.
+ceiling above, and a 91 MB archive opens the same way a screenshot does.
 
 `LARGEST_FILE_BYTES` bounds only what the relay holds in memory while copying
 one across, and defaults to 200,000,000. The bucket is addressed by content and
@@ -229,7 +221,7 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<the project's publishable key>
 INTERNKIM_APP_URL=https://intern.kim
 CHATD_BOT_USER_NAME=<the bot's display name>
-MESSENGER_PLATFORM=buzz              # or mattermost
+MESSENGER_PLATFORM=buzz
 DATABASE_URL=postgres://…            # the host's own Postgres
 ```
 
@@ -239,10 +231,9 @@ is handed the path, so rotating the file is enough for it. blueclaw runs as the
 `blueclaw` user and cannot open `/root`, so the entrypoint copies both keys to
 `/run/internkim/secrets` as it starts; blueclaw sees a rotated key after a restart.
 
-Plus the messenger the tenant runs, one of:
+Plus the connection to the messenger the tenant runs:
 
 ```
-CHATD_MATTERMOST_BASE_URL=…   CHATD_MATTERMOST_BOT_TOKEN=…
 CHATD_BUZZ_RELAY_URL=wss://…  CHATD_BUZZ_PRIVATE_KEY=<64 hex>
 ```
 
@@ -253,8 +244,7 @@ rewrites `/run/internkim/policy.json` whenever the company changes, so a
 `policy.json` mounted there seeds that file rather than being it. The seed is
 `/root/.internkim/secrets/buzz-key-seed`, beside the agent key, and without it a message the
 agent sends under a person's own name cannot be signed. `MESSENGER_PLATFORM`
-names which of the two messengers the company runs, and the relay refuses to
-start rather than guess.
+names the messenger the company runs, and the relay refuses to start without it.
 
 ## Acceptance
 
