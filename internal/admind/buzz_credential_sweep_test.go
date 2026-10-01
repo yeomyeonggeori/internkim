@@ -1,8 +1,12 @@
 package admind
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func serviceWhoseDirectorySays(t *testing.T, members string) *Service {
@@ -63,5 +67,41 @@ func TestSomebodyWhoLeftIsGivenNoKey(t *testing.T) {
 	}
 	if recording.Skipped != 2 {
 		t.Fatalf("both should have been passed over: %s", recording)
+	}
+}
+
+func TestTheStartupSweepRecordsKeysOnceBlueclawAnswersRatherThanAtTheNextTick(t *testing.T) {
+	firstWaitForBlueclaw, longestWaitForBlueclaw = 10*time.Millisecond, 20*time.Millisecond
+	t.Cleanup(func() { firstWaitForBlueclaw, longestWaitForBlueclaw = 250*time.Millisecond, 5*time.Second })
+	refusalsLeft := atomic.Int32{}
+	refusalsLeft.Store(3)
+	kept := atomic.Int32{}
+	service := serviceWhoseDirectorySays(t, `{"members":[
+		{"memberID":"member-1","email":"active@example.com","name":"최견본","role":"member","status":"active"}
+	]}`)
+	answering := service.HTTPClient.Transport
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host == "blueclaw.local" && refusalsLeft.Load() > 0 {
+			if request.URL.Path == "/admin/api/health" {
+				refusalsLeft.Add(-1)
+			}
+			return nil, errors.New("connection refused")
+		}
+		if request.URL.Path == "/api/agent/messenger-credential" {
+			kept.Add(1)
+		}
+		return answering.RoundTrip(request)
+	})}
+	ctx, stop := context.WithCancel(t.Context())
+	defer stop()
+
+	service.startBuzzCredentialSweep(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for kept.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if kept.Load() == 0 {
+		t.Fatal("blueclaw came up and nobody's key was recorded, so members wait for the next sweep to message the agent")
 	}
 }

@@ -53,14 +53,13 @@ func postInstallBody(format linuxPackageFormat) string {
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
 		hostSetupLines(blueclaw.LinuxCompanyHostLayout().PythonSetupCommands()),
 		forgetTheDeviceUsersSync(``),
-		forgetThePackageSettingsInTheRelayFile(blueclaw.RelayEnvironmentFilePath),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
 		`  systemctl unmask "$unit" >/dev/null 2>&1 || true`,
 		`  systemctl enable "$unit" >/dev/null 2>&1 || refuse "could not enable $unit"`,
 		`done`,
-		`systemctl restart ` + restartedUnitFileNames() + ` >/dev/null 2>&1 || true`,
+		bringTheCompanyBackOnThisRelease(blueclaw.CompanyHostCurrentPath, refreshCommand()),
 		scheduleTheBackupUnlessMasked(),
 		``,
 		`if [ ! -e ` + blueclaw.CompanyHostCurrentPath + ` ]; then`,
@@ -154,14 +153,23 @@ func deviceUsersSyncUnitNames() []string {
 	return []string{path.Base(blueclaw.InternKimUsersSyncTimerPath), path.Base(blueclaw.InternKimUsersSyncServicePath)}
 }
 
-func forgetThePackageSettingsInTheRelayFile(filePath string) string {
-	pattern := `'^(` + strings.Join(blueclaw.CompanyHostRelaySettingNames(), "|") + `)='`
+func bringTheCompanyBackOnThisRelease(currentPath string, refresh string) string {
 	return strings.Join([]string{
-		`if [ -f ` + filePath + ` ] && grep -q -E ` + pattern + ` ` + filePath + `; then`,
-		`  relay_settings=$(grep -v -E ` + pattern + ` ` + filePath + ` || true)`,
-		`  printf '%s\n' "$relay_settings" > ` + filePath,
+		`if [ -e ` + currentPath + ` ]; then`,
+		`  ` + refresh + ` || refuse "this release is installed and the company's server did not come back on it; the lines above name what is silent. Once that is fixed, run 'sudo ` + refresh + `'"`,
+		`  systemctl restart ` + boxUnitFileName() + ` >/dev/null 2>&1 || true`,
+		`else`,
+		`  systemctl restart ` + restartedUnitFileNames() + ` >/dev/null 2>&1 || true`,
 		`fi`,
 	}, "\n")
+}
+
+func refreshCommand() string {
+	return blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName) + ` refresh`
+}
+
+func boxUnitFileName() string {
+	return blueclaw.CompanyPackageUnit{Name: blueclaw.BoxServiceName}.FileName()
 }
 
 func deviceUsersSyncPaths() []string {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
@@ -90,6 +91,9 @@ const buzzCredentialSweepInterval = 2 * time.Minute
 // and the agent could not tell who they were. It reconciles on a clock too now.
 func (service *Service) startBuzzCredentialSweep(ctx context.Context) {
 	go func() {
+		if errorValue := service.waitUntilBlueclawAnswers(ctx); errorValue != nil {
+			return
+		}
 		log.Printf("buzz credentials at startup: %s", service.recordBuzzCredentials(ctx))
 		ticker := time.NewTicker(buzzCredentialSweepInterval)
 		defer ticker.Stop()
@@ -106,6 +110,30 @@ func (service *Service) startBuzzCredentialSweep(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+var (
+	firstWaitForBlueclaw   = 250 * time.Millisecond
+	longestWaitForBlueclaw = 5 * time.Second
+)
+
+func (service *Service) waitUntilBlueclawAnswers(ctx context.Context) error {
+	wait := firstWaitForBlueclaw
+	for {
+		errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, nil)
+		if errorValue == nil {
+			return nil
+		}
+		if wait == firstWaitForBlueclaw {
+			log.Printf("buzz credentials wait for blueclaw, which does not answer yet: %v", errorValue)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
+		wait = min(wait*2, longestWaitForBlueclaw)
+	}
 }
 
 // The people the record already names get their key without anybody pressing a

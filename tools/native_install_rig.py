@@ -19,6 +19,7 @@ import shutil
 import socket
 import subprocess
 import tarfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -692,11 +693,15 @@ CONNECTION_FILE_NAME = "internkim-host.json"
 MESSENGER_DATABASE_PATH = f"{STATE_DIRECTORY}/current/secrets/buzz-database.env"
 MODEL_KEY_FILE_NAME = "rig-model-key"
 
-# The guest is given a company whose agent never reaches a model provider. What
-# any rig here judges is whether a message crosses the gateway and reaches the
-# company's store, which no model is asked about; a key that could buy tokens
-# has no business in a disposable guest.
+# The agent answers a member only through a model. Run under
+# `monkeys run OPENROUTER_API_KEY` to give the guest a key that reaches one;
+# without it the guest holds a key that reaches nothing, and the agent's turn
+# fails before it can answer.
 RIG_MODEL_KEY = "sk-or-v1-this-rig-never-reaches-a-model-provider"
+
+
+def rig_model_key():
+    return os.environ.get("OPENROUTER_API_KEY") or RIG_MODEL_KEY
 
 
 def capabilityd_argument(machine, flag):
@@ -788,13 +793,17 @@ def install_the_company(machine, connection):
     """Everything a person does between downloading the file and a running box."""
     share = machine.share_directory
     (share / CONNECTION_FILE_NAME).write_text(json.dumps(connection, indent=2))
-    (share / MODEL_KEY_FILE_NAME).write_text(RIG_MODEL_KEY + "\n")
-    return machine.shell(
-        f"set -eu\n"
-        f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
-        f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
-        timeout_seconds=1800,
-    )
+    key_path = share / MODEL_KEY_FILE_NAME
+    key_path.write_text(rig_model_key() + "\n")
+    try:
+        return machine.shell(
+            f"set -eu\n"
+            f"{PACKAGE_NAME} install {SHARE_PATH}/{CONNECTION_FILE_NAME}"
+            f" --model-key-file {SHARE_PATH}/{MODEL_KEY_FILE_NAME}\n",
+            timeout_seconds=1800,
+        )
+    finally:
+        key_path.unlink()
 
 
 def build_identity_reported(machine):
@@ -866,6 +875,45 @@ def seeded_administrator():
             raise RigFailure(f"{CENTRAL_TEST_UTILITIES_PATH} no longer exports {name}")
         fields[name] = found.group(1)
     return fields["member1Email"], fields["seedPassword"]
+
+
+class RecordForward:
+    def __init__(self, listen, target):
+        self.listener = socket.create_server(listen)
+        self.port = self.listener.getsockname()[1]
+        self.target = target
+        threading.Thread(target=self.accept_forever, daemon=True).start()
+
+    def accept_forever(self):
+        while True:
+            try:
+                arriving, _ = self.listener.accept()
+            except OSError:
+                return
+            try:
+                departing = socket.create_connection(self.target)
+            except OSError:
+                arriving.close()
+                continue
+            for source, destination in ((arriving, departing), (departing, arriving)):
+                threading.Thread(target=carry_bytes, args=(source, destination), daemon=True).start()
+
+    def close(self):
+        self.listener.close()
+
+
+def carry_bytes(source, destination):
+    try:
+        while chunk := source.recv(65536):
+            destination.sendall(chunk)
+    except OSError:
+        pass
+    finally:
+        for held in (source, destination):
+            try:
+                held.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
 
 
 def free_port():
@@ -951,6 +999,7 @@ class CompanyPlane:
         self.gateway_port = free_port()
         self.application_port = free_port()
         self.processes = []
+        self.record_forward = None
 
     @property
     def gateway_url(self):
@@ -967,9 +1016,26 @@ class CompanyPlane:
     @property
     def project_url(self):
         held = urllib.parse.urlsplit(self.settings["API_URL"])
-        return f"{held.scheme}://{self.address}:{held.port}"
+        return f"{held.scheme}://{self.address}:{self.record_forward.port}"
+
+    @property
+    def record_port(self):
+        return urllib.parse.urlsplit(self.settings["API_URL"]).port
+
+    def reach_the_record_from(self, machine):
+        shutil.copyfile(Path(__file__), machine.share_directory / "native_install_rig.py")
+        holding = (
+            f"import sys, threading; sys.path.insert(0, '{SHARE_PATH}'); "
+            f"from native_install_rig import RecordForward; "
+            f"RecordForward(('127.0.0.1', {self.record_port}), ('{self.address}', {self.record_forward.port})); "
+            f"threading.Event().wait()"
+        )
+        machine.checked_shell(
+            f"systemd-run --unit=rig-record-forward {HOST_PYTHON_PATH} -c \"{holding}\"\n"
+        )
 
     def start(self):
+        self.record_forward = RecordForward((self.address, 0), ("127.0.0.1", self.record_port))
         self.start_gateway()
         self.start_application()
 
@@ -1168,6 +1234,8 @@ class CompanyPlane:
         )
 
     def stop(self):
+        if self.record_forward:
+            self.record_forward.close()
         for _, process, _, handle in reversed(self.processes):
             process.terminate()
             try:

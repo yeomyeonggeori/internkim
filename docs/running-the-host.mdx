@@ -54,6 +54,11 @@ curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
 
 The tap carries only the latest release, so a Mac stays on the default channel.
 
+On a connected Linux host the upgrade rewrites the settings the first install
+wrote, prepares the database again, restarts the services and returns once every
+one of them answers. If one does not, it names that service and how to read why;
+`sudo internkim refresh` runs the same steps again once that is fixed.
+
 ## Remove
 
 ```bash

@@ -99,6 +99,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "\nImport stopped: %s\n", errorValue)
 			os.Exit(1)
 		}
+	case "refresh":
+		if errorValue := runRefresh(); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nThe company was not brought back: %s\n", errorValue)
+			os.Exit(1)
+		}
 	default:
 		printUsage(command)
 	}
@@ -111,6 +116,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
+	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
 	os.Exit(1)
 }
 
@@ -198,6 +204,17 @@ func parseInstallArguments(arguments []string) (installArguments, error) {
 		StateDirectoryPath: *stateDirectoryPath,
 		ModelKeyPath:       *modelKeyPath,
 	}, nil
+}
+
+func runRefresh() error {
+	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := companyhost.Refresh(thisComputer{}, os.Stdout); errorValue != nil {
+		return errorValue
+	}
+	fmt.Println("\nServer ready on this release.")
+	return nil
 }
 
 func runInstall(arguments []string) error {

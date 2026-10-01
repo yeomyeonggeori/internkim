@@ -219,7 +219,7 @@ func TestNoFormatRestartsTheDatabaseOrTheCacheFromAMaintainerScript(t *testing.T
 	for _, format := range linuxPackageFormats() {
 		restarts := 0
 		for _, line := range strings.Split(maintainerScript(format, postInstallScript), "\n") {
-			if !strings.HasPrefix(line, "systemctl restart ") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "systemctl restart ") {
 				continue
 			}
 			restarts++

@@ -138,6 +138,19 @@ func keepCompanySecrets(secretsPath string) (companySecrets, error) {
 // can read what the install would write beside what the units require, without a
 // machine to write it on.
 func companyHostFiles(layout blueclaw.CompanyHostLayout, directoryPath string, connection Connection, secrets companySecrets) ([]companyFile, error) {
+	files, errorValue := companySettingsFiles(layout, directoryPath, connection, secrets)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return append(files, companyFile{
+		Path:     blueclaw.RelayAgentKeyPath,
+		Contents: connection.AgentKey + "\n",
+		Mode:     modeFor(blueclaw.RelayUserName),
+		Owner:    blueclaw.RelayUserName,
+	}), nil
+}
+
+func companySettingsFiles(layout blueclaw.CompanyHostLayout, directoryPath string, connection Connection, secrets companySecrets) ([]companyFile, error) {
 	identity, errorValue := IdentityForSeed(secrets.IdentitySeed)
 	if errorValue != nil {
 		return nil, errorValue
@@ -177,12 +190,7 @@ func companyHostFiles(layout blueclaw.CompanyHostLayout, directoryPath string, c
 		}
 		files = append(files, companyFile{Path: file.path, Contents: text, Mode: modeFor(file.owner), Owner: file.owner})
 	}
-	return append(files, companyFile{
-		Path:     blueclaw.RelayAgentKeyPath,
-		Contents: connection.AgentKey + "\n",
-		Mode:     modeFor(blueclaw.RelayUserName),
-		Owner:    blueclaw.RelayUserName,
-	}), nil
+	return files, nil
 }
 
 // A file only root reads is 0600. One an unprivileged service reads is 0640 and
