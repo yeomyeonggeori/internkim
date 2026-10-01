@@ -25,8 +25,11 @@ encryption key in `/var/lib/internkim/box`. The private halves never leave its d
 2. An administrator opens `intern.kim` from the same office network. The address the
    box announced from and the address of the browser match, so the empty box appears
    in a list.
-3. The administrator types the code the box shows, which binds its public key to the
-   company. A company has one host, so claiming a second box moves the company to it.
+3. The administrator types the code the box shows. The setup page then names the box,
+   the last four characters of its key and the address it announced from, and binds
+   its public key to the company only once the administrator confirms. The box's own
+   page shows the same four characters. A company has one host, so claiming a second
+   box moves the company to it.
 4. The box stops announcing, trades a signed assertion for the company's settings and
    a session, and starts the host services as that company's host.
 

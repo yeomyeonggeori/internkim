@@ -177,7 +177,9 @@ func TestAnEmptyBoxShowsItsCodeOnItsNetworkUntilItIsClaimed(t *testing.T) {
 			}
 			port := plane.pageAddresses[0][strings.LastIndex(plane.pageAddresses[0], ":")+1:]
 			pageAddress = "http://127.0.0.1:" + strings.TrimSuffix(port, "/") + "/"
-			if shown := pageText(t, pageAddress); !strings.Contains(shown, "ABCD-EFGH") {
+			fingerprint := identityOf(t, daemon.Places)
+			if shown := pageText(t, pageAddress); !strings.Contains(shown, "ABCD-EFGH") ||
+				!strings.Contains(shown, "…"+fingerprint.PublicKey()[len(fingerprint.PublicKey())-4:]) {
 				t.Fatalf("the local page shows %q", shown)
 			}
 			plane.isClaimed = true

@@ -27,10 +27,29 @@ export const emptyBoxSchema = z.object({
 
 export type EmptyBox = z.infer<typeof emptyBoxSchema>;
 
-export const boxClaimSchema = z.object({
+export const boxVerificationSchema = z.object({
 	publicKey: boxKeySchema,
 	pairingCode: z.string().trim().min(1).max(32)
 }).strict();
+
+export const boxClaimSchema = z.object({
+	publicKey: boxKeySchema,
+	ticket: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+}).strict();
+
+export const verifiedBoxSchema = z.object({
+	ticket: z.string(),
+	publicKey: boxKeySchema,
+	hostName: boxHostNameSchema.nullable(),
+	publicAddress: z.string(),
+	companyName: z.string()
+}).strict();
+
+export type VerifiedBoxAnswer = z.infer<typeof verifiedBoxSchema>;
+
+export function boxFingerprintOf(publicKey: string): string {
+	return publicKey.slice(-4);
+}
 
 export const boxFileClaimSchema = z.object({
 	encryptionKey: boxKeySchema,

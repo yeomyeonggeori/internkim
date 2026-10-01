@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { supabase } from '$lib/supabase';
-import { connectedBoxSchema, emptyBoxSchema, type ConnectedBox, type EmptyBox } from '$lib/company/box';
+import {
+	connectedBoxSchema,
+	emptyBoxSchema,
+	verifiedBoxSchema,
+	type ConnectedBox,
+	type EmptyBox,
+	type VerifiedBoxAnswer
+} from '$lib/company/box';
 import { hostConfigurationSchema, hostSetupStatusSchema, type HostConfiguration } from '$lib/company/host-setup';
 import { sealModelKey } from '$lib/company/seal-to-box';
 
@@ -51,8 +58,12 @@ export async function fetchBoxes(): Promise<Boxes> {
 	return boxesSchema.parse(await askCompanyRoute('/api/company/box', 'GET'));
 }
 
-export async function connectBox(publicKey: string, pairingCode: string): Promise<ConnectedBox | null> {
-	const answer = await askCompanyRoute('/api/company/box', 'POST', { publicKey, pairingCode });
+export async function verifyBoxCode(publicKey: string, pairingCode: string): Promise<VerifiedBoxAnswer> {
+	return verifiedBoxSchema.parse(await askCompanyRoute('/api/company/box/verification', 'POST', { publicKey, pairingCode }));
+}
+
+export async function connectBox(publicKey: string, ticket: string): Promise<ConnectedBox | null> {
+	const answer = await askCompanyRoute('/api/company/box', 'POST', { publicKey, ticket });
 	return connectedAnswerSchema.parse(answer).connected;
 }
 

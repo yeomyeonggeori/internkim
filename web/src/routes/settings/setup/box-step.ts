@@ -1,3 +1,4 @@
+import { boxFingerprintOf } from '$lib/company/box';
 import type { Boxes } from './host-setup-client';
 
 export type BoxStep = 'searching' | 'choosing' | 'givingModelKey' | 'connected';
@@ -10,5 +11,5 @@ export function boxStepOf(boxes: Boxes): BoxStep {
 }
 
 export function shortBoxName(publicKey: string): string {
-	return publicKey.slice(0, 8);
+	return `…${boxFingerprintOf(publicKey)}`;
 }

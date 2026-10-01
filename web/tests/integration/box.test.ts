@@ -13,6 +13,7 @@ import {
 	boxSessionFor,
 	claimBox,
 	claimBoxWithConnectionFile,
+	verifyBoxCode,
 	connectedBoxOf,
 	emptyBoxesAt,
 	keepSealedModelKey
@@ -76,6 +77,11 @@ async function aCompany(label: string) {
 	);
 	companyIDs.push(provisioned.companyID);
 	return provisioned;
+}
+
+async function claimWithCode(claimingCompanyID: string, publicKey: string, code: string): Promise<void> {
+	const { ticket } = await verifyBoxCode(client, claimingCompanyID, publicKey, code);
+	await claimBox(client, claimingCompanyID, publicKey, ticket);
 }
 
 async function announcedCode(box: Box, address = officeAddress): Promise<string> {
@@ -177,6 +183,29 @@ describe('connecting an empty box', () => {
 		expect((await emptyBoxesAt(client, officeAddress, later)).map((listed) => listed.publicKey)).not.toContain(box.publicKey);
 	});
 
+	test('a right code claims nothing until the administrator confirms, and is not counted as a guess', async () => {
+		const box = await aBox();
+		const code = await announcedCode(box);
+
+		const verified = await verifyBoxCode(client, companyID, box.publicKey, code);
+
+		expect(verified).toMatchObject({ publicKey: box.publicKey, publicAddress: officeAddress });
+		expect(await connectedBoxOf(client, companyID)).toBeNull();
+		expect((await emptyBoxesAt(client, officeAddress)).map((listed) => listed.publicKey)).toContain(box.publicKey);
+		const { count } = await client
+			.from('box_pairing_refusal')
+			.select('*', { count: 'exact', head: true })
+			.eq('company_id', companyID);
+		expect(count).toBe(0);
+
+		await expect(claimBox(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
+		await expect(verifyBoxCode(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
+		await claimBox(client, companyID, box.publicKey, verified.ticket);
+		expect((await connectedBoxOf(client, companyID))?.publicKey).toBe(box.publicKey);
+		await expect(claimBox(client, companyID, box.publicKey, verified.ticket)).rejects.toBeInstanceOf(BoxRefused);
+		await clearRefusalsOf(companyID);
+	});
+
 	test('a box is given a short code, keeps it while it lives, and gets a new one when it asks', async () => {
 		const box = await aBox();
 		const first = await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false });
@@ -204,8 +233,9 @@ describe('connecting an empty box', () => {
 		const box = await aBox();
 		await announcedCode(box);
 
-		await expect(claimBox(client, companyID, box.publicKey, 'AAAA-AAAA')).rejects.toBeInstanceOf(BoxRefused);
-		expect(await connectedBoxOf(client, companyID)).toBeNull();
+		await expect(verifyBoxCode(client, companyID, box.publicKey, 'AAAA-AAAA')).rejects.toBeInstanceOf(BoxRefused);
+		expect((await connectedBoxOf(client, companyID))?.publicKey).not.toBe(box.publicKey);
+		await clearRefusalsOf(companyID);
 	});
 
 	test('the code is claimed from any network, typed in any case and spacing', async () => {
@@ -213,7 +243,7 @@ describe('connecting an empty box', () => {
 		const box = await aBox();
 		const code = await announcedCode(box, neighbourAddress);
 
-		await claimBox(client, outsider.companyID, box.publicKey, ` ${code.toLowerCase().replace('-', ' ')} `);
+		await claimWithCode(outsider.companyID, box.publicKey, ` ${code.toLowerCase().replace('-', ' ')} `);
 
 		expect((await connectedBoxOf(client, outsider.companyID))?.publicKey).toBe(box.publicKey);
 	});
@@ -222,10 +252,10 @@ describe('connecting an empty box', () => {
 		const box = await aBox();
 		const code = await announcedCode(box);
 		for (let attempt = 0; attempt < 5; attempt += 1) {
-			await expect(claimBox(client, companyID, box.publicKey, 'AAAA-AAAA')).rejects.toBeInstanceOf(BoxRefused);
+			await expect(verifyBoxCode(client, companyID, box.publicKey, 'AAAA-AAAA')).rejects.toBeInstanceOf(BoxRefused);
 		}
 
-		await expect(claimBox(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
+		await expect(verifyBoxCode(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
 		expect(await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false })).toMatchObject({
 			pairingCode: expect.any(String)
 		});
@@ -240,7 +270,7 @@ describe('connecting an empty box', () => {
 			.update({ pairing_code_expires_at: new Date(Date.now() - 1000).toISOString() })
 			.eq('public_key', box.publicKey);
 
-		await expect(claimBox(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
+		await expect(verifyBoxCode(client, companyID, box.publicKey, code)).rejects.toBeInstanceOf(BoxRefused);
 		await clearRefusalsOf(companyID);
 	});
 
@@ -250,20 +280,20 @@ describe('connecting an empty box', () => {
 		for (const box of boxes) await announcedCode(box);
 		for (const box of boxes) {
 			for (let attempt = 0; attempt < 4; attempt += 1) {
-				await expect(claimBox(client, guesser.companyID, box.publicKey, 'AAAA-AAAA')).rejects.toBeInstanceOf(BoxRefused);
+				await expect(verifyBoxCode(client, guesser.companyID, box.publicKey, 'AAAA-AAAA')).rejects.toBeInstanceOf(BoxRefused);
 			}
 		}
 		const target = await aBox();
 		const code = await announcedCode(target);
 
-		await expect(claimBox(client, guesser.companyID, target.publicKey, code)).rejects.toMatchObject({ status: 429 });
-		await claimBox(client, companyID, target.publicKey, code);
+		await expect(verifyBoxCode(client, guesser.companyID, target.publicKey, code)).rejects.toMatchObject({ status: 429 });
+		await claimWithCode(companyID, target.publicKey, code);
 		expect((await connectedBoxOf(client, companyID))?.publicKey).toBe(target.publicKey);
 	});
 
 	test('claiming binds the box to the company and takes it off the list', async () => {
 		const box = await aBox();
-		await claimBox(client, companyID, box.publicKey, await announcedCode(box));
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
 
 		expect(await connectedBoxOf(client, companyID)).toMatchObject({
 			companyID,
@@ -278,7 +308,7 @@ describe('connecting an empty box', () => {
 
 	test('a claimed box gets its company, a host session and the model key sealed to it', async () => {
 		const box = await aBox();
-		await claimBox(client, companyID, box.publicKey, await announcedCode(box));
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
 		const sealedModelKey = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
 		await keepSealedModelKey(client, companyID, sealedModelKey);
 
@@ -293,7 +323,7 @@ describe('connecting an empty box', () => {
 
 	test('a model key sealed before HPKE still reaches its box until it is given again', async () => {
 		const box = await aBox();
-		await claimBox(client, companyID, box.publicKey, await announcedCode(box));
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
 		const sealedBeforeHPKE = { ephemeralPublicKey: box.encryptionKey, nonce: 'MzMzMzMzMzMzMzMz', ciphertext: 'c2VhbGVk' };
 		const { error } = await client
 			.from('credential')
@@ -320,8 +350,8 @@ describe('connecting an empty box', () => {
 		const firstCode = await announcedCode(first);
 		const secondCode = await announcedCode(second);
 
-		await claimBox(client, companyID, first.publicKey, firstCode);
-		await claimBox(client, companyID, second.publicKey, secondCode);
+		await claimWithCode(companyID, first.publicKey, firstCode);
+		await claimWithCode(companyID, second.publicKey, secondCode);
 
 		expect((await connectedBoxOf(client, companyID))?.publicKey).toBe(second.publicKey);
 		expect(await boxSessionFor(credentials, first.publicKey, environment, appURL)).toBeNull();
@@ -368,7 +398,7 @@ describe('a connection file claims the computer it is installed on', () => {
 describe('the routes a company computer calls accept its session', () => {
 	test('a host session names the company it was issued for', async () => {
 		const box = await aBox();
-		await claimBox(client, companyID, box.publicKey, await announcedCode(box));
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
 		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
 
 		const agent = await callingAgent(requestBearing(answered?.session.accessToken ?? ''), environment);
@@ -394,7 +424,7 @@ describe('the routes a company computer calls accept its session', () => {
 
 	test('asking for a host session with one hands the same one back, unrenewed', async () => {
 		const box = await aBox();
-		await claimBox(client, companyID, box.publicKey, await announcedCode(box));
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
 		const answered = await boxSessionFor(credentials, box.publicKey, environment, appURL);
 		const presented = answered?.session;
 		if (!presented) throw new Error('a claimed box gets a session');

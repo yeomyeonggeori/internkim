@@ -21,7 +21,7 @@ type pairingPage struct {
 	addresses []string
 }
 
-func (daemon Daemon) openPairingPage() *pairingPage {
+func (daemon Daemon) openPairingPage(identity Identity) *pairingPage {
 	if daemon.Places.PairingPageListenAddress == "" || daemon.installedCompany() != "" {
 		return nil
 	}
@@ -33,7 +33,7 @@ func (daemon Daemon) openPairingPage() *pairingPage {
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
 	hostName := localHostName()
 	page := &pairingPage{
-		server:    &http.Server{Handler: daemon.pairingPageHandler(), ReadHeaderTimeout: pairingPageReadTimeout},
+		server:    &http.Server{Handler: daemon.pairingPageHandler(identity), ReadHeaderTimeout: pairingPageReadTimeout},
 		hostName:  hostName,
 		addresses: localPageAddresses(hostName, lanAddress(), port),
 	}
@@ -62,7 +62,7 @@ func (page *pairingPage) localPage() LocalPage {
 	return LocalPage{HostName: page.hostName, Addresses: page.addresses}
 }
 
-func (daemon Daemon) pairingPageHandler() http.Handler {
+func (daemon Daemon) pairingPageHandler(identity Identity) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet || request.URL.Path != "/" {
 			http.NotFound(writer, request)
@@ -71,7 +71,7 @@ func (daemon Daemon) pairingPageHandler() http.Handler {
 		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 		writer.Header().Set("Cache-Control", "no-store")
 		writer.Header().Set("Content-Security-Policy", "default-src 'none'")
-		fmt.Fprint(writer, pairingPageDocument(daemon.shownCode()))
+		fmt.Fprint(writer, pairingPageDocument(fingerprintOf(identity.PublicKey()), daemon.shownCode()))
 	})
 }
 
@@ -83,14 +83,18 @@ func (daemon Daemon) shownCode() *PairingCode {
 	return &shown
 }
 
-func pairingPageDocument(shown *PairingCode) string {
+func pairingPageDocument(fingerprint string, shown *PairingCode) string {
 	body := "<p>This box shows no code right now. A new one arrives within a minute; reload this page.</p>"
 	if shown != nil {
 		body = fmt.Sprintf("<p><strong>%s</strong></p><p>Enter it on the company setup page before %s.</p>",
 			html.EscapeString(shown.Code), html.EscapeString(shown.ExpiresAt.Local().Format("15:04")))
 	}
 	return "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width\">" +
-		"<title>internkim box</title>" + body
+		"<title>internkim box</title><p>Box …" + html.EscapeString(fingerprint) + "</p>" + body
+}
+
+func fingerprintOf(publicKey string) string {
+	return publicKey[max(len(publicKey)-4, 0):]
 }
 
 func localHostName() string {

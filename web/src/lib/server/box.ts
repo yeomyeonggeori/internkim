@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { decodeJwt, errors, importJWK, jwtVerify } from 'jose';
 import { z } from 'zod';
 import { companyComputerName } from '$lib/company/host-setup';
+import { base64URLOf } from '$lib/company/seal-to-box';
 import {
 	boxConfigurationSchema,
 	boxKeySchema,
@@ -45,7 +46,7 @@ export type BoxAnnounced =
 	| { isClaimed: true }
 	| { isClaimed: false; pairingCode?: string; pairingCodeExpiresAt?: string };
 
-type ClaimOutcome = 'claimed' | 'wrong_code' | 'no_live_code' | 'too_many_attempts';
+type VerificationOutcome = 'verified' | 'claimed' | 'wrong_code' | 'no_live_code' | 'no_live_ticket' | 'too_many_attempts';
 
 export async function boxKeyOfAssertion(assertion: string): Promise<string | null> {
 	const publicKey = claimedBoxKeyOf(assertion);
@@ -175,32 +176,71 @@ export async function emptyBoxesAt(
 	}));
 }
 
-export async function claimBox(
+export type VerifiedBox = {
+	ticket: string;
+	publicKey: string;
+	hostName: string | null;
+	publicAddress: string;
+};
+
+export async function verifyBoxCode(
 	client: SupabaseClient,
 	companyID: string,
 	publicKey: string,
 	pairingCode: string,
+	now: Date = new Date()
+): Promise<VerifiedBox> {
+	const ticket = base64URLOf(crypto.getRandomValues(new Uint8Array(32)));
+	const { data, error } = await client
+		.rpc('verify_box_pairing_code', {
+			claiming_company: companyID,
+			box_key: publicKey,
+			code_hash: await hashOf(normalizedPairingCode(pairingCode)),
+			ticket_hash: await claimTicketHashOf(ticket),
+			fresh_since: freshSince(now)
+		})
+		.single<{ outcome: VerificationOutcome; host_name: string | null; public_address: string | null }>();
+	if (error) throw new Error(`verifying box ${publicKey}: ${error.message}`);
+	refuseUnless(data.outcome, 'verified');
+	return { ticket, publicKey, hostName: data.host_name, publicAddress: data.public_address ?? '' };
+}
+
+export async function claimBox(
+	client: SupabaseClient,
+	companyID: string,
+	publicKey: string,
+	ticket: string,
 	now: Date = new Date()
 ): Promise<void> {
 	const { data, error } = await client
 		.rpc('claim_empty_box', {
 			claiming_company: companyID,
 			box_key: publicKey,
-			code_hash: await hashOf(normalizedPairingCode(pairingCode)),
+			ticket_hash: await claimTicketHashOf(ticket),
 			fresh_since: freshSince(now)
 		})
-		.single<{ outcome: ClaimOutcome; encryption_key: string | null }>();
+		.single<{ outcome: VerificationOutcome; encryption_key: string | null }>();
 	if (error) throw new Error(`claiming box ${publicKey}: ${error.message}`);
-	if (data.outcome === 'too_many_attempts') {
-		throw new BoxRefused('too many wrong codes from this company; try again in an hour', 429);
-	}
-	if (data.outcome === 'no_live_code') {
-		throw new BoxRefused('that box shows no code right now; wait a minute and use the one it shows next');
-	}
-	if (data.outcome === 'wrong_code' || !data.encryption_key) {
-		throw new BoxRefused('that is not the code the box shows');
-	}
+	refuseUnless(data.outcome, 'claimed');
+	if (!data.encryption_key) throw new Error(`claiming box ${publicKey}: the record answered no encryption key`);
 	await claimFleetForCompany(client, companyID, publicKey, { encryptionKey: data.encryption_key });
+}
+
+function claimTicketHashOf(ticket: string): Promise<string> {
+	return hashOf(`claim-ticket:${ticket}`);
+}
+
+const refusalOfOutcome: Record<Exclude<VerificationOutcome, 'verified' | 'claimed'>, [string, 409 | 429]> = {
+	too_many_attempts: ['too many wrong codes from this company; try again in an hour', 429],
+	no_live_code: ['that box shows no code right now; wait a minute and use the one it shows next', 409],
+	wrong_code: ['that is not the code the box shows', 409],
+	no_live_ticket: ['that confirmation has expired; enter the code the box shows now', 409]
+};
+
+function refuseUnless(outcome: VerificationOutcome, expected: 'verified' | 'claimed'): void {
+	if (outcome === expected) return;
+	if (outcome === 'verified' || outcome === 'claimed') throw new Error(`the record answered ${outcome}`);
+	throw new BoxRefused(...refusalOfOutcome[outcome]);
 }
 
 export async function claimBoxWithConnectionFile(

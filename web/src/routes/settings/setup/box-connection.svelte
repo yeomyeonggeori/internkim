@@ -7,8 +7,8 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { boxStepOf, shortBoxName } from './box-step';
-	import type { EmptyBox } from '$lib/company/box';
-	import { connectBox, fetchBoxes, giveBoxModelKey, type Boxes } from './host-setup-client';
+	import type { EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
+	import { connectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
 	const text = createPageText(hostSetupText);
@@ -18,6 +18,7 @@
 	let isChangingModelKey = $state(false);
 	let connectingKey = $state('');
 	let pairingCodes = $state<Record<string, string>>({});
+	let verified = $state<VerifiedBoxAnswer | null>(null);
 	let isSendingModelKey = $state(false);
 	let errorMessage = $state('');
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -45,17 +46,32 @@
 		return address ? text.pairingCodeAt.replace('{address}', address) : text.pairingCodeOnTheBox;
 	}
 
-	async function connect(event: SubmitEvent, publicKey: string) {
+	async function verify(event: SubmitEvent, publicKey: string) {
 		event.preventDefault();
 		const pairingCode = (pairingCodes[publicKey] ?? '').trim();
 		if (!pairingCode) {
 			errorMessage = text.pairingCodeMissing;
 			return;
 		}
+		await whileConnecting(publicKey, async () => {
+			verified = await verifyBoxCode(publicKey, pairingCode);
+		});
+	}
+
+	async function confirm() {
+		if (!verified) return;
+		const confirmed = verified;
+		await whileConnecting(confirmed.publicKey, async () => {
+			boxes = { connected: await connectBox(confirmed.publicKey, confirmed.ticket), empty: [] };
+		});
+		verified = null;
+	}
+
+	async function whileConnecting(publicKey: string, work: () => Promise<void>) {
 		connectingKey = publicKey;
 		errorMessage = '';
 		try {
-			boxes = { connected: await connectBox(publicKey, pairingCode), empty: [] };
+			await work();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;
 		} finally {
@@ -90,6 +106,21 @@
 			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
 		</div>
+	{:else if step === 'choosing' && verified}
+		<Item.Root variant="outline">
+			<Item.Content>
+				<Item.Title>{text.confirmBox.replace('{company}', verified.companyName)}</Item.Title>
+				<Item.Description>{verified.hostName ?? text.foundBox} · <span class="font-mono">{shortBoxName(verified.publicKey)}</span></Item.Description>
+				<Item.Description>{text.confirmNetwork.replace('{address}', verified.publicAddress)}</Item.Description>
+				<Item.Description>{text.confirmMatch.replace('{fingerprint}', shortBoxName(verified.publicKey))}</Item.Description>
+			</Item.Content>
+			<Item.Actions>
+				<Button variant="outline" onclick={() => (verified = null)} disabled={connectingKey !== ''}>{text.cancel}</Button>
+				<Button onclick={confirm} disabled={connectingKey !== ''}>
+					{connectingKey === verified.publicKey ? text.connecting : text.confirmConnect}
+				</Button>
+			</Item.Actions>
+		</Item.Root>
 	{:else if step === 'choosing'}
 		<Item.Group class="gap-2">
 			{#each boxes.empty as box (box.publicKey)}
@@ -100,7 +131,7 @@
 						<Item.Description>{whereTheCodeIs(box)}</Item.Description>
 					</Item.Content>
 					<Item.Actions>
-						<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => connect(event, box.publicKey)}>
+						<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => verify(event, box.publicKey)}>
 							<Input
 								class="w-36 font-mono uppercase"
 								aria-label={text.pairingCode}

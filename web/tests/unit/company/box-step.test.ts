@@ -23,6 +23,6 @@ describe('the company computer step', () => {
 	});
 });
 
-test('a box is named by the start of its public key', () => {
-	expect(shortBoxName(publicKey)).toBe('oYwaGe-V');
+test('a box is named by the last four characters of its public key, the ones its own page shows', () => {
+	expect(shortBoxName(publicKey)).toBe('…olZI');
 });

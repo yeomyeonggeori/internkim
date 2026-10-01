@@ -49,7 +49,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
-	page := daemon.openPairingPage()
+	page := daemon.openPairingPage(identity)
 	defer page.close()
 	for {
 		wait, isClaimed, errorValue := daemon.step(ctx, identity, page.localPage())
