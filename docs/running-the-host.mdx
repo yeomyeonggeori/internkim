@@ -198,6 +198,23 @@ it.
 On a Mac the database is Homebrew's PostgreSQL, which `internkim backup` and
 `internkim restore` do not manage. They refuse there.
 
+### Move a device onto the package
+
+A device running the older device stack writes its company with
+`internkim recover -action migration-export`, into
+`/var/lib/internkim-migration/<time>`. With the device's services stopped and the
+package installed, one command writes that directory as an archive in
+`/var/lib/internkim-backups` and restores it:
+
+```bash
+sudo internkim import-device /var/lib/internkim-migration/20261001T143757Z --connection internkim-host.json
+```
+
+The connection file comes from company setup, because a device never held one.
+The device's messenger seed, relay key and model key are carried, so every
+person's messenger key stays the same. The device's own credentials on the hosted
+service are left as they were.
+
 ### The archive format
 
 This is a stable format. A tool that writes it is restored like a backup.
