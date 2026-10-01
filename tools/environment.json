@@ -243,11 +243,6 @@
     "process": "cli",
     "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
   },
-  "INTERNKIM_ADMIN_EMAIL": {
-    "process": "cli",
-    "description": "the console/admin sign-in email the CLI's setup flow falls back to when no flag is given",
-    "isInVault": true
-  },
   "INTERNKIM_AGENT_BROWSER_PATH": {
     "process": "internal/browser test",
     "description": "path to an agent-browser binary for internal/browser's real-Chrome test; the test is skipped when unset"

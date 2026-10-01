@@ -2220,13 +2220,7 @@ func (state *setupFlowState) ensureFleetRegistration(force bool) error {
 
 	state.fleetID = loadOrCreateFleetID(state.stateDir)
 	state.nodeID = loadNodeID(state.stateDir)
-	state.adminEmail = ""
-	if state.parameters.AdminEmail != "" {
-		state.adminEmail = state.parameters.AdminEmail
-	}
-	if state.adminEmail == "" {
-		state.adminEmail = strings.TrimSpace(os.Getenv("INTERNKIM_ADMIN_EMAIL"))
-	}
+	state.adminEmail = state.parameters.AdminEmail
 	state.tunnelToken = loadState(state.stateDir, "tunnel_token")
 	state.nodeTunnelToken = loadState(state.stateDir, "node_tunnel_token")
 	state.tlsCertificateStatus = loadState(state.stateDir, "tls_certificate_status")
