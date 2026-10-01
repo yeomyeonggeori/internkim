@@ -140,10 +140,6 @@ func (layout CompanyHostLayout) SkillsPath() string {
 	return layout.LibraryRoot + "/skills"
 }
 
-func (layout CompanyHostLayout) MigrationPath() string {
-	return layout.LibraryRoot + "/migrations"
-}
-
 func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
 }

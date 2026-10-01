@@ -49,11 +49,10 @@ from native_install_rig import (  # noqa: E402
 
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 
-# Where the package puts the two things the workload reaches for. Spelled in
+# Where the package puts the skills the workload reaches for. Spelled in
 # internal/runtime/blueclaw/company_host_package.go, and read from the guest
 # rather than from Go because this tool never builds the package.
 SKILLS_PATH = "/opt/internkim/skills"
-DOCUMENT_PYTHON_PATH = "/opt/internkim/document-venv/bin/python"
 
 # Whether the guest's messenger knows the member yet, read the way the install
 # rig reads it: through the credentials the box wrote for its own relay.
@@ -508,12 +507,7 @@ class Measurement:
         ))
 
     def write_a_document(self, machine):
-        """The document skill, run under the interpreter the package carries.
-
-        The skills reach their wheels through that interpreter and not through
-        Debian's python3, so naming it here is what the box does rather than a
-        shortcut around a bootstrap.
-        """
+        """The document skill, started the way its SKILL.md tells the agent to: python3."""
         (machine.share_directory / "report.md").write_text(DOCUMENT_SOURCE)
         return self.said(machine.shell(
             "set -u\n"
@@ -521,9 +515,9 @@ class Measurement:
             f"cp {SHARE_PATH}/report.md /var/tmp/documents/report.md\n"
             "cd /var/tmp/documents\n"
             f"skills={SKILLS_PATH}/document/scripts\n"
-            f"{DOCUMENT_PYTHON_PATH} $skills/skill_runtime.py python $skills/export_document.py "
+            "python3 $skills/skill_runtime.py python $skills/export_document.py "
             "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20\n"
-            f"{DOCUMENT_PYTHON_PATH} $skills/skill_runtime.py python $skills/validate_docx.py "
+            "python3 $skills/skill_runtime.py python $skills/validate_docx.py "
             "/var/tmp/documents/report.docx 2>&1 | tail -20\n"
             "ls -la /var/tmp/documents 2>&1 | tail -6\n",
             timeout_seconds=1800,

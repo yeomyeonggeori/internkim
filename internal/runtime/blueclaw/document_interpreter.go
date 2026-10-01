@@ -7,10 +7,6 @@ const DocumentInterpreterVersion = "3.13.13"
 const documentModulesTheConversionImports = "import plistlib, platform, xml.etree.ElementTree, " +
 	"anydoc, bs4, markdownify, pypdf, pypdfium2"
 
-func DocumentModulesTheConversionImports() string {
-	return documentModulesTheConversionImports
-}
-
 // HostSetupCommand is one program the package's install step runs.
 type HostSetupCommand struct {
 	Purpose   string

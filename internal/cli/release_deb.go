@@ -132,10 +132,6 @@ func debianPackageInformation(target debianTarget, version string, contents file
 	return linuxPackageInformation(debianPackageFormat, target, version, contents, scripts)
 }
 
-func writeDebianPackage(information *nfpm.Info, packagePath string) error {
-	return writeLinuxPackage(debianPackageFormat, information, packagePath)
-}
-
 func debPackageContents(repositoryRootPath string, target debianTarget, version string, stagingPath string, output io.Writer) (files.Contents, error) {
 	packaged := []debPackagedFile{}
 	programs, errorValue := buildDebPrograms(repositoryRootPath, target, version, stagingPath, output)

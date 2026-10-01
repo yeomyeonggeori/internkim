@@ -182,7 +182,7 @@ func TestAnEnvironmentTheInstallCannotFetchFailsTheInstallNamingIt(t *testing.T)
 	if errorValue := os.MkdirAll(layout.BinaryRoot, 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	unreachable := "#!/bin/sh\necho 'error: Failed to download https://github.com/astral-sh/python-build-standalone/releases/download/cpython-3.13.15' >&2\nexit 2\n"
+	unreachable := "#!/bin/sh\necho 'error: Failed to download cpython-" + blueclaw.DocumentInterpreterVersion + "' >&2\nexit 2\n"
 	if errorValue := os.WriteFile(layout.BinaryPath(blueclaw.PackageResolverName), []byte(unreachable), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
