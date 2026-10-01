@@ -25,12 +25,21 @@ encryption key in `/var/lib/internkim/box`. The private halves never leave its d
 2. An administrator opens `intern.kim` from the same office network. The address the
    box announced from and the address of the browser match, so the empty box appears
    in a list.
-3. Choosing the box binds its public key to the company. A company has one host, so
-   claiming a second box moves the company to it.
+3. The administrator types the code the box shows, which binds its public key to the
+   company. A company has one host, so claiming a second box moves the company to it.
 4. The box stops announcing, trades a signed assertion for the company's settings and
    a session, and starts the host services as that company's host.
 
 An empty list means the box was claimed already or cannot reach the network.
+
+The address only narrows the list, since everyone behind it sees the same boxes.
+What binds a box is its pairing code. The central plane draws one when the box
+asks: eight characters from a 32-symbol alphabet without `0`, `O`, `1` or `I`,
+good for fifteen minutes and kept only as its SHA-256 hash. Five wrong codes spend
+it and the box is given another, and twenty wrong codes in an hour stop that
+company from trying until the hour is up. The box logs each code it is given, and
+`sudo internkim box code` prints the current one. How a box with no screen shows
+its code to someone without a terminal is still open.
 
 ## The box's identity replaces the agent key
 

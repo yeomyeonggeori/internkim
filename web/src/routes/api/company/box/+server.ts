@@ -18,15 +18,15 @@ export const GET: RequestHandler = async ({ request, platform, getClientAddress 
 	);
 };
 
-export const POST: RequestHandler = async ({ request, platform, getClientAddress }) => {
+export const POST: RequestHandler = async ({ request, platform }) => {
 	const member = await callingHostAdministrator(request, environmentOfPlatform(platform?.env));
 	const claim = boxClaimSchema.safeParse(await request.json().catch(() => null));
-	if (!claim.success) error(400, 'name the box to connect by its public key');
+	if (!claim.success) error(400, 'name the box to connect by its public key and the code it shows');
 
 	try {
-		await claimBox(member.record, member.companyID, claim.data.publicKey, getClientAddress());
+		await claimBox(member.record, member.companyID, claim.data.publicKey, claim.data.pairingCode);
 	} catch (refusal) {
-		if (refusal instanceof BoxRefused) error(409, refusal.message);
+		if (refusal instanceof BoxRefused) error(refusal.status, refusal.message);
 		throw refusal;
 	}
 	return json({ connected: await connectedBoxOf(member.record, member.companyID) }, { headers: privateHeaders });

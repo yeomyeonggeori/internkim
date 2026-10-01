@@ -21,6 +21,7 @@ type fakePlane struct {
 	accessToken    string
 	sealedModelKey *SealedModelKey
 	announcements  int
+	codesAskedFor  int
 	claimedWith    []string
 }
 
@@ -29,7 +30,20 @@ func (plane *fakePlane) serve(t *testing.T) *httptest.Server {
 		switch request.URL.Path {
 		case "/api/box/announce":
 			plane.announcements++
-			writer.Write([]byte(`{"isClaimed":false}`))
+			var body struct {
+				WantsPairingCode bool `json:"wantsPairingCode"`
+			}
+			json.NewDecoder(request.Body).Decode(&body)
+			if !body.WantsPairingCode {
+				writer.Write([]byte(`{"isClaimed":false}`))
+				return
+			}
+			plane.codesAskedFor++
+			json.NewEncoder(writer).Encode(map[string]any{
+				"isClaimed":            false,
+				"pairingCode":          "ABCD-EFGH",
+				"pairingCodeExpiresAt": time.Now().Add(15 * time.Minute).UTC().Format(time.RFC3339Nano),
+			})
 		case "/api/box/claim":
 			var body map[string]string
 			json.NewDecoder(request.Body).Decode(&body)
@@ -119,6 +133,42 @@ func TestAnUnclaimedBoxKeepsAnnouncingAndInstallsNothing(t *testing.T) {
 
 	if plane.announcements != 3 || len(recorded.requests) != 0 {
 		t.Fatalf("announcements = %d, installs = %d", plane.announcements, len(recorded.requests))
+	}
+}
+
+func TestAnEmptyBoxAsksForACodeOnlyWhileItHoldsNoLiveOne(t *testing.T) {
+	plane := &fakePlane{}
+	daemon, places := daemonFor(t, plane, &installs{})
+
+	runSteps(t, daemon, 3)
+
+	shown, isLive, errorValue := ShownPairingCode(places.StateDirectoryPath, time.Now())
+	if errorValue != nil || !isLive || shown.Code != "ABCD-EFGH" {
+		t.Fatalf("shown = %+v, live = %v, error = %v", shown, isLive, errorValue)
+	}
+	if plane.codesAskedFor != 1 {
+		t.Fatalf("asked for a code %d times in three announcements", plane.codesAskedFor)
+	}
+
+	daemon.Now = func() time.Time { return time.Now().Add(16 * time.Minute) }
+	runSteps(t, daemon, 1)
+
+	if plane.codesAskedFor != 2 {
+		t.Fatalf("an expired code was not replaced: asked %d times", plane.codesAskedFor)
+	}
+}
+
+func TestAClaimedBoxShowsNoCode(t *testing.T) {
+	plane := &fakePlane{}
+	daemon, places := daemonFor(t, plane, &installs{})
+	runSteps(t, daemon, 1)
+
+	plane.isClaimed = true
+	plane.accessToken = "header.claims.signature"
+	runSteps(t, daemon, 1)
+
+	if _, isLive, errorValue := ShownPairingCode(places.StateDirectoryPath, time.Now()); errorValue != nil || isLive {
+		t.Fatalf("a claimed box still shows a code: live = %v, error = %v", isLive, errorValue)
 	}
 }
 

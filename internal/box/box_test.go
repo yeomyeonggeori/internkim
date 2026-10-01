@@ -175,16 +175,17 @@ func TestAnnouncementNamesTheEncryptionKey(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		var body map[string]string
-		if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil || body["encryptionKey"] != identity.EncryptionPublicKey() {
+		var body map[string]any
+		if errorValue := json.NewDecoder(request.Body).Decode(&body); errorValue != nil ||
+			body["encryptionKey"] != identity.EncryptionPublicKey() || body["wantsPairingCode"] != true {
 			t.Errorf("announcement body = %v", body)
 		}
-		writer.Write([]byte(`{"isClaimed":false}`))
+		writer.Write([]byte(`{"isClaimed":false,"pairingCode":"ABCD-EFGH","pairingCodeExpiresAt":"2026-10-01T09:15:00.000Z"}`))
 	}))
 	defer server.Close()
 
-	isClaimed, errorValue := Client{AppURL: server.URL}.Announce(context.Background(), identity)
-	if errorValue != nil || isClaimed {
-		t.Fatalf("isClaimed = %v, error = %v", isClaimed, errorValue)
+	announcement, errorValue := Client{AppURL: server.URL}.Announce(context.Background(), identity, true)
+	if errorValue != nil || announcement.IsClaimed || announcement.PairingCode == nil || announcement.PairingCode.Code != "ABCD-EFGH" {
+		t.Fatalf("announcement = %+v, error = %v", announcement, errorValue)
 	}
 }

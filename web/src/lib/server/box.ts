@@ -17,6 +17,7 @@ import {
 	companyOfFleet,
 	controlPlane,
 	fleetCredentialKind,
+	hashOf,
 	hostSessionOfCompany,
 	spendAgentKey,
 	type HostSession,
@@ -27,8 +28,24 @@ export const boxAssertionAudience = 'internkim-box';
 const boxAssertionLifetime = '2m';
 const emptyBoxFreshMilliseconds = 10 * 60 * 1000;
 const emptyBoxesListed = 10;
+const pairingCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const pairingCodeLength = 8;
+const pairingCodeLifetimeMilliseconds = 15 * 60 * 1000;
 
-export class BoxRefused extends Error {}
+export class BoxRefused extends Error {
+	constructor(
+		message: string,
+		readonly status: 409 | 429 = 409
+	) {
+		super(message);
+	}
+}
+
+export type BoxAnnounced =
+	| { isClaimed: true }
+	| { isClaimed: false; pairingCode?: string; pairingCodeExpiresAt?: string };
+
+type ClaimOutcome = 'claimed' | 'wrong_code' | 'no_live_code' | 'too_many_attempts';
 
 export async function boxKeyOfAssertion(assertion: string): Promise<string | null> {
 	const publicKey = claimedBoxKeyOf(assertion);
@@ -63,20 +80,63 @@ export async function announceBox(
 	client: SupabaseClient,
 	publicKey: string,
 	encryptionKey: string,
-	publicAddress: string
-): Promise<{ isClaimed: boolean }> {
+	publicAddress: string,
+	wantsPairingCode: boolean,
+	now: Date = new Date()
+): Promise<BoxAnnounced> {
 	if (await companyOfFleet(client, publicKey)) return { isClaimed: true };
 	const { error } = await client.from('empty_box').upsert(
 		{
 			public_key: publicKey,
 			encryption_key: encryptionKey,
 			public_address: publicAddress,
-			announced_at: new Date().toISOString()
+			announced_at: now.toISOString()
 		},
 		{ onConflict: 'public_key' }
 	);
 	if (error) throw new Error(`announcing box ${publicKey}: ${error.message}`);
-	return { isClaimed: false };
+	if (!wantsPairingCode && (await holdsLivePairingCode(client, publicKey, now))) return { isClaimed: false };
+	return { isClaimed: false, ...(await issuePairingCode(client, publicKey, now)) };
+}
+
+async function holdsLivePairingCode(client: SupabaseClient, publicKey: string, now: Date): Promise<boolean> {
+	const { data, error } = await client
+		.from('empty_box')
+		.select('pairing_code_expires_at')
+		.eq('public_key', publicKey)
+		.single<{ pairing_code_expires_at: string | null }>();
+	if (error) throw new Error(`pairing code of box ${publicKey}: ${error.message}`);
+	return data.pairing_code_expires_at !== null && Date.parse(data.pairing_code_expires_at) > now.getTime();
+}
+
+async function issuePairingCode(
+	client: SupabaseClient,
+	publicKey: string,
+	now: Date
+): Promise<{ pairingCode: string; pairingCodeExpiresAt: string }> {
+	const pairingCode = freshPairingCode();
+	const pairingCodeExpiresAt = new Date(now.getTime() + pairingCodeLifetimeMilliseconds).toISOString();
+	const { error } = await client
+		.from('empty_box')
+		.update({
+			pairing_code_hash: await hashOf(normalizedPairingCode(pairingCode)),
+			pairing_code_expires_at: pairingCodeExpiresAt,
+			wrong_pairing_codes: 0
+		})
+		.eq('public_key', publicKey);
+	if (error) throw new Error(`pairing code of box ${publicKey}: ${error.message}`);
+	return { pairingCode, pairingCodeExpiresAt };
+}
+
+function freshPairingCode(): string {
+	const symbols = [...crypto.getRandomValues(new Uint8Array(pairingCodeLength))].map(
+		(byte) => pairingCodeAlphabet[byte % pairingCodeAlphabet.length]
+	);
+	return `${symbols.slice(0, 4).join('')}-${symbols.slice(4).join('')}`;
+}
+
+function normalizedPairingCode(typed: string): string {
+	return typed.toUpperCase().replace(/[^0-9A-Z]/g, '');
 }
 
 function freshSince(now: Date): string {
@@ -103,22 +163,28 @@ export async function claimBox(
 	client: SupabaseClient,
 	companyID: string,
 	publicKey: string,
-	publicAddress: string,
+	pairingCode: string,
 	now: Date = new Date()
 ): Promise<void> {
 	const { data, error } = await client
-		.from('empty_box')
-		.select('encryption_key')
-		.eq('public_key', publicKey)
-		.eq('public_address', publicAddress)
-		.gte('announced_at', freshSince(now))
-		.maybeSingle<{ encryption_key: string }>();
+		.rpc('claim_empty_box', {
+			claiming_company: companyID,
+			box_key: publicKey,
+			code_hash: await hashOf(normalizedPairingCode(pairingCode)),
+			fresh_since: freshSince(now)
+		})
+		.single<{ outcome: ClaimOutcome; encryption_key: string | null }>();
 	if (error) throw new Error(`claiming box ${publicKey}: ${error.message}`);
-	if (!data) throw new BoxRefused('that box is not announcing itself from this network');
-
+	if (data.outcome === 'too_many_attempts') {
+		throw new BoxRefused('too many wrong codes from this company; try again in an hour', 429);
+	}
+	if (data.outcome === 'no_live_code') {
+		throw new BoxRefused('that box shows no code right now; wait a minute and use the one it shows next');
+	}
+	if (data.outcome === 'wrong_code' || !data.encryption_key) {
+		throw new BoxRefused('that is not the code the box shows');
+	}
 	await claimFleetForCompany(client, companyID, publicKey, { encryptionKey: data.encryption_key });
-	const removed = await client.from('empty_box').delete().eq('public_key', publicKey);
-	if (removed.error) throw new Error(`claiming box ${publicKey}: ${removed.error.message}`);
 }
 
 export async function claimBoxWithConnectionFile(

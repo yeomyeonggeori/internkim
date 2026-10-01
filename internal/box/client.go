@@ -39,26 +39,42 @@ type Client struct {
 	Now        func() time.Time
 }
 
-func (client Client) Announce(ctx context.Context, identity Identity) (bool, error) {
-	body, errorValue := json.Marshal(map[string]string{"encryptionKey": identity.EncryptionPublicKey()})
+type Announcement struct {
+	IsClaimed   bool
+	PairingCode *PairingCode
+}
+
+func (client Client) Announce(ctx context.Context, identity Identity, wantsPairingCode bool) (Announcement, error) {
+	body, errorValue := json.Marshal(map[string]any{
+		"encryptionKey":    identity.EncryptionPublicKey(),
+		"wantsPairingCode": wantsPairingCode,
+	})
 	if errorValue != nil {
-		return false, errorValue
+		return Announcement{}, errorValue
 	}
 	response, errorValue := client.post(ctx, identity, "/api/box/announce", body)
 	if errorValue != nil {
-		return false, errorValue
+		return Announcement{}, errorValue
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false, refusalOf(response, "announcing this box")
+		return Announcement{}, refusalOf(response, "announcing this box")
 	}
 	var announced struct {
-		IsClaimed bool `json:"isClaimed"`
+		IsClaimed            bool      `json:"isClaimed"`
+		PairingCode          string    `json:"pairingCode"`
+		PairingCodeExpiresAt time.Time `json:"pairingCodeExpiresAt"`
 	}
 	if errorValue := json.NewDecoder(response.Body).Decode(&announced); errorValue != nil {
-		return false, fmt.Errorf("announcing this box: %w", errorValue)
+		return Announcement{}, fmt.Errorf("announcing this box: %w", errorValue)
 	}
-	return announced.IsClaimed, nil
+	if announced.PairingCode == "" {
+		return Announcement{IsClaimed: announced.IsClaimed}, nil
+	}
+	return Announcement{
+		IsClaimed:   announced.IsClaimed,
+		PairingCode: &PairingCode{Code: announced.PairingCode, ExpiresAt: announced.PairingCodeExpiresAt},
+	}, nil
 }
 
 func (client Client) Claim(ctx context.Context, identity Identity, connectionKey string) error {

@@ -243,6 +243,15 @@
       "callableBy": []
     },
     {
+      "name": "claim_empty_box",
+      "arguments": "claiming_company uuid, box_key text, code_hash text, fresh_since timestamp with time zone",
+      "returns": "TABLE(outcome text, encryption_key text)",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "company_documents_matching",
       "arguments": "target_query text, target_limit integer",
       "returns": "SETOF company_document",

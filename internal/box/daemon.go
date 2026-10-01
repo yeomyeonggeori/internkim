@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -67,6 +68,9 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 	if !isClaimed {
 		return announceInterval, daemon.announce(ctx, identity)
 	}
+	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
+		return 0, errorValue
+	}
 	if daemon.installedCompany() == session.Configuration.Company.ID {
 		return daemon.untilRenewal(session.Session), daemon.renew(session, identity)
 	}
@@ -85,14 +89,25 @@ func (daemon Daemon) step(ctx context.Context, identity Identity) (time.Duration
 }
 
 func (daemon Daemon) announce(ctx context.Context, identity Identity) error {
-	isClaimed, errorValue := daemon.Client.Announce(ctx, identity)
+	_, hasLiveCode, errorValue := ShownPairingCode(daemon.Places.StateDirectoryPath, daemon.now())
 	if errorValue != nil {
 		return errorValue
 	}
-	if isClaimed {
-		log.Printf("a company claimed this box; asking for its session")
+	announcement, errorValue := daemon.Client.Announce(ctx, identity, !hasLiveCode)
+	if errorValue != nil {
+		return errorValue
 	}
-	return nil
+	if announcement.IsClaimed {
+		log.Printf("a company claimed this box; asking for its session")
+		return forgetPairingCode(daemon.Places.StateDirectoryPath)
+	}
+	if announcement.PairingCode == nil {
+		return nil
+	}
+	log.Printf("connect this box at %s/settings/setup with the code %s before %s",
+		strings.TrimRight(daemon.Client.AppURL, "/"), announcement.PairingCode.Code,
+		announcement.PairingCode.ExpiresAt.Local().Format("15:04"))
+	return showPairingCode(daemon.Places.StateDirectoryPath, *announcement.PairingCode)
 }
 
 func (daemon Daemon) renew(session Session, identity Identity) error {

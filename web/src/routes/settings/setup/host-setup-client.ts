@@ -51,8 +51,9 @@ export async function fetchBoxes(): Promise<Boxes> {
 	return boxesSchema.parse(await askCompanyRoute('/api/company/box', 'GET'));
 }
 
-export async function connectBox(publicKey: string): Promise<ConnectedBox | null> {
-	return connectedAnswerSchema.parse(await askCompanyRoute('/api/company/box', 'POST', { publicKey })).connected;
+export async function connectBox(publicKey: string, pairingCode: string): Promise<ConnectedBox | null> {
+	const answer = await askCompanyRoute('/api/company/box', 'POST', { publicKey, pairingCode });
+	return connectedAnswerSchema.parse(answer).connected;
 }
 
 export async function giveBoxModelKey(box: ConnectedBox, modelKey: string): Promise<ConnectedBox | null> {

@@ -16,6 +16,7 @@
 	let modelKey = $state('');
 	let isChangingModelKey = $state(false);
 	let connectingKey = $state('');
+	let pairingCodes = $state<Record<string, string>>({});
 	let isSendingModelKey = $state(false);
 	let errorMessage = $state('');
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -38,11 +39,17 @@
 		}
 	}
 
-	async function connect(publicKey: string) {
+	async function connect(event: SubmitEvent, publicKey: string) {
+		event.preventDefault();
+		const pairingCode = (pairingCodes[publicKey] ?? '').trim();
+		if (!pairingCode) {
+			errorMessage = text.pairingCodeMissing;
+			return;
+		}
 		connectingKey = publicKey;
 		errorMessage = '';
 		try {
-			boxes = { connected: await connectBox(publicKey), empty: [] };
+			boxes = { connected: await connectBox(publicKey, pairingCode), empty: [] };
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.boxFailed;
 		} finally {
@@ -78,6 +85,7 @@
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
 		</div>
 	{:else if step === 'choosing'}
+		<p class="text-sm text-muted-foreground">{text.pairingCodeHint}</p>
 		<Item.Group class="gap-2">
 			{#each boxes.empty as box (box.publicKey)}
 				<Item.Root variant="outline">
@@ -86,9 +94,19 @@
 						<Item.Description class="font-mono">{shortBoxName(box.publicKey)}</Item.Description>
 					</Item.Content>
 					<Item.Actions>
-						<Button onclick={() => connect(box.publicKey)} disabled={connectingKey !== ''}>
-							{connectingKey === box.publicKey ? text.connecting : text.connect}
-						</Button>
+						<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => connect(event, box.publicKey)}>
+							<Input
+								class="w-36 font-mono uppercase"
+								aria-label={text.pairingCode}
+								placeholder="ABCD-EFGH"
+								autocomplete="off"
+								maxlength={32}
+								bind:value={pairingCodes[box.publicKey]}
+							/>
+							<Button type="submit" disabled={connectingKey !== ''}>
+								{connectingKey === box.publicKey ? text.connecting : text.connect}
+							</Button>
+						</form>
 					</Item.Actions>
 				</Item.Root>
 			{/each}

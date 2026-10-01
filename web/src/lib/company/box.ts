@@ -3,7 +3,10 @@ import { hostConfigurationSchema } from './host-setup';
 
 export const boxKeySchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
 
-export const boxAnnouncementSchema = z.object({ encryptionKey: boxKeySchema }).strict();
+export const boxAnnouncementSchema = z.object({
+	encryptionKey: boxKeySchema,
+	wantsPairingCode: z.boolean().optional()
+}).strict();
 
 export const emptyBoxSchema = z.object({
 	publicKey: boxKeySchema,
@@ -12,7 +15,10 @@ export const emptyBoxSchema = z.object({
 
 export type EmptyBox = z.infer<typeof emptyBoxSchema>;
 
-export const boxClaimSchema = z.object({ publicKey: boxKeySchema }).strict();
+export const boxClaimSchema = z.object({
+	publicKey: boxKeySchema,
+	pairingCode: z.string().trim().min(1).max(32)
+}).strict();
 
 export const boxFileClaimSchema = z.object({
 	encryptionKey: boxKeySchema,
