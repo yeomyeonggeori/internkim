@@ -109,7 +109,8 @@ permission error when access is denied. Do not infer authorization from path
 text.
 
 Treat a skill directory as the executable unit. Run bundled Python scripts
-through the skill's `scripts/skill_runtime.py` wrapper; that wrapper selects the
+through the skill's wrapper (`scripts/office` for the office skill, `scripts/skill_runtime.py`
+for one that has no command of its own); the wrapper selects the
 built-in dependency environment first and prepares requester-owned fallback
 storage with `uv` only when needed. Use `/workspace/shared/cache/dependencies`
 only as a package cache. Do not stop at a missing-library error before the

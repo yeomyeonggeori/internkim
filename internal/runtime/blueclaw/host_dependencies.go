@@ -227,8 +227,8 @@ var hostDependencies = []HostDependency{
 		ReadableFilePath:             "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
 		WhatThePackageCarriesInstead: "NanumGothic, under its own license, in a directory fontconfig scans",
 		// Every Mac ships a Hangul face, and the skills that embed one already
-		// accept it: pdf and paperwork both list AppleSDGothicNeo in their
-		// requires-any-file declarations. So the cask is a nicety on macOS
+		// accept it: the office skill's Hangul font list names AppleSDGothicNeo.
+		// So the cask is a nicety on macOS
 		// rather than a dependency, and the formula neither names it nor
 		// recommends it.
 		MacFilePathCandidates: []string{"/System/Library/Fonts/AppleSDGothicNeo.ttc"},

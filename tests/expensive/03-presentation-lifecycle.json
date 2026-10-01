@@ -1,6 +1,6 @@
 {
   "name": "presentation-lifecycle",
-  "skillNames": ["presentation"],
+  "skillNames": ["office"],
   "allowedTools": ["conversation_history", "memory_search", "bash", "file_read", "write", "edit", "file_delete", "file_deliver"],
   "initialToolNames": ["write", "bash", "file_deliver"],
   "steps": [

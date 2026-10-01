@@ -49,6 +49,23 @@ class VerifyAgentPluginTest(unittest.TestCase):
         self.assertEqual(len(findings), 2)
         self.assertTrue(all("reverse-domain" in finding for finding in findings))
 
+    def test_marketplace_catalogs_and_tests_are_allowed(self):
+        (self.plugin_root / ".claude-plugin").mkdir()
+        (self.plugin_root / ".claude-plugin" / "marketplace.json").write_text("{}")
+        (self.plugin_root / ".agents" / "plugins").mkdir(parents=True)
+        (self.plugin_root / ".agents" / "plugins" / "marketplace.json").write_text("{}")
+        (self.plugin_root / "tests").mkdir()
+        (self.plugin_root / "tests" / "test_bundle.py").write_text("")
+        self.assertEqual(verify_agent_plugin.findings_for(self.plugin_root), [])
+
+    def test_a_client_manifest_beside_a_catalog_is_a_finding(self):
+        (self.plugin_root / ".claude-plugin").mkdir()
+        (self.plugin_root / ".claude-plugin" / "marketplace.json").write_text("{}")
+        (self.plugin_root / ".claude-plugin" / "plugin.json").write_text("{}")
+        findings = verify_agent_plugin.findings_for(self.plugin_root)
+        self.assertEqual(len(findings), 1)
+        self.assertIn("only its marketplace catalog", findings[0])
+
     def test_a_package_manifest_at_the_root_is_a_finding(self):
         (self.plugin_root / "package.json").write_text("{}")
         self.assertEqual(len(verify_agent_plugin.findings_for(self.plugin_root)), 1)
