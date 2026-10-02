@@ -52,7 +52,6 @@ func postInstallBody(format linuxPackageFormat) string {
 		`systemd-tmpfiles --create ` + blueclaw.CompanyPackageTmpfilesPath + ` || refuse "systemd-tmpfiles could not create the directories declared in ` + blueclaw.CompanyPackageTmpfilesPath + `"`,
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
 		hostSetupLines(packageLayout.InstallStepCommands()),
-		forgetTheDeviceUsersSync(``),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
@@ -77,7 +76,6 @@ func preRemoveBody(format linuxPackageFormat) string {
 		`if ` + format.RemovalTest("prerm") + `; then`,
 		`  systemctl stop ` + backupUnitFileNames() + ` ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
 		`  systemctl disable ` + backupUnitFileNames() + ` ` + unitFileNames() + ` >/dev/null 2>&1 || true`,
-		forgetTheDeviceUsersSync(`  `),
 		`fi`,
 		`exit 0`,
 		``,
@@ -101,7 +99,6 @@ func postRemoveBody(format linuxPackageFormat) string {
 		``,
 	}
 	if format.HasPurge {
-		lines = append(lines, tellWhatToDoWithThePostgresqlRepository(format)...)
 		lines = append(lines,
 			`if [ "$1" = purge ]; then`,
 			`  rm -rf `+blueclaw.CompanyHostConfigurationRoot,
@@ -115,34 +112,6 @@ func postRemoveBody(format linuxPackageFormat) string {
 			``)
 	}
 	return strings.Join(append(lines, `systemctl daemon-reload >/dev/null 2>&1 || true`, `exit 0`, ``), "\n")
-}
-
-var postgresqlRepositoryPaths = []string{
-	"/etc/apt/sources.list.d/internkim-postgresql.sources",
-	"/etc/apt/preferences.d/internkim-postgresql.pref",
-	"/usr/share/keyrings/internkim-postgresql-archive-keyring.asc",
-}
-
-func tellWhatToDoWithThePostgresqlRepository(format linuxPackageFormat) []string {
-	return []string{
-		`if ` + format.RemovalTest("postrm") + ` && [ -e ` + postgresqlRepositoryPaths[0] + ` ]; then`,
-		`  echo "internkim: kept PostgreSQL's apt repository, which an earlier install.sh added and the host's database may still update from; once that database is deleted: sudo rm -f ` + strings.Join(postgresqlRepositoryPaths, " ") + ` && sudo apt-get update"`,
-		`fi`,
-		``,
-	}
-}
-
-// The first release's admind wrote the device's users sync onto the company host,
-// where it fails every hour, and the package owns none of its three files.
-func forgetTheDeviceUsersSync(indentation string) string {
-	unitNames := strings.Join(deviceUsersSyncUnitNames(), " ")
-	return indentation + `systemctl disable --now ` + unitNames + ` >/dev/null 2>&1 || true` + "\n" +
-		indentation + `rm -f ` + strings.Join(deviceUsersSyncPaths(), " ") + "\n" +
-		indentation + `systemctl reset-failed ` + unitNames + ` >/dev/null 2>&1 || true`
-}
-
-func deviceUsersSyncUnitNames() []string {
-	return []string{path.Base(blueclaw.InternKimUsersSyncTimerPath), path.Base(blueclaw.InternKimUsersSyncServicePath)}
 }
 
 func bringTheCompanyBackOnThisRelease(currentPath string, refresh string) string {
@@ -162,10 +131,6 @@ func refreshCommand() string {
 
 func boxUnitFileName() string {
 	return blueclaw.CompanyPackageUnit{Name: blueclaw.BoxServiceName}.FileName()
-}
-
-func deviceUsersSyncPaths() []string {
-	return []string{blueclaw.InternKimUsersSyncScriptPath, blueclaw.InternKimUsersSyncServicePath, blueclaw.InternKimUsersSyncTimerPath}
 }
 
 func keptStatePaths() []string {
