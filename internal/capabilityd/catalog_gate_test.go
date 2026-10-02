@@ -241,39 +241,6 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"action":"wait"`)
 			},
 		},
-		"site_serve": {
-			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"siteID":"s1","slug":"q3-report","status":"published","publishedURL":"https://example.test/q3-report","previewURL":"https://example.test/preview/q3-report"}`)},
-			input:   `{"title":"3분기 보고","sourceWorkspacePath":"shared/reports/q3","mode":"publish"}`,
-			arrives: func(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
-				arriving.Transport.SiteSourceBundle = &capabilities.SiteSourceBundle{
-					WorkspacePath: "shared/reports/q3",
-					Format:        "tar.gz",
-					ContentBase64: "YSBzaXRlJ3Mgc291cmNlLCBhcyBhIHRhcmJhbGwgd291bGQgYmU=",
-					SHA256:        "66a58643803176b2bd2b1e62efcbe1ddbee046c955051d5dd7999178e243274a",
-				}
-				return arriving
-			},
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"slug":"q3-report"`)
-			},
-		},
-		"site_unserve": {
-			kind: provesBehaviour,
-			reaches: map[gateBackend]*standingIn{admindOverHTTP: answeringPerCall(func(request *http.Request) (int, string) {
-				// Taking a site down finds it first, so the list has to hold it.
-				if request.Method == http.MethodDelete {
-					return http.StatusOK, `{"siteID":"s1","slug":"q3-report","status":"deleted"}`
-				}
-				return http.StatusOK, `{"sites":[{"siteID":"s1","slug":"q3-report","status":"published","title":"3분기 보고"}]}`
-			})},
-			input: `{"siteReference":"q3-report"}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"unserved":true`)
-			},
-		},
 		"web_search": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{openRouterOverHTTP: answeringPerCall(func(*http.Request) (int, string) {
@@ -332,15 +299,6 @@ func gateCases() map[string]catalogGateCase {
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, "post-1")
-			},
-		},
-		"site_list": {
-			kind:    provesBehaviour,
-			reaches: map[gateBackend]*standingIn{admindOverHTTP: answering(`{"sites":[{"siteID":"s1","slug":"q3-report","status":"published","title":"3분기 보고"}]}`)},
-			input:   `{}`,
-			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
-				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"q3-report"`)
 			},
 		},
 		"leave_list": {

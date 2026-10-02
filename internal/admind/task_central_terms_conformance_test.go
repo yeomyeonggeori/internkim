@@ -1,6 +1,8 @@
 package admind
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 )
@@ -26,4 +28,13 @@ func TestTheStatusWordsAgreeWithTheCompanyApp(t *testing.T) {
 			t.Fatalf("this service names %q, which the app never does", status)
 		}
 	}
+}
+
+func readRepositoryFile(t *testing.T, pathParts ...string) string {
+	t.Helper()
+	document, errorValue := os.ReadFile(filepath.Join(append([]string{"..", ".."}, pathParts...)...))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	return string(document)
 }

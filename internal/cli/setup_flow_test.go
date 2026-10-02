@@ -40,7 +40,7 @@ func TestBlueclawPayloadUpdateHTTPClientWaitsForApply(t *testing.T) {
 	}
 }
 
-func TestDeviceToolPackagesIncludeSitePublishingBasics(t *testing.T) {
+func TestDeviceToolPackagesIncludeTheBasics(t *testing.T) {
 	packages := strings.Join(baseDeviceToolPackages(), " ")
 	for _, packageName := range []string{"bc", "git", "curl", "unzip", "ca-certificates", "iproute2", "iptables", "procps"} {
 		if !strings.Contains(packages, packageName) {
@@ -207,7 +207,7 @@ func TestBlueclawHostWorkspacePayloadSyncCommandUpdatesCanonicalWorkspaceRuntime
 func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
-	fileWriter, errorValue := zipWriter.Create("pocketbase")
+	fileWriter, errorValue := zipWriter.Create("moli")
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -217,9 +217,9 @@ func TestExtractFromZipWritesArchiveEntry(t *testing.T) {
 	if errorValue := zipWriter.Close(); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	path := filepath.Join(t.TempDir(), "pocketbase")
+	path := filepath.Join(t.TempDir(), "moli")
 
-	errorValue = extractFromZip(bytes.NewReader(buffer.Bytes()), int64(buffer.Len()), path, "pocketbase")
+	errorValue = extractFromZip(bytes.NewReader(buffer.Bytes()), int64(buffer.Len()), path, "moli")
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -295,15 +295,6 @@ func TestRequiredBinaryAssetsIncludeMoliDeviceBrowser(t *testing.T) {
 	}
 	if containsBinaryAsset(assets, "lightpanda", "/usr/local/bin/lightpanda") {
 		t.Fatalf("expected setup to stop installing Lightpanda, got %+v", assets)
-	}
-}
-
-func TestRequiredBinaryAssetsIncludePocketBase(t *testing.T) {
-	state := &setupFlowState{boardBinDir: "/tmp/internkim-board-bin"}
-	assets := state.requiredBinaryAssets()
-
-	if !containsBinaryAsset(assets, "pocketbase", "/usr/local/bin/pocketbase") {
-		t.Fatalf("expected setup to install PocketBase binary, got %+v", assets)
 	}
 }
 

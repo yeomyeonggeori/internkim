@@ -13,8 +13,6 @@ local-captures/
 .DS_Store
 build/
 dist/
-!internal/admind/site_scaffold_dist/react-vite-ts/dist/
-!internal/admind/site_scaffold_dist/react-vite-ts/dist/**
 /internkim
 /internkim-admind
 /internkim-capabilityd

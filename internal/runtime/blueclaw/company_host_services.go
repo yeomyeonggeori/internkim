@@ -307,7 +307,6 @@ func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {
 			"-buzz-admin-command", layout.BinaryPath(BuzzAdminName),
 			"-buzz-relay-url", BuzzRelayLocalURL,
 			"-buzz-account-links", CompanyHostAccountLinksPath,
-			"-site-scaffold", layout.SkillsPath() + "/website/assets/scaffold/app",
 			"-central-plane-app-url", "${INTERNKIM_APP_URL}",
 			"-central-plane-agent-key", CompanyHostAgentKeyPath,
 			"-blueclaw-assertion-key", CompanyHostAssertionKeyPath,

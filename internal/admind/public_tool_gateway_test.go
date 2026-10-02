@@ -319,7 +319,6 @@ func TestPublicToolPermissionForDescriptorClosedByDefault(t *testing.T) {
 		"external_write":   publicAPIPermissionWrite,
 		"external_send":    publicAPIPermissionWrite,
 		"external_publish": publicAPIPermissionWrite,
-		"site_publish":     publicAPIPermissionWrite,
 		"connect":          publicAPIPermissionWrite,
 		"approval":         publicAPIPermissionWrite,
 		"local_file":       publicAPIPermissionWrite,

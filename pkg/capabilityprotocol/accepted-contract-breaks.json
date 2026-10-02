@@ -318,5 +318,25 @@
 		"path": "computer_task",
 		"reason": "The companion leaves internkim, and computer_task was the companion's tool: the device's own capabilityd answered it only by refusing it as not connected, and the plane never answered it. Blueclaw never offered it to the model, because it requires the requester's own device. A device on an older release keeps the descriptor its own build embeds and its own capabilityd keeps refusing it until it takes this release, when both go together.",
 		"release": "the release cut after the change removing the companion merges"
+	},
+	{
+		"path": "site_serve",
+		"reason": "Managed websites are removed. site_serve was answered only by the company computer's own capabilityd, through admind, which ship in the same release as this catalog; the plane never answered it. A computer on an older release keeps the descriptor its own build embeds and its own daemons still answer it until it takes this release, when all three go together.",
+		"release": "the release cut after this change merges, which drops the descriptors and the capabilityd and admind handlers together"
+	},
+	{
+		"path": "site_list",
+		"reason": "Managed websites are removed. site_list was answered only by the company computer's own capabilityd, through admind, which ship in the same release as this catalog; the plane never answered it. A computer on an older release keeps the descriptor its own build embeds and its own daemons still answer it until it takes this release, when all three go together.",
+		"release": "the release cut after this change merges, which drops the descriptors and the capabilityd and admind handlers together"
+	},
+	{
+		"path": "site_unserve",
+		"reason": "Managed websites are removed. site_unserve was answered only by the company computer's own capabilityd, through admind, which ship in the same release as this catalog; the plane never answered it. A computer on an older release keeps the descriptor its own build embeds and its own daemons still answer it until it takes this release, when all three go together.",
+		"release": "the release cut after this change merges, which drops the descriptors and the capabilityd and admind handlers together"
+	},
+	{
+		"path": "artifact_review.input.artifactKind",
+		"reason": "With managed websites removed there is no site to review, so artifact_review no longer offers the 'site' kind. Only the company computer's own capabilityd answers artifact_review, and it ships in the same release as this catalog.",
+		"release": "the release cut after this change merges, which drops the descriptors and the capabilityd and admind handlers together"
 	}
 ]

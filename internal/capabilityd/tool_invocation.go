@@ -59,9 +59,6 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "mail_message_mark", Handler: Service.invokeMailTool},
 	{ToolName: "mail_connection_status", Handler: Service.invokeMailTool},
 	{ToolName: "mail_connection_start", Handler: Service.invokeMailTool},
-	{ToolName: "site_serve", Handler: Service.invokeSiteAppTool},
-	{ToolName: "site_list", Handler: Service.invokeSiteAppTool},
-	{ToolName: "site_unserve", Handler: Service.invokeSiteAppTool},
 }
 
 var capabilityToolDescriptorsByCanonicalName = buildCapabilityToolDescriptorsByCanonicalName()

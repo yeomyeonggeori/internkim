@@ -34,15 +34,3 @@ file.
 (https://avatars.outpacestudios.com/). MIT License, Copyright (c) 2026 Outpace
 Studios. The full text is in `web/src/lib/avatar-gradient/LICENSE`.
 
-### noble-curves and noble-hashes
-
-`internal/admind/site_pb_hooks/passkey-lib.js` is a bundle that contains
-`@noble/curves` 1.6.0 and `@noble/hashes` 1.5.0. MIT License, Copyright (c)
-2022 Paul Miller (https://paulmillr.com). The bundle keeps the upstream
-notices, and its sources are in `internal/admind/site_pb_hooks/source/`.
-
-### Site scaffold
-
-`internal/admind/site_scaffold_dist/react-vite-ts/dist/` is a production build
-of a Vite and React starter with Tailwind CSS. React, React DOM and Tailwind
-CSS are MIT licensed.

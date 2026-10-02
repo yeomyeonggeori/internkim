@@ -226,13 +226,7 @@ func BlueclawRuntimeConfigDocumentWithOptions(options RuntimeConfigOptions) (str
 			"enabled":       true,
 			"executionMode": "auto",
 		},
-		"defaultTaskLevel": firstNonEmptyString(options.DefaultTaskLevel, "low"),
-		"optionalFileReadPathSuffixes": []string{
-			".internkim/site.json",
-			".internkim/idea.md",
-			".internkim/artifact-brief.md",
-			".internkim/review-log.json",
-		},
+		"defaultTaskLevel":    firstNonEmptyString(options.DefaultTaskLevel, "low"),
 		"skillTaskLevelFloor": "high",
 		"toolResultMaxBytes":  32768,
 		"failureRecovery": map[string]any{
@@ -537,9 +531,6 @@ func defaultResourceAccessPolicies() []map[string]any {
 		{"resource": "tool:mail_message_send", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:mail_message_move", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:mail_message_mark", "actions": []string{"execute"}, "circles": []string{"member"}},
-		{"resource": "tool:site_serve", "actions": []string{"execute"}, "circles": []string{"member"}},
-		{"resource": "tool:site_list", "actions": []string{"execute"}, "circles": []string{"member"}},
-		{"resource": "tool:site_unserve", "actions": []string{"execute"}, "circles": []string{"member"}},
 		{"resource": "tool:company.broadcast.send", "actions": []string{"execute"}, "circles": []string{"representative"}},
 	}...)
 }

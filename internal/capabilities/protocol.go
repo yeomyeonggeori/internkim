@@ -39,7 +39,6 @@ type RegistryResponse = capabilityprotocol.RegistryResponse
 type ToolInvokeRequest = capabilityprotocol.ToolInvokeRequest
 type ToolInvokeContext = capabilityprotocol.ToolInvokeContext
 type ToolInvokeTransport = capabilityprotocol.ToolInvokeTransport
-type SiteSourceBundle = capabilityprotocol.SiteSourceBundle
 type WorkspaceFile = capabilityprotocol.WorkspaceFile
 type ActorContext = capabilityprotocol.ActorContext
 type ToolInvokeResponse = capabilityprotocol.ToolInvokeResponse
@@ -127,14 +126,6 @@ func MailDescriptors() []Descriptor {
 		"mail_message_send",
 		"mail_message_move",
 		"mail_message_mark",
-	))
-}
-
-func SiteAppDescriptors() []Descriptor {
-	return canonicalizeDescriptors(capabilityprotocol.MustGeneratedToolDescriptors(
-		"site_serve",
-		"site_list",
-		"site_unserve",
 	))
 }
 

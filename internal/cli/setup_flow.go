@@ -334,13 +334,6 @@ func (state *setupFlowState) requiredBinaryAssets() []localBinaryAsset {
 			expectedSHA256: "405df476437e027fc6d18729a5a77155c0a33a6082aeee60a799a688f3052e66",
 		},
 		{
-			name:         "pocketbase",
-			localPath:    filepath.Join(state.boardBinDir, "pocketbase"),
-			remotePath:   "/usr/local/bin/pocketbase",
-			downloadURL:  "https://github.com/pocketbase/pocketbase/releases/download/v0.37.1/pocketbase_0.37.1_linux_arm64.zip",
-			archiveEntry: "pocketbase",
-		},
-		{
 			name:           "agent-browser",
 			localPath:      filepath.Join(state.boardBinDir, "agent-browser"),
 			remotePath:     "/usr/local/bin/agent-browser",
@@ -922,8 +915,6 @@ func (state *setupFlowState) installBinariesSSH(context *setup.Context) error {
 NOLOGIN_BIN=$(command -v nologin || echo /usr/sbin/nologin)
 getent group blueclaw >/dev/null 2>&1 || groupadd --system blueclaw
 id blueclaw &>/dev/null || useradd -r -g blueclaw -m -d /home/blueclaw -s "$NOLOGIN_BIN" blueclaw
-getent group internkim-site >/dev/null 2>&1 || groupadd --system internkim-site
-id internkim-site &>/dev/null || useradd -r -g internkim-site -d /nonexistent -s "$NOLOGIN_BIN" internkim-site
 install -d -o blueclaw -g blueclaw -m 750 /home/blueclaw /home/blueclaw/.cache /home/blueclaw/.config
 chmod 711 /root
 mkdir -p /root/.internkim/secrets /root/.internkim/env
@@ -935,10 +926,7 @@ mkdir -p /root/.blueclaw/config /root/.blueclaw/workspace/bin /root/.blueclaw/wo
 chmod 755 /root/.blueclaw
 chown -R blueclaw:blueclaw /root/.blueclaw/workspace
 chmod 750 /root/.blueclaw/workspace
-mkdir -p /root/.internkim/sites /root/.internkim/secrets/sites
-chown root:internkim-site /root/.internkim /root/.internkim/sites /root/.internkim/secrets/sites
 chmod 755 /root/.internkim
-chmod 750 /root/.internkim/sites /root/.internkim/secrets/sites
 chmod 755 /root/.blueclaw/workspace/bin /root/.blueclaw/workspace/downloads`)
 
 	if err := state.installReleaseDownloadTokenSSH(); err != nil {

@@ -168,17 +168,6 @@ OpenRouter의 웹 검색을 통해 구현되어 있습니다
 (`internal/capabilityd/web_tool.go`). 도메인 허용 목록, 언어, 위치로
 질의를 좁힙니다.
 
-## 사이트 [#site]
-
-<ToolCatalog namespace="site" language="ko" />
-
-admind 위에 구현되어 있습니다(`internal/capabilityd/site_tool.go`).
-에이전트는 사이트를 워크스페이스의 보통 파일로 만든 뒤 그 디렉터리를
-서빙합니다. `preview`는 임시 검토 URL을 돌려주고 `publish`는 공개 URL을
-잡습니다. 슬러그는 첫 서빙에서 제목으로부터 파생되어 서버가 소유합니다.
-`site_unserve`는 슬러그를 풀고 서버 쪽 레코드를 지우며, 워크스페이스의
-소스 파일은 남습니다.
-
 ## 파일과 첨부 읽기 [#document]
 
 모델은 내장 툴 `read` 하나로 읽습니다: 워크스페이스 경로, 또는 대화에 있는

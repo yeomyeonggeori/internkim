@@ -77,7 +77,6 @@ const koreanGroupTitles: Record<string, string> = {
   leave: '휴가',
   message: '메시지',
   person: '사람',
-  site: '사이트',
   task: '업무',
   tokens: '토큰',
   web: '웹',

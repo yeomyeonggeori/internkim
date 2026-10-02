@@ -28,7 +28,6 @@ const (
 	SideEffectLocalFile       = "local_file"
 	SideEffectPlatformReply   = "platform_reply"
 	SideEffectRead            = "read"
-	SideEffectSitePublish     = "site_publish"
 	SideEffectWorkspaceWrite  = "workspace_write"
 )
 
@@ -43,7 +42,6 @@ var sideEffectClasses = map[string]struct{}{
 	SideEffectLocalFile:       {},
 	SideEffectPlatformReply:   {},
 	SideEffectRead:            {},
-	SideEffectSitePublish:     {},
 	SideEffectWorkspaceWrite:  {},
 }
 

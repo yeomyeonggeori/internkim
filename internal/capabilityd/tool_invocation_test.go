@@ -61,8 +61,8 @@ func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) 
 }
 
 func TestDecodeToolInvokeRequestRejectsOperationMismatch(t *testing.T) {
-	_, errorValue := decodeToolInvokeRequest("site_list", strings.NewReader(`{
-		"toolName": "site_unserve",
+	_, errorValue := decodeToolInvokeRequest("task_list", strings.NewReader(`{
+		"toolName": "task_delete",
 		"input": {}
 	}`))
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "tool name mismatch") {
@@ -75,10 +75,10 @@ func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
 		toolName string
 		input    string
 	}{
-		{toolName: "site_serve", input: `{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"deploy"}`},
-		{toolName: "site_serve", input: `{"title":"Demo","sourceWorkspacePath":"~/sites/demo","mode":"publish","slug":"demo"}`},
-		{toolName: "site_unserve", input: `{"siteReference":"site-1","confirm":"DELETE"}`},
-		{toolName: "site_unserve", input: `{"siteReference":"site-1","userConfirmed":true}`},
+		{toolName: "task_list", input: `{"status":"archived"}`},
+		{toolName: "task_list", input: `{"status":"completed","slug":"demo"}`},
+		{toolName: "task_delete", input: `{"taskHint":"task-1","confirm":"DELETE"}`},
+		{toolName: "task_delete", input: `{"taskHint":"task-1","userConfirmed":true}`},
 	}
 	for _, testCase := range testCases {
 		response, errorValue := (Service{}).invokeCapabilityTool(
@@ -96,23 +96,23 @@ func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
 }
 
 func TestCapabilityToolDescriptorRequiresExactCanonicalName(t *testing.T) {
-	descriptor, found := capabilityToolDescriptorFor("site_unserve")
+	descriptor, found := capabilityToolDescriptorFor("task_delete")
 	if !found {
-		t.Fatal("expected site_unserve descriptor")
+		t.Fatal("expected task_delete descriptor")
 	}
-	if descriptor.CanonicalName != "site_unserve" {
-		t.Fatalf("expected canonical site_unserve descriptor, got %+v", descriptor)
+	if descriptor.CanonicalName != "task_delete" {
+		t.Fatalf("expected canonical task_delete descriptor, got %+v", descriptor)
 	}
-	if descriptor.PolicyResource != "tool:site_unserve" {
+	if descriptor.PolicyResource != "tool:task_delete" {
 		t.Fatalf("expected descriptor policy resource, got %q", descriptor.PolicyResource)
 	}
 	if !descriptor.RequiresApproval {
-		t.Fatal("expected site_unserve descriptor to require approval")
+		t.Fatal("expected task_delete descriptor to require approval")
 	}
 	if descriptor.RequiresUserPresence {
-		t.Fatal("site_unserve executes on the device and must not ask for the requester to be present")
+		t.Fatal("task_delete executes on the device and must not ask for the requester to be present")
 	}
-	if _, found := capabilityToolDescriptorFor("site."); found {
+	if _, found := capabilityToolDescriptorFor("task."); found {
 		t.Fatal("expected prefix-only operation to have no descriptor")
 	}
 }
@@ -251,7 +251,6 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 		"event_delete",
 		"mail_connection_start",
 		"mail_message_send",
-		"site_unserve",
 	}
 	for _, toolName := range toolNames {
 		t.Run(toolName, func(t *testing.T) {
@@ -261,35 +260,6 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 			}
 			assertCapabilityApprovalRequired(t, response, toolName)
 		})
-	}
-}
-
-func TestInvokeCapabilityToolSiteUnserveInjectsInternalApprovalProof(t *testing.T) {
-	service := Service{
-		Configuration: Configuration{AdmindBaseURL: "http://admind.local"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.Method == http.MethodGet {
-				return siteToolJSONResponse(`{"sites":[{"siteID":"site-1","slug":"demo","title":"Demo","status":"published"}]}`), nil
-			}
-			var input map[string]any
-			if errorValue := json.NewDecoder(request.Body).Decode(&input); errorValue != nil {
-				t.Fatal(errorValue)
-			}
-			if input["confirm"] != "DELETE" || input["userConfirmed"] != true {
-				t.Fatalf("expected internal approval proof, got %+v", input)
-			}
-			return siteToolJSONResponse(`{"siteID":"site-1","slug":"demo","status":"deleted"}`), nil
-		})},
-	}
-	response, errorValue := service.invokeCapabilityTool(context.Background(), "site_unserve", strings.NewReader(`{
-		"input":{"siteReference":"site-1","reason":"Remove obsolete launch page"},
-		"context":{"requesterPersonID":"person-1","isApprovalContinuation":true}
-	}`))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if response.Outcome != capabilities.ToolOutcomeSucceeded || string(response.Result) != `{"siteID":"site-1","slug":"demo","unserved":true}` {
-		t.Fatalf("unexpected unserve response %+v", response)
 	}
 }
 

@@ -27,14 +27,14 @@ func TestDevSimulateBuildsLocalVirtualSessionCommand(t *testing.T) {
 
 	errorValue := runDevArguments([]string{
 		"simulate",
-		"--scenario", "site_artifact_acceptance",
+		"--scenario", "capability_question_acceptance",
 		"--seed", "42",
 		"--temperature", "0.2",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected dev simulate to pass: %v", errorValue)
 	}
-	if invocation.ScenarioName != "site_artifact_acceptance" {
+	if invocation.ScenarioName != "capability_question_acceptance" {
 		t.Fatalf("expected scenario to be forwarded, got %q", invocation.ScenarioName)
 	}
 	if invocation.Seed != "42" || invocation.Temperature != "0.2" {

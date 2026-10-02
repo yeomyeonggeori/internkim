@@ -57,9 +57,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminCompanyRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminSiteRoute(responseWriter, request, path) {
-		return
-	}
 	if service.handleAdminBackupRoute(responseWriter, request, path) {
 		return
 	}
@@ -254,22 +251,6 @@ func (service *Service) handleAdminCompanyRoute(responseWriter http.ResponseWrit
 		service.writeCompanyInfo(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/company-info":
 		service.updateCompanyInfo(responseWriter, request)
-	default:
-		return false
-	}
-	return true
-}
-
-func (service *Service) handleAdminSiteRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodGet && path == "/sites":
-		service.listSites(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/sites":
-		service.createSite(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/sites/serve":
-		service.serveSiteFromRequest(responseWriter, request)
-	case strings.HasPrefix(path, "/sites/"):
-		service.handleSite(responseWriter, request, strings.TrimPrefix(path, "/sites/"))
 	default:
 		return false
 	}

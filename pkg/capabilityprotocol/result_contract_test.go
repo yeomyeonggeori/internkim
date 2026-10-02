@@ -8,17 +8,17 @@ import (
 func TestProjectResourceEffectsUsesEveryCanonicalIdentity(t *testing.T) {
 	contract := &ToolResultContract{
 		Effects: []ResourceEffectContract{
-			{ObjectType: "website", Effect: "published", ResultField: "siteID", EffectIdentity: ResourceEffectIdentityID},
-			{ObjectType: "website", Effect: "published", ResultField: "publishedURL", EffectIdentity: ResourceEffectIdentityURL},
+			{ObjectType: "report", Effect: "published", ResultField: "reportID", EffectIdentity: ResourceEffectIdentityID},
+			{ObjectType: "report", Effect: "published", ResultField: "reportURL", EffectIdentity: ResourceEffectIdentityURL},
 		},
 	}
 
-	effects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"siteID":"site-1","publishedURL":"https://example.com"}`))
+	effects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"reportID":"report-1","reportURL":"https://example.com"}`))
 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(effects) != 2 || effects[0].ID != "site-1" || effects[1].URL != "https://example.com" {
+	if len(effects) != 2 || effects[0].ID != "report-1" || effects[1].URL != "https://example.com" {
 		t.Fatalf("unexpected effects: %+v", effects)
 	}
 }
@@ -45,12 +45,12 @@ func TestProjectResourceEffectsFailsClosed(t *testing.T) {
 func TestProjectResourceEffectsHonorsWhenConditions(t *testing.T) {
 	contract := &ToolResultContract{
 		Effects: []ResourceEffectContract{
-			{ObjectType: "website", Effect: "previewed", ResultField: "previewURL", EffectIdentity: ResourceEffectIdentityURL, When: &EvidenceCondition{ResultField: "mode", Equals: json.RawMessage(`"preview"`)}},
-			{ObjectType: "website", Effect: "published", ResultField: "publishedURL", EffectIdentity: ResourceEffectIdentityURL, When: &EvidenceCondition{ResultField: "mode", Equals: json.RawMessage(`"publish"`)}},
+			{ObjectType: "report", Effect: "previewed", ResultField: "draftURL", EffectIdentity: ResourceEffectIdentityURL, When: &EvidenceCondition{ResultField: "mode", Equals: json.RawMessage(`"preview"`)}},
+			{ObjectType: "report", Effect: "published", ResultField: "reportURL", EffectIdentity: ResourceEffectIdentityURL, When: &EvidenceCondition{ResultField: "mode", Equals: json.RawMessage(`"publish"`)}},
 		},
 	}
 
-	previewEffects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"preview","previewURL":"https://example.com/__preview/p-1"}`))
+	previewEffects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"preview","draftURL":"https://example.com/__preview/p-1"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -58,7 +58,7 @@ func TestProjectResourceEffectsHonorsWhenConditions(t *testing.T) {
 		t.Fatalf("unexpected preview effects: %+v", previewEffects)
 	}
 
-	publishEffects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"publish","publishedURL":"https://example.com"}`))
+	publishEffects, errorValue := ProjectResourceEffects(contract, json.RawMessage(`{"mode":"publish","reportURL":"https://example.com"}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}

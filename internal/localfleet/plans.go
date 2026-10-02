@@ -657,7 +657,7 @@ func safeIdentifier(value string) string {
 
 func virtualSessionNeedsBunValue(scenario string) string {
 	switch strings.ToLower(strings.TrimSpace(scenario)) {
-	case "presentation", "presentation_local_multiturn_success", "site_artifact_acceptance", "site_edit_redeploy_acceptance", "site_custom_structure_acceptance", "site_lifecycle_acceptance":
+	case "presentation", "presentation_local_multiturn_success":
 		return "1"
 	default:
 		return "0"

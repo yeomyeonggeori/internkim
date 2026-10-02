@@ -3,6 +3,7 @@ package capabilities
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
@@ -66,6 +67,16 @@ func TestLegacyToolNameReplacementsCoverNeutralTaxonomy(t *testing.T) {
 		"calendar_delete":          "event_delete",
 		"calendar_list":            "event_list",
 		"calendar_update":          "event_update",
+		"site.app.create":          "site_serve",
+		"site.app.delete":          "site_unserve",
+		"site.app.preview":         "site_serve",
+		"site.app.publish":         "site_serve",
+		"site.app.status":          "site_list",
+		"site.create":              "site_serve",
+		"site.delete":              "site_unserve",
+		"site.preview":             "site_serve",
+		"site.publish":             "site_serve",
+		"site.status":              "site_list",
 	}
 	replacements := LegacyToolNameReplacements()
 	if !reflect.DeepEqual(replacements, expectedReplacements) {
@@ -534,12 +545,16 @@ func TestCapabilityApprovalFlagsMatchRiskLevel(t *testing.T) {
 	assertDescriptorApproval(t, WebDescriptors(), "web_search", false)
 	assertDescriptorApproval(t, WebDescriptors(), "web_fetch", false)
 	assertDescriptorApproval(t, CalendarDescriptors(), "event_delete", true)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site_serve", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site_list", false)
+	assertDescriptorApproval(t, SiteAppDescriptors(), "site_unserve", true)
 }
 
 func TestCapabilityDescriptorsExposeCompletionEvidence(t *testing.T) {
 	assertDescriptorCompletionEvidence(t, PlatformMessageDescriptors(), "message_send", "success", "send_message", "message")
 	assertDescriptorCompletionEvidence(t, MailDescriptors(), "mail_message_send", "success", "send_email", "email")
 	assertDescriptorCompletionEvidence(t, CalendarDescriptors(), "event_add", "success", "write_calendar", "calendar")
+	assertDescriptorCompletionEvidence(t, SiteAppDescriptors(), "site_serve", "success", "serve_site", "site")
 }
 
 func TestMailDescriptorsMatchSkillInputs(t *testing.T) {
@@ -568,6 +583,7 @@ func TestCapabilityDescriptorSchemasAreCanonicalObjects(t *testing.T) {
 		TaskToolDescriptors(),
 		CalendarDescriptors(),
 		MailDescriptors(),
+		SiteAppDescriptors(),
 		ArtifactDescriptors(),
 	}
 	for _, descriptors := range descriptorGroups {

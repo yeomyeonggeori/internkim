@@ -57,11 +57,7 @@ type Configuration struct {
 	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
-	SitesRoot                      string
-	SiteScaffoldPath               string
 	FontsDirectory                 string
-	SiteSecretDirectory            string
-	SiteSystemdDirectory           string
 	IdentityDocumentPath           string
 	SoulDocumentPath               string
 	BotProfileImagePath            string
@@ -132,11 +128,7 @@ func DefaultConfiguration() Configuration {
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
-		SitesRoot:                      "/root/.internkim/sites",
-		SiteScaffoldPath:               filepath.Join(blueclaw.BlueclawDeliverySkillsPath, "website", "assets", "scaffold", "app"),
 		FontsDirectory:                 "/opt/internkim/fonts",
-		SiteSecretDirectory:            "/root/.internkim/secrets/sites",
-		SiteSystemdDirectory:           "/etc/systemd/system",
 		IdentityDocumentPath:           "/root/.internkim/config/identity.json",
 		SoulDocumentPath:               "/root/.internkim/config/soul.json",
 		BotProfileImagePath:            "/opt/internkim/board-ui/logo.png",
@@ -165,7 +157,7 @@ func (configuration Configuration) withDefaults() Configuration {
 	configuration = configuration.withCredentialDefaults(defaultConfiguration)
 	configuration = configuration.withCentralPlaneDefaults(defaultConfiguration)
 	configuration = configuration.withFleetDefaults(defaultConfiguration)
-	configuration = configuration.withSiteDefaults(defaultConfiguration)
+	configuration = configuration.withFontsDefaults(defaultConfiguration)
 	configuration = configuration.withPersonaDefaults(defaultConfiguration)
 	return configuration
 }
@@ -323,21 +315,9 @@ func (configuration Configuration) withFleetDefaults(defaultConfiguration Config
 	return configuration
 }
 
-func (configuration Configuration) withSiteDefaults(defaultConfiguration Configuration) Configuration {
-	if configuration.SiteScaffoldPath == "" {
-		configuration.SiteScaffoldPath = defaultConfiguration.SiteScaffoldPath
-	}
-	if configuration.SitesRoot == "" {
-		configuration.SitesRoot = defaultConfiguration.SitesRoot
-	}
+func (configuration Configuration) withFontsDefaults(defaultConfiguration Configuration) Configuration {
 	if configuration.FontsDirectory == "" {
 		configuration.FontsDirectory = defaultConfiguration.FontsDirectory
-	}
-	if configuration.SiteSecretDirectory == "" {
-		configuration.SiteSecretDirectory = defaultConfiguration.SiteSecretDirectory
-	}
-	if configuration.SiteSystemdDirectory == "" {
-		configuration.SiteSystemdDirectory = defaultConfiguration.SiteSystemdDirectory
 	}
 	return configuration
 }

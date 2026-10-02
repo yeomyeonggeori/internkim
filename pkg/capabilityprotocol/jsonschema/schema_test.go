@@ -77,19 +77,19 @@ func TestValidateInputEnforcesCompleteDescriptorSchema(t *testing.T) {
 	schemaDocument := json.RawMessage(`{
 		"type":"object",
 		"properties":{
-			"siteID":{"type":"string","pattern":"^\\S(?:.*\\S)?$"},
+			"taskID":{"type":"string","pattern":"^\\S(?:.*\\S)?$"},
 			"revision":{"type":"integer","minimum":1}
 		},
-		"required":["siteID","revision"],
+		"required":["taskID","revision"],
 		"additionalProperties":false
 	}`)
 	invalidInputs := []json.RawMessage{
 		nil,
-		json.RawMessage(`{"siteID":"site-1"}`),
-		json.RawMessage(`{"siteID":" site-1 ","revision":1}`),
-		json.RawMessage(`{"siteID":"site-1","revision":0}`),
-		json.RawMessage(`{"siteID":"site-1","revision":"1"}`),
-		json.RawMessage(`{"siteID":"site-1","revision":1,"confirm":true}`),
+		json.RawMessage(`{"taskID":"task-1"}`),
+		json.RawMessage(`{"taskID":" task-1 ","revision":1}`),
+		json.RawMessage(`{"taskID":"task-1","revision":0}`),
+		json.RawMessage(`{"taskID":"task-1","revision":"1"}`),
+		json.RawMessage(`{"taskID":"task-1","revision":1,"confirm":true}`),
 	}
 	for _, input := range invalidInputs {
 		errorValue := ValidateInput(schemaDocument, input)
@@ -97,7 +97,7 @@ func TestValidateInputEnforcesCompleteDescriptorSchema(t *testing.T) {
 			t.Fatalf("expected input %s to fail validation, got %v", string(input), errorValue)
 		}
 	}
-	if errorValue := ValidateInput(schemaDocument, json.RawMessage(`{"siteID":"site-1","revision":1}`)); errorValue != nil {
+	if errorValue := ValidateInput(schemaDocument, json.RawMessage(`{"taskID":"task-1","revision":1}`)); errorValue != nil {
 		t.Fatalf("expected valid input: %v", errorValue)
 	}
 }

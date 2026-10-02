@@ -72,8 +72,8 @@ func TestCapabilitySuccessResponseFailsClosed(t *testing.T) {
 	}{
 		{name: "missing descriptor", toolName: "task.unknown", result: `{"taskID":"task-1"}`, names: []string{"descriptor is missing", "task.unknown"}},
 		{name: "missing field", toolName: "message_send", result: `{"deliveryStatus":"sent"}`, names: []string{"message_send", "result.messageIDs is required and is missing"}},
-		{name: "invalid list result", toolName: "site_list", result: `{"sites":null}`, names: []string{"site_list", "result.sites is required and is missing", "the same request with different arguments will not change it"}},
-		{name: "invalid list member", toolName: "site_list", result: `{"sites":[{"siteID":"","slug":"brochure","title":"Brochure","status":"draft"}]}`, names: []string{"site_list", `result.sites[0].siteID must be at least 1 character long, and it is ""`}},
+		{name: "invalid list result", toolName: "schedule_list", result: `{"schedules":null}`, names: []string{"schedule_list", "result.schedules is required and is missing", "the same request with different arguments will not change it"}},
+		{name: "invalid list member", toolName: "schedule_list", result: `{"schedules":[{"scheduleID":"","taskInstruction":"Send the weekly report","cadence":"weekly","status":"active"}]}`, names: []string{"schedule_list", `result.schedules[0].scheduleID must be at least 1 character long, and it is ""`}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {

@@ -20,7 +20,7 @@ The Linux acceptance gate is the fleet:
 ./internkim dev fleet run --scenario buzz-direct-message
 ```
 
-Retained scenario directories keep screenshots, downloaded files and website
-screenshots under `evidence/`. Result, event, timing and Playwright trace data
+Retained scenario directories keep screenshots and downloaded files under
+`evidence/`. Result, event, timing and Playwright trace data
 stays under `diagnostics/`. The machine-readable `manifest.json` indexes
 user-visible evidence separately from diagnostic paths.

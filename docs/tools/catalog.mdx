@@ -185,17 +185,6 @@ A schedule is work the agent does later or on repeat.
 The handler lives in `internal/capabilityd/web_tool.go` and uses OpenRouter's
 web search. Domain allowlists, language, and location narrow the query.
 
-## Sites [#site]
-
-<ToolCatalog namespace="site" />
-
-The handler lives in `internal/capabilityd/site_tool.go` and calls admind. The agent
-builds a site as ordinary files in the workspace, then serves that directory:
-`preview` returns a temporary review URL, `publish` takes the public one. The
-slug is derived from the title on first serve and owned by the server.
-`site_unserve` frees the slug and deletes the server-side record; the source
-files in the workspace stay.
-
 ## Reading files and attachments [#document]
 
 The model reads with one built-in tool, `read`: a workspace path or an

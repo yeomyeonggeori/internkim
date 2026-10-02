@@ -310,10 +310,10 @@ func TestValidateResultContractAcceptsOnlyCanonicalArrayEffectIdentities(t *test
 
 func TestValidateResultContractAcceptsDistinctIdentitiesForOneEffect(t *testing.T) {
 	contract := &ToolResultContract{
-		Schema: json.RawMessage(`{"type":"object","properties":{"siteID":{"type":"string"},"publishedURL":{"type":"string"}},"required":["siteID","publishedURL"],"additionalProperties":false}`),
+		Schema: json.RawMessage(`{"type":"object","properties":{"reportID":{"type":"string"},"reportURL":{"type":"string"}},"required":["reportID","reportURL"],"additionalProperties":false}`),
 		Effects: []ResourceEffectContract{
-			{ObjectType: "website", Effect: "published", ResultField: "siteID", EffectIdentity: ResourceEffectIdentityID},
-			{ObjectType: "website", Effect: "published", ResultField: "publishedURL", EffectIdentity: ResourceEffectIdentityURL},
+			{ObjectType: "report", Effect: "published", ResultField: "reportID", EffectIdentity: ResourceEffectIdentityID},
+			{ObjectType: "report", Effect: "published", ResultField: "reportURL", EffectIdentity: ResourceEffectIdentityURL},
 		},
 	}
 	if errorValue := validateResultContract(contract); errorValue != nil {

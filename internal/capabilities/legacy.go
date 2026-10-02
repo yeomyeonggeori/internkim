@@ -18,16 +18,6 @@ var legacyToolNameReplacements = map[string]string{
 	"platform.message.search":  "message_search",
 	"platform.message.send":    "message_send",
 	"platform.message.update":  "message_update",
-	"site.app.create":          "site_serve",
-	"site.app.delete":          "site_unserve",
-	"site.app.preview":         "site_serve",
-	"site.app.publish":         "site_serve",
-	"site.app.status":          "site_list",
-	"site.create":              "site_serve",
-	"site.delete":              "site_unserve",
-	"site.preview":             "site_serve",
-	"site.publish":             "site_serve",
-	"site.status":              "site_list",
 }
 
 func LegacyToolNameReplacements() map[string]string {

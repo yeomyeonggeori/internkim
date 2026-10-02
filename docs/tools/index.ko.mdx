@@ -28,7 +28,7 @@ description: 에이전트가 부를 수 있는 것들, 각 호출의 대가, 그
 ## 두 무리 [#families]
 
 능력 도구는 공용 기록과 바깥 세계를 건드립니다. 업무, 캘린더, 메시지,
-채널, 공개 웹, 게시된 사이트, 브라우저. 카탈로그에는 프로토콜
+채널, 공개 웹, 브라우저. 카탈로그에는 프로토콜
 <ToolProtocolVersion />로 <ToolCount />개가 들어 있습니다. 도구마다 누가
 답하는지를 밝힙니다. 업무·캘린더·사람·연차·근태 도구는 중앙 평면에서 기록에
 대고 돌고, 브라우저와 모델 도구는 에이전트 곁에서만 돌며, 나머지는 회사의
@@ -54,9 +54,8 @@ MCP로 부르고, 디바이스 경로에서는 `internkim-capabilityd`를 거쳐
 | `workspace_write` | 회사 기록이 생기거나 바뀜 | `task_add`, `event_update`, `write` |
 | `external_write` | 메신저 쪽 상태가 바뀜 | `message_update` |
 | `external_send` | 메시지가 사람에게 나감 | `message_send` |
-| `site_publish` | URL이 살아남 | `site_serve` |
 | `connect` | 무언가로의 세션이 열림 | `browser_open` |
-| `destructive` | 되돌릴 수 없는 것 | `task_delete`, `message_delete`, `site_unserve` |
+| `destructive` | 되돌릴 수 없는 것 | `task_delete`, `message_delete` |
 
 ## 언제 멈춰서 물어보나 [#approval]
 

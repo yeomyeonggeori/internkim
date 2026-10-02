@@ -160,7 +160,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_serve","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__task_update","arguments":"{\"taskID\":\"task-1\",\"blueclawMessage\":\"publishing\"}"}}]}}]}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},
@@ -175,7 +175,7 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if errorValue != nil {
 		t.Fatalf("expected native action response: %v", errorValue)
 	}
-	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"siteID":"site-1"},"toolName":"site_serve"}` {
+	if response.Content != `{"action":"continue","message":"publishing","toolInput":{"taskID":"task-1"},"toolName":"task_update"}` {
 		t.Fatalf("expected action JSON, got %s", response.Content)
 	}
 	if response.ConstraintMode != ConstraintModeNativeToolCall {
@@ -194,13 +194,13 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 	if !openRouterRequestHasTool(tools, "finish") {
 		t.Fatalf("expected finish control tool, got %+v", tools)
 	}
-	parameters := openRouterRequestToolParameters(t, tools, "continue__site_serve")
+	parameters := openRouterRequestToolParameters(t, tools, "continue__task_update")
 	if _, isFound := parameters["additionalProperties"]; isFound {
 		t.Fatalf("expected OpenRouter native tool parameters to omit additionalProperties, got %+v", parameters)
 	}
 	properties := parameters["properties"].(map[string]any)
-	if _, isFound := properties["siteID"]; !isFound {
-		t.Fatalf("expected projected tool parameters to preserve siteID, got %+v", parameters)
+	if _, isFound := properties["taskID"]; !isFound {
+		t.Fatalf("expected projected tool parameters to preserve taskID, got %+v", parameters)
 	}
 	if _, isFound := properties["toolInput"]; isFound {
 		t.Fatalf("expected projected tool parameters to omit nested toolInput, got %+v", parameters)
@@ -212,8 +212,8 @@ func TestOpenRouterBackendUsesChatToolCallingForAgentActions(t *testing.T) {
 		t.Fatalf("expected per-tool continue schema to omit blueclawNextStepPlan, got %+v", parameters)
 	}
 	required := parameters["required"].([]any)
-	if !requiredContains(required, "siteID") {
-		t.Fatalf("expected required fields to include siteID, got %+v", parameters)
+	if !requiredContains(required, "taskID") {
+		t.Fatalf("expected required fields to include taskID, got %+v", parameters)
 	}
 	if requiredContains(required, "blueclawMessage") {
 		t.Fatalf("expected optional blueclawMessage field to be removed from required, got %+v", parameters)
@@ -560,10 +560,10 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	temperature := 0.6
 	maxTokens := 2048
 	request := openAIActionToolRequest("local-model", []Message{{Role: "user", Content: "publish"}}, []nativeActionTool{{
-		FunctionName: "continue__site_app_publish",
-		Description:  "Call site_serve",
+		FunctionName: "continue__task_update",
+		Description:  "Call task_update",
 		Action:       "continue",
-		ToolName:     "site_serve",
+		ToolName:     "task_update",
 		Parameters:   json.RawMessage(`{"type":"object","properties":{}}`),
 	}}, GenerationOptions{Seed: &seed, Temperature: &temperature, MaxTokens: &maxTokens})
 
@@ -576,7 +576,7 @@ func TestOpenAICompatibleActionToolRequestUsesGenerationOptions(t *testing.T) {
 	if request.MaxTokens == nil || *request.MaxTokens != maxTokens {
 		t.Fatalf("expected max tokens on OpenAI-compatible request, got %+v", request)
 	}
-	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "continue__site_app_publish" {
+	if len(request.Tools) != 1 || request.Tools[0].Function.Name != "continue__task_update" {
 		t.Fatalf("expected native tool call shape to remain, got %+v", request.Tools)
 	}
 	if string(request.ToolChoice) != `"required"` {
@@ -771,22 +771,22 @@ func TestNativeActionToolsKeepLargeToolSetsPerToolWithoutDispatcher(t *testing.T
 	}
 }
 
-func TestNativeActionToolsKeepRepresentativeSiteWorkingSetPerTool(t *testing.T) {
+func TestNativeActionToolsKeepRepresentativeWorkingSetPerTool(t *testing.T) {
 	toolSet, isActionSchema, errorValue := nativeActionToolsForSchema(StructuredOutputSchema{
 		Name:     "bluecollar_agent_turn_action",
 		Document: testActionSchemaWithControlActionsAndToolCount(t, 13),
 	})
 	if errorValue != nil {
-		t.Fatalf("expected native site tool set: %v", errorValue)
+		t.Fatalf("expected native tool set: %v", errorValue)
 	}
 	if !isActionSchema {
 		t.Fatal("expected action schema")
 	}
 	if _, isDispatcher := toolSet.ToolByName["continue"]; isDispatcher {
-		t.Fatalf("representative site working set must keep per-tool schemas so tool arguments survive instead of collapsing to the argument-less dispatcher, got %+v", toolSet.Tools)
+		t.Fatalf("representative working set must keep per-tool schemas so tool arguments survive instead of collapsing to the argument-less dispatcher, got %+v", toolSet.Tools)
 	}
 	if len(toolSet.Tools) < 13 {
-		t.Fatalf("expected one function per site tool, got %d", len(toolSet.Tools))
+		t.Fatalf("expected one function per tool, got %d", len(toolSet.Tools))
 	}
 }
 
@@ -1539,7 +1539,7 @@ func testAgentActionSchema() StructuredOutputSchema {
 		Name: "bluecollar_agent_turn_action",
 		Document: json.RawMessage(`{"oneOf":[
 			{"type":"object","properties":{"action":{"type":"string","enum":["finish"]},"message":{"type":"string"},"goalStatus":{"type":"string","enum":["satisfied"]},"goalSatisfied":{"type":"boolean"},"completionEvidence":{"type":"array"},"qualityReview":{"type":"array"},"executionStateUpdate":{"type":"object"}},"required":["action","message","goalStatus","goalSatisfied","completionEvidence","qualityReview","executionStateUpdate"]},
-			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["site_serve"]},"toolInput":{"type":"object","properties":{"siteID":{"type":"string"}},"required":["siteID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
+			{"type":"object","properties":{"action":{"type":"string","enum":["continue"]},"toolName":{"type":"string","enum":["task_update"]},"toolInput":{"type":"object","properties":{"taskID":{"type":"string"}},"required":["taskID"]},"message":{"type":"string"},"executionStateUpdate":{"type":"object"},"nextStepPlan":{"type":"object","properties":{"objective":{"type":"string"},"expectedTools":{"type":"array","items":{"type":"string"}},"doneCriteria":{"type":"array","items":{"type":"string"}},"risk":{"type":"string"},"workingSetReason":{"type":"string"}},"required":["objective","expectedTools","doneCriteria","risk","workingSetReason"]}},"required":["action","toolName","toolInput","executionStateUpdate","nextStepPlan"]}
 		]}`),
 		IsStrictlyEnforced: true,
 	}
@@ -1965,7 +1965,7 @@ func TestOpenRouterBackendPopulatesUsageFromNativeActionResponse(t *testing.T) {
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__site_serve","arguments":"{\"siteID\":\"site-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"continue__task_update","arguments":"{\"taskID\":\"task-1\",\"blueclawMessage\":\"publishing\",\"blueclawExecutionStateUpdate\":{},\"blueclawNextStepPlan\":{\"objective\":\"confirm publish\",\"expectedTools\":[],\"doneCriteria\":[\"published\"],\"risk\":\"none\",\"workingSetReason\":\"publish result completes the task\"}}"}}]}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`)),
 				Header:     make(http.Header),
 			}, nil
 		})},

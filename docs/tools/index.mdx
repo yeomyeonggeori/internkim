@@ -28,7 +28,7 @@ a candidate list to choose from, and choosing is what `person_list` is for.
 ## Two families [#families]
 
 Capability tools touch shared records and the world outside: tasks, the
-calendar, messages, channels, the public web, served sites, the browser.
+calendar, messages, channels, the public web, the browser.
 The catalog holds <ToolCount /> of them under protocol
 <ToolProtocolVersion />. Each one names who answers it: the task, calendar,
 people, leave and attendance tools run on the central plane against the
@@ -56,9 +56,8 @@ never decides.
 | `workspace_write` | a company record created or changed | `task_add`, `event_update`, `write` |
 | `external_write` | state on the messenger changed | `message_update` |
 | `external_send` | a message reaches people | `message_send` |
-| `site_publish` | a URL goes live | `site_serve` |
 | `connect` | a session to something opens | `browser_open` |
-| `destructive` | something irreversible | `task_delete`, `message_delete`, `site_unserve` |
+| `destructive` | something irreversible | `task_delete`, `message_delete` |
 
 ## When the agent stops and asks [#approval]
 

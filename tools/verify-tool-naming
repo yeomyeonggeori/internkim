@@ -52,8 +52,6 @@ VERBS_BY_EXCEPTION = {
     "crm_organization_archive": "archiving keeps the record and is not a delete",
     "conversation_mute": "mute is the domain's word",
     "conversation_unmute": "unmute is the domain's word",
-    "site_serve": "serve is the act, and the domain's own word",
-    "site_unserve": "unserve is the act, and the domain's own word",
     "web_fetch": "fetches a page rather than reading a record",
     "web_search": "search over the web, not over our records",
     "image_generate": "generate is the act",
