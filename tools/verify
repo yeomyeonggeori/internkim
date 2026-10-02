@@ -231,13 +231,14 @@ GROUPS = [
             "web/package.json",
             "web/bun.lock",
             "internal/boxwifi/captive/*",
+            "internal/boxwifi/testdata/captive-contract.json",
         ],
         [
             BUN_INSTALL,
             ["bunx", "svelte-check", "--tsconfig", "./captive/tsconfig.json"],
+            ["bun", "test", "tests/unit/captive"],
+            ["go", "test", "../internal/boxwifi/"],
             ["bun", "run", "build:captive"],
-            # The box embeds the committed build, so a build that differs from it
-            # is a page the box would not serve.
             ["git", "diff", "--exit-code", "--", "../internal/boxwifi/captive"],
             ["sh", "-c", 'test -z "$(git status --porcelain -- ../internal/boxwifi/captive)"'],
         ],

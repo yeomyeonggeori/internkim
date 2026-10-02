@@ -130,7 +130,7 @@
 {#snippet networkChoice(value: string, label: string, isSecured: boolean)}
 	<Item.Root variant={chosenSSID === value ? 'outline' : 'default'} size="sm">
 		{#snippet child({ props })}
-			<label {...props} class="{props.class} has-checked:bg-muted cursor-pointer">
+			<label {...props}>
 				<input type="radio" name="ssid" {value} bind:group={chosenSSID} class="sr-only" />
 				<Item.Media>
 					{#if value === manualChoice}<Plus class="size-4" />{:else}<Wifi class="size-4" />{/if}

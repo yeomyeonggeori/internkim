@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -144,21 +145,54 @@ func TestPageServesTheBuiltPageAndItsFiles(t *testing.T) {
 	}
 }
 
-func TestPageListsTheScannedNetworksAndTheLastFailure(t *testing.T) {
-	networks := []Network{{SSID: "Office", SignalPercent: 80, IsSecured: true}, {SSID: "사무실 2층", SignalPercent: 40}}
-	server := httptest.NewServer(newPage(networks, true, make(chan submission, 1)))
-	defer server.Close()
+type captiveContract struct {
+	Scanned          []Network       `json:"scanned"`
+	HasJoinFailed    bool            `json:"hasJoinFailed"`
+	NetworksResponse json.RawMessage `json:"networksResponse"`
+	JoinFields       []string        `json:"joinFields"`
+	JoinStatuses     map[string]int  `json:"joinStatuses"`
+}
 
-	var listing networkListing
-	if errorValue := json.Unmarshal([]byte(fetchBody(t, server.URL+"/networks")), &listing); errorValue != nil {
+func TestPageAnswersTheContractTheSetupPageReads(t *testing.T) {
+	contents, errorValue := os.ReadFile("testdata/captive-contract.json")
+	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	want := networkListing{
-		Networks:      []listedNetwork{{SSID: "Office", IsSecured: true, SignalPercent: 80}, {SSID: "사무실 2층", SignalPercent: 40}},
-		HasJoinFailed: true,
+	var contract captiveContract
+	if errorValue := json.Unmarshal(contents, &contract); errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	if !reflect.DeepEqual(listing, want) {
-		t.Fatalf("listing = %+v, want %+v", listing, want)
+	server := httptest.NewServer(newPage(contract.Scanned, contract.HasJoinFailed, make(chan submission, 1)))
+	defer server.Close()
+
+	var answered, promised any
+	if errorValue := json.Unmarshal([]byte(fetchBody(t, server.URL+"/networks")), &answered); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := json.Unmarshal(contract.NetworksResponse, &promised); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !reflect.DeepEqual(answered, promised) {
+		t.Fatalf("/networks = %v, the page expects %v", answered, promised)
+	}
+
+	ssidField, customSSIDField, passwordField := contract.JoinFields[0], contract.JoinFields[1], contract.JoinFields[2]
+	for _, attempt := range []struct {
+		outcome string
+		form    url.Values
+	}{
+		{"networkRequired", url.Values{ssidField: {""}, customSSIDField: {""}, passwordField: {"secret"}}},
+		{"accepted", url.Values{ssidField: {"Office"}, customSSIDField: {""}, passwordField: {"secret"}}},
+		{"alreadySubmitted", url.Values{ssidField: {"Office"}, customSSIDField: {""}, passwordField: {"secret"}}},
+	} {
+		response, errorValue := http.PostForm(server.URL+"/join", attempt.form)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		response.Body.Close()
+		if response.StatusCode != contract.JoinStatuses[attempt.outcome] {
+			t.Fatalf("%s: status = %d, the page expects %d", attempt.outcome, response.StatusCode, contract.JoinStatuses[attempt.outcome])
+		}
 	}
 }
 
