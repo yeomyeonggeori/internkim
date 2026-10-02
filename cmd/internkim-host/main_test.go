@@ -2,10 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/box"
 )
 
 func TestTheConnectionFileIsFoundWhereverItSitsAmongTheOptions(t *testing.T) {
@@ -104,5 +109,30 @@ func TestOutputCarriesTheComplaintOfACommandThatFailed(t *testing.T) {
 	_, errorValue := thisComputer{}.Output("sh", []string{"-c", "echo 'no such cluster' >&2; exit 3"})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "no such cluster") {
 		t.Fatalf("the failure was %v", errorValue)
+	}
+}
+
+func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
+	without := boxDaemon("https://example.com")
+	if without.GetOnline != nil || without.ChangeWifi != nil || without.ScanWifi != nil {
+		t.Fatalf("a daemon built without the flag has wifi hooks: %+v", without)
+	}
+	with := withWifiSetup(box.Daemon{}, "https://example.com")
+	if with.GetOnline == nil || with.ChangeWifi == nil || with.ScanWifi == nil {
+		t.Fatalf("a daemon built with the flag lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
+	}
+}
+
+func TestReachesURLTreatsAnyHTTPResponseAsReachable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	address := server.URL
+	if !reachesURL(context.Background(), address) {
+		t.Fatal("a server answering 503 was judged unreachable")
+	}
+	server.Close()
+	if reachesURL(context.Background(), address) {
+		t.Fatal("a closed server was judged reachable")
 	}
 }

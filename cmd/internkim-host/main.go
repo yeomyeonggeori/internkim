@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,9 +18,15 @@ import (
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
+	"github.com/yeomyeonggeori/internkim/internal/boxwifi"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"golang.org/x/term"
+)
+
+const (
+	planeProbeTimeout = 5 * time.Second
+	passiveRescanMode = "no"
 )
 
 // thisComputer is the company host's own machine. Every command it runs is one
@@ -114,7 +121,7 @@ func main() {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
@@ -130,6 +137,7 @@ func runBox(arguments []string) {
 	}
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
+	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
@@ -137,7 +145,11 @@ func runBox(arguments []string) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	errorValue := boxDaemon(*appURL).Run(ctx)
+	daemon := boxDaemon(*appURL)
+	if *setsUpWifi {
+		daemon = withWifiSetup(daemon, *appURL)
+	}
+	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
 		fmt.Println(errorValue)
 		return
@@ -146,6 +158,48 @@ func runBox(arguments []string) {
 		fmt.Fprintln(os.Stderr, errorValue)
 		os.Exit(1)
 	}
+}
+
+func withWifiSetup(daemon box.Daemon, appURL string) box.Daemon {
+	radio := boxwifi.NetworkManagerRadio{ReachesPlane: func(ctx context.Context) bool { return reachesURL(ctx, appURL) }}
+	watcherRadio := radio
+	watcherRadio.RescanMode = passiveRescanMode
+	daemon.GetOnline = func(ctx context.Context, boxPublicKey string) error {
+		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(boxPublicKey)}
+		return setup.Run(ctx)
+	}
+	daemon.ChangeWifi = radio.Switch
+	daemon.ScanWifi = func(ctx context.Context) ([]box.NearbyNetwork, error) {
+		return scanNearbyNetworks(ctx, watcherRadio)
+	}
+	return daemon
+}
+
+func reachesURL(ctx context.Context, address string) bool {
+	probeContext, cancel := context.WithTimeout(ctx, planeProbeTimeout)
+	defer cancel()
+	request, errorValue := http.NewRequestWithContext(probeContext, http.MethodGet, address, nil)
+	if errorValue != nil {
+		return false
+	}
+	response, errorValue := http.DefaultClient.Do(request)
+	if errorValue != nil {
+		return false
+	}
+	response.Body.Close()
+	return true
+}
+
+func scanNearbyNetworks(ctx context.Context, radio boxwifi.NetworkManagerRadio) ([]box.NearbyNetwork, error) {
+	scanned, errorValue := radio.Scan(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	nearby := make([]box.NearbyNetwork, 0, len(scanned))
+	for _, network := range scanned {
+		nearby = append(nearby, box.NearbyNetwork{SSID: network.SSID, SignalPercent: network.SignalPercent, IsSecured: network.IsSecured, IsConnected: network.IsConnected})
+	}
+	return nearby, nil
 }
 
 func printPairingCode() {

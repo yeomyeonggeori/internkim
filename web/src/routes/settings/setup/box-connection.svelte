@@ -9,6 +9,7 @@
 	import { boxStepOf, shortBoxName } from './box-step';
 	import type { EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
+	import BoxWifiChange from './box-wifi-change.svelte';
 	import { connectBox, disconnectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
@@ -176,6 +177,7 @@
 			</Item.Actions>
 		</Item.Root>
 		<p role="status" class="text-sm">{step === 'connected' ? text.boxConnected : text.boxClaimed}</p>
+		{#if step === 'connected'}<BoxWifiChange box={boxes.connected} />{/if}
 	{/if}
 
 	{#if step === 'givingModelKey' || isChangingModelKey}

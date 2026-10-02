@@ -9,6 +9,7 @@ import {
 	announceBox,
 	boxAssertionAudience,
 	boxKeyOfAssertion,
+	boxOfPublicKey,
 	BoxRefused,
 	boxSessionFor,
 	claimBox,
@@ -19,6 +20,7 @@ import {
 	keepSealedModelKey,
 	releaseBox
 } from '../../src/lib/server/box';
+import { pendingWifiChangeOf, recordNearbyNetworks, reportWifiOutcome, requestWifiChange, wifiChangeStatusFor } from '../../src/lib/server/box-wifi';
 import {
 	asMember,
 	companyOfHostSession,
@@ -385,6 +387,87 @@ describe('connecting an empty box', () => {
 		const sealedModelKey = { version: 1 as const, recipient: boxKey, enc: boxKey, ciphertext: 'c2VhbGVk' };
 
 		await expect(keepSealedModelKey(client, empty.companyID, sealedModelKey)).rejects.toBeInstanceOf(BoxRefused);
+	});
+});
+
+describe('changing the Wi-Fi network of a connected box', () => {
+	test('an administrator requests a change, the box fetches it, and reports back', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const requestID = crypto.randomUUID();
+		const sealed = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+
+		expect(await requestWifiChange(client, companyID, requestID, sealed)).toEqual({ pendingRequestID: requestID, outcome: null, nearbyNetworks: [], scannedAt: null });
+
+		const fetched = await boxOfPublicKey(client, box.publicKey);
+		if (!fetched) throw new Error('a claimed box is found by its public key');
+		expect(pendingWifiChangeOf(fetched)).toEqual({ requestID, sealed });
+
+		await reportWifiOutcome(client, fetched, requestID, 'joined');
+
+		expect(await wifiChangeStatusFor(client, companyID)).toMatchObject({
+			pendingRequestID: null,
+			outcome: { requestID, result: 'joined' }
+		});
+		const cleared = await boxOfPublicKey(client, box.publicKey);
+		if (!cleared) throw new Error('a claimed box is found by its public key');
+		expect(pendingWifiChangeOf(cleared)).toBeNull();
+	});
+
+	test('an outcome naming a request that is not pending is refused, and clears nothing', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const requestID = crypto.randomUUID();
+		const sealed = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+		await requestWifiChange(client, companyID, requestID, sealed);
+		const current = await boxOfPublicKey(client, box.publicKey);
+		if (!current) throw new Error('a claimed box is found by its public key');
+
+		await expect(reportWifiOutcome(client, current, crypto.randomUUID(), 'failed')).rejects.toBeInstanceOf(BoxRefused);
+
+		expect(await wifiChangeStatusFor(client, companyID)).toMatchObject({ pendingRequestID: requestID, outcome: null });
+	});
+
+	test('the nearby networks a box reports are read back by an administrator', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const fetched = await boxOfPublicKey(client, box.publicKey);
+		if (!fetched) throw new Error('a claimed box is found by its public key');
+		const networks = [{ ssid: 'Sample Office', signalPercent: 80, isSecured: true }];
+
+		await recordNearbyNetworks(client, fetched, networks);
+
+		expect(await wifiChangeStatusFor(client, companyID)).toMatchObject({ nearbyNetworks: networks });
+	});
+
+	test('a fetch without nearby networks keeps the previous list', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const fetched = await boxOfPublicKey(client, box.publicKey);
+		if (!fetched) throw new Error('a claimed box is found by its public key');
+		const networks = [{ ssid: 'Sample Office', signalPercent: 80, isSecured: false }];
+		await recordNearbyNetworks(client, fetched, networks);
+
+		const again = await boxOfPublicKey(client, box.publicKey);
+		if (!again) throw new Error('a claimed box is found by its public key');
+		expect(pendingWifiChangeOf(again)).toBeNull();
+
+		expect(await wifiChangeStatusFor(client, companyID)).toMatchObject({ nearbyNetworks: networks });
+	});
+
+	test('a Wi-Fi change waits for a connected box', async () => {
+		const empty = await aCompany('wifi-empty');
+		const boxKey = 'e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM';
+		const sealed = { version: 1 as const, recipient: boxKey, enc: boxKey, ciphertext: 'c2VhbGVk' };
+
+		await expect(requestWifiChange(client, empty.companyID, crypto.randomUUID(), sealed)).rejects.toBeInstanceOf(BoxRefused);
+	});
+
+	test('a box that belongs to no company has no Wi-Fi change to fetch', async () => {
+		const box = await aBox();
+		await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false });
+
+		expect(await boxOfPublicKey(client, box.publicKey)).toBeNull();
 	});
 });
 
