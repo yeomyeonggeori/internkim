@@ -286,12 +286,6 @@
     "process": "internal/browser tests",
     "description": "when \"1\", internal/browser/runtime_test.go launches a real Chrome instead of skipping"
   },
-  "INTERNKIM_REGISTER_SECRET": {
-    "process": "web",
-    "description": "the shared secret a device presents to the fleet registration API (the older device-fleet path's Cloudflare Pages KV binding, web/src/routes/api/fleet and api/register)",
-    "isRequiredOnPages": true,
-    "isInVault": true
-  },
   "INTERNKIM_RIG_ARCHITECTURE": {
     "process": "tools/native_install_rig.py",
     "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
@@ -316,10 +310,6 @@
   "INTERNKIM_TOKEN": {
     "process": "web plane tests",
     "description": "a personal-access-token bearer for the public API; web/tests/plane/a-company-plane.ts strips it from the sandboxed company plane's environment so a token in the caller's own shell cannot skip approval and requester identity there"
-  },
-  "KV": {
-    "process": "web",
-    "description": "the Cloudflare Pages KV namespace binding backing the device fleet registry (web/src/routes/api/fleet, api/register)"
   },
   "LD_LIBRARY_PATH": {
     "process": "device",
