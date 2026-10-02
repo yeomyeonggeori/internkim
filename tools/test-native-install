@@ -39,6 +39,7 @@ from native_install_rig import (  # noqa: E402
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
     DOCUMENT_ENVIRONMENT_PATHS,
+    SKILLS_PATH,
     HOST_PYTHON_PATH,
     HOST_PYTHON_VERSION,
     DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
@@ -193,6 +194,7 @@ UNOWNED_BY_DESIGN = [
     ("/etc/systemd/system/timers.target.wants", "the same, for the daily backup's timer"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
     *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
+    (SKILLS_PATH, "the install step runs each skill's own setup, which keeps what the skill needs beside it; postrm removes the skills tree"),
 ]
 
 UNOWNED_BY_DEBIAN = [

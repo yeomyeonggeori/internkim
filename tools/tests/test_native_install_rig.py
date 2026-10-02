@@ -242,6 +242,9 @@ class AddressesTheRigSpellsTests(unittest.TestCase):
         self.assertEqual(rig.CONFFILE_PATH, self.package("CompanyHostSettingsPath"))
         self.assertEqual(rig.COMPANY_CONDITION_PATH, self.package("CompanyHostEnvironmentPath"))
 
+    def test_the_skills_tree_is_where_the_package_delivers_the_skills(self):
+        self.assertEqual(rig.SKILLS_PATH, self.package("CompanyPackageSkillsPath"))
+
     def test_the_messenger_store_is_read_through_the_file_the_install_writes(self):
         self.assertEqual(rig.MESSENGER_DATABASE_PATH, self.package("CompanyHostBuzzDatabasePath"))
 
