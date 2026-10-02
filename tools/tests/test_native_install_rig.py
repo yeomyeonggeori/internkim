@@ -690,3 +690,12 @@ class MessengerRigTests(unittest.TestCase):
         asked = set(re.findall(r'ask_the_messenger\(\s*"(\w+)"', driver_source)) | set(re.findall(r'wait_for_the_messenger\(\s*"(\w+)"', driver_source))
         self.assertTrue(asked)
         self.assertLessEqual(asked, set(messenger.ACTIONS))
+
+    def test_the_picture_is_served_whole_for_chatd_to_fetch(self):
+        server = messenger.serving_once(b"\x89PNG-bytes", "image/png")
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/picture", timeout=5) as response:
+                self.assertEqual(response.read(), b"\x89PNG-bytes")
+                self.assertEqual(response.headers["Content-Type"], "image/png")
+        finally:
+            server.shutdown()

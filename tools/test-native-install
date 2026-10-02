@@ -1345,6 +1345,15 @@ class Rig:
                 return answer
             time.sleep(5)
 
+    def what_the_messenger_services_said(self):
+        return self.machine.shell(
+            "journalctl -u chatd.service -u blueclaw.service --no-pager -n 400 2>/dev/null "
+            "| grep -i -E 'buzz|attachment|mention|connector|error|warn' | tail -n 25; true"
+        ).stdout.strip()[-2500:]
+
+    def recording(self, observation, passed, detail):
+        observation.record(passed, detail if passed else detail + "\n" + self.what_the_messenger_services_said())
+
     def give_the_guest_the_messenger_probe(self):
         for source in (Path(messenger.__file__), MESSENGER_PICTURE_SOURCE):
             shutil.copyfile(source, self.machine.share_directory / source.name)
@@ -1405,13 +1414,15 @@ class Rig:
         )
         run = ledger.get("run") or {}
         kept = self.ask_the_messenger("find_file", filename=filename).get("file") or {}
-        step.observe(
+        observation = step.observe(
             "a picture a person sends the agent becomes a task of theirs and a file in their workspace",
             "the agent's task ledger row whose reply target carries the sent message's id, and a file of the "
             "picture's name under /workspace, hashed and stat'ed in the guest",
             "the messenger answering sent says the relay stored it; the bridge that fetches an attachment "
             "runs beside the workspace and once wrote a copy where the agent could not read it",
-        ).record(
+        )
+        self.recording(
+            observation,
             bool(message_id)
             and run.get("requesterPersonID") == requester["personID"]
             and kept.get("sha256") == sent.get("sha256")
@@ -1473,12 +1484,13 @@ class Rig:
             "connector_events", lambda reading: reading.get("isRecorded") is True,
             messageID=message_id or "none",
         )
-        step.observe(
+        observation = step.observe(
             "a person's message that mentions the agent in a channel reaches the agent's connector",
             "the agent's connector diagnostic for the message id of a message sent with the agent's key in its p-tag, "
             "in a channel the sender created with the agent as a member",
             "the relay accepting the event says nothing about whether the agent's subscription saw it",
-        ).record(bool(message_id) and recorded.get("isRecorded") is True, json.dumps({"mention": mention, "recorded": recorded})[:500])
+        )
+        self.recording(observation, bool(message_id) and recorded.get("isRecorded") is True, json.dumps({"mention": mention, "recorded": recorded})[:500])
 
     def observe_readiness_after_the_upgrade(self, step):
         answers = self.machine.shell(READINESS_COMMAND).stdout.strip()

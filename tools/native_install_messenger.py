@@ -10,14 +10,15 @@ answer only on the guest's own loopback. It needs nothing but the standard libra
 Each action prints one JSON document.
 """
 
-import base64
 import hashlib
 import json
 import re
 import subprocess
 import sys
+import threading
 import urllib.error
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 CHATD_ENDPOINT = "http://127.0.0.1:18090"
@@ -28,6 +29,7 @@ ADMIND_SOCKET_PATH = "/run/internkim/admind.sock"
 AGENT_UNIT_NAME = "blueclaw.service"
 PLATFORM_ROUTE = "/v1/platform/buzz/"
 PICTURE_NAME = "buzz-attachment-word.png"
+PICTURE_CONTENT_TYPE = "image/png"
 WORD_THE_PICTURE_CARRIES = "SALT"
 PICTURE_QUESTION = "What word is written in this picture? Answer with the word as written."
 REFUSED_STATUSES = ("failed", "cancelled")
@@ -145,11 +147,40 @@ def act_identity(arguments):
     return ask_chatd("person.identity", {"actor": actor_of(secret_of(arguments["email"]))})
 
 
+def serving_once(contents, content_type):
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(contents)))
+            self.end_headers()
+            self.wfile.write(contents)
+
+        def log_message(self, *_):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def keep_picture(actor, contents):
+    server = serving_once(contents, PICTURE_CONTENT_TYPE)
+    try:
+        uploaded = ask_chatd(
+            "person.media.upload",
+            {"actor": actor, "sourceURL": f"http://127.0.0.1:{server.server_port}/picture", "contentType": PICTURE_CONTENT_TYPE},
+        )
+    finally:
+        server.shutdown()
+    return uploaded["media"]
+
+
 def act_send_picture(arguments):
-    secret = secret_of(arguments["email"])
-    actor = actor_of(secret)
+    actor = actor_of(secret_of(arguments["email"]))
     conversation = ask_chatd("person.dm.ensure", {"actor": actor, "counterpartExternalIDs": []})
     contents = Path(arguments["picturePath"]).read_bytes()
+    kept = keep_picture(actor, contents)
     sent = ask_chatd(
         "person.message.send",
         {
@@ -159,13 +190,15 @@ def act_send_picture(arguments):
             "attachments": [
                 {
                     "filename": arguments["filename"],
-                    "contentType": "image/png",
-                    "contentBase64": base64.b64encode(contents).decode(),
+                    "contentType": kept["contentType"],
+                    "address": kept["address"],
+                    "sizeBytes": kept["sizeBytes"],
+                    "digest": kept["digest"],
                 }
             ],
         },
     )
-    return {"conversationID": conversation["id"], "messageID": sent.get("id", ""), "sha256": hashlib.sha256(contents).hexdigest()}
+    return {"conversationID": conversation["id"], "messageID": sent.get("id", ""), "sha256": hashlib.sha256(contents).hexdigest(), "kept": kept}
 
 
 LEDGER_STATEMENT = """
@@ -232,7 +265,7 @@ def act_open_mention(arguments):
     agent = ask_chatd("identity.self", {})["pubkeyHex"]
     channel = ask_chatd(
         "person.channel.create",
-        {"actor": actor, "name": arguments["channelName"], "visibility": "private", "memberExternalIDs": [agent]},
+        {"actor": actor, "name": arguments["channelName"], "visibility": "open", "memberExternalIDs": [agent]},
     )
     sent = ask_chatd(
         "person.message.send",
