@@ -1,6 +1,7 @@
 package companyhost
 
 import (
+	"net/netip"
 	"net/url"
 	"strings"
 )
@@ -10,7 +11,18 @@ func MessengerHost(connection Connection) string {
 	if errorValue != nil {
 		return ""
 	}
+	if address, errorValue := netip.ParseAddr(appURL.Hostname()); errorValue == nil {
+		return addressAuthority(address)
+	}
 	return strings.ToLower(connection.Company.Slug) + "." + appURL.Hostname()
+}
+
+// RFC 3986 section 3.2.2 brackets an IPv6 literal in an authority.
+func addressAuthority(address netip.Addr) string {
+	if address.Is6() {
+		return "[" + address.String() + "]"
+	}
+	return address.String()
 }
 
 func MessengerURL(connection Connection) string {

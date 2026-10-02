@@ -39,6 +39,26 @@ func TestAPlaneServedWithoutTLSNamesItsMessengerWithoutTLS(t *testing.T) {
 	}
 }
 
+func TestAnAppServedOnAnIPv4AddressNamesItsMessengerByThatAddress(t *testing.T) {
+	connection := messengerConnectionForTest("http://192.168.64.1:54321")
+	if address := MessengerURL(connection); address != "ws://192.168.64.1" {
+		t.Fatalf("the messenger address is %q", address)
+	}
+	if media := messengerMediaBaseURL(connection); media != "http://192.168.64.1/media" {
+		t.Fatalf("the media address is %q", media)
+	}
+}
+
+func TestAnAppServedOnAnIPv6AddressNamesItsMessengerByThatAddressInBrackets(t *testing.T) {
+	connection := messengerConnectionForTest("https://[FD00:0:0::1]:8443")
+	if host := MessengerHost(connection); host != "[fd00::1]" {
+		t.Fatalf("the messenger host is %q", host)
+	}
+	if address := MessengerURL(connection); address != "wss://[fd00::1]" {
+		t.Fatalf("the messenger address is %q", address)
+	}
+}
+
 func TestTheRelayChatdAndAdmindAllAnswerToTheMessengerAddress(t *testing.T) {
 	layout := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest)
 	connection := messengerConnectionForTest("https://intern.example.test")
