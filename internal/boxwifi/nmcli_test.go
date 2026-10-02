@@ -127,10 +127,14 @@ func TestJoinRescansAndRetriesWhileTheNetworkIsNotYetSeen(t *testing.T) {
 }
 
 func TestEachBoxBroadcastsItsOwnSetupNetworkName(t *testing.T) {
-	if got := SetupNetworkNameFor("DfNjfpwsVUGbJ9TutwdZmKHzIFi7_JfUwHtI4uxrYuA"); got != "kimmini-rYuA" {
+	if got := SetupNetworkNameFor("DfNjfpwsVUGbJ9TutwdZmKHzIFi7_JfUwHtI4uxrYuA", time.Time{}); got != "kimmini-rYuA" {
 		t.Fatalf("setup network name = %q, want kimmini-rYuA, the same ending the setup page shows", got)
 	}
-	if got := SetupNetworkNameFor("ab"); got != SetupNetworkName {
+	madeOn := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
+	if got := SetupNetworkNameFor("DfNjfpwsVUGbJ9TutwdZmKHzIFi7_JfUwHtI4uxrYuA", madeOn); got != "kimmini-rYuA-261002" {
+		t.Fatalf("setup network name = %q, want kimmini-rYuA-261002 for a box made on 2026-10-02", got)
+	}
+	if got := SetupNetworkNameFor("ab", time.Time{}); got != SetupNetworkName {
 		t.Fatalf("setup network name for a short key = %q, want %q", got, SetupNetworkName)
 	}
 }

@@ -23,9 +23,13 @@ encryption key in `/var/lib/internkim/box`. The private halves never leave its d
 
 A box that has no company installed and is offline, and was started with
 `--wifi-setup`, opens its own Wi-Fi network named `kimmini-` plus the last four
-characters of its key. The network appears only in that state and closes once the
-box is online. Its
-password is `intern-kim`, the same on every box.
+characters of its key and the day the box was made as `YYMMDD`, for example
+`kimmini-rYuA-261002`. The network appears only in that state and closes once the
+box is online. Its password is `intern-kim`, the same on every box.
+
+A new box has no internet to learn the date from, so the day is written when the
+box is made, as `YYYY-MM-DD` in `/boot/firmware/internkim-made-on`. Without that
+file the name has no date.
 
 Joining it opens the setup page, because every name resolves to the box. The
 page asks for the office network's name and password, and the box joins it. At

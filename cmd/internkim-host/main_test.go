@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/box"
 )
@@ -117,7 +118,7 @@ func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
 	if without.GetOnline != nil || without.ChangeWifi != nil || without.ScanWifi != nil {
 		t.Fatalf("a daemon built without the flag has wifi hooks: %+v", without)
 	}
-	with := withWifiSetup(box.Daemon{}, "https://example.com")
+	with := withWifiSetup(box.Daemon{}, "https://example.com", time.Time{})
 	if with.GetOnline == nil || with.ChangeWifi == nil || with.ScanWifi == nil {
 		t.Fatalf("a daemon built with the flag lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
 	}
