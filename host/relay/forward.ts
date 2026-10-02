@@ -183,6 +183,7 @@ export type Served = { status: number; body: unknown; replyTo: string | null };
 export type Dispatch = {
 	messageArrived: (conversationID: string, messageID: string) => void;
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
+	serveMessenger: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	tellAdmindTheDirectoryChanged: () => Promise<{ status: number; body: unknown }>;

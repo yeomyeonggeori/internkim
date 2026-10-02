@@ -17,10 +17,11 @@ allSet() {
 
 if ! allSet; then
   if stack="$(cd "$repository" && supabase status --env --output-format text 2>/dev/null)"; then
-    eval "$(printf '%s\n' "$stack" | grep -E '^(API_URL|SECRET_KEY|PUBLISHABLE_KEY)=')"
+    eval "$(printf '%s\n' "$stack" | grep -E '^(API_URL|SECRET_KEY|PUBLISHABLE_KEY|DB_URL)=')"
     export SUPABASE_URL="${SUPABASE_URL:-${API_URL:-}}"
     export SUPABASE_SECRET_KEY="${SUPABASE_SECRET_KEY:-${SECRET_KEY:-}}"
     export SUPABASE_PUBLISHABLE_KEY="${SUPABASE_PUBLISHABLE_KEY:-${PUBLISHABLE_KEY:-}}"
+    export SUPABASE_DB_URL="${SUPABASE_DB_URL:-${DB_URL:-}}"
     if [ -z "${SUPABASE_JWT_SIGNING_KEY:-}" ]; then
       export SUPABASE_JWT_SIGNING_KEY="$(local_plane_signing_key "$repository")"
     fi

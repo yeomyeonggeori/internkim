@@ -21,6 +21,7 @@
 		"report:plugin-tools": "bun run scripts/plugin-tool-provenance.ts --json",
 		"test:integration": "./scripts/test-integration.sh",
 		"test:transfer": "INTEGRATION_TESTS=tests/transfer ./scripts/test-integration.sh",
+		"test:messenger-gateway": "INTEGRATION_TESTS=tests/messenger-gateway ./scripts/test-integration.sh",
 		"pilot": "monkeys run @test bun run tests/pilot/run-pilot.ts",
 		"pilot:summary": "bun run tests/pilot/summarize-pilot.ts",
 		"test:unit:pilot": "bun test tests/unit/pilot",

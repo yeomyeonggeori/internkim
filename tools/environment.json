@@ -231,6 +231,10 @@
     "process": "cli",
     "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
   },
+  "INTEGRATION_TESTS": {
+    "process": "web scripts",
+    "description": "the directory web/scripts/test-integration.sh runs against the local plane; defaults to tests/integration, and test:messenger-gateway names tests/messenger-gateway"
+  },
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file"
@@ -535,6 +539,10 @@
   "MEMBER_SESSION_PUBLISHABLE_KEY": {
     "process": "tools/native-install-member-session.ts",
     "description": "the Supabase publishable key the member session's sign-in call carries as apikey"
+  },
+  "MESSENGER_RELAY_URL": {
+    "process": "relay",
+    "description": "the company's Buzz relay on loopback, which the relay dials for every native app the gateway carries; defaults to ws://127.0.0.1:3000"
   },
   "MESSENGER_PLATFORM": {
     "process": "relay, host",
