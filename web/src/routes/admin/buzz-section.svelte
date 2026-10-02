@@ -9,11 +9,10 @@
 
 	type BuzzSectionProps = {
 		adminBaseURL: string;
-		isDeviceReachable: boolean;
 		text: AdminPageText;
 	};
 
-	let { adminBaseURL, isDeviceReachable, text }: BuzzSectionProps = $props();
+	let { adminBaseURL, text }: BuzzSectionProps = $props();
 
 	let loadedBuzzBaseURL = $state('');
 	let deepLink = $state('');
@@ -120,9 +119,9 @@
 			{/if}
 		</div>
 		<div class="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-			<Input bind:value={inviteName} placeholder={text.buzz.namePlaceholder} disabled={!isDeviceReachable} />
-			<Input bind:value={inviteEmail} placeholder={text.buzz.emailPlaceholder} type="email" disabled={!isDeviceReachable} />
-			<Button disabled={!isDeviceReachable || isCreatingInvite || !inviteName.trim() || !inviteEmail.trim()} onclick={createInvite}>
+			<Input bind:value={inviteName} placeholder={text.buzz.namePlaceholder} />
+			<Input bind:value={inviteEmail} placeholder={text.buzz.emailPlaceholder} type="email" />
+			<Button disabled={isCreatingInvite || !inviteName.trim() || !inviteEmail.trim()} onclick={createInvite}>
 				{#if isCreatingInvite}
 					<LoaderIcon class="size-4 animate-spin" />
 				{/if}

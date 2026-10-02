@@ -24,7 +24,6 @@
 
 	type CompanyShareSectionProps = {
 		adminBaseURL: string;
-		isDeviceReachable: boolean;
 		text: AdminPageText;
 	};
 
@@ -35,7 +34,7 @@
 	const sessionHourOptions = [12, 24, 72, 168];
 	const localizationOptions = ['es', 'fr', 'de', 'it', 'nl', 'pt-BR', 'ja', 'ko', 'zh-CN', 'zh-TW', 'ar', 'hi', 'id', 'vi', 'th', 'tr'];
 
-	let { adminBaseURL, isDeviceReachable, text }: CompanyShareSectionProps = $props();
+	let { adminBaseURL, text }: CompanyShareSectionProps = $props();
 	let settings = $state<CompanyShareSettings | null>(null);
 	let draft = $state<CompanyShareSettingsUpdate>(emptyDraft());
 	let metricNames = $state<string[]>([]);
@@ -607,11 +606,11 @@
 		</Card.Header>
 		<Card.Footer class="flex flex-wrap justify-between gap-3">
 			<div class="flex flex-wrap gap-2">
-				<Button onclick={saveSettings} disabled={!isDeviceReachable || isLoading || isSaving || isPublishing}>
+				<Button onclick={saveSettings} disabled={isLoading || isSaving || isPublishing}>
 					{#if isSaving}<Spinner data-icon="inline-start" />{/if}
 					{text.companyShare.save}
 				</Button>
-				<Button variant="outline" onclick={publishSnapshot} disabled={!isDeviceReachable || !canPublishSnapshot() || isLoading || isSaving || isPublishing}>
+				<Button variant="outline" onclick={publishSnapshot} disabled={!canPublishSnapshot() || isLoading || isSaving || isPublishing}>
 					{#if isPublishing}<Spinner data-icon="inline-start" />{:else}<SendIcon data-icon="inline-start" />{/if}
 					{text.companyShare.publish}
 				</Button>

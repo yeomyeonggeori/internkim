@@ -1,9 +1,7 @@
 package admind
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -244,25 +242,6 @@ func TestAdminIdentityReadsLegacyTopLevelFallbacks(t *testing.T) {
 	}
 	if service.claimedAdminEmail() != "claimed@example.com" {
 		t.Fatalf("claimed admin email = %q", service.claimedAdminEmail())
-	}
-}
-
-func TestBackupIncludedPathsUseCanonicalConfigurationAndStateDirectories(t *testing.T) {
-	paths := strings.Join(backupIncludedPaths(), "\n")
-
-	for _, fragment := range []string{
-		"/root/.internkim/config",
-		"/root/.internkim/state",
-		"/root/.internkim/secrets",
-		"/root/.blueclaw/config",
-		"/root/.blueclaw/workspace",
-	} {
-		if !strings.Contains(paths, fragment) {
-			t.Fatalf("expected backup paths to include %q", fragment)
-		}
-	}
-	if strings.Contains(paths, "/root/.internkim/admin-email") {
-		t.Fatalf("backup paths should not include legacy admin email file: %s", paths)
 	}
 }
 
@@ -993,97 +972,6 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 		StatusCode: statusCode,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     header,
-	}
-}
-
-func TestEncryptDecryptRoundTrip(t *testing.T) {
-	directoryPath := t.TempDir()
-	plainPath := filepath.Join(directoryPath, "plain.tar.gz")
-	encryptedPath := filepath.Join(directoryPath, "backup.ikbak")
-	decryptedPath := filepath.Join(directoryPath, "decrypted.tar.gz")
-	document := []byte("backup document")
-	if errorValue := os.WriteFile(plainPath, document, 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if errorValue := encryptFile(plainPath, encryptedPath, "passphrase"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := decryptFile(encryptedPath, decryptedPath, "passphrase"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	decryptedDocument, errorValue := os.ReadFile(decryptedPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(decryptedDocument) != string(document) {
-		t.Fatalf("decrypted document = %q", string(decryptedDocument))
-	}
-}
-
-func TestRestoreUploadAssembly(t *testing.T) {
-	directoryPath := t.TempDir()
-	chunksPath := filepath.Join(directoryPath, "chunks")
-	if errorValue := os.MkdirAll(chunksPath, 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(chunksPath, "0"), []byte("hello "), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(chunksPath, "1"), []byte("world"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	service := NewService(Configuration{})
-	bundlePath := filepath.Join(directoryPath, "bundle.ikbak")
-	errorValue := service.assembleRestoreUpload(&RestoreUpload{DirectoryPath: directoryPath}, 2, bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	document, errorValue := os.ReadFile(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(document) != "hello world" {
-		t.Fatalf("assembled document = %q", string(document))
-	}
-}
-
-func TestRestoreUploadAssemblyRequiresEveryChunk(t *testing.T) {
-	service := NewService(Configuration{})
-	errorValue := service.assembleRestoreUpload(&RestoreUpload{DirectoryPath: t.TempDir()}, 1, filepath.Join(t.TempDir(), "bundle.ikbak"))
-	if errorValue == nil {
-		t.Fatal("expected missing chunk error")
-	}
-}
-
-func TestExtractBundleRejectsUnsafePath(t *testing.T) {
-	bundlePath := filepath.Join(t.TempDir(), "backup.tar.gz")
-	bundleFile, errorValue := os.Create(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	gzipWriter := gzip.NewWriter(bundleFile)
-	tarWriter := tar.NewWriter(gzipWriter)
-	if errorValue := tarWriter.WriteHeader(&tar.Header{Name: "../evil", Mode: 0o600, Size: 4}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if _, errorValue := tarWriter.Write([]byte("evil")); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := tarWriter.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := gzipWriter.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := bundleFile.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	_, errorValue = extractBundle(bundlePath, t.TempDir())
-	if errorValue == nil {
-		t.Fatal("expected unsafe path error")
 	}
 }
 

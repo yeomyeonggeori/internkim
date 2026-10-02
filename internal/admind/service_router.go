@@ -158,8 +158,6 @@ func (service *Service) registerCompanyRoutes(multiplexer *http.ServeMux) {
 func (service *Service) registerAssetRoutes(multiplexer *http.ServeMux) {
 	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
 	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
-	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
-	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
 }
 
 func (service *Service) registerBoardRoutes(multiplexer *http.ServeMux) {

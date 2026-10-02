@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -15,24 +14,6 @@ import (
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
-
-// ensureBuzzRelayTerminator keeps the device's TLS terminator (:443 -> relay
-// :3000) running. The Debian SysV stunnel4 service is not auto-restarted, so a
-// native systemd unit is installed and (re)started on every admind start. Only
-// device provisioning records a public URL on disk; a company host passes one
-// as a flag and terminates nothing itself. Runs detached from any request
-// context.
-func (service *Service) ensureBuzzRelayTerminator() {
-	if service.provisionedBuzzRelayPublicURL() == "" {
-		return
-	}
-	go func() {
-		output, errorValue := service.runCommand(context.Background(), "sh", "-lc", buzzRelayRepairCommand())
-		if errorValue != nil {
-			log.Printf("buzz relay terminator ensure failed: %v: %s", errorValue, strings.TrimSpace(string(output)))
-		}
-	}()
-}
 
 type sshRecoveryRequest struct {
 	fleetSignedRequest
@@ -97,8 +78,6 @@ var SSHRecoveryActions = []string{
 	"blueclaw-postgres-salvage",
 	"blueclaw-postgres-inspect",
 	"blueclaw-postgres-restore-previous",
-	"repair-buzz-relay",
-	"buzz-relay-journal",
 	"enable-buzz-mirror",
 	"buzz-mirror-status",
 	"retire-mattermost-mirror",
@@ -241,12 +220,6 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		restoreContext, cancelRestore := context.WithTimeout(context.Background(), 900*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(restoreContext, "restore the guest cluster from the previous workspace image", "sh", "-lc", blueclawPostgresRestorePreviousCommand()))
 		cancelRestore()
-	case "repair-buzz-relay":
-		repairContext, cancelRepair := context.WithTimeout(context.Background(), 60*time.Second)
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(repairContext, "repair Buzz relay TLS terminator", "sh", "-lc", buzzRelayRepairCommand()))
-		cancelRepair()
-	case "buzz-relay-journal":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "read Buzz relay TLS terminator journal", "sh", "-lc", buzzRelayJournalDiagnosticCommand()))
 	case "enable-buzz-mirror":
 		mirrorContext, cancelMirror := context.WithTimeout(context.Background(), 90*time.Second)
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(mirrorContext, "enable Buzz<->Mattermost mirror", "sh", "-lc", buzzMirrorEnableCommand()))
@@ -978,68 +951,6 @@ su - postgres -c "psql -X -qAt -c \"SELECT datname FROM pg_database WHERE datist
   updated=$(su - postgres -c "psql -X -qAt -d '$escaped_database' -c \"UPDATE users SET failedattempts = 0 WHERE username = 'admin' RETURNING username\"")
   [ -z "$updated" ] || printf "%s: admin failedattempts reset\n" "$database"
 done
-`)
-}
-
-func buzzRelayRepairCommand() string {
-	return strings.TrimSpace(fmt.Sprintf(`
-set +e
-command -v stunnel4 >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y stunnel4
-mkdir -p /root/.internkim/tls
-cat > /root/.internkim/tls/buzz-relay-stunnel.conf <<'STUNNELCONF'
-foreground = yes
-[buzz-relay]
-accept = 127.0.0.1:443
-connect = %s
-cert = %s
-key = /root/.internkim/tls/relay.key
-STUNNELCONF
-rm -f /etc/stunnel/buzz-relay.conf
-cat > /etc/systemd/system/buzz-relay-stunnel.service <<'STUNNELUNIT'
-[Unit]
-Description=Buzz relay TLS terminator (stunnel)
-After=network-online.target %s.service
-Wants=network-online.target
-[Service]
-ExecStart=/usr/bin/stunnel4 /root/.internkim/tls/buzz-relay-stunnel.conf
-Restart=always
-RestartSec=2
-[Install]
-WantedBy=multi-user.target
-STUNNELUNIT
-systemctl disable --now stunnel4 2>/dev/null
-systemctl mask stunnel4 2>/dev/null
-pkill -x stunnel4 2>/dev/null
-systemctl daemon-reload
-systemctl enable buzz-relay-stunnel 2>&1
-systemctl restart buzz-relay-stunnel 2>&1
-sleep 3
-printf 'is-active: '; systemctl is-active buzz-relay-stunnel
-printf '== unit status ==\n'; systemctl status buzz-relay-stunnel --no-pager -l 2>&1 | tail -18
-systemctl restart chatd 2>&1
-printf '== port443 ==\n'; ss -ltn 2>/dev/null | grep ':443' || printf '443 DOWN\n'
-`,
-		blueclaw.BuzzRelayBindAddress,
-		blueclaw.BuzzRelayCertificatePath,
-		blueclaw.BuzzRelayServiceName,
-	))
-}
-
-func buzzRelayJournalDiagnosticCommand() string {
-	return strings.TrimSpace(`
-set +e
-printf '== stunnel binaries ==\n'
-ls -la /usr/bin/stunnel* 2>&1
-printf '\n== buzz-relay-stunnel unit status ==\n'
-systemctl status buzz-relay-stunnel --no-pager -l 2>&1 | tail -25
-printf '\n== buzz-relay-stunnel journal ==\n'
-journalctl -u buzz-relay-stunnel -n 40 --no-pager 2>&1 | tail -40
-printf '\n== repair unit journal ==\n'
-journalctl -u internkim-buzz-relay-repair -n 30 --no-pager 2>&1 | tail -30
-printf '\n== config ==\n'
-cat /etc/stunnel/buzz-relay.conf 2>&1
-printf '\n== cert/key present ==\n'
-ls -la /root/.internkim/tls/ 2>&1
 `)
 }
 
@@ -2171,12 +2082,10 @@ func (service *Service) sshRecoveryServiceStates(ctx context.Context) map[string
 		"cloudflared":          service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "cloudflared"),
 		"blueclaw":             service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.BlueclawServiceName),
 		"buzz-relay":           service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.BuzzRelayServiceName),
-		"buzz-relay-stunnel":   service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "buzz-relay-stunnel"),
 		"chatd":                service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", "chatd"),
 		// The web messenger reaches this device through this service and no
 		// other. Nothing watched it, so a stop looked like nothing at all.
 		"internkim-relay":  service.sshRecoveryCommandOutput(ctx, "systemctl", "is-active", blueclaw.RelayServiceName),
-		"relay-tls-443":    service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "ss -ltn 2>/dev/null | grep -q ':443' && echo listening || echo down"),
 		"mattermost-8065":  service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "curl -fsS --max-time 3 http://127.0.0.1:8065/api/v4/system/ping >/dev/null 2>&1 && echo up || echo down"),
 		"mattermost-how":   service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "u=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -i mattermost | head -1); c=$(timeout 4 docker ps -a --format '{{.Names}}={{.Status}}' 2>/dev/null | grep -i mattermost | head -1); echo \"unit=${u:-none} ct=${c:-none}\""),
 		"mattermost-state": service.sshRecoveryCommandOutput(ctx, "sh", "-lc", "u=$(systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -i mattermost | head -1); [ -n \"$u\" ] && systemctl is-active \"$u\" 2>&1 || echo no-unit"),

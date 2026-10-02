@@ -70,7 +70,6 @@ func main() {
 	flag.StringVar(&configuration.BuzzCommunityID, "buzz-community-id", configuration.BuzzCommunityID, "Buzz community UUID invites admit into")
 	flag.StringVar(&configuration.BuzzRelayURL, "buzz-relay-url", configuration.BuzzRelayURL, "Buzz relay WebSocket URL used to connect from inside the box (loopback path)")
 	flag.StringVar(&configuration.BuzzRelayPublicURL, "buzz-relay-public-url", configuration.BuzzRelayPublicURL, "public wss URL for the relay, e.g. wss://relay.example.test; used for invite deep links, browser relay config, and the Host header presented to the relay")
-	flag.StringVar(&configuration.BuzzRelayPublicURLPath, "buzz-relay-public-url-path", configuration.BuzzRelayPublicURLPath, "file provisioning writes that URL to when the company gave its relay a domain; absent means loopback-only")
 	flag.StringVar(&configuration.BuzzAdminCommandPath, "buzz-admin-command", configuration.BuzzAdminCommandPath, "buzz-admin binary path for member polling")
 	flag.StringVar(&configuration.BuzzDatabaseURL, "buzz-database-url", configuration.BuzzDatabaseURL, "Buzz relay postgres URL for member polling")
 	buzzDatabaseURLPath := flag.String("buzz-database-url-path", "", "file holding the Buzz relay postgres URL (EnvironmentFile format); read when -buzz-database-url is empty")
@@ -83,7 +82,6 @@ func main() {
 	flag.BoolVar(&configuration.TaskRunNotifyEnabled, "task-run-notify", configuration.TaskRunNotifyEnabled, "push a notification to the central plane when a task run needs approval, completes, or fails")
 	flag.BoolVar(&configuration.AttendanceNotifyEnabled, "attendance-notify", configuration.AttendanceNotifyEnabled, "push a notification when somebody clocks in or out, and when a leave request reaches the administrators")
 	flag.BoolVar(&configuration.MailNotifyEnabled, "mail-notify", configuration.MailNotifyEnabled, "push a notification when unread mail arrives for somebody with a connected account")
-	flag.BoolVar(&configuration.UsersSyncInstallEnabled, "install-users-sync", configuration.UsersSyncInstallEnabled, "write, enable and start the device's hourly users-sync script and timer under /usr/local/bin and /etc/systemd/system; the company host takes its roster from the central plane and turns this off")
 	flag.Parse()
 
 	if configuration.BuzzDatabaseURL == "" && *buzzDatabaseURLPath != "" {

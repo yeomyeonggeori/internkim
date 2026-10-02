@@ -8,15 +8,12 @@ import {
 import type { AdminSection, AdminSession, UserRole } from '../../src/routes/admin/admin-types';
 
 const allSections: AdminSection[] = [
-	'device',
 	'users',
 	'credentials',
-	'backup',
 	'bot',
 	'settings',
 	'workSettings',
-	'leaveSettings',
-	'network'
+	'leaveSettings'
 ];
 
 function visibleSections(role: UserRole): AdminSection[] {
@@ -30,7 +27,6 @@ function session(role: UserRole | undefined, isAdmin?: boolean): Omit<AdminSessi
 		...(isAdmin === undefined ? {} : { isAdmin }),
 		isClaimed: true,
 		bootstrapStatus: 'claimed',
-		deviceManaged: true,
 		...(role ? { role } : {})
 	};
 }
@@ -50,7 +46,7 @@ describe('admin role policy', () => {
 	});
 
 	test('selects the first visible section for the current role', () => {
-		expect(firstVisibleAdminSection('admin', allSections)).toBe('device');
+		expect(firstVisibleAdminSection('admin', allSections)).toBe('users');
 		expect(firstVisibleAdminSection('member', allSections)).toBe(null);
 	});
 

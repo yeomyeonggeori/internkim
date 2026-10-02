@@ -10,11 +10,10 @@
 
 	type BotSectionProps = {
 		adminBaseURL: string;
-		isDeviceReachable: boolean;
 		text: AdminPageText;
 	};
 
-	let { adminBaseURL, isDeviceReachable, text }: BotSectionProps = $props();
+	let { adminBaseURL, text }: BotSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let draft = $state<SoulDraft>(soulToDraft({ schemaVersion: 1 }));
@@ -67,7 +66,7 @@
 		{/if}
 	</Card.Content>
 	<Card.Footer class="justify-end">
-		<Button disabled={!isDeviceReachable || isSaving || isLoading} onclick={saveSoul}>
+		<Button disabled={isSaving || isLoading} onclick={saveSoul}>
 			{#if isSaving}
 				<LoaderIcon class="animate-spin" />
 			{/if}

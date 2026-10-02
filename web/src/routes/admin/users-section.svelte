@@ -38,8 +38,6 @@
 	type UsersSectionProps = {
 		adminBaseURL: string;
 		adminSession: AdminSession | null;
-		fleetID: string;
-		isDeviceContext: boolean;
 		text: AdminPageText;
 		onUserChanged: () => Promise<void> | void;
 	};
@@ -49,7 +47,7 @@
 		password: string;
 	};
 
-	let { adminBaseURL, adminSession, fleetID, isDeviceContext, text, onUserChanged }: UsersSectionProps = $props();
+	let { adminBaseURL, adminSession, text, onUserChanged }: UsersSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let userRecords = $state<UserRecord[]>([]);
@@ -119,7 +117,7 @@
 	}
 
 	async function loadUsers() {
-		if (!fleetID || !adminBaseURL) return;
+		if (!adminBaseURL) return;
 
 		isLoadingUsers = true;
 		try {
@@ -172,7 +170,7 @@
 		const email = newEmail.trim().toLowerCase();
 		const handle = normalizeHandle(newHandle);
 		const name = newName.trim();
-		if (!email || !handle || !name || !fleetID || !adminBaseURL) return;
+		if (!email || !handle || !name || !adminBaseURL) return;
 
 		isSavingUser = true;
 		temporaryPasswordResult = null;
@@ -192,7 +190,7 @@
 	}
 
 	async function saveUserRecord(record: UserRecord, role: UserRole = userRole(record)): Promise<boolean> {
-		if (!fleetID || !adminBaseURL) return false;
+		if (!adminBaseURL) return false;
 
 		isSavingUser = true;
 		temporaryPasswordResult = null;
@@ -231,7 +229,7 @@
 	}
 
 	async function removeEmail(email: string) {
-		if (!fleetID || !adminBaseURL) return;
+		if (!adminBaseURL) return;
 
 		isSavingUser = true;
 		temporaryPasswordResult = null;
@@ -246,168 +244,160 @@
 
 </script>
 
-{#if !isDeviceContext}
-	<Card.Root>
-		<Card.Header>
-			<Card.Title>{text.users.title}</Card.Title>
-			<Card.Description>{text.users.deviceOnly}</Card.Description>
-		</Card.Header>
-	</Card.Root>
-{:else}
-	<Card.Root>
-		<Card.Header class="border-b pb-4">
-			<Card.Title>{text.users.inviteTitle}</Card.Title>
-			<Card.Description>{text.users.inviteDescription}</Card.Description>
-			<Card.Action>
-				<Badge variant="outline">{userCount()} {text.users.userCount}</Badge>
-			</Card.Action>
-		</Card.Header>
-		<form
-			onsubmit={(event) => {
-				event.preventDefault();
-				addEmail();
-			}}
-		>
-			<Card.Content>
-				<div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-					<Field.Field>
-						<Field.Label for="invite-handle">{text.users.handle}</Field.Label>
-						<Input id="invite-handle" bind:value={newHandle} placeholder="gyeonbon" autocomplete="off" />
-					</Field.Field>
-					<Field.Field>
-						<Field.Label for="invite-name">{text.users.realName}</Field.Label>
-						<Input id="invite-name" bind:value={newName} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
-					</Field.Field>
-					<Field.Field>
-						<Field.Label for="invite-email">{text.users.email}</Field.Label>
-						<div class="relative">
-							<MailIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-							<Input id="invite-email" bind:value={newEmail} type="email" placeholder={text.users.emailPlaceholder} class="pl-9" />
-						</div>
-					</Field.Field>
-					<Field.Field>
-						<Field.Label for="invite-hire-date">{text.users.hireDate}</Field.Label>
-						<Input id="invite-hire-date" bind:value={newHireDate} type="date" />
-					</Field.Field>
-					<Field.Field>
-						<Field.Label for="invite-role">{text.users.role}</Field.Label>
-						<Select.Root type="single" bind:value={newUserRole}>
-							<Select.Trigger id="invite-role" class="w-full">
-								{userRoleOptions(text, canGrantAdminRole).find((option) => option.value === newUserRole)?.label ?? '-'}
-							</Select.Trigger>
-							<Select.Content>
-								{#each userRoleOptions(text, canGrantAdminRole) as option (option.value)}
-									<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</Field.Field>
-				</div>
-			</Card.Content>
-			<Card.Footer class="flex-wrap justify-between gap-3">
-				<p class="text-muted-foreground text-sm">{text.users.passwordNotice}</p>
-				<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)}>
-					{#if isSavingUser}
-						<RefreshCwIcon class="size-4 animate-spin" />
-					{:else}
-						<PlusIcon />
-					{/if}
-					{text.users.invite}
-				</Button>
-			</Card.Footer>
-		</form>
-	</Card.Root>
-
-	<Card.Root>
-		<Card.Header class="border-b pb-4">
-			<Card.Title>{text.users.groupTitle}</Card.Title>
-			<Card.Description>{text.users.groupDescription}</Card.Description>
-		</Card.Header>
-		<form
-			onsubmit={(event) => {
-				event.preventDefault();
-				saveCircle();
-			}}
-		>
-			<Card.Content>
-				<Field.Group>
-					<div class="grid gap-5 md:grid-cols-2">
-						<Field.Field>
-							<Field.Label for="circle-id">{text.users.groupID}</Field.Label>
-							<Input id="circle-id" bind:value={newCircleID} placeholder={text.users.groupIDPlaceholder} autocomplete="off" />
-						</Field.Field>
-						<Field.Field>
-							<Field.Label for="circle-name">{text.users.groupName}</Field.Label>
-							<Input id="circle-name" bind:value={newCircleName} placeholder={text.users.groupNamePlaceholder} autocomplete="off" />
-						</Field.Field>
-					</div>
-					{#if availableCircles.length > 0}
-						<div class="flex flex-wrap gap-2">
-							{#each availableCircles as circle (circle.circleID)}
-								<Badge variant="outline" class="gap-2">
-									{circle.displayName || circle.circleID}
-									{#if !isReservedCircleID(circle.circleID)}
-										<button
-											type="button"
-											class="text-muted-foreground hover:text-destructive"
-											onclick={() => removeCircle(circle.circleID)}
-											aria-label={`${text.users.remove} ${circle.displayName || circle.circleID}`}
-										>
-											<XIcon class="size-3" />
-										</button>
-									{/if}
-								</Badge>
-							{/each}
-						</div>
-					{/if}
-				</Field.Group>
-			</Card.Content>
-			<Card.Footer class="justify-end">
-				<Button type="submit" disabled={isSavingUser || !newCircleID.trim() || isReservedCircleID(newCircleID)}>{text.users.addGroup}</Button>
-			</Card.Footer>
-		</form>
-	</Card.Root>
-
-	<AlertDialog.Root
-		open={temporaryPasswordResult !== null}
-		onOpenChange={(open) => {
-			if (!open) temporaryPasswordResult = null;
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.users.inviteTitle}</Card.Title>
+		<Card.Description>{text.users.inviteDescription}</Card.Description>
+		<Card.Action>
+			<Badge variant="outline">{userCount()} {text.users.userCount}</Badge>
+		</Card.Action>
+	</Card.Header>
+	<form
+		onsubmit={(event) => {
+			event.preventDefault();
+			addEmail();
 		}}
 	>
-		<AlertDialog.Content class="sm:max-w-md">
-			{#if temporaryPasswordResult}
-				<AlertDialog.Header>
-					<AlertDialog.Title>{text.users.temporaryPasswordTitle}</AlertDialog.Title>
-					<AlertDialog.Description>{temporaryPasswordResult.email}</AlertDialog.Description>
-				</AlertDialog.Header>
-				<div class="flex items-center gap-2">
-					<code class="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
-					<CopyButton text={temporaryPasswordResult.password} />
-				</div>
-				<p class="text-muted-foreground text-sm">{text.users.temporaryPasswordNotice}</p>
-				<AlertDialog.Footer>
-					<AlertDialog.Action onclick={() => (temporaryPasswordResult = null)}>
-						{text.users.temporaryPasswordClose}
-					</AlertDialog.Action>
-				</AlertDialog.Footer>
-			{/if}
-		</AlertDialog.Content>
-	</AlertDialog.Root>
+		<Card.Content>
+			<div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+				<Field.Field>
+					<Field.Label for="invite-handle">{text.users.handle}</Field.Label>
+					<Input id="invite-handle" bind:value={newHandle} placeholder="gyeonbon" autocomplete="off" />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="invite-name">{text.users.realName}</Field.Label>
+					<Input id="invite-name" bind:value={newName} placeholder={text.users.realNamePlaceholder} autocomplete="off" />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="invite-email">{text.users.email}</Field.Label>
+					<div class="relative">
+						<MailIcon class="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+						<Input id="invite-email" bind:value={newEmail} type="email" placeholder={text.users.emailPlaceholder} class="pl-9" />
+					</div>
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="invite-hire-date">{text.users.hireDate}</Field.Label>
+					<Input id="invite-hire-date" bind:value={newHireDate} type="date" />
+				</Field.Field>
+				<Field.Field>
+					<Field.Label for="invite-role">{text.users.role}</Field.Label>
+					<Select.Root type="single" bind:value={newUserRole}>
+						<Select.Trigger id="invite-role" class="w-full">
+							{userRoleOptions(text, canGrantAdminRole).find((option) => option.value === newUserRole)?.label ?? '-'}
+						</Select.Trigger>
+						<Select.Content>
+							{#each userRoleOptions(text, canGrantAdminRole) as option (option.value)}
+								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+				</Field.Field>
+			</div>
+		</Card.Content>
+		<Card.Footer class="flex-wrap justify-between gap-3">
+			<p class="text-muted-foreground text-sm">{text.users.passwordNotice}</p>
+			<Button type="submit" disabled={isSavingUser || !newEmail.trim() || !newName.trim() || !isValidHandle(newHandle)}>
+				{#if isSavingUser}
+					<RefreshCwIcon class="size-4 animate-spin" />
+				{:else}
+					<PlusIcon />
+				{/if}
+				{text.users.invite}
+			</Button>
+		</Card.Footer>
+	</form>
+</Card.Root>
 
-		{#if isLoadingUsers}
-			<p class="text-muted-foreground text-sm">{text.users.loading}</p>
-		{:else if userRecords.length === 0}
-			<p class="text-muted-foreground text-sm">{text.users.empty}</p>
-		{:else}
-			<UsersDirectory
-				{availableCircles}
-				{canGrantAdminRole}
-				{isSavingUser}
-				{text}
-				bind:userRecords
-				onRemoveUser={removeEmail}
-				onSaveUser={submitUserRecord}
-				onSaveNote={saveUserNote}
-			/>
+<Card.Root>
+	<Card.Header class="border-b pb-4">
+		<Card.Title>{text.users.groupTitle}</Card.Title>
+		<Card.Description>{text.users.groupDescription}</Card.Description>
+	</Card.Header>
+	<form
+		onsubmit={(event) => {
+			event.preventDefault();
+			saveCircle();
+		}}
+	>
+		<Card.Content>
+			<Field.Group>
+				<div class="grid gap-5 md:grid-cols-2">
+					<Field.Field>
+						<Field.Label for="circle-id">{text.users.groupID}</Field.Label>
+						<Input id="circle-id" bind:value={newCircleID} placeholder={text.users.groupIDPlaceholder} autocomplete="off" />
+					</Field.Field>
+					<Field.Field>
+						<Field.Label for="circle-name">{text.users.groupName}</Field.Label>
+						<Input id="circle-name" bind:value={newCircleName} placeholder={text.users.groupNamePlaceholder} autocomplete="off" />
+					</Field.Field>
+				</div>
+				{#if availableCircles.length > 0}
+					<div class="flex flex-wrap gap-2">
+						{#each availableCircles as circle (circle.circleID)}
+							<Badge variant="outline" class="gap-2">
+								{circle.displayName || circle.circleID}
+								{#if !isReservedCircleID(circle.circleID)}
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-destructive"
+										onclick={() => removeCircle(circle.circleID)}
+										aria-label={`${text.users.remove} ${circle.displayName || circle.circleID}`}
+									>
+										<XIcon class="size-3" />
+									</button>
+								{/if}
+							</Badge>
+						{/each}
+					</div>
+				{/if}
+			</Field.Group>
+		</Card.Content>
+		<Card.Footer class="justify-end">
+			<Button type="submit" disabled={isSavingUser || !newCircleID.trim() || isReservedCircleID(newCircleID)}>{text.users.addGroup}</Button>
+		</Card.Footer>
+	</form>
+</Card.Root>
+
+<AlertDialog.Root
+	open={temporaryPasswordResult !== null}
+	onOpenChange={(open) => {
+		if (!open) temporaryPasswordResult = null;
+	}}
+>
+	<AlertDialog.Content class="sm:max-w-md">
+		{#if temporaryPasswordResult}
+			<AlertDialog.Header>
+				<AlertDialog.Title>{text.users.temporaryPasswordTitle}</AlertDialog.Title>
+				<AlertDialog.Description>{temporaryPasswordResult.email}</AlertDialog.Description>
+			</AlertDialog.Header>
+			<div class="flex items-center gap-2">
+				<code class="flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-base">{temporaryPasswordResult.password}</code>
+				<CopyButton text={temporaryPasswordResult.password} />
+			</div>
+			<p class="text-muted-foreground text-sm">{text.users.temporaryPasswordNotice}</p>
+			<AlertDialog.Footer>
+				<AlertDialog.Action onclick={() => (temporaryPasswordResult = null)}>
+					{text.users.temporaryPasswordClose}
+				</AlertDialog.Action>
+			</AlertDialog.Footer>
 		{/if}
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+	{#if isLoadingUsers}
+		<p class="text-muted-foreground text-sm">{text.users.loading}</p>
+	{:else if userRecords.length === 0}
+		<p class="text-muted-foreground text-sm">{text.users.empty}</p>
+	{:else}
+		<UsersDirectory
+			{availableCircles}
+			{canGrantAdminRole}
+			{isSavingUser}
+			{text}
+			bind:userRecords
+			onRemoveUser={removeEmail}
+			onSaveUser={submitUserRecord}
+			onSaveNote={saveUserNote}
+		/>
 	{/if}
+

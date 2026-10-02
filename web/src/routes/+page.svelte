@@ -6,13 +6,10 @@
 	import { fetchAdminSession } from './admin/admin-api';
 	import { adminSessionRole, canViewAdminSection, firstVisibleAdminSection } from './admin/admin-role-policy';
 	import APITokenSection from './admin/api-token-section.svelte';
-	import BackupSection from './admin/backup-section.svelte';
 	import BotSection from './admin/bot-section.svelte';
 	import BuzzSection from './admin/buzz-section.svelte';
 	import CredentialsSection from './admin/credentials-section.svelte';
 	import CompanyShareSection from './admin/company-share-section.svelte';
-	import DeviceSection from './admin/device-section.svelte';
-	import NetworkSection from './admin/network-section.svelte';
 	import SettingsSection from './admin/settings-section.svelte';
 	import AttendanceSettingsSection from './admin/attendance-settings-section.svelte';
 	import AttendanceWorkSettingsSection from './admin/attendance-work-settings-section.svelte';
@@ -24,26 +21,22 @@
 	const isMockAdminAPI = import.meta.env.VITE_MOCK_ADMIN === '1';
 	const mockAdminEmail = import.meta.env.VITE_DEV_USER_EMAIL?.trim() || 'kim@example.com';
 	const text = createPageText(adminText);
-	const adminSectionConfigurations: { value: AdminSection; isDeviceManagedOnly: boolean }[] = [
-		{ value: 'device', isDeviceManagedOnly: true },
-		{ value: 'users', isDeviceManagedOnly: false },
-		{ value: 'credentials', isDeviceManagedOnly: false },
-		{ value: 'backup', isDeviceManagedOnly: false },
-		{ value: 'bot', isDeviceManagedOnly: false },
-		{ value: 'settings', isDeviceManagedOnly: false },
-		{ value: 'workSettings', isDeviceManagedOnly: false },
-		{ value: 'leaveSettings', isDeviceManagedOnly: false },
-		{ value: 'sharing', isDeviceManagedOnly: false },
-		{ value: 'network', isDeviceManagedOnly: true },
-		{ value: 'buzz', isDeviceManagedOnly: false },
-		{ value: 'apiTokens', isDeviceManagedOnly: false }
+	const adminSectionValues: AdminSection[] = [
+		'users',
+		'credentials',
+		'bot',
+		'settings',
+		'workSettings',
+		'leaveSettings',
+		'sharing',
+		'buzz',
+		'apiTokens'
 	];
 
 	let fleetIdInput = $state('');
 	let adminSession = $state<AdminSession | null>(null);
 	let isAdminSessionLoaded = $state(false);
-	let isDeviceReachable = $state(isMockAdminAPI);
-	let activeAdminSection = $state<AdminSection>('device');
+	let activeAdminSection = $state<AdminSection>('users');
 
 	function fleetID() {
 		const explicitFleetID = fleetIdInput.trim().toLowerCase();
@@ -68,23 +61,18 @@
 		return `https://${deviceFleetID}.${fleetZone()}`;
 	}
 
-	const showDeviceSection = $derived(adminSession?.deviceManaged !== false);
 	const currentAdminRole = $derived(adminSessionRole(adminSession));
 
 	function adminSections(): { value: AdminSection; label: string }[] {
-		return adminSectionConfigurations
-			.filter((section) => showDeviceSection || !section.isDeviceManagedOnly)
-			.filter((section) => canViewAdminSection(currentAdminRole, section.value))
-			.map((section) => ({ value: section.value, label: text.sections[section.value] }));
+		return adminSectionValues
+			.filter((section) => canViewAdminSection(currentAdminRole, section))
+			.map((section) => ({ value: section, label: text.sections[section] }));
 	}
 
 	$effect(() => {
 		if (!isAdminSessionLoaded) return;
 		if (isVisibleAdminSection(activeAdminSection)) return;
-		const visibleSection = firstVisibleAdminSection(
-			currentAdminRole,
-			adminSectionConfigurations.filter((section) => showDeviceSection || !section.isDeviceManagedOnly).map((section) => section.value)
-		);
+		const visibleSection = firstVisibleAdminSection(currentAdminRole, adminSectionValues);
 		if (visibleSection) activeAdminSection = visibleSection;
 	});
 
@@ -107,7 +95,7 @@
 	});
 
 	function isAdminSection(section: string): section is AdminSection {
-		return adminSectionConfigurations.some((adminSection) => adminSection.value === section);
+		return adminSectionValues.some((adminSection) => adminSection === section);
 	}
 
 	function isVisibleAdminSection(section: AdminSection) {
@@ -133,11 +121,6 @@
 		if (!browser) return false;
 		const host = location.hostname;
 		return host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host);
-	}
-
-	async function saveFleetID(savedFleetID: string) {
-		if (savedFleetID) localStorage.setItem(storedFleetIdKey, savedFleetID);
-		await loadAdminSession();
 	}
 
 	async function loadAdminSession() {
@@ -174,48 +157,27 @@
 
 			{#if isVisibleAdminSection(activeAdminSection)}
 				<section class="grid min-w-0 gap-5 py-6">
-					{#if activeAdminSection === 'device'}
-						<DeviceSection
-							adminBaseURL={adminBaseURL()}
-							adminSession={adminSession}
-							bind:fleetIdInput
-							bind:isDeviceReachable
-							text={text}
-							onFleetIDSaved={saveFleetID}
-						/>
-					{:else if activeAdminSection === 'bot'}
-						<BotSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+					{#if activeAdminSection === 'bot'}
+						<BotSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'credentials'}
-						<CredentialsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-					{:else if activeAdminSection === 'backup'}
-						<BackupSection
-							adminBaseURL={adminBaseURL()}
-							fleetID={fleetID()}
-							isDeviceHost={!!fleetIDFromHost()}
-							isDeviceReachable={isDeviceReachable}
-							text={text}
-						/>
+						<CredentialsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'users'}
 						<UsersSection
 							adminBaseURL={adminBaseURL()}
 							adminSession={adminSession}
-							fleetID={fleetID()}
-							isDeviceContext={!!fleetID()}
 							text={text}
 							onUserChanged={loadAdminSession}
 						/>
 					{:else if activeAdminSection === 'settings'}
-						<SettingsSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+						<SettingsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'workSettings'}
 						<AttendanceWorkSettingsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'leaveSettings'}
 						<AttendanceSettingsSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'sharing'}
-						<CompanyShareSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
-					{:else if activeAdminSection === 'network'}
-						<NetworkSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+						<CompanyShareSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'buzz'}
-						<BuzzSection adminBaseURL={adminBaseURL()} isDeviceReachable={isDeviceReachable} text={text} />
+						<BuzzSection adminBaseURL={adminBaseURL()} text={text} />
 					{:else if activeAdminSection === 'apiTokens'}
 						<APITokenSection />
 					{/if}

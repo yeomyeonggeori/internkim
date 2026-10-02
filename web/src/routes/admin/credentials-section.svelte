@@ -11,11 +11,10 @@
 
 	type CredentialsSectionProps = {
 		adminBaseURL: string;
-		isDeviceReachable: boolean;
 		text: AdminPageText;
 	};
 
-	let { adminBaseURL, isDeviceReachable, text }: CredentialsSectionProps = $props();
+	let { adminBaseURL, text }: CredentialsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let credentialProviders = $state<CredentialProviderStatus[]>([]);
@@ -133,7 +132,7 @@
 							type="password"
 							autocomplete="new-password"
 						/>
-						<Button type="submit" disabled={!isDeviceReachable || isSavingCredential || !openRouterApiKey.trim()}>
+						<Button type="submit" disabled={isSavingCredential || !openRouterApiKey.trim()}>
 							{#if isSavingCredential}
 								<LoaderIcon class="size-4 animate-spin" />
 							{/if}

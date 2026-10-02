@@ -65,7 +65,6 @@ type Configuration struct {
 	BuzzCommunityID                string
 	BuzzRelayURL                   string
 	BuzzRelayPublicURL             string
-	BuzzRelayPublicURLPath         string
 	BuzzAdminCommandPath           string
 	BuzzDatabaseURL                string
 	BuzzAccountLinksPath           string
@@ -77,7 +76,6 @@ type Configuration struct {
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
 	MailNotifyEnabled              bool
-	UsersSyncInstallEnabled        bool
 }
 
 func DefaultConfiguration() Configuration {
@@ -87,7 +85,6 @@ func DefaultConfiguration() Configuration {
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
 		MailNotifyEnabled:              true,
-		UsersSyncInstallEnabled:        true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
@@ -119,7 +116,6 @@ func DefaultConfiguration() Configuration {
 		CentralPlanePublishableKeyPath: "/root/.internkim/env/central-plane-publishable-key",
 		FleetIDPath:                    "/root/.internkim/env/fleet-id",
 		DeviceURLPath:                  "/root/.internkim/env/device-url",
-		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
 		TaskPublicURLPath:              "/root/.internkim/env/flow-public-url",
 		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
@@ -286,9 +282,6 @@ func (configuration Configuration) withFleetDefaults(defaultConfiguration Config
 	}
 	if configuration.DeviceURLPath == "" {
 		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
-	}
-	if configuration.BuzzRelayPublicURLPath == "" {
-		configuration.BuzzRelayPublicURLPath = defaultConfiguration.BuzzRelayPublicURLPath
 	}
 	if configuration.TaskPublicURLPath == "" {
 		configuration.TaskPublicURLPath = defaultConfiguration.TaskPublicURLPath

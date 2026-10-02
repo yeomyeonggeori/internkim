@@ -15,8 +15,7 @@ async function mockAdminPage(page: Page, role: MockAdminRole): Promise<void> {
 				isAdmin: role === 'admin',
 				role,
 				isClaimed: true,
-				bootstrapStatus: 'claimed',
-				deviceManaged: true
+				bootstrapStatus: 'claimed'
 			}
 		});
 	});
@@ -61,17 +60,14 @@ test.describe('admin role tabs', () => {
 		await page.goto('/?fleet_id=demo');
 
 		const main = page.locator('main');
-		await expect(main.getByRole('tab', { name: '기기' })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '사용자' })).toBeVisible();
 		await expect(main.getByRole('link', { name: '조직도' })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '조직도' })).toHaveCount(0);
 		await expect(main.getByRole('tab', { name: '인증 정보' })).toBeVisible();
-		await expect(main.getByRole('tab', { name: '백업' })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '봇' })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '일반', exact: true })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '근무 설정', exact: true })).toBeVisible();
 		await expect(main.getByRole('tab', { name: '휴가 설정', exact: true })).toBeVisible();
-		await expect(main.getByRole('tab', { name: '네트워크' })).toBeVisible();
 		await main.getByRole('tab', { name: '사용자' }).click();
 		const adminRow = main.getByRole('row').filter({ hasText: 'admin@example.com' });
 		await expect(adminRow.getByText('관리자', { exact: true })).toBeVisible();

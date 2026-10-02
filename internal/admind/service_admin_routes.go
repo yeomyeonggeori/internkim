@@ -19,7 +19,6 @@ type adminSessionResponse struct {
 	BootstrapError         string `json:"bootstrapError,omitempty"`
 	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`
-	DeviceManaged          bool   `json:"deviceManaged"`
 }
 
 func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request *http.Request) {
@@ -50,9 +49,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 	if service.handleAdminCompanyRoute(responseWriter, request, path) {
-		return
-	}
-	if service.handleAdminBackupRoute(responseWriter, request, path) {
 		return
 	}
 	http.NotFound(responseWriter, request)
@@ -182,14 +178,6 @@ func (service *Service) handleAdminSettingsRoute(responseWriter http.ResponseWri
 		service.writeWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/wifi-profiles":
-		service.writeWifiProfiles(responseWriter)
-	case request.Method == http.MethodPost && path == "/wifi-profiles":
-		service.addWifiProfile(responseWriter, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/wifi-profiles/"):
-		service.updateWifiPassword(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/wifi-profiles/"):
-		service.removeWifiProfile(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
 	default:
 		return false
 	}
@@ -214,30 +202,6 @@ func (service *Service) handleAdminCompanyRoute(responseWriter http.ResponseWrit
 	return true
 }
 
-func (service *Service) handleAdminBackupRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/backups":
-		service.createBackup(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):
-		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/status"))
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/download"):
-		service.downloadBackup(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/download"))
-	case request.Method == http.MethodPost && path == "/restore/uploads":
-		service.createRestoreUpload(responseWriter, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/restore/uploads/") && strings.Contains(path, "/chunks/"):
-		service.writeRestoreUploadChunk(responseWriter, request, path)
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/restore/uploads/") && strings.HasSuffix(path, "/complete"):
-		service.completeRestoreUpload(responseWriter, request, path)
-	case request.Method == http.MethodPost && path == "/restore":
-		service.createRestore(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/restore/") && strings.HasSuffix(path, "/status"):
-		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/restore/"), "/status"))
-	default:
-		return false
-	}
-	return true
-}
-
 func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, request *http.Request) {
 	callerEmail := service.authenticatedCallerEmail(request)
 	bootstrapResult := service.ensureFirstAdminClaim(request.Context(), callerEmail)
@@ -255,7 +219,6 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
-		DeviceManaged:     service.hasDeviceAuth(),
 	}
 	if isClaimedAdmin {
 		passwordDocument := service.consumeFirstAdminPassword(callerEmail)
