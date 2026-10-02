@@ -334,15 +334,15 @@
     left: 50%;
     z-index: 40;
     width: var(--app-mobile-nav-width);
-    height: calc(var(--app-mobile-nav-height) + var(--app-mobile-nav-bottom));
-    padding: var(--app-mobile-nav-padding) max(0.25rem, env(safe-area-inset-right)) calc(var(--app-mobile-nav-padding) + var(--app-mobile-nav-bottom)) max(0.25rem, env(safe-area-inset-left));
+    height: calc(var(--app-mobile-nav-height) + var(--app-viewport-safe-bottom, var(--app-mobile-nav-bottom)));
+    padding: var(--app-mobile-nav-padding) max(0.25rem, env(safe-area-inset-right)) calc(var(--app-mobile-nav-padding) + var(--app-viewport-safe-bottom, var(--app-mobile-nav-bottom))) max(0.25rem, env(safe-area-inset-left));
     translate: -50% 0;
   }
 
   .internkim-app-floating-action {
     position: fixed;
     right: max(0.75rem, env(safe-area-inset-right));
-    bottom: calc(var(--app-viewport-bottom, 0px) + var(--app-mobile-nav-bottom) + var(--app-mobile-nav-height) + var(--app-floating-action-gap));
+    bottom: calc(var(--app-viewport-bottom, 0px) + var(--app-viewport-safe-bottom, var(--app-mobile-nav-bottom)) + var(--app-mobile-nav-height) + var(--app-floating-action-gap));
     z-index: 40;
   }
 
@@ -412,29 +412,13 @@ html.internkim-embedded [data-app-shell-scroll] {
   padding-bottom: 0;
 }
 
+[data-sonner-toaster].toaster [data-sonner-toast][data-front='true'] {
+  pointer-events: auto;
+}
+
 @media (max-width: 639px) {
-  [data-sonner-toaster].toaster [data-sonner-toast] {
-    pointer-events: auto;
-    padding-right: 48px;
-    max-height: calc(var(--app-viewport-height, 100dvh) - 80px);
-    overflow-y: auto;
-  }
-  [data-sonner-toaster].toaster [data-sonner-toast] [data-button] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  [data-sonner-toaster].toaster [data-sonner-toast] [data-close-button] {
-    top: 0;
-    right: 0;
-    left: auto;
-    width: 44px;
-    height: 44px;
-    transform: none;
-    border: 0;
-    background: transparent;
-  }
-  [data-slot='button'], [data-slot='toggle'],
-  [class~='group/button'], [class~='group/toggle'] {
+  :is([data-slot='button'], [data-slot='toggle'],
+  [class~='group/button'], [class~='group/toggle']):not([data-sonner-toaster] *) {
     min-height: 44px;
     min-width: 44px;
   }
@@ -479,6 +463,16 @@ html.internkim-embedded [data-app-shell-scroll] {
     justify-content: flex-start;
   }
   [data-slot='tabs-trigger'] { flex-shrink: 0; }
+  .calendar-toolbar [data-slot='tabs-list'] {
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .calendar-toolbar [data-slot='tabs-trigger'] {
+    flex: 1;
+    padding-inline: 4px;
+  }
   .internkim-app-crumbs [data-slot='breadcrumb-list'] { flex-wrap: nowrap; }
 	.internkim-app-header {
 		padding-left: max(12px, env(safe-area-inset-left));

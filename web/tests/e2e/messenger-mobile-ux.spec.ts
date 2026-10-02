@@ -15,12 +15,15 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 		await expect(page.locator('[data-sonner-toast]')).toHaveCount(3);
 		const front = page.locator('[data-sonner-toast][data-front="true"]');
 		await expect(front).toBeVisible();
+		await expect(front).toHaveCSS('padding', '16px');
+		await expect(front).toHaveCSS('font-size', '13px');
+		await expect(front.getByRole('button', { name: '확인', exact: true })).toHaveCSS('height', '24px');
+		await expect(front.getByRole('button', { name: '확인', exact: true })).toHaveCSS('font-size', '12px');
+		await expect(front.locator('[data-close-button]')).toHaveCount(0);
 		if (viewport.width < 640) {
-			await expect.poll(async () => (await front.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(59.5);
+			await expect.poll(async () => (await front.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(15.5);
 			const box = await front.boundingBox();
 			expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
-			await expectTouchTarget(front.getByRole('button', { name: '닫기', exact: true }));
-			await expectTouchTarget(front.getByRole('button', { name: '확인', exact: true }));
 			await page.getByRole('button', { name: '더보기', exact: true }).click();
 			const action = front.getByRole('button', { name: '확인', exact: true });
 			expect(await action.evaluate(element => { const rect = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)); })).toBe(true);
@@ -34,15 +37,14 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }
 					Object.defineProperties(viewport, { height: { configurable: true, get: () => 440 }, offsetTop: { configurable: true, get: () => 24 } });
 					viewport.dispatchEvent(new Event('resize'));
 				});
-				await expect.poll(async () => (await front.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(83.5);
+				await expect.poll(async () => (await front.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(39.5);
 				expect((await front.boundingBox())!.y + (await front.boundingBox())!.height).toBeLessThanOrEqual(464);
 				if (output) await page.screenshot({ path: `${output}/toast-keyboard-320.png` });
 			}
-			await front.getByRole('button', { name: '닫기', exact: true }).click();
-			await expect(page.locator('[data-sonner-toast]')).toHaveCount(2);
 		}
 		await page.locator('[data-sonner-toast][data-front="true"]').getByRole('button', { name: '확인', exact: true }).click();
 		await expect(page.locator('body')).toHaveAttribute('data-toast-action', 'done');
+		await expect(page.locator('[data-sonner-toast]')).toHaveCount(2);
 		await expectNoHorizontalOverflow(page);
 	});
 }
@@ -165,6 +167,13 @@ test('landscape keeps navigation below the composer', async ({ page }) => {
 	const composer = await page.locator('.channel-composer').boundingBox();
 	const navigation = await page.locator('.internkim-app-mobile-navigation').boundingBox();
 	expect(composer && navigation && composer.y + composer.height <= navigation.y).toBe(true);
+	await expectComposerGap(page);
+	await page.evaluate(() => {
+		const viewport = window.visualViewport!;
+		Object.defineProperties(viewport, { height: { configurable: true, value: 220 }, offsetTop: { configurable: true, value: 12 } });
+		viewport.dispatchEvent(new Event('resize'));
+	});
+	await expectComposerGap(page);
 	await expectNoHorizontalOverflow(page);
 	if (process.env.MOBILE_UX_SCREENSHOTS) {
 		await page.screenshot({ path: `${process.env.MOBILE_UX_SCREENSHOTS}/after-landscape.png` });
@@ -207,13 +216,14 @@ test('desktop retains its global header and direct composer tools', async ({ pag
 
 test('software keyboard viewport and bottom safe area keep the composer reachable', async ({ page }) => {
 	await openConversation(page, 390);
+	await expectComposerGap(page);
 	await page.getByRole('combobox', { name: '메시지를 입력하세요' }).focus();
 	await page.evaluate(() => {
 		const viewport = window.visualViewport;
 		if (!viewport) throw new Error('This browser must support visualViewport');
 		document.documentElement.style.setProperty('--app-mobile-nav-bottom', '34px');
 		Object.defineProperty(viewport, 'height', { configurable: true, value: 440 });
-		Object.defineProperty(viewport, 'offsetTop', { configurable: true, value: 0 });
+		Object.defineProperty(viewport, 'offsetTop', { configurable: true, value: 24 });
 		viewport.dispatchEvent(new Event('resize'));
 	});
 	const navigation = page.locator('.internkim-app-mobile-navigation');
@@ -222,10 +232,19 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 		const navigationBounds = await navigation.boundingBox();
 		const composerBounds = await composer.boundingBox();
 		return !!navigationBounds && !!composerBounds &&
-			navigationBounds.y + navigationBounds.height <= 440 &&
+			navigationBounds.y + navigationBounds.height <= 464 &&
 			composerBounds.y + composerBounds.height <= navigationBounds.y;
 	}).toBe(true);
+	await expectComposerGap(page);
+	await expect(navigation).toHaveCSS('height', '56px');
 	await expectTouchTarget(page.getByRole('button', { name: '파일 첨부' }));
+	await page.evaluate(() => {
+		const viewport = window.visualViewport!;
+		Object.defineProperties(viewport, { height: { configurable: true, value: 760 }, offsetTop: { configurable: true, value: 0 } });
+		viewport.dispatchEvent(new Event('resize'));
+	});
+	await expectComposerGap(page);
+	await expect(navigation).toHaveCSS('height', '90px');
 	await page.evaluate(() => {
 		const viewport = window.visualViewport;
 		if (!viewport) throw new Error('This browser must support visualViewport');
@@ -234,6 +253,19 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 	});
 	expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-viewport-height'))).toBe('');
 });
+
+async function expectComposerGap(page: Page): Promise<void> {
+	await expect.poll(async () => {
+		const input = await page.locator('.channel-composer .composer-input').boundingBox();
+		const navigation = await page.locator('.internkim-app-mobile-navigation').boundingBox();
+		return input && navigation ? navigation.y - input.y - input.height : -1;
+	}).toBeGreaterThanOrEqual(0);
+	await expect.poll(async () => {
+		const input = await page.locator('.channel-composer .composer-input').boundingBox();
+		const navigation = await page.locator('.internkim-app-mobile-navigation').boundingBox();
+		return input && navigation ? navigation.y - input.y - input.height : Infinity;
+	}).toBeLessThanOrEqual(4.5);
+}
 
 async function selectText(composer: Locator, start: number, end: number): Promise<void> {
 	await composer.focus();

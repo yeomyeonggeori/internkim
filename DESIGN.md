@@ -25,9 +25,9 @@ internkim uses a restrained, neutral interface built from the shared shadcn-svel
 - Compose message input with shadcn Input Group and related actions with Button Group. The shared Tiptap editor displays formatting while typing and sends Markdown. On mobile, a nonempty editor selection opens contextual formatting above the capsule; formatting retains the editor selection and active marks. Preserve native selection, copy and paste. Native BIU availability is a device verification result, never inferred from OS names or contenteditable support.
 - Mobile lists prioritize the record name and its current status. Keep secondary fields in labeled details and retain sorting, pagination, permissions, and editing. File locations and document categories use a labeled selector; mail actions move into More when space is limited.
 - Mobile CRM starts with its records; its full metric overview is available through a disclosure above the tabs.
-- Mobile notifications appear at the top, below the safe area and page controls, following the visual viewport. Keep the compact stack and accessible 44px dismiss/action controls. Desktop keeps bottom-center placement.
+- Mobile notifications use Sonner's default dimensions, padding, typography and controls. Place them at the top with a safe-area offset that follows the visual viewport. Desktop keeps bottom-center placement.
 - Tab labels keep their full touch targets in a horizontally scrollable row. Dialogs and side panels follow the visual viewport during keyboard changes; respect safe areas and leave zoom gestures intact.
-- Follow the visual viewport on narrow screens so the composer and application tabs remain above the software keyboard. Leave pinch zoom and desktop sizing to the browser.
+- Follow the visual viewport's height and top on narrow screens so the composer and application tabs remain above the software keyboard, with a 4px gap below the capsule. Apply bottom safe-area padding once at the device bottom. Leave pinch zoom and desktop sizing to the browser.
 
 ## Shared company page
 

@@ -196,7 +196,7 @@
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100svh),100%)] min-h-0 w-full bg-background text-foreground">
+		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100svh),100%)] min-h-0 w-full bg-background text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
 			{#if !isEmbeddedFrame()}
 				<EffectErrorBoundary region="app rail">
 					<AppRail session={data.session} onSearch={openCommandPalette} />
@@ -283,7 +283,7 @@
 						</div>
 					</header>
 				{/if}
-				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height))] sm:pb-0">
+				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(var(--app-viewport-safe-bottom,var(--app-mobile-nav-bottom))+var(--app-mobile-nav-height))] sm:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
 							{@render contained()}

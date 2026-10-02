@@ -167,7 +167,7 @@
 				</FieldGroup>
 			{:else if step === 'sent'}
 				<form onsubmit={(event) => { event.preventDefault(); proveTheAddress(); }}>
-					<FieldGroup>
+					<FieldGroup class="max-sm:gap-3">
 						<Field>
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
@@ -197,9 +197,13 @@
 							<FieldDescription>{text.claimCodeHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
-						<Button variant="ghost" class="w-full" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
-						<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
+						<div class="grid gap-5 max-sm:gap-1">
+							<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
+							<div class="flex flex-col gap-5 max-sm:flex-row max-sm:gap-1">
+								<Button variant="ghost" class="w-full max-sm:h-auto max-sm:min-w-0 max-sm:flex-1 max-sm:whitespace-normal max-sm:px-2" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
+								<Button variant="ghost" class="w-full max-sm:h-auto max-sm:min-w-0 max-sm:flex-1 max-sm:whitespace-normal max-sm:px-2" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
+							</div>
+						</div>
 					</FieldGroup>
 				</form>
 			{:else if step === 'password'}

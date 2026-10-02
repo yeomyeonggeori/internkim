@@ -18,6 +18,48 @@ test.beforeEach(async ({ page }) => {
 	await page.route('**/persona/api/user', route => route.fulfill({ json: { schemaVersion: 1, callMe: '이샘플', morningBriefing: { enabled: true, time: '09:00' } } }));
 });
 
+for (const width of [320, 390, 1280]) {
+	test(`calendar toolbar groups controls in two compact mobile rows at ${width}px`, async ({ page }) => {
+		await page.setViewportSize({ width, height: 844 });
+		await routeCalendarShellAPI(page);
+		await page.route('**/api/v1/tools/event_list/invoke', route => route.fulfill({ json: { result: { events: [] } } }));
+		await page.route('**/api/v1/tools/company_settings_get/invoke', route => route.fulfill({ json: { result: { timeZone: 'Asia/Seoul' } } }));
+		await page.goto('/calendar/');
+		await expect(page.locator('.calendar-stage')).toBeVisible();
+		const toolbar = page.locator('.calendar-toolbar');
+		await fits(page);
+		if (width < 640) {
+			const title = await toolbar.locator('.calendar-toolbar-title').boundingBox();
+			const more = toolbar.getByRole('button', { name: '일정 도구', exact: true });
+			const moreBox = await more.boundingBox();
+			const tabs = await toolbar.getByRole('tablist').boundingBox();
+			const today = await toolbar.getByRole('button', { name: '오늘', exact: true }).boundingBox();
+			expect(title && moreBox && tabs && today).toBeTruthy();
+			expect(Math.abs(title!.y - moreBox!.y)).toBeLessThan(1);
+			expect(tabs!.y - (title!.y + title!.height)).toBeLessThanOrEqual(4.5);
+			expect(Math.abs(tabs!.y - today!.y)).toBeLessThan(1);
+			expect(tabs!.height).toBe(44);
+			expect(today!.height).toBe(44);
+			await expect(toolbar.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeHidden();
+			await screenshot(page, `calendar-compact-${width}`);
+			await more.click();
+			const participant = page.getByRole('combobox', { name: '참여자 선택', exact: true });
+			await expect(participant).toBeVisible();
+			await screenshot(page, `calendar-tools-${width}`);
+			await participant.click();
+			await expect(page.getByRole('combobox').last()).toBeVisible();
+			await page.keyboard.press('Escape');
+			await page.getByRole('button', { name: '설정', exact: true }).click();
+			await expect(page.getByRole('dialog')).toBeVisible();
+			await fits(page);
+		} else {
+			await expect(toolbar.getByRole('button', { name: '일정 도구', exact: true })).toBeHidden();
+			await expect(toolbar.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeVisible();
+			await screenshot(page, `calendar-compact-${width}`);
+		}
+	});
+}
+
 for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }, { width: 390, height: 844 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
 	test(`workspace surfaces preserve mobile controls at ${viewport.width}px`, async ({ page }) => {
 		test.setTimeout(150_000);
