@@ -551,6 +551,10 @@
     "process": "tools/render-company-runtime",
     "description": "the Blueclaw migrations directory rendered into the company plane's runtime document; defaults to /opt/blueclaw/migrations"
   },
+  "MOBILE_UX_SCREENSHOTS": {
+    "process": "web e2e tests",
+    "description": "optional output directory for the mobile route and messenger screenshot fixtures; unset skips screenshots"
+  },
   "MODEL_API_KEY_PATH": {
     "process": "tools/render-company-runtime",
     "description": "the path to the file holding the key the rendered model ladder names on every endpoint, so the key never lands in the runtime document; defaults to the file capabilityd is given"
