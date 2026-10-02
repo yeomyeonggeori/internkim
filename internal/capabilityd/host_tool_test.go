@@ -83,7 +83,7 @@ func TestTheHostUpdateTellsAdmindWhetherTheRequesterApprovedThisCall(t *testing.
 }
 
 func TestTheHostUpdateTargetCarriesAdmindsFactsAndChoices(t *testing.T) {
-	admind := &admindStandIn{status: http.StatusOK, answer: `{"inputField":"targetVersion","id":"v2026.10.02.090000","title":"v2026.10.01.000000 → v2026.10.02.090000","preview":"{\"expectedDowntimeMinutes\":3}","choices":[{"key":"offHours","startsAt":"2026-10-03T03:00:00+09:00"},{"key":"now"}]}`}
+	admind := &admindStandIn{status: http.StatusOK, answer: `{"inputField":"targetVersion","id":"v2026.10.02.090000","title":"v2026.10.01.000000 → v2026.10.02.090000","preview":"{\"expectedDowntimeSeconds\":60}","choices":[{"key":"offHours","startsAt":"2026-10-03T03:00:00+09:00"},{"key":"now"}]}`}
 	response, errorValue := serviceAskingAdmind(admind).resolveCapabilityToolTarget(context.Background(), hostUpdateToolName, strings.NewReader(`{"toolName":"host_update","input":{},"context":{"requesterEmail":"member1@example.com"}}`))
 	if errorValue != nil {
 		t.Fatal(errorValue)

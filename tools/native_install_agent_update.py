@@ -23,11 +23,11 @@ PLAN_PATH = "/host/api/update/plan"
 START_PATH = "/host/api/update"
 
 
-def promised_downtime_minutes():
+def promised_downtime_seconds():
     """The figure admind puts in front of an administrator, read where admind keeps it."""
-    match = re.search(r"expectedHostUpdateDowntimeMinutes\s*=\s*(\d+)", ADMIND_HOST_UPDATE_SOURCE.read_text())
+    match = re.search(r"expectedHostUpdateDowntimeSeconds\s*=\s*(\d+)", ADMIND_HOST_UPDATE_SOURCE.read_text())
     if match is None:
-        raise AssertionError("internal/admind/host_update.go no longer declares expectedHostUpdateDowntimeMinutes")
+        raise AssertionError("internal/admind/host_update.go no longer declares expectedHostUpdateDowntimeSeconds")
     return int(match.group(1))
 
 

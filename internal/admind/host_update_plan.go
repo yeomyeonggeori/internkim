@@ -35,7 +35,7 @@ type hostUpdateConsequences struct {
 	ReleasePublishedAt           string   `json:"releasePublishedAt"`
 	ReleaseNotes                 string   `json:"releaseNotes,omitempty"`
 	ServicesThatRestart          []string `json:"servicesThatRestart"`
-	ExpectedDowntimeMinutes      int      `json:"expectedDowntimeMinutes"`
+	ExpectedDowntimeSeconds      int      `json:"expectedDowntimeSeconds"`
 	MessagesSentDuringTheUpdate  string   `json:"messagesSentDuringTheUpdate"`
 	TasksRunningAtTheRestart     string   `json:"tasksRunningAtTheRestart"`
 	ScheduledJobsDueDuringUpdate string   `json:"scheduledJobsDueDuringTheUpdate"`
@@ -208,8 +208,8 @@ func (plan hostUpdatePlan) consequences() hostUpdateConsequences {
 		ReleasePublishedAt:           plan.Target.PublishedAt.Format(time.RFC3339),
 		ReleaseNotes:                 clippedReleaseNotes(plan.Target.Notes),
 		ServicesThatRestart:          []string{"agent", "relay", "messenger"},
-		ExpectedDowntimeMinutes:      expectedHostUpdateDowntimeMinutes,
-		MessagesSentDuringTheUpdate:  "they wait in the relay's queue and are answered after the restart",
+		ExpectedDowntimeSeconds:      expectedHostUpdateDowntimeSeconds,
+		MessagesSentDuringTheUpdate:  "while the messenger bridge restarts, sending a message fails and it has to be sent again",
 		TasksRunningAtTheRestart:     "each is interrupted and resumed once automatically when the agent is back; one that cannot be resumed is marked failed and its requester is told",
 		ScheduledJobsDueDuringUpdate: "each runs once, late, when the agent is back",
 		IfDownloadOrCheckFails:       "nothing is installed and the host stays on " + plan.FromVersion,

@@ -388,7 +388,7 @@ class AgentUpdateRigTests(unittest.TestCase):
 
     def test_the_promised_downtime_is_the_one_admind_states(self):
         source = (repository_root / "internal" / "admind" / "host_update.go").read_text()
-        self.assertIn(f"expectedHostUpdateDowntimeMinutes = {agent_update.promised_downtime_minutes()}", " ".join(source.split()))
+        self.assertIn(f"expectedHostUpdateDowntimeSeconds = {agent_update.promised_downtime_seconds()}", " ".join(source.split()))
 
     def test_the_paths_the_rig_reads_are_the_ones_the_host_writes(self):
         hostupdate = repository_root / "internal" / "hostupdate"

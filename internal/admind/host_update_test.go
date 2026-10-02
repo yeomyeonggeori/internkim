@@ -8,11 +8,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
+	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
 
 const (
@@ -184,7 +186,7 @@ func TestTheConfirmationCarriesTheFactsAndOffersTheNightOrNow(t *testing.T) {
 	}
 	var consequences hostUpdateConsequences
 	json.Unmarshal([]byte(target.Preview), &consequences)
-	if consequences.FromVersion != "v2026.10.01.000000" || consequences.ReleaseNotes != "Faster replies." || consequences.ExpectedDowntimeMinutes != expectedHostUpdateDowntimeMinutes || consequences.IsRollback {
+	if consequences.FromVersion != "v2026.10.01.000000" || consequences.ReleaseNotes != "Faster replies." || consequences.ExpectedDowntimeSeconds != expectedHostUpdateDowntimeSeconds || consequences.IsRollback {
 		t.Fatalf("the consequences are %+v", consequences)
 	}
 	asked := rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{"isRequestedNow":true}`)
@@ -290,10 +292,17 @@ func TestAFinishedUpdateIsReportedInItsConversationAndTheNoteCleared(t *testing.
 		if len(rig.reportBodies) != 1 {
 			t.Fatalf("the result was reported %d times", len(rig.reportBodies))
 		}
-		var schedule scheduleToolCreateInput
+		var schedule hostUpdateReportSchedule
 		json.Unmarshal([]byte(rig.reportBodies[0]), &schedule)
-		if schedule.Kind != "once" || *schedule.ConversationID != "conversation-1" || *schedule.ReplyTargetID != "reply-1" || *schedule.Platform != "buzz" {
+		if schedule.Kind != "once" || schedule.ConversationID != "conversation-1" || schedule.ReplyTargetID != "reply-1" || schedule.Platform != "buzz" || schedule.RunAt == "" || schedule.TimeZone == "" {
 			t.Fatalf("the report is %s", rig.reportBodies[0])
+		}
+		var fields map[string]any
+		json.Unmarshal([]byte(rig.reportBodies[0]), &fields)
+		for name, value := range fields {
+			if value == nil {
+				t.Fatalf("the report carries %s as null, which the agent's schedule schema refuses: %s", name, rig.reportBodies[0])
+			}
 		}
 		if !strings.Contains(schedule.TaskInstruction, `"succeeded":`+map[bool]string{true: "true", false: "false"}[isSucceeded]) {
 			t.Fatalf("the report carries %s", schedule.TaskInstruction)
@@ -335,5 +344,31 @@ func TestAnUpdateThatStoppedWithoutAResultIsReportedAsFailed(t *testing.T) {
 	rig.service.reportHostUpdateOnce(t.Context())
 	if len(rig.reportBodies) != 1 || !strings.Contains(rig.reportBodies[0], `\"succeeded\":false`) || !strings.Contains(rig.reportBodies[0], "stopped before it recorded a result") {
 		t.Fatalf("an abandoned update was reported as %v", rig.reportBodies)
+	}
+}
+
+func blueclawScheduleCreateSchema(t *testing.T) json.RawMessage {
+	t.Helper()
+	source, errorValue := os.ReadFile("../../.dependency/blueclaw/internal/adminapi/schedule_contracts.go")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	match := regexp.MustCompile("(?s)var scheduleToolCreateInputSchema = json.RawMessage\\(`(.*?)`\\)").FindSubmatch(source)
+	if match == nil {
+		t.Fatal("blueclaw no longer declares scheduleToolCreateInputSchema where this reads it")
+	}
+	return json.RawMessage(match[1])
+}
+
+func TestTheResultReportIsAScheduleTheAgentAccepts(t *testing.T) {
+	rig := newHostUpdateRig(t)
+	finishedNote(t, rig.notePath, false)
+	note, _, _ := hostupdate.ReadNote(rig.notePath)
+	body, errorValue := rig.service.hostUpdateReportSchedule(t.Context(), note)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := capabilityschema.ValidateInput(blueclawScheduleCreateSchema(t), body); errorValue != nil {
+		t.Fatalf("blueclaw refuses the result report %s: %v", body, errorValue)
 	}
 }

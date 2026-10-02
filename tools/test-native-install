@@ -1139,12 +1139,12 @@ class Rig:
             "missing here is a fact the administrator is never told",
         ).record(
             plan.get("id") == f"v{newer}" and [choice.get("key") for choice in plan.get("choices") or []] == ["offHours", "now"]
-            and "expectedDowntimeMinutes" in (plan.get("preview") or ""),
+            and "expectedDowntimeSeconds" in (plan.get("preview") or ""),
             json.dumps(plan)[:900],
         )
 
         requester = self.requester_of_the_last_answered_message()
-        self.machine.checked_shell(agent_update.monitor_command(READINESS_PROBES))
+        self.machine.checked_shell(agent_update.monitor_command((*READINESS_PROBES, MESSENGER_BRIDGE)))
         started_at = time.monotonic()
         status, started = self.ask_admind(agent_update.START_PATH, administrator, {"isApproved": True, "input": {}, "requester": requester})
         note = self.machine.shell(f"cat {agent_update.NOTE_PATH} 2>/dev/null").stdout
@@ -1163,8 +1163,7 @@ class Rig:
             f"{status} {json.dumps(started)}\nnote {note.strip()[:400]}\nsecond {second_status} {json.dumps(second)}",
         )
 
-        self.message_text = message_asking_for_an_answer("during the agent's update")
-        sent_while_down = self.send_while_the_agent_is_away(plane)
+        attempt_while_away = self.send_while_the_services_are_away(plane)
         finished = self.wait_in_the_guest(
             f"systemctl is-active {agent_update.UPDATE_UNIT_NAME}; dpkg-query -W -f 'version=${{Version}}\\n' {PACKAGE_NAME}",
             lambda reading: f"version={newer}" in reading
@@ -1192,13 +1191,17 @@ class Rig:
             f"version={newer}" in finished.stdout and build_identity_reported(self.machine).get("admindBuildID") == newer,
             finished.stdout.strip() + f"\nrunning {json.dumps(build_identity_reported(self.machine))}",
         )
-        self.observe_the_agent_answered(step)
         step.observe(
-            "a message sent while the agent was away was accepted then, not after",
-            "the monitor's reading at the moment the member's message was accepted by the gateway",
-            "a message sent once everything is back says nothing about the queue the update relies on",
-        ).record(sent_while_down, f"the agent was away when the message was accepted: {sent_while_down}")
-
+            "a message sent while the services are away is refused and its sender is told, or it is answered",
+            "the result frame the member's websocket received for a message sent while the monitor read the "
+            "services away, and the agent's task ledger for it",
+            "the confirmation tells the administrator that a message sent during the restart has to be sent "
+            "again; a message sent once everything is back says nothing about that window",
+        ).record(
+            attempt_while_away["was_away"]
+            and (attempt_while_away["status"] not in (None, 200) or self.was_answered(attempt_while_away)),
+            json.dumps({key: value for key, value in attempt_while_away.items() if key != "text"}),
+        )
         outcome = self.wait_in_the_guest(
             agent_update.OUTCOME_COMMAND % {
                 "agent_path": COMPANY_CONDITION_PATH,
@@ -1219,10 +1222,14 @@ class Rig:
             outcome.stdout.strip()[-700:] + "\n" + reported.stdout.strip(),
         )
 
-        promised_seconds = agent_update.promised_downtime_minutes() * 60
+        self.message_text = message_asking_for_an_answer("sent again after the agent update")
+        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_agent_answered(step)
+
+        promised_seconds = agent_update.promised_downtime_seconds()
         step.observe(
-            f"the services were away no longer than the {promised_seconds // 60} minutes the confirmation promises",
-            f"a reading every second of the relay unit and {', '.join(f'{port}{path}' for port, path in READINESS_PROBES)}, "
+            f"the services were away no longer than the {promised_seconds} seconds the confirmation promises",
+            f"a reading every second of the relay unit and {', '.join(f'{port}{path}' for port, path in (*READINESS_PROBES, MESSENGER_BRIDGE))}, "
             "taken in the guest from before the update started until the result was reported",
             "the number in the question an administrator approves is only true if the restart it describes keeps to it",
         ).record(
@@ -1265,26 +1272,41 @@ class Rig:
             "replyTargetID": reply_target_id,
         }
 
-    def send_while_the_agent_is_away(self, plane):
-        """Send once the monitor sees the services away; whether it was accepted while they still were."""
-        has_seen_the_outage = False
+    def send_while_the_services_are_away(self, plane):
+        text = message_asking_for_an_answer("sent during the agent update")
         deadline = time.monotonic() + 600
         while time.monotonic() < deadline:
-            is_away = self.machine.shell(f"tail -n 1 {agent_update.MONITOR_LOG_PATH}").stdout.strip().endswith(" down")
-            has_seen_the_outage = has_seen_the_outage or is_away
-            if has_seen_the_outage and self.sent_during_the_update(plane):
-                return is_away and self.machine.shell(
-                    f"tail -n 1 {agent_update.MONITOR_LOG_PATH}"
-                ).stdout.strip().endswith(" down")
-            time.sleep(2)
-        return False
+            if self.monitor_reads_away():
+                session = plane.member_session(self.company_id, text)
+                sent = session.get("sent") or {}
+                return {
+                    "was_away": True,
+                    "is_still_away": self.monitor_reads_away(),
+                    "status": sent.get("status"),
+                    "messageID": sent.get("messageID") or "",
+                    "body": json.dumps(sent.get("body"))[:300],
+                    "text": text,
+                }
+            time.sleep(1)
+        return {"was_away": False, "status": None, "messageID": "", "text": text}
 
-    def sent_during_the_update(self, plane):
-        session = plane.member_session(self.company_id, self.message_text)
-        message_id = (session.get("sent") or {}).get("messageID") or ""
-        if message_id:
-            self.sent_messages.append((message_id, self.message_text))
-        return bool(message_id)
+    def monitor_reads_away(self):
+        return self.machine.shell(f"tail -n 1 {agent_update.MONITOR_LOG_PATH}").stdout.strip().endswith(" down")
+
+    def was_answered(self, attempt):
+        if not attempt.get("messageID"):
+            return False
+        reading = self.wait_in_the_guest(
+            AGENT_ANSWER_COMMAND % {
+                "agent_path": COMPANY_CONDITION_PATH,
+                "messenger_path": MESSENGER_DATABASE_PATH,
+                "text": attempt["text"],
+                "message": attempt["messageID"],
+            },
+            the_agent_answered,
+            timeout_seconds=600,
+        )
+        return the_agent_answered(reading.stdout)
 
     def wait_in_the_guest(self, script, is_ready, timeout_seconds=300):
         deadline = time.monotonic() + timeout_seconds

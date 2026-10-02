@@ -83,8 +83,8 @@ version the host is on.
 On a connected Linux host the update rewrites the settings the first install
 wrote, prepares the database again, restarts the services and returns once every
 one of them answers and the agent holds the roster again. The agent, the relay
-and the messenger are away for about DOWNTIME_MINUTES minutes. A message sent
-meanwhile waits in the relay's queue and is answered when the agent is back. A
+and the messenger are away for DOWNTIME_TEXT. A message sent in that window
+fails and has to be sent again. A
 task running at the restart is interrupted and resumed once when the agent is
 back; one that cannot be resumed is marked failed and its requester is told. A
 scheduled job due during the update runs once, late.

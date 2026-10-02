@@ -910,7 +910,7 @@ func gateCases() map[string]catalogGateCase {
 		"host_update": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
-				admindOverTheSocket: answering(`{"status":"started","fromVersion":"v2026.10.01.000000","toVersion":"v2026.10.02.090000","startedAt":"2026-10-02T14:00:00Z","expectedDowntimeMinutes":3}`),
+				admindOverTheSocket: answering(`{"status":"started","fromVersion":"v2026.10.01.000000","toVersion":"v2026.10.02.090000","startedAt":"2026-10-02T14:00:00Z","expectedDowntimeSeconds":60}`),
 			},
 			input: `{"targetVersion":"v2026.10.02.090000"}`,
 			arrives: func(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {

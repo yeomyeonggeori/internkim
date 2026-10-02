@@ -13,7 +13,7 @@ type hostUpdateStarted struct {
 	FromVersion             string    `json:"fromVersion"`
 	ToVersion               string    `json:"toVersion"`
 	StartedAt               time.Time `json:"startedAt"`
-	ExpectedDowntimeMinutes int       `json:"expectedDowntimeMinutes"`
+	ExpectedDowntimeSeconds int       `json:"expectedDowntimeSeconds"`
 }
 
 func (service *Service) startHostUpdate(responseWriter http.ResponseWriter, request *http.Request) {
@@ -66,6 +66,6 @@ func (service *Service) launchHostUpdate(plan hostUpdatePlan, requester hostupda
 		FromVersion:             note.FromVersion,
 		ToVersion:               note.ToVersion,
 		StartedAt:               note.StartedAt,
-		ExpectedDowntimeMinutes: expectedHostUpdateDowntimeMinutes,
+		ExpectedDowntimeSeconds: expectedHostUpdateDowntimeSeconds,
 	}, nil
 }

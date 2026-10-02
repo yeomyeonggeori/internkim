@@ -117,23 +117,31 @@ func (service *Service) hostUpdateRequesterPersonID(ctx context.Context, request
 	return personID, errorValue
 }
 
+type hostUpdateReportSchedule struct {
+	TaskInstruction string `json:"taskInstruction"`
+	Description     string `json:"description"`
+	Kind            string `json:"kind"`
+	RunAt           string `json:"runAt"`
+	TimeZone        string `json:"timeZone"`
+	Platform        string `json:"platform,omitempty"`
+	ConversationID  string `json:"conversationID,omitempty"`
+	ReplyTargetID   string `json:"replyTargetID,omitempty"`
+}
+
 func (service *Service) hostUpdateReportSchedule(ctx context.Context, note hostupdate.Note) ([]byte, error) {
 	facts, errorValue := json.Marshal(hostUpdateResult(note))
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	runAt := service.hostUpdate().Now().Add(hostUpdateReportDelay).UTC().Format(time.RFC3339)
-	description := hostUpdateReportDescription
-	timeZone := service.companyTimeZoneName(ctx)
-	return json.Marshal(scheduleToolCreateInput{
+	return json.Marshal(hostUpdateReportSchedule{
 		TaskInstruction: "Tell the requester how the update of this company's host that they approved has ended, in one short message in this conversation. Use only these facts and invent none: " + string(facts),
-		Description:     &description,
+		Description:     hostUpdateReportDescription,
 		Kind:            "once",
-		RunAt:           &runAt,
-		TimeZone:        &timeZone,
-		Platform:        optionalText(note.Requester.Platform),
-		ConversationID:  optionalText(note.Requester.ConversationID),
-		ReplyTargetID:   optionalText(note.Requester.ReplyTargetID),
+		RunAt:           service.hostUpdate().Now().Add(hostUpdateReportDelay).UTC().Format(time.RFC3339),
+		TimeZone:        service.companyTimeZoneName(ctx),
+		Platform:        strings.TrimSpace(note.Requester.Platform),
+		ConversationID:  strings.TrimSpace(note.Requester.ConversationID),
+		ReplyTargetID:   strings.TrimSpace(note.Requester.ReplyTargetID),
 	})
 }
 
@@ -155,12 +163,4 @@ func failedInstallerOutput(outcome *hostupdate.Outcome) string {
 		return ""
 	}
 	return outcome.OutputTail
-}
-
-func optionalText(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }

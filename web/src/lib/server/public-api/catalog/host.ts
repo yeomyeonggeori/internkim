@@ -49,7 +49,7 @@ export const hostUpdateResultSchema = z.strictObject({
   fromVersion: z.string(),
   toVersion: z.string(),
   startedAt: z.string(),
-  expectedDowntimeMinutes: z.int().min(1),
+  expectedDowntimeSeconds: z.int().min(1),
 });
 
 export const hostToolDefinitions: CapabilityToolDefinition[] = [

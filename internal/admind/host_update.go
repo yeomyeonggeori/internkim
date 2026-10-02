@@ -19,7 +19,7 @@ const (
 	hostUpdateBodyLimit  = 16 * 1024
 	hostUpdateNotesLimit = 4000
 
-	expectedHostUpdateDowntimeMinutes = 3
+	expectedHostUpdateDowntimeSeconds = 60
 	offHoursStartHour                 = 3
 )
 
