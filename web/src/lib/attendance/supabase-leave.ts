@@ -6,7 +6,8 @@ import {
 	everyLeaveOfTheCompany,
 	myLeaveBalance,
 	timeZoneOfPerson,
-	type RecordLeave
+	type RecordLeave,
+	type RecordLeaveList
 } from './attendance-record';
 import type {
 	EmployeeLeaveErrorCode,
@@ -83,15 +84,19 @@ export async function leaveInFull(): Promise<LeaveRow[]> {
 }
 
 export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
-	const directory = await supabaseLeaveTypeDirectory();
-	const answeredBalance = await myLeaveBalance();
+	const [directory, answeredBalance, answeredLeave, members] = await Promise.all([
+		supabaseLeaveTypeDirectory(),
+		myLeaveBalance(),
+		invokeTool<RecordLeaveList>('leave_list', {}),
+		memberDirectory()
+	]);
 	const balanceOfMine = answeredBalance.balances[0];
 	if (!balanceOfMine) throw new Error('the record answered no balance for the requester');
 	const memberID = balanceOfMine.personID;
-	const rows = (await leaveInFull())
+	const rows = answeredLeave.leave.map(leaveRowOf)
 		.filter((row) => row.member_id === memberID)
 		.sort((left, right) => right.starts_at.localeCompare(left.starts_at));
-	const timeZone = await memberTimeZone(memberID);
+	const timeZone = members.timeZoneOf(memberID);
 	const mappedLeave = rows.map((row) => ({
 		row,
 		request: employeeLeaveRequestOfRow(row, timeZone, directory.nameOf)
@@ -242,22 +247,12 @@ function shiftedDay(date: string, days: number): string {
 	return moved.toISOString().slice(0, 10);
 }
 
-async function memberTimeZone(memberID: string): Promise<string> {
-	const companyZone = await companyTimeZone();
-	const directory = await companyDirectory();
-	return timeZoneOfPerson(
-		directory.people.find((person) => person.personID === memberID),
-		companyZone
-	);
-}
-
 async function companyTimeZone(): Promise<string> {
 	return (await companySettings()).timeZone;
 }
 
 async function memberDirectory(): Promise<MemberDirectory> {
-	const companyZone = await companyTimeZone();
-	const directory = await companyDirectory();
+	const [companyZone, directory] = await Promise.all([companyTimeZone(), companyDirectory()]);
 	const emails = new Map(directory.people.map((person) => [person.personID, person.email]));
 	const timeZones = new Map(
 		directory.people.map((person) => [person.personID, timeZoneOfPerson(person, companyZone)])

@@ -218,6 +218,8 @@ describe('flow task workspace model', () => {
 
 function taskSummary(overrides: Partial<TaskSummary>): TaskSummary {
 	return {
+		completeness: 'full',
+		peopleReady: true,
 		week: {
 			code: '26W23',
 			startISO: '2026-06-01',

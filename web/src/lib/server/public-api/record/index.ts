@@ -81,7 +81,7 @@ import { personInvite, personList, personUpdate } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomRoleSet,
 	companyDataRoomShareCreate, companyDataRoomShareRevoke, companyDataRoomMemberRolesSet,
 	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
-import { taskAdd, taskDelete, taskList, taskUpdate, taskVocabularySet } from './task-tools';
+import { taskAdd, taskDelete, taskList, taskBoard, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
 import { leavesTaskLabelsUndecided, type TaskLabelDecider } from './task-labels';
@@ -93,10 +93,16 @@ import { sentencesOfSchemaRefusal } from '../schema-sentences';
 type ToolInput = Record<string, unknown>;
 type ToolRun = (context: RecordContext, input: ToolInput) => Promise<unknown> | unknown;
 
+const readsWithoutPeople = new Set([
+	'company_settings_get', 'company_holiday_list', 'crm_organization_list',
+	'crm_contact_list', 'crm_opportunity_list', 'crm_vocabulary_get'
+]);
+
 const toolsOverTheRecord: Record<string, ToolRun> = {
 	task_add: (context, input) => taskAdd(context, input),
 	task_update: (context, input) => taskUpdate(context, input),
 	task_list: (context, input) => taskList(context, input),
+	task_board_get: (context, input) => taskBoard(context, input),
 	task_delete: (context, input) => taskDelete(context, input),
 	task_vocabulary_set: (context, input) => taskVocabularySet(context, input),
 	event_add: (context, input) => eventAdd(context, input),
@@ -126,7 +132,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	attendance_work_policy_set: (context, input) => attendanceWorkPolicySet(context, input),
 	attendance_leave_policy_get: (context) => attendanceLeavePolicyGet(context),
 	attendance_leave_policy_set: (context, input) => attendanceLeavePolicySet(context, input),
-	company_settings_get: (context) => companySettingsGet(context),
+	company_settings_get: (context, input) => companySettingsGet(context, input),
 	company_settings_update: (context, input) => companySettingsUpdate(context, input),
 	company_info_get: (context, input) => companyInfoGet(context, input),
 	company_info_set: (context, input) => companyInfoSet(context, input),
@@ -228,7 +234,7 @@ export async function runToolOverTheRecord(
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
 
 	try {
-		const context = await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels);
+		const context = await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels, !readsWithoutPeople.has(name));
 		const result = await run(context, input);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };

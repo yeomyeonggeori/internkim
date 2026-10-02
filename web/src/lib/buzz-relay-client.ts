@@ -46,6 +46,7 @@ export type PublishBuzzMessageOptions = {
 	extraTags?: string[][];
 	extraAuthTag?: string[];
 	timeoutMs?: number;
+	isCurrent?: () => boolean;
 };
 
 // The browser only ever replies to a thread's root, and NIP-10 marks a direct
@@ -67,6 +68,10 @@ export function publishBuzzMessage(
 	options: PublishBuzzMessageOptions
 ): Promise<string> {
 	return new Promise<string>((resolve, reject) => {
+		if (options.isCurrent && !options.isCurrent()) {
+			reject(new Error('the signed-in identity changed'));
+			return;
+		}
 		const event = signBuzzEvent(secretHex, {
 			kind: STREAM_MESSAGE_KIND,
 			content: options.content,
@@ -95,6 +100,10 @@ export function publishBuzzMessage(
 		}
 
 		function sendEvent() {
+			if (options.isCurrent && !options.isCurrent()) {
+				finish(new Error('the signed-in identity changed'));
+				return;
+			}
 			if (eventSent) return;
 			eventSent = true;
 			socket.send(JSON.stringify(["EVENT", event]));
@@ -105,6 +114,10 @@ export function publishBuzzMessage(
 			authFallback = setTimeout(sendEvent, AUTH_FALLBACK_MS);
 		};
 		socket.onmessage = (message) => {
+			if (options.isCurrent && !options.isCurrent()) {
+				finish(new Error('the signed-in identity changed'));
+				return;
+			}
 			let frame: unknown[];
 			try {
 				frame = JSON.parse(String(message.data));

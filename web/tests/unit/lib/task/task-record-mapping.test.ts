@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { taskOf, writtenTaskOf } from '../../../../src/lib/task/task-state';
+import { taskOf, writtenTaskOf, taskBoardStateOf, taskWeeklySummaryOf } from '../../../../src/lib/task/task-state';
+import { mergeTaskSummary } from '../../../../src/routes/task/task-api';
+import { defaultParticipantFilterIDs, filterTasks } from '../../../../src/routes/task/task-workspace-model';
 import type { RecordTask } from '../../../../src/lib/task/task-record';
 import type { Task } from '../../../../src/routes/task/task-types';
 
@@ -36,6 +38,19 @@ function drafted(fields: Partial<Task> = {}): Task {
 }
 
 describe('a task the record answered', () => {
+	test('the progressive board uses verified viewer identity before the directory arrives', () => {
+		const state = taskBoardStateOf({
+			scope: 'everyone', count: 2,
+			tasks: [answered(), answered({ taskID: 'other-task', participantIDs: ['member-2'] })],
+			registeredLabels: { businesses: [], types: [], sizes: [], statuses: [] }
+		}, { memberID: 'member-1', email: 'member1@example.com', name: '이샘플', isAdmin: false });
+		const summary = mergeTaskSummary(state, taskWeeklySummaryOf(state, '26W36'));
+		const participantFilterIDs = defaultParticipantFilterIDs(summary);
+		expect(participantFilterIDs).toEqual(['member-1']);
+		expect(filterTasks(state.tasks, { participantFilterIDs, searchText: '', statusFilter: 'all', businessFilter: 'all', typeFilter: 'all' }).map(task => task.id)).toEqual(['task-1']);
+		expect(state.tasks).toHaveLength(2);
+		expect(state.isAdmin).toBe(false);
+	});
 	test('carries the parent, the requester and when it was created', () => {
 		const task = taskOf(
 			answered({

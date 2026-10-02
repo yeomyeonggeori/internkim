@@ -25,13 +25,13 @@ type AnsweredEntry = AnsweredEvent & {
 	readOnly: boolean;
 };
 
-export async function companyCalendarEntries(from: Date, to: Date): Promise<CalendarEvent[]> {
+export async function companyCalendarEntries(from: Date, to: Date, requestedTimeZone = companyTimeZone()): Promise<CalendarEvent[]> {
 	const [answered, timeZone] = await Promise.all([
 		invokeTool<{ events: AnsweredEntry[] }>('event_list', {
 			startsAt: from.toISOString(),
 			endsAt: to.toISOString()
 		}),
-		companyTimeZone()
+		requestedTimeZone
 	]);
 	return answered.events.map((entry) => calendarEventOfEntry(entry, timeZone));
 }

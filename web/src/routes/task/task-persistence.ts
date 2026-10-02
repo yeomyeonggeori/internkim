@@ -19,6 +19,7 @@ type TaskStatusResult =
 
 type SaveTaskDraftInput = {
 	task: Task | null;
+	originalTask?: Task;
 	statusBefore: string | null;
 	canUpdateTask: (task: Task) => boolean;
 	loadTask: LoadTask;
@@ -47,7 +48,7 @@ type UpdateTaskStatusInput = {
 export async function saveTaskDraft(input: SaveTaskDraftInput): Promise<TaskSaveResult> {
 	if (!input.task || !input.canUpdateTask(input.task)) return { status: 'ignored' };
 	try {
-		await saveTask(input.task, input.statusBefore);
+		await saveTask(input.task, input.statusBefore, input.originalTask);
 		await input.loadTask(input.weekCode);
 		return { status: 'saved' };
 	} catch (error) {
@@ -71,7 +72,7 @@ export async function updateTaskStatus(input: UpdateTaskStatusInput): Promise<Ta
 	if (!input.canUpdateTask(input.task)) return { status: 'ignored' };
 	if (input.isTaskPending(input.task.id)) return { status: 'ignored' };
 	try {
-		await saveTask({ ...input.task, status: input.nextStatus }, input.task.status);
+		await saveTask({ ...input.task, status: input.nextStatus }, input.task.status, input.task);
 		await input.loadTask(input.weekCode);
 		return { status: 'saved' };
 	} catch (error) {

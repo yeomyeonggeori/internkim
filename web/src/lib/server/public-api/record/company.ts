@@ -32,7 +32,8 @@ export async function recordContextOf(
 	accountDirectory: SupabaseClient,
 	requesterID: string,
 	now: Date,
-	decideTaskLabels: TaskLabelDecider
+	decideTaskLabels: TaskLabelDecider,
+	includePeople = true
 ): Promise<RecordContext> {
 	const [company, people] = await Promise.all([
 		caller
@@ -40,7 +41,7 @@ export async function recordContextOf(
 			.select('id, task_vocabulary, timezone, locale, rules')
 			.limit(1)
 			.single<CompanyRow>(),
-		peopleOfCompany(caller)
+		includePeople ? peopleOfCompany(caller) : Promise.resolve([])
 	]);
 	if (company.error) throw new Error(company.error.message);
 

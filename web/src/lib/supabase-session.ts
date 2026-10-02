@@ -72,6 +72,8 @@ export async function supabaseMemberRole(): Promise<MemberRole> {
 }
 
 export async function signOutOfSupabase(): Promise<void> {
+	const { forgetCentralBuzzIdentity } = await import('$lib/central-buzz-identity');
+	forgetCentralBuzzIdentity();
 	await stopBeingReached().catch(() => undefined);
 	await forgetWidgetSupply().catch(() => undefined);
 	await releaseActivityTokens().catch(() => undefined);
@@ -81,7 +83,7 @@ export async function signOutOfSupabase(): Promise<void> {
 	clearChannelMessageCache();
 	forgetLastSeenTask();
 	forgetLastSeenDirectory();
-	forgetSignedInAccount();
+	forgetSignedInAccount(true);
 	await supabase().auth.signOut({ scope: 'local' });
 }
 

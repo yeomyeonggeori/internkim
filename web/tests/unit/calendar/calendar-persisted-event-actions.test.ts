@@ -1,4 +1,4 @@
-import { expect, mock, test } from 'bun:test';
+import { afterAll, expect, mock, test } from 'bun:test';
 
 import { dayTaskEventFromCalendarEvent } from '../../../src/routes/calendar/embed/calendar-event-mapping';
 import { CalendarProgrammaticUpdateState } from '../../../src/routes/calendar/embed/calendar-programmatic-updates';
@@ -8,7 +8,14 @@ const written: Array<{ targetEventID: string | null; eventID: string }> = [];
 const deleted: string[] = [];
 const serverEvent = calendarServerEvent('2f1c6b1e-0000-4000-8000-000000000001', 'Created draft');
 
+const calendarAPI = { ...(await import('$lib/calendar/supabase-calendar')) };
+
+afterAll(() => {
+	mock.module('$lib/calendar/supabase-calendar', () => calendarAPI);
+});
+
 mock.module('$lib/calendar/supabase-calendar', () => ({
+	...calendarAPI,
 	supabaseCalendarEvents: async () => [],
 	supabaseCalendarParticipants: async () => [],
 	saveSupabaseCalendarEvent: async (

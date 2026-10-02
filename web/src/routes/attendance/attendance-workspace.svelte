@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
+	import { attendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount, untrack } from 'svelte';
@@ -120,7 +121,6 @@
 	onMount(() => {
 		myAttendanceToday.setClockEventHandler((event) => workStatus.applyAttendanceEvent(event));
 		void attendance.load();
-		void employeeLeave.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
 			await Promise.all([attendance.load(), employeeLeave.load(), refreshSelectedAdminView()]);
 		});
@@ -152,11 +152,12 @@
 		const summary = attendance.summary;
 		const period = attendance.chartMode;
 		const selectedMonth = attendance.selectedMonth;
-		if (!summary) return;
+		if (!summary || attendance.isShowingCachedSummary || summary.month !== selectedMonth) return;
+		const records = summary[attendanceSummaryRecords];
 		const today = todayDateInTimeZone(summary.timeZone);
 		const anchor =
 			selectedMonth && !today.startsWith(selectedMonth) ? `${selectedMonth}-01` : today;
-		untrack(() => void workStatus.load(period, anchor, summary));
+		untrack(() => void workStatus.load(period, anchor, records ?? summary, records));
 	});
 
 	$effect(() => {

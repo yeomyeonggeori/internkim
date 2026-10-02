@@ -512,8 +512,11 @@ export async function crmOpportunityList(
 		? (await organizationOfCRMHint(context, input.organizationHint)).id
 		: '';
 	const stage = stageWritten(input.stage);
-	const activityCounts = await activityCountByOpportunity(context.caller);
-	const rows = (await opportunitiesOfCompany(context.caller, input.includeArchived === true)).filter(
+	const [activityCounts, opportunities] = await Promise.all([
+		activityCountByOpportunity(context.caller),
+		opportunitiesOfCompany(context.caller, input.includeArchived === true)
+	]);
+	const rows = opportunities.filter(
 		(row) =>
 			(!organizationID || row.organization_id === organizationID) &&
 			(!stage || row.stage_id === stage) &&

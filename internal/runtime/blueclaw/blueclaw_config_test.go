@@ -644,6 +644,9 @@ func TestBlueclawPolicyDocumentSeedsResourceFirstCircles(t *testing.T) {
 	if !containsPolicyResource(resourceAccess, "tool:task_list", "member") {
 		t.Fatalf("expected member Flow task list tool rule, got %+v", resourceAccess)
 	}
+	if !containsPolicyResource(resourceAccess, "tool:task_board_get", "member") {
+		t.Fatalf("expected member task board read rule, got %+v", resourceAccess)
+	}
 	if !containsPolicyResource(resourceAccess, "tool:task_update", "member") {
 		t.Fatalf("expected member Flow update tool rule, got %+v", resourceAccess)
 	}

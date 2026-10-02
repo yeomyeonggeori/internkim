@@ -89,61 +89,50 @@ export async function organizationsOfCompany(
 	caller: SupabaseClient,
 	includeArchived = false
 ): Promise<OrganizationRow[]> {
-	const { data, error } = await caller
-		.from('organization')
-		.select(organizationColumns)
-		.order('name')
-		.returns<OrganizationRow[]>();
-	if (error) throw new Error(error.message);
-	return keptRecords(data ?? [], includeArchived);
+	return crmRows<OrganizationRow>(caller, 'organization', organizationColumns, 'name', includeArchived);
 }
 
 export async function contactsOfCompany(
 	caller: SupabaseClient,
 	includeArchived = false
 ): Promise<ContactRow[]> {
-	const { data, error } = await caller
-		.from('contact')
-		.select(contactColumns)
-		.order('name')
-		.returns<ContactRow[]>();
-	if (error) throw new Error(error.message);
-	return keptRecords(data ?? [], includeArchived);
+	return crmRows<ContactRow>(caller, 'contact', contactColumns, 'name', includeArchived);
 }
 
 export async function opportunitiesOfCompany(
 	caller: SupabaseClient,
 	includeArchived = false
 ): Promise<OpportunityRow[]> {
-	const { data, error } = await caller
-		.from('opportunity')
-		.select(opportunityColumns)
-		.order('stage_position')
-		.returns<OpportunityRow[]>();
-	if (error) throw new Error(error.message);
-	return keptRecords(data ?? [], includeArchived);
+	return crmRows<OpportunityRow>(caller, 'opportunity', opportunityColumns, 'stage_position', includeArchived);
 }
 
 export async function activityCountByOpportunity(caller: SupabaseClient): Promise<Map<string, number>> {
-	const { data, error } = await caller
-		.from('task')
-		.select('opportunity_id')
-		.not('opportunity_id', 'is', null)
-		.returns<{ opportunity_id: string }[]>();
-	if (error) throw new Error(error.message);
-
 	const counted = new Map<string, number>();
-	for (const row of data ?? []) {
-		counted.set(row.opportunity_id, (counted.get(row.opportunity_id) ?? 0) + 1);
+	for (let from = 0; ; from += rowsPerPage) {
+		const { data, error } = await caller.from('task').select('id, opportunity_id')
+			.not('opportunity_id', 'is', null).order('id').range(from, from + rowsPerPage - 1)
+			.returns<{ id: string; opportunity_id: string }[]>();
+		if (error) throw new Error(error.message);
+		const rows = data ?? [];
+		for (const row of rows) counted.set(row.opportunity_id, (counted.get(row.opportunity_id) ?? 0) + 1);
+		if (rows.length < rowsPerPage) return counted;
 	}
-	return counted;
 }
 
-function keptRecords<Row extends { archived_at: string | null }>(
-	rows: Row[],
-	includeArchived: boolean
-): Row[] {
-	return includeArchived ? rows : rows.filter((row) => row.archived_at === null);
+const rowsPerPage = 500;
+
+async function crmRows<Row>(caller: SupabaseClient, table: string, columns: string, order: string, includeArchived: boolean): Promise<Row[]> {
+	const rows: Row[] = [];
+	for (let from = 0; ; from += rowsPerPage) {
+		let query = caller.from(table).select(columns);
+		if (!includeArchived) query = query.is('archived_at', null);
+		const { data, error } = await query.order(order).order('id')
+			.range(from, from + rowsPerPage - 1).returns<Row[]>();
+		if (error) throw new Error(error.message);
+		const page = data ?? [];
+		rows.push(...page);
+		if (page.length < rowsPerPage) return rows;
+	}
 }
 
 const organizationMatcher: HintMatcher<OrganizationRow> = {

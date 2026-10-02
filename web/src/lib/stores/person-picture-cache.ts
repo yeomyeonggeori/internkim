@@ -9,10 +9,11 @@ export function keptPictureOf(address: string, signedURL: string, now: number = 
 	return { address, signedURL, expiresAt: now + readableForSeconds * 1000 };
 }
 
-export function readKeptPictures(now: number = Date.now()): Map<string, KeptPicture> {
+export function readKeptPictures(now: number = Date.now(), scope = 'device'): Map<string, KeptPicture> {
+	if (!scope) return new Map();
 	if (typeof window === 'undefined') return new Map();
 	try {
-		const raw = window.localStorage.getItem(storageKey);
+		const raw = window.localStorage.getItem(`${storageKey}:${scope}`);
 		if (!raw) return new Map();
 		const stored: [string, KeptPicture][] = JSON.parse(raw);
 		if (!Array.isArray(stored)) return new Map();
@@ -24,10 +25,11 @@ export function readKeptPictures(now: number = Date.now()): Map<string, KeptPict
 	}
 }
 
-export function writeKeptPictures(pictures: Map<string, KeptPicture>): void {
+export function writeKeptPictures(pictures: Map<string, KeptPicture>, scope = 'device'): void {
+	if (!scope) return;
 	if (typeof window === 'undefined') return;
 	try {
-		window.localStorage.setItem(storageKey, JSON.stringify([...pictures]));
+		window.localStorage.setItem(`${storageKey}:${scope}`, JSON.stringify([...pictures]));
 	} catch {
 		return;
 	}
@@ -36,7 +38,10 @@ export function writeKeptPictures(pictures: Map<string, KeptPicture>): void {
 export function forgetKeptPictures(): void {
 	if (typeof window === 'undefined') return;
 	try {
-		window.localStorage.removeItem(storageKey);
+		for (const key of Object.keys(window.localStorage)) {
+			if (key === storageKey || key.startsWith(`${storageKey}:`)) window.localStorage.removeItem(key);
+		}
+		window.localStorage.removeItem(`${storageKey}:device`);
 	} catch {
 		return;
 	}

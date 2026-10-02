@@ -2,6 +2,9 @@
  "record": {},
  "allowed": {
   "auth": {
+   "src/lib/company-session-scope.ts": {
+    "from('member')": 1
+   },
    "src/lib/supabase-session.ts": {
     "from('member')": 1
    }

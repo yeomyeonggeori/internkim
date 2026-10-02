@@ -185,6 +185,7 @@ describe('canonical capability tools', () => {
       'schedule_list',
       'schedule_update',
       'task_add',
+      'task_board_get',
       'task_delete',
       'task_label_get',
       'task_list',

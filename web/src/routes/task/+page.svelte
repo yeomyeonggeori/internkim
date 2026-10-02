@@ -1,20 +1,20 @@
 <script lang="ts">
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import { invalidate, replaceState } from '$app/navigation';
+	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, untrack } from 'svelte';
-	import TaskDefinitionsEditor from './task-definitions-editor.svelte';
-	import TaskMembersView from './task-members-view.svelte';
-	import TaskReportView from './task-report-view.svelte';
 	import TaskTabRow from './task-tab-row.svelte';
 	import TasksView from './tasks-view.svelte';
-	import { taskWeeklySummaryOf, mergeTaskSummary, taskStateDependency, forgetTaskStateRead } from './task-api';
+	import { taskWeeklySummaryOf, mergeTaskSummary, fetchTaskState, forgetTaskStateRead } from './task-api';
+	import { taskWeekForCode } from '$lib/task/task-week-code';
+	import { taskBoardState } from '$lib/task/task-state';
+	import { ToolRefused } from '$lib/public-api-call';
 	import { subscribeTaskWrites } from '$lib/task/task-live-refresh';
-	import { createTaskLoadTracker, type TaskLoadOptions } from './task-load-tracker';
+	import type { TaskLoadOptions } from './task-load-tracker';
+	import { createTaskReadSession, sameTaskReadContext, type TaskReadContext } from './task-read-session';
 	import { rememberTask, forgetLastSeenTask } from './task-last-seen';
-	import { clearStoredTaskSnapshot, taskSnapshotGeneration } from './task-snapshot-storage';
-	import { createTaskReportSections, emptyTaskMetrics } from './task-report-sections-model';
+	import { clearStoredTaskSnapshot, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
 	import type { TaskState, TaskSummary } from './task-types';
 	import { taskText } from './text';
 
@@ -24,22 +24,32 @@
 	let taskScope = untrack(() => data.taskScope);
 	let isDisposed = false;
 	let selectedWeek = '';
-	let lastWeekQuery: string | undefined;
 	let lastTaskQuery: string | undefined;
 	let activeTab = $state('tasks');
-	let loadedTabs = $state(['tasks']);
+	let TaskDefinitionsEditor = $state<typeof import('./task-definitions-editor.svelte').default | null>(null);
+	let TaskMembersView = $state<typeof import('./task-members-view.svelte').default | null>(null);
+	let TaskReportView = $state<typeof import('./task-report-view.svelte').default | null>(null);
+	let createReportSections = $state<typeof import('./task-report-sections-model').createTaskReportSections | null>(null);
+	let paneError = $state('');
 	let pendingTaskID = $state('');
 	let focusedTaskID = $state('');
 	let isLoading = $state(true);
 	let errorMessage = $state('');
 	let cacheSavedAt = $state(0);
 	let isRefreshing = $state(false);
+	let isHistoryLoading = $state(false);
+	let historyError = $state('');
+	type PendingTaskRead = TaskReadContext & { promise: Promise<boolean> };
+	let fullRequest: PendingTaskRead | null = null;
+	let boardRequest: PendingTaskRead | null = null;
+	let historyAfterPeople: PendingTaskRead | null = null;
+	let stateReadGeneration = $state(-1);
+	let isStateFresh = $derived(stateReadGeneration === taskSnapshotGeneration() && !cacheSavedAt);
 
 	const currentWeek = () => summary?.week.code ?? '';
 	const members = () => summary?.members ?? [];
 	const tasks = () => summary?.tasks ?? [];
 	const weeklyTasks = () => summary?.weeklyTasks ?? tasks();
-	const metrics = () => summary?.metrics ?? emptyTaskMetrics;
 	const definitions = () =>
 		summary?.definitions ?? {
 			categories: [],
@@ -47,22 +57,24 @@
 			sizes: []
 		};
 	const text = createPageText(taskText);
-	const reportSections = () => createTaskReportSections({
-		metrics: metrics(),
+	const reportSections = () => summary && createReportSections ? createReportSections({
+		metrics: summary.metrics,
 		text,
 		summary,
 		tasks: weeklyTasks(),
 		members: members(),
 		definitions: definitions()
-	});
-	const taskLoadTracker = createTaskLoadTracker();
+	}) : null;
+	let sections = $derived(reportSections());
+	const readSession = createTaskReadSession();
 
 	$effect(() => {
 		const taskRead = data.taskRead;
 		const taskBoardRead = data.taskBoardRead;
 		const scope = data.taskScope;
-		const week = page.url.searchParams.get('week') ?? '';
-		const requestedTaskID = page.url.searchParams.get('task') ?? '';
+		const week = data.taskWeek?.code ?? '';
+		const cached = data.lastTask;
+		const readGeneration = data.taskReadGeneration;
 		let restoreFrame = 0;
 		untrack(() => {
 			const scopeChanged = taskScope !== scope;
@@ -70,91 +82,179 @@
 				taskScope = scope;
 				focusedTaskID = '';
 				activeTab = 'tasks';
-				loadedTabs = ['tasks'];
 				taskState = null;
 				summary = null;
 				cacheSavedAt = 0;
+				fullRequest = null;
+				historyError = '';
+				paneError = '';
+				pendingTaskID = page.url.searchParams.get('task') ?? '';
 			}
-			const weekChanged = scopeChanged || lastWeekQuery !== week;
-			if (scopeChanged || lastTaskQuery !== requestedTaskID) pendingTaskID = requestedTaskID;
-			lastWeekQuery = week;
-			lastTaskQuery = requestedTaskID;
-			if (weekChanged) selectedWeek = week;
-			if (taskRead) void applyTaskRead(taskRead, {}, taskBoardRead);
-			const cached = data.lastTask;
-			const readGeneration = data.taskReadGeneration;
+			selectedWeek = week;
+			readSession.select(scope, week);
+			fullRequest = null;
+			boardRequest = null;
+			historyAfterPeople = null;
+			isHistoryLoading = false;
+			if (taskRead && readGeneration !== undefined) {
+				if (readSession.needsFullHistory()) {
+					stateReadGeneration = -1;
+					void ensureFullState();
+				} else {
+					const promise = applyTaskRead(taskRead, scope, readGeneration, week, false, {}, taskBoardRead);
+					const request = { scope, generation: readGeneration, week, promise };
+					boardRequest = request;
+					void promise.finally(() => { if (boardRequest === request) boardRequest = null; });
+				}
+			}
 			if (!summary && cached?.state && cached.summary) restoreFrame = requestAnimationFrame(() => {
 				if (isDisposed || summary || taskState || scope !== taskScope || readGeneration !== taskSnapshotGeneration()) return;
 				taskState = cached.state;
 				summary = cached.summary;
 				cacheSavedAt = cached.savedAt ?? 0;
-				isLoading = false;
 			});
 		});
-		return () => { cancelAnimationFrame(restoreFrame); taskLoadTracker.start(); };
+		return () => { cancelAnimationFrame(restoreFrame); readSession.invalidate(); };
+	});
+
+	$effect(() => {
+		const week = page.url.searchParams.get('week') ?? '';
+		const requestedTaskID = page.url.searchParams.get('task') ?? '';
+		untrack(() => {
+			if (lastTaskQuery !== requestedTaskID) {
+				pendingTaskID = requestedTaskID;
+				lastTaskQuery = requestedTaskID;
+				openPendingTask();
+			}
+			if (week && taskWeekForCode(week, new Date()).code !== selectedWeek) void loadTask(week, { reloadState: false });
+		});
 	});
 
 	onMount(() => {
+		const stopFollowingInvalidation = subscribeTaskSnapshotInvalidation(() => { stateReadGeneration = -1; });
 		const stopFollowingTaskWrites = subscribeTaskWrites(() => { void refreshCurrentWeek(); });
 		return () => {
 			isDisposed = true;
-			taskLoadTracker.start();
+			readSession.invalidate();
 			stopFollowingTaskWrites();
+			stopFollowingInvalidation();
 		};
 	});
 
 	async function loadTask(week: string, options: TaskLoadOptions = {}): Promise<boolean> {
-		selectedWeek = week;
-		if (options.reloadState === false && taskState) {
+		const shown = taskWeekForCode(week, new Date());
+		const weekChanged = selectedWeek !== shown.code;
+		selectedWeek = shown.code;
+		readSession.select(taskScope, selectedWeek);
+		if (weekChanged) {
+			fullRequest = null;
+			boardRequest = null;
+			historyAfterPeople = null;
+			isHistoryLoading = false;
+		}
+		if (options.reloadState === false && taskState?.completeness === 'full' && stateReadGeneration === taskSnapshotGeneration() && !cacheSavedAt) {
 			applyTaskState(taskState);
 			return true;
 		}
-		forgetTaskStateRead(taskScope);
-		clearStoredTaskSnapshot(taskScope);
-		await invalidate(taskStateDependency);
-		if (isDisposed) return false;
-		return data.taskRead ? applyTaskRead(data.taskRead, options) : false;
+		if (options.reloadState !== false) {
+			forgetTaskStateRead(taskScope);
+			clearStoredTaskSnapshot(taskScope);
+			fullRequest = null;
+			boardRequest = null;
+			historyAfterPeople = null;
+		}
+		if (readSession.needsFullHistory()) return ensureFullState();
+		const generation = taskSnapshotGeneration();
+		const reading = readTask(taskScope, shown.startISO);
+		const preview = data.taskViewer ? taskBoardState(taskScope, data.taskViewer, shown.startISO).catch(() => null) : null;
+		const promise = applyTaskRead(reading, taskScope, generation, shown.code, false, options, preview);
+		const request = { scope: taskScope, generation, week: shown.code, promise };
+		boardRequest = request;
+		void promise.finally(() => { if (boardRequest === request) boardRequest = null; });
+		return promise;
 	}
 
-	async function applyTaskRead(taskRead: NonNullable<typeof data.taskRead>, options: TaskLoadOptions = {}, taskBoardRead = data.taskBoardRead): Promise<boolean> {
-		const loadID = taskLoadTracker.start();
-		const scope = taskScope;
-		const readGeneration = data.taskReadGeneration;
+	function readTask(scope: string, boardWeek?: string) {
+		return fetchTaskState(scope, boardWeek).then(
+			state => ({ state, error: '', denied: false }),
+			(error: unknown) => ({ state: null, error: error instanceof Error ? error.message : String(error), denied: error instanceof ToolRefused && (error.status === 401 || error.status === 403) })
+		);
+	}
+
+	function ensureFullState(): Promise<boolean> {
+		readSession.requireFullHistory();
+		if (taskState?.completeness === 'full' && stateReadGeneration === taskSnapshotGeneration() && !cacheSavedAt) return Promise.resolve(true);
+		const generation = taskSnapshotGeneration();
+		const context = { scope: taskScope, generation, week: selectedWeek };
+		if (boardRequest && sameTaskReadContext(boardRequest, context) && !taskState?.peopleReady) {
+			if (historyAfterPeople && sameTaskReadContext(historyAfterPeople, context)) return historyAfterPeople.promise;
+			const scope = taskScope;
+			const week = selectedWeek;
+			isHistoryLoading = true;
+			const promise = boardRequest.promise.then(ready => {
+				if (isDisposed || scope !== taskScope || week !== selectedWeek || generation !== taskSnapshotGeneration()) return false;
+				if (!ready) { historyError = errorMessage || text.loadError; return false; }
+				return ensureFullState();
+			});
+			const request = { scope, generation, week, promise };
+			historyAfterPeople = request;
+			void promise.finally(() => { if (historyAfterPeople === request) historyAfterPeople = null; });
+			return promise;
+		}
+		if (fullRequest && sameTaskReadContext(fullRequest, context)) return fullRequest.promise;
+		const promise = applyTaskRead(readTask(taskScope), taskScope, generation, selectedWeek, true, { preserveActiveTabOnError: true });
+		const request = { scope: taskScope, generation, week: selectedWeek, promise };
+		fullRequest = request;
+		void promise.finally(() => { if (fullRequest === request) fullRequest = null; });
+		return promise;
+	}
+
+	async function applyTaskRead(taskRead: NonNullable<typeof data.taskRead>, scope: string, readGeneration: number, week: string, full: boolean, options: TaskLoadOptions = {}, taskBoardRead: typeof data.taskBoardRead = null): Promise<boolean> {
+		const ticket = readSession.start(readGeneration);
 		let settled = false;
-		isLoading = !summary;
+		const isCurrent = () => !isDisposed && readSession.isCurrent(ticket, taskSnapshotGeneration()) && scope === taskScope && week === selectedWeek;
+		isLoading = !full || !taskState;
+		isHistoryLoading = full;
 		isRefreshing = true;
 		errorMessage = '';
-		if (!summary && taskBoardRead) void taskBoardRead.then(board => {
-			if (!board || settled || summary || isDisposed || !taskLoadTracker.isCurrent(loadID) || scope !== taskScope || readGeneration !== taskSnapshotGeneration()) return;
-			summary = mergeTaskSummary(board, taskWeeklySummaryOf(board, selectedWeek));
+		if (full) historyError = '';
+		if (taskBoardRead) void taskBoardRead.then(board => {
+			if (!board || settled || !isCurrent()) return;
+			stateReadGeneration = readGeneration;
+			cacheSavedAt = 0;
+			applyTaskState(board);
+			isLoading = false;
 		});
 		try {
 			const loaded = await taskRead;
 			settled = true;
-			if (isDisposed || !taskLoadTracker.isCurrent(loadID) || scope !== taskScope) return false;
+			if (!isCurrent()) return false;
 			if (loaded.denied) {
 				forgetLastSeenTask(scope);
 				taskState = null;
 				summary = null;
 				cacheSavedAt = 0;
+				stateReadGeneration = -1;
+				errorMessage = loaded.error || text.loadError;
+				if (full) historyError = errorMessage;
+				return false;
 			}
 			if (!loaded.state && !taskState) summary = null;
 			if (!loaded.state) throw new Error(loaded.error || text.loadError);
-			if (readGeneration !== taskSnapshotGeneration()) {
-				if (!taskState) summary = null;
-				throw new Error(text.loadError);
-			}
+			stateReadGeneration = readGeneration;
 			applyTaskState(loaded.state, true);
 			return true;
 		} catch (error) {
-			if (!taskLoadTracker.isCurrent(loadID)) return false;
-			errorMessage = error instanceof Error ? error.message : text.loadError;
+			if (!isCurrent()) return false;
+			const message = error instanceof Error ? error.message : text.loadError;
+			if (full) historyError = message;
+			else errorMessage = message;
 			if (!taskState) summary = null;
 			if (!options.preserveActiveTabOnError) activeTab = 'tasks';
 			return false;
 		} finally {
 			settled = true;
-			if (taskLoadTracker.isCurrent(loadID)) { isLoading = false; isRefreshing = false; }
+			if (readSession.owns(ticket)) { isLoading = false; isRefreshing = false; isHistoryLoading = false; }
 		}
 	}
 
@@ -162,7 +262,7 @@
 		taskState = nextState;
 		summary = mergeTaskSummary(nextState, taskWeeklySummaryOf(nextState, selectedWeek));
 		if (fresh) {
-			rememberTask(nextState, summary, taskScope);
+			rememberTask(nextState, summary, taskScope, stateReadGeneration);
 			cacheSavedAt = 0;
 		}
 		openPendingTask();
@@ -170,8 +270,12 @@
 	}
 
 	function openPendingTask() {
-		if (!pendingTaskID || !summary) return;
+		if (!pendingTaskID || !taskState || !summary || cacheSavedAt || stateReadGeneration !== taskSnapshotGeneration()) return;
 		const task = summary.tasks.find((candidate) => candidate.id === pendingTaskID);
+		if (!task && taskState.completeness !== 'full') {
+			if (!historyError) void ensureFullState();
+			return;
+		}
 		pendingTaskID = '';
 		if (!task) return;
 		focusedTaskID = task.id;
@@ -190,11 +294,24 @@
 
 	function selectTab(tab: string) {
 		activeTab = tab;
-		if (!loadedTabs.includes(tab)) loadedTabs.push(tab);
+		paneError = '';
+		if (tab === 'report' || tab === 'members') void ensureFullState();
+		const scope = taskScope;
+		void loadPane(tab).catch(error => { if (scope === taskScope && activeTab === tab) paneError = error instanceof Error ? error.message : text.loadError; });
+	}
+
+	async function loadPane(tab: string): Promise<void> {
+		if (tab === 'report' && !TaskReportView) {
+			const [view, model] = await Promise.all([import('./task-report-view.svelte'), import('./task-report-sections-model')]);
+			createReportSections = model.createTaskReportSections;
+			TaskReportView = view.default;
+		}
+		if (tab === 'members' && !TaskMembersView) TaskMembersView = (await import('./task-members-view.svelte')).default;
+		if (tab === 'definitions' && !TaskDefinitionsEditor) TaskDefinitionsEditor = (await import('./task-definitions-editor.svelte')).default;
 	}
 
 	function refreshCurrentWeek() {
-		return loadTask(currentWeek(), { reloadState: true });
+		return loadTask(selectedWeek || currentWeek(), { reloadState: true });
 	}
 
 	$effect(() => pageActions.setRefresh(async () => { await refreshCurrentWeek(); }));
@@ -206,7 +323,7 @@
 	<title>{text.pageTitle}</title>
 </svelte:head>
 
-<main data-task-ready={!isLoading && !errorMessage} data-task-progress={isLoading ? summary ? 'tasks' : 'skeleton' : cacheSavedAt ? 'snapshot' : 'ready'} class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
+<main data-task-ready={!isLoading && !errorMessage && isStateFresh} data-task-progress={isLoading ? summary ? 'tasks' : 'skeleton' : cacheSavedAt ? 'snapshot' : 'ready'} class="min-h-screen min-w-0 flex-1 bg-background text-foreground">
 	<div class="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
 		{#if errorMessage}
 			<div class="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -214,12 +331,16 @@
 			</div>
 		{/if}
 
-		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading} onSelectTab={selectTab} />
-		{#if isLoading && summary}
+		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading || !isStateFresh} onSelectTab={selectTab} />
+		{#if summary && !summary.peopleReady}
 			<p role="status" class="text-sm text-muted-foreground">{text.preparingPeople}</p>
 		{/if}
 		{#if cacheSavedAt && (isRefreshing || errorMessage)}
 			<p role="status" data-task-cache-status class="text-sm text-muted-foreground">{errorMessage ? text.cachedUnavailable : text.cachedRefreshing}</p>
+		{/if}
+		{#if pendingTaskID && historyError}
+			<p role="status" class="text-sm text-destructive">{historyError}</p>
+			<button class="text-left text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>
 		{/if}
 
 		{#key data.taskScope}
@@ -228,7 +349,10 @@
 				{summary}
 				{focusedTaskID}
 				{text}
-				{isLoading}
+				isLoading={isLoading || !isStateFresh}
+				{ensureFullState}
+				{isHistoryLoading}
+				{historyError}
 				{loadTask}
 				{selectWeek}
 				setPageErrorMessage={(message) => {
@@ -237,23 +361,39 @@
 			/>
 		</div>
 		<div class={activeTab === 'report' ? '' : 'hidden'}>
-			{#if loadedTabs.includes('report')}
-			<TaskReportView sections={reportSections()} {summary} text={text.report} />
+			{#if TaskReportView && sections && summary?.completeness === 'full'}
+				<div class={!isStateFresh || isHistoryLoading ? 'hidden' : ''}>
+					<TaskReportView {sections} {summary} text={text.report} />
+				</div>
+			{/if}
+			{#if activeTab === 'report' && (!TaskReportView || summary?.completeness !== 'full' || !isStateFresh || isHistoryLoading)}
+				<p role="status" class="text-sm text-muted-foreground">{paneError || historyError || text.loadingHistory}</p>
+				{#if paneError || historyError}<button class="mt-2 text-sm underline" onclick={() => selectTab('report')}>{text.retryHistory}</button>{/if}
 			{/if}
 		</div>
 		<div class={activeTab === 'definitions' ? '' : 'hidden'}>
-			{#if loadedTabs.includes('definitions')}
+			{#if TaskDefinitionsEditor}
 			<TaskDefinitionsEditor
 				{summary}
+				isFresh={isStateFresh && !isLoading}
 				loadError={errorMessage || text.loadError}
 				text={text.definitions}
 				{loadTask}
 			/>
+			{:else if activeTab === 'definitions'}
+				<p role="status" class="text-sm text-muted-foreground">{paneError || text.loading}</p>
+				{#if paneError}<button class="mt-2 text-sm underline" onclick={() => selectTab('definitions')}>{text.retryHistory}</button>{/if}
 			{/if}
 		</div>
 		<div class={activeTab === 'members' ? '' : 'hidden'}>
-			{#if loadedTabs.includes('members')}
-			<TaskMembersView members={members()} text={text.members} />
+			{#if TaskMembersView && summary?.completeness === 'full'}
+				<div class={!isStateFresh || isHistoryLoading ? 'hidden' : ''}>
+					<TaskMembersView members={members()} text={text.members} />
+				</div>
+			{/if}
+			{#if activeTab === 'members' && (!TaskMembersView || summary?.completeness !== 'full' || !isStateFresh || isHistoryLoading)}
+				<p role="status" class="text-sm text-muted-foreground">{paneError || historyError || text.loadingHistory}</p>
+				{#if paneError || historyError}<button class="mt-2 text-sm underline" onclick={() => selectTab('members')}>{text.retryHistory}</button>{/if}
 			{/if}
 		</div>
 		{/key}

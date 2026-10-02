@@ -34,6 +34,7 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
+	import { keepCentralBuzzIdentity } from '$lib/central-buzz-identity';
 	import { markChannelRead } from '$lib/messenger/messenger-api';
 	import { createConversationReadMarker } from '$lib/messenger/conversation-read-marker';
 	import { page } from '$app/state';
@@ -43,17 +44,20 @@
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
 	import { loadChannelOrder, saveChannelOrder, orderChannels, moveChannel } from './channel-order';
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
+	import { conversationStorageKey, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
 
 	const lastChannelKey = 'messenger-last-channel';
 
 	function loadLastChannelID(): string | null {
 		if (typeof localStorage === 'undefined') return null;
-		return localStorage.getItem(lastChannelKey);
+		const scope = messengerCacheKey();
+		return scope ? localStorage.getItem(`${lastChannelKey}:${scope}`) : null;
 	}
 
 	function selectChannel(channelID: string) {
 		activeID = channelID;
-		if (typeof localStorage !== 'undefined') localStorage.setItem(lastChannelKey, channelID);
+		const scope = messengerCacheKey();
+		if (typeof localStorage !== 'undefined' && scope) localStorage.setItem(`${lastChannelKey}:${scope}`, channelID);
 		const url = new URL(location.href);
 		url.searchParams.set('channel', channelID);
 		replaceState(url, {});
@@ -63,6 +67,7 @@
 
 	let conversations = $state<ChannelSummary[]>([]);
 	let activeID = $state<string | undefined>(undefined);
+	let cacheGeneration = $state(0);
 	let isNewDirectMessageOpen = $state(false);
 	let isNewChannelOpen = $state(false);
 	let isBrowseChannelsOpen = $state(false);
@@ -74,7 +79,7 @@
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
 	let muted = $state<Set<string>>(new Set());
-	let hasSyncedMattermost = false;
+	let syncedIdentityRevision = -1;
 	let userChannelOrder = $state<string[]>([]);
 	let profilePerson = $state<MentionPerson | undefined>(undefined);
 	let isPersonProfileOpen = $state(false);
@@ -146,12 +151,10 @@
 		selectChannel(channelID);
 	}
 
-	const conversationsCacheKey = 'messenger-conversations';
-
-	function loadCachedConversations(): ChannelSummary[] {
+	function loadCachedConversations(scope: MessengerCacheScope): ChannelSummary[] {
 		if (typeof sessionStorage === 'undefined') return [];
 		try {
-			const cached: unknown = JSON.parse(sessionStorage.getItem(conversationsCacheKey) ?? '[]');
+			const cached: unknown = JSON.parse(sessionStorage.getItem(conversationStorageKey(scope)) ?? '[]');
 			return Array.isArray(cached) ? (cached as ChannelSummary[]) : [];
 		} catch {
 			return [];
@@ -159,9 +162,12 @@
 	}
 
 	async function loadConversationList() {
-		conversations = await fetchConversations();
+		const scope = await messengerCacheScope();
+		const next = await fetchConversations();
+		await requireCurrentMessengerScope(scope);
+		conversations = next;
 		if (typeof sessionStorage !== 'undefined') {
-			sessionStorage.setItem(conversationsCacheKey, JSON.stringify(conversations));
+			sessionStorage.setItem(conversationStorageKey(scope), JSON.stringify(conversations));
 		}
 	}
 
@@ -181,17 +187,21 @@
 	});
 
 	$effect(() => {
-		if (!buzzIdentity.secretHex || hasSyncedMattermost) return;
-		hasSyncedMattermost = true;
-		syncMattermostToBuzz(buzzIdentity.secretHex)
-			.then(() => loadConversationList())
+		const revision = buzzIdentity.revision;
+		if (!buzzIdentity.secretHex || syncedIdentityRevision === revision) return;
+		syncedIdentityRevision = revision;
+		syncMattermostToBuzz(buzzIdentity.secretHex, () => buzzIdentity.revision === revision)
+			.then(() => { if (buzzIdentity.revision === revision) return loadConversationList(); })
 			.catch(() => {});
 	});
 
 	async function openNewDirectMessage() {
 		isNewDirectMessageOpen = true;
 		try {
-			people = await fetchPeople();
+			const scope = await messengerCacheScope();
+			const next = await fetchPeople();
+			await requireCurrentMessengerScope(scope);
+			people = next;
 		} catch {
 			people = [];
 		}
@@ -298,6 +308,7 @@
 	}
 
 	let stopListeningForArrivals = () => {};
+	let stopFollowingCacheScope = () => {};
 
 	const markReadThrough = createConversationReadMarker(markChannelRead);
 
@@ -322,19 +333,37 @@
 
 	onDestroy(() => {
 		stopListeningForArrivals();
+		stopFollowingCacheScope();
 		holdBackNotificationsFor(undefined).catch((failure: unknown) =>
 			console.warn('the shell is still holding back a closed conversation', failure)
 		);
 	});
 
+	onMount(keepCentralBuzzIdentity);
 	onMount(async () => {
+		stopFollowingCacheScope = onMessengerCacheReset(() => {
+			cacheGeneration += 1;
+			conversations = [];
+			people = [];
+			activeID = undefined;
+			muted = new Set();
+			profilePerson = undefined;
+			isPersonProfileOpen = false;
+			isNewDirectMessageOpen = false;
+			isBrowseChannelsOpen = false;
+			isNewChannelOpen = false;
+			conversationsNotMine.clear();
+			void loadConversationList().then(selectInitialChannel).catch(() => undefined);
+		});
 		userChannelOrder = loadChannelOrder();
 		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
 
+		let scope: MessengerCacheScope;
+		try { scope = await messengerCacheScope(); } catch { return; }
 		mutedConversations()
-			.then((held) => (muted = held))
+			.then(async (held) => { await requireCurrentMessengerScope(scope); muted = held; })
 			.catch(() => undefined);
-		const cached = loadCachedConversations();
+		const cached = loadCachedConversations(scope);
 		if (cached.length > 0) {
 			conversations = cached;
 			selectInitialChannel();
@@ -430,7 +459,7 @@
 						/>
 					{/if}
 				</header>
-				{#key activeID}
+				{#key `${cacheGeneration}:${activeID}`}
 					<Channel
 						channelId={activeID}
 						participants={mentionPeopleOf(activeConversation)}

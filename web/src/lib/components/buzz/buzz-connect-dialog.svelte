@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
-	import { claimCentralBuzzSecret } from '$lib/buzz-identity-central-login';
+	import { ensureCentralBuzzIdentity, keepCentralBuzzIdentity } from '$lib/central-buzz-identity';
+	import { isSupabaseConfigured } from '$lib/supabase';
 	import { centralBuzzRelayURL } from '$lib/buzz-relay-central-address';
 	import { buzzPublicKeyOf } from '$lib/buzz-relay-client';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -77,8 +79,13 @@
 	// session-gated route, and a company through the bridge to the machine that
 	// holds the seed.
 	async function loadIdentity() {
-		if (buzzIdentity.secretHex) return;
 		isFetching = true;
+		if (isSupabaseConfigured()) {
+			await ensureCentralBuzzIdentity();
+			isFetching = false;
+			return;
+		}
+		if (buzzIdentity.secretHex) { isFetching = false; return; }
 		try {
 			const response = await fetch('/auth/identity', { credentials: 'include' });
 			if (response.ok) {
@@ -90,9 +97,8 @@
 				}
 			}
 		} catch {
-			// the device route is absent on a company host; the bridge answers there
+			// An unreachable legacy device leaves the identity locked.
 		}
-		buzzIdentity.secretHex = await claimCentralBuzzSecret();
 		isFetching = false;
 	}
 
@@ -101,8 +107,11 @@
 			revealed = false;
 			return;
 		}
-		if (!relayURL) loadRelayURL();
-		loadIdentity();
+		return untrack(() => {
+			if (!relayURL) loadRelayURL();
+			loadIdentity();
+			return keepCentralBuzzIdentity();
+		});
 	});
 </script>
 

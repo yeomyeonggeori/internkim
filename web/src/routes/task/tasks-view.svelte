@@ -23,23 +23,38 @@
 		focusedTaskID: string;
 		text: TaskPageText;
 		isLoading: boolean;
+		ensureFullState: () => Promise<boolean>;
+		isHistoryLoading: boolean;
+		historyError: string;
 		loadTask: LoadTask;
 		selectWeek: (weekCode: string) => void;
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, focusedTaskID, text, isLoading, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
+	let { summary, focusedTaskID, text, isLoading, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
 
 	const page = createTasksController();
 	let taskViewTab = $state('board');
+	let requestedRelationshipsFor = '';
+	$effect(() => {
+		if (taskViewTab === 'list') untrack(() => { void ensureFullState(); });
+	});
+	$effect(() => {
+		const taskID = page.editor.taskDraft?.id ?? '';
+		if (taskID === requestedRelationshipsFor) return;
+		requestedRelationshipsFor = taskID;
+		if (taskID) untrack(() => { void ensureFullState(); });
+	});
 	$effect(() => {
 		const nextSummary = summary;
 		const nextText = text;
 		const nextLoadTask = loadTask;
 		const nextSetPageErrorMessage = setPageErrorMessage;
+		const relationshipsReady = nextSummary?.completeness === 'full' && !isLoading && !isHistoryLoading;
 		untrack(() => {
 			page.sync({
 				summary: nextSummary,
+				relationshipsReady,
 				text: nextText,
 				loadTask: nextLoadTask,
 				setPageErrorMessage: nextSetPageErrorMessage,
@@ -89,6 +104,7 @@
 				participantFilterIDs={page.filters.participantFilterIDs}
 				statusOptions={page.statusFilterOptions()}
 				participantOptions={page.memberFilterOptions()}
+				peopleReady={summary?.peopleReady ?? false}
 				businessOptions={page.categoryFilterOptions()}
 				typeOptions={page.typeFilterOptions()}
 				hasBusinessFilter={page.definitions().categories.length > 0}
@@ -105,6 +121,7 @@
 				memberEmail={page.memberEmail}
 				tasks={page.filteredTasks()}
 				allTasks={page.tasks()}
+				serverChildProgress={summary?.childProgressByParent}
 				boardText={text.task.board}
 				etcLabel={text.task.etcLabel}
 				statusLabel={page.statusLabel}
@@ -124,6 +141,7 @@
 			{/if}
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
+			{#if summary?.completeness === 'full' && !isHistoryLoading && !isLoading}
 			<TaskListView
 				memberEmail={page.memberEmail}
 				businessColor={page.businessColor}
@@ -138,6 +156,10 @@
 				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
 				{focusedTaskID}
 			/>
+			{:else}
+				<p role="status" class="text-sm text-muted-foreground">{historyError || text.loadingHistory}</p>
+				{#if historyError}<button class="mt-2 text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>{/if}
+			{/if}
 		</Tabs.Content>
 	</Tabs.Root>
 </div>
@@ -180,9 +202,9 @@
 	canRemoveParticipant={page.canRemoveParticipant}
 	saveTask={page.saveTask}
 	deleteTask={page.deleteTask}
-	canUpdateTask={page.canUpdateTask}
-	canDeleteTask={page.canDeleteTask}
-	canManageTaskAssignment={page.canManageTaskAssignment}
+	canUpdateTask={isLoading ? () => false : page.canUpdateTask}
+	canDeleteTask={isLoading ? () => false : page.canDeleteTask}
+	canManageTaskAssignment={isLoading ? () => false : page.canManageTaskAssignment}
 	isOwnTask={page.editor.isOwnTask}
 	startEditingTask={page.editor.startEditingTask}
 	closeEditor={page.closeEditor}
@@ -190,4 +212,9 @@
 	setTaskParent={page.setTaskParent}
 	setTaskParents={page.setTaskParents}
 	createChildTask={page.createChildTask}
+	relationshipsReady={summary?.completeness === 'full' && !isHistoryLoading && !isLoading}
+	relationshipsLoadingLabel={text.loadingHistory}
+	relationshipsError={historyError}
+	relationshipsRetryLabel={text.retryHistory}
+	retryRelationships={ensureFullState}
 />

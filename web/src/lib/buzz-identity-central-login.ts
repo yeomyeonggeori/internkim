@@ -9,9 +9,9 @@ import { callCompanyApp } from './host-bridge';
 // no machine reachable, an older relay that does not forward the capability —
 // still has a person who needs to get to their work; they lose the Buzz app
 // until it can, and nothing else.
-export async function claimCentralBuzzSecret(): Promise<string | null> {
+export async function claimCentralBuzzSecret(owner?: { accountID: string; companyID: string; accessToken: string }): Promise<string | null> {
 	try {
-		const answer = await callCompanyApp({ capability: 'person.buzz.claim' });
+		const answer = await callCompanyApp({ capability: 'person.buzz.claim' }, owner);
 		if (answer.status !== 200) {
 			console.warn('buzz claim answered', answer.status);
 			return null;

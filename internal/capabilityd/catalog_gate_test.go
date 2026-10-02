@@ -47,6 +47,15 @@ type catalogGateCase struct {
 
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
+		"task_board_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"task_board_get","result":{"tasks":[],"count":0,"unfinishedCount":0,"scope":"person","boardWeek":"2026-09-28","childProgress":[],"registeredLabels":{"businesses":[],"types":[],"sizes":[],"statuses":[]}}`)},
+			input:   `{"boardWeek":"2026-09-28"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"boardWeek":"2026-09-28"`)
+			},
+		},
 		"dataroom_member_update": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_member_update","result":{"saved":true}}`)},

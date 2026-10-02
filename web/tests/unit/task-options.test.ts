@@ -17,6 +17,8 @@ describe('flow task status options', () => {
 
 function summary(fields: Partial<TaskSummary> = {}): TaskSummary {
 	return {
+		completeness: 'full',
+		peopleReady: true,
 		week: { code: '26W23', startISO: '2026-06-01', endISO: '2026-06-07', previous: '26W22', next: '26W24', isCurrent: true },
 		members: [],
 		tasks: [],

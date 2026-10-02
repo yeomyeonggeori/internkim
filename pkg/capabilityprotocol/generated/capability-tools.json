@@ -1405,7 +1405,7 @@
             "type": "boolean"
           },
           "limit": {
-            "description": "Maximum number of tasks to return. Defaults to 50.",
+            "description": "Maximum number of tasks to return. Omit to return every matching task.",
             "type": "number"
           },
           "opportunityHint": {
@@ -1894,6 +1894,591 @@
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "4",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "task_board_get",
+      "description": "Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "boardWeek": {
+            "description": "Monday of the displayed board week as YYYY-MM-DD. Includes carry-over work according to the board status rules.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of tasks to return. Omit to return every matching task.",
+            "type": "number"
+          },
+          "opportunityHint": {
+            "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Only the work for one organization. Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose tasks to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "query": {
+            "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.",
+            "type": "string"
+          },
+          "scope": {
+            "description": "Set to all to read the whole company's tasks. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
+            "enum": [
+              "self",
+              "all"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Filter by task status. Omit the field to return every status.",
+            "enum": [
+              "requested",
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "boardWeek"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "task_board_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "task_board_get",
+      "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "boardWeek": {
+            "type": "string"
+          },
+          "childProgress": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "completed": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "parentTaskID": {
+                  "type": "string"
+                },
+                "percent": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "total": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "parentTaskID",
+                "completed",
+                "total",
+                "percent"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "ownerID": {
+            "type": "string"
+          },
+          "registeredLabels": {
+            "additionalProperties": false,
+            "properties": {
+              "businesses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "etcBusinessColor": {
+                "type": "string"
+              },
+              "etcTypeColor": {
+                "type": "string"
+              },
+              "sizes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "statuses": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "types": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "businesses",
+              "types",
+              "sizes",
+              "statuses"
+            ],
+            "type": "object"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "statusFilter": {
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "business": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "endDate": {
+                  "type": "string"
+                },
+                "opportunityID": {
+                  "type": "string"
+                },
+                "organizationID": {
+                  "type": "string"
+                },
+                "ownerID": {
+                  "type": "string"
+                },
+                "ownerName": {
+                  "type": "string"
+                },
+                "parentTaskID": {
+                  "type": "string"
+                },
+                "participantIDs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "participantNames": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "participantPresentations": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "mention": {
+                        "type": "string"
+                      },
+                      "personID": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requesterID": {
+                  "type": "string"
+                },
+                "requesterName": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "string"
+                },
+                "startDate": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "taskID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "weekCode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "taskID"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "unfinishedCount": {
+            "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "weekFrom": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "weekTo": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tasks",
+          "count",
+          "unfinishedCount",
+          "scope",
+          "registeredLabels",
+          "boardWeek",
+          "childProgress"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:task_board_get",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "boardWeek": {
+              "type": "string"
+            },
+            "childProgress": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "completed": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "parentTaskID": {
+                    "type": "string"
+                  },
+                  "percent": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "total": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "parentTaskID",
+                  "completed",
+                  "total",
+                  "percent"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "ownerID": {
+              "type": "string"
+            },
+            "registeredLabels": {
+              "additionalProperties": false,
+              "properties": {
+                "businesses": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "etcBusinessColor": {
+                  "type": "string"
+                },
+                "etcTypeColor": {
+                  "type": "string"
+                },
+                "sizes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "statuses": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "types": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "businesses",
+                "types",
+                "sizes",
+                "statuses"
+              ],
+              "type": "object"
+            },
+            "scope": {
+              "type": "string"
+            },
+            "statusFilter": {
+              "type": "string"
+            },
+            "tasks": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "business": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "endDate": {
+                    "type": "string"
+                  },
+                  "opportunityID": {
+                    "type": "string"
+                  },
+                  "organizationID": {
+                    "type": "string"
+                  },
+                  "ownerID": {
+                    "type": "string"
+                  },
+                  "ownerName": {
+                    "type": "string"
+                  },
+                  "parentTaskID": {
+                    "type": "string"
+                  },
+                  "participantIDs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "participantNames": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "participantPresentations": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "mention": {
+                          "type": "string"
+                        },
+                        "personID": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "requesterID": {
+                    "type": "string"
+                  },
+                  "requesterName": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "string"
+                  },
+                  "startDate": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "taskID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "weekCode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "taskID"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "unfinishedCount": {
+              "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "weekFrom": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "weekTo": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "tasks",
+            "count",
+            "unfinishedCount",
+            "scope",
+            "registeredLabels",
+            "boardWeek",
+            "childProgress"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
       "worksOffline": false
     },
     {
@@ -23404,7 +23989,12 @@
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "includeProfileImage": {
+            "description": "Whether to prepare the company image URL. Defaults to true; omit the image for settings-only reads.",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "inputSchemaStrict": true,

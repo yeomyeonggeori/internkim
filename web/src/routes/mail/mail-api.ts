@@ -16,28 +16,13 @@ export type MailErrorMessages = {
 };
 
 export async function fetchMailBootstrap(query: URLSearchParams, errors: MailErrorMessages) {
-	if (isSupabaseConfigured()) return companyMailBootstrap(query, errors);
+	if (isSupabaseConfigured()) return normalizeMailBootstrapResponse({ account: await fetchMailAccount(errors) });
 	const response = await fetchMailResponse(`/mail/api/bootstrap?${query}`, {
 		method: 'GET',
 		credentials: 'include'
 	}, errors);
 	await assertMailResponse(response, errors);
 	return normalizeMailBootstrapResponse(await response.json());
-}
-
-async function companyMailBootstrap(query: URLSearchParams, errors: MailErrorMessages) {
-	const account = await fetchMailAccount(errors);
-	if (!account.isConfigured) return normalizeMailBootstrapResponse({ account });
-	const [mailboxes, messages] = await Promise.all([
-		fetchMailboxes(errors),
-		fetchMailMessages(query, errors)
-	]);
-	return normalizeMailBootstrapResponse({
-		account,
-		mailboxes,
-		messages: messages.messages,
-		nextCursor: messages.nextCursor
-	});
 }
 
 export async function fetchMailAccount(errors: MailErrorMessages) {

@@ -61,10 +61,12 @@ Authentication and company membership are verified before a route accepts
 account-scoped data. The signed-in member lookup is shared within the current
 account session; focus revalidation and account changes invalidate it.
 
-Opening a task board starts `task_list` and `person_list` together. Actual
-cards can appear when the task response arrives, while the directory completes
-member-dependent editing. Selecting another week derives a view from the same
-state instead of reading the complete history again. A saved task snapshot is
+Opening a task board starts `task_board_get` and `person_list` together. The
+board reads visible status/date ranges and direct-child progress without the
+company's complete history. Board snapshots are distinct from complete states
+and keyed by account and week. List, report and member views request complete
+history on demand; basic editing can open from a card while relationship data
+loads separately. Secondary panes load their JavaScript on first use. A saved complete task snapshot is
 scoped to the project, company, member and role, expires after 24 hours, and is
 revalidated. Writes, logout and denied access invalidate it; a response started
 before invalidation cannot restore the old snapshot.
@@ -82,9 +84,45 @@ it does not replace those rules with a browser-only today filter.
 
 Record tools validate their descriptor, input and caller permissions before
 using the caller's RLS-enabled database client. Company settings and people are
-independent reads and run concurrently inside each request. Context is not
-cached across authenticated requests. No new RPC, Edge Function, generic batch
-contract or database migration is required for these ordering changes.
+independent reads and run concurrently when both are needed; settings-only and
+CRM list reads omit the unused people directory. Context is not cached across
+authenticated requests. `company_settings_get` accepts `includeProfileImage:
+false` for callers needing settings without signing an image URL; existing
+callers still receive the image. CRM activities filter linked organizations
+before pagination. CRM records and activity counts use stable pages, preserving
+records beyond the database response cap. Task and event write readbacks select
+the saved identifier through the caller's client. Update and delete resolution
+first reads a named UUID with the same caller and event-kind scope. Missing IDs
+and title hints retain the existing title resolver and relationship checks.
+
+Calendar events render before the holiday overlay finishes. Each range load
+shares its timezone read; late holidays merge with current local edits, while
+navigation and disposal discard superseded ranges. National-holiday failure
+does not hide company events. Live attendance summaries carry their input
+records into overlapping work-status reads. Persisted summaries carry no such
+records and must revalidate. Leave details load when displayed. These changes
+add no RPC, Edge Function, generic batch contract or database migration.
+
+The shell loads search and legacy identity UI on demand. Central sign-in does
+not wait for the company computer's messaging identity; Messenger claims it
+when needed, bound to the verified project, account, company and session.
+Transport changes reject pending old replies. Existing message and asset
+caches discard late results from a previous account.
+
+Mail reads its account, then fetches mailbox and message lists once in
+parallel. Settings keeps its general section mounted while resolving the
+role. Data-room and operations screens publish independent valid responses as
+they arrive. CRM waits for complete core records and currency metadata, while
+owner-directory enrichment loads separately. Only directory-dependent inputs
+wait for that enrichment; mutations refresh their affected record lists.
+
+The service worker caches shipped static files as controlled pages request
+them. Installation does not download every route's chunks or unrelated static
+images. Cached files can be reused offline; authenticated HTML and API answers
+are not cached. The asset cache preserves unchanged hashed URLs across updates
+and removes entries absent from the current build. Mutable static files use
+the network with a cached offline fallback. Pending notification destinations
+and other caches remain separate.
 
 Measure actual fixture cards and fresh response markers, rather than empty
 columns or response headers. Browser-restart tests close and relaunch the

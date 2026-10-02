@@ -51,6 +51,11 @@
 		) => void | boolean | Promise<void | boolean>;
 		setTaskParents: (taskIDs: string[], parentTaskID: string) => boolean | Promise<boolean>;
 		createChildTask: (parentTaskID: string) => void;
+		relationshipsReady: boolean;
+		relationshipsLoadingLabel: string;
+		relationshipsError: string;
+		relationshipsRetryLabel: string;
+		retryRelationships: () => Promise<boolean>;
 	};
 
 	let {
@@ -87,7 +92,12 @@
 		openRelatedTask,
 		setTaskParent,
 		setTaskParents,
-		createChildTask
+		createChildTask,
+		relationshipsReady,
+		relationshipsLoadingLabel,
+		relationshipsError,
+		relationshipsRetryLabel,
+		retryRelationships
 	}: Props = $props();
 
 	let canEditTask = $derived(taskDraft ? canUpdateTask(taskDraft) : false);
@@ -123,7 +133,7 @@
 			{#if !isEditingTask}
 				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
 					<TaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
-					{#if taskDraft.id}
+					{#if taskDraft.id && relationshipsReady}
 						<TaskRelationshipsSection
 							task={taskDraft}
 							{tasks}
@@ -140,6 +150,9 @@
 							onCreateChild={createChildTask}
 							allowTaskSwitching={true}
 						/>
+					{:else if taskDraft.id}
+						<p role="status" class="text-sm text-muted-foreground">{relationshipsError || relationshipsLoadingLabel}</p>
+						{#if relationshipsError}<Button variant="outline" onclick={retryRelationships}>{relationshipsRetryLabel}</Button>{/if}
 					{/if}
 				</div>
 				<Sheet.Footer class="border-t">
@@ -176,7 +189,7 @@
 						{removeParticipantID}
 						{canRemoveParticipant}
 					/>
-					{#if taskDraft.id}
+					{#if taskDraft.id && relationshipsReady}
 						<TaskRelationshipsSection
 							task={taskDraft}
 							{tasks}
@@ -193,6 +206,9 @@
 							onCreateChild={createChildTask}
 							allowTaskSwitching={false}
 						/>
+					{:else if taskDraft.id}
+						<p role="status" class="text-sm text-muted-foreground">{relationshipsError || relationshipsLoadingLabel}</p>
+						{#if relationshipsError}<Button variant="outline" onclick={retryRelationships}>{relationshipsRetryLabel}</Button>{/if}
 					{/if}
 					<Separator />
 					<div class="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">

@@ -6,12 +6,12 @@ const userDocument = {
 	morningBriefing: { enabled: true, time: '11:00' }
 };
 
-async function mockSettingsPage(page: Page, userResponse: (route: Route, requestNumber: number) => Promise<void>): Promise<void> {
+async function mockSettingsPage(page: Page, userResponse: (route: Route, requestNumber: number) => Promise<void>, adminResponse?: (route: Route) => Promise<void>): Promise<void> {
 	await page.route('**/auth/session**', (route) =>
 		route.fulfill({ json: { authenticated: true, email: 'sample@example.com' } })
 	);
 	await page.route('**/admin/api/session', (route) =>
-		route.fulfill({ json: { email: 'sample@example.com', isAdmin: false, role: 'member', isClaimed: true } })
+		adminResponse ? adminResponse(route) : route.fulfill({ json: { email: 'sample@example.com', isAdmin: false, role: 'member', isClaimed: true } })
 	);
 	await page.route('**/admin/api/locale', (route) => route.fulfill({ json: { locale: 'en' } }));
 	await page.route('**/admin/api/workspace-settings', (route) =>
@@ -35,6 +35,26 @@ async function mockSettingsPage(page: Page, userResponse: (route: Route, request
 function personalSettings(page: Page) {
 	return page.getByRole('form', { name: 'How Intern Kim works with me' });
 }
+
+test('resolving the admin role preserves general settings and does not reload them', async ({ page }) => {
+	let releaseRole = () => {};
+	const roleReady = new Promise<void>((resolve) => { releaseRole = resolve; });
+	let requests = 0;
+	await mockSettingsPage(page, async (route, requestNumber) => {
+		requests = requestNumber;
+		await route.fulfill({ json: userDocument });
+	}, async (route) => {
+		await roleReady;
+		await route.fulfill({ json: { email: 'sample@example.com', isAdmin: true, role: 'admin', isClaimed: true } });
+	});
+	const settings = personalSettings(page);
+	await expect(settings.getByLabel('What to call me')).toHaveValue('Sample');
+	await settings.getByLabel('What to call me').fill('Unsaved edit');
+	releaseRole();
+	await expect(page.getByRole('tab')).toHaveCount(2);
+	await expect(settings.getByLabel('What to call me')).toHaveValue('Unsaved edit');
+	expect(requests).toBe(1);
+});
 
 test('explicit retry recovers personal settings without showing defaults after failure', async ({ page }) => {
 	await mockSettingsPage(page, async (route, requestNumber) => {

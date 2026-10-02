@@ -32,29 +32,28 @@ import {
 	type CRMVocabularyToolResult
 } from './crm-tool-mappers';
 
-export async function loadSupabaseCRMData(): Promise<CRMDataResponse> {
+export type CRMReadPart = 'organizations' | 'contacts' | 'opportunities' | 'activities' | 'vocabulary';
+
+export async function loadSupabaseCRMData(previous?: CRMDataResponse, changed?: readonly CRMReadPart[]): Promise<CRMDataResponse> {
 	const [organizations, contacts, opportunities, activities, vocabulary] = await Promise.all([
-		callTool<CRMOrganizationListToolResult>('crm_organization_list', {}),
-		callTool<CRMContactListToolResult>('crm_contact_list', {}),
-		callTool<CRMOpportunityListToolResult>('crm_opportunity_list', {}),
-		callTool<CRMActivityListToolResult>('crm_activity_list', {}),
-		callTool<CRMVocabularyToolResult>('crm_vocabulary_get', {})
+		previous && changed && !changed.includes('organizations') ? previous.organizations
+			: callTool<CRMOrganizationListToolResult>('crm_organization_list', {}).then(answer => answer.organizations.map(organizationResponseOf)),
+		previous && changed && !changed.includes('contacts') ? previous.contacts
+			: callTool<CRMContactListToolResult>('crm_contact_list', {}).then(answer => answer.contacts.map(contactResponseOf)),
+		previous && changed && !changed.includes('opportunities') ? previous.opportunities
+			: callTool<CRMOpportunityListToolResult>('crm_opportunity_list', {}).then(answer => answer.opportunities.map(opportunityResponseOf)),
+		previous && changed && !changed.includes('activities') ? { activities: previous.activities, taskVocabulary: previous.taskVocabulary }
+			: callTool<CRMActivityListToolResult>('crm_activity_list', {}).then(answer => ({
+				activities: answer.activities.map(activityResponseOf),
+				taskVocabulary: { businesses: answer.registeredLabels.businesses, types: answer.registeredLabels.types }
+			})),
+		previous && changed && !changed.includes('vocabulary') ? previous.vocabulary
+			: callTool<CRMVocabularyToolResult>('crm_vocabulary_get', {}).then(answer => ({ organization_types: answer.organizationTypes, pipelines: answer.pipelines }))
 	]);
-	const held: CRMVocabulary = {
-		organization_types: vocabulary.organizationTypes,
-		pipelines: vocabulary.pipelines
-	};
 	return {
-		organizations: organizations.organizations.map(organizationResponseOf),
-		contacts: contacts.contacts.map(contactResponseOf),
-		opportunities: opportunities.opportunities.map(opportunityResponseOf),
-		activities: activities.activities.map(activityResponseOf),
-		pipelines: crmPipelinesOf(held),
-		vocabulary: held,
-		taskVocabulary: {
-			businesses: activities.registeredLabels.businesses,
-			types: activities.registeredLabels.types
-		}
+		organizations, contacts, opportunities, activities: activities.activities,
+		pipelines: crmPipelinesOf(vocabulary), vocabulary,
+		taskVocabulary: activities.taskVocabulary
 	};
 }
 

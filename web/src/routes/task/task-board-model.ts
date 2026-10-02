@@ -18,6 +18,13 @@ export type TaskBoardOptions = {
 
 export type TaskBoardWeekPosition = 'past' | 'current' | 'future';
 
+export type TaskBoardDates = Pick<Task, 'status' | 'startDate' | 'endDate'>;
+
+export function matchesTaskBoardWeek(task: TaskBoardDates, options: TaskBoardOptions): boolean {
+	return isTaskBoardStatus(task.status) && isBoardColumnVisible(task.status, options)
+		&& matchesBoardColumnWeek(task, task.status, options);
+}
+
 export function buildTaskBoard(tasks: Task[], options: TaskBoardOptions = {}): TaskBoardColumn[] {
 	return BOARD_STATUS_VALUES.filter((status) => isBoardColumnVisible(status, options))
 		.map((status) => ({
@@ -60,7 +67,7 @@ function isBoardColumnVisible(status: TaskBoardStatus, options: TaskBoardOptions
 	return status !== 'planned' || weekPosition(options) !== 'past';
 }
 
-function matchesBoardColumnWeek(task: Task, status: TaskBoardStatus, options: TaskBoardOptions): boolean {
+function matchesBoardColumnWeek(task: TaskBoardDates, status: TaskBoardStatus, options: TaskBoardOptions): boolean {
 	if (status === 'requested' || status === 'paused') return true;
 	if (status === 'in_progress') return weekPosition(options) === 'current';
 	if (!options.weekStartISO || !options.weekEndISO) return true;

@@ -56,7 +56,9 @@ const workLocationSchema = z.strictObject({
   color: z.string().max(32).describe('The colour the attendance screens draw it in, as a CSS colour. Omit to leave it uncoloured.').optional(),
 });
 
-export const companySettingsGetInputSchema = z.strictObject({});
+export const companySettingsGetInputSchema = z.strictObject({
+  includeProfileImage: z.boolean().describe('Whether to prepare the company image URL. Defaults to true; omit the image for settings-only reads.').optional(),
+});
 
 export const companySettingsUpdateInputSchema = z.strictObject({
   name: z.string().min(1).max(256).describe("The company's name as the app shows it. Not the legal name a document prints, which is company_info_set's.").optional(),

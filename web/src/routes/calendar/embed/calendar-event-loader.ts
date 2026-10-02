@@ -1,4 +1,5 @@
 import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
+import { companyTimeZone } from '$lib/company/company-settings';
 import {
 	dayTaskEventFromCalendarEvent,
 	dayTaskEventFromCalendarHoliday,
@@ -32,7 +33,7 @@ type CalendarEventLoaderContext = {
 
 export type CalendarEventLoader = {
 	hasVisibleRange: () => boolean;
-	invalidatePendingLoad: () => void;
+	invalidatePendingLoad: (preserveHolidays?: boolean) => void;
 	loadEvents: (startDate: Date, endDate: Date) => Promise<void>;
 	refreshCurrentRange: () => Promise<void>;
 	renderVisibleEvents: (events: DayTaskEvent[]) => void;
@@ -49,9 +50,8 @@ export function createCalendarEventLoader(
 ): CalendarEventLoader {
 	let visibleRange: { startDate: Date; endDate: Date } | null = null;
 	let loadEventsRequestID = 0;
+	let loadHolidaysRequestID = 0;
 	let isLoadPending = false;
-	const fetchEvents = dependencies.fetchEvents ?? fetchCalendarEvents;
-	const fetchHolidays = dependencies.fetchHolidays ?? fetchCalendarHolidays;
 
 	function hasVisibleRange(): boolean {
 		return visibleRange !== null;
@@ -60,27 +60,45 @@ export function createCalendarEventLoader(
 	async function loadEvents(startDate: Date, endDate: Date): Promise<void> {
 		if (!context.isBrowser()) return;
 		const requestID = (loadEventsRequestID += 1);
+		const holidayRequestID = (loadHolidaysRequestID += 1);
 		isLoadPending = true;
 		visibleRange = { startDate, endDate };
 		context.setIsLoading(true);
 		context.setErrorMessage('');
+		let timeZone: Promise<string> | undefined;
+		const sharedTimeZone = () => timeZone ??= companyTimeZone();
 		try {
-			const [calendarEvents, holidayResult] = await Promise.all([
-				fetchEvents(startDate, endDate),
-				fetchHolidays(startDate, endDate, context.getLocale())
-					.then((result) => ({ ...result, error: null }))
-					.catch((error: unknown) => ({ holidays: [], degraded: false, error }))
-			]);
+			const holidays = Promise.resolve().then(() => dependencies.fetchHolidays
+				? dependencies.fetchHolidays(startDate, endDate, context.getLocale())
+				: fetchCalendarHolidays(startDate, endDate, context.getLocale(), sharedTimeZone()))
+				.then((result) => ({ ...result, error: null }))
+				.catch((error: unknown) => ({ holidays: [], degraded: false, error }));
+			const calendarEvents = await (dependencies.fetchEvents
+				? dependencies.fetchEvents(startDate, endDate)
+				: fetchCalendarEvents(startDate, endDate, sharedTimeZone()));
 			if (requestID !== loadEventsRequestID) return;
-			const events = mergePreservedLocalEvents([
-				...calendarEvents.map(dayTaskEventFromCalendarEvent),
-				...holidayResult.holidays.map(dayTaskEventFromCalendarHoliday)
+			const events = mergePreservedLocalEvents(calendarEvents.map(dayTaskEventFromCalendarEvent));
+			const existingEvents = context.getVisibleEvents();
+			const mergedEvents = uniqueEventsByID([
+				...eventsOutsideRange(existingEvents, startDate, endDate),
+				...existingEvents.filter((event) => holidayInRange(event, startDate, endDate)),
+				...events
 			]);
-			const mergedEvents = eventsOutsideRange(context.getVisibleEvents(), startDate, endDate).concat(events);
-			context.setVisibleEvents(mergedEvents);
-			context.setEventCount(mergedEvents.length);
-			replaceCalendarEvents(mergedEvents);
+			publishEvents(mergedEvents);
+			context.setIsLoading(false);
 			context.afterRenderEvents?.(events);
+			const holidayResult = await holidays;
+			if (holidayRequestID !== loadHolidaysRequestID) return;
+			const holidayEvents = holidayResult.holidays.map(dayTaskEventFromCalendarHoliday);
+			const currentEvents = context.getVisibleEvents();
+			if (holidayEvents.length > 0 || currentEvents.some((event) => holidayInRange(event, startDate, endDate))) {
+				publishEvents(uniqueEventsByID([
+					...currentEvents.filter((event) => !holidayInRange(event, startDate, endDate)),
+					...holidayEvents
+				]));
+				context.afterRenderEvents?.(holidayEvents);
+			}
+			if (holidayRequestID !== loadHolidaysRequestID) return;
 			if (holidayResult.error || holidayResult.degraded) {
 				context.setErrorMessage(context.holidayErrorFallback());
 			}
@@ -95,11 +113,22 @@ export function createCalendarEventLoader(
 		}
 	}
 
-	function invalidatePendingLoad(): void {
+	function publishEvents(events: DayTaskEvent[]): void {
+		context.setVisibleEvents(events);
+		context.setEventCount(events.length);
+		replaceCalendarEvents(events);
+	}
+
+	function invalidatePendingLoad(preserveHolidays = false): void {
+		if (!preserveHolidays) loadHolidaysRequestID += 1;
 		if (!isLoadPending) return;
 		loadEventsRequestID += 1;
 		isLoadPending = false;
 		context.setIsLoading(false);
+	}
+
+	function holidayInRange(event: DayTaskEvent, startDate: Date, endDate: Date): boolean {
+		return event.calendarId === 'holidays' && eventStartDate(event) >= startDate && eventStartDate(event) < endDate;
 	}
 
 	async function refreshCurrentRange(): Promise<void> {

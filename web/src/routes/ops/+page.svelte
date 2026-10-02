@@ -62,10 +62,10 @@
 		try {
 			targets = await fetchTargets();
 			selectedTargetID = selectedTargetID || targets[0]?.id || '';
-			const [nextStatuses, nextLocalFleetStatus] = await Promise.all([fetchStatuses(targets), readLocalFleetStatus()]);
-			statuses = nextStatuses;
-			localFleetStatus = nextLocalFleetStatus;
-			syncModelDrafts(nextStatuses, false);
+			await Promise.all([
+				fetchStatuses(targets),
+				readLocalFleetStatus().then((status) => { localFleetStatus = status; })
+			]);
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : 'failed to load targets';
 		} finally {
@@ -81,9 +81,12 @@
 		}
 	}
 
-	async function fetchStatuses(nextTargets: OpsTarget[]): Promise<Record<string, TargetStatus>> {
-		const entries = await Promise.all(nextTargets.map(async (target) => [target.id, await readTargetStatus(target.id)] as const));
-		return Object.fromEntries(entries);
+	async function fetchStatuses(nextTargets: OpsTarget[]): Promise<void> {
+		await Promise.all(nextTargets.map(async (target) => {
+			const status = await readTargetStatus(target.id);
+			statuses = { ...statuses, [target.id]: status };
+			syncModelDrafts({ [target.id]: status }, false);
+		}));
 	}
 
 	async function checkTarget(targetID: string) {

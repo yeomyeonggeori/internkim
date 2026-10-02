@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Field from '$lib/components/ui/field';
@@ -75,8 +76,10 @@
 		}
 	}
 
+	const editedRecordID = $derived(open ? contact?.id : undefined);
 	$effect(() => {
-		if (open && contact) resetForm(contact);
+		const selectedID = editedRecordID;
+		if (selectedID) untrack(() => { if (contact) resetForm(contact); });
 	});
 </script>
 

@@ -5,7 +5,7 @@ const published = 'BPublishedApplicationServerKey';
 let carriedKey = '';
 let lookups = 0;
 
-const centralPlane = await import('../../src/lib/supabase');
+const centralPlane = { ...(await import('../../src/lib/supabase')) };
 
 mock.module('$lib/supabase', () => ({
 	...centralPlane,

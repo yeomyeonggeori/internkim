@@ -18,6 +18,7 @@ import {
 	type RecordWorkLocation
 } from './attendance-record';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
+import { attendanceSummaryRecords } from './attendance-summary-records';
 import { colourOf } from '$lib/task/task-vocabulary';
 import { membersInReadingOrder, type OrderableMember } from '$lib/member-order';
 import type {
@@ -46,17 +47,26 @@ export type SupabaseAttendanceAddition = {
 };
 
 export async function supabaseAttendanceSummary(month: string): Promise<AttendanceSummary> {
-	const settings = await companySettings();
+	const settingsRequest = companySettings();
+	const directoryRequest = companyDirectory();
+	const recordsRequest = (async () => {
+		const selectedMonth = month || monthIn(new Date(), (await settingsRequest).timeZone);
+		const firstDay = `${selectedMonth}-01`;
+		const lastDay = lastDayOfMonth(selectedMonth);
+		const [attendance, leave] = await Promise.all([
+			attendanceBetween(shiftedDay(firstDay, -1), lastDay),
+			approvedLeaveBetween(firstDay, lastDay)
+		]);
+		return { selectedMonth, attendance, leave };
+	})();
+	const [settings, directory, { selectedMonth, attendance, leave }] = await Promise.all([
+		settingsRequest,
+		directoryRequest,
+		recordsRequest
+	]);
 	const timeZone = settings.timeZone;
-	const selectedMonth = month || monthIn(new Date(), timeZone);
 	const firstDay = `${selectedMonth}-01`;
 	const lastDay = lastDayOfMonth(selectedMonth);
-
-	const [directory, attendance, leave] = await Promise.all([
-		companyDirectory(),
-		attendanceBetween(shiftedDay(firstDay, -1), lastDay),
-		approvedLeaveBetween(firstDay, lastDay)
-	]);
 
 	const me = directory.people.find((person) => person.personID === directory.requesterID);
 	const emailOf = new Map(directory.people.map((person) => [person.personID, person.email]));
@@ -64,8 +74,14 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		eventOf(row, emailOf.get(row.personID) ?? '', timeZone)
 	);
 	const myEmail = me?.email ?? '';
+	const serverNow = new Date(attendance.serverTime);
+	const today = companyDateOf(serverNow, timeZone);
+	const todayLeave = today >= firstDay && today <= lastDay
+		? leave.leave.filter((taken) => taken.personID === me?.personID)
+		: undefined;
 
 	return {
+		[attendanceSummaryRecords]: { settings, directory, attendance, leave, from: firstDay, to: lastDay },
 		month: selectedMonth,
 		serverTime: attendance.serverTime,
 		timeZoneAuthoritative: true,
@@ -81,7 +97,7 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 			me?.personID
 		).map(memberOf),
 		todayStatus: todayStatusOf(events, myEmail, timeZone),
-		activeLeave: me ? await supabaseActiveLeave(timeZone, new Date(attendance.serverTime)) : undefined,
+		activeLeave: me ? await supabaseActiveLeave(timeZone, serverNow, todayLeave) : undefined,
 		locations: locationsOf(settings.workLocations),
 		teamViewVisibleToAll: settings.teamViewVisibleToAll,
 		teamViewBlocked: false

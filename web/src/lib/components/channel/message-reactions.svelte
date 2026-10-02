@@ -6,6 +6,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { reactionPeopleLabel } from './channel-reactions';
 	import type { ChannelMessageReaction } from './channel-api';
+	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 
 	let {
 		reactions,
@@ -55,12 +56,17 @@
 	});
 
 	function toggleWhenJoinable(reaction: ChannelMessageReaction): void {
-		if (canChange && !reaction.imageURL) onToggle(reaction);
+		if (canChange && !reactionImage(reaction)) onToggle(reaction);
+	}
+
+	function reactionImage(reaction: ChannelMessageReaction): string | undefined {
+		return reaction.imageURL ?? customEmoji.nameToURL.get(reaction.value);
 	}
 </script>
 
 <Bubble.Reactions bind:ref={pill} {side} align={farCorner} style={placement}>
 	{#each reactions as reaction (reaction.value)}
+		{@const imageURL = reactionImage(reaction)}
 		{@const peopleLabel = reactionPeopleLabel(
 			(reaction.people ?? []).map((person) => person.name).filter(Boolean),
 			{ reactedBy: text.reactedBy, reactedByMore: text.reactedByMore }
@@ -76,8 +82,8 @@
 						aria-pressed={reaction.reactedByMe ?? false}
 						onclick={() => toggleWhenJoinable(reaction)}
 					>
-						{#if reaction.imageURL}
-							<img src={reaction.imageURL} alt={reaction.emoji} class="inline size-4" />
+						{#if imageURL}
+							<img src={imageURL} alt={reaction.emoji} class="inline size-4" />
 						{:else}
 							{reaction.emoji}
 						{/if}

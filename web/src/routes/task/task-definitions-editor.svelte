@@ -14,12 +14,13 @@
 
 	type Props = {
 		summary: TaskSummary | null;
+		isFresh: boolean;
 		loadError: string;
 		text: TaskDefinitionsText;
 		loadTask: LoadTask;
 	};
 
-	let { summary, loadError, text, loadTask }: Props = $props();
+	let { summary, isFresh, loadError, text, loadTask }: Props = $props();
 
 	let categoryDrafts = $state<string[]>([]);
 	let typeDrafts = $state<string[]>([]);
@@ -42,7 +43,7 @@
 
 	const definitions = () => summary?.definitions ?? emptyDefinitions;
 	const currentWeek = () => summary?.week.code ?? '';
-	const canEditDefinitions = () => summary !== null && definitions().sizes.length > 0;
+	const canEditDefinitions = () => isFresh && summary !== null && definitions().sizes.length > 0;
 
 	$effect(() => {
 		const currentDefinitions = definitions();

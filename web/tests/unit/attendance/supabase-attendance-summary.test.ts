@@ -1,7 +1,14 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { defaultLeavePolicy } from '../../../src/lib/attendance/leave-policy-defaults';
+import { attendanceSummaryRecords } from '../../../src/lib/attendance/attendance-summary-records';
 
 const databaseServerTime = '2026-08-18T03:04:05.678Z';
+
+const publicAPICall = { ...(await import('../../../src/lib/public-api-call')) };
+
+afterAll(() => {
+	mock.module('../../../src/lib/public-api-call', () => publicAPICall);
+});
 
 type AnsweredAttendance = {
 	eventID: string;
@@ -39,6 +46,7 @@ type AnsweredLeave = {
 let leaveOfTheCompany: AnsweredLeave[] = [];
 let leaveCoveringTheMoment: AnsweredLeave[] = [];
 let attendanceOfTheCompany: AnsweredAttendance[] = [];
+let settingsGate: Promise<void> | undefined;
 const asked: { name: string; input: Record<string, unknown> }[] = [];
 
 function answeredLeave(leave: Partial<AnsweredLeave>): AnsweredLeave {
@@ -81,10 +89,12 @@ function answeredAttendance(event: Partial<AnsweredAttendance>): AnsweredAttenda
 }
 
 mock.module('../../../src/lib/public-api-call', () => ({
+	...publicAPICall,
 	invokeTool: async (name: string, input: Record<string, unknown>) => {
 		asked.push({ name, input });
 		if (name === 'attendance_leave_policy_get') return defaultLeavePolicy();
 		if (name === 'company_settings_get') {
+			await settingsGate;
 			return {
 				name: '샘플 주식회사',
 				locale: 'ko',
@@ -148,6 +158,7 @@ describe('supabaseAttendanceSummary', () => {
 		leaveCoveringTheMoment = [];
 		attendanceOfTheCompany = [];
 		asked.length = 0;
+		settingsGate = undefined;
 	});
 
 	test('asks the record for the month and the day before it, for everybody', async () => {
@@ -208,10 +219,11 @@ describe('supabaseAttendanceSummary', () => {
 		const summary = await supabaseAttendanceSummary('2026-08');
 
 		expect(summary.activeLeave).toBeUndefined();
+		expect(asked.filter((call) => call.name === 'leave_list')).toHaveLength(1);
 	});
 
 	test('reports the leave covering the moment in the company time zone', async () => {
-		leaveCoveringTheMoment = [
+		leaveOfTheCompany = [
 			answeredLeave({
 				days: 0.5,
 				startDate: '2026-08-18',
@@ -228,6 +240,44 @@ describe('supabaseAttendanceSummary', () => {
 		expect(summary.activeLeave?.startTime).toBe('09:30');
 		expect(summary.activeLeave?.endTime).toBe('13:30');
 		expect(summary.activeLeave?.deductionMilliDays).toBe(500);
+		expect(asked.filter((call) => call.name === 'leave_list')).toHaveLength(1);
+	});
+
+	test('never treats another member’s leave as the requester’s active leave', async () => {
+		leaveOfTheCompany = [answeredLeave({
+			personID: 'member-two', startsAt: '2026-08-18T00:00:00Z', endsAt: '2026-08-19T00:00:00Z'
+		})];
+		expect((await supabaseAttendanceSummary('2026-08')).activeLeave).toBeUndefined();
+	});
+
+	test('a historical month still checks today using the record clock', async () => {
+		leaveCoveringTheMoment = [answeredLeave({
+			startsAt: '2026-08-18T00:00:00Z', endsAt: '2026-08-19T00:00:00Z'
+		})];
+		const summary = await supabaseAttendanceSummary('2026-07');
+		expect(summary.activeLeave?.requestID).toBe('leave-one');
+		expect(asked.find((call) => call.name === 'leave_list' && !call.input.scope)?.input).toEqual({
+			status: 'approved', from: '2026-08-18', to: '2026-08-18'
+		});
+	});
+
+	test('starts an explicit month and the directory without waiting for settings', async () => {
+		let release: (() => void) | undefined;
+		settingsGate = new Promise<void>((resolve) => { release = resolve; });
+		const reading = supabaseAttendanceSummary('2026-08');
+		expect(asked.map((call) => call.name)).toEqual([
+			'company_settings_get', 'person_list', 'attendance_list', 'leave_list'
+		]);
+		if (!release) throw new Error('settings gate was not initialized');
+		release();
+		await reading;
+	});
+
+	test('keeps raw records only on the live summary, outside its persisted display cache', async () => {
+		const summary = await supabaseAttendanceSummary('2026-08');
+		expect(summary[attendanceSummaryRecords]?.from).toBe('2026-08-01');
+		expect(summary[attendanceSummaryRecords]?.attendance.from).toBe('2026-07-31');
+		expect(Reflect.get(JSON.parse(JSON.stringify(summary)), attendanceSummaryRecords)).toBeUndefined();
 	});
 
 	test("uses the record's clock instead of the browser's", async () => {

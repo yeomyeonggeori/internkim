@@ -87,7 +87,7 @@ export type RecordLeaveBalances = {
 };
 
 export function companySettings(): Promise<RecordCompanySettings> {
-	return invokeTool('company_settings_get', {});
+	return invokeTool('company_settings_get', { includeProfileImage: false });
 }
 
 export function attendanceBetween(from: string, to: string): Promise<RecordAttendanceList> {

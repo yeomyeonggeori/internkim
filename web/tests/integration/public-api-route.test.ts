@@ -11,6 +11,8 @@ import {
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { createOpenApiDocument } from '../../../docs/web/app/lib/openapi';
 import { savedAttendanceEventSchema } from '../../src/lib/attendance/recorded-attendance';
+import { taskBoardResultSchema } from '../../src/lib/server/public-api/catalog/tools';
+import { taskWeekOfDate } from '../../src/lib/task/task-week-code';
 import { createMockFetch } from '../unit/test-fetch';
 import { moveAttendanceEarlier } from '../support/move-attendance-earlier';
 
@@ -353,6 +355,24 @@ describe('the catalog', () => {
 	test('answers one tool by name, and refuses a name it does not carry', async () => {
 		expect((await reach('/tools/task_list', holdersToken)).status).toBe(200);
 		expect((await reach('/tools/no_such_tool', holdersToken)).status).toBe(404);
+	});
+});
+
+describe('a scoped task board read', () => {
+	test('a read token reaches the board without changing the legacy task list contract', async () => {
+		const boardWeek = taskWeekOfDate(new Date()).startISO;
+		const answered = await invoke('task_board_get', readersToken, { boardWeek });
+		expect(answered.status).toBe(200);
+		const body = z.object({ result: taskBoardResultSchema }).parse(answered.body);
+		expect(body.result.boardWeek).toBe(boardWeek);
+		expect(Array.isArray(body.result.childProgress)).toBe(true);
+		expect((await invoke('task_list', readersToken, { boardWeek })).status).toBe(400);
+	});
+
+	test('requires a board week and never treats missing input as a complete history read', async () => {
+		const answered = await invoke('task_board_get', readersToken, {});
+		expect(answered.status).toBe(400);
+		expect(messageOf(answered)).toContain('input.boardWeek');
 	});
 });
 

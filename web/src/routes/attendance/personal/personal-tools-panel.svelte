@@ -60,7 +60,12 @@
 				<Skeleton class="h-40 w-full rounded-xl" />
 			{/snippet}
 		</DeferredSection>
-		<LeaveBalanceSummary />
+		<DeferredSection>
+			<LeaveBalanceSummary />
+			{#snippet placeholder()}
+				<Skeleton class="h-28 w-full rounded-xl" />
+			{/snippet}
+		</DeferredSection>
 		<LeaveRequestDialog />
 	{/if}
 </div>

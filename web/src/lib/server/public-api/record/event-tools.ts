@@ -24,10 +24,9 @@ import type { RecordContext } from './company';
 import {
 	deleteTask,
 	RecordRefusedTheWrite,
-	rowOfSavedID,
 	saveTask,
-	taskOfHint,
-	tasksOfCompany,
+	savedTaskByID,
+	taskFromHint,
 	type TaskRow
 } from './tasks';
 
@@ -215,12 +214,11 @@ function eventWriteArguments(
 }
 
 export async function eventOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
-	const events = await tasksOfCompany(context.caller, true);
-	return taskOfHint(events, hint, 'event', context.requesterID);
+	return taskFromHint(context.caller, hint, true, context.requesterID);
 }
 
 async function eventByID(context: RecordContext, eventID: string): Promise<TaskRow> {
-	return rowOfSavedID(await tasksOfCompany(context.caller, true), eventID, 'event');
+	return savedTaskByID(context.caller, eventID, true);
 }
 
 export class CalendarEventDuplicate extends Error {

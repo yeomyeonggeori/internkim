@@ -3,10 +3,15 @@ import { forgetLastSeenTask, lastSeenTask, rememberTask } from '../../../src/rou
 import type { TaskState, TaskSummary } from '../../../src/routes/task/task-types';
 import { clearStoredTaskSnapshot, taskSnapshotGeneration } from '../../../src/routes/task/task-snapshot-storage';
 
-const state = { tasks: [], members: [] } as unknown as TaskState;
+const state = { completeness: 'full', peopleReady: true, tasks: [], members: [] } as unknown as TaskState;
 const summary = { tasks: [], weeklyTasks: [] } as unknown as TaskSummary;
 
 describe('what the flow screen shows before its refresh arrives', () => {
+	test('an interactive card preview is never remembered as a validated board', () => {
+		forgetLastSeenTask();
+		rememberTask({ ...state, completeness: 'board', peopleReady: false, boardWeek: '2026-09-28' }, summary, 'scope');
+		expect(lastSeenTask('scope', '2026-09-28').state).toBeNull();
+	});
 	test('nothing has been seen until a load succeeds', () => {
 		forgetLastSeenTask();
 		expect(lastSeenTask()).toEqual({ state: null, summary: null });

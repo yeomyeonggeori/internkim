@@ -9,6 +9,7 @@ import {
 import type { SupabaseWorkStatusInputs } from '$lib/attendance/supabase-work-status';
 import type { AttendanceWriteEvent } from '$lib/attendance/attendance-write';
 import { readCachedWorkStatusRows, writeCachedWorkStatusRows } from './work-status-cache';
+import type { AttendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 
 export class WorkStatusState {
 	payload = $state<AttendanceWorkStatus | null>(null);
@@ -27,7 +28,8 @@ export class WorkStatusState {
 	async load(
 		period: AttendanceWorkStatusPeriod,
 		anchor: string,
-		rowsAsOf?: unknown
+		rowsAsOf?: unknown,
+		summaryRecords?: AttendanceSummaryRecords
 	): Promise<void> {
 		if (!anchor) return;
 		const asked = { period, anchor };
@@ -51,7 +53,7 @@ export class WorkStatusState {
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
-			const answered = await fetchAttendanceWorkStatusPair(asked, month);
+			const answered = await fetchAttendanceWorkStatusPair(asked, month, summaryRecords);
 			if (requestSequence !== this.requestSequence) return;
 			const rows = answered.rows;
 			const eventsDuringLoad = this.savedAttendanceEvents.slice(savedEventCount);

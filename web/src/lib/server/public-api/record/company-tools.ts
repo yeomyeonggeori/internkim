@@ -123,7 +123,7 @@ function teamViewVisibleTo(rules: Record<string, unknown> | null): boolean {
 	return rules?.teamViewVisibleToAll !== false;
 }
 
-export async function companySettingsGet(context: RecordContext): Promise<CompanySettingsResult> {
+export async function companySettingsGet(context: RecordContext, input: { includeProfileImage?: boolean } = {}): Promise<CompanySettingsResult> {
 	const row = await companyRow(context.caller);
 	return {
 		name: row.name,
@@ -137,7 +137,7 @@ export async function companySettingsGet(context: RecordContext): Promise<Compan
 		})),
 		leaveDays: annualGrantDaysOf(row.rules?.attendanceLeavePolicy),
 		teamViewVisibleToAll: teamViewVisibleTo(row.rules),
-		profileImageURL: await readableURLOf(context.caller, row.profile_image)
+		profileImageURL: input.includeProfileImage === false ? null : await readableURLOf(context.caller, row.profile_image)
 	};
 }
 

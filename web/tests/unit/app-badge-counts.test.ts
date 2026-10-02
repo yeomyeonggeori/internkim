@@ -40,6 +40,8 @@ function task(id: string, status: string, ownerID: string, participantIDs: strin
 
 function taskState(tasks: Task[]): TaskState {
 	return {
+		completeness: 'full',
+		peopleReady: true,
 		members: [
 			{
 				id: 'member-1',

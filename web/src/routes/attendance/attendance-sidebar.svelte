@@ -2,6 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
 	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 	import HistoryIcon from '@lucide/svelte/icons/history';
@@ -17,6 +18,7 @@
 	const attendance = getAttendanceState();
 	const attendanceView = getAttendanceViewState();
 	const leaveApproval = getLeaveApprovalState();
+	const isSidebarHidden = new IsMobile(768);
 </script>
 
 <aside class="flex w-60 shrink-0 flex-col border-r bg-background max-md:hidden">
@@ -82,6 +84,8 @@
 			{/if}
 		</nav>
 
-		<PersonalToolsPanel containerClass="p-4 pt-3" />
+		{#if !isSidebarHidden.current}
+			<PersonalToolsPanel containerClass="p-4 pt-3" />
+		{/if}
 	</div>
 </aside>

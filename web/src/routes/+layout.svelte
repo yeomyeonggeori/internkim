@@ -3,14 +3,15 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
-	import AppCommandPalette from '$lib/components/app-command-palette.svelte';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import AppRail from '$lib/components/app-rail.svelte';
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
 	import { keepAppInVisualViewport } from '$lib/app-viewport';
 	import { routePathOf } from '$lib/company-path';
-	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
+	import { isSupabaseConfigured } from '$lib/supabase-session';
+	import { revalidateOnReturn } from '$lib/revalidate-on-return';
+	import { invalidateCentralBuzzIdentity, watchCentralBuzzIdentity } from '$lib/central-buzz-identity';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb/index.js';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
@@ -50,6 +51,11 @@
 	let { children, data } = $props();
 	const text = createPageText(appShellText);
 	let isCommandPaletteOpen = $state(false);
+	let hasRequestedCommandPalette = $state(false);
+	$effect(() => {
+		if (isCommandPaletteOpen) hasRequestedCommandPalette = true;
+	});
+	let needsLegacyIdentity = $state(false);
 	let isAppSidebarOpen = $state(false);
 	let attendanceSessionKey = '';
 	let widgetSuppliedEmail = '';
@@ -90,7 +96,9 @@
 		});
 	});
 	onMount(keepAppInVisualViewport);
+	onMount(watchCentralBuzzIdentity);
 	onMount(() => {
+		needsLegacyIdentity = !isSupabaseConfigured();
 		initializeLocale();
 		if (data.session?.authenticated) {
 			keepMemberPicture(data.session.email).catch((failure: unknown) =>
@@ -105,13 +113,11 @@
 			(failure: unknown) => console.warn('the shell status bar is not following the page theme', failure)
 		);
 
-		const revalidateSession = () => {
-			if (document.visibilityState !== 'visible') return;
+		const stopRevalidatingSession = revalidateOnReturn(window, document, () => {
 			forgetSignedInAccount();
 			void invalidate(webAuthSessionDependency);
-		};
-		window.addEventListener('focus', revalidateSession);
-		document.addEventListener('visibilitychange', revalidateSession);
+			invalidateCentralBuzzIdentity();
+		});
 		const stopFollowingNotifications = goWhereNotificationsPoint((path) => void goto(path));
 		let stopFollowingNativeNotifications = () => {};
 		goWhereNativeNotificationsPoint((path) => void goto(path)).then(
@@ -127,8 +133,7 @@
 			stopFollowingPageTheme();
 			stopFollowingNativeNotifications();
 			stopFollowingNotifications();
-			window.removeEventListener('focus', revalidateSession);
-			document.removeEventListener('visibilitychange', revalidateSession);
+			stopRevalidatingSession();
 		};
 	});
 
@@ -157,6 +162,7 @@
 		return text.task;
 	}
 	function handleKeydown(event: KeyboardEvent) {
+		if (isCommandPaletteOpen && event.key === 'Escape') isCommandPaletteOpen = false;
 		if (isCommandPaletteOpen) return;
 		if (isPlainShortcut(event, 'Slash')) {
 			event.preventDefault();
@@ -192,7 +198,13 @@
 
 <ModeWatcher />
 <Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} closeButtonAriaLabel={text.close} />
-<BuzzIdentityGate />
+{#if needsLegacyIdentity}
+	<EffectErrorBoundary region="identity enrollment">
+		{#await import('$lib/components/buzz/buzz-identity-gate.svelte') then { default: BuzzIdentityGate }}
+			<BuzzIdentityGate />
+		{/await}
+	</EffectErrorBoundary>
+{/if}
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
@@ -294,7 +306,13 @@
 				</div>
 			</div>
 		</Sidebar.Provider>
-		<AppCommandPalette bind:open={isCommandPaletteOpen} />
+		{#if hasRequestedCommandPalette}
+			<EffectErrorBoundary region="search">
+				{#await import('$lib/components/app-command-palette.svelte') then { default: AppCommandPalette }}
+					<AppCommandPalette bind:open={isCommandPaletteOpen} />
+				{/await}
+			</EffectErrorBoundary>
+		{/if}
 	</Tooltip.Provider>
 {:else}
 	{@render contained()}

@@ -10,7 +10,7 @@
 	import { buildTaskBoard, isTaskBoardStatus, isOverdueTaskPlan, type TaskBoardWeekPosition } from './task-board-model';
 	import { taskStatusIcon } from './task-status-style';
 	import { statusIconClass } from './task-style';
-	import { buildTaskChildProgressByParent } from './task-relationships';
+	import { buildTaskChildProgressByParent, type TaskChildProgress } from './task-relationships';
 	import {
 		canCreateTaskInColumn,
 		shouldHideEmptyRequestColumn,
@@ -25,6 +25,7 @@
 	type Props = {
 		tasks: Task[];
 		allTasks: Task[];
+		serverChildProgress?: Record<string, TaskChildProgress>;
 		boardText: BoardText;
 		etcLabel: string;
 		statusLabel: (status: string) => string;
@@ -46,6 +47,7 @@
 	let {
 		tasks,
 		allTasks,
+		serverChildProgress,
 		boardText,
 		etcLabel,
 		statusLabel,
@@ -85,7 +87,7 @@
 		weekPosition,
 		hideEmptyRequestColumn: shouldHideEmptyRequestColumn(participantScope)
 	}));
-	let childProgressByParent = $derived(buildTaskChildProgressByParent(allTasks));
+	let childProgressByParent = $derived(serverChildProgress ? new Map(Object.entries(serverChildProgress)) : buildTaskChildProgressByParent(allTasks));
 
 	function addTaskLabel(status: string): string {
 		return boardText.addTask.replace('{status}', statusLabel(status));

@@ -12,7 +12,8 @@ export type CalendarHolidayLoadResult = {
 export async function fetchCalendarHolidays(
 	startDate: Date,
 	endDate: Date,
-	locale: CalendarHolidayLocale
+	locale: CalendarHolidayLocale,
+	timeZone?: Promise<string>
 ): Promise<CalendarHolidayLoadResult> {
-	return supabaseCalendarHolidays(startDate, endDate, locale);
+	return supabaseCalendarHolidays(startDate, endDate, locale, timeZone);
 }

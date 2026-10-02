@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import catalogDocument from '../../../../../pkg/capabilityprotocol/generated/capability-tools.json';
+import { CapabilityAnsweredBy, CapabilitySideEffect } from '$lib/server/public-api/catalog/protocol';
 import {
 	baseCatalogAnswer,
 	parseToolCatalog,
@@ -36,6 +37,16 @@ describe('the tools a permission reaches', () => {
 		expect(toolReachableBy('task_delete', 'write')).toBeUndefined();
 		expect(toolReachableBy('task_delete', 'delete')?.name).toBe('task_delete');
 		expect(toolReachableBy('no_such_tool', 'delete')).toBeUndefined();
+	});
+
+	test('the scoped board uses the existing task read boundary and a separate result contract', () => {
+		const board = toolReachableBy('task_board_get', 'read');
+		const history = toolReachableBy('task_list', 'read');
+		expect(board).toBeDefined();
+		expect(board?.answeredBy).toBe(CapabilityAnsweredBy.Record);
+		expect(board?.namespace).toBe(history?.namespace);
+		expect(board?.privacyClass).toBe(history?.privacyClass);
+		expect(board?.sideEffectClass).toBe(CapabilitySideEffect.Read);
 	});
 });
 

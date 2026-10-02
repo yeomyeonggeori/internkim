@@ -11,16 +11,17 @@
 		text: CRMText;
 		onEdit: (contactID: string) => void;
 		onCreate: (organizationID: string) => void;
+		canCreate?: boolean;
 	};
 
-	let { organizationID, contacts, text, onEdit, onCreate }: Props = $props();
+	let { organizationID, contacts, text, onEdit, onCreate, canCreate = true }: Props = $props();
 	let organizationContacts = $derived(contacts.filter((contact) => contact.organizationID === organizationID));
 </script>
 
 <Field.Field>
 	<div class="flex items-center justify-between gap-3">
 		<Field.Label>{text.externalContact}</Field.Label>
-		<Button type="button" variant="outline" size="sm" onclick={() => onCreate(organizationID)}>{text.newExternalContact}</Button>
+		<Button disabled={!canCreate} type="button" variant="outline" size="sm" onclick={() => onCreate(organizationID)}>{text.newExternalContact}</Button>
 	</div>
 	{#if organizationContacts.length === 0}
 		<p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{text.noOrganizationContacts}</p>

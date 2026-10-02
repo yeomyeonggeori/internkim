@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
@@ -20,6 +21,7 @@
 		open: boolean;
 		organization: CRMOrganization | undefined;
 		people: UserRecord[];
+		isDirectoryReady?: boolean;
 		groups: OrgGroup[];
 		contacts: CRMContact[];
 		organizationTypeOptions: CRMOrganizationType[];
@@ -31,7 +33,7 @@
 		onCreateContact: (organizationID: string) => void;
 	};
 
-	let { open = $bindable(false), organization, people, groups, contacts, organizationTypeOptions, organizationTypeDefinitions, text, onSave, onArchive, onEditContact, onCreateContact }: Props = $props();
+	let { open = $bindable(false), organization, people, groups, isDirectoryReady = true, contacts, organizationTypeOptions, organizationTypeDefinitions, text, onSave, onArchive, onEditContact, onCreateContact }: Props = $props();
 	const organizationStatuses: CRMOrganizationStatus[] = ['prospect', 'active', 'paused'];
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let name = $state('');
@@ -93,7 +95,7 @@
 				status,
 				importance,
 				ownerPersonID,
-				ownerCircleID: selectedOwner?.groupID,
+				ownerCircleID: isDirectoryReady ? selectedOwner?.groupID : organization.ownerCircleID,
 				ownerName: selectedOwner?.name || selectedOwner?.email || ownerName.trim(),
 				ownerEmail: selectedOwner?.email ?? ownerEmail,
 				team: selectedTeam || team,
@@ -144,8 +146,10 @@
 		onCreateContact(organizationID);
 	}
 
+	const editedRecordID = $derived(open ? organization?.id : undefined);
 	$effect(() => {
-		if (open && organization) resetForm(organization);
+		const selectedID = editedRecordID;
+		if (selectedID) untrack(() => { if (organization) resetForm(organization); });
 	});
 </script>
 
@@ -172,10 +176,10 @@
 						<Field.Field><Field.Label for="crm-edit-organization-importance">{text.importance}</Field.Label><Select.Root type="single" value={importance} onValueChange={(value) => (importance = value as CRMImportance)}><Select.Trigger id="crm-edit-organization-importance" class="w-full">{text.importanceLabels[importance]}</Select.Trigger><Select.Content>{#each importanceOptions as option (option)}<Select.Item value={option} label={text.importanceLabels[option]}>{text.importanceLabels[option]}</Select.Item>{/each}</Select.Content></Select.Root></Field.Field>
 					</div>
 					<div class="grid gap-4 sm:grid-cols-2">
-						<Field.Field><Field.Label for="crm-edit-organization-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-organization-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
+						<Field.Field><Field.Label for="crm-edit-organization-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect disabled={!isDirectoryReady} id="crm-edit-organization-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 					</div>
 					<Field.Field><Field.Label for="crm-edit-organization-email">{text.ownerEmail}</Field.Label><Input id="crm-edit-organization-email" type="email" value={selectedOwner?.email ?? ownerEmail} disabled /></Field.Field>
-					{#if organization}<CRMRelationshipContactManager organizationID={organization.id} {contacts} {text} onEdit={editContact} onCreate={createContact} />{/if}
+					{#if organization}<CRMRelationshipContactManager canCreate={isDirectoryReady} organizationID={organization.id} {contacts} {text} onEdit={editContact} onCreate={createContact} />{/if}
 					<Field.Field><Field.Label for="crm-edit-organization-address">{text.address}</Field.Label><Input id="crm-edit-organization-address" bind:value={address} placeholder={text.addressPlaceholder} /></Field.Field>
 					<Field.Field><Field.Label for="crm-edit-organization-tags">{text.tags}</Field.Label><TagsInput id="crm-edit-organization-tags" bind:value={tags} placeholder={tags.length === 0 ? text.tagsPlaceholder : undefined} /></Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">

@@ -470,7 +470,7 @@ export const taskListInputSchema = z.strictObject({
   everyWeek: z.boolean()
     .describe('Every week there is, ignoring weekFrom and weekTo. Use it to search the whole history or to total work across all time.')
     .optional(),
-  limit: z.number().describe('Maximum number of tasks to return. Defaults to 50.').optional(),
+  limit: z.number().describe('Maximum number of tasks to return. Omit to return every matching task.').optional(),
 });
 
 const taskHintSchema = z.string().min(1).max(256).describe(
@@ -519,6 +519,18 @@ export const taskListResultSchema = z.strictObject({
   statusFilter: z.string().optional(),
   ownerID: z.string().optional(),
   registeredLabels: taskLabelVocabularySchema,
+});
+
+export const taskBoardInputSchema = taskListInputSchema.omit({ everyWeek: true, weekFrom: true, weekTo: true }).extend({
+  boardWeek: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe('Monday of the displayed board week as YYYY-MM-DD. Includes carry-over work according to the board status rules.'),
+});
+
+export const taskBoardResultSchema = taskListResultSchema.extend({
+  boardWeek: z.string(),
+  childProgress: z.array(z.strictObject({
+    parentTaskID: z.string(), completed: z.number().int(), total: z.number().int(), percent: z.number().int(),
+  })),
 });
 
 export const taskDeleteResultSchema = z.strictObject({
@@ -964,6 +976,19 @@ const taskToolDefinitions: CapabilityToolDefinition[] = [
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: taskListInputSchema,
     result: { schema: taskListResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
+  {
+    name: 'task_board_get',
+    namespace: 'task',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_task',
+    policyResource: 'tool:task_board_get',
+    description: 'Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: taskBoardInputSchema,
+    result: { schema: taskBoardResultSchema, effects: [] },
     sideEffect: CapabilitySideEffect.Read,
   },
   {

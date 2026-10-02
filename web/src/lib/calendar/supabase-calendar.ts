@@ -9,8 +9,8 @@ type AnsweredPeople = { people: { personID: string; name: string; email: string 
 
 const noReminder = 0;
 
-export async function supabaseCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
-	return companyCalendarEntries(startDate, endDate);
+export async function supabaseCalendarEvents(startDate: Date, endDate: Date, timeZone?: Promise<string>): Promise<CalendarEvent[]> {
+	return companyCalendarEntries(startDate, endDate, timeZone);
 }
 
 export function calendarEventWritten(payload: CalendarEventPayload): Record<string, unknown> {
@@ -84,4 +84,3 @@ export function calendarEventFromAnswer(answered: AnsweredEvent, timeZone: strin
 		updatedAt: answered.updatedAt
 	};
 }
-

@@ -1,7 +1,7 @@
 import { opportunityOfCRMHint, organizationOfCRMHint } from './crm-tools';
 import { eventAdd, eventUpdate, locationNameOf } from './event-tools';
 import { taskAdd, taskUpdate } from './task-tools';
-import { taskOfHint, tasksOfCompany, type TaskRow } from './tasks';
+import { taskOfHint, tasksOfCompany, type TaskReadScope, type TaskRow } from './tasks';
 import { WorkspaceTaskSize, WorkspaceTaskStatus } from '../catalog/tools';
 import type { RecordContext } from './company';
 import type { CRMActivityListResult, CRMActivityResult, CRMActivitySaveResult } from '../catalog/crm';
@@ -66,13 +66,13 @@ function answeredActivity(row: TaskRow): CRMActivityResult {
 	};
 }
 
-async function activitiesOfCompany(context: RecordContext): Promise<TaskRow[]> {
+async function activitiesOfCompany(context: RecordContext, scope: TaskReadScope = {}): Promise<TaskRow[]> {
+	const linked = { ...scope, linkedToOrganization: true };
 	const [tasks, events] = await Promise.all([
-		tasksOfCompany(context.caller, false),
-		tasksOfCompany(context.caller, true)
+		tasksOfCompany(context.caller, false, linked),
+		tasksOfCompany(context.caller, true, linked)
 	]);
 	return [...tasks, ...events]
-		.filter((row) => row.organization_id !== null)
 		.sort((left, right) => right.created_at.localeCompare(left.created_at));
 }
 
@@ -92,9 +92,7 @@ export async function crmActivityList(
 		: '';
 	const asked = searchableText(input.query ?? '');
 
-	const rows = (await activitiesOfCompany(context)).filter((row) => {
-		if (organizationID && row.organization_id !== organizationID) return false;
-		if (opportunityID && row.opportunity_id !== opportunityID) return false;
+	const rows = (await activitiesOfCompany(context, { organizationID, opportunityID })).filter((row) => {
 		if (!asked) return true;
 		return [row.title, row.note ?? ''].some((value) => searchableText(value).includes(asked));
 	});

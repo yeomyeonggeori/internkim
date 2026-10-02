@@ -3,6 +3,39 @@ import { taskText } from '../../src/routes/task/text';
 import type { TaskMember, TaskSummary, Task } from '../../src/routes/task/task-types';
 
 describe('flow tasks controller', () => {
+	test('fresh cards open and edit before people load without dropping unseen participants or draft changes', async () => {
+		const originalState = Reflect.get(globalThis, '$state');
+		Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
+		try {
+			const { createTasksController } = await import('../../src/routes/task/tasks-controller.svelte');
+			const controller = createTasksController();
+			const task = taskOf({ id: 'task', participantIDs: ['viewer', 'other'], participantNames: ['이샘플', '박예시'] });
+			const preview = taskSummary({ completeness: 'board', peopleReady: false, currentUserEmail: 'viewer@example.com', members: [taskMember({ id: 'viewer', email: 'viewer@example.com' })], tasks: [task] });
+			const sync = (summary: TaskSummary | null) => controller.sync({ summary, text: taskText.ko, loadTask: async () => true, setPageErrorMessage: () => {} });
+			sync(preview);
+			expect(controller.canUpdateTask(task)).toBe(true);
+			controller.openTask(task);
+			controller.editor.startEditingTask();
+			expect(controller.editor.isEditingTask).toBe(true);
+			if (!controller.taskDraft) throw new Error('The fetched card did not open');
+			controller.taskDraft.content = 'Unsaved edit';
+			controller.setParticipantIDs(['viewer']);
+			controller.removeParticipantID('other');
+			expect(controller.taskDraft.participantIDs).toEqual(['viewer', 'other']);
+			expect(controller.canManageTaskAssignment(task)).toBe(false);
+			expect(await controller.setTaskParent('task', 'parent')).toBe(false);
+			expect(await controller.setTaskParents(['task'], 'parent')).toBe(false);
+			sync({ ...preview, completeness: 'full', peopleReady: true });
+			expect(controller.taskDraft.content).toBe('Unsaved edit');
+			expect(controller.taskDraft.participantIDs).toEqual(['viewer', 'other']);
+			expect(controller.editor.isEditingTask).toBe(true);
+			sync(null);
+			expect(controller.taskDraft).toBeNull();
+		} finally {
+			if (originalState === undefined) Reflect.deleteProperty(globalThis, '$state');
+			else Reflect.set(globalThis, '$state', originalState);
+		}
+	});
 	test('does not save a task when the current member cannot update it', async () => {
 		const originalState = Reflect.get(globalThis, '$state');
 		Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
@@ -227,6 +260,8 @@ async function syncedController(members: TaskMember[] = [
 
 function taskSummary(overrides: Partial<TaskSummary>): TaskSummary {
 	return {
+		completeness: 'full',
+		peopleReady: true,
 		week: {
 			code: '26W23',
 			startISO: '2026-06-01',

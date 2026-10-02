@@ -231,6 +231,23 @@ everywhere else the key is carried but changes nothing. For agent messages,
 `calendar_event_version_conflict` and the event's current `updatedAt` when
 somebody else has changed it since.
 
+## Reading a task board [#reading-a-task-board]
+
+`task_board_get` takes `boardWeek`, a Monday as `YYYY-MM-DD`, and the same
+person scope as `task_list`. It returns the cards visible on that week and
+`childProgress`: parent IDs with direct-child totals and completed counts across all
+weeks. Stopped children are excluded; rejected children remain in the total.
+The board retains requested and paused work, current in-progress work, current
+undated or overdue plans, and dated plans and completed work for the selected
+week. Counts describe that selection. Complete history and lifetime metrics
+continue to use `task_list`.
+
+This separate read keeps the closed `task_list` result compatible with existing
+clients. Both tools use the caller's task read permission and RLS-enabled client;
+the board adds no database RPC or alternative access path. Its card query omits
+notes, locations and unrelated CRM fields. Child counts read only children of
+the returned cards. The web app loads complete history for views that need it.
+
 ## Choosing a target with a hint [#choosing-a-target-with-a-hint]
 
 Mutating tools take no separate ID parameter. `task_update` and `task_delete`

@@ -25,9 +25,10 @@ async function signedInHeaders(): Promise<Record<string, string>> {
 export async function supabaseCalendarHolidays(
 	startDate: Date,
 	endDate: Date,
-	locale: CalendarHolidayLocale
+	locale: CalendarHolidayLocale,
+	requestedTimeZone = companyTimeZone()
 ): Promise<SupabaseCalendarHolidays> {
-	const timeZone = await companyTimeZone();
+	const timeZone = await requestedTimeZone;
 	const query = new URLSearchParams({
 		from: companyDateOf(startDate, timeZone),
 		to: companyDateOf(endDate, timeZone),

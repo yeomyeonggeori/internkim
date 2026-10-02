@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Field from '$lib/components/ui/field';
@@ -37,6 +38,7 @@
 		stages: CRMPipelineStage[];
 		businessOptions: string[];
 		people: UserRecord[];
+		isDirectoryReady?: boolean;
 		groups: OrgGroup[];
 		requestedStage?: CRMOpportunityStage;
 		text: CRMText;
@@ -46,7 +48,7 @@
 		onArchive: (opportunityID: string) => Promise<void>;
 	};
 
-	let { open = $bindable(false), opportunity, organizations, contacts, pipelines, stages, businessOptions, people, groups, requestedStage, text, currencyCatalogue, companyBaseCurrency, onSave, onArchive }: Props = $props();
+	let { open = $bindable(false), opportunity, organizations, contacts, pipelines, stages, businessOptions, people, groups, isDirectoryReady = true, requestedStage, text, currencyCatalogue, companyBaseCurrency, onSave, onArchive }: Props = $props();
 	const importanceOptions: CRMImportance[] = ['high', 'medium', 'low'];
 	let organizationID = $state('');
 	let pipeline = $state('');
@@ -130,7 +132,7 @@
 				description: description.trim(),
 				lostReason: stageOutcome === 'lost' ? lostReason : undefined,
 				ownerPersonID,
-				ownerCircleID: selectedOwner?.groupID,
+				ownerCircleID: isDirectoryReady ? selectedOwner?.groupID : opportunity.ownerCircleID,
 				ownerName: selectedOwner?.name || selectedOwner?.email || opportunity.ownerName,
 				contacts: contactID ? [{ contactID }] : []
 			});
@@ -167,8 +169,10 @@
 		});
 	}
 
+	const editedRecordID = $derived(open ? opportunity?.id : undefined);
 	$effect(() => {
-		if (open && opportunity) resetForm(opportunity);
+		const selectedID = editedRecordID;
+		if (selectedID) untrack(() => { if (opportunity) resetForm(opportunity); });
 	});
 </script>
 
@@ -195,7 +199,7 @@
 					{text}
 				/>
 				<Field.Field><Field.Label for="crm-edit-opportunity-contact">{text.externalContact}</Field.Label><CRMContactSelect id="crm-edit-opportunity-contact" bind:value={contactID} contacts={organizationContacts} {text} /></Field.Field>
-				<Field.Field><Field.Label for="crm-edit-opportunity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect id="crm-edit-opportunity-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
+				<Field.Field><Field.Label for="crm-edit-opportunity-owner">{text.internalOwner}</Field.Label><CRMOwnerSelect disabled={!isDirectoryReady} id="crm-edit-opportunity-owner" bind:value={ownerPersonID} {people} {groups} {text} /></Field.Field>
 				<Field.Field><Field.Label for="crm-edit-opportunity-details">{text.details}</Field.Label><Textarea id="crm-edit-opportunity-details" rows={8} bind:value={description} /></Field.Field>
 				{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
 			</Field.Group></div>

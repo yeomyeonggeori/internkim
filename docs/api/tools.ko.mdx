@@ -226,6 +226,21 @@ curl https://api.intern.kim/v1/tools/event_delete/target \
 `expectedUpdatedAt`으로 받을 수 있고, 그 사이 다른 사람이 일정을 바꿨다면
 `calendar_event_version_conflict`와 현재 `updatedAt`을 담아 `409`로 거절합니다.
 
+## 업무 보드 읽기 [#reading-a-task-board]
+
+`task_board_get`은 월요일 날짜인 `boardWeek`(`YYYY-MM-DD`)와 `task_list`와
+같은 사람 범위를 받습니다. 해당 주에 보이는 카드와, 모든 주차에 걸친 직계 하위
+업무의 부모 ID와 전체·완료 수인 `childProgress`를 반환합니다. 중단된 하위 업무는
+제외하고 거절된 하위 업무는 전체 수에 포함합니다. 요청·보류 업무, 현재 진행 중인
+업무, 현재의 날짜 없는 계획과 지난 계획, 선택한 주의 계획·완료 업무를 유지합니다.
+반환 수치는 이 선택 범위를 나타내며, 전체 이력과 누적 지표는 `task_list`로 읽습니다.
+
+별도 조회이므로 기존 클라이언트의 닫힌 `task_list` 응답 계약은 바뀌지 않습니다.
+두 도구는 같은 업무 읽기 권한과 호출자의 RLS 클라이언트를 사용하며 새 DB RPC나
+별도 접근 경로를 만들지 않습니다. 카드 조회에서 메모·위치·불필요한 CRM 필드를
+제외하고, 하위 업무 수는 반환한 카드에 속한 기록만 읽습니다. 웹 앱은 전체 이력이
+필요한 화면에서 이를 추가로 읽습니다.
+
 ## 힌트로 대상 고르기 [#choosing-a-target-with-a-hint]
 
 수정·삭제 도구에는 별도의 ID 파라미터가 없습니다. `task_update`와

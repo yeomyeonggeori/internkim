@@ -1,5 +1,6 @@
 import { invokeTool } from '$lib/public-api-call';
 import { clearStoredTaskSnapshot } from '../../routes/task/task-snapshot-storage';
+import type { TaskChildProgress } from '../../routes/task/task-relationships';
 
 export type RecordLabel = { name: string; color?: string };
 
@@ -37,6 +38,7 @@ export type RecordTaskList = {
 	count: number;
 	tasks: RecordTask[];
 	registeredLabels: RecordTaskLabels;
+	childProgress?: (TaskChildProgress & { parentTaskID: string })[];
 };
 
 export type WrittenTask = {
@@ -50,8 +52,10 @@ export type WrittenTask = {
 	size?: string;
 };
 
-export function everyTaskOfTheCompany(): Promise<RecordTaskList> {
-	return invokeTool('task_list', { scope: 'all', everyWeek: true });
+export function everyTaskOfTheCompany(boardWeek?: string): Promise<RecordTaskList> {
+	return boardWeek
+		? invokeTool('task_board_get', { scope: 'all', boardWeek })
+		: invokeTool('task_list', { scope: 'all', everyWeek: true });
 }
 
 export function addTask(written: WrittenTask & { parentTaskHint?: string }): Promise<RecordTask> {
