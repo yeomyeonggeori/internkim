@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -198,5 +199,36 @@ func TestABackupClearsWhatAnInterruptedOneLeftAndNothingElse(t *testing.T) {
 	}
 	if strings.Join(names, " ") != "before-the-upgrade.tar "+finished {
 		t.Errorf("left %v", names)
+	}
+}
+
+func TestEveryCommandRunAsAnotherAccountStartsFromANeutralDirectory(t *testing.T) {
+	machine := &recordedMachine{
+		answers: map[string]string{"runuser": "15\n"},
+		printed: map[string]string{"runuser": "15|t\n"},
+	}
+	platform := linuxPlatform{}
+	if _, errorValue := platform.DatabaseMajor(machine); errorValue != nil {
+		t.Fatalf("read the major: %v", errorValue)
+	}
+	platform.DumpDatabase(machine, blueclaw.BlueclawDatabaseName, io.Discard)
+	platform.RestoreDatabase(machine, blueclaw.BlueclawDatabaseName, strings.NewReader(""))
+	platform.OwnersInDump(machine, strings.NewReader(""))
+	if errorValue := prepareDatabases(platform, machine, companyHostSettings{DatabasePassword: "password"}, io.Discard); errorValue != nil {
+		t.Fatalf("prepare the databases: %v", errorValue)
+	}
+	asAnotherAccount := 0
+	for _, run := range machine.runs {
+		if run[0] != "runuser" {
+			continue
+		}
+		asAnotherAccount++
+		separator := slices.Index(run, "--")
+		if separator < 0 || !slices.Equal(run[separator+1:separator+3], []string{"env", "--chdir=/"}) {
+			t.Errorf("%v runs from whatever directory the person ran internkim in", run)
+		}
+	}
+	if asAnotherAccount < 6 {
+		t.Fatalf("only %d commands ran as another account: %v", asAnotherAccount, machine.runs)
 	}
 }

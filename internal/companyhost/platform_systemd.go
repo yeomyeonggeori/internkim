@@ -52,12 +52,17 @@ func (linuxPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
 // never through a command line, which every account on this box can read out of
 // /proc.
 func (platform linuxPlatform) RunDatabaseStatements(machine Machine, statements string, progress io.Writer) error {
-	arguments := []string{
-		"-u", blueclaw.CompanyHostDatabaseUser, "--",
-		"sh", "-c", `printf '%s' "$` + databasePreparationVariable + `" | ` + platform.Layout().DataServicePath() +
+	arguments := asAnotherAccount(blueclaw.CompanyHostDatabaseUser,
+		"sh", "-c", `printf '%s' "$`+databasePreparationVariable+`" | `+platform.Layout().DataServicePath()+
 			` psql --set ON_ERROR_STOP=1 --quiet --dbname postgres`,
-	}
+	)
 	return machine.Run("runuser", arguments, []string{databasePreparationVariable + "=" + statements}, progress)
+}
+
+const neutralWorkingDirectory = "/"
+
+func asAnotherAccount(account string, command ...string) []string {
+	return append([]string{"-u", account, "--", "env", "--chdir=" + neutralWorkingDirectory}, command...)
 }
 
 func (platform linuxPlatform) SuperviseTheBundle(machine Machine, progress io.Writer) error {
