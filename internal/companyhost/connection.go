@@ -81,7 +81,7 @@ func validateConnection(connection Connection) error {
 	}{
 		{"appURL", connection.AppURL, []string{"https", "http"}},
 		{"centralPlane.projectURL", connection.CentralPlane.ProjectURL, []string{"https", "http"}},
-		{"gatewayURL", connection.GatewayURL, []string{"wss", "ws"}},
+		{"gatewayURL", connection.GatewayURL, []string{"https", "http", "wss", "ws"}},
 	} {
 		if errorValue := validateAddress(address.name, address.value, address.protocols); errorValue != nil {
 			return errorValue
@@ -119,6 +119,16 @@ func validateAddress(name, address string, protocols []string) error {
 func normalizeConnection(connection Connection) Connection {
 	connection.AppURL = strings.TrimRight(connection.AppURL, "/")
 	connection.CentralPlane.ProjectURL = strings.TrimRight(connection.CentralPlane.ProjectURL, "/")
-	connection.GatewayURL = strings.TrimRight(connection.GatewayURL, "/")
+	connection.GatewayURL = socketAddress(strings.TrimRight(connection.GatewayURL, "/"))
 	return connection
+}
+
+var socketSchemeOfWebScheme = map[string]string{"https": "wss", "http": "ws"}
+
+func socketAddress(gatewayURL string) string {
+	webScheme, rest, found := strings.Cut(gatewayURL, "://")
+	if socketScheme, isWebScheme := socketSchemeOfWebScheme[webScheme]; found && isWebScheme {
+		return socketScheme + "://" + rest
+	}
+	return gatewayURL
 }

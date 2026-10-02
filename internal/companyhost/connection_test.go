@@ -39,12 +39,50 @@ func TestParseConnectionAcceptsTheFileCompanySetupIssues(t *testing.T) {
 	}
 }
 
+func TestTheGatewayIsDialledAsASocketWhateverSchemeCompanySetupIssued(t *testing.T) {
+	cases := map[string]string{
+		"https://gateway.example.com":  "wss://gateway.example.com",
+		"https://gateway.example.com/": "wss://gateway.example.com",
+		"http://127.0.0.1:8787":        "ws://127.0.0.1:8787",
+		"wss://gateway.example.com":    "wss://gateway.example.com",
+		"ws://127.0.0.1:8787":          "ws://127.0.0.1:8787",
+	}
+	for issued, dialled := range cases {
+		t.Run(issued, func(t *testing.T) {
+			connection, errorValue := ParseConnection(documentWith(func(document map[string]any) { document["gatewayURL"] = issued }))
+			if errorValue != nil {
+				t.Fatalf("refused %s: %v", issued, errorValue)
+			}
+			if connection.GatewayURL != dialled {
+				t.Fatalf("%s became %s, want %s", issued, connection.GatewayURL, dialled)
+			}
+			if got := relayEnvironment(connection)[3]; got.Name != "GATEWAY_URL" || got.Value != dialled {
+				t.Fatalf("the relay is handed %+v, want GATEWAY_URL=%s", got, dialled)
+			}
+		})
+	}
+}
+
+func TestTheGatewayProductionIssuesIsOneTheHostAccepts(t *testing.T) {
+	manifest, errorValue := os.ReadFile(filepath.Join("..", "..", ".monkeys"))
+	if errorValue != nil {
+		t.Fatalf("read the vault manifest: %v", errorValue)
+	}
+	declared := regexp.MustCompile(`(?m)^GATEWAY_URL=(\S+)$`).FindStringSubmatch(string(manifest))
+	if declared == nil {
+		t.Fatal("the vault manifest no longer declares GATEWAY_URL")
+	}
+	if _, errorValue := ParseConnection(documentWith(func(document map[string]any) { document["gatewayURL"] = declared[1] })); errorValue != nil {
+		t.Fatalf("company setup issues %s and the host refuses it: %v", declared[1], errorValue)
+	}
+}
+
 func TestParseConnectionRefusesEveryShapeCompanySetupNeverIssues(t *testing.T) {
 	cases := map[string][]byte{
-		"a later schema version":  documentWith(func(document map[string]any) { document["schemaVersion"] = 2 }),
-		"a version as text":       []byte(`{"schemaVersion":"1"}`),
-		"a version as a decimal":  []byte(`{"schemaVersion":1.0}`),
-		"a version as a boolean":  []byte(`{"schemaVersion":true}`),
+		"a later schema version": documentWith(func(document map[string]any) { document["schemaVersion"] = 2 }),
+		"a version as text":      []byte(`{"schemaVersion":"1"}`),
+		"a version as a decimal": []byte(`{"schemaVersion":1.0}`),
+		"a version as a boolean": []byte(`{"schemaVersion":true}`),
 		"an address with a fragment": documentWith(func(document map[string]any) {
 			document["appURL"] = "https://company.example.com/#fragment"
 		}),
@@ -54,8 +92,8 @@ func TestParseConnectionRefusesEveryShapeCompanySetupNeverIssues(t *testing.T) {
 		"an address with a newline": documentWith(func(document map[string]any) {
 			document["appURL"] = "https://company.example.com\nmalicious"
 		}),
-		"a gateway that is not a socket": documentWith(func(document map[string]any) {
-			document["gatewayURL"] = "https://gateway.example.com"
+		"a gateway that is not a web address": documentWith(func(document map[string]any) {
+			document["gatewayURL"] = "ftp://gateway.example.com"
 		}),
 		"an upper case company key": documentWith(func(document map[string]any) {
 			document["agentKey"] = strings.Repeat("A", 64)
@@ -69,10 +107,10 @@ func TestParseConnectionRefusesEveryShapeCompanySetupNeverIssues(t *testing.T) {
 		"a company id that is not a uuid": documentWith(func(document map[string]any) {
 			document["company"] = map[string]any{"id": "not-a-uuid", "name": "Example Co", "slug": "example"}
 		}),
-		"a company that is not an object": documentWith(func(document map[string]any) { document["company"] = []any{} }),
+		"a company that is not an object":  documentWith(func(document map[string]any) { document["company"] = []any{} }),
 		"a field the schema does not name": documentWith(func(document map[string]any) { document["extra"] = "value" }),
-		"an empty document":               []byte(`{}`),
-		"text that is not json":           []byte(`not json`),
+		"an empty document":                []byte(`{}`),
+		"text that is not json":            []byte(`not json`),
 	}
 	for name, document := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -344,11 +344,11 @@ func TestTheBundleIsRestartedWithoutTheUnitsItIsBoundTo(t *testing.T) {
 
 func TestAnInstallRefusesAConnectionThePlaneHandedOverBeforeTouchingTheMachine(t *testing.T) {
 	connection := exampleConnection(t)
-	connection.GatewayURL = "https://gateway.example.com"
+	connection.GatewayURL = "ftp://gateway.example.com"
 	machine := &recordedMachine{}
 	_, errorValue := installOn(linuxPlatform{}, Request{Connection: connection, StateDirectoryPath: t.TempDir()}, machine, io.Discard)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "gatewayURL") {
-		t.Fatalf("an install given a gateway that is not a websocket answered %v", errorValue)
+		t.Fatalf("an install given a gateway that is not a web address answered %v", errorValue)
 	}
 	if len(machine.runs) != 0 {
 		t.Fatalf("a refused connection still ran %v", machine.runs)
