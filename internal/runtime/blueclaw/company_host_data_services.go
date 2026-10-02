@@ -2,23 +2,33 @@ package blueclaw
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 )
 
-// On a systemd machine the company host runs its own database and its own cache,
-// from the server binaries the distribution installs, and never uses the
-// distribution's default cluster or cache service. A company server that already
+// The company host runs its own database and its own cache, from the server
+// binaries the machine's package manager installs, and never uses the
+// machine's default cluster or cache service. A company server that already
 // runs a PostgreSQL or a Redis keeps its data in it; sharing that instance would
 // put this company's tables beside theirs and make a package upgrade a change to
-// both. Neither service listens on a network address: each answers on a Unix
-// socket in a directory only its own group can open, so there is no port to
-// collide with and nothing on loopback to guard.
+// both. On a Mac the same holds for the person's own `brew services`: the host
+// starts Homebrew's binaries as its own accounts and leaves those services, and
+// the data directories they own, alone.
 //
-// The same two units serve every family. Where the binaries are, which major
-// version a cluster was made by, and whether the cache is called redis or valkey
-// differ between distributions, and CompanyHostDataServiceScript is the one place
-// that knows.
+// Under systemd neither service listens on a network address: each answers on a
+// Unix socket in a directory only its own group can open, so there is no port to
+// collide with and nothing on loopback to guard. The same two units serve every
+// family. Where the binaries are, which major version a cluster was made by, and
+// whether the cache is called redis or valkey differ between distributions, and
+// CompanyHostDataServiceScript is the one place that knows.
+//
+// launchd has no RuntimeDirectory= and nothing it starts as an unprivileged
+// account can create one under /var/run, so on a Mac each socket sits in its
+// service's own data directory, which only that account can open. The cache's
+// one client, the messenger, runs as root and reaches it there. The agent does
+// not, so the database also answers on DatabaseLoopbackAddress, where the
+// company's roles sign in with their passwords.
 const (
 	CompanyHostDatabaseServiceName = "internkim-postgresql"
 	CompanyHostCacheServiceName    = "internkim-cache"
@@ -55,14 +65,46 @@ func (unit CompanyPackageUnit) IsDataService() bool {
 	return unit.Name == CompanyHostDatabaseServiceName || unit.Name == CompanyHostCacheServiceName
 }
 
-func (layout CompanyHostLayout) OwnsItsDataServices() bool {
-	return layout.DatabaseSocketDirectory != ""
+// RunsTheDataServiceScript is true where the data-service script finds the
+// servers, and false where the layout names their directories.
+func (layout CompanyHostLayout) RunsTheDataServiceScript() bool {
+	return layout.DatabaseProgramDirectory == ""
+}
+
+// DatabaseProgram is the path of one of PostgreSQL's programs, or its bare name
+// where the machine's PATH finds it.
+func (layout CompanyHostLayout) DatabaseProgram(programName string) string {
+	if layout.DatabaseProgramDirectory == "" {
+		return programName
+	}
+	return layout.DatabaseProgramDirectory + "/" + programName
+}
+
+func (layout CompanyHostLayout) CacheProgram(programName string) string {
+	if layout.CacheProgramDirectory == "" {
+		return programName
+	}
+	return layout.CacheProgramDirectory + "/" + programName
+}
+
+// DatabasePort is the port the database answers on, which also names its
+// socket file inside DatabaseSocketDirectory.
+func (layout CompanyHostLayout) DatabasePort() string {
+	if layout.DatabaseLoopbackAddress == "" {
+		return companyHostDatabasePort
+	}
+	_, port, _ := net.SplitHostPort(layout.DatabaseLoopbackAddress)
+	return port
+}
+
+func (layout CompanyHostLayout) DatabaseLoopbackHost() string {
+	host, _, _ := net.SplitHostPort(layout.DatabaseLoopbackAddress)
+	return host
 }
 
 // DatabaseURL is how a client reaches the company's database on this machine.
-// The role and password are the company's own; the address is a socket
-// directory when the host owns its database and loopback when a platform
-// supervises one.
+// The role and password are the company's own; the address is loopback where
+// the layout names one and the socket directory otherwise.
 //
 // The socket form names localhost and then overrides it with host=. A URL with
 // credentials and an empty host is refused by the url crate sqlx parses with
@@ -71,7 +113,7 @@ func (layout CompanyHostLayout) OwnsItsDataServices() bool {
 // A Unix socket has no TLS to disable, so there is no second parameter.
 func (layout CompanyHostLayout) DatabaseURL(role string, password string, database string) string {
 	credentials := url.UserPassword(role, password).String()
-	if layout.DatabaseSocketDirectory == "" {
+	if layout.DatabaseLoopbackAddress != "" {
 		return fmt.Sprintf("postgres://%s@%s/%s?sslmode=disable", credentials, layout.DatabaseLoopbackAddress, database)
 	}
 	return fmt.Sprintf("postgres://%s@localhost/%s?host=%s", credentials, database, url.QueryEscape(layout.DatabaseSocketDirectory))
@@ -80,9 +122,6 @@ func (layout CompanyHostLayout) DatabaseURL(role string, password string, databa
 // CacheURL is what the messenger is told for REDIS_URL. The socket form is the
 // one the client library documents as redis+unix.
 func (layout CompanyHostLayout) CacheURL() string {
-	if layout.CacheSocketPath == "" {
-		return BuzzRelayRedisURL
-	}
 	return "redis+unix://" + layout.CacheSocketPath
 }
 
@@ -90,10 +129,10 @@ func (layout CompanyHostLayout) DataServicePath() string {
 	return layout.HelperRoot + "/" + CompanyHostDataServiceProgramName
 }
 
-// CompanyHostDataServiceUnits are the two units, systemd's alone: a Mac has
-// Homebrew's own services and no counterpart for either.
+// CompanyHostDataServiceUnits are the two units, systemd's alone. A Mac starts
+// the same two services from CompanyHostDataLaunchDaemons.
 func CompanyHostDataServiceUnits(layout CompanyHostLayout) []CompanyPackageUnit {
-	if !layout.OwnsItsDataServices() {
+	if !layout.RunsTheDataServiceScript() {
 		return nil
 	}
 	return []CompanyPackageUnit{
@@ -126,6 +165,82 @@ func companyHostCacheUnit(layout CompanyHostLayout) string {
 		ExecStartPost:    program + " cache-ready",
 		StopTimeout:      30,
 	})
+}
+
+// CompanyHostDataLaunchDaemons are the database and the cache as LaunchDaemons,
+// started from the binaries of the formulas the package depends on. They are
+// apart from the bundle's nine because the install prepares the database before
+// it starts anything that opens it.
+func CompanyHostDataLaunchDaemons(layout CompanyHostLayout) ([]CompanyHostLaunchDaemon, error) {
+	if layout.RunsTheDataServiceScript() {
+		return nil, nil
+	}
+	daemons := []CompanyHostLaunchDaemon{}
+	for _, service := range []CompanyHostService{companyHostDatabaseDaemon(layout), companyHostCacheDaemon(layout)} {
+		daemon, errorValue := companyHostLaunchDaemon(layout, service, nil)
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		daemons = append(daemons, daemon)
+	}
+	return daemons, nil
+}
+
+func companyHostDatabaseDaemon(layout CompanyHostLayout) CompanyHostService {
+	return CompanyHostService{
+		Name:        CompanyHostDatabaseServiceName,
+		Description: "internkim company database",
+		Command: []string{
+			layout.DatabaseProgram("postgres"),
+			"-D", CompanyHostDatabaseDataPath,
+			"-c", "listen_addresses=" + layout.DatabaseLoopbackHost(),
+			"-c", "port=" + layout.DatabasePort(),
+			"-c", "unix_socket_directories=" + layout.DatabaseSocketDirectory,
+			"-c", "logging_collector=off",
+		},
+		Account:             CompanyHostDatabaseUser,
+		WorkingDirectory:    CompanyHostDatabaseDataPath,
+		RestartAfterSeconds: 5,
+		StopTimeoutSeconds:  60,
+	}
+}
+
+func companyHostCacheDaemon(layout CompanyHostLayout) CompanyHostService {
+	return CompanyHostService{
+		Name:        CompanyHostCacheServiceName,
+		Description: "internkim company cache",
+		Command: []string{
+			layout.CacheProgram("redis-server"),
+			"--port", "0",
+			"--unixsocket", layout.CacheSocketPath,
+			"--unixsocketperm", strings.TrimPrefix(companyHostDataSocketMode, "0"),
+			"--save", "",
+			"--appendonly", "no",
+			"--dir", CompanyHostCacheDataPath,
+		},
+		Account:             CompanyHostCacheUser,
+		WorkingDirectory:    CompanyHostCacheDataPath,
+		RestartAfterSeconds: 5,
+		StopTimeoutSeconds:  30,
+	}
+}
+
+// CompanyHostDatabaseInitialization is what makes the cluster on a Mac, run once
+// as the database's account. The superuser is that account's own name and signs
+// in by peer on the socket, which is how the install reaches it; every other
+// role signs in with its password on loopback. The locale is the one Homebrew's
+// own cluster is made with.
+func CompanyHostDatabaseInitialization(layout CompanyHostLayout) []string {
+	return []string{
+		layout.DatabaseProgram("initdb"),
+		"--pgdata", CompanyHostDatabaseDataPath,
+		"--username", CompanyHostDatabaseUser,
+		"--auth-local=peer",
+		"--auth-host=scram-sha-256",
+		"--encoding=UTF8",
+		"--locale=C",
+		"--data-checksums",
+	}
 }
 
 type dataServiceUnitSettings struct {

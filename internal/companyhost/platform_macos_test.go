@@ -14,8 +14,8 @@ import (
 
 const homebrewPrefixForTest = "/opt/homebrew"
 
-func macPlatformForTest() macPlatform {
-	return macPlatform{homebrewPrefix: homebrewPrefixForTest}
+func macPlatformForTest(t *testing.T) macPlatform {
+	return macPlatform{homebrewPrefix: homebrewPrefixForTest, launchDaemonRoot: t.TempDir()}
 }
 
 // A Mac with no Homebrew has no company host to install, and saying so is the
@@ -47,7 +47,7 @@ func TestAMacWithTheSystemHangulFaceIsNotToldItsFontIsMissing(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{
 		"/usr/share/fonts/truetype/nanum/NanumGothic.ttf": true,
 	}}
-	if errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(), machine); errorValue != nil {
+	if errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(t), machine); errorValue != nil {
 		t.Fatalf("a Mac with AppleSDGothicNeo was refused:\n%v", errorValue)
 	}
 }
@@ -59,7 +59,7 @@ func TestAMacWithNoHangulFaceIsToldWhichFileWasLookedFor(t *testing.T) {
 			machine.missing[candidate] = true
 		}
 	}
-	errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(), machine)
+	errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(t), machine)
 	if errorValue == nil {
 		t.Fatal("a Mac with no Hangul face was accepted")
 	}
@@ -71,8 +71,8 @@ func TestAMacWithNoHangulFaceIsToldWhichFileWasLookedFor(t *testing.T) {
 // The refusal on a Mac must not offer an apt command, which is the one thing the
 // Debian arm exists to offer.
 func TestAMacIsNeverToldToRunAptGet(t *testing.T) {
-	machine := &recordedMachine{missing: map[string]bool{"jq": true}}
-	errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(), machine)
+	machine := &recordedMachine{missing: map[string]bool{blueclaw.HomebrewFormulaProgramDirectory(homebrewPrefixForTest, "jq") + "/jq": true}}
+	errorValue := requireWhatTheCompanyHostRuns(macPlatformForTest(t), machine)
 	if errorValue == nil {
 		t.Fatal("a Mac with no jq was accepted")
 	}
@@ -115,7 +115,7 @@ func TestAFullIdentityRangeIsARefusalRatherThanACollision(t *testing.T) {
 // A service account that can log in, or that shows at the login window, is an
 // account a person can be tricked into using. Both are one dscl attribute.
 func TestAServiceAccountCannotLogInAndDoesNotShowAtTheLoginWindow(t *testing.T) {
-	account := companyHostServiceAccounts(blueclaw.MacCompanyHostLayout(homebrewPrefixForTest))[0]
+	account := blueclaw.CompanyHostServiceAccounts(blueclaw.MacCompanyHostLayout(homebrewPrefixForTest))[0]
 	commands := macAccountCommands(account, firstServiceAccountID)
 	rendered := ""
 	for _, arguments := range commands {
@@ -138,60 +138,153 @@ func TestAServiceAccountCannotLogInAndDoesNotShowAtTheLoginWindow(t *testing.T) 
 
 // The password opens everything the company remembers, and every account on this
 // box can read another process's arguments.
-func TestThePasswordReachesPostgreSQLThroughTheEnvironmentOnAMacToo(t *testing.T) {
+func TestThePasswordReachesPostgreSQLOnItsStandardInputOnAMac(t *testing.T) {
 	machine := &recordedMachine{}
 	password := strings.Repeat("7", 64)
-	if errorValue := prepareDatabases(macPlatformForTest(), machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
+	if errorValue := prepareDatabases(macPlatformForTest(t), machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
 	}
-	ranTheStatements := false
+	if !machine.ranStatementsCarrying(password) {
+		t.Fatalf("no statements carrying the password were run: %v", machine.runs)
+	}
 	for _, run := range machine.runs {
-		if run[0] != "sh" {
-			continue
-		}
-		ranTheStatements = true
 		for _, argument := range run {
-			if strings.Contains(argument, password) && !strings.HasPrefix(argument, databasePreparationVariable+"=") {
+			if strings.Contains(argument, password) {
 				t.Fatalf("the password reached the command line: %v", run)
 			}
 		}
-	}
-	if !ranTheStatements {
-		t.Fatalf("no statements were run: %v", machine.runs)
 	}
 }
 
 func TestAMacDatabaseIsPreparedWithoutPgvector(t *testing.T) {
 	machine := &recordedMachine{}
-	if errorValue := prepareDatabases(macPlatformForTest(), machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard); errorValue != nil {
-		t.Fatalf("a Homebrew PostgreSQL without pgvector was not prepared: %v", errorValue)
+	if errorValue := prepareDatabases(macPlatformForTest(t), machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard); errorValue != nil {
+		t.Fatalf("the host's own PostgreSQL without pgvector was not prepared: %v", errorValue)
 	}
 	if !machine.ranStatementsCarrying("DROP EXTENSION IF EXISTS vector CASCADE;") {
 		t.Fatalf("the Mac's agent database kept a vector extension it no longer uses: %v", machine.runs)
 	}
 }
 
-// Homebrew refuses every command run as root except --prefix and services. An
-// install that reached for `brew install` would fail at the one step that has
-// root and leave the box half done.
-func TestTheInstallAsksHomebrewForNothingButServices(t *testing.T) {
+// Run as root, `brew services` installs the formula's own service into the
+// system domain running as root, which PostgreSQL refuses, and takes over the
+// postgresql@17 and redis a person on this Mac already runs. The install asks
+// Homebrew for nothing at all.
+func TestTheInstallNeverAsksHomebrewToStartAService(t *testing.T) {
 	machine := &recordedMachine{}
-	if errorValue := macPlatformForTest().StartTheDatabaseAndTheCache(machine); errorValue != nil {
+	if errorValue := macPlatformForTest(t).StartTheDatabaseAndTheCache(machine); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	started := 0
 	for _, run := range machine.runs {
-		if run[0] != "brew" {
-			continue
+		if run[0] == "brew" || strings.HasSuffix(run[0], "/brew") {
+			t.Fatalf("the install runs `%s` as root", strings.Join(run, " "))
 		}
-		if run[1] != "services" {
-			t.Fatalf("the install runs `brew %s` as root, which Homebrew refuses", run[1])
+	}
+}
+
+func TestTheDatabaseAndTheCacheAreWrittenAndBootstrappedAsTheHostsOwnDaemons(t *testing.T) {
+	platform := macPlatformForTest(t)
+	machine := &recordedMachine{}
+	if errorValue := platform.StartTheDatabaseAndTheCache(machine); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, serviceName := range []string{databaseServiceName, cacheServiceName} {
+		label := strings.TrimPrefix(platform.SupervisorIdentityFor(serviceName), "system/")
+		path := filepath.Join(platform.launchDaemonRoot, label+".plist")
+		if _, errorValue := os.Stat(path); errorValue != nil {
+			t.Fatalf("no plist was written for the %s at %s", serviceName, path)
 		}
-		started++
+		if !machine.ran("launchctl", "bootstrap", "system", path) {
+			t.Fatalf("%s was written and never bootstrapped: %v", label, machine.runs)
+		}
 	}
-	if started != 2 {
-		t.Fatalf("the database and the cache are two services and %d were started: %v", started, machine.runs)
+}
+
+func TestEachDataDirectoryBelongsToTheAccountThatRunsInIt(t *testing.T) {
+	machine := &recordedMachine{}
+	if errorValue := macPlatformForTest(t).StartTheDatabaseAndTheCache(machine); errorValue != nil {
+		t.Fatal(errorValue)
 	}
+	for path, account := range map[string]string{
+		blueclaw.CompanyHostDatabaseDataPath: blueclaw.CompanyHostDatabaseUser,
+		blueclaw.CompanyHostCacheDataPath:    blueclaw.CompanyHostCacheUser,
+	} {
+		if !machine.ran("install", "-d", "-o", account, "-g", account, "-m", "0700", path) {
+			t.Fatalf("%s is not made as %s's alone: %v", path, account, machine.runs)
+		}
+	}
+}
+
+func TestTheClusterIsMadeOnceAsTheDatabasesAccount(t *testing.T) {
+	versionFile := blueclaw.CompanyHostDatabaseDataPath + "/PG_VERSION"
+	fresh := &recordedMachine{missing: map[string]bool{versionFile: true}}
+	if errorValue := macPlatformForTest(t).StartTheDatabaseAndTheCache(fresh); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	initdb := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest).DatabaseProgram("initdb")
+	if !fresh.ran("sudo", "-u", blueclaw.CompanyHostDatabaseUser, "--") || !fresh.ranProgram(initdb) {
+		t.Fatalf("a Mac with no cluster did not make one as %s: %v", blueclaw.CompanyHostDatabaseUser, fresh.runs)
+	}
+	made := &recordedMachine{}
+	if errorValue := macPlatformForTest(t).StartTheDatabaseAndTheCache(made); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if made.ranProgram(initdb) {
+		t.Fatalf("a cluster that exists was made again: %v", made.runs)
+	}
+}
+
+// Peer authentication on the socket is the database account's own name, so the
+// statements are run as that account, on the socket inside its data directory.
+func TestTheStatementsConnectAsTheDatabasesAccountOverItsSocket(t *testing.T) {
+	machine := &recordedMachine{}
+	if errorValue := macPlatformForTest(t).RunDatabaseStatements(machine, "SELECT 1;", io.Discard); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	layout := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest)
+	if !machine.ran("sudo", "-u", blueclaw.CompanyHostDatabaseUser, "--") {
+		t.Fatalf("the statements are not run as %s: %v", blueclaw.CompanyHostDatabaseUser, machine.runs)
+	}
+	run := strings.Join(machine.runs[0], " ")
+	for _, required := range []string{
+		layout.DatabaseProgram("psql"),
+		"--host " + blueclaw.CompanyHostDatabaseDataPath,
+		"--port " + layout.DatabasePort(),
+		"--username " + blueclaw.CompanyHostDatabaseUser,
+	} {
+		if !strings.Contains(run, required) {
+			t.Fatalf("psql is run without %q: %s", required, run)
+		}
+	}
+}
+
+func TestEveryServiceAccountIsCreatedOnAMac(t *testing.T) {
+	machine := &recordedMachine{}
+	if errorValue := macPlatformForTest(t).EnsureServiceAccounts(machineWithNoAccounts{machine}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	created := map[string]bool{}
+	for _, run := range machine.runs {
+		if run[0] == "dscl" && len(run) == 4 && run[2] == "-create" && strings.HasPrefix(run[3], "/Users/") {
+			created[strings.TrimPrefix(run[3], "/Users/")] = true
+		}
+	}
+	for _, account := range []string{blueclaw.BlueclawUser, blueclaw.RelayUserName, blueclaw.CompanyHostDatabaseUser, blueclaw.CompanyHostCacheUser} {
+		if !created[account] {
+			t.Fatalf("the %s account is never created: %v", account, machine.runs)
+		}
+	}
+}
+
+type machineWithNoAccounts struct {
+	*recordedMachine
+}
+
+func (machine machineWithNoAccounts) Output(name string, arguments []string) (string, error) {
+	if name == "dscl" && len(arguments) > 1 && arguments[1] == "-read" {
+		return "", errors.New("eDSRecordNotFound")
+	}
+	return machine.recordedMachine.Output(name, arguments)
 }
 
 // Every plist has to reach /Library/LaunchDaemons and be bootstrapped into the
@@ -201,7 +294,7 @@ func TestEveryDaemonIsWrittenAndBootstrappedIntoTheSystemDomain(t *testing.T) {
 	daemonRoot := t.TempDir()
 	layout := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest)
 	machine := &recordedMachine{}
-	if errorValue := writeAndBootstrapLaunchDaemons(daemonRoot, layout, environmentFilesForTest(layout), machine, io.Discard); errorValue != nil {
+	if errorValue := writeAndBootstrapLaunchDaemons(daemonRoot, bundleDaemonsForTest(t, layout), machine, io.Discard); errorValue != nil {
 		t.Fatalf("write the daemons: %v", errorValue)
 	}
 	for _, service := range blueclaw.CompanyHostServices(layout) {
@@ -226,7 +319,7 @@ func TestEveryDaemonIsWrittenAndBootstrappedIntoTheSystemDomain(t *testing.T) {
 func TestASecondInstallUnloadsBeforeItLoads(t *testing.T) {
 	layout := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest)
 	machine := &recordedMachine{}
-	if errorValue := writeAndBootstrapLaunchDaemons(t.TempDir(), layout, environmentFilesForTest(layout), machine, io.Discard); errorValue != nil {
+	if errorValue := writeAndBootstrapLaunchDaemons(t.TempDir(), bundleDaemonsForTest(t, layout), machine, io.Discard); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	for index, run := range machine.runs {
@@ -240,6 +333,15 @@ func TestASecondInstallUnloadsBeforeItLoads(t *testing.T) {
 	}
 }
 
+func bundleDaemonsForTest(t *testing.T, layout blueclaw.CompanyHostLayout) []blueclaw.CompanyHostLaunchDaemon {
+	t.Helper()
+	daemons, errorValue := blueclaw.CompanyHostLaunchDaemons(layout, environmentFilesForTest(layout))
+	if errorValue != nil {
+		t.Fatalf("render the daemons: %v", errorValue)
+	}
+	return daemons
+}
+
 // The refusal has to name commands that exist on the machine reading it.
 // `journalctl` on a Mac is advice a person cannot follow.
 func TestTheWaitTellsAMacToReadLaunchctlRatherThanJournalctl(t *testing.T) {
@@ -247,17 +349,41 @@ func TestTheWaitTellsAMacToReadLaunchctlRatherThanJournalctl(t *testing.T) {
 	waitForTheServerBudget = 0
 	t.Cleanup(func() { waitForTheServerBudget = previousBudget })
 
-	machine := &recordedMachine{failures: map[string]error{"pg_isready": errors.New("exit status 2")}}
-	errorValue := waitUntilTheServerAnswers(macPlatformForTest(), machine, io.Discard)
+	readiness := blueclaw.MacCompanyHostLayout(homebrewPrefixForTest).DatabaseProgram("pg_isready")
+	machine := &recordedMachine{failures: map[string]error{readiness: errors.New("exit status 2")}}
+	errorValue := waitUntilTheServerAnswers(macPlatformForTest(t), machine, io.Discard)
 	if errorValue == nil {
 		t.Fatal("a Mac whose database never answered reported ready")
 	}
 	if strings.Contains(errorValue.Error(), "journalctl") || strings.Contains(errorValue.Error(), "systemctl") {
 		t.Fatalf("a Mac is told to read systemd's log:\n%s", errorValue)
 	}
-	for _, named := range []string{"launchctl print", "PostgreSQL is not accepting connections", "Nothing was removed"} {
+	for _, named := range []string{
+		"launchctl print system/kim.intern." + blueclaw.CompanyHostDatabaseServiceName,
+		"tail -n 50 " + blueclaw.CompanyHostLogPath + "/" + blueclaw.CompanyHostDatabaseServiceName + ".log",
+		"PostgreSQL is not accepting connections on 127.0.0.1:18432",
+		"Nothing was removed",
+	} {
 		if !strings.Contains(errorValue.Error(), named) {
 			t.Fatalf("the refusal does not name %q:\n%s", named, errorValue)
+		}
+	}
+}
+
+// The label the readiness hint names is one launchd actually carries.
+func TestTheDataServicesAreNamedByTheLabelsTheirDaemonsCarry(t *testing.T) {
+	platform := macPlatformForTest(t)
+	daemons, errorValue := blueclaw.CompanyHostDataLaunchDaemons(platform.Layout())
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	labels := map[string]bool{}
+	for _, daemon := range daemons {
+		labels["system/"+daemon.Label] = true
+	}
+	for _, serviceName := range []string{databaseServiceName, cacheServiceName} {
+		if identity := platform.SupervisorIdentityFor(serviceName); !labels[identity] {
+			t.Fatalf("the %s is called %s, and launchd carries %v", serviceName, identity, labels)
 		}
 	}
 }

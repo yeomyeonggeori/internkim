@@ -126,6 +126,13 @@ journalctl -u internkim-relay -n 50 --no-pager
 macOS에서는 `launchctl print system/kim.intern.<service>`로 서비스를 확인합니다.
 로그는 `/var/log/internkim/`에 있습니다.
 
+Mac에서는 호스트의 데이터베이스와 캐시가 `kim.intern.internkim-postgresql`과
+`kim.intern.internkim-cache`로, 각자의 계정으로, 패키지와 함께 Homebrew가 설치한
+PostgreSQL과 Redis로 실행됩니다. 데이터는 Linux와 같이 `/var/lib/internkim-postgres`와
+`/var/lib/internkim-cache`에 있습니다. 데이터베이스는 `127.0.0.1:18432`에서, 캐시는
+자기 디렉터리 안의 소켓에서 응답하므로, 이미 `brew services`로 돌리고 있는
+PostgreSQL이나 Redis는 포트와 데이터를 그대로 지킵니다.
+
 ## 설정
 
 설치 프로그램은 회사 연결 정보와 생성된 자격증명을 접근이 제한된 호스트 데이터
@@ -224,8 +231,7 @@ sudo cat /var/lib/internkim-backups/internkim-backup-20261001T031500Z.tar \
 백업을 만든 컴퓨터에 되살리려면 `--replace`를 붙이세요. 복원은 먼저 그 컴퓨터의
 지금 상태를 백업하므로, 그 아카이브로 다시 `--replace` 복원하면 되돌릴 수 있습니다.
 
-Mac에서는 데이터베이스가 Homebrew의 PostgreSQL이고, `internkim backup`과
-`internkim restore`는 그것을 관리하지 않습니다. Mac에서는 두 명령이 거부합니다.
+`internkim backup`과 `internkim restore`는 Linux에서 실행되고 Mac에서는 거부합니다.
 
 ### 디바이스를 패키지로 옮기기
 

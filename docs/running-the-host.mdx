@@ -132,6 +132,14 @@ journalctl -u internkim-relay -n 50 --no-pager
 On macOS, run `launchctl print system/kim.intern.<service>` to inspect a
 service. Its logs are under `/var/log/internkim/`.
 
+A Mac runs the host's own database and cache as `kim.intern.internkim-postgresql`
+and `kim.intern.internkim-cache`, under their own accounts, from the PostgreSQL
+and Redis that Homebrew installed with the package. Their data is in
+`/var/lib/internkim-postgres` and `/var/lib/internkim-cache`, as on Linux. The
+database answers on `127.0.0.1:18432` and the cache on a socket in its own
+directory, so a PostgreSQL or Redis you already run with `brew services` keeps
+its port and its data.
+
 ## Settings
 
 The installer writes company connection details and generated credentials to
@@ -235,8 +243,7 @@ To restore onto the computer the backup came from, add `--replace`. The restore
 first backs up what the computer holds now, so `--replace` with that archive undoes
 it.
 
-On a Mac the database is Homebrew's PostgreSQL, which `internkim backup` and
-`internkim restore` do not manage. They refuse there.
+`internkim backup` and `internkim restore` run on Linux and refuse on a Mac.
 
 ### Move a device onto the package
 

@@ -67,15 +67,15 @@ func whatIsMissingOf(platform companyHostPlatform, machine Machine, dependency b
 		return []missingPiece{describe(candidates[0])}
 	}
 	missing := []missingPiece{}
-	if len(dependency.OneOfThesePrograms) > 0 && !machineCarriesAnyOf(machine, dependency.OneOfThesePrograms) {
-		missing = append(missing, describe(strings.Join(dependency.OneOfThesePrograms, " or ")))
+	if len(dependency.OneOfThesePrograms) > 0 && !carriesAnyOf(platform, machine, dependency) {
+		missing = append(missing, describe(strings.Join(whereEachProgramIs(platform, dependency, dependency.OneOfThesePrograms), " or ")))
 	}
 	for _, program := range dependency.ProgramsTheHostRuns {
 		if dependency.ArrivesAsPayload && !carriesWhatThePackageShips(platform, machine, program) {
 			missing = append(missing, describe(program))
 		}
-		if !dependency.ArrivesAsPayload && machine.CarriesProgram(program) != nil {
-			missing = append(missing, describe(program))
+		if !dependency.ArrivesAsPayload && !carriesTheProgram(platform, machine, dependency, program) {
+			missing = append(missing, describe(whereEachProgramIs(platform, dependency, []string{program})[0]))
 		}
 	}
 	if dependency.ReadableFilePath != "" && machine.CarriesFile(dependency.ReadableFilePath) != nil {
@@ -91,13 +91,31 @@ func carriesWhatThePackageShips(platform companyHostPlatform, machine Machine, p
 	return machine.CarriesFile(platform.Layout().BinaryPath(program)) == nil
 }
 
-func machineCarriesAnyOf(machine Machine, programs []string) bool {
-	for _, program := range programs {
-		if machine.CarriesProgram(program) == nil {
+func carriesAnyOf(platform companyHostPlatform, machine Machine, dependency blueclaw.HostDependency) bool {
+	for _, program := range dependency.OneOfThesePrograms {
+		if carriesTheProgram(platform, machine, dependency, program) {
 			return true
 		}
 	}
 	return false
+}
+
+func carriesTheProgram(platform companyHostPlatform, machine Machine, dependency blueclaw.HostDependency, program string) bool {
+	if path := platform.WhereItKeepsTheProgram(dependency, program); path != "" {
+		return machine.CarriesFile(path) == nil
+	}
+	return machine.CarriesProgram(program) == nil
+}
+
+func whereEachProgramIs(platform companyHostPlatform, dependency blueclaw.HostDependency, programs []string) []string {
+	described := []string{}
+	for _, program := range programs {
+		if path := platform.WhereItKeepsTheProgram(dependency, program); path != "" {
+			program = path
+		}
+		described = append(described, program)
+	}
+	return described
 }
 
 // Our own programs are one line, the install script. What the distribution
