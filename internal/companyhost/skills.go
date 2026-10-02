@@ -14,15 +14,17 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-// A bundled skill installs nothing the first time a person uses it: the
-// install step prepares every one of them ahead of time, as the account that
-// owns the delivered skills, into the cache home beside them.
+// A bundled skill installs nothing the first time a person uses it: its setup
+// keeps what it needs beside its own files, and the install step runs every
+// setup as the account that owns the delivered skills, so every person can read
+// what was prepared and the next upgrade can replace it.
 //
 // A skill whose command line is named after it is prepared by that command's
-// `setup`, which knows everything the skill needs. Any other skill that
-// declares Python requirements is prepared by its own skill_runtime.py, the
-// same bootstrap it would otherwise run on first use, so how a requirements
-// file becomes an environment is written once, in the plugin.
+// `setup`. Until the pinned plugin carries one, a command that answers `setup`
+// with UNKNOWN_COMMAND is prepared by its skill_runtime.py bootstrap instead,
+// which keeps its environment in the caller's cache home; here that is this
+// run's scratch directory, so the bootstrap shows the requirements resolve and
+// keeps nothing.
 
 const (
 	skillDocumentName         = "SKILL.md"
@@ -79,9 +81,6 @@ func prepareSkillsIn(layout blueclaw.CompanyHostLayout, setupOptions []string, m
 	}
 	skills, errorValue := bundledSkillsIn(layout.SkillsPath())
 	if errorValue != nil {
-		return errorValue
-	}
-	if errorValue := os.MkdirAll(layout.PreparedSkillsPath(), 0o755); errorValue != nil {
 		return errorValue
 	}
 	scratchPath, errorValue := os.MkdirTemp("", "internkim-skill-preparation-")
@@ -142,9 +141,10 @@ func bundledSkillsIn(skillsPath string) ([]bundledSkill, error) {
 }
 
 // The skills are prepared on the interpreter and the programs every person's
-// command is given, so an environment made here is one they can run. The
-// download caches are this run's alone and go with it; only what a skill keeps
-// in its cache home stays.
+// command is given, so what a setup builds is something they can run. HOME,
+// the cache home and the download caches are this run's alone and go with it,
+// so a setup cannot lean on a cache blueclaw hands a person, and only what it
+// keeps beside the skill stays.
 func skillPreparationEnvironment(layout blueclaw.CompanyHostLayout, scratchPath string) ([]string, error) {
 	homePath := filepath.Join(scratchPath, "home")
 	if errorValue := os.MkdirAll(homePath, 0o755); errorValue != nil {
@@ -153,7 +153,7 @@ func skillPreparationEnvironment(layout blueclaw.CompanyHostLayout, scratchPath 
 	return []string{
 		"PATH=" + layout.SearchPath(),
 		"HOME=" + homePath,
-		"XDG_CACHE_HOME=" + layout.PreparedSkillsPath(),
+		"XDG_CACHE_HOME=" + filepath.Join(scratchPath, "cache"),
 		"UV_CACHE_DIR=" + filepath.Join(scratchPath, "uv"),
 		"UV_PYTHON_DOWNLOADS=never",
 		"UV_COMPILE_BYTECODE=1",

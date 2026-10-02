@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -176,14 +177,14 @@ func TestThePostInstallPreparesTheSkillsOnThePythonItJustInstalled(t *testing.T)
 	}
 }
 
-func TestRemovalTakesThePreparedSkillsWithThePythonTheyRunOn(t *testing.T) {
+func TestRemovalTakesWhatTheSkillsSetupKeptBesideThem(t *testing.T) {
 	layout := blueclaw.LinuxCompanyHostLayout()
 	script := maintainerScript(debianPackageFormat, postRemoveScript)
 	for _, line := range strings.Split(script, "\n") {
 		command := strings.TrimSpace(line)
 		if strings.HasPrefix(command, "rm -rf "+layout.PythonRoot()+" ") {
-			if !strings.Contains(command, layout.PreparedSkillsPath()) {
-				t.Fatalf("removal keeps %s, environments built on the Python it deletes: %s", layout.PreparedSkillsPath(), command)
+			if !slices.Contains(strings.Fields(command), layout.SkillsPath()) {
+				t.Fatalf("removal leaves %s, where each skill's setup kept what the package manager does not own: %s", layout.SkillsPath(), command)
 			}
 			return
 		}

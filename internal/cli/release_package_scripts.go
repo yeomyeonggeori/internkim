@@ -97,7 +97,7 @@ func postRemoveBody(format linuxPackageFormat) string {
 	debianLayout := blueclaw.LinuxCompanyHostLayout()
 	lines := []string{
 		`if ` + format.RemovalTest("postrm") + `; then`,
-		`  rm -rf ` + debianLayout.PythonRoot() + ` ` + debianLayout.DocumentVirtualEnvironmentPath() + ` ` + debianLayout.PreparedSkillsPath(),
+		`  rm -rf ` + debianLayout.PythonRoot() + ` ` + debianLayout.DocumentVirtualEnvironmentPath() + ` ` + debianLayout.SkillsPath(),
 		`fi`,
 		``,
 	}

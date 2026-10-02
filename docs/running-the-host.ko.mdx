@@ -274,8 +274,8 @@ sudo internkim import-device /var/lib/internkim-migration/20261001T143757Z --con
 
 Linux에서 패키지를 설치하거나 업그레이드할 때는 호스트가 쓰는 하나뿐인 Python
 런타임을 `github.com`에서 받아 `/opt/internkim/python`에 두고, 첨부 문서를 읽는
-고정된 라이브러리와 번들 스킬마다 선언한 것을 내려받습니다. Python 라이브러리는
-`pypi.org`와 `files.pythonhosted.org`에서, office 스킬의 페이지 렌더러는
+고정된 라이브러리와, 번들 스킬마다 setup이 스킬 파일 옆에 두는 것을
+내려받습니다. Python 라이브러리는 `pypi.org`와 `files.pythonhosted.org`에서, office 스킬의 페이지 렌더러는
 `registry.npmjs.org`에서 받습니다. 하나라도 닿지 않으면 설치가 멈추고 무엇을 받지
 못했는지 알려 줍니다. 배포판의 Python은 필요하지 않습니다. 스킬도 같은 런타임에서
 각 사람 명령의 `python3`로 돌고, 누가 처음 쓸 때 아무것도 설치하지 않습니다.

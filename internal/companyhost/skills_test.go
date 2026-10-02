@@ -107,7 +107,7 @@ func TestEveryBundledSkillIsPreparedTheWayItDeclares(t *testing.T) {
 	}
 }
 
-func TestSkillsArePreparedWhereEveryPersonsCommandFindsThem(t *testing.T) {
+func TestSkillsArePreparedOnWhatEveryPersonsCommandRunsWithNoCacheOfTheirs(t *testing.T) {
 	layout := skillsLayout(t, map[string]skillFixture{
 		"office":   {hasSetupEntry: true},
 		"dataroom": {hasRuntime: true, requirements: "pyyaml\n"},
@@ -121,19 +121,30 @@ func TestSkillsArePreparedWhereEveryPersonsCommandFindsThem(t *testing.T) {
 		t.Fatalf("expected the setup and the bootstrap to run, ran %v", machine.runs)
 	}
 	for _, run := range runs {
-		for _, setting := range []string{
-			"PATH=" + layout.SearchPath(),
-			"XDG_CACHE_HOME=" + layout.PreparedSkillsPath(),
-			"UV_PYTHON_DOWNLOADS=never",
-		} {
+		for _, setting := range []string{"PATH=" + layout.SearchPath(), "UV_PYTHON_DOWNLOADS=never"} {
 			if !slices.Contains(run, setting) {
 				t.Fatalf("%v does not run with %s", run, setting)
 			}
 		}
+		for _, name := range []string{"HOME", "XDG_CACHE_HOME", "UV_CACHE_DIR", "BUN_INSTALL_CACHE_DIR", "npm_config_cache"} {
+			value := settingIn(run, name)
+			if value == "" || !strings.Contains(value, "internkim-skill-preparation-") {
+				t.Fatalf("%v runs with %s=%q, a directory that outlives this run", run, name, value)
+			}
+			if _, errorValue := os.Stat(value); !os.IsNotExist(errorValue) {
+				t.Fatalf("%s=%s was left behind after the preparation", name, value)
+			}
+		}
 	}
-	if information, errorValue := os.Stat(layout.PreparedSkillsPath()); errorValue != nil || information.Mode().Perm() != 0o755 {
-		t.Fatalf("the prepared skills are not in a directory every person can read: %v %v", information, errorValue)
+}
+
+func settingIn(run []string, name string) string {
+	for _, argument := range run {
+		if value, isSetting := strings.CutPrefix(argument, name+"="); isSetting {
+			return value
+		}
 	}
+	return ""
 }
 
 func TestASkillWhoseCommandPredatesSetupIsPreparedFromItsRequirements(t *testing.T) {

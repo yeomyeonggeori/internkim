@@ -29,18 +29,17 @@ A virtual-machine guest and cloudflared are **not** needed.
 ### What the skills need
 
 The bundled skills that write a document, a spreadsheet, a PDF or a deck run as
-the requester, through the PATH blueclaw fixes. Every requester has a cache home
-of its own, so nothing a skill prepares in one is found by the next person.
-The package's install step therefore runs `internkim prepare-skills`, which
-prepares every skill once, as the owner of the skills, into `.prepared` beside
-them: a skill with a command named after it runs that command's `setup`, and
-any other skill that declares `scripts/requirements.txt` runs its own
-`scripts/skill_runtime.py`. The package carries the rest:
+the requester, through the PATH blueclaw fixes, and install nothing when they
+run. The package's install step runs `internkim prepare-skills`, which runs
+every skill's own setup once, as the owner of the skills, with throwaway
+download caches. Each setup keeps what its skill needs beside the skill's
+files, where every person can read it and the next upgrade replaces it. The
+package carries the rest:
 
 | | Why |
 |---|---|
 | **NanumGothic** | the Linux package installs it at `/usr/share/fonts/truetype/internkim/NanumGothic.ttf`, a path every skill that embeds a font into a PDF looks for, and a Mac answers with its own AppleSDGothicNeo; without a Hangul face fpdf2 falls back to DejaVu, which has none, and writes the file anyway |
-| **python3 and uv** | the interpreter the skills run on and the installer their preparation uses; the install step puts uv's pinned CPython first on every service's PATH |
+| **python3 and uv** | the interpreter the skills run on and the installer their setup uses; the install step puts uv's pinned CPython first on every service's PATH |
 | **the conversion venv** | `/opt/internkim/document-venv`, on that CPython, synced from the hashed lock `assets/document-conversion/requirements.txt` by the package's install step. capabilityd runs `file_read` conversions under it (`--file-read-python`) and never resolves anything itself; the skills do not use it and it is not on the requester's PATH |
 
 Each absence produces a plausible file rather than an error, so `internkim
