@@ -18,6 +18,7 @@ mkdir -p "$binaryDirectory"
 chmod 755 "$(dirname "$binaryDirectory")" "$binaryDirectory"
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-capabilityd" ./cmd/internkim-capabilityd
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/internkim-admind" ./cmd/internkim-admind
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o "$binaryDirectory/describe-company-host" ./cmd/describe-company-host
 go run ./cmd/describe-company-host "$planeDirectory"
 (
   cd "$repositoryRoot/.dependency/blueclaw"
