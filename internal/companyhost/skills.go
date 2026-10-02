@@ -79,6 +79,9 @@ func prepareSkillsIn(layout blueclaw.CompanyHostLayout, setupOptions []string, m
 	if errorValue := requireTheOwnerOf(layout.SkillsPath()); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := removeWhatNoLongerShipsAsASkill(layout.SkillsPath(), progress); errorValue != nil {
+		return errorValue
+	}
 	skills, errorValue := bundledSkillsIn(layout.SkillsPath())
 	if errorValue != nil {
 		return errorValue
@@ -122,6 +125,28 @@ func accountName(userID uint32) string {
 		return fmt.Sprintf("uid %d", userID)
 	}
 	return account.Username
+}
+
+// A release that drops a skill leaves its directory behind, holding what its
+// setup wrote, which the package manager does not own. A directory without a
+// SKILL.md is not a skill, by the rule blueclaw and bundledSkillsIn both read,
+// so it goes. A symbolic link is never followed or removed.
+func removeWhatNoLongerShipsAsASkill(skillsPath string, progress io.Writer) error {
+	entries, errorValue := os.ReadDir(skillsPath)
+	if errorValue != nil {
+		return errorValue
+	}
+	for _, entry := range entries {
+		leftoverPath := filepath.Join(skillsPath, entry.Name())
+		if !entry.Type().IsDir() || isRegularFile(filepath.Join(leftoverPath, skillDocumentName)) {
+			continue
+		}
+		fmt.Fprintf(progress, "Removing %s, which this release no longer ships as a skill…\n", leftoverPath)
+		if errorValue := os.RemoveAll(leftoverPath); errorValue != nil {
+			return fmt.Errorf("could not remove %s, left by a skill this release no longer ships: %w", leftoverPath, errorValue)
+		}
+	}
+	return nil
 }
 
 func bundledSkillsIn(skillsPath string) ([]bundledSkill, error) {

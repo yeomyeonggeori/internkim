@@ -147,6 +147,36 @@ func settingIn(run []string, name string) string {
 	return ""
 }
 
+func TestASkillTheReleaseNoLongerShipsIsRemovedBeforeTheOthersArePrepared(t *testing.T) {
+	layout := skillsLayout(t, map[string]skillFixture{
+		"dataroom": {hasRuntime: true, requirements: "pyyaml\n"},
+		"website":  {hasSetupEntry: true, isNotASkill: true},
+	})
+	leftoverPath := filepath.Join(layout.SkillsPath(), "website")
+	outsidePath := filepath.Join(t.TempDir(), "outside")
+	writeFixtureFile(t, filepath.Join(outsidePath, "kept"), "", 0o644)
+	linkPath := filepath.Join(layout.SkillsPath(), "linked")
+	if errorValue := os.Symlink(outsidePath, linkPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
+	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if _, errorValue := os.Stat(leftoverPath); !os.IsNotExist(errorValue) {
+		t.Fatalf("%s, a directory with no SKILL.md, survived the upgrade: %v", leftoverPath, errorValue)
+	}
+	if len(bootstrapRuns(machine, layout, "dataroom")) != 1 || len(setupRuns(machine, layout, "website")) != 0 {
+		t.Fatalf("expected only the shipped skill to be prepared: %v", machine.runs)
+	}
+	if _, errorValue := os.Lstat(linkPath); errorValue != nil {
+		t.Fatalf("a symbolic link under the skills was removed: %v", errorValue)
+	}
+	if _, errorValue := os.Stat(filepath.Join(outsidePath, "kept")); errorValue != nil {
+		t.Fatalf("removal reached outside the skills through a link: %v", errorValue)
+	}
+}
+
 func TestASkillWhoseCommandPredatesSetupIsPreparedFromItsRequirements(t *testing.T) {
 	layout := skillsLayout(t, map[string]skillFixture{
 		"office": {hasSetupEntry: true, hasRuntime: true, requirements: "python-docx\n"},
