@@ -38,7 +38,7 @@ func (target commandTarget) sshConnection() *sshClient {
 
 func (target commandTarget) fleetIdentity() (string, string, error) {
 	if target.fleetID == "" || target.fleetSecret == "" {
-		return "", "", errors.New("the vault names no INTERNKIM_FLEET_ID and INTERNKIM_FLEET_SECRET for this device; run it as `internkim @production …`")
+		return "", "", errors.New("the vault names no INTERNKIM_FLEET_ID and INTERNKIM_FLEET_SECRET for this device; run it as `internkim @board …`")
 	}
 	return target.fleetID, target.fleetSecret, nil
 }

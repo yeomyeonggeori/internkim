@@ -3,10 +3,10 @@
 
 A service token lasts a year and needs no browser;
 `tools/provision-cloudflare-ssh-service-token` creates one and attaches the
-policy that admits it. It lives in the @production vault profile.
+policy that admits it. It lives in the @board vault profile.
 
 ssh starts this with whatever environment it holds, so this re-executes itself
-under `monkeys run @production` to be handed the token:
+under `monkeys run @board` to be handed the token:
 
     Host 0.ssh.*.intern.kim 1.ssh.*.intern.kim
       ProxyCommand /path/to/tools/cloudflared-access-ssh %h
@@ -20,7 +20,7 @@ import shutil
 import sys
 
 repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
-tokenProfile = "production"
+tokenProfile = "board"
 clientIDVariable = "INTERNKIM_CF_ACCESS_CLIENT_ID"
 clientSecretVariable = "INTERNKIM_CF_ACCESS_CLIENT_SECRET"
 vaultMarker = "INTERNKIM_ENVIRONMENT_FROM_VAULT"

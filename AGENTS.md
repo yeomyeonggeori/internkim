@@ -535,7 +535,7 @@ and delete the duplicates.
 - A green `systemctl` is not a working agent: look for a task run newer than
   the upgrade.
 - The Jetson that ran the device path is reached only for its cutover:
-  `./internkim @production recover --action migration-export` asks its admind for
+  `./internkim @board recover --action migration-export` asks its admind for
   the export, and `tools/cloudflared-access-ssh` is the ProxyCommand that
   copies it off. `recover`, the fleet ID and secret, the device URL and
   admind's recovery actions go once the Jetson is off.
