@@ -342,8 +342,8 @@ and delete the duplicates.
   `buzzidentity.Secret` does, sends the agent a picture through chatd's person
   capabilities, and reads the task ledger and the person's workspace. The agent
   writing to a person goes through the public API on admind's socket, and the
-  recipient's own Buzz inbox is read for it. A mention of the agent in a channel is
-  read from the agent's connector diagnostic. The guest half is
+  recipient's own Buzz inbox is read for it. A mention of the agent in a channel they
+  share is read as a task in the agent's ledger. The guest half is
   `tools/native_install_messenger.py`.
 
 ## Blueclaw Skill Size Budget
