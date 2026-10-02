@@ -119,8 +119,92 @@ func TestEveryClientIsGivenASocketAddressOnALinuxHost(t *testing.T) {
 	if layout.CacheURL() != "redis+unix://"+CompanyHostCacheSocketPath {
 		t.Errorf("the cache address is %q", layout.CacheURL())
 	}
-	mac := MacCompanyHostLayout("/opt/homebrew")
-	if !strings.Contains(mac.DatabaseURL("internkim", "x", "blueclaw"), "127.0.0.1:5432") || mac.CacheURL() != BuzzRelayRedisURL {
-		t.Error("a Mac is given a socket address for a database Homebrew runs on loopback")
+}
+
+// A person's own PostgreSQL and Redis on the same Mac answer on 5432 and 6379.
+// The host's database answers on a port of its own and its cache on no port.
+func TestAMacClientReachesTheHostsOwnDatabaseAndCacheAndNotThePersons(t *testing.T) {
+	mac := MacCompanyHostLayout(testHomebrewPrefix)
+	if url := mac.DatabaseURL("internkim", "x", "blueclaw"); !strings.Contains(url, "@"+macDatabaseLoopbackAddress+"/") || strings.Contains(url, ":5432") {
+		t.Errorf("the database address is %q", url)
+	}
+	if mac.CacheURL() != "redis+unix://"+CompanyHostCacheDataPath+"/cache.sock" {
+		t.Errorf("the cache address is %q, which is not the socket in the cache's own directory", mac.CacheURL())
+	}
+}
+
+func macDataDaemon(t *testing.T, serviceName string) CompanyHostLaunchDaemon {
+	t.Helper()
+	daemons, errorValue := CompanyHostDataLaunchDaemons(MacCompanyHostLayout(testHomebrewPrefix))
+	if errorValue != nil {
+		t.Fatalf("the data daemons do not render: %v", errorValue)
+	}
+	for _, daemon := range daemons {
+		if daemon.ServiceName == serviceName {
+			return daemon
+		}
+	}
+	t.Fatalf("a Mac has no %s daemon among %v", serviceName, daemons)
+	return CompanyHostLaunchDaemon{}
+}
+
+func renderedPlistString(key string, value string) string {
+	return "<key>" + key + "</key>\n\t<string>" + value + "</string>"
+}
+
+func TestTheMacDatabaseIsHomebrewsPostgresRunAsTheHostsOwnAccount(t *testing.T) {
+	daemon := macDataDaemon(t, CompanyHostDatabaseServiceName)
+	if daemon.Label != "kim.intern."+CompanyHostDatabaseServiceName {
+		t.Errorf("the database's label is %s", daemon.Label)
+	}
+	for _, required := range []string{
+		renderedPlistString("UserName", CompanyHostDatabaseUser),
+		renderedPlistString("GroupName", CompanyHostDatabaseUser),
+		"<array>\n\t\t<string>" + testHomebrewPrefix + "/opt/postgresql@17/bin/postgres</string>",
+		"<string>-D</string>\n\t\t<string>/var/lib/internkim-postgres</string>",
+		"<string>listen_addresses=127.0.0.1</string>",
+		"<string>port=18432</string>",
+		"<string>unix_socket_directories=/var/lib/internkim-postgres</string>",
+	} {
+		if !strings.Contains(daemon.Contents, required) {
+			t.Errorf("the database daemon does not carry %q:\n%s", required, daemon.Contents)
+		}
+	}
+}
+
+func TestTheMacCacheIsHomebrewsRedisOnASocketOnly(t *testing.T) {
+	daemon := macDataDaemon(t, CompanyHostCacheServiceName)
+	for _, required := range []string{
+		renderedPlistString("UserName", CompanyHostCacheUser),
+		"<array>\n\t\t<string>" + testHomebrewPrefix + "/opt/redis/bin/redis-server</string>",
+		"<string>--port</string>\n\t\t<string>0</string>",
+		"<string>--unixsocket</string>\n\t\t<string>/var/lib/internkim-cache/cache.sock</string>",
+		"<string>--dir</string>\n\t\t<string>/var/lib/internkim-cache</string>",
+	} {
+		if !strings.Contains(daemon.Contents, required) {
+			t.Errorf("the cache daemon does not carry %q:\n%s", required, daemon.Contents)
+		}
+	}
+}
+
+func TestTheMacClusterIsMadeAsTheDatabasesAccountWithPeerForItAlone(t *testing.T) {
+	initialization := strings.Join(CompanyHostDatabaseInitialization(MacCompanyHostLayout(testHomebrewPrefix)), " ")
+	for _, required := range []string{
+		testHomebrewPrefix + "/opt/postgresql@17/bin/initdb",
+		"--pgdata " + CompanyHostDatabaseDataPath,
+		"--username " + CompanyHostDatabaseUser,
+		"--auth-local=peer",
+		"--auth-host=scram-sha-256",
+	} {
+		if !strings.Contains(initialization, required) {
+			t.Errorf("the cluster is made without %q: %s", required, initialization)
+		}
+	}
+}
+
+func TestALinuxHostHasNoDataLaunchDaemons(t *testing.T) {
+	daemons, errorValue := CompanyHostDataLaunchDaemons(LinuxCompanyHostLayout())
+	if errorValue != nil || len(daemons) != 0 {
+		t.Fatalf("a Linux host renders launchd daemons for its database and cache: %v %v", daemons, errorValue)
 	}
 }
