@@ -12,7 +12,7 @@ import {
 	turnWordsOwingOnlyTheReply,
 	whatTheModelWasAsked
 } from './a-model-nobody-pays-for';
-import { directMessagesDelivered } from './a-messenger-nobody-runs';
+import { directMessagesDelivered, messagesPostedTo } from './a-messenger-nobody-runs';
 import { handToTheRelay, until } from './an-inbound-message';
 
 // 이샘플 asks the agent to write to 박예시, the agent stops to ask whether it may,
@@ -113,15 +113,7 @@ test('a question held across a relay restart is asked once and answered once', a
 }, 180_000);
 
 function postsToTheConversation(): string[] {
-	const posted: string[] = [];
-	for (const call of plane.connector.calls) {
-		if (!call.path.endsWith('/message.post')) continue;
-		if (typeof call.body !== 'object' || call.body === null) continue;
-		const document = call.body as Record<string, unknown>;
-		if (document.channelID !== theConversation()) continue;
-		posted.push(typeof document.message === 'string' ? document.message : '');
-	}
-	return posted;
+	return messagesPostedTo(plane.connector, theConversation());
 }
 
 // until() is handed its sentence before it starts waiting, so what the run

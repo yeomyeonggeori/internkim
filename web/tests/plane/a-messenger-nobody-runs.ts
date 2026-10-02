@@ -46,6 +46,12 @@ function refusalFromChatd(capability: string, body: unknown): string | null {
 		}
 		return null;
 	}
+	if (capability === 'message.post') {
+		const missing = requireText('message');
+		if (missing) return missing;
+		const names = ['threadID', 'channelID', 'channelName'].filter((field) => typeof document[field] === 'string' && document[field] !== '');
+		return names.length > 0 ? null : 'message.post requires threadID, channelID, or channelName';
+	}
 	if (capability === 'dm.send') {
 		const missing = requireText('userSecretHex');
 		if (missing) return missing;
@@ -115,6 +121,18 @@ export function postsDelivered(messenger: ARecordingMessenger): RecordedCall[] {
 
 export function directMessagesDelivered(connector: ARecordingMessenger): RecordedCall[] {
 	return connector.calls.filter((call) => /^\/v1\/platform\/[^/]+\/dm\./.test(call.path));
+}
+
+export function messagesPostedTo(connector: ARecordingMessenger, conversationID: string): string[] {
+	const posted: string[] = [];
+	for (const call of connector.calls) {
+		if (!call.path.endsWith('/message.post')) continue;
+		if (typeof call.body !== 'object' || call.body === null) continue;
+		const document = call.body as Record<string, unknown>;
+		if (document.threadID !== conversationID) continue;
+		posted.push(typeof document.message === 'string' ? document.message : '');
+	}
+	return posted;
 }
 
 export function platformOf(call: RecordedCall): string {

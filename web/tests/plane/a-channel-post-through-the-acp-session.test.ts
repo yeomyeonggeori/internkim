@@ -10,6 +10,7 @@ import {
 	turnWordsOwingOnlyTheReply,
 	whatTheModelWasAsked
 } from './a-model-nobody-pays-for';
+import { messagesPostedTo } from './a-messenger-nobody-runs';
 import { handToTheRelay, until } from './an-inbound-message';
 
 // 이샘플 writes in a room, names the agent, and the agent answers in that room.
@@ -102,15 +103,7 @@ test('a message in that room that names nobody is answered by nobody', async () 
 // The connector records the whole call, and what a reader wants from a post is
 // the words in it.
 function postsToTheRoom(): string[] {
-	const posted: string[] = [];
-	for (const call of plane.connector.calls) {
-		if (!call.path.endsWith('/message.post')) continue;
-		if (typeof call.body !== 'object' || call.body === null) continue;
-		const document = call.body as Record<string, unknown>;
-		if (document.channelID !== theRoom()) continue;
-		posted.push(typeof document.message === 'string' ? document.message : '');
-	}
-	return posted;
+	return messagesPostedTo(plane.connector, theRoom());
 }
 
 async function addressingGatesAsked(): Promise<number> {
