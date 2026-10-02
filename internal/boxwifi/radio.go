@@ -1,18 +1,26 @@
 package boxwifi
 
-import "context"
-
-const (
-	SetupNetworkName     = "kimmini"
-	SetupNetworkPassword = "intern-kim"
-	boxNameSuffixLength  = 4
+import (
+	"context"
+	"time"
 )
 
-func SetupNetworkNameFor(boxPublicKey string) string {
-	if len(boxPublicKey) < boxNameSuffixLength {
-		return SetupNetworkName
+const (
+	SetupNetworkName       = "kimmini"
+	SetupNetworkPassword   = "intern-kim"
+	boxNameSuffixLength    = 4
+	setupNetworkDateLayout = "060102"
+)
+
+func SetupNetworkNameFor(boxPublicKey string, madeOn time.Time) string {
+	name := SetupNetworkName
+	if len(boxPublicKey) >= boxNameSuffixLength {
+		name += "-" + boxPublicKey[len(boxPublicKey)-boxNameSuffixLength:]
 	}
-	return SetupNetworkName + "-" + boxPublicKey[len(boxPublicKey)-boxNameSuffixLength:]
+	if !madeOn.IsZero() {
+		name += "-" + madeOn.Format(setupNetworkDateLayout)
+	}
+	return name
 }
 
 type Network struct {

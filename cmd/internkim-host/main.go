@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -141,6 +142,7 @@ func runBox(arguments []string) {
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
 	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
+	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		fmt.Fprintln(os.Stderr, errorValue)
@@ -150,7 +152,7 @@ func runBox(arguments []string) {
 	defer stop()
 	daemon := boxDaemon(*appURL)
 	if *setsUpWifi {
-		daemon = withWifiSetup(daemon, *appURL)
+		daemon = withWifiSetup(daemon, *appURL, madeOnFrom(*madeOnPath))
 	}
 	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
@@ -163,12 +165,20 @@ func runBox(arguments []string) {
 	}
 }
 
-func withWifiSetup(daemon box.Daemon, appURL string) box.Daemon {
+func madeOnFrom(path string) time.Time {
+	madeOn, errorValue := boxwifi.ReadMadeOn(path)
+	if errorValue != nil {
+		log.Printf("naming the kimmini network without a date: %v", errorValue)
+	}
+	return madeOn
+}
+
+func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemon {
 	radio := boxwifi.NetworkManagerRadio{ReachesPlane: func(ctx context.Context) bool { return reachesURL(ctx, appURL) }}
 	watcherRadio := radio
 	watcherRadio.RescanMode = passiveRescanMode
 	daemon.GetOnline = func(ctx context.Context, boxPublicKey string) error {
-		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(boxPublicKey)}
+		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(boxPublicKey, madeOn)}
 		return setup.Run(ctx)
 	}
 	daemon.ChangeWifi = radio.Switch
