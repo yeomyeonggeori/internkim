@@ -70,7 +70,6 @@ var SSHRecoveryActions = []string{
 	"reboot",
 	"stop-tenant-pilots",
 	"remove-tenant-pilots",
-	"limit-blueclaw",
 	"restart-blueclaw",
 	"blueclaw-boot-diagnose",
 	"blueclaw-journal",
@@ -198,8 +197,6 @@ func (service *Service) runSSHRecovery(ctx context.Context, action string, actio
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "stop tenant pilots", "sh", "-lc", stopTenantPilotsCommand()))
 	case "remove-tenant-pilots":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "remove tenant pilots", "sh", "-lc", removeTenantPilotsCommand()))
-	case "limit-blueclaw":
-		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "limit Blueclaw guest resources", "sh", "-lc", blueclawResourceLimitCommand()))
 	case "release-setup-lock":
 		response.Results = append(response.Results, service.runSSHRecoveryCommand(ctx, "release a setup lock nobody holds", "sh", "-lc", releaseSetupLockCommand()))
 	case "restart-blueclaw":
@@ -868,44 +865,6 @@ echo "reverted to fresh cluster"
 `)
 	return detachedRecoveryCommand("internkim-blueclaw-postgres-salvage", salvageScript,
 		"salvage started; tail /var/log/internkim-postgres-salvage.log for progress")
-}
-
-func blueclawResourceLimitCommand() string {
-	workspaceRuntimeConfigPath := blueclaw.BlueclawWorkspacePath + "/.blueclaw/config/runtime.json"
-	return strings.TrimSpace(fmt.Sprintf(`
-set -eu
-virtual_cpu_count=%d
-memory_mib=%d
-for path in %s %s; do
-  [ -f "$path" ] || continue
-  temporary_path=$(mktemp)
-  jq --argjson virtualCPUCount "$virtual_cpu_count" --argjson memoryMiB "$memory_mib" '.guest.vcpuCount = $virtualCPUCount | .guest.memoryMiB = $memoryMiB' "$path" > "$temporary_path"
-  cat "$temporary_path" > "$path"
-  rm -f "$temporary_path"
-  printf '%%s updated\n' "$path"
-done
-systemctl restart %s
-health_status=failed
-for attempt in $(seq 1 90); do
-	if curl -fsS -m 2 http://127.0.0.1:8080/admin/api/health >/tmp/internkim-blueclaw-health.json 2>/dev/null; then
-    health_status=ok
-    break
-  fi
-  sleep 2
-done
-printf 'blueclaw health %%s\n' "$health_status"
-jq -r '"runtime vcpuCount=" + (.guest.vcpuCount|tostring) + " memoryMiB=" + (.guest.memoryMiB|tostring)' %s
-ps -eo pcpu,pmem,rss,pid,comm --sort=-rss | head -8
-free -h
-[ "$health_status" = ok ]
-	`,
-		blueclaw.BlueclawGuestDefaultVirtualCPUCount,
-		blueclaw.BlueclawGuestDefaultMemoryMiB,
-		blueclaw.BlueclawRuntimeConfigPath,
-		workspaceRuntimeConfigPath,
-		blueclaw.BlueclawServiceName,
-		blueclaw.BlueclawRuntimeConfigPath,
-	))
 }
 
 func stopTenantPilotsCommand() string {

@@ -99,29 +99,6 @@ func TestSSHRecoverySnapshotCapturesDiagnosticsWithoutSecrets(t *testing.T) {
 	}
 }
 
-func TestSSHRecoveryLimitBlueclawUsesBoundedRuntimeUpdate(t *testing.T) {
-	service := newRecoveryTestService(t)
-	commands := []string{}
-	requireCommandStates(t, blueclawResourceLimitCommand(),
-		"virtual_cpu_count=2", "memory_mib=4096", "systemctl restart blueclaw", "jq --argjson virtualCPUCount")
-	service.RunCommand = recordingRecoveryRunner(&commands,
-		blueclawResourceLimitCommand(), "runtime vcpuCount=2 memoryMiB=4096\nblueclaw health ok\n")
-
-	recorder := httptest.NewRecorder()
-	request := signedRecoveryRequest(t, service, "limit-blueclaw", "nonce-1", time.Now().UTC())
-	service.handleAdmin(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
-	}
-	if !containsString(commands, "sh -lc "+blueclawResourceLimitCommand()) {
-		t.Fatalf("expected Blueclaw limit command, got %+v", commands)
-	}
-	if !strings.Contains(recorder.Body.String(), "runtime vcpuCount=2 memoryMiB=4096") {
-		t.Fatalf("expected resource limit result in response, got %s", recorder.Body.String())
-	}
-}
-
 func TestSSHRecoveryRestartBlueclawReturnsDiagnostics(t *testing.T) {
 	service := newRecoveryTestService(t)
 	commands := []string{}

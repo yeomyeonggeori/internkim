@@ -110,17 +110,12 @@ installBunWorkspaces() {
 }
 
 syncSharedDependencyArtifacts() {
-  syncLocalState ".dependency/blueclaw-runtime"
   syncLocalState ".dependency/container-kernel"
   syncLocalState ".dependency/device-browser"
   syncLocalState ".dependency/agent-browser"
   syncLocalState ".dependency/llama-cpp"
   syncLocalState ".dependency/llama-cpp-models"
   syncLocalState ".dependency/litert-models"
-  syncLocalState ".dependency/local-fleet-embedding"
-  # The relay is built from its own source and carries its own revision, so every
-  # worktree wants the same 2 GB of it. Leaving it out cost a fleet run: the buzz
-  # steps only fail once provisioning is minutes in.
   syncLocalState ".dependency/buzz-relay"
 }
 

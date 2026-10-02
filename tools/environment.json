@@ -35,37 +35,9 @@
     "process": "tools/render-company-runtime",
     "description": "Blueclaw's base URL rendered into the company plane's runtime document; defaults to http://127.0.0.1:8080"
   },
-  "BLUECLAW_BUILD_KERNEL": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "when \"1\", builds the guest Linux kernel from source instead of requiring BLUECLAW_KERNEL_IMAGE_SOURCE"
-  },
-  "BLUECLAW_BUN_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the Bun version installed into the Blueclaw guest rootfs; defaults to 1.3.10"
-  },
   "BLUECLAW_E2E_LLM_PROVIDER": {
     "process": "cli tests",
     "description": "overrides the model provider internal/cli/test_command.go's scenario runner uses"
-  },
-  "BLUECLAW_KERNEL_IMAGE_SOURCE": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "a prebuilt arm64 guest kernel image to use instead of building one"
-  },
-  "BLUECLAW_LINUX_KERNEL_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the Linux kernel version built for the Blueclaw guest; defaults to 6.1.129"
-  },
-  "BLUECLAW_ROOTFS_IMAGE_SOURCE": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "a prebuilt guest rootfs image to use instead of building one"
-  },
-  "BLUECLAW_RUNTIME_ROOTFS_SIZE": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the size of the Blueclaw guest rootfs ext4 image; defaults to 4G"
-  },
-  "BLUECLAW_UV_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the uv (Python package manager) version installed into the Blueclaw guest rootfs; defaults to 0.11.11"
   },
   "BUZZ_IMPORT_KEEP": {
     "process": "buzzimport live tests",
@@ -143,10 +115,6 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
-  "CLOUD_HYPERVISOR_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the cloud-hypervisor version fetched for the Blueclaw guest runtime; defaults to 53.0"
-  },
   "COMPANY_CONNECTIONS": {
     "process": "connection-gateway worker",
     "description": "the Durable Object namespace binding backing one company's gateway connections"
@@ -203,14 +171,6 @@
     "process": "tools/fetch-gemma-gguf",
     "description": "the URL to download the Gemma GGUF model from"
   },
-  "GOCACHE": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the Go build cache directory the script reads (with a /tmp fallback) and forwards to the `go build` it runs"
-  },
-  "GOMODCACHE": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the Go module cache directory, forwarded unchanged to the `go build` tools/prepare-blueclaw-runtime runs when the caller has set one"
-  },
   "HOME": {
     "process": "tools",
     "description": "the invoking user's home directory (standard POSIX variable), read to locate build caches"
@@ -238,30 +198,6 @@
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
     "description": "where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file"
-  },
-  "INTERNKIM_BLUECLAW_PAYLOAD_ARTIFACT_DIR": {
-    "process": "tools/prepare-blueclaw-payload",
-    "description": "where the built Blueclaw payload artifact is written; defaults under .dependency/blueclaw-payload"
-  },
-  "INTERNKIM_BLUECLAW_RUNTIME_ARTIFACT_DIR": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "where the built Blueclaw guest runtime artifact is written; defaults under .dependency/blueclaw-runtime"
-  },
-  "INTERNKIM_BLUECLAW_RUNTIME_CACHE_DIR": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the scratch cache directory for downloaded build inputs; defaults under the scratch directory"
-  },
-  "INTERNKIM_BLUECLAW_RUNTIME_SCRATCH_DIR": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the scratch working root for the guest runtime build; defaults under $TMPDIR"
-  },
-  "INTERNKIM_BLUECLAW_RUNTIME_WORK_DIR": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the working directory for the guest runtime build's stage and rootfs trees; defaults under the scratch directory"
-  },
-  "INTERNKIM_BLUECLAW_USE_LOCAL": {
-    "process": "device",
-    "description": "when \"1\", internal/runtime/blueclaw uses the uncommitted local .dependency/blueclaw checkout instead of the committed payload artifact"
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "tools/mirror-local",
@@ -308,10 +244,6 @@
     "description": "the device's public admin address, from the @legacy vault profile; `internkim recover` posts its signed recovery requests there",
     "isInVault": true
   },
-  "INTERNKIM_E2E_CONFIG": {
-    "process": "tools/e2e-crud",
-    "description": "overrides the fleet run config.json path the e2e-crud/e2e-approve-button/e2e-ask-flow/reprovision-local-fleet drivers use instead of the newest one under .local/local-fleet/runs"
-  },
   "INTERNKIM_ENVIRONMENT_FROM_VAULT": {
     "process": "cli",
     "description": "set by the CLI on the run it starts through `monkeys run`, so that run knows the vault environment already arrived and does not start another"
@@ -333,10 +265,6 @@
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
     "description": "where web/static/install.sh downloads the host's files and their SHA256SUMS from; defaults to the GitHub release the channel names. The native install rig points it at a release served from the Mac"
-  },
-  "INTERNKIM_KEEP_CONTAINER_VM": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "when \"1\", leaves the container-based runtime builder VM running after the build instead of stopping it"
   },
   "INTERNKIM_LIVE_ARTIFACT_DIR": {
     "process": "llmbackend live tests",
@@ -367,14 +295,6 @@
   "INTERNKIM_RIG_ARCHITECTURE": {
     "process": "tools/native_install_rig.py",
     "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
-  },
-  "INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the transfer size ceiling for the remote runtime-builder rsync; defaults to 5000000000"
-  },
-  "INTERNKIM_RUNTIME_BUILDER_PROBE_SECONDS": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "how long the remote runtime-builder waits when probing the transfer; defaults to 120"
   },
   "INTERNKIM_SSH_HOSTNAME": {
     "process": "cli",
@@ -614,19 +534,11 @@
     "process": "admind",
     "description": "the IANA time zone name internal/admind/system_time_zone.go reads as the environment's declared zone"
   },
-  "USER": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the invoking user's login name, used as the default SSH user for the remote runtime-builder"
-  },
   "VAPID_PUBLIC_KEY": {
     "process": "web",
     "description": "the VAPID public key injected into the page for push-notification subscription; the matching private key lives in Supabase Vault, not the environment",
     "isRequiredOnPages": true,
     "isInVault": true
-  },
-  "VIRTIOFSD_VERSION": {
-    "process": "tools/prepare-blueclaw-runtime",
-    "description": "the virtiofsd version fetched for the Blueclaw guest runtime; defaults to 1.10.0-1ubuntu0.1"
   },
   "VITE_ADMIND_TARGET": {
     "process": "web",

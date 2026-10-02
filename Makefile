@@ -3,7 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
 
-.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay prepare-buzz-relay-linux fleet-gate sim-gate
+.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-buzz-relay prepare-buzz-relay-linux
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -45,15 +45,6 @@ deps-browser:
 	cd web && bun install
 	cd web && bunx playwright install chromium
 
-prepare-blueclaw-runtime-builder: build
-	./internkim lab runtime-builder-prepare
-
-prepare-blueclaw-runtime-base:
-	if [ "$$(uname -s)" = "Linux" ]; then GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder local; else GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-runtime --builder container; fi
-
-prepare-blueclaw-payload: verify-generated-protocol
-	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) tools/prepare-blueclaw-payload
-
 prepare-buzz-relay:
 	tools/prepare-buzz-relay
 
@@ -63,7 +54,3 @@ prepare-buzz-relay-linux:
 build-litert-lm-main:
 	tools/build-litert-lm-main
 
-fleet-gate: build
-	./internkim dev fleet run
-
-sim-gate: fleet-gate

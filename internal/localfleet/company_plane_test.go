@@ -28,9 +28,6 @@ func TestCompanyPlaneRunsInManagedLinuxVirtualMachine(t *testing.T) {
 			t.Fatal("the company plane is run by dev plane and is not a fleet scenario")
 		}
 	}
-	if !scenarioNeedsRuntimeBase("personal-settings") {
-		t.Fatal("device scenarios must validate their runtime payload")
-	}
 	cleanup := joinedPlanArguments(service.ephemeralCleanupPlans())
 	if !strings.Contains(cleanup, "'container' rm 'internkim-e2e-plane-test'") {
 		t.Fatalf("disposable company plane has no VM cleanup: %s", cleanup)

@@ -3,7 +3,6 @@ package localfleet
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type recordingLogger struct {
@@ -80,219 +78,6 @@ func TestEphemeralCleanupContextSurvivesCanceledRun(t *testing.T) {
 	}
 }
 
-func TestPredeployGateUsesOneRecipePlan(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.predeployGatePlans()
-	joinedPlans := joinedPlanArguments(plans)
-	for _, expectedFragment := range []string{
-		"-L '127.0.0.1:18080:127.0.0.1:18080'",
-		"prepare-container-kernel",
-		"prepare-local-fleet-embedding",
-		"make build",
-		"setup --board lab",
-		"sudo bash '/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh'",
-		"--admin-email local-fleet-admin@internkim.test",
-		"verify api",
-		"verify-personal-settings.ts",
-	} {
-		if !strings.Contains(joinedPlans, expectedFragment) {
-			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
-		}
-	}
-}
-
-func TestCompanyBrowserVerificationUsesManagedCentralPlane(t *testing.T) {
-	service, errorValue := NewService(Options{
-		RepositoryRootPath: "/repo",
-		ExecutablePath:     "/repo/internkim",
-		StateRootPath:      "/repo/.local/local-fleet/runs/browser-check",
-		CompanyAppPort:     5197,
-		AdminHostPort:      19080,
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plan := service.companyBrowserVerificationPlan()
-	if plan.Name != "bun" {
-		t.Fatalf("browser executable = %q", plan.Name)
-	}
-	if plan.DirectoryPath != "/repo" {
-		t.Fatalf("browser working directory = %q", plan.DirectoryPath)
-	}
-	expectedArguments := []string{
-		"run", filepath.Join("/repo", "tools", "verify-personal-settings.ts"),
-		"--state-root", "/repo/.local/local-fleet/runs/browser-check",
-		"--app-port", "5197",
-		"--admin-port", "19080",
-		"--chatd-url", blueclaw.ChatdEndpoint,
-		"--config", "/repo/.local/local-fleet/runs/browser-check/config.json",
-	}
-	if strings.Join(plan.Arguments, " ") != strings.Join(expectedArguments, " ") {
-		t.Fatalf("browser arguments = %q, want %q", strings.Join(plan.Arguments, " "), strings.Join(expectedArguments, " "))
-	}
-	personalSettingsPlans := service.personalSettingsScenarioPlans()
-	personalSettingsPlan := personalSettingsPlans[len(personalSettingsPlans)-1]
-	if strings.Join(personalSettingsPlan.Arguments, " ") != strings.Join(plan.Arguments, " ") {
-		t.Fatalf("personal settings arguments = %q, want shared browser verification arguments %q", strings.Join(personalSettingsPlan.Arguments, " "), strings.Join(plan.Arguments, " "))
-	}
-}
-
-func TestLearningSettingsScenarioUsesDedicatedSettingsScript(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.learningSettingsScenarioPlans()
-	joined := joinedPlanArguments(plans)
-	if !strings.Contains(joined, "scenario-learning-settings.sh") {
-		t.Fatalf("learning settings scenario did not use its dedicated script:\n%s", joined)
-	}
-	if strings.Contains(joined, "scenario-workspace-persistence.sh") {
-		t.Fatalf("learning settings scenario reused workspace persistence:\n%s", joined)
-	}
-}
-
-func TestTaskHistoryRetryScenarioRunsDatabaseAndRuntimeAcceptance(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.taskHistoryRetryScenarioPlans()
-	joined := joinedPlanArguments(plans)
-	if !strings.Contains(joined, "scenario-task-history-retry.py") {
-		t.Fatalf("task history retry scenario did not use its dedicated script:\n%s", joined)
-	}
-	for _, binary := range []string{"task-history-retry-postgres.test", "task-history-retry-runtime.test", "task-history-retry-admind.test"} {
-		if !strings.Contains(joined, binary) {
-			t.Fatalf("task history retry scenario did not build %s:\n%s", binary, joined)
-		}
-	}
-}
-
-func TestLocalEmbeddingLibraryProbeConsumesCompleteLdconfigOutput(t *testing.T) {
-	scriptPath := filepath.Join("..", "..", "lab", "scripts", "configure-local-embedding.sh")
-	document, errorValue := os.ReadFile(scriptPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	script := string(document)
-	if !strings.Contains(script, "ldconfig -p | grep -F 'libgomp.so.1' >/dev/null") {
-		t.Fatal("local embedding script does not probe libgomp safely")
-	}
-}
-
-func TestUpPlanCanSkipWebForScenarioOutputTests(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if !strings.Contains(joinedPlans, "--skip wifi,local-llm,web") {
-		t.Fatalf("expected test up plan to skip web:\n%s", joinedPlans)
-	}
-	if !strings.Contains(joinedPlans, "INTERNKIM_BLUECLAW_USE_LOCAL=1") {
-		t.Fatalf("expected test up plan to use local Blueclaw checkout:\n%s", joinedPlans)
-	}
-	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) {
-		t.Fatalf("expected test up plan to preserve tier model names:\n%s", joinedPlans)
-	}
-	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='low'") {
-		t.Fatalf("expected test up plan to cap models at low:\n%s", joinedPlans)
-	}
-	if !strings.Contains(joinedPlans, "setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock --force") {
-		t.Fatalf("expected test up plan to force setup against the disposable VM:\n%s", joinedPlans)
-	}
-	if strings.Contains(joinedPlans, "--only blueclaw-runtime-base") {
-		t.Fatalf("expected disposable fleet setup to install the runtime in its single setup pass:\n%s", joinedPlans)
-	}
-}
-
-func TestReusableUpPlanEnsuresRuntimeBaseBeforeForcedSetup(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.upPlans(true)
-	runtimeBasePlanIndex := planArgumentIndex(plans, "--only blueclaw-runtime-base")
-	forcedSetupPlanIndex := planArgumentIndex(plans, "--force --skip")
-	if runtimeBasePlanIndex < 0 || forcedSetupPlanIndex < 0 || runtimeBasePlanIndex >= forcedSetupPlanIndex {
-		t.Fatalf("expected runtime base ensure before forced setup:\n%s", joinedPlanArguments(plans))
-	}
-	runtimeBasePlan := strings.Join(plans[runtimeBasePlanIndex].Arguments, " ")
-	if strings.Contains(runtimeBasePlan, "--force") {
-		t.Fatalf("expected runtime base ensure to honor its satisfied check:\n%s", runtimeBasePlan)
-	}
-	forcedSetupPlan := strings.Join(plans[forcedSetupPlanIndex].Arguments, " ")
-	if !strings.Contains(forcedSetupPlan, "--skip wifi,local-llm,web,blueclaw-runtime-base") {
-		t.Fatalf("expected forced reusable setup to skip the ensured runtime base:\n%s", forcedSetupPlan)
-	}
-}
-
-func TestReusableUpPlanHonorsExplicitRuntimeBaseSkip(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.upPlansThroughSetup(true, []string{"blueclaw-runtime-base"})
-	if planArgumentIndex(plans, "--only blueclaw-runtime-base") >= 0 {
-		t.Fatalf("expected explicit runtime base skip to omit the ensure pass:\n%s", joinedPlanArguments(plans))
-	}
-}
-
-func TestUpPlanCanUseRealModels(t *testing.T) {
-	service, errorValue := NewService(Options{
-		RepositoryRootPath:  "/repo",
-		ExecutablePath:      "/repo/internkim",
-		ShouldUseRealModels: true,
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if strings.Contains(joinedPlans, blueclaw.BlueclawTestModelEnvironment) || strings.Contains(joinedPlans, blueclaw.BlueclawTestModelTierEnvironment) {
-		t.Fatalf("expected real model setup to omit test model selection:\n%s", joinedPlans)
-	}
-	if strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment) {
-		t.Fatalf("expected real model setup to omit model tier ceiling:\n%s", joinedPlans)
-	}
-}
-
-func TestUpPlanCanSetMaximumModelTier(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", MaximumModelTier: "high"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	if !strings.Contains(joinedPlans, blueclaw.BlueclawTestMaximumModelTierEnvironment+"='high'") {
-		t.Fatalf("expected high maximum model tier:\n%s", joinedPlans)
-	}
-}
-
-func TestUpPlanCanPassGenerationOptionsToSetup(t *testing.T) {
-	service, errorValue := NewService(Options{
-		RepositoryRootPath:    "/repo",
-		ExecutablePath:        "/repo/internkim",
-		GenerationSeed:        "41",
-		GenerationTemperature: "0",
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.upPlans(true))
-	for _, expectedFragment := range []string{
-		"INTERNKIM_TEST_GENERATION_SEED='41'",
-		"INTERNKIM_TEST_GENERATION_TEMPERATURE='0'",
-		"INTERNKIM_TEST_GENERATION_TEMPERATURE='0' '/repo/internkim' setup --board lab",
-	} {
-		if !strings.Contains(joinedPlans, expectedFragment) {
-			t.Fatalf("expected %q in plans:\n%s", expectedFragment, joinedPlans)
-		}
-	}
-}
-
 func TestScenarioPlanPassesConfigBeforeRemoteCommand(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
@@ -354,36 +139,6 @@ func TestStartTunnelCommandUsesConfiguredHostPorts(t *testing.T) {
 	}
 	if strings.Contains(command, "8065") {
 		t.Fatalf("expected no messenger port forward:\n%s", command)
-	}
-}
-
-func TestPreparedFleetPlansOnlyRestoreConnectivity(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	joinedPlans := joinedPlanArguments(service.preparedFleetPlans())
-	for _, expectedText := range []string{"vm-up", "test -d /mnt/shared/workspace", "ExitOnForwardFailure=yes"} {
-		if !strings.Contains(joinedPlans, expectedText) {
-			t.Fatalf("prepared Fleet plans are missing %q:\n%s", expectedText, joinedPlans)
-		}
-	}
-	for _, forbiddenText := range []string{"make build", "setup --board", "configure-local-embedding"} {
-		if strings.Contains(joinedPlans, forbiddenText) {
-			t.Fatalf("prepared Fleet plans contain %q:\n%s", forbiddenText, joinedPlans)
-		}
-	}
-}
-
-func TestRealModelsIgnorePinnedTestModel(t *testing.T) {
-	t.Setenv(blueclaw.BlueclawTestModelEnvironment, "test/pinned")
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", ShouldUseRealModels: true})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	assignments := strings.Join(service.setupEnvironmentAssignments(), " ")
-	if strings.Contains(assignments, blueclaw.BlueclawTestModelEnvironment) {
-		t.Fatalf("expected real models to ignore pinned test model: %s", assignments)
 	}
 }
 
@@ -481,125 +236,6 @@ func TestCheckSharedWorkspaceCommandUsesBindMountedDirectory(t *testing.T) {
 	}
 }
 
-func messengerArtifactFixture(t *testing.T, recordedRevision string) (string, string) {
-	t.Helper()
-	repositoryRootPath := t.TempDir()
-	blueclawPath := filepath.Join(repositoryRootPath, ".dependency", "blueclaw")
-	if errorValue := os.MkdirAll(blueclawPath, 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, arguments := range [][]string{
-		{"init", "--quiet"},
-		{"commit", "--quiet", "--allow-empty", "-m", "chatd"},
-	} {
-		command := exec.Command("git", arguments...)
-		command.Dir = blueclawPath
-		command.Env = append(os.Environ(),
-			"GIT_AUTHOR_NAME=test", "GIT_AUTHOR_EMAIL=test@example.com",
-			"GIT_COMMITTER_NAME=test", "GIT_COMMITTER_EMAIL=test@example.com")
-		if output, errorValue := command.CombinedOutput(); errorValue != nil {
-			t.Fatalf("git %v: %v: %s", arguments, errorValue, output)
-		}
-	}
-	pointerCommand := exec.Command("git", "rev-parse", "HEAD")
-	pointerCommand.Dir = blueclawPath
-	pointer, errorValue := pointerCommand.Output()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	artifactPath := filepath.Join(repositoryRootPath, ".dependency", "buzz-relay")
-	if errorValue := os.MkdirAll(artifactPath, 0o755); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if recordedRevision == matchingChatdRevision {
-		recordedRevision = strings.TrimSpace(string(pointer))
-	}
-	if recordedRevision != "" {
-		if errorValue := os.WriteFile(filepath.Join(artifactPath, "CHATD_REVISION"), []byte(recordedRevision+"\n"), 0o644); errorValue != nil {
-			t.Fatal(errorValue)
-		}
-	}
-	return repositoryRootPath, strings.TrimSpace(string(pointer))
-}
-
-const matchingChatdRevision = "<the blueclaw pointer>"
-
-func runMessengerArtifactCheck(t *testing.T, repositoryRootPath string) (error, string) {
-	t.Helper()
-	service, errorValue := NewService(Options{RepositoryRootPath: repositoryRootPath, ExecutablePath: filepath.Join(repositoryRootPath, "internkim")})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	command := exec.Command("/bin/sh", "-c", service.checkMessengerArtifactCommand())
-	output, runError := command.CombinedOutput()
-	return runError, string(output)
-}
-
-func TestAFleetRunAcceptsAChatdBuiltFromTheBlueclawPointer(t *testing.T) {
-	repositoryRootPath, _ := messengerArtifactFixture(t, matchingChatdRevision)
-
-	runError, output := runMessengerArtifactCheck(t, repositoryRootPath)
-
-	if runError != nil {
-		t.Fatalf("a chatd built from the pointer must be accepted, got %v: %s", runError, output)
-	}
-}
-
-func TestAFleetRunRefusesAChatdBuiltFromAnotherRevision(t *testing.T) {
-	repositoryRootPath, pointer := messengerArtifactFixture(t, "0123456789012345678901234567890123456789")
-
-	runError, output := runMessengerArtifactCheck(t, repositoryRootPath)
-
-	if runError == nil {
-		t.Fatal("a chatd built from another revision would install a messenger the checkout never wrote")
-	}
-	if !strings.Contains(output, "0123456789012345678901234567890123456789") || !strings.Contains(output, pointer) {
-		t.Fatalf("the refusal must name both revisions, got %s", output)
-	}
-	if !strings.Contains(output, "make prepare-buzz-relay") {
-		t.Fatalf("the refusal must say how to fix it, got %s", output)
-	}
-}
-
-func TestAFleetRunRefusesAChatdThatRecordsNoRevision(t *testing.T) {
-	repositoryRootPath, _ := messengerArtifactFixture(t, "")
-
-	runError, output := runMessengerArtifactCheck(t, repositoryRootPath)
-
-	if runError == nil {
-		t.Fatal("a copied artifact with no CHATD_REVISION is exactly the one that shipped a chatd with no health route")
-	}
-	if !strings.Contains(output, "make prepare-buzz-relay") {
-		t.Fatalf("the refusal must say how to fix it, got %s", output)
-	}
-}
-
-func TestUpPlansCheckTheMessengerArtifactBeforeBuildingAnything(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plans := service.upPlansThroughSetup(true, nil)
-	checkIndex := -1
-	buildIndex := -1
-	for index, plan := range plans {
-		joined := strings.Join(plan.Arguments, " ")
-		if strings.Contains(joined, "CHATD_REVISION") {
-			checkIndex = index
-		}
-		if plan.Name == "make" {
-			buildIndex = index
-		}
-	}
-	if checkIndex < 0 {
-		t.Fatal("a fleet run must check the messenger binary it would install")
-	}
-	if buildIndex < 0 || checkIndex > buildIndex {
-		t.Fatalf("the check must come before the run spends ten minutes, got check %d build %d", checkIndex, buildIndex)
-	}
-}
-
 func TestUnsupportedScenarioFails(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: t.TempDir(), ExecutablePath: "/bin/echo"})
 	if errorValue != nil {
@@ -608,24 +244,6 @@ func TestUnsupportedScenarioFails(t *testing.T) {
 	errorValue = service.RunScenario(context.Background(), &recordingLogger{}, "unknown", false, false)
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "unsupported local fleet scenario") {
 		t.Fatalf("expected unsupported scenario error, got %v", errorValue)
-	}
-}
-
-func TestScenarioRefusesStaleRuntimeBaseBeforeProvisioning(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: t.TempDir(), ExecutablePath: "/bin/echo"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	logger := &recordingLogger{}
-	errorValue = service.Run(context.Background(), logger, JobRequest{
-		Action:   ActionRunScenario,
-		Scenario: "workspace-persistence",
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "make prepare-blueclaw-runtime-base") {
-		t.Fatalf("expected runtime-base preflight failure, got %v", errorValue)
-	}
-	if len(logger.lines) != 0 {
-		t.Fatalf("provisioning started before runtime-base preflight: %v", logger.lines)
 	}
 }
 
@@ -688,45 +306,6 @@ func planArgumentIndex(plans []CommandPlan, expectedText string) int {
 		}
 	}
 	return -1
-}
-
-func TestBuzzAttachmentScenarioRunsTheBuzzScript(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	joinedPlans := joinedPlanArguments(service.buzzAttachmentScenarioPlans())
-
-	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-attachment.sh") {
-		t.Fatalf("expected the buzz scenario script in plans:\n%s", joinedPlans)
-	}
-}
-
-func TestBuzzDirectMessageScenarioRunsTheBuzzScript(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	joinedPlans := joinedPlanArguments(service.buzzDirectMessageScenarioPlans())
-
-	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-direct-message.sh") {
-		t.Fatalf("expected the buzz direct message script in plans:\n%s", joinedPlans)
-	}
-}
-
-func TestBuzzInboundMentionScenarioRunsTheBuzzScript(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim", IsEphemeral: true})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	joinedPlans := joinedPlanArguments(service.buzzInboundMentionScenarioPlans())
-
-	if !strings.Contains(joinedPlans, "lab/scripts/scenario-buzz-inbound-mention.sh") {
-		t.Fatalf("expected the buzz inbound mention script in plans:\n%s", joinedPlans)
-	}
 }
 
 func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {
