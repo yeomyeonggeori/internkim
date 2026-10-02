@@ -2,6 +2,11 @@ import { z } from 'zod';
 
 export const dataRoomLinkLifetimeHours = [6, 12, 24, 48, 72, 168] as const;
 export const dataRoomNoticeVersion = '1';
+export const dataRoomLinkSessionSchema = z.object({
+	sessionID: z.string().uuid(),
+	companyID: z.guid(),
+	expiresAt: z.iso.datetime({ offset: true })
+});
 export const dataRoomAccessCodePattern = '[0-9]{6}';
 const dataRoomAccessCodeSchema = z.string().regex(new RegExp(`^${dataRoomAccessCodePattern}$`));
 export const dataRoomLinkInputSchema = z.strictObject({

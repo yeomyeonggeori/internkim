@@ -1,8 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { dataRoomAccessCodePattern, dataRoomLinkInputSchema, dataRoomLinkLifetimeHours, generateDataRoomCode } from '../../../src/lib/data-room/links';
+import { dataRoomAccessCodePattern, dataRoomLinkInputSchema, dataRoomLinkLifetimeHours, dataRoomLinkSessionSchema, generateDataRoomCode } from '../../../src/lib/data-room/links';
 
 describe('share link contract', () => {
+	test('accepts existing PostgreSQL company identifiers when a guest session opens', () => {
+		const session = {
+			sessionID: '25c20378-a3a6-4fe2-a12f-1c2e83c3b430',
+			companyID: '000000cc-0000-0000-0000-000000000001',
+			expiresAt: '2026-10-02T06:00:00.123456+00:00'
+		};
+		expect(dataRoomLinkSessionSchema.parse(session)).toEqual(session);
+		expect(dataRoomLinkSessionSchema.safeParse({ ...session, companyID: 'company' }).success).toBe(false);
+	});
 	test('defaults to three days and refuses unsupported or overlong lifetimes', () => {
 		expect(dataRoomLinkInputSchema.parse({ label: 'Review', roleCode: 'investor' }).lifetimeHours).toBe(72);
 		expect(dataRoomLinkInputSchema.safeParse({ label: 'Review', roleCode: 'investor', lifetimeHours: 169 }).success).toBe(false);

@@ -3,12 +3,7 @@ import { z } from 'zod';
 import { asMember, controlPlane, planeCredentialsOf, type PlaneCredentials } from './control-plane';
 import { verifiedRecordToken, recordTokenFor } from './record-token';
 import type { Environment } from './agent-request';
-
-const sessionSchema = z.object({
-	sessionID: z.string().uuid(),
-	companyID: z.string().uuid(),
-	expiresAt: z.string()
-});
+import { dataRoomLinkSessionSchema } from '$lib/data-room/links';
 export const dataRoomCookieName = 'data-room-session';
 
 export function dataRoomPlane(environment: Environment): PlaneCredentials {
@@ -38,8 +33,9 @@ export async function unlockDataRoomLink(
 		client_fingerprint: fingerprint
 	});
 	if (refusal) error(502, 'the data room could not be opened');
-	const session = sessionSchema.safeParse(data);
-	if (!session.success) error(403, 'the code or link is invalid, expired, or temporarily locked');
+	if (data === null) error(403, 'the code or link is invalid, expired, or temporarily locked');
+	const session = dataRoomLinkSessionSchema.safeParse(data);
+	if (!session.success) error(502, 'the data room returned an invalid session');
 	const token = await recordTokenFor(plane.signingKey, plane.projectURL, {
 		userID: session.data.sessionID,
 		email: null,
@@ -59,7 +55,7 @@ export async function dataRoomLinkCaller(
 	if (!accessToken) error(401, 'enter the code and acknowledge the notice');
 	const claims = await verifiedRecordToken(plane.signingKey, plane.projectURL, accessToken);
 	const metadata = z
-		.object({ dataRoomLinkID: z.literal(linkID), dataRoomCompanyID: z.string().uuid() })
+		.object({ dataRoomLinkID: z.literal(linkID), dataRoomCompanyID: z.guid() })
 		.safeParse(claims?.app_metadata);
 	if (!claims?.sub || !metadata.success) error(401, 'enter the code and acknowledge the notice');
 	const caller = asMember(plane, accessToken);
