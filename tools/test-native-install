@@ -73,6 +73,8 @@ from native_install_rig import (  # noqa: E402
     dependency_names,
     CANDIDATE_CHOICE_COMMAND,
     package_fields,
+    RIG_MODEL_KEY,
+    rig_model_key,
     write_release_directory,
 )
 
@@ -1633,6 +1635,14 @@ def main():
         help="the guest kernel; INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE=16k tools/prepare-container-kernel builds the CM5's page size (default: %(default)s)",
     )
     options = parser.parse_args()
+    if options.agent_update and rig_model_key() == RIG_MODEL_KEY:
+        print(
+            "✗ native install rig\n"
+            "    --agent-update needs a model: the agent reports the update's result in words, and step 9\n"
+            "    fails without one. Run it under `monkeys run @test tools/test-native-install ...`.",
+            file=sys.stderr,
+        )
+        return 2
 
     rig = Rig(options)
     # --keep leaves a guest for autopsy, and a guest whose shared directory has been
