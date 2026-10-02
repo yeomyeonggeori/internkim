@@ -121,7 +121,7 @@ func deviceTargetFor(mode commandTargetMode, stateDir string) deployops.Target {
 
 func (target commandTarget) fleetIdentity() (string, string, error) {
 	if target.fleetID == "" || target.fleetSecret == "" {
-		return "", "", fmt.Errorf("the vault names no %s and %s for this device; run it as `internkim @production …`",
+		return "", "", fmt.Errorf("the vault names no %s and %s for this device; run it as `internkim @legacy …`",
 			deployops.FleetIDVariable, deployops.FleetSecretVariable)
 	}
 	return target.fleetID, target.fleetSecret, nil
