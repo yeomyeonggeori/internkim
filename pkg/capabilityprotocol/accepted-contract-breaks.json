@@ -1,5 +1,30 @@
 [
 	{
+		"path": "company_dataroom_get",
+		"reason": "The data room has its own dataroom namespace. dataroom_get replaces the company-prefixed name without changing its input or result.",
+		"release": "the dataroom namespace release carries the renamed central-plane client and data room skill to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_dataroom_category_update",
+		"reason": "dataroom_category_update replaces the company-prefixed name with the same category contract.",
+		"release": "the dataroom namespace release carries the updated data room skill to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_dataroom_role_update",
+		"reason": "dataroom_role_update replaces the company-prefixed name with the same reader-role contract.",
+		"release": "the dataroom namespace release carries the updated data room skill to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_dataroom_share_add",
+		"reason": "dataroom_share_add replaces the company-prefixed name with the same audience and permission contract.",
+		"release": "the dataroom namespace release carries the updated data room skill to company hosts before the web/API deployment"
+	},
+	{
+		"path": "company_dataroom_share_delete",
+		"reason": "dataroom_share_delete replaces the company-prefixed name with the same revocation contract.",
+		"release": "the dataroom namespace release carries the updated data room skill to company hosts before the web/API deployment"
+	},
+	{
 		"path": "company_document_list.result.documents[].categoryCode",
 		"reason": "Documents identify their company filing category. Legacy documents return null and retain clearance access. Row-level security still decides which documents appear.",
 		"release": "the #2111 catalog release must reach all document-tool consumers before deploying the plane that returns categoryCode"

@@ -300,15 +300,36 @@ describe('what happened to the company', () => {
 });
 
 describe('the category data room', () => {
+	test('assigns employee roles and creates and revokes code-protected links', async () => {
+		const assigned = await asAdmin('dataroom_member_update', {
+			memberID: sampleID, roleCodes: ['finance']
+		});
+		expect(assigned.status).toBe(200);
+		const created = await asSample('dataroom_link_add', {
+			roleCode: 'finance', label: 'Sample finance review'
+		});
+		expect(created.status).toBe(200);
+		const linkID = resultOf(created).linkID;
+		expect(resultOf(created).accessCode).toMatch(/^[0-9]{6}$/);
+		const listed = await asSample('dataroom_links_get');
+		expect(listed.status).toBe(200);
+		expect(resultOf(listed).links).toEqual(expect.arrayContaining([expect.objectContaining({ id: linkID })]));
+		const revoked = await asSample('dataroom_link_delete', { linkID });
+		expect(revoked.status).toBe(200);
+		const cleared = await asAdmin('dataroom_member_update', {
+			memberID: sampleID, roleCodes: []
+		});
+		expect(cleared.status).toBe(200);
+	});
 	test('starts with the default template and assigns live scopes through a custom role', async () => {
-		const initial = await asAdmin('company_dataroom_get');
+		const initial = await asAdmin('dataroom_get');
 		expect(resultOf(initial).canManage).toBe(true);
 		expect(resultOf(initial).categories).toHaveLength(48);
-		const category = await asAdmin('company_dataroom_category_update', {
+		const category = await asAdmin('dataroom_category_update', {
 			code: 'FZ', parent: 'F', slug: 'custom', name: 'Custom finance', nameKO: '추가 재무', description: 'Company-specific finance records.'
 		});
 		expect(category.status).toBe(200);
-		const role = await asAdmin('company_dataroom_role_update', {
+		const role = await asAdmin('dataroom_role_update', {
 			code: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F', 'FS']
 		});
 		expect(role.status).toBe(200);
@@ -317,18 +338,18 @@ describe('the category data room', () => {
 		});
 		expect(filed.status).toBe(200);
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
-		const shared = await asAdmin('company_dataroom_share_add', { roleCode: 'room-test', audience: 'member', memberID: sampleID });
+		const shared = await asAdmin('dataroom_share_add', { roleCode: 'room-test', audience: 'member', memberID: sampleID });
 		expect(shared.status).toBe(200);
 		const shareID = resultOf(shared).shareID;
 		expect(typeof shareID).toBe('string');
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(1);
-		const revoked = await asAdmin('company_dataroom_share_delete', { shareID });
+		const revoked = await asAdmin('dataroom_share_delete', { shareID });
 		expect(revoked.status).toBe(200);
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
 	});
 
 	test('a colleague cannot expand their own role', async () => {
-		const refused = await asSample('company_dataroom_role_update', {
+		const refused = await asSample('dataroom_role_update', {
 			code: 'employee', name: 'Employee', nameKO: '', readableCategories: ['F']
 		});
 		expect(refused.status).toBe(403);

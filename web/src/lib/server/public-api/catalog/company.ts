@@ -22,7 +22,7 @@ const dataRoomDomainSchema = z.string().describe("Legacy filing domain, preserve
 const dataRoomSha256Schema = z.string().describe("Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.");
 
 const dataRoomDocumentFields = {
-  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("Exact leaf category code from company_dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.").optional(),
+  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.").optional(),
   clearance: dataRoomClearanceSchema.describe("Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.").optional(),
   date: z.string().describe("The date the document speaks from, in YYYY-MM-DD format.").optional(),
   domain: dataRoomDomainSchema.optional(),

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { dataRoomCategorySchema, dataRoomRoleSchema } from '$lib/data-room/model';
 import { dataRoomGetResultSchema } from '$lib/data-room/schemas';
+import { dataRoomLinkInputSchema, dataRoomLinksSchema, dataRoomLinkCreatedSchema, dataRoomLinkRevokeSchema } from '$lib/data-room/links';
 export { dataRoomGetResultSchema, dataRoomShareSchema } from '$lib/data-room/schemas';
 import { CapabilityAnsweredBy, CapabilityEstimatedLatency, CapabilitySideEffect, ResourceEffectIdentity } from './protocol';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
@@ -19,6 +20,7 @@ export const dataRoomShareCreateInputSchema = z.strictObject({
 });
 
 export const dataRoomShareRevokeInputSchema = z.strictObject({ shareID: z.string().uuid() });
+export const dataRoomMemberRolesInputSchema = z.strictObject({ memberID: z.string().uuid(), roleCodes: z.array(z.string()) });
 const dataRoomShareCreatedSchema = z.strictObject({ shareID: z.string().uuid() });
 const dataRoomSavedSchema = z.strictObject({ saved: z.boolean() });
 
@@ -30,7 +32,7 @@ function dataRoomTool(
 	isWrite = false
 ): CapabilityToolDefinition {
 	return {
-		name, namespace: 'company', description: `Company dataroom: ${description}`,
+		name, namespace: 'dataroom', description: `Company dataroom: ${description}`,
 		answeredBy: CapabilityAnsweredBy.Record,
 		privacyClass: 'workspace_company', policyResource: `tool:${name}`,
 		version: '1', estimatedLatency: CapabilityEstimatedLatency.Low,
@@ -45,6 +47,12 @@ function dataRoomTool(
 }
 
 export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
+	dataRoomTool('dataroom_links_get', 'Read your share links. Administrators can also see links created by other employees. Access codes are never returned again.', z.strictObject({}), dataRoomLinksSchema),
+	dataRoomTool('dataroom_link_add', 'Create a code-protected share link for a reader role within your own permissions, including leadership. Every category follows the role and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.', dataRoomLinkInputSchema, dataRoomLinkCreatedSchema, true),
+	dataRoomTool('dataroom_link_delete', 'Revoke a link created by you, or any company link if you are an administrator. Existing guest sessions lose access immediately; downloaded files cannot be recalled.', dataRoomLinkRevokeSchema, dataRoomSavedSchema, true),
+	dataRoomTool('dataroom_member_update',
+		'Assign direct reader roles to an active employee. Replaces their direct member grants atomically; circle grants still apply. Only administrators can assign roles. Parent category grants include every child.',
+		dataRoomMemberRolesInputSchema, dataRoomSavedSchema, true),
 	{
 		name: 'company_document_classify', namespace: 'company', answeredBy: CapabilityAnsweredBy.Company,
 		privacyClass: 'workspace_company', policyResource: 'tool:company_document_classify', version: '1',
@@ -54,19 +62,19 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 		result: { schema: z.strictObject({ categoryCode: z.string().regex(/^[A-Z]{1,2}$/) }), effects: [] },
 		sideEffect: CapabilitySideEffect.Computation
 	},
-	dataRoomTool('company_dataroom_get',
+	dataRoomTool('dataroom_get',
 		'Read the company data room categories, reader roles and active invitations. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template.',
 		z.strictObject({}), dataRoomGetResultSchema),
-	dataRoomTool('company_dataroom_category_update',
+	dataRoomTool('dataroom_category_update',
 		'Create or rename a data room category. Use one uppercase mnemonic letter for a parent and two for a filing category. Code identity and ancestry remain stable. X is the reserved unclassified inbox. A new child is readable by every existing recipient of its parent; confirm that audience first.',
 		dataRoomCategorySetInputSchema, dataRoomSavedSchema, true),
-	dataRoomTool('company_dataroom_role_update',
-		'Create or edit a reader role using readableCategories. A parent grants all descendants; otherwise name intermediate codes. Existing recipients of this role change access immediately. Read company_dataroom_get and confirm the affected recipients first. Read roles confer no administrative or editing rights.',
+	dataRoomTool('dataroom_role_update',
+		'Create or edit a reader role using readableCategories. A parent grants all descendants; otherwise name intermediate codes. Existing recipients of this role change access immediately. Read dataroom_get and confirm the affected recipients first. Read roles confer no administrative or editing rights.',
 		dataRoomRoleSetInputSchema, dataRoomSavedSchema, true),
-	dataRoomTool('company_dataroom_share_add',
+	dataRoomTool('dataroom_share_add',
 		'Share live data room categories by assigning a reader role to a member, internal circle, external email or explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.',
 		dataRoomShareCreateInputSchema, dataRoomShareCreatedSchema, true),
-	dataRoomTool('company_dataroom_share_delete',
-		'Revoke a data room share by its exact shareID from company_dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.',
+	dataRoomTool('dataroom_share_delete',
+		'Revoke a data room share by its exact shareID from dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.',
 		dataRoomShareRevokeInputSchema, dataRoomSavedSchema, true)
 ];

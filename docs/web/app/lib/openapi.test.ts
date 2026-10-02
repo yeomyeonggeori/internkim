@@ -102,7 +102,7 @@ describe('the document is usable as OpenAPI', () => {
 		}
 	});
 
-	test('a bearer token opens everything, with nothing exempt', () => {
+	test('member authentication is the default and only code-based guest entry is exempt', () => {
 		expect(english.security).toEqual([{ memberToken: [] }]);
 
 		const exempt: string[] = [];
@@ -112,7 +112,8 @@ describe('the document is usable as OpenAPI', () => {
 			}
 		}
 
-		expect(exempt).toEqual([]);
+		expect(exempt).toEqual(['post /data-room/links/{linkID}']);
+		expect(english.paths['/data-room/links/{linkID}']).toMatchObject({ get: { security: [{ dataRoomSession: [] }] } });
 	});
 
 	test('every company calls one address, and a self-hosted zone replaces it', () => {
