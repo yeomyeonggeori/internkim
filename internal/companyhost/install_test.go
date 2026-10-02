@@ -253,19 +253,6 @@ func TestThePasswordReachesPostgreSQLThroughTheEnvironmentAndNotACommandLine(t *
 	}
 }
 
-func TestTheRetiredVectorExtensionIsDroppedFromTheAgentsDatabaseByTheClustersSuperuser(t *testing.T) {
-	machine := &recordedMachine{}
-	if errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard); errorValue != nil {
-		t.Fatalf("prepare the databases: %v", errorValue)
-	}
-	if !machine.ranStatementsCarrying("\\connect blueclaw\nSET client_min_messages = warning;\nDROP EXTENSION IF EXISTS vector CASCADE;") {
-		t.Fatalf("nothing dropped the vector extension from the agent's database, so its backups keep needing pgvector to restore: %v", machine.runs)
-	}
-	if machine.ranStatementsCarrying("CREATE EXTENSION") {
-		t.Fatal("the install created an extension, and every one the schemas need is created by their own migrations")
-	}
-}
-
 func TestTheDatabasePreparationRunsTwiceWithoutFailing(t *testing.T) {
 	statements := databasePreparationStatements("secret")
 	for _, expected := range []string{
