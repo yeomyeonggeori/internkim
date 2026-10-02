@@ -162,6 +162,7 @@ func companyHostRelaySettings(layout CompanyHostLayout) []EnvironmentSetting {
 	return []EnvironmentSetting{
 		setting("RELAY_STATE_DIR", RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName)),
 		setting("MESSENGER_PLATFORM", BlueclawMessengerPlatform),
+		setting("RUST_LOG", "buzz_relay=info,buzz_media=info"),
 		setting("AGENT_API_KEY_PATH", RelayAgentKeyPath),
 		setting("CHATD_BASE_URL", CompanyHostChatdEndpoint),
 		setting("ADMIND_BASE_URL", "http://"+CompanyHostAdmindListenAddress),
