@@ -103,7 +103,7 @@ for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }
 		await screenshot(page, `setup-${viewport.width}`);
 		await routeCalendarShellAPI(page);
 		await page.goto('/calendar/');
-		await expect(page.frameLocator('iframe').locator('.calendar-stage')).toBeVisible();
+		await expect(page.locator('.calendar-stage')).toBeVisible();
 		await fits(page);
 		await screenshot(page, `calendar-${viewport.width}`);
 		await page.goto('/calendar/embed/');

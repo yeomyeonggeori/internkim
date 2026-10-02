@@ -75,19 +75,24 @@ async function recordedLocations(): Promise<(string | null)[]> {
 	return (await attendanceRowsOf(member1ID)).map((row) => row.location);
 }
 
-test('the first authenticated navigation shows an existing clock-in', async ({ page }) => {
+test('the first clock menu opens an existing clock-in without an eager task read', async ({ page }) => {
 	await seedAttendanceEvents([
 		{ memberID: member1ID, kind: 'clock_in', occurredAtISO: seoulInstant(seoulDateToday(), '09:00'), location: home }
 	]);
 	try {
+		const invokes = trackToolInvokes(page);
+		await signInToTheCentralPlane(page, '/example-co/task');
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		await page.waitForLoadState('networkidle');
+		expect(invokes.names).not.toContain('attendance_list');
 		const attendanceLoad = page.waitForResponse(
 			(response) => response.url().includes('/api/v1/tools/attendance_list/invoke') && response.ok(),
 			{ timeout: 30000 }
 		);
-		await signInToTheCentralPlane(page, '/example-co/task');
+		await page.keyboard.press('Period');
 		await attendanceLoad;
-		await page.waitForLoadState('networkidle');
-		await openClockMenu(page);
+		await expect(page.locator('[data-app-rail-profile-menu]').getByRole('menuitem', { name: '퇴근', exact: true })).not.toHaveAttribute('aria-disabled', 'true', { timeout: 20000 });
+		invokes.stop();
 	} finally {
 		await removeAttendanceOf(member1ID);
 	}
