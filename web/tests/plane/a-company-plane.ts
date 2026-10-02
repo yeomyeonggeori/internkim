@@ -113,7 +113,6 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 		{
 			'--socket': argumentsForPlane.socketPath,
 			'--openrouter-key': argumentsForPlane.openRouterKeyPath,
-			'--local-inference-mode': 'remote',
 			'--blueclaw-url': argumentsForPlane.blueclawURL,
 			'--blueclaw-workspace': argumentsForPlane.blueclawWorkspacePath,
 			'--admind-url': argumentsForPlane.admindURL,
@@ -162,8 +161,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
 			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
 			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
-			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey,
-			'-install-users-sync': 'false'
+			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
 		},
 		{
 			'-state-dir': argumentsForPlane.stateDirectory,
