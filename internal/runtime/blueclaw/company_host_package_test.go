@@ -249,3 +249,17 @@ func TestTheSettingsFileSpeaksForEveryPackageFormat(t *testing.T) {
 		}
 	}
 }
+
+func TestTheRelayLogsTheMediaFailuresItAnswersWithAnInternalError(t *testing.T) {
+	expected := "RUST_LOG=buzz_relay=info,buzz_media=info"
+	for _, unit := range CompanyPackageUnits() {
+		if unit.Name == RelayServiceName && !strings.Contains(unit.Contents, "Environment="+expected+"\n") {
+			t.Fatalf("the packaged relay unit leaves buzz_media errors out of the journal:\n%s", unit.Contents)
+		}
+	}
+	for _, daemon := range launchDaemonsForTest(t) {
+		if daemon.ServiceName == RelayServiceName && !strings.Contains(daemon.Contents, "<string>buzz_relay=info,buzz_media=info</string>") {
+			t.Fatalf("the relay LaunchDaemon leaves buzz_media errors out of the log:\n%s", daemon.Contents)
+		}
+	}
+}
