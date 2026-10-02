@@ -341,3 +341,35 @@ func TestTheBundleIsRestartedWithoutTheUnitsItIsBoundTo(t *testing.T) {
 	}
 	t.Fatal("the bundle was never restarted")
 }
+
+func TestAnInstallRefusesAConnectionThePlaneHandedOverBeforeTouchingTheMachine(t *testing.T) {
+	connection := exampleConnection(t)
+	connection.GatewayURL = "https://gateway.example.com"
+	machine := &recordedMachine{}
+	_, errorValue := installOn(linuxPlatform{}, Request{Connection: connection, StateDirectoryPath: t.TempDir()}, machine, io.Discard)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "gatewayURL") {
+		t.Fatalf("an install given a gateway that is not a websocket answered %v", errorValue)
+	}
+	if len(machine.runs) != 0 {
+		t.Fatalf("a refused connection still ran %v", machine.runs)
+	}
+}
+
+func TestAnInstallTrimsTheTrailingSlashOffEveryAddress(t *testing.T) {
+	connection, errorValue := validatedConnection(Connection{
+		SchemaVersion: connectionSchemaVersion,
+		AppURL:        "https://company.example.com/",
+		Company:       Company{ID: "00000000-0000-4000-8000-000000000001", Name: "Example Co", Slug: "example"},
+		CentralPlane:  CentralPlane{ProjectURL: "https://project.supabase.co/", PublishableKey: "publishable"},
+		GatewayURL:    "wss://gateway.example.com/",
+		AgentKey:      strings.Repeat("a", 64),
+	})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, address := range []string{connection.AppURL, connection.CentralPlane.ProjectURL, connection.GatewayURL} {
+		if strings.HasSuffix(address, "/") {
+			t.Fatalf("%s kept its trailing slash, so every path joined onto it has two", address)
+		}
+	}
+}

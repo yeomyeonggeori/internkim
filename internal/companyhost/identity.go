@@ -1,8 +1,6 @@
 package companyhost
 
 import (
-	"fmt"
-
 	"github.com/nbd-wtf/go-nostr"
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
 )
@@ -13,9 +11,6 @@ type Identity struct {
 }
 
 func IdentityForSeed(seed string) (Identity, error) {
-	if seed == "" {
-		return Identity{}, fmt.Errorf("the company identity seed is empty")
-	}
 	ownerPublicKey, errorValue := nostr.GetPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
 	if errorValue != nil {
 		return Identity{}, errorValue

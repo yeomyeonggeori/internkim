@@ -54,10 +54,7 @@ func ParseConnection(document []byte) (Connection, error) {
 	if errorValue := decoder.Decode(&connection); errorValue != nil {
 		return Connection{}, fmt.Errorf("the connection file is not the one company setup issues: %w", errorValue)
 	}
-	if errorValue := validateConnection(connection); errorValue != nil {
-		return Connection{}, errorValue
-	}
-	return normalizeConnection(connection), nil
+	return validatedConnection(connection)
 }
 
 func validateConnection(connection Connection) error {
