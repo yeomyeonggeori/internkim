@@ -353,7 +353,12 @@ func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
 			return errorValue
 		}
 	}
-	return nil
+	return writeBrewPrepareScript(libraryPath, layout)
+}
+
+func writeBrewPrepareScript(libraryPath string, layout blueclaw.CompanyHostLayout) error {
+	scriptPath := filepath.Join(libraryPath, strings.TrimPrefix(layout.PrepareScriptPath(), layout.HelperRoot))
+	return os.WriteFile(scriptPath, []byte(blueclaw.CompanyHostPrepareScriptFor(layout)), 0o755)
 }
 
 // writeGzippedTar tars a directory and returns what the result hashes to. A
