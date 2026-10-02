@@ -134,6 +134,8 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 			}
 		}
 		return service.RunScenario(contextValue, logger, request.Scenario, request.VirtualSession, request.KeepArtifacts)
+	case ActionRunCompanyPlane:
+		return service.runPlans(contextValue, logger, service.companyPlaneScenarioPlans())
 	case ActionUpgradeGate:
 		if strings.TrimSpace(request.Scenario) == "" {
 			return errors.New("upgrade gate requires --scenario")
@@ -150,7 +152,7 @@ func (service Service) runAction(contextValue context.Context, logger Logger, re
 }
 
 func scenarioNeedsRuntimeBase(scenario string) bool {
-	return scenario != "company-plane" && scenario != "workspace-ownership"
+	return scenario != "workspace-ownership"
 }
 
 func (service Service) validateRuntimeBaseSource() error {
@@ -211,7 +213,6 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		return func(bool) ([]CommandPlan, error) { return build(), nil }
 	}
 	return map[string]scenarioPlanBuilder{
-		"company-plane":                always(service.companyPlaneScenarioPlans),
 		"model-configuration-upgrade":  always(service.modelConfigurationUpgradeScenarioPlans),
 		"buzz-attachment":              always(service.buzzAttachmentScenarioPlans),
 		"buzz-direct-message":          always(service.buzzDirectMessageScenarioPlans),

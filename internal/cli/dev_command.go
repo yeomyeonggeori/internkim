@@ -142,7 +142,7 @@ func runDevFleetArguments(arguments []string) error {
 		return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionReset})
 	case "run":
 		if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
-			return runDevFleetRunHoldingTheLocalPlane()
+			return runHoldingTheLocalPlane()
 		}
 		return runDevFleetRunArguments(commandArguments)
 	case "reprovision":
@@ -283,7 +283,7 @@ func goModuleCachePath() string {
 	return strings.TrimSpace(string(output))
 }
 
-func runDevFleetRunHoldingTheLocalPlane() error {
+func runHoldingTheLocalPlane() error {
 	repositoryRootPath, errorValue := os.Getwd()
 	if errorValue != nil {
 		return errorValue
@@ -337,8 +337,8 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		return devFleetRunConfiguration{}, errorValue
 	}
 	trimmedScenario := strings.TrimSpace(*scenario)
-	if len(flagSet.Args()) > 0 && trimmedScenario != "company-plane" {
-		return devFleetRunConfiguration{}, errors.New("test arguments require --scenario company-plane")
+	if len(flagSet.Args()) > 0 {
+		return devFleetRunConfiguration{}, fmt.Errorf("unexpected arguments: %s", strings.Join(flagSet.Args(), " "))
 	}
 	if *virtualSession && trimmedScenario == "" {
 		return devFleetRunConfiguration{}, errors.New("virtual session mode requires --scenario")
@@ -357,7 +357,6 @@ func parseDevFleetRunArguments(arguments []string) (devFleetRunConfiguration, er
 		RunID:               strings.TrimSpace(*runID),
 		AdminHostPort:       *adminHostPort,
 		ShouldUseRealModels: *useRealModels,
-		ScenarioArguments:   flagSet.Args(),
 	}
 	request := localfleet.JobRequest{
 		KeepArtifacts:  *keepArtifacts,
@@ -659,29 +658,25 @@ func holdingTheLocalPlane(repositoryRootPath string, commandPath string, argumen
 	return command
 }
 
-func devPlaneCommand(repositoryRootPath string, arguments []string) *exec.Cmd {
-	return holdingTheLocalPlane(
-		repositoryRootPath,
-		filepath.Join(repositoryRootPath, "tools", "company-plane"),
-		arguments,
-	)
+func devPlaneServiceOptions(arguments []string) localfleet.Options {
+	testArguments := arguments
+	if len(testArguments) > 0 && testArguments[0] == "--" {
+		testArguments = testArguments[1:]
+	}
+	return localfleet.Options{IsEphemeral: true, ScenarioArguments: testArguments}
 }
 
-// The company plane a customer runs: admind, capabilityd and blueclaw against the
-// local record, with the two messengers standing in as recorders. It answers what
-// the fleet gate cannot answer quickly — which messenger a message leaves on, who
-// a requester resolves to, what the public API will take — in seconds rather than
-// the ten minutes a device costs.
 func runDevPlaneArguments(arguments []string) error {
-	repositoryRootPath, errorValue := os.Getwd()
+	if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
+		return runHoldingTheLocalPlane()
+	}
+	service, errorValue := newLocalFleetServiceWithOptions(devPlaneServiceOptions(arguments))
 	if errorValue != nil {
 		return errorValue
 	}
-	command := devPlaneCommand(repositoryRootPath, arguments)
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	return command.Run()
+	contextValue, stop := interruptContext()
+	defer stop()
+	return service.Run(contextValue, standardLocalFleetLogger{}, localfleet.JobRequest{Action: localfleet.ActionRunCompanyPlane})
 }
 
 func printDevUsage() {

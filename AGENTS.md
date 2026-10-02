@@ -343,11 +343,12 @@ and delete the duplicates.
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
   started or what it is told — goes through `./internkim dev plane` first. It runs
-  the bring-up in a disposable Linux Local Fleet with the real POSIX helper and
+  the bring-up in a disposable Linux VM with the real POSIX helper and
   the same `tools/render-company-runtime` the package's prepare step runs, so a plane
   that is wired wrong fails under its filesystem and process identity rules.
   The run keeps memory facts in its isolated guest database
-  and workspace, and removes them with the fleet.
+  and workspace, and removes them with the VM. Arguments after `dev plane` go to the
+  plane's test runner, as in `./internkim dev plane -t "leaves on the messenger"`.
 - Anything on the messenger path is verified with
   `./internkim dev fleet run --scenario buzz-attachment`. Buzz is what a
   company's messages travel over. The scenario invites a person, derives their key from the device seed

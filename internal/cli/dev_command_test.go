@@ -65,17 +65,18 @@ func TestParseDevFleetRunDefaultsToDisposablePredeploy(t *testing.T) {
 	}
 }
 
-func TestParseDevFleetRunCarriesCompanyPlaneTestArguments(t *testing.T) {
-	arguments := []string{"--scenario", "company-plane", "--", "-t", "the agent's directory"}
-	configuration, errorValue := parseDevFleetRunArguments(arguments)
-	if errorValue != nil {
-		t.Fatal(errorValue)
+func TestDevPlaneCarriesItsTestArgumentsToTheCompanyPlane(t *testing.T) {
+	for _, arguments := range [][]string{{"-t", "the agent's directory"}, {"--", "-t", "the agent's directory"}} {
+		options := devPlaneServiceOptions(arguments)
+		if !options.IsEphemeral || !reflect.DeepEqual(options.ScenarioArguments, []string{"-t", "the agent's directory"}) {
+			t.Fatalf("dev plane %q became %+v", arguments, options)
+		}
 	}
-	if !reflect.DeepEqual(configuration.ServiceOptions.ScenarioArguments, arguments[3:]) {
-		t.Fatalf("test arguments = %q", configuration.ServiceOptions.ScenarioArguments)
-	}
+}
+
+func TestDevFleetRunTakesNoTestArguments(t *testing.T) {
 	if _, errorValue := parseDevFleetRunArguments([]string{"--scenario", "workspace-ownership", "--", "-t", "example"}); errorValue == nil {
-		t.Fatal("another scenario accepted company-plane test arguments")
+		t.Fatal("dev fleet run accepted arguments no scenario reads")
 	}
 }
 
@@ -374,20 +375,6 @@ func TestDevVirtualSessionScriptedRunOmitsLiveGenerationFlags(t *testing.T) {
 		if argument == "--seed" || argument == "--temperature" || argument == "--live-llm" {
 			t.Fatalf("scripted run must omit live generation flags, got %#v", arguments)
 		}
-	}
-}
-
-func TestDevPlaneHoldsTheLocalPlaneLock(t *testing.T) {
-	command := devPlaneCommand("/repository", []string{"-t", "leaves on the messenger"})
-
-	expected := []string{
-		"/repository/tools/with-local-plane",
-		"/repository/tools/company-plane",
-		"-t",
-		"leaves on the messenger",
-	}
-	if !slices.Equal(command.Args, expected) {
-		t.Fatalf("dev plane runs %v, expected %v", command.Args, expected)
 	}
 }
 

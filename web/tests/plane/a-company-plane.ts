@@ -172,7 +172,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 
 function environmentValue(name: string): string {
 	const value = process.env[name];
-	if (!value) throw new Error(`${name} is not set; run this through tools/company-plane`);
+	if (!value) throw new Error(`${name} is not set; run this through ./internkim dev plane`);
 	return value;
 }
 
