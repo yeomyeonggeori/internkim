@@ -58,13 +58,13 @@ cat > "$fakeBinaries/supabase" <<FAKE
 owner=unavailable
 [ -e "$fakeState/stack" ] && owner=reachable
 case "\$1 \${2:-}" in
-  "--version "*) cat "$fakeState/version" 2>/dev/null || echo 2.118.0 ;;
+  "--version "*) cat "$fakeState/version" 2>/dev/null || echo 2.119.0 ;;
   "status "*) printf '{"identity":{"id":"fake-stack"},"owner":"%s"}\n' "\$owner" ;;
   "start "*) touch "$fakeState/stack" ;;
   "gen signing-key") echo '{"kty":"EC","kid":"fake"}' ;;
   "stack list") cat "$fakeState/stacks.json" 2>/dev/null || echo '{"stacks":[]}' ;;
   "stack stop") rm -f "$fakeState/stack" ;;
-  "stack destroy") ;;
+  "stack destroy") rm -f "$fakeState/stack" ;;
 esac
 FAKE
 
@@ -153,20 +153,20 @@ if isAbandoned; then
 fi
 
 resetFakes
-printf '2.117.0\n' > "$fakeState/version"
+printf '2.118.0\n' > "$fakeState/version"
 "$withLocalPlane" sh -c "touch '$runDirectory/ran-on-an-old-cli'" 2> "$runDirectory/old-cli-diagnostics" && oldCLIStatus=0 || oldCLIStatus=$?
 if [ "$oldCLIStatus" -eq 0 ] || [ -e "$runDirectory/ran-on-an-old-cli" ]; then
   fail "the lock ran a command on a Supabase CLI older than the one it requires"
 fi
-if ! grep -q "2.118.0 or later" "$runDirectory/old-cli-diagnostics"; then
+if ! grep -q "2.119.0 or later" "$runDirectory/old-cli-diagnostics"; then
   fail "the lock refused an old Supabase CLI without naming the version it requires"
 fi
 
 signingKeysPath="$checkoutRoot/supabase/.temp/local-signing-keys.json"
 resetFakes
 "$withLocalPlane" sh -c "[ -e '$fakeState/stack' ]" 2> /dev/null || fail "a command under the lock ran before the stopped plane was started"
-if ! called "supabase start --output-format text"; then
-  fail "the lock found the plane down and did not start it"
+if ! called "supabase start --runtime native --output-format text"; then
+  fail "the lock found the plane down and did not start it on the native runtime"
 fi
 if [ "$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))[0]["kid"])' "$signingKeysPath" 2>/dev/null)" != "fake" ]; then
   fail "the lock started a plane without writing its signing key as a key set"
@@ -189,10 +189,10 @@ printf 'project_id = "unrelated"\n' > "$unrelatedProject/supabase/config.toml"
 resetFakes
 cat > "$fakeState/stacks.json" <<STACKS
 {"stacks": [
-  {"id": "own", "project_root": "$checkoutRoot", "branch_context": ""},
-  {"id": "other-checkout", "project_root": "$otherCheckout", "branch_context": "refs/heads/other"},
-  {"id": "removed-checkout", "project_root": "$runDirectory/removed", "branch_context": "refs/heads/gone"},
-  {"id": "unrelated", "project_root": "$unrelatedProject", "branch_context": "refs/heads/main"}
+  {"id": "own", "project_root": "$checkoutRoot", "branch_context": "", "runtime": "native"},
+  {"id": "other-checkout", "project_root": "$otherCheckout", "branch_context": "refs/heads/other", "runtime": "native"},
+  {"id": "removed-checkout", "project_root": "$runDirectory/removed", "branch_context": "refs/heads/gone", "runtime": "docker"},
+  {"id": "unrelated", "project_root": "$unrelatedProject", "branch_context": "refs/heads/main", "runtime": "docker"}
 ]}
 STACKS
 "$withLocalPlane" true 2> /dev/null
@@ -207,6 +207,20 @@ if called "supabase stack destroy --stack-id own --yes --output-format text"; th
 fi
 if called "supabase stack destroy --stack-id unrelated --yes --output-format text"; then
   fail "the lock destroyed a stack of a project that is not this repository"
+fi
+
+resetFakes stack
+cat > "$fakeState/stacks.json" <<STACKS
+{"stacks": [
+  {"id": "own-on-docker", "project_root": "$checkoutRoot", "branch_context": "", "runtime": "docker"}
+]}
+STACKS
+"$withLocalPlane" true 2> /dev/null
+if ! called "supabase stack destroy --stack-id own-on-docker --yes --output-format text"; then
+  fail "the lock reused a stack of its own checkout recorded on a runtime other than native"
+fi
+if ! called "supabase start --runtime native --output-format text"; then
+  fail "the lock destroyed a stack on another runtime and did not start a native one"
 fi
 
 resetFakes stack
