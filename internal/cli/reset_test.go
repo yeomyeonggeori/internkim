@@ -1,44 +1,84 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
 
-func TestBlueclawHistoryResetScriptDeletesMemoryAndConversationState(t *testing.T) {
-	script := blueclawHistoryResetScript()
-	requiredFragments := []string{
-		"task_run",
-		"raw_event",
-		"conversation",
-		"memory_record",
-		"memory_source",
-		"memory_job",
-		"memory_profile",
-		"memory_fact",
-		"memory_episode",
-	}
-	for _, fragment := range requiredFragments {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("expected reset script to include %q", fragment)
+func TestBlueclawHistoryResetTruncatesOnlyTablesTheMigrationsLeaveBehind(t *testing.T) {
+	live := liveTableNames(t)
+	for _, tableName := range truncatedTableNames(t, blueclawHistoryResetScript()) {
+		if !live[tableName] {
+			t.Errorf("the reset truncates %q, which no migration leaves behind; one missing relation fails the whole statement and the reset then clears nothing", tableName)
 		}
 	}
 }
 
-func TestBlueclawHistoryResetScriptTruncatesMemoryTablesDependentsFirst(t *testing.T) {
+func TestBlueclawHistoryResetStopsOnTheFirstFailure(t *testing.T) {
 	script := blueclawHistoryResetScript()
-	tableOrder := []string{"memory_job", "memory_profile", "memory_fact", "memory_episode"}
-	previousIndex := -1
-	for _, tableName := range tableOrder {
-		index := strings.Index(script, tableName)
-		if index <= previousIndex {
-			t.Fatalf("expected %q to be truncated after its dependents, got:\n%s", tableName, script)
+	if !strings.Contains(script, "ON_ERROR_STOP=1") {
+		t.Error("the reset runs psql without ON_ERROR_STOP, so a failed statement leaves it exiting zero")
+	}
+	if !strings.HasPrefix(script, "set -euo pipefail") {
+		t.Error("the reset script does not stop on a failing command")
+	}
+}
+
+func liveTableNames(t *testing.T) map[string]bool {
+	t.Helper()
+	migrationPaths, errorValue := filepath.Glob(filepath.Join("..", "..", ".dependency", "blueclaw", "migrations", "*.sql"))
+	if errorValue != nil || len(migrationPaths) == 0 {
+		t.Fatalf("no blueclaw migrations to read: %v", errorValue)
+	}
+	sort.Strings(migrationPaths)
+	created := regexp.MustCompile(`(?i)CREATE TABLE (?:IF NOT EXISTS )?([a-z_][a-z0-9_]*)`)
+	dropped := regexp.MustCompile(`(?i)DROP TABLE (?:IF EXISTS )?([a-z_][a-z0-9_]*)`)
+	renamed := regexp.MustCompile(`(?i)ALTER TABLE ([a-z_][a-z0-9_]*) RENAME TO ([a-z_][a-z0-9_]*)`)
+	live := map[string]bool{}
+	for _, migrationPath := range migrationPaths {
+		body, errorValue := os.ReadFile(migrationPath)
+		if errorValue != nil {
+			t.Fatalf("read %s: %v", migrationPath, errorValue)
 		}
-		previousIndex = index
+		for _, match := range created.FindAllStringSubmatch(string(body), -1) {
+			live[match[1]] = true
+		}
+		for _, match := range dropped.FindAllStringSubmatch(string(body), -1) {
+			live[match[1]] = false
+		}
+		for _, match := range renamed.FindAllStringSubmatch(string(body), -1) {
+			live[match[1]] = false
+			live[match[2]] = true
+		}
 	}
-	if !strings.Contains(script, "memory_episode\nRESTART IDENTITY CASCADE") {
-		t.Fatalf("expected the memory tables to be truncated with CASCADE, got:\n%s", script)
+	return live
+}
+
+func truncatedTableNames(t *testing.T, script string) []string {
+	t.Helper()
+	start := strings.Index(script, "TRUNCATE TABLE")
+	if start < 0 {
+		t.Fatal("the reset script truncates nothing")
 	}
+	end := strings.Index(script[start:], "RESTART IDENTITY")
+	if end < 0 {
+		t.Fatal("the truncate statement does not end where expected")
+	}
+	names := []string{}
+	for _, line := range strings.Split(script[start+len("TRUNCATE TABLE"):start+end], "\n") {
+		name := strings.Trim(strings.TrimSpace(line), ",")
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		t.Fatal("the truncate statement names no table")
+	}
+	return names
 }
 
 func TestBlueclawHistoryResetScriptKeepsIdentityAndPolicyState(t *testing.T) {

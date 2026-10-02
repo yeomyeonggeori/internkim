@@ -92,9 +92,8 @@ func runResetBlueclawHistory(arguments []string) error {
 func printBlueclawHistoryResetPlan() {
 	fmt.Println("This will delete Blueclaw conversation/runtime data:")
 	fmt.Println("  - task runs, task events, task steps, task artifacts, waits, sessions, schedules")
-	fmt.Println("  - raw events, attachments, content segments, conversations")
-	fmt.Println("  - legacy memory records/sources")
-	fmt.Println("  - memory episodes, facts, profiles, and jobs")
+	fmt.Println("  - raw events, attachments, conversations")
+	fmt.Println("  - every per-subject memory file under the workspace's .blueclaw/memory")
 	fmt.Println("  - guest workspace Postgres runtime state when /var/lib/blueclaw/workspace.ext4 exists")
 	fmt.Println("This will keep host policy and secrets. Guest runtime mirrors are rebuilt from policy on restart.")
 }
@@ -104,9 +103,9 @@ func blueclawHistoryResetScript() string {
 echo "stopping blueclaw services"
 systemctl stop blueclaw 2>/dev/null || true
 
-echo "resetting host blueclaw task, conversation, and memory tables"
+echo "resetting host blueclaw task and conversation tables"
 if su -s /bin/bash postgres -c "psql -d blueclaw -Atc 'SELECT 1'" >/dev/null 2>&1; then
-  su -s /bin/bash postgres -c "psql -d blueclaw" <<'SQL'
+  su -s /bin/bash postgres -c "psql -v ON_ERROR_STOP=1 -d blueclaw" <<'SQL'
 TRUNCATE TABLE
   task_event,
   task_step,
@@ -115,16 +114,9 @@ TRUNCATE TABLE
   task_session,
   schedule,
   task_run,
-  memory_source,
-  memory_record,
-  content_segment,
   attachment,
   raw_event,
-  conversation,
-  memory_job,
-  memory_profile,
-  memory_fact,
-  memory_episode
+  conversation
 RESTART IDENTITY CASCADE;
 SQL
 fi
@@ -144,8 +136,13 @@ if [ -s /var/lib/blueclaw/workspace.ext4 ]; then
   rm -rf "$mount_path/.blueclaw/postgres/data"
   chown -R postgres:postgres "$mount_path/.blueclaw/postgres"
   chmod 0770 "$mount_path/.blueclaw/postgres"
+  echo "clearing guest per-subject memory files"
+  rm -rf "$mount_path/.blueclaw/memory"
   cleanup_workspace_mount
   trap - EXIT
+else
+  echo "clearing per-subject memory files"
+  rm -rf /workspace/.blueclaw/memory
 fi
 
 echo "starting blueclaw services"

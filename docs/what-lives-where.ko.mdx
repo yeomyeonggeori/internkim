@@ -25,17 +25,23 @@ icon: Map
 Supabase Storage의 회사 `asset` 버킷에 내용 주소로 복사됩니다. 그것이 나온
 대화는 메신저에 남습니다.
 
+## 사람의 기억 [#a-persons-memory]
+
+주체마다 SQLite 파일 하나로, 워크스페이스의 `.blueclaw/memory` 아래에 있고
+서비스만 읽고 씁니다. 사람의 파일은 그가 말한 것과 그에 대해 말해진 것을
+담고, 서클의 파일은 구성원이 공유하는 것을, 파일 하나는 워크스페이스 전체가
+공유하는 것을 담습니다. 어느 파일이 열리는지가 접근 경계입니다. 서비스는 읽는
+사람에게 그의 파일, 그가 속한 서클의 파일, 워크스페이스의 파일만 엽니다.
+
 ## 에이전트의 저장소 [#the-agents-store]
 
 호스트 자신의 Postgres이고, `.dependency/blueclaw/migrations/`가 정의합니다.
-`vector` 확장이 필요합니다. 회사 호스트 패키지가 다른 서비스와 함께
-Postgres를 설치하고 관리합니다.
+회사 호스트 패키지가 다른 서비스와 함께 Postgres를 설치하고 관리합니다.
 
 | | |
 |---|---|
 | 대화 | `raw_event`, `conversation`, `attachment`, `connector_outbox`, `live_reply_post` |
 | 실행 | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token`, `morning_briefing_schedule` |
-| 기억 | `memory_episode`, `memory_fact`, `memory_fact_circle`, `memory_fact_embedding`, `memory_profile`, `memory_job` |
 | 폴리시와 신원 | `person`, `person_email`, `platform_account`, `policy_channel_rule`, `policy_revision` |
 | 운영 | `admin_audit_log`, `backup_lock` |
 
