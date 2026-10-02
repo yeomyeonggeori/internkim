@@ -12,25 +12,35 @@ const (
 	companyHostNoLoginShell = "/usr/sbin/nologin"
 )
 
-type companyHostServiceAccount struct {
+// CompanyHostServiceAccount is one unprivileged account the bundle runs a
+// service as. The relay has its own because it outlives the agent, and the
+// database and the cache have theirs because each owns its data directory.
+// HomePath is empty for an account with no home.
+type CompanyHostServiceAccount struct {
 	Name        string
 	Description string
 	HomePath    string
 }
 
-func companyHostServiceAccounts() []companyHostServiceAccount {
-	return []companyHostServiceAccount{
-		{BlueclawUser, "the agent runs as", BlueclawHomePath},
-		{RelayUserName, "the relay runs as", "-"},
-		{CompanyHostDatabaseUser, "the database runs as", "-"},
-		{CompanyHostCacheUser, "the cache runs as", "-"},
+// CompanyHostServiceAccounts is every account, for sysusers on Linux and for
+// the directory service on a Mac.
+func CompanyHostServiceAccounts(layout CompanyHostLayout) []CompanyHostServiceAccount {
+	return []CompanyHostServiceAccount{
+		{BlueclawUser, "internkim agent", layout.AgentHomePath},
+		{RelayUserName, "internkim relay", ""},
+		{CompanyHostDatabaseUser, "internkim database", ""},
+		{CompanyHostCacheUser, "internkim cache", ""},
 	}
 }
 
 func CompanyHostSysusersFile() string {
 	lines := []string{}
-	for _, account := range companyHostServiceAccounts() {
-		lines = append(lines, fmt.Sprintf("u %s - %q %s %s", account.Name, account.Description, account.HomePath, companyHostNoLoginShell))
+	for _, account := range CompanyHostServiceAccounts(LinuxCompanyHostLayout()) {
+		homePath := account.HomePath
+		if homePath == "" {
+			homePath = "-"
+		}
+		lines = append(lines, fmt.Sprintf("u %s - %q %s %s", account.Name, account.Description, homePath, companyHostNoLoginShell))
 	}
 	return strings.Join(append(lines, ""), "\n")
 }

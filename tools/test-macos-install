@@ -26,10 +26,12 @@ What it can judge, and does:
 
 What it cannot judge, and says so rather than pretending:
 
-  * whether the nine LaunchDaemons bring the bundle up. That needs a company,
-    which needs a connection document from a plane, and it writes to
-    /Library/LaunchDaemons and creates two accounts on this Mac. It is behind
-    --install-the-company, it is off by default, and --undo takes it back out.
+  * whether the eleven LaunchDaemons bring the bundle up: the bundle's nine and
+    the host's own database and cache. That needs a company, which needs a
+    connection document from a plane, and it writes to /Library/LaunchDaemons,
+    creates four accounts and makes directories under /var on this Mac. It is
+    behind --install-the-company, it is off by default, and --undo takes it
+    back out, except the company's keys.
   * anything about a Mac that is not this one: a bottle is per macOS version
     and per architecture, and this rig only ever sees the builder's.
   * whether `brew upgrade` moves a Mac from one published version to the next.
@@ -56,7 +58,18 @@ RIG_TAP = "internkim-rig/rig"
 LAUNCH_DAEMON_ROOT = Path("/Library/LaunchDaemons")
 LAUNCH_DAEMON_PREFIX = "kim.intern."
 STATE_ROOT = Path("/var/lib/internkim")
-SERVICE_ACCOUNTS = ("blueclaw", "internkim-relay")
+SERVICE_ACCOUNTS = ("blueclaw", "internkim", "internkim-postgres", "internkim-cache")
+DAEMON_COUNT = 11
+DATA_DIRECTORIES = (
+    Path("/var/lib/internkim-postgres"),
+    Path("/var/lib/internkim-cache"),
+    Path("/var/lib/blueclaw"),
+    Path("/var/lib/internkim-workspace"),
+    Path("/var/lib/internkim-moli"),
+    Path("/var/log/internkim"),
+    Path("/var/run/internkim"),
+)
+HOMEBREW_DAEMON_PATTERN = "homebrew.mxcl.*.plist"
 DEFAULT_ARTIFACT_DIRECTORY = Path(".artifacts/native-package")
 RELEASE_DOWNLOAD_PREFIX = "https://github.com/yeomyeonggeori/internkim/releases/download/"
 
@@ -147,10 +160,11 @@ def what_a_company_would_change(with_company):
     if not with_company:
         return []
     return [
-        f"create the {' and '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
-        f"write nine {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
-        f"write this company's keys and settings under {STATE_ROOT}",
-        "start Homebrew's postgresql@17 and redis under `sudo brew services`",
+        f"create the {', '.join(SERVICE_ACCOUNTS)} accounts in this Mac's directory service",
+        f"write {DAEMON_COUNT} {LAUNCH_DAEMON_PREFIX}* plists into {LAUNCH_DAEMON_ROOT} and bootstrap them into the system domain",
+        f"write this company's keys and settings under {STATE_ROOT}, which --undo leaves in place",
+        f"make {', '.join(str(path) for path in DATA_DIRECTORIES)}",
+        "run the company's own PostgreSQL and Redis from Homebrew's binaries, leaving any `brew services` alone",
         "make the POSIX helper setuid root inside the keg",
     ]
 
@@ -369,8 +383,16 @@ def step_six_uninstall_leaves_the_prefix_as_it_was(prefix_before):
 def step_seven_the_company_is_supervised(connection_path):
     """Only reached with --install-the-company. This writes to
     /Library/LaunchDaemons and creates accounts; --undo takes both back out."""
+    homebrew_daemons_before = sorted(LAUNCH_DAEMON_ROOT.glob(HOMEBREW_DAEMON_PATTERN))
     run(["sudo", str(homebrew_prefix() / "bin" / PACKAGE_NAME), "install", str(connection_path)], capture=False)
     observations = []
+
+    homebrew_daemons_after = sorted(LAUNCH_DAEMON_ROOT.glob(HOMEBREW_DAEMON_PATTERN))
+    if homebrew_daemons_after != homebrew_daemons_before:
+        raise RigFailure(
+            f"the install changed Homebrew's own system services: {homebrew_daemons_before} became {homebrew_daemons_after}"
+        )
+    observations.append("the install left Homebrew's own services as it found them")
 
     for account in SERVICE_ACCOUNTS:
         if run(["dscl", ".", "-read", f"/Users/{account}", "UniqueID"], check=False).returncode != 0:
@@ -378,8 +400,8 @@ def step_seven_the_company_is_supervised(connection_path):
     observations.append(f"the {' and '.join(SERVICE_ACCOUNTS)} accounts exist")
 
     plists = sorted(LAUNCH_DAEMON_ROOT.glob(f"{LAUNCH_DAEMON_PREFIX}*.plist"))
-    if len(plists) != 9:
-        raise RigFailure(f"{len(plists)} daemons were written and the bundle is nine")
+    if len(plists) != DAEMON_COUNT:
+        raise RigFailure(f"{len(plists)} daemons were written and a company host is {DAEMON_COUNT}")
     for path in plists:
         # The label is the file name without its extension, because the install
         # writes the plist under its own label. Reading it back out of the plist
@@ -392,7 +414,7 @@ def step_seven_the_company_is_supervised(connection_path):
             raise RigFailure(f"{label} is not loaded in the system domain")
         if "state = running" not in printed.stdout and "LaunchOnlyOnce" not in path.read_text():
             raise RigFailure(f"{label} is loaded and not running:\n{printed.stdout[:2000]}")
-    observations.append("all nine daemons are loaded in the system domain")
+    observations.append(f"all {DAEMON_COUNT} daemons are loaded in the system domain")
 
     helper = installed_keg_path() / "libexec/blueclaw-posix-helper"
     mode = helper.stat()
@@ -415,6 +437,11 @@ def undo(with_company):
             run(["sudo", "launchctl", "bootout", f"system/{label}"], check=False)
             run(["sudo", "rm", "-f", str(path)], check=False)
             removed.append(label)
+        for directory in DATA_DIRECTORIES:
+            if run(["sudo", "test", "-e", str(directory)], check=False).returncode != 0:
+                continue
+            run(["sudo", "rm", "-rf", str(directory)], check=False)
+            removed.append(str(directory))
         for account in SERVICE_ACCOUNTS:
             if run(["dscl", ".", "-read", f"/Users/{account}", "UniqueID"], check=False).returncode != 0:
                 continue
@@ -514,8 +541,8 @@ def main():
         print(f"✓ {observation}")
     if not with_company:
         print(
-            "\nNot judged: whether the nine LaunchDaemons bring the bundle up. That needs a company,\n"
-            "and giving this Mac one writes to /Library/LaunchDaemons and creates two accounts.\n"
+            f"\nNot judged: whether the {DAEMON_COUNT} LaunchDaemons bring the bundle up. That needs a company,\n"
+            f"and giving this Mac one writes to /Library/LaunchDaemons and creates {len(SERVICE_ACCOUNTS)} accounts.\n"
             "Run it again with --install-the-company <connection.json> to judge that too."
         )
     if arguments.keep or with_company:

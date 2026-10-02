@@ -25,7 +25,7 @@ func backupPlatformOf(platform companyHostPlatform) (backupPlatform, error) {
 	backing, isBackedUp := platform.(backupPlatform)
 	if !isBackedUp {
 		return nil, fmt.Errorf(
-			"backup and restore run on a Linux host, where the package runs the company's own database. On %s the database is Homebrew's, and this command does not manage it",
+			"backup and restore run on a Linux host, and this computer runs %s",
 			platform.Describe())
 	}
 	return backing, nil

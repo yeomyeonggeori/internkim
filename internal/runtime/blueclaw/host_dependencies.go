@@ -14,6 +14,21 @@ const (
 	HostPartDatabase       HostPart = "database"
 )
 
+// The two formulas whose servers a Mac runs as the host's own database and
+// cache. The layout starts them from each formula's opt directory, which
+// Homebrew repoints at the current keg on every upgrade, so a plist never names
+// a version that an upgrade removes.
+const (
+	HomebrewDatabaseFormula = "postgresql@17"
+	HomebrewCacheFormula    = "redis"
+)
+
+// HomebrewFormulaProgramDirectory is where a formula's programs are, linked or
+// not: postgresql@17 is keg-only, so nothing of it is on the prefix's bin.
+func HomebrewFormulaProgramDirectory(homebrewPrefix string, formula string) string {
+	return strings.TrimRight(homebrewPrefix, "/") + "/opt/" + formula + "/bin"
+}
+
 // PackageManager is one of the tools that installs the host's dependencies on
 // Linux. The value is the program that answers whether a machine has it.
 type PackageManager string
@@ -103,7 +118,7 @@ var hostDependencies = []HostDependency{
 		DebianPackage:   "postgresql",
 		DnfPackages:     []string{"postgresql-server"},
 		PacmanPackages:  []string{"postgresql"},
-		HomebrewFormula: "postgresql@17",
+		HomebrewFormula: HomebrewDatabaseFormula,
 		NeededBy:        []HostPart{HostPartDatabase},
 	},
 	{
@@ -113,7 +128,7 @@ var hostDependencies = []HostDependency{
 			PackageManagerApt:    "a Debian server package carries contrib",
 			PackageManagerPacman: "Arch's postgresql package carries contrib",
 		},
-		WhatAnswersItOnAMac: "Homebrew's postgresql@17 carries contrib",
+		WhatAnswersItOnAMac: "Homebrew's " + HomebrewDatabaseFormula + " carries contrib",
 		NeededBy:            []HostPart{HostPartDatabase},
 	},
 	{
@@ -121,7 +136,7 @@ var hostDependencies = []HostDependency{
 		DebianAlternatives: []string{"valkey-server"},
 		DnfPackages:        []string{"valkey", "redis"},
 		PacmanPackages:     []string{"valkey"},
-		HomebrewFormula:    "redis",
+		HomebrewFormula:    HomebrewCacheFormula,
 		OneOfThesePrograms: []string{"valkey-server", "redis-server"},
 		NeededBy:           []HostPart{HostPartCache},
 	},
@@ -167,7 +182,7 @@ var hostDependencies = []HostDependency{
 		DebianPackage:       "postgresql-client",
 		DnfPackages:         []string{"postgresql"},
 		PacmanPackages:      []string{"postgresql"},
-		HomebrewFormula:     "postgresql@17",
+		HomebrewFormula:     HomebrewDatabaseFormula,
 		ProgramsTheHostRuns: []string{"pg_isready"},
 		NeededBy:            []HostPart{HostPartDatabase},
 	},

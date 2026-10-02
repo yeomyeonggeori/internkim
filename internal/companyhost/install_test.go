@@ -14,6 +14,7 @@ import (
 
 type recordedMachine struct {
 	runs     [][]string
+	streamed []string
 	answers  map[string]string
 	printed  map[string]string
 	failures map[string]error
@@ -30,7 +31,8 @@ func (machine *recordedMachine) Run(name string, arguments []string, environment
 func (machine *recordedMachine) Stream(name string, arguments []string, streams Streams) error {
 	machine.runs = append(machine.runs, append([]string{name}, arguments...))
 	if streams.Input != nil {
-		io.Copy(io.Discard, streams.Input)
+		input, _ := io.ReadAll(streams.Input)
+		machine.streamed = append(machine.streamed, string(input))
 	}
 	if streams.Output != nil {
 		io.WriteString(streams.Output, machine.printed[name])
@@ -39,6 +41,11 @@ func (machine *recordedMachine) Stream(name string, arguments []string, streams 
 }
 
 func (machine *recordedMachine) ranStatementsCarrying(text string) bool {
+	for _, input := range machine.streamed {
+		if strings.Contains(input, text) {
+			return true
+		}
+	}
 	for _, run := range machine.runs {
 		for _, argument := range run {
 			if strings.HasPrefix(argument, databasePreparationVariable+"=") && strings.Contains(argument, text) {
@@ -173,7 +180,7 @@ func TestThePreflightDoesNotAskADebianMachineForWhatThePackageCarries(t *testing
 
 func TestThePreflightAsksNoNativeHostForAPythonOfItsOwn(t *testing.T) {
 	machine := &recordedMachine{missing: map[string]bool{"python3": true}}
-	for _, platform := range []companyHostPlatform{linuxPlatform{}, macPlatformForTest()} {
+	for _, platform := range []companyHostPlatform{linuxPlatform{}, macPlatformForTest(t)} {
 		if errorValue := requireWhatTheCompanyHostRuns(platform, machine); errorValue != nil {
 			t.Fatalf("a host was refused for a python3 the package's install step brings:\n%v", errorValue)
 		}
@@ -372,4 +379,24 @@ func TestAnInstallTrimsTheTrailingSlashOffEveryAddress(t *testing.T) {
 			t.Fatalf("%s kept its trailing slash, so every path joined onto it has two", address)
 		}
 	}
+}
+
+func (machine *recordedMachine) ran(words ...string) bool {
+	for _, run := range machine.runs {
+		if len(run) >= len(words) && strings.Join(run[:len(words)], "\x00") == strings.Join(words, "\x00") {
+			return true
+		}
+	}
+	return false
+}
+
+func (machine *recordedMachine) ranProgram(program string) bool {
+	for _, run := range machine.runs {
+		for _, argument := range run {
+			if argument == program {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -404,6 +404,18 @@ GROUPS = [
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"]],
     ),
     Group(
+        "macos-install-rig",
+        [
+            "tools/test-macos-install",
+            "tools/tests/test_macos_install_rig.py",
+            "internal/runtime/blueclaw/blueclaw_contract.go",
+            "internal/runtime/blueclaw/company_host_*.go",
+        ],
+        # The half that needs no Mac to install into. The rig itself changes the
+        # Mac it runs on and is run by hand: tools/test-macos-install --help
+        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_macos_install_rig.py"]],
+    ),
+    Group(
         "model-evaluation-harness",
         ["lab/scripts/evaluate-model-response.py", "tools/tests/test_evaluate_model_response.py"],
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_evaluate_model_response.py"]],

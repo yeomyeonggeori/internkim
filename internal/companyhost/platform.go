@@ -17,14 +17,18 @@ import (
 // this machine makes an account, reaches its database, supervises a process, and
 // names the command that installs something.
 
-// The two services the company host opens and does not ship. They are named here
-// because each platform calls them something different — internkim-postgresql and
-// internkim-cache under systemd, postgresql@17 and redis under `brew services` — and a
-// probe should not have to know which machine it is on.
+// The two services the company host runs from servers it does not ship. A probe
+// names them by what they are, and each platform turns that into what its
+// supervisor calls them: a unit under systemd, a label under launchd.
 const (
 	databaseServiceName = "database"
 	cacheServiceName    = "cache"
 )
+
+var companyHostDataServiceNames = map[string]string{
+	databaseServiceName: blueclaw.CompanyHostDatabaseServiceName,
+	cacheServiceName:    blueclaw.CompanyHostCacheServiceName,
+}
 
 type companyHostPlatform interface {
 	Describe() string
@@ -43,6 +47,9 @@ type companyHostPlatform interface {
 	// PATH and not at the path the declaration names. Any one of them satisfies it.
 	// Empty means look the way the declaration says.
 	WhereToLookFor(dependency blueclaw.HostDependency) []string
+	// WhereItKeepsTheProgram is the path of one of a dependency's programs on
+	// this machine. Empty means look for it on PATH.
+	WhereItKeepsTheProgram(dependency blueclaw.HostDependency, programName string) string
 	// HowToInstallTheseByHand is the closing lines of the preflight refusal: the
 	// one command this machine installs software with, or nothing when this
 	// repository does not know it.
@@ -83,7 +90,7 @@ func platformFor(operatingSystem string, homebrewPrefix string) (companyHostPlat
 				"the company host on a Mac is installed by Homebrew and `brew --prefix` answered nothing. " +
 					"Install Homebrew from https://brew.sh, then run this again")
 		}
-		return macPlatform{homebrewPrefix: homebrewPrefix}, nil
+		return macPlatform{homebrewPrefix: homebrewPrefix, launchDaemonRoot: blueclaw.CompanyHostLaunchDaemonRoot}, nil
 	}
 	return nil, fmt.Errorf("the company host installs on Linux with systemd and on macOS; this machine is %s", operatingSystem)
 }

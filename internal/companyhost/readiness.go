@@ -89,15 +89,14 @@ func databaseProbe(layout blueclaw.CompanyHostLayout) serviceProbe {
 	probe := serviceProbe{
 		Service:        "PostgreSQL",
 		SupervisedName: databaseServiceName,
+		Command:        []string{layout.DatabaseProgram("pg_isready"), "--quiet", "--host", layout.DatabaseSocketDirectory},
+		WhenSilent:     "PostgreSQL is not accepting connections on " + layout.DatabaseSocketDirectory,
 		WhatItCosts:    "everything this company remembers is in it, and nothing else starts until it answers",
 	}
-	if layout.OwnsItsDataServices() {
-		probe.Command = []string{"pg_isready", "--quiet", "--host", layout.DatabaseSocketDirectory}
-		probe.WhenSilent = "PostgreSQL is not accepting connections on " + layout.DatabaseSocketDirectory
-		return probe
+	if layout.DatabaseLoopbackAddress != "" {
+		probe.Command = []string{layout.DatabaseProgram("pg_isready"), "--quiet", "--host", layout.DatabaseLoopbackHost(), "--port", layout.DatabasePort()}
+		probe.WhenSilent = "PostgreSQL is not accepting connections on " + layout.DatabaseLoopbackAddress
 	}
-	probe.Command = []string{"pg_isready", "--quiet", "--host", "127.0.0.1", "--port", "5432"}
-	probe.WhenSilent = "PostgreSQL is not accepting connections on " + layout.DatabaseLoopbackAddress
 	return probe
 }
 
@@ -105,16 +104,14 @@ func cacheProbe(layout blueclaw.CompanyHostLayout) serviceProbe {
 	probe := serviceProbe{
 		Service:        "the cache",
 		SupervisedName: cacheServiceName,
+		Command:        []string{layout.CacheProgram("redis-cli"), "-s", layout.CacheSocketPath, "ping"},
 		Answer:         "PONG",
+		WhenSilent:     "the cache is not answering on " + layout.CacheSocketPath,
 		WhatItCosts:    "the messenger opens it for presence and fan-out and will not start without it",
 	}
-	if layout.OwnsItsDataServices() {
+	if layout.RunsTheDataServiceScript() {
 		probe.Command = []string{layout.DataServicePath(), "cache-ping"}
-		probe.WhenSilent = "the cache is not answering on " + layout.CacheSocketPath
-		return probe
 	}
-	probe.Command = []string{"redis-cli", "-h", "127.0.0.1", "ping"}
-	probe.WhenSilent = "Redis is not answering on 127.0.0.1:6379"
 	return probe
 }
 

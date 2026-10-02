@@ -93,6 +93,8 @@ const (
 	// prepare script runs under umask 077 so what it writes there grants others
 	// nothing. The relay is never put in the blueclaw group, which reads the keys.
 	CompanyHostRunPathMode = 0o771
+	// The log directory is the agent's, which writes its own logs into it.
+	CompanyHostLogDirectoryMode = 0o750
 	// The ACP socket's directory is blueclaw's so blueclaw can create the socket,
 	// and setgid with the relay's group so that socket is the relay's group's.
 	CompanyHostACPSocketDirectoryMode = 0o2750
@@ -360,7 +362,7 @@ install -d -o root -g %[3]s -m 0750 %[5]s
 [ -s %[25]s ] || od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > %[25]s
 install -o root -g %[3]s -m 0440 %[25]s %[6]s
 [ ! -r %[7]s ] || install -o root -g %[3]s -m 0440 %[7]s %[8]s
-install -d -o %[3]s -g %[3]s -m 0750 %[9]s
+install -d -o %[3]s -g %[3]s -m %[31]s %[9]s
 install -d -o %[3]s -g %[3]s -m 0750 %[10]s
 install -d -o root -g root -m %[24]s %[11]s
 install -d -o %[3]s -g %[3]s -m 0755 %[12]s
@@ -421,5 +423,6 @@ fi
 		RelayUserName,
 		fmt.Sprintf("%04o", CompanyHostACPSocketDirectoryMode),
 		layout.ACPSocketDirectoryPath(),
-		layout.MigrationPath)
+		layout.MigrationPath,
+		fmt.Sprintf("%04o", CompanyHostLogDirectoryMode))
 }

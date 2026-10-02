@@ -9,27 +9,27 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // The macOS half. `brew install internkim` delivers the files and this makes the
-// box a host: it creates the two accounts through the directory service, sets
-// the helper's ownership and its setuid bit — the one thing a bottle pour cannot
-// carry, because extracting a tar as an ordinary user drops the bit and
-// Homebrew's own linter forbids even recommending it — writes the nine
-// LaunchDaemons from the same declaration the units come from, and then polls
-// readiness where ordering used to stand.
+// box a host: it creates the service accounts through the directory service,
+// starts the host's own database and cache, sets the helper's ownership and its
+// setuid bit — the one thing a bottle pour cannot carry, because extracting a
+// tar as an ordinary user drops the bit and Homebrew's own linter forbids even
+// recommending it — writes the nine LaunchDaemons from the same declaration the
+// units come from, and then polls readiness where ordering used to stand.
 //
-// Two of Homebrew's rules decide the shape of this file, and both were read out
-// of Homebrew's own source rather than assumed. `brew.sh`'s
-// check-run-command-as-root refuses every command run as root except
-// `as-console-user`, `setup-sandbox`, `--prefix` and `services`. So this may ask
-// Homebrew where its prefix is and may start the database and the cache with
-// `brew services`, and may do nothing else with it. And `Homebrew::Services::
-// System.path` returns /Library/LaunchDaemons with the `system` domain target
-// when euid is zero, so the database and the cache land in the same domain as
-// the nine daemons here and survive a reboot with nobody logged in.
+// `brew.sh`'s check-run-command-as-root refuses every command run as root
+// except `as-console-user`, `setup-sandbox`, `--prefix` and `services`, so this
+// asks Homebrew where its prefix is and nothing else. `brew services` is not
+// used either: run as root it installs the formula's own service into
+// /Library/LaunchDaemons running as root, which PostgreSQL refuses, and takes
+// over the postgresql@17 and redis services the person at this Mac may already
+// run. The host starts the formulas' binaries as its own daemons instead, the
+// way the Linux package runs its own units.
 
 const (
 	// Below 500 so the accounts do not appear at the login window, and far
@@ -41,13 +41,9 @@ const (
 	macServiceAccountShell = "/usr/bin/false"
 )
 
-var macDistributionFormulas = map[string]string{
-	databaseServiceName: "postgresql@17",
-	cacheServiceName:    "redis",
-}
-
 type macPlatform struct {
-	homebrewPrefix string
+	homebrewPrefix   string
+	launchDaemonRoot string
 }
 
 func (macPlatform) Describe() string {
@@ -77,30 +73,13 @@ func homebrewPrefix() string {
 	return strings.TrimSpace(string(commandOutput))
 }
 
-// companyHostServiceAccount is one unprivileged account the bundle runs a
-// service as. Two exist, and they are separate because the relay outlives the
-// agent: it keeps answering when the agent is down, so it does not share the
-// agent's identity or its files.
-type companyHostServiceAccount struct {
-	Name        string
-	HomePath    string
-	Description string
-}
-
-func companyHostServiceAccounts(layout blueclaw.CompanyHostLayout) []companyHostServiceAccount {
-	return []companyHostServiceAccount{
-		{Name: blueclaw.BlueclawUser, HomePath: layout.AgentHomePath, Description: "internkim agent"},
-		{Name: blueclaw.RelayUserName, Description: "internkim relay"},
-	}
-}
-
 // dscl is the whole of account creation on a Mac, and it is eight commands
 // rather than one because the directory service has no adduser. The same eight
 // are what blueclaw's POSIX helper runs for a projected person, and the reason
 // they are written twice is that the helper is a `package main` in another
 // module. A test holds the two orders together.
 func (platform macPlatform) EnsureServiceAccounts(machine Machine) error {
-	for _, account := range companyHostServiceAccounts(platform.Layout()) {
+	for _, account := range blueclaw.CompanyHostServiceAccounts(platform.Layout()) {
 		if _, errorValue := machine.Output("dscl", []string{".", "-read", "/Users/" + account.Name, "UniqueID"}); errorValue == nil {
 			continue
 		}
@@ -123,7 +102,7 @@ func (platform macPlatform) EnsureServiceAccounts(machine Machine) error {
 // macAccountCommands is a pure function of the account so a test can read what
 // would be created without a directory service to create it in. The user and the
 // group take the same number, which is what every macOS service account does.
-func macAccountCommands(account companyHostServiceAccount, identityID int) [][]string {
+func macAccountCommands(account blueclaw.CompanyHostServiceAccount, identityID int) [][]string {
 	groupRecord := "/Groups/" + account.Name
 	userRecord := "/Users/" + account.Name
 	number := strconv.Itoa(identityID)
@@ -187,26 +166,83 @@ func identityNumbersIn(listing string) []int {
 	return numbers
 }
 
+// The database and the cache are this host's own daemons, as their own accounts,
+// in their own directories. The cluster is made once, as the account that will
+// run it, because PostgreSQL refuses to run as root and refuses a data
+// directory it does not own. The install goes on to prepare the database, so
+// this returns once it answers.
 func (platform macPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
-	for _, formula := range []string{macDistributionFormulas[databaseServiceName], macDistributionFormulas[cacheServiceName]} {
-		if errorValue := machine.Run("brew", []string{"services", "start", formula}, nil, io.Discard); errorValue != nil {
-			return fmt.Errorf(
-				"`brew services start %s` failed. It is one of the two Homebrew commands that may run as root, "+
-					"and as root it installs the service into %s so it comes back after a restart: %w",
-				formula, blueclaw.CompanyHostLaunchDaemonRoot, errorValue)
+	layout := platform.Layout()
+	if errorValue := makeTheDataDirectories(machine); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := makeTheClusterOnce(layout, machine); errorValue != nil {
+		return errorValue
+	}
+	daemons, errorValue := blueclaw.CompanyHostDataLaunchDaemons(layout)
+	if errorValue != nil {
+		return errorValue
+	}
+	if errorValue := writeAndBootstrapLaunchDaemons(platform.launchDaemonRoot, daemons, machine, io.Discard); errorValue != nil {
+		return errorValue
+	}
+	return waitForOne(platform, machine, databaseProbe(layout), time.Now().Add(waitForTheServerBudget), io.Discard)
+}
+
+// Each data directory is the account's that runs in it. The log directory is
+// made here too: launchd opens a daemon's log before it starts the daemon and
+// creates no directory to do it, and the data daemons start before the bundle's
+// preparation step would have made it.
+func makeTheDataDirectories(machine Machine) error {
+	directories := []struct {
+		path  string
+		owner string
+		mode  os.FileMode
+	}{
+		{blueclaw.CompanyHostDatabaseDataPath, blueclaw.CompanyHostDatabaseUser, 0o700},
+		{blueclaw.CompanyHostCacheDataPath, blueclaw.CompanyHostCacheUser, 0o700},
+		{blueclaw.CompanyHostLogPath, blueclaw.BlueclawUser, blueclaw.CompanyHostLogDirectoryMode},
+	}
+	for _, directory := range directories {
+		arguments := []string{"-d", "-o", directory.owner, "-g", directory.owner, "-m", fmt.Sprintf("%04o", directory.mode), directory.path}
+		if errorValue := machine.Run("install", arguments, nil, io.Discard); errorValue != nil {
+			return fmt.Errorf("make %s, owned by %s: %w", directory.path, directory.owner, errorValue)
 		}
 	}
 	return nil
 }
 
-// Homebrew's PostgreSQL runs as the person who installed it and authenticates
-// locally, so there is no account to become: psql connects directly. The SQL is
-// the same SQL.
-func (macPlatform) RunDatabaseStatements(machine Machine, statements string, progress io.Writer) error {
-	arguments := []string{
-		"-c", `printf '%s' "$` + databasePreparationVariable + `" | psql --set ON_ERROR_STOP=1 --quiet --no-psqlrc --dbname postgres`,
+func makeTheClusterOnce(layout blueclaw.CompanyHostLayout, machine Machine) error {
+	if machine.CarriesFile(blueclaw.CompanyHostDatabaseDataPath+"/PG_VERSION") == nil {
+		return nil
 	}
-	return machine.Run("sh", arguments, []string{databasePreparationVariable + "=" + statements}, progress)
+	initialization := blueclaw.CompanyHostDatabaseInitialization(layout)
+	if _, errorValue := machine.Output("sudo", asAnAccountOnAMac(blueclaw.CompanyHostDatabaseUser, initialization...)); errorValue != nil {
+		return fmt.Errorf("the company's database could not be made in %s: %w", blueclaw.CompanyHostDatabaseDataPath, errorValue)
+	}
+	return nil
+}
+
+// sudo is how root becomes another account on a Mac, which has no runuser. The
+// account's own programs refuse a working directory they cannot read, and the
+// directory sudo was run from is usually a person's home.
+func asAnAccountOnAMac(account string, command ...string) []string {
+	return append([]string{"-u", account, "--", "/bin/sh", "-c", `cd / && exec "$@"`, "sh"}, command...)
+}
+
+// The superuser is the database account's own name and signs in by peer on the
+// socket in its data directory, so the way in is to become that account. The
+// statements reach psql on its standard input, never on a command line, which
+// every account on this box can read.
+func (platform macPlatform) RunDatabaseStatements(machine Machine, statements string, progress io.Writer) error {
+	layout := platform.Layout()
+	arguments := asAnAccountOnAMac(blueclaw.CompanyHostDatabaseUser,
+		layout.DatabaseProgram("psql"),
+		"--host", layout.DatabaseSocketDirectory,
+		"--port", layout.DatabasePort(),
+		"--username", blueclaw.CompanyHostDatabaseUser,
+		"--set", "ON_ERROR_STOP=1", "--quiet", "--no-psqlrc", "--dbname", "postgres")
+	return machine.Stream("sudo", arguments, Streams{Input: strings.NewReader(statements), Output: progress, Errors: progress})
 }
 
 func (platform macPlatform) SuperviseTheBundle(machine Machine, progress io.Writer) error {
@@ -214,15 +250,14 @@ func (platform macPlatform) SuperviseTheBundle(machine Machine, progress io.Writ
 	if errorValue := makeTheHelperSetuidRoot(layout, progress); errorValue != nil {
 		return errorValue
 	}
-	return writeAndBootstrapLaunchDaemons(
-		blueclaw.CompanyHostLaunchDaemonRoot, layout, readEnvironmentFilesTheServicesName(layout), machine, progress)
-}
-
-func writeAndBootstrapLaunchDaemons(daemonRoot string, layout blueclaw.CompanyHostLayout, environmentFiles map[string]string, machine Machine, progress io.Writer) error {
-	daemons, errorValue := blueclaw.CompanyHostLaunchDaemons(layout, environmentFiles)
+	daemons, errorValue := blueclaw.CompanyHostLaunchDaemons(layout, readEnvironmentFilesTheServicesName(layout))
 	if errorValue != nil {
 		return errorValue
 	}
+	return writeAndBootstrapLaunchDaemons(platform.launchDaemonRoot, daemons, machine, progress)
+}
+
+func writeAndBootstrapLaunchDaemons(daemonRoot string, daemons []blueclaw.CompanyHostLaunchDaemon, machine Machine, progress io.Writer) error {
 	if errorValue := os.MkdirAll(daemonRoot, 0o755); errorValue != nil {
 		return errorValue
 	}
@@ -318,9 +353,18 @@ func (macPlatform) WhereToLookFor(dependency blueclaw.HostDependency) []string {
 	return dependency.MacFilePathCandidates
 }
 
+// A formula's programs are in its opt directory whether it is linked or not,
+// and that is where the host starts them from.
+func (platform macPlatform) WhereItKeepsTheProgram(dependency blueclaw.HostDependency, programName string) string {
+	if dependency.HomebrewFormula == "" {
+		return ""
+	}
+	return blueclaw.HomebrewFormulaProgramDirectory(platform.homebrewPrefix, dependency.HomebrewFormula) + "/" + programName
+}
+
 func (macPlatform) SupervisorIdentityFor(serviceName string) string {
-	if formula, isDistributions := macDistributionFormulas[serviceName]; isDistributions {
-		return "system/" + blueclaw.CompanyHostLaunchDaemonLabelPrefix + formula
+	if name, isDataService := companyHostDataServiceNames[serviceName]; isDataService {
+		serviceName = name
 	}
 	return "system/" + blueclaw.CompanyHostLaunchDaemonLabel(serviceName)
 }
