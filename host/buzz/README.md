@@ -14,25 +14,26 @@ signed becomes unverifiable without it. Back up the company directory under
 
 ## Reaching it from outside
 
-Nothing outside the machine reaches this stack, and for most companies nothing
-has to. People sign in at `<zone>`, the same address for every company, and
-the messenger they see is answered by a relay that talks outbound only. No
-hostname to buy, no port to open, no certificate to renew.
+Nothing outside the machine reaches this stack. People sign in at `<zone>`, the
+same address for every company, and the messenger they see is answered by a
+relay that talks outbound only. No hostname to buy, no port to open, no
+certificate to renew.
 
-The exception is a company that wants to use a Buzz client app, because an app
-connects to the relay itself. Then the relay needs a name on the public internet,
-and that name belongs to the company: point a tunnel (Cloudflare Tunnel, a
-Tailscale funnel, an ordinary reverse proxy) at `127.0.0.1:3000` on the machine
-this stack runs on, and hand the domain to whatever configures the relay.
+A Buzz app connects to the relay itself, at the company's messenger address
+`<slug>.<zone>`. On a company host the package installed, the connection
+gateway answers that address and carries each app's socket to this machine over
+the relay's own outbound connection, so the relay still listens on loopback
+alone. `internkim install` derives the address from the connection file and
+writes it as `RELAY_URL`, `BUZZ_MEDIA_BASE_URL` and `CHATD_BUZZ_RELAY_URL` in
+`host.env`; chatd reaches the relay at `CHATD_BUZZ_RELAY_DIAL_URL` (loopback) and
+presents the address as `Host`. Every install and upgrade moves a lone community
+to that address before the relay starts, since the relay picks the community
+from the `Host` header.
 
-| Where the relay runs | How the name gets in |
-|---|---|
-| a company host the package installed | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
-| a device this repository provisions | `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>` |
-
-Nothing works the domain out for you. A relay with no domain stays on loopback,
-which is what the paragraph above describes, and the provisioning step that would
-configure one does nothing.
+A device this repository provisions still takes a domain of its own behind a
+tunnel: `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>`.
+Nothing works that domain out for you, and a device relay with none stays on
+loopback.
 
 The device path does the rest of what a public name needs: an `/etc/hosts` alias
 so clients on the box resolve it to loopback, a self-signed certificate for it,

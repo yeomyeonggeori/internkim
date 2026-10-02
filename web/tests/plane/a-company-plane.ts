@@ -95,6 +95,7 @@ type AdmindPlaneArguments = {
 	buzzRelayKeyPath: string;
 	buzzAdminCommandPath: string;
 	buzzRelayURL: string;
+	buzzRelayPublicURL: string;
 	buzzAccountLinksPath: string;
 	centralPlaneAppURL: string;
 	centralPlaneAgentKeyPath: string;
@@ -155,6 +156,7 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-buzz-relay-key-path': argumentsForPlane.buzzRelayKeyPath,
 			'-buzz-admin-command': argumentsForPlane.buzzAdminCommandPath,
 			'-buzz-relay-url': argumentsForPlane.buzzRelayURL,
+			'-buzz-relay-public-url': argumentsForPlane.buzzRelayPublicURL,
 			'-buzz-account-links': argumentsForPlane.buzzAccountLinksPath,
 			'-central-plane-app-url': argumentsForPlane.centralPlaneAppURL,
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
@@ -168,6 +170,11 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-database': argumentsForPlane.databasePath
 		}
 	);
+}
+
+function messengerAddressOf(slug: string, appURL: string): string {
+	const app = new URL(appURL);
+	return `${app.protocol === 'https:' ? 'wss' : 'ws'}://${slug}.${app.hostname}`;
 }
 
 function environmentValue(name: string): string {
@@ -527,6 +534,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						buzzRelayKeyPath: join(runDirectory, 'secrets', 'buzz-relay-key'),
 						buzzAdminCommandPath: join(binaryDirectory, 'buzz-admin'),
 						buzzRelayURL: 'ws://127.0.0.1:1',
+						buzzRelayPublicURL: messengerAddressOf(`plane-${runIdentifier}`, environmentValue('INTERNKIM_APP_URL')),
 						buzzAccountLinksPath: join(runDirectory, 'state', 'buzz-account-links.json'),
 						centralPlaneAppURL: environmentValue('INTERNKIM_APP_URL'),
 						centralPlaneAgentKeyPath: agentKeyPath,

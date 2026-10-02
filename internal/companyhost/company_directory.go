@@ -213,6 +213,9 @@ func companyEnvironment(layout blueclaw.CompanyHostLayout, password string, conn
 		{"GATEWAY_URL", connection.GatewayURL},
 		{"MESSENGER_PLATFORM", blueclaw.BlueclawMessengerPlatform},
 		{"CHATD_BOT_USER_NAME", messengerBotUserName},
+		{"RELAY_URL", MessengerURL(connection)},
+		{"BUZZ_MEDIA_BASE_URL", messengerMediaBaseURL(connection)},
+		{"CHATD_BUZZ_RELAY_URL", MessengerURL(connection)},
 	}
 }
 

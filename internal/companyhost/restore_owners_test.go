@@ -54,14 +54,14 @@ func TestForeignOwnersAreMadeForTheRestoreAndGivenAway(t *testing.T) {
 	}
 }
 
-func TestTheMessengerCommunityMovesToThisHostsRelayOnlyWhenItIsTheOnlyOne(t *testing.T) {
-	statements := messengerCommunityRehoming()
+func TestTheMessengerCommunityMovesToItsMessengerHostOnlyWhenItIsTheOnlyOne(t *testing.T) {
+	statements := messengerCommunityRehoming("acme.example.test")
 	for _, clause := range []string{
 		`\connect buzz`,
 		"to_regclass('public.communities') IS NULL",
-		"SET host = '127.0.0.1:3000'",
+		"SET host = 'acme.example.test'",
 		"(SELECT count(*) FROM communities) = 1",
-		"NOT EXISTS (SELECT 1 FROM communities WHERE lower(host) = lower('127.0.0.1:3000'))",
+		"NOT EXISTS (SELECT 1 FROM communities WHERE lower(host) = lower('acme.example.test'))",
 	} {
 		if !strings.Contains(statements, clause) {
 			t.Errorf("the re-homing lacks %q:\n%s", clause, statements)

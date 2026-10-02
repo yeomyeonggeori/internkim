@@ -342,10 +342,6 @@ func CompanyHostSettingsFile() string {
 		"BUZZ_S3_BUCKET=" + BuzzMediaBucket,
 		"BUZZ_S3_REGION=us-east-1",
 		"",
-		"# The address clients reach this company's messenger at. Loopback until a",
-		"# public host terminates TLS in front of it.",
-		"RELAY_URL=" + BuzzRelayLocalURL,
-		"",
 	}, "\n")
 }
 

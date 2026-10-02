@@ -39,6 +39,9 @@ func refreshOn(platform companyHostPlatform, machine Machine, progress io.Writer
 	if errorValue := prepareDatabases(platform, machine, companyHostSettings{DatabasePassword: secrets.DatabasePassword}, progress); errorValue != nil {
 		return errorValue
 	}
+	if errorValue := rehomeTheMessengerCommunity(platform, machine, connection, progress); errorValue != nil {
+		return errorValue
+	}
 
 	fmt.Fprintln(progress, "3/4 Restarting the services…")
 	if errorValue := platform.SuperviseTheBundle(machine, progress); errorValue != nil {

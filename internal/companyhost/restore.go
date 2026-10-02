@@ -375,7 +375,7 @@ func restoreTheDatabases(platform backupPlatform, archive hostbackup.Archive, ma
 			return errorValue
 		}
 	}
-	return rehomeTheMessengerCommunity(platform, machine, progress)
+	return rehomeTheMessengerCommunity(platform, machine, connection, progress)
 }
 
 func databaseRemovalStatements() string {

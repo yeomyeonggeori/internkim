@@ -81,6 +81,9 @@ func installOn(platform companyHostPlatform, request Request, machine Machine, p
 	if errorValue := prepareDatabases(platform, machine, company, progress); errorValue != nil {
 		return Installation{}, errorValue
 	}
+	if errorValue := rehomeTheMessengerCommunity(platform, machine, connection, progress); errorValue != nil {
+		return Installation{}, errorValue
+	}
 
 	fmt.Fprintln(progress, "4/5 Installing and starting the services…")
 	if errorValue := platform.SuperviseTheBundle(machine, progress); errorValue != nil {
