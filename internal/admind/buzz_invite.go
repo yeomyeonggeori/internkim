@@ -185,11 +185,7 @@ func (service *Service) handleBuzzInviteCreate(responseWriter http.ResponseWrite
 
 func (service *Service) buzzInviteURL(code string) string {
 	relayURL := service.buzzRelayEffectiveURL()
-	landingBaseURL := strings.TrimRight(service.Configuration.BuzzLandingBaseURL, "/")
-	if landingBaseURL == "" {
-		return "buzz://join?relay=" + url.QueryEscape(relayURL) + "&code=" + url.QueryEscape(code)
-	}
-	return landingBaseURL + "/invite.html?relay=" + url.QueryEscape(relayURL) + "&code=" + url.QueryEscape(code)
+	return "buzz://join?relay=" + url.QueryEscape(relayURL) + "&code=" + url.QueryEscape(code)
 }
 
 func (service *Service) handleBuzzInviteList(responseWriter http.ResponseWriter) {

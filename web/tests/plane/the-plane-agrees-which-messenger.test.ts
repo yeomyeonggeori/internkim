@@ -46,6 +46,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 		buzzRelayKeyPath: '/tmp/buzz-relay-key',
 		buzzAdminCommandPath: '/usr/bin/buzz-admin',
 		buzzRelayURL: 'ws://127.0.0.1:8084',
+		buzzRelayPublicURL: 'wss://acme.app.example.test',
 		buzzAccountLinksPath: '/tmp/buzz-account-links.json',
 		centralPlaneAppURL: 'https://app.example.test',
 		centralPlaneAgentKeyPath: '/tmp/agent-key',
@@ -59,6 +60,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 	expect(argumentsForAdmind).toContain('-buzz-database-url-path');
 	expect(argumentsForAdmind).toContain('-buzz-relay-key-path');
 	expect(argumentsForAdmind).toContain('-buzz-account-links');
+	expect(argumentsForAdmind).toContain('-buzz-relay-public-url');
 	expect(argumentsForAdmind).toContain('-blueclaw-assertion-key');
 });
 

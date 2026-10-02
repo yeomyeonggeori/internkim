@@ -146,7 +146,7 @@ func (service *Service) connectToTheRelayOnceItAnswers(ctx context.Context, acto
 			case <-time.After(relayConnectRetryDelay):
 			}
 		}
-		publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), actorSecretHex)
+		publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), service.Configuration.BuzzRelayURL, actorSecretHex)
 		if errorValue == nil {
 			return publisher, nil
 		}
