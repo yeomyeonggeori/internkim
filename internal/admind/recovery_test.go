@@ -298,10 +298,30 @@ func TestBuzzRelayTerminatorSkipsWithoutAPublicHost(t *testing.T) {
 	}
 }
 
-func TestBuzzRelayTerminatorRunsWithAPublicHost(t *testing.T) {
+func TestBuzzRelayTerminatorSkipsOnACompanyHost(t *testing.T) {
 	service := newRecoveryTestService(t)
 	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
-	service.Configuration.BuzzRelayPublicURL = "wss://relay.example.test"
+	service.Configuration.BuzzRelayPublicURL = "wss://acme.example.test"
+	service.Configuration.BuzzRelayPublicURLPath = filepath.Join(t.TempDir(), "buzz-relay-public-url")
+	invoked := make(chan struct{}, 1)
+	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		invoked <- struct{}{}
+		return []byte("ok\n"), nil
+	}
+
+	service.ensureBuzzRelayTerminator()
+
+	select {
+	case <-invoked:
+		t.Fatal("a company host's public URL is a flag, not a device's provisioned relay, so nothing should install or enable stunnel")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestBuzzRelayTerminatorRunsOnADeviceWithAProvisionedPublicHost(t *testing.T) {
+	service := newRecoveryTestService(t)
+	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
+	service.Configuration.BuzzRelayPublicURLPath = writeTestFile(t, "wss://relay.example.test")
 	invoked := make(chan string, 1)
 	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
 		invoked <- strings.TrimSpace(name + " " + strings.Join(arguments, " "))
@@ -316,7 +336,7 @@ func TestBuzzRelayTerminatorRunsWithAPublicHost(t *testing.T) {
 			t.Fatalf("expected the stunnel repair command, got %s", command)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("a relay with a public host must keep its TLS terminator running")
+		t.Fatal("a device whose provisioning recorded a public host must keep its TLS terminator running")
 	}
 }
 

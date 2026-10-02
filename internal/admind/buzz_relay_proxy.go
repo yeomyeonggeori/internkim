@@ -25,6 +25,10 @@ func (service *Service) buzzRelayPublicURL() string {
 	if configured := strings.TrimSpace(service.Configuration.BuzzRelayPublicURL); configured != "" {
 		return configured
 	}
+	return service.provisionedBuzzRelayPublicURL()
+}
+
+func (service *Service) provisionedBuzzRelayPublicURL() string {
 	return blueclaw.RelayPublicURL(readTrimmedFile(service.Configuration.BuzzRelayPublicURLPath))
 }
 

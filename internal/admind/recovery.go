@@ -16,15 +16,14 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-// ensureBuzzRelayTerminator keeps the TLS terminator (:443 -> relay :3000)
-// running whenever this box has a public host for Buzz to answer on. The
-// Debian SysV stunnel4 service is not auto-restarted, so a native systemd
-// unit is installed and (re)started on every admind start. BuzzRelayURL is
-// always the loopback address, public host or not, so the public URL
-// provisioning recorded is what tells the two apart. Runs detached from any
-// request context.
+// ensureBuzzRelayTerminator keeps the device's TLS terminator (:443 -> relay
+// :3000) running. The Debian SysV stunnel4 service is not auto-restarted, so a
+// native systemd unit is installed and (re)started on every admind start. Only
+// device provisioning records a public URL on disk; a company host passes one
+// as a flag and terminates nothing itself. Runs detached from any request
+// context.
 func (service *Service) ensureBuzzRelayTerminator() {
-	if strings.TrimSpace(service.buzzRelayPublicURL()) == "" {
+	if service.provisionedBuzzRelayPublicURL() == "" {
 		return
 	}
 	go func() {
