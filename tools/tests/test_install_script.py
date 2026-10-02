@@ -22,11 +22,10 @@ github_newest_release = "https://api.github.com/repos/yeomyeonggeori/internkim/r
 # see it, and its destination is always the last argument. Rewriting that one
 # argument under a sandbox is what lets this test read what the script wrote to
 # /etc and /usr/share without the test machine having either path touched.
-def default_of(setting):
-    """What the script falls back to when its override variable is unset."""
-    match = re.search(rf'^{setting}="\$\{{[A-Z_]+:-([^}}"]+)\}}"', install_script.read_text(), re.MULTILINE)
+def assigned_value(setting):
+    match = re.search(rf'^{setting}="([^"$]+)"$', install_script.read_text(), re.MULTILINE)
     if match is None:
-        raise AssertionError(f"install.sh no longer sets {setting} from an override with a default")
+        raise AssertionError(f"install.sh no longer assigns {setting} a literal")
     return match.group(1)
 
 
@@ -146,7 +145,7 @@ class InstallScriptTests(unittest.TestCase):
         that lives in it. A literal here would be a second declaration, and a
         machine that adds a tap the formula was never committed to installs
         nothing."""
-        self.assertEqual(default_of("homebrew_tap"), declared_tap())
+        self.assertEqual(assigned_value("homebrew_tap"), declared_tap())
 
     def test_a_mac_with_homebrew_installs_the_formula_from_the_tap(self):
         """The published one line has to leave a registered Homebrew install, or
@@ -158,7 +157,7 @@ class InstallScriptTests(unittest.TestCase):
         completed = self.run_install(machine=("Darwin", "arm64"), shims=[str(brew)])
         self.assertEqual(completed.returncode, 0, completed.stderr)
         ran = log_path.read_text().splitlines()
-        tap = default_of("homebrew_tap")
+        tap = assigned_value("homebrew_tap")
         self.assertEqual(ran[0], f"brew tap {tap}")
         self.assertEqual(ran[1], "brew trust --help")
         self.assertEqual(ran[2], f"brew trust --formula {tap}/internkim")
@@ -181,7 +180,7 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         ran = log_path.read_text().splitlines()
         self.assertEqual(ran, [
-            f"brew tap {default_of('homebrew_tap')}",
+            f"brew tap {assigned_value('homebrew_tap')}",
             "brew trust --help",
             "brew install internkim",
         ])
@@ -438,15 +437,10 @@ class InstallScriptTests(unittest.TestCase):
         ])
 
     def test_testing_installs_from_the_newest_release_whatever_its_kind(self):
-        for arguments, environment in [
-            (("--channel", "testing"), {}),
-            (("--channel=testing",), {}),
-            ((), {"INTERNKIM_INSTALL_CHANNEL": "testing"}),
-        ]:
-            with self.subTest(arguments=arguments, environment=environment):
+        for arguments in [("--channel", "testing"), ("--channel=testing",)]:
+            with self.subTest(arguments=arguments):
                 shims = self.linux_machine("dnf")
-                completed = self.run_host_install(
-                    shims, arguments=arguments, extra_environment=environment, first=[self.github(newest_tag="v9")])
+                completed = self.run_host_install(shims, arguments=arguments, first=[self.github(newest_tag="v9")])
                 self.assertEqual(completed.returncode, 0, completed.stderr)
                 self.assertEqual(self.requested_addresses(), [
                     github_newest_release,

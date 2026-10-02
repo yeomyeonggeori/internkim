@@ -334,17 +334,9 @@
     "process": "tools/verify-api",
     "description": "overrides which model tools/verify-api asks a live question through, gating the paid check behind an explicit opt-in"
   },
-  "INTERNKIM_INSTALL_HOMEBREW_TAP": {
-    "process": "install script",
-    "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
-  },
   "INTERNKIM_INSTALL_RELEASE_URL": {
     "process": "install script",
     "description": "where web/static/install.sh downloads the host's files and their SHA256SUMS from; defaults to the GitHub release the channel names. The native install rig points it at a release served from the Mac"
-  },
-  "INTERNKIM_INSTALL_CHANNEL": {
-    "process": "install script",
-    "description": "the channel web/static/install.sh installs the company host from, the same as --channel: stable, the latest GitHub release, or testing, the newest release prerelease or not; defaults to stable"
   },
   "INTERNKIM_JETSON_IMAGE_URL": {
     "process": "device",
