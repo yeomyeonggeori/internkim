@@ -230,11 +230,12 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 }
 
 // A preview route answers words for the approval question instead of a
-// resolved identity, so the hint round-trip fixtures cannot exercise it; each
-// one is proven by its own resolver tests (message_delete:
+// resolved identity, and host_update's target is resolved by admind, so the
+// hint round-trip fixtures cannot exercise either; each one is proven by its
+// own resolver tests (message_delete:
 // TestMessageDeleteApprovalPreviewQuotesTheTargets and the route-path test
-// below).
-var previewApprovalTargetRouteNames = []string{"message_delete"}
+// below; host_update: TestTheHostUpdateTargetCarriesAdmindsFactsAndChoices).
+var previewApprovalTargetRouteNames = []string{"message_delete", "host_update"}
 
 func TestEveryTargetRouteIsCoveredByAFixture(t *testing.T) {
 	if len(capabilityToolTargetRoutes) != len(previewApprovalTargetRouteNames) {

@@ -13,6 +13,7 @@ import {
 import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
+import { hostToolDefinitions } from './host';
 import { crmToolDefinitions } from './crm';
 import {
   taskLabelGetInputSchema,
@@ -1886,6 +1887,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...settingsToolDefinitions,
   ...notificationToolDefinitions,
   ...mailToolDefinitions,
+  ...hostToolDefinitions,
 ];
 
 export type TaskAddInput = z.infer<typeof taskAddInputSchema>;

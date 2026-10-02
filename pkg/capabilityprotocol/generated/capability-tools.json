@@ -28366,6 +28366,381 @@
       "sideEffectClass": "external_send",
       "version": "1",
       "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "host_version_get",
+      "description": "Read which version of internkim this company's host runs, the release channel it follows, how it is updated (apt, dnf, pacman or brew), and the latest stable release with its date and release notes, which says whether an update is available. previousStable is the stable release before the installed one. Any member may ask.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "host_version_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "host_version_get",
+      "namespace": "host",
+      "namespaceSummary": "The company's host: which internkim release it runs, and updating it.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "stable",
+              "testing",
+              "unrecorded"
+            ],
+            "type": "string"
+          },
+          "installedVersion": {
+            "type": "string"
+          },
+          "isUpdateAvailable": {
+            "type": "boolean"
+          },
+          "latestStable": {
+            "additionalProperties": false,
+            "properties": {
+              "notes": {
+                "type": "string"
+              },
+              "publishedAt": {
+                "type": "string"
+              },
+              "version": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "publishedAt"
+            ],
+            "type": "object"
+          },
+          "previousStable": {
+            "additionalProperties": false,
+            "properties": {
+              "notes": {
+                "type": "string"
+              },
+              "publishedAt": {
+                "type": "string"
+              },
+              "version": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "publishedAt"
+            ],
+            "type": "object"
+          },
+          "updateInProgress": {
+            "additionalProperties": false,
+            "properties": {
+              "fromVersion": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "string"
+              },
+              "toVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fromVersion",
+              "toVersion",
+              "startedAt"
+            ],
+            "type": "object"
+          },
+          "updateMethod": {
+            "enum": [
+              "apt",
+              "dnf",
+              "pacman",
+              "brew",
+              ""
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "installedVersion",
+          "channel",
+          "updateMethod",
+          "isUpdateAvailable"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:host_version_get",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "enum": [
+                "stable",
+                "testing",
+                "unrecorded"
+              ],
+              "type": "string"
+            },
+            "installedVersion": {
+              "type": "string"
+            },
+            "isUpdateAvailable": {
+              "type": "boolean"
+            },
+            "latestStable": {
+              "additionalProperties": false,
+              "properties": {
+                "notes": {
+                  "type": "string"
+                },
+                "publishedAt": {
+                  "type": "string"
+                },
+                "version": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "version",
+                "publishedAt"
+              ],
+              "type": "object"
+            },
+            "previousStable": {
+              "additionalProperties": false,
+              "properties": {
+                "notes": {
+                  "type": "string"
+                },
+                "publishedAt": {
+                  "type": "string"
+                },
+                "version": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "version",
+                "publishedAt"
+              ],
+              "type": "object"
+            },
+            "updateInProgress": {
+              "additionalProperties": false,
+              "properties": {
+                "fromVersion": {
+                  "type": "string"
+                },
+                "startedAt": {
+                  "type": "string"
+                },
+                "toVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fromVersion",
+                "toVersion",
+                "startedAt"
+              ],
+              "type": "object"
+            },
+            "updateMethod": {
+              "enum": [
+                "apt",
+                "dnf",
+                "pacman",
+                "brew",
+                ""
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "installedVersion",
+            "channel",
+            "updateMethod",
+            "isUpdateAvailable"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "host_update",
+      "description": "Update this company's host to a stable release, or take it back to an older stable one. Only an administrator may, and only on a host that follows the stable channel. The requester is asked to confirm with the consequences and a choice of when; the agent, relay and messenger then restart, and the agent reports the result in this conversation when it is back.",
+      "estimatedLatency": "medium",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "isRequestedNow": {
+            "description": "True when the requester asked for the update to happen right away.",
+            "type": "boolean"
+          },
+          "startsAt": {
+            "description": "An RFC 3339 instant with an offset, only when the requester named a time for the update.",
+            "type": "string"
+          },
+          "targetVersion": {
+            "description": "The exact tag of a stable release to install, from host_version_get. Omit it to install the latest stable release; name an older one, such as previousStable, to go back.",
+            "pattern": "^v\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "isRequestedNow": {
+            "description": "True when the requester asked for the update to happen right away.",
+            "type": "boolean"
+          },
+          "startsAt": {
+            "description": "An RFC 3339 instant with an offset, only when the requester named a time for the update.",
+            "type": "string"
+          },
+          "targetVersion": {
+            "description": "The exact tag of a stable release to install, from host_version_get. Omit it to install the latest stable release; name an older one, such as previousStable, to go back.",
+            "pattern": "^v\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d{6}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "host_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "host_update",
+      "namespace": "host",
+      "namespaceSummary": "The company's host: which internkim release it runs, and updating it.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "expectedDowntimeMinutes": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fromVersion": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "status": {
+            "const": "started",
+            "type": "string"
+          },
+          "toVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "fromVersion",
+          "toVersion",
+          "startedAt",
+          "expectedDowntimeMinutes"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:host_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "host"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "expectedDowntimeMinutes": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "fromVersion": {
+              "type": "string"
+            },
+            "startedAt": {
+              "type": "string"
+            },
+            "status": {
+              "const": "started",
+              "type": "string"
+            },
+            "toVersion": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "status",
+            "fromVersion",
+            "toVersion",
+            "startedAt",
+            "expectedDowntimeMinutes"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "destructive",
+      "sideEffectClass": "destructive",
+      "version": "1",
+      "worksOffline": false
     }
   ]
 }

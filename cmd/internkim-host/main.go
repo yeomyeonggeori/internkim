@@ -21,6 +21,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/box"
 	"github.com/yeomyeonggeori/internkim/internal/boxwifi"
 	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 	"golang.org/x/term"
 )
@@ -117,6 +118,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "\nThe skills were not prepared: %s\n", errorValue)
 			os.Exit(1)
 		}
+	case "update":
+		if errorValue := runUpdate(os.Args[2:]); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nUpdate stopped: %s\n", errorValue)
+			os.Exit(1)
+		}
 	default:
 		printUsage(command)
 	}
@@ -131,6 +137,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
 	fmt.Fprintf(os.Stderr, "       %s %s\n", command, blueclaw.SkillPreparationVerb)
+	fmt.Fprintf(os.Stderr, "       %s update --version vYYYY.MM.DD.HHMMSS\n", command)
 	os.Exit(1)
 }
 
@@ -285,6 +292,21 @@ func runRefresh() error {
 	}
 	fmt.Println("\nServer ready on this release.")
 	return nil
+}
+
+func runUpdate(arguments []string) error {
+	flags := flag.NewFlagSet("update", flag.ContinueOnError)
+	version := flags.String("version", "", "the stable release to install, as its tag")
+	if errorValue := flags.Parse(arguments); errorValue != nil {
+		return errorValue
+	}
+	if strings.TrimSpace(*version) == "" || flags.NArg() != 0 {
+		return fmt.Errorf("name the release to install with --version, as its tag")
+	}
+	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
+		return errorValue
+	}
+	return hostupdate.NewRun(hostupdate.TagOf(*version), hostupdate.LocalMachine(companyhost.PackageVersion)).Execute()
 }
 
 func runInstall(arguments []string) error {

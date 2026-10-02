@@ -17,6 +17,7 @@ import (
 
 	"github.com/goreleaser/nfpm/v2/files"
 
+	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -132,7 +133,18 @@ func packageContents(repositoryRootPath string, target packageTarget, version st
 		return nil, errorValue
 	}
 	packaged = append(packaged, font...)
+	packaged = append(packaged, carriedInstallScript(repositoryRootPath))
 	return contentsFor(packaged), nil
+}
+
+const publishedInstallScriptPath = "web/static/install.sh"
+
+func carriedInstallScript(repositoryRootPath string) packagedFile {
+	return packagedFile{
+		SourcePath:  filepath.Join(repositoryRootPath, publishedInstallScriptPath),
+		Destination: hostupdate.PackagedInstallScriptPath,
+		Mode:        0o755,
+	}
 }
 
 // carriedFont is the Hangul face and the license that has to travel with it.

@@ -308,7 +308,19 @@ class InstallScriptTests(unittest.TestCase):
                 completed = self.run_host_install(
                     shims, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release()})
                 self.assertEqual(completed.returncode, 0, completed.stderr)
-                self.assertEqual(list(self.sandbox.rglob("*")), [])
+                written = sorted(path.relative_to(self.sandbox).as_posix() for path in self.sandbox.rglob("*") if path.is_file())
+                self.assertEqual(written, ["var/lib/internkim/release-channel"])
+
+    def test_the_install_records_the_channel_it_followed(self):
+        """The agent offers an update only to a host that follows stable, and the
+        channel exists nowhere else on the machine once this line has run."""
+        for arguments, recorded in [((), "stable\n"), (("--channel", "testing"), "testing\n")]:
+            with self.subTest(arguments=arguments):
+                shims = self.linux_machine("apt-get")
+                completed = self.run_host_install(
+                    shims, arguments=arguments, extra_environment={"INTERNKIM_INSTALL_RELEASE_URL": self.serve_host_release()})
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual((self.sandbox / "var/lib/internkim/release-channel").read_text(), recorded)
 
     def test_a_package_that_does_not_hash_to_the_published_checksum_is_refused(self):
         def tampered(checksums):
@@ -430,6 +442,48 @@ class InstallScriptTests(unittest.TestCase):
                     f"{github_downloads}/download/v9/SHA256SUMS",
                     f"{github_downloads}/download/v9/internkim-arm64.rpm",
                 ])
+
+    def test_a_pinned_version_installs_that_release_and_lets_apt_go_back_to_it(self):
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(shims, arguments=("--version", "v7"), first=[self.github(newest_tag="v7")])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.requested_addresses(), [
+            f"{github_downloads}/download/v7/SHA256SUMS",
+            f"{github_downloads}/download/v7/internkim-arm64.deb",
+        ])
+        self.assertTrue(self.manager_log.read_text().splitlines()[1].startswith("apt-get install -y --allow-downgrades /"))
+
+    def test_a_pinned_version_older_than_the_installed_one_is_a_dnf_downgrade(self):
+        for installed, command in [("9", "downgrade"), ("7", "install"), (None, "install")]:
+            with self.subTest(installed=installed):
+                shims = self.linux_machine("dnf")
+                rpm_answer = '[ "$1" = -qp ] && { echo 7; exit 0; }\n' + (f"echo {installed}\n" if installed else "exit 1\n")
+                (Path(shims) / "rpm").write_text("#!/bin/sh\n" + rpm_answer)
+                (Path(shims) / "rpm").chmod(0o755)
+                completed = self.run_host_install(shims, arguments=("--version=v7",), first=[self.github(newest_tag="v7")])
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertTrue(self.manager_log.read_text().startswith(f"dnf {command} -y /"), self.manager_log.read_text())
+
+    def test_a_pinned_version_that_is_not_a_tag_is_refused_before_anything_is_fetched(self):
+        shims = self.linux_machine("apt-get")
+        github = self.github()
+        for arguments in [("--version", "latest"), ("--version",), ("--version", "2026.10.01")]:
+            with self.subTest(arguments=arguments):
+                completed = self.run_host_install(shims, arguments=arguments, first=[github])
+                self.assertEqual(completed.returncode, 1, completed.stdout)
+                self.assertFalse(self.requested.exists())
+                self.assertFalse(self.manager_log.exists())
+
+    def test_a_mac_is_never_pinned_to_a_release_the_tap_does_not_carry(self):
+        log_path = Path(self.enterContext(tempfile.TemporaryDirectory())) / "brew.log"
+        brew = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (brew / "brew").write_text(recording_shim("brew", log_path))
+        (brew / "brew").chmod(0o755)
+        environment = dict(os.environ)
+        environment["PATH"] = os.pathsep.join([str(brew), self.uname_shim("Darwin", "arm64"), self.path_without_a_package_manager()])
+        completed = subprocess.run(["sh", str(install_script), "host", "--version", "v7"], capture_output=True, text=True, env=environment)
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertFalse(log_path.exists())
 
     def test_a_channel_nobody_publishes_is_refused_before_anything_is_fetched(self):
         shims = self.linux_machine("apt-get")

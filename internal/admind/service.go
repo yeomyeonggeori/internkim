@@ -63,6 +63,7 @@ type Service struct {
 	startedAt               time.Time
 	rosterReadinessMutex    sync.Mutex
 	rosterReadiness         rosterReadiness
+	hostUpdateDependencies  hostUpdateDependencies
 }
 
 func NewService(configuration Configuration) *Service {
@@ -142,6 +143,7 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzCredentialSweep(ctx)
 	go service.sayIfTheRelayIsOpen(ctx)
+	go service.keepHostUpdateReported(ctx)
 	service.startBuzzAccountLinkSync(ctx)
 	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)

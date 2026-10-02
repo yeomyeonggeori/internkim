@@ -39,26 +39,61 @@ setup page, checks the last four characters of the computer's key, and confirms.
 The setup page then asks for the OpenRouter key. [Kim mini](/kim-mini)
 describes how the claim works and how Disconnect undoes it.
 
-## Upgrade
+## Updating [#updating]
+
+A host is updated by running the installer again, or by asking the agent.
+
+### With the installer
 
 Run the first command again. On Linux it installs the release the channel now
-points at over the version you have; on macOS Homebrew upgrades the formula. The
-company and its data stay in place. The default channel is the latest release.
-On Linux, to follow the newest release, prereleases included, add
-`--channel testing`:
+points at over the version you have. On macOS Homebrew upgrades the formula, and
+`sudo internkim refresh` then restarts the services on it. The company and its
+data stay in place. The default channel is the latest stable release. On Linux,
+`--channel testing` follows the newest release, prereleases included, and
+`--version` installs one release by its tag, an older one included:
 
 ```bash
 curl -fsSL https://intern.kim/install.sh | sh -s -- host --channel testing
+curl -fsSL https://intern.kim/install.sh | sh -s -- host --version v2026.10.01.203142
 ```
 
-The tap carries only the latest release, so a Mac stays on the default channel.
+The installer records the channel it followed in
+`/var/lib/internkim/release-channel`. The tap carries only the latest release,
+so a Mac stays on the default channel and cannot be pinned to a version.
 
-On a connected Linux host the upgrade rewrites the settings the first install
+### By asking the agent
+
+Any member can ask which version the host runs and whether a newer stable
+release is out. An administrator can ask the agent to update the host, or to take
+it back to an earlier stable release. The agent does this only on a Linux host
+installed on the stable channel, and only after the administrator confirms a
+question that carries the release notes, what the restart costs, and when to run
+it: now, at 03:00 company time, or at a time the administrator named. Nothing
+updates on its own.
+
+Once confirmed, the admin gateway, which runs as root, records who asked and in
+which conversation, then runs the installer with `--version` in a systemd unit of
+its own, `internkim-host-update`, which outlives the restart it causes. A second
+update is refused while one runs. When the agent is back it answers in that
+conversation with the version the host reached, or with what failed and the
+version the host is on.
+
+### What the restart costs
+
+On a connected Linux host the update rewrites the settings the first install
 wrote, prepares the database again, restarts the services and returns once every
-one of them answers and the agent holds the roster again. If one does not, it
-names that service and how to read why; `sudo internkim refresh` runs the same
-steps again once that is fixed. A message that arrives while the agent restarts
-waits in the messenger's queue and is answered when the agent is back.
+one of them answers and the agent holds the roster again. The agent, the relay
+and the messenger are away for about DOWNTIME_MINUTES minutes. A message sent
+meanwhile waits in the relay's queue and is answered when the agent is back. A
+task running at the restart is interrupted and resumed once when the agent is
+back; one that cannot be resumed is marked failed and its requester is told. A
+scheduled job due during the update runs once, late.
+
+A failed download or checksum installs nothing, and the host stays on its
+version. A release that installs but whose services do not come back is left
+installed and unconfigured, and the update names the silent service and how to
+read why. `sudo internkim refresh` runs the same steps again once that is fixed,
+and `--version` with the earlier tag goes back.
 
 ## Remove
 
