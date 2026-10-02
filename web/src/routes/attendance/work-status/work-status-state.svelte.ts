@@ -8,6 +8,7 @@ import {
 } from '../attendance-api';
 import type { SupabaseWorkStatusInputs } from '$lib/attendance/supabase-work-status';
 import type { AttendanceWriteEvent } from '$lib/attendance/attendance-write';
+import { readCachedWorkStatusRows, writeCachedWorkStatusRows } from './work-status-cache';
 
 export class WorkStatusState {
 	payload = $state<AttendanceWorkStatus | null>(null);
@@ -20,6 +21,8 @@ export class WorkStatusState {
 	private periodRequest: { period: AttendanceWorkStatusPeriod; anchor: string } | undefined;
 	private monthRequest: { period: 'month'; anchor: string } | undefined;
 	private savedAttendanceEvents: AttendanceWriteEvent[] = [];
+
+	constructor(private readonly cacheScope = '') {}
 
 	async load(
 		period: AttendanceWorkStatusPeriod,
@@ -43,6 +46,7 @@ export class WorkStatusState {
 			this.adopt(reused, rowsAsOf);
 			return;
 		}
+		if (!this.payload) this.adoptCachedRows(asked, month);
 		const requestSequence = ++this.requestSequence;
 		this.isLoading = true;
 		this.errorMessage = '';
@@ -77,11 +81,22 @@ export class WorkStatusState {
 		this.adopt(pair, this.rowsAsOf);
 	}
 
+	private adoptCachedRows(
+		period: { period: AttendanceWorkStatusPeriod; anchor: string },
+		month: { period: 'month'; anchor: string }
+	): void {
+		const cachedRows = readCachedWorkStatusRows(this.cacheScope);
+		if (!cachedRows) return;
+		const cached = attendanceWorkStatusPairFrom(cachedRows, period, month);
+		if (cached) this.adopt(cached, undefined);
+	}
+
 	private adopt(answered: AttendanceWorkStatusPair, rowsAsOf: unknown): void {
 		this.payload = answered.period;
 		this.monthPayload = answered.month;
 		this.rows = answered.rows;
 		this.rowsAsOf = answered.rows ? rowsAsOf : undefined;
+		if (answered.rows && rowsAsOf !== undefined) writeCachedWorkStatusRows(answered.rows, this.cacheScope);
 	}
 }
 

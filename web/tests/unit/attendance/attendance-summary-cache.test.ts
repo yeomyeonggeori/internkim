@@ -9,7 +9,7 @@ import type { AttendanceSummary } from '../../../src/routes/attendance/attendanc
 
 const summary = { month: '2026-07', timeZone: 'Asia/Seoul', events: [] } as unknown as AttendanceSummary;
 
-function createMemorySessionStorage(): Storage {
+function createMemoryStorage(): Storage {
 	const entries = new Map<string, string>();
 	return {
 		get length() {
@@ -31,7 +31,7 @@ const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'wi
 
 beforeAll(() => {
 	Object.defineProperty(globalThis, 'window', {
-		value: { sessionStorage: createMemorySessionStorage() },
+		value: { localStorage: createMemoryStorage() },
 		configurable: true,
 		writable: true
 	});
@@ -47,7 +47,7 @@ afterAll(() => {
 
 describe('attendance summary cache', () => {
 	beforeEach(() => {
-		window.sessionStorage.clear();
+		window.localStorage.clear();
 	});
 
 	test('reads back a summary written for a month', () => {
@@ -64,13 +64,12 @@ describe('attendance summary cache', () => {
 		expect(readCachedAttendanceSummary('2026-07')).toEqual(summary);
 	});
 
-	test('ignores entries older than the freshness window', () => {
-		writeCachedAttendanceSummary('2026-07', summary);
-		const stored = JSON.parse(window.sessionStorage.getItem('attendance.summary.2026-07') ?? '{}');
-		stored.cachedAt = Date.now() - 6 * 60 * 1000;
-		window.sessionStorage.setItem('attendance.summary.2026-07', JSON.stringify(stored));
+	test('ignores an entry that is not a summary', () => {
+		window.localStorage.setItem('attendance.summary.2026-07', '{"cachedAt":1}');
+		window.localStorage.setItem('attendance.summary.2026-06', 'not json');
 
 		expect(readCachedAttendanceSummary('2026-07')).toBe(null);
+		expect(readCachedAttendanceSummary('2026-06')).toBe(null);
 	});
 
 	test('keeps the same month separate across account and company scopes', () => {

@@ -2,6 +2,7 @@ import { isSupabaseConfigured, projectURL, supabase } from '$lib/supabase';
 import { fetchPeople, keepPersonPictureForReading } from '$lib/messenger/messenger-api';
 import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 import { assetBucket, readableAddresses } from '$lib/messenger/kept-attachment';
+import { keptPictureOf, readKeptPictures, writeKeptPictures, type KeptPicture } from './person-picture-cache';
 
 export type PersonIdentity = { memberID?: string; email?: string; externalID?: string };
 
@@ -13,7 +14,10 @@ type PictureAnswer = { externalID: string; address: string; failed: boolean };
 // bytes. What is held here is the address the reader signed for, asked after
 // once: a failure leaves nothing behind to be believed on the next visit.
 class PersonPictureStore {
-	private readableOfExternal = $state<Map<string, string>>(new Map());
+	private kept: Map<string, KeptPicture> = readKeptPictures();
+	private readableOfExternal = $state<Map<string, string>>(
+		new Map([...this.kept].map(([externalID, picture]) => [externalID, picture.signedURL]))
+	);
 	private urlOfEmail = $state<Map<string, string>>(new Map());
 	private resolved = $state<MessengerDirectory | null>(null);
 	private avatarURLOfExternal = new Map<string, string>();
@@ -58,24 +62,50 @@ class PersonPictureStore {
 		const wanted = [...new Set(externalIDs)].filter((externalID) => externalID !== '');
 		if (wanted.length === 0) return;
 		await this.knownAvatarURLs();
+		this.forgetListedWithoutPicture(wanted);
 
 		const stale = wanted.filter((externalID) => this.needsAsking(externalID));
 		if (stale.length === 0) return;
 		stale.forEach((externalID) => this.asked.add(externalID));
 
 		const answers = await Promise.all(stale.map((externalID) => this.askAfter(externalID)));
-		const readable = await this.signedFor(answers.map((answer) => answer.address).filter((address) => address !== ''));
+		const unsigned = answers.filter((answer) => answer.address !== '' && !this.keptSignedURLOf(answer));
+		const readable = await this.signedFor(unsigned.map((answer) => answer.address));
 		const next = new Map(this.readableOfExternal);
 		for (const answer of answers) {
-			if (answer.address === '' && !answer.failed) continue;
-			const signed = readable.get(answer.address);
+			if (answer.address === '' && !answer.failed) {
+				next.delete(answer.externalID);
+				this.kept.delete(answer.externalID);
+				continue;
+			}
+			const reused = this.keptSignedURLOf(answer);
+			const signed = reused || readable.get(answer.address);
 			if (!signed) {
 				this.asked.delete(answer.externalID);
 				continue;
 			}
 			next.set(answer.externalID, signed);
+			if (!reused) this.kept.set(answer.externalID, keptPictureOf(answer.address, signed));
 		}
 		this.readableOfExternal = next;
+		writeKeptPictures(this.kept);
+	}
+
+	private forgetListedWithoutPicture(externalIDs: string[]): void {
+		const gone = externalIDs.filter((externalID) => this.isListedWithoutPicture(externalID) && this.readableOfExternal.has(externalID));
+		if (gone.length === 0) return;
+		const next = new Map(this.readableOfExternal);
+		for (const externalID of gone) {
+			next.delete(externalID);
+			this.kept.delete(externalID);
+		}
+		this.readableOfExternal = next;
+		writeKeptPictures(this.kept);
+	}
+
+	private keptSignedURLOf(answer: PictureAnswer): string {
+		const kept = this.kept.get(answer.externalID);
+		return kept && kept.address === answer.address ? kept.signedURL : '';
 	}
 
 	private avatarURLOf(externalID: string): string {
