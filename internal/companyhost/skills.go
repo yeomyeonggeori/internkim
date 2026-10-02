@@ -19,19 +19,16 @@ import (
 // setup as the account that owns the delivered skills, so every person can read
 // what was prepared and the next upgrade can replace it.
 //
-// A skill whose command line is named after it is prepared by that command's
-// `setup`. Until the pinned plugin carries one, a command that answers `setup`
-// with UNKNOWN_COMMAND is prepared by its skill_runtime.py bootstrap instead,
-// which keeps its environment in the caller's cache home; here that is this
-// run's scratch directory, so the bootstrap shows the requirements resolve and
-// keeps nothing.
+// A skill with a launcher named after it is prepared by `scripts/<skill>
+// setup`; any other skill that carries skill_runtime.py by `python3
+// scripts/skill_runtime.py setup`; a skill with neither needs nothing. Both
+// answer with one envelope and exit non-zero when a piece cannot be prepared.
 
 const (
-	skillDocumentName         = "SKILL.md"
-	skillRuntimeScriptName    = "skill_runtime.py"
-	skillRequirementsFileName = "requirements.txt"
-	skillSetupArgument        = "setup"
-	unknownCommandIssueCode   = "UNKNOWN_COMMAND"
+	skillDocumentName       = "SKILL.md"
+	skillRuntimeScriptName  = "skill_runtime.py"
+	skillSetupArgument      = "setup"
+	unknownCommandIssueCode = "UNKNOWN_COMMAND"
 )
 
 type bundledSkill struct {
@@ -43,12 +40,25 @@ func (skill bundledSkill) scriptPath(name string) string {
 	return filepath.Join(skill.Path, "scripts", name)
 }
 
-func (skill bundledSkill) setupEntryPath() string {
+func (skill bundledSkill) launcherPath() string {
 	return skill.scriptPath(skill.Name)
 }
 
-func (skill bundledSkill) requirementsPath() string {
-	return skill.scriptPath(skillRequirementsFileName)
+type skillSetup struct {
+	Program   string
+	Arguments []string
+}
+
+// setupOf is the command that prepares the skill, if it needs one. Setup
+// options are a launcher's; skill_runtime.py takes none.
+func setupOf(layout blueclaw.CompanyHostLayout, skill bundledSkill, setupOptions []string) (skillSetup, bool) {
+	if isExecutableFile(skill.launcherPath()) {
+		return skillSetup{Program: skill.launcherPath(), Arguments: append([]string{skillSetupArgument}, setupOptions...)}, true
+	}
+	if isRegularFile(skill.scriptPath(skillRuntimeScriptName)) {
+		return skillSetup{Program: layout.PythonPath(), Arguments: []string{skill.scriptPath(skillRuntimeScriptName), skillSetupArgument}}, true
+	}
+	return skillSetup{}, false
 }
 
 // skillEnvelope is the result every skill command prints on standard output.
@@ -188,39 +198,35 @@ func skillPreparationEnvironment(layout blueclaw.CompanyHostLayout, scratchPath 
 }
 
 func prepareSkill(layout blueclaw.CompanyHostLayout, skill bundledSkill, setupOptions []string, environment []string, machine Machine, progress io.Writer) error {
-	if isExecutableFile(skill.setupEntryPath()) {
-		hasSetup, errorValue := runSkillSetup(skill, setupOptions, environment, machine, progress)
-		if errorValue != nil || hasSetup {
-			return errorValue
-		}
-		fmt.Fprintf(progress, "%s has no setup of its own.\n", skill.setupEntryPath())
-	}
-	if !declaresPythonRequirements(skill) {
+	setup, needsPreparation := setupOf(layout, skill, setupOptions)
+	if !needsPreparation {
 		return nil
 	}
-	return runSkillRuntimeBootstrap(layout, skill, environment, machine, progress)
-}
-
-// runSkillSetup reports whether the skill has a setup at all: a command line
-// that answers `setup` with UNKNOWN_COMMAND predates it, and is prepared the
-// way any other skill is.
-func runSkillSetup(skill bundledSkill, setupOptions []string, environment []string, machine Machine, progress io.Writer) (bool, error) {
-	fmt.Fprintf(progress, "Preparing the %s skill with its setup…\n", skill.Name)
-	arguments := append(append(append([]string{}, environment...), skill.setupEntryPath(), skillSetupArgument), setupOptions...)
+	fmt.Fprintf(progress, "Preparing the %s skill…\n", skill.Name)
+	arguments := append(append(append([]string{}, environment...), setup.Program), setup.Arguments...)
 	answer := bytes.Buffer{}
 	runError := machine.Stream("env", arguments, Streams{Output: &answer, Errors: progress})
 	envelope, parseError := parseSkillEnvelope(answer.Bytes())
 	if runError == nil {
 		fmt.Fprintln(progress, summaryOf(envelope, parseError, answer.String()))
-		return true, nil
+		return nil
+	}
+	if predatesSetup(envelope, answer.String()) {
+		fmt.Fprintf(progress, "The pinned %s skill has no setup; it prepares itself when first used.\n", skill.Name)
+		return nil
 	}
 	if parseError != nil {
-		return true, fmt.Errorf("could not prepare the %s skill: %s %s failed (%v) and printed %q", skill.Name, skill.setupEntryPath(), skillSetupArgument, runError, strings.TrimSpace(answer.String()))
+		return fmt.Errorf("could not prepare the %s skill: %s %s failed (%v) and printed %q",
+			skill.Name, setup.Program, strings.Join(setup.Arguments, " "), runError, strings.TrimSpace(answer.String()))
 	}
-	if envelope.namesIssue(unknownCommandIssueCode) {
-		return false, nil
-	}
-	return true, fmt.Errorf("could not prepare the %s skill: %s", skill.Name, envelope.describe())
+	return fmt.Errorf("could not prepare the %s skill: %s", skill.Name, envelope.describe())
+}
+
+// predatesSetup is the plugin pinned before setup existed: its launcher
+// answers `setup` with UNKNOWN_COMMAND and its skill_runtime.py prints only a
+// usage line. Delete it in the change that pins a plugin with setup.
+func predatesSetup(envelope skillEnvelope, answer string) bool {
+	return strings.TrimSpace(answer) == "" || envelope.namesIssue(unknownCommandIssueCode)
 }
 
 func parseSkillEnvelope(document []byte) (skillEnvelope, error) {
@@ -253,25 +259,6 @@ func (envelope skillEnvelope) describe() string {
 		lines = append(lines, fmt.Sprintf("  %s: %s %s", issue.Code, issue.Message, issue.Suggestion))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func declaresPythonRequirements(skill bundledSkill) bool {
-	if !isRegularFile(skill.scriptPath(skillRuntimeScriptName)) {
-		return false
-	}
-	requirements, errorValue := os.ReadFile(skill.requirementsPath())
-	return errorValue == nil && strings.TrimSpace(string(requirements)) != ""
-}
-
-// skill_runtime.py makes the environment and re-runs itself in it, then runs
-// what it was asked to, which here is nothing.
-func runSkillRuntimeBootstrap(layout blueclaw.CompanyHostLayout, skill bundledSkill, environment []string, machine Machine, progress io.Writer) error {
-	fmt.Fprintf(progress, "Preparing the %s skill's environment from %s…\n", skill.Name, skill.requirementsPath())
-	arguments := []string{skill.scriptPath(skillRuntimeScriptName), "python", "-c", ""}
-	if errorValue := machine.Run(layout.PythonPath(), arguments, environment, progress); errorValue != nil {
-		return fmt.Errorf("could not prepare the %s skill's environment from %s: %w; the output above names what failed", skill.Name, skill.requirementsPath(), errorValue)
-	}
-	return nil
 }
 
 func isRegularFile(path string) bool {

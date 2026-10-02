@@ -2,6 +2,7 @@ package companyhost
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,14 +16,13 @@ import (
 const (
 	readySetupAnswer          = `{"status": "ok", "summary": "ready", "issues": []}`
 	unknownSetupCommandAnswer = `{"status": "error", "summary": "unknown command 'setup'", "issues": [{"code": "UNKNOWN_COMMAND", "message": "unknown command 'setup'", "suggestion": "run --help"}]}`
-	noRendererAnswer          = `{"status": "error", "summary": "the renderer cannot be prepared", "issues": [{"code": "NO_JAVASCRIPT_RUNTIME", "message": "neither bun nor node 18 is on PATH", "suggestion": "install bun"}]}`
+	failedSetupAnswer         = `{"status": "error", "summary": "the renderer cannot be prepared", "issues": [{"code": "SETUP_FAILED", "message": "neither bun nor node 18 is on PATH", "suggestion": "install bun"}]}`
 )
 
 type skillFixture struct {
-	hasSetupEntry bool
-	requirements  string
-	hasRuntime    bool
-	isNotASkill   bool
+	hasLauncher bool
+	hasRuntime  bool
+	isNotASkill bool
 }
 
 func skillsLayout(t *testing.T, fixtures map[string]skillFixture) blueclaw.CompanyHostLayout {
@@ -39,14 +39,11 @@ func skillsLayout(t *testing.T, fixtures map[string]skillFixture) blueclaw.Compa
 		if !fixture.isNotASkill {
 			writeFixtureFile(t, filepath.Join(layout.SkillsPath(), name, skillDocumentName), "---\nname: "+name+"\n---\n", 0o644)
 		}
-		if fixture.hasSetupEntry {
+		if fixture.hasLauncher {
 			writeFixtureFile(t, filepath.Join(scriptsPath, name), "#!/bin/sh\n", 0o755)
 		}
 		if fixture.hasRuntime {
 			writeFixtureFile(t, filepath.Join(scriptsPath, skillRuntimeScriptName), "", 0o644)
-		}
-		if fixture.requirements != "" || fixture.hasRuntime {
-			writeFixtureFile(t, filepath.Join(scriptsPath, skillRequirementsFileName), fixture.requirements, 0o644)
 		}
 	}
 	return layout
@@ -62,63 +59,60 @@ func writeFixtureFile(t *testing.T, path string, content string, mode os.FileMod
 	}
 }
 
-func setupRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string) [][]string {
-	entryPath := filepath.Join(layout.SkillsPath(), skillName, "scripts", skillName)
+func runsEndingWith(machine *recordedMachine, ending ...string) [][]string {
 	runs := [][]string{}
 	for _, run := range machine.runs {
-		if run[0] == "env" && slices.Contains(run, entryPath) {
+		if run[0] == "env" && len(run) >= len(ending) && slices.Equal(run[len(run)-len(ending):], ending) {
 			runs = append(runs, run)
 		}
 	}
 	return runs
 }
 
-func bootstrapRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string) [][]string {
+func launcherSetupRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string, options ...string) [][]string {
+	launcherPath := filepath.Join(layout.SkillsPath(), skillName, "scripts", skillName)
+	return runsEndingWith(machine, append([]string{launcherPath, skillSetupArgument}, options...)...)
+}
+
+func runtimeSetupRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string) [][]string {
 	runtimePath := filepath.Join(layout.SkillsPath(), skillName, "scripts", skillRuntimeScriptName)
-	runs := [][]string{}
-	for _, run := range machine.runs {
-		if run[0] == layout.PythonPath() && len(run) > 1 && run[1] == runtimePath {
-			runs = append(runs, run)
-		}
-	}
-	return runs
+	return runsEndingWith(machine, layout.PythonPath(), runtimePath, skillSetupArgument)
 }
 
-func TestEveryBundledSkillIsPreparedTheWayItDeclares(t *testing.T) {
+func TestEveryBundledSkillIsPreparedByItsOwnSetup(t *testing.T) {
 	layout := skillsLayout(t, map[string]skillFixture{
-		"office":     {hasSetupEntry: true, hasRuntime: true, requirements: "python-docx\n"},
-		"dataroom":   {hasRuntime: true, requirements: "pyyaml\n"},
+		"office":     {hasLauncher: true, hasRuntime: true},
+		"dataroom":   {hasRuntime: true},
 		"calculator": {},
-		"weather":    {hasRuntime: true, requirements: "\n"},
-		"stray":      {hasSetupEntry: true, isNotASkill: true},
+		"stray":      {hasLauncher: true, isNotASkill: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
 	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if len(setupRuns(machine, layout, "office")) != 1 || len(bootstrapRuns(machine, layout, "office")) != 0 {
-		t.Fatalf("a skill with a setup of its own is prepared by that setup alone: %v", machine.runs)
+	if len(launcherSetupRuns(machine, layout, "office")) != 1 || len(runtimeSetupRuns(machine, layout, "office")) != 0 {
+		t.Fatalf("a skill with a launcher is prepared by the launcher's setup alone: %v", machine.runs)
 	}
-	if len(bootstrapRuns(machine, layout, "dataroom")) != 1 {
-		t.Fatalf("a skill that declares requirements and has no setup is not prepared by its skill_runtime.py: %v", machine.runs)
+	if len(runtimeSetupRuns(machine, layout, "dataroom")) != 1 {
+		t.Fatalf("a skill without a launcher is not prepared by `python3 scripts/skill_runtime.py setup`: %v", machine.runs)
 	}
 	if len(machine.runs) != 2 {
-		t.Fatalf("a skill that declares nothing, or a directory that is not a skill, was prepared: %v", machine.runs)
+		t.Fatalf("a skill with neither, or a directory that is not a skill, was prepared: %v", machine.runs)
 	}
 }
 
 func TestSkillsArePreparedOnWhatEveryPersonsCommandRunsWithNoCacheOfTheirs(t *testing.T) {
 	layout := skillsLayout(t, map[string]skillFixture{
-		"office":   {hasSetupEntry: true},
-		"dataroom": {hasRuntime: true, requirements: "pyyaml\n"},
+		"office":   {hasLauncher: true},
+		"dataroom": {hasRuntime: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
 	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	runs := append(setupRuns(machine, layout, "office"), bootstrapRuns(machine, layout, "dataroom")...)
+	runs := append(launcherSetupRuns(machine, layout, "office"), runtimeSetupRuns(machine, layout, "dataroom")...)
 	if len(runs) != 2 {
-		t.Fatalf("expected the setup and the bootstrap to run, ran %v", machine.runs)
+		t.Fatalf("expected both setups to run, ran %v", machine.runs)
 	}
 	for _, run := range runs {
 		for _, setting := range []string{"PATH=" + layout.SearchPath(), "UV_PYTHON_DOWNLOADS=never"} {
@@ -149,8 +143,8 @@ func settingIn(run []string, name string) string {
 
 func TestASkillTheReleaseNoLongerShipsIsRemovedBeforeTheOthersArePrepared(t *testing.T) {
 	layout := skillsLayout(t, map[string]skillFixture{
-		"dataroom": {hasRuntime: true, requirements: "pyyaml\n"},
-		"website":  {hasSetupEntry: true, isNotASkill: true},
+		"dataroom": {hasRuntime: true},
+		"website":  {hasLauncher: true, isNotASkill: true},
 	})
 	leftoverPath := filepath.Join(layout.SkillsPath(), "website")
 	outsidePath := filepath.Join(t.TempDir(), "outside")
@@ -166,7 +160,7 @@ func TestASkillTheReleaseNoLongerShipsIsRemovedBeforeTheOthersArePrepared(t *tes
 	if _, errorValue := os.Stat(leftoverPath); !os.IsNotExist(errorValue) {
 		t.Fatalf("%s, a directory with no SKILL.md, survived the upgrade: %v", leftoverPath, errorValue)
 	}
-	if len(bootstrapRuns(machine, layout, "dataroom")) != 1 || len(setupRuns(machine, layout, "website")) != 0 {
+	if len(runtimeSetupRuns(machine, layout, "dataroom")) != 1 || len(machine.runs) != 1 {
 		t.Fatalf("expected only the shipped skill to be prepared: %v", machine.runs)
 	}
 	if _, errorValue := os.Lstat(linkPath); errorValue != nil {
@@ -177,99 +171,118 @@ func TestASkillTheReleaseNoLongerShipsIsRemovedBeforeTheOthersArePrepared(t *tes
 	}
 }
 
-func TestASkillWhoseCommandPredatesSetupIsPreparedFromItsRequirements(t *testing.T) {
-	layout := skillsLayout(t, map[string]skillFixture{
-		"office": {hasSetupEntry: true, hasRuntime: true, requirements: "python-docx\n"},
-	})
-	machine := &recordedMachine{
-		printed:  map[string]string{"env": unknownSetupCommandAnswer},
-		failures: map[string]error{"env": errors.New("exit status 1")},
-	}
-	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(bootstrapRuns(machine, layout, "office")) != 1 {
-		t.Fatalf("a command that does not know setup left its skill unprepared: %v", machine.runs)
-	}
-}
-
 func TestASetupThatFailsStopsTheInstallNamingWhatItNeeds(t *testing.T) {
-	layout := skillsLayout(t, map[string]skillFixture{
-		"office": {hasSetupEntry: true, hasRuntime: true, requirements: "python-docx\n"},
-	})
-	machine := &recordedMachine{
-		printed:  map[string]string{"env": noRendererAnswer},
-		failures: map[string]error{"env": errors.New("exit status 1")},
-	}
-	errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{})
-	if errorValue == nil {
-		t.Fatal("a skill whose setup failed was reported prepared")
-	}
-	for _, named := range []string{"office", "NO_JAVASCRIPT_RUNTIME", "neither bun nor node 18 is on PATH", "install bun"} {
-		if !strings.Contains(errorValue.Error(), named) {
-			t.Fatalf("the failure does not say %q: %v", named, errorValue)
+	for _, fixture := range map[string]skillFixture{"office": {hasLauncher: true}, "dataroom": {hasRuntime: true}} {
+		layout := skillsLayout(t, map[string]skillFixture{"skill": fixture})
+		machine := &recordedMachine{
+			printed:  map[string]string{"env": failedSetupAnswer},
+			failures: map[string]error{"env": errors.New("exit status 1")},
+		}
+		errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{})
+		if errorValue == nil {
+			t.Fatal("a skill whose setup failed was reported prepared")
+		}
+		for _, named := range []string{"skill", "SETUP_FAILED", "neither bun nor node 18 is on PATH", "install bun"} {
+			if !strings.Contains(errorValue.Error(), named) {
+				t.Fatalf("the failure does not say %q: %v", named, errorValue)
+			}
 		}
 	}
-	if len(bootstrapRuns(machine, layout, "office")) != 0 {
-		t.Fatalf("a setup that failed was papered over with a partial environment: %v", machine.runs)
-	}
 }
 
-func TestAFailedEnvironmentStopsTheInstallNamingTheSkill(t *testing.T) {
-	layout := skillsLayout(t, map[string]skillFixture{
-		"dataroom": {hasRuntime: true, requirements: "pyyaml\n"},
-	})
-	machine := &recordedMachine{failures: map[string]error{layout.PythonPath(): errors.New("exit status 1")}}
+func TestASetupThatPrintsNoEnvelopeStopsTheInstall(t *testing.T) {
+	layout := skillsLayout(t, map[string]skillFixture{"office": {hasLauncher: true}})
+	machine := &recordedMachine{
+		printed:  map[string]string{"env": "Traceback (most recent call last):"},
+		failures: map[string]error{"env": errors.New("exit status 1")},
+	}
 	errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "dataroom") {
-		t.Fatalf("a skill whose environment could not be made was reported prepared: %v", errorValue)
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "Traceback") {
+		t.Fatalf("a setup that crashed was reported prepared: %v", errorValue)
 	}
 }
 
-func TestSetupOptionsReachEverySetupAndNothingElse(t *testing.T) {
+func TestSetupOptionsReachEveryLauncherAndNothingElse(t *testing.T) {
 	layout := skillsLayout(t, map[string]skillFixture{
-		"office":   {hasSetupEntry: true},
-		"dataroom": {hasRuntime: true, requirements: "pyyaml\n"},
+		"office":   {hasLauncher: true},
+		"dataroom": {hasRuntime: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
 	if errorValue := prepareSkillsIn(layout, []string{"--with-ocr"}, machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	setup := setupRuns(machine, layout, "office")
-	if len(setup) != 1 || !slices.Equal(setup[0][len(setup[0])-2:], []string{skillSetupArgument, "--with-ocr"}) {
-		t.Fatalf("the option did not reach the setup: %v", setup)
+	if len(launcherSetupRuns(machine, layout, "office", "--with-ocr")) != 1 {
+		t.Fatalf("the option did not reach the launcher's setup: %v", machine.runs)
 	}
-	for _, run := range bootstrapRuns(machine, layout, "dataroom") {
-		if slices.Contains(run, "--with-ocr") {
-			t.Fatalf("a setup option was handed to a skill with no setup: %v", run)
-		}
+	if len(runtimeSetupRuns(machine, layout, "dataroom")) != 1 {
+		t.Fatalf("a setup option was handed to skill_runtime.py: %v", machine.runs)
 	}
 }
 
 // The rule above has to reach every skill the package actually ships, or the
 // first person to use one still waits for an install.
-func TestEverySkillThePluginShipsWithRequirementsHasAWayToBePrepared(t *testing.T) {
+func TestEverySkillThePluginShipsThatDeclaresPackagesHasASetupToRun(t *testing.T) {
 	skillRootPaths, errorValue := blueclawworkspace.SkillRootPaths(filepath.Join("..", ".."))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	preparable := 0
+	layout := blueclaw.LinuxCompanyHostLayout()
+	declaring := 0
 	for _, skillRootPath := range skillRootPaths {
 		skills, errorValue := bundledSkillsIn(skillRootPath)
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
 		for _, skill := range skills {
-			if !isRegularFile(skill.requirementsPath()) {
+			manifest := dependencyManifestIn(t, skill)
+			if manifest == "" {
 				continue
 			}
-			if !isExecutableFile(skill.setupEntryPath()) && !declaresPythonRequirements(skill) {
-				t.Errorf("%s declares %s, and has neither scripts/%s nor scripts/%s to prepare it with", skill.Name, skillRequirementsFileName, skill.Name, skillRuntimeScriptName)
+			declaring++
+			if _, hasSetup := setupOf(layout, skill, nil); !hasSetup {
+				t.Errorf("%s declares %s and has neither scripts/%s nor scripts/%s to set it up with", skill.Name, manifest, skill.Name, skillRuntimeScriptName)
 			}
-			preparable++
 		}
 	}
-	if preparable == 0 {
+	if declaring == 0 {
 		t.Fatal("no shipped skill declares requirements; the plugin moved them somewhere this rule does not look")
+	}
+}
+
+// dependencyManifestIn names the first file in the skill that declares
+// packages to install, in any of the formats the skills use.
+func dependencyManifestIn(t *testing.T, skill bundledSkill) string {
+	t.Helper()
+	manifestNames := map[string]bool{"requirements.txt": true, "pylock.toml": true, "package.json": true}
+	found := ""
+	walkError := filepath.WalkDir(skill.Path, func(path string, entry fs.DirEntry, walkError error) error {
+		if walkError != nil || found != "" {
+			return walkError
+		}
+		if entry.IsDir() && entry.Name() == "node_modules" {
+			return filepath.SkipDir
+		}
+		if !entry.IsDir() && manifestNames[entry.Name()] {
+			found, _ = filepath.Rel(skill.Path, path)
+		}
+		return nil
+	})
+	if walkError != nil {
+		t.Fatal(walkError)
+	}
+	return found
+}
+
+// The plugin pinned today predates setup. Delete this test with predatesSetup.
+func TestAPluginThatPredatesSetupLeavesItsSkillsToPrepareThemselves(t *testing.T) {
+	for answer, fixture := range map[string]skillFixture{unknownSetupCommandAnswer: {hasLauncher: true}, "": {hasRuntime: true}} {
+		layout := skillsLayout(t, map[string]skillFixture{"skill": fixture})
+		machine := &recordedMachine{
+			printed:  map[string]string{"env": answer},
+			failures: map[string]error{"env": errors.New("exit status 2")},
+		}
+		if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
+			t.Fatalf("a skill from a plugin without setup stopped the install: %v", errorValue)
+		}
 	}
 }
