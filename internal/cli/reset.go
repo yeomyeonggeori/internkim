@@ -94,7 +94,8 @@ func printBlueclawHistoryResetPlan() {
 	fmt.Println("  - task runs, task events, task steps, task artifacts, waits, sessions, schedules")
 	fmt.Println("  - raw events, attachments, content segments, conversations")
 	fmt.Println("  - legacy memory records/sources")
-	fmt.Println("  - memory episodes, facts, profiles, and jobs")
+	fmt.Println("  - the retired memory tables: episodes, facts, profiles, and jobs")
+	fmt.Println("  - every per-subject memory file under the workspace's .blueclaw/memory")
 	fmt.Println("  - guest workspace Postgres runtime state when /var/lib/blueclaw/workspace.ext4 exists")
 	fmt.Println("This will keep host policy and secrets. Guest runtime mirrors are rebuilt from policy on restart.")
 }
@@ -144,8 +145,13 @@ if [ -s /var/lib/blueclaw/workspace.ext4 ]; then
   rm -rf "$mount_path/.blueclaw/postgres/data"
   chown -R postgres:postgres "$mount_path/.blueclaw/postgres"
   chmod 0770 "$mount_path/.blueclaw/postgres"
+  echo "clearing guest per-subject memory files"
+  rm -rf "$mount_path/.blueclaw/memory"
   cleanup_workspace_mount
   trap - EXIT
+else
+  echo "clearing per-subject memory files"
+  rm -rf /workspace/.blueclaw/memory
 fi
 
 echo "starting blueclaw services"

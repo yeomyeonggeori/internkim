@@ -217,3 +217,62 @@ func TestARootThatIsASymlinkIsFollowedOnBothSides(t *testing.T) {
 		t.Error("the destination's symlink was replaced")
 	}
 }
+
+// Memory is one SQLite file per subject, several directories down inside the
+// workspace, so the rule has to be the file's own header rather than where it
+// sits: every database the backup walks is taken whole.
+func TestEverySQLiteDatabaseUnderARootIsTakenWholeHoweverDeepItSits(t *testing.T) {
+	source := t.TempDir()
+	databasePaths := map[string]string{
+		".blueclaw/memory/persons/person-1.db": "이샘플",
+		".blueclaw/memory/circles/member.db":   "박예시",
+	}
+	for relativePath, name := range databasePaths {
+		writeLiveDatabase(t, filepath.Join(source, relativePath), name)
+	}
+
+	destination := filepath.Join(t.TempDir(), "workspace")
+	archiveAndExtract(t, []FileRoot{{Role: "workspace", Path: source}}, map[string]string{"workspace": destination})
+
+	for relativePath, name := range databasePaths {
+		restoredPath := filepath.Join(destination, relativePath)
+		if _, errorValue := os.Stat(restoredPath + "-wal"); errorValue == nil {
+			t.Errorf("%s was archived beside a write-ahead log the snapshot already holds", relativePath)
+		}
+		restored, errorValue := sql.Open("sqlite", "file:"+restoredPath+"?mode=ro")
+		if errorValue != nil {
+			t.Fatalf("open %s: %v", relativePath, errorValue)
+		}
+		var restoredName string
+		errorValue = restored.QueryRow("SELECT name FROM profile").Scan(&restoredName)
+		restored.Close()
+		if errorValue != nil || restoredName != name {
+			t.Errorf("%s lost the row its log held: %q %v", relativePath, restoredName, errorValue)
+		}
+	}
+}
+
+func writeLiveDatabase(t *testing.T, databasePath string, name string) {
+	t.Helper()
+	if errorValue := os.MkdirAll(filepath.Dir(databasePath), 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	database, errorValue := sql.Open("sqlite", "file:"+databasePath+"?_pragma=journal_mode(WAL)")
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	defer database.Close()
+	database.SetMaxOpenConns(1)
+	for _, statement := range []string{
+		"PRAGMA wal_autocheckpoint=0",
+		"CREATE TABLE profile (name TEXT)",
+		"INSERT INTO profile VALUES ('" + name + "')",
+	} {
+		if _, errorValue := database.Exec(statement); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	if information, errorValue := os.Stat(databasePath + "-wal"); errorValue != nil || information.Size() == 0 {
+		t.Fatalf("the test needs the row to still be in the write-ahead log: %v", errorValue)
+	}
+}
