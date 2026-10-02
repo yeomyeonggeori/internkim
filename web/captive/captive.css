@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import "../src/shadcn-tailwind.css";
+@import "../src/theme.css";
+
+@source "../src/lib/components/ui/{alert,button,card,input,item,label,spinner}";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+	--brand: #0e59b3;
+	--primary: var(--brand);
+	--primary-foreground: #ffffff;
+	--ring: var(--brand);
+}
+
+.dark {
+	--primary: #4b8fe0;
+	--ring: #4b8fe0;
+}

@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
+		"build:captive": "vite build --config captive/vite.config.ts",
 		"build:board": "BUILD_TARGET=board VITE_BUILD_TARGET=board vite build",
 		"preview": "wrangler pages dev .svelte-kit/cloudflare --port 4173",
 		"prepare": "bun install --cwd ../.dependency/blueclaw/protocol && svelte-kit sync",

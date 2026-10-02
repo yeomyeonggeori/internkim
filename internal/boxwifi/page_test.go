@@ -1,10 +1,12 @@
 package boxwifi
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -122,18 +124,47 @@ func submitJoinTo(t *testing.T, baseURL, ssid, password string) *http.Response {
 	return response
 }
 
-func fetchFormWithLanguage(t *testing.T, acceptLanguage string) string {
-	t.Helper()
-	server := httptest.NewServer(newPage([]Network{{SSID: "Office", IsSecured: true}}, false, make(chan submission, 1)))
+func TestPageServesTheBuiltPageAndItsFiles(t *testing.T) {
+	server := httptest.NewServer(newPage(nil, false, make(chan submission, 1)))
 	defer server.Close()
-	request, errorValue := http.NewRequest(http.MethodGet, server.URL+"/", nil)
-	if errorValue != nil {
+
+	root := fetchBody(t, server.URL+"/")
+	if !strings.Contains(root, `<div id="captive">`) || !strings.Contains(root, `src="/captive.js"`) {
+		t.Fatalf("root did not serve the built setup page: %s", root)
+	}
+	for _, path := range []string{"/captive.js", "/index.css", "/logo.svg", "/favicon.svg"} {
+		response, errorValue := http.Get(server.URL + path)
+		if errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("%s: status = %d, want %d", path, response.StatusCode, http.StatusOK)
+		}
+	}
+}
+
+func TestPageListsTheScannedNetworksAndTheLastFailure(t *testing.T) {
+	networks := []Network{{SSID: "Office", SignalPercent: 80, IsSecured: true}, {SSID: "사무실 2층", SignalPercent: 40}}
+	server := httptest.NewServer(newPage(networks, true, make(chan submission, 1)))
+	defer server.Close()
+
+	var listing networkListing
+	if errorValue := json.Unmarshal([]byte(fetchBody(t, server.URL+"/networks")), &listing); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if acceptLanguage != "" {
-		request.Header.Set("Accept-Language", acceptLanguage)
+	want := networkListing{
+		Networks:      []listedNetwork{{SSID: "Office", IsSecured: true, SignalPercent: 80}, {SSID: "사무실 2층", SignalPercent: 40}},
+		HasJoinFailed: true,
 	}
-	response, errorValue := http.DefaultClient.Do(request)
+	if !reflect.DeepEqual(listing, want) {
+		t.Fatalf("listing = %+v, want %+v", listing, want)
+	}
+}
+
+func fetchBody(t *testing.T, address string) string {
+	t.Helper()
+	response, errorValue := http.Get(address)
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -143,27 +174,6 @@ func fetchFormWithLanguage(t *testing.T, acceptLanguage string) string {
 		t.Fatal(errorValue)
 	}
 	return string(body)
-}
-
-func TestPageServesKoreanWhenTheFirstPreferredLanguageIsKorean(t *testing.T) {
-	for _, acceptLanguage := range []string{"ko", "ko-KR,en;q=0.8", "KO-kr;q=0.9"} {
-		body := fetchFormWithLanguage(t, acceptLanguage)
-		if !strings.Contains(body, `<html lang="ko">`) || !strings.Contains(body, pageTexts[koreanLanguage].FormHeading) {
-			t.Fatalf("%q did not get the Korean page: %s", acceptLanguage, body)
-		}
-	}
-}
-
-func TestPageServesEnglishUnlessKoreanIsPreferred(t *testing.T) {
-	for _, acceptLanguage := range []string{"", "en-US,ko;q=0.8", "ja", "*"} {
-		body := fetchFormWithLanguage(t, acceptLanguage)
-		if !strings.Contains(body, `<html lang="en">`) || !strings.Contains(body, pageTexts[englishLanguage].FormHeading) {
-			t.Fatalf("%q did not get the English page: %s", acceptLanguage, body)
-		}
-		if strings.Contains(body, pageTexts[koreanLanguage].FormHeading) {
-			t.Fatalf("%q got Korean text in the English page", acceptLanguage)
-		}
-	}
 }
 
 func TestPageKeepsTheSpacesOfAChosenNetworkName(t *testing.T) {

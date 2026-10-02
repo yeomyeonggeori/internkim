@@ -220,6 +220,31 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "captive-page",
+        [
+            "web/captive/*",
+            "web/src/lib/components/ui/*",
+            "web/src/theme.css",
+            "web/src/shadcn-tailwind.css",
+            "web/static/logo.svg",
+            "web/static/favicon.svg",
+            "web/package.json",
+            "web/bun.lock",
+            "internal/boxwifi/captive/*",
+        ],
+        [
+            BUN_INSTALL,
+            ["bunx", "svelte-check", "--tsconfig", "./captive/tsconfig.json"],
+            ["bun", "run", "build:captive"],
+            # The box embeds the committed build, so a build that differs from it
+            # is a page the box would not serve.
+            ["git", "diff", "--exit-code", "--", "../internal/boxwifi/captive"],
+            ["sh", "-c", 'test -z "$(git status --porcelain -- ../internal/boxwifi/captive)"'],
+        ],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "memory-ui",
         ["web/src/routes/memory/*", "web/tests/e2e/memory*"],
         [["bun", "run", "test:e2e:memory"]],
