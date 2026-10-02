@@ -2,8 +2,7 @@ package blueclaw
 
 // SkillPreparationVerb is the `internkim` command that runs every bundled
 // skill's setup, which keeps what the skill needs beside its own files. The
-// install step runs it, and an administrator runs it again to add what a
-// setup leaves out unless asked, such as `--with-ocr`.
+// install step runs it on every install and upgrade.
 const SkillPreparationVerb = "prepare-skills"
 
 func (layout CompanyHostLayout) CommandPath() string {

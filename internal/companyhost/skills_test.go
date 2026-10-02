@@ -69,9 +69,9 @@ func runsEndingWith(machine *recordedMachine, ending ...string) [][]string {
 	return runs
 }
 
-func launcherSetupRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string, options ...string) [][]string {
+func launcherSetupRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string) [][]string {
 	launcherPath := filepath.Join(layout.SkillsPath(), skillName, "scripts", skillName)
-	return runsEndingWith(machine, append([]string{launcherPath, skillSetupArgument}, options...)...)
+	return runsEndingWith(machine, launcherPath, skillSetupArgument)
 }
 
 func runtimeSetupRuns(machine *recordedMachine, layout blueclaw.CompanyHostLayout, skillName string) [][]string {
@@ -87,7 +87,7 @@ func TestEveryBundledSkillIsPreparedByItsOwnSetup(t *testing.T) {
 		"stray":      {hasLauncher: true, isNotASkill: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
+	if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if len(launcherSetupRuns(machine, layout, "office")) != 1 || len(runtimeSetupRuns(machine, layout, "office")) != 0 {
@@ -107,7 +107,7 @@ func TestSkillsArePreparedOnWhatEveryPersonsCommandRunsWithNoCacheOfTheirs(t *te
 		"dataroom": {hasRuntime: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
+	if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	runs := append(launcherSetupRuns(machine, layout, "office"), runtimeSetupRuns(machine, layout, "dataroom")...)
@@ -154,7 +154,7 @@ func TestASkillTheReleaseNoLongerShipsIsRemovedBeforeTheOthersArePrepared(t *tes
 		t.Fatal(errorValue)
 	}
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
+	if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := os.Stat(leftoverPath); !os.IsNotExist(errorValue) {
@@ -178,7 +178,7 @@ func TestASetupThatFailsStopsTheInstallNamingWhatItNeeds(t *testing.T) {
 			printed:  map[string]string{"env": failedSetupAnswer},
 			failures: map[string]error{"env": errors.New("exit status 1")},
 		}
-		errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{})
+		errorValue := prepareSkillsIn(layout, machine, &strings.Builder{})
 		if errorValue == nil {
 			t.Fatal("a skill whose setup failed was reported prepared")
 		}
@@ -196,26 +196,9 @@ func TestASetupThatPrintsNoEnvelopeStopsTheInstall(t *testing.T) {
 		printed:  map[string]string{"env": "Traceback (most recent call last):"},
 		failures: map[string]error{"env": errors.New("exit status 1")},
 	}
-	errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{})
+	errorValue := prepareSkillsIn(layout, machine, &strings.Builder{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "Traceback") {
 		t.Fatalf("a setup that crashed was reported prepared: %v", errorValue)
-	}
-}
-
-func TestSetupOptionsReachEveryLauncherAndNothingElse(t *testing.T) {
-	layout := skillsLayout(t, map[string]skillFixture{
-		"office":   {hasLauncher: true},
-		"dataroom": {hasRuntime: true},
-	})
-	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, []string{"--with-ocr"}, machine, &strings.Builder{}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if len(launcherSetupRuns(machine, layout, "office", "--with-ocr")) != 1 {
-		t.Fatalf("the option did not reach the launcher's setup: %v", machine.runs)
-	}
-	if len(runtimeSetupRuns(machine, layout, "dataroom")) != 1 {
-		t.Fatalf("a setup option was handed to skill_runtime.py: %v", machine.runs)
 	}
 }
 
@@ -239,7 +222,7 @@ func TestEverySkillThePluginShipsThatDeclaresPackagesHasASetupToRun(t *testing.T
 				continue
 			}
 			declaring++
-			if _, hasSetup := setupOf(layout, skill, nil); !hasSetup {
+			if _, hasSetup := setupOf(layout, skill); !hasSetup {
 				t.Errorf("%s declares %s and has neither scripts/%s nor scripts/%s to set it up with", skill.Name, manifest, skill.Name, skillRuntimeScriptName)
 			}
 		}
@@ -281,7 +264,7 @@ func TestAPluginThatPredatesSetupLeavesItsSkillsToPrepareThemselves(t *testing.T
 			printed:  map[string]string{"env": answer},
 			failures: map[string]error{"env": errors.New("exit status 2")},
 		}
-		if errorValue := prepareSkillsIn(layout, nil, machine, &strings.Builder{}); errorValue != nil {
+		if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
 			t.Fatalf("a skill from a plugin without setup stopped the install: %v", errorValue)
 		}
 	}

@@ -292,8 +292,3 @@ keeps beside the skill's files: Python libraries from `pypi.org` and
 `registry.npmjs.org`. If any of them is unreachable, the install stops and names what it could not fetch. The host needs no Python
 from the distribution. The skills run on the same runtime, as `python3` in each
 person's commands, and install nothing the first time someone uses them.
-
-The office skill's OCR engine is the one piece left out, because `file_read`
-already reads scanned pages through the model. To read scans on the host
-itself, run `sudo internkim prepare-skills --with-ocr`, or the same command
-without `sudo` on a Mac.

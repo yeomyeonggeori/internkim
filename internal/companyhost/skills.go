@@ -49,11 +49,10 @@ type skillSetup struct {
 	Arguments []string
 }
 
-// setupOf is the command that prepares the skill, if it needs one. Setup
-// options are a launcher's; skill_runtime.py takes none.
-func setupOf(layout blueclaw.CompanyHostLayout, skill bundledSkill, setupOptions []string) (skillSetup, bool) {
+// setupOf is the command that prepares the skill, if it needs one.
+func setupOf(layout blueclaw.CompanyHostLayout, skill bundledSkill) (skillSetup, bool) {
 	if isExecutableFile(skill.launcherPath()) {
-		return skillSetup{Program: skill.launcherPath(), Arguments: append([]string{skillSetupArgument}, setupOptions...)}, true
+		return skillSetup{Program: skill.launcherPath(), Arguments: []string{skillSetupArgument}}, true
 	}
 	if isRegularFile(skill.scriptPath(skillRuntimeScriptName)) {
 		return skillSetup{Program: layout.PythonPath(), Arguments: []string{skill.scriptPath(skillRuntimeScriptName), skillSetupArgument}}, true
@@ -74,18 +73,17 @@ type skillIssue struct {
 	Suggestion string `json:"suggestion"`
 }
 
-// PrepareTheBundledSkills prepares the skills on this machine. The options are
-// handed to every skill's setup unchanged.
-func PrepareTheBundledSkills(setupOptions []string, machine Machine, progress io.Writer) error {
+// PrepareTheBundledSkills prepares the skills on this machine.
+func PrepareTheBundledSkills(machine Machine, progress io.Writer) error {
 	platform, errorValue := ThisMachine()
 	if errorValue != nil {
 		return errorValue
 	}
 	syscall.Umask(0o022)
-	return prepareSkillsIn(platform.Layout(), setupOptions, machine, progress)
+	return prepareSkillsIn(platform.Layout(), machine, progress)
 }
 
-func prepareSkillsIn(layout blueclaw.CompanyHostLayout, setupOptions []string, machine Machine, progress io.Writer) error {
+func prepareSkillsIn(layout blueclaw.CompanyHostLayout, machine Machine, progress io.Writer) error {
 	if errorValue := requireTheOwnerOf(layout.SkillsPath()); errorValue != nil {
 		return errorValue
 	}
@@ -106,7 +104,7 @@ func prepareSkillsIn(layout blueclaw.CompanyHostLayout, setupOptions []string, m
 		return errorValue
 	}
 	for _, skill := range skills {
-		if errorValue := prepareSkill(layout, skill, setupOptions, environment, machine, progress); errorValue != nil {
+		if errorValue := prepareSkill(layout, skill, environment, machine, progress); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -197,8 +195,8 @@ func skillPreparationEnvironment(layout blueclaw.CompanyHostLayout, scratchPath 
 	}, nil
 }
 
-func prepareSkill(layout blueclaw.CompanyHostLayout, skill bundledSkill, setupOptions []string, environment []string, machine Machine, progress io.Writer) error {
-	setup, needsPreparation := setupOf(layout, skill, setupOptions)
+func prepareSkill(layout blueclaw.CompanyHostLayout, skill bundledSkill, environment []string, machine Machine, progress io.Writer) error {
+	setup, needsPreparation := setupOf(layout, skill)
 	if !needsPreparation {
 		return nil
 	}

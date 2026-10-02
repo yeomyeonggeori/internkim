@@ -115,7 +115,10 @@ func main() {
 			os.Exit(1)
 		}
 	case blueclaw.SkillPreparationVerb:
-		if errorValue := companyhost.PrepareTheBundledSkills(os.Args[2:], thisComputer{}, os.Stdout); errorValue != nil {
+		if len(os.Args) > 2 {
+			printUsage(command)
+		}
+		if errorValue := companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout); errorValue != nil {
 			fmt.Fprintf(os.Stderr, "\nThe skills were not prepared: %s\n", errorValue)
 			os.Exit(1)
 		}
@@ -132,7 +135,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
-	fmt.Fprintf(os.Stderr, "       %s %s [setup options, such as --with-ocr]\n", command, blueclaw.SkillPreparationVerb)
+	fmt.Fprintf(os.Stderr, "       %s %s\n", command, blueclaw.SkillPreparationVerb)
 	os.Exit(1)
 }
 
