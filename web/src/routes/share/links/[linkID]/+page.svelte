@@ -149,6 +149,7 @@
 					<Field.Label for="{fieldID}-code">{text.code}</Field.Label>
 					<InputOTP.Root
 						inputId="{fieldID}-code"
+						pushPasswordManagerStrategy="none"
 						type="password"
 						inputmode="numeric"
 						autocomplete="one-time-code"

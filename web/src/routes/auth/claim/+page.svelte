@@ -171,6 +171,7 @@
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
 								inputId="claim-code-{fieldID}"
+								pushPasswordManagerStrategy="none"
 								maxlength={claimCodeLength}
 								bind:value={code}
 								disabled={busy}

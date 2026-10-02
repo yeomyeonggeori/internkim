@@ -57,7 +57,7 @@
 		{#if isCodeSent}
 			<Field.Field>
 				<Field.Label for="guest-code">Email verification code</Field.Label>
-				<InputOTP.Root inputId="guest-code" maxlength={emailCodeLength} required bind:value={code} disabled={isBusy} pattern="[0-9]*">
+				<InputOTP.Root inputId="guest-code" pushPasswordManagerStrategy="none" maxlength={emailCodeLength} required bind:value={code} disabled={isBusy} pattern="[0-9]*">
 					{#snippet children({ cells })}
 						<InputOTP.Group>
 							{#each cells.slice(0, emailCodeLength / 2) as cell (cell)}
