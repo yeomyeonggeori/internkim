@@ -6,6 +6,7 @@ import {
 	adminCallerOf,
 	AlreadyAMember,
 	asMember,
+	closeSignInOfMembersWhoLeft,
 	controlPlane,
 	foundCompany,
 	hostAddressOf,
@@ -328,6 +329,28 @@ describe('somebody who leaves stops signing in', () => {
 		await client.from('member').update({ status: 'active' }).eq('id', memberID);
 		await settleSignInOfMember(client, memberID);
 		expect(await canSignIn(email, temporaryPassword)).toBe(true);
+	});
+
+	test('somebody who departed before departures closed sign-in is closed by the backfill, once', async () => {
+		const email = `${slug}-departed-before@example.test`;
+		const memberID = await addMember(client, companyID, email);
+		const { temporaryPassword } = await inviteMember(client, memberID);
+		const { refreshToken } = await signedInAs(email, temporaryPassword);
+		await client.from('member').update({ status: 'departed' }).eq('id', memberID);
+		expect(await canSignIn(email, temporaryPassword)).toBe(true);
+
+		const rehearsal = await closeSignInOfMembersWhoLeft(client, { isDryRun: true });
+		expect(rehearsal.closed.map((account) => account.memberID)).toContain(memberID);
+		expect(await canSignIn(email, temporaryPassword)).toBe(true);
+
+		const backfill = await closeSignInOfMembersWhoLeft(client, { isDryRun: false });
+		expect(backfill.closed.map((account) => account.memberID)).toContain(memberID);
+		expect(await canSignIn(email, temporaryPassword)).toBe(false);
+		expect(await canRefresh(refreshToken)).toBe(false);
+
+		const again = await closeSignInOfMembersWhoLeft(client, { isDryRun: false });
+		expect(again.closed.map((account) => account.memberID)).not.toContain(memberID);
+		expect(again.alreadyClosed.map((account) => account.memberID)).toContain(memberID);
 	});
 });
 

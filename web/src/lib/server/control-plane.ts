@@ -249,6 +249,54 @@ export async function settleSignInOfMember(client: SupabaseClient, memberID: str
 	await keepAccountSignedIn(client, data.user_id, !hasLeftTheCompany(data.status));
 }
 
+export type LeaverAccount = { memberID: string; accountID: string };
+
+export type SignInOfMembersWhoLeft = {
+	closed: LeaverAccount[];
+	alreadyClosed: LeaverAccount[];
+	withoutAccount: string[];
+};
+
+export async function closeSignInOfMembersWhoLeft(
+	client: SupabaseClient,
+	options: { isDryRun: boolean },
+): Promise<SignInOfMembersWhoLeft> {
+	const leavers = await membersWhoLeft(client);
+	const settled: SignInOfMembersWhoLeft = { closed: [], alreadyClosed: [], withoutAccount: [] };
+	for (const leaver of leavers) {
+		if (!leaver.user_id) {
+			settled.withoutAccount.push(leaver.id);
+			continue;
+		}
+		const account = { memberID: leaver.id, accountID: leaver.user_id };
+		if (await isAccountClosed(client, account.accountID)) {
+			settled.alreadyClosed.push(account);
+			continue;
+		}
+		if (!options.isDryRun) await keepAccountSignedIn(client, account.accountID, false);
+		settled.closed.push(account);
+	}
+	return settled;
+}
+
+async function membersWhoLeft(client: SupabaseClient): Promise<{ id: string; user_id: string | null }[]> {
+	const { data, error } = await client
+		.from('member')
+		.select('id, user_id')
+		.in('status', statusesOfMembersWhoLeft)
+		.order('id')
+		.returns<{ id: string; user_id: string | null }[]>();
+	if (error) throw new Error(`members who left: ${error.message}`);
+	return data;
+}
+
+async function isAccountClosed(client: SupabaseClient, accountID: string): Promise<boolean> {
+	const { data, error } = await client.auth.admin.getUserById(accountID);
+	if (error) throw new Error(`account ${accountID}: ${error.message}`);
+	const bannedUntil = data.user.banned_until;
+	return bannedUntil !== undefined && new Date(bannedUntil).getTime() > Date.now();
+}
+
 export type FoundedCompany = {
 	companyID: string;
 	adminMemberID: string;
@@ -291,8 +339,10 @@ function hasNotArrivedYet(status: string): boolean {
 	return status !== 'active' && !hasLeftTheCompany(status);
 }
 
+const statusesOfMembersWhoLeft: string[] = ['departed', 'withdrawn'];
+
 function hasLeftTheCompany(status: string): boolean {
-	return status === 'departed' || status === 'withdrawn';
+	return statusesOfMembersWhoLeft.includes(status);
 }
 
 async function markArrived(client: SupabaseClient, memberID: string, accountID: string, email: string): Promise<void> {
