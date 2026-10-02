@@ -6,8 +6,11 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/lib/pq"
+
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 // A room the company opened holds the company. A seat in one that no address
@@ -20,15 +23,16 @@ func (service *Service) removeSeatsNobodyAccountsFor(ctx context.Context, relay 
 		log.Printf("buzz membership: no seat is swept, %v", errorValue)
 		return
 	}
-	if report.Removed > 0 {
-		log.Printf("buzz membership: took back %d seat(s) and %d community place(s) nobody accounts for: %v",
-			report.Removed, report.LeftTheCommunity, report.Seats)
+	if report.Removed > 0 || report.LeftTheCommunity > 0 {
+		log.Printf("buzz membership: took back %d seat(s) and %d community place(s) nobody accounts for: %v %v",
+			report.Removed, report.LeftTheCommunity, report.Seats, report.FormerColleagues)
 	}
 }
 
 type buzzSeatSweepReport struct {
 	Rooms            int      `json:"rooms"`
 	Seats            []string `json:"seats"`
+	FormerColleagues []string `json:"formerColleagues"`
 	Removed          int      `json:"removed"`
 	LeftTheCommunity int      `json:"leftTheCommunity"`
 }
@@ -44,7 +48,11 @@ func (service *Service) sweepSeatsNobodyAccountsFor(
 	if errorValue != nil {
 		return buzzSeatSweepReport{}, errorValue
 	}
-	report := buzzSeatSweepReport{Rooms: len(channelIDs), Seats: []string{}}
+	formerColleagues, errorValue := service.keysOfMembersWhoLeft(ctx, seed, accounted)
+	if errorValue != nil {
+		return buzzSeatSweepReport{}, errorValue
+	}
+	report := buzzSeatSweepReport{Rooms: len(channelIDs), Seats: []string{}, FormerColleagues: formerColleagues}
 	for _, channelID := range channelIDs {
 		heldRoles, errorValue := buzzChannelMemberRoles(ctx, relay, channelID)
 		if errorValue != nil {
@@ -68,7 +76,7 @@ func (service *Service) sweepSeatsNobodyAccountsFor(
 		}
 	}
 	if apply {
-		left, errorValue := showOutOfTheCommunity(ctx, relay, report.Seats)
+		left, errorValue := showOutOfTheCommunity(ctx, relay, append(report.Seats, report.FormerColleagues...))
 		if errorValue != nil {
 			return report, errorValue
 		}
@@ -77,10 +85,31 @@ func (service *Service) sweepSeatsNobodyAccountsFor(
 	return report, nil
 }
 
-// Somebody the company no longer holds a seat for is not in the company, and
-// the community is what lets them read it at all. Only the keys whose seats
-// this pass just took are shown out, so the people the history carried over -
-// who hold no seat and never did - are left where they are.
+func (service *Service) keysOfMembersWhoLeft(ctx context.Context, seed string, accounted map[string]bool) ([]string, error) {
+	members, errorValue := service.companyMembers(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	keys := []string{}
+	for _, member := range members {
+		if !member.HasLeftTheCompany() {
+			continue
+		}
+		held, errorValue := service.everyKeyHeldBy(ctx, seed, normalizedRosterEmail(member.Email))
+		if errorValue != nil {
+			return nil, errorValue
+		}
+		recorded := strings.ToLower(strings.TrimSpace(member.Messenger[blueclawruntime.BlueclawMessengerPlatform]))
+		for _, pubkey := range append(held, recorded) {
+			if pubkey != "" && !accounted[pubkey] {
+				keys = append(keys, pubkey)
+			}
+		}
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
 func showOutOfTheCommunity(ctx context.Context, relay *sql.DB, pubkeys []string) (int, error) {
 	if len(pubkeys) == 0 {
 		return 0, nil
