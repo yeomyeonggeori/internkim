@@ -30,20 +30,6 @@ func prepareDatabases(platform companyHostPlatform, machine Machine, settings co
 			"PostgreSQL would not create the %s role and the %s and %s databases (%w).\n%s\nNothing was removed",
 			databaseRoleName, blueclaw.BlueclawDatabaseName, blueclaw.BuzzRelayDatabaseName, errorValue, explanation)
 	}
-	return dropTheRetiredVectorExtension(platform, machine, progress)
-}
-
-var retiredVectorExtensionRemoval = strings.Join([]string{
-	`\connect ` + blueclaw.BlueclawDatabaseName,
-	`SET client_min_messages = warning;`,
-	`DROP EXTENSION IF EXISTS vector CASCADE;`,
-	``,
-}, "\n")
-
-func dropTheRetiredVectorExtension(platform companyHostPlatform, machine Machine, progress io.Writer) error {
-	if errorValue := platform.RunDatabaseStatements(machine, retiredVectorExtensionRemoval, progress); errorValue != nil {
-		return fmt.Errorf("PostgreSQL would not drop the retired vector extension from the %s database: %w", blueclaw.BlueclawDatabaseName, errorValue)
-	}
 	return nil
 }
 

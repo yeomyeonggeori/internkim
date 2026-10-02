@@ -166,9 +166,6 @@ func TestAMacDatabaseIsPreparedWithoutPgvector(t *testing.T) {
 	if errorValue := prepareDatabases(macPlatformForTest(), machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard); errorValue != nil {
 		t.Fatalf("a Homebrew PostgreSQL without pgvector was not prepared: %v", errorValue)
 	}
-	if !machine.ranStatementsCarrying("DROP EXTENSION IF EXISTS vector CASCADE;") {
-		t.Fatalf("the Mac's agent database kept a vector extension it no longer uses: %v", machine.runs)
-	}
 }
 
 // Homebrew refuses every command run as root except --prefix and services. An
