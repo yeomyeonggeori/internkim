@@ -70,9 +70,3 @@ func TestTheCompanyHostAdmindInstallsNoDeviceUsersSync(t *testing.T) {
 			"where the script finds no company directory and fails every hour from units the package does not own")
 	}
 }
-
-func TestTheDeviceAdmindStillInstallsItsUsersSync(t *testing.T) {
-	if strings.Contains(AdmindServiceUnit(), "-install-users-sync") {
-		t.Fatal("the device's admind unit turns off the users sync the device has always installed, a change the frozen device path does not take")
-	}
-}

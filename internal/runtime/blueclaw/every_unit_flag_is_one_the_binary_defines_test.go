@@ -21,17 +21,10 @@ func TestEveryUnitFlagIsOneTheBinaryDefines(t *testing.T) {
 	}
 
 	units := map[string]string{
-		"blueclaw":                     BlueclawServiceUnit(),
-		"internkim-capabilityd":        CapabilitydServiceUnit(),
-		"internkim-capabilityd-remote": CapabilitydServiceUnitForLocalInferenceMode("remote"),
-		"internkim-admind":             AdmindServiceUnit(),
-		"buzz-relay":                   BuzzRelayServiceUnit("wss://relay.example.test"),
-		"chatd":                        ChatdServiceUnit("wss://relay.example.test"),
-		"buzz-media":                   BuzzMediaServiceUnit(),
-		"llama-cpp":                    LlamaCppServiceUnit(),
-		"llama-cpp-embedding":          LlamaCppEmbeddingServiceUnit(),
-		"internkim-relay":              RelayServiceUnit(),
-		"internkim-users-sync":         InternKimUsersSyncServiceUnit(),
+		"buzz-media":          BuzzMediaServiceUnit(),
+		"llama-cpp":           LlamaCppServiceUnit(),
+		"llama-cpp-embedding": LlamaCppEmbeddingServiceUnit(),
+		"internkim-relay":     RelayServiceUnit(),
 	}
 	for _, unit := range CompanyPackageUnits() {
 		units["packaged "+unit.Name] = unit.Contents

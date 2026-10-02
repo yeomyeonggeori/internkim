@@ -59,10 +59,10 @@ func TestPerformSSHRecoveryRequestRequiresFleetIdentity(t *testing.T) {
 func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T) {
 
 	originalRecoveryHTTPClient := recoveryHTTPClient
-	originalStatusHTTPClient := statusHTTPClient
+	originalStatusHTTPClient := healthHTTPClient
 	defer func() {
 		recoveryHTTPClient = originalRecoveryHTTPClient
-		statusHTTPClient = originalStatusHTTPClient
+		healthHTTPClient = originalStatusHTTPClient
 	}()
 	stubbedClient := &http.Client{
 		CheckRedirect: func(request *http.Request, via []*http.Request) error {
@@ -77,7 +77,7 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 			return response, nil
 		})}
 	recoveryHTTPClient = stubbedClient
-	statusHTTPClient = stubbedClient
+	healthHTTPClient = stubbedClient
 
 	_, errorValue := performSSHRecoveryRequest(commandTarget{
 		deviceURL:   "https://device.example",
@@ -88,5 +88,19 @@ func TestPerformSSHRecoveryRequestExplainsRedirectAsMissingEndpoint(t *testing.T
 		if errorValue == nil || !strings.Contains(errorValue.Error(), expectedText) {
 			t.Fatalf("expected redirect explanation to contain %q, got %v", expectedText, errorValue)
 		}
+	}
+}
+
+type roundTripFunc func(request *http.Request) (*http.Response, error)
+
+func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
+
+func textHTTPResponse(statusCode int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: statusCode,
+		Header:     http.Header{"Content-Type": []string{"text/plain"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 }
