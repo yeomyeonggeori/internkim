@@ -31,14 +31,14 @@ func TestEveryRequirementTheConversionNamesIsLocked(t *testing.T) {
 	}
 }
 
-func TestTheFormulasPostInstallBuildsTheConversionEnvironmentThroughTheOptLink(t *testing.T) {
+func TestTheFormulasPostInstallRunsTheInstallStepThroughTheOptLink(t *testing.T) {
 	formula, errorValue := blueclaw.HomebrewFormula(blueclaw.HomebrewFormulaRequest{Version: "1.2.3", SourceSHA256: "checksum", SourceTarballURL: "https://example.com/internkim.tar.gz"})
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	postInstall := formula[strings.Index(formula, "def post_install"):strings.Index(formula, "def caveats")]
 	layout := blueclaw.MacCompanyHostLayout("#{HOMEBREW_PREFIX}")
-	for _, command := range layout.PythonSetupCommands() {
+	for _, command := range layout.InstallStepCommands() {
 		quoted := `"` + strings.Join(command.Arguments, `", "`) + `"`
 		if !strings.Contains(postInstall, "system "+quoted) {
 			t.Fatalf("post_install does not %s:\n%s", command.Purpose, postInstall)

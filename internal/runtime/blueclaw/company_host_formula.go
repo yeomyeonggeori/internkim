@@ -146,9 +146,9 @@ func writeHomebrewDependencies(formula *strings.Builder) {
 	formula.WriteString("  depends_on :macos\n\n")
 }
 
-// Installing the keg is a copy. The conversion environment is built in
-// post_install because Homebrew runs `install` only when it builds from source
-// and `post_install` after a pour as well. It is named through the opt link,
+// Installing the keg is a copy. The conversion environment is built and the
+// skills are prepared in post_install because Homebrew runs `install` only when
+// it builds from source and `post_install` after a pour as well. It is named through the opt link,
 // which Homebrew points at the new keg before post_install runs, so the
 // environment's interpreter path survives the next upgrade's keg.
 func writeHomebrewInstallBlock(formula *strings.Builder) {
@@ -158,7 +158,7 @@ func writeHomebrewInstallBlock(formula *strings.Builder) {
 	formula.WriteString("  end\n\n")
 
 	formula.WriteString("  def post_install\n")
-	for _, command := range MacCompanyHostLayout(homebrewPrefixInRuby).PythonSetupCommands() {
+	for _, command := range MacCompanyHostLayout(homebrewPrefixInRuby).InstallStepCommands() {
 		formula.WriteString("    system " + rubyArguments(command.Arguments) + "\n")
 	}
 	formula.WriteString("  end\n\n")

@@ -16,6 +16,8 @@ import "strings"
 type CompanyHostLayout struct {
 	// BinaryRoot is where a program the package ships is found.
 	BinaryRoot string
+	// CommandRoot holds the one command a person types, `internkim`.
+	CommandRoot string
 	// HelperRoot holds the setuid helper and the preparation script, which
 	// nobody types and which therefore do not belong beside the commands.
 	HelperRoot string
@@ -63,6 +65,7 @@ const (
 func LinuxCompanyHostLayout() CompanyHostLayout {
 	return CompanyHostLayout{
 		BinaryRoot:    CompanyPackageBinaryRoot,
+		CommandRoot:   CompanyPackageBinaryRoot,
 		HelperRoot:    CompanyPackageHelperRoot,
 		LibraryRoot:   CompanyPackageLibraryRoot,
 		WorkspacePath: CompanyHostWorkspacePath,
@@ -101,6 +104,7 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 	keg := prefix + "/opt/" + CompanyPackageName
 	return CompanyHostLayout{
 		BinaryRoot:  keg + "/libexec",
+		CommandRoot: keg + "/bin",
 		HelperRoot:  keg + "/libexec",
 		LibraryRoot: keg + "/libexec",
 		ProgramDirectories: []string{
