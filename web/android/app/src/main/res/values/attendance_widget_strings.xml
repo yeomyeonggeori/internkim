@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="attendance_widget_name">출퇴근</string>
+    <string name="attendance_widget_description">오늘 일한 시간을 보고, 눌러서 출근하고 퇴근합니다.</string>
+    <string name="attendance_widget_clock_in">출근</string>
+    <string name="attendance_widget_clock_in_at">%1$s 출근</string>
+    <string name="attendance_widget_clock_out">퇴근</string>
+    <string name="attendance_widget_other_location">다른 장소 ›</string>
+    <string name="attendance_widget_where">어디로 출근할까요?</string>
+    <string name="attendance_widget_back">‹ 뒤로</string>
+    <string name="attendance_widget_working">근무 중</string>
+    <string name="attendance_widget_default_location">기본 장소 · %1$s</string>
+    <string name="attendance_widget_location_gone">%1$s 없어짐 · 위젯 설정</string>
+    <string name="attendance_widget_no_workplace">등록된 장소 없음</string>
+    <string name="attendance_widget_choose_in_settings">위젯 설정에서 근무지를 고르세요</string>
+    <string name="attendance_widget_default_workplace">기본 근무지</string>
+    <string name="attendance_widget_mark_clock_in" translatable="false">→| %1$s</string>
+    <string name="attendance_widget_mark_clock_out" translatable="false">|→ %1$s</string>
+    <string name="attendance_widget_mark_location" translatable="false">@ %1$s</string>
+    <string name="attendance_widget_no_key">앱에서 로그인하면 위젯이 켜집니다</string>
+    <string name="attendance_widget_answered">%1$s이(가) %2$d(으)로 답했습니다</string>
+    <string name="attendance_widget_unreachable">%1$s에 연결할 수 없습니다</string>
+    <string name="attendance_widget_unreadable">%1$s의 답을 읽을 수 없습니다</string>
+</resources>
