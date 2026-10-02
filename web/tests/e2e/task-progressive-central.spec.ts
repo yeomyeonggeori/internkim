@@ -8,6 +8,37 @@ import { signInToTheCentralPlane } from './central-plane-sign-in';
 
 test.use({ locale: 'ko-KR' });
 
+test('task startup creates report content only after the report tab is opened', async ({ page }) => {
+	await signInToTheCentralPlane(page, '/example-co/task');
+	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+	const report = page.getByText('이번 주간 업무 일별 종류 거리 분포', { exact: true });
+	await expect(report).toHaveCount(0);
+	await page.getByRole('tab', { name: '보고', exact: true }).click();
+	await expect(report).toBeVisible();
+	await page.getByRole('tab', { name: '업무', exact: true }).click();
+	await expect(report).toHaveCount(1);
+	await expect(report).toBeHidden();
+	await page.getByRole('tab', { name: '보고', exact: true }).click();
+	await expect(report).toBeVisible();
+});
+
+test('task avatars paint when their cards enter the visible scroll area', async ({ page }) => {
+	const ids = await seedTasks(Array.from({ length: 32 }, (_, index) => ({ title: `가시성 검증 ${String(index).padStart(2, '0')}`, status: 'planned', participantIDs: [member1ID], startsAtISO: weekStartInstant(), endsAtISO: weekStartInstant() })));
+	try {
+		await signInToTheCentralPlane(page, '/example-co/task');
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		const cards = page.locator('[data-task-board-card]').filter({ hasText: '가시성 검증 ' });
+		const first = cards.first();
+		const last = cards.last();
+		await first.scrollIntoViewIfNeeded();
+		await expect(first.locator('canvas').first()).toHaveCSS('background-image', 'none');
+		await expect(last).not.toBeInViewport();
+		await expect(last.locator('canvas').first()).toHaveCSS('background-image', /linear-gradient/);
+		await last.scrollIntoViewIfNeeded();
+		await expect(last.locator('canvas').first()).toHaveCSS('background-image', 'none');
+	} finally { await removeTasks(ids); }
+});
+
 test('a closed browser restores a scoped snapshot and preserves stale age on a week change', async () => {
 	const path = await mkdtemp(join(tmpdir(), 'internkim-cache-e2e-'));
 	let context = await chromium.launchPersistentContext(path, { baseURL: process.env.PLAYWRIGHT_BASE_URL, locale: 'ko-KR', timezoneId: 'Asia/Seoul' });

@@ -19,19 +19,20 @@
 	import { taskText } from './text';
 
 	let { data } = $props();
-	let summary = $state<TaskSummary | null>(untrack(() => data.lastTask?.summary ?? null));
-	let taskState = $state<TaskState | null>(untrack(() => data.lastTask?.state ?? null));
+	let summary = $state<TaskSummary | null>(null);
+	let taskState = $state<TaskState | null>(null);
 	let taskScope = untrack(() => data.taskScope);
 	let isDisposed = false;
 	let selectedWeek = '';
 	let lastWeekQuery: string | undefined;
 	let lastTaskQuery: string | undefined;
 	let activeTab = $state('tasks');
+	let loadedTabs = $state(['tasks']);
 	let pendingTaskID = $state('');
 	let focusedTaskID = $state('');
-	let isLoading = $state(untrack(() => !summary));
+	let isLoading = $state(true);
 	let errorMessage = $state('');
-	let cacheSavedAt = $state(untrack(() => data.lastTask?.savedAt ?? 0));
+	let cacheSavedAt = $state(0);
 	let isRefreshing = $state(false);
 
 	const currentWeek = () => summary?.week.code ?? '';
@@ -62,15 +63,17 @@
 		const scope = data.taskScope;
 		const week = page.url.searchParams.get('week') ?? '';
 		const requestedTaskID = page.url.searchParams.get('task') ?? '';
+		let restoreFrame = 0;
 		untrack(() => {
 			const scopeChanged = taskScope !== scope;
 			if (scopeChanged) {
 				taskScope = scope;
 				focusedTaskID = '';
 				activeTab = 'tasks';
-				taskState = data.lastTask?.state ?? null;
-				summary = data.lastTask?.summary ?? null;
-				cacheSavedAt = data.lastTask?.savedAt ?? 0;
+				loadedTabs = ['tasks'];
+				taskState = null;
+				summary = null;
+				cacheSavedAt = 0;
 			}
 			const weekChanged = scopeChanged || lastWeekQuery !== week;
 			if (scopeChanged || lastTaskQuery !== requestedTaskID) pendingTaskID = requestedTaskID;
@@ -78,8 +81,17 @@
 			lastTaskQuery = requestedTaskID;
 			if (weekChanged) selectedWeek = week;
 			if (taskRead) void applyTaskRead(taskRead, {}, taskBoardRead);
+			const cached = data.lastTask;
+			const readGeneration = data.taskReadGeneration;
+			if (!summary && cached?.state && cached.summary) restoreFrame = requestAnimationFrame(() => {
+				if (isDisposed || summary || taskState || scope !== taskScope || readGeneration !== taskSnapshotGeneration()) return;
+				taskState = cached.state;
+				summary = cached.summary;
+				cacheSavedAt = cached.savedAt ?? 0;
+				isLoading = false;
+			});
 		});
-		return () => { taskLoadTracker.start(); };
+		return () => { cancelAnimationFrame(restoreFrame); taskLoadTracker.start(); };
 	});
 
 	onMount(() => {
@@ -176,6 +188,11 @@
 		loadTask(week, { reloadState: false });
 	}
 
+	function selectTab(tab: string) {
+		activeTab = tab;
+		if (!loadedTabs.includes(tab)) loadedTabs.push(tab);
+	}
+
 	function refreshCurrentWeek() {
 		return loadTask(currentWeek(), { reloadState: true });
 	}
@@ -197,7 +214,7 @@
 			</div>
 		{/if}
 
-		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading} onSelectTab={(value) => (activeTab = value)} />
+		<TaskTabRow activeTab={activeTab} labels={text.tabs} disabled={isLoading} onSelectTab={selectTab} />
 		{#if isLoading && summary}
 			<p role="status" class="text-sm text-muted-foreground">{text.preparingPeople}</p>
 		{/if}
@@ -220,18 +237,24 @@
 			/>
 		</div>
 		<div class={activeTab === 'report' ? '' : 'hidden'}>
+			{#if loadedTabs.includes('report')}
 			<TaskReportView sections={reportSections()} {summary} text={text.report} />
+			{/if}
 		</div>
 		<div class={activeTab === 'definitions' ? '' : 'hidden'}>
+			{#if loadedTabs.includes('definitions')}
 			<TaskDefinitionsEditor
 				{summary}
 				loadError={errorMessage || text.loadError}
 				text={text.definitions}
 				{loadTask}
 			/>
+			{/if}
 		</div>
 		<div class={activeTab === 'members' ? '' : 'hidden'}>
+			{#if loadedTabs.includes('members')}
 			<TaskMembersView members={members()} text={text.members} />
+			{/if}
 		</div>
 		{/key}
 	</div>

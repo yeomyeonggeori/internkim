@@ -68,6 +68,10 @@ state instead of reading the complete history again. A saved task snapshot is
 scoped to the project, company, member and role, expires after 24 hours, and is
 revalidated. Writes, logout and denied access invalidate it; a response started
 before invalidation cannot restore the old snapshot.
+The shell mounts before applying a stored board. Secondary task tabs mount on
+first use and keep their drafts within the account scope. Gradient avatars use
+observer-reported sizes and paint when visible, avoiding layout reads and
+canvas work for every card during startup.
 
 The application shell does not fetch the attendance workspace on every route.
 The account menu and command palette load attendance when opened, using the
@@ -97,6 +101,8 @@ runtime, browser, viewport, CPU rate, backend identity and host load. Report
 sample count, median and observed range; keep protocol versions separate.
 Twelve samples do not establish a population p95. A 390px touch viewport with
 CPU throttling is a simulation, not a physical phone.
+Open the mobile More menu before timing a language change; menu preparation is
+outside that scenario's timer.
 
 Task revisit and forward-navigation readiness can use a visible saved snapshot;
 they do not prove that background revalidation finished. Refresh tests change

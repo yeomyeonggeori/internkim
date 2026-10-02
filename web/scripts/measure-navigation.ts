@@ -102,8 +102,10 @@ try {
 			if (eventUpdate.error) throw eventUpdate.error;
 			await expect(calendarOf(page).locator(`[data-calendar-event-id="${seeded[120].id}"]:visible`).first()).not.toContainText(eventMarker);
 			await measure('calendar.refresh', () => page.keyboard.press('r'), async () => { await titleOf(page).waitFor(); }, async () => { const event = calendarOf(page).locator(`[data-calendar-event-id="${seeded[120].id}"]:visible`).first(); await expect(event).toContainText(eventMarker); await renderedFrames(event); });
+			if (isMobile && variant === 'candidate') await page.getByRole('button', { name: '더보기', exact: true }).click();
 			await measure('calendar.locale', async () => { await page.getByRole('button', { name: '언어 변경' }).click(); await page.getByRole('menuitemradio', { name: 'English' }).click(); }, async () => { await (await titleOf(page)).waitFor(); }, async () => { await (await titleOf(page)).filter({ hasText: /October|November|January|February|March|April|May|June|July|August|September|December/ }).waitFor(); });
 			await page.getByRole('button', { name: 'Change language' }).click(); await page.getByRole('menuitemradio', { name: '한국어' }).click();
+			if (isMobile && variant === 'candidate') await page.getByRole('button', { name: '닫기', exact: true }).click();
 			await measure('calendar.palette_same_route', async () => { await page.keyboard.press('/'); await page.getByPlaceholder('검색').fill('Navigation benchmark next month'); await page.getByRole('option').filter({ hasText: 'Navigation benchmark next month' }).first().click(); }, async () => { await (await titleOf(page)).waitFor(); }, async () => { await (await calendarOf(page)).locator(`[data-calendar-event-id="${seeded[121].id}"]:visible`).first().waitFor(); });
 			await measure('attendance.first_navigation', () => nav('attendance'), () => page.locator('header[data-app-chrome]').waitFor(), () => isMobile ? page.getByTestId('mobile-attendance-tools-view').waitFor() : page.getByTestId('team-status-grid').waitFor());
 			if (!isMobile) {
