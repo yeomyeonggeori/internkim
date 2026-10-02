@@ -389,6 +389,7 @@
   "INTERNKIM_REGISTER_SECRET": {
     "process": "web",
     "description": "the shared secret a device presents to the fleet registration API (the older device-fleet path's Cloudflare Pages KV binding, web/src/routes/api/fleet and api/register)",
+    "isRequiredOnPages": true,
     "isInVault": true
   },
   "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
