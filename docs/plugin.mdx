@@ -46,10 +46,11 @@ token's permission opens is under [Permissions](/docs/api#permissions).
 A few skills, such as the calculator and the data room, run entirely on your
 machine and need no account. The others call the tool server, which reads and
 writes your company's record. Documents, PDFs, spreadsheets and decks are one
-skill, `office`, which works locally and needs the server only to fill company
-forms on letterhead and to read attachments. The plugin's README lists every
-skill and which group it is in.
+skill, [`office`](/docs/office), which works locally and needs the server only
+to fill company forms on letterhead and to read attachments. The plugin's README
+lists every skill and which group it is in.
 
 The skills need Python 3 and [uv](https://docs.astral.sh/uv/) on `PATH`; each
-skill creates its own environment on first use. Rendering a deck also needs
-[Bun](https://bun.sh) and a browser that speaks the Chrome DevTools Protocol.
+skill installs what it needs with its own setup command, which the agent runs
+when a command first asks for it. Drawing a deck or a PDF also needs
+[Bun](https://bun.sh) or Node 18 or newer; no browser is involved.

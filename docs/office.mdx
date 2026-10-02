@@ -1,0 +1,112 @@
+---
+title: Office files
+description: How the agent makes and edits decks, spreadsheets, Word documents and PDFs on any host, and how it checks them before you see them.
+icon: Presentation
+---
+
+Ask for a board deck as a PDF, a summary workbook from a CSV, or a proposal in
+Word, and the agent does it with one skill, `office`. The skill runs on the
+host as a command-line tool and returns a JSON result for every step, so the
+agent sees what it made, what is wrong with it, and the operation that fixes
+each problem. It needs no office suite, no browser and no desktop app, and a
+page looks the same on a laptop, a Mac Studio or the company's Linux box,
+because the skill ships the fonts it draws with.
+
+The same skill comes with the [plugin](/docs/plugin), so a coding agent on
+your own machine makes the same files.
+
+## Decks [#decks]
+
+The agent writes one file, `slides.html`, with a theme on the body and a
+layout on each slide:
+
+```html
+<body data-theme="corporate">
+<section data-layout="cover">
+  <h1>3분기 매출 <em>41.3억 원</em>, 목표를 3% 넘겼습니다</h1>
+</section>
+<section data-layout="chart">
+  <h2>매출은 세 달 연속 늘었습니다</h2>
+  <figure data-chart="column" data-labels="7월, 8월, 9월" data-values="12.4, 13.1, 15.8" data-unit="억"></figure>
+</section>
+```
+
+The deck kit supplies everything the model would otherwise get wrong: the
+type scale, spacing, palette, footer and page numbers, Korean line breaking,
+charts drawn from attributes, and diagram layouts from a process to a 2×2
+matrix. `office guide slides` lists the themes, layouts and chart types.
+
+`office create build/<name>.pdf slides.html` checks the structure first, then
+draws every slide, measures the drawn page, and writes the PDF. The measurement looks
+for what a reader would notice: text that overflows or is covered by a box,
+content crossing the footer, hollow cards, empty bands, text too small to
+read, titles longer than three lines, stretched pictures and charts. The
+result ends in one verdict the agent acts on:
+
+| Verdict | What the agent does |
+|---|---|
+| `ACCEPTABLE` | delivers the named file; remaining notes are advice |
+| `FIX ROUND n OF 2` | fixes only the listed defects in `slides.html` and builds again |
+| `STOP FIXING` | delivers and names what is left |
+
+Two rounds is the limit, so a model never redesigns a clean slide in a loop.
+Naming a `.pptx` output writes an editable PowerPoint file instead: text
+stays text, kit charts and tables become native charts and tables with their
+data, diagram arrows become connectors, and the fonts are embedded.
+
+A `.pptx` someone hands over is edited in place with `office apply`, and
+`office check` previews and measures it. A layout problem it reports
+carries the operation that clears it, or says that no single operation can.
+
+## Spreadsheets [#spreadsheets]
+
+A CSV becomes a typed workbook with `office create`, and `office apply`
+adds what the request needs: formulas, conditional formats, validation,
+tables, charts, pivot tables and page setup. Formulas are computed when the
+file is written, so a workbook opened in a viewer that does not recalculate
+still shows numbers.
+
+`office check` reports formula errors, values left stale by an edit,
+numbers stored as text, charts that read nothing, and a sheet that prints
+across more pages or smaller than it should, each with the fix. `office render`
+draws the printed pages so the agent can look at them.
+
+## Documents and PDFs [#documents]
+
+Word documents are written from Markdown, which may carry tables, images and
+charts, or edited operation by operation. Edits can be tracked under an
+author's name and accepted or rejected later, and comments can be added,
+answered and resolved. `office render` lays the pages out the way Word
+would, and `office check` uses that layout to catch a heading left alone
+at the bottom of a page before the file is attached.
+
+PDFs are created from a layout spec, read page by page, rendered to images,
+and extended with section pages; a scanned PDF is read with `--ocr`, and a
+locked one with `--password`. `office convert`
+moves between Markdown, Word, HTML, PDF, workbooks, CSV and PowerPoint, and
+`office guide convert` lists every route with what it keeps.
+
+Company forms such as quotes and contracts are filled on the company's
+letterhead with `office merge`, and `office check` verifies row amounts,
+totals, tax and the amount in Korean words. `office guide form` lists the forms.
+
+## Results [#results]
+
+Every command prints one JSON result: a status of `ok`, `warning` or `error`,
+a summary, and issues. Each issue has a stable code, a location, a sentence
+saying what to do, and `fix`, the operations that make that change. A
+mistyped command, field or layout is answered with the nearest valid name. A
+batch of operations applies whole or not at all unless `--mode` asks for
+best effort.
+
+## Requirements [#requirements]
+
+`office setup` installs what the skill needs beside its own files, at locked
+versions: the Python packages, the page renderer and the OCR engine. It needs
+Python 3, [uv](https://docs.astral.sh/uv/), and Bun or Node 18 or newer, and
+the [host install](/docs/running-the-host) runs it. No other command installs
+anything; before setup, each one says to run it.
+
+The fonts are licensed under the SIL Open Font License and travel with the
+skill, so nothing depends on fonts installed on the host. `office guide`
+lists them.
