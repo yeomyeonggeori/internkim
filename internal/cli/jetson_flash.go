@@ -1189,15 +1189,6 @@ func splitCommaList(value string) []string {
 	return values
 }
 
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func dumpDebugfsFile(partitionDevice string, path string) (string, error) {
 	temporaryFile, errorValue := os.CreateTemp("", "internkim-debugfs-dump-*")
 	if errorValue != nil {
