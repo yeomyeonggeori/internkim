@@ -1638,7 +1638,7 @@ def main():
     if options.agent_update and rig_model_key() == RIG_MODEL_KEY:
         print(
             "✗ native install rig\n"
-            "    --agent-update needs a model: the agent reports the update's result in words, and step 9\n"
+            "    --agent-update needs a model: the agent reports the update's result in words, and step 10\n"
             "    fails without one. Run it under `monkeys run @test tools/test-native-install ...`.",
             file=sys.stderr,
         )
