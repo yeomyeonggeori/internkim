@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	readySetupAnswer          = `{"status": "ok", "summary": "ready", "issues": []}`
-	unknownSetupCommandAnswer = `{"status": "error", "summary": "unknown command 'setup'", "issues": [{"code": "UNKNOWN_COMMAND", "message": "unknown command 'setup'", "suggestion": "run --help"}]}`
-	failedSetupAnswer         = `{"status": "error", "summary": "the renderer cannot be prepared", "issues": [{"code": "SETUP_FAILED", "message": "neither bun nor node 18 is on PATH", "suggestion": "install bun"}]}`
+	readySetupAnswer  = `{"status": "ok", "summary": "ready", "issues": []}`
+	failedSetupAnswer = `{"status": "error", "summary": "the renderer cannot be prepared", "issues": [{"code": "SETUP_FAILED", "message": "neither bun nor node 18 is on PATH", "suggestion": "install bun"}]}`
 )
 
 type skillFixture struct {
@@ -254,18 +253,4 @@ func dependencyManifestIn(t *testing.T, skill bundledSkill) string {
 		t.Fatal(walkError)
 	}
 	return found
-}
-
-// The plugin pinned today predates setup. Delete this test with predatesSetup.
-func TestAPluginThatPredatesSetupLeavesItsSkillsToPrepareThemselves(t *testing.T) {
-	for answer, fixture := range map[string]skillFixture{unknownSetupCommandAnswer: {hasLauncher: true}, "": {hasRuntime: true}} {
-		layout := skillsLayout(t, map[string]skillFixture{"skill": fixture})
-		machine := &recordedMachine{
-			printed:  map[string]string{"env": answer},
-			failures: map[string]error{"env": errors.New("exit status 2")},
-		}
-		if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
-			t.Fatalf("a skill from a plugin without setup stopped the install: %v", errorValue)
-		}
-	}
 }

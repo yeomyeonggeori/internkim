@@ -25,10 +25,9 @@ import (
 // answer with one envelope and exit non-zero when a piece cannot be prepared.
 
 const (
-	skillDocumentName       = "SKILL.md"
-	skillRuntimeScriptName  = "skill_runtime.py"
-	skillSetupArgument      = "setup"
-	unknownCommandIssueCode = "UNKNOWN_COMMAND"
+	skillDocumentName      = "SKILL.md"
+	skillRuntimeScriptName = "skill_runtime.py"
+	skillSetupArgument     = "setup"
 )
 
 type bundledSkill struct {
@@ -209,22 +208,11 @@ func prepareSkill(layout blueclaw.CompanyHostLayout, skill bundledSkill, environ
 		fmt.Fprintln(progress, summaryOf(envelope, parseError, answer.String()))
 		return nil
 	}
-	if predatesSetup(envelope, answer.String()) {
-		fmt.Fprintf(progress, "The pinned %s skill has no setup; it prepares itself when first used.\n", skill.Name)
-		return nil
-	}
 	if parseError != nil {
 		return fmt.Errorf("could not prepare the %s skill: %s %s failed (%v) and printed %q",
 			skill.Name, setup.Program, strings.Join(setup.Arguments, " "), runError, strings.TrimSpace(answer.String()))
 	}
 	return fmt.Errorf("could not prepare the %s skill: %s", skill.Name, envelope.describe())
-}
-
-// predatesSetup is the plugin pinned before setup existed: its launcher
-// answers `setup` with UNKNOWN_COMMAND and its skill_runtime.py prints only a
-// usage line. Delete it in the change that pins a plugin with setup.
-func predatesSetup(envelope skillEnvelope, answer string) bool {
-	return strings.TrimSpace(answer) == "" || envelope.namesIssue(unknownCommandIssueCode)
 }
 
 func parseSkillEnvelope(document []byte) (skillEnvelope, error) {
@@ -240,15 +228,6 @@ func summaryOf(envelope skillEnvelope, parseError error, answer string) string {
 		return strings.TrimSpace(answer)
 	}
 	return envelope.Summary
-}
-
-func (envelope skillEnvelope) namesIssue(code string) bool {
-	for _, issue := range envelope.Issues {
-		if issue.Code == code {
-			return true
-		}
-	}
-	return false
 }
 
 func (envelope skillEnvelope) describe() string {
