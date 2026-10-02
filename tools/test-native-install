@@ -1176,7 +1176,7 @@ class Rig:
         message_id = sent.get("messageID", "")
         ledger = self.wait_for_the_messenger(
             "ledger",
-            lambda answer: (answer.get("run") or {}).get("status") in messenger.FINISHED_STATUSES,
+            lambda answer: (answer.get("run") or {}).get("status") in messenger.SETTLED_STATUSES,
             timeout_seconds=LONGEST_WAIT_FOR_THE_AGENT_SECONDS,
             messageID=message_id or "none",
         )
@@ -1248,17 +1248,21 @@ class Rig:
             body="rig mention probe",
         )
         message_id = mention.get("messageID", "")
-        recorded = self.wait_for_the_messenger(
-            "connector_events", lambda reading: reading.get("isRecorded") is True,
-            messageID=message_id or "none",
+        ledger = self.wait_for_the_messenger(
+            "ledger", lambda reading: bool(reading.get("run")), messageID=message_id or "none"
         )
+        run = ledger.get("run") or {}
         observation = step.observe(
-            "a person's message that mentions the agent in a channel reaches the agent's connector",
-            "the agent's connector diagnostic for the message id of a message sent with the agent's key in its p-tag, "
-            "in a channel the sender created with the agent as a member",
-            "the relay accepting the event says nothing about whether the agent's subscription saw it",
+            "a person's message that mentions the agent in a channel becomes a task of theirs",
+            "the agent's task ledger row whose reply target carries the message id of a message sent with the agent's key "
+            "in its p-tag, in a channel the agent created and the sender joined",
+            "the relay accepting the event says nothing about whether chatd saw it and handed it to the agent",
         )
-        self.recording(observation, bool(message_id) and recorded.get("isRecorded") is True, json.dumps({"mention": mention, "recorded": recorded})[:500])
+        self.recording(
+            observation,
+            bool(message_id) and bool(run) and run.get("requesterPersonID") == requester["personID"],
+            json.dumps({"mention": mention, "task": {key: run.get(key) for key in ("taskRunID", "status", "requesterPersonID")}})[:500],
+        )
 
     def observe_readiness_after_the_upgrade(self, step):
         answers = self.machine.shell(READINESS_COMMAND).stdout.strip()

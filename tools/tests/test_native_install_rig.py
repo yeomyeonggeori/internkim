@@ -436,7 +436,8 @@ class MessengerRigTests(unittest.TestCase):
         self.assertEqual(messenger.IDENTITY_SEED_PATH, self.declared_in_package("CompanyHostIdentitySeedPath"))
         self.assertEqual(messenger.AGENT_DATABASE_PATH, rig.COMPANY_CONDITION_PATH)
         self.assertEqual(messenger.ADMIND_SOCKET_PATH, agent_update.ADMIND_SOCKET_PATH)
-        self.assertEqual(messenger.AGENT_ENDPOINT, f"http://127.0.0.1:{rig.AGENT_HEALTH[0]}")
+        identity = (repository_root / "internal" / "buzzidentity" / "identity.go").read_text()
+        self.assertIn(f'AgentSubject = "{messenger.AGENT_IDENTITY_NAME}"', identity)
         self.assertEqual(messenger.AGENT_UNIT_NAME, load_driver().AGENT_UNIT_NAME)
 
     def test_a_persons_key_is_their_lowercased_address_under_the_seed(self):

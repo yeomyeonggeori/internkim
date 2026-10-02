@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 CHATD_ENDPOINT = "http://127.0.0.1:18090"
-AGENT_ENDPOINT = "http://127.0.0.1:8080"
+AGENT_IDENTITY_NAME = "__agent__"
 IDENTITY_SEED_PATH = "/var/lib/internkim/current/secrets/buzz-key-seed"
 AGENT_DATABASE_PATH = "/var/lib/internkim/current/host.env"
 ADMIND_SOCKET_PATH = "/run/internkim/admind.sock"
@@ -32,8 +32,7 @@ PICTURE_NAME = "buzz-attachment-word.png"
 PICTURE_CONTENT_TYPE = "image/png"
 WORD_THE_PICTURE_CARRIES = "SALT"
 PICTURE_QUESTION = "What word is written in this picture? Answer with the word as written."
-REFUSED_STATUSES = ("failed", "cancelled")
-FINISHED_STATUSES = ("completed", *REFUSED_STATUSES)
+SETTLED_STATUSES = ("completed", "failed", "cancelled", "waiting_user_input")
 
 
 def buzz_secret(seed, email):
@@ -261,31 +260,26 @@ def act_read_inbox(arguments):
 
 
 def act_open_mention(arguments):
-    actor = actor_of(secret_of(arguments["email"]))
+    sender = ask_chatd("person.identity", {"actor": actor_of(secret_of(arguments["email"]))})
     agent = ask_chatd("identity.self", {})["pubkeyHex"]
-    channel = ask_chatd(
-        "person.channel.create",
-        {"actor": actor, "name": arguments["channelName"], "visibility": "open", "memberExternalIDs": [agent]},
+    agent_actor = actor_of(secret_of(AGENT_IDENTITY_NAME))
+    if ask_chatd("person.identity", {"actor": agent_actor})["externalID"] != agent:
+        raise SystemExit("the key derived for the agent is not the key chatd posts as")
+    channel = ask_chatd("channel.ensure", {"name": arguments["channelName"], "description": "a disposable mention probe"})
+    ask_chatd(
+        "person.channel.members.add",
+        {"actor": agent_actor, "conversationID": channel["channelID"], "memberExternalIDs": [sender["externalID"]]},
     )
     sent = ask_chatd(
         "person.message.send",
         {
-            "actor": actor,
-            "conversationID": channel["id"],
+            "actor": actor_of(secret_of(arguments["email"])),
+            "conversationID": channel["channelID"],
             "body": arguments["body"],
             "mentions": {"externalIDs": [agent]},
         },
     )
-    return {"channelID": channel["id"], "messageID": sent.get("id", ""), "agentPubkey": agent, "uninvited": channel.get("uninvitedExternalIDs") or []}
-
-
-def act_connector_events(arguments):
-    if not is_a_hex_identifier(arguments["messageID"]):
-        raise SystemExit("messageID is not a hex identifier")
-    url = f"{AGENT_ENDPOINT}/admin/api/connector/events?platform=buzz&messageID={arguments['messageID']}&limit=5"
-    with urllib.request.urlopen(url, timeout=30) as response:
-        events = json.loads(response.read())
-    return {"isRecorded": any(event.get("externalMessageID") == arguments["messageID"] for event in events), "events": events[:3]}
+    return {"channelID": channel["channelID"], "messageID": sent.get("id", ""), "agentPubkey": agent}
 
 
 ACTIONS = {
@@ -297,7 +291,6 @@ ACTIONS = {
     "invoke_direct_message": act_invoke_direct_message,
     "read_inbox": act_read_inbox,
     "open_mention": act_open_mention,
-    "connector_events": act_connector_events,
 }
 
 
