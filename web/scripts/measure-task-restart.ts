@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir, cpus, loadavg } from 'node:os';
 import { join } from 'node:path';
 
-const [baselineURL, candidateURL, output, roundsText = '12', profile = 'desktop'] = process.argv.slice(2);
+const [baselineURL, candidateURL, output, roundsText = '12', profile = 'desktop', baselineBuild = 'unspecified', candidateBuild = 'unspecified'] = process.argv.slice(2);
 const databaseURL = process.env.SUPABASE_URL ?? '';
 for (const value of [baselineURL, candidateURL, databaseURL]) {
 	if (!value || !['127.0.0.1', 'localhost'].includes(new URL(value).hostname)) throw new Error('Only loopback builds and fixtures are allowed');
@@ -110,5 +110,5 @@ try {
 	await activeContext?.close();
 	await admin.from('task').delete().in('id', ids);
 	await rm(parent, { recursive: true, force: true });
-	await writeFile(output, JSON.stringify({ protocolVersion: 4, candidateBuild: process.env.BENCHMARK_CANDIDATE_BUILD ?? 'unspecified', baselineBuild: process.env.BENCHMARK_BASELINE_BUILD ?? 'unspecified', runtimeVersion: process.version, baselineURL, candidateURL, backendOrigin: new URL(databaseURL).origin, measuredAt: new Date().toISOString(), browserVersion: version, baselineCommit: '5c5c1a0feddff45df40e054de57fd0163b7377bf', hostCPU: cpus()[0]?.model, viewport, profile, cpuRate: isMobile ? 4 : 1, fixtureTasks: 120, rounds, timing: 'Playwright navigation start through main structure/card/new marker plus 2rAF; automation overhead included. Each phase launches a new Chromium process; restart reuses only that variant/round profile. Backend title changes while browser is closed. API durations are request start to finished body, not SQL execution duration.', results }, null, 2));
+	await writeFile(output, JSON.stringify({ protocolVersion: 4, candidateBuild, baselineBuild, runtimeVersion: process.version, baselineURL, candidateURL, backendOrigin: new URL(databaseURL).origin, measuredAt: new Date().toISOString(), browserVersion: version, baselineCommit: '5c5c1a0feddff45df40e054de57fd0163b7377bf', hostCPU: cpus()[0]?.model, viewport, profile, cpuRate: isMobile ? 4 : 1, fixtureTasks: 120, rounds, timing: 'Playwright navigation start through main structure/card/new marker plus 2rAF; automation overhead included. Each phase launches a new Chromium process; restart reuses only that variant/round profile. Backend title changes while browser is closed. API durations are request start to finished body, not SQL execution duration.', results }, null, 2));
 }

@@ -5,7 +5,7 @@ import { cpus, loadavg } from 'node:os';
 import { createClient } from '@supabase/supabase-js';
 import { taskWeekCodeForDateISO } from '../src/lib/task/task-week-code.ts';
 
-const [baselineURL, candidateURL, output = 'tests/performance/navigation-results.json', roundsText = '12', profile = 'desktop'] = process.argv.slice(2);
+const [baselineURL, candidateURL, output = 'tests/performance/navigation-results.json', roundsText = '12', profile = 'desktop', baselineBuild = 'unspecified', candidateBuild = 'unspecified'] = process.argv.slice(2);
 if (!baselineURL || !candidateURL) throw new Error('Usage: bun scripts/measure-navigation.ts BASELINE_URL CANDIDATE_URL OUTPUT [ROUNDS] [desktop|mobile]');
 const databaseURL = process.env.SUPABASE_URL ?? '';
 if (!['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseURL).hostname)) throw new Error('Benchmarks only seed a loopback Supabase project');
@@ -130,5 +130,5 @@ try {
 } finally {
 	await browser.close();
 	await admin.from('task').delete().in('id', seeded.map(row => row.id));
-	await writeFile(output, JSON.stringify({ protocolVersion: 4, candidateBuild: process.env.BENCHMARK_CANDIDATE_BUILD ?? 'unspecified', baselineBuild: process.env.BENCHMARK_BASELINE_BUILD ?? 'unspecified', runtimeVersion: process.version, baselineURL, candidateURL, backendOrigin: new URL(databaseURL).origin, measuredAt: new Date().toISOString(), baselineCommit: '5c5c1a0feddff45df40e054de57fd0163b7377bf', browserVersion, hostCPU: cpus()[0]?.model, hostCPUCount: cpus().length, viewport, profile, cpuRate: isMobile ? 4 : 1, rounds, fixtureTasks: 120, fixtureEvents: 2, fixtureWeek: week, timezone: 'Asia/Seoul', network: 'loopback, unthrottled; holidays provider stubbed equally', timing: 'Playwright action start to observed visible feedback/scenario-ready (task ready flag + fixture card; refresh new title marker + two animation frames); includes automation actionability and observation overhead', trafficWindow: 'through data-ready plus 300ms; CDP encodedDataLength, excludes unfinished and websocket traffic', results }, null, 2));
+	await writeFile(output, JSON.stringify({ protocolVersion: 4, candidateBuild, baselineBuild, runtimeVersion: process.version, baselineURL, candidateURL, backendOrigin: new URL(databaseURL).origin, measuredAt: new Date().toISOString(), baselineCommit: '5c5c1a0feddff45df40e054de57fd0163b7377bf', browserVersion, hostCPU: cpus()[0]?.model, hostCPUCount: cpus().length, viewport, profile, cpuRate: isMobile ? 4 : 1, rounds, fixtureTasks: 120, fixtureEvents: 2, fixtureWeek: week, timezone: 'Asia/Seoul', network: 'loopback, unthrottled; holidays provider stubbed equally', timing: 'Playwright action start to observed visible feedback/scenario-ready (task ready flag + fixture card; refresh new title marker + two animation frames); includes automation actionability and observation overhead', trafficWindow: 'through data-ready plus 300ms; CDP encodedDataLength, excludes unfinished and websocket traffic', results }, null, 2));
 }
