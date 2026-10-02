@@ -38,13 +38,13 @@ package carries the rest:
 
 | | Why |
 |---|---|
-| **NanumGothic** | the Linux package installs it at `/usr/share/fonts/truetype/internkim/NanumGothic.ttf`, a path every skill that embeds a font into a PDF looks for, and a Mac answers with its own AppleSDGothicNeo; without a Hangul face fpdf2 falls back to DejaVu, which has none, and writes the file anyway |
+| **bun** | the office skill's setup installs its page renderer with it, and the renderer draws every page on it; the package carries it |
 | **python3 and uv** | the interpreter the skills run on and the installer their setup uses; the install step puts uv's pinned CPython first on every service's PATH |
 | **the conversion venv** | `/opt/internkim/document-venv`, on that CPython, synced from the hashed lock `assets/document-conversion/requirements.txt` by the package's install step. capabilityd runs `file_read` conversions under it (`--file-read-python`) and never resolves anything itself; the skills do not use it and it is not on the requester's PATH |
 
-Each absence produces a plausible file rather than an error, so `internkim
-install` checks for everything the host runs before it starts anything, and
-names what to install for whatever is missing.
+A setup that cannot prepare its skill stops the install and names the piece it
+is missing, and `internkim install` checks for everything the host runs before
+it starts anything, naming what to install for whatever is missing.
 
 ## The relay
 
