@@ -27,7 +27,7 @@ import (
 // The profile is chosen by a leading `@profile` argument, the way `monkeys`
 // itself takes one, and is otherwise the first the manifest declares. monkeys
 // puts `test` first so that the default is the harmless one, and production is
-// something a person says: `internkim @production deploy`. The re-executed run
+// something a person says: `internkim @legacy deploy`. The re-executed run
 // is always told the profile, because monkeys hands the command it starts no
 // word of which one it read.
 const (

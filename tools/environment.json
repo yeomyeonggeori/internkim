@@ -301,7 +301,7 @@
   },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
-    "description": "the device's public admin address, from the @production vault profile; internal/deployops/registry.go reads it as the one deploy target",
+    "description": "the device's public admin address, from the @legacy vault profile; internal/deployops/registry.go reads it as the one deploy target",
     "isInVault": true
   },
   "INTERNKIM_E2E_CONFIG": {
@@ -318,12 +318,12 @@
   },
   "INTERNKIM_FLEET_ID": {
     "process": "cli",
-    "description": "the device's fleet ID, from the @production vault profile; internal/deployops/registry.go reads it as the name signed requests carry",
+    "description": "the device's fleet ID, from the @legacy vault profile; internal/deployops/registry.go reads it as the name signed requests carry",
     "isInVault": true
   },
   "INTERNKIM_FLEET_SECRET": {
     "process": "cli",
-    "description": "the device's fleet secret, from the @production vault profile; internal/deployops/registry.go reads it to sign release applies and recovery requests",
+    "description": "the device's fleet secret, from the @legacy vault profile; internal/deployops/registry.go reads it to sign release applies and recovery requests",
     "isInVault": true
   },
   "INTERNKIM_GATE_MODEL": {
@@ -424,7 +424,7 @@
   },
   "INTERNKIM_SSH_HOSTNAME": {
     "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
-    "description": "the device's ssh hostname, from the @production vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
+    "description": "the device's ssh hostname, from the @legacy vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
     "isInVault": true
   },
   "INTERNKIM_TEST_CDP_BROWSER": {

@@ -551,7 +551,7 @@ and delete the duplicates.
 
 ## Deploying
 
-- `./internkim @production deploy` with no flags rebuilds stale artifacts,
+- `./internkim @legacy deploy` with no flags rebuilds stale artifacts,
   ships every component that differs from the device plus its protocol
   partner, refuses one the device is ahead on or holds at an unknown commit,
   and fails if a shipped component's device revision differs from the
