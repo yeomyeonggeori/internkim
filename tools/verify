@@ -393,6 +393,8 @@ GROUPS = [
             "tools/test-native-install-family",
             "tools/native_install_families.py",
             "tools/native_install_agent_update.py",
+            "tools/native_install_messenger.py",
+            "tools/native_install_assets/*",
             "internal/admind/host_update.go",
             "internal/hostupdate/*",
             "web/static/install.sh",
