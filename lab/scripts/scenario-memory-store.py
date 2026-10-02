@@ -50,32 +50,16 @@ def verify_running_daemon():
 
 subprocess.run(["sudo", "-u", "postgres", "createdb", database_name], check=True)
 try:
-    host_integration_tests = [
-        "TestMemoryLibraryMigrationsRunThroughHostStartup",
-        "TestMemoryExtractionRecordsFactsAndProfileInPostgres",
-        "TestMemoryStoreJobsDeduplicateClaimAndSettle",
+    host_migration_tests = [
+        "TestGraphitiMemoryMigrationStoresMirrorMetadata",
+        "TestLegacyMemoryCleanupMigrationDropsRecordTables",
     ]
-    run_acceptance("host-integration", [
+    run_acceptance("host-migration", [
         "sudo", "-u", "postgres", "env",
         f"BLUECLAW_TEST_POSTGRES_URL=postgresql://postgres@/{database_name}?host=/var/run/postgresql&sslmode=disable",
         str(workspace / "build/memory-integration.test"), "-test.v",
-        "-test.run=^TestMemory",
-    ], workspace / ".dependency/blueclaw/tests/integration", os.environ, host_integration_tests)
-    database_tests = [
-        "TestApplyMigrationsSerializesConcurrentCalls",
-        "TestApplyMigrationsRollsBackWhenLedgerInsertFails",
-        "TestMigrationUpgradePreservesFactsAndLegacyProfiles",
-        "TestPostgresJobClaimsFenceRequeuedAndExpiredWorkers",
-        "TestConcurrentEpisodeReplayReturnsCanonicalReceipt",
-        "TestRepeatedReinforcementSourceIncrementsOnce",
-        "TestEpisodeAndForgetTransactionsRollBackWhenProfileQueueFails",
-        "TestProfileFactsRespectPrivateOwnershipAndSharedAccess",
-    ]
-    run_acceptance("database", [
-        "sudo", "-u", "postgres", "env",
-        f"BLUEMEMO_TEST_POSTGRES_URL=postgresql://postgres@/{database_name}?host=/var/run/postgresql&sslmode=disable",
-        str(workspace / "build/memory-postgres.test"), "-test.v",
-    ], workspace, os.environ, database_tests)
+        "-test.run=^(" + "|".join(host_migration_tests) + ")$",
+    ], workspace / ".dependency/blueclaw/tests/integration", os.environ, host_migration_tests)
     environment = {**os.environ,
         "BLUECLAW_E2E_LIVE": "1",
         "BLUECLAW_E2E_LLM_UNIX_SOCKET": "/run/internkim/capability.sock",
@@ -87,8 +71,7 @@ try:
     model_tests = ["TestBluememoIngestProfileAndReplayLive", "TestMemoryRecallWithoutConversationHistoryLive"]
     run_acceptance("model", [str(workspace / "build/memory-live.test"), "-test.v", "-test.run=^(" + "|".join(model_tests) + ")$"], workspace, environment, model_tests)
     (evidence / "result.json").write_text(json.dumps({
-        "hostIntegration": "passed",
-        "database": "passed",
+        "hostMigration": "passed",
         "liveModel": "passed",
         "runningDaemon": "passed",
     }, indent=2) + "\n")
