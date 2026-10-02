@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -16,14 +17,31 @@ type startedService struct {
 }
 
 func main() {
-	if len(os.Args) != 2 {
+	switch {
+	case len(os.Args) == 4 && os.Args[1] == "messenger-url":
+		fmt.Println(messengerURL(os.Args[2], os.Args[3]))
+	case len(os.Args) == 2:
+		stopOnFailure(describe(os.Args[1]))
+	default:
 		fmt.Fprintln(os.Stderr, "usage: describe-company-host <directory>")
+		fmt.Fprintln(os.Stderr, "       describe-company-host messenger-url <company-slug> <app-url>")
 		os.Exit(2)
 	}
-	if errorValue := describe(os.Args[1]); errorValue != nil {
-		fmt.Fprintln(os.Stderr, errorValue)
-		os.Exit(1)
+}
+
+func stopOnFailure(errorValue error) {
+	if errorValue == nil {
+		return
 	}
+	fmt.Fprintln(os.Stderr, errorValue)
+	os.Exit(1)
+}
+
+func messengerURL(companySlug string, appURL string) string {
+	return companyhost.MessengerURL(companyhost.Connection{
+		AppURL:  appURL,
+		Company: companyhost.Company{Slug: companySlug},
+	})
 }
 
 func describe(directory string) error {

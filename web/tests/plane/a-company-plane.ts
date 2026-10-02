@@ -173,8 +173,16 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 }
 
 function messengerAddressOf(slug: string, appURL: string): string {
-	const app = new URL(appURL);
-	return `${app.protocol === 'https:' ? 'wss' : 'ws'}://${slug}.${app.hostname}`;
+	const described = Bun.spawnSync([
+		join(environmentValue('COMPANY_PLANE_BIN'), 'describe-company-host'),
+		'messenger-url',
+		slug,
+		appURL
+	]);
+	if (described.exitCode !== 0) {
+		throw new Error(`describe-company-host named no messenger for ${appURL}: ${described.stderr.toString()}`);
+	}
+	return described.stdout.toString().trim();
 }
 
 function environmentValue(name: string): string {
