@@ -226,13 +226,11 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
 | [bluememo](https://github.com/yeomyeonggeori/bluememo) | 장기 기억: 끝난 일에서 뽑아낸 사실, 주인과 서클로 범위가 정해짐 | `.dependency/blueclaw/.dependency/bluememo/` |
 | internkim-plugin | 에이전트가 일의 종류마다 읽어들이는 스킬 | `.dependency/internkim-plugin/` |
 
-기억은 Postgres 사실 저장소 하나입니다. 실행이 끝나면 bluememo가 모델을
-시켜 거기서 원자적인 사실들을 뽑습니다. 새 사실은 옛 사실을 대체하고, 되풀이된
-사실은 기존 사실을 강화하고, 사람은 에이전트에게 사실 하나를 잊으라고 할 수
-있습니다. 사실마다 주인과 공유된 서클이 있고, 회상은 읽는 사람이 볼 수 있는
-것만 돌려줍니다. 검색은 Postgres의 `vector` 확장으로 벡터 유사도와 낱말
-유사도를 섞습니다. 회사 호스트 패키지가 PostgreSQL과 함께 이 확장을 설치하고
-에이전트의 데이터베이스에 만듭니다.
+기억은 주체마다 SQLite 파일 하나이고, 작업 공간의 `.blueclaw/memory` 아래에
+있습니다. 실행이 끝나면 bluememo가 모델을 시켜 거기서 그 자체로 뜻이 통하는
+문장들을 뽑습니다. 새 문장은 옛 문장을 대체하고, 사람은 에이전트에게 하나를
+잊으라고 할 수 있습니다. 회상은 그 파일을 임베딩과 낱말로 검색하고, 모델을
+부르지 않고 답합니다. 기억은 Postgres에 하나도 두지 않습니다.
 
 모델의 이름은 `internal/modelladder` 한 곳에 있습니다. 에이전트는 티어를
 요청하고, 키를 쥔 capabilityd가 호출하므로 에이전트는 프로바이더 토큰을 보지

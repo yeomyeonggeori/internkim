@@ -165,17 +165,17 @@ class DependencyReadingTests(unittest.TestCase):
 
     def test_every_alternative_of_a_clause_is_kept_in_order(self):
         self.assertEqual(
-            rig.dependency_alternatives("postgresql, postgresql-18-pgvector | postgresql-17-pgvector, jq (>= 1.6)"),
-            [["postgresql"], ["postgresql-18-pgvector", "postgresql-17-pgvector"], ["jq"]],
+            rig.dependency_alternatives("postgresql, redis-server | valkey-server, jq (>= 1.6)"),
+            [["postgresql"], ["redis-server", "valkey-server"], ["jq"]],
         )
 
     def test_the_first_alternative_with_a_candidate_is_chosen(self):
-        policy = {"postgresql-18-pgvector": "(none)", "postgresql-17-pgvector": "0.8.0-1", "jq": "1.7"}
+        policy = {"redis-server": "(none)", "valkey-server": "8.1.1-1", "jq": "1.7"}
         script = "set -o pipefail\napt-cache() { case \"$2\" in " + " ".join(
             f"{name}) echo '  Candidate: {candidate}';;" for name, candidate in policy.items()
-        ) + " esac; }\n" + rig.CANDIDATE_CHOICE_COMMAND % "'postgresql-18-pgvector|postgresql-17-pgvector' 'jq' 'unknown-a|unknown-b'"
+        ) + " esac; }\n" + rig.CANDIDATE_CHOICE_COMMAND % "'redis-server|valkey-server' 'jq' 'unknown-a|unknown-b'"
         chosen = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.split()
-        self.assertEqual(chosen, ["postgresql-17-pgvector", "jq", "unknown-a"])
+        self.assertEqual(chosen, ["valkey-server", "jq", "unknown-a"])
 
     def test_a_versioned_or_alternative_dependency_reduces_to_a_name_apt_can_install(self):
         self.assertEqual(

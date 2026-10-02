@@ -6,9 +6,7 @@ icon: ServerCog
 
 회사 호스트는 arm64 또는 amd64의 Debian 13, Ubuntu 22.04 또는 24.04, Fedora,
 RHEL 호환 10(Rocky, AlmaLinux), Arch Linux, 그리고 Homebrew를 설치한 Apple
-실리콘 Mac에서 실행됩니다. Ubuntu 22.04의 저장소에는 에이전트의 기억 검색에 필요한
-pgvector가 없어서, 그곳에서는 PostgreSQL의 자체 apt 저장소를 추가하고 거기서
-PostgreSQL 15와 그 pgvector를 받습니다. Linux 패키지는 glibc 2.35 이상이 필요합니다. 인터넷에
+실리콘 Mac에서 실행됩니다. Linux 패키지는 glibc 2.35 이상이 필요합니다. 인터넷에
 연결하고 계속 켜 두어야 합니다. 설치 프로그램은 Linux의 systemd나 macOS의
 launchd에 서비스를 등록합니다. 공개 주소, 외부에서 들어오는 포트, Docker 설치는
 필요하지 않습니다.
@@ -68,10 +66,7 @@ sudo pacman -R internkim      # Arch Linux
 ```
 
 패키지를 제거하면 호스트 서비스가 멈추고 비활성화되며, 프로그램 파일과 호스트의
-Python 런타임, 스킬을 위해 준비한 것이 지워집니다. Ubuntu 22.04에서는 PostgreSQL의 apt 저장소를 남겨
-둡니다. 호스트의 데이터베이스를 만든 PostgreSQL 15가 그 저장소에서 업데이트를 받기
-때문입니다. 저장소를 지우는 명령은 패키지를 제거할 때 출력되니, 데이터베이스를 지운
-뒤에 실행하면 됩니다. 다른 배포판에서는 설치할 때 패키지 저장소나 서명 키를 추가하지 않습니다. 회사는
+Python 런타임, 스킬을 위해 준비한 것이 지워집니다. 설치할 때 패키지 저장소나 서명 키는 추가하지 않습니다. 회사는
 컴퓨터에 남습니다. `/var/lib/internkim`에는
 호스팅 서비스에서 이 회사를 증명하는 키와 사람마다 메시지에 서명하는 시드가 있고,
 `/var/lib/internkim-postgres`와 `/var/lib/internkim-cache`에는 호스트의 데이터베이스와

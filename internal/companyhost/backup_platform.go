@@ -14,7 +14,8 @@ type backupPlatform interface {
 	companyHostPlatform
 	DatabaseMajor(machine Machine) (int, error)
 	DumpDatabase(machine Machine, database string, output io.Writer) error
-	RestoreDatabase(machine Machine, database string, input io.Reader) error
+	RestoreDatabase(machine Machine, database string, input io.Reader, listPath string) error
+	ListDump(machine Machine, input io.Reader) (string, error)
 	OwnersInDump(machine Machine, input io.Reader) ([]string, error)
 	StopTheHost(machine Machine, progress io.Writer) error
 	StartTheBox(machine Machine, progress io.Writer) error
@@ -55,14 +56,26 @@ func (platform linuxPlatform) DumpDatabase(machine Machine, database string, out
 	return nil
 }
 
-func (platform linuxPlatform) RestoreDatabase(machine Machine, database string, input io.Reader) error {
+func (platform linuxPlatform) RestoreDatabase(machine Machine, database string, input io.Reader, listPath string) error {
 	var complaint bytes.Buffer
 	arguments := platform.asTheDatabaseAccount(
 		"pg_restore", "--dbname", database, "--single-transaction", "--exit-on-error", "--no-password")
+	if listPath != "" {
+		arguments = append(arguments, "--use-list", listPath)
+	}
 	if errorValue := machine.Stream("runuser", arguments, Streams{Input: input, Output: &complaint, Errors: &complaint}); errorValue != nil {
 		return fmt.Errorf("pg_restore into the %s database failed (%w): %s", database, errorValue, strings.TrimSpace(complaint.String()))
 	}
 	return nil
+}
+
+func (platform linuxPlatform) ListDump(machine Machine, input io.Reader) (string, error) {
+	var list, complaint bytes.Buffer
+	arguments := platform.asTheDatabaseAccount("pg_restore", "--list")
+	if errorValue := machine.Stream("runuser", arguments, Streams{Input: input, Output: &list, Errors: &complaint}); errorValue != nil {
+		return "", fmt.Errorf("pg_restore could not list the dump's contents (%w): %s", errorValue, strings.TrimSpace(complaint.String()))
+	}
+	return list.String(), nil
 }
 
 func (platform linuxPlatform) OwnersInDump(machine Machine, input io.Reader) ([]string, error) {

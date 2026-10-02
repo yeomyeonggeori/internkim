@@ -44,7 +44,10 @@ from native_install_rig import (  # noqa: E402
     BACKUP_UNIT_NAME,
     CHECKSUMS_NAME,
     DATA_SERVICE_PATH,
+    DATABASE_DATA_DIRECTORY,
     DATABASE_USER,
+    REPOSITORY_LISTING_COMMAND,
+    RETIRED_MEMORY_STORE_COMMAND,
     expected_enablement,
     COMPANY_CONDITION_PATH,
     DOCUMENT_ENVIRONMENT_PATHS,
@@ -86,37 +89,10 @@ AGENT_USER = "blueclaw"
 RELAY_USER = "internkim"
 DATABASE_SOCKET_DIRECTORY = "/run/internkim-postgres"
 CACHE_SOCKET_PATH = "/run/internkim-cache/cache.sock"
-DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
 HELPER_PATH = "/usr/lib/internkim/blueclaw-posix-helper"
 TASK_USER = "bc_person_rigcheck"
 
 NOWHERE = "127.0.0.1:9"
-POSTGRESQL_REPOSITORY_FILES = [
-    "internkim-postgresql.sources",
-    "internkim-postgresql.pref",
-    "internkim-postgresql-archive-keyring.asc",
-]
-
-VECTOR_ROUND_TRIP = """
-begin;
-insert into memory_episode (episode_id, source_kind, source_id, requester_person_id, content, occurred_at, receipt)
-  values ('rig-episode', 'explicit', 'rig-episode', 'rig-person', 'rig', now(), '{}');
-insert into memory_fact (fact_id, episode_id, owner_person_id, kind, content, valid_from)
-  values ('rig-near', 'rig-episode', 'rig-person', 'fact', 'near', now()),
-         ('rig-far', 'rig-episode', 'rig-person', 'fact', 'far', now());
-insert into memory_fact_embedding (fact_id, embedding)
-  select fact_id, ('[' || string_agg(case when position = axis then '1' else '0' end, ',' order by position) || ']')::vector
-  from (values ('rig-near', 1), ('rig-far', 2)) facts (fact_id, axis), generate_series(1, 1024) position
-  group by fact_id;
-select
-  current_setting('server_version_num')::int / 10000,
-  (select extversion from pg_extension where extname = 'vector'),
-  to_regclass('public.memory_fact_embedding') is not null,
-  to_regclass('public.memory_fact_embedding_hnsw_idx') is not null,
-  (select fact_id from memory_fact_embedding
-   order by embedding <=> ('[0.9,0.1' || repeat(',0', 1022) || ']')::vector limit 1);
-rollback;
-"""
 
 
 def connection_document(app_url):
@@ -247,6 +223,7 @@ class FamilyRig:
                 f"install.sh exited {attempt.returncode}, installed {older_version or 'nothing'}\n"
                 f"{(attempt.stdout + attempt.stderr).strip()[-600:]}",
             )
+        sources_before = self.shell_value(REPOSITORY_LISTING_COMMAND)
         self.release.publish(directory)
         self.observe_tampering(step, older_version)
 
@@ -272,48 +249,17 @@ class FamilyRig:
             f"install.sh exited {again.returncode}; {installed_version} -> {self.installed_version()}\n"
             f"{(again.stdout + again.stderr).strip()[-400:]}",
         )
-        added = self.shell_value(
-            "ls /etc/apt/sources.list.d /etc/apt/preferences.d /etc/yum.repos.d /usr/share/keyrings 2>/dev/null "
-            "| grep -i -e postgresql -e internkim; grep -n internkim /etc/pacman.conf; true"
-        )
-        if not self.family.postgresql_major_from_its_own_repository:
-            step.observe(
-                "the install adds no repository, key or pin, ours or anyone's PostgreSQL's",
-                "the apt, yum and keyring directories and /etc/pacman.conf after the install",
-                "the package is a file the manager installs and its dependencies come from the distribution, "
-                "so a source added on the way is an unrequested trust",
-            ).record(not added, added or "nothing was added")
-            return
-        self.observe_postgresqls_own_repository(step, added)
-
-    def observe_postgresqls_own_repository(self, step, added):
-        major = self.family.postgresql_major_from_its_own_repository
+        sources_after = self.shell_value(REPOSITORY_LISTING_COMMAND)
         step.observe(
-            "the install adds PostgreSQL's own apt repository, its key and its pin, and nothing else",
-            "the apt, yum and keyring directories and /etc/pacman.conf after the install",
-            "this archive carries no pgvector, so the repository is the one source the package needed; anything "
-            "more is an unrequested trust",
+            "this release's install adds no repository, key or pin, ours or PostgreSQL's, and removes none an "
+            "earlier install added",
+            "the apt, yum and keyring directories and /etc/pacman.conf before and after this release's line",
+            "the package is a file the manager installs and its dependencies come from the distribution, so a "
+            "source added on the way is an unrequested trust; and the PostgreSQL an earlier install took from its "
+            "own repository still updates from it",
         ).record(
-            sorted(added.split()) == sorted(POSTGRESQL_REPOSITORY_FILES),
-            added or "nothing was added",
-        )
-        candidates = self.shell_value(
-            "for name in postgresql-18-pgvector postgresql-17-pgvector postgresql-16-pgvector "
-            f"postgresql-{major}-pgvector postgresql-{major} postgresql-18; do "
-            "printf '%s=%s\\n' $name \"$(apt-cache policy $name | sed -n 's/^ *Candidate: //p')\"; done"
-        )
-        offered = dict(line.split("=", 1) for line in candidates.splitlines() if "=" in line)
-        step.observe(
-            f"the pin lets PostgreSQL's repository supply PostgreSQL {major} and its pgvector and no other major",
-            "`apt-cache policy` candidates for the pgvector of every major the package accepts and for two servers",
-            "the repository's own `postgresql` points at its newest major, and an unpinned source would move "
-            "the host's database onto it at the next install",
-        ).record(
-            all(offered.get(name, "") in ("", "(none)") for name in
-                ("postgresql-18-pgvector", "postgresql-17-pgvector", "postgresql-16-pgvector", "postgresql-18"))
-            and "pgdg" in offered.get(f"postgresql-{major}-pgvector", "")
-            and "pgdg" in offered.get(f"postgresql-{major}", ""),
-            candidates,
+            sources_after == sources_before,
+            f"before: {sources_before or 'nothing'}\nafter:  {sources_after or 'nothing'}",
         )
 
     def observe_tampering(self, step, installed_before):
@@ -540,7 +486,13 @@ class FamilyRig:
             "`information_schema.tables` in the blueclaw database, read as the cluster's own account",
             "the agent's health answering says it opened a connection; tables say its schema was made in this cluster",
         ).record(schema == "t", schema)
-        self.observe_vector_search(step)
+        retired = self.shell_value(RETIRED_MEMORY_STORE_COMMAND)
+        step.observe(
+            "the agent's database has no vector extension and none of the retired memory tables",
+            "pg_extension and pg_tables in the blueclaw database",
+            "a database that carries the extension makes every backup of it need pgvector to restore",
+        ).record(retired == "", retired or "none")
+        self.observe_the_servers_major(step)
 
         self.machine.shell(f"id {TASK_USER} >/dev/null 2>&1 || useradd --system --shell /bin/false {TASK_USER}")
         agent_groups = self.shell_value(
@@ -581,27 +533,22 @@ class FamilyRig:
             f"root: {cache_as_root}\ntask user: {cache_as_task_user.stdout.strip()[-200:]}",
         )
 
-    def observe_vector_search(self, step):
-        answer = self.machine.shell(
-            f"printf '%s' {shlex.quote(VECTOR_ROUND_TRIP)} | runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql "
-            "--dbname blueclaw --quiet --tuples-only --no-align --set ON_ERROR_STOP=1 2>&1"
+    def observe_the_servers_major(self, step):
+        answer = self.shell_value(
+            f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname postgres --tuples-only --no-align "
+            "--command 'show server_version_num'; "
+            f"cat {DATABASE_DATA_DIRECTORY}/PG_VERSION; "
+            f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} postgres-major"
         )
-        fields = answer.stdout.strip().split("|")
-        major = self.family.postgresql_major_from_its_own_repository
+        lines = answer.splitlines()
+        running = str(int(lines[0]) // 10000) if lines and lines[0].isdigit() else ""
         step.observe(
-            "the agent's database has the vector extension, the memory store's embedding table and its HNSW index, "
-            "and a stored embedding is found again by its nearest neighbour"
-            + (f", on PostgreSQL {major}" if major else ""),
-            "the extension's version in pg_extension, to_regclass of memory_fact_embedding and its index, and the "
-            "fact a cosine-distance query ranks first among two written in a transaction that is rolled back",
-            "the memory store's migration skips its embedding tables when the server has no vector extension and "
-            "recall then matches words alone with nothing failing; the table is what its search checks for, and the "
-            "ranking is the operator its hybrid search orders by",
-        ).record(
-            answer.returncode == 0 and len(fields) == 5 and fields[1] != "" and fields[2:] == ["t", "t", "rig-near"]
-            and (not major or fields[0] == major),
-            answer.stdout.strip() or f"exit {answer.returncode}",
-        )
+            "the running server's major is the one the cluster was made by and the one a backup records",
+            "`show server_version_num` from the running server, the data directory's PG_VERSION, and the data "
+            "service's `postgres-major`, which `internkim backup` writes into the manifest",
+            "the socket answering says some PostgreSQL runs; this says which, and a restore refuses a dump from a "
+            "newer major than the one the manifest of this host's backups would name",
+        ).record(len(lines) == 3 and running != "" and lines[1:] == [running, running], answer or "nothing answered")
 
     def observe_a_requesters_python(self, step):
         """What the agent hands a requester's command, without the agent: its own PATH, through the helper."""

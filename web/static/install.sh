@@ -24,15 +24,6 @@ package_name="internkim"
 release_repository="yeomyeonggeori/internkim"
 channel="${INTERNKIM_INSTALL_CHANNEL:-stable}"
 homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
-os_release_path="${INTERNKIM_INSTALL_OS_RELEASE:-/etc/os-release}"
-postgresql_key_url="${INTERNKIM_INSTALL_POSTGRESQL_KEY_URL:-https://www.postgresql.org/media/keys/ACCC4CF8.asc}"
-postgresql_key_fingerprint="B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8"
-postgresql_repository_url="https://apt.postgresql.org/pub/repos/apt"
-postgresql_repository_origin="apt.postgresql.org"
-postgresql_keyring_path="/usr/share/keyrings/internkim-postgresql-archive-keyring.asc"
-postgresql_source_path="/etc/apt/sources.list.d/internkim-postgresql.sources"
-postgresql_preferences_path="/etc/apt/preferences.d/internkim-postgresql.pref"
-postgresql_major_from_its_repository="15"
 
 stop() {
   echo "$1" >&2
@@ -176,97 +167,10 @@ install_the_package_file() {
   case "$package_manager" in
     apt-get)
       privileged apt-get update || stop "apt-get update failed, and its own output is above. Nothing on this machine was changed."
-      make_pgvector_available_to_apt "$1"
       privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$1" ;;
     dnf) privileged dnf install -y "$1" ;;
     pacman) privileged pacman -U --needed --noconfirm "$1" ;;
   esac
-}
-
-# The package asks for pgvector by one name per PostgreSQL major, and apt is
-# asked whether this machine's own sources offer any of them. Ubuntu 22.04's do
-# not, so there PostgreSQL's own apt repository is added under a key checked
-# against its published fingerprint, and pinned so that it supplies one major
-# and the packages that major needs, and nothing else.
-make_pgvector_available_to_apt() {
-  accepted_pgvector_packages="$(pgvector_packages_the_package_accepts "$1")"
-  [ -n "$accepted_pgvector_packages" ] || return 0
-  apt_offers_one_of $accepted_pgvector_packages && return 0
-  pinned_pgvector_package="postgresql-$postgresql_major_from_its_repository-pgvector"
-  case " $(echo $accepted_pgvector_packages) " in
-    *" $pinned_pgvector_package "*) ;;
-    *) stop \
-"This machine's apt sources offer none of the pgvector packages the package asks for:
-  $(echo $accepted_pgvector_packages)
-and $pinned_pgvector_package, the one PostgreSQL's own repository would be
-pinned to, is not among them. Nothing on this machine was changed." ;;
-  esac
-  add_the_postgresql_repository
-  apt_offers_one_of "$pinned_pgvector_package" || stop \
-"Even with PostgreSQL's own repository added, apt offers no $pinned_pgvector_package.
-Undo what this script wrote with:
-  sudo rm -f $postgresql_source_path $postgresql_preferences_path $postgresql_keyring_path && sudo apt-get update"
-}
-
-pgvector_packages_the_package_accepts() {
-  dpkg-deb --field "$1" Depends | tr ',|' '\n\n' | sed 's/(.*//; s/^ *//; s/ *$//' | grep -e '-pgvector$' || true
-}
-
-apt_offers_one_of() {
-  for offered_name in "$@"; do
-    candidate="$(apt-cache policy "$offered_name" 2>/dev/null | sed -n 's/^ *Candidate: //p')"
-    if [ -n "$candidate" ] && [ "$candidate" != "(none)" ]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-add_the_postgresql_repository() {
-  codename="$(sed -n 's/^VERSION_CODENAME=//p' "$os_release_path" 2>/dev/null | tr -d '"' | head -n 1)"
-  [ -n "$codename" ] || stop \
-"$os_release_path names no VERSION_CODENAME, so this script cannot tell which suite
-of PostgreSQL's apt repository this machine would take pgvector from.
-Nothing on this machine was changed."
-  command -v gpg >/dev/null 2>&1 || privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gpg || stop \
-"gpg, which checks PostgreSQL's signing key, could not be installed, and apt's output is above.
-Nothing else on this machine was changed."
-  fetch "$postgresql_key_url" "$work_dir/postgresql-archive-keyring.asc"
-  served_fingerprint="$(gpg --show-keys --with-colons "$work_dir/postgresql-archive-keyring.asc" 2>/dev/null | sed -n 's/^fpr:*\([0-9A-F]*\):$/\1/p' | head -n 1)"
-  [ "$served_fingerprint" = "$postgresql_key_fingerprint" ] || stop \
-"$postgresql_key_url served a key whose fingerprint is ${served_fingerprint:-unreadable},
-and PostgreSQL publishes $postgresql_key_fingerprint for its apt repository.
-Nothing was added, and nothing on this machine was changed."
-  echo "This machine's apt sources carry no pgvector. Adding PostgreSQL's own apt repository"
-  echo "($postgresql_repository_url, suite $codename-pgdg) for PostgreSQL $postgresql_major_from_its_repository and its pgvector only."
-  printf '%s\n' \
-    "Types: deb" \
-    "URIs: $postgresql_repository_url" \
-    "Suites: $codename-pgdg" \
-    "Components: main" \
-    "Signed-By: $postgresql_keyring_path" \
-    > "$work_dir/postgresql.sources"
-  printf '%s\n' \
-    "Package: *" \
-    "Pin: origin $postgresql_repository_origin" \
-    "Pin-Priority: -1" \
-    "" \
-    "Package: postgresql-$postgresql_major_from_its_repository postgresql-client-$postgresql_major_from_its_repository postgresql-$postgresql_major_from_its_repository-pgvector postgresql-common postgresql-client-common libpq5" \
-    "Pin: origin $postgresql_repository_origin" \
-    "Pin-Priority: 500" \
-    > "$work_dir/postgresql.pref"
-  for directory in /usr/share/keyrings /etc/apt/sources.list.d /etc/apt/preferences.d; do
-    privileged install -d -m 0755 "$directory" || stop "Could not make $directory. Nothing was added."
-  done
-  privileged install -m 0644 "$work_dir/postgresql-archive-keyring.asc" "$postgresql_keyring_path" &&
-    privileged install -m 0644 "$work_dir/postgresql.pref" "$postgresql_preferences_path" &&
-    privileged install -m 0644 "$work_dir/postgresql.sources" "$postgresql_source_path" || stop \
-"Could not write PostgreSQL's repository into apt's configuration. Undo what this script wrote with:
-  sudo rm -f $postgresql_source_path $postgresql_preferences_path $postgresql_keyring_path"
-  privileged apt-get update || stop \
-"apt-get update failed after PostgreSQL's own repository was added, and its output
-is above. Undo what this script wrote with:
-  sudo rm -f $postgresql_source_path $postgresql_preferences_path $postgresql_keyring_path && sudo apt-get update"
 }
 
 tell_what_to_do_next() {

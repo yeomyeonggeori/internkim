@@ -114,6 +114,16 @@ BACKUP_TIMER_NAME = BACKUP_SERVICE_NAME + ".timer"
 BACKUPS_DIRECTORY = "/var/lib/internkim-backups"
 DATABASE_USER = "internkim-postgres"
 DATA_SERVICE_PATH = "/usr/lib/internkim/data-service"
+DATABASE_DATA_DIRECTORY = "/var/lib/internkim-postgres"
+REPOSITORY_LISTING_COMMAND = (
+    "ls /etc/apt/sources.list.d /etc/apt/preferences.d /etc/yum.repos.d /usr/share/keyrings 2>/dev/null "
+    "| grep -i -e postgresql -e internkim; grep -n internkim /etc/pacman.conf; true"
+)
+RETIRED_MEMORY_STORE_COMMAND = (
+    f"runuser -u {DATABASE_USER} -- {DATA_SERVICE_PATH} psql --dbname blueclaw --tuples-only --no-align --command "
+    "\"select coalesce(string_agg(name, ' '), '') from (select extname as name from pg_extension where extname = 'vector' "
+    "union all select tablename from pg_tables where schemaname = 'public' and tablename like 'memory\\_%') retired\""
+)
 
 
 def expected_enablement(unit_name):
@@ -273,7 +283,9 @@ class Release:
     from: each package under its asset name and their SHA256SUMS. The rig serves
     that directory where GitHub serves releases/latest/download and puts
     install.sh beside it, so the guest runs the published line with one
-    address substituted and nothing else.
+    address substituted and nothing else. An older release directory that
+    carries its own install.sh is served with that one, the line it was
+    installed with when it was current.
     """
 
     def __init__(self, directory):
@@ -297,7 +309,8 @@ class Release:
             name = line.split()[1]
             (self.download_directory / name).symlink_to(release_directory / name)
         (self.download_directory / CHECKSUMS_NAME).write_text(listed)
-        shutil.copyfile(INSTALL_SCRIPT_PATH, self.directory / "install.sh")
+        carried_script = release_directory / "install.sh"
+        shutil.copyfile(carried_script if carried_script.is_file() else INSTALL_SCRIPT_PATH, self.directory / "install.sh")
 
     def replace(self, name, contents):
         """Serve `contents` as `name` and return what puts the published file back."""

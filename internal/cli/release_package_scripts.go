@@ -118,10 +118,6 @@ func postRemoveBody(format linuxPackageFormat) string {
 	return strings.Join(append(lines, `systemctl daemon-reload >/dev/null 2>&1 || true`, `exit 0`, ``), "\n")
 }
 
-// What web/static/install.sh writes on a machine whose apt sources carry no
-// pgvector, Ubuntu 22.04 among them. The package owns none of the three, and
-// the PostgreSQL they bring in outlives it with the company's database, so
-// removal names them rather than deleting them.
 var postgresqlRepositoryPaths = []string{
 	"/etc/apt/sources.list.d/internkim-postgresql.sources",
 	"/etc/apt/preferences.d/internkim-postgresql.pref",
@@ -131,10 +127,7 @@ var postgresqlRepositoryPaths = []string{
 func tellWhatToDoWithThePostgresqlRepository(format linuxPackageFormat) []string {
 	return []string{
 		`if ` + format.RemovalTest("postrm") + ` && [ -e ` + postgresqlRepositoryPaths[0] + ` ]; then`,
-		`  echo "internkim: PostgreSQL's own apt repository, which install.sh added for pgvector, was kept:"`,
-		`  echo "internkim: the PostgreSQL that made the host's database still takes its updates from it."`,
-		`  echo "internkim: Once that database is deleted, remove the repository with:"`,
-		`  echo "internkim:   sudo rm -f ` + strings.Join(postgresqlRepositoryPaths, " ") + ` && sudo apt-get update"`,
+		`  echo "internkim: kept PostgreSQL's apt repository, which an earlier install.sh added and the host's database may still update from; once that database is deleted: sudo rm -f ` + strings.Join(postgresqlRepositoryPaths, " ") + ` && sudo apt-get update"`,
 		`fi`,
 		``,
 	}

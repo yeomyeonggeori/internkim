@@ -30,10 +30,9 @@ cleanup() {
 trap cleanup EXIT
 
 apt-get -o DPkg::Lock::Timeout=300 update >/dev/null
-apt-get -o DPkg::Lock::Timeout=300 install -y postgresql-16 postgresql-contrib postgresql-16-pgvector >/dev/null
+apt-get -o DPkg::Lock::Timeout=300 install -y postgresql-16 postgresql-contrib >/dev/null
 xargs apt-get -o DPkg::Lock::Timeout=300 install -y --no-install-recommends < "$workspaceDirectory/.local/company-plane/packages-for-files-the-skills-read" >/dev/null
 systemctl enable --now postgresql
-runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d template1 -c 'CREATE EXTENSION IF NOT EXISTS vector' >/dev/null
 runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d postgres \
   -v database_password="$databasePassword" -v database_name="$databaseName" <<'SQL'
 CREATE ROLE company_plane_test LOGIN CREATEDB PASSWORD :'database_password';
