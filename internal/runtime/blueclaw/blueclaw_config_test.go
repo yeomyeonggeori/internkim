@@ -413,46 +413,6 @@ func TestBlueclawRuntimeConfigGatesAdminTaskDiagnostic(t *testing.T) {
 	}
 }
 
-func TestInvalidLocalOnlyEnvironmentFailsClosed(t *testing.T) {
-	t.Setenv(LocalOnlyEnvironment, "invalid")
-
-	if !LocalOnlyEnabled() {
-		t.Fatal("expected invalid local-only environment to disable remote routing")
-	}
-	if serviceDocument := CapabilitydServiceUnit(); !strings.Contains(serviceDocument, "--local-only") {
-		t.Fatalf("expected invalid local-only environment to fail closed, got %s", serviceDocument)
-	}
-}
-
-func TestLocalOnlyEnvironmentConfiguresRuntimeAndServices(t *testing.T) {
-	t.Setenv(LocalOnlyEnvironment, "true")
-
-	options, errorValue := BlueclawRuntimeConfigOptionsFromEnvironment()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(options)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	var runtimeConfiguration map[string]any
-	if errorValue := json.Unmarshal([]byte(document), &runtimeConfiguration); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	capabilityConfiguration := runtimeConfiguration["capabilities"].(map[string]any)
-	routing := capabilityConfiguration["routing"].(map[string]any)
-	if routing["localOnly"] != true {
-		t.Fatalf("expected local-only capability routing, got %+v", routing)
-	}
-	if !strings.Contains(CapabilitydServiceUnit(), " --local-only") {
-		t.Fatalf("expected capabilityd local-only flag, got %s", CapabilitydServiceUnit())
-	}
-	memory := runtimeConfiguration["memory"].(map[string]any)
-	if memory["embeddingModel"] != llmbackend.DefaultEmbeddingModelName {
-		t.Fatalf("expected local-only to embed with the local model, got %q", memory["embeddingModel"])
-	}
-}
-
 func TestBlueclawRuntimeConfigUsesRequestedDefaultTaskLevel(t *testing.T) {
 	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{DefaultTaskLevel: "xlow"})
 	if errorValue != nil {
@@ -759,61 +719,6 @@ func containsPolicyResource(values []any, expectedResource string, expectedCircl
 		return isCircles && containsStringValue(circles, expectedCircle)
 	}
 	return false
-}
-
-func TestBlueclawServiceDoesNotExposeOpenRouterKeyAsEnvironmentFile(t *testing.T) {
-	serviceDocument := BlueclawServiceUnit()
-	if strings.Contains(serviceDocument, "EnvironmentFile=") {
-		t.Fatal("expected Blueclaw service to avoid OpenRouter key environment files")
-	}
-	if !strings.Contains(serviceDocument, BlueclawSupervisorBinaryPath) {
-		t.Fatal("expected Blueclaw service to run the guest supervisor")
-	}
-	if strings.Contains(serviceDocument, "ExecStart="+BlueclawBinaryPath+" ") {
-		t.Fatal("expected Blueclaw service not to run the host blueclaw binary directly")
-	}
-}
-
-func TestCapabilitydServiceUsesOpenRouterFirstAutoRouting(t *testing.T) {
-	serviceDocument := CapabilitydServiceUnit()
-	for _, forbiddenValue := range []string{"workers", "--openrouter-gateway-secret", "companion"} {
-		if strings.Contains(serviceDocument, forbiddenValue) {
-			t.Fatalf("expected physical Jetson capabilityd service to avoid fronting gateway value %q, got %s", forbiddenValue, serviceDocument)
-		}
-	}
-}
-
-func TestCapabilitydServiceOrdersAfterAdmind(t *testing.T) {
-	serviceDocument := CapabilitydServiceUnit()
-	afterLine := ""
-	wantsLine := ""
-	for _, line := range strings.Split(serviceDocument, "\n") {
-		if strings.HasPrefix(line, "After=") {
-			afterLine = line
-		}
-		if strings.HasPrefix(line, "Wants=") {
-			wantsLine = line
-		}
-	}
-	if !strings.Contains(afterLine, "internkim-admind.service") {
-		t.Fatalf("expected capabilityd to boot after admind, got %s", afterLine)
-	}
-	if !strings.Contains(wantsLine, "internkim-admind.service") {
-		t.Fatalf("expected capabilityd to want admind, got %s", wantsLine)
-	}
-}
-
-func TestCapabilitydServiceCanUseTestModelFromEnvironment(t *testing.T) {
-	const testModelName = "google/test-model"
-	t.Setenv(BlueclawTestModelEnvironment, testModelName)
-
-	serviceDocument := CapabilitydServiceUnit()
-	if !strings.Contains(serviceDocument, "--openrouter-model "+testModelName) {
-		t.Fatalf("expected capabilityd service to use test model, got %s", serviceDocument)
-	}
-	if strings.Contains(serviceDocument, "--force-openrouter-model") {
-		t.Fatalf("expected capabilityd service to keep explicit tier models so escalation fallback can reach a healthy model, got %s", serviceDocument)
-	}
 }
 
 func TestLlamaCppServiceUnitRunsLocalServer(t *testing.T) {

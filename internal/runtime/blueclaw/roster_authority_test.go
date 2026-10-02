@@ -15,7 +15,7 @@ const rosterAuthorityRule = "the host writes the roster and the agent never auth
 const agentRosterMutationEndpoint = "/admin/api/people"
 
 func servicesTheDeviceRunsUnattended() []string {
-	return []string{"cmd", "internal/admind", "internal/provisioning", "internal/runtime"}
+	return []string{"cmd", "internal/admind", "internal/runtime"}
 }
 
 func TestServicesTheDeviceRunsUnattendedNeverAskTheAgentToWriteTheRoster(t *testing.T) {

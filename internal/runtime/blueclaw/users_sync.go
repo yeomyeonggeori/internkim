@@ -7,16 +7,7 @@ const (
 	InternKimUsersSyncServicePath     = "/etc/systemd/system/internkim-users-sync.service"
 	InternKimUsersSyncTimerPath       = "/etc/systemd/system/internkim-users-sync.timer"
 	InternKimUsersSyncStatePath       = "/root/.internkim/state/users-sync.json"
-	InternKimAPIURLPath               = "/root/.internkim/env/api-url"
-	InternKimCentralPlaneAppURLPath   = "/root/.internkim/env/central-plane-app-url"
 	InternKimCentralPlaneAgentKeyPath = "/root/.internkim/secrets/central-plane-agent-key"
-	InternKimFleetIDPath              = "/root/.internkim/env/fleet-id"
-	InternKimNodeIDPath               = "/root/.internkim/env/node-id"
-	InternKimFleetRolePath            = "/root/.internkim/env/fleet-role"
-	InternKimFleetActiveCountPath     = "/root/.internkim/env/fleet-active-count"
-	InternKimFleetPendingCountPath    = "/root/.internkim/env/fleet-pending-count"
-	InternKimFleetQuorumSizePath      = "/root/.internkim/env/fleet-quorum-size"
-	InternKimFleetSecretPath          = "/root/.internkim/secrets/fleet-secret"
 )
 
 func internKimUsersSyncRequestHelpers() string {

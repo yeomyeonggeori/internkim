@@ -12,7 +12,6 @@ require (
 	github.com/goreleaser/nfpm/v2 v2.47.0
 	github.com/klauspost/compress v1.18.7
 	github.com/lib/pq v1.12.3
-	github.com/mdlayher/vsock v1.2.1
 	github.com/nbd-wtf/go-nostr v0.52.3
 	golang.org/x/crypto v0.56.0
 	golang.org/x/term v0.45.0
@@ -59,7 +58,6 @@ require (
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

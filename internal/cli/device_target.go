@@ -1,44 +1,72 @@
 package cli
 
 import (
-	"net/http"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 )
 
-type deviceTarget struct {
-	AdminURL    string
-	SSHHostname string
-	FleetID     string
-	FleetSecret string
+const (
+	boardDefaultUser = "internkim"
+	boardDefaultHost = "internkim.local"
+)
+
+type commandTarget struct {
+	host        string
+	sshUser     string
+	sshPassword string
+	deviceURL   string
+	fleetID     string
+	fleetSecret string
 }
 
-func deviceTargetFromEnvironment() deviceTarget {
-	return deviceTarget{
-		AdminURL:    normalizeAdminURL(os.Getenv("INTERNKIM_DEVICE_URL")),
-		SSHHostname: strings.TrimSpace(os.Getenv("INTERNKIM_SSH_HOSTNAME")),
-		FleetID:     strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_ID"))),
-		FleetSecret: strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_SECRET")),
+func resolveCommandTarget(arguments []string) commandTarget {
+	return commandTarget{
+		host:        firstNonEmptyString(commandArgumentValue(arguments, "--host", ""), os.Getenv("INTERNKIM_SSH_HOSTNAME"), boardDefaultHost),
+		sshUser:     commandArgumentValue(arguments, "--user", boardDefaultUser),
+		sshPassword: firstNonEmptyString(commandArgumentValue(arguments, "--password", ""), os.Getenv("INTERNKIM_CONSOLE_PASSWORD")),
+		deviceURL:   normalizeDeviceURL(firstNonEmptyString(commandArgumentValue(arguments, "--device-url", ""), os.Getenv("INTERNKIM_DEVICE_URL"))),
+		fleetID:     strings.ToLower(strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_ID"))),
+		fleetSecret: strings.TrimSpace(os.Getenv("INTERNKIM_FLEET_SECRET")),
 	}
 }
 
-func normalizeAdminURL(value string) string {
+func (target commandTarget) sshConnection() *sshClient {
+	return newSSH(target.sshUser, target.sshPassword, target.host)
+}
+
+func (target commandTarget) fleetIdentity() (string, string, error) {
+	if target.fleetID == "" || target.fleetSecret == "" {
+		return "", "", errors.New("the vault names no INTERNKIM_FLEET_ID and INTERNKIM_FLEET_SECRET for this device; run it as `internkim @legacy …`")
+	}
+	return target.fleetID, target.fleetSecret, nil
+}
+
+func printCommandTargetEvidence(target commandTarget) {
+	fmt.Printf("Host: %s\n", target.host)
+	if target.fleetID != "" {
+		fmt.Printf("Fleet: %s\n", target.fleetID)
+	}
+	if target.deviceURL != "" {
+		fmt.Printf("URL: %s\n", target.deviceURL)
+	}
+}
+
+func normalizeDeviceURL(value string) string {
 	value = strings.TrimRight(strings.TrimSpace(value), "/")
-	if value == "" {
-		return ""
-	}
-	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
+	if value == "" || strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
 		return value
 	}
 	return "https://" + value
 }
 
-func attachCloudflareAccess(request *http.Request) {
-	clientID := strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_ID"))
-	clientSecret := strings.TrimSpace(os.Getenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET"))
-	if clientID == "" || clientSecret == "" {
-		return
+func targetFlagArguments(host string, user string, password string) []string {
+	arguments := []string{}
+	for _, flag := range [][2]string{{"--host", host}, {"--user", user}, {"--password", password}} {
+		if strings.TrimSpace(flag[1]) != "" {
+			arguments = append(arguments, flag[0], flag[1])
+		}
 	}
-	request.Header.Set("CF-Access-Client-Id", clientID)
-	request.Header.Set("CF-Access-Client-Secret", clientSecret)
+	return arguments
 }

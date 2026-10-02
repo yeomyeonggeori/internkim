@@ -219,6 +219,10 @@
     "process": "cli",
     "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
   },
+  "INTEGRATION_TESTS": {
+    "process": "web integration tests",
+    "description": "the test directory web/scripts/test-integration.sh runs against the local plane; tests/integration unless set, tests/transfer for the file transfer suite"
+  },
   "INTERNKIM_AGENT_BROWSER_PATH": {
     "process": "internal/browser and internal/capabilityd tests",
     "description": "path to an agent-browser binary for internal/browser's real-Chrome test, which is skipped when unset, and for internal/capabilityd/company_browser_test.go, which otherwise finds agent-browser on PATH"
@@ -226,10 +230,6 @@
   "INTERNKIM_RIG_ARCHITECTURE": {
     "process": "tools/native_install_rig.py",
     "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
-  },
-  "INTERNKIM_API_URL": {
-    "process": "cli",
-    "description": "overrides the fleet-registration API base URL the CLI's loadConfig derives from the zone by default"
   },
   "INTEGRATION_TESTS": {
     "process": "web scripts",
@@ -264,8 +264,8 @@
     "description": "when \"1\", internal/runtime/blueclaw uses the uncommitted local .dependency/blueclaw checkout instead of the committed payload artifact"
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
-    "process": "cli, tools/mirror-local",
-    "description": "the Buzz identity seed every imported identity and channel is derived from; internal/cli reads it at setup time, tools/mirror-local writes it to the local bridge's seed file",
+    "process": "tools/mirror-local",
+    "description": "the Buzz identity seed every imported identity and channel is derived from; tools/mirror-local writes it to the local bridge's seed file",
     "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_ID": {
@@ -280,7 +280,7 @@
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
-    "description": "the console password used for a Jetson's physical login during setup/flashing; flashing writes the one it generated back here",
+    "description": "the board's console password, from the @legacy vault profile; `internkim ssh` and `internkim recover` log in with it when no --password is given",
     "isInVault": true
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
@@ -305,7 +305,7 @@
   },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
-    "description": "the device's public admin address, from the @legacy vault profile; internal/cli/device_target.go reads it as the device recover and ssh talk to",
+    "description": "the device's public admin address, from the @legacy vault profile; `internkim recover` posts its signed recovery requests there",
     "isInVault": true
   },
   "INTERNKIM_E2E_CONFIG": {
@@ -316,18 +316,14 @@
     "process": "cli",
     "description": "set by the CLI on the run it starts through `monkeys run`, so that run knows the vault environment already arrived and does not start another"
   },
-  "INTERNKIM_FLASH_CACHE_DIR": {
-    "process": "device",
-    "description": "override cache directory for Jetson image downloads during internal/cli's flash flow"
-  },
   "INTERNKIM_FLEET_ID": {
     "process": "cli",
-    "description": "the device's fleet ID, from the @legacy vault profile; internal/cli/device_target.go reads it as the name signed recovery requests carry",
+    "description": "the device's fleet ID, from the @legacy vault profile; `internkim recover` names the device with it in a signed recovery request",
     "isInVault": true
   },
   "INTERNKIM_FLEET_SECRET": {
     "process": "cli",
-    "description": "the device's fleet secret, from the @legacy vault profile; internal/cli/device_target.go reads it to sign recovery requests",
+    "description": "the device's fleet secret, from the @legacy vault profile; `internkim recover` signs its recovery requests with it",
     "isInVault": true
   },
   "INTERNKIM_GATE_MODEL": {
@@ -338,17 +334,9 @@
     "process": "install script",
     "description": "where web/static/install.sh downloads the host's files and their SHA256SUMS from; defaults to the GitHub release the channel names. The native install rig points it at a release served from the Mac"
   },
-  "INTERNKIM_JETSON_IMAGE_URL": {
-    "process": "device",
-    "description": "override URL for the Jetson base image internal/cli/jetson_flash.go downloads"
-  },
   "INTERNKIM_KEEP_CONTAINER_VM": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "when \"1\", leaves the container-based runtime builder VM running after the build instead of stopping it"
-  },
-  "INTERNKIM_LITERT_MODEL_PATH": {
-    "process": "device",
-    "description": "override path to the local LiteRT model file, read by internal/cli/main.go"
   },
   "INTERNKIM_LIVE_ARTIFACT_DIR": {
     "process": "llmbackend live tests",
@@ -357,10 +345,6 @@
   "INTERNKIM_LIVE_LLM_TEST": {
     "process": "llmbackend live tests",
     "description": "when \"1\", internal/llmbackend/openrouter_live_test.go makes a real OpenRouter call instead of skipping"
-  },
-  "INTERNKIM_LLM_DEBUG": {
-    "process": "cli",
-    "description": "when \"1\", internal/cli/llm.go prints extra debug output for a model call"
   },
   "INTERNKIM_MM_ADMIN_PASSWORD_PATH": {
     "process": "tools/mirror-local",
@@ -380,6 +364,10 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
+  "INTERNKIM_RIG_ARCHITECTURE": {
+    "process": "tools/native_install_rig.py",
+    "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
+  },
   "INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "the transfer size ceiling for the remote runtime-builder rsync; defaults to 5000000000"
@@ -388,13 +376,9 @@
     "process": "tools/prepare-blueclaw-runtime",
     "description": "how long the remote runtime-builder waits when probing the transfer; defaults to 120"
   },
-  "INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": {
-    "process": "cli",
-    "description": "when \"1\", internal/cli/setup_flow.go skips the Cloudflare Pages deploy step for a lab/local-fleet run"
-  },
   "INTERNKIM_SSH_HOSTNAME": {
-    "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
-    "description": "the device's ssh hostname, from the @legacy vault profile; internal/cli/device_target.go reads it when the device is not on the local network",
+    "process": "cli",
+    "description": "the board's ssh hostname, from the @legacy vault profile; `internkim ssh` and `internkim recover` reach the board by it when no --host is given",
     "isInVault": true
   },
   "INTERNKIM_TEST_CDP_BROWSER": {
@@ -695,14 +679,5 @@
   "XDG_CACHE_HOME": {
     "process": "tools/prepare-container-kernel",
     "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"
-  },
-  "INTEGRATION_TESTS": {
-    "process": "web integration tests",
-    "description": "the test directory web/scripts/test-integration.sh runs against the local plane; tests/integration unless set, tests/transfer for the file transfer suite"
-  },
-  "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
-    "process": "cli",
-    "description": "the bearer token setup stages on the device for its release downloads",
-    "isInVault": true
   }
 }
