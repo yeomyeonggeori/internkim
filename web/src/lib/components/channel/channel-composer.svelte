@@ -12,6 +12,11 @@
 
 <script lang="ts">
 	import * as Attachment from '$lib/components/ui/attachment/index.js';
+	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import ComposerFormatButtons from './composer-format-buttons.svelte';
+	import PaperclipIcon from '@lucide/svelte/icons/paperclip';
 	import * as InputGroup from '$lib/components/ui/input-group/index.js';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -74,6 +79,9 @@
 	};
 
 	const text = createPageText(channelText);
+	const isMobile = new IsMobile(640);
+	let showsSelectionFormatting = $state(false);
+	let selectionAnchor = $state<HTMLElement | null>(null);
 	let value = $state('');
 	let composerEditor = $state<ComposerEditor | null>(null);
 	let activeFormats = $state<ComposerFormat[]>([]);
@@ -180,6 +188,12 @@
 		mentions.reopen(before.text, before.cursor);
 	}
 
+	function handleSelectionChange(): void {
+		refreshMentions();
+		selectionAnchor = composerEditor?.selectionElement() ?? null;
+		showsSelectionFormatting = isMobile.current && !disabled && selectionAnchor !== null;
+	}
+
 	function takeMention(candidate?: MentionCandidate): void {
 		const before = composerEditor?.textBeforeCursor();
 		if (!before) return;
@@ -234,7 +248,7 @@
 	onDestroy(clearAttachments);
 </script>
 
-<form bind:this={form} onsubmit={submit} class="relative p-3">
+<form bind:this={form} onsubmit={submit} class="channel-composer relative px-3 pb-1 pt-2 sm:p-3">
 	<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
 	{#if pendingAttachments.length > 0}
 		<Attachment.Group class="mb-2">
@@ -284,10 +298,7 @@
 			<Button type="button" variant="ghost" size="xs" onclick={edit.cancel}>{text.cancelEdit}</Button>
 		</div>
 	{/if}
-	<InputGroup.Root>
-		{#if showsFormatToolbar}
-			<ComposerFormatToolbar {disabled} {activeFormats} onFormat={format} />
-		{/if}
+	<InputGroup.Root class="composer-input">
 		<ComposerEditor
 			bind:this={composerEditor}
 			bind:value
@@ -297,59 +308,162 @@
 			{disabled}
 			onKeydown={handleKeydown}
 			onInput={handleInput}
-			onSelectionChange={refreshMentions}
+			onSelectionChange={handleSelectionChange}
 			onBlur={() => mentions.close()}
 		/>
-		<InputGroup.Addon align="block-end" class="pt-1">
+		<InputGroup.Addon align="inline-start" class="composer-tools-start sm:hidden">
 			<InputGroup.Button
-				type="button"
-				variant="outline"
+				variant="ghost"
 				size="icon-sm"
+				class="border-0 bg-transparent"
 				aria-label={text.addAttachment}
 				onclick={() => fileInput?.click()}
 				disabled={disabled || editing !== null}
 			>
 				<PlusIcon />
 			</InputGroup.Button>
-			<Tooltip.Root>
-				<Tooltip.Trigger>
-					{#snippet child({ props })}
-						<Toggle
-							{...props}
-							size="sm"
-							aria-label={formatToggleLabel}
-							bind:pressed={showsFormatToolbar}
-							onPressedChange={rememberFormatToolbarShown}
-							{disabled}
-						>
-							<CaseSensitiveIcon />
-						</Toggle>
-					{/snippet}
-				</Tooltip.Trigger>
-				<Tooltip.Content side="top">{formatToggleLabel}</Tooltip.Content>
-			</Tooltip.Root>
-			<EmojiPicker onPick={insertEmoji} side="top" align="start">
-				{#snippet trigger({ props })}
-					<InputGroup.Button {...props} size="icon-sm" aria-label={text.addEmoji} {disabled}>
-						<SmilePlusIcon />
-					</InputGroup.Button>
-				{/snippet}
-			</EmojiPicker>
-			{#if canMention}
-				<InputGroup.Button size="icon-sm" aria-label={text.addMention} {disabled} onclick={startMention}>
-					<AtSignIcon />
+		</InputGroup.Addon>
+		<InputGroup.Addon align="inline-end" class="composer-send-end sm:hidden">
+			{@render sendButton('')}
+		</InputGroup.Addon>
+		{#if showsFormatToolbar && !isMobile.current}
+			<ComposerFormatToolbar {disabled} {activeFormats} onFormat={format} />
+		{/if}
+		<InputGroup.Addon align="block-end" class="composer-actions hidden pt-1 sm:flex">
+			<ButtonGroup.Root class="composer-tools" aria-label={text.composerTools}>
+				<ButtonGroup.Root aria-label={text.addAttachment}>
+				<InputGroup.Button
+					type="button"
+					variant="outline"
+					size="icon-sm"
+					aria-label={text.addAttachment}
+					onclick={() => fileInput?.click()}
+					disabled={disabled || editing !== null}
+				>
+					<PaperclipIcon data-icon="inline-start" />
 				</InputGroup.Button>
-			{/if}
-			<InputGroup.Button
-				type="submit"
-				variant="default"
-				size="icon-sm"
-				class="ms-auto"
-				disabled={disabled || (value.trim().length === 0 && pendingAttachments.length === 0) || isSending}
-			>
-				<ArrowUpIcon />
-				<span class="sr-only">{editing ? text.saveEdit : text.send}</span>
-			</InputGroup.Button>
+				</ButtonGroup.Root>
+				<ButtonGroup.Root aria-label={text.composerTextTools}>
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+								<Toggle
+									{...props}
+									variant="outline"
+								size="sm"
+								aria-label={formatToggleLabel}
+								bind:pressed={showsFormatToolbar}
+								onPressedChange={rememberFormatToolbarShown}
+								{disabled}
+							>
+								<CaseSensitiveIcon />
+							</Toggle>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="top">{formatToggleLabel}</Tooltip.Content>
+				</Tooltip.Root>
+				<EmojiPicker onPick={insertEmoji} side="top" align="start">
+					{#snippet trigger({ props })}
+						<InputGroup.Button {...props} variant="outline" size="icon-sm" aria-label={text.addEmoji} {disabled}>
+						<SmilePlusIcon />
+						</InputGroup.Button>
+					{/snippet}
+				</EmojiPicker>
+				{#if canMention}
+					<InputGroup.Button variant="outline" size="icon-sm" aria-label={text.addMention} {disabled} onclick={() => void startMention()}>
+						<AtSignIcon />
+					</InputGroup.Button>
+				{/if}
+				</ButtonGroup.Root>
+			</ButtonGroup.Root>
+			{@render sendButton('ms-auto hidden sm:inline-flex')}
 		</InputGroup.Addon>
 	</InputGroup.Root>
+	{#if isMobile.current}
+		<span id={`composer-selection-help-${name}`} class="sr-only">{text.selectionFormattingHelp}</span>
+		<Popover.Root bind:open={showsSelectionFormatting}>
+			<Popover.Content
+				customAnchor={selectionAnchor ?? undefined}
+				side="top"
+				align="center"
+				trapFocus={false}
+				role="dialog"
+				aria-modal="false"
+				aria-label={text.selectionFormatting}
+				class="max-w-[calc(100vw-16px)] w-72"
+				onOpenAutoFocus={(event) => event.preventDefault()}
+				onCloseAutoFocus={(event) => event.preventDefault()}
+				onEscapeKeydown={() => composerEditor?.focusSelection()}
+			>
+				<ComposerFormatButtons {disabled} {activeFormats} onFormat={format} onClear={() => composerEditor?.clearFormatting()} onPointerdown={(event) => event.preventDefault()} />
+			</Popover.Content>
+		</Popover.Root>
+	{/if}
 </form>
+
+{#snippet sendButton(className: string)}
+	<InputGroup.Button
+		type="submit"
+		variant="default"
+		size="icon-sm"
+		class={className}
+		disabled={disabled || (value.trim().length === 0 && pendingAttachments.length === 0) || isSending}
+	>
+		<ArrowUpIcon />
+		<span class="sr-only">{editing ? text.saveEdit : text.send}</span>
+	</InputGroup.Button>
+{/snippet}
+
+<style>
+	.channel-composer :global(.composer-tools) {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	@media (max-width: 639px) {
+		.channel-composer :global(.composer-input) {
+			display: grid;
+			grid-template-columns: 44px minmax(0, 1fr) 44px;
+			column-gap: 4px;
+			padding: 4px;
+			border-radius: 26px;
+			background: color-mix(in srgb, var(--muted) 45%, var(--background));
+		}
+		.channel-composer :global(.composer-tools-start) {
+			grid-column: 1;
+			grid-row: 2;
+			align-self: end;
+			margin: 0;
+			padding: 0;
+		}
+		.channel-composer :global([data-slot="input-group-control"]) {
+			grid-column: 2;
+			grid-row: 2;
+		}
+		.channel-composer :global(.tiptap) {
+			min-height: 44px;
+			max-height: min(160px, 30dvh);
+			overflow-y: auto;
+			padding: 10px 4px;
+			font-size: 16px;
+			line-height: 24px;
+		}
+		.channel-composer :global(.tiptap p) {
+			margin-block: 0;
+		}
+		.channel-composer :global([data-slot="input-group-control"] > span) {
+			top: 10px;
+			left: 4px;
+		}
+		.channel-composer :global(.composer-send-end) {
+			grid-column: 3;
+			grid-row: 2;
+			align-self: end;
+			margin: 0;
+			padding: 0;
+		}
+		.channel-composer :global(.composer-send-end button) {
+			border-radius: 9999px;
+		}
+	}
+</style>

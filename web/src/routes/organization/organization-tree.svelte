@@ -1,6 +1,7 @@
 <script lang="ts">
 	import OrganizationCountBadge from './organization-count-badge.svelte';
 	import { Button } from '$lib/components/ui/button';
+	import { MediaQuery } from 'svelte/reactivity';
 	import Building2Icon from '@lucide/svelte/icons/building-2';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
@@ -48,6 +49,7 @@
 	} = $props();
 
 	let treeElement: HTMLDivElement;
+	const isMobile = new MediaQuery('(max-width: 639px)');
 	let expandedGroupIDs = $state<Record<string, boolean>>({});
 	let draggedGroupID = $state('');
 	let dragClientX = $state(0);
@@ -140,10 +142,10 @@
 	{/if}
 
 	<div class="min-h-0 flex-1 overflow-y-auto px-2 pt-3 pb-4" bind:this={treeElement} data-testid="organization-tree">
-		<div class="hover:bg-accent/50 flex h-9 items-center gap-1 rounded-md pr-1 pl-2">
+		<div class="hover:bg-accent/50 flex min-h-11 items-center gap-1 rounded-md pr-1 pl-2 sm:min-h-9">
 			<button
 				type="button"
-				class="flex min-w-0 flex-1 items-center gap-1 text-left text-sm"
+				class="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left text-sm sm:min-h-0"
 				onclick={() => !isEditing && onSelect('')}
 				data-testid="organization-root"
 			>
@@ -179,6 +181,7 @@
 		</div>
 
 		{#each visibleNodes as node (node.id)}
+			{@const displayDepth = isMobile.current && !isEditing ? Math.min(node.depth, 2) : node.depth}
 			{#if movePreview && previewBeforeGroupID === node.id}
 				<div class="relative h-8" data-testid="organization-drop-preview" style={`margin-left: ${movePreview.depth * 24 + 12}px`}>
 					<div class="absolute left-0 right-0 top-4 h-0.5 rounded-full bg-primary"><span class="absolute -left-1 -top-[3px] size-2 rounded-full bg-primary"></span></div>
@@ -186,17 +189,17 @@
 				</div>
 			{/if}
 			<div
-				class={['relative flex h-9 items-center gap-1 rounded-md pr-2 hover:bg-accent/50', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
-				style={`padding-left: ${(node.depth + 1) * 16 + 8}px`}
+				class={['relative flex min-h-11 items-center gap-1 rounded-md pr-2 hover:bg-accent/50 sm:min-h-9', draggedSubtreeGroupIDs.has(node.id) && 'opacity-40']}
+				style={`padding-left: ${(displayDepth + 1) * 16 + 8}px`}
 				data-organization-row={node.id}
 				data-testid={`organization-row-${node.id}`}
 			>
-				{#each { length: node.depth + 1 } as _, level (level)}
+				{#each { length: displayDepth + 1 } as _, level (level)}
 					<span class="bg-border absolute inset-y-0 w-px" style={`left: ${level * 16 + 20}px`} aria-hidden="true"></span>
 				{/each}
 				{#if isEditing}
 					<span
-						class="text-muted-foreground hover:bg-accent grid size-6 shrink-0 touch-none place-items-center rounded-md"
+						class="text-muted-foreground hover:bg-accent grid size-11 shrink-0 touch-none place-items-center rounded-md sm:size-6"
 						aria-hidden="true"
 						data-testid={`organization-drag-handle-${node.id}`}
 						use:organizationTreeDrag={{ groupID: node.id, onStart: startDrag, onMove: updateDrag, onEnd: finishDrag, onCancel: clearDrag }}
@@ -208,7 +211,7 @@
 					{#if hasChildren(node.id)}
 						<button
 							type="button"
-							class="text-muted-foreground hover:bg-accent grid size-6 shrink-0 place-items-center rounded-md"
+							class="text-muted-foreground hover:bg-accent grid size-11 shrink-0 place-items-center rounded-md sm:size-6"
 							aria-expanded={isExpanded(node.id)}
 							aria-label={`${node.name} ${isExpanded(node.id) ? text.collapseOrganization : text.expandOrganization}`}
 							onclick={() => toggleExpanded(node.id)}
@@ -227,7 +230,7 @@
 				{/if}
 				<button
 					type="button"
-					class="flex min-w-0 flex-1 items-center gap-1 text-left text-sm"
+					class="flex min-h-11 min-w-0 flex-1 items-center gap-1 text-left text-sm sm:min-h-0"
 					aria-label={node.name}
 					onclick={() => selectNode(node.id)}
 				>

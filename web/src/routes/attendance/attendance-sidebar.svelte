@@ -44,16 +44,24 @@
 					variant={attendanceView.selected === 'approvals' ? 'secondary' : 'ghost'}
 					class="w-full justify-start"
 					onclick={() => attendanceView.select('approvals')}
+				onpointerenter={() => attendanceView.prefetch('approvals')}
+				onfocus={() => attendanceView.prefetch('approvals')}
+				ontouchstart={() => attendanceView.prefetch('approvals')}
 					data-testid="leave-approval-navigation"
 				>
 					<InboxIcon />
 					<span class="flex-1 text-left">{text.approval.pendingNavigation}</span>
-					<Badge variant="secondary">{leaveApproval.inbox?.pendingCount ?? 0}</Badge>
+					{#if leaveApproval.inbox}
+						<Badge variant="secondary">{leaveApproval.inbox.pendingCount}</Badge>
+					{/if}
 				</Button>
 				<Button
 					variant={attendanceView.selected === 'leaveManagement' ? 'secondary' : 'ghost'}
 					class="w-full justify-start"
 					onclick={() => attendanceView.select('leaveManagement')}
+				onpointerenter={() => attendanceView.prefetch('leaveManagement')}
+				onfocus={() => attendanceView.prefetch('leaveManagement')}
+				ontouchstart={() => attendanceView.prefetch('leaveManagement')}
 					data-testid="leave-management-navigation"
 				>
 					<UsersRoundIcon />
@@ -63,6 +71,9 @@
 					variant={attendanceView.selected === 'handWritten' ? 'secondary' : 'ghost'}
 					class="w-full justify-start"
 					onclick={() => attendanceView.select('handWritten')}
+				onpointerenter={() => attendanceView.prefetch('handWritten')}
+				onfocus={() => attendanceView.prefetch('handWritten')}
+				ontouchstart={() => attendanceView.prefetch('handWritten')}
 					data-testid="hand-written-navigation"
 				>
 					<PencilLineIcon />

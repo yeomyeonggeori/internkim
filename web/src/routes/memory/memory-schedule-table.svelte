@@ -3,6 +3,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
+	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -25,6 +27,7 @@
 	};
 
 	let { text, schedules, isLoading, hasLoadError, openEditDialog, confirmDeleteSchedule }: Props = $props();
+	const isMobile = new MediaQuery('(max-width: 639px)');
 
 	function scheduleTitle(schedule: MemorySchedule): string {
 		return schedule.promptPreview?.trim() || schedule.name?.trim() || schedule.taskScheduleID;
@@ -101,6 +104,31 @@
 		<p class="text-sm text-muted-foreground">{text.scheduleEmpty}</p>
 	</div>
 {:else if schedules.length > 0}
+	{#if isMobile.current}
+		<ul class="divide-y">
+			{#each schedules as schedule (schedule.taskScheduleID)}
+				<li class="grid min-w-0 gap-3 p-4">
+					<p class="break-words text-sm font-medium">{scheduleTitle(schedule)}</p>
+					<div class="flex flex-wrap items-center gap-2"><Badge variant={scheduleStatusVariant(schedule)}>{scheduleStatusLabel(schedule)}</Badge><span class="text-sm text-muted-foreground">{scheduleTiming(schedule)}</span></div>
+					<p class="text-sm">{text.scheduleNextRun}: {dateTimeText(schedule.nextRunAt, schedule.timeZone)}</p>
+					<div class="flex flex-wrap items-center gap-2">
+						<Button variant="outline" onclick={() => openEditDialog(schedule)}><PencilIcon />{text.scheduleEdit}</Button>
+						<Button variant="ghost" class="text-destructive" onclick={() => confirmDeleteSchedule(schedule)}><Trash2Icon />{text.scheduleDelete}</Button>
+					</div>
+					<Collapsible.Root>
+						<Collapsible.Trigger>{#snippet child({ props })}<Button {...props} variant="ghost" class="px-0 text-muted-foreground">{text.scheduleDetails}</Button>{/snippet}</Collapsible.Trigger>
+						<Collapsible.Content><dl class="grid gap-3 border-t pt-3 text-sm">
+							<div><dt class="text-xs text-muted-foreground">ID</dt><dd class="break-all font-mono">{schedule.taskScheduleID}</dd></div>
+							<div><dt class="text-xs text-muted-foreground">{text.scheduleKind}</dt><dd>{scheduleKind(schedule)}</dd></div>
+							<div><dt class="text-xs text-muted-foreground">{text.scheduleExpiresAt}</dt><dd>{expirationText(schedule)}</dd></div>
+							<div><dt class="text-xs text-muted-foreground">{text.scheduleRunCount}</dt><dd>{runCountText(schedule)}</dd></div>
+							<div><dt class="text-xs text-muted-foreground">{text.scheduleFailures}</dt><dd>{failureCountText(schedule)}</dd></div>
+						</dl></Collapsible.Content>
+					</Collapsible.Root>
+				</li>
+			{/each}
+		</ul>
+	{:else}
 	<div class="overflow-x-auto">
 		<Table.Root>
 			<Table.Header>
@@ -161,4 +189,5 @@
 			</Table.Body>
 		</Table.Root>
 	</div>
+	{/if}
 {/if}

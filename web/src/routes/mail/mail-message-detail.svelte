@@ -11,6 +11,7 @@
 	import MoreVerticalIcon from '@lucide/svelte/icons/more-vertical';
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { MediaQuery } from 'svelte/reactivity';
 
 	import { MAIL_MESSAGE_IFRAME_SANDBOX, mailHTMLDocument, mailSenderAddress, mailSenderName } from './mail-message-utils';
 	import type { MailMoveTarget } from './mail-page-utils';
@@ -19,6 +20,7 @@
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
 	const MAIL_MOVE_TARGET_ICONS = { archive: ArchiveIcon, junk: ArchiveXIcon, trash: Trash2Icon };
+	const isMobile = new MediaQuery('(max-width: 639px)');
 
 	type Props = {
 		selectedMessage: MailMessage | null;
@@ -73,7 +75,7 @@
 			</TooltipIconButton>
 		{/if}
 		{#if selectedMessage}
-			<div class="flex items-center gap-1">
+			<div class="hidden items-center gap-1 sm:flex">
 				{#each moveTargets as target (target)}
 					{@const Icon = MAIL_MOVE_TARGET_ICONS[target]}
 					<TooltipIconButton label={text.moveTargets[target]} variant="ghost" size="icon-sm" onclick={() => moveSelectedMessage(target)}>
@@ -85,10 +87,10 @@
 				<TooltipIconButton label={text.reply} variant="ghost" size="icon-sm" onclick={openReply}>
 					<ReplyIcon />
 				</TooltipIconButton>
-				<TooltipIconButton label={text.forward} variant="ghost" size="icon-sm" onclick={openForward}>
+				<TooltipIconButton class="hidden sm:inline-flex" label={text.forward} variant="ghost" size="icon-sm" onclick={openForward}>
 					<ForwardIcon />
 				</TooltipIconButton>
-				<Separator orientation="vertical" class="mx-1 !h-6" />
+				<Separator orientation="vertical" class="mx-1 hidden !h-6 sm:block" />
 				<DropdownMenu.Root>
 					<DropdownMenu.Trigger>
 						{#snippet child({ props })}
@@ -98,10 +100,22 @@
 						{/snippet}
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" class="w-48">
+						{#if isMobile.current}
+						<DropdownMenu.Group>
+							<DropdownMenu.Item onSelect={openForward}><ForwardIcon />{text.forward}</DropdownMenu.Item>
+							{#each moveTargets as target (target)}
+								{@const Icon = MAIL_MOVE_TARGET_ICONS[target]}
+								<DropdownMenu.Item onSelect={() => moveSelectedMessage(target)}><Icon />{text.moveTargets[target]}</DropdownMenu.Item>
+							{/each}
+						</DropdownMenu.Group>
+						<DropdownMenu.Separator />
+						{/if}
+						<DropdownMenu.Group>
 						<DropdownMenu.Item disabled={!selectedMessage.isRead} onSelect={markSelectedMessageUnread}>
 							<MailIcon />
 							{text.markUnread}
 						</DropdownMenu.Item>
+						</DropdownMenu.Group>
 					</DropdownMenu.Content>
 				</DropdownMenu.Root>
 			</div>
@@ -114,18 +128,19 @@
 				<Avatar.Root>
 					<Avatar.Fallback>{senderInitials}</Avatar.Fallback>
 				</Avatar.Root>
-				<div class="grid min-w-0 gap-1">
+				<div class="grid min-w-0 flex-1 gap-1">
 					<div class="truncate font-semibold">{senderName || text.unknownSender}</div>
-					<div class="line-clamp-1 text-xs">{selectedMessage.subject || text.noSubject}</div>
+					<div class="line-clamp-3 break-words text-sm sm:line-clamp-1 sm:text-xs">{selectedMessage.subject || text.noSubject}</div>
 					{#if senderAddress}
 						<div class="line-clamp-1 text-xs"><span class="font-medium">{text.from}:</span> {senderAddress}</div>
 					{/if}
 					{#if selectedMessage.to}
 						<div class="line-clamp-1 text-xs text-muted-foreground"><span class="font-medium">{text.to}:</span> {selectedMessage.to}</div>
 					{/if}
+					{#if dateLabel}<div class="text-xs text-muted-foreground sm:hidden">{dateLabel}</div>{/if}
 				</div>
 				{#if dateLabel}
-					<div class="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{dateLabel}</div>
+					<div class="ml-auto hidden shrink-0 pl-2 text-xs text-muted-foreground sm:block">{dateLabel}</div>
 				{/if}
 			</div>
 			<Separator />
@@ -145,7 +160,7 @@
 							srcdoc={mailHTMLDocument(messageBodyHTML)}
 						></iframe>
 					{:else}
-						<p class="whitespace-pre-wrap leading-6">{messageBody}</p>
+						<p class="whitespace-pre-wrap break-words leading-6">{messageBody}</p>
 					{/if}
 				{/if}
 			</div>

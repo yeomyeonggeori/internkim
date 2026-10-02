@@ -5,6 +5,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { MediaQuery } from 'svelte/reactivity';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
@@ -91,6 +93,9 @@
 
 	let selectedTab = $state<CRMTab>('relationships');
 	let selectedStatus = $state<CRMOrganizationStatusFilter>('all');
+	const isMobile = new MediaQuery('(max-width: 639px)');
+	let showsMetrics = $state(false);
+	let showsRelationshipFilters = $state(false);
 	let selectedType = $state<CRMOrganizationTypeFilter>('all');
 	let selectedImportance = $state<CRMImportanceFilter>('all');
 	let selectedLastContact = $state<CRMLastContactWindow>('all');
@@ -352,18 +357,25 @@
 	{#if controller.isLoading}
 		<div role="status" class="flex min-h-64 items-center justify-center gap-2 rounded-md border text-sm text-muted-foreground"><LoaderCircleIcon class="size-4 animate-spin" />{text.loading}</div>
 	{:else if !controller.errorMessage}
-		<section class="min-w-0" data-crm-metrics>
+		<Collapsible.Root class="min-w-0" data-crm-metrics open={!isMobile.current || showsMetrics} onOpenChange={(open) => showsMetrics = open}>
+			<Collapsible.Trigger class="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium sm:hidden">{text.metricsOverview}<span aria-hidden="true">{showsMetrics ? '−' : '+'}</span></Collapsible.Trigger>
+			<Collapsible.Content>
 			<Card.Root class="grid min-w-0 grid-cols-2 gap-px bg-border py-0 lg:grid-cols-4">
 				{#each kpiCards as card (card.id)}<CRMKPICell {card} />{/each}
 			</Card.Root>
-		</section>
+			</Collapsible.Content>
+		</Collapsible.Root>
 
 		<UnderlineTabs.Root bind:value={selectedTab} class="min-w-0 gap-3">
-			<UnderlineTabs.List class="overflow-x-clip">{#each tabItems as tab (tab.value)}<UnderlineTabs.Trigger value={tab.value}>{tab.label}</UnderlineTabs.Trigger>{/each}</UnderlineTabs.List>
+			<UnderlineTabs.List class="max-w-full overflow-x-auto">{#each tabItems as tab (tab.value)}<UnderlineTabs.Trigger value={tab.value}>{tab.label}</UnderlineTabs.Trigger>{/each}</UnderlineTabs.List>
 
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
 					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine">{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
+					<Button type="button" class="ml-auto sm:order-last" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+					<Collapsible.Root class="w-full min-w-0 sm:contents" open={!isMobile.current || showsRelationshipFilters} onOpenChange={(open) => showsRelationshipFilters = open}>
+						<Collapsible.Trigger class="sm:hidden">{#snippet child({ props })}<Button {...props} variant="outline">{text.filters}{hasRelationshipFacets ? ' · ' + [selectedStatus, selectedType, selectedImportance, selectedLastContact].filter((value) => value !== 'all').length : ''}</Button>{/snippet}</Collapsible.Trigger>
+						<Collapsible.Content class="flex min-w-0 flex-wrap gap-2 py-2 sm:contents">
 					<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" searchable={false} class="w-auto" />
 					<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" searchable={false} class="w-auto" />
 					<FilterCombobox bind:value={selectedImportance} options={importanceFilterOptions} label={text.importance} clearValue="all" searchable={false} class="w-auto" />
@@ -372,7 +384,8 @@
 					{#if hasRelationshipFacets}
 						<Button type="button" variant="ghost" onclick={resetRelationshipFacets}>{text.resetFilters}</Button>
 					{/if}
-					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+						</Collapsible.Content>
+					</Collapsible.Root>
 				</div>
 				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {organizationTypeDefinitions} {currencyCatalogue} {text} {openOrganization} />
 			</UnderlineTabs.Content>
@@ -409,7 +422,7 @@
 				{#if pipelineView === 'table'}
 					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
 				{:else}
-					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onMove={moveOpportunity} />
+					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onMove={moveOpportunity} onEdit={openOpportunityEdit} />
 				{/if}
 			</UnderlineTabs.Content>
 

@@ -64,7 +64,7 @@
 		<div class="flex gap-2"><Button variant="outline" size="sm" onclick={beginForget}><EraserIcon data-icon="inline-start" />{text.forget}</Button></div>
 	{/if}
 	<Separator />
-	<dl class="grid grid-cols-2 gap-4 text-sm">
+	<dl class="grid grid-cols-1 gap-4 break-words text-sm sm:grid-cols-2">
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{fact.validUntil ? text.validity : text.validFrom}</dt><dd>{memoryDate(fact.validFrom, text, currentLocale.value)}{#if fact.validUntil} → {memoryDate(fact.validUntil, text, currentLocale.value)}{/if}</dd></div>
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.circles}</dt><dd>{fact.circleIDs.length > 0 ? fact.circleIDs.join(', ') : text.myMemory}</dd></div>
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.reinforcementCount}</dt><dd>{text.reinforcementCountTemplate.replace('{count}', String(fact.reinforcementCount))}</dd></div>

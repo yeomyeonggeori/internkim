@@ -80,6 +80,7 @@
 
 	$effect(() => {
 		if (!open) return;
+		void myAttendanceToday.load();
 		calendarEventSearch.load();
 		taskSearch.load();
 		crmSearch.load();

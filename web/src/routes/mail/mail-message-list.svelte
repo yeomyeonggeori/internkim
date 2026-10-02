@@ -78,7 +78,7 @@
 </script>
 
 <section class="flex min-h-0 flex-col border-r bg-background max-md:border-r-0">
-	<div class="flex h-[52px] shrink-0 items-center gap-2 border-b px-4">
+	<div class="flex min-h-[52px] shrink-0 flex-wrap items-center gap-2 border-b px-3 py-1 sm:flex-nowrap sm:px-4">
 		{#if hasMailboxTrigger}
 			<Sidebar.Trigger class="-ml-1" />
 		{/if}
@@ -91,11 +91,11 @@
 		</Tabs.Root>
 	</div>
 
-	<div class="shrink-0 bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+	<div class="shrink-0 bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:p-4">
 		<form onsubmit={submitSearch}>
 			<div class="relative">
 				<SearchIcon class="absolute left-2 top-[50%] size-4 translate-y-[-50%] text-muted-foreground" />
-				<Input placeholder={text.searchMail} class="pl-8" bind:value={searchText} />
+				<Input aria-label={text.searchMail} placeholder={text.searchMail} class="pl-8" bind:value={searchText} />
 			</div>
 		</form>
 	</div>

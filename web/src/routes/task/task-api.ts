@@ -1,16 +1,18 @@
 import type { TaskDefinitions, TaskState, TaskSummary, Task, TaskWeeklySummary } from './task-types';
 import type { TaskBoardMoveRequest } from './task-board-drag';
 import {
+	forgetTaskStateRead,
 	moveTask,
 	removeTask,
 	saveTask as saveTaskOnRecord,
 	saveTaskVocabulary,
 	taskState,
-	taskWeeklySummary,
+	taskWeeklySummaryOf,
 	updateTaskParent as setTaskParentOnRecord,
 	updateTaskParents as setTaskParentsOnRecord
 } from '$lib/task/task-state';
 import { callCompanyApp } from '$lib/host-bridge';
+import { clearStoredTaskSnapshot } from './task-snapshot-storage';
 
 export type TaskQuickTaskRequest = {
 	prompt: string;
@@ -25,13 +27,13 @@ export type TaskQuickTaskResult = {
 	reason: string;
 };
 
-export function fetchTaskWeeklySummary(week: string): Promise<TaskWeeklySummary> {
-	return taskWeeklySummary(week);
+export const taskStateDependency = 'app:task-state';
+
+export function fetchTaskState(scope?: string): Promise<TaskState> {
+	return taskState(scope);
 }
 
-export function fetchTaskState(): Promise<TaskState> {
-	return taskState();
-}
+export { taskWeeklySummaryOf, forgetTaskStateRead };
 
 export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySummary): TaskSummary {
 	return {
@@ -59,6 +61,7 @@ export async function createQuickTask(
 	request: TaskQuickTaskRequest,
 	fallbackMessage: string
 ): Promise<TaskQuickTaskResult> {
+	clearStoredTaskSnapshot();
 	const answer = await callCompanyApp({
 		capability: 'person.task.quick_task',
 		body: {
@@ -67,6 +70,7 @@ export async function createQuickTask(
 		}
 	});
 	if (answer.status >= 400) throw new Error(companyAppErrorMessage(answer.body, fallbackMessage));
+	clearStoredTaskSnapshot();
 	return quickTaskResultFromResponse(answer.body);
 }
 

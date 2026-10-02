@@ -19,7 +19,7 @@
 	{#if canSort}
 		<button
 			type="button"
-			class="-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground"
+			class="-mx-1 inline-flex min-h-11 items-center gap-1 rounded px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground sm:min-h-0 sm:px-1"
 			onclick={() => column?.toggleSorting(sortDirection === 'asc')}
 		>
 			{label}

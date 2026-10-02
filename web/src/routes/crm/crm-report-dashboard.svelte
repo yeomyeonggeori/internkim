@@ -333,16 +333,16 @@
 				{#each stageBars as row (row.stage)}
 					{@const StageIcon = dealStageIcon(row.stage)}
 					{@const isOutcome = row.outcome === 'won' || row.outcome === 'lost'}
-					<div class={cn('grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(5.5rem,auto)] items-center gap-2 text-sm', isOutcome && 'opacity-60')}>
+					<div class={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-sm sm:grid-cols-[7.5rem_minmax(0,1fr)_minmax(5.5rem,auto)]', isOutcome && 'opacity-60')}>
 						<span class="flex min-w-0 items-center gap-1.5">
 							<StageIcon class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
 							<span class="truncate text-muted-foreground">{row.label}</span>
 							<span class="shrink-0 font-medium tabular-nums">{row.count}</span>
 						</span>
-						<div class="h-2 overflow-hidden rounded-full bg-muted">
+						<div class="order-3 col-span-2 h-2 overflow-hidden rounded-full bg-muted sm:order-none sm:col-span-1">
 							<div class="h-full rounded-full bg-foreground" style={`width: ${(row.count / stageBarMaximum) * 100}%`}></div>
 						</div>
-						<span class="text-right font-medium tabular-nums">{money(row.totals)}</span>
+						<span class="break-all text-right font-medium tabular-nums">{money(row.totals)}</span>
 					</div>
 				{:else}
 					<p class="py-8 text-center text-sm text-muted-foreground">{text.noReportData}</p>
@@ -354,19 +354,19 @@
 			<Card.Header><Card.Title class="text-base">{text.progressKindReport}</Card.Title></Card.Header>
 			<Card.Content class="grid gap-2.5">
 				{#each pipelineBars as row (row.pipeline)}
-					<div class="grid grid-cols-[7.5rem_minmax(0,1fr)_minmax(5.5rem,auto)] items-center gap-2 text-sm">
+					<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-sm sm:grid-cols-[7.5rem_minmax(0,1fr)_minmax(5.5rem,auto)]">
 						<span class="flex min-w-0 items-center gap-1.5">
 							<ColorMarker color={row.color} />
 							<span class="truncate text-muted-foreground">{row.label}</span>
 							<span class="shrink-0 font-medium tabular-nums">{row.count}</span>
 						</span>
-						<div class="h-2 overflow-hidden rounded-full bg-muted">
+						<div class="order-3 col-span-2 h-2 overflow-hidden rounded-full bg-muted sm:order-none sm:col-span-1">
 							<div
 								class={cn('h-full rounded-full', row.color ? '' : 'bg-foreground')}
 								style={`width: ${(row.count / pipelineBarMaximum) * 100}%${row.color ? `; background-color: ${row.color}` : ''}`}
 							></div>
 						</div>
-						<span class="text-right font-medium tabular-nums">{money(row.totals)}</span>
+						<span class="break-all text-right font-medium tabular-nums">{money(row.totals)}</span>
 					</div>
 				{:else}
 					<p class="py-8 text-center text-sm text-muted-foreground">{text.noReportData}</p>

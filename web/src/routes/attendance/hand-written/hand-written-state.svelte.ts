@@ -60,6 +60,7 @@ export class HandWrittenState {
 	clear(): void {
 		this.loadSequence += 1;
 		this.records = [];
+		this.dayRange = { from: '', to: '' };
 		this.isLoading = false;
 		this.errorMessage = '';
 	}

@@ -16,7 +16,7 @@ async function routeCalendarHolidays(page: Page): Promise<void> {
 test.describe('calendar route shell', () => {
 	test.use({ locale: 'ko-KR' });
 
-	test('renders the embedded calendar without the old sidebar', async ({ page }) => {
+	test('renders the calendar directly without an internal frame', async ({ page }) => {
 		await routeCalendarHolidays(page);
 		await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));
 		const [eventID] = await seedCalendarEvents([
@@ -25,11 +25,12 @@ test.describe('calendar route shell', () => {
 		try {
 			await signInToCalendar(page);
 
-			const calendarFrame = page.frameLocator('iframe');
+			const calendarFrame = page;
 			await expect(calendarFrame.locator('.calendar-toolbar-title')).toHaveText(/2026년 \d+월/);
+			await expect(page.locator('iframe')).toHaveCount(0);
 			await expect(page.getByText('내 일정')).toHaveCount(0);
 			await expect(page.locator('[data-mini-date-key]')).toHaveCount(0);
-			await expectRouteCalendarFrameToFillContent(page);
+			await expectRouteCalendarToFillContent(page);
 		} finally {
 			await cleanupCalendarEvents([eventID]);
 		}
@@ -44,12 +45,12 @@ test.describe('calendar route shell', () => {
 		try {
 			await signInToCalendar(page);
 
-			const eventButton = page.frameLocator('iframe').locator(`[data-calendar-event-id="${eventID}"]:visible`).first();
+			const eventButton = page.locator(`[data-calendar-event-id="${eventID}"]:visible`).first();
 			await expect(eventButton).toBeVisible();
 			await eventButton.click();
 
 			await expect(eventButton).toHaveAttribute('data-selected', '');
-			await expect(page.frameLocator('iframe').locator('.calendar-draft-popover')).toBeVisible();
+			await expect(page.locator('.calendar-draft-popover')).toBeVisible();
 			expect(context.pages()).toHaveLength(1);
 		} finally {
 			await cleanupCalendarEvents([eventID]);
@@ -147,7 +148,7 @@ test.describe('calendar route shell', () => {
 		try {
 			await signInToCalendar(page);
 
-			const calendarFrame = page.frameLocator('iframe');
+			const calendarFrame = page;
 			const eventButton = calendarFrame.locator(`[data-calendar-event-id="${eventID}"]:visible`).first();
 			await expect(eventButton).toBeVisible();
 			await eventButton.click();
@@ -175,7 +176,7 @@ test.describe('calendar route shell', () => {
 		await routeCalendarHolidays(page);
 		await page.setViewportSize({ width: 390, height: 844 });
 		await signInToCalendar(page);
-		await expect(page.locator('iframe')).toBeVisible();
+		await expect(page.locator('.calendar-page')).toBeVisible();
 		await expectHorizontalOverflow(page, false);
 
 		await page.goto(calendarEmbedPath);
@@ -184,10 +185,10 @@ test.describe('calendar route shell', () => {
 	});
 });
 
-async function expectRouteCalendarFrameToFillContent(page: Page): Promise<void> {
+async function expectRouteCalendarToFillContent(page: Page): Promise<void> {
 	await expect
 		.poll(async () =>
-			page.locator('iframe').evaluate((element) => {
+			page.locator('.calendar-page').evaluate((element) => {
 				const rectangle = element.getBoundingClientRect();
 				const parentRectangle = element.parentElement?.getBoundingClientRect();
 				if (!parentRectangle) return false;
@@ -198,7 +199,7 @@ async function expectRouteCalendarFrameToFillContent(page: Page): Promise<void> 
 }
 
 async function openCalendarSettings(page: Page): Promise<void> {
-	const calendarFrame = page.frameLocator('iframe');
+	const calendarFrame = page;
 	await expect(calendarFrame.locator('.calendar-toolbar-title')).toBeVisible();
 	const settingsButton = calendarFrame.getByRole('button', { name: '설정' });
 	const settingsHeading = page.getByRole('heading', { name: '설정' });

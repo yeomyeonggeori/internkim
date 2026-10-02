@@ -17,7 +17,7 @@
 	}
 </script>
 
-<Tabs.Root value={toolbarView} onValueChange={selectView} aria-label={text.calendarView} class="shrink-0">
+<Tabs.Root value={toolbarView} onValueChange={selectView} aria-label={text.calendarView} class="shrink-0 max-sm:min-w-0 max-sm:w-full">
 	<Tabs.List>
 		<Tabs.Trigger value={ViewType.DAY}>{text.day}</Tabs.Trigger>
 		<Tabs.Trigger value={ViewType.WEEK}>{text.week}</Tabs.Trigger>

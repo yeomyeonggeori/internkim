@@ -8,14 +8,14 @@ type CachedAttendanceSummary = {
 	cachedAt: number;
 };
 
-function storageKey(month: string) {
-	return `${storageKeyPrefix}${month || 'current'}`;
+function storageKey(month: string, scope = '') {
+	return `${storageKeyPrefix}${scope ? `${encodeURIComponent(scope)}.` : ''}${month || 'current'}`;
 }
 
-export function readCachedAttendanceSummary(month: string): AttendanceSummary | null {
+export function readCachedAttendanceSummary(month: string, scope = ''): AttendanceSummary | null {
 	if (typeof window === 'undefined') return null;
 	try {
-		const raw = window.sessionStorage.getItem(storageKey(month));
+		const raw = window.sessionStorage.getItem(storageKey(month, scope));
 		if (!raw) return null;
 		const cached = JSON.parse(raw) as CachedAttendanceSummary;
 		if (!cached.summary || Date.now() - cached.cachedAt > freshMilliseconds) return null;
@@ -25,12 +25,12 @@ export function readCachedAttendanceSummary(month: string): AttendanceSummary | 
 	}
 }
 
-export function writeCachedAttendanceSummary(month: string, summary: AttendanceSummary): void {
+export function writeCachedAttendanceSummary(month: string, summary: AttendanceSummary, scope = ''): void {
 	if (typeof window === 'undefined') return;
 	try {
 		const cached: CachedAttendanceSummary = { summary, cachedAt: Date.now() };
-		window.sessionStorage.setItem(storageKey(month), JSON.stringify(cached));
-		if (month !== summary.month) window.sessionStorage.setItem(storageKey(summary.month), JSON.stringify(cached));
+		window.sessionStorage.setItem(storageKey(month, scope), JSON.stringify(cached));
+		if (month !== summary.month) window.sessionStorage.setItem(storageKey(summary.month, scope), JSON.stringify(cached));
 	} catch {
 		return;
 	}

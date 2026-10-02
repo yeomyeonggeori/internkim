@@ -98,7 +98,7 @@ test('an activity registered on the calendar stays off the task board, and one w
 	await recordActivity(page, boardActivityTitle, false);
 
 	await page.goto('/example-co/calendar');
-	const calendar = page.frameLocator('iframe');
+	const calendar = page.locator('.calendar-stage');
 	await expect(calendar.getByText(calendarActivityTitle).first()).toBeVisible({ timeout: 20000 });
 	await expect(calendar.getByText(boardActivityTitle)).toHaveCount(0);
 

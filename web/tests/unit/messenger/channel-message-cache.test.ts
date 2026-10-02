@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	clearChannelMessageCache,
 	getCachedMessages,
 	getCachedReaderID,
 	setCachedMessages,
@@ -18,6 +19,14 @@ describe('the cache a reopened channel draws from', () => {
 		];
 		setCachedMessages('c1', messages);
 		expect(getCachedMessages('c1')).toEqual(messages);
+	});
+
+	test('forgets both messages and reader when the account signs out', () => {
+		setCachedReaderID('member:old');
+		setCachedMessages('old-channel', []);
+		clearChannelMessageCache();
+		expect(getCachedReaderID()).toBe('');
+		expect(getCachedMessages('old-channel')).toBeUndefined();
 	});
 
 	test('a channel nobody has opened has nothing cached', () => {

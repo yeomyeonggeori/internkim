@@ -22,8 +22,7 @@
 		`linear-gradient(135deg, ${generatePalette(numericSeed).colors.join(', ')})`
 	);
 
-	function paint(element: HTMLCanvasElement, currentSeed: number, currentPattern: Pattern): void {
-		const displaySize = element.getBoundingClientRect().width;
+	function paint(element: HTMLCanvasElement, displaySize: number, currentSeed: number, currentPattern: Pattern): void {
 		if (displaySize === 0) return;
 		const rendered = Math.round(displaySize * (window.devicePixelRatio || 1));
 		element.width = rendered;
@@ -40,11 +39,20 @@
 		if (!element) return;
 		const currentSeed = numericSeed;
 		const currentPattern = pattern;
-		const repaint = () => paint(element, currentSeed, currentPattern);
-		repaint();
-		const observer = new ResizeObserver(repaint);
-		observer.observe(element);
-		return () => observer.disconnect();
+		isPainted = false;
+		let paintedSize = 0;
+		const resize = new ResizeObserver((entries) => {
+			const displaySize = entries[0]?.contentRect.width ?? 0;
+			if (!displaySize || paintedSize === displaySize) return;
+			paintedSize = displaySize;
+			paint(element, displaySize, currentSeed, currentPattern);
+		});
+		const visibility = new IntersectionObserver((entries) => {
+			if (entries[0]?.isIntersecting) resize.observe(element);
+			else resize.unobserve(element);
+		});
+		visibility.observe(element);
+		return () => { visibility.disconnect(); resize.disconnect(); };
 	});
 </script>
 

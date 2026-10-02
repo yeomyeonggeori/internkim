@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
+	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label } from '$lib/components/ui/label';
 	import {
 		belongsToACompany,
@@ -109,7 +110,7 @@
 
 <svelte:head><title>회사 만들기</title></svelte:head>
 
-<main class="flex min-h-svh items-center justify-center overflow-y-auto p-6">
+<main class="flex min-h-svh items-center justify-center overflow-y-auto p-4 sm:p-6">
 	{#if founded}
 		<Card.Root class="w-full max-w-lg">
 			<Card.Header>
@@ -125,13 +126,13 @@
 					</p>
 					{#each founded.invitations as invitation (invitation.memberID)}
 						<div class="grid gap-1 rounded-lg border p-3">
-							<span class="text-sm">{invitation.email}</span>
-							<span class="font-mono text-lg select-all">{invitation.temporaryPassword}</span>
+							<span class="break-all text-sm">{invitation.email}</span>
+							<span class="break-all font-mono text-lg select-all">{invitation.temporaryPassword}</span>
 						</div>
 					{/each}
 				{/if}
 			</Card.Content>
-			<Card.Footer class="gap-2">
+			<Card.Footer class="flex-col items-stretch gap-2 sm:flex-row sm:items-center">
 				{#if whereTheyWereGoing}
 					<Button onclick={() => goto(whereTheyWereGoing)}>적어뒀습니다, 계속하기</Button>
 					<Button variant="outline" onclick={() => goto('/settings/setup')}>회사 컴퓨터 연결하기</Button>
@@ -156,8 +157,8 @@
 					</div>
 					<div class="grid gap-1.5">
 						<Label for="company-slug-{fieldID}">주소</Label>
-						<div class="flex items-center gap-2">
-							<Input id="company-slug-{fieldID}" bind:value={slug} oninput={clearAddressCheck} onblur={checkAddress} disabled={isFounding} />
+						<div class="flex min-w-0 items-center gap-2">
+							<Input class="min-w-0" id="company-slug-{fieldID}" bind:value={slug} oninput={clearAddressCheck} onblur={checkAddress} disabled={isFounding} />
 							<span class="text-sm whitespace-nowrap text-muted-foreground">.{addressZone}</span>
 						</div>
 						{#if addressNotice}
@@ -166,7 +167,7 @@
 					</div>
 					<div class="grid gap-1.5">
 						<Label for="company-invited-{fieldID}">함께할 사람들</Label>
-						<Input
+						<Textarea rows={2}
 							id="company-invited-{fieldID}"
 							bind:value={invited}
 							placeholder="이메일을 쉼표나 줄바꿈으로"

@@ -1,3 +1,4 @@
+import { calendarOwnsKeyboardEvent } from './calendar-keyboard-scope';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 
 export type CalendarKeyboardDeleteContext = {
@@ -8,6 +9,7 @@ export type CalendarKeyboardDeleteContext = {
 
 export function installCalendarKeyboardDelete(context: CalendarKeyboardDeleteContext): () => void {
 	const handleKeydown = (event: KeyboardEvent): void => {
+		if (!calendarOwnsKeyboardEvent(event)) return;
 		if (!isDeleteKey(event)) return;
 		if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
 		if (isEditableKeyboardTarget(event.target, document.activeElement)) return;

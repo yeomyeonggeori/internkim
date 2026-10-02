@@ -54,6 +54,65 @@ flowchart TB
 
 Every arrow leaving the host points outward. None points in.
 
+## App read ordering and freshness
+
+The web app and the native app's shared web screens use the same read paths.
+Authentication and company membership are verified before a route accepts
+account-scoped data. The signed-in member lookup is shared within the current
+account session; focus revalidation and account changes invalidate it.
+
+Opening a task board starts `task_list` and `person_list` together. Actual
+cards can appear when the task response arrives, while the directory completes
+member-dependent editing. Selecting another week derives a view from the same
+state instead of reading the complete history again. A saved task snapshot is
+scoped to the project, company, member and role, expires after 24 hours, and is
+revalidated. Writes, logout and denied access invalidate it; a response started
+before invalidation cannot restore the old snapshot.
+The shell mounts before applying a stored board. Secondary task tabs mount on
+first use and keep their drafts within the account scope. Gradient avatars use
+observer-reported sizes and paint when visible, avoiding layout reads and
+canvas work for every card during startup.
+
+The application shell does not fetch the attendance workspace on every route.
+The account menu and command palette load attendance when opened, using the
+existing authenticated readers. The attendance screen retains its monthly
+summary and loads secondary administration views on demand. This preserves
+previous-day unclosed clock segments and authoritative clock-write validation;
+it does not replace those rules with a browser-only today filter.
+
+Record tools validate their descriptor, input and caller permissions before
+using the caller's RLS-enabled database client. Company settings and people are
+independent reads and run concurrently inside each request. Context is not
+cached across authenticated requests. No new RPC, Edge Function, generic batch
+contract or database migration is required for these ordering changes.
+
+Measure actual fixture cards and fresh response markers, rather than empty
+columns or response headers. Browser-restart tests close and relaunch the
+browser with the same profile; snapshot display and fresh data completion are
+separate measurements. These checks do not establish physical native-device
+performance or SQL execution time.
+
+The repository runners `web/scripts/measure-navigation.ts` and
+`web/scripts/measure-task-restart.ts` compare production Workers against the same
+disposable local record. They reject remote endpoints, create owned fixtures
+and clean them up. Alternate revision order, exclude the warmup pair, freeze
+both builds, and run one browser workload at a time. Record build fingerprints,
+runtime, browser, viewport, CPU rate, backend identity and host load. Report
+sample count, median and observed range; keep protocol versions separate.
+Twelve samples do not establish a population p95. A 390px touch viewport with
+CPU throttling is a simulation, not a physical phone.
+Open the mobile More menu before timing a language change; menu preparation is
+outside that scenario's timer.
+
+Task revisit and forward-navigation readiness can use a visible saved snapshot;
+they do not prove that background revalidation finished. Refresh tests change
+an owned fixture title before starting the timer and await the new DOM marker.
+The normal realtime broadcast remains enabled, so refresh traffic may contain
+both scheduled and manual reads. Report the 500ms preparation used for intent
+prefetch separately from click completion. API body durations include HTTP,
+authentication and application work; SQL statement counters require a separate
+read-only observation on the same isolated database.
+
 ## One plugin across harnesses
 
 `internkim-plugin` is the shared client package. InternKim's own agent loads the

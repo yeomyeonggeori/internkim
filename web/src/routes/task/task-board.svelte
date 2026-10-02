@@ -1,4 +1,5 @@
 <script lang="ts">
+	import './task-board-layout.css';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -99,7 +100,7 @@
 	}
 
 	function createTaskInColumn(status: string): void {
-		if (!isTaskBoardStatus(status)) return;
+		if (!isTaskBoardStatus(status) || !canCreateTaskInColumn(status, participantScope)) return;
 		createTask(status);
 	}
 </script>
@@ -187,10 +188,11 @@
 									type="button"
 									variant="ghost"
 									size="sm"
-									class="h-8 w-full justify-center text-muted-foreground opacity-0 pointer-events-none transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+									class="h-8 w-full justify-center text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto sm:opacity-0 sm:pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
 									aria-label={addTaskLabel(column.status)}
 									title={addTaskLabel(column.status)}
 									data-task-board-footer-add-task={column.status}
+									disabled={!canCreateTaskInColumn(column.status, participantScope)}
 									onclick={() => createTaskInColumn(column.status)}
 								>
 									<PlusIcon class="size-4" />
@@ -205,36 +207,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	[data-task-board-scroll] {
-		container-type: inline-size;
-		scrollbar-width: none;
-	}
-
-	[data-task-board-scroll]::-webkit-scrollbar {
-		display: none;
-	}
-
-	.task-board-column {
-		width: max(13.5rem, calc((100cqw + 1.25rem) / 1.5));
-	}
-
-	@container (min-width: 560px) {
-		.task-board-column {
-			width: max(13.5rem, calc((100cqw + 0.5rem) / 2.5));
-		}
-	}
-
-	@container (min-width: 820px) {
-		.task-board-column {
-			width: max(15rem, calc((100cqw - 0.25rem) / 3.5));
-		}
-	}
-
-	@container (min-width: 1180px) {
-		.task-board-column {
-			width: max(15.5rem, calc((100cqw - 1rem) / 4.5));
-		}
-	}
-</style>

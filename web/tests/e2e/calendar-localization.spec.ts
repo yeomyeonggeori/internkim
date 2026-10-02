@@ -4,7 +4,7 @@ import { signInToCalendar } from './calendar-central-test-utils';
 test.describe('calendar localization', () => {
 	test.use({ locale: 'ko-KR' });
 
-	test('updates embedded calendar labels when language changes', async ({ page }) => {
+	test('updates calendar labels without remounting when language changes', async ({ page }) => {
 		await page.clock.setFixedTime(new Date('2026-06-08T12:00:00'));
 		await page.route('**/api/calendar/holidays?**', async (route) => {
 			await route.fulfill({ json: { holidays: [], degraded: false } });
@@ -18,13 +18,15 @@ test.describe('calendar localization', () => {
 		});
 
 		await signInToCalendar(page);
-		let calendarFrame = page.frameLocator('iframe');
+		const calendarFrame = page;
+		await page.locator('.calendar-stage').evaluate((element) => element.setAttribute('data-kept-stage', 'yes'));
 		await expect(calendarFrame.getByRole('button', { name: '설정' })).toBeVisible();
 
 		await page.getByRole('button', { name: '언어 변경' }).click();
 		await page.getByRole('menuitemradio', { name: 'English' }).click();
 
-		calendarFrame = page.frameLocator('iframe');
+		await expect(page.locator('.calendar-stage')).toHaveAttribute('data-kept-stage', 'yes');
+		await expect(page.locator('iframe')).toHaveCount(0);
 		await expect(calendarFrame.getByRole('button', { name: 'Settings' })).toBeVisible();
 		await calendarFrame.getByRole('button', { name: 'Settings' }).click();
 		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();

@@ -164,7 +164,7 @@
 			if (popover.mode === 'edit') event.preventDefault();
 		}}
 		aria-label={dialogLabel}
-		class="calendar-draft-popover max-h-[min(30rem,var(--bits-popover-content-available-height))] w-80 gap-0 overflow-y-auto p-0"
+		class="calendar-draft-popover max-h-[min(30rem,var(--bits-popover-content-available-height))] w-[min(20rem,calc(100vw-24px))] gap-0 overflow-y-auto p-0"
 	>
 		<div class="border-border/50 border-b">
 			<Input

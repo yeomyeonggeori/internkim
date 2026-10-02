@@ -35,6 +35,15 @@
 	<Table.Cell class="text-right font-medium tabular-nums">{counted?.distance ?? counted?.score ?? 0}</Table.Cell>
 {/snippet}
 
+{#snippet mobileWork(member: { id: string })}
+	{@const counted = countsByID.get(member.id)}
+	<dl class="grid grid-cols-3 gap-2 text-sm">
+		<div><dt class="text-xs text-muted-foreground">{text.active}</dt><dd class="tabular-nums">{counted?.activeTaskCount ?? 0}</dd></div>
+		<div><dt class="text-xs text-muted-foreground">{text.completed}</dt><dd class="tabular-nums">{counted?.completeTaskCount ?? 0}</dd></div>
+		<div><dt class="text-xs text-muted-foreground">{text.distance}</dt><dd class="font-medium tabular-nums">{counted?.distance ?? counted?.score ?? 0}</dd></div>
+	</dl>
+{/snippet}
+
 <Card.Root>
 	<Card.Header>
 		<Card.Title>{text.title}</Card.Title>
@@ -46,6 +55,7 @@
 			minimumWidth="min-w-[760px]"
 			extraHeaders={workHeaders}
 			extraCells={workCells}
+			mobileExtra={mobileWork}
 			extraColumnCount={3}
 		/>
 	</Card.Content>

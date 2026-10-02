@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import TimerIcon from '@lucide/svelte/icons/timer';
@@ -37,7 +38,8 @@
 	let headerElement = $state<HTMLElement>();
 	let isHeaderStuck = $state(false);
 	let isNestedHeaderStuck = $state(false);
-	const depth = $derived(Math.min(section.depth, 8));
+	const isMobile = new MediaQuery('(max-width: 639px)');
+	const depth = $derived(Math.min(section.depth, isMobile.current ? 2 : 8));
 	const railBottom = $derived(organizationSectionTrailingGap(node, 12));
 	const today = new Date();
 
@@ -131,7 +133,7 @@
 		></span>
 	</div>
 	<Item.Group
-		class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2 pr-2"
+		class="grid grid-cols-1 gap-2 pr-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))]"
 		style={`padding-left: ${depth * 16 + 36}px`}
 		data-testid={`organization-members-${section.id || 'root'}`}
 	>
@@ -140,12 +142,12 @@
 			<Item.Root
 				variant="outline"
 				class={[
-					'bg-card hover:bg-accent/40 relative flex-col items-center gap-2 px-4 pt-7 pb-2 text-center',
+					'bg-card hover:bg-accent/40 relative flex-col items-stretch gap-2 p-3 text-left sm:items-center sm:px-4 sm:pt-7 sm:pb-2 sm:text-center',
 					selectedUserID === record.memberID && 'shadow-lg'
 				]}
 				data-testid={`organization-person-card-${record.memberID}`}
 			>
-				<div class="absolute top-2 left-2 z-10 grid justify-items-start gap-1">
+				<div class="z-10 flex flex-wrap items-center gap-1 sm:absolute sm:top-2 sm:left-2 sm:grid sm:justify-items-start">
 					{#if leadership}
 						<Badge variant="secondary" class={leadership.class}>
 							{#if leadership.isCompanyWide}
@@ -172,14 +174,14 @@
 				</div>
 				<button
 					type="button"
-					class="grid w-full justify-items-center gap-2"
+					class="flex min-h-11 w-full min-w-0 items-center gap-3 sm:grid sm:justify-items-center sm:gap-2"
 					onclick={() => selectRecord(record)}
 					data-testid={`organization-person-node-${record.memberID}`}
 				>
-					<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-20" />
-					<span class="grid w-full gap-0.5 text-center">
-						<span class="truncate text-sm leading-snug font-medium">{personLabel(record)}</span>
-						<span class="text-muted-foreground truncate text-xs leading-normal">{record.jobTitle || text.noTitle}</span>
+					<PersonAvatar name={displayPersonName(record.name)} email={record.email} seed={record.memberID} image={record.image ?? ''} class="size-10 shrink-0 sm:size-20" />
+					<span class="grid min-w-0 w-full gap-0.5 text-left sm:text-center">
+						<span class="break-words text-sm leading-snug font-medium sm:truncate">{personLabel(record)}</span>
+						<span class="text-muted-foreground break-words text-xs leading-normal sm:truncate">{record.jobTitle || text.noTitle}</span>
 					</span>
 				</button>
 				<OrganizationPersonContactActions email={record.email} phoneNumber={record.phoneNumber ?? ''} {text} />

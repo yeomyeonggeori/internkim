@@ -6,13 +6,19 @@
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { mode } from 'mode-watcher';
 	import { Toaster as Sonner, type ToasterProps as SonnerProps } from 'svelte-sonner';
+	import { MediaQuery } from 'svelte/reactivity';
 
-	let { ...restProps }: SonnerProps = $props();
+	let { position = 'bottom-right', offset, mobileOffset, ...restProps }: SonnerProps = $props();
+	const isMobile = new MediaQuery('(max-width: 639px)');
+	const topOffset = 'calc(var(--app-viewport-top, 0px) + max(16px, env(safe-area-inset-top)))';
 </script>
 
 <Sonner
 	theme={mode.current}
 	class="toaster group"
+	position={isMobile.current ? 'top-center' : position}
+	mobileOffset={isMobile.current ? { top: topOffset, left: 'max(16px, env(safe-area-inset-left))', right: 'max(16px, env(safe-area-inset-right))' } : mobileOffset}
+	offset={isMobile.current ? { top: topOffset } : offset}
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);"
 	{...restProps}
 >

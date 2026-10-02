@@ -1,9 +1,11 @@
+import { calendarOwnsKeyboardEvent } from './calendar-keyboard-scope';
 export type CalendarKeyboardUndoContext = {
 	undoLastDelete: () => boolean;
 };
 
 export function installCalendarKeyboardUndo(context: CalendarKeyboardUndoContext): () => void {
 	const handleKeydown = (event: KeyboardEvent): void => {
+		if (!calendarOwnsKeyboardEvent(event)) return;
 		if (!isUndoShortcut(event) || event.defaultPrevented || event.isComposing) return;
 		if (isEditableKeyboardTarget(event.target, document.activeElement)) return;
 		if (!context.undoLastDelete()) return;

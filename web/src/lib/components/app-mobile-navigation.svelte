@@ -10,11 +10,20 @@
 
 <script lang="ts">
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
-	import { floatingAction } from '$lib/stores/floating-action.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import PowerOffIcon from '@lucide/svelte/icons/power-off';
 	import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import SearchIcon from '@lucide/svelte/icons/search';
+	import { tick } from 'svelte';
+	import { Button } from '$lib/components/ui/button';
+	import { LightSwitch } from '$lib/components/ui/light-switch';
+	import { LanguageSwitcher } from '$lib/components/ui/language-switcher';
+	import { pageActions } from '$lib/components/app-page-actions.svelte';
+	import { currentLocale, localeOptions, setLocale } from '$lib/i18n/locale.svelte';
+	import { appShellText } from '$lib/i18n/app-shell-text';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 
 	type AppMobileNavigationText = {
 		activeWorkspace: string;
@@ -31,6 +40,7 @@
 		logOut,
 		moreItems,
 		primaryItems,
+		onSearch,
 		text,
 		userEmail,
 		userImage,
@@ -41,6 +51,7 @@
 		logOut: () => void | Promise<void>;
 		moreItems: AppMobileNavigationItem[];
 		primaryItems: AppMobileNavigationItem[];
+		onSearch?: () => void;
 		text: AppMobileNavigationText;
 		userEmail: string;
 		userImage?: string;
@@ -48,6 +59,7 @@
 	} = $props();
 
 	let isMoreSheetOpen = $state(false);
+	const shellText = createPageText(appShellText);
 	const isMobile = new IsMobile();
 	const isMoreActive = $derived(moreItems.some((item) => isActive(item.href)));
 
@@ -58,6 +70,21 @@
 
 	function closeMoreSheet() {
 		isMoreSheetOpen = false;
+	}
+
+	function selectLocale(code: string) {
+		if (code === 'ko' || code === 'en') setLocale(code);
+	}
+
+	function refreshFromMobile() {
+		closeMoreSheet();
+		void pageActions.refresh();
+	}
+
+	async function searchFromMobile() {
+		closeMoreSheet();
+		await tick();
+		onSearch?.();
 	}
 
 	async function logOutFromMobile() {
@@ -71,10 +98,10 @@
 	<a
 		href={item.href}
 		aria-label={item.label}
+		aria-current={isActive(item.href) ? 'page' : undefined}
 		data-active={isActive(item.href)}
-		data-sveltekit-preload-data="off"
-		data-sveltekit-preload-code="viewport"
-		class="flex min-w-0 flex-col items-center justify-center gap-1 rounded-full px-1 py-1 text-[10.5px] font-semibold leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-foreground data-[active=true]:text-background"
+		data-sveltekit-preload-data="hover"
+		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
 	>
 		<Icon class="size-5 shrink-0" />
 		<span class="max-w-full truncate">{item.label}</span>
@@ -86,8 +113,7 @@
 	<a
 		href={item.href}
 		data-active={isActive(item.href)}
-		data-sveltekit-preload-data="off"
-		data-sveltekit-preload-code="viewport"
+		data-sveltekit-preload-data="hover"
 		onclick={closeMoreSheet}
 		class="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
 	>
@@ -109,7 +135,7 @@
 			<button
 				type="button"
 				onclick={logOutFromMobile}
-				class="flex min-h-10 items-center gap-3 rounded-md px-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				class="flex min-h-11 items-center gap-3 rounded-md px-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			>
 				<PowerOffIcon class="size-4" />
 				<span>{text.logOut}</span>
@@ -120,17 +146,29 @@
 
 <Sheet.Root bind:open={isMoreSheetOpen}>
 	<Sheet.Content side="right" class="w-[min(20rem,calc(100vw-1.5rem))] gap-0 bg-sidebar p-0 text-sidebar-foreground" showCloseButton={true} closeLabel={text.close}>
-		<Sheet.Header class="border-b border-sidebar-border px-4 py-3">
+		<Sheet.Header class="min-h-16 justify-center border-b border-sidebar-border px-4 py-3">
 			<Sheet.Title>{text.more}</Sheet.Title>
 			<Sheet.Description class="sr-only">{text.moreDescription}</Sheet.Description>
 		</Sheet.Header>
 		<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-3">
+			{#if onSearch}
+				<Button variant="outline" class="justify-start" onclick={() => void searchFromMobile()}>
+					<SearchIcon data-icon="inline-start" />{shellText.search}
+				</Button>
+			{/if}
 			<nav class="grid gap-1">
 				{#each moreItems as item (item.href)}
 					{@render moreSheetNavigationLink(item)}
 				{/each}
 			</nav>
 			<div class="h-px bg-sidebar-border" aria-hidden="true"></div>
+			<div class="flex items-center gap-2">
+				<Button variant="ghost" size="icon" aria-label={shellText.refresh} onclick={refreshFromMobile}>
+					<RefreshCwIcon class={pageActions.isRefreshing ? 'animate-spin' : ''} />
+				</Button>
+				<LanguageSwitcher variant="ghost" languages={localeOptions.map((option) => ({ code: option.value, label: option.label }))} value={currentLocale.value} ariaLabel={shellText.changeLanguage} onChange={selectLocale} />
+				<LightSwitch variant="ghost" />
+			</div>
 			{@render mobileAccountActions()}
 		</div>
 	</Sheet.Content>
@@ -138,8 +176,7 @@
 
 <nav
 	data-app-chrome
-	class="internkim-app-mobile-navigation grid grid-cols-5 gap-1 rounded-full border border-sidebar-border/70 bg-background/[0.82] shadow-[0_18px_45px_rgb(15_23_42_/_0.16)] backdrop-blur-md supports-backdrop-filter:bg-background/[0.78] sm:hidden"
-	data-has-floating-action={floatingAction.isPresent}
+	class="internkim-app-mobile-navigation grid grid-cols-5 border-t border-sidebar-border bg-background sm:hidden"
 	aria-label={text.apps}
 >
 	{#each primaryItems as item (item.href)}
@@ -151,7 +188,7 @@
 		aria-expanded={isMoreSheetOpen}
 		data-active={isMoreActive || isMoreSheetOpen}
 		onclick={() => (isMoreSheetOpen = true)}
-		class="flex min-w-0 flex-col items-center justify-center gap-1 rounded-full px-1 py-1 text-[10.5px] font-semibold leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-foreground data-[active=true]:text-background"
+		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
 	>
 		<MoreHorizontalIcon class="size-5 shrink-0" />
 		<span class="max-w-full truncate">{text.more}</span>

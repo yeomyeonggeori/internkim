@@ -87,13 +87,17 @@ async function expectColumnFit(
 	const columns = await panel.getByRole('columnheader').evaluateAll((headers) =>
 		headers
 			.filter((header) => (header as HTMLElement).offsetParent !== null)
-			.map((header) => ({
-				label: header.textContent?.trim() ?? '',
+			.map((header) => {
+				const visibleLabel = header.cloneNode(true) as HTMLElement;
+				visibleLabel.querySelectorAll('.sr-only').forEach(element => element.remove());
+				return ({
+				label: visibleLabel.textContent?.trim() ?? '',
 				width: header.getBoundingClientRect().width,
 				textAlign: getComputedStyle(header).textAlign
-			}))
+			}); })
 	);
-	expect(columns.length, `${context} has columns`).toBeGreaterThan(1);
+	const hasMobileSummary = context.startsWith('390px') && (context.endsWith('연락처') || context.endsWith('거래'));
+	expect(columns.length, `${context} has columns`).toBeGreaterThanOrEqual(hasMobileSummary ? 1 : 2);
 
 	if (isContentSized) {
 		// The name column is first and takes every pixel the others do not need.

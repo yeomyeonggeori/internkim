@@ -166,7 +166,7 @@
 			<div class="grid content-start gap-1.5">
 				<p class="text-sm font-medium">{text.leave.unitLabel}</p>
 				<div
-					class="grid h-8 rounded-lg border p-0.5"
+					class="grid min-h-12 rounded-lg border p-0.5 sm:min-h-8"
 					data-testid="leave-request-unit-control"
 					style:grid-template-columns={`repeat(${Math.max(1, selectedLeaveType?.allowedUnits.length ?? 1)}, minmax(0, 1fr))`}
 				>
@@ -269,7 +269,7 @@
 	</div>
 
 	<div
-		class="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t bg-popover/95 px-4 py-4 backdrop-blur-sm sm:flex-row sm:justify-end sm:px-6"
+		class="sticky bottom-0 mt-auto flex flex-col-reverse gap-2 border-t bg-popover/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:flex-row sm:justify-end sm:px-6 sm:pb-4"
 	>
 		<Button type="button" variant="outline" class="sm:min-w-32" onclick={onClose}>
 			{text.cancel}

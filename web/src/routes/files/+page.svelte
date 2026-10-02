@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import * as FileDropZone from '$lib/components/ui/file-drop-zone';
+	import * as Select from '$lib/components/ui/select';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
@@ -68,7 +69,21 @@
 
 <div class="flex h-full min-h-0">
 	<FilesSidebar />
-	<div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
+	<div class="min-w-0 flex-1 overflow-auto p-3 sm:p-6">
+		<div class="mb-4 grid gap-1.5 md:hidden">
+			<label for="files-root" class="text-sm font-medium">{text.roots}</label>
+			<Select.Root type="single" value={files.currentRoot?.id ?? ''} onValueChange={(id) => {
+				const root = files.roots.find((root) => root.id === id);
+				if (root) void files.openRoot(root);
+			}}>
+				<Select.Trigger id="files-root" class="w-full min-w-0"><span class="min-w-0 truncate">{files.currentRoot?.label ?? text.roots}</span></Select.Trigger>
+				<Select.Content><Select.Group>
+					{#each files.roots as root (root.id)}
+						<Select.Item value={root.id} label={root.label}><span class="min-w-0 whitespace-normal break-words">{root.label}</span></Select.Item>
+					{/each}
+				</Select.Group></Select.Content>
+			</Select.Root>
+		</div>
 		{#if files.errorMessage}
 			<div role="alert" class="mb-4 flex items-center justify-between gap-3">
 				<span class="text-destructive text-sm">{files.errorMessage}</span>
@@ -77,9 +92,9 @@
 		{/if}
 		<FileDropZone.Root onUpload={(uploaded) => files.upload(uploaded)} disabled={files.isUploading}>
 			<div class="flex flex-col gap-4">
-				<div class="flex items-end justify-between gap-3">
-					<Breadcrumb.Root>
-						<Breadcrumb.List>
+				<div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+					<Breadcrumb.Root class="min-w-0 max-w-full overflow-x-auto">
+						<Breadcrumb.List class="w-max flex-nowrap">
 							{#each files.breadcrumbs as crumb, index (crumb.path)}
 								{#if index > 0}<Breadcrumb.Separator />{/if}
 								<Breadcrumb.Item>

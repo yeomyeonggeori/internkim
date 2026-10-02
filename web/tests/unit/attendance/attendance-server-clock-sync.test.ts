@@ -36,6 +36,20 @@ function createDeferred<Value>(): Deferred<Value> {
 }
 
 describe('attendance server clock synchronization', () => {
+	test('does not apply clock or cached summary after its workspace is disposed', async () => {
+		const request = createDeferred<Summary>();
+		let applications = 0;
+		const synchronization = new AttendanceServerClockSync<Summary>({
+			requestSummary: () => request.promise,
+			applySummarySnapshot: () => { applications += 1; }
+		});
+		const loading = synchronization.loadSummary('2026-07', () => { applications += 1; });
+		synchronization.dispose();
+		request.resolve({ month: '2026-07', serverTime: '2026-07-15T15:00:00+09:00' });
+		expect(await loading).toBeNull();
+		expect(applications).toBe(0);
+	});
+
 	test('applies only the newest successful response using its completion timestamp', async () => {
 		const olderRequest = createDeferred<Summary>();
 		const newerRequest = createDeferred<Summary>();

@@ -8,6 +8,7 @@
 	import AppRail from '$lib/components/app-rail.svelte';
 	import EffectErrorBoundary from '$lib/components/effect-error-boundary.svelte';
 	import { appSectionPathOf, usesAppShell, usesWebAuthGate } from '$lib/app-shell';
+	import { keepAppInVisualViewport } from '$lib/app-viewport';
 	import { routePathOf } from '$lib/company-path';
 	import BuzzIdentityGate from '$lib/components/buzz/buzz-identity-gate.svelte';
 	import WebAuthGate from '$lib/components/web-auth-gate.svelte';
@@ -38,12 +39,10 @@
 	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
 	import { catchTheLockScreenUp } from '$lib/attendance/lock-screen-catch-up';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
-	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount, untrack } from 'svelte';
-	import { personPicture } from '$lib/stores/person-picture.svelte';
 	import { keepMemberPicture } from '$lib/profile/keep-member-picture';
 	import { memberPresence } from '$lib/messenger/member-presence.svelte';
 
@@ -57,15 +56,10 @@
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	$effect(() => {
 		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
-		const isAttendanceRoute = routePathOf(page.url.pathname).startsWith('/attendance');
 		untrack(() => {
 			const hasSessionChanged = sessionKey !== attendanceSessionKey;
 			attendanceSessionKey = sessionKey;
 			if (hasSessionChanged) myAttendanceToday.clear();
-			if (!data.session?.authenticated) {
-				return;
-			}
-			if (!isAttendanceRoute && !myAttendanceToday.summary) void myAttendanceToday.load();
 		});
 	});
 	$effect(() => {
@@ -95,11 +89,10 @@
 			catchTheLockScreenUp();
 		});
 	});
+	onMount(keepAppInVisualViewport);
 	onMount(() => {
 		initializeLocale();
-		preloadWorkTimeChartPlot();
 		if (data.session?.authenticated) {
-			void personPicture.rememberEveryone();
 			keepMemberPicture(data.session.email).catch((failure: unknown) =>
 				console.warn('the member picture was not kept', failure)
 			);
@@ -141,6 +134,10 @@
 
 	function selectLocale(code: string) {
 		if (code === 'ko' || code === 'en') setLocale(code);
+	}
+
+	function openCommandPalette() {
+		isCommandPaletteOpen = true;
 	}
 
 	function currentApp(routePath: string) {
@@ -194,20 +191,20 @@
 <svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
 
 <ModeWatcher />
-<Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} />
+<Toaster position="bottom-center" visibleToasts={3} containerAriaLabel={text.notifications} closeButtonAriaLabel={text.close} />
 <BuzzIdentityGate />
 
 {#if usesAppShell(page.url.pathname)}
 	<Tooltip.Provider delayDuration={120}>
-		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(100svh,100%)] min-h-0 w-full bg-background text-foreground">
+		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100svh),100%)] min-h-0 w-full bg-background text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
 			{#if !isEmbeddedFrame()}
 				<EffectErrorBoundary region="app rail">
-					<AppRail session={data.session} />
+					<AppRail session={data.session} onSearch={openCommandPalette} />
 				</EffectErrorBoundary>
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">
 				{#if !isEmbeddedFrame()}
-					<header data-app-chrome class="internkim-app-header">
+					<header data-app-chrome class="internkim-app-header" class:max-sm:hidden={routePathOf(page.url.pathname).split('/')[1] === 'messenger'}>
 						<Tooltip.Root>
 							<Tooltip.Trigger>
 								{#snippet child({ props })}
@@ -245,7 +242,7 @@
 								</Breadcrumb.List>
 							</Breadcrumb.Root>
 						</div>
-						<div class="flex items-center gap-2">
+						<div class="hidden items-center gap-2 sm:flex">
 							<Button
 								variant="outline"
 								size="sm"
@@ -286,7 +283,7 @@
 						</div>
 					</header>
 				{/if}
-				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+0.5rem)] sm:pb-0">
+				<div data-app-shell-scroll class="flex min-h-0 flex-1 overflow-y-auto max-sm:pb-[calc(var(--app-viewport-safe-bottom,var(--app-mobile-nav-bottom))+var(--app-mobile-nav-height))] sm:pb-0">
 					{#if usesWebAuthGate(page.url.pathname)}
 						<WebAuthGate session={data.session} returnPath={currentReturnPath()}>
 							{@render contained()}

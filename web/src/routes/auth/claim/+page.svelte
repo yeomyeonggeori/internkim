@@ -135,7 +135,7 @@
 
 <svelte:head><title>{isStartingCompany ? text.startCompanyTitle : text.claimTitle}</title></svelte:head>
 
-<main class="flex min-h-svh items-center justify-center overflow-y-auto p-6">
+<main class="flex min-h-svh items-center justify-center overflow-y-auto p-4 sm:p-6">
 	<Card.Root class="mx-auto w-full max-w-sm">
 		<Card.Header>
 			<Card.Title class="text-2xl">{isStartingCompany ? text.startCompanyTitle : text.claimTitle}</Card.Title>
@@ -167,10 +167,11 @@
 				</FieldGroup>
 			{:else if step === 'sent'}
 				<form onsubmit={(event) => { event.preventDefault(); proveTheAddress(); }}>
-					<FieldGroup>
+					<FieldGroup class="max-sm:gap-3">
 						<Field>
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
+								class="w-full gap-1.5"
 								inputId="claim-code-{fieldID}"
 								pushPasswordManagerStrategy="none"
 								pattern={REGEXP_ONLY_DIGITS}
@@ -180,15 +181,15 @@
 								onComplete={proveTheAddress}
 							>
 								{#snippet children({ cells })}
-									<InputOTP.Group>
+									<InputOTP.Group class="min-w-0 flex-1">
 										{#each cells.slice(0, Math.ceil(claimCodeLength / 2)) as cell (cell)}
-											<InputOTP.Slot {cell} />
+											<InputOTP.Slot {cell} class="h-11 min-w-0 flex-1" />
 										{/each}
 									</InputOTP.Group>
 									<InputOTP.Separator />
-									<InputOTP.Group>
+									<InputOTP.Group class="min-w-0 flex-1">
 										{#each cells.slice(Math.ceil(claimCodeLength / 2)) as cell (cell)}
-											<InputOTP.Slot {cell} />
+											<InputOTP.Slot {cell} class="h-11 min-w-0 flex-1" />
 										{/each}
 									</InputOTP.Group>
 								{/snippet}
@@ -196,9 +197,13 @@
 							<FieldDescription>{text.claimCodeHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
-						<Button variant="ghost" class="w-full" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
-						<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
+						<div class="grid gap-5 max-sm:gap-1">
+							<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
+							<div class="flex flex-col gap-5 max-sm:flex-row max-sm:gap-1">
+								<Button variant="ghost" class="w-full max-sm:h-auto max-sm:min-w-0 max-sm:flex-1 max-sm:whitespace-normal max-sm:px-2" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
+								<Button variant="ghost" class="w-full max-sm:h-auto max-sm:min-w-0 max-sm:flex-1 max-sm:whitespace-normal max-sm:px-2" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
+							</div>
+						</div>
 					</FieldGroup>
 				</form>
 			{:else if step === 'password'}

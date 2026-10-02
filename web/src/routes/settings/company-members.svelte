@@ -136,6 +136,12 @@
 
 {#snippet actionsCell(member: TabledMember)}
 	<Table.Cell class="text-right">
+		{@render memberActions(member)}
+	</Table.Cell>
+{/snippet}
+
+{#snippet memberActions(member: TabledMember)}
+	<div class="flex justify-end">
 		<DropdownMenu.Root>
 			<DropdownMenu.Trigger>
 				{#snippet child({ props })}
@@ -167,12 +173,12 @@
 				</DropdownMenu.Item>
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
-	</Table.Cell>
+	</div>
 {/snippet}
 
 <Card.Root>
 	<Card.Content class="grid gap-4">
-		<MemberTable {members} text={tableText} extraHeaders={actionsHeader} extraCells={actionsCell} extraColumnCount={1} />
+		<MemberTable {members} text={tableText} extraHeaders={actionsHeader} extraCells={actionsCell} mobileExtra={memberActions} extraColumnCount={1} />
 		<div>
 			<Button type="button" variant="outline" onclick={() => (isInviteOpen = true)}>
 				<UserPlusIcon />

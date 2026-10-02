@@ -21,6 +21,7 @@ export type CalendarLocaleText = {
 	subscriptionShownOnce: string;
 	shared: string;
 	settings: string;
+	moreTools: string;
 	refresh: string;
 	syncTitle: string;
 	syncDescription: string;
@@ -118,6 +119,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		subscriptionShownOnce: '구독 URL은 만들 때 한 번만 보여 줍니다. 잃어버렸다면 새로 발급하세요.',
 		shared: '공유',
 		settings: '설정',
+		moreTools: '일정 도구',
 		refresh: '새로고침',
 		syncTitle: '설정',
 		syncDescription: '캘린더 앱에서 구독할 URL을 확인합니다.',
@@ -226,6 +228,7 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		subscriptionShownOnce: 'A subscription URL is shown once, when it is made. Make another if it was lost.',
 		shared: 'Shared',
 		settings: 'Settings',
+		moreTools: 'Calendar tools',
 		refresh: 'Refresh',
 		syncTitle: 'Settings',
 		syncDescription: 'Review the URL a calendar app subscribes to.',

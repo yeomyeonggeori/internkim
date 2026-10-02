@@ -67,6 +67,7 @@ test('an administrator moves a colleague into a newly added organization', async
 	await page.getByRole('menuitem', { name: '조직 추가' }).click();
 	await page.getByLabel('새 조직').fill(addedOrganizationName);
 	await page.getByRole('button', { name: '추가', exact: true }).click();
+	await expect(page.getByRole('dialog', { name: '조직 추가', exact: true })).toBeHidden();
 
 	await page.reload();
 	const addedOrganizationID = await organizationIDInTree(page, addedOrganizationName);
@@ -76,6 +77,7 @@ test('an administrator moves a colleague into a newly added organization', async
 	await page.getByRole('option', { name: addedOrganizationName, exact: true }).click();
 	await panel.getByRole('button', { name: '저장', exact: true }).click();
 
+	await expect(panel.getByRole('button', { name: '수정하기', exact: true })).toBeVisible();
 	await expect(panel).toContainText(addedOrganizationName);
 
 	await page.reload();

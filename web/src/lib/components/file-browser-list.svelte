@@ -71,7 +71,7 @@
 				type="button"
 				aria-pressed={selectedID === entry.id}
 				class={cn(
-					'hover:bg-accent/60 grid w-full grid-cols-[minmax(0,1fr)_5rem_7rem] items-center gap-3 border-b px-4 py-2.5 text-left transition-colors last:border-b-0 max-sm:grid-cols-[minmax(0,1fr)_6rem]',
+					'hover:bg-accent/60 grid w-full grid-cols-[minmax(0,1fr)_5rem_7rem] items-center gap-3 border-b px-4 py-2.5 text-left transition-colors last:border-b-0 max-sm:min-h-16 max-sm:grid-cols-[minmax(0,1fr)_6rem]',
 					selectedID === entry.id && 'bg-accent'
 				)}
 				onclick={() => onSelect(entry)}
@@ -81,7 +81,7 @@
 							class="size-4 shrink-0 fill-amber-200 text-amber-500"
 						/>
 					{:else}<FileTypeIcon class={cn('size-4 shrink-0', visual.colorClass)} />{/if}
-					<span class="truncate text-sm">{entry.name}</span>
+					<span class="min-w-0 text-sm max-sm:line-clamp-2 max-sm:break-all sm:truncate">{entry.name}</span>
 				</span>
 				<span class="text-muted-foreground flex justify-end text-xs tabular-nums max-sm:hidden">
 					{#if isSecondaryBadge && entry.secondary}<Badge variant="outline">{entry.secondary}</Badge>
