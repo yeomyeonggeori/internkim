@@ -371,3 +371,45 @@ class WhatThePackageCarriesHasOneSpelling(unittest.TestCase):
         self.assertEqual(
             driver.BOX_UNIT_NAME, self.declared("company_host_package.go", "BoxServiceName") + ".service"
         )
+
+
+import shlex  # noqa: E402
+
+import native_install_agent_update as agent_update  # noqa: E402
+
+
+class AgentUpdateRigTests(unittest.TestCase):
+    def test_the_longest_outage_is_measured_from_the_first_silent_reading_to_the_next_answer(self):
+        log = "100.0 up\n101.0 down\n102.0 down\n104.5 up\n105.0 down\n106.0 up\n"
+        self.assertEqual(agent_update.downtime_from(log), (3.5, True, 6))
+
+    def test_an_outage_still_open_is_not_reported_as_back(self):
+        self.assertEqual(agent_update.downtime_from("1.0 up\n2.0 down\n")[1], False)
+
+    def test_the_promised_downtime_is_the_one_admind_states(self):
+        source = (repository_root / "internal" / "admind" / "host_update.go").read_text()
+        self.assertIn(f"expectedHostUpdateDowntimeMinutes = {agent_update.promised_downtime_minutes()}", " ".join(source.split()))
+
+    def test_the_paths_the_rig_reads_are_the_ones_the_host_writes(self):
+        hostupdate = repository_root / "internal" / "hostupdate"
+        self.assertIn('"host-update.json"', (hostupdate / "note.go").read_text())
+        self.assertIn('"release-channel"', (hostupdate / "machine.go").read_text())
+        self.assertIn('UnitName            = "internkim-host-update"', (hostupdate / "unit.go").read_text())
+        self.assertEqual(agent_update.UPDATE_UNIT_NAME, "internkim-host-update.service")
+
+    def test_a_curl_answer_splits_into_its_status_and_document(self):
+        self.assertEqual(agent_update.answer_of('{"errorCode":"update_in_progress"}\nstatus=409\n'), ("409", {"errorCode": "update_in_progress"}))
+        self.assertEqual(agent_update.answer_of("not json\nstatus=502"), ("502", {}))
+
+    def test_the_admind_call_carries_the_requester_and_the_body_whole(self):
+        arguments = shlex.split(agent_update.ask_admind_command("/host/api/update", "member1@example.com", {"input": {}, "note": "it's"}))
+        self.assertIn("X-INTERNKIM-REQUESTER-EMAIL: member1@example.com", arguments)
+        self.assertEqual(json.loads(arguments[arguments.index("--data") + 1]), {"input": {}, "note": "it's"})
+        self.assertEqual(arguments[-1], "http://internkim/host/api/update")
+
+    def test_the_stable_listing_answers_both_release_routes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            agent_update.write_stable_listing(directory, ["v2", "v1"], "2026-10-02T00:00:00Z")
+            releases = Path(directory) / "api" / "releases"
+            self.assertEqual([release["tag_name"] for release in json.loads((releases / "index.html").read_text())], ["v2", "v1"])
+            self.assertEqual(json.loads((releases / "latest").read_text())["tag_name"], "v2")

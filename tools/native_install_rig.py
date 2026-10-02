@@ -335,11 +335,11 @@ class Release:
     def download_url(self, host):
         return f"http://{host}:{self.port}/{RELEASE_DOWNLOAD_PATH}"
 
-    def install_line(self, host):
+    def install_line(self, host, arguments=""):
         """The published one line, with only the release address pointed at this Mac."""
         return (
             f"set -eu\nexport INTERNKIM_INSTALL_RELEASE_URL={self.download_url(host)}\n"
-            f"curl -fsSL http://{host}:{self.port}/install.sh | sh -s -- host\n"
+            f"curl -fsSL http://{host}:{self.port}/install.sh | sh -s -- host {arguments}\n"
         )
 
     def serve(self):
