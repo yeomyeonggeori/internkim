@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { z } from 'zod';
 	import { page } from '$app/state';
-	import { Input } from '$lib/components/ui/input';
+	import * as InputOTP from '$lib/components/ui/input-otp';
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Spinner } from '$lib/components/ui/spinner';
@@ -10,7 +10,7 @@
 	import FileBrowserList from '$lib/components/file-browser-list.svelte';
 	import FileBrowserPreview from '$lib/components/file-browser-preview.svelte';
 	import { sharedDataRoomSchema } from '$lib/data-room/schemas';
-	import { dataRoomAccessCodePattern, dataRoomNoticeVersion } from '$lib/data-room/links';
+	import { dataRoomNoticeVersion } from '$lib/data-room/links';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
@@ -145,20 +145,35 @@
 				<p class="text-sm text-muted-foreground">{text.unlockDescription}</p>
 			</header>
 			<form onsubmit={unlock} class="grid gap-5">
-				<Field.Field
-					><Field.Label for="{fieldID}-code">{text.code}</Field.Label><Input
-						id="{fieldID}-code"
+				<Field.Field>
+					<Field.Label for="{fieldID}-code">{text.code}</Field.Label>
+					<InputOTP.Root
+						inputId="{fieldID}-code"
 						type="password"
 						inputmode="numeric"
 						autocomplete="one-time-code"
-						pattern={dataRoomAccessCodePattern}
+						pattern="[0-9]*"
 						minlength={6}
 						maxlength={6}
 						required
 						bind:value={accessCode}
 						disabled={isBusy}
-					/></Field.Field
-				>
+					>
+						{#snippet children({ cells })}
+							<InputOTP.Group>
+								{#each cells.slice(0, 3) as cell (cell)}
+									<InputOTP.Slot cell={{ ...cell, char: cell.char ? '•' : cell.char }} />
+								{/each}
+							</InputOTP.Group>
+							<InputOTP.Separator />
+							<InputOTP.Group>
+								{#each cells.slice(3, 6) as cell (cell)}
+									<InputOTP.Slot cell={{ ...cell, char: cell.char ? '•' : cell.char }} />
+								{/each}
+							</InputOTP.Group>
+						{/snippet}
+					</InputOTP.Root>
+				</Field.Field>
 				<section class="grid gap-2 rounded-lg border p-4" aria-label={text.noticeTitle}>
 					<h2 class="text-sm font-semibold">{text.noticeTitle}</h2>
 					<p class="text-sm leading-relaxed text-muted-foreground">{text.notice}</p>
