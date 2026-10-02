@@ -48,6 +48,23 @@ func whatTheOperatingSystemProvides() []string {
 	return programs
 }
 
+// Each formula's programs go only where Homebrew keeps them, in its opt
+// directory; what no formula installs goes on PATH.
+func placeWhatHomebrewAndTheSystemProvide(t *testing.T, prefix string) {
+	t.Helper()
+	for _, dependency := range blueclaw.HostDependencies() {
+		if dependency.ArrivesAsPayload {
+			continue
+		}
+		programs := append(append([]string{}, dependency.ProgramsTheHostRuns...), dependency.OneOfThesePrograms...)
+		directory := filepath.Join(prefix, "bin")
+		if dependency.HomebrewFormula != "" {
+			directory = blueclaw.HomebrewFormulaProgramDirectory(prefix, dependency.HomebrewFormula)
+		}
+		placeStubPrograms(t, directory, programs)
+	}
+}
+
 func TestAKegFindsThePackagesProgramsWhereTheLayoutPutsThemAndNotOnPath(t *testing.T) {
 	prefix := t.TempDir()
 	platform := macPlatform{homebrewPrefix: prefix}
@@ -56,7 +73,8 @@ func TestAKegFindsThePackagesProgramsWhereTheLayoutPutsThemAndNotOnPath(t *testi
 	for _, programName := range blueclaw.HostProgramsThatArriveAsPayload() {
 		placeStubPrograms(t, filepath.Dir(layout.PayloadProgramPath(programName)), []string{programName})
 	}
-	placeStubPrograms(t, filepath.Join(prefix, "bin"), append(whatTheOperatingSystemProvides(), blueclaw.CompanyPackageName))
+	placeWhatHomebrewAndTheSystemProvide(t, prefix)
+	placeStubPrograms(t, filepath.Join(prefix, "bin"), []string{blueclaw.CompanyPackageName})
 	t.Setenv("PATH", filepath.Join(prefix, "bin"))
 
 	if errorValue := requireWhatTheCompanyHostRuns(platform, &aMachineThatSearchesPath{}); errorValue != nil {

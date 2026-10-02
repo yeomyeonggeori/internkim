@@ -19,8 +19,8 @@ const (
 )
 
 func rebuildTheDatabaseFromKeptWAL(platform backupPlatform, machine Machine, rebuild func(dataDirectoryPath string) error, now time.Time, progress io.Writer) (bool, error) {
-	if !platform.Layout().OwnsItsDataServices() {
-		return false, fmt.Errorf("the database is rebuilt from kept WAL only where the package runs it, and on %s it does not", platform.Describe())
+	if !platform.Layout().RunsTheDataServiceScript() {
+		return false, fmt.Errorf("the database is rebuilt from kept WAL only where the data-service script runs it, and on %s it does not", platform.Describe())
 	}
 	dataPath := blueclaw.CompanyHostDatabaseDataPath
 	replacedPath := dataPath + replacedDataMarker + now.UTC().Format(replacedDataTimeLayout)

@@ -12,7 +12,8 @@ import "strings"
 // Everything else is the same on both: /var/lib/internkim and /etc/internkim are
 // on the writable data volume through firmlinks, /run has no macOS counterpart
 // and CompanyHostRunPath moves with the rest of the state, and the addresses,
-// ports and unit names are the constants above.
+// ports and unit names are the constants above. The one address that differs is
+// the database's, for the reason DatabaseLoopbackAddress gives.
 type CompanyHostLayout struct {
 	// BinaryRoot is where a program the package ships is found.
 	BinaryRoot string
@@ -41,13 +42,20 @@ type CompanyHostLayout struct {
 	// /usr/bin:/bin:/usr/sbin:/sbin, which holds neither Homebrew's prefix nor
 	// this package's own tree, so a Mac names both.
 	ProgramDirectories []string
-	// DatabaseSocketDirectory and CacheSocketPath are where the host's own
-	// database and cache answer, on a machine whose supervisor the package
-	// installs units into. Empty means the machine's own PostgreSQL and Redis
-	// are used, at DatabaseLoopbackAddress and the cache's loopback address.
+	// The host runs its own database and cache on both machines, as their own
+	// accounts and in their own data directories, and never the machine's.
+	// DatabaseSocketDirectory and CacheSocketPath are where each answers on a
+	// Unix socket. DatabaseLoopbackAddress is where the company's roles reach
+	// the database instead, on a machine where the socket is the database
+	// account's alone; empty means they reach it on the socket.
 	DatabaseSocketDirectory string
 	CacheSocketPath         string
 	DatabaseLoopbackAddress string
+	// DatabaseProgramDirectory and CacheProgramDirectory hold the servers and
+	// their clients. Empty means the data-service script finds them, because
+	// which directory and which name differ between distributions.
+	DatabaseProgramDirectory string
+	CacheProgramDirectory    string
 }
 
 // The macOS workspace is a sibling of the state root rather than a child, for
@@ -58,7 +66,11 @@ const (
 	macCompanyHostWorkspacePath = "/var/lib/internkim-workspace"
 	macCompanyHostRunPath       = "/var/run/internkim"
 	macBlueclawHomePath         = "/var/lib/blueclaw"
-	macDatabaseLoopbackAddress  = "127.0.0.1:5432"
+
+	// Beside the bundle's other loopback ports and away from 5432, which is
+	// where a person's own PostgreSQL on the same Mac answers.
+	macDatabaseLoopbackAddress = "127.0.0.1:18432"
+	macCacheSocketPath         = CompanyHostCacheDataPath + "/cache.sock"
 
 	companyHostPrepareProgramName = "prepare-company-host"
 )
@@ -120,7 +132,11 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 		RunPath:       macCompanyHostRunPath,
 		AgentHomePath: macBlueclawHomePath,
 
-		DatabaseLoopbackAddress: macDatabaseLoopbackAddress,
+		DatabaseSocketDirectory:  CompanyHostDatabaseDataPath,
+		CacheSocketPath:          macCacheSocketPath,
+		DatabaseLoopbackAddress:  macDatabaseLoopbackAddress,
+		DatabaseProgramDirectory: HomebrewFormulaProgramDirectory(prefix, HomebrewDatabaseFormula),
+		CacheProgramDirectory:    HomebrewFormulaProgramDirectory(prefix, HomebrewCacheFormula),
 	}
 }
 
