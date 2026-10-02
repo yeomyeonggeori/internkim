@@ -52,6 +52,7 @@
 	import { messagesWithReactions } from './channel-reactions';
 	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
 	import { groupConsecutiveMessages } from './channel-message-groups';
+	import { jumpToLatestLabel, unseenMessageCount } from './channel-unseen-messages';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import InfoIcon from '@lucide/svelte/icons/info';
@@ -59,7 +60,7 @@
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
-	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
@@ -264,6 +265,12 @@
 	const reversedTimeline = $derived(timeline.slice().reverse());
 	let isPageVisible = $state(typeof document === 'undefined' || document.visibilityState === 'visible');
 	const latestSettledSentAt = $derived(latestSentAtOf(messages));
+	let seenThroughSentAt = $state('');
+	const unseenCount = $derived(showScrollToBottom ? unseenMessageCount(messages, seenThroughSentAt, isMine) : 0);
+
+	$effect(() => {
+		if (!showScrollToBottom) seenThroughSentAt = latestSettledSentAt;
+	});
 
 	$effect(() => {
 		if (!onReadThrough || !isPageVisible || showScrollToBottom || !latestSettledSentAt) return;
@@ -846,14 +853,15 @@
 					{/each}
 				</div>
 				{#if showScrollToBottom}
-					<button
-						type="button"
-						aria-label="맨 아래로"
+					<Button
+						variant="outline"
+						size="sm"
 						onclick={scrollToBottom}
-						class="bg-background hover:bg-muted text-foreground absolute bottom-4 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border shadow-md transition"
+						class="absolute bottom-4 left-1/2 -translate-x-1/2 shadow-md"
 					>
-						<ChevronDownIcon class="size-5" />
-					</button>
+						<ArrowDownIcon data-icon="inline-start" />
+						{jumpToLatestLabel(unseenCount, text)}
+					</Button>
 				{/if}
 			</div>
 		{/if}
