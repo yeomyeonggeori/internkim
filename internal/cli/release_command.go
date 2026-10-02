@@ -1209,7 +1209,7 @@ var componentSourcePaths = map[string][]string{
 	"admind":      {"cmd/internkim-admind"},
 	"capabilityd": {"cmd/internkim-capabilityd"},
 	"fonts":       {"assets/fonts"},
-	"relay":       {"host/relay"},
+	"relay":       {"host/relay", "workers/connection-gateway/src/host-protocol.ts", "workers/connection-gateway/src/base64.ts"},
 	"buzzMigrate": {"cmd/buzz-migrate"},
 	"web": {
 		"web",

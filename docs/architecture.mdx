@@ -38,8 +38,9 @@ flowchart TB
     caller -->|"a token"| api
     api -->|"record tools"| record
     api -->|"company tools"| gateway
-    client -->|"signs in as usual"| messenger
+    client <-->|"the company's messenger address"| gateway
     gateway <-->|"the relay dials out and stays connected"| relay
+    relay -->|"each app's stream, on loopback"| messenger
     connector <-->|"attached as the bot"| messenger
     connector -->|"each message, to /inbound"| relay
     relay -->|"ACP, one session per conversation"| agent
@@ -159,7 +160,7 @@ Five things, deployed by us.
 | the control plane | server routes holding the service key | `web/src/routes/api/agent/` |
 | the app | a SvelteKit build on Cloudflare Pages, serving the pages people sign into | `web/` |
 | the public API | server routes in the same build, answering tokens and MCP clients | `web/src/routes/api/v1/` |
-| the connection gateway | a Worker with one Durable Object per company, carrying browser calls and API calls alike | `workers/connection-gateway/` |
+| the connection gateway | a Worker with one Durable Object per company, carrying browser calls, API calls and the native messenger apps | `workers/connection-gateway/` |
 
 The record answers every read and write as some member, never as an
 administrator. Which rows a session sees is decided by the database itself.
@@ -209,6 +210,34 @@ from its side and stays connected, authenticated by a server key the Durable
 Object stores. The object forwards calls one way and answers the other, pushes
 `message.arrived` to open chat screens when the relay reports a new message,
 and tells browsers whether the company's computer has a live connection.
+
+A native messenger app on a phone or a desktop dials the company's messenger
+address, `<slug>.<zone>`, which is a route on the same Worker and not a Pages
+hostname. The Worker finds the company by the first label and opens a stream
+on the host's standing connection: `stream.open`, then `stream.frame` and
+`stream.close`, each carrying a stream ID. For each stream the relay dials the
+company's Buzz relay on loopback and presents the address the app dialled, so
+the app's NIP-42 login reaches the relay that checks it, and the gateway never
+reads a frame. A frame over 512 KiB, the Buzz relay's own limit, is refused
+before it enters a stream. When the host's connection drops, every stream
+closes with `1012` and the apps dial again. The relay sends streams out in
+turn, one frame each, so one busy subscription cannot hold the connection.
+
+The rest of what an app sends is HTTP. NIP-98 queries, invitations and the
+relay's information document travel as calls on the same connection. Media
+never enters a frame. For a blob the app asks for, the host first asks its
+relay whether that app may have it, copies it once, a range at a time, into the
+transfer store the web's file copies use, and the Worker streams it from there
+with the range the app asked for.
+An upload is staged in the bucket and the host hands it to its relay from
+there. A redirect would be simpler, but the desktop app refuses one when it
+saves or copies a file.
+
+The Durable Object accepts every socket through the WebSocket Hibernation API.
+Each socket's role sits in its attachment, the runtime answers the host's
+keep-alive ping without waking the object, and a member's call still waiting
+for its answer is kept in the object's storage, so the object can sleep between
+messages and lose nothing.
 
 ## The processes on the host
 
@@ -400,7 +429,8 @@ The diagram puts it outside the host, which is one of three places it can be.
 The last row is ordinary. A company that runs its own Buzz relay
 often runs it on the machine already kept awake for the agent, and the
 connector reaches it over loopback; the package runs the Buzz stack exactly
-there, as `buzz-relay` and `buzz-media`. Because the chat screen always goes through
+there, as `buzz-relay` and `buzz-media`, and a native app reaches it through the
+gateway. Because the chat screen always goes through
 the relay, one screen works wherever the messenger lives, and the
 conversation is never written centrally: the relay sends back only the answer
 to the call it was asked.
@@ -408,8 +438,8 @@ to the call it was asked.
 ## Why the host has no inbound port
 
 Exposing a company's computer means a tunnel, a certificate, a hostname, and
-a new way in. Instead both the browser and the host connect outward to the
-gateway, which passes calls between them. Your firewall stays as it was.
+a new way in. Instead the browser, the messenger apps and the host all connect
+outward to the gateway, which passes calls and streams between them. Your firewall stays as it was.
 
 Once it belongs to a company, the host proves this about itself with one
 command:

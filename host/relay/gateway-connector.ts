@@ -9,6 +9,7 @@ import {
 	type Dispatch
 } from './forward';
 import { oversizeNotice } from './answer-size';
+import { messengerCapabilities } from './messenger-calls';
 
 export type RoutedCall = {
 	kind: 'call';
@@ -62,7 +63,12 @@ export async function serveRoutedCall(
 	}
 }
 
-const capabilitiesTheGatewayCarriesItself = new Set([apiRequestCapability, apiFileCapability, tellCapability]);
+const capabilitiesTheGatewayCarriesItself = new Set([
+	apiRequestCapability,
+	apiFileCapability,
+	tellCapability,
+	...messengerCapabilities
+]);
 
 async function servedCall(
 	call: RoutedCall,
@@ -77,6 +83,7 @@ async function servedCall(
 		}
 		if (call.capability === apiRequestCapability) return servePublicAPIRequest(dispatch, call.body);
 		if (call.capability === apiFileCapability) return servePublicAPIFile(dispatch, call.body);
+		if (messengerCapabilities.has(call.capability)) return dispatch.serveMessenger(call.capability, call.body);
 		return serveTelling(dispatch, call.body);
 	}
 	if (!call.memberID) {

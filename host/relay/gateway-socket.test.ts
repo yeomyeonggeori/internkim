@@ -83,6 +83,7 @@ describe('host gateway connections', () => {
 			hostAccessToken: async () => `token-${++tokenNumber}`,
 			dispatch: {} as Dispatch,
 			byteCeiling: 1024,
+			messengerRelayURL: 'ws://127.0.0.1:1',
 			report: () => undefined
 		});
 		await secondOpen;
@@ -92,5 +93,124 @@ describe('host gateway connections', () => {
 		expect(hostSocketURL(server.url.toString(), 'company-1')).toBe(`${server.url}company/company-1/host`);
 		expect(authorizations).toEqual(['Bearer token-1', 'Bearer token-2']);
 		expect(tokenNumber).toBe(2);
+	});
+});
+
+describe('the host socket keeping itself alive', () => {
+	function gatewayThat(answersPings: boolean): { url: string; opened: () => number; pings: () => number; stop: () => void } {
+		let opened = 0;
+		let pings = 0;
+		const server = Bun.serve({
+			port: 0,
+			fetch(request, serving) {
+				if (serving.upgrade(request, { data: undefined })) return;
+				return new Response('not found', { status: 404 });
+			},
+			websocket: {
+				open() {
+					opened += 1;
+				},
+				message(socket, message) {
+					if (message !== '{"kind":"ping"}') return;
+					pings += 1;
+					if (answersPings) socket.send('{"kind":"pong"}');
+				}
+			}
+		});
+		return { url: `ws://127.0.0.1:${server.port}`, opened: () => opened, pings: () => pings, stop: () => server.stop(true) };
+	}
+
+	function connect(gatewayURL: string) {
+		return connectToGateway({
+			gatewayURL,
+			companyID: 'company-1',
+			hostAccessToken: async () => 'token',
+			dispatch: {} as Dispatch,
+			byteCeiling: 1024,
+			messengerRelayURL: 'ws://127.0.0.1:1',
+			report: () => undefined,
+			pingMilliseconds: 20,
+			silenceMilliseconds: 70
+		});
+	}
+
+	test('pings, and stays on a gateway that answers', async () => {
+		const gateway = gatewayThat(true);
+		const connection = connect(gateway.url);
+		await Bun.sleep(250);
+		connection.close();
+		gateway.stop();
+		expect(gateway.pings()).toBeGreaterThan(3);
+		expect(gateway.opened()).toBe(1);
+	});
+
+	test('dials again when the gateway has gone silent', async () => {
+		const gateway = gatewayThat(false);
+		const connection = connect(gateway.url);
+		await Bun.sleep(1500);
+		connection.close();
+		gateway.stop();
+		expect(gateway.opened()).toBeGreaterThan(1);
+	});
+});
+
+describe('app streams over the host socket', () => {
+	test('reach the relay on loopback and close when the gateway connection drops', async () => {
+		const relayClosed: number[] = [];
+		const relayHosts: (string | null)[] = [];
+		const relay = Bun.serve<{ host: string | null }>({
+			port: 0,
+			fetch(request, serving) {
+				if (serving.upgrade(request, { data: { host: request.headers.get('host') } })) return;
+				return new Response('not found', { status: 404 });
+			},
+			websocket: {
+				open(socket) {
+					relayHosts.push(socket.data.host);
+					socket.send('["AUTH","challenge"]');
+				},
+				message() {},
+				close(_socket, code) {
+					relayClosed.push(code);
+				}
+			}
+		});
+		const heardByGateway: Record<string, unknown>[] = [];
+		let gatewaySide: { close: () => void } | null = null;
+		const gateway = Bun.serve({
+			port: 0,
+			fetch(request, serving) {
+				if (serving.upgrade(request, { data: undefined })) return;
+				return new Response('not found', { status: 404 });
+			},
+			websocket: {
+				open(socket) {
+					gatewaySide = socket;
+					socket.send(JSON.stringify({ kind: 'stream.open', streamID: 's1', host: 'acme.example.test', path: '/' }));
+				},
+				message(_socket, message) {
+					heardByGateway.push(JSON.parse(String(message)));
+				}
+			}
+		});
+		const connection = connectToGateway({
+			gatewayURL: `ws://127.0.0.1:${gateway.port}`,
+			companyID: 'company-1',
+			hostAccessToken: async () => 'token',
+			dispatch: {} as Dispatch,
+			byteCeiling: 1024,
+			messengerRelayURL: `ws://127.0.0.1:${relay.port}`,
+			report: () => undefined
+		});
+		for (let round = 0; round < 500 && heardByGateway.length === 0; round += 1) await Bun.sleep(10);
+		expect(relayHosts).toEqual(['acme.example.test']);
+		expect(heardByGateway).toEqual([{ kind: 'stream.frame', streamID: 's1', data: '["AUTH","challenge"]' }]);
+
+		(gatewaySide as { close: () => void } | null)?.close();
+		for (let round = 0; round < 500 && relayClosed.length === 0; round += 1) await Bun.sleep(10);
+		connection.close();
+		gateway.stop(true);
+		relay.stop(true);
+		expect(relayClosed).toHaveLength(1);
 	});
 });

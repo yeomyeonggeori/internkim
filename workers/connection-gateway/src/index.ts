@@ -1,21 +1,24 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { JSONWebKeyCache, TokenRefused, companyOfHost, resolveMember, verifyToken } from './identity';
 import {
-	CallLedger,
-	WaitingCalls,
-	callInFlightAnswer,
-	callTimedOutStatus,
-	decideCall,
-	oneShotAnswerOf,
-	parseClientCall,
-	parseOneShotCall,
-	parseServerMessage,
-	tooManyWaitingCallsAnswer,
-	type OneShotAnswer,
-	type OneShotCall,
-	type RoutedCall,
-	type ServerAnswer
-} from './routing';
+	JSONWebKeyCache,
+	TokenRefused,
+	companyOfHost,
+	companyOfMessengerAddress,
+	resolveMember,
+	verifyToken
+} from './identity';
+import type { OneShotAnswer, OneShotCall } from './routing';
+import {
+	digestOf,
+	digestsMatch,
+	jsonResponse,
+	memberHeader,
+	streamAddressHeader,
+	streamHostHeader,
+	streamPathHeader
+} from './company-connection';
+import { answerMessengerRequest, isPageNavigation } from './messenger';
+import { MessengerAddresses } from './messenger-address';
 
 export type WorkerEnvironment = {
 	COMPANY_CONNECTIONS: DurableObjectNamespace;
@@ -24,8 +27,6 @@ export type WorkerEnvironment = {
 	SUPABASE_JWKS_URL?: string;
 	GATEWAY_ADMIN_TOKEN?: string;
 };
-
-const memberHeader = 'x-internkim-member';
 
 export default {
 	fetch(request: Request, environment: WorkerEnvironment): Promise<Response> {
@@ -36,7 +37,8 @@ export default {
 async function route(request: Request, environment: WorkerEnvironment): Promise<Response> {
 	const url = new URL(request.url);
 	const path = url.pathname.split('/').filter(Boolean);
-	if (path.length !== 3 || path[0] !== 'company') return jsonResponse({ error: 'not found' }, 404);
+	if (path[0] !== companyPathSegment) return reachTheMessenger(request, environment, url);
+	if (path.length !== 3) return jsonResponse({ error: 'not found' }, 404);
 	const companyID = decodeURIComponent(path[1]);
 
 	if (path[2] === 'client') return joinAsClient(request, environment, companyID);
@@ -45,6 +47,83 @@ async function route(request: Request, environment: WorkerEnvironment): Promise<
 	if (path[2] === 'server-key') return storeServerKey(request, environment, companyID);
 	if (path[2] === 'call') return takeCompanyCall(request, environment, companyID);
 	return jsonResponse({ error: 'not found' }, 404);
+}
+
+const companyPathSegment = 'company';
+
+async function reachTheMessenger(request: Request, environment: WorkerEnvironment, url: URL): Promise<Response> {
+	const slug = messengerSlugOf(url.hostname);
+	if (!slug) return jsonResponse({ error: 'not found' }, 404);
+	if (isPageNavigation(request, url.pathname)) return Response.redirect(theZoneAddressOf(url), 308);
+	const companyID = await messengerAddressesFor(environment).companyOf(slug);
+	if (!companyID) return jsonResponse({ error: 'no company messenger answers at this address' }, 404);
+	if (request.headers.get('Upgrade') === 'websocket') return openMessengerStream(request, environment, companyID, url);
+	return answerMessengerRequest(request, url.host, (capability, body) =>
+		callTheMessenger(environment, companyID, capability, body)
+	);
+}
+
+function theZoneAddressOf(url: URL): string {
+	const zone = url.hostname.split('.').slice(1).join('.');
+	return `https://${zone}${url.pathname}${url.search}`;
+}
+
+function messengerSlugOf(hostname: string): string | null {
+	const labels = hostname.toLowerCase().split('.');
+	if (labels.length < 3) return null;
+	return labels[0] || null;
+}
+
+let sharedMessengerAddresses: MessengerAddresses | undefined;
+
+function messengerAddressesFor(environment: WorkerEnvironment): MessengerAddresses {
+	sharedMessengerAddresses ??= new MessengerAddresses((slug) =>
+		companyOfMessengerAddress(environment.SUPABASE_URL, environment.SUPABASE_PUBLISHABLE_KEY, slug)
+	);
+	return sharedMessengerAddresses;
+}
+
+function openMessengerStream(
+	request: Request,
+	environment: WorkerEnvironment,
+	companyID: string,
+	url: URL
+): Promise<Response> {
+	const headers: Record<string, string> = {
+		...headersOf(request),
+		[streamHostHeader]: url.host,
+		[streamPathHeader]: `${url.pathname}${url.search}`
+	};
+	const address = request.headers.get('CF-Connecting-IP');
+	if (address) headers[streamAddressHeader] = address;
+	return connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/stream-session`, { headers })
+	);
+}
+
+async function callTheMessenger(
+	environment: WorkerEnvironment,
+	companyID: string,
+	capability: string,
+	body: Record<string, unknown>
+): Promise<OneShotAnswer> {
+	const answered = await connectionFor(environment, companyID).fetch(
+		new Request(`https://connection-gateway/company/${encodeURIComponent(companyID)}/messenger-call`, {
+			method: 'POST',
+			body: JSON.stringify({ requestID: crypto.randomUUID(), capability, body })
+		})
+	);
+	return oneShotAnswerOfResponse(await answered.json());
+}
+
+function oneShotAnswerOfResponse(document: unknown): OneShotAnswer {
+	if (typeof document !== 'object' || document === null) return { requestID: '', status: 502, body: null };
+	const record: Record<string, unknown> = { ...document };
+	return {
+		requestID: typeof record.requestID === 'string' ? record.requestID : '',
+		status: typeof record.status === 'number' ? record.status : 502,
+		body: record.body
+	};
 }
 
 async function joinAsClient(
@@ -192,13 +271,6 @@ function headersOf(request: Request): Record<string, string> {
 	return headers;
 }
 
-function jsonResponse(document: unknown, status: number): Response {
-	return new Response(JSON.stringify(document), {
-		status,
-		headers: { 'Content-Type': 'application/json' }
-	});
-}
-
 // A Cloudflare WorkerEntrypoint is reachable only through a service binding.
 export class CompanyCalls extends WorkerEntrypoint<WorkerEnvironment> {
 	async callCompany(companyID: string, call: OneShotCall): Promise<OneShotAnswer> {
@@ -213,239 +285,4 @@ export class CompanyCalls extends WorkerEntrypoint<WorkerEnvironment> {
 	}
 }
 
-const bearerPrefix = 'Bearer ';
-const serverKeyDigestStorageKey = 'serverKeyDigest';
-const legacyServerKeyStorageKey = 'serverKey';
-
-async function digestOf(value: string): Promise<string> {
-	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function digestsMatch(first: string, second: string): boolean {
-	const encoder = new TextEncoder();
-	const firstBytes = encoder.encode(first);
-	const secondBytes = encoder.encode(second);
-	if (firstBytes.byteLength !== secondBytes.byteLength) return false;
-	return crypto.subtle.timingSafeEqual(firstBytes, secondBytes);
-}
-
-export class CompanyConnectionObject {
-	private serverSocket: WebSocket | null = null;
-	private serverSeenAt = 0;
-	private readonly clientSockets = new Map<string, Set<WebSocket>>();
-	private readonly ledger = new CallLedger();
-	private readonly askedBy = new Map<string, string>();
-	private readonly waitingCalls = new WaitingCalls();
-
-	constructor(private readonly state: DurableObjectState) {}
-
-	async fetch(request: Request): Promise<Response> {
-		const url = new URL(request.url);
-		if (url.pathname.endsWith('/server-key')) return this.keepServerKey(request);
-		if (url.pathname.endsWith('/call')) return this.takeOneShotCall(request);
-		if (url.pathname.endsWith('/host-session')) return this.acceptHost(request);
-		if (request.headers.get('Upgrade') !== 'websocket') {
-			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
-		}
-		if (url.pathname.endsWith('/server')) return this.acceptServer(request);
-		return this.acceptClient(request);
-	}
-
-	private async keepServerKey(request: Request): Promise<Response> {
-		const { serverKey } = (await request.json()) as { serverKey?: string };
-		if (typeof serverKey !== 'string' || serverKey.trim() === '') {
-			return jsonResponse({ error: 'a server key is required' }, 400);
-		}
-		await this.state.storage.put(serverKeyDigestStorageKey, await digestOf(serverKey));
-		await this.state.storage.delete(legacyServerKeyStorageKey);
-		return jsonResponse({ status: 'ok' }, 200);
-	}
-
-	private async takeOneShotCall(request: Request): Promise<Response> {
-		const call = parseOneShotCall(await readJSONBody(request));
-		if (!call) return jsonResponse({ error: 'a request identifier and a capability are required' }, 400);
-
-		const decision = decideCall(call, undefined, this.ledger, this.serverSocket !== null);
-		if (decision.action === 'answer') return answerResponse(decision.answer);
-		if (decision.action === 'ignore') return answerResponse(callInFlightAnswer(call.requestID));
-		if (this.waitingCalls.isFull) return answerResponse(tooManyWaitingCallsAnswer(call.requestID));
-
-		const waited = this.waitingCalls.waitFor(call.requestID);
-		this.forward(decision.routed);
-		const answer = await waited;
-		if (answer.status === callTimedOutStatus) this.ledger.forgetPending(call.requestID);
-		return answerResponse(answer);
-	}
-
-	private async acceptServer(request: Request): Promise<Response> {
-		const offered = request.headers.get('Authorization') ?? '';
-		if (!(await this.isTheServerKey(offered))) {
-			return jsonResponse({ error: 'this connection is not the company server' }, 401);
-		}
-		return this.acceptConnectedServer(request);
-	}
-
-	private async isTheServerKey(authorization: string): Promise<boolean> {
-		if (!authorization.startsWith(bearerPrefix)) return false;
-		const offeredDigest = await digestOf(authorization.slice(bearerPrefix.length));
-		const keptDigest = await this.state.storage.get<string>(serverKeyDigestStorageKey);
-		if (keptDigest) return digestsMatch(offeredDigest, keptDigest);
-		return this.upgradeLegacyServerKey(offeredDigest);
-	}
-
-	private async upgradeLegacyServerKey(offeredDigest: string): Promise<boolean> {
-		const legacyKey = await this.state.storage.get<string>(legacyServerKeyStorageKey);
-		if (!legacyKey) return false;
-		if (!digestsMatch(offeredDigest, await digestOf(legacyKey))) return false;
-		await this.state.storage.put(serverKeyDigestStorageKey, offeredDigest);
-		await this.state.storage.delete(legacyServerKeyStorageKey);
-		return true;
-	}
-
-	private acceptHost(request: Request): Response {
-		if (request.headers.get('Upgrade') !== 'websocket') {
-			return jsonResponse({ error: 'this endpoint speaks websocket' }, 426);
-		}
-		return this.acceptConnectedServer(request);
-	}
-
-	private acceptConnectedServer(request: Request): Response {
-		const { client, server } = newSocketPair();
-		server.accept();
-		this.serverSocket?.close(1012, 'another server connected');
-		this.serverSocket = server;
-		this.serverSeenAt = Date.now();
-		server.addEventListener('message', (message) => this.onServerMessage(message));
-		server.addEventListener('close', () => this.onServerClose(server));
-		return new Response(null, { status: 101, webSocket: client });
-	}
-
-	private acceptClient(request: Request): Response {
-		const memberID = request.headers.get(memberHeader);
-		if (!memberID) return jsonResponse({ error: 'this connection names no member' }, 401);
-		const { client, server } = newSocketPair();
-		server.accept();
-		this.socketsOf(memberID).add(server);
-		server.addEventListener('message', (message) => this.onClientMessage(memberID, server, message));
-		server.addEventListener('close', () => this.forgetClient(memberID, server));
-		server.send(JSON.stringify(this.presence()));
-		const spoken = request.headers.get('Sec-WebSocket-Protocol')?.split(',')[0]?.trim();
-		return new Response(null, {
-			status: 101,
-			webSocket: client,
-			headers: spoken ? { 'Sec-WebSocket-Protocol': spoken } : undefined
-		});
-	}
-
-	private onClientMessage(memberID: string, socket: WebSocket, message: MessageEvent): void {
-		const call = parseClientCall(readJSON(message.data));
-		if (!call) return;
-		const decision = decideCall(call, memberID, this.ledger, this.serverSocket !== null);
-		if (decision.action === 'ignore') return;
-		if (decision.action === 'answer') {
-			socket.send(JSON.stringify(decision.answer));
-			return;
-		}
-		this.forward(decision.routed, memberID);
-	}
-
-	private forward(routed: RoutedCall, memberID?: string): void {
-		this.ledger.markPending(routed.requestID);
-		if (memberID) this.askedBy.set(routed.requestID, memberID);
-		try {
-			this.serverSocket?.send(JSON.stringify(routed));
-		} catch {
-			this.ledger.forgetPending(routed.requestID);
-			this.askedBy.delete(routed.requestID);
-		}
-	}
-
-	private onServerMessage(message: MessageEvent): void {
-		const parsed = parseServerMessage(readJSON(message.data));
-		if (!parsed) return;
-		this.serverSeenAt = Date.now();
-		if (parsed.kind === 'result') {
-			this.answer(parsed);
-			return;
-		}
-		this.deliver(JSON.stringify({ kind: 'deliver', event: parsed.event }), parsed.audienceMemberIDs);
-
-	}
-
-	private answer(answer: ServerAnswer): void {
-		this.ledger.recordAnswer(answer);
-		if (this.waitingCalls.settle(answer)) return;
-		const memberID = this.askedBy.get(answer.requestID);
-		this.askedBy.delete(answer.requestID);
-		if (!memberID) return;
-		this.sendTo(memberID, JSON.stringify(answer));
-	}
-
-	private deliver(document: string, audienceMemberIDs?: string[]): void {
-		const audience = audienceMemberIDs ?? [...this.clientSockets.keys()];
-		for (const memberID of audience) this.sendTo(memberID, document);
-	}
-
-	private sendTo(memberID: string, document: string): void {
-		for (const socket of this.socketsOf(memberID)) {
-			try {
-				socket.send(document);
-			} catch {
-				this.forgetClient(memberID, socket);
-			}
-		}
-	}
-
-	private onServerClose(socket: WebSocket): void {
-		if (this.serverSocket !== socket) return;
-		this.serverSocket = null;
-		this.deliver(JSON.stringify(this.presence()));
-	}
-
-	private presence(): { kind: 'presence'; isServerConnected: boolean; serverSeenAt: number } {
-		return { kind: 'presence', isServerConnected: this.serverSocket !== null, serverSeenAt: this.serverSeenAt };
-	}
-
-	private socketsOf(memberID: string): Set<WebSocket> {
-		let sockets = this.clientSockets.get(memberID);
-		if (!sockets) {
-			sockets = new Set<WebSocket>();
-			this.clientSockets.set(memberID, sockets);
-		}
-		return sockets;
-	}
-
-	private forgetClient(memberID: string, socket: WebSocket): void {
-		const sockets = this.clientSockets.get(memberID);
-		if (!sockets) return;
-		sockets.delete(socket);
-		if (sockets.size === 0) this.clientSockets.delete(memberID);
-	}
-}
-
-function newSocketPair(): { client: WebSocket; server: WebSocket } {
-	const pair = new WebSocketPair();
-	return { client: pair[0], server: pair[1] };
-}
-
-async function readJSONBody(request: Request): Promise<unknown> {
-	try {
-		return await request.json();
-	} catch {
-		return null;
-	}
-}
-
-function answerResponse(answer: ServerAnswer): Response {
-	return jsonResponse(oneShotAnswerOf(answer), 200);
-}
-
-function readJSON(data: unknown): unknown {
-	if (typeof data !== 'string') return null;
-	try {
-		return JSON.parse(data);
-	} catch {
-		return null;
-	}
-}
+export { CompanyConnectionObject } from './company-connection';

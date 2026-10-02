@@ -310,7 +310,7 @@ GROUPS = [
     ),
     Group(
         "relay",
-        ["host/relay/*"],
+        ["host/relay/*", "workers/connection-gateway/src/host-protocol.ts", "workers/connection-gateway/src/base64.ts"],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="host/relay",
     ),
@@ -331,6 +331,22 @@ GROUPS = [
         ["workers/connection-gateway/*"],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="workers/connection-gateway",
+    ),
+    Group(
+        "messenger-gateway",
+        [
+            "workers/connection-gateway/*",
+            "host/relay/gateway-socket.ts",
+            "host/relay/gateway-connector.ts",
+            "host/relay/fair-outbox.ts",
+            "host/relay/messenger-*.ts",
+            "host/relay/transfer-store.ts",
+            "web/tests/messenger-gateway/*",
+            "supabase/migrations/*messenger_address*",
+        ],
+        [BUN_INSTALL, holding_the_local_plane(["bun", "run", "test:messenger-gateway"])],
+        working_directory="web",
+        lane="web",
     ),
     Group(
         "docs-site",

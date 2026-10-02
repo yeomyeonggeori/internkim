@@ -1,42 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, jest, test } from 'bun:test';
 import worker, { CompanyCalls, CompanyConnectionObject, type WorkerEnvironment } from './index';
+import { ConnectionObject, TestSocket, newState, socketHeldByTheObject } from './test-durable-object';
 import { oneShotCallBoundMilliseconds, waitingCallsPerCompany, type OneShotAnswer } from './routing';
-
-class TestSocket {
-	readonly sent: string[] = [];
-	private readonly listeners = new Map<string, ((event: MessageEvent) => void)[]>();
-
-	accept(): void {}
-
-	close(): void {}
-
-	send(document: string): void {
-		this.sent.push(document);
-	}
-
-	addEventListener(name: string, handler: (event: MessageEvent) => void): void {
-		this.listeners.set(name, [...(this.listeners.get(name) ?? []), handler]);
-	}
-
-	receive(document: string): void {
-		for (const handler of this.listeners.get('message') ?? []) {
-			handler({ data: document } as MessageEvent);
-		}
-	}
-}
-
-let socketHeldByTheObject: TestSocket | null = null;
-
-class TestWebSocketPair {
-	readonly 0 = new TestSocket();
-	readonly 1 = new TestSocket();
-
-	constructor() {
-		socketHeldByTheObject = this[1];
-	}
-}
-
-Object.assign(globalThis, { WebSocketPair: TestWebSocketPair });
+import { isPageNavigation } from './messenger';
 
 const serverKey = 'company-server-key';
 const companyID = 'c1';
@@ -66,18 +32,6 @@ async function signedHostToken(claims: Record<string, unknown>): Promise<string>
 	return `${signed}.${base64URL(new Uint8Array(signature))}`;
 }
 
-function newState(values: Map<string, unknown> = new Map()): DurableObjectState {
-	const storage = {
-		get: (key: string) => Promise.resolve(values.get(key)),
-		put: (key: string, value: unknown) => {
-			values.set(key, value);
-			return Promise.resolve();
-		},
-		delete: (key: string) => Promise.resolve(values.delete(key))
-	};
-	return { storage } as unknown as DurableObjectState;
-}
-
 function environmentReaching(object: CompanyConnectionObject): WorkerEnvironment {
 	const namespace = {
 		idFromName: (name: string) => name,
@@ -96,7 +50,7 @@ function hostEnvironment(object: CompanyConnectionObject): WorkerEnvironment {
 }
 
 async function companyWithAServerKey(): Promise<{ calls: CompanyCalls; object: CompanyConnectionObject }> {
-	const object = new CompanyConnectionObject(newState());
+	const object = new ConnectionObject(newState());
 	await object.fetch(
 		new Request(`https://gateway/company/${companyID}/server-key`, {
 			method: 'POST',
@@ -115,6 +69,23 @@ async function connectedCompany(): Promise<{ calls: CompanyCalls; serverSocket: 
 	);
 	if (!socketHeldByTheObject) throw new Error('the object accepted no server socket');
 	return { calls, serverSocket: socketHeldByTheObject };
+}
+
+const storedBlob = new TextEncoder().encode('the bytes of a picture');
+const uploadsKept: { contentType: string | null; body: string }[] = [];
+
+function storedBlobAnswer(request: Request): Response {
+	const range = request.headers.get('Range');
+	if (range !== 'bytes=4-8') return new Response(storedBlob, { headers: { 'content-length': String(storedBlob.byteLength) } });
+	return new Response(storedBlob.slice(4, 9), {
+		status: 206,
+		headers: { 'content-range': `bytes 4-8/${storedBlob.byteLength}`, 'content-length': '5' }
+	});
+}
+
+async function keepUpload(request: Request): Promise<Response> {
+	uploadsKept.push({ contentType: request.headers.get('Content-Type'), body: await request.text() });
+	return Response.json({ Key: 'staged' });
 }
 
 async function flushMicrotasks(): Promise<void> {
@@ -136,6 +107,12 @@ beforeAll(async () => {
 			const path = new URL(request.url).pathname;
 			if (path === '/jwks') return new Response(publicKeyDocument);
 			if (path === '/rest/v1/rpc/my_app_company') return Response.json(companyTheRecordGrants);
+			if (path === '/rest/v1/rpc/company_of_messenger_address') {
+				const slug = new URL(request.url).searchParams.get('address_slug');
+				return Response.json(slug === 'acme' || slug === 'acme-media' || slug === 'acme-upload' ? companyID : null);
+			}
+			if (path === '/store/blob') return storedBlobAnswer(request);
+			if (path === '/store/upload') return keepUpload(request);
 			return new Response('not found', { status: 404 });
 		}
 	});
@@ -151,7 +128,7 @@ afterEach(() => {
 
 describe('the public fetch handler', () => {
 	test('requires a bearer token for the host route', async () => {
-		const object = new CompanyConnectionObject(newState());
+		const object = new ConnectionObject(newState());
 		const response = await worker.fetch(
 			new Request(`https://gateway/company/${hostCompanyID}/host`, { headers: { Upgrade: 'websocket' } }),
 			hostEnvironment(object)
@@ -180,7 +157,7 @@ describe('the public fetch handler', () => {
 			}
 		];
 		for (const entry of cases) {
-			const object = new CompanyConnectionObject(newState());
+			const object = new ConnectionObject(newState());
 			const response = await worker.fetch(
 				new Request(`https://gateway/company/${hostCompanyID}/host`, {
 					headers: { Upgrade: 'websocket', Authorization: `Bearer ${entry.token}` }
@@ -192,7 +169,7 @@ describe('the public fetch handler', () => {
 	});
 
 	test('accepts a signed host token and keeps the internal path private', async () => {
-		const object = new CompanyConnectionObject(newState());
+		const object = new ConnectionObject(newState());
 		const token = await signedHostToken({
 			sub: 'account-1',
 			iss: issuer, aud: 'authenticated',
@@ -228,7 +205,7 @@ describe('the public fetch handler', () => {
 				new Request(`https://gateway/company/${hostCompanyID}/host`, {
 					headers: { Upgrade: 'websocket', Authorization: `Bearer ${token}` }
 				}),
-				hostEnvironment(new CompanyConnectionObject(newState()))
+				hostEnvironment(new ConnectionObject(newState()))
 			);
 			expect(refused.status).toBe(403);
 		} finally {
@@ -358,7 +335,7 @@ describe('the server key at rest', () => {
 
 	test('keeps only a digest of the key', async () => {
 		const values = new Map<string, unknown>();
-		const object = new CompanyConnectionObject(newState(values));
+		const object = new ConnectionObject(newState(values));
 		await object.fetch(
 			new Request(`https://gateway/company/${companyID}/server-key`, {
 				method: 'POST',
@@ -373,7 +350,7 @@ describe('the server key at rest', () => {
 
 	test('accepts a key stored in plaintext once and replaces it with its digest', async () => {
 		const values = new Map<string, unknown>([['serverKey', serverKey]]);
-		const object = new CompanyConnectionObject(newState(values));
+		const object = new ConnectionObject(newState(values));
 		expect((await object.fetch(serverRequest('another-key'))).status).toBe(401);
 		expect(values.get('serverKey')).toBe(serverKey);
 
@@ -393,7 +370,7 @@ describe('the server key at rest', () => {
 
 	test('refuses a header that is not a bearer credential', async () => {
 		const values = new Map<string, unknown>([['serverKey', serverKey]]);
-		const object = new CompanyConnectionObject(newState(values));
+		const object = new ConnectionObject(newState(values));
 		const response = await object.fetch(
 			new Request(`https://gateway/company/${companyID}/server`, {
 				headers: { Upgrade: 'websocket', Authorization: serverKey }
@@ -431,5 +408,175 @@ describe('what the server delivers unasked', () => {
 
 		const delivered = clientSocket.sent.map((document) => JSON.parse(document)).filter((frame) => frame.kind === 'deliver');
 		expect(delivered).toEqual([{ kind: 'deliver', event: { kind: 'message.arrived', conversationID: 'channel-1' } }]);
+	});
+});
+
+describe('a company messenger address', () => {
+	async function messengerCompany(): Promise<{ object: CompanyConnectionObject; host: TestSocket }> {
+		const object = new ConnectionObject(newState());
+		await object.fetch(
+			new Request(`https://connection-gateway/company/${companyID}/host-session`, { headers: { Upgrade: 'websocket' } })
+		);
+		if (!socketHeldByTheObject) throw new Error('the object accepted no host socket');
+		return { object, host: socketHeldByTheObject };
+	}
+
+	async function callTheHostReceived(host: TestSocket): Promise<{ requestID: string; capability: string; body: Record<string, unknown> }> {
+		for (let round = 0; round < 50; round += 1) {
+			const call = host.documents().findLast((document) => (document as { kind?: string }).kind === 'call');
+			if (call) return call as { requestID: string; capability: string; body: Record<string, unknown> };
+			await Bun.sleep(2);
+		}
+		throw new Error('the host was asked for nothing');
+	}
+
+	function relayAnswer(requestID: string, status: number, body: Record<string, unknown>): string {
+		return JSON.stringify({ kind: 'result', requestID, status, body });
+	}
+
+	test('opens a stream to the company that holds the address', async () => {
+		const { object, host } = await messengerCompany();
+		const response = await worker.fetch(
+			new Request('https://acme.example.test/', { headers: { Upgrade: 'websocket', 'CF-Connecting-IP': '198.51.100.7' } }),
+			hostEnvironment(object)
+		);
+		expect(response.status).toBe(101);
+		expect(host.documents()).toEqual([
+			expect.objectContaining({ kind: 'stream.open', host: 'acme.example.test', path: '/', forwardedFor: '198.51.100.7' })
+		]);
+	});
+
+	test('answers 404 at an address no company holds, and asks no computer', async () => {
+		const { object, host } = await messengerCompany();
+		const response = await worker.fetch(
+			new Request('https://stranger.example.test/', { headers: { Upgrade: 'websocket' } }),
+			hostEnvironment(object)
+		);
+		expect(response.status).toBe(404);
+		expect(host.sent).toEqual([]);
+	});
+
+	test('carries an http request to the relay and its answer back, leaving the edge headers behind', async () => {
+		const { object, host } = await messengerCompany();
+		const answered = worker.fetch(
+			new Request('https://acme.example.test/query?limit=2', {
+				method: 'POST',
+				headers: { Authorization: 'Nostr abc', 'Content-Type': 'application/json', 'CF-Ray': 'ray', 'X-Forwarded-For': '1.2.3.4' },
+				body: '{"kinds":[1]}'
+			}),
+			hostEnvironment(object)
+		);
+		const call = await callTheHostReceived(host);
+		expect(call.capability).toBe('messenger.http');
+		expect(call.body).toEqual({
+			method: 'POST',
+			path: '/query?limit=2',
+			host: 'acme.example.test',
+			headers: { authorization: 'Nostr abc', 'content-type': 'application/json' },
+			bodyBase64: btoa('{"kinds":[1]}')
+		});
+		host.receive(
+			relayAnswer(call.requestID, 200, {
+				headers: { 'content-type': 'application/json', 'content-encoding': 'gzip' },
+				bodyBase64: btoa('[]')
+			})
+		);
+		const response = await answered;
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-encoding')).toBeNull();
+		expect(await response.text()).toBe('[]');
+	});
+
+	test('streams a blob from the transfer store, honouring the range the app asked for', async () => {
+		const { object, host } = await messengerCompany();
+		const sha = 'a'.repeat(64);
+		const answered = worker.fetch(
+			new Request(`https://acme-media.example.test/media/${sha}.png`, {
+				headers: { Authorization: 'Nostr get-token', Range: 'bytes=4-8' }
+			}),
+			hostEnvironment(object)
+		);
+		const call = await callTheHostReceived(host);
+		expect(call.capability).toBe('messenger.media.read');
+		expect(call.body).toMatchObject({ method: 'GET', path: `/media/${sha}.png`, headers: { authorization: 'Nostr get-token', range: 'bytes=4-8' } });
+		host.receive(
+			relayAnswer(call.requestID, 200, {
+				headers: { 'content-type': 'image/png', 'cache-control': 'private, max-age=31536000, immutable' },
+				bodyBase64: '',
+				objectURL: `${recordURL}/store/blob`
+			})
+		);
+		const response = await answered;
+		expect(response.status).toBe(206);
+		expect(response.headers.get('content-range')).toBe(`bytes 4-8/${storedBlob.byteLength}`);
+		expect(response.headers.get('content-type')).toBe('image/png');
+		expect(await response.text()).toBe('bytes');
+	});
+
+	test('passes a refusal from the relay through without touching the store', async () => {
+		const { object, host } = await messengerCompany();
+		const answered = worker.fetch(
+			new Request(`https://acme-media.example.test/media/${'b'.repeat(64)}`),
+			hostEnvironment(object)
+		);
+		const call = await callTheHostReceived(host);
+		host.receive(relayAnswer(call.requestID, 401, { headers: { 'content-type': 'text/plain' }, bodyBase64: btoa('auth required') }));
+		const response = await answered;
+		expect(response.status).toBe(401);
+		expect(await response.text()).toBe('auth required');
+	});
+
+	test('stages an upload in the transfer store, then has the relay take it from there', async () => {
+		const { object, host } = await messengerCompany();
+		const answered = worker.fetch(
+			new Request('https://acme-upload.example.test/upload', {
+				method: 'PUT',
+				headers: { Authorization: 'Nostr upload-token', 'Content-Type': 'image/png', 'X-SHA-256': 'c'.repeat(64) },
+				body: 'picture bytes'
+			}),
+			hostEnvironment(object)
+		);
+		const stage = await callTheHostReceived(host);
+		expect(stage.capability).toBe('messenger.media.stage');
+		host.receive(relayAnswer(stage.requestID, 200, { headers: {}, bodyBase64: '', uploadURL: `${recordURL}/store/upload`, stagedPath: 'c1/shared/staged' }));
+
+		let write = stage;
+		for (let round = 0; round < 50 && write.requestID === stage.requestID; round += 1) {
+			await Bun.sleep(2);
+			write = await callTheHostReceived(host);
+		}
+		expect(write.capability).toBe('messenger.media.write');
+		expect(write.body).toMatchObject({ method: 'PUT', path: '/upload', stagedPath: 'c1/shared/staged', headers: { 'x-sha-256': 'c'.repeat(64) } });
+		expect(uploadsKept.at(-1)).toEqual({ contentType: 'image/png', body: 'picture bytes' });
+
+		host.receive(relayAnswer(write.requestID, 200, { headers: { 'content-type': 'application/json' }, bodyBase64: btoa('{"sha256":"c"}') }));
+		const response = await answered;
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ sha256: 'c' });
+	});
+
+	test('sends a person who opens the address in a browser to the zone, as every other company hostname does', async () => {
+		const { object, host } = await messengerCompany();
+		const response = await worker.fetch(
+			new Request('https://acme.example.test/settings?tab=people', { headers: { Accept: 'text/html,application/xhtml+xml' } }),
+			hostEnvironment(object)
+		);
+		expect(response.status).toBe(308);
+		expect(response.headers.get('Location')).toBe('https://example.test/settings?tab=people');
+		expect(host.sent).toEqual([]);
+	});
+
+	test('keeps the relay information document and media reads, which a browser may also ask for, at the relay', () => {
+		const navigation = { Accept: 'text/html,image/avif,*/*' };
+		expect(isPageNavigation(new Request('https://acme.example.test/', { headers: { Accept: 'application/nostr+json' } }), '/')).toBe(false);
+		expect(isPageNavigation(new Request(`https://acme.example.test/media/${'a'.repeat(64)}.png`, { headers: navigation }), `/media/${'a'.repeat(64)}.png`)).toBe(false);
+		expect(isPageNavigation(new Request('https://acme.example.test/', { headers: { ...navigation, Upgrade: 'websocket' } }), '/')).toBe(false);
+		expect(isPageNavigation(new Request('https://acme.example.test/', { method: 'POST', headers: navigation }), '/')).toBe(false);
+	});
+
+	test('answers 503 for an http request while the company computer is away', async () => {
+		const object = new ConnectionObject(newState());
+		const response = await worker.fetch(new Request('https://acme.example.test/info'), hostEnvironment(object));
+		expect(response.status).toBe(503);
 	});
 });

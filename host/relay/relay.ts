@@ -41,6 +41,8 @@ import {
 } from './forward';
 import { notifyRequestOf, readArrivedMessage, type ArrivedMessage } from './arrived';
 import { connectToGateway, type GatewayConnection } from './gateway-socket';
+import { MessengerRelay } from './messenger-calls';
+import { messengerStoreOf } from './messenger-store';
 import { CredentialCache } from './credential-cache';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath } from './acp-session';
 import { RecordCatalogs, ticketOf } from './record-catalog';
@@ -59,6 +61,7 @@ await hostCredential();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = positiveNumberSetting('ARRIVALS_PORT', process.env.ARRIVALS_PORT, 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
+const messengerRelayURL = process.env.MESSENGER_RELAY_URL ?? 'ws://127.0.0.1:3000';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
 const blueclawACPSocketPath = process.env.BLUECLAW_ACP_SOCKET_PATH ?? defaultBlueclawACPSocketPath;
@@ -112,7 +115,8 @@ function openGatewayConnection(): GatewayConnection | null {
 		companyID,
 		...(serverKey ? { serverKey } : { hostAccessToken: freshHostAccessToken }),
 		dispatch,
-		byteCeiling: answerByteCeiling
+		byteCeiling: answerByteCeiling,
+		messengerRelayURL
 	});
 }
 
@@ -191,9 +195,12 @@ function askChatdRaw(capability: string, body: Record<string, unknown>): Promise
 	return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
+const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), messengerStoreOf(companyID, hostAccess));
+
 const dispatch = {
 	messageArrived: tellBrowsers,
 	serveAsset: asset,
+	serveMessenger: (capability: string, body: Record<string, unknown>) => messenger.serve(capability, body),
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
 	transfer: {
