@@ -192,7 +192,7 @@ func (daemon Daemon) installFor(session Session, modelKey string) error {
 	connection := connectionOf(session)
 	log.Printf("installing the server for %s", connection.Company.Name)
 	if errorValue := daemon.Install(companyhost.Request{
-		Connection:         &connection,
+		Connection:         connection,
 		StateDirectoryPath: daemon.Places.CompanyStateDirectoryPath(connection.Company.ID),
 		ModelKey:           modelKey,
 		PromptForModelKey:  func() (string, error) { return modelKey, nil },

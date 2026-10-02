@@ -400,7 +400,7 @@ func restoreOneDatabase(platform backupPlatform, archive hostbackup.Archive, mac
 }
 
 func startTheRestoredHost(platform backupPlatform, machine Machine, directoryPath string, connection Connection, progress io.Writer) error {
-	request := Request{Connection: &connection, StateDirectoryPath: directoryPath, PromptForModelKey: noModelKeyPrompt}
+	request := Request{Connection: connection, StateDirectoryPath: directoryPath, PromptForModelKey: noModelKeyPrompt}
 	if _, errorValue := prepareCompanyDirectory(platform, machine, directoryPath, connection, request); errorValue != nil {
 		return errorValue
 	}

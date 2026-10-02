@@ -84,48 +84,35 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "install":
-		if errorValue := runInstall(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nInstallation stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Installation stopped", runInstall(os.Args[2:]))
 	case "box":
 		runBox(os.Args[2:])
 	case "backup":
-		if errorValue := runBackup(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nBackup stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Backup stopped", runBackup(os.Args[2:]))
 	case "restore":
-		if errorValue := runRestore(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nRestore stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Restore stopped", runRestore(os.Args[2:]))
 	case "import-device":
-		if errorValue := runImportDevice(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nImport stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Import stopped", runImportDevice(os.Args[2:]))
 	case "refresh":
-		if errorValue := runRefresh(); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nThe company was not brought back: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("The company was not brought back", runRefresh())
 	case blueclaw.SkillPreparationVerb:
 		if len(os.Args) > 2 {
 			printUsage(command)
 		}
-		if errorValue := companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nThe skills were not prepared: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("The skills were not prepared", companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout))
 	case "update":
-		if errorValue := runUpdate(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nUpdate stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Update stopped", runUpdate(os.Args[2:]))
 	default:
 		printUsage(command)
 	}
+}
+
+func stopOnFailure(whatStopped string, errorValue error) {
+	if errorValue == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "\n%s: %s\n", whatStopped, errorValue)
+	os.Exit(1)
 }
 
 func printUsage(command string) {
@@ -321,11 +308,15 @@ func runInstall(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	connection, errorValue := companyhost.ReadConnection(parsed.ConnectionPath)
+	if errorValue != nil {
+		return errorValue
+	}
 	if companyhost.ThisMachineKeepsABoxSessionFresh() {
-		return installByClaiming(parsed, modelKey)
+		return installByClaiming(parsed, connection, modelKey)
 	}
 	installation, errorValue := companyhost.Install(companyhost.Request{
-		ConnectionPath:     parsed.ConnectionPath,
+		Connection:         connection,
 		StateDirectoryPath: parsed.StateDirectoryPath,
 		ModelKey:           modelKey,
 		PromptForModelKey:  func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
@@ -339,12 +330,9 @@ func runInstall(arguments []string) error {
 	return nil
 }
 
-func installByClaiming(parsed installArguments, modelKey string) error {
-	connection, errorValue := companyhost.ReadConnection(parsed.ConnectionPath)
-	if errorValue != nil {
-		return errorValue
-	}
+func installByClaiming(parsed installArguments, connection companyhost.Connection, modelKey string) error {
 	if modelKey == "" {
+		var errorValue error
 		modelKey, errorValue = readModelKey(os.Stdin, os.Stdout)
 		if errorValue != nil {
 			return errorValue
