@@ -1,3 +1,7 @@
+import { projectURL } from '$lib/supabase';
+import { taskAccountScope } from './task-account-scope';
+import { taskSnapshotGeneration } from '../../routes/task/task-snapshot-storage';
+import { supabaseMember } from '$lib/supabase-session';
 import { isRefusalCode } from '$lib/public-api-call';
 import { companyDirectory, type RecordPerson } from '$lib/record/person-directory';
 import { announceTaskMoved } from '$lib/task/announce-task';
@@ -37,29 +41,48 @@ export const taskStatusOptions = centralTaskStatusOptions;
 
 const untitledTask = '(제목 없음)';
 
-let beingRead: Promise<TaskState> | null = null;
+type ListedTasks = Awaited<ReturnType<typeof everyTaskOfTheCompany>>;
+type TaskViewer = { email: string; name: string; isAdmin: boolean };
+let beingRead: { scope: string; generation: number; listed: Promise<ListedTasks>; value: Promise<TaskState> } | null = null;
 
-// The board asks for the state and the week at the same moment, and the week is
-// a slice of the state. Callers within one turn share the read; nothing is held
-// once it settles, so the next read is current.
-export function taskState(): Promise<TaskState> {
-	if (beingRead) return beingRead;
-	const reading = readTaskState();
+export function forgetTaskStateRead(scope: string): void {
+	if (beingRead?.scope === scope) beingRead = null;
+}
+
+export function taskState(scope?: string): Promise<TaskState> {
+	if (scope === undefined) {
+		return supabaseMember().then((member) => taskState(taskAccountScope(member, projectURL())));
+	}
+	return taskReadFor(scope).value;
+}
+
+export function taskBoardState(scope: string, viewer: TaskViewer): Promise<TaskState> {
+	return taskReadFor(scope).listed.then(listed => stateOfListedTasks(listed, [], '', viewer));
+}
+
+function taskReadFor(scope: string) {
+	const generation = taskSnapshotGeneration();
+	if (beingRead?.scope === scope && beingRead.generation === generation) return beingRead;
+	const listed = everyTaskOfTheCompany();
+	const reading = { scope, generation, listed, value: readTaskState(listed) };
 	beingRead = reading;
-	void reading.catch(() => undefined).finally(() => {
+	void reading.value.catch(() => undefined).finally(() => {
 		if (beingRead === reading) beingRead = null;
 	});
 	return reading;
 }
 
-async function readTaskState(): Promise<TaskState> {
-	const [listed, directory] = await Promise.all([everyTaskOfTheCompany(), companyDirectory()]);
+async function readTaskState(listedTasks: Promise<ListedTasks>): Promise<TaskState> {
+	const [listed, directory] = await Promise.all([listedTasks, companyDirectory()]);
+	return stateOfListedTasks(listed, directory.people, directory.requesterID);
+}
+
+function stateOfListedTasks(listed: ListedTasks, people: RecordPerson[], requesterID: string, viewer?: TaskViewer): TaskState {
 	const tasks = sortedByEnd(listed.tasks.map(taskOf));
-	const people = directory.people;
 	const memberIDs = people.map((person) => person.personID);
 	const tallies = memberTaskTallies(tasks, memberIDs);
 	const scoreDetails = memberScoreDetails(tasks, memberIDs, startOfISOWeek(new Date()));
-	const me = people.find((person) => person.personID === directory.requesterID);
+	const me = people.find((person) => person.personID === requesterID);
 
 	return {
 		currentWeek: taskWeekOfDate(new Date()),
@@ -68,14 +91,13 @@ async function readTaskState(): Promise<TaskState> {
 		metrics: { ...metricsOf(tasks), ...standingMetricsOf(scoreDetails, tallies) },
 		definitions: taskDefinitionsOf(listed.registeredLabels),
 		statusOptions: taskStatusOptions,
-		currentUserEmail: me?.email ?? '',
-		currentUserName: me?.name ?? '',
-		isAdmin: me?.isAdmin ?? false
+		currentUserEmail: me?.email ?? viewer?.email ?? '',
+		currentUserName: me?.name ?? viewer?.name ?? '',
+		isAdmin: me?.isAdmin ?? viewer?.isAdmin ?? false
 	};
 }
 
-export async function taskWeeklySummary(week: string): Promise<TaskWeeklySummary> {
-	const state = await taskState();
+export function taskWeeklySummaryOf(state: TaskState, week: string): TaskWeeklySummary {
 	const shown = week ? taskWeekForCode(week, new Date()) : taskWeekOfDate(new Date());
 	const weeklyTasks = state.tasks.filter((task) => task.weekCode === shown.code);
 	return {

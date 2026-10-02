@@ -1,4 +1,5 @@
 <script lang="ts">
+	import './task-board-layout.css';
 	import { Button } from '$lib/components/ui/button';
 	import { cn } from '$lib/utils';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -205,36 +206,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	[data-task-board-scroll] {
-		container-type: inline-size;
-		scrollbar-width: none;
-	}
-
-	[data-task-board-scroll]::-webkit-scrollbar {
-		display: none;
-	}
-
-	.task-board-column {
-		width: max(13.5rem, calc((100cqw + 1.25rem) / 1.5));
-	}
-
-	@container (min-width: 560px) {
-		.task-board-column {
-			width: max(13.5rem, calc((100cqw + 0.5rem) / 2.5));
-		}
-	}
-
-	@container (min-width: 820px) {
-		.task-board-column {
-			width: max(15rem, calc((100cqw - 0.25rem) / 3.5));
-		}
-	}
-
-	@container (min-width: 1180px) {
-		.task-board-column {
-			width: max(15.5rem, calc((100cqw - 1rem) / 4.5));
-		}
-	}
-</style>

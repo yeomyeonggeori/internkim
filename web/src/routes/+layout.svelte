@@ -38,12 +38,10 @@
 	import { keepActivityTokensClaimed } from '$lib/widget/attendance-activity-tokens';
 	import { catchTheLockScreenUp } from '$lib/attendance/lock-screen-catch-up';
 	import { setPersonNameCompanyLocale } from '$lib/person-name.svelte';
-	import { preloadWorkTimeChartPlot } from './attendance/shared/work-time-chart-plot-loader';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { ModeWatcher } from 'mode-watcher';
 	import { onMount, untrack } from 'svelte';
-	import { personPicture } from '$lib/stores/person-picture.svelte';
 	import { keepMemberPicture } from '$lib/profile/keep-member-picture';
 	import { memberPresence } from '$lib/messenger/member-presence.svelte';
 
@@ -57,15 +55,10 @@
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	$effect(() => {
 		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
-		const isAttendanceRoute = routePathOf(page.url.pathname).startsWith('/attendance');
 		untrack(() => {
 			const hasSessionChanged = sessionKey !== attendanceSessionKey;
 			attendanceSessionKey = sessionKey;
 			if (hasSessionChanged) myAttendanceToday.clear();
-			if (!data.session?.authenticated) {
-				return;
-			}
-			if (!isAttendanceRoute && !myAttendanceToday.summary) void myAttendanceToday.load();
 		});
 	});
 	$effect(() => {
@@ -97,9 +90,7 @@
 	});
 	onMount(() => {
 		initializeLocale();
-		preloadWorkTimeChartPlot();
 		if (data.session?.authenticated) {
-			void personPicture.rememberEveryone();
 			keepMemberPicture(data.session.email).catch((failure: unknown) =>
 				console.warn('the member picture was not kept', failure)
 			);

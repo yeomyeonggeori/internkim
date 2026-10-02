@@ -45,7 +45,7 @@ class AppNavigation {
 	companySlug = $state('');
 
 	currentPath = $derived(routePathOf(page.url.pathname));
-	link = (path: string) => companyPathOf(this.companySlug, path);
+	link = (path: string) => companyPathOf(this.companySlug, path === '/' ? path : path.replace(/\/$/, ''));
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([

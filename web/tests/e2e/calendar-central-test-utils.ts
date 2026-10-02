@@ -26,7 +26,7 @@ export async function signInToCalendar(page: Page): Promise<void> {
 	await page.getByRole('textbox', { name: '비밀번호' }).fill('seed-password');
 	await page.getByRole('button', { name: '로그인', exact: true }).click();
 	await page.waitForURL(`**${calendarPath}**`);
-	await page.locator('iframe').waitFor({ state: 'visible' });
+	await page.locator('.calendar-stage').waitFor({ state: 'visible' });
 }
 
 export async function seedCalendarEvents(events: CalendarCentralEvent[]): Promise<string[]> {

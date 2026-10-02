@@ -11,6 +11,12 @@ export type AttendanceWorkspaceView =
 export class AttendanceViewState {
 	selected = $state<AttendanceWorkspaceView>('tools');
 
+	constructor(private readonly prepareView: (view: AttendanceWorkspaceView) => Promise<void> = async () => undefined) {}
+
+	prefetch(view: AttendanceWorkspaceView): void {
+		void this.prepareView(view);
+	}
+
 	select(view: AttendanceWorkspaceView): void {
 		this.selected = view;
 	}

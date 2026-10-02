@@ -26,14 +26,6 @@ async function addressOf(response: Response): Promise<string> {
 	return (JSON.parse(written) as { address: string }).address;
 }
 
-export async function supabaseCalendarSubscription(): Promise<CalendarSyncResponse | null> {
-	const response = await fetch('/api/calendar/subscription', { headers: await signedInHeaders() });
-	const written = await response.text();
-	if (!response.ok) return null;
-	const { registered } = JSON.parse(written) as { registered: boolean };
-	return registered ? { isRegistered: true } : null;
-}
-
 export async function issueSupabaseCalendarSubscription(): Promise<CalendarSyncResponse> {
 	const response = await fetch('/api/calendar/subscription', {
 		method: 'POST',

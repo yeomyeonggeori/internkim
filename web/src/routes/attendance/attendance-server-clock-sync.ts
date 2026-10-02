@@ -37,12 +37,19 @@ export class AttendanceServerClockSync<Summary extends AttendanceServerClockSync
 		summary: Summary;
 		serverClock: AttendanceServerClock | null;
 	} | null = null;
+	private isDisposed = false;
 	private refreshPromise: Promise<boolean> | null = null;
 
 	constructor(configuration: AttendanceServerClockSyncConfiguration<Summary>) {
 		this.requestSummary = configuration.requestSummary;
 		this.applySummarySnapshot = configuration.applySummarySnapshot;
 		this.monotonicNow = configuration.monotonicNow ?? (() => performance.now());
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
+		this.latestLoadSequences.clear();
+		this.appliedSummarySnapshot = null;
 	}
 
 	async loadSummary(
@@ -90,7 +97,9 @@ export class AttendanceServerClockSync<Summary extends AttendanceServerClockSync
 	): Promise<{ summary: Summary; hasServerClock: boolean; isApplied: boolean } | null> {
 		const requestSequence = this.allocateRequestSequence();
 		try {
+			if (this.isDisposed) return null;
 			const summary = await this.requestSummary(month);
+			if (this.isDisposed) return null;
 			const result = this.applySummaryClock(summary, requestSequence, loadedSummaryApplication);
 			return { summary, ...result };
 		} catch (error) {

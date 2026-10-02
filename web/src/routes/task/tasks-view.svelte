@@ -5,6 +5,7 @@
 	import TaskQuickAdd from './task-quick-add.svelte';
 	import TaskWeekSelector from './task-week-selector.svelte';
 	import TaskBoard from './task-board.svelte';
+	import TaskBoardSkeleton from './task-board-skeleton.svelte';
 	import { taskBoardWeekPosition } from './task-board-week-position';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { untrack } from 'svelte';
@@ -65,7 +66,7 @@
 		<div class="flex flex-wrap items-center gap-2">
 			<Tabs.List>
 				<Tabs.Trigger value="board">{text.task.viewTabs.board}</Tabs.Trigger>
-				<Tabs.Trigger value="list">{text.task.viewTabs.list}</Tabs.Trigger>
+				<Tabs.Trigger value="list" disabled={!summary}>{text.task.viewTabs.list}</Tabs.Trigger>
 			</Tabs.List>
 			<TaskWeekSelector
 				class="ml-auto"
@@ -97,6 +98,9 @@
 			/>
 		</div>
 		<Tabs.Content value="board" class="min-h-[36rem]">
+			{#if !summary && isLoading}
+				<TaskBoardSkeleton label={text.loading} statusLabel={page.statusLabel} />
+			{:else}
 			<TaskBoard
 				memberEmail={page.memberEmail}
 				tasks={page.filteredTasks()}
@@ -104,11 +108,11 @@
 				boardText={text.task.board}
 				etcLabel={text.task.etcLabel}
 				statusLabel={page.statusLabel}
-				openTask={page.openTask}
-				createTask={page.createTask}
+				openTask={(task) => { if (!isLoading) page.openTask(task); }}
+				createTask={(status) => { if (!isLoading) page.createTask(status); }}
 				moveTask={page.moveTaskOnBoard}
 				pendingTaskIDs={page.board.pendingTaskIDs}
-				canUpdateTask={page.canUpdateTask}
+				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
 				weekStartISO={summary?.week.startISO ?? ''}
 				weekEndISO={summary?.week.endISO ?? ''}
 				participantScope={page.participantScope()}
@@ -117,6 +121,7 @@
 				taskTypeColor={page.taskTypeColor}
 				childProgressLabel={text.task.relationships.progressLabel}
 			/>
+			{/if}
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
 			<TaskListView
@@ -129,8 +134,8 @@
 				pendingStatusTaskID={page.pendingStatusTaskID}
 				statusLabel={page.statusLabel}
 				updateTaskStatus={page.updateTaskStatus}
-				openTask={page.openTask}
-				canUpdateTask={page.canUpdateTask}
+				openTask={(task) => { if (!isLoading) page.openTask(task); }}
+				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
 				{focusedTaskID}
 			/>
 		</Tabs.Content>

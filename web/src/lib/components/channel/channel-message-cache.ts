@@ -21,3 +21,8 @@ export function getCachedReaderID(): string {
 export function setCachedReaderID(id: string): void {
 	readerID = id;
 }
+
+export function clearChannelMessageCache(): void {
+	messagesByChannel.clear();
+	readerID = '';
+}

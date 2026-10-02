@@ -54,6 +54,40 @@ flowchart TB
 
 Every arrow leaving the host points outward. None points in.
 
+## App read ordering and freshness
+
+The web app and the native app's shared web screens use the same read paths.
+Authentication and company membership are verified before a route accepts
+account-scoped data. The signed-in member lookup is shared within the current
+account session; focus revalidation and account changes invalidate it.
+
+Opening a task board starts `task_list` and `person_list` together. Actual
+cards can appear when the task response arrives, while the directory completes
+member-dependent editing. Selecting another week derives a view from the same
+state instead of reading the complete history again. A saved task snapshot is
+scoped to the project, company, member and role, expires after 24 hours, and is
+revalidated. Writes, logout and denied access invalidate it; a response started
+before invalidation cannot restore the old snapshot.
+
+The application shell does not fetch the attendance workspace on every route.
+The account menu and command palette load attendance when opened, using the
+existing authenticated readers. The attendance screen retains its monthly
+summary and loads secondary administration views on demand. This preserves
+previous-day unclosed clock segments and authoritative clock-write validation;
+it does not replace those rules with a browser-only today filter.
+
+Record tools validate their descriptor, input and caller permissions before
+using the caller's RLS-enabled database client. Company settings and people are
+independent reads and run concurrently inside each request. Context is not
+cached across authenticated requests. No new RPC, Edge Function, generic batch
+contract or database migration is required for these ordering changes.
+
+Measure actual fixture cards and fresh response markers, rather than empty
+columns or response headers. Browser-restart tests close and relaunch the
+browser with the same profile; snapshot display and fresh data completion are
+separate measurements. These checks do not establish physical native-device
+performance or SQL execution time.
+
 ## One plugin across harnesses
 
 `internkim-plugin` is the shared client package. InternKim's own agent loads the

@@ -16,14 +16,3 @@ export function loadWorkTimeChartPlot(): Promise<WorkTimeChartPlot> {
 	});
 	return pendingPlot;
 }
-
-export function preloadWorkTimeChartPlot(): void {
-	if (typeof window === 'undefined' || loadedPlot || pendingPlot) return;
-	const startLoading = () => void loadWorkTimeChartPlot();
-	const idleCallback = window.requestIdleCallback;
-	if (idleCallback) {
-		idleCallback(startLoading);
-		return;
-	}
-	setTimeout(startLoading, 500);
-}

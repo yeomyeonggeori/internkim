@@ -68,19 +68,30 @@
 		{#if attendance.summary?.isAdmin}
 			<Tabs.Trigger
 				value="approvals"
+				onpointerenter={() => attendanceView.prefetch('approvals')}
+				onfocus={() => attendanceView.prefetch('approvals')}
+				ontouchstart={() => attendanceView.prefetch('approvals')}
 				class="h-7 flex-none gap-1.5 rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
 			>
 				{text.approval.mobileTab}
-				<Badge variant="secondary">{leaveApproval.inbox?.pendingCount ?? 0}</Badge>
+				{#if leaveApproval.inbox}
+					<Badge variant="secondary">{leaveApproval.inbox.pendingCount}</Badge>
+				{/if}
 			</Tabs.Trigger>
 			<Tabs.Trigger
 				value="leaveManagement"
+				onpointerenter={() => attendanceView.prefetch('leaveManagement')}
+				onfocus={() => attendanceView.prefetch('leaveManagement')}
+				ontouchstart={() => attendanceView.prefetch('leaveManagement')}
 				class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
 			>
 				{text.management.mobileTab}
 			</Tabs.Trigger>
 			<Tabs.Trigger
 				value="handWritten"
+				onpointerenter={() => attendanceView.prefetch('handWritten')}
+				onfocus={() => attendanceView.prefetch('handWritten')}
+				ontouchstart={() => attendanceView.prefetch('handWritten')}
 				class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
 			>
 				{text.handWritten.mobileTab}

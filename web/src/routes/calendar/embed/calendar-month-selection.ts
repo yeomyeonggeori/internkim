@@ -1,3 +1,4 @@
+import { calendarOwnsKeyboardEvent } from './calendar-keyboard-scope';
 import { ViewType } from '../calendar-view-type';
 
 export function refreshSelectedMonthDateCell(stageElement: HTMLElement | null, selectedDateKey: string | null): void {
@@ -107,6 +108,7 @@ export function dateKeyFromWeekHeaderTarget(stageElement: HTMLElement, target: E
 
 export function installCalendarMonthKeyboardNavigation(options: CalendarMonthKeyboardNavigationOptions): () => void {
 	function handleKeydown(event: KeyboardEvent): void {
+		if (!calendarOwnsKeyboardEvent(event)) return;
 		if (options.currentView() !== ViewType.MONTH) return;
 		if (isEditableKeyboardTarget(event.target)) return;
 		const dayDelta = monthKeyboardDayDelta(event.key);

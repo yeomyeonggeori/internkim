@@ -73,6 +73,13 @@ describe('attendance summary cache', () => {
 		expect(readCachedAttendanceSummary('2026-07')).toBe(null);
 	});
 
+	test('keeps the same month separate across account and company scopes', () => {
+		writeCachedAttendanceSummary('2026-07', summary, 'plane:company-a:member-a');
+		expect(readCachedAttendanceSummary('2026-07', 'plane:company-a:member-a')).toEqual(summary);
+		expect(readCachedAttendanceSummary('2026-07', 'plane:company-a:member-b')).toBe(null);
+		expect(readCachedAttendanceSummary('2026-07', 'plane:company-b:member-a')).toBe(null);
+	});
+
 	test('clears every cached month', () => {
 		writeCachedAttendanceSummary('2026-07', summary);
 		writeCachedAttendanceSummary('2026-06', { ...summary, month: '2026-06' } as AttendanceSummary);

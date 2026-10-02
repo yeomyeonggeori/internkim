@@ -156,8 +156,9 @@ export class AttendanceState {
 	private loadFailedMessage: string;
 	private readonly serverClockSync: AttendanceServerClockSync<AttendanceSummary>;
 	private activeLoadCount = 0;
+	private isDisposed = false;
 
-	constructor(loadFailedMessage: string) {
+	constructor(loadFailedMessage: string, private readonly cacheScope = '') {
 		this.loadFailedMessage = loadFailedMessage;
 		this.serverClockSync = new AttendanceServerClockSync({
 			requestSummary: (month) => fetchAttendanceSummary({ month }),
@@ -199,7 +200,13 @@ export class AttendanceState {
 		});
 	}
 
+	dispose(): void {
+		this.isDisposed = true;
+		this.serverClockSync.dispose();
+	}
+
 	async load() {
+		if (this.isDisposed) return;
 		this.activeLoadCount += 1;
 		this.isLoading = true;
 		this.errorMessage = '';
@@ -212,7 +219,7 @@ export class AttendanceState {
 					this.summary = summary;
 					this.selectedMonth = summary.month;
 					this.isShowingCachedSummary = false;
-					writeCachedAttendanceSummary(requestedMonth, summary);
+					writeCachedAttendanceSummary(requestedMonth, summary, this.cacheScope);
 				},
 				selectedMonthSummaryLoadTarget
 			);
@@ -225,6 +232,7 @@ export class AttendanceState {
 			}
 			await this.refreshCurrentMonthSnapshot(next);
 		} catch (error) {
+			if (this.isDisposed) return;
 			this.serverClockSync.invalidateLoadTarget(currentMonthSummaryLoadTarget);
 			this.errorMessage = error instanceof Error ? error.message : this.loadFailedMessage;
 			this.summary = null;
@@ -248,12 +256,12 @@ export class AttendanceState {
 
 	private applyCachedSummary() {
 		if (this.summary) return;
-		const cachedSummary = readCachedAttendanceSummary(this.selectedMonth);
+		const cachedSummary = readCachedAttendanceSummary(this.selectedMonth, this.cacheScope);
 		if (!cachedSummary) return;
 		this.summary = cachedSummary;
 		this.selectedMonth = cachedSummary.month;
 		this.isShowingCachedSummary = true;
-		const cachedCurrentMonth = readCachedAttendanceSummary(currentMonthInTimeZone(cachedSummary.timeZone));
+		const cachedCurrentMonth = readCachedAttendanceSummary(currentMonthInTimeZone(cachedSummary.timeZone), this.cacheScope);
 		if (cachedCurrentMonth) this.currentMonthSummary = cachedCurrentMonth;
 	}
 
@@ -267,7 +275,7 @@ export class AttendanceState {
 				currentMonth,
 				(summary) => {
 					this.currentMonthSummary = summary;
-					writeCachedAttendanceSummary(summary.month, summary);
+					writeCachedAttendanceSummary(summary.month, summary, this.cacheScope);
 				},
 				currentMonthSummaryLoadTarget
 			)
@@ -292,7 +300,7 @@ export class AttendanceState {
 				currentMonth,
 				(summary) => {
 					this.currentMonthSummary = summary;
-					writeCachedAttendanceSummary(summary.month, summary);
+					writeCachedAttendanceSummary(summary.month, summary, this.cacheScope);
 				},
 				currentMonthSummaryLoadTarget
 			);

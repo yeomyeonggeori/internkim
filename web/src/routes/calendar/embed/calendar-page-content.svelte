@@ -137,7 +137,7 @@
 	);
 </script>
 
-<main class="calendar-page flex min-h-screen flex-col">
+<main class="calendar-page flex min-h-0 w-full flex-1 flex-col">
 	<CalendarLoadWarning message={loadErrorMessage} />
 	<CalendarToolbar
 		{currentMonthTitle}

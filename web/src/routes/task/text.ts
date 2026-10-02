@@ -11,6 +11,10 @@ export const taskText = {
 		currentWeekAction: '이번 주로 이동',
 		selectWeekDate: '날짜로 주차 이동',
 		refresh: '새로고침',
+		loading: '업무 보드를 준비하고 있습니다',
+		preparingPeople: '업무를 표시했습니다. 구성원 정보를 준비하고 있습니다.',
+		cachedRefreshing: '보관된 업무를 표시하며 최신 데이터를 확인하고 있습니다.',
+		cachedUnavailable: '최신 데이터 확인에 실패했습니다. 보관된 업무를 표시합니다.',
 		metrics: {
 			total: '전체 업무',
 			completed: '완료',
@@ -257,6 +261,10 @@ export const taskText = {
 		currentWeekAction: 'Go to this week',
 		selectWeekDate: 'Go to date',
 		refresh: 'Refresh',
+		loading: 'Preparing the task board',
+		preparingPeople: 'Tasks are visible. Preparing member details.',
+		cachedRefreshing: 'Showing saved tasks while checking the latest data.',
+		cachedUnavailable: 'Could not check the latest data. Showing saved tasks.',
 		metrics: {
 			total: 'Total tasks',
 			completed: 'Completed',

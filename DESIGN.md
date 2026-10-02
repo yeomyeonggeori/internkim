@@ -28,3 +28,13 @@ internkim uses a restrained, neutral interface built from the shared shadcn-svel
 - Render each published metric from its available history: a current value for one period and a time series with explicit period change for repeated observations. Keep company facts as a secondary reference near the end.
 - Metric notes, record attributes, and document summaries enter a snapshot only through explicit administrator approval. Original record details, document paths, counterparties, and requester identities remain private.
 - Activity motion may emphasize changing data but never invent it. Reduced-motion mode presents the same data as a static visualization.
+
+## Navigation and loading
+
+- Keep the application shell mounted during internal navigation. Render internal calendars directly; reserve frames for isolated content or external embedding.
+- After verifying membership, show a scope-matched task snapshot while refreshing. Its versioned localStorage envelope expires after 24 hours and includes project, company, person and role. Distinguish saved data from a successful fresh read; week selection never renews its age.
+- On a fresh visit, show a dimension-matched board skeleton, then real task cards before directory completion. Member-dependent edits wait for the complete state. Storage failure falls back to server loading.
+- Invalidate memory and durable task snapshots on writes and logout. Generation checks prevent a pre-write read from repopulating the cache; permission denial removes the snapshot. Reset the workspace on a scope change.
+- Week selection derives from loaded task state and must not trigger another full task read. A pending refresh still applies to the selected week.
+- Load attendance administration views when selected or intended, warming only the next likely view during idle time. An unread approval inbox must not show a zero badge.
+- Calendar keyboard actions yield to settings sheets, command dialogs and picker controls.

@@ -13,9 +13,10 @@
 		activeTab: string;
 		labels: TaskTabLabels;
 		onSelectTab: (value: string) => void;
+		disabled?: boolean;
 	};
 
-	let { activeTab, labels, onSelectTab }: Props = $props();
+	let { activeTab, labels, onSelectTab, disabled = false }: Props = $props();
 
 	let tabs = $derived(buildTaskTabs());
 </script>
@@ -23,7 +24,7 @@
 <UnderlineTabs.Root value={activeTab} onValueChange={onSelectTab} data-task-active-tab={activeTab}>
 	<UnderlineTabs.List>
 		{#each tabs as tab (tab)}
-			<UnderlineTabs.Trigger value={tab}>{labels[tab]}</UnderlineTabs.Trigger>
+			<UnderlineTabs.Trigger value={tab} {disabled}>{labels[tab]}</UnderlineTabs.Trigger>
 		{/each}
 	</UnderlineTabs.List>
 </UnderlineTabs.Root>

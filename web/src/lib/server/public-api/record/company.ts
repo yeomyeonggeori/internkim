@@ -34,11 +34,14 @@ export async function recordContextOf(
 	now: Date,
 	decideTaskLabels: TaskLabelDecider
 ): Promise<RecordContext> {
-	const company = await caller
-		.from('company')
-		.select('id, task_vocabulary, timezone, locale, rules')
-		.limit(1)
-		.single<CompanyRow>();
+	const [company, people] = await Promise.all([
+		caller
+			.from('company')
+			.select('id, task_vocabulary, timezone, locale, rules')
+			.limit(1)
+			.single<CompanyRow>(),
+		peopleOfCompany(caller)
+	]);
 	if (company.error) throw new Error(company.error.message);
 
 	return {
@@ -46,7 +49,7 @@ export async function recordContextOf(
 		accountDirectory,
 		requesterID,
 		companyID: company.data.id,
-		people: await peopleOfCompany(caller),
+		people,
 		labels: labelsOfVocabulary(company.data.task_vocabulary, company.data.timezone),
 		leaveKinds: leaveKindsOfPolicy(company.data.rules),
 		leaveYearStart: leaveYearStartOfPolicy(company.data.rules),

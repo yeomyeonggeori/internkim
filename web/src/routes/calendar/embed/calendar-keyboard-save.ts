@@ -1,3 +1,4 @@
+import { calendarOwnsKeyboardEvent } from './calendar-keyboard-scope';
 import type { DraftPopoverState } from './calendar-draft-popover-state';
 
 export type CalendarKeyboardSaveContext = {
@@ -7,6 +8,7 @@ export type CalendarKeyboardSaveContext = {
 
 export function installCalendarKeyboardSave(context: CalendarKeyboardSaveContext): () => void {
 	const handleKeydown = (event: KeyboardEvent): void => {
+		if (!calendarOwnsKeyboardEvent(event)) return;
 		if (event.key !== 'Enter' || event.isComposing || event.defaultPrevented) return;
 		if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
 		if (!context.getDraftPopover()) return;
