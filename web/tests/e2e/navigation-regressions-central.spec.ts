@@ -6,6 +6,23 @@ import { signInToCalendar, seedCalendarEvents, cleanupCalendarEvents } from './c
 
 test.use({ locale: 'ko-KR' });
 
+for (const width of [320, 390]) {
+	test(`calendar compact controls keep authenticated reads usable at ${width}px`, async ({ page }) => {
+		await page.setViewportSize({ width, height: 844 });
+		await signInToCalendar(page);
+		await expect(page.locator('.calendar-stage')).toBeVisible();
+		await expect(page.getByText('this page is not served by the central plane', { exact: true })).toBeHidden();
+		await expect(page.locator('.calendar-toolbar').getByRole('button', { name: '오늘', exact: true })).toBeVisible();
+		const output = process.env.MOBILE_UX_SCREENSHOTS;
+		if (output) await page.screenshot({ path: `${output}/calendar-compact-${width}.png` });
+		await page.getByRole('button', { name: '일정 도구', exact: true }).click();
+		await expect(page.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeVisible();
+		if (output) await page.screenshot({ path: `${output}/calendar-tools-${width}.png` });
+		await page.getByRole('button', { name: '설정', exact: true }).click();
+		await expect(page.getByRole('dialog')).toBeVisible();
+	});
+}
+
 test('task startup leaves attendance reads to the clock menu', async ({ page }) => {
 	const attendanceReads: string[] = [];
 	page.on('request', request => {
