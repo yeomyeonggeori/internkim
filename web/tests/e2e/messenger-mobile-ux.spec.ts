@@ -106,7 +106,7 @@ for (const width of [320, 360, 390]) {
 		await page.getByRole('button', { name: '첨부 제거' }).click();
 		await composer.fill('앞😀뒤 한글 문장');
 		await composer.focus();
-		await composer.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(5, 7));
+		await selectText(composer, 5, 7);
 		const formatting = page.getByRole('dialog', { name: '선택한 텍스트 서식' });
 		await expect(formatting).toBeVisible();
 		await expectTouchTarget(page.getByRole('button', { name: '굵게', exact: true }));
@@ -115,16 +115,27 @@ for (const width of [320, 360, 390]) {
 		await expect(page.getByRole('tooltip')).toBeHidden();
 		if (directory) await page.screenshot({ path: `${directory}/after-selection-${width}.png` });
 		await page.getByRole('button', { name: '굵게', exact: true }).click();
-		await expect(composer).toHaveValue('앞😀뒤 **한글** 문장');
+		await expect(composer.locator('strong')).toHaveText('한글');
+		await expect(composer).toHaveText('앞😀뒤 한글 문장');
 		await expect(composer).toBeFocused();
 		await expect(formatting).toBeVisible();
 		await page.getByRole('button', { name: '서식 지우기', exact: true }).click();
-		await expect(composer).toHaveValue('앞😀뒤 한글 문장');
-		await composer.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(1, 3));
+		await expect(composer.locator('strong')).toHaveCount(0);
+		await expect(composer).toHaveText('앞😀뒤 한글 문장');
+		await selectText(composer, 1, 3);
 		await page.getByRole('button', { name: '기울임', exact: true }).click();
-		await expect(composer).toHaveValue('앞*😀*뒤 한글 문장');
-		await composer.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(0, 0));
+		await expect(composer.locator('em')).toHaveText('😀');
+		await expect(composer).toHaveText('앞😀뒤 한글 문장');
+		await selectText(composer, 0, 0);
 		await expect(formatting).toBeHidden();
+		const sent: string[] = [];
+		await page.route('**/agent/api/dm**', async route => {
+			if (route.request().method() === 'POST') sent.push(route.request().postDataJSON().message);
+			await route.fulfill({ json: { conversationID: channelID, currentUserId: reader.id, messages: [], hasMoreBefore: false, historyCursor: '' } });
+		});
+		await page.getByRole('button', { name: '보내기', exact: true }).click();
+		await expect.poll(() => sent).toEqual(['앞*😀*뒤 한글 문장']);
+		await expect(composer).toHaveText('');
 		await composer.fill('여러 줄의 메시지를 입력합니다.\n'.repeat(20));
 		expect((await composer.boundingBox())?.height).toBeLessThanOrEqual(160);
 		await expectTouchTarget(page.getByRole('button', { name: '보내기', exact: true }));
@@ -223,3 +234,25 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 	});
 	expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-viewport-height'))).toBe('');
 });
+
+async function selectText(composer: Locator, start: number, end: number): Promise<void> {
+	await composer.focus();
+	await composer.evaluate((element, { start, end }) => {
+		const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+		const nodes: Text[] = [];
+		while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+		const boundary = (offset: number): [Text, number] => {
+			for (const node of nodes) {
+				if (offset <= node.length) return [node, offset];
+				offset -= node.length;
+			}
+			throw new Error('Selection exceeds the editor text');
+		};
+		const range = document.createRange();
+		range.setStart(...boundary(start));
+		range.setEnd(...boundary(end));
+		const selection = window.getSelection();
+		selection?.removeAllRanges();
+		selection?.addRange(range);
+	}, { start, end });
+}

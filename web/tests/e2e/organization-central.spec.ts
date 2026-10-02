@@ -77,6 +77,7 @@ test('an administrator moves a colleague into a newly added organization', async
 	await page.getByRole('option', { name: addedOrganizationName, exact: true }).click();
 	await panel.getByRole('button', { name: '저장', exact: true }).click();
 
+	await expect(panel.getByRole('button', { name: '수정하기', exact: true })).toBeVisible();
 	await expect(panel).toContainText(addedOrganizationName);
 
 	await page.reload();
