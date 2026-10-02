@@ -26,7 +26,7 @@ checks it against the release's `SHA256SUMS` before the package manager installs
 it. On a Mac it adds our Homebrew tap, `yeomyeonggeori/tap`, and installs the
 `internkim` formula, whose bottle comes from the same GitHub Release and is
 checked against the checksum the formula carries. The second command configures the company, asks for the OpenRouter API key,
-and registers the host services. They start with the computer and recover after
+and registers the host services. Without a terminal it reads the key from standard input, or from a private file named with `--model-key-file`. They start with the computer and recover after
 a service exits. Installation finishes once every service answers and the agent
 holds the company's roster, so a member can write to it right away. Then open the
 printed company setup address and choose Check connection.
