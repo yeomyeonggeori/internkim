@@ -141,6 +141,12 @@ DB 응답 한도를 넘는 기록도 유지합니다. 업무와 일정 쓰기 �
 API 본문 완료 시간에는 HTTP·인증·앱 작업이 포함됩니다. SQL문 실행 횟수는
 같은 격리 DB에서 별도의 읽기 전용 관찰로 확인합니다.
 
+Integration과 브라우저 실행기는 같은 로컬 스택 상태에서 API와 SQL 주소를
+선택합니다. `SUPABASE_URL`이 있으면 SQL 테스트는 명시적인
+`SUPABASE_DB_URL`을 요구하며, SQL 연결 전에 두 loopback 포트가 이 checkout의
+`supabase/config.toml`과 일치하는지 검사합니다. 브라우저 fixture 초기화가
+integration 실행을 무효화하므로 DB 작업은 차례로 실행합니다.
+
 ## 여러 하네스가 쓰는 하나의 플러그인 [#one-plugin-across-harnesses]
 
 `internkim-plugin`은 공통 클라이언트 패키지입니다. 김인턴의 에이전트가 여기서 스킬을 불러오고,

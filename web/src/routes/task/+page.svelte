@@ -112,6 +112,7 @@
 				taskState = cached.state;
 				summary = cached.summary;
 				cacheSavedAt = cached.savedAt ?? 0;
+				isLoading = false;
 			});
 		});
 		return () => { cancelAnimationFrame(restoreFrame); readSession.invalidate(); };

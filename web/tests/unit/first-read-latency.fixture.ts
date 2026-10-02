@@ -143,7 +143,7 @@ if (scenario === 'mail') {
 	mock.module('$lib/messenger/messenger-api', () => ({
 		addReaction: async () => {}, deletePost: async () => {}, editPost: async () => {},
 		fetchChannels: async () => ({}), fetchPeople: async () => [], openDirectChannel: async () => ({}),
-		removeReaction: async () => {}, writePost: async () => {},
+		removeReaction: async () => {}, writePost: async () => {}, keepAttachmentForSending: async () => ({}),
 		fetchPosts: async () => {
 			postsStarted = true;
 			return [{ id: 'post', author: { memberID: 'member' }, body: 'Message text', postedAt: '2026-10-02', reactions: [], attachments: [] }];
@@ -169,19 +169,20 @@ if (scenario === 'mail') {
 	let useNewEmoji = false;
 	const emoji = new Promise<{ dataURL: string }>((resolve) => { releaseEmoji = () => resolve({ dataURL: 'old-image' }); });
 	const avatar = new Promise<{ address: string }>((resolve) => { releaseAvatar = () => resolve({ address: 'old-avatar' }); });
-	const attachment = new Promise<Map<string, string>>((resolve) => { releaseAttachment = () => resolve(new Map([['old-url', 'old-address']])); });
-	mock.module('$lib/messenger/cache-scope', () => ({ onMessengerCacheReset: (reset: () => void) => { resets.push(reset); return () => {}; } }));
+	const attachment = new Promise<{ address: string }>((resolve) => { releaseAttachment = () => resolve({ address: 'old-address' }); });
+	mock.module('$lib/messenger/cache-scope', () => ({ messengerCacheKey: () => 'scope', onMessengerCacheReset: (reset: () => void) => { resets.push(reset); return () => {}; } }));
 	mock.module('$lib/supabase', () => ({ isSupabaseConfigured: () => true, projectURL: () => 'https://project.example.com', supabase: () => ({ storage: { from: () => ({}) } }) }));
 	mock.module('$lib/messenger/messenger-api', () => ({
 		fetchCustomEmojiNames: async () => ['logo'], fetchCustomEmojiImage: () => useNewEmoji ? Promise.resolve({ dataURL: 'new-image' }) : emoji,
 		fetchPeople: async () => [{ externalID: 'same-person', avatarURL: 'source' }],
-		keepPersonPictureForReading: () => avatar, keepAttachmentForReading: async () => ({})
+		keepPersonPictureForReading: () => avatar, copyAttachmentForReading: () => attachment
 	}));
 	mock.module('$lib/messenger/messenger-directory', () => ({ accountsHeldBy: () => [], fetchMessengerDirectory: async () => null }));
 	mock.module('$lib/messenger/kept-attachment', () => ({
-		assetBucket: 'assets', addressesToSign: () => attachment,
+		assetBucket: 'assets', readableForSeconds: 86400, keptAssetPathOf: () => null,
 		readableAddresses: async () => { signedOldAssets += 1; return new Map([['old-avatar', 'signed-old-avatar'], ['old-address', 'signed-old-file']]); }
 	}));
+	mock.module('$lib/transfer/company-transfer', () => ({ signedForReading: async () => { signedOldAssets += 1; return 'signed-old-file'; } }));
 	const { customEmoji } = await import('../../src/lib/stores/custom-emoji.svelte');
 	const { personPicture } = await import('../../src/lib/stores/person-picture.svelte');
 	const { attachmentSource } = await import('../../src/lib/stores/attachment-source.svelte');

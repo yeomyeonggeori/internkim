@@ -183,7 +183,7 @@ function revoke(token: string, name: string): Promise<RouteAnswer> {
 	);
 }
 
-function invoke(name: string, token: string, input: unknown): Promise<RouteAnswer> {
+function invoke(name: string, token: string | null, input: unknown): Promise<RouteAnswer> {
 	return reach(`/tools/${name}/invoke`, token, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -359,6 +359,38 @@ describe('the catalog', () => {
 });
 
 describe('a scoped task board read', () => {
+	test('enforces active membership and company RLS for actual board rows', async () => {
+		const boardWeek = taskWeekOfDate(new Date()).startISO;
+		const other = await provisionCompany(client,
+			{ name: 'Other Board Fixture', slug: `${slug}-other-board`, country: 'KR', locale: 'ko', timezone: 'Asia/Seoul' },
+			`${slug}-other-board@example.test`);
+		const ownID = crypto.randomUUID();
+		const foreignID = crypto.randomUUID();
+		try {
+			const inserted = await client.from('task').insert([
+				{ id: ownID, company_id: companyID, title: 'Owned board fixture', status: 'planned' },
+				{ id: foreignID, company_id: other.companyID, title: 'Other company board fixture', status: 'planned' }
+			]);
+			if (inserted.error) throw new Error(inserted.error.message);
+			const participants = await client.from('task_participant').insert([
+				{ task_id: ownID, member_id: memberID }, { task_id: foreignID, member_id: other.adminMemberID }
+			]);
+			if (participants.error) throw new Error(participants.error.message);
+			for (const token of [readersToken, administratorsToken]) {
+				const answer = await invoke('task_board_get', token, { boardWeek, scope: 'all' });
+				expect(answer.status).toBe(200);
+				const { result } = z.object({ result: taskBoardResultSchema }).parse(answer.body);
+				expect(result.tasks.some(task => task.taskID === ownID)).toBe(true);
+				expect(result.tasks.some(task => task.taskID === foreignID)).toBe(false);
+			}
+			expect((await invoke('task_board_get', departedToken, { boardWeek })).status).toBe(403);
+			expect((await invoke('task_board_get', null, { boardWeek })).status).toBe(401);
+		} finally {
+			await client.from('task').delete().eq('id', ownID);
+			await client.from('company').delete().eq('id', other.companyID);
+		}
+	}, networkHookTimeout);
+
 	test('a read token reaches the board without changing the legacy task list contract', async () => {
 		const boardWeek = taskWeekOfDate(new Date()).startISO;
 		const answered = await invoke('task_board_get', readersToken, { boardWeek });

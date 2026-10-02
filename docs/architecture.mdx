@@ -151,6 +151,12 @@ prefetch separately from click completion. API body durations include HTTP,
 authentication and application work; SQL statement counters require a separate
 read-only observation on the same isolated database.
 
+Integration and browser runners select API and SQL URLs from the same local
+stack status. When `SUPABASE_URL` is set, SQL tests require an explicit
+`SUPABASE_DB_URL`; both loopback ports must match this checkout's
+`supabase/config.toml` before any SQL connection opens. Run DB workloads
+serially because a browser fixture reset invalidates an integration run.
+
 ## One plugin across harnesses
 
 `internkim-plugin` is the shared client package. InternKim's own agent loads the
