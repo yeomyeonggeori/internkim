@@ -91,13 +91,13 @@ path can be accessed. Attempt the requested operation and report the actual OS
 permission error when access is denied. Do not infer authorization from path
 text.
 
-Treat a skill directory as the executable unit. Run bundled Python scripts
-through the skill's wrapper (`scripts/office` for the office skill, `scripts/skill_runtime.py`
-for one that has no command of its own); the wrapper selects the
-built-in dependency environment first and prepares requester-owned fallback
-storage with `uv` only when needed. Use `/workspace/shared/cache/dependencies`
-only as a package cache. Do not stop at a missing-library error before the
-relevant bundled script attempts dependency setup.
+Treat a skill directory as the executable unit and run its scripts the way its
+SKILL.md says. The host's install prepares every bundled skill's packages, and
+no skill command installs anything. An answer that a skill's packages are
+missing means this host was not prepared, which only its administrator fixes
+with `internkim prepare-skills`: say so, and do not install packages or run a
+skill's setup yourself. Use `/workspace/shared/cache/dependencies` only as a
+package cache.
 
 ## File Delivery
 

@@ -192,7 +192,6 @@ func TestPrepareRuntimeScriptInstallsBlueclawGuestCalculator(t *testing.T) {
 		`rootfs_base_packages="ca-certificates,curl,bash,bc,coreutils`,
 		`command -v bc >/dev/null`,
 		`UV_UNMANAGED_INSTALL=/usr/local/bin`,
-		`/opt/blueclaw/builtin-skills-venv`,
 		`install -m 0755 "$work_directory/bin/blueclaw-posix-helper"`,
 		`chown 0:0 "$rootfs_directory/usr/local/bin/blueclaw-posix-helper"`,
 		`chmod 4755 "$rootfs_directory/usr/local/bin/blueclaw-posix-helper"`,

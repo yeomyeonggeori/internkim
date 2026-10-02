@@ -31,7 +31,9 @@ const (
 
 // thisComputer is the company host's own machine. Every command it runs is one
 // the installer names; nothing here decides anything.
-type thisComputer struct{}
+type thisComputer struct {
+	companyhost.LocalProcesses
+}
 
 func (thisComputer) Run(name string, arguments []string, environment []string, output io.Writer) error {
 	command := exec.Command(name, arguments...)
@@ -40,14 +42,6 @@ func (thisComputer) Run(name string, arguments []string, environment []string, o
 	}
 	command.Stdout = output
 	command.Stderr = output
-	return command.Run()
-}
-
-func (thisComputer) Stream(name string, arguments []string, streams companyhost.Streams) error {
-	command := exec.Command(name, arguments...)
-	command.Stdin = streams.Input
-	command.Stdout = streams.Output
-	command.Stderr = streams.Errors
 	return command.Run()
 }
 
@@ -114,6 +108,14 @@ func main() {
 			fmt.Fprintf(os.Stderr, "\nThe company was not brought back: %s\n", errorValue)
 			os.Exit(1)
 		}
+	case blueclaw.SkillPreparationVerb:
+		if len(os.Args) > 2 {
+			printUsage(command)
+		}
+		if errorValue := companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "\nThe skills were not prepared: %s\n", errorValue)
+			os.Exit(1)
+		}
 	default:
 		printUsage(command)
 	}
@@ -127,6 +129,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
+	fmt.Fprintf(os.Stderr, "       %s %s\n", command, blueclaw.SkillPreparationVerb)
 	os.Exit(1)
 }
 

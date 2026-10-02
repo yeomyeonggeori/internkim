@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -255,7 +254,7 @@ func TestBundledSkillRuntimeScriptsStayIdentical(t *testing.T) {
 	}
 }
 
-func TestOfficeSkillBootstrapsDependenciesFromBundledScripts(t *testing.T) {
+func TestOfficeSkillIsPreparedByItsOwnScripts(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
 	runtimePath := officePathInTest(t, repositoryRootPath, "scripts", "skill_runtime.py")
@@ -285,12 +284,6 @@ func TestOfficeSkillBootstrapsDependenciesFromBundledScripts(t *testing.T) {
 	runtimeScript, errorValue := os.ReadFile(runtimePath)
 	if errorValue != nil {
 		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(runtimeScript), "requirements.txt") {
-		t.Fatal("office runtime script must install from requirements.txt")
-	}
-	if !strings.Contains(string(runtimeScript), "XDG_CACHE_HOME") {
-		t.Fatal("office runtime script must keep its dependency environment under the standard cache home")
 	}
 	for _, hostPath := range []string{"/opt/blueclaw", "/workspace"} {
 		if strings.Contains(string(runtimeScript), hostPath) {
@@ -349,37 +342,12 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	for _, expectedText := range []string{"office pdf validate", "extractable text"} {
+	for _, expectedText := range []string{"<skill>/scripts/office check", "extractable"} {
 		if !strings.Contains(string(pdfReference), expectedText) {
 			t.Fatalf("pdf reference must include %q", expectedText)
 		}
 	}
 
-}
-
-func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirementsDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "builtin-skills-requirements.txt"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	requirements := string(requirementsDocument)
-	for _, packageName := range []string{"firecrawl-anydoc", "fpdf2", "markdownify", "openpyxl", "pypdf", "pypdfium2", "python-docx", "python-pptx"} {
-		if !strings.Contains(requirements, packageName) {
-			t.Fatalf("builtin skill requirements must include %s", packageName)
-		}
-	}
-
-	prepareScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	script := string(prepareScript)
-	for _, fragment := range []string{"UV_UNMANAGED_INSTALL=/usr/local/bin", "/opt/blueclaw/builtin-skills-venv", "builtin-skills-requirements.txt"} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("prepare script must contain %q", fragment)
-		}
-	}
 }
 
 func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
@@ -411,247 +379,10 @@ func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 	}
 }
 
-func TestPresentationBundlesPackageManifest(t *testing.T) {
+func TestDeckReferenceBuildsInsideTheTasksArtifactWorkspace(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
-	skillPath := officePathInTest(t, repositoryRootPath)
-	packageDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "assets", "package.json"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	packageContent := string(packageDocument)
-	if !strings.Contains(packageContent, "playwright-core") {
-		t.Fatal("presentation package manifest must include Playwright Core")
-	}
-	if strings.Contains(packageContent, "@marp-team/marp-cli") {
-		t.Fatal("presentation package manifest must not include Marp CLI")
-	}
-}
-
-func TestPresentationRevisionWorkflowEditsLatestArtifact(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	documentPath := officePathInTest(t, repositoryRootPath, "references", "deck.md")
-	document, errorValue := os.ReadFile(documentPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"latest compatible artifact in recent same-conversation posts",
-		"Older PDF or Markdown files are supporting material",
-		"work only in `artifacts/<deck-slug>/`",
-		"`slides.html` as the canonical controller-free source",
-		"`deck restore`",
-		"edit it in place with targeted changes",
-		"never rewrite an existing deck whole",
-		"same slug",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("presentation revision workflow must document %q", expectedText)
-		}
-	}
-	if strings.Contains(content, "rewrite the file whole instead of retrying") {
-		t.Fatal("presentation revision workflow must not replace an existing deck after a missed edit")
-	}
-	if strings.Contains(content, "verified wholesale replacement") {
-		t.Fatal("presentation workflow must not leave a whole-file replacement exception for existing decks")
-	}
-	if strings.Contains(content, "tmp/<deck-slug>") {
-		t.Fatal("presentation workflow must keep source and build output in one persistent artifact workspace")
-	}
-}
-
-func TestPresentationExporterNormalizesSlideViewer(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	scriptPath := officePathInTest(t, repositoryRootPath, "scripts", "deck", "slide_viewer.py")
-	testProgram := `
-import runpy
-import sys
-
-namespace = runpy.run_path(sys.argv[1])
-inject = namespace["inject_screen_slide_viewer"]
-strip = namespace["strip_screen_slide_viewer"]
-source = "<html><head><title>Deck</title></head><body><section>Keep me</section></body></html>"
-first = inject(source)
-assert first.count("<style data-internkim-slide-viewer>") == 1
-assert first.count("<script data-internkim-slide-viewer>") == 1
-assert inject(first) == first
-partial = source.replace("</head>", "<style data-internkim-slide-viewer>stale</style></head>")
-normalized = inject(partial)
-assert "stale" not in normalized
-assert normalized.count("<style data-internkim-slide-viewer>") == 1
-assert normalized.count("<script data-internkim-slide-viewer>") == 1
-duplicate = normalized.replace("</head>", "<script data-internkim-slide-viewer>duplicate</script></head>")
-deduplicated = inject(duplicate)
-assert "duplicate" not in deduplicated
-assert deduplicated.count("<style data-internkim-slide-viewer>") == 1
-assert deduplicated.count("<script data-internkim-slide-viewer>") == 1
-stripped = strip(normalized)
-assert "data-internkim-slide-viewer" not in stripped
-assert "<section>Keep me</section>" in stripped
-`
-	command := exec.Command("python3", "-c", testProgram, scriptPath)
-	commandOutput, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		t.Fatalf("presentation viewer normalization failed: %v\n%s", errorValue, commandOutput)
-	}
-}
-
-func TestPresentationRestoresControllerFreeSource(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	scriptPath := officePathInTest(t, repositoryRootPath, "scripts", "deck", "restore_source.py")
-	temporaryPath := t.TempDir()
-	deliveredPath := filepath.Join(temporaryPath, "delivered.html")
-	sourcePath := filepath.Join(temporaryPath, "artifacts", "deck", "slides.html")
-	deliveredHTML := "<html><head><style data-internkim-slide-viewer>viewer</style></head><body><section>Editable</section><script data-internkim-slide-viewer>controller</script></body></html>"
-	if errorValue := os.WriteFile(deliveredPath, []byte(deliveredHTML), 0600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	command := exec.Command("python3", scriptPath, deliveredPath, sourcePath)
-	command.Env = append(os.Environ(), "PYTHONPATH="+officePathInTest(t, repositoryRootPath, "scripts"))
-	commandOutput, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		t.Fatalf("presentation source restoration failed: %v\n%s", errorValue, commandOutput)
-	}
-	restoredDocument, errorValue := os.ReadFile(sourcePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	restoredContent := string(restoredDocument)
-	if strings.Contains(restoredContent, "data-internkim-slide-viewer") || !strings.Contains(restoredContent, "<section>Editable</section>") {
-		t.Fatalf("expected controller-free editable source, got %s", restoredContent)
-	}
-}
-
-func TestPresentationUsesVendoredPaperlogyDesignDefaults(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	skillPath := officePathInTest(t, repositoryRootPath)
-	fontPath := filepath.Join(skillPath, "assets", "fonts", "paperlogy")
-	for _, fileName := range []string{
-		"Paperlogy-4Regular.woff2",
-		"Paperlogy-6SemiBold.woff2",
-		"Paperlogy-7Bold.woff2",
-		"Paperlogy-8ExtraBold.woff2",
-		"OFL-1.1.txt",
-		"README.md",
-	} {
-		if _, errorValue := os.Stat(filepath.Join(fontPath, fileName)); errorValue != nil {
-			t.Fatalf("presentation must vendor Paperlogy asset %s: %v", fileName, errorValue)
-		}
-	}
-
-	documentPaths := []string{
-		filepath.Join(skillPath, "references", "deck.md"),
-		filepath.Join(skillPath, "references", "deck", "webfonts.md"),
-		filepath.Join(skillPath, "references", "deck", "minimal-design.md"),
-	}
-	for _, documentPath := range documentPaths {
-		document, errorValue := os.ReadFile(documentPath)
-		if errorValue != nil {
-			t.Fatal(errorValue)
-		}
-		content := string(document)
-		for _, expectedText := range []string{"Paperlogy", "WOFF2", `"Paperlogy", "Noto Sans KR", system-ui`} {
-			if !strings.Contains(content, expectedText) {
-				t.Fatalf("%s must document Paperlogy default %q", documentPath, expectedText)
-			}
-		}
-		for _, forbiddenText := range []string{"Pretendard headings and body", "Freesentation body", "display text and Freesentation"} {
-			if strings.Contains(content, forbiddenText) {
-				t.Fatalf("%s must not keep stale default font guidance %q", documentPath, forbiddenText)
-			}
-		}
-	}
-
-	webfontsDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "references", "deck", "webfonts.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"Web font imports are allowed", "Pretendard web font with Paperlogy fallback", "Noto Sans KR web font with Paperlogy fallback"} {
-		if !strings.Contains(string(webfontsDocument), expectedText) {
-			t.Fatalf("presentation webfonts reference must document webfont fallback policy %q", expectedText)
-		}
-	}
-}
-
-func TestPresentationVisualStylesDefineQualityGate(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	documentPath := officePathInTest(t, repositoryRootPath, "references", "deck", "visual-styles.md")
-	document, errorValue := os.ReadFile(documentPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"Visual Identity Gate",
-		"Style Prompt",
-		"data-visual-system",
-		"data-slide-role",
-		"Swiss Board",
-		"Operating Memo",
-		"Evidence Atlas",
-		"Launch Console",
-		"Risk Ledger",
-		"Field Signal",
-		"colored side stripes",
-		"bordered cards with soft shadows",
-		"repeated `.grid` plus `.card` sections",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("presentation visual styles must include %q", expectedText)
-		}
-	}
-}
-
-func TestPresentationCompositionSeedsKeepCreativeStructure(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	documentPath := officePathInTest(t, repositoryRootPath, "references", "deck", "composition-seeds.md")
-	document, errorValue := os.ReadFile(documentPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	content := string(document)
-	for _, expectedText := range []string{
-		"not templates",
-		"visual system",
-		"metric tile",
-		"variance bar",
-		"decision rail",
-		"owner-date chip",
-		"Board Cockpit",
-		"Operating Memo",
-		"Product Map",
-		"Research Wall",
-		"Risk Room",
-		"Timeline Rail",
-		"Evidence Wall",
-		"Launch Control",
-		"Field Report",
-		"risk, evidence, response, owner",
-		"not the final visual form",
-	} {
-		if !strings.Contains(content, expectedText) {
-			t.Fatalf("presentation composition seeds must include %q", expectedText)
-		}
-	}
-	for _, forbiddenText := range []string{"copy this template exactly", "must use this exact CSS", "always use Board Cockpit"} {
-		if strings.Contains(content, forbiddenText) {
-			t.Fatalf("presentation composition seeds must not overconstrain creative layout with %q", forbiddenText)
-		}
-	}
-}
-
-func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	skillPath := officePathInTest(t, repositoryRootPath)
-	deckDocument, errorValue := os.ReadFile(filepath.Join(skillPath, "references", "deck.md"))
+	deckDocument, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "references", "deck.md"))
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -661,50 +392,9 @@ func TestPresentationRunsBuildScriptFromTaskWorkspace(t *testing.T) {
 			t.Fatalf("deck reference must not use fragile task-local build script copying or root-relative artifact mkdir: %q", forbiddenText)
 		}
 	}
-	for _, expectedText := range []string{"<skill>/scripts/office deck build", "FORMATS=pptx <skill>/scripts/office deck build", `"workingDirectoryPath": "artifacts/<deck-slug>"`, "then deliver", "artifacts/<deck-slug>/build/<deck-slug>.html", "artifacts/<deck-slug>/build/<deck-slug>.pptx"} {
+	for _, expectedText := range []string{"Work in `artifacts/<deck-slug>/`", "<skill>/scripts/office create build/<deck-slug>", `"workingDirectoryPath": "artifacts/<deck-slug>"`} {
 		if !strings.Contains(deckContent, expectedText) {
 			t.Fatalf("deck reference must document %q", expectedText)
-		}
-	}
-
-	if _, errorValue := os.Stat(filepath.Join(skillPath, "assets", "build.sh")); !os.IsNotExist(errorValue) {
-		t.Fatal("deck build script must live under scripts, not assets")
-	}
-
-	buildPath := filepath.Join(skillPath, "scripts", "deck", "build.sh")
-	buildInfo, errorValue := os.Stat(buildPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if buildInfo.Mode()&0111 == 0 {
-		t.Fatal("deck build script must be executable")
-	}
-
-	buildScript, errorValue := os.ReadFile(buildPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	buildContent := string(buildScript)
-	if strings.Contains(buildContent, `cd "$(dirname "$0")"`) {
-		t.Fatal("deck build script must run against the caller's task workspace")
-	}
-	for _, expectedText := range []string{"slides.html", `FORMATS="${FORMATS:-html,review}"`, "SKILL_ASSET_DIRECTORY", "${SCRIPT_DIRECTORY}/../../assets"} {
-		if !strings.Contains(buildContent, expectedText) {
-			t.Fatalf("deck build script must contain %q", expectedText)
-		}
-	}
-}
-
-func TestDeckMinimalDesignKeepsFitSafeGuidance(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirePluginSkills(t, repositoryRootPath)
-	minimalDesign, errorValue := os.ReadFile(officePathInTest(t, repositoryRootPath, "references", "deck", "minimal-design.md"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	for _, expectedText := range []string{"minmax(0, 1fr)", "overflow-wrap: anywhere", "line budgets", "fit-review text files"} {
-		if !strings.Contains(string(minimalDesign), expectedText) {
-			t.Fatalf("minimal design reference must include fit-safe guidance %q", expectedText)
 		}
 	}
 }

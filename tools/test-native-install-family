@@ -610,21 +610,31 @@ class FamilyRig:
             "| sed -n 's/^PATH=//p'"
         )
         home = f"/tmp/{TASK_USER}"
+        cache_home = f"{home}/tmp/.runtime/cache"
+        skills_path = OFFICE_COMMAND_PATH.split("/office/")[0]
+        before_office = f"/tmp/{TASK_USER}.before-office"
         self.machine.shell(
             f"id {TASK_USER} >/dev/null 2>&1 || useradd --system --shell /bin/false {TASK_USER}; "
-            f"rm -rf {home} && install -d -o {TASK_USER} -g {TASK_USER} -m 0700 {home}"
+            f"rm -rf {home} && install -d -o {TASK_USER} -g {TASK_USER} -m 0700 {home} {home}/tmp {home}/tmp/.runtime {cache_home}; "
+            f"touch {before_office}"
         )
         requester_script = (
             "command -v python3; python3 -c 'import sys; print(sys.version.split()[0])'; "
-            f"{OFFICE_COMMAND_PATH} doc create {home}/rig.docx --title rig --paragraph rig; "
+            f"printf '# rig\\n\\nrig\\n' > {home}/rig.md; "
+            f"{OFFICE_COMMAND_PATH} create {home}/rig.docx {home}/rig.md; "
             f"stat -c '%U %s' {home}/rig.docx; "
-            f"sed -n 's/^home = //p' {home}/.cache/internkim-skills/environments/office/pyvenv.cfg"
+            f"echo \"environments in the cache home: $(find {cache_home} -name pyvenv.cfg | wc -l)\""
         )
         ran = self.machine.shell(
-            f"env -i HOME={home} PATH={shlex.quote(agent_path)} XDG_CACHE_HOME={home}/.cache UV_PYTHON_DOWNLOADS=never "
+            f"env -i HOME={home} PATH={shlex.quote(agent_path)} XDG_CACHE_HOME={cache_home} "
+            "UV_CACHE_DIR=/workspace/shared/cache/dependencies/uv UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never "
             f"{HELPER_PATH} exec --uid \"$(id -u {TASK_USER})\" --gid \"$(id -g {TASK_USER})\" --groups '' --cwd {home} "
             f"-- /bin/sh -c {shlex.quote(requester_script)} 2>&1",
             timeout_seconds=1800,
+        )
+        written_under_skills = self.shell_value(f"find {skills_path} -newer {before_office} -print | head -5; rm -f {before_office}")
+        prepared_on = self.shell_value(
+            f"find {skills_path}/office -name pyvenv.cfg -exec sed -n 's/^home = //p' {{}} + | head -n 1"
         )
         lines = ran.stdout.strip().splitlines()
         distribution_python = self.shell_value("ls /usr/bin/python3 2>/dev/null || echo none")
@@ -641,16 +651,23 @@ class FamilyRig:
         )
         office_result = next((line for line in lines if '"status"' in line), "")
         step.observe(
-            "the office skill builds a fresh environment on that interpreter, downloads no interpreter, and writes a .docx",
-            f"`office doc create` as {TASK_USER} with UV_PYTHON_DOWNLOADS=never, the file's owner, and the "
-            "`home` its skill environment's pyvenv.cfg names",
-            "skill_runtime makes the skill's environment with `uv venv --python <sys.executable>`, so an interpreter "
-            "the requester cannot read, or one uv would have to fetch, fails here first",
+            "the office skill writes a .docx on its first use with nothing to install: offline, building no "
+            "environment of the requester's and writing nothing under the skills, on the environment the install "
+            "step prepared on that interpreter",
+            f"`office create rig.docx rig.md` as {TASK_USER} with blueclaw's per-person HOME and XDG_CACHE_HOME and UV_OFFLINE=1, "
+            f"the file's owner, the pyvenv.cfg files in that cache home, what under {skills_path} is newer than the "
+            "run, and the `home` the office skill's prepared pyvenv.cfg names",
+            "`internkim prepare-skills` runs each skill's setup during the install step; a skill that still "
+            "installs on first use fails offline here, and one prepared on an interpreter the requester cannot run, "
+            "or one uv fetched, names another home",
         ).record(
             '"ok"' in office_result
             and any(line.startswith(f"{TASK_USER} ") for line in lines)
-            and lines[-1:] != [] and lines[-1].startswith(DOCUMENT_ENVIRONMENT_PATHS[0] + "/"),
-            "\n".join(lines[-12:]) or "nothing ran",
+            and lines[-1:] == ["environments in the cache home: 0"]
+            and written_under_skills == ""
+            and prepared_on.startswith(DOCUMENT_ENVIRONMENT_PATHS[0] + "/"),
+            "\n".join(lines[-12:] + [f"written under the skills: {written_under_skills or 'nothing'}",
+                                     f"prepared on: {prepared_on or 'nothing prepared'}"]),
         )
 
     def observe_removal(self, step):
@@ -693,15 +710,16 @@ class FamilyRig:
             "a stat of every regular file in the package's file list before the removal",
             "the package database reporting the package removed is its bookkeeping; these are the files",
         ).record(not survivors, survivors or f"{len(shipped)} paths gone")
+        built_by_the_install_step = (*DOCUMENT_ENVIRONMENT_PATHS, OFFICE_COMMAND_PATH.split("/office/")[0])
         environment = self.shell_value(
-            "for path in " + " ".join(DOCUMENT_ENVIRONMENT_PATHS) + "; do [ -e \"$path\" ] && echo \"$path\"; done; true"
+            "for path in " + " ".join(built_by_the_install_step) + "; do [ -e \"$path\" ] && echo \"$path\"; done; true"
         )
         step.observe(
-            "removal takes the conversion environment the install step built",
-            "a stat of " + " and ".join(DOCUMENT_ENVIRONMENT_PATHS) + " after the removal",
+            "removal takes the conversion environment and what the skills' setup prepared beside them",
+            "a stat of " + ", ".join(built_by_the_install_step) + " after the removal",
             "the package manager owns none of it, so only the package's own removal script can take it, and "
             "nothing else would",
-        ).record(not environment, environment or "both gone")
+        ).record(not environment, environment or "all gone")
         kept = self.shell_value(
             f"test -d {STATE_DIRECTORY}/companies/{self.company_id} && echo company-kept; "
             f"test -s {DATABASE_DATA_DIRECTORY}/PG_VERSION && echo database-kept"

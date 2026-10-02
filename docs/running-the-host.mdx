@@ -71,7 +71,7 @@ sudo pacman -R internkim      # Arch Linux
 ```
 
 Removing the package stops and disables the host services and deletes the
-program files and the host's Python runtime. On Ubuntu 22.04 we leave
+program files, the host's Python runtime and what it prepared for the skills. On Ubuntu 22.04 we leave
 PostgreSQL's apt repository in place, because the host's database was made by
 the PostgreSQL 15 it updates. The removal prints the command that deletes the
 repository once you have deleted that database. Elsewhere the install added no
@@ -285,9 +285,10 @@ pairing code on port 18088 until it is claimed. To administer the computer, use
 a shell on the same network or a remote access method your company controls.
 
 On Linux, installing or upgrading the package also downloads the host's one
-Python runtime from `github.com` into `/opt/internkim/python`, and the pinned
-libraries that read attached documents from `pypi.org` and
-`files.pythonhosted.org`. If either is unreachable, the install stops and names
-what it could not fetch. The host needs no Python from the distribution. The
-skills run on the same runtime, as `python3` in each person's commands, and
-fetch their own libraries from PyPI the first time they run.
+Python runtime from `github.com` into `/opt/internkim/python`, the pinned
+libraries that read attached documents, and what each bundled skill's setup
+keeps beside the skill's files: Python libraries from `pypi.org` and
+`files.pythonhosted.org`, and the office skill's page renderer from
+`registry.npmjs.org`. If any of them is unreachable, the install stops and names what it could not fetch. The host needs no Python
+from the distribution. The skills run on the same runtime, as `python3` in each
+person's commands, and install nothing the first time someone uses them.

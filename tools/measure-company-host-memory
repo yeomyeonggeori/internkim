@@ -349,7 +349,7 @@ class Measurement:
 
         started = now()
         rendered = self.render_a_deck(machine)
-        reading.phase("the deck renderer starts a browser", started, now(), rendered)
+        reading.phase("the office skill draws a deck", started, now(), rendered)
         self.carry_samples(machine, share)
 
         started = now()
@@ -468,12 +468,11 @@ class Measurement:
 
 
     def render_a_deck(self, machine):
-        """The deck renderer, which is what starts a browser on this box.
+        """The deck renderer, the heaviest command a skill runs on this box.
 
-        `skills/office/scripts/office deck build` with a review format is the
-        command the skill's own instructions give. The package carries no
-        browser, so on a box that has none the render-source line below reads
-        nativeFallback rather than browser.
+        `office create build/deck.pdf slides.html` is the command the skill's
+        own instructions give: it checks the deck, draws it with the renderer
+        its setup installed, and writes review images beside the PDF.
         """
         (machine.share_directory / "slides.html").write_text(DECK_SOURCE)
         return self.said(machine.shell(
@@ -481,15 +480,13 @@ class Measurement:
             "install -d /var/tmp/deck\n"
             f"cp {SHARE_PATH}/slides.html /var/tmp/deck/slides.html\n"
             "cd /var/tmp/deck\n"
-            "export SRC=slides.html NAME=deck FORMATS=review\n"
-            f"{SKILLS_PATH}/office/scripts/office deck build 2>&1 | tail -40\n"
-            "ls -la /var/tmp/deck/build/review 2>&1 | tail -8\n"
-            "echo \"render-source=$(cat /var/tmp/deck/build/review/render-source* 2>/dev/null | tr -d '\\n')\"\n",
+            f"{SKILLS_PATH}/office/scripts/office create build/deck.pdf slides.html 2>&1 | tail -40\n"
+            "ls -la /var/tmp/deck/build 2>&1 | tail -8\n",
             timeout_seconds=2400,
         ))
 
     def write_a_document(self, machine):
-        """The office skill, started the way its SKILL.md tells the agent to: python3."""
+        """The office skill, started the way its SKILL.md tells the agent to."""
         (machine.share_directory / "report.md").write_text(DOCUMENT_SOURCE)
         return self.said(machine.shell(
             "set -u\n"
@@ -497,10 +494,8 @@ class Measurement:
             f"cp {SHARE_PATH}/report.md /var/tmp/documents/report.md\n"
             "cd /var/tmp/documents\n"
             f"office={SKILLS_PATH}/office/scripts/office\n"
-            "python3 $office doc export "
-            "/var/tmp/documents/report.md --output /var/tmp/documents/report.docx 2>&1 | tail -20\n"
-            "python3 $office doc validate "
-            "/var/tmp/documents/report.docx 2>&1 | tail -20\n"
+            "$office create /var/tmp/documents/report.docx /var/tmp/documents/report.md 2>&1 | tail -20\n"
+            "$office check /var/tmp/documents/report.docx 2>&1 | tail -20\n"
             "ls -la /var/tmp/documents 2>&1 | tail -6\n",
             timeout_seconds=1800,
         ))

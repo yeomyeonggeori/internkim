@@ -29,19 +29,22 @@ A virtual-machine guest and cloudflared are **not** needed.
 ### What the skills need
 
 The bundled skills that write a document, a spreadsheet, a PDF or a deck run as
-the requester, through the PATH blueclaw fixes. Each skill resolves its own
-packages from its `scripts/requirements.txt` into the shared uv cache the first
-time it runs, from the host's own `python3`. The package carries the rest:
+the requester, through the PATH blueclaw fixes, and install nothing when they
+run. The package's install step runs `internkim prepare-skills`, which runs
+every skill's own setup once, as the owner of the skills, with throwaway
+download caches. Each setup keeps what its skill needs beside the skill's
+files, where every person can read it and the next upgrade replaces it. The
+package carries the rest:
 
 | | Why |
 |---|---|
-| **NanumGothic** | the Linux package installs it at `/usr/share/fonts/truetype/internkim/NanumGothic.ttf`, a path every skill that embeds a font into a PDF looks for, and a Mac answers with its own AppleSDGothicNeo; without a Hangul face fpdf2 falls back to DejaVu, which has none, and writes the file anyway |
-| **python3 and uv** | the interpreter and the installer each skill's bootstrap runs; the install step puts uv's pinned CPython first on every service's PATH |
+| **bun** | the office skill's setup installs its page renderer with it, and the renderer draws every page on it; the package carries it |
+| **python3 and uv** | the interpreter the skills run on and the installer their setup uses; the install step puts uv's pinned CPython first on every service's PATH |
 | **the conversion venv** | `/opt/internkim/document-venv`, on that CPython, synced from the hashed lock `assets/document-conversion/requirements.txt` by the package's install step. capabilityd runs `file_read` conversions under it (`--file-read-python`) and never resolves anything itself; the skills do not use it and it is not on the requester's PATH |
 
-Each absence produces a plausible file rather than an error, so `internkim
-install` checks for everything the host runs before it starts anything, and
-names what to install for whatever is missing.
+A setup that cannot prepare its skill stops the install and names the piece it
+is missing, and `internkim install` checks for everything the host runs before
+it starts anything, naming what to install for whatever is missing.
 
 ## The relay
 

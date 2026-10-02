@@ -439,10 +439,6 @@ for managed_executable in bun bunx uv; do
     *) echo "rootfs-$managed_executable-mode-drift"; exit 0 ;;
   esac
 done
-if [ ! -x "$mount_path/opt/blueclaw/builtin-skills-venv/bin/python" ]; then
-  echo rootfs-builtin-skills-python-missing
-  exit 0
-fi
 if [ ! -x "$mount_path/usr/bin/bc" ]; then
   echo rootfs-bc-missing
   exit 0

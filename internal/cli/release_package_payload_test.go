@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -149,13 +150,46 @@ func TestThePostInstallBuildsTheConversionEnvironmentBeforeItRestartsTheServices
 	for _, format := range linuxPackageFormats() {
 		script := maintainerScript(format, postInstallScript)
 		restart := strings.Index(script, "systemctl restart")
-		for _, command := range blueclaw.LinuxCompanyHostLayout().PythonSetupCommands() {
+		for _, command := range blueclaw.LinuxCompanyHostLayout().InstallStepCommands() {
 			position := strings.Index(script, shellWords(command.Arguments)+" || refuse")
 			if position < 0 || position > restart {
 				t.Fatalf("the %s postinst does not %s before it restarts the services:\n%s", format.Name, command.Purpose, script)
 			}
 		}
 	}
+}
+
+// Every upgrade runs the postinst, so a release whose skills need something new
+// prepares it before the agent comes back, and nobody's first use installs it.
+func TestThePostInstallPreparesTheSkillsOnThePythonItJustInstalled(t *testing.T) {
+	layout := blueclaw.LinuxCompanyHostLayout()
+	for _, format := range linuxPackageFormats() {
+		script := maintainerScript(format, postInstallScript)
+		preparation := strings.Index(script, shellWords(layout.SkillPreparationCommand().Arguments)+" || refuse")
+		if preparation < 0 {
+			t.Fatalf("the %s postinst does not prepare the bundled skills:\n%s", format.Name, script)
+		}
+		for _, command := range layout.PythonSetupCommands() {
+			if strings.Index(script, shellWords(command.Arguments)) > preparation {
+				t.Fatalf("the %s postinst prepares the skills before it can %s:\n%s", format.Name, command.Purpose, script)
+			}
+		}
+	}
+}
+
+func TestRemovalTakesWhatTheSkillsSetupKeptBesideThem(t *testing.T) {
+	layout := blueclaw.LinuxCompanyHostLayout()
+	script := maintainerScript(debianPackageFormat, postRemoveScript)
+	for _, line := range strings.Split(script, "\n") {
+		command := strings.TrimSpace(line)
+		if strings.HasPrefix(command, "rm -rf "+layout.PythonRoot()+" ") {
+			if !slices.Contains(strings.Fields(command), layout.SkillsPath()) {
+				t.Fatalf("removal leaves %s, where each skill's setup kept what the package manager does not own: %s", layout.SkillsPath(), command)
+			}
+			return
+		}
+	}
+	t.Fatalf("removal no longer deletes %s:\n%s", layout.PythonRoot(), script)
 }
 
 func TestAnEnvironmentTheInstallCannotFetchFailsTheInstallNamingIt(t *testing.T) {
