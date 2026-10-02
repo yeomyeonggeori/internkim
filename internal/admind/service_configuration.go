@@ -60,7 +60,6 @@ type Configuration struct {
 	SoulDocumentPath               string
 	BotProfileImagePath            string
 	BlueclawWorkspacePath          string
-	BlueclawRuntimeConfigPath      string
 	BuzzInviteKeyPath              string
 	BuzzCommunityID                string
 	BuzzRelayURL                   string
@@ -123,7 +122,6 @@ func DefaultConfiguration() Configuration {
 		SoulDocumentPath:               "/root/.internkim/config/soul.json",
 		BotProfileImagePath:            "/opt/internkim/board-ui/logo.png",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
-		BlueclawRuntimeConfigPath:      "/root/.blueclaw/config/runtime.json",
 	}
 }
 

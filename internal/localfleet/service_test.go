@@ -78,30 +78,6 @@ func TestEphemeralCleanupContextSurvivesCanceledRun(t *testing.T) {
 	}
 }
 
-func TestScenarioPlanPassesConfigBeforeRemoteCommand(t *testing.T) {
-	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	plan := service.blueclawLabScenarioScriptPlan("buzz-direct-message")
-	configIndex := -1
-	commandIndex := -1
-	for index, argument := range plan.Arguments {
-		if argument == "--config" {
-			configIndex = index
-		}
-		if strings.HasPrefix(argument, "bash ") && commandIndex == -1 {
-			commandIndex = index
-		}
-	}
-	if configIndex == -1 || commandIndex == -1 {
-		t.Fatalf("expected --config and remote command in plan: %v", plan.Arguments)
-	}
-	if configIndex > commandIndex {
-		t.Fatalf("--config must precede the remote command so vm-ssh parses it: %v", plan.Arguments)
-	}
-}
-
 func TestStartTunnelCommandKeepsSSHAliveAfterShellExit(t *testing.T) {
 	service, errorValue := NewService(Options{RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim"})
 	if errorValue != nil {
@@ -297,15 +273,6 @@ func joinedPlanArguments(plans []CommandPlan) string {
 		lines = append(lines, strings.Join(append([]string{plan.Name}, plan.Arguments...), " "))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func planArgumentIndex(plans []CommandPlan, expectedText string) int {
-	for planIndex, plan := range plans {
-		if strings.Contains(strings.Join(plan.Arguments, " "), expectedText) {
-			return planIndex
-		}
-	}
-	return -1
 }
 
 func TestEachFleetAsksForAKeyInItsOwnName(t *testing.T) {

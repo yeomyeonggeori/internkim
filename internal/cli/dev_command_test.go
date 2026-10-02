@@ -70,7 +70,7 @@ func TestParseDevFleetRunBuzzScenarioUsesDisposableFleet(t *testing.T) {
 		"--keep",
 		"--run-id", "dm-smoke",
 		"--admin-port", "19080",
-		"--scenario", "buzz-direct-message",
+		"--scenario", "workspace-ownership",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected parse to pass: %v", errorValue)
@@ -84,7 +84,7 @@ func TestParseDevFleetRunBuzzScenarioUsesDisposableFleet(t *testing.T) {
 	if configuration.ServiceOptions.ShouldUseRealModels {
 		t.Fatalf("expected test models by default: %+v", configuration.ServiceOptions)
 	}
-	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
+	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "workspace-ownership" {
 		t.Fatalf("request = %+v", configuration.Request)
 	}
 	if !configuration.Request.KeepArtifacts {
@@ -95,7 +95,7 @@ func TestParseDevFleetRunBuzzScenarioUsesDisposableFleet(t *testing.T) {
 func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
 		"--real",
-		"--scenario", "buzz-direct-message",
+		"--scenario", "workspace-ownership",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected parse to pass: %v", errorValue)
@@ -108,7 +108,7 @@ func TestParseDevFleetRunCanUseRealModels(t *testing.T) {
 func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
 	configuration, errorValue := parseDevFleetRunArguments([]string{
 		"--reuse",
-		"--scenario", "buzz-direct-message",
+		"--scenario", "workspace-ownership",
 	})
 	if errorValue != nil {
 		t.Fatalf("expected parse to pass: %v", errorValue)
@@ -116,7 +116,7 @@ func TestParseDevFleetRunCanReuseSharedFleet(t *testing.T) {
 	if configuration.ServiceOptions.IsEphemeral {
 		t.Fatalf("expected reusable service options: %+v", configuration.ServiceOptions)
 	}
-	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "buzz-direct-message" {
+	if configuration.Request.Action != "runScenario" || configuration.Request.Scenario != "workspace-ownership" {
 		t.Fatalf("request = %+v", configuration.Request)
 	}
 }
@@ -149,7 +149,7 @@ func TestParseDevFleetRunRejectsConflictingFleetModes(t *testing.T) {
 	_, errorValue := parseDevFleetRunArguments([]string{
 		"--ephemeral",
 		"--reuse",
-		"--scenario", "buzz-direct-message",
+		"--scenario", "workspace-ownership",
 	})
 	if errorValue == nil {
 		t.Fatal("expected conflicting fleet modes to fail")
@@ -163,7 +163,7 @@ func TestParseDevFleetRunRejectsRunIDWithReusableFleet(t *testing.T) {
 	_, errorValue := parseDevFleetRunArguments([]string{
 		"--reuse",
 		"--run-id", "debug",
-		"--scenario", "buzz-direct-message",
+		"--scenario", "workspace-ownership",
 	})
 	if errorValue == nil {
 		t.Fatal("expected run id with reusable fleet to fail")
@@ -279,7 +279,7 @@ func TestDevFleetRunHoldsTheLocalPlaneLock(t *testing.T) {
 	command := holdingTheLocalPlane(
 		"/repository",
 		"/repository/internkim",
-		[]string{"dev", "fleet", "run", "--scenario", "buzz-attachment"},
+		[]string{"dev", "fleet", "run", "--scenario", "workspace-ownership"},
 	)
 
 	expected := []string{
@@ -289,7 +289,7 @@ func TestDevFleetRunHoldsTheLocalPlaneLock(t *testing.T) {
 		"fleet",
 		"run",
 		"--scenario",
-		"buzz-attachment",
+		"workspace-ownership",
 	}
 	if !slices.Equal(command.Args, expected) {
 		t.Fatalf("dev fleet run runs %v, expected %v", command.Args, expected)

@@ -311,16 +311,6 @@ func providerFailure(provider Provider, errorValue error) string {
 	return errorValue.Error()
 }
 
-func nativeActionFallbackError(nativeError error, fallbackError error) error {
-	if nativeError == nil {
-		return fallbackError
-	}
-	if fallbackError == nil {
-		return nativeError
-	}
-	return errors.New("native action tool call failed: " + nativeError.Error() + "; json schema fallback failed: " + fallbackError.Error())
-}
-
 func nativeActionModelFallbackError(nativeErrors []error, fallbackErrors []error, promptedErrors []error) error {
 	return errors.New("native action tool-call attempts failed: " + joinedErrors(nativeErrors) + "; json schema fallback attempts failed: " + joinedErrors(fallbackErrors) + "; prompted json fallback attempts failed: " + joinedErrors(promptedErrors))
 }

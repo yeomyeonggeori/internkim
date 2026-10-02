@@ -1,7 +1,6 @@
 package capabilityd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"os/user"
 	"strconv"
@@ -313,25 +311,6 @@ func (service Service) httpClientTimeout() time.Duration {
 		return 120 * time.Second
 	}
 	return providerTimeout + 30*time.Second
-}
-
-func (service Service) runCommand(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
-	if service.RunCommand != nil {
-		return service.RunCommand(ctx, executablePath, arguments, standardInput)
-	}
-
-	return defaultCommandLimiter.Run(ctx, func() ([]byte, error) {
-		commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		defer cancel()
-
-		command := exec.CommandContext(commandContext, executablePath, arguments...)
-		command.Stdin = bytes.NewReader(standardInput)
-		output, errorValue := command.CombinedOutput()
-		if errorValue != nil {
-			return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
-		}
-		return output, nil
-	})
 }
 
 func readSecretValue(path string) string {

@@ -252,15 +252,6 @@ func printLocalFleetStatus(service localfleet.Service) error {
 	return nil
 }
 
-func firstNonEmptyLocalFleetValue(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
 func runDevSimulateArguments(arguments []string) error {
 	sessionArguments, errorValue := parseDevVirtualSessionArguments(arguments)
 	if errorValue != nil {

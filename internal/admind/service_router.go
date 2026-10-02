@@ -28,7 +28,6 @@ func (service *Service) router() http.Handler {
 	service.registerFileRoutes(multiplexer)
 	service.registerTaskRunRoutes(multiplexer)
 	service.registerCompanyRoutes(multiplexer)
-	service.registerAssetRoutes(multiplexer)
 	service.registerHostRoutes(multiplexer)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(multiplexer)))
@@ -53,10 +52,8 @@ func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerMemoryRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
 	multiplexer.HandleFunc("/persona/api/", service.handlePersona)
-	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 }
 
 func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
@@ -97,9 +94,7 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerCalendarRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
-	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 }
 
 func (service *Service) registerAuthenticationRoutes(multiplexer *http.ServeMux) {
@@ -134,19 +129,12 @@ func (service *Service) registerFileRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerTaskRunRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/runs", service.serveTaskRunsPage)
 	multiplexer.HandleFunc("/runs/api", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/api/", service.handleTaskRuns)
-	multiplexer.HandleFunc("/runs/", service.serveTaskRunsPage)
 }
 
 func (service *Service) registerCompanyRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
-}
-
-func (service *Service) registerAssetRoutes(multiplexer *http.ServeMux) {
-	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
-	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
@@ -224,10 +212,6 @@ func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, reque
 		return
 	}
 	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
-}
-
-func (service *Service) serveAdminAsset(responseWriter http.ResponseWriter, request *http.Request) {
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, strings.TrimPrefix(request.URL.Path, "/")))
 }
 
 func (service *Service) fleetZone() string {

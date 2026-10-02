@@ -203,7 +203,7 @@
     "isInVault": true
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
-    "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
+    "process": "cli",
     "description": "the board's console password, from the @production vault profile; `internkim ssh` and `internkim recover` log in with it when no --password is given",
     "isInVault": true
   },

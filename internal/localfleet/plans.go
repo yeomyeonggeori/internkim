@@ -213,12 +213,6 @@ func (service Service) removeStateCommand() string {
 	return "rm -rf " + quoteShell(service.options.StateRootPath)
 }
 
-func (service Service) blueclawLabScenarioScriptPlan(scenario string) CommandPlan {
-	workspacePath := "/mnt/shared/workspace"
-	scriptPath := workspacePath + "/.dependency/blueclaw/lab/scripts/scenario-" + scenario + ".sh"
-	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065 "+workspacePath)
-}
-
 func (service Service) blueclawDevSessionPreparePlan(scenario string) CommandPlan {
 	workspacePath := "/mnt/shared/workspace"
 	scriptPath := workspacePath + "/lab/scripts/provision-blueclaw-dev-session.sh"
@@ -322,11 +316,6 @@ func (service Service) writeLastResult(value string) {
 
 func quoteShell(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
-}
-
-func safeName(value string) string {
-	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-")
-	return replacer.Replace(strings.TrimSpace(value))
 }
 
 func safeIdentifier(value string) string {

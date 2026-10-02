@@ -557,24 +557,6 @@ func (service Service) waitForVirtualMachineSSH(ctx context.Context) error {
 	return errors.New("virtual machine ssh did not become ready")
 }
 
-func (service Service) ensureRunningVirtualMachineWithSSH(ctx context.Context) error {
-	isVirtualMachineRunning, errorValue := service.VirtualMachineRunning(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !isVirtualMachineRunning {
-		return errors.New("container is not running\n" + service.VirtualMachineDiagnostics(ctx))
-	}
-	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
-	if errorValue != nil || strings.TrimSpace(virtualMachineIPAddress) == "" {
-		return errors.New("container is running but has no IP address\n" + service.VirtualMachineDiagnostics(ctx))
-	}
-	if !service.virtualMachineSSHReady(ctx) {
-		return errors.New("container SSH is not ready\n" + service.VirtualMachineDiagnostics(ctx))
-	}
-	return nil
-}
-
 func (service Service) virtualMachineSSHReady(ctx context.Context) bool {
 	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
 	if errorValue != nil || virtualMachineIPAddress == "" {
@@ -689,4 +671,3 @@ func shouldUseRepositoryRootForSharedWorkspace(sharedWorkspacePath string) bool 
 func (service Service) sharedWorkspacePath() string {
 	return service.configuration.VirtualMachine.SharedWorkspacePath
 }
-

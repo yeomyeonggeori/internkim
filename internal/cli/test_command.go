@@ -219,6 +219,5 @@ func runCheapTestSuite(contextValue context.Context, repositoryRootPath string) 
 
 func refuseTheExpensiveSuite() error {
 	return errors.New("the expensive suite drove tests/expensive through the messenger it was written for, and that driver is gone. " +
-		"The Linux acceptance gate is now `internkim dev fleet run --scenario buzz-attachment` and `--scenario buzz-direct-message`; " +
 		"tests/expensive stays as the specification a Buzz driver has to satisfy")
 }

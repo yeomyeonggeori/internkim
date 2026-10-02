@@ -20,10 +20,6 @@ func (service Service) startCentralPlanePlan() CommandPlan {
 	)
 }
 
-func (service Service) centralPlaneSettingsPath() string {
-	return filepath.Join(service.options.StateRootPath, "central-plane.env")
-}
-
 // The company is only reachable while the fleet's ssh session is up, so the app
 // it fronts stops with the fleet rather than outliving it.
 func (service Service) stopCentralPlaneCommand() string {

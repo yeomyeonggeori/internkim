@@ -17,8 +17,6 @@ func (service *Service) centralPlane() *centralplane.Client {
 
 			ClaimedAdministratorEmail: service.claimedAdminEmail,
 		}
-		// The key is fetched over the network, so a device that names no central
-		// plane must not go asking for one to find out it has none.
 		if strings.TrimSpace(settings.AppURL) == "" || strings.TrimSpace(settings.ProjectURL) == "" ||
 			strings.TrimSpace(settings.PublishableKey) == "" {
 			log.Printf("this device names no company, so the record it would read is not there")

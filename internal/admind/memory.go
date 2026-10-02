@@ -7,8 +7,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -19,31 +17,6 @@ type memoryPolicyDocument struct {
 type memoryPolicyPerson struct {
 	PersonID string   `json:"personID"`
 	Emails   []string `json:"emails"`
-}
-
-func (service *Service) serveMemoryPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/memory" {
-		http.Redirect(responseWriter, request, "/memory/", http.StatusFound)
-		return
-	}
-	if service.serveMemoryStaticFile(responseWriter, request) {
-		return
-	}
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
-}
-
-func (service *Service) serveMemoryStaticFile(responseWriter http.ResponseWriter, request *http.Request) bool {
-	relativePath := strings.TrimPrefix(request.URL.Path, "/memory/")
-	if relativePath == "" {
-		return false
-	}
-	filePath := filepath.Join(service.Configuration.AdminUIPath, "memory", relativePath)
-	fileInfo, errorValue := os.Stat(filePath)
-	if errorValue != nil || fileInfo.IsDir() {
-		return false
-	}
-	http.ServeFile(responseWriter, request, filePath)
-	return true
 }
 
 func (service *Service) handleMemory(responseWriter http.ResponseWriter, request *http.Request) {

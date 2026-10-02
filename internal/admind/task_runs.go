@@ -7,45 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
-
-func (service *Service) serveTaskRunsPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/runs" {
-		http.Redirect(responseWriter, request, "/runs/", http.StatusFound)
-		return
-	}
-	if service.serveTasksStaticFile(responseWriter, request) {
-		return
-	}
-	service.serveTasksIndex(responseWriter, request)
-}
-
-func (service *Service) serveTasksStaticFile(responseWriter http.ResponseWriter, request *http.Request) bool {
-	relativePath := strings.TrimPrefix(request.URL.Path, "/runs/")
-	if relativePath == "" {
-		return false
-	}
-	filePath := filepath.Join(service.Configuration.AdminUIPath, "runs", relativePath)
-	fileInformation, errorValue := os.Stat(filePath)
-	if errorValue != nil || fileInformation.IsDir() {
-		return false
-	}
-	http.ServeFile(responseWriter, request, filePath)
-	return true
-}
-
-func (service *Service) serveTasksIndex(responseWriter http.ResponseWriter, request *http.Request) {
-	runsIndexPath := filepath.Join(service.Configuration.AdminUIPath, "runs", "index.html")
-	if fileInformation, errorValue := os.Stat(runsIndexPath); errorValue == nil && !fileInformation.IsDir() {
-		http.ServeFile(responseWriter, request, runsIndexPath)
-		return
-	}
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
-}
 
 func (service *Service) handleTaskRuns(responseWriter http.ResponseWriter, request *http.Request) {
 	viewerEmail := service.webTaskRunActorEmail(request)

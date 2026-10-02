@@ -754,36 +754,6 @@ func TestWebLogoutSuppressesAuthenticationWithMarkerCookie(t *testing.T) {
 	}
 }
 
-func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
-	adminUIPath := t.TempDir()
-	writeFile(t, filepath.Join(adminUIPath, "index.html"), "application shell")
-	service := NewService(Configuration{
-		AdminUIPath: adminUIPath,
-	})
-	request := httptest.NewRequest(http.MethodGet, "/runs/run-1", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "application shell" {
-		t.Fatalf("tasks page status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestTasksPageRedirectsBarePath(t *testing.T) {
-	service := NewService(Configuration{AdminUIPath: t.TempDir()})
-	request := httptest.NewRequest(http.MethodGet, "/runs", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound || response.Header().Get("Location") != "/runs/" {
-		t.Fatalf("runs redirect status = %d location = %q", response.Code, response.Header().Get("Location"))
-	}
-}
-
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
@@ -946,9 +916,6 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 		}
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
-		}
-		if request.URL.Path == "/api/agent/key" {
-			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
