@@ -269,12 +269,12 @@
     "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_ID": {
-    "process": "cli, tools/cloudflared-access-ssh",
-    "description": "the client id half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault and handed to a command by `monkeys run`; an unattended deploy and the ssh ProxyCommand authenticate with it where an operator would answer a browser login",
+    "process": "tools/cloudflared-access-ssh, internal/cli",
+    "description": "the client id half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault and handed to a command by `monkeys run`; the ssh ProxyCommand authenticates with it where an operator would answer a browser login",
     "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_SECRET": {
-    "process": "cli, tools/cloudflared-access-ssh",
+    "process": "tools/cloudflared-access-ssh, internal/cli",
     "description": "the client secret half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault beside its client id",
     "isInVault": true
   },
@@ -305,7 +305,7 @@
   },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
-    "description": "the device's public admin address, from the @legacy vault profile; internal/deployops/registry.go reads it as the one deploy target",
+    "description": "the device's public admin address, from the @legacy vault profile; internal/cli/device_target.go reads it as the device recover and ssh talk to",
     "isInVault": true
   },
   "INTERNKIM_E2E_CONFIG": {
@@ -322,12 +322,12 @@
   },
   "INTERNKIM_FLEET_ID": {
     "process": "cli",
-    "description": "the device's fleet ID, from the @legacy vault profile; internal/deployops/registry.go reads it as the name signed requests carry",
+    "description": "the device's fleet ID, from the @legacy vault profile; internal/cli/device_target.go reads it as the name signed recovery requests carry",
     "isInVault": true
   },
   "INTERNKIM_FLEET_SECRET": {
     "process": "cli",
-    "description": "the device's fleet secret, from the @legacy vault profile; internal/deployops/registry.go reads it to sign release applies and recovery requests",
+    "description": "the device's fleet secret, from the @legacy vault profile; internal/cli/device_target.go reads it to sign recovery requests",
     "isInVault": true
   },
   "INTERNKIM_GATE_MODEL": {
@@ -380,25 +380,6 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
-  "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
-    "process": "cli",
-    "description": "the bearer token required to download a published OTA release, read by internal/cli's release-publish and setup flows; the same value is the release-registry Worker's RELEASE_DOWNLOAD_TOKEN secret",
-    "isInVault": true
-  },
-  "INTERNKIM_RELEASE_PUBLIC_BASE_URL": {
-    "process": "cli",
-    "description": "the public base URL published releases are served from",
-    "isInVault": true
-  },
-  "INTERNKIM_RELEASE_R2_BUCKET": {
-    "process": "cli",
-    "description": "the R2 bucket releases are uploaded to",
-    "isInVault": true
-  },
-  "INTERNKIM_RELEASE_WRANGLER_BIN": {
-    "process": "cli",
-    "description": "override path to the wrangler binary used for PUBLISHER=wrangler release uploads"
-  },
   "INTERNKIM_RUNTIME_BUILDER_MAX_TRANSFER_BYTES": {
     "process": "tools/prepare-blueclaw-runtime",
     "description": "the transfer size ceiling for the remote runtime-builder rsync; defaults to 5000000000"
@@ -413,7 +394,7 @@
   },
   "INTERNKIM_SSH_HOSTNAME": {
     "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
-    "description": "the device's ssh hostname, from the @legacy vault profile; internal/deployops/registry.go reads it when the device is not on the local network",
+    "description": "the device's ssh hostname, from the @legacy vault profile; internal/cli/device_target.go reads it when the device is not on the local network",
     "isInVault": true
   },
   "INTERNKIM_TEST_CDP_BROWSER": {
@@ -601,14 +582,6 @@
     "process": "relay, host",
     "description": "where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay"
   },
-  "RELEASE_BUCKET": {
-    "process": "release-registry worker",
-    "description": "the R2 bucket binding the release-registry worker serves published release objects from"
-  },
-  "RELEASE_DOWNLOAD_TOKEN": {
-    "process": "release-registry worker",
-    "description": "the bearer token the release-registry worker requires on every download request"
-  },
   "SUPABASE_AUTH_SIGNING_KEYS_PATH": {
     "process": "tools/with-local-plane",
     "description": "the signing key set the Supabase CLI's local stack signs with; tools/with-local-plane writes it once to supabase/.temp/local-signing-keys.json and exports this for every command it runs, and tools/with-local-plane-test's fake CLI records it"
@@ -726,5 +699,10 @@
   "INTEGRATION_TESTS": {
     "process": "web integration tests",
     "description": "the test directory web/scripts/test-integration.sh runs against the local plane; tests/integration unless set, tests/transfer for the file transfer suite"
+  },
+  "INTERNKIM_RELEASE_DOWNLOAD_TOKEN": {
+    "process": "cli",
+    "description": "the bearer token setup stages on the device for its release downloads",
+    "isInVault": true
   }
 }

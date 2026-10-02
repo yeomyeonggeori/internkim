@@ -15,8 +15,6 @@ type releaseSubcommand struct {
 }
 
 var releaseSubcommands = []releaseSubcommand{
-	{name: "publish", summary: "Publish a device release to the stable channel", flags: []string{"--release", "--channel", "--keep"}, run: runReleasePublish},
-	{name: "status", summary: "Show what the channel points at", flags: []string{"--channel"}, run: runReleaseStatus},
 	{name: "packages", summary: "Build the release directory without publishing it: deb, rpm and archlinux packages, the Homebrew bottle and formula, and their SHA256SUMS", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
 	{name: "host", summary: "Build the company host for Linux and Apple-silicon Macs and publish it as a GitHub Release on the stable or testing channel; stable also gives the Homebrew tap its formula", flags: []string{"--channel"}, run: runReleaseHost},
 }
@@ -83,12 +81,6 @@ func printReleaseUsage() {
 	for _, subcommand := range releaseSubcommands {
 		fmt.Printf("  %-13s %s\n", subcommand.name, subcommand.summary)
 	}
-	fmt.Println()
-	fmt.Println("Environment for publish:")
-	fmt.Println("  CLOUDFLARE_ACCOUNT_ID")
-	fmt.Println("  INTERNKIM_RELEASE_R2_BUCKET")
-	fmt.Println("  INTERNKIM_RELEASE_PUBLIC_BASE_URL")
-	fmt.Println("  INTERNKIM_RELEASE_DOWNLOAD_TOKEN")
 	fmt.Println()
 	fmt.Printf("release host publishes through gh, signed in to an account that can create releases on %s.\n", hostReleaseRepository)
 }

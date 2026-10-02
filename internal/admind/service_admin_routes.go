@@ -33,14 +33,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminRecoveryRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminSignedUpdateRoute(responseWriter, request, path) {
-		return
-	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
-		return
-	}
-	if service.handleAdminUpdateRoute(responseWriter, request, path) {
 		return
 	}
 	if service.handleAdminDiagnosticsRoute(responseWriter, request, path) {
@@ -114,48 +108,6 @@ func (service *Service) handleAdminRecoveryRoute(responseWriter http.ResponseWri
 		return true
 	}
 	return false
-}
-
-func (service *Service) handleAdminSignedUpdateRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	if strings.HasPrefix(path, "/updates/blueclaw/uploads") {
-		service.handleBlueclawUpdateUpload(responseWriter, request, path)
-		return true
-	}
-	if request.Method == http.MethodGet && path == "/updates/status" {
-		service.writeReleaseUpdateStatus(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodGet && path == "/updates/releases" {
-		service.writeReleaseHistory(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
-		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
-		return true
-	}
-	if request.Method == http.MethodPost && path == "/updates/apply" && !service.isAuthorized(request) {
-		service.applyReleaseUpdateSigned(responseWriter, request)
-		return true
-	}
-	return false
-}
-
-func (service *Service) handleAdminUpdateRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/updates/apply":
-		service.applyReleaseUpdate(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/updates/rollback":
-		service.rollbackReleaseUpdate(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/updates/blueclaw/status":
-		service.writeBlueclawUpdateStatus(responseWriter)
-	case request.Method == http.MethodPost && path == "/updates/blueclaw/apply":
-		service.applyLatestBlueclawUpdate(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/blueclaw/jobs/"):
-		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/blueclaw/jobs/"))
-	default:
-		return false
-	}
-	return true
 }
 
 func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {

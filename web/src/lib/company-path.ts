@@ -16,7 +16,6 @@ export const reservedFirstSegments = [
 	'memory',
 	'messenger',
 	'oauth',
-	'ops',
 	'organization',
 	'runs',
 	'settings',

@@ -3,7 +3,7 @@ GO_CACHE ?= /tmp/internkim-go-cache-$(GO_HOST)
 GO_MOD_CACHE ?= /tmp/internkim-go-mod-cache-$(GO_HOST)
 RELAY_TARGET ?=
 
-.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay prepare-buzz-relay-linux smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate deploy-after-fleet sim-gate deploy-after-sim verify-browser
+.PHONY: build build-maild build-relay build-company-host verify-generated-protocol check test doctor deps-sim deps-browser prepare-blueclaw-runtime-builder prepare-blueclaw-runtime-base prepare-blueclaw-payload prepare-buzz-relay prepare-buzz-relay-linux smoke-blueclaw-runtime-lab smoke-blueclaw-runtime-lab-fast setup-sim fleet-gate sim-gate verify-browser
 
 build: verify-generated-protocol
 	GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -o internkim ./cmd/internkim
@@ -75,13 +75,7 @@ setup-sim: build
 fleet-gate: build
 	./internkim dev fleet run
 
-deploy-after-fleet: build
-	./internkim dev fleet run
-	./internkim deploy
-
 sim-gate: fleet-gate
-
-deploy-after-sim: deploy-after-fleet
 
 verify-browser: build
 	./internkim verify browser --local

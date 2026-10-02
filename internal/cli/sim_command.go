@@ -184,10 +184,6 @@ func cleanupSimulationRemoteRegistration() error {
 	return fmt.Errorf("simulation registration cleanup returned HTTP %d", response.StatusCode)
 }
 
-func stopSimulationBeforePhysicalDeploy() error {
-	return runSimLabTarget([]string{"vm-down"}, commandTargetBoardSimulation)
-}
-
 func simulationStateDirectoryPath() string {
 	return commandTargetStateDir(internkimHomeDir(), setup.BoardSimulation)
 }

@@ -78,32 +78,6 @@ export type AdminJob = {
 	logs?: string[];
 };
 
-export type ReleaseUpdateSummary = {
-	releaseID: string;
-	channel?: string;
-	createdAt?: string;
-	components?: Record<string, { revision: string; sha256?: string }>;
-};
-
-export type BlueclawUpdateStatus = {
-	current?: ReleaseUpdateSummary;
-	latest?: ReleaseUpdateSummary;
-	state: string;
-	updateAllowed: boolean;
-	activeJob?: AdminJob;
-};
-
-export type ReleaseHistoryEntry = {
-	releaseID: string;
-	manifestURL: string;
-	createdAt: string;
-	isCurrent: boolean;
-};
-
-export type ReleaseHistoryResponse = {
-	entries?: ReleaseHistoryEntry[];
-};
-
 export type RestoreUploadResponse = {
 	uploadID: string;
 	chunkSize: number;
