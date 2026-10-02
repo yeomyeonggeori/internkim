@@ -261,11 +261,49 @@ func deliverySourceRsyncCommand(sourcePath string, deliveredPath string) string 
 	return "if [ -d " + sourcePath + " ]; then rsync -a --delete " + sourcePath + "/ " + deliveredPath + "/; fi\n"
 }
 
+// deliveredSkillsPreparationCommand runs every skill's setup before the skills
+// are delivered, because no skill command installs anything and the guest sees
+// them read-only. A setup builds on the interpreter that will run the skill and
+// writes absolute paths, so it runs where both are the guest's: in a chroot of
+// the guest's root filesystem, through a throwaway overlay because that image
+// is the running guest's disk, with the skills mounted at the path the guest
+// mounts them at. The rule is internkim-admind's, the same one `internkim
+// prepare-skills` applies on a company host, and it runs as the skills' owner.
+// The skills are prepared where they come from, so the --delete sync that
+// follows carries what setup wrote instead of removing it.
+//
+// A device that has no guest root filesystem yet prepares them on the refresh
+// after its runtime is installed.
+func deliveredSkillsPreparationCommand(skillsPath string) string {
+	root := `"$preparation/root"`
+	return strings.Join([]string{
+		`if [ -d ` + skillsPath + ` ] && [ ! -s ` + BlueclawRootFilesystemImagePath + ` ]; then echo "no guest root filesystem at ` + BlueclawRootFilesystemImagePath + ` yet; the skills are prepared on the refresh after it is installed" >&2; fi`,
+		`if [ -d ` + skillsPath + ` ] && [ -s ` + BlueclawRootFilesystemImagePath + ` ]; then (`,
+		`  [ -x ` + AdmindBinaryPath + ` ] || { echo "no ` + AdmindBinaryPath + ` to prepare the skills with" >&2; exit 1; }`,
+		`  preparation="$(mktemp -d /var/tmp/internkim-skill-preparation.XXXXXX)"`,
+		`  trap 'umount -R ` + root + ` 2>/dev/null || true; umount "$preparation/lower" 2>/dev/null || true; rm -rf "$preparation"' EXIT`,
+		`  mkdir -p "$preparation/lower" "$preparation/upper" "$preparation/work" ` + root + ` "$preparation/tmp"`,
+		`  chmod 1777 "$preparation/tmp"`,
+		`  mount -o loop,ro,noload ` + BlueclawRootFilesystemImagePath + ` "$preparation/lower"`,
+		`  mount -t overlay overlay -o lowerdir="$preparation/lower",upperdir="$preparation/upper",workdir="$preparation/work" ` + root,
+		`  mkdir -p ` + root + BlueclawGuestDeliverySkillsPath + ` ` + root + `/run/preparation`,
+		`  mount --bind ` + skillsPath + ` ` + root + BlueclawGuestDeliverySkillsPath,
+		`  mount --bind "$preparation/tmp" ` + root + `/tmp`,
+		`  mount -t proc proc ` + root + `/proc`,
+		`  mount --rbind /dev ` + root + `/dev`,
+		`  rm -f ` + root + `/etc/resolv.conf && cat /etc/resolv.conf > ` + root + `/etc/resolv.conf`,
+		`  install -m 0755 ` + AdmindBinaryPath + ` ` + root + `/run/preparation/internkim-admind`,
+		`  chroot --userspec="$(stat -c %u:%g ` + skillsPath + `)" ` + root + ` /run/preparation/internkim-admind ` + GuestSkillPreparationVerb,
+		`) fi`,
+	}, "\n") + "\n"
+}
+
 func BlueclawDeliveryRefreshCommand() string {
 	temporaryKeyPath := BlueclawDeliverySecretsPath + "/." + BlueclawAdminAssertionKeyName + ".$$"
 	return "\n" +
 		"mkdir -p " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + " " + BlueclawDeliveryConfigPath + "\n" +
 		deliverySourceRsyncCommand(BlueclawWorkspacePath+"/.blueclaw/runtime/current", BlueclawDeliveryRuntimePath) +
+		deliveredSkillsPreparationCommand(BlueclawWorkspacePath+"/skills") +
 		deliverySourceRsyncCommand(BlueclawWorkspacePath+"/skills", BlueclawDeliverySkillsPath) +
 		"chown -R root:root " + BlueclawDeliveryConfigPath + " " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + "\n" +
 		"find " + BlueclawDeliveryConfigPath + " " + BlueclawDeliveryRuntimePath + " " + BlueclawDeliverySkillsPath + " -type d -exec chmod 0755 {} +\n" +

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -49,12 +50,12 @@ type skillSetup struct {
 }
 
 // setupOf is the command that prepares the skill, if it needs one.
-func setupOf(layout blueclaw.CompanyHostLayout, skill bundledSkill) (skillSetup, bool) {
+func setupOf(place blueclaw.BundledSkillsPlace, skill bundledSkill) (skillSetup, bool) {
 	if isExecutableFile(skill.launcherPath()) {
 		return skillSetup{Program: skill.launcherPath(), Arguments: []string{skillSetupArgument}}, true
 	}
 	if isRegularFile(skill.scriptPath(skillRuntimeScriptName)) {
-		return skillSetup{Program: layout.PythonPath(), Arguments: []string{skill.scriptPath(skillRuntimeScriptName), skillSetupArgument}}, true
+		return skillSetup{Program: place.PythonPath, Arguments: []string{skill.scriptPath(skillRuntimeScriptName), skillSetupArgument}}, true
 	}
 	return skillSetup{}, false
 }
@@ -72,24 +73,50 @@ type skillIssue struct {
 	Suggestion string `json:"suggestion"`
 }
 
-// PrepareTheBundledSkills prepares the skills on this machine.
-func PrepareTheBundledSkills(machine Machine, progress io.Writer) error {
+// SkillSetupRunner starts a skill's setup and hands back what it printed.
+type SkillSetupRunner interface {
+	Stream(name string, arguments []string, streams Streams) error
+}
+
+// LocalProcesses runs a setup as a process of this machine.
+type LocalProcesses struct{}
+
+func (LocalProcesses) Stream(name string, arguments []string, streams Streams) error {
+	command := exec.Command(name, arguments...)
+	command.Stdin = streams.Input
+	command.Stdout = streams.Output
+	command.Stderr = streams.Errors
+	return command.Run()
+}
+
+// PrepareTheBundledSkills prepares the skills on this company host.
+func PrepareTheBundledSkills(runner SkillSetupRunner, progress io.Writer) error {
 	platform, errorValue := ThisMachine()
 	if errorValue != nil {
 		return errorValue
 	}
-	syscall.Umask(0o022)
-	return prepareSkillsIn(platform.Layout(), machine, progress)
+	return prepareSkillsAt(platform.Layout().BundledSkillsPlace(), runner, progress)
 }
 
-func prepareSkillsIn(layout blueclaw.CompanyHostLayout, machine Machine, progress io.Writer) error {
-	if errorValue := requireTheOwnerOf(layout.SkillsPath()); errorValue != nil {
+// PrepareTheGuestSkills prepares the skills a device delivers to its guest,
+// from inside the guest's root filesystem, by the same rule.
+func PrepareTheGuestSkills(runner SkillSetupRunner, progress io.Writer) error {
+	return prepareSkillsAt(blueclaw.GuestBundledSkillsPlace(), runner, progress)
+}
+
+func prepareSkillsAt(place blueclaw.BundledSkillsPlace, runner SkillSetupRunner, progress io.Writer) error {
+	syscall.Umask(0o022)
+	return prepareSkillsIn(place, runner, progress)
+}
+
+func prepareSkillsIn(place blueclaw.BundledSkillsPlace, runner SkillSetupRunner, progress io.Writer) error {
+	if errorValue := requireTheOwnerOf(place.SkillsPath); errorValue != nil {
 		return errorValue
 	}
-	if errorValue := removeWhatNoLongerShipsAsASkill(layout.SkillsPath(), progress); errorValue != nil {
+	if errorValue := removeWhatNoLongerShipsAsASkill(place.SkillsPath, progress); errorValue != nil {
 		return errorValue
 	}
-	skills, errorValue := bundledSkillsIn(layout.SkillsPath())
+	skills, errorValue := bundledSkillsIn(place.SkillsPath)
 	if errorValue != nil {
 		return errorValue
 	}
@@ -98,12 +125,12 @@ func prepareSkillsIn(layout blueclaw.CompanyHostLayout, machine Machine, progres
 		return errorValue
 	}
 	defer os.RemoveAll(scratchPath)
-	environment, errorValue := skillPreparationEnvironment(layout, scratchPath)
+	environment, errorValue := skillPreparationEnvironment(place, scratchPath)
 	if errorValue != nil {
 		return errorValue
 	}
 	for _, skill := range skills {
-		if errorValue := prepareSkill(layout, skill, environment, machine, progress); errorValue != nil {
+		if errorValue := prepareSkill(place, skill, environment, runner, progress); errorValue != nil {
 			return errorValue
 		}
 	}
@@ -177,13 +204,13 @@ func bundledSkillsIn(skillsPath string) ([]bundledSkill, error) {
 // the cache home and the download caches are this run's alone and go with it,
 // so a setup cannot lean on a cache blueclaw hands a person, and only what it
 // keeps beside the skill stays.
-func skillPreparationEnvironment(layout blueclaw.CompanyHostLayout, scratchPath string) ([]string, error) {
+func skillPreparationEnvironment(place blueclaw.BundledSkillsPlace, scratchPath string) ([]string, error) {
 	homePath := filepath.Join(scratchPath, "home")
 	if errorValue := os.MkdirAll(homePath, 0o755); errorValue != nil {
 		return nil, errorValue
 	}
 	return []string{
-		"PATH=" + layout.SearchPath(),
+		"PATH=" + place.SearchPath,
 		"HOME=" + homePath,
 		"XDG_CACHE_HOME=" + filepath.Join(scratchPath, "cache"),
 		"UV_CACHE_DIR=" + filepath.Join(scratchPath, "uv"),
@@ -194,15 +221,15 @@ func skillPreparationEnvironment(layout blueclaw.CompanyHostLayout, scratchPath 
 	}, nil
 }
 
-func prepareSkill(layout blueclaw.CompanyHostLayout, skill bundledSkill, environment []string, machine Machine, progress io.Writer) error {
-	setup, needsPreparation := setupOf(layout, skill)
+func prepareSkill(place blueclaw.BundledSkillsPlace, skill bundledSkill, environment []string, runner SkillSetupRunner, progress io.Writer) error {
+	setup, needsPreparation := setupOf(place, skill)
 	if !needsPreparation {
 		return nil
 	}
 	fmt.Fprintf(progress, "Preparing the %s skill…\n", skill.Name)
 	arguments := append(append(append([]string{}, environment...), setup.Program), setup.Arguments...)
 	answer := bytes.Buffer{}
-	runError := machine.Stream("env", arguments, Streams{Output: &answer, Errors: progress})
+	runError := runner.Stream("env", arguments, Streams{Output: &answer, Errors: progress})
 	envelope, parseError := parseSkillEnvelope(answer.Bytes())
 	if runError == nil {
 		fmt.Fprintln(progress, summaryOf(envelope, parseError, answer.String()))

@@ -9,6 +9,8 @@ import (
 	_ "time/tzdata"
 
 	"github.com/yeomyeonggeori/internkim/internal/admind"
+	"github.com/yeomyeonggeori/internkim/internal/companyhost"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func readBuzzDatabaseURL(path string) (string, error) {
@@ -30,6 +32,13 @@ func readBuzzDatabaseURL(path string) (string, error) {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == blueclaw.GuestSkillPreparationVerb {
+		if errorValue := companyhost.PrepareTheGuestSkills(companyhost.LocalProcesses{}, os.Stdout); errorValue != nil {
+			fmt.Fprintf(os.Stderr, "The guest's skills were not prepared: %s\n", errorValue)
+			os.Exit(1)
+		}
+		return
+	}
 	configuration := admind.DefaultConfiguration()
 	flag.StringVar(&configuration.ListenAddress, "listen", configuration.ListenAddress, "HTTP listen address")
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", configuration.MattermostBaseURL, "Mattermost upstream URL")

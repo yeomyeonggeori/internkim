@@ -86,7 +86,7 @@ func TestEveryBundledSkillIsPreparedByItsOwnSetup(t *testing.T) {
 		"stray":      {hasLauncher: true, isNotASkill: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
+	if errorValue := prepareSkillsIn(layout.BundledSkillsPlace(), machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if len(launcherSetupRuns(machine, layout, "office")) != 1 || len(runtimeSetupRuns(machine, layout, "office")) != 0 {
@@ -106,7 +106,7 @@ func TestSkillsArePreparedOnWhatEveryPersonsCommandRunsWithNoCacheOfTheirs(t *te
 		"dataroom": {hasRuntime: true},
 	})
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
+	if errorValue := prepareSkillsIn(layout.BundledSkillsPlace(), machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	runs := append(launcherSetupRuns(machine, layout, "office"), runtimeSetupRuns(machine, layout, "dataroom")...)
@@ -153,7 +153,7 @@ func TestASkillTheReleaseNoLongerShipsIsRemovedBeforeTheOthersArePrepared(t *tes
 		t.Fatal(errorValue)
 	}
 	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
-	if errorValue := prepareSkillsIn(layout, machine, &strings.Builder{}); errorValue != nil {
+	if errorValue := prepareSkillsIn(layout.BundledSkillsPlace(), machine, &strings.Builder{}); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 	if _, errorValue := os.Stat(leftoverPath); !os.IsNotExist(errorValue) {
@@ -177,7 +177,7 @@ func TestASetupThatFailsStopsTheInstallNamingWhatItNeeds(t *testing.T) {
 			printed:  map[string]string{"env": failedSetupAnswer},
 			failures: map[string]error{"env": errors.New("exit status 1")},
 		}
-		errorValue := prepareSkillsIn(layout, machine, &strings.Builder{})
+		errorValue := prepareSkillsIn(layout.BundledSkillsPlace(), machine, &strings.Builder{})
 		if errorValue == nil {
 			t.Fatal("a skill whose setup failed was reported prepared")
 		}
@@ -195,7 +195,7 @@ func TestASetupThatPrintsNoEnvelopeStopsTheInstall(t *testing.T) {
 		printed:  map[string]string{"env": "Traceback (most recent call last):"},
 		failures: map[string]error{"env": errors.New("exit status 1")},
 	}
-	errorValue := prepareSkillsIn(layout, machine, &strings.Builder{})
+	errorValue := prepareSkillsIn(layout.BundledSkillsPlace(), machine, &strings.Builder{})
 	if errorValue == nil || !strings.Contains(errorValue.Error(), "Traceback") {
 		t.Fatalf("a setup that crashed was reported prepared: %v", errorValue)
 	}
@@ -221,7 +221,7 @@ func TestEverySkillThePluginShipsThatDeclaresPackagesHasASetupToRun(t *testing.T
 				continue
 			}
 			declaring++
-			if _, hasSetup := setupOf(layout, skill); !hasSetup {
+			if _, hasSetup := setupOf(layout.BundledSkillsPlace(), skill); !hasSetup {
 				t.Errorf("%s declares %s and has neither scripts/%s nor scripts/%s to set it up with", skill.Name, manifest, skill.Name, skillRuntimeScriptName)
 			}
 		}
