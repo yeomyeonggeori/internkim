@@ -19,12 +19,8 @@
 	import MentionPopup from './mention-popup.svelte';
 	import EmojiPicker from './emoji-picker.svelte';
 	import ComposerFormatToolbar from './composer-format-toolbar.svelte';
-	import {
-		applyComposerFormat,
-		insertIntoDraft,
-		type ComposerDraft,
-		type ComposerFormat
-	} from './composer-formatting';
+	import ComposerEditor from './composer-editor.svelte';
+	import type { ComposerFormat } from './composer-formatting';
 	import { composerEditing, type EditingMessage } from './message-edit';
 	import { canChangeMessages } from './channel-api';
 	import { fileToAttachment, formatAttachmentMeta } from './channel-attachments';
@@ -46,7 +42,6 @@
 	let {
 		name,
 		placeholder,
-		rows,
 		participants,
 		isGroup,
 		disabled = false,
@@ -59,7 +54,6 @@
 	}: {
 		name: string;
 		placeholder: string;
-		rows: number;
 		participants: MentionPerson[];
 		isGroup: boolean;
 		disabled?: boolean;
@@ -81,20 +75,30 @@
 
 	const text = createPageText(channelText);
 	let value = $state('');
-	let textarea = $state<HTMLTextAreaElement | null>(null);
+	let composerEditor = $state<ComposerEditor | null>(null);
+	let activeFormats = $state<ComposerFormat[]>([]);
 	let fileInput = $state<HTMLInputElement | null>(null);
+	let form = $state<HTMLFormElement | null>(null);
 	let pendingAttachments = $state<PendingAttachment[]>([]);
 	let attachmentSerial = 0;
 	let showsFormatToolbar = $state(false);
 	const formatToggleLabel = $derived(showsFormatToolbar ? text.hideFormatting : text.showFormatting);
 	const canMention = $derived(canChangeMessages() && participants.length > 0);
 	const mentions = createMentionPicker(() => participants, () => isGroup);
+	const editorAriaAttributes = $derived<Record<string, string>>({
+		role: 'combobox',
+		'aria-label': placeholder,
+		'aria-autocomplete': 'list',
+		'aria-expanded': String(mentions.isOpen),
+		'aria-controls': `mention-list-${name}`,
+		...(mentions.isOpen ? { 'aria-activedescendant': `mention-row-${name}-${mentions.active}` } : {})
+	});
 	const edit = composerEditing({
 		text: () => value,
 		setText: (written) => (value = written),
 		editing: () => editing,
 		setEditing: (next) => (editing = next),
-		focus: () => void tick().then(() => textarea?.focus())
+		focus: () => void tick().then(() => composerEditor?.focus())
 	});
 
 	export function beginEdit(message: ChannelMessage): void {
@@ -171,45 +175,31 @@
 	}
 
 	function refreshMentions(): void {
-		if (!canMention || !textarea) return mentions.close();
-		mentions.reopen(textarea.value, textarea.selectionStart ?? textarea.value.length);
+		const before = composerEditor?.textBeforeCursor();
+		if (!canMention || !before) return mentions.close();
+		mentions.reopen(before.text, before.cursor);
 	}
 
-	async function takeMention(candidate?: MentionCandidate): Promise<void> {
-		const element = textarea;
-		if (!element) return;
-		const written = mentions.take(element.value, element.selectionStart ?? element.value.length, candidate);
-		if (!written) return;
-		await writeDraft({ text: written.text, selectionStart: written.cursor, selectionEnd: written.cursor });
-	}
-
-	function currentDraft(): ComposerDraft | undefined {
-		if (!textarea) return undefined;
-		return { text: textarea.value, selectionStart: textarea.selectionStart, selectionEnd: textarea.selectionEnd };
-	}
-
-	async function writeDraft(draft: ComposerDraft): Promise<void> {
-		value = draft.text;
-		await tick();
-		textarea?.focus();
-		textarea?.setSelectionRange(draft.selectionStart, draft.selectionEnd);
+	function takeMention(candidate?: MentionCandidate): void {
+		const before = composerEditor?.textBeforeCursor();
+		if (!before) return;
+		const written = mentions.take(before.cursor, candidate);
+		if (written) composerEditor?.writeMention(written);
 	}
 
 	function format(chosen: ComposerFormat): void {
-		const draft = currentDraft();
-		if (draft) void writeDraft(applyComposerFormat(draft, chosen));
+		composerEditor?.format(chosen, () => window.prompt(text.formatLinkAddress));
 	}
 
 	function insertEmoji(glyph: string): void {
-		const draft = currentDraft();
-		if (draft) void writeDraft(insertIntoDraft(draft, glyph));
+		composerEditor?.insertText(glyph);
 	}
 
-	async function startMention(): Promise<void> {
-		const draft = currentDraft();
-		if (!draft) return;
-		const needsSpace = draft.selectionStart > 0 && !/\s/.test(draft.text[draft.selectionStart - 1]);
-		await writeDraft(insertIntoDraft(draft, needsSpace ? ' @' : '@'));
+	function startMention(): void {
+		const before = composerEditor?.textBeforeCursor();
+		if (!before) return;
+		const needsSpace = before.cursor > 0 && !/\s/.test(before.text[before.cursor - 1]);
+		composerEditor?.insertText(needsSpace ? ' @' : '@');
 		refreshMentions();
 	}
 
@@ -221,21 +211,21 @@
 		if (action === 'close') mentions.close();
 		else if (action === 'down') mentions.moveBy(1);
 		else if (action === 'up') mentions.moveBy(-1);
-		else void takeMention();
+		else takeMention();
 		return true;
 	}
 
-	function handleKeydown(event: KeyboardEvent) {
-		if (handledByMentions(event)) return;
+	function handleKeydown(event: KeyboardEvent): boolean {
+		if (handledByMentions(event)) return true;
 		if (event.key === 'Escape' && editing && cancelsEditOnEscape) {
 			event.preventDefault();
 			edit.cancel();
-			return;
+			return true;
 		}
-		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+		if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return false;
 		event.preventDefault();
-		if (!(event.currentTarget instanceof HTMLElement)) return;
-		event.currentTarget.closest('form')?.requestSubmit();
+		form?.requestSubmit();
+		return true;
 	}
 
 	onMount(() => {
@@ -244,7 +234,7 @@
 	onDestroy(clearAttachments);
 </script>
 
-<form onsubmit={submit} class="relative p-3">
+<form bind:this={form} onsubmit={submit} class="relative p-3">
 	<input bind:this={fileInput} type="file" multiple class="hidden" onchange={handleFilesSelected} />
 	{#if pendingAttachments.length > 0}
 		<Attachment.Group class="mb-2">
@@ -285,7 +275,7 @@
 			active={mentions.active}
 			listLabel={text.mentionList}
 			everyoneLabel={text.mentionEveryone}
-			onPick={(candidate) => void takeMention(candidate)}
+			onPick={(candidate) => takeMention(candidate)}
 		/>
 	{/if}
 	{#if editing}
@@ -296,23 +286,19 @@
 	{/if}
 	<InputGroup.Root>
 		{#if showsFormatToolbar}
-			<ComposerFormatToolbar {disabled} onFormat={format} />
+			<ComposerFormatToolbar {disabled} {activeFormats} onFormat={format} />
 		{/if}
-		<InputGroup.Textarea
+		<ComposerEditor
+			bind:this={composerEditor}
 			bind:value
-			bind:ref={textarea}
-			role="combobox"
-			aria-autocomplete="list"
-			aria-expanded={mentions.isOpen}
-			aria-controls={`mention-list-${name}`}
-			aria-activedescendant={mentions.isOpen ? `mention-row-${name}-${mentions.active}` : undefined}
+			bind:activeFormats
 			placeholder={disabled ? text.composerDisabledPlaceholder : placeholder}
-			aria-label={placeholder}
-			{rows}
-			onkeydown={handleKeydown}
-			oninput={handleInput}
-			onblur={() => mentions.close()}
+			ariaAttributes={editorAriaAttributes}
 			{disabled}
+			onKeydown={handleKeydown}
+			onInput={handleInput}
+			onSelectionChange={refreshMentions}
+			onBlur={() => mentions.close()}
 		/>
 		<InputGroup.Addon align="block-end" class="pt-1">
 			<InputGroup.Button
@@ -350,7 +336,7 @@
 				{/snippet}
 			</EmojiPicker>
 			{#if canMention}
-				<InputGroup.Button size="icon-sm" aria-label={text.addMention} {disabled} onclick={() => void startMention()}>
+				<InputGroup.Button size="icon-sm" aria-label={text.addMention} {disabled} onclick={startMention}>
 					<AtSignIcon />
 				</InputGroup.Button>
 			{/if}

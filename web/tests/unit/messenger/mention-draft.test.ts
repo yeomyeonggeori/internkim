@@ -3,7 +3,7 @@ import {
 	mentionKeyAction,
 	mentionFragmentAt,
 	mentionsToSend,
-	textWithMention,
+	mentionWritten,
 	type ChosenMention
 } from '$lib/messenger/mention-draft';
 
@@ -33,21 +33,10 @@ describe('mentionFragmentAt', () => {
 	});
 });
 
-describe('textWithMention', () => {
-	test('writes the name and leaves the cursor past it', () => {
+describe('mentionWritten', () => {
+	test('replaces the typed fragment up to the cursor with the name', () => {
 		const fragment = { start: 3, query: 'sa' };
-		expect(textWithMention('안녕 @sa', 6, fragment, '이샘플')).toEqual({
-			text: '안녕 @이샘플 ',
-			cursor: 8
-		});
-	});
-
-	test('keeps what was already typed after the cursor', () => {
-		const fragment = { start: 0, query: 'sa' };
-		expect(textWithMention('@sa 안녕', 3, fragment, '이샘플')).toEqual({
-			text: '@이샘플  안녕',
-			cursor: 5
-		});
+		expect(mentionWritten(6, fragment, '이샘플')).toEqual({ from: 3, to: 6, inserted: '@이샘플 ' });
 	});
 });
 

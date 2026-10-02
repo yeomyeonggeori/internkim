@@ -16,7 +16,11 @@
 	import TextQuoteIcon from '@lucide/svelte/icons/text-quote';
 	import type { Component } from 'svelte';
 
-	let { disabled, onFormat }: { disabled: boolean; onFormat: (format: ComposerFormat) => void } = $props();
+	let {
+		disabled,
+		activeFormats,
+		onFormat
+	}: { disabled: boolean; activeFormats: ComposerFormat[]; onFormat: (format: ComposerFormat) => void } = $props();
 
 	const text = createPageText(channelText);
 
@@ -52,6 +56,8 @@
 								{...props}
 								size="icon-xs"
 								aria-label={button.label}
+								aria-pressed={activeFormats.includes(button.format)}
+								variant={activeFormats.includes(button.format) ? 'secondary' : 'ghost'}
 								{disabled}
 								onclick={() => onFormat(button.format)}
 							>
