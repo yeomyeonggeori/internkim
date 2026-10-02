@@ -19,6 +19,31 @@ No per-box password, sticker, serial registered to a buyer or key is put in at
 assembly. On first boot the box generates an Ed25519 signing key and an X25519
 encryption key in `/var/lib/internkim/box`. The private halves never leave its disk.
 
+## Getting online
+
+A box that has no company installed and is offline, and was started with
+`--wifi-setup`, opens its own Wi-Fi network named `kimmini-` plus the last four
+characters of its key. The network appears only in that state and closes once the
+box is online. Its
+password is `intern-kim`, the same on every box.
+
+Joining it opens the setup page, because every name resolves to the box. The
+page asks for the office network's name and password, and the box joins it. At
+boot the box first waits 60 seconds for a network it has saved before it opens
+its own.
+
+Once a box is connected, an administrator can move it to another network from
+company setup. The change form is offered while the box has reported nearby
+networks. The browser seals the new name and password to the box key with
+the purpose `internkim wifi network`, and the central plane relays ciphertext
+only. The box reports whether it joined the new network or could not change it.
+
+The shared password carries two risks. When the box falls back from WPA3 to
+WPA2, someone nearby who has the published password and captures a handshake can
+decrypt the plain-HTTP setup page and read the office network's password. And
+anyone can broadcast a look-alike network with the same name and password to
+collect the office password.
+
 ## Claiming a box
 
 1. The box joins the office network and announces its public key to the central

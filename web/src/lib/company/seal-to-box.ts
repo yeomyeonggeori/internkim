@@ -1,8 +1,10 @@
 import { Aes256Gcm, CipherSuite, HkdfSha256 } from '@hpke/core';
 import { DhkemX25519HkdfSha256 } from '@hpke/dhkem-x25519';
-import { sealedSecretVersion, type SealedSecret } from './box';
+import { sealedSecretVersion, type SealedSecret, type WifiNetwork } from './box';
 
 export const modelKeySealInformation = 'internkim model key';
+
+export const wifiNetworkSealInformation = 'internkim wifi network';
 
 export const boxSealingSuite = new CipherSuite({
 	kem: new DhkemX25519HkdfSha256(),
@@ -57,4 +59,23 @@ export function sealModelKey(
 	box: { companyID: string; encryptionKey: string }
 ): Promise<SealedSecret> {
 	return sealToBox(modelKey, box.encryptionKey, modelKeyPurpose(box.companyID, box.encryptionKey));
+}
+
+export function wifiNetworkPurpose(companyID: string, boxEncryptionKey: string, requestID: string): SealPurpose {
+	return {
+		information: wifiNetworkSealInformation,
+		additionalData: additionalDataOf(companyID, boxEncryptionKey, 'wifi', requestID)
+	};
+}
+
+export function sealWifiNetwork(
+	network: WifiNetwork,
+	box: { companyID: string; encryptionKey: string },
+	requestID: string
+): Promise<SealedSecret> {
+	return sealToBox(
+		JSON.stringify(network),
+		box.encryptionKey,
+		wifiNetworkPurpose(box.companyID, box.encryptionKey, requestID)
+	);
 }

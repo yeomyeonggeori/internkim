@@ -33,11 +33,15 @@ type Places struct {
 }
 
 type Daemon struct {
-	Client  Client
-	Places  Places
-	Install func(companyhost.Request) error
-	Sleep   func(context.Context, time.Duration) error
-	Now     func() time.Time
+	Client          Client
+	Places          Places
+	Install         func(companyhost.Request) error
+	GetOnline       func(ctx context.Context, boxPublicKey string) error
+	ChangeWifi      func(ctx context.Context, ssid, password string) error
+	ScanWifi        func(ctx context.Context) ([]NearbyNetwork, error)
+	WifiChangeSleep func(ctx context.Context, wait time.Duration) error
+	Sleep           func(context.Context, time.Duration) error
+	Now             func() time.Time
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {
@@ -49,6 +53,17 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
+	daemon.getOnlineWhileEmpty(ctx, identity)
+	if daemon.ChangeWifi != nil {
+		watcherContext, stopWatcher := context.WithCancel(ctx)
+		watcherDone := make(chan struct{})
+		go func() {
+			defer close(watcherDone)
+			daemon.watchForWifiChanges(watcherContext, identity)
+		}()
+		defer func() { <-watcherDone }()
+		defer stopWatcher()
+	}
 	var page *pairingPage
 	if daemon.installedCompany() == "" {
 		page = daemon.openPairingPage(identity)
@@ -62,6 +77,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		if errorValue != nil {
 			log.Printf("%v; trying again in %s", errorValue, announceInterval)
 			wait = announceInterval
+			daemon.getOnlineWhileEmpty(ctx, identity)
 		}
 		if errorValue := daemon.sleep(ctx, wait); errorValue != nil {
 			return nil
@@ -200,6 +216,15 @@ func connectionOf(session Session) companyhost.Connection {
 func (daemon Daemon) untilRenewal(session HostSession) time.Duration {
 	wait := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - sessionRenewalMargin
 	return max(wait, shortestSessionWait)
+}
+
+func (daemon Daemon) getOnlineWhileEmpty(ctx context.Context, identity Identity) {
+	if daemon.GetOnline == nil || daemon.installedCompany() != "" {
+		return
+	}
+	if errorValue := daemon.GetOnline(ctx, identity.PublicKey()); errorValue != nil {
+		log.Printf("getting this box online: %v; it announces itself once a network is there", errorValue)
+	}
 }
 
 func (daemon Daemon) connectedByFile() bool {

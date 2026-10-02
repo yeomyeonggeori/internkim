@@ -1,0 +1,13 @@
+{
+	"ssid": "InternKim Office",
+	"password": "correct-horse-battery-staple",
+	"boxSecretKey": "ERERERERERERERERERERERERERERERERERERERERERE",
+	"companyID": "00000000-0000-4000-8000-00000000000a",
+	"requestID": "00000000-0000-4000-8000-0000000000f1",
+	"sealed": {
+		"version": 1,
+		"recipient": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+		"enc": "0nh_PjU44ftJCruYr2cQedAFbKvW_J-RGz0w6kuS1Rk",
+		"ciphertext": "Af5ixBT6C7XvcsIOSarv0hwhkmn5F2F6ilTvMfJXQw40kVX8xjpRf7REe3xGe9WZ_fN54tG_FJZawLPW9GIVen4rZqUgARARXic1AoIdoaqwUYGzoQ"
+	}
+}

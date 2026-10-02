@@ -365,3 +365,51 @@ func TestAComputerInstalledFromAFileKeepsRenewingWithNoSealedModelKey(t *testing
 	}
 	requireFile(t, places.ModelKeyPath, "installed\n", 0o640)
 }
+
+func TestAnEmptyBoxGetsOnlineBeforeItAnnounces(t *testing.T) {
+	plane := &fakePlane{}
+	recorded := &installs{}
+	daemon, _ := daemonFor(t, plane, recorded)
+	announcementsWhenAsked := -1
+	daemon.GetOnline = func(context.Context, string) error {
+		announcementsWhenAsked = plane.announcements
+		return nil
+	}
+	runSteps(t, daemon, 1)
+	if announcementsWhenAsked != 0 {
+		t.Fatalf("the box was asked to get online after %d announcements, want before the first", announcementsWhenAsked)
+	}
+}
+
+func TestABoxThatHasACompanyLeavesItsNetworkAlone(t *testing.T) {
+	plane := &fakePlane{}
+	recorded := &installs{}
+	daemon, places := daemonFor(t, plane, recorded)
+	if errorValue := os.MkdirAll(places.StateDirectoryPath, 0o700); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if errorValue := os.WriteFile(filepath.Join(places.StateDirectoryPath, companyMarkerFileName), []byte(sampleCompanyID+"\n"), 0o600); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	daemon.GetOnline = func(context.Context, string) error {
+		t.Fatal("a box that belongs to a company must not reopen its setup network")
+		return nil
+	}
+	runSteps(t, daemon, 1)
+}
+
+func TestAnEmptyBoxThatLosesItsNetworkTriesToGetOnlineAgain(t *testing.T) {
+	plane := &fakePlane{}
+	recorded := &installs{}
+	daemon, _ := daemonFor(t, plane, recorded)
+	daemon.Client = Client{AppURL: "http://127.0.0.1:1"}
+	attempts := 0
+	daemon.GetOnline = func(context.Context, string) error {
+		attempts++
+		return nil
+	}
+	runSteps(t, daemon, 2)
+	if attempts < 2 {
+		t.Fatalf("the box tried to get online %d times, want once at start and again after the plane was unreachable", attempts)
+	}
+}

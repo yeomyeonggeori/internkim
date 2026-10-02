@@ -80,3 +80,44 @@ export const connectedBoxSchema = z.object({
 }).strict();
 
 export type ConnectedBox = z.infer<typeof connectedBoxSchema>;
+
+export type WifiNetwork = { ssid: string; password: string };
+
+export const wifiOutcomeResultSchema = z.enum(['joined', 'failed']);
+
+export type WifiOutcomeResult = z.infer<typeof wifiOutcomeResultSchema>;
+
+export const wifiOutcomeSchema = z.object({
+	requestID: z.uuid(),
+	result: wifiOutcomeResultSchema,
+	reportedAt: z.iso.datetime({ offset: true })
+}).strict();
+
+export type WifiOutcome = z.infer<typeof wifiOutcomeSchema>;
+
+export const maximumNearbyNetworks = 50;
+
+export const maximumSSIDBytes = 32;
+
+export const nearbyNetworkSchema = z.object({
+	ssid: z.string().min(1).refine((ssid) => new TextEncoder().encode(ssid).length <= maximumSSIDBytes),
+	signalPercent: z.number().int().min(0).max(100),
+	isSecured: z.boolean(),
+	isConnected: z.boolean().optional()
+}).strict();
+
+export type NearbyNetwork = z.infer<typeof nearbyNetworkSchema>;
+
+export const nearbyNetworkListSchema = z
+	.array(nearbyNetworkSchema)
+	.max(maximumNearbyNetworks)
+	.refine((networks) => new Set(networks.map((network) => network.ssid)).size === networks.length);
+
+export const wifiChangeStatusSchema = z.object({
+	pendingRequestID: z.uuid().nullable(),
+	outcome: wifiOutcomeSchema.nullable(),
+	nearbyNetworks: nearbyNetworkListSchema,
+	scannedAt: z.iso.datetime({ offset: true }).nullable()
+}).strict();
+
+export type WifiChangeStatus = z.infer<typeof wifiChangeStatusSchema>;

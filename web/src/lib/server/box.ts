@@ -6,7 +6,9 @@ import { base64URLOf } from '$lib/company/seal-to-box';
 import {
 	boxConfigurationSchema,
 	boxKeySchema,
+	nearbyNetworkListSchema,
 	sealedSecretSchema,
+	wifiOutcomeSchema,
 	type BoxConfiguration,
 	type ConnectedBox,
 	type EmptyBox,
@@ -278,17 +280,31 @@ const heldModelKeySchema = z.union([sealedSecretSchema, legacySealedModelKeySche
 
 type HeldModelKey = z.infer<typeof heldModelKeySchema>;
 
+const wifiChangeSchema = z.object({
+	requestID: z.uuid(),
+	sealed: sealedSecretSchema,
+	requestedAt: z.iso.datetime({ offset: true })
+}).strict();
+
+const nearbyNetworksSettingSchema = z.object({
+	networks: nearbyNetworkListSchema,
+	scannedAt: z.iso.datetime({ offset: true })
+}).strict();
+
 const boxSettingsSchema = z.object({
 	encryptionKey: boxKeySchema,
 	lastSeenAt: z.string().optional(),
-	sealedModelKey: heldModelKeySchema.optional()
+	sealedModelKey: heldModelKeySchema.optional(),
+	wifiChange: wifiChangeSchema.optional(),
+	wifiOutcome: wifiOutcomeSchema.optional(),
+	nearbyNetworks: nearbyNetworksSettingSchema.optional()
 });
 
 type BoxSettings = z.infer<typeof boxSettingsSchema>;
 
-type BoxRow = { companyID: string; publicKey: string; settings: BoxSettings };
+export type BoxRow = { companyID: string; publicKey: string; settings: BoxSettings };
 
-async function boxOfCompany(client: SupabaseClient, companyID: string): Promise<BoxRow | null> {
+export async function boxOfCompany(client: SupabaseClient, companyID: string): Promise<BoxRow | null> {
 	const { data, error } = await client
 		.from('credential')
 		.select('external_id, settings')
@@ -301,7 +317,13 @@ async function boxOfCompany(client: SupabaseClient, companyID: string): Promise<
 	return { companyID, publicKey: data.external_id, settings: settings.data };
 }
 
-async function writeBoxSettings(client: SupabaseClient, box: BoxRow, settings: BoxSettings): Promise<void> {
+export async function boxOfPublicKey(client: SupabaseClient, publicKey: string): Promise<BoxRow | null> {
+	const companyID = await companyOfFleet(client, publicKey);
+	if (!companyID) return null;
+	return boxOfCompany(client, companyID);
+}
+
+export async function writeBoxSettings(client: SupabaseClient, box: BoxRow, settings: BoxSettings): Promise<void> {
 	const { error } = await client
 		.from('credential')
 		.update({ settings })
