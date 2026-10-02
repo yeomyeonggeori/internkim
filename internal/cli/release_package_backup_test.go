@@ -50,6 +50,14 @@ func TestThePostInstallLeavesAMaskedBackupTimerOff(t *testing.T) {
 	}
 }
 
+func TestThePostInstallNeverUnmasksAUnit(t *testing.T) {
+	for _, format := range linuxPackageFormats() {
+		if strings.Contains(maintainerScript(format, postInstallScript), "unmask") {
+			t.Errorf("%s's postinst undoes an administrator's mask", format.Name)
+		}
+	}
+}
+
 func TestTheBackupServiceIsNeitherEnabledNorRestartedByThePackage(t *testing.T) {
 	service := blueclaw.CompanyPackageBackupUnits().Service.FileName()
 	for name, names := range map[string]string{"enabled": unitFileNames(), "restarted": restartedUnitFileNames()} {
