@@ -39,8 +39,6 @@
         <string>GATEWAY_URL_VALUE</string>
         <key>INTERNKIM_APP_URL</key>
         <string>INTERNKIM_APP_URL_VALUE</string>
-        <key>LARGEST_FILE_BYTES</key>
-        <string>LARGEST_FILE_BYTES_VALUE</string>
         <key>MAILD_BASE_URL</key>
         <string>MAILD_BASE_URL_VALUE</string>
         <key>MESSENGER_PLATFORM</key>

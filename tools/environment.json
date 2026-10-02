@@ -447,10 +447,6 @@
     "process": "web",
     "description": "the Cloudflare Pages KV namespace binding backing the device fleet registry (web/src/routes/api/fleet, api/register)"
   },
-  "LARGEST_FILE_BYTES": {
-    "process": "relay",
-    "description": "the largest attachment the relay holds in memory while copying it into the asset bucket; defaults to 200,000,000"
-  },
   "LD_LIBRARY_PATH": {
     "process": "device",
     "description": "the shared-library search path cmd/internkim-local-llm-runner extends with the LiteRT main library directory before launching litert_lm_main"
@@ -725,5 +721,9 @@
   "XDG_CACHE_HOME": {
     "process": "tools/prepare-container-kernel",
     "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"
+  },
+  "INTEGRATION_TESTS": {
+    "process": "web integration tests",
+    "description": "the test directory web/scripts/test-integration.sh runs against the local plane; tests/integration unless set, tests/transfer for the file transfer suite"
   }
 }

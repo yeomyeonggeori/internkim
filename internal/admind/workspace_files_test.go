@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -340,5 +341,112 @@ func TestWorkspaceFilesNameTheReadingPersonToBlueclaw(t *testing.T) {
 		if proxiedQuery.Get("personID") != "person-me" {
 			t.Fatalf("%s proxied without the reading person: %+v", reads[index], proxiedQuery)
 		}
+	}
+}
+
+type recordedWorkspaceWrite struct {
+	query   url.Values
+	content string
+	length  int64
+}
+
+func newWorkspaceStreamingTestService(t *testing.T, blueclawAnswer func(*http.Request) *http.Response) (*Service, *[]recordedWorkspaceWrite, *[]*http.Request) {
+	t.Helper()
+	service := NewService(Configuration{BlueclawBaseURL: "http://blueclaw.local", BlueclawWorkspacePath: t.TempDir()})
+	writes := &[]recordedWorkspaceWrite{}
+	downloads := &[]*http.Request{}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.URL.Path {
+		case "/admin/api/policy":
+			return jsonResponse(http.StatusOK, workspaceFilesTestPolicy, nil), nil
+		case "/admin/api/workspace/file":
+			content, _ := io.ReadAll(request.Body)
+			*writes = append(*writes, recordedWorkspaceWrite{query: request.URL.Query(), content: string(content), length: request.ContentLength})
+			return jsonResponse(http.StatusOK, `{"name":"x","sizeBytes":`+strconv.Itoa(len(content))+`}`, nil), nil
+		case "/admin/api/workspace/download":
+			*downloads = append(*downloads, request)
+			return blueclawAnswer(request), nil
+		}
+		return jsonResponse(http.StatusNotFound, `{}`, nil), nil
+	})}
+	return service, writes, downloads
+}
+
+func TestWorkspaceFileIsWrittenByBlueclawAsTheRequester(t *testing.T) {
+	service, writes, _ := newWorkspaceStreamingTestService(t, nil)
+	request := httptest.NewRequest(http.MethodPut, "/files/api/file?path=/workspace/private/people/person-me/inbox/report.pdf", strings.NewReader("report-bytes"))
+	request.Header.Set("X-Forwarded-Email", "me@example.com")
+	recorder := httptest.NewRecorder()
+	service.handleFiles(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(*writes) != 1 {
+		t.Fatalf("expected one write through blueclaw, got %d", len(*writes))
+	}
+	written := (*writes)[0]
+	if written.query.Get("personID") != "person-me" || written.query.Get("path") != "/workspace/private/people/person-me/inbox/report.pdf" {
+		t.Fatalf("expected the write as person-me at the asked path, got %v", written.query)
+	}
+	if written.content != "report-bytes" || written.length != int64(len("report-bytes")) {
+		t.Fatalf("expected the bytes carried through with their length, got %q (%d)", written.content, written.length)
+	}
+	if !strings.Contains(recorder.Body.String(), `"sizeBytes":12`) {
+		t.Fatalf("answer = %s", recorder.Body.String())
+	}
+}
+
+func TestWorkspaceFileForSomebodyElsesHomeIsRefusedBeforeAnythingIsWritten(t *testing.T) {
+	service, writes, _ := newWorkspaceStreamingTestService(t, nil)
+	request := httptest.NewRequest(http.MethodPut, "/files/api/file?path=/workspace/private/people/person-other/planted.txt", strings.NewReader("planted"))
+	request.Header.Set("X-Forwarded-Email", "me@example.com")
+	recorder := httptest.NewRecorder()
+	service.handleFiles(recorder, request)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if len(*writes) != 0 {
+		t.Fatalf("expected nothing written, got %+v", *writes)
+	}
+}
+
+func TestWorkspaceDownloadCarriesARangeBothWays(t *testing.T) {
+	service, _, downloads := newWorkspaceStreamingTestService(t, func(*http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: http.StatusPartialContent,
+			Body:       io.NopCloser(strings.NewReader("2345")),
+			Header:     http.Header{"Content-Range": []string{"bytes 2-5/10"}, "Content-Length": []string{"4"}},
+		}
+	})
+	request := httptest.NewRequest(http.MethodGet, "/files/api/download?path=/workspace/private/people/person-me/note.txt", nil)
+	request.Header.Set("X-Forwarded-Email", "me@example.com")
+	request.Header.Set("Range", "bytes=2-5")
+	recorder := httptest.NewRecorder()
+	service.handleFiles(recorder, request)
+
+	if recorder.Code != http.StatusPartialContent || recorder.Body.String() != "2345" {
+		t.Fatalf("status = %d body = %q", recorder.Code, recorder.Body.String())
+	}
+	if recorder.Header().Get("Content-Range") != "bytes 2-5/10" || recorder.Header().Get("Content-Length") != "4" {
+		t.Fatalf("headers = %v", recorder.Header())
+	}
+	if len(*downloads) != 1 || (*downloads)[0].Header.Get("Range") != "bytes=2-5" {
+		t.Fatalf("expected the range asked of blueclaw, got %d requests", len(*downloads))
+	}
+}
+
+func TestWorkspaceDownloadSaysWhenThePersonMayNotReadTheFile(t *testing.T) {
+	service, _, _ := newWorkspaceStreamingTestService(t, func(*http.Request) *http.Response {
+		return &http.Response{StatusCode: http.StatusForbidden, Body: io.NopCloser(strings.NewReader("permission denied")), Header: http.Header{}}
+	})
+	request := httptest.NewRequest(http.MethodGet, "/files/api/download?path=/workspace/private/people/person-me/locked.txt", nil)
+	request.Header.Set("X-Forwarded-Email", "me@example.com")
+	recorder := httptest.NewRecorder()
+	service.handleFiles(recorder, request)
+
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "permission denied") {
+		t.Fatalf("status = %d body = %q", recorder.Code, recorder.Body.String())
 	}
 }

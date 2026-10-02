@@ -117,7 +117,7 @@
 						>
 						<FileDropZone.Trigger class={buttonVariants({ size: 'sm' })}>
 							{#if files.isUploading}<Spinner />{:else}<UploadIcon />{/if}
-							{files.isUploading ? text.uploading : text.upload}
+							{files.isUploading ? `${text.uploading} ${Math.floor(files.uploadedFraction * 100)}%` : text.upload}
 						</FileDropZone.Trigger>
 					</div>
 				</div>

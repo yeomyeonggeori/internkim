@@ -3,6 +3,7 @@ import { describe, expect, mock, test } from 'bun:test';
 const asked: { capability: string; body: Record<string, unknown> }[] = [];
 
 mock.module('../../../src/lib/host-bridge', () => ({
+	onCompanyEvent: () => () => undefined,
 	callCompanyApp: async ({ capability, body }: { capability: string; body: Record<string, unknown> }) => {
 		asked.push({ capability, body });
 		return { status: 200, body: {} };

@@ -34,4 +34,4 @@ if ! allSet; then
 fi
 
 cd "$repository/web"
-exec bun test tests/integration "$@"
+exec bun test "${INTEGRATION_TESTS:-tests/integration}" "$@"

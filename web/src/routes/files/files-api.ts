@@ -1,5 +1,11 @@
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
+import {
+	copiedForReading,
+	signedForReading,
+	uploadedThroughTheHost,
+	type TransferProgress
+} from '$lib/transfer/company-transfer';
 
 export type WorkspaceRootKind = 'personal' | 'circle' | 'public';
 
@@ -52,7 +58,45 @@ export function workspaceDownloadURL(path: string): string {
 	return `/files/api/download?path=${encodeURIComponent(path)}`;
 }
 
-export async function uploadWorkspaceFiles(path: string, files: File[]): Promise<string[]> {
+export function isWorkspaceOnTheCompanyComputer(): boolean {
+	return isSupabaseConfigured();
+}
+
+export async function workspaceFileForReading(
+	entry: WorkspaceEntry,
+	purpose: 'preview' | 'download',
+	onProgress?: TransferProgress
+): Promise<string> {
+	const copy = await copiedForReading('person.files.download', { path: entry.agentPath }, onProgress);
+	return signedForReading(copy.address, purpose === 'download' ? entry.name : undefined);
+}
+
+export type UploadProgress = (sentBytes: number, totalBytes: number) => void;
+
+async function uploadThroughTheCompanyComputer(path: string, files: File[], onProgress: UploadProgress): Promise<string[]> {
+	const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+	let finishedBytes = 0;
+	const uploaded: string[] = [];
+	for (const file of files) {
+		await uploadedThroughTheHost(
+			'person.files.upload',
+			file,
+			file.type || 'application/octet-stream',
+			{ directoryPath: path, filename: file.name },
+			(sentBytes) => onProgress(finishedBytes + sentBytes, totalBytes)
+		);
+		finishedBytes += file.size;
+		uploaded.push(file.name);
+	}
+	return uploaded;
+}
+
+export async function uploadWorkspaceFiles(
+	path: string,
+	files: File[],
+	onProgress: UploadProgress = () => undefined
+): Promise<string[]> {
+	if (isSupabaseConfigured()) return uploadThroughTheCompanyComputer(path, files, onProgress);
 	const form = new FormData();
 	for (const file of files) form.append('files', file, file.name);
 	const response = await fetch(`/files/api/upload?path=${encodeURIComponent(path)}`, {

@@ -18,10 +18,10 @@
    }
   },
   "storage": {
-   "src/lib/stores/attachment-source.svelte.ts": {
+   "src/lib/stores/person-picture.svelte.ts": {
     "from(assetBucket)": 1
    },
-   "src/lib/stores/person-picture.svelte.ts": {
+   "src/lib/transfer/company-transfer.ts": {
     "from(assetBucket)": 1
    }
   }

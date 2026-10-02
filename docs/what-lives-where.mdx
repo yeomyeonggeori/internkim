@@ -21,10 +21,20 @@ Calendar events are tasks with a span and `is_event`, which is why there is
 no separate table for them. There is no table for a message, which is why no
 conversation can reach the record.
 
-Attachments and pictures the chat screen shows are copied into the company's
-`asset` bucket in Supabase Storage, addressed by their content, so a browser
-on another network can open them. The conversation they came from stays on
-the messenger.
+Every file a browser opens or sends crosses the company's `asset` bucket in
+Supabase Storage, because the computer that holds the file is on another
+network. The conversation and the workspace stay on that computer; the bucket
+only ever holds a copy.
+
+| Prefix | What it holds | Who reads it | How long |
+|---|---|---|---|
+| `<company>/shared/transfer/` | a messenger attachment copied for reading, named by its digest | the company | seven days |
+| `<company>/person/<member>/transfer/` | a workspace file copied for its owner, named by its path, size and modification time | that member | seven days |
+| `<company>/person/<member>/upload/` | a file the browser put there to send or to save | that member | until the host takes it, seven days at most |
+| `<company>/shared/attachment/` | a file the messenger's own store refused, which the message names here instead | the company | for good |
+
+The host deletes its company's expired copies once an hour. A copy is a cache,
+so losing one costs a second read from the computer that holds the file.
 
 ## A person's memory
 

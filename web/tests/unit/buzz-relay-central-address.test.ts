@@ -6,6 +6,7 @@ const asked: string[] = [];
 let answer: () => Promise<HostAnswer> = async () => ({ status: 200, body: {} });
 
 mock.module('../../src/lib/host-bridge', () => ({
+	onCompanyEvent: () => () => undefined,
 	callCompanyApp: async ({ capability }: { capability: string }) => {
 		asked.push(capability);
 		return answer();

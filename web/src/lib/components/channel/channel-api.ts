@@ -238,11 +238,12 @@ async function sendServerSignedMessage(
 	channelID?: string,
 	replyToRootID?: string
 ): Promise<void> {
+	const carried = await Promise.all(attachments.map(carriedInTheRequest));
 	const response = await fetch(conversationURL(channelID), {
 		method: 'POST',
 		credentials: 'include',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ message, attachments, replyToRootId: replyToRootID })
+		body: JSON.stringify({ message, attachments: carried, replyToRootId: replyToRootID })
 	});
 	if (!response.ok) throw new Error(await response.text());
 }
@@ -251,11 +252,15 @@ function isImageType(contentType: string): boolean {
 	return contentType.startsWith('image/');
 }
 
-function base64ToBytes(value: string): Uint8Array {
-	const binary = atob(value);
-	const bytes = new Uint8Array(binary.length);
-	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
-	return bytes;
+async function carriedInTheRequest(
+	attachment: ChannelOutgoingAttachment
+): Promise<{ filename: string; contentType: string; contentBase64: string }> {
+	const bytes = new Uint8Array(await attachment.content.arrayBuffer());
+	let binary = '';
+	for (let start = 0; start < bytes.length; start += 0x8000) {
+		binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
+	}
+	return { filename: attachment.filename, contentType: attachment.contentType, contentBase64: btoa(binary) };
 }
 
 async function clientSignChannelMessage(
@@ -269,7 +274,7 @@ async function clientSignChannelMessage(
 	const bodyParts = message.trim() === '' ? [] : [message];
 	const imetaTags: string[][] = [];
 	for (const attachment of attachments) {
-		const blob = await uploadBlob(relayURL, secretHex, base64ToBytes(attachment.contentBase64), attachment.contentType);
+		const blob = await uploadBlob(relayURL, secretHex, new Uint8Array(await attachment.content.arrayBuffer()), attachment.contentType);
 		const label = attachment.filename.trim() || (isImageType(attachment.contentType) ? 'image' : 'file');
 		bodyParts.push(isImageType(attachment.contentType) ? `![${label}](${blob.url})` : `[${label}](${blob.url})`);
 		imetaTags.push(imetaTag(blob));
