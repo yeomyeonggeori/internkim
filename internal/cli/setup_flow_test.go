@@ -104,7 +104,7 @@ func TestSkillDependencySetupOnlyVerifiesRuntimeBaseEnvironment(t *testing.T) {
 			t.Fatalf("skills setup must not install dependencies during deployment: found %q in\n%s", forbiddenText, command)
 		}
 	}
-	for _, expectedText := range []string{"/opt/internkim/blueclaw-runtime/rootfs.ext4", "rootfs-builtin-skills-python-missing", `if [ "$contract_output" != "ok" ]`} {
+	for _, expectedText := range []string{"/opt/internkim/blueclaw-runtime/rootfs.ext4", `if [ "$contract_output" != "ok" ]`} {
 		if !strings.Contains(command, expectedText) {
 			t.Fatalf("skills setup must verify %q, got:\n%s", expectedText, command)
 		}

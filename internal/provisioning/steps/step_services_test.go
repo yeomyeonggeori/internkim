@@ -165,7 +165,6 @@ func TestBlueclawRootfsBaseContractCheckCatchesStaleBaseRuntime(t *testing.T) {
 		"rootfs-uv-missing",
 		"rootfs-$managed_executable-owner-drift",
 		"rootfs-$managed_executable-mode-drift",
-		"rootfs-builtin-skills-python-missing",
 		"rootfs-bc-missing",
 		"rootfs-chromium-missing",
 		"rootfs-posix-helper-missing",

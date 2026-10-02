@@ -602,29 +602,12 @@ rm -rf /var/lib/apt/lists/*
 ' >/dev/null
 }
 
-ensure_rootfs_builtin_skills_python() {
-  local base_directory="$1"
-  local requirements_path="$2"
-
-  run_root install -m 0644 "$requirements_path" "$base_directory/opt/blueclaw/builtin-skills-requirements.txt"
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv venv --clear --python /usr/bin/python3 /opt/blueclaw/builtin-skills-venv >/dev/null
-  run_chroot_with_runtime_mounts "$base_directory" /usr/local/bin/uv pip install --python /opt/blueclaw/builtin-skills-venv/bin/python -r /opt/blueclaw/builtin-skills-requirements.txt >/dev/null
-  run_chroot_with_runtime_mounts "$base_directory" /opt/blueclaw/builtin-skills-venv/bin/python -c "import docx, fpdf, openpyxl, pptx, pypdf" >/dev/null
-}
-
 ensure_rootfs_base() {
   require_command mmdebstrap
-  local builtin_skills_requirements_path="$repository_root/assets/blueclaw-runtime/builtin-skills-requirements.txt"
-  if [ ! -s "$builtin_skills_requirements_path" ]; then
-    echo "missing builtin skills requirements.txt at $builtin_skills_requirements_path" >&2
-    exit 1
-  fi
-  local builtin_skills_requirements_hash
-  builtin_skills_requirements_hash="$(sha256sum "$builtin_skills_requirements_path" | cut -d' ' -f1)"
   local prepare_script_hash
   prepare_script_hash="$(sha256sum "$repository_root/tools/prepare-blueclaw-runtime" | cut -d' ' -f1)"
   local cache_key
-  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$rootfs_pgvector_package" "$builtin_skills_requirements_hash" "$blueclaw_bun_version" "$blueclaw_uv_version" "$prepare_script_hash" | sha256sum | cut -c1-16)"
+  cache_key="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$rootfs_base_packages" "$rootfs_base_release" "$rootfs_pgvector_package" "$blueclaw_bun_version" "$blueclaw_uv_version" "$prepare_script_hash" | sha256sum | cut -c1-16)"
   rootfs_base_cache_path="$cache_directory/rootfs-base-${cache_key}.tar"
 
   if [ -s "$rootfs_base_cache_path" ]; then
@@ -644,13 +627,11 @@ ensure_rootfs_base() {
   run_root mkdir -p "$base_directory/opt/blueclaw"
   ensure_rootfs_pgvector "$base_directory"
   ensure_rootfs_uv "$base_directory"
-  ensure_rootfs_builtin_skills_python "$base_directory" "$builtin_skills_requirements_path"
   ensure_rootfs_bun "$base_directory"
   run_root chroot "$base_directory" uv --version >/dev/null
   run_root chroot "$base_directory" bun --version >/dev/null
   run_root chroot "$base_directory" bunx --version >/dev/null
   run_root chroot "$base_directory" /bin/sh -c "command -v bc >/dev/null"
-  run_root test -x "$base_directory/opt/blueclaw/builtin-skills-venv/bin/python"
   run_root chroot "$base_directory" chromium --version >/dev/null
   run_root test -f "$base_directory/usr/share/postgresql/15/extension/vector.control"
 

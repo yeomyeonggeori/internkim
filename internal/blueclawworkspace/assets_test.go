@@ -357,31 +357,6 @@ func TestArtifactSkillsDocumentGroundedQualityAndValidationWarnings(t *testing.T
 
 }
 
-func TestBuiltinSkillDependenciesArePreinstalledInRuntimeBase(t *testing.T) {
-	repositoryRootPath := filepath.Join("..", "..")
-	requirementsDocument, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "assets", "blueclaw-runtime", "builtin-skills-requirements.txt"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	requirements := string(requirementsDocument)
-	for _, packageName := range []string{"firecrawl-anydoc", "fpdf2", "markdownify", "openpyxl", "pypdf", "pypdfium2", "python-docx", "python-pptx"} {
-		if !strings.Contains(requirements, packageName) {
-			t.Fatalf("builtin skill requirements must include %s", packageName)
-		}
-	}
-
-	prepareScript, errorValue := os.ReadFile(filepath.Join(repositoryRootPath, "tools", "prepare-blueclaw-runtime"))
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	script := string(prepareScript)
-	for _, fragment := range []string{"UV_UNMANAGED_INSTALL=/usr/local/bin", "/opt/blueclaw/builtin-skills-venv", "builtin-skills-requirements.txt"} {
-		if !strings.Contains(script, fragment) {
-			t.Fatalf("prepare script must contain %q", fragment)
-		}
-	}
-}
-
 func TestCalculatorSkillRunsBundledEvaluatorThroughTerminal(t *testing.T) {
 	repositoryRootPath := filepath.Join("..", "..")
 	requirePluginSkills(t, repositoryRootPath)
