@@ -158,10 +158,20 @@ func writeHomebrewInstallBlock(formula *strings.Builder) {
 	formula.WriteString("  end\n\n")
 
 	formula.WriteString("  def post_install\n")
-	for _, command := range MacCompanyHostLayout(homebrewPrefixInRuby).InstallStepCommands() {
+	layout := MacCompanyHostLayout(homebrewPrefixInRuby)
+	for _, command := range layout.InstallStepCommands() {
 		formula.WriteString("    system " + rubyArguments(command.Arguments) + "\n")
 	}
+	writeHomebrewRefresh(formula, layout)
 	formula.WriteString("  end\n\n")
+}
+
+func writeHomebrewRefresh(formula *strings.Builder, layout CompanyHostLayout) {
+	refresh := []string{"sudo", layout.CommandPath(), "refresh"}
+	message := "this release is installed and the company's server did not come back on it. Once that is fixed, run: sudo " + CompanyPackageName + " refresh"
+	formula.WriteString("    if File.exist?(" + rubyString(CompanyHostCurrentPath) + ")\n")
+	formula.WriteString("      odie " + rubyString(message) + " unless system " + rubyArguments(refresh) + "\n")
+	formula.WriteString("    end\n")
 }
 
 const homebrewPrefixInRuby = "#{HOMEBREW_PREFIX}"
