@@ -394,7 +394,6 @@ class AgentUpdateRigTests(unittest.TestCase):
         hostupdate = repository_root / "internal" / "hostupdate"
         self.assertIn('"host-update.json"', (hostupdate / "note.go").read_text())
         self.assertIn('"release-channel"', (hostupdate / "machine.go").read_text())
-        self.assertIn('UnitName            = "internkim-host-update"', (hostupdate / "unit.go").read_text())
         self.assertEqual(agent_update.UPDATE_UNIT_NAME, "internkim-host-update.service")
 
     def test_a_curl_answer_splits_into_its_status_and_document(self):
@@ -407,9 +406,13 @@ class AgentUpdateRigTests(unittest.TestCase):
         self.assertEqual(json.loads(arguments[arguments.index("--data") + 1]), {"input": {}, "note": "it's"})
         self.assertEqual(arguments[-1], "http://internkim/host/api/update")
 
-    def test_the_stable_listing_answers_both_release_routes(self):
+    def test_the_stable_listing_answers_the_release_list(self):
         with tempfile.TemporaryDirectory() as directory:
             agent_update.write_stable_listing(directory, ["v2", "v1"], "2026-10-02T00:00:00Z")
             releases = Path(directory) / "api" / "releases"
             self.assertEqual([release["tag_name"] for release in json.loads((releases / "index.html").read_text())], ["v2", "v1"])
-            self.assertEqual(json.loads((releases / "latest").read_text())["tag_name"], "v2")
+
+    def test_the_update_units_drop_in_is_named_for_the_unit_the_gateway_starts(self):
+        unit = (repository_root / "internal" / "hostupdate" / "unit.go").read_text()
+        self.assertIn(f'UnitName = "{agent_update.UPDATE_UNIT_NAME.removesuffix(".service")}"', unit)
+        self.assertIn(f"/{agent_update.UPDATE_UNIT_NAME}.d/", agent_update.UPDATE_UNIT_DROP_IN_PATH)

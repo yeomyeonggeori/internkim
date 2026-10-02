@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
 	capabilityschema "github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol/jsonschema"
 )
@@ -69,14 +70,7 @@ func newHostUpdateRig(t *testing.T) *hostUpdateRig {
 func servingStableReleases(t *testing.T) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/releases/latest":
-			io.WriteString(responseWriter, `{"tag_name":"v2026.10.02.090000","published_at":"2026-10-02T09:00:00Z","body":"Faster replies."}`)
-		case "/releases":
-			io.WriteString(responseWriter, `[{"tag_name":"v2026.10.03.000000","prerelease":true},{"tag_name":"v2026.10.02.090000"},{"tag_name":"v2026.10.01.000000"},{"tag_name":"v2026.09.30.000000"}]`)
-		default:
-			http.NotFound(responseWriter, request)
-		}
+		io.WriteString(responseWriter, `[{"tag_name":"v2026.10.03.000000","prerelease":true},{"tag_name":"v2026.10.02.090000","published_at":"2026-10-02T09:00:00Z","body":"Faster replies."},{"tag_name":"v2026.10.01.000000"},{"tag_name":"v2026.09.30.000000"}]`)
 	}))
 	t.Cleanup(server.Close)
 	return server
@@ -91,14 +85,13 @@ func (rig *hostUpdateRig) dependencies() hostUpdateDependencies {
 				}
 				return "", errors.New("not found")
 			},
-			Output: func(string, ...string) ([]byte, error) { return []byte(rig.installed), nil },
 			ReadFile: func(path string) ([]byte, error) {
 				if path == hostupdate.ChannelPath && rig.channel != "" {
 					return []byte(rig.channel + "\n"), nil
 				}
 				return nil, os.ErrNotExist
 			},
-			RunningBuild: rig.installed,
+			InstalledVersion: hostupdate.TagOf(rig.installed),
 		},
 		Releases: hostupdate.ReleaseSource{APIURL: rig.releaseServer.URL},
 		Supervisor: hostupdate.Supervisor{
@@ -115,12 +108,10 @@ func (rig *hostUpdateRig) dependencies() hostUpdateDependencies {
 				rig.started = append(rig.started, strings.Join(arguments, " "))
 				return nil, nil
 			},
-			LookupEnv: func(string) (string, bool) { return "", false },
 		},
-		NotePath:      rig.notePath,
-		HostCommand:   "/usr/bin/internkim",
-		Now:           func() time.Time { return time.Date(2026, 10, 2, 14, 0, 0, 0, time.UTC) },
-		IsInitialized: true,
+		NotePath:    rig.notePath,
+		HostCommand: "/usr/bin/internkim",
+		Now:         func() time.Time { return time.Date(2026, 10, 2, 14, 0, 0, 0, time.UTC) },
 	}
 }
 
@@ -161,10 +152,19 @@ func TestAMemberWhoIsNotAnAdministratorIsRefusedTheUpdate(t *testing.T) {
 	}
 }
 
+type hostVersionForTest struct {
+	InstalledVersion  string              `json:"installedVersion"`
+	Channel           string              `json:"channel"`
+	UpdateMethod      string              `json:"updateMethod"`
+	LatestStable      *hostupdate.Release `json:"latestStable"`
+	PreviousStable    *hostupdate.Release `json:"previousStable"`
+	IsUpdateAvailable bool                `json:"isUpdateAvailable"`
+}
+
 func TestAnyMemberCanReadTheHostVersion(t *testing.T) {
 	rig := newHostUpdateRig(t)
 	response := rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`)
-	var answer hostVersionAnswer
+	var answer hostVersionForTest
 	json.Unmarshal(response.Body.Bytes(), &answer)
 	if response.Code != http.StatusOK || answer.InstalledVersion != "v2026.10.01.000000" || answer.Channel != "stable" || answer.UpdateMethod != "apt" ||
 		answer.LatestStable == nil || answer.LatestStable.Version != "v2026.10.02.090000" || answer.LatestStable.Notes != "Faster replies." ||
@@ -173,10 +173,15 @@ func TestAnyMemberCanReadTheHostVersion(t *testing.T) {
 	}
 }
 
+type hostUpdateTargetForTest struct {
+	capabilities.ApprovalTarget
+	Choices []hostUpdateChoice `json:"choices"`
+}
+
 func TestTheConfirmationCarriesTheFactsAndOffersTheNightOrNow(t *testing.T) {
 	rig := newHostUpdateRig(t)
-	response := rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{}`)
-	var target hostUpdateTarget
+	response := rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{"input":{}}`)
+	var target hostUpdateTargetForTest
 	json.Unmarshal(response.Body.Bytes(), &target)
 	if response.Code != http.StatusOK || target.ID != "v2026.10.02.090000" || target.InputField != "targetVersion" {
 		t.Fatalf("the plan is %d %s", response.Code, response.Body.String())
@@ -184,12 +189,13 @@ func TestTheConfirmationCarriesTheFactsAndOffersTheNightOrNow(t *testing.T) {
 	if len(target.Choices) != 2 || target.Choices[0] != (hostUpdateChoice{Key: "offHours", StartsAt: "2026-10-03T03:00:00+09:00"}) || target.Choices[1].Key != "now" {
 		t.Fatalf("the choices are %+v", target.Choices)
 	}
-	var consequences hostUpdateConsequences
+	var consequences map[string]any
 	json.Unmarshal([]byte(target.Preview), &consequences)
-	if consequences.FromVersion != "v2026.10.01.000000" || consequences.ReleaseNotes != "Faster replies." || consequences.ExpectedDowntimeSeconds != expectedHostUpdateDowntimeSeconds || consequences.IsRollback {
+	if consequences["fromVersion"] != "v2026.10.01.000000" || consequences["releaseNotes"] != "Faster replies." ||
+		consequences["expectedDowntimeSeconds"] != float64(expectedHostUpdateDowntimeSeconds) || consequences["isRollback"] != false {
 		t.Fatalf("the consequences are %+v", consequences)
 	}
-	asked := rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{"isRequestedNow":true}`)
+	asked := rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{"input":{"isRequestedNow":true}}`)
 	json.Unmarshal(asked.Body.Bytes(), &target)
 	if target.Choices[0].Key != "now" {
 		t.Fatalf("an admin who asked for now is offered %+v first", target.Choices[0])
@@ -273,10 +279,10 @@ func TestAMacHostIsRefusedWithWhatAnAdministratorRunsInstead(t *testing.T) {
 
 func finishedNote(t *testing.T, notePath string, isSucceeded bool) {
 	t.Helper()
-	outcome := &hostupdate.Outcome{FinishedAt: time.Now(), Succeeded: isSucceeded, InstalledVersion: "v2026.10.02.090000", OutputTail: "apt said no"}
+	outcome := &hostupdate.Outcome{FinishedAt: time.Now(), Succeeded: isSucceeded}
 	if !isSucceeded {
-		outcome.InstalledVersion = "v2026.10.01.000000"
 		outcome.Error = "install.sh failed: exit status 1"
+		outcome.OutputTail = "apt said no"
 	}
 	hostupdate.WriteNote(notePath, hostupdate.Note{
 		Requester:   hostupdate.Requester{Email: hostUpdateAdminEmail, PersonID: "person-1", Platform: "buzz", ConversationID: "conversation-1", ReplyTargetID: "reply-1"},
@@ -307,8 +313,8 @@ func TestAFinishedUpdateIsReportedInItsConversationAndTheNoteCleared(t *testing.
 		if !strings.Contains(schedule.TaskInstruction, `"succeeded":`+map[bool]string{true: "true", false: "false"}[isSucceeded]) {
 			t.Fatalf("the report carries %s", schedule.TaskInstruction)
 		}
-		if strings.Contains(schedule.TaskInstruction, "apt said no") == isSucceeded {
-			t.Fatalf("the installer output reaches the report only on failure: %s", schedule.TaskInstruction)
+		if strings.Contains(schedule.TaskInstruction, "apt said no") == isSucceeded || !strings.Contains(schedule.TaskInstruction, `"installedVersionNow":"v2026.10.01.000000"`) {
+			t.Fatalf("the report carries %s", schedule.TaskInstruction)
 		}
 		if _, isPending, _ := hostupdate.ReadNote(rig.notePath); isPending {
 			t.Fatal("a delivered result left its note")

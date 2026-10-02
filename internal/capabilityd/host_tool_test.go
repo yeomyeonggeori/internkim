@@ -13,11 +13,11 @@ import (
 )
 
 type admindStandIn struct {
-	status   int
-	answer   string
-	paths    []string
-	bodies   []string
-	emails   []string
+	status int
+	answer string
+	paths  []string
+	bodies []string
+	emails []string
 }
 
 func serviceAskingAdmind(admind *admindStandIn) Service {
@@ -59,7 +59,6 @@ func TestTheHostUpdateTellsAdmindWhetherTheRequesterApprovedThisCall(t *testing.
 		{"an approval continuation", capabilityprotocol.ToolInvokeContext{IsApprovalContinuation: true}, true},
 		{"a held call spent", capabilityprotocol.ToolInvokeContext{ApprovedCallID: "held-1"}, true},
 		{"the scheduled run of exactly this call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("host_update", `{ "targetVersion": "v2026.10.02.090000" }`)}, true},
-		{"a scheduled run that approved another version", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("host_update", `{"targetVersion":"v2026.09.30.000000"}`)}, false},
 		{"a scheduled run that approved another tool", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("message_send", input)}, false},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

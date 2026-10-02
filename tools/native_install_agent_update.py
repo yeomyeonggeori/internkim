@@ -14,6 +14,7 @@ NOTE_PATH = "/var/lib/internkim/host-update.json"
 CHANNEL_RECORD_PATH = "/var/lib/internkim/release-channel"
 MESSENGER_PLATFORM = "buzz"
 ADMIND_DROP_IN_PATH = "/etc/systemd/system/internkim-admind.service.d/rig-release-source.conf"
+UPDATE_UNIT_DROP_IN_PATH = "/etc/systemd/system/internkim-host-update.service.d/rig-release-source.conf"
 MONITOR_UNIT_NAME = "rig-downtime-monitor"
 MONITOR_LOG_PATH = "/var/tmp/rig-downtime.log"
 RELEASE_API_PATH = "api"
@@ -36,24 +37,19 @@ def stable_release(tag, published_at):
 
 
 def write_stable_listing(release_root, tags_newest_first, published_at):
-    """GitHub's two release answers the gateway reads, served from the rig's release directory.
-
-    SimpleHTTPRequestHandler answers a directory with its index.html, which is how
-    /api/releases and /api/releases/latest can both be answered from files.
-    """
+    """GitHub's release list, served from the rig's release directory as the directory's index.html."""
     releases = [stable_release(tag, published_at) for tag in tags_newest_first]
     directory = Path(release_root) / RELEASE_API_PATH / "releases"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "index.html").write_text(json.dumps(releases))
-    (directory / "latest").write_text(json.dumps(releases[0]))
 
 
-def admind_release_drop_in(api_url, download_url):
-    return (
-        "[Service]\n"
-        f"Environment=INTERNKIM_RELEASE_API_URL={api_url}\n"
-        f"Environment=INTERNKIM_INSTALL_RELEASE_URL={download_url}\n"
-    )
+def release_source_drop_ins(api_url, download_url):
+    """Where the gateway reads the release list, and where the update unit's install.sh downloads from."""
+    return {
+        ADMIND_DROP_IN_PATH: f"[Service]\nEnvironment=INTERNKIM_RELEASE_API_URL={api_url}\n",
+        UPDATE_UNIT_DROP_IN_PATH: f"[Service]\nEnvironment=INTERNKIM_INSTALL_RELEASE_URL={download_url}\n",
+    }
 
 
 def ask_admind_command(path, email, body):

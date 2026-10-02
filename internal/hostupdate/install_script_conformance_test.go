@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -46,9 +47,10 @@ func TestInstallScriptAsksForPackageManagersInTheOrderTheAgentDoes(t *testing.T)
 		t.Fatal("install.sh no longer lists the package managers it looks for")
 	}
 	commands := []string{}
-	for _, manager := range linuxPackageManagers {
-		commands = append(commands, manager.Command)
+	for _, candidate := range updateMethods {
+		commands = append(commands, candidate.Command)
 	}
+	commands = slices.DeleteFunc(commands, func(command string) bool { return command == "brew" })
 	if got, want := strings.Fields(match[1]), commands; strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("install.sh looks for %v and the agent for %v", got, want)
 	}

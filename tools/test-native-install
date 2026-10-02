@@ -1236,7 +1236,10 @@ class Rig:
             is_back and readings > 0 and 0 < downtime <= promised_seconds,
             f"longest outage {downtime:.1f}s over {readings} readings; the update took {update_seconds:.0f}s end to end",
         )
-        self.machine.shell(f"rm -f {agent_update.ADMIND_DROP_IN_PATH}; systemctl daemon-reload; systemctl restart {ADMIND_UNIT_NAME}")
+        self.machine.shell(
+            f"rm -rf {Path(agent_update.ADMIND_DROP_IN_PATH).parent} {Path(agent_update.UPDATE_UNIT_DROP_IN_PATH).parent}; "
+            f"systemctl daemon-reload; systemctl restart {ADMIND_UNIT_NAME}"
+        )
         return step
 
     def serve_the_newer_release_as_stable(self, newer_release, older, newer):
@@ -1245,14 +1248,13 @@ class Rig:
             self.release.directory, [f"v{newer}", f"v{older}"], time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         )
         gateway = self.machine.host_gateway()
-        drop_in = agent_update.admind_release_drop_in(
+        drop_ins = agent_update.release_source_drop_ins(
             f"http://{gateway}:{self.release.port}/{agent_update.RELEASE_API_PATH}", self.release.download_url(gateway)
         )
-        self.machine.checked_shell(
-            f"set -eu\ninstall -d {Path(agent_update.ADMIND_DROP_IN_PATH).parent}\n"
-            f"printf '%s' {shlex.quote(drop_in)} > {agent_update.ADMIND_DROP_IN_PATH}\n"
-            f"systemctl daemon-reload\nsystemctl restart {ADMIND_UNIT_NAME}\n"
+        written = "".join(
+            f"install -d {Path(path).parent}\nprintf '%s' {shlex.quote(contents)} > {path}\n" for path, contents in drop_ins.items()
         )
+        self.machine.checked_shell(f"set -eu\n{written}systemctl daemon-reload\nsystemctl restart {ADMIND_UNIT_NAME}\n")
         self.wait_in_the_guest(READINESS_COMMAND, every_probe_answered)
 
     def ask_admind(self, path, email, body):

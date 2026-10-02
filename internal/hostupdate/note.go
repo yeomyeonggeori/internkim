@@ -21,11 +21,10 @@ type Requester struct {
 }
 
 type Outcome struct {
-	FinishedAt       time.Time `json:"finishedAt"`
-	Succeeded        bool      `json:"succeeded"`
-	InstalledVersion string    `json:"installedVersion"`
-	Error            string    `json:"error,omitempty"`
-	OutputTail       string    `json:"outputTail,omitempty"`
+	FinishedAt time.Time `json:"finishedAt"`
+	Succeeded  bool      `json:"succeeded"`
+	Error      string    `json:"error,omitempty"`
+	OutputTail string    `json:"outputTail,omitempty"`
 }
 
 type Note struct {

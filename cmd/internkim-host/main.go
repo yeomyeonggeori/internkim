@@ -306,7 +306,7 @@ func runUpdate(arguments []string) error {
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
 		return errorValue
 	}
-	return hostupdate.NewRun(hostupdate.TagOf(*version), hostupdate.LocalMachine(companyhost.PackageVersion)).Execute()
+	return hostupdate.Update(hostupdate.NotePath, hostupdate.TagOf(*version), hostupdate.RunPackagedInstallScript, time.Now)
 }
 
 func runInstall(arguments []string) error {
