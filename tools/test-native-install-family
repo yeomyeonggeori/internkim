@@ -620,7 +620,8 @@ class FamilyRig:
         )
         requester_script = (
             "command -v python3; python3 -c 'import sys; print(sys.version.split()[0])'; "
-            f"{OFFICE_COMMAND_PATH} doc create {home}/rig.docx --title rig --paragraph rig; "
+            f"printf '# rig\\n\\nrig\\n' > {home}/rig.md; "
+            f"{OFFICE_COMMAND_PATH} create {home}/rig.docx {home}/rig.md; "
             f"stat -c '%U %s' {home}/rig.docx; "
             f"echo \"environments in the cache home: $(find {cache_home} -name pyvenv.cfg | wc -l)\""
         )
@@ -653,7 +654,7 @@ class FamilyRig:
             "the office skill writes a .docx on its first use with nothing to install: offline, building no "
             "environment of the requester's and writing nothing under the skills, on the environment the install "
             "step prepared on that interpreter",
-            f"`office doc create` as {TASK_USER} with blueclaw's per-person HOME and XDG_CACHE_HOME and UV_OFFLINE=1, "
+            f"`office create rig.docx rig.md` as {TASK_USER} with blueclaw's per-person HOME and XDG_CACHE_HOME and UV_OFFLINE=1, "
             f"the file's owner, the pyvenv.cfg files in that cache home, what under {skills_path} is newer than the "
             "run, and the `home` the office skill's prepared pyvenv.cfg names",
             "`internkim prepare-skills` runs each skill's setup during the install step; a skill that still "
