@@ -10,7 +10,7 @@
 	import FileBrowserList from '$lib/components/file-browser-list.svelte';
 	import FileBrowserPreview from '$lib/components/file-browser-preview.svelte';
 	import { sharedDataRoomSchema } from '$lib/data-room/schemas';
-	import { dataRoomNoticeVersion } from '$lib/data-room/links';
+	import { dataRoomAccessCodePattern, dataRoomNoticeVersion } from '$lib/data-room/links';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
@@ -151,7 +151,7 @@
 						type="password"
 						inputmode="numeric"
 						autocomplete="one-time-code"
-						pattern="[0-9]{6}"
+						pattern={dataRoomAccessCodePattern}
 						minlength={6}
 						maxlength={6}
 						required
