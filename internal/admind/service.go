@@ -41,8 +41,6 @@ type Service struct {
 	buzzInviteStoreOnce     sync.Once
 	buzzKeySeedOnce         sync.Once
 	buzzKeySeedValue        string
-	cloudflareAccessOnce    sync.Once
-	cloudflareAccessCheck   *cloudflareAccessVerifier
 	mailBackend             mail.Backend
 	mailPasswords           mail.PasswordOpener
 	companyShareMutex       sync.Mutex

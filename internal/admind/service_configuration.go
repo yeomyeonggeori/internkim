@@ -70,8 +70,6 @@ type Configuration struct {
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
 	BuzzRelayKeyPath               string
-	CloudflareAccessTeamDomain     string
-	CloudflareAccessAUDs           string
 	TrustProxyForwardedEmail       bool
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
