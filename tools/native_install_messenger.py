@@ -84,8 +84,8 @@ def tool_reads_in(event_bodies):
     return reads
 
 
-def reads_that_found_nothing(event_bodies):
-    return [read for read in tool_reads_in(event_bodies) if (read.get("failure") or {}).get("code") == "not_found"]
+def reads_that_failed(event_bodies):
+    return [read for read in tool_reads_in(event_bodies) if read.get("failure")]
 
 
 def is_a_hex_identifier(text):

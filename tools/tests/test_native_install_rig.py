@@ -458,14 +458,15 @@ class MessengerRigTests(unittest.TestCase):
         self.assertTrue(messenger.holds_text(document, "marker 42"))
         self.assertFalse(messenger.holds_text(document, "marker 43"))
 
-    def test_only_a_read_that_found_nothing_is_a_missing_file(self):
+    def test_only_a_read_that_failed_is_a_failed_read(self):
         bodies = [
             json.dumps({"tool": "read", "failure": {"code": "not_found"}}),
+            json.dumps({"tool": "read", "failure": {"code": "invalid_input"}}),
             json.dumps({"tool": "read", "output": {"content": "ok"}}),
             json.dumps({"tool": "write", "failure": {"code": "not_found"}}),
             "not json",
         ]
-        self.assertEqual(len(messenger.reads_that_found_nothing(bodies)), 1)
+        self.assertEqual(len(messenger.reads_that_failed(bodies)), 2)
 
     def test_a_message_id_is_checked_before_it_reaches_a_query(self):
         self.assertTrue(messenger.is_a_hex_identifier("0123abcdef0123abcdef"))
