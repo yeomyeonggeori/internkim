@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/yeomyeonggeori/internkim/internal/deployops"
 )
 
 func internkimHomeDir() string {
@@ -64,7 +62,7 @@ func copySetupStateHints(sourceDir string, destinationDir string) {
 }
 
 func loadOrCreateFleetID(stateDir string) string {
-	device, _ := deployops.DeviceTargetFromEnvironment()
+	device := deviceTargetFromEnvironment()
 	id := firstNonEmptyString(device.FleetID, loadState(stateDir, "fleet_id"))
 	if id != "" {
 		saveState(stateDir, "fleet_id", id)
@@ -90,7 +88,7 @@ func loadOrCreateNodeKey(stateDir string) string {
 }
 
 func loadOrCreateFleetSecret(stateDir string) string {
-	device, _ := deployops.DeviceTargetFromEnvironment()
+	device := deviceTargetFromEnvironment()
 	secret := firstNonEmptyString(device.FleetSecret, loadState(stateDir, "fleet_secret"))
 	if secret != "" {
 		saveState(stateDir, "fleet_secret", secret)

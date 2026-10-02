@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yeomyeonggeori/internkim/internal/deployops"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -200,7 +199,7 @@ func postBlueclawUpdateJSON(endpointURL string, requestPayload any, token string
 	if token != "" {
 		request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", token)
 	}
-	deployops.AttachCloudflareAccess(request)
+	attachCloudflareAccess(request)
 	response, errorValue := blueclawUpdateHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue
@@ -219,7 +218,7 @@ func putBlueclawUpdateChunk(endpointURL string, token string, document []byte) e
 		return errorValue
 	}
 	request.Header.Set("X-INTERNKIM-UPLOAD-TOKEN", token)
-	deployops.AttachCloudflareAccess(request)
+	attachCloudflareAccess(request)
 	response, errorValue := blueclawUpdateHTTPClient.Do(request)
 	if errorValue != nil {
 		return errorValue

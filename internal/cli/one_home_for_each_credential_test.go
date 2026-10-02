@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/yeomyeonggeori/internkim/internal/deployops"
 	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
@@ -54,57 +52,6 @@ func TestConsolePasswordWithoutAnEnvironmentValueIsGeneratedRatherThanReadFromAF
 	}
 	if len(resolved) != 24 {
 		t.Fatalf("generated console password is %d characters, wanted 24", len(resolved))
-	}
-}
-
-// The Access service token authenticates every unattended deploy. It had a
-// second home, a file under `.local/secrets`, and the two halves drifted
-// without anything saying so: the stale one authenticated against nothing and
-// the deploy quietly fell back to the browser login nobody was there to answer.
-func TestTheAccessServiceTokenComesFromTheVaultAlone(t *testing.T) {
-	writeDecoyLocalSecret(t, "cloudflare-access-service-token.json",
-		`{"clientID":"id-from-the-file.access","clientSecret":"secret-from-the-file"}`)
-	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_ID", "")
-	t.Setenv("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "")
-
-	request, errorValue := http.NewRequest(http.MethodGet, "https://example.test/admin/", nil)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	deployops.AttachCloudflareAccess(request)
-	if request.Header.Get("CF-Access-Client-Id") != "" {
-		t.Fatalf("the service token resolved to %q from a file beside the checkout",
-			request.Header.Get("CF-Access-Client-Id"))
-	}
-}
-
-func TestReleaseDownloadTokenComesFromTheEnvironmentAlone(t *testing.T) {
-	writeDecoyLocalSecret(t, "release-download-token", "token-from-the-file")
-	t.Setenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN", "")
-
-	if token := releaseDownloadToken(); token != "" {
-		t.Fatalf("release download token resolved to %q with no environment value", token)
-	}
-
-	t.Setenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN", "token-from-the-environment")
-	if token := releaseDownloadToken(); token != "token-from-the-environment" {
-		t.Fatalf("release download token resolved to %q, wanted the environment value", token)
-	}
-}
-
-func TestReleaseDownloadTokenIsStagedForTheDeviceOnlyFromTheEnvironment(t *testing.T) {
-	writeDecoyLocalSecret(t, "release-download-token", "token-from-the-file")
-	t.Setenv("INTERNKIM_RELEASE_DOWNLOAD_TOKEN", "")
-
-	path, cleanup, errorValue := releaseDownloadTokenSourcePath()
-	if cleanup != nil {
-		defer cleanup()
-	}
-	if errorValue != nil {
-		t.Fatalf("resolve release download token source: %v", errorValue)
-	}
-	if path != "" {
-		t.Fatalf("staged %q for the device with no environment value", path)
 	}
 }
 

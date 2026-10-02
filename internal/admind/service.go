@@ -39,7 +39,6 @@ type Service struct {
 	mattermostAdminClient   *mattermostadmin.Client
 	jobs                    map[string]*Job
 	uploads                 map[string]*RestoreUpload
-	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
 	buzzInviteStore         *buzzInviteStore
 	buzzInviteStoreOnce     sync.Once
 	buzzKeySeedOnce         sync.Once
@@ -72,7 +71,6 @@ func NewService(configuration Configuration) *Service {
 		Configuration:         configuration,
 		jobs:                  map[string]*Job{},
 		uploads:               map[string]*RestoreUpload{},
-		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
 		mailBackend:           mail.StandardBackend{},
 		mailPasswords:         mail.BoxPasswords(blueclawruntime.CompanyHostBoxStatePath),
 		companyShareAttempts:  map[string]companyShareAttempt{},
@@ -117,7 +115,6 @@ func (service *Service) Run(ctx context.Context) error {
 }
 
 func (service *Service) startBackgroundWork(ctx context.Context) {
-	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
 	if service.Configuration.UsersSyncInstallEnabled {
 		go service.keepUsersSyncInstalled(ctx)
@@ -128,7 +125,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	if service.Configuration.MailNotifyEnabled {
 		go service.keepMailAnnounced(ctx)
 	}
-	service.sweepUpdateLeftovers()
 	service.startPersonaSync(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)

@@ -32,8 +32,8 @@ def refuse(reason):
 
 
 def heldToken():
-    clientID = os.environ.get(clientIDVariable, "").strip()
-    clientSecret = os.environ.get(clientSecretVariable, "").strip()
+    clientID = os.environ.get("INTERNKIM_CF_ACCESS_CLIENT_ID", "").strip()
+    clientSecret = os.environ.get("INTERNKIM_CF_ACCESS_CLIENT_SECRET", "").strip()
     if clientID and clientSecret:
         return clientID, clientSecret
     return None

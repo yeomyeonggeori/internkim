@@ -551,29 +551,20 @@ and delete the duplicates.
 
 ## Deploying
 
-- `./internkim @legacy deploy` with no flags rebuilds stale artifacts,
-  ships every component that differs from the device plus its protocol
-  partner, refuses one the device is ahead on or holds at an unknown commit,
-  and fails if a shipped component's device revision differs from the
-  tree's. `--plan` prints the selection and publishes nothing; `--components`
-  narrows on purpose.
-- Deploy fetches first and refuses a tree with uncommitted edits to a shipped
-  component's sources, a HEAD or `.dependency/blueclaw` that lacks its
-  `origin/main`, or a submodule checkout off the recorded pointer;
-  `./internkim verify deploy-tree` runs that check alone. `--rollback [<id>]`
-  reapplies the release before the current one, and refuses when its payload
-  cannot run against the migrated database; `--plan` shows either.
-- A company on the central plane is deployed by
-  [docs/self-hosting.mdx](docs/self-hosting.mdx)'s "Deploying the web app". The rest is the device.
-- The running `admind` applies a device release, so a new component takes two
-  deploys, `admind` first; a release it cannot accept is escaped with
-  `./internkim setup --only admind --force`.
-- Ship `capabilityd`, `blueclawPayload` and `admind` together for any contract
-  or config change; an unknown component name is dropped silently.
-- A green `systemctl` is not a working agent: look for a run newer than the
-  deploy in `internkim task list`.
-- `tools/deploy-main` ships `origin/main` to the device as one operation; it
-  refuses a dirty tree, a device ahead of this tree, or a second run.
+- A company host is upgraded by its package. `./internkim release host
+  --channel testing`, run on an Apple-silicon Mac, builds the Linux packages
+  and the Homebrew bottle and publishes them as a GitHub Release;
+  `--channel stable` promotes one and gives the Homebrew tap its formula. It
+  refuses a dirty tree, a commit `main` lacks, or a submodule checkout off the
+  recorded pointer. A host takes it by running the install line again.
+- The web app is deployed as "SaaS Web Deployment" above says.
+- A green `systemctl` is not a working agent: look for a task run newer than
+  the upgrade.
+- The Jetson that ran the device path is reached only for its cutover:
+  `./internkim @legacy recover --action migration-export` asks its admind for
+  the export, and `tools/cloudflared-access-ssh` is the ProxyCommand that
+  copies it off. `recover`, the fleet ID and secret, the device URL and
+  admind's recovery actions go once the Jetson is off.
 
 ## Blueclaw Terminal Permission Boundary
 

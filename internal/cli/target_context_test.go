@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yeomyeonggeori/internkim/internal/deployops"
 	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
 
@@ -75,10 +74,10 @@ func TestTheVaultNamesThePhysicalDevice(t *testing.T) {
 	}
 	saveState(stateDir, "device_url", "https://left-behind.example.test")
 	saveState(stateDir, "fleet_secret", "left-behind-secret")
-	t.Setenv(deployops.DeviceURLVariable, "https://fleetexample.example.test")
-	t.Setenv(deployops.SSHHostnameVariable, "0.ssh.fleetexample.example.test")
-	t.Setenv(deployops.FleetIDVariable, "fleetexample")
-	t.Setenv(deployops.FleetSecretVariable, "vault-secret")
+	t.Setenv("INTERNKIM_DEVICE_URL", "https://fleetexample.example.test")
+	t.Setenv("INTERNKIM_SSH_HOSTNAME", "0.ssh.fleetexample.example.test")
+	t.Setenv("INTERNKIM_FLEET_ID", "fleetexample")
+	t.Setenv("INTERNKIM_FLEET_SECRET", "vault-secret")
 
 	target := resolveCommandTarget(nil)
 
@@ -99,20 +98,20 @@ func TestAVaultNamingNoDeviceLeavesThePhysicalTargetUnnamed(t *testing.T) {
 	}
 	saveState(stateDir, "fleet_id", "left-behind")
 	saveState(stateDir, "fleet_secret", "left-behind-secret")
-	for _, name := range []string{deployops.DeviceURLVariable, deployops.SSHHostnameVariable, deployops.FleetIDVariable, deployops.FleetSecretVariable} {
+	for _, name := range []string{"INTERNKIM_DEVICE_URL", "INTERNKIM_SSH_HOSTNAME", "INTERNKIM_FLEET_ID", "INTERNKIM_FLEET_SECRET"} {
 		t.Setenv(name, "")
 	}
 
 	_, _, errorValue := resolveCommandTarget(nil).fleetIdentity()
 
-	if errorValue == nil || !strings.Contains(errorValue.Error(), deployops.FleetSecretVariable) {
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "INTERNKIM_FLEET_SECRET") {
 		t.Fatalf("a device state file stood in for the vault: %v", errorValue)
 	}
 }
 
 func TestResolveCommandTargetReadsRemoteSSHFlag(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv(deployops.SSHHostnameVariable, "ssh.device.example.test")
+	t.Setenv("INTERNKIM_SSH_HOSTNAME", "ssh.device.example.test")
 
 	target := resolveCommandTarget([]string{"--remote-ssh"})
 
@@ -413,7 +412,7 @@ func TestResolveVerifyTargetUsesTheSavedHostnameWithoutLocalProbe(t *testing.T) 
 	if errorValue := os.MkdirAll(stateDir, 0o700); errorValue != nil {
 		t.Fatalf("expected state dir: %v", errorValue)
 	}
-	t.Setenv(deployops.SSHHostnameVariable, "0.ssh.example.test")
+	t.Setenv("INTERNKIM_SSH_HOSTNAME", "0.ssh.example.test")
 
 	target, errorValue := resolveVerifyTarget([]string{"--remote-ssh"})
 	if errorValue != nil {

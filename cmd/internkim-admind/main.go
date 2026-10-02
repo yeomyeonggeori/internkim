@@ -72,8 +72,6 @@ func main() {
 	flag.StringVar(&configuration.FleetSecretPath, "fleet-secret-path", configuration.FleetSecretPath, "fleet secret file")
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", configuration.OpenRouterKeyPath, "OpenRouter key path")
 	flag.StringVar(&configuration.OpenRouterModelsURL, "openrouter-models-url", configuration.OpenRouterModelsURL, "OpenRouter models URL for key validation")
-	flag.StringVar(&configuration.ReleaseRegistryURL, "release-registry-url", configuration.ReleaseRegistryURL, "internkim release registry URL")
-	flag.StringVar(&configuration.ReleaseDownloadTokenPath, "release-download-token", configuration.ReleaseDownloadTokenPath, "release registry download token path")
 	flag.StringVar(&configuration.AdminUIPath, "admin-ui-path", configuration.AdminUIPath, "admin UI static directory")
 	flag.StringVar(&configuration.BotProfileImagePath, "bot-profile-image", configuration.BotProfileImagePath, "bot profile image path")
 	flag.StringVar(&configuration.BlueclawWorkspacePath, "blueclaw-workspace", configuration.BlueclawWorkspacePath, "Blueclaw host workspace path")

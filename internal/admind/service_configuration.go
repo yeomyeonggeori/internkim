@@ -45,8 +45,6 @@ type Configuration struct {
 	MattermostTokenPath            string
 	OpenRouterKeyPath              string
 	OpenRouterModelsURL            string
-	ReleaseRegistryURL             string
-	ReleaseDownloadTokenPath       string
 	MattermostBotTokenPath         string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
@@ -109,7 +107,6 @@ func DefaultConfiguration() Configuration {
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
 		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
-		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
@@ -226,9 +223,6 @@ func (configuration Configuration) withCredentialDefaults(defaultConfiguration C
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
-	if configuration.ReleaseDownloadTokenPath == "" {
-		configuration.ReleaseDownloadTokenPath = defaultConfiguration.ReleaseDownloadTokenPath
-	}
 	if configuration.MattermostBotTokenPath == "" {
 		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
 	}
@@ -288,9 +282,6 @@ func (configuration Configuration) withCentralPlaneDefaults(defaultConfiguration
 }
 
 func (configuration Configuration) withFleetDefaults(defaultConfiguration Configuration) Configuration {
-	if configuration.ReleaseRegistryURL == "" {
-		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
-	}
 	if configuration.FleetIDPath == "" {
 		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
 	}

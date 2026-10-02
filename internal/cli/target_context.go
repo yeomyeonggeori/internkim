@@ -1,13 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/yeomyeonggeori/internkim/internal/deployops"
 	internkimlab "github.com/yeomyeonggeori/internkim/internal/lab"
 	setup "github.com/yeomyeonggeori/internkim/internal/provisioning/steps"
 )
@@ -106,12 +106,12 @@ func resolveCommandTarget(arguments []string) commandTarget {
 	}
 }
 
-func deviceTargetFor(mode commandTargetMode, stateDir string) deployops.Target {
+func deviceTargetFor(mode commandTargetMode, stateDir string) deviceTarget {
 	if mode == commandTargetModePhysical {
-		device, _ := deployops.DeviceTargetFromEnvironment()
+		device := deviceTargetFromEnvironment()
 		return device
 	}
-	return deployops.Target{
+	return deviceTarget{
 		AdminURL:    loadState(stateDir, "device_url"),
 		SSHHostname: loadState(stateDir, "ssh_hostname"),
 		FleetID:     loadState(stateDir, "fleet_id"),
@@ -121,8 +121,7 @@ func deviceTargetFor(mode commandTargetMode, stateDir string) deployops.Target {
 
 func (target commandTarget) fleetIdentity() (string, string, error) {
 	if target.fleetID == "" || target.fleetSecret == "" {
-		return "", "", fmt.Errorf("the vault names no %s and %s for this device; run it as `internkim @legacy …`",
-			deployops.FleetIDVariable, deployops.FleetSecretVariable)
+		return "", "", errors.New("the vault names no INTERNKIM_FLEET_ID and INTERNKIM_FLEET_SECRET for this device; run it as `internkim @legacy …`")
 	}
 	return target.fleetID, target.fleetSecret, nil
 }

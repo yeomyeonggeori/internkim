@@ -133,10 +133,6 @@ func runNamedCommand(name string) {
 		runRelease()
 	case "status":
 		runStatus()
-	case "update":
-		runUpdate()
-	case "deploy":
-		runDeploy()
 	case "doctor":
 		runDoctor()
 	case "verify":
@@ -145,8 +141,6 @@ func runNamedCommand(name string) {
 		runTest()
 	case "llm":
 		runLLM()
-	case "ops":
-		runOps()
 	case "dev":
 		runDev()
 	case "mac":
@@ -178,13 +172,10 @@ func printUsage() {
 	fmt.Println("  recover  Recover narrow device maintenance paths")
 	fmt.Println("  release  Publish and inspect release sets")
 	fmt.Println("  status   Check board and tunnel status")
-	fmt.Println("  update   Deploy current build to device")
-	fmt.Println("  deploy   Build and apply a signed release over Admin HTTPS")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API and browser verification")
 	fmt.Println("  test     Run a prompt through disposable Local Fleet; use -o <file> for one returned attachment")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
-	fmt.Println("  ops      Serve the local personal fleet console")
 	fmt.Println("  mac      Install and run the Blueclaw guest on this Mac under vfkit")
 	fmt.Println("  lab      Run container-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")

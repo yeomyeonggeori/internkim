@@ -5,7 +5,6 @@ import type {
 	AttendanceWorkPolicy,
 	AttendanceWorkPolicyResponse,
 	AttendanceWorkPolicyRevision,
-	BlueclawUpdateStatus,
 	AgentSoul,
 	CircleRecord,
 	CompanyHoliday,
@@ -16,7 +15,6 @@ import type {
 	CredentialProviderStatus,
 	CredentialProvidersResponse,
 	OrgGroup,
-	ReleaseHistoryResponse,
 	RestoreUploadResponse,
 	UserRecord,
 	UserRole,
@@ -209,32 +207,6 @@ export async function removeWifiProfile(adminBaseURL: string, connectionName: st
 export async function fetchDeviceHealth(adminBaseURL: string, fallbackMessage: string): Promise<void> {
 	const response = await fetch(`${adminBaseURL}/health`, { credentials: 'include' });
 	await readVoid(response, fallbackMessage);
-}
-
-export async function fetchBlueclawUpdateStatus(adminBaseURL: string, fallbackMessage: string): Promise<BlueclawUpdateStatus> {
-	const response = await fetch(`${adminBaseURL}/updates/status`, { credentials: 'include' });
-	return readJSON<BlueclawUpdateStatus>(response, fallbackMessage);
-}
-
-export async function fetchReleaseHistory(adminBaseURL: string, fallbackMessage: string): Promise<ReleaseHistoryResponse> {
-	const response = await fetch(`${adminBaseURL}/updates/releases`, { credentials: 'include' });
-	return readJSON<ReleaseHistoryResponse>(response, fallbackMessage);
-}
-
-export async function applyBlueclawUpdate(adminBaseURL: string, fallbackMessage: string, releaseID = ''): Promise<AdminJob> {
-	const body = releaseID.trim() ? JSON.stringify({ releaseID: releaseID.trim() }) : undefined;
-	const response = await fetch(`${adminBaseURL}/updates/apply`, {
-		method: 'POST',
-		credentials: 'include',
-		headers: body ? { 'Content-Type': 'application/json' } : undefined,
-		body
-	});
-	return readJSON<AdminJob>(response, fallbackMessage);
-}
-
-export async function fetchBlueclawUpdateJob(adminBaseURL: string, jobID: string, fallbackMessage: string): Promise<AdminJob> {
-	const response = await fetch(`${adminBaseURL}/updates/jobs/${encodeURIComponent(jobID)}`, { credentials: 'include' });
-	return readJSON<AdminJob>(response, fallbackMessage);
 }
 
 export async function createBackup(adminBaseURL: string, passphrase: string, fallbackMessage: string): Promise<AdminJob> {

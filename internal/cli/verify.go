@@ -44,8 +44,6 @@ func runVerifyArguments(arguments []string) error {
 		return runVerifyBrowser(arguments)
 	case "install-addresses":
 		return runVerifyInstallAddresses()
-	case "deploy-tree":
-		return runVerifyDeployTree()
 	case "blueclaw-pointer":
 		return runVerifyBlueclawPointer(arguments)
 	default:

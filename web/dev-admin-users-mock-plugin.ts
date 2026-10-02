@@ -77,12 +77,6 @@ function createDevAdminUsersMockResponse(
 	if (request.method === 'GET' && request.pathname === '/admin/api/users') {
 		return { status: 200, body: usersResponse(state) };
 	}
-	if (request.method === 'GET' && request.pathname === '/admin/api/updates/status') {
-		return { status: 200, body: { state: 'idle', updateAllowed: false } };
-	}
-	if (request.method === 'GET' && request.pathname === '/admin/api/updates/releases') {
-		return { status: 200, body: { entries: [] } };
-	}
 	if (request.method === 'POST' && request.pathname === '/admin/api/users') {
 		return saveUserResponse(state, request.body);
 	}
@@ -102,8 +96,6 @@ function createDevAdminUsersMockResponse(
 function shouldHandleDevAdminUsersMockRequest(method: string, pathname: string): boolean {
 	if (method === 'GET' && pathname === '/admin/api/health') return true;
 	if (method === 'GET' && pathname === '/admin/api/users') return true;
-	if (method === 'GET' && pathname === '/admin/api/updates/status') return true;
-	if (method === 'GET' && pathname === '/admin/api/updates/releases') return true;
 	if (method === 'POST' && pathname === '/admin/api/users') return true;
 	if (method === 'POST' && pathname === '/admin/api/circles') return true;
 	if (method === 'DELETE' && pathname.startsWith('/admin/api/circles/')) return true;

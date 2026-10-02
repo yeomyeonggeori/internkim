@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-// The device answers through Cloudflare over a WAN whose round trip spikes
-// past ten seconds now and then, which tools/deploy-main's device_revision_of
-// already allows for; one stalled read is not an address that is missing.
+// The install address answers through Cloudflare over a WAN whose round trip
+// spikes past ten seconds now and then; one stalled read is not an address
+// that is missing.
 const installAddressAttempts = 3
 
 const installScriptURL = "https://intern.kim/install.sh"
