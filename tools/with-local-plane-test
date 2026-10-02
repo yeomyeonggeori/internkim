@@ -2,19 +2,16 @@
 set -euo pipefail
 
 repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
-lockPath="$(sed -n 's/^lockPath="\(.*\)"$/\1/p' "$repositoryRoot/tools/with-local-plane")"
-lastUsedPath="$(sed -n 's/^lastUsedPath="\(.*\)"$/\1/p' "$repositoryRoot/tools/with-local-plane")"
 runDirectory="$(mktemp -d)"
+export LOCAL_PLANE_STATE_DIRECTORY="$runDirectory/plane-state"
+lockPath="$LOCAL_PLANE_STATE_DIRECTORY/internkim-local-plane.lock"
+queuePath="$LOCAL_PLANE_STATE_DIRECTORY/internkim-local-plane.queue"
+lastUsedPath="$LOCAL_PLANE_STATE_DIRECTORY/internkim-local-plane.last-used"
+mkdir -p "$LOCAL_PLANE_STATE_DIRECTORY"
 fakeState="$runDirectory/state"
 fakeBinaries="$runDirectory/bin"
 checkoutRoot="$runDirectory/checkout"
 withLocalPlane="$checkoutRoot/tools/with-local-plane"
-lastUseBeforeTheTest="$runDirectory/last-use-before-the-test"
-
-if [ -z "$lockPath" ] || [ -z "$lastUsedPath" ]; then
-  echo "tools/with-local-plane no longer declares a lock path and a last-used path this test can read" >&2
-  exit 1
-fi
 
 idleStopsWaiting() {
   pgrep -f -- "--stop-when-idle" | sort || true
@@ -24,21 +21,13 @@ stopTheIdleStopsThisTestStarted() {
   comm -13 "$runDirectory/idle-stops-before-the-test" <(idleStopsWaiting) | xargs kill 2>/dev/null || true
 }
 
-restoreTheLastUse() {
+cleanUp() {
   stopTheIdleStopsThisTestStarted
-  if [ -e "$lastUseBeforeTheTest" ]; then
-    cp "$lastUseBeforeTheTest" "$lastUsedPath"
-  else
-    rm -f "$lastUsedPath"
-  fi
   rm -rf "$runDirectory"
 }
 
-if [ -e "$lastUsedPath" ]; then
-  cp "$lastUsedPath" "$lastUseBeforeTheTest"
-fi
 idleStopsWaiting > "$runDirectory/idle-stops-before-the-test"
-trap restoreTheLastUse EXIT
+trap cleanUp EXIT
 
 copyCheckout() {
   mkdir -p "$1/tools" "$1/supabase" "$1/web/scripts"
@@ -135,6 +124,40 @@ if ! grep -q "waiting for the local plane held by .* in $checkoutRoot" "$runDire
   fail "the second command did not name the holder it waited for"
   cat "$runDirectory/second-diagnostics" >&2
 fi
+
+startedInOrder() {
+  local label="$1"
+  "$withLocalPlane" sh -c "echo $label >> '$runDirectory/claim-order'" 2> /dev/null &
+  waiter=$!
+  until grep -qx "$waiter" "$queuePath"/* 2> /dev/null; do
+    sleep 0.05
+  done
+}
+
+for releaseDelay in 0.1 0.5 0.9; do
+  resetFakes stack
+  rm -f "$runDirectory/claim-order" "$runDirectory/release" "$runDirectory/first-holding"
+  rm -rf "$queuePath"
+  mkdir -p "$queuePath"
+  sh -c 'exit 0' & deadWaiter=$!
+  wait "$deadWaiter"
+  printf '%s\n' "$deadWaiter" > "$queuePath/000000001"
+  "$withLocalPlane" sh -c "touch '$runDirectory/first-holding'; until [ -e '$runDirectory/release' ]; do sleep 0.05; done" &
+  holder=$!
+  waitUntilTheFirstCommandHoldsTheLock || fail "the holder never took the lock"
+  startedInOrder earlier
+  earlierWaiter=$waiter
+  startedInOrder later
+  laterWaiter=$waiter
+  sleep "$releaseDelay"
+  touch "$runDirectory/release"
+  wait "$holder" "$earlierWaiter" "$laterWaiter"
+  if [ "$(tr '\n' ' ' < "$runDirectory/claim-order")" != "earlier later " ]; then
+    fail "waiters did not claim in arrival order, or a dead waiter blocked the queue, released after ${releaseDelay}s: $(tr '\n' ' ' < "$runDirectory/claim-order")"
+  fi
+done
+rm -rf "$queuePath"
+resetFakes stack
 
 if ! "$withLocalPlane" "$withLocalPlane" sh -c 'true'; then
   fail "a command run inside a command already holding the lock deadlocked"

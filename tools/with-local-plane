@@ -12,15 +12,21 @@ if [ -n "${LOCAL_PLANE_LOCK_HOLDER:-}" ]; then
 fi
 
 repositoryRoot="$(cd "$(dirname "$0")/.." && pwd)"
-lockPath="/tmp/internkim-local-plane.lock"
-lastUsedPath="/tmp/internkim-local-plane.last-used"
-idleStopLogPath="/tmp/internkim-local-plane.idle-stop.log"
+stateDirectory="${LOCAL_PLANE_STATE_DIRECTORY:-/tmp}"
+lockPath="$stateDirectory/internkim-local-plane.lock"
+queuePath="$stateDirectory/internkim-local-plane.queue"
+lastUsedPath="$stateDirectory/internkim-local-plane.last-used"
+idleStopLogPath="$stateDirectory/internkim-local-plane.idle-stop.log"
 defaultIdleSeconds=900
 holderPath="${lockPath}.holder.$$"
+ticketPath=""
 weHoldTheLock=0
 
 releaseLock() {
   rm -f "$holderPath"
+  if [ -n "$ticketPath" ]; then
+    rm -f "$ticketPath"
+  fi
   if [ "$weHoldTheLock" -eq 1 ]; then
     weHoldTheLock=0
     scheduleStopWhenIdle
@@ -77,13 +83,52 @@ announceWait() {
     "${processID:-another process}" "${worktree:-another worktree}" >&2
 }
 
+newestTicketNumber() {
+  local newest
+  newest="$(ls "$queuePath" 2>/dev/null | tail -1)"
+  echo "$((10#${newest:-0}))"
+}
+
+takeTicket() {
+  local pendingPath="${lockPath}.ticket.$$"
+  mkdir -p "$queuePath"
+  printf '%s\n' "$$" > "$pendingPath"
+  until ticketPath="$queuePath/$(printf '%09d' $(($(newestTicketNumber) + 1)))" \
+    && ln "$pendingPath" "$ticketPath" 2>/dev/null; do
+    :
+  done
+  rm -f "$pendingPath"
+}
+
+isAtTheHeadOfTheQueue() {
+  local ticket
+  for ticket in "$queuePath"/*; do
+    if [ "$ticket" = "$ticketPath" ]; then
+      return 0
+    fi
+    if holderIsRunning "$ticket"; then
+      return 1
+    fi
+    rm -f "$ticket"
+  done
+  return 1
+}
+
+claimWhenFirstInLine() {
+  if ! isAtTheHeadOfTheQueue; then
+    return 1
+  fi
+  if claimLock; then
+    return 0
+  fi
+  releaseStaleHolder
+  claimLock
+}
+
 acquireLock() {
   local waitedSeconds=0
-  while ! claimLock; do
-    releaseStaleHolder
-    if claimLock; then
-      break
-    fi
+  takeTicket
+  while ! claimWhenFirstInLine; do
     if [ "$((waitedSeconds % 30))" -eq 0 ]; then
       announceWait
     fi
@@ -91,7 +136,8 @@ acquireLock() {
     waitedSeconds=$((waitedSeconds + 1))
   done
   weHoldTheLock=1
-  rm -f "$holderPath"
+  rm -f "$holderPath" "$ticketPath"
+  ticketPath=""
 }
 
 minimumCommandLineVersion="2.119.0"
