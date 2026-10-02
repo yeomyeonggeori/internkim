@@ -94,7 +94,8 @@ acquireLock() {
   rm -f "$holderPath"
 }
 
-minimumCommandLineVersion="2.118.0"
+minimumCommandLineVersion="2.119.0"
+stackRuntime="native"
 
 . "$repositoryRoot/web/scripts/local-plane-signing-key.sh"
 signingKeysPath="$(local_plane_signing_keys_path "$repositoryRoot")"
@@ -158,12 +159,12 @@ currentBranchContext() {
   git -C "$repositoryRoot" symbolic-ref -q HEAD 2>/dev/null || true
 }
 
-otherStacksOfThisRepository() {
+stacksOfThisRepository() {
   local stackList
   stackList="$(cd "$repositoryRoot" && supabase stack list --output-format json 2>/dev/null)" || return 0
   python3 -c '
 import json, os, re, sys
-repository_root, branch_context, project_identifier, stack_list = sys.argv[1:5]
+repository_root, branch_context, project_identifier, stack_runtime, selection, stack_list = sys.argv[1:7]
 
 def belongs_to_this_repository(project_root):
     if not os.path.isdir(project_root):
@@ -180,27 +181,44 @@ def is_this_checkout(stack):
         return False
     return branch_context == "" or stack["branch_context"] == branch_context
 
+def is_selected(stack):
+    if selection == "other-checkouts":
+        return not is_this_checkout(stack) and belongs_to_this_repository(stack["project_root"])
+    return is_this_checkout(stack) and stack["runtime"] != stack_runtime
+
 for stack in json.loads(stack_list)["stacks"]:
-    if not is_this_checkout(stack) and belongs_to_this_repository(stack["project_root"]):
+    if is_selected(stack):
         print(stack["id"])
-' "$repositoryRoot" "$(currentBranchContext)" "$projectIdentifier" "$stackList"
+' "$repositoryRoot" "$(currentBranchContext)" "$projectIdentifier" "$stackRuntime" "$1" "$stackList"
+}
+
+destroyStack() {
+  printf 'destroying the local plane stack %s, %s\n' "$1" "$2" >&2
+  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase stack destroy --stack-id "$1" --yes --output-format text)
 }
 
 destroyOtherStacks() {
   local stackIdentifier
-  for stackIdentifier in $(otherStacksOfThisRepository); do
-    printf 'destroying the local plane stack %s, left holding its ports by another checkout or branch\n' "$stackIdentifier" >&2
-    (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase stack destroy --stack-id "$stackIdentifier" --yes --output-format text)
+  for stackIdentifier in $(stacksOfThisRepository other-checkouts); do
+    destroyStack "$stackIdentifier" "left holding its ports by another checkout or branch"
+  done
+}
+
+destroyOwnStacksOnAnotherRuntime() {
+  local stackIdentifier
+  for stackIdentifier in $(stacksOfThisRepository own-on-another-runtime); do
+    destroyStack "$stackIdentifier" "recorded on a runtime other than $stackRuntime"
   done
 }
 
 startStackWhenDown() {
+  destroyOwnStacksOnAnotherRuntime
   if stackIsServing; then
     return 0
   fi
   destroyOtherStacks
   printf 'starting the local plane\n' >&2
-  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --output-format text)
+  (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --runtime "$stackRuntime" --output-format text)
 }
 
 scheduleStopWhenIdle() {
