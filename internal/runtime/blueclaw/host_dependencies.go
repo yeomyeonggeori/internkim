@@ -365,16 +365,6 @@ func HostHomebrewDependencies() []string {
 	return formulas
 }
 
-func hostProgramsNeededBy(parts ...HostPart) []string {
-	programs := []string{}
-	for _, dependency := range hostDependencies {
-		if dependency.neededByAnyOf(parts) {
-			programs = append(programs, dependency.ProgramsTheHostRuns...)
-		}
-	}
-	return programs
-}
-
 // HostProgramsThatArriveAsPayload names every program the package carries because no
 // package manager has one. host_payload_downloads.go pins each of them, and
 // TestThePinsCoverExactlyThePayloadProgramsDeclared reads both lists so that a program
@@ -402,13 +392,6 @@ func HostProgramsThePackageShips() []string {
 		RelayName,
 		RenderCompanyRuntimeName,
 	}
-}
-
-// ProgramsTheBundledSkillsRun is what the skills that write documents and decks
-// reach for through the requester's shell. Their absence withholds a skill
-// rather than stopping the box, which is why it is a separate answer.
-func ProgramsTheBundledSkillsRun() []string {
-	return hostProgramsNeededBy(HostPartDocumentSkills)
 }
 
 // HostFilesTheBundledSkillsRead are the paths those skills open directly, whose

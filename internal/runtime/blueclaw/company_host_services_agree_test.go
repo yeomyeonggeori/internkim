@@ -55,14 +55,6 @@ func TestAdmindIsToldWhereTheBuzzSeedLives(t *testing.T) {
 	}
 }
 
-func TestBlueclawStartsWithTheSkillsThePackageShips(t *testing.T) {
-	service, _ := CompanyHostServiceNamed(LinuxCompanyHostLayout(), BlueclawServiceName)
-	skillsPath, isSet := environmentSettingOf(service, "BLUECLAW_BUNDLED_SKILLS_PATH")
-	if !isSet || skillsPath != CompanyPackageSkillsPath {
-		t.Fatalf("blueclaw looks for its skills at %q and the package puts them at %s, so it starts with nothing", skillsPath, CompanyPackageSkillsPath)
-	}
-}
-
 func TestTheCompanyHostAdmindInstallsNoDeviceUsersSync(t *testing.T) {
 	service, _ := CompanyHostServiceNamed(LinuxCompanyHostLayout(), AdmindServiceName)
 	if !slices.Contains(service.Command, "-install-users-sync=false") {

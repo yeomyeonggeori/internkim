@@ -40,7 +40,7 @@ func TestTheRenderedRuntimeNamesAHelperWhicheverInstalledIt(t *testing.T) {
 	if !strings.Contains(string(renderer), `: "${POSIX_HELPER_PATH:=`+BlueclawPOSIXHelperPath+`}"`) {
 		t.Fatalf("render-company-runtime does not default the helper to %s, which is where the device keeps it", BlueclawPOSIXHelperPath)
 	}
-	if !strings.Contains(CompanyHostPrepareScript(), "POSIX_HELPER_PATH="+CompanyHostPOSIXHelperPath) {
-		t.Fatalf("the packaged prepare script does not render the helper as %s, which is what the package installs", CompanyHostPOSIXHelperPath)
+	if !strings.Contains(CompanyHostPrepareScript(), "POSIX_HELPER_PATH="+LinuxCompanyHostLayout().POSIXHelperPath()) {
+		t.Fatalf("the packaged prepare script does not render the helper as %s, which is what the package installs", LinuxCompanyHostLayout().POSIXHelperPath())
 	}
 }

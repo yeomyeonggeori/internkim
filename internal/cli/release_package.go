@@ -20,6 +20,8 @@ import (
 
 const releaseChecksumsName = "SHA256SUMS"
 
+var packageLayout = blueclaw.LinuxCompanyHostLayout()
+
 // One payload, three package formats. The contents of the package are built
 // once (packageContents), and each format is that same list of files with
 // its own dependency dialect and its own maintainer-script prologue.
