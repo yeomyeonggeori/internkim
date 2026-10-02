@@ -10,6 +10,12 @@ export type ChosenMention = {
 	isEveryone: boolean;
 };
 
+export type WrittenMention = {
+	from: number;
+	to: number;
+	inserted: string;
+};
+
 export type DraftMentions = {
 	externalIDs: string[];
 	isEveryone: boolean;
@@ -25,15 +31,8 @@ export function mentionFragmentAt(text: string, cursor: number): MentionFragment
 	return { start, query };
 }
 
-export function textWithMention(
-	text: string,
-	cursor: number,
-	fragment: MentionFragment,
-	label: string
-): { text: string; cursor: number } {
-	const head = text.slice(0, fragment.start);
-	const written = `@${label} `;
-	return { text: head + written + text.slice(cursor), cursor: head.length + written.length };
+export function mentionWritten(cursor: number, fragment: MentionFragment, label: string): WrittenMention {
+	return { from: fragment.start, to: cursor, inserted: `@${label} ` };
 }
 
 export function mentionsToSend(text: string, chosen: ChosenMention[]): DraftMentions {

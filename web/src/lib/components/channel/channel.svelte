@@ -760,7 +760,6 @@
 		bind:editing={threadEditing}
 		name="thread"
 		placeholder={text.threadComposerPlaceholder}
-		rows={1}
 		{participants}
 		{isGroup}
 		cancelsEditOnEscape={threadLayout === 'inline'}
@@ -855,7 +854,6 @@
 			bind:isSending
 			name="conversation"
 			placeholder={text.composerPlaceholder}
-			rows={2}
 			{participants}
 			{isGroup}
 			cancelsEditOnEscape={true}

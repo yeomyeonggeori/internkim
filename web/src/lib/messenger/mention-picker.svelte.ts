@@ -8,10 +8,11 @@ import {
 import {
 	mentionFragmentAt,
 	mentionsToSend,
-	textWithMention,
+	mentionWritten,
 	type ChosenMention,
 	type DraftMentions,
-	type MentionFragment
+	type MentionFragment,
+	type WrittenMention
 } from './mention-draft';
 import type { MentionLabel } from './mention-text';
 
@@ -57,14 +58,10 @@ export function createMentionPicker(people: () => MentionPerson[], isGroup: () =
 			if (rows.length === 0) return;
 			active = (active + step + rows.length) % rows.length;
 		},
-		take(
-			text: string,
-			cursor: number,
-			candidate?: MentionCandidate
-		): { text: string; cursor: number } | undefined {
+		take(cursor: number, candidate?: MentionCandidate): WrittenMention | undefined {
 			const taken = candidate ?? rows[active];
 			if (!taken || !fragment) return undefined;
-			const written = textWithMention(text, cursor, fragment, taken.label);
+			const written = mentionWritten(cursor, fragment, taken.label);
 			chosen = [...chosen, asChosen(taken)];
 			close();
 			return written;
