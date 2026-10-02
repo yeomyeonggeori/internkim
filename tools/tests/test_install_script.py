@@ -384,14 +384,16 @@ class InstallScriptTests(unittest.TestCase):
         )
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.requested = directory / "requested.log"
+        self.curl_options_log = directory / "options.log"
         shim = directory / "curl"
         shim.write_text(
             "#!/bin/sh\n"
-            'output=""; address=""\n'
+            'output=""; address=""; options=""\n'
             'while [ $# -gt 0 ]; do\n'
-            '  case "$1" in -o) output="$2"; shift 2 ;; -*) shift ;; *) address="$1"; shift ;; esac\n'
+            '  case "$1" in -o) output="$2"; shift 2 ;; --retry|--retry-delay|--speed-limit|--speed-time) options="$options $1 $2"; shift 2 ;; -*) shift ;; *) address="$1"; shift ;; esac\n'
             "done\n"
             f'printf "%s\\n" "$address" >> "{self.requested}"\n'
+            f'printf "%s\\n" "$options" >> "{self.curl_options_log}"\n'
             'case "$address" in\n'
             f'  "{github_newest_release}") file=releases.json ;;\n'
             f'  "{github_downloads}/latest/download/"*|"{github_downloads}/download/{newest_tag}/"*) file="${{address##*/}}" ;;\n'
@@ -404,6 +406,14 @@ class InstallScriptTests(unittest.TestCase):
 
     def requested_addresses(self):
         return self.requested.read_text().splitlines()
+
+    def test_every_download_gives_up_on_a_stalled_transfer(self):
+        shims = self.linux_machine("apt-get")
+        completed = self.run_host_install(shims, first=[self.github()])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        for options in self.curl_options_log.read_text().splitlines():
+            self.assertIn("--retry 3", options)
+            self.assertIn("--speed-limit 1024 --speed-time 60", options)
 
     def test_stable_installs_from_the_latest_release(self):
         shims = self.linux_machine("apt-get")

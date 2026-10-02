@@ -105,9 +105,11 @@ release_download_url() {
 
 # GitHub lists releases newest first, prereleases included, and one is all this
 # asks for, so the response holds exactly one tag_name.
+curl_options="-fsSL --retry 3 --retry-delay 2 --speed-limit 1024 --speed-time 60"
+
 newest_release_tag() {
   releases_url="https://api.github.com/repos/$release_repository/releases?per_page=1"
-  listed_tag="$(curl -fsSL "$releases_url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')"
+  listed_tag="$(curl $curl_options "$releases_url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')"
   [ -n "$listed_tag" ] || stop \
 "Could not read the newest release from $releases_url.
 Check that this machine can reach it, then run the same command again.
@@ -116,7 +118,7 @@ Nothing on this machine was changed."
 }
 
 fetch() {
-  curl -fsSL "$1" -o "$2" || stop \
+  curl $curl_options "$1" -o "$2" || stop \
 "Could not fetch $1.
 Check that this machine can reach it, then run the same command again.
 Nothing on this machine was changed."
