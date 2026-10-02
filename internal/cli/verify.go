@@ -88,26 +88,6 @@ func verifyTargetArguments(host string, user string, password string, node strin
 	return targetArguments
 }
 
-type repeatedStringFlag struct {
-	values []string
-}
-
-func (flagValue *repeatedStringFlag) String() string {
-	return strings.Join(flagValue.values, ",")
-}
-
-func (flagValue *repeatedStringFlag) Set(value string) error {
-	trimmedValue := strings.TrimSpace(value)
-	if trimmedValue != "" {
-		flagValue.values = append(flagValue.values, trimmedValue)
-	}
-	return nil
-}
-
-func (flagValue repeatedStringFlag) Values() []string {
-	return append([]string{}, flagValue.values...)
-}
-
 func runVerifyBrowser(arguments []string) error {
 	flagSet := flag.NewFlagSet("verify browser", flag.ContinueOnError)
 	publicMode := flagSet.Bool("public", true, "Run public URL browser smoke test")
