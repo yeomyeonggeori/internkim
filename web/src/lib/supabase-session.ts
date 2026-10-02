@@ -1,4 +1,6 @@
 import { clearCachedAttendanceSummaries } from '../routes/attendance/attendance-summary-cache';
+import { clearCachedWorkStatusRows } from '../routes/attendance/work-status/work-status-cache';
+import { forgetKeptPictures } from '$lib/stores/person-picture-cache';
 import { clearChannelMessageCache } from '$lib/components/channel/channel-message-cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isSupabaseConfigured, supabase } from '$lib/supabase';
@@ -74,6 +76,8 @@ export async function signOutOfSupabase(): Promise<void> {
 	await forgetWidgetSupply().catch(() => undefined);
 	await releaseActivityTokens().catch(() => undefined);
 	clearCachedAttendanceSummaries();
+	clearCachedWorkStatusRows();
+	forgetKeptPictures();
 	clearChannelMessageCache();
 	forgetLastSeenTask();
 	forgetLastSeenDirectory();

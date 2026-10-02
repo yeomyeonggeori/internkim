@@ -39,7 +39,7 @@
 	const text = createPageText(attendanceText);
 	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope));
 	const attendanceView = new AttendanceViewState(ensureSelectedAdminView);
-	const workStatus = new WorkStatusState();
+	const workStatus = untrack(() => new WorkStatusState(cacheScope));
 	const isAdmin = $derived(attendance.summary?.isAdmin ?? false);
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {

@@ -1,6 +1,6 @@
 export const assetBucket = 'asset';
 const objectPrefix = `/storage/v1/object/${assetBucket}/`;
-const readableForSeconds = 60 * 60 * 24;
+export const readableForSeconds = 60 * 60 * 24;
 
 export type AttachmentSigner = {
 	createSignedUrls: (
