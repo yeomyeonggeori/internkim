@@ -192,7 +192,7 @@ func refusalForThisHost(dependencies hostUpdateDependencies) *hostRefusal {
 	channel := dependencies.Machine.Channel()
 	switch {
 	case method == hostupdate.MethodBrew:
-		return &hostRefusal{http.StatusConflict, "update_method_unsupported", "the agent does not update a Mac host; an administrator runs brew upgrade internkim and then sudo internkim refresh on it"}
+		return &hostRefusal{http.StatusConflict, "update_method_unsupported", "the agent does not update a Mac host; an administrator runs brew upgrade internkim on it, which asks for their password to restart the services"}
 	case method == "":
 		return &hostRefusal{http.StatusConflict, "not_a_packaged_host", "this machine runs no internkim package, so there is nothing to update"}
 	case channel != hostupdate.ChannelStable:
