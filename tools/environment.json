@@ -487,6 +487,10 @@
     "process": "tools/with-local-plane",
     "description": "the process ID of the tools/with-local-plane run already holding this machine's local Supabase stack; a script or command that sees it set is already inside the lock and runs without taking it again"
   },
+  "LOCAL_PLANE_STATE_DIRECTORY": {
+    "process": "tools/with-local-plane",
+    "description": "the directory holding the local plane's lock, queue of waiting runs, last-use record and idle-stop log; defaults to /tmp so every checkout on the machine shares one, and only tools/with-local-plane-test sets it, to keep its runs off the real lock"
+  },
   "LOG_DIRECTORY_PATH": {
     "process": "tools/render-company-runtime",
     "description": "the log directory rendered into the company plane's runtime document; defaults to /var/log/internkim"
