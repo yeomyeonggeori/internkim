@@ -89,7 +89,7 @@ func TestTheDeclaredDirectoriesCarryTheStateRootModeAndTheHelpersSetuidBit(t *te
 	for _, line := range []string{
 		"d " + blueclaw.CompanyHostStateRoot + " 0700 root root -",
 		"d " + blueclaw.CompanyHostCompaniesRoot + " 0700 root root -",
-		"z " + blueclaw.CompanyHostPOSIXHelperPath + " 4755 root root -",
+		"z " + packageLayout.POSIXHelperPath() + " 4755 root root -",
 	} {
 		if !strings.Contains(declared, line) {
 			t.Errorf("tmpfiles does not carry %q:\n%s", line, declared)

@@ -14,10 +14,10 @@ const fewestFlagsAnInternKimBinaryDefines = 5
 
 func TestEveryUnitFlagIsOneTheBinaryDefines(t *testing.T) {
 	commandDirectoryByBinaryPath := map[string]string{
-		CapabilitydBinaryPath:                     "internkim-capabilityd",
-		AdmindBinaryPath:                          "internkim-admind",
-		CompanyPackageBinaryPath(CapabilitydName): "internkim-capabilityd",
-		CompanyPackageBinaryPath(AdmindName):      "internkim-admind",
+		CapabilitydBinaryPath: "internkim-capabilityd",
+		AdmindBinaryPath:      "internkim-admind",
+		LinuxCompanyHostLayout().BinaryPath(CapabilitydName): "internkim-capabilityd",
+		LinuxCompanyHostLayout().BinaryPath(AdmindName):      "internkim-admind",
 	}
 
 	units := map[string]string{

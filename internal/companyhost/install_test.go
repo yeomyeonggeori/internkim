@@ -110,8 +110,8 @@ func TestEveryUnitWaitsOnAFileTheInstallOrTheBundleWrites(t *testing.T) {
 	// internkim-prepare writes these two, and its own condition is the agent key
 	// the install writes, so nothing in the chain waits on nobody.
 	writtenByThePrepareService := map[string]bool{
-		blueclaw.CompanyHostRuntimeDocument: true,
-		blueclaw.CompanyHostPolicyDocument:  true,
+		blueclaw.LinuxCompanyHostLayout().RuntimeDocumentPath(): true,
+		blueclaw.LinuxCompanyHostLayout().PolicyDocumentPath():  true,
 	}
 
 	for _, unit := range blueclaw.CompanyHostSystemdUnits(blueclaw.LinuxCompanyHostLayout()) {

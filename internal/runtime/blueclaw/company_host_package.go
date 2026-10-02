@@ -16,31 +16,27 @@ import (
 // binary path passed in, and every name, port and address below is the constant the
 // device path already uses.
 const (
-	CompanyPackageName         = "internkim"
-	BoxServiceName             = "internkim-box"
-	CompanyPackageMaintainer   = "internkim <support@intern.kim>"
-	CompanyPackageVendor       = "yeomyeonggeori"
-	CompanyPackageHomepage     = "https://intern.kim"
-	CompanyPackageSection      = "admin"
-	CompanyPackageBinaryRoot   = "/usr/bin"
-	CompanyPackageLibraryRoot  = "/opt/internkim"
-	CompanyPackageHelperRoot   = "/usr/lib/internkim"
-	CompanyPackageUnitRoot     = "/usr/lib/systemd/system"
-	CompanyPackageSkillsPath   = "/opt/internkim/skills"
-	CompanyPackageTemplatePath = "/opt/internkim/runtime.template.json"
+	CompanyPackageName        = "internkim"
+	BoxServiceName            = "internkim-box"
+	CompanyPackageMaintainer  = "internkim <support@intern.kim>"
+	CompanyPackageVendor      = "yeomyeonggeori"
+	CompanyPackageHomepage    = "https://intern.kim"
+	CompanyPackageSection     = "admin"
+	CompanyPackageBinaryRoot  = "/usr/bin"
+	CompanyPackageLibraryRoot = "/opt/internkim"
+	CompanyPackageHelperRoot  = "/usr/lib/internkim"
+	CompanyPackageUnitRoot    = "/usr/lib/systemd/system"
 
 	CompanyPackageDocumentFontPath        = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 	CompanyPackageDocumentFontLicensePath = "/usr/share/fonts/truetype/internkim/NanumGothic-OFL.txt"
 	CompanyPackageMigrationPath           = "/opt/blueclaw/migrations"
-	CompanyPackagePreparePath             = "/usr/lib/internkim/prepare-company-host"
 
 	// POSIXHelperProgramName is what lets the unprivileged agent act as the
 	// person who asked, and it is the one setuid file the package ships. The FHS
 	// keeps packages out of /usr/local, where the device path keeps it, so
 	// the packaged host names its own path and the rendered runtime document
 	// carries that name rather than the device's.
-	POSIXHelperProgramName     = "blueclaw-posix-helper"
-	CompanyHostPOSIXHelperPath = "/usr/lib/internkim/" + POSIXHelperProgramName
+	POSIXHelperProgramName = "blueclaw-posix-helper"
 
 	// The company directory is keyed by company id, and a unit rendered at package
 	// build time cannot name an id nobody has chosen yet. `internkim install` points
@@ -69,10 +65,6 @@ const (
 	CompanyHostLogPath                     = "/var/log/internkim"
 	CompanyHostBrowserStatePath            = "/var/lib/internkim-moli"
 	CompanyHostRunPath                     = "/run/internkim"
-	CompanyHostRunSecretsPath              = "/run/internkim/secrets"
-	CompanyHostRunModelKeyPath             = "/run/internkim/secrets/openrouter-key"
-	CompanyHostRuntimeDocument             = "/run/internkim/runtime.json"
-	CompanyHostPolicyDocument              = "/run/internkim/policy.json"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 
@@ -128,13 +120,6 @@ const (
 	CompanyHostBrowserFirstPort    = "9230"
 	CompanyHostBrowserCapacity     = "4"
 )
-
-// CompanyPackageBinaryPath is where the package puts a program it ships. The FHS
-// keeps packages out of /usr/local, which is also what keeps a packaged
-// install from colliding with the device path's own binaries during convergence.
-func CompanyPackageBinaryPath(programName string) string {
-	return CompanyPackageBinaryRoot + "/" + programName
-}
 
 // CompanyPackageUnit is one systemd unit the package installs.
 type CompanyPackageUnit struct {

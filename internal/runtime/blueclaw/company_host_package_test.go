@@ -108,7 +108,7 @@ func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesValues(t *testing.T) 
 	if packaged == "" {
 		t.Fatal("the package installs no relay unit, and the relay is what keeps the screen alive when the agent is down")
 	}
-	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, CompanyPackageBinaryPath(RelayName))
+	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, LinuxCompanyHostLayout().BinaryPath(RelayName))
 	expected = strings.ReplaceAll(expected,
 		RelayStateDirectoryPath(RelayStateDirectoryName), RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName))
 	expected = strings.ReplaceAll(expected,
@@ -167,8 +167,8 @@ func TestThePackageCarriesTheMediaStoreAndTheRelayWaitsForIt(t *testing.T) {
 	if media == "" {
 		t.Fatalf("the package installs no %s unit, so the messenger has nowhere to put attachments", BuzzMediaServiceName)
 	}
-	if !strings.Contains(media, CompanyPackageBinaryPath(BuzzMediaProgramName)) {
-		t.Fatalf("the %s unit does not start %s", BuzzMediaServiceName, CompanyPackageBinaryPath(BuzzMediaProgramName))
+	if !strings.Contains(media, LinuxCompanyHostLayout().BinaryPath(BuzzMediaProgramName)) {
+		t.Fatalf("the %s unit does not start %s", BuzzMediaServiceName, LinuxCompanyHostLayout().BinaryPath(BuzzMediaProgramName))
 	}
 	if strings.Contains(media, "--versioning-dir") {
 		t.Fatal("the packaged media unit enables versioning; read TestBuzzMediaUnitDoesNotEnableVersioning before adding it")
