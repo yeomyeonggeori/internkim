@@ -1,7 +1,7 @@
 import { externalIDs } from './arrived';
+import { typingEventKind } from '../../web/src/lib/messenger/typing-signal';
 
 export const typingPath = '/typing';
-export const typingEventKind = 'typing.started';
 const memberMemoryMilliseconds = 5 * 60_000;
 
 export type Typing = {

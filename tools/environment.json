@@ -532,6 +532,10 @@
     "process": "tools/native-install-member-session.ts",
     "description": "the Supabase publishable key the member session's sign-in call carries as apikey"
   },
+  "MEMBER_SESSION_TYPING_WAIT_MS": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "how long the native-install rig's member session stays connected after sending, waiting for someone to be shown typing in the conversation; defaults to 0, which closes at once"
+  },
   "MESSENGER_RELAY_URL": {
     "process": "relay",
     "description": "the company's Buzz relay on loopback, which the relay dials for every native app the gateway carries; defaults to ws://127.0.0.1:3000"

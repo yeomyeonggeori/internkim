@@ -11,6 +11,8 @@
 // person does, and every answer it receives came back over the socket the
 // guest's own relay is holding.
 
+import { typingEventKind } from '../web/src/lib/messenger/typing-signal';
+
 type Frame = Record<string, unknown>;
 
 type Answer = { status: number; body: unknown };
@@ -23,7 +25,8 @@ const settings = {
 	email: required('MEMBER_SESSION_EMAIL'),
 	password: required('MEMBER_SESSION_PASSWORD'),
 	messageText: required('MEMBER_SESSION_MESSAGE'),
-	answerTimeoutMilliseconds: Number(process.env.MEMBER_SESSION_ANSWER_TIMEOUT_MS ?? 60_000)
+	answerTimeoutMilliseconds: Number(process.env.MEMBER_SESSION_ANSWER_TIMEOUT_MS ?? 60_000),
+	typingWaitMilliseconds: Number(process.env.MEMBER_SESSION_TYPING_WAIT_MS ?? 0)
 };
 
 function required(name: string): string {
@@ -129,9 +132,23 @@ class MemberConnection {
 		return answered;
 	}
 
+	async untilSomeoneTypesIn(conversationID: string, waitMilliseconds: number): Promise<void> {
+		const deadline = Date.now() + waitMilliseconds;
+		while (Date.now() < deadline) {
+			if (this.delivered.some((frame) => isTypingIn(frame, conversationID))) return;
+			await Bun.sleep(100);
+		}
+	}
+
 	close(): void {
 		this.socket.close();
 	}
+}
+
+function isTypingIn(frame: Frame, conversationID: string): boolean {
+	const event = frame.event;
+	if (typeof event !== 'object' || event === null) return false;
+	return 'kind' in event && event.kind === typingEventKind && 'conversationID' in event && event.conversationID === conversationID;
 }
 
 function answerField(answer: Answer, name: string): string {
@@ -149,6 +166,7 @@ const sent = await connection.ask('person.message.send', {
 	conversationID,
 	body: settings.messageText
 });
+await connection.untilSomeoneTypesIn(conversationID, settings.typingWaitMilliseconds);
 connection.close();
 
 console.log(
@@ -157,6 +175,7 @@ console.log(
 		presence,
 		conversation: { status: conversation.status, id: conversationID, body: conversation.body },
 		sent: { status: sent.status, messageID: answerField(sent, 'id'), body: sent.body },
-		delivered: connection.delivered
+		delivered: connection.delivered,
+		typing: connection.delivered.filter((frame) => isTypingIn(frame, conversationID)).map((frame) => frame.event)
 	})
 );
