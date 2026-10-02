@@ -1,7 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite';
-import { devAdminUsersMockPlugin } from './dev-admin-users-mock-plugin';
 import { devFilesMockPlugin } from './dev-files-mock-plugin';
 import { devMailMockPlugin } from './dev-mail-mock-plugin';
 import { devMemoryMockPlugin } from './dev-memory-mock-plugin';
@@ -35,10 +34,6 @@ export default defineConfig(({ mode }) => {
 	const devUserEmail = env.VITE_DEV_USER_EMAIL;
 	return {
 		plugins: [
-			devAdminUsersMockPlugin({
-				isEnabled: isAdminMockEnabled,
-				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
-			}),
 			devFilesMockPlugin({
 				isEnabled: env.VITE_MOCK_FILES === '1',
 				userEmail: env.VITE_DEV_USER_EMAIL ?? 'kim@example.com'
