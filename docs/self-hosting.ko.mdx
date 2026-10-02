@@ -51,6 +51,10 @@ Supabase도 같은 Postgres와 같은 row level security를 제공하므로 `sup
 `supabase link --project-ref <ref>`를 실행하세요. 프로젝트 키와 함께 보관하는 Supabase
 액세스 토큰은 없습니다.
 
+그래서 배포 순서는 하나입니다. `supabase db push`, 웹 앱, 그다음 엣지 함수와 게이트웨이
+순입니다. 마이그레이션은 이전 웹 앱이 아직 돌고 있어도 성립하도록 씁니다. 세션에 더 많은
+것을 요구하는 마이그레이션은 그 전에 발급된 세션을 만료될 때까지 받아 줍니다.
+
 ```bash
 cd web
 bun install
