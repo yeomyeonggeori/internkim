@@ -216,7 +216,7 @@
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli, tools/build-litert-lm-main, tools/build-llama-cpp-jetson",
-    "description": "the board's console password, from the @legacy vault profile; `internkim ssh` and `internkim recover` log in with it when no --password is given",
+    "description": "the board's console password, from the @production vault profile; `internkim ssh` and `internkim recover` log in with it when no --password is given",
     "isInVault": true
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
@@ -241,7 +241,7 @@
   },
   "INTERNKIM_DEVICE_URL": {
     "process": "cli",
-    "description": "the device's public admin address, from the @legacy vault profile; `internkim recover` posts its signed recovery requests there",
+    "description": "the device's public admin address, from the @production vault profile; `internkim recover` posts its signed recovery requests there",
     "isInVault": true
   },
   "INTERNKIM_ENVIRONMENT_FROM_VAULT": {
@@ -250,12 +250,12 @@
   },
   "INTERNKIM_FLEET_ID": {
     "process": "cli",
-    "description": "the device's fleet ID, from the @legacy vault profile; `internkim recover` names the device with it in a signed recovery request",
+    "description": "the device's fleet ID, from the @production vault profile; `internkim recover` names the device with it in a signed recovery request",
     "isInVault": true
   },
   "INTERNKIM_FLEET_SECRET": {
     "process": "cli",
-    "description": "the device's fleet secret, from the @legacy vault profile; `internkim recover` signs its recovery requests with it",
+    "description": "the device's fleet secret, from the @production vault profile; `internkim recover` signs its recovery requests with it",
     "isInVault": true
   },
   "INTERNKIM_GATE_MODEL": {
@@ -292,7 +292,7 @@
   },
   "INTERNKIM_SSH_HOSTNAME": {
     "process": "cli",
-    "description": "the board's ssh hostname, from the @legacy vault profile; `internkim ssh` and `internkim recover` reach the board by it when no --host is given",
+    "description": "the board's ssh hostname, from the @production vault profile; `internkim ssh` and `internkim recover` reach the board by it when no --host is given",
     "isInVault": true
   },
   "INTERNKIM_TEST_CDP_BROWSER": {

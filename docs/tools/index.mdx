@@ -35,7 +35,7 @@ people, leave and attendance tools run on the central plane against the
 record, the browser and model tools run only beside the agent, and the rest
 are carried to the company's computer. On the host the agent calls them over
 MCP through the relay, the same catalog the [HTTP API](/docs/api/tools)
-serves; on the device path it reaches them through `internkim-capabilityd`.
+serves.
 The [catalog](/docs/tools/catalog) lists every one.
 
 Workspace tools touch your files and the terminal: read, write, edit,
@@ -137,7 +137,7 @@ flowchart LR
   TS["web/src/lib/server/public-api/catalog/<br/>(source of truth)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|embedded, hash-checked| Go["pkg/capabilityprotocol"]
   Go -->|admind stamps runtime.json| Blueclaw["blueclaw<br/>capability_tool_provider"]
-  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(vsock in the guest)"]
+  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock"]
   Socket --> Capabilityd["internkim-capabilityd<br/>executes the operation"]
 ```
 
@@ -147,7 +147,7 @@ flowchart LR
 | descriptor shape | `.dependency/blueclaw/protocol/src/capability.ts` | what a descriptor may say, and nothing about which tools exist |
 | generated catalog | `pkg/capabilityprotocol/generated/capability-tools.json` | the embedded, hash-validated copy Go code reads |
 | descriptor grouping | `internal/capabilities/protocol.go` | which descriptors each provider registers |
-| config stamping | `internal/admind/blueclaw_updates.go` | writes `capabilities.toolDescriptors` into blueclaw's `runtime.json` |
+| config rendering | `tools/render-company-runtime` | reads `capabilities.toolDescriptors` out of the installed `capabilityd` into blueclaw's `runtime.json` |
 | agent binding | `.dependency/blueclaw/internal/agentruntime/capability_tool_provider.go` | validates descriptors, binds them into the model's tool set |
 | approval gate | `.dependency/blueclaw/internal/approvalgate/turn_gate.go` | holds gated calls for a human |
 | execution | `internal/capabilityd/*_tool.go` | the operation behind each namespace |
@@ -155,8 +155,8 @@ flowchart LR
 Changing a tool means editing the TypeScript descriptor, running
 `make generate-protocol`, and shipping `capabilityd` and the blueclaw payload
 in the same release; blueclaw refuses a descriptor set whose protocol
-identity hash does not match its own, and a running device picks up the new
-set through a config restamp (`setup --only blueclaw-config`).
+identity hash does not match its own, and a host picks up the new set when
+its package renders the runtime document again.
 
 <Cards>
   <Card title="Tool catalog" href="/docs/tools/catalog" description="All capability tools, by namespace, generated from the canonical catalog" />

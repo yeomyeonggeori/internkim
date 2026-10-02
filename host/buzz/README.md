@@ -30,18 +30,6 @@ presents the address as `Host`. Every install and upgrade moves a lone community
 to that address before the relay starts, since the relay picks the community
 from the `Host` header.
 
-A device this repository provisions still takes a domain of its own behind a
-tunnel: `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>`.
-Nothing works that domain out for you, and a device relay with none stays on
-loopback.
-
-The device path does the rest of what a public name needs: an `/etc/hosts` alias
-so clients on the box resolve it to loopback, a self-signed certificate for it,
-stunnel terminating TLS on `127.0.0.1:443`, and the community row re-keyed to it,
-since the relay picks the community from the `Host` header. Setup remembers the
-domain, so later runs keep it, and a run with a different `--relay-domain` moves
-the community across.
-
 Pick the name once if you can. Every attachment the relay has stored is addressed
 at the name it carried at the time, so a rename leaves those addresses pointing
 at the old one.
