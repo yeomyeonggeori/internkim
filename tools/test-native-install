@@ -1429,13 +1429,13 @@ class Rig:
             and kept.get("owner", "").startswith("bc_person_"),
             json.dumps({"sent": sent, "task": {key: run.get(key) for key in ("taskRunID", "status", "requesterPersonID")}, "file": kept})[:600],
         )
-        missing = messenger.reads_that_found_nothing(run.get("events") or [])
+        failed_reads = messenger.reads_that_failed(run.get("events") or [])
         step.observe(
-            "the agent was never told about a picture that was not there",
-            "every read tool event of that task, for a not_found failure",
-            "the agent reading the path it was handed and finding nothing is the failure the bridge once had, "
+            "no read the agent made of the picture failed",
+            "every read tool event of that task, for a failure",
+            "the agent reading the reference it was handed and finding nothing is the failure the bridge once had, "
             "and it shows only in the ledger",
-        ).record(bool(run) and not missing, json.dumps(missing)[:400] or "no read failed")
+        ).record(bool(run) and not failed_reads, json.dumps(failed_reads)[:400] or "no read failed")
         if rig_model_key() != RIG_MODEL_KEY:
             reply = run.get("result") or ""
             step.observe(
