@@ -17,12 +17,14 @@ set -eu
 product="${1:-}"
 case "$product" in
   host) shift ;;
-  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- host [--channel stable|testing]" >&2; exit 1 ;;
+  *) echo "Usage: curl -fsSL https://intern.kim/install.sh | sh -s -- host [--channel stable|testing] [--version vYYYY.MM.DD.HHMMSS]" >&2; exit 1 ;;
 esac
 
 package_name="internkim"
 release_repository="yeomyeonggeori/internkim"
 channel="${INTERNKIM_INSTALL_CHANNEL:-stable}"
+pinned_version=""
+channel_record_path="/var/lib/internkim/release-channel"
 homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
 
 stop() {
@@ -34,12 +36,18 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --channel) [ $# -ge 2 ] || stop "--channel needs stable or testing."; channel="$2"; shift 2 ;;
     --channel=*) channel="${1#--channel=}"; shift ;;
-    *) stop "install.sh takes --channel stable|testing after the product, and was given $1." ;;
+    --version) [ $# -ge 2 ] || stop "--version needs a release tag such as v2026.10.01.203142."; pinned_version="$2"; shift 2 ;;
+    --version=*) pinned_version="${1#--version=}"; shift ;;
+    *) stop "install.sh takes --channel stable|testing and --version <tag> after the product, and was given $1." ;;
   esac
 done
 case "$channel" in
   stable|testing) ;;
   *) stop "The channel is stable or testing, and this install asked for $channel." ;;
+esac
+case "$pinned_version" in
+  ""|v[0-9]*) ;;
+  *) stop "A release is named by its tag, such as v2026.10.01.203142, and this install asked for $pinned_version." ;;
 esac
 
 privileged() {
@@ -95,6 +103,8 @@ package_suffix() {
 release_download_url() {
   if [ -n "${INTERNKIM_INSTALL_RELEASE_URL:-}" ]; then
     printf '%s' "$INTERNKIM_INSTALL_RELEASE_URL"
+  elif [ -n "$pinned_version" ]; then
+    printf '%s' "https://github.com/$release_repository/releases/download/$pinned_version"
   elif [ "$channel" = stable ]; then
     printf '%s' "https://github.com/$release_repository/releases/latest/download"
   else
@@ -158,7 +168,16 @@ install_the_package() {
 "Installing $asset_name failed, and the package manager's own output above
 names what it could not resolve. A dependency it cannot find usually means this
 release of this distribution does not carry it."
+  record_the_channel
   tell_what_to_do_next
+}
+
+record_the_channel() {
+  printf '%s\n' "$channel" > "$work_dir/release-channel"
+  privileged install -d -m 0700 "$(dirname "$channel_record_path")" &&
+    privileged install -m 0644 "$work_dir/release-channel" "$channel_record_path" || stop \
+"The package is installed, but $channel_record_path could not be written, so the
+agent cannot tell which channel this host follows. Run the same command again."
 }
 
 # The manager's own command for a file, so the manager resolves the file's
@@ -167,10 +186,30 @@ install_the_package_file() {
   case "$package_manager" in
     apt-get)
       privileged apt-get update || stop "apt-get update failed, and its own output is above. Nothing on this machine was changed."
-      privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$1" ;;
-    dnf) privileged dnf install -y "$1" ;;
+      privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y $(apt_downgrade_option) "$1" ;;
+    dnf) privileged dnf "$(dnf_command_for "$1")" -y "$1" ;;
     pacman) privileged pacman -U --needed --noconfirm "$1" ;;
   esac
+}
+
+apt_downgrade_option() {
+  [ -n "$pinned_version" ] && printf '%s' "--allow-downgrades"
+  return 0
+}
+
+dnf_command_for() {
+  if [ -n "$pinned_version" ] && is_older_than_installed "$1"; then
+    printf 'downgrade'
+  else
+    printf 'install'
+  fi
+}
+
+is_older_than_installed() {
+  installed_version="$(rpm -q --qf '%{VERSION}' "$package_name" 2>/dev/null)" || return 1
+  offered_version="$(rpm -qp --qf '%{VERSION}' "$1" 2>/dev/null)" || return 1
+  [ "$offered_version" != "$installed_version" ] &&
+    [ "$(printf '%s\n%s\n' "$offered_version" "$installed_version" | sort | head -n 1)" = "$offered_version" ]
 }
 
 tell_what_to_do_next() {
@@ -184,6 +223,9 @@ tell_what_to_do_next() {
 # to the person who installed them; what needs root is the second line, and that
 # is `internkim install`, which asks for it itself.
 install_through_homebrew() {
+  [ -z "$pinned_version" ] || stop \
+"Homebrew installs the one formula the tap carries, which is the latest stable
+release, so a Mac cannot be pinned to $pinned_version. Nothing on this machine was changed."
   brew tap "$homebrew_tap" || stop \
 "brew tap $homebrew_tap failed, and its own output is above.
 Nothing on this machine was changed."

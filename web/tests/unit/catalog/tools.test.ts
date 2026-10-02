@@ -149,6 +149,8 @@ describe('canonical capability tools', () => {
       'event_delete',
       'event_list',
       'event_update',
+      'host_update',
+      'host_version_get',
       'image_generate',
       'image_read',
       'leave_balance',
@@ -328,6 +330,7 @@ describe('canonical capability tools', () => {
       'mail_message_mark',
       'mail_message_move',
       'mail_message_send',
+      'host_update',
     ]);
 
     for (const tool of stateChangingTools) {

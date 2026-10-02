@@ -202,8 +202,25 @@ class FamilyRig:
     def shell_value(self, script):
         return self.machine.shell(script).stdout.strip()
 
-    def run_the_line(self):
-        return self.machine.shell(self.release.install_line(self.machine.host_gateway()), timeout_seconds=2400)
+    def run_the_line(self, arguments=""):
+        return self.machine.shell(self.release.install_line(self.machine.host_gateway(), arguments), timeout_seconds=2400)
+
+    def observe_going_back(self, step, older_directory, directory, older_version, newer_version):
+        self.release.publish(older_directory)
+        attempt = self.run_the_line(f"--version v{older_version}")
+        went_back_to = self.installed_version()
+        step.observe(
+            "the line pinned to the earlier release with --version takes the host back to it",
+            f"`{self.family.version_command}` after `install.sh host --version v{older_version}` on {newer_version}",
+            "going back is what an administrator asks the agent for after a bad release, and each package "
+            "manager refuses an older version by default in its own way",
+        ).record(
+            attempt.returncode == 0 and went_back_to == older_version,
+            f"install.sh exited {attempt.returncode}; {newer_version} -> {went_back_to or 'nothing'}\n"
+            f"{(attempt.stdout + attempt.stderr).strip()[-600:]}",
+        )
+        self.release.publish(directory)
+        self.run_the_line()
 
     def installed_version(self):
         return self.shell_value(self.family.version_command) if self.installed() else ""
@@ -249,6 +266,8 @@ class FamilyRig:
             f"install.sh exited {again.returncode}; {installed_version} -> {self.installed_version()}\n"
             f"{(again.stdout + again.stderr).strip()[-400:]}",
         )
+        if older_directory:
+            self.observe_going_back(step, older_directory, directory, older_version, installed_version)
         sources_after = self.shell_value(REPOSITORY_LISTING_COMMAND)
         step.observe(
             "this release's install adds no repository, key or pin, ours or PostgreSQL's, and removes none an "

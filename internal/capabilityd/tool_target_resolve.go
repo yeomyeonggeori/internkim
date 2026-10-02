@@ -18,6 +18,7 @@ type capabilityToolTargetRoute struct {
 
 var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
 	{ToolName: "message_delete", Resolver: Service.resolveMessageDeleteTarget},
+	{ToolName: hostUpdateToolName, Resolver: Service.resolveHostUpdateTarget},
 }
 
 func capabilityToolTargetRouteFor(toolName string) (capabilityToolTargetRoute, bool) {

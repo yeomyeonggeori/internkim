@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/yeomyeonggeori/internkim/internal/hostupdate"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -18,9 +19,9 @@ import (
 // what web/static/install.sh resolves each channel to on Linux. A Mac installs
 // through the Homebrew tap, whose formula is the one the stable release carries.
 const (
-	hostReleaseRepository = "yeomyeonggeori/internkim"
-	stableChannel         = "stable"
-	testingChannel        = "testing"
+	hostReleaseRepository = hostupdate.Repository
+	stableChannel         = hostupdate.ChannelStable
+	testingChannel        = hostupdate.ChannelTesting
 )
 
 type gitHubRelease struct {
@@ -155,7 +156,7 @@ func createHostRelease(version string, revision string, channel string, director
 		return errorValue
 	}
 	tag := hostReleaseTag(version)
-	arguments := []string{"release", "create", tag, "--repo", hostReleaseRepository, "--target", revision, "--title", tag, "--notes", hostReleaseNotes(channel)}
+	arguments := []string{"release", "create", tag, "--repo", hostReleaseRepository, "--target", revision, "--title", tag, "--notes", hostReleaseNotes(channel), "--generate-notes"}
 	if channel == testingChannel {
 		arguments = append(arguments, "--prerelease")
 	} else {

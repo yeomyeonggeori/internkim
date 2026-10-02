@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_families import FAMILIES  # noqa: E402
+import native_install_agent_update as agent_update  # noqa: E402
 from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
@@ -72,6 +73,8 @@ from native_install_rig import (  # noqa: E402
     dependency_names,
     CANDIDATE_CHOICE_COMMAND,
     package_fields,
+    RIG_MODEL_KEY,
+    rig_model_key,
     write_release_directory,
 )
 
@@ -404,6 +407,7 @@ class Rig:
         self.sent_messages = []
         self.files_command = f"dpkg-query -L {PACKAGE_NAME}"
         self.is_an_upgrade = False
+        self.measured_downtime = None
 
     def step(self, number, name):
         step = Step(number, name)
@@ -1108,6 +1112,206 @@ class Rig:
             "a database still carrying either makes every later backup need pgvector to restore",
         ).record(retired.returncode == 0 and not retired.stdout.strip(), retired.stdout.strip() or "none")
 
+    def run_step_ten(self, step, releases, plane):
+        """An administrator asks the agent for the newer release, the way host_update asks admind."""
+        older = package_fields(releases[0] / asset_name(".deb"))["Version"]
+        newer = package_fields(releases[1] / asset_name(".deb"))["Version"]
+        self.serve_the_newer_release_as_stable(releases[1], older, newer)
+        administrator = plane.administrator_email
+
+        version = self.ask_admind(agent_update.VERSION_PATH, administrator, {})[1]
+        step.observe(
+            "the gateway reports the installed release, its stable channel and the newer stable release",
+            f"admind's {agent_update.VERSION_PATH} over its socket as {administrator}, the route host_version_get takes",
+            "the version the agent states is the gateway's reading of dpkg, the channel install.sh recorded and "
+            "the release list; a stub that answers a constant would pass nothing here",
+        ).record(
+            version.get("installedVersion") == f"v{older}"
+            and version.get("channel") == "stable"
+            and (version.get("latestStable") or {}).get("version") == f"v{newer}"
+            and version.get("isUpdateAvailable") is True,
+            json.dumps(version)[:600],
+        )
+
+        plan = self.ask_admind(agent_update.PLAN_PATH, administrator, {})[1]
+        step.observe(
+            "the confirmation is given the versions, the restart's cost and when it can run",
+            f"admind's {agent_update.PLAN_PATH}, the route the approval gate resolves host_update's target through",
+            "the gate words whatever this answers into the question an administrator approves, so a fact "
+            "missing here is a fact the administrator is never told",
+        ).record(
+            plan.get("id") == f"v{newer}" and [choice.get("key") for choice in plan.get("choices") or []] == ["offHours", "now"]
+            and "expectedDowntimeSeconds" in (plan.get("preview") or ""),
+            json.dumps(plan)[:900],
+        )
+
+        requester = self.requester_of_the_last_answered_message()
+        self.machine.checked_shell(agent_update.monitor_command((*READINESS_PROBES, MESSENGER_BRIDGE)))
+        started_at = time.monotonic()
+        status, started = self.ask_admind(agent_update.START_PATH, administrator, {"isApproved": True, "input": {}, "requester": requester})
+        note = self.machine.shell(f"cat {agent_update.NOTE_PATH} 2>/dev/null").stdout
+        second_status, second = self.ask_admind(agent_update.START_PATH, administrator, {"isApproved": True, "input": {}, "requester": requester})
+        step.observe(
+            "the approved call starts one update in a unit of its own, after writing who asked and where",
+            f"admind's {agent_update.START_PATH} answer, the note at {agent_update.NOTE_PATH} read right after, "
+            "and a second identical call made at once",
+            "the update restarts admind itself, so only a note on disk and a unit outside admind's cgroup "
+            "carry the request across; a second update racing the first would have two package managers "
+            "on one dpkg lock",
+        ).record(
+            status == "200" and started.get("toVersion") == f"v{newer}"
+            and requester["conversationID"] in note and f"v{newer}" in note
+            and second_status == "409" and second.get("errorCode") == "update_in_progress",
+            f"{status} {json.dumps(started)}\nnote {note.strip()[:400]}\nsecond {second_status} {json.dumps(second)}",
+        )
+
+        attempt_while_away = self.send_while_the_services_are_away(plane)
+        finished = self.wait_in_the_guest(
+            f"systemctl is-active {agent_update.UPDATE_UNIT_NAME}; dpkg-query -W -f 'version=${{Version}}\\n' {PACKAGE_NAME}",
+            lambda reading: f"version={newer}" in reading
+            and reading.split("\n")[0].strip() not in ("active", "activating", "deactivating"),
+            timeout_seconds=2400,
+        )
+        update_seconds = time.monotonic() - started_at
+        reported = self.wait_in_the_guest(
+            f"test -e {agent_update.NOTE_PATH} && echo pending || echo cleared",
+            lambda reading: "cleared" in reading,
+            timeout_seconds=900,
+        )
+        monitor = self.machine.shell(
+            f"systemctl stop {agent_update.MONITOR_UNIT_NAME} 2>/dev/null; cat {agent_update.MONITOR_LOG_PATH}"
+        ).stdout
+        downtime, is_back, readings = agent_update.downtime_from(monitor)
+        self.measured_downtime = (downtime, update_seconds)
+
+        step.observe(
+            "the host comes back on the newer release",
+            f"dpkg's version and the unit's state after `{agent_update.UPDATE_UNIT_NAME}` finished, and the build "
+            "admind's health route reports",
+            "the unit exiting is the updater's account of itself; dpkg and the running gateway are the machine's",
+        ).record(
+            f"version={newer}" in finished.stdout and build_identity_reported(self.machine).get("admindBuildID") == newer,
+            finished.stdout.strip() + f"\nrunning {json.dumps(build_identity_reported(self.machine))}",
+        )
+        step.observe(
+            "a message sent while the services are away is refused and its sender is told, or it is answered",
+            "the result frame the member's websocket received for a message sent while the monitor read the "
+            "services away, and the agent's task ledger for it",
+            "the confirmation tells the administrator that a message sent during the restart has to be sent "
+            "again; a message sent once everything is back says nothing about that window",
+        ).record(
+            attempt_while_away["was_away"]
+            and (attempt_while_away["status"] not in (None, 200) or self.was_answered(attempt_while_away)),
+            json.dumps({key: value for key, value in attempt_while_away.items() if key != "text"}),
+        )
+        outcome = self.wait_in_the_guest(
+            agent_update.OUTCOME_COMMAND % {
+                "agent_path": COMPANY_CONDITION_PATH,
+                "messenger_path": MESSENGER_DATABASE_PATH,
+                "fragment": agent_update.OUTCOME_PROMPT_FRAGMENT,
+                "member_message": self.last_sent_message_id() or "no-message",
+            },
+            lambda reading: "task=completed" in reading and "answers=0" not in reading,
+            timeout_seconds=600,
+        )
+        step.observe(
+            "the agent reports the update's result in the conversation it was asked in, and the note is cleared",
+            "the agent's task for the result admind handed it, the messenger's store for an agent message in "
+            f"that conversation written after that task began, and {agent_update.NOTE_PATH}",
+            "a result written to a log, or to a conversation nobody asked in, is not one the administrator reads",
+        ).record(
+            "task=completed" in outcome.stdout and "answers=0" not in outcome.stdout and "cleared" in reported.stdout,
+            outcome.stdout.strip()[-700:] + "\n" + reported.stdout.strip(),
+        )
+
+        self.message_text = message_asking_for_an_answer("sent again after the agent update")
+        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_agent_answered(step)
+
+        promised_seconds = agent_update.promised_downtime_seconds()
+        step.observe(
+            f"the services were away no longer than the {promised_seconds} seconds the confirmation promises",
+            f"a reading every second of the relay unit and {', '.join(f'{port}{path}' for port, path in (*READINESS_PROBES, MESSENGER_BRIDGE))}, "
+            "taken in the guest from before the update started until the result was reported",
+            "the number in the question an administrator approves is only true if the restart it describes keeps to it",
+        ).record(
+            is_back and readings > 0 and 0 < downtime <= promised_seconds,
+            f"longest outage {downtime:.1f}s over {readings} readings; the update took {update_seconds:.0f}s end to end",
+        )
+        self.machine.shell(
+            f"rm -rf {Path(agent_update.ADMIND_DROP_IN_PATH).parent} {Path(agent_update.UPDATE_UNIT_DROP_IN_PATH).parent}; "
+            f"systemctl daemon-reload; systemctl restart {ADMIND_UNIT_NAME}"
+        )
+        return step
+
+    def serve_the_newer_release_as_stable(self, newer_release, older, newer):
+        self.release.publish(newer_release)
+        agent_update.write_stable_listing(
+            self.release.directory, [f"v{newer}", f"v{older}"], time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        )
+        gateway = self.machine.host_gateway()
+        drop_ins = agent_update.release_source_drop_ins(
+            f"http://{gateway}:{self.release.port}/{agent_update.RELEASE_API_PATH}", self.release.download_url(gateway)
+        )
+        written = "".join(
+            f"install -d {Path(path).parent}\nprintf '%s' {shlex.quote(contents)} > {path}\n" for path, contents in drop_ins.items()
+        )
+        self.machine.checked_shell(f"set -eu\n{written}systemctl daemon-reload\nsystemctl restart {ADMIND_UNIT_NAME}\n")
+        self.wait_in_the_guest(READINESS_COMMAND, every_probe_answered)
+
+    def ask_admind(self, path, email, body):
+        return agent_update.answer_of(self.machine.shell(agent_update.ask_admind_command(path, email, body)).stdout)
+
+    def requester_of_the_last_answered_message(self):
+        reading = self.machine.shell(
+            agent_update.ORIGIN_COMMAND % {"agent_path": COMPANY_CONDITION_PATH, "text": self.message_text}
+        ).stdout.strip().splitlines()
+        person_id, conversation_id, reply_target_id = (reading[-1].split("|") + ["", "", ""])[:3] if reading else ("", "", "")
+        if not conversation_id:
+            raise RigFailure(f"the agent's ledger names no conversation for {self.message_text!r}: {reading}")
+        return {
+            "personID": person_id,
+            "platform": agent_update.MESSENGER_PLATFORM,
+            "conversationID": conversation_id,
+            "replyTargetID": reply_target_id,
+        }
+
+    def send_while_the_services_are_away(self, plane):
+        text = message_asking_for_an_answer("sent during the agent update")
+        deadline = time.monotonic() + 600
+        while time.monotonic() < deadline:
+            if self.monitor_reads_away():
+                session = plane.member_session(self.company_id, text)
+                sent = session.get("sent") or {}
+                return {
+                    "was_away": True,
+                    "is_still_away": self.monitor_reads_away(),
+                    "status": sent.get("status"),
+                    "messageID": sent.get("messageID") or "",
+                    "body": json.dumps(sent.get("body"))[:300],
+                    "text": text,
+                }
+            time.sleep(1)
+        return {"was_away": False, "status": None, "messageID": "", "text": text}
+
+    def monitor_reads_away(self):
+        return self.machine.shell(f"tail -n 1 {agent_update.MONITOR_LOG_PATH}").stdout.strip().endswith(" down")
+
+    def was_answered(self, attempt):
+        if not attempt.get("messageID"):
+            return False
+        reading = self.wait_in_the_guest(
+            AGENT_ANSWER_COMMAND % {
+                "agent_path": COMPANY_CONDITION_PATH,
+                "messenger_path": MESSENGER_DATABASE_PATH,
+                "text": attempt["text"],
+                "message": attempt["messageID"],
+            },
+            the_agent_answered,
+            timeout_seconds=600,
+        )
+        return the_agent_answered(reading.stdout)
+
     def wait_in_the_guest(self, script, is_ready, timeout_seconds=300):
         deadline = time.monotonic() + timeout_seconds
         while True:
@@ -1417,6 +1621,12 @@ def main():
         default="fedora",
         help="the family of the fresh guest step 6 restores the backup onto (default: %(default)s)",
     )
+    parser.add_argument(
+        "--agent-update",
+        action="store_true",
+        help="move to the newer release the way an administrator's host_update does, through admind's socket, "
+        "instead of running the line again (step 10 in place of steps 3 and 7)",
+    )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
     parser.add_argument(
@@ -1425,6 +1635,14 @@ def main():
         help="the guest kernel; INTERNKIM_CONTAINER_KERNEL_PAGE_SIZE=16k tools/prepare-container-kernel builds the CM5's page size (default: %(default)s)",
     )
     options = parser.parse_args()
+    if options.agent_update and rig_model_key() == RIG_MODEL_KEY:
+        print(
+            "✗ native install rig\n"
+            "    --agent-update needs a model: the agent reports the update's result in words, and step 10\n"
+            "    fails without one. Run it under `monkeys run @test tools/test-native-install ...`.",
+            file=sys.stderr,
+        )
+        return 2
 
     rig = Rig(options)
     # --keep leaves a guest for autopsy, and a guest whose shared directory has been
@@ -1491,11 +1709,16 @@ def main():
                 step_nine = rig.step(9, "a backup the older release took comes back on a fresh machine without pgvector")
                 rig.take_the_older_backup(step_nine)
 
-            step_three = rig.step(3, "running the line again moves it to a newer release")
-            rig.run_step_three(step_three, releases)
+            is_an_agent_update = options.agent_update and rig.plane and len(releases) > 1
+            if is_an_agent_update:
+                step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
+                rig.run_step_ten(step_ten, releases, rig.plane)
+            else:
+                step_three = rig.step(3, "running the line again moves it to a newer release")
+                rig.run_step_three(step_three, releases)
 
             if not options.stand_in and not options.without_company:
-                if len(releases) > 1:
+                if len(releases) > 1 and not is_an_agent_update:
                     step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
                     rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
                     rig.observe_the_processes_moved(

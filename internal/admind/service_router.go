@@ -30,6 +30,7 @@ func (service *Service) router() http.Handler {
 	service.registerCompanyRoutes(multiplexer)
 	service.registerAssetRoutes(multiplexer)
 	service.registerBoardRoutes(multiplexer)
+	service.registerHostRoutes(multiplexer)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(multiplexer)))
 }

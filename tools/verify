@@ -350,6 +350,9 @@ GROUPS = [
             "internal/cli/release_package.go",
             "tools/test-native-install-family",
             "tools/native_install_families.py",
+            "tools/native_install_agent_update.py",
+            "internal/admind/host_update.go",
+            "internal/hostupdate/*",
             "web/static/install.sh",
         ],
         # The half that needs no guest. The rigs take a disposable guest and

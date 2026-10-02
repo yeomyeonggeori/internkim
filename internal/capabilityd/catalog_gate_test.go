@@ -896,6 +896,32 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"etcBusinessColor":"#94a3b8"`)
 			},
 		},
+		"host_version_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"installedVersion":"v2026.10.01.000000","channel":"stable","updateMethod":"apt","latestStable":{"version":"v2026.10.02.090000","publishedAt":"2026-10-02T09:00:00Z","notes":"Faster replies."},"isUpdateAvailable":true}`),
+			},
+			input: `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"isUpdateAvailable":true`)
+			},
+		},
+		"host_update": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"status":"started","fromVersion":"v2026.10.01.000000","toVersion":"v2026.10.02.090000","startedAt":"2026-10-02T14:00:00Z","expectedDowntimeSeconds":60}`),
+			},
+			input: `{"targetVersion":"v2026.10.02.090000"}`,
+			arrives: func(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
+				arriving.Context.IsApprovalContinuation = true
+				return arriving
+			},
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"status":"started"`)
+			},
+		},
 		"task_label_get": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{
