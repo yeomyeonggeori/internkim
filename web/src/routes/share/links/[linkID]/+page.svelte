@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { z } from 'zod';
+	import { REGEXP_ONLY_DIGITS } from 'bits-ui';
 	import { page } from '$app/state';
 	import * as InputOTP from '$lib/components/ui/input-otp';
 	import { Button } from '$lib/components/ui/button';
@@ -153,7 +154,7 @@
 						type="password"
 						inputmode="numeric"
 						autocomplete="one-time-code"
-						pattern="[0-9]*"
+						pattern={REGEXP_ONLY_DIGITS}
 						minlength={6}
 						maxlength={6}
 						required

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { z } from 'zod';
+	import { REGEXP_ONLY_DIGITS } from 'bits-ui';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as InputOTP from '$lib/components/ui/input-otp';
@@ -57,7 +58,7 @@
 		{#if isCodeSent}
 			<Field.Field>
 				<Field.Label for="guest-code">Email verification code</Field.Label>
-				<InputOTP.Root inputId="guest-code" pushPasswordManagerStrategy="none" maxlength={emailCodeLength} required bind:value={code} disabled={isBusy} pattern="[0-9]*">
+				<InputOTP.Root inputId="guest-code" pushPasswordManagerStrategy="none" maxlength={emailCodeLength} required bind:value={code} disabled={isBusy} pattern={REGEXP_ONLY_DIGITS}>
 					{#snippet children({ cells })}
 						<InputOTP.Group>
 							{#each cells.slice(0, emailCodeLength / 2) as cell (cell)}
