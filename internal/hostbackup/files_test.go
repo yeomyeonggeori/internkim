@@ -218,9 +218,6 @@ func TestARootThatIsASymlinkIsFollowedOnBothSides(t *testing.T) {
 	}
 }
 
-// Memory is one SQLite file per subject, several directories down inside the
-// workspace, so the rule has to be the file's own header rather than where it
-// sits: every database the backup walks is taken whole.
 func TestEverySQLiteDatabaseUnderARootIsTakenWholeHoweverDeepItSits(t *testing.T) {
 	source := t.TempDir()
 	databasePaths := map[string]string{

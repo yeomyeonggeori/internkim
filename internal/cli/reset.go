@@ -92,7 +92,7 @@ func runResetBlueclawHistory(arguments []string) error {
 func printBlueclawHistoryResetPlan() {
 	fmt.Println("This will delete Blueclaw conversation/runtime data:")
 	fmt.Println("  - task runs, task events, task steps, task artifacts, waits, sessions, schedules")
-	fmt.Println("  - raw events, attachments, content segments, conversations")
+	fmt.Println("  - raw events, attachments, conversations")
 	fmt.Println("  - every per-subject memory file under the workspace's .blueclaw/memory")
 	fmt.Println("  - guest workspace Postgres runtime state when /var/lib/blueclaw/workspace.ext4 exists")
 	fmt.Println("This will keep host policy and secrets. Guest runtime mirrors are rebuilt from policy on restart.")

@@ -18,7 +18,6 @@ func TestBlueclawHistoryResetTruncatesOnlyTablesTheMigrationsLeaveBehind(t *test
 	}
 }
 
-// A reset that cannot finish must not say it did.
 func TestBlueclawHistoryResetStopsOnTheFirstFailure(t *testing.T) {
 	script := blueclawHistoryResetScript()
 	if !strings.Contains(script, "ON_ERROR_STOP=1") {
@@ -29,10 +28,6 @@ func TestBlueclawHistoryResetStopsOnTheFirstFailure(t *testing.T) {
 	}
 }
 
-// liveTableNames reads what blueclaw's migrations create, drop and rename, in
-// order, and returns what is left standing. The reset names tables in one
-// statement, so a name the migrations no longer leave behind takes the whole
-// statement down with it.
 func liveTableNames(t *testing.T) map[string]bool {
 	t.Helper()
 	migrationPaths, errorValue := filepath.Glob(filepath.Join("..", "..", ".dependency", "blueclaw", "migrations", "*.sql"))
@@ -85,6 +80,7 @@ func truncatedTableNames(t *testing.T, script string) []string {
 	}
 	return names
 }
+
 func TestBlueclawHistoryResetScriptKeepsIdentityAndPolicyState(t *testing.T) {
 	script := blueclawHistoryResetScript()
 	forbiddenFragments := []string{
