@@ -7,7 +7,7 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import ActivityMarker from './activity-marker.svelte';
+	import ConversationDock from './conversation-dock.svelte';
 	import { createChannelTyping } from './channel-typing.svelte';
 	import { agentWorkingRefreshIntervalMs, stillWorkingSince } from './agent-working';
 	import ChannelMessageBody from './channel-message-body.svelte';
@@ -117,6 +117,7 @@
 		)
 	);
 	let isSending = $state(false);
+	let dockHeight = $state(0);
 	let threadEditing = $state<EditingMessage | null>(null);
 	let conversationComposer = $state<ChannelComposer | null>(null);
 	let threadComposer = $state<ChannelComposer | null>(null);
@@ -791,10 +792,10 @@
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
-<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+<div class="relative flex min-h-0 min-w-0 flex-1 flex-col" style:--dock-height="{dockHeight}px">
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 		{#if !hasLoadedOnce}
-			<div class="flex h-full flex-col gap-8 px-4 py-12">
+			<div class="flex h-full flex-col gap-8 px-4 pt-12 pb-[calc(var(--dock-height)+1rem)]">
 				{#each Array(6) as _, index (index)}
 					<div class="flex gap-3" class:flex-row-reverse={index % 3 === 0}>
 						<Skeleton class="size-9 shrink-0 rounded-full" />
@@ -806,7 +807,7 @@
 				{/each}
 			</div>
 		{:else if loadFailed && shownMessages.length === 0}
-			<Empty.Root class="h-full">
+			<Empty.Root class="h-full pb-[var(--dock-height)]">
 				<Empty.Header>
 					<Empty.Media variant="icon"><MessageCircleDashedIcon /></Empty.Media>
 					<Empty.Title>{text.unavailableTitle}</Empty.Title>
@@ -815,7 +816,7 @@
 				<Button variant="outline" size="sm" onclick={loadConversation}>{text.retry}</Button>
 			</Empty.Root>
 		{:else if shownMessages.length === 0}
-			<Empty.Root class="h-full">
+			<Empty.Root class="h-full pb-[var(--dock-height)]">
 				<Empty.Header>
 					<Empty.Media variant="icon"><MessageCircleDashedIcon /></Empty.Media>
 					<Empty.Title>{text.emptyTitle}</Empty.Title>
@@ -836,7 +837,7 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
-					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-12 [scrollbar-gutter:stable]"
+					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+1rem)] [scrollbar-gutter:stable]"
 				>
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
@@ -857,7 +858,7 @@
 						variant="outline"
 						size="sm"
 						onclick={scrollToBottom}
-						class="absolute bottom-4 left-1/2 -translate-x-1/2 shadow-md"
+						class="absolute bottom-[calc(var(--dock-height)+1rem)] left-1/2 -translate-x-1/2 shadow-md"
 					>
 						<ArrowDownIcon data-icon="inline-start" />
 						{jumpToLatestLabel(unseenCount, text)}
@@ -866,12 +867,7 @@
 			</div>
 		{/if}
 	</div>
-	<div class="relative">
-		{#if activity}
-			<div class="bg-background absolute inset-x-0 bottom-[calc(100%-0.625rem)] flex h-5 items-center px-4">
-				<ActivityMarker label={activity} />
-			</div>
-		{/if}
+	<ConversationDock {activity} bind:height={dockHeight}>
 		<ChannelComposer
 			bind:this={conversationComposer}
 			bind:isSending
@@ -884,7 +880,7 @@
 			onSend={sendToConversation}
 			onTyping={typing.announce}
 		/>
-	</div>
+	</ConversationDock>
 </div>
 {#if threadLayout === 'inline' && openThreadRoot}
 	<aside class="flex min-h-0 w-full max-w-md flex-col border-l">
