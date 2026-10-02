@@ -45,6 +45,10 @@ let residentSampler: ReturnType<typeof setInterval> | undefined;
 type Servers = { app: ReturnType<typeof Bun.serve>; chatd: ReturnType<typeof Bun.serve>; admind: ReturnType<typeof Bun.serve>; gateway: ReturnType<typeof Bun.serve> };
 let servers: Servers;
 
+async function fileTheBrowserPicked(): Promise<File> {
+	return new File([await Bun.file(sourcePath).arrayBuffer()], 'film.mov', { type: 'video/mp4' });
+}
+
 const chatdRangesAsked: string[] = [];
 const chatdUploads: { digest: string; sizeBytes: number; actor: unknown }[] = [];
 const admindAsked: { method: string; path: string; requester: string; range: string }[] = [];
@@ -425,7 +429,7 @@ describe('a file larger than the old frame, base64 and bucket limits, through th
 
 	test('a file sent with a message goes from the browser to the store, then on to the messenger, unchanged', async () => {
 		chatdUploads.length = 0;
-		const object = await uploadToStore(storeSessionOf(owner), Bun.file(sourcePath), 'video/mp4');
+		const object = await uploadToStore(storeSessionOf(owner), await fileTheBrowserPicked(), 'video/mp4');
 		const result = (await transferThroughTheHost(browserOf(owner), {
 			capability: 'person.media.upload',
 			body: { object, filename: 'film.mov', contentType: 'video/mp4' }
@@ -444,7 +448,7 @@ describe('a file larger than the old frame, base64 and bucket limits, through th
 	}, transferTimeout);
 
 	test('a file added on the Files screen lands in the owner\'s workspace, written as the owner, unchanged', async () => {
-		const object = await uploadToStore(storeSessionOf(owner), Bun.file(sourcePath), 'video/mp4');
+		const object = await uploadToStore(storeSessionOf(owner), await fileTheBrowserPicked(), 'video/mp4');
 		const result = (await transferThroughTheHost(browserOf(owner), {
 			capability: 'person.files.upload',
 			body: { object, directoryPath: owner.workspaceHome, filename: '../film.mov' }
