@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { SignJWT, exportJWK, generateKeyPair } from 'jose';
+import { SignJWT, decodeJwt, exportJWK, generateKeyPair } from 'jose';
 import { x25519 } from '@noble/curves/ed25519.js';
 import { base64URLOf } from '../../src/lib/company/seal-to-box';
 import { pairingPageAddressSchema } from '../../src/lib/company/box';
@@ -24,6 +24,7 @@ import {
 	companyOfHostSession,
 	controlPlane,
 	fleetCredentialKind,
+	hostAddressOf,
 	issueAgentKey,
 	provisionCompany,
 	sessionForHost,
@@ -473,6 +474,25 @@ describe('the routes a company computer calls accept its session', () => {
 			.from('contact')
 			.insert({ company_id: companyID, name: `Kept by the connected computer ${stamp}` });
 		expect(kept.error).toBeNull();
+	});
+
+	test('a session issued since the record began asking which computer holds it must name one', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const named = (await boxSessionFor(credentials, box.publicKey, environment, appURL))?.session.accessToken ?? '';
+		const unnamed = await recordTokenFor(signingKey, projectURL, {
+			userID: decodeJwt(named).sub ?? '',
+			email: hostAddressOf(companyID),
+			appMetadata: { company_id: companyID }
+		});
+
+		expect(await companyOfHostSession(credentials, named)).toBe(companyID);
+		expect(await companyOfHostSession(credentials, unnamed.accessToken)).toBeNull();
+		await expect(callingAgent(requestBearing(unnamed.accessToken), environment)).rejects.toMatchObject({ status: 403 });
+		const planted = await asMember({ projectURL, publishableKey }, unnamed.accessToken)
+			.from('contact')
+			.insert({ company_id: companyID, name: `Planted by a session naming no computer ${stamp}` });
+		expect(planted.error?.code).toBe('42501');
 	});
 
 	test('a computer the administrator disconnected is refused at once', async () => {

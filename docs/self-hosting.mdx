@@ -55,6 +55,11 @@ is applied to your project, through the Supabase CLI. Sign in with your own
 `supabase login` and run `supabase link --project-ref <ref>` before deploying;
 no Supabase access token is kept with the project's keys.
 
+A release therefore goes in one order: `supabase db push`, then the web app,
+then the edge functions and the gateway. Each migration is written to hold while
+the previous web app is still running, so one that asks more of a session
+accepts the sessions issued before it until they expire.
+
 ```bash
 cd web
 bun install

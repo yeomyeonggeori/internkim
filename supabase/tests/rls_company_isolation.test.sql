@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(44);
 
 delete from public.company;
 
@@ -1069,6 +1069,48 @@ begin
   delete from public.credential where company_id = '00000000-0000-0000-0000-0000ffffff0e' and kind = 'fleet';
   raise notice 'channel: a host session holds only while its computer is the company''s';
 end $$$block$, 'channel: a host session holds only while its computer is the company''s');
+
+select lives_ok($block$do $$
+declare
+  rule_since bigint := extract(epoch from internal.host_sessions_name_their_computer_since())::bigint;
+  claimed_company uuid;
+  hosted_contacts integer;
+begin
+  set local role authenticated;
+  perform set_config('request.jwt.claims', jsonb_build_object(
+    'sub', '00000000-0000-0000-0000-00000000e0e0',
+    'iat', rule_since - 60,
+    'app_metadata', jsonb_build_object('company_id', '00000000-0000-0000-0000-0000ffffff0e')
+  )::text, true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company = '00000000-0000-0000-0000-0000ffffff0e',
+    'a session issued before the rule, naming no computer, holds until it expires, got ' || coalesce(claimed_company::text, 'null');
+  select count(*) into hosted_contacts from public.contact;
+  assert hosted_contacts = 1, 'a session issued before the rule keeps its company''s contacts, saw ' || hosted_contacts;
+
+  perform set_config('request.jwt.claims', jsonb_build_object(
+    'sub', '00000000-0000-0000-0000-00000000e0e0',
+    'iat', rule_since + 60,
+    'app_metadata', jsonb_build_object('company_id', '00000000-0000-0000-0000-0000ffffff0e')
+  )::text, true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company is null,
+    'a session issued after the rule must name its computer, got ' || coalesce(claimed_company::text, 'null');
+  select count(*) into hosted_contacts from public.contact;
+  assert hosted_contacts = 0, 'a session issued after the rule naming no computer reads nothing, saw ' || hosted_contacts;
+
+  perform set_config('request.jwt.claims', jsonb_build_object(
+    'sub', '00000000-0000-0000-0000-00000000e0e0',
+    'iat', rule_since - 60,
+    'app_metadata', jsonb_build_object('company_id', '00000000-0000-0000-0000-0000ffffff0e', 'fleet_id', 'box-e-gone')
+  )::text, true);
+  select public.my_app_company() into claimed_company;
+  assert claimed_company is null,
+    'a session naming a computer the company moved off is refused however early it was issued, got ' || coalesce(claimed_company::text, 'null');
+
+  reset role;
+  raise notice 'channel: a session issued before the rule holds without naming its computer';
+end $$$block$, 'channel: a session issued before the rule holds without naming its computer');
 
 select lives_ok($block$do $$
 declare
