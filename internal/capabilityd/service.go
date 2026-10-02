@@ -23,7 +23,6 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
@@ -42,19 +41,8 @@ type Configuration struct {
 	OpenRouterEmbeddingBaseURL    string
 	OpenRouterEmbeddingModel      string
 	OpenRouterImageModel          string
-	EmbeddingProviderOrder        []string
-	OllamaBaseURL                 string
-	OllamaModel                   string
-	LlamaCppBaseURL               string
-	LlamaCppModel                 string
-	LlamaCppEmbeddingBaseURL      string
-	LlamaCppEmbeddingModel        string
 	SocketGroupName               string
-	LiteRTModelPath               string
-	LocalLLMRunnerPath            string
-	LocalInferenceMode            string
 	LocalOnly                     bool
-	LocalBackendOrder             []string
 	ProviderAttemptTimeout        time.Duration
 	AgentBrowserPath              string
 	DeviceBrowserExecutablePath   string
@@ -100,17 +88,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterEmbeddingBaseURL:    "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:      llmbackend.DefaultEmbeddingModelName,
 		OpenRouterImageModel:          modelladder.ImageModel,
-		EmbeddingProviderOrder:        llmbackend.DefaultLocalEmbeddingProviderOrder,
-		OllamaBaseURL:                 "http://127.0.0.1:11434",
-		OllamaModel:                   "gemma3:1b",
-		LlamaCppBaseURL:               locallm.LlamaCppBaseURL,
-		LlamaCppModel:                 "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
-		LlamaCppEmbeddingBaseURL:      locallm.LlamaCppEmbeddingBaseURL,
-		LlamaCppEmbeddingModel:        llmbackend.DefaultEmbeddingModelName,
 		SocketGroupName:               "blueclaw",
-		LiteRTModelPath:               locallm.ModelPath(),
-		LocalLLMRunnerPath:            "/usr/local/bin/internkim-local-llm-runner",
-		LocalInferenceMode:            "",
 		LocalOnly:                     false,
 		ProviderAttemptTimeout:        0,
 		AgentBrowserPath:              "agent-browser",
@@ -134,7 +112,6 @@ func (service Service) Run(ctx context.Context) error {
 		service.DeviceBrowsers = service.Configuration.WithDefaults().newDeviceBrowsers()
 	}
 	go service.DeviceBrowsers.KeepTidy(ctx)
-	service.applyLocalInferenceMode(ctx)
 	listener, errorValue := service.listen()
 	if errorValue != nil {
 		return errorValue
@@ -478,35 +455,8 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.OpenRouterImageModel == "" {
 		configuration.OpenRouterImageModel = defaultConfiguration.OpenRouterImageModel
 	}
-	if len(configuration.EmbeddingProviderOrder) == 0 {
-		configuration.EmbeddingProviderOrder = append([]string{}, defaultConfiguration.EmbeddingProviderOrder...)
-	}
-	if configuration.OllamaBaseURL == "" {
-		configuration.OllamaBaseURL = defaultConfiguration.OllamaBaseURL
-	}
-	if configuration.OllamaModel == "" {
-		configuration.OllamaModel = defaultConfiguration.OllamaModel
-	}
-	if configuration.LlamaCppBaseURL == "" {
-		configuration.LlamaCppBaseURL = defaultConfiguration.LlamaCppBaseURL
-	}
-	if configuration.LlamaCppModel == "" {
-		configuration.LlamaCppModel = defaultConfiguration.LlamaCppModel
-	}
-	if configuration.LlamaCppEmbeddingBaseURL == "" {
-		configuration.LlamaCppEmbeddingBaseURL = defaultConfiguration.LlamaCppEmbeddingBaseURL
-	}
-	if configuration.LlamaCppEmbeddingModel == "" {
-		configuration.LlamaCppEmbeddingModel = defaultConfiguration.LlamaCppEmbeddingModel
-	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName
-	}
-	if configuration.LiteRTModelPath == "" {
-		configuration.LiteRTModelPath = defaultConfiguration.LiteRTModelPath
-	}
-	if configuration.LocalLLMRunnerPath == "" {
-		configuration.LocalLLMRunnerPath = defaultConfiguration.LocalLLMRunnerPath
 	}
 	if configuration.AgentBrowserPath == "" {
 		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath

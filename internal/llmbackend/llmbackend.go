@@ -301,9 +301,6 @@ func completeChatWithProviderChain(providers []Provider, requestTrace string, co
 }
 
 func providerFailure(provider Provider, errorValue error) string {
-	if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {
-		return failure
-	}
 	if namedProvider, ok := provider.(interface{ Name() string }); ok {
 		providerName := namedProvider.Name()
 		if strings.HasPrefix(errorValue.Error(), providerName+": ") {
@@ -362,10 +359,6 @@ func joinedErrors(errorValues []error) string {
 
 func logFallback(provider Provider, errorValue error, requestTrace string) {
 	if errorValue != nil {
-		if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {
-			log.Printf("llm provider failed; trying next provider: %s; %s", failure, requestTrace)
-			return
-		}
 		log.Printf("llm provider failed; trying next provider: %v; %s", errorValue, requestTrace)
 	}
 }

@@ -245,7 +245,6 @@ func companyHostCapabilityService(layout CompanyHostLayout) CompanyHostService {
 			layout.BinaryPath(CapabilitydName),
 			"--socket", layout.CapabilitySocketPath(),
 			"--openrouter-key", CompanyHostModelKeyPath,
-			"--local-inference-mode", "remote",
 			"--blueclaw-url", BlueclawBaseURL,
 			"--blueclaw-workspace", layout.WorkspacePath,
 			"--admind-url", "http://" + CompanyHostAdmindListenAddress,

@@ -113,9 +113,6 @@ syncSharedDependencyArtifacts() {
   syncLocalState ".dependency/container-kernel"
   syncLocalState ".dependency/device-browser"
   syncLocalState ".dependency/agent-browser"
-  syncLocalState ".dependency/llama-cpp"
-  syncLocalState ".dependency/llama-cpp-models"
-  syncLocalState ".dependency/litert-models"
   syncLocalState ".dependency/buzz-relay"
 }
 

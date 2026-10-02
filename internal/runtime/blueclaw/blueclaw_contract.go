@@ -12,7 +12,6 @@ const (
 	BlueclawServiceName                  = "blueclaw"
 	CapabilitydName                      = "internkim-capabilityd"
 	AdmindName                           = "internkim-admind"
-	LocalLLMRunnerName                   = "internkim-local-llm-runner"
 	CapabilitydServiceName               = "internkim-capabilityd"
 	AdmindServiceName                    = "internkim-admind"
 	BlueclawUser                         = "blueclaw"
@@ -23,7 +22,6 @@ const (
 	BlueclawPOSIXHelperPath              = "/usr/local/bin/blueclaw-posix-helper"
 	CapabilitydBinaryPath                = "/usr/local/bin/internkim-capabilityd"
 	AdmindBinaryPath                     = "/usr/local/bin/internkim-admind"
-	LocalLLMRunnerBinaryPath             = "/usr/local/bin/internkim-local-llm-runner"
 	OpenRouterKeyPath                    = "/root/.internkim/secrets/openrouter-api-key"
 	BlueclawBaseURL                      = "http://127.0.0.1:8080"
 	AdmindBaseURL                        = "http://127.0.0.1:18080"
@@ -35,10 +33,6 @@ const (
 	AdmindSocketPath                     = "/run/internkim/admind.sock"
 	BlueclawMattermostTokenPath          = "/root/.internkim/secrets/mattermost-bot-token"
 	BlueclawMattermostLocalURL           = "http://127.0.0.1:8065"
-	LiteRTModelPath                      = "/root/.internkim/models/gemma-4-E4B-it.litertlm"
-	LiteRTModelSourceURL                 = "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm"
-	LiteRTModelRepository                = "litert-community/gemma-4-E4B-it-litert-lm"
-	LiteRTModelFilename                  = "gemma-4-E4B-it.litertlm"
 	BlueclawDefaultModelName             = modelladder.PrimaryModel
 	BlueclawDefaultModelContextTokens    = 1048576
 	BlueclawDeliveryConfigPath           = "/var/lib/blueclaw/delivery/config"
@@ -147,7 +141,6 @@ var secretsTheBlueclawUserMustNotRead = []string{
 	"/root/.internkim/secrets/openrouter-api-key",
 	BlueclawMattermostTokenPath,
 	"/root/.internkim/secrets/device-secret",
-	LiteRTModelPath,
 }
 
 func SecretIsolationShellTest() string {

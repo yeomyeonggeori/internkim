@@ -163,14 +163,6 @@
     "isRequiredOnPages": true,
     "isInVault": true
   },
-  "GEMMA_GGUF_NAME": {
-    "process": "tools/fetch-gemma-gguf",
-    "description": "the filename to save the fetched Gemma GGUF model as"
-  },
-  "GEMMA_GGUF_URL": {
-    "process": "tools/fetch-gemma-gguf",
-    "description": "the URL to download the Gemma GGUF model from"
-  },
   "HOME": {
     "process": "tools",
     "description": "the invoking user's home directory (standard POSIX variable), read to locate build caches"
@@ -180,8 +172,8 @@
     "description": "where Homebrew is installed, taken instead of asking `brew --prefix`; /opt/homebrew on Apple silicon, /usr/local on Intel, and anything at all in a prefix somebody chose"
   },
   "INTEGRATION_TESTS": {
-    "process": "web integration tests",
-    "description": "the test directory web/scripts/test-integration.sh runs against the local plane; tests/integration unless set, tests/transfer for the file transfer suite"
+    "process": "web scripts",
+    "description": "the directory web/scripts/test-integration.sh runs against the local plane; defaults to tests/integration, and test:messenger-gateway names tests/messenger-gateway"
   },
   "INTERNKIM_AGENT_BROWSER_PATH": {
     "process": "internal/browser and internal/capabilityd tests",
@@ -190,10 +182,6 @@
   "INTERNKIM_RIG_ARCHITECTURE": {
     "process": "tools/native_install_rig.py",
     "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
-  },
-  "INTEGRATION_TESTS": {
-    "process": "web scripts",
-    "description": "the directory web/scripts/test-integration.sh runs against the local plane; defaults to tests/integration, and test:messenger-gateway names tests/messenger-gateway"
   },
   "INTERNKIM_APP_URL": {
     "process": "relay, host",
@@ -286,10 +274,6 @@
     "process": "internal/browser tests",
     "description": "when \"1\", internal/browser/runtime_test.go launches a real Chrome instead of skipping"
   },
-  "INTERNKIM_RIG_ARCHITECTURE": {
-    "process": "tools/native_install_rig.py",
-    "description": "the architecture of the guests the install rigs boot, arm64 or amd64 (under Rosetta); defaults to arm64"
-  },
   "INTERNKIM_SSH_HOSTNAME": {
     "process": "cli",
     "description": "the board's ssh hostname, from the @production vault profile; `internkim ssh` and `internkim recover` reach the board by it when no --host is given",
@@ -310,38 +294,6 @@
   "INTERNKIM_TOKEN": {
     "process": "web plane tests",
     "description": "a personal-access-token bearer for the public API; web/tests/plane/a-company-plane.ts strips it from the sandboxed company plane's environment so a token in the caller's own shell cannot skip approval and requester identity there"
-  },
-  "LD_LIBRARY_PATH": {
-    "process": "device",
-    "description": "the shared-library search path cmd/internkim-local-llm-runner extends with the LiteRT main library directory before launching litert_lm_main"
-  },
-  "LITERT_LM_BAZELISK_VERSION": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the Bazelisk version used to build litert_lm_main"
-  },
-  "LITERT_LM_REMOTE_WORK_ROOT": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the working directory on the remote host litert_lm_main is built in"
-  },
-  "LITERT_LM_VERSION": {
-    "process": "tools/build-litert-lm-main",
-    "description": "the litert_lm_main source version/ref to build"
-  },
-  "LLAMA_CPP_BUILD_JOBS": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the parallel job count for the remote llama.cpp build"
-  },
-  "LLAMA_CPP_CUDA_ARCH": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the CUDA architecture llama.cpp is built for on the Jetson"
-  },
-  "LLAMA_CPP_REMOTE_WORK_ROOT": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the working directory on the remote host llama.cpp is built in"
-  },
-  "LLAMA_CPP_VERSION": {
-    "process": "tools/build-llama-cpp-jetson",
-    "description": "the llama.cpp source version/ref to build"
   },
   "LOCAL_PLANE_LOCK_HOLDER": {
     "process": "tools/with-local-plane",

@@ -7,14 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 )
 
 func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
@@ -22,18 +20,6 @@ func TestConfigurationDefaultsIncludeAdmindBaseURL(t *testing.T) {
 
 	if configuration.AdmindBaseURL != DefaultConfiguration().AdmindBaseURL {
 		t.Fatalf("expected admind base url default, got %q", configuration.AdmindBaseURL)
-	}
-}
-
-func TestDefaultLlamaCppModelMatchesActualDeployedModel(t *testing.T) {
-	configuration := DefaultConfiguration()
-
-	deployedModelName := strings.TrimSuffix(locallm.LlamaCppModelFilename, ".gguf")
-	if configuration.LlamaCppModel != "local/"+deployedModelName {
-		t.Fatalf("expected default llamacpp model label to reflect the actual on-device model %q, got %q", locallm.LlamaCppModelFilename, configuration.LlamaCppModel)
-	}
-	if strings.Contains(strings.ToLower(configuration.LlamaCppModel), "e4b") {
-		t.Fatalf("default llamacpp model label must not reference the E4B variant, which does not fit the 8GB Jetson: got %q", configuration.LlamaCppModel)
 	}
 }
 
@@ -54,262 +40,6 @@ func TestProviderHTTPClientHasNoDefaultTimeout(t *testing.T) {
 	service := Service{Configuration: Configuration{}.WithDefaults()}
 	if service.providerHTTPClient().Timeout != 0 {
 		t.Fatalf("expected provider HTTP client without a default timeout, got %s", service.providerHTTPClient().Timeout)
-	}
-}
-
-func TestLocalStructuredCompletionUsesRequestedAccelerator(t *testing.T) {
-	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
-	configuration := DefaultConfiguration()
-	configuration.LocalBackendOrder = []string{"litert"}
-	service := Service{
-		Configuration: configuration,
-		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
-			_ = ctx
-			_ = executablePath
-			_ = arguments
-			document := string(standardInput)
-			if strings.Contains(document, `"accelerator":"cpu"`) &&
-				strings.Contains(document, `"constrainedDecoding"`) {
-				return []byte(`{"content":"{\"content\":\"ok\"}","constraintMode":"litert_llguidance_json_schema"}`), nil
-			}
-			t.Fatalf("unexpected wrapper request: %s", document)
-			return nil, nil
-		},
-	}
-
-	response, errorValue := service.completeStructured(context.Background(), StructuredLLMRequest{
-		ExecutionMode: "device",
-		Accelerator:   "cpu",
-		Messages:      []LLMMessage{{Role: "user", Content: "hello"}},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "plain_text_response",
-			Document: json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
-		},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected local completion to succeed: %v", errorValue)
-	}
-
-	if response.SelectedBackend != "cpu" {
-		t.Fatalf("expected cpu backend, got %q", response.SelectedBackend)
-	}
-	if response.ConstraintMode != "litert_llguidance_json_schema" {
-		t.Fatalf("expected LiteRT constrained decoding mode, got %q", response.ConstraintMode)
-	}
-}
-
-func TestLocalStructuredCompletionRejectsInvalidStructuredOutput(t *testing.T) {
-	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
-	service := Service{
-		Configuration: DefaultConfiguration(),
-		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"plain text","constraintMode":"litert_llguidance_json_schema"}`), nil
-		},
-	}
-
-	_, errorValue := service.completeStructured(context.Background(), StructuredLLMRequest{
-		ExecutionMode: "device",
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "plain_text_response",
-			Document: json.RawMessage(`{"type":"object","properties":{"content":{"type":"string"}},"required":["content"],"additionalProperties":false}`),
-		},
-	})
-	if errorValue == nil {
-		t.Fatalf("expected invalid structured output to fail")
-	}
-}
-
-func TestTextCompletionReturnsPlainContent(t *testing.T) {
-	configuration := DefaultConfiguration()
-	configuration.LocalBackendOrder = []string{"litert"}
-	service := Service{
-		Configuration: configuration,
-		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"plain reply"}`), nil
-		},
-	}
-
-	response, errorValue := service.completeText(context.Background(), TextLLMRequest{
-		ExecutionMode: "device",
-		Messages:      []LLMMessage{{Role: "user", Content: "hello"}},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected text completion to succeed: %v", errorValue)
-	}
-	if response.Content != "plain reply" {
-		t.Fatalf("expected plain text content, got %q", response.Content)
-	}
-}
-
-func TestStructuredEndpointReturnsConstrainedContent(t *testing.T) {
-	setLiteRTConstrainedRunnerPath(t, createLiteRTConstrainedRunner(t))
-	configuration := DefaultConfiguration()
-	configuration.LocalBackendOrder = []string{"litert"}
-	service := Service{
-		Configuration: configuration,
-		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"{\"reply\":\"hello\"}","constraintMode":"litert_llguidance_json_schema"}`), nil
-		},
-	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/llm/structured", strings.NewReader(`{
-		"model":"local/gemma",
-		"executionMode":"device",
-		"messages":[{"role":"user","content":"hello"}],
-		"structuredOutputSchema":{
-			"name":"reply",
-			"document":{"type":"object","properties":{"reply":{"type":"string"}},"required":["reply"],"additionalProperties":false},
-			"isStrictlyEnforced":true
-		}
-	}`))
-	responseRecorder := httptest.NewRecorder()
-
-	service.router().ServeHTTP(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("expected structured endpoint success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
-	}
-	var response LLMResponse
-	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
-		t.Fatalf("expected response to decode: %v", errorValue)
-	}
-	if response.Content != `{"reply":"hello"}` {
-		t.Fatalf("expected structured content, got %q", response.Content)
-	}
-	if response.ConstraintMode != "litert_llguidance_json_schema" {
-		t.Fatalf("expected LiteRT constrained decoding mode, got %q", response.ConstraintMode)
-	}
-}
-
-func TestChatEndpointReturnsNativeToolCalls(t *testing.T) {
-	secretPath := filepath.Join(t.TempDir(), "openrouter-api-key")
-	if errorValue := os.WriteFile(secretPath, []byte("sk-test"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	var receivedDocument map[string]any
-	service := Service{
-		Configuration: Configuration{
-			OpenRouterKeyPath: secretPath,
-			OpenRouterBaseURL: "https://openrouter.test/api/v1/chat/completions",
-			OpenRouterModel:   "configured-model",
-		}.WithDefaults(),
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/api/v1/chat/completions" {
-				t.Fatalf("expected OpenRouter chat path, got %s", request.URL.Path)
-			}
-			if request.Header.Get("Authorization") != "Bearer sk-test" {
-				t.Fatalf("expected authorization header, got %q", request.Header.Get("Authorization"))
-			}
-			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
-				t.Fatalf("expected request document: %v", errorValue)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":"","tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"query\":\"status\"}"}}]}}],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/llm/chat", strings.NewReader(`{
-		"model":"default",
-		"executionMode":"remote",
-		"messages":[{"role":"user","content":"check status"}],
-		"tools":[{"type":"function","function":{"name":"lookup","description":"Lookup status","parameters":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}}],
-		"toolChoice":{"type":"function","function":{"name":"lookup"}},
-		"parallelToolCalls":false
-	}`))
-	responseRecorder := httptest.NewRecorder()
-
-	service.router().ServeHTTP(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("expected chat endpoint success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
-	}
-	if receivedDocument["model"] != "configured-model" {
-		t.Fatalf("expected configured model, got %+v", receivedDocument)
-	}
-	toolChoice := receivedDocument["tool_choice"].(map[string]any)
-	function := toolChoice["function"].(map[string]any)
-	if toolChoice["type"] != "function" || function["name"] != "lookup" {
-		t.Fatalf("expected tool choice object, got %+v", toolChoice)
-	}
-	if receivedDocument["parallel_tool_calls"] != false {
-		t.Fatalf("expected parallel tool calls false, got %+v", receivedDocument)
-	}
-	var response ChatLLMResponse
-	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
-		t.Fatalf("expected response to decode: %v", errorValue)
-	}
-	if response.FinishReason != "tool_calls" {
-		t.Fatalf("expected tool_calls finish reason, got %q", response.FinishReason)
-	}
-	if len(response.Message.ToolCalls) != 1 {
-		t.Fatalf("expected one tool call, got %+v", response.Message.ToolCalls)
-	}
-	toolCall := response.Message.ToolCalls[0]
-	if toolCall.Function.Name != "lookup" || toolCall.Function.Arguments != `{"query":"status"}` {
-		t.Fatalf("expected tool call arguments string, got %+v", toolCall)
-	}
-	if response.Usage.TotalTokens != 7 {
-		t.Fatalf("expected usage to round trip, got %+v", response.Usage)
-	}
-}
-
-func TestTextEndpointReturnsPlainContent(t *testing.T) {
-	configuration := DefaultConfiguration()
-	configuration.LocalBackendOrder = []string{"litert"}
-	service := Service{
-		Configuration: configuration,
-		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return []byte(`{"content":"plain endpoint reply"}`), nil
-		},
-	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/llm/text", strings.NewReader(`{
-		"executionMode":"device",
-		"messages":[{"role":"user","content":"hello"}]
-	}`))
-	responseRecorder := httptest.NewRecorder()
-
-	service.router().ServeHTTP(responseRecorder, request)
-
-	if responseRecorder.Code != http.StatusOK {
-		t.Fatalf("expected text endpoint success, got %d: %s", responseRecorder.Code, responseRecorder.Body.String())
-	}
-	var response LLMResponse
-	if errorValue := json.NewDecoder(responseRecorder.Body).Decode(&response); errorValue != nil {
-		t.Fatalf("expected response to decode: %v", errorValue)
-	}
-	if response.Content != "plain endpoint reply" {
-		t.Fatalf("expected plain response content, got %q", response.Content)
-	}
-}
-
-func TestHealthIncludesLiteRTProviderAvailability(t *testing.T) {
-	setLiteRTConstrainedRunnerPath(t, filepath.Join(t.TempDir(), "missing-constrained-runner"))
-	configuration := DefaultConfiguration()
-	configuration.LocalBackendOrder = []string{"litert"}
-	service := Service{Configuration: configuration}
-
-	liteRT := healthProvider(t, service, "litert")
-	if liteRT["configured"] != true {
-		t.Fatalf("expected LiteRT to be configured, got %+v", liteRT)
-	}
-	if liteRT["available"] != false {
-		t.Fatalf("expected LiteRT to be unavailable, got %+v", liteRT)
-	}
-	if liteRT["reason"] != "constrained runner not installed" {
-		t.Fatalf("expected constrained runner reason, got %+v", liteRT)
-	}
-}
-
-func TestHealthReportsLiteRTUnconfiguredWhenAnotherLocalBackendIsOrdered(t *testing.T) {
-	setLiteRTConstrainedRunnerPath(t, filepath.Join(t.TempDir(), "missing-constrained-runner"))
-	configuration := DefaultConfiguration()
-	configuration.LocalBackendOrder = []string{"llamacpp"}
-	service := Service{Configuration: configuration}
-
-	liteRT := healthProvider(t, service, "litert")
-	if liteRT["configured"] != false {
-		t.Fatalf("expected LiteRT to be reported as unconfigured, got %+v", liteRT)
 	}
 }
 
@@ -457,7 +187,6 @@ func TestRemoteEmbeddingModePreservesRequestedEmbeddingModel(t *testing.T) {
 	service := Service{Configuration: Configuration{
 		OpenRouterKeyPath:          secretPath,
 		OpenRouterEmbeddingBaseURL: "https://example.test/embeddings",
-		LocalInferenceMode:         "remote",
 	}}
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		var document map[string]any
@@ -477,23 +206,5 @@ func TestRemoteEmbeddingModePreservesRequestedEmbeddingModel(t *testing.T) {
 	_, errorValue := service.createEmbedding(context.Background(), EmbeddingRequest{Input: "hello", Model: "embeddinggemma", ExecutionMode: "auto"})
 	if errorValue != nil {
 		t.Fatalf("expected remote embedding creation to succeed: %v", errorValue)
-	}
-}
-
-func TestAMachineWithoutSystemdIsNotReportedAsAFailure(t *testing.T) {
-	commands := []string{}
-	service := Service{
-		Configuration: Configuration{LocalInferenceMode: "remote"},
-		RunCommand: func(_ context.Context, executablePath string, arguments []string, _ []byte) ([]byte, error) {
-			commands = append(commands, executablePath+" "+strings.Join(arguments, " "))
-			return []byte("ok"), nil
-		},
-		LookupExecutable: func(string) (string, error) { return "", exec.ErrNotFound },
-	}
-
-	service.applyLocalInferenceMode(context.Background())
-
-	if len(commands) != 0 {
-		t.Fatalf("a host with no systemd has no llama.cpp service to stop, and saying so on every start reads as a defect: %+v", commands)
 	}
 }

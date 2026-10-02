@@ -51,6 +51,3 @@ prepare-buzz-relay:
 prepare-buzz-relay-linux:
 	tools/prepare-buzz-relay --target linux
 
-build-litert-lm-main:
-	tools/build-litert-lm-main
-

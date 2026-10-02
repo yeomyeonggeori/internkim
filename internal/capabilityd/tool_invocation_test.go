@@ -203,40 +203,9 @@ func TestValidateContractedCapabilityResponseRejectsAnAnswerThisMachineWrote(t *
 	}
 }
 
-func TestAutoProviderDefaultsToRemoteBeforeLocalFallback(t *testing.T) {
-	service := Service{}
-	providers := service.automaticLLMProviders(
-		staticLLMProvider{response: LLMResponse{Provider: "litert", SelectedBackend: "cpu", Content: `{"reply":"device"}`}},
-		staticLLMProvider{response: LLMResponse{Provider: "openrouter", SelectedBackend: capabilities.LLMBackendRemote, Content: `{"reply":"remote"}`}},
-	)
-	autoProvider := AutoProvider{Providers: providers}
-
-	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
-	if errorValue != nil {
-		t.Fatalf("expected remote first response: %v", errorValue)
-	}
-	if response.SelectedBackend != capabilities.LLMBackendRemote {
-		t.Fatalf("expected remote backend first, got %q", response.SelectedBackend)
-	}
-}
-
-func TestAutoProviderLocalOnlyBlocksRemoteFallback(t *testing.T) {
-	service := Service{Configuration: Configuration{LocalOnly: true}}
-	providers := service.automaticLLMProviders(
-		staticLLMProvider{errorValue: errTestProviderUnavailable},
-		staticLLMProvider{response: LLMResponse{Provider: "openrouter", SelectedBackend: capabilities.LLMBackendRemote}},
-	)
-	autoProvider := AutoProvider{Providers: providers}
-	response, errorValue := autoProvider.CompleteStructured(context.Background(), StructuredLLMRequest{})
-	_ = response
-	if errorValue == nil {
-		t.Fatal("expected local-only auto provider to avoid remote fallback")
-	}
-}
-
 func TestRemoteExecutionFailsInLocalOnlyMode(t *testing.T) {
 	service := Service{Configuration: Configuration{LocalOnly: true}}
-	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote, "", "")
+	_, errorValue := service.providerForExecutionMode(capabilities.ExecutionModeRemote)
 	if errorValue == nil {
 		t.Fatal("expected remote execution to fail in local-only mode")
 	}

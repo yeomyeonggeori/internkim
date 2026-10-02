@@ -1,10 +1,6 @@
 package blueclaw
 
-import (
-	"fmt"
-
-	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
-)
+import "fmt"
 
 // BuzzRelayReadinessURL is the one address anything asking "is the messenger
 // ready" asks, on the device and on the packaged host alike.
@@ -41,42 +37,4 @@ RestartSec=2
 [Install]
 WantedBy=multi-user.target
 `, BuzzMediaEnvironmentFilePath, BuzzMediaBinaryPath, BuzzMediaAddress, BuzzMediaHealthPath, BuzzMediaRootPath)
-}
-
-func LlamaCppServiceUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=internkim llama.cpp Server
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-User=root
-Environment=LD_LIBRARY_PATH=%s
-ExecStart=%s -m %s --model-draft %s --spec-type draft-mtp --spec-draft-n-max 4 --host %s --port %s -ngl 99 --spec-draft-ngl 99 -fa on --chat-template gemma --log-disable
-Restart=on-failure
-RestartSec=2
-TimeoutStartSec=180
-
-[Install]
-WantedBy=multi-user.target
-`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppModelPath, locallm.LlamaCppDraftModelPath, locallm.LlamaCppHost, locallm.LlamaCppPort)
-}
-
-func LlamaCppEmbeddingServiceUnit() string {
-	return fmt.Sprintf(`[Unit]
-Description=internkim llama.cpp Embedding Server
-After=network-online.target time-sync.target
-Wants=network-online.target time-sync.target
-
-[Service]
-User=root
-Environment=LD_LIBRARY_PATH=%s
-ExecStart=%s -m %s --host %s --port %s -ngl 0 --embeddings --pooling cls --batch-size %s --ubatch-size %s --log-disable
-Restart=on-failure
-RestartSec=2
-TimeoutStartSec=120
-
-[Install]
-WantedBy=multi-user.target
-`, locallm.LlamaCppLibraryDir, locallm.LlamaCppBinaryPath, locallm.LlamaCppEmbeddingModelPath, locallm.LlamaCppHost, locallm.LlamaCppEmbeddingPort, locallm.LlamaCppEmbeddingBatchSize, locallm.LlamaCppEmbeddingUBatchSize)
 }
