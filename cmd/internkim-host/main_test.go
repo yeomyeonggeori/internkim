@@ -88,3 +88,21 @@ func TestAModelKeyFileThatHoldsNothingIsRefusedRatherThanIgnored(t *testing.T) {
 		t.Fatalf("an empty key file returned %v", errorValue)
 	}
 }
+
+func TestOutputAnswersWithWhatTheCommandPrintedAndNotWhatItComplained(t *testing.T) {
+	script := `echo 'LOG:  42501: could not change directory to "/home/sample": Permission denied' >&2; echo 15`
+	answer, errorValue := thisComputer{}.Output("sh", []string{"-c", script})
+	if errorValue != nil {
+		t.Fatalf("the command failed: %v", errorValue)
+	}
+	if answer != "15\n" {
+		t.Fatalf("the answer was %q", answer)
+	}
+}
+
+func TestOutputCarriesTheComplaintOfACommandThatFailed(t *testing.T) {
+	_, errorValue := thisComputer{}.Output("sh", []string{"-c", "echo 'no such cluster' >&2; exit 3"})
+	if errorValue == nil || !strings.Contains(errorValue.Error(), "no such cluster") {
+		t.Fatalf("the failure was %v", errorValue)
+	}
+}

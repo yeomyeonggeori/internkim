@@ -50,6 +50,7 @@ func (machine *recordedMachine) ranStatementsCarrying(text string) bool {
 }
 
 func (machine *recordedMachine) Output(name string, arguments []string) (string, error) {
+	machine.runs = append(machine.runs, append([]string{name}, arguments...))
 	if failure, failing := machine.failures[name]; failing {
 		return "", failure
 	}

@@ -31,7 +31,7 @@ func backupPlatformOf(platform companyHostPlatform) (backupPlatform, error) {
 }
 
 func (platform linuxPlatform) asTheDatabaseAccount(arguments ...string) []string {
-	return append([]string{"-u", blueclaw.CompanyHostDatabaseUser, "--", platform.Layout().DataServicePath()}, arguments...)
+	return asAnotherAccount(blueclaw.CompanyHostDatabaseUser, append([]string{platform.Layout().DataServicePath()}, arguments...)...)
 }
 
 func (platform linuxPlatform) DatabaseMajor(machine Machine) (int, error) {

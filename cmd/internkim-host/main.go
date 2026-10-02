@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -43,16 +44,18 @@ func (thisComputer) Stream(name string, arguments []string, streams companyhost.
 	return command.Run()
 }
 
-// Output answers with what the command printed, and with an error carrying what
-// it complained about, because a failure a person has to act on is in the
-// program's own words rather than in an exit status.
+// Output answers with what the command printed on its standard output, and with
+// an error carrying what it complained about, because a failure a person has to
+// act on is in the program's own words rather than in an exit status.
 func (thisComputer) Output(name string, arguments []string) (string, error) {
+	var printed, complaint bytes.Buffer
 	command := exec.Command(name, arguments...)
-	document, errorValue := command.CombinedOutput()
-	if errorValue != nil {
-		return string(document), fmt.Errorf("%s: %s", errorValue, strings.TrimSpace(string(document)))
+	command.Stdout = &printed
+	command.Stderr = &complaint
+	if errorValue := command.Run(); errorValue != nil {
+		return printed.String(), fmt.Errorf("%s: %s", errorValue, strings.TrimSpace(complaint.String()+"\n"+printed.String()))
 	}
-	return string(document), nil
+	return printed.String(), nil
 }
 
 func (thisComputer) CarriesProgram(programName string) error {
