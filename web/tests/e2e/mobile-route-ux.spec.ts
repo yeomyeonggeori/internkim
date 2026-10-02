@@ -60,6 +60,22 @@ for (const width of [320, 390, 1280]) {
 	});
 }
 
+for (const width of [320, 390]) {
+	test(`files retain mobile root selection and shared preview after reader-role integration at ${width}px`, async ({ page }) => {
+		await page.setViewportSize({ width, height: 844 });
+		await page.goto('/files/');
+		await expect(page.getByRole('tab', { name: '데이터룸', exact: true })).toBeVisible();
+		const item = page.getByRole('button', { name: /주간-회고.md/ });
+		await expect(item).toBeVisible();
+		expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+		await page.getByRole('button', { name: '위치', exact: true }).click();
+		await page.getByRole('option', { name: '공개', exact: true }).click();
+		await page.getByRole('button', { name: /공지사항.md/ }).click();
+		await expect(page.getByRole('dialog')).toBeVisible();
+		await fits(page);
+	});
+}
+
 for (const viewport of [{ width: 320, height: 760 }, { width: 360, height: 760 }, { width: 390, height: 844 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
 	test(`workspace surfaces preserve mobile controls at ${viewport.width}px`, async ({ page }) => {
 		test.setTimeout(150_000);
