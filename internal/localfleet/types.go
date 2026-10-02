@@ -13,6 +13,7 @@ const (
 	ActionReset            = "reset"
 	ActionRunRecipe        = "runRecipe"
 	ActionRunScenario      = "runScenario"
+	ActionRunCompanyPlane  = "runCompanyPlane"
 	ActionUpgradeGate      = "upgradeGate"
 	ActionVerifyRegression = "verifyRegression"
 )

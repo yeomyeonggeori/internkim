@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestCompanyPlaneRunsInManagedLinuxFleet(t *testing.T) {
+func TestCompanyPlaneRunsInManagedLinuxVirtualMachine(t *testing.T) {
 	service, errorValue := NewService(Options{
 		RepositoryRootPath: "/repo", ExecutablePath: "/repo/internkim",
 		RunID: "plane-test", IsEphemeral: true, CompanyAppPort: 5197,
@@ -23,8 +23,13 @@ func TestCompanyPlaneRunsInManagedLinuxFleet(t *testing.T) {
 			t.Fatalf("missing %q in company plane plans: %s", expected, plans)
 		}
 	}
-	if scenarioNeedsRuntimeBase("company-plane") || !scenarioNeedsRuntimeBase("personal-settings") {
-		t.Fatal("company plane must build its binaries; device scenarios must validate their runtime payload")
+	for _, name := range ScenarioNames() {
+		if name == "company-plane" {
+			t.Fatal("the company plane is run by dev plane and is not a fleet scenario")
+		}
+	}
+	if !scenarioNeedsRuntimeBase("personal-settings") {
+		t.Fatal("device scenarios must validate their runtime payload")
 	}
 	cleanup := joinedPlanArguments(service.ephemeralCleanupPlans())
 	if !strings.Contains(cleanup, "'container' rm 'internkim-e2e-plane-test'") {
