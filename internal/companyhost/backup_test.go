@@ -203,16 +203,14 @@ func TestABackupClearsWhatAnInterruptedOneLeftAndNothingElse(t *testing.T) {
 }
 
 func TestEveryCommandRunAsAnotherAccountStartsFromANeutralDirectory(t *testing.T) {
-	machine := &recordedMachine{
-		answers: map[string]string{"runuser": "15\n"},
-		printed: map[string]string{"runuser": "15|t\n"},
-	}
+	machine := &recordedMachine{answers: map[string]string{"runuser": "15\n"}}
 	platform := linuxPlatform{}
 	if _, errorValue := platform.DatabaseMajor(machine); errorValue != nil {
 		t.Fatalf("read the major: %v", errorValue)
 	}
 	platform.DumpDatabase(machine, blueclaw.BlueclawDatabaseName, io.Discard)
-	platform.RestoreDatabase(machine, blueclaw.BlueclawDatabaseName, strings.NewReader(""))
+	platform.RestoreDatabase(machine, blueclaw.BlueclawDatabaseName, strings.NewReader(""), "")
+	platform.ListDump(machine, strings.NewReader(""))
 	platform.OwnersInDump(machine, strings.NewReader(""))
 	if errorValue := prepareDatabases(platform, machine, companyHostSettings{DatabasePassword: "password"}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)

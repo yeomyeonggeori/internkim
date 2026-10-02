@@ -30,7 +30,10 @@ from native_install_rig import (  # noqa: E402
     BACKUP_UNIT_NAME,
     BACKUPS_DIRECTORY,
     DATA_SERVICE_PATH,
+    DATABASE_DATA_DIRECTORY,
     DATABASE_USER,
+    REPOSITORY_LISTING_COMMAND,
+    RETIRED_MEMORY_STORE_COMMAND,
     expected_enablement,
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
@@ -245,14 +248,19 @@ REMEMBERED_ROW = """
 begin;
 insert into conversation (conversation_id, platform, external_conversation_id, conversation_type,
                           display_name, last_seen_at, created_at, updated_at)
-  values ('rig-backup-conversation', 'rig', 'rig-backup-conversation', 'direct', '%(phrase)s', now(), now(), now());
+  values ('%(conversation)s', 'rig', '%(conversation)s', 'direct', '%(phrase)s', now(), now(), now());
 commit;
 """
 
 REMEMBERED_ROW_AFTER_RESTORE = """
 select current_setting('server_version_num')::int / 10000,
-  (select display_name from conversation where conversation_id = 'rig-backup-conversation');
+  (select display_name from conversation where conversation_id = '%(conversation)s');
 """
+
+BACKUP_CONVERSATION = "rig-backup-conversation"
+OLDER_BACKUP_CONVERSATION = "rig-older-backup-conversation"
+PGVECTOR_CONTROL_FILES_COMMAND = "find /usr/share /usr/lib -name vector.control 2>/dev/null; true"
+UPGRADE_FOOTPRINT_COMMAND = REPOSITORY_LISTING_COMMAND + f"; cat {DATABASE_DATA_DIRECTORY}/PG_VERSION 2>/dev/null; true"
 
 PERSONS_FILE_COMMAND = r"""
 set -eu
@@ -386,6 +394,8 @@ class Rig:
         self.package_under_test = None
         self.message_text = message_asking_for_an_answer("")
         self.remembered_phrase = f"rig remembers {uuid.uuid4().hex[:12]}"
+        self.older_phrase = f"rig remembered before the upgrade {uuid.uuid4().hex[:12]}"
+        self.older_archive_path = None
         self.persons_file = ""
         self.persons_phrase = f"rig keeps {uuid.uuid4().hex[:12]}"
         self.archive_path = None
@@ -676,6 +686,7 @@ class Rig:
             )
         self.release.publish(releases[1])
         newer = package_fields(releases[1] / asset_name(".deb"))["Version"]
+        footprint_before = self.machine.shell(UPGRADE_FOOTPRINT_COMMAND).stdout.strip()
 
         gateway = self.machine.host_gateway()
         upgraded = self.machine.shell(
@@ -710,6 +721,15 @@ class Rig:
             "override the package does not ship, so editing that would say nothing about whether "
             "dpkg preserved an operator's work",
         ).record(CONFFILE_EDIT in edited.stdout, edited.stdout.strip()[-300:])
+
+        footprint_after = self.machine.shell(UPGRADE_FOOTPRINT_COMMAND).stdout.strip()
+        step.observe(
+            "the upgrade keeps any PostgreSQL repository an earlier install added, and the cluster on the major it was made by",
+            f"the apt source, pin and keyring files naming PostgreSQL or internkim, and {DATABASE_DATA_DIRECTORY}/PG_VERSION, "
+            "before and after the upgrade",
+            "a host an earlier release set up on PostgreSQL's own repository runs its database from it, and the "
+            "release under test adds no repository of its own",
+        ).record(footprint_after == footprint_before, f"before: {footprint_before or 'nothing'}\nafter:  {footprint_after or 'nothing'}")
         return step
 
     def plant_state(self):
@@ -740,12 +760,13 @@ class Rig:
         if unit_names:
             after = self.machine.shell(
                 "; ".join(
-                    f"printf '%s=%s/%s\\n' {name} "
-                    f"\"$(systemctl is-enabled {name} 2>&1)\" \"$(systemctl is-active {name} 2>&1)\""
+                    f"enablement=$(systemctl is-enabled {name} 2>/dev/null | head -n 1); "
+                    f"activity=$(systemctl is-active {name} 2>/dev/null | head -n 1); "
+                    f"printf '%s=%s/%s\\n' {name} \"${{enablement:-not-found}}\" \"${{activity:-inactive}}\""
                     for name in unit_names
                 )
             )
-            states = dict(line.split("=", 1) for line in after.stdout.split() if "=" in line)
+            states = dict(line.split("=", 1) for line in after.stdout.splitlines() if "=" in line)
             step.observe(
                 "the units are neither enabled nor running any more",
                 "`systemctl is-enabled` and `is-active` for every unit the package had shipped",
@@ -1079,6 +1100,13 @@ class Rig:
         self.observe_the_host_holds_the_gateway_socket(step)
         self.observe_the_member_round_trip(step, plane)
         self.observe_the_agent_answered(step)
+        retired = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND)
+        step.observe(
+            "the upgraded agent's database keeps no vector extension and none of the retired memory tables",
+            "pg_extension and pg_tables in the blueclaw database after the upgraded agent answered",
+            "the install drops the extension as the cluster's superuser and the agent's migration drops the tables; "
+            "a database still carrying either makes every later backup need pgvector to restore",
+        ).record(retired.returncode == 0 and not retired.stdout.strip(), retired.stdout.strip() or "none")
 
     def wait_in_the_guest(self, script, is_ready, timeout_seconds=300):
         deadline = time.monotonic() + timeout_seconds
@@ -1104,7 +1132,7 @@ class Rig:
             self.machine, self.files_command = held
 
     def take_a_backup(self, step):
-        remembered = self.machine.shell(in_the_agents_database(REMEMBERED_ROW % {"phrase": self.remembered_phrase}))
+        remembered = self.machine.shell(in_the_agents_database(REMEMBERED_ROW % {"conversation": BACKUP_CONVERSATION, "phrase": self.remembered_phrase}))
         written = self.machine.shell(PERSONS_FILE_COMMAND % {"phrase": shlex.quote(self.persons_phrase)})
         self.persons_file = written.stdout.strip().splitlines()[-1] if written.returncode == 0 else ""
         self.source_ownership = self.machine.shell(OWNERSHIP_COMMAND % {"path": self.persons_file or "/nonexistent"}).stdout
@@ -1158,7 +1186,64 @@ class Rig:
             self.machine.checked_shell(f"cp {archive} {SHARE_PATH}/")
             self.archive_path = self.machine.share_directory / Path(archive).name
 
-    def restore_elsewhere(self, step, plane):
+    def take_the_older_backup(self, step):
+        if self.machine.shell(f"systemctl cat {BACKUP_TIMER_NAME} >/dev/null 2>&1").returncode != 0:
+            return step.block("the older release takes no backup, so there is none from before the upgrade to restore")
+        carried = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND).stdout.strip()
+        if not carried:
+            return step.block(
+                "the older release's database carries no vector extension and no memory table, "
+                "so its backup proves nothing a newer one does not"
+            )
+        remembered = self.machine.shell(
+            in_the_agents_database(REMEMBERED_ROW % {"conversation": OLDER_BACKUP_CONVERSATION, "phrase": self.older_phrase})
+        )
+        backed_up = self.machine.shell(f"{PACKAGE_NAME} backup 2>&1", timeout_seconds=1800)
+        archive = self.machine.shell(f"ls -1 {BACKUPS_DIRECTORY}/internkim-backup-*.tar | tail -n 1").stdout.strip()
+        step.observe(
+            "the older release backs up a database that carries the retired memory store",
+            f"what the blueclaw database holds of the vector extension and the memory tables, and the exit status of "
+            f"`{PACKAGE_NAME} backup` on the older release",
+            "a backup of a database that never had them would restore anywhere, and this is the one a host "
+            "upgrading today already holds",
+        ).record(
+            remembered.returncode == 0 and backed_up.returncode == 0 and bool(archive),
+            f"carried: {carried}\n{backed_up.stdout.strip()[-600:]}",
+        )
+        if backed_up.returncode == 0 and archive:
+            self.machine.checked_shell(f"cp {archive} {SHARE_PATH}/")
+            self.older_archive_path = self.machine.share_directory / Path(archive).name
+
+    def restore_the_older_backup(self, step, family, share):
+        shutil.copyfile(self.older_archive_path, share / self.older_archive_path.name)
+        restored = self.restored_machine.shell(
+            f"{PACKAGE_NAME} restore {SHARE_PATH}/{self.older_archive_path.name} 2>&1", timeout_seconds=1800
+        )
+        control_files = self.restored_machine.shell(PGVECTOR_CONTROL_FILES_COMMAND).stdout.strip()
+        step.observe(
+            f"`internkim restore` brings back the older release's backup on a fresh {family.name} machine with no pgvector",
+            f"the exit status of `{PACKAGE_NAME} restore` and every vector.control on the machine",
+            "the backup names the vector extension and tables typed on it, and a restore that needed them would "
+            "fail on every machine this release installs",
+        ).record(restored.returncode == 0 and not control_files, f"vector.control: {control_files or 'none'}\n{restored.stdout.strip()[-1500:]}")
+        with self.driving(self.restored_machine, family.files_command):
+            phrase = self.machine.shell(
+                in_the_agents_database(REMEMBERED_ROW_AFTER_RESTORE % {"conversation": OLDER_BACKUP_CONVERSATION})
+            )
+            retired = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND)
+        fields = phrase.stdout.strip().split("|")
+        step.observe(
+            "the older backup's row is back, and the agent migrated it on this release to no vector extension "
+            "and no memory table",
+            "the phrase the restored row carries, and pg_extension and pg_tables in the restored blueclaw database",
+            "the restore leaves out only what is typed on vector; everything else has to come back, and the "
+            "agent's own migration is what drops the rest",
+        ).record(
+            len(fields) == 2 and fields[1] == self.older_phrase and retired.returncode == 0 and not retired.stdout.strip(),
+            f"{phrase.stdout.strip()[-300:]}\nleft: {retired.stdout.strip() or 'none'}",
+        )
+
+    def restore_elsewhere(self, step, plane, older_step=None):
         family = FAMILIES[self.options.restore_family]
         if self.archive_path is None:
             return step.block("no archive was written, so there is nothing to restore")
@@ -1177,9 +1262,13 @@ class Rig:
         installed = self.restored_machine.shell(
             self.release.install_line(self.restored_machine.host_gateway()), timeout_seconds=2400
         )
+        replacing = ""
+        if self.older_archive_path and older_step:
+            self.restore_the_older_backup(older_step, family, share)
+            replacing = " --replace"
         shutil.copyfile(self.archive_path, share / self.archive_path.name)
         restored = self.restored_machine.shell(
-            f"{PACKAGE_NAME} restore {SHARE_PATH}/{self.archive_path.name} 2>&1", timeout_seconds=1800
+            f"{PACKAGE_NAME} restore{replacing} {SHARE_PATH}/{self.archive_path.name} 2>&1", timeout_seconds=1800
         )
         step.observe(
             f"`internkim restore` brings the company back on a fresh {family.name} machine",
@@ -1199,7 +1288,7 @@ class Rig:
         return step
 
     def observe_what_came_back(self, step):
-        nearest = self.machine.shell(in_the_agents_database(REMEMBERED_ROW_AFTER_RESTORE))
+        nearest = self.machine.shell(in_the_agents_database(REMEMBERED_ROW_AFTER_RESTORE % {"conversation": BACKUP_CONVERSATION}))
         fields = nearest.stdout.strip().split("|")
         step.observe(
             "the remembered phrase comes back, on this machine's own PostgreSQL",
@@ -1397,6 +1486,11 @@ def main():
                 rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
 
+            step_nine = None
+            if not options.stand_in and not options.without_company and len(releases) > 1:
+                step_nine = rig.step(9, "a backup the older release took comes back on a fresh machine without pgvector")
+                rig.take_the_older_backup(step_nine)
+
             step_three = rig.step(3, "running the line again moves it to a newer release")
             rig.run_step_three(step_three, releases)
 
@@ -1414,7 +1508,7 @@ def main():
             rig.run_step_four(step_four)
 
             if rig.plane:
-                rig.restore_elsewhere(step_six, rig.plane)
+                rig.restore_elsewhere(step_six, rig.plane, step_nine)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep:

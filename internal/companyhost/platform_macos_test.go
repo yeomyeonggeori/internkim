@@ -139,7 +139,7 @@ func TestAServiceAccountCannotLogInAndDoesNotShowAtTheLoginWindow(t *testing.T) 
 // The password opens everything the company remembers, and every account on this
 // box can read another process's arguments.
 func TestThePasswordReachesPostgreSQLThroughTheEnvironmentOnAMacToo(t *testing.T) {
-	machine := &recordedMachine{printed: map[string]string{"sh": "17|t\n"}}
+	machine := &recordedMachine{}
 	password := strings.Repeat("7", 64)
 	if errorValue := prepareDatabases(macPlatformForTest(), machine, companyHostSettings{DatabasePassword: password}, io.Discard); errorValue != nil {
 		t.Fatalf("prepare the databases: %v", errorValue)
@@ -161,11 +161,13 @@ func TestThePasswordReachesPostgreSQLThroughTheEnvironmentOnAMacToo(t *testing.T
 	}
 }
 
-func TestAMacDatabaseWithoutTheVectorExtensionIsRefusedNamingTheFormula(t *testing.T) {
-	machine := &recordedMachine{printed: map[string]string{"sh": "17|f\n"}}
-	errorValue := prepareDatabases(macPlatformForTest(), machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard)
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "brew install pgvector") {
-		t.Fatalf("a Homebrew PostgreSQL without the vector extension was not refused with the formula to install: %v", errorValue)
+func TestAMacDatabaseIsPreparedWithoutPgvector(t *testing.T) {
+	machine := &recordedMachine{}
+	if errorValue := prepareDatabases(macPlatformForTest(), machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard); errorValue != nil {
+		t.Fatalf("a Homebrew PostgreSQL without pgvector was not prepared: %v", errorValue)
+	}
+	if !machine.ranStatementsCarrying("DROP EXTENSION IF EXISTS vector CASCADE;") {
+		t.Fatalf("the Mac's agent database kept a vector extension it no longer uses: %v", machine.runs)
 	}
 }
 

@@ -26,36 +26,15 @@ func TestThePackageAsksTheDistributionOnlyForWhatItDoesNotCarry(t *testing.T) {
 	}
 }
 
-// The memory store searches by embedding only where the agent's database has
-// pgvector, and keeps answering by words without it, so nothing fails on a
-// host that lacks it. Debian names pgvector once per PostgreSQL major, and apt
-// takes the first alternative its archive carries, so the newest comes first
-// and the oldest is the oldest the schema runs on.
-func TestEveryManagerAsksForTheVectorExtensionTheMemoryStoreSearchesWith(t *testing.T) {
-	expected := map[blueclaw.PackageManager]string{
-		blueclaw.PackageManagerApt: "postgresql-18-pgvector | postgresql-17-pgvector | postgresql-16-pgvector | " +
-			"postgresql-15-pgvector | postgresql-14-pgvector",
-		blueclaw.PackageManagerDnf:    "pgvector",
-		blueclaw.PackageManagerPacman: "pgvector",
+func TestNoManagerIsAskedForPgvector(t *testing.T) {
+	asked := map[string][]string{"brew": blueclaw.HostHomebrewDependencies()}
+	for _, manager := range []blueclaw.PackageManager{blueclaw.PackageManagerApt, blueclaw.PackageManagerDnf, blueclaw.PackageManagerPacman} {
+		asked[string(manager)] = blueclaw.HostPackageDependsFor(manager)
 	}
-	for manager, names := range expected {
-		depends := blueclaw.HostPackageDependsFor(manager)
-		if !slices.Contains(depends, names) {
-			t.Errorf("%s's dependency list does not ask for %q, so a host installs without vector search: %v", manager, names, depends)
+	for manager, depends := range asked {
+		if slices.ContainsFunc(depends, func(name string) bool { return strings.Contains(name, "pgvector") }) {
+			t.Errorf("%s is asked for pgvector, and nothing in the host's databases uses it: %v", manager, depends)
 		}
-	}
-	if !slices.Contains(blueclaw.HostHomebrewDependencies(), "pgvector") {
-		t.Errorf("the formula does not depend on pgvector: %v", blueclaw.HostHomebrewDependencies())
-	}
-}
-
-func TestTheVectorExtensionANamedMajorLoadsIsThatMajorsPackage(t *testing.T) {
-	dependency := blueclaw.VectorExtensionDependencyFor(16)
-	if names := dependency.PackagesFor(blueclaw.PackageManagerApt); !slices.Equal(names, []string{"postgresql-16-pgvector"}) {
-		t.Errorf("PostgreSQL 16 on apt is told to install %v", names)
-	}
-	if names := dependency.PackagesFor(blueclaw.PackageManagerDnf); !slices.Equal(names, []string{"pgvector"}) {
-		t.Errorf("PostgreSQL 16 on dnf is told to install %v", names)
 	}
 }
 

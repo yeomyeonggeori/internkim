@@ -237,13 +237,12 @@ blueclaw is one process built from separate repositories, each with one job:
 | [bluememo](https://github.com/yeomyeonggeori/bluememo) | long-term memory: facts extracted from finished work, scoped by owner and circle | `.dependency/blueclaw/.dependency/bluememo/` |
 | internkim-plugin | the skills the agent loads for a kind of work | `.dependency/internkim-plugin/` |
 
-Memory is one Postgres fact store. When a run finishes, bluememo has a
-model extract atomic facts from it; a newer fact supersedes an older one, a
-repeated fact reinforces one, and a person can ask the agent to forget one.
-Each fact has an owner and the circles it is shared with, and recall returns
-only what the reader may see. Search fuses vector similarity with word
-similarity through Postgres's `vector` extension, which the company host
-package installs with PostgreSQL and creates in the agent's database.
+Memory is one SQLite file per subject, under the workspace's
+`.blueclaw/memory`. When a run finishes, bluememo has a model extract
+self-contained sentences from it; a newer sentence replaces an older one, and a
+person can ask the agent to forget one. Recall searches the file by embedding
+and by words and answers without calling a model. None of it lives in
+Postgres.
 
 Models are named in one place, `internal/modelladder`. The agent asks for a
 tier, and capabilityd holds the key and makes the call, so the agent never sees

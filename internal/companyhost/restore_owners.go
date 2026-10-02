@@ -82,9 +82,7 @@ func restoreUnderForeignOwners(platform backupPlatform, archive hostbackup.Archi
 			return fmt.Errorf("the roles the %s dump names could not be made for the restore: %w", database, errorValue)
 		}
 	}
-	if errorValue := archive.ReadMember(member.Name, func(input io.Reader) error {
-		return platform.RestoreDatabase(machine, database, input)
-	}); errorValue != nil {
+	if errorValue := restoreWithoutRetiredEntries(platform, archive, machine, database, member, progress); errorValue != nil {
 		return errorValue
 	}
 	if len(roles) == 0 {
