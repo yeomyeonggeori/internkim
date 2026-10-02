@@ -101,10 +101,51 @@ func (linuxPlatform) HowToInstallTheseByHand(machine Machine, missing []missingP
 	for _, piece := range missing {
 		names = append(names, blueclaw.HostPackagesToInstallFor(manager, piece.Dependency)...)
 	}
-	return []string{
-		"  Your distribution carries the rest. Install them, then run this again:",
-		"    sudo " + strings.Join(manager.InstallWords(), " ") + " " + strings.Join(sortedAndUnique(names), " "),
+	offered, unoffered := splitByWhatTheManagerOffers(machine, manager, sortedAndUnique(names))
+	lines := []string{}
+	if len(offered) > 0 {
+		lines = append(lines,
+			"  Your distribution carries the rest. Install them, then run this again:",
+			"    sudo "+strings.Join(manager.InstallWords(), " ")+" "+strings.Join(offered, " "))
 	}
+	if len(unoffered) > 0 {
+		lines = append(lines,
+			"  No package source this machine uses offers "+strings.Join(unoffered, ", ")+".",
+			"  Run the install line, which adds the source we take each from where there is one, then run this again:",
+			"    "+installLine)
+	}
+	return lines
+}
+
+func splitByWhatTheManagerOffers(machine Machine, manager blueclaw.PackageManager, names []string) ([]string, []string) {
+	if manager != blueclaw.PackageManagerApt {
+		return names, nil
+	}
+	offered := []string{}
+	unoffered := []string{}
+	for _, name := range names {
+		if aptOffers(machine, name) {
+			offered = append(offered, name)
+			continue
+		}
+		unoffered = append(unoffered, name)
+	}
+	return offered, unoffered
+}
+
+func aptOffers(machine Machine, name string) bool {
+	policy, errorValue := machine.Output("apt-cache", []string{"policy", name})
+	if errorValue != nil {
+		return false
+	}
+	for _, line := range strings.Split(policy, "\n") {
+		candidate, isCandidateLine := strings.CutPrefix(strings.TrimSpace(line), "Candidate:")
+		if isCandidateLine {
+			candidate = strings.TrimSpace(candidate)
+			return candidate != "" && candidate != "(none)"
+		}
+	}
+	return false
 }
 
 func packageManagerOf(machine Machine) (blueclaw.PackageManager, bool) {

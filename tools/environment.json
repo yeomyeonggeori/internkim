@@ -330,6 +330,10 @@
     "process": "install script",
     "description": "the Homebrew tap web/static/install.sh taps before installing on macOS; defaults to this organisation's tap"
   },
+  "INTERNKIM_INSTALL_DATABASE_VERSION_PATH": {
+    "process": "install script",
+    "description": "the PG_VERSION file web/static/install.sh reads for the PostgreSQL major the host's existing database was made by; defaults to /var/lib/internkim-postgres/PG_VERSION"
+  },
   "INTERNKIM_INSTALL_OS_RELEASE": {
     "process": "install script",
     "description": "the os-release file web/static/install.sh reads for the suite of PostgreSQL's apt repository; defaults to /etc/os-release"

@@ -150,7 +150,10 @@ func conditionPathOf(unitContents string) string {
 // The preflight stands in for the package's dependencies on a binary run without it, so it reads
 // the same declaration rather than a list of its own.
 func TestThePreflightNamesWhatIsMissingAndTheCommandThatInstallsIt(t *testing.T) {
-	machine := &recordedMachine{missing: map[string]bool{"jq": true, "redis-server": true, "valkey-server": true}}
+	machine := &recordedMachine{
+		missing: map[string]bool{"jq": true, "redis-server": true, "valkey-server": true},
+		answers: map[string]string{"apt-cache": aptCandidate},
+	}
 	errorValue := requireWhatTheCompanyHostRuns(linuxPlatform{}, machine)
 	if errorValue == nil {
 		t.Fatal("a machine with no jq and no redis was accepted")
@@ -273,7 +276,11 @@ func TestADatabaseWithoutTheVectorExtensionIsRefusedNamingThePackageItsServerLoa
 		{"dnf", map[string]bool{"apt-get": true}, "sudo dnf install pgvector"},
 		{"pacman", map[string]bool{"apt-get": true, "dnf": true}, "sudo pacman -S --needed pgvector"},
 	} {
-		machine := &recordedMachine{printed: map[string]string{"runuser": "16|f\n"}, missing: example.missing}
+		machine := &recordedMachine{
+			printed: map[string]string{"runuser": "16|f\n"},
+			answers: map[string]string{"apt-cache": aptCandidate},
+			missing: example.missing,
+		}
 		errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard)
 		if errorValue == nil {
 			t.Fatalf("%s: a PostgreSQL without the vector extension was accepted, so recall would match words alone", example.manager)
@@ -285,6 +292,27 @@ func TestADatabaseWithoutTheVectorExtensionIsRefusedNamingThePackageItsServerLoa
 		}
 		if machine.ranStatementsCarrying("CREATE EXTENSION") {
 			t.Errorf("%s: the extension was created on a server that does not offer it", example.manager)
+		}
+	}
+}
+
+const aptCandidate = "postgresql-16-pgvector:\n  Installed: (none)\n  Candidate: 0.8.6-1\n"
+
+func TestARefusalNamesNoAptLineForAPackageNoSourceOffers(t *testing.T) {
+	machine := &recordedMachine{
+		printed: map[string]string{"runuser": "14|f\n"},
+		answers: map[string]string{"apt-cache": "postgresql-14-pgvector:\n  Installed: (none)\n  Candidate: (none)\n"},
+	}
+	errorValue := prepareDatabases(linuxPlatform{}, machine, companyHostSettings{DatabasePassword: "secret"}, io.Discard)
+	if errorValue == nil {
+		t.Fatal("a PostgreSQL without the vector extension was accepted")
+	}
+	if strings.Contains(errorValue.Error(), "apt-get install") {
+		t.Fatalf("the refusal names an apt-get line for a package apt does not offer:\n%s", errorValue)
+	}
+	for _, named := range []string{"postgresql-14-pgvector", installLine} {
+		if !strings.Contains(errorValue.Error(), named) {
+			t.Errorf("the refusal does not name %q:\n%s", named, errorValue)
 		}
 	}
 }

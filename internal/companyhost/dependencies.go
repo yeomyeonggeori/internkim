@@ -102,6 +102,8 @@ func machineCarriesAnyOf(machine Machine, programs []string) bool {
 
 // Our own programs are one line, the install script. What the distribution
 // carries is the platform's to phrase, in the words of the manager it has.
+const installLine = "curl -fsSL https://intern.kim/install.sh | sh -s -- host"
+
 func refusalNaming(platform companyHostPlatform, machine Machine, missing []missingPiece) string {
 	fromOurPackage := []string{}
 	fromElsewhere := []missingPiece{}
@@ -117,7 +119,7 @@ func refusalNaming(platform companyHostPlatform, machine Machine, missing []miss
 		lines = append(lines,
 			"  "+strings.Join(sortedAndUnique(fromOurPackage), ", ")+
 				" belong to the "+blueclaw.CompanyPackageName+" package and are not on this machine.",
-			"  Install it with: curl -fsSL https://intern.kim/install.sh | sh -s -- host")
+			"  Install it with: "+installLine)
 	}
 	if len(fromElsewhere) == 0 {
 		return strings.Join(lines, "\n")

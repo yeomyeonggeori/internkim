@@ -33,6 +33,7 @@ postgresql_keyring_path="/usr/share/keyrings/internkim-postgresql-archive-keyrin
 postgresql_source_path="/etc/apt/sources.list.d/internkim-postgresql.sources"
 postgresql_preferences_path="/etc/apt/preferences.d/internkim-postgresql.pref"
 postgresql_major_from_its_repository="15"
+database_version_path="${INTERNKIM_INSTALL_DATABASE_VERSION_PATH:-/var/lib/internkim-postgres/PG_VERSION}"
 
 stop() {
   echo "$1" >&2
@@ -177,6 +178,7 @@ install_the_package_file() {
     apt-get)
       privileged apt-get update || stop "apt-get update failed, and its own output is above. Nothing on this machine was changed."
       make_pgvector_available_to_apt "$1"
+      install_the_pgvector_the_database_runs_with
       privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$1" ;;
     dnf) privileged dnf install -y "$1" ;;
     pacman) privileged pacman -U --needed --noconfirm "$1" ;;
@@ -191,7 +193,15 @@ install_the_package_file() {
 make_pgvector_available_to_apt() {
   accepted_pgvector_packages="$(pgvector_packages_the_package_accepts "$1")"
   [ -n "$accepted_pgvector_packages" ] || return 0
-  apt_offers_one_of $accepted_pgvector_packages && return 0
+  database_major="$(major_of_the_existing_database)"
+  database_pgvector_package=""
+  wanted_pgvector_packages="$accepted_pgvector_packages"
+  if [ -n "$database_major" ]; then
+    database_pgvector_package="postgresql-$database_major-pgvector"
+    wanted_pgvector_packages="$database_pgvector_package"
+    refuse_a_database_major_the_package_takes_no_pgvector_for
+  fi
+  apt_offers_one_of $wanted_pgvector_packages && return 0
   pinned_pgvector_package="postgresql-$postgresql_major_from_its_repository-pgvector"
   case " $(echo $accepted_pgvector_packages) " in
     *" $pinned_pgvector_package "*) ;;
@@ -202,10 +212,33 @@ and $pinned_pgvector_package, the one PostgreSQL's own repository would be
 pinned to, is not among them. Nothing on this machine was changed." ;;
   esac
   add_the_postgresql_repository
-  apt_offers_one_of "$pinned_pgvector_package" || stop \
-"Even with PostgreSQL's own repository added, apt offers no $pinned_pgvector_package.
+  apt_offers_one_of ${database_pgvector_package:-$pinned_pgvector_package} || stop \
+"Even with PostgreSQL's own repository added, apt offers no ${database_pgvector_package:-$pinned_pgvector_package}.
 Undo what this script wrote with:
   sudo rm -f $postgresql_source_path $postgresql_preferences_path $postgresql_keyring_path && sudo apt-get update"
+}
+
+major_of_the_existing_database() {
+  privileged cat "$database_version_path" 2>/dev/null | tr -cd '0-9' || true
+}
+
+refuse_a_database_major_the_package_takes_no_pgvector_for() {
+  case " $(echo $accepted_pgvector_packages) " in
+    *" $database_pgvector_package "*) return 0 ;;
+  esac
+  stop \
+"This host's database was made by PostgreSQL $database_major, and the package takes
+pgvector only for these majors:
+  $(echo $accepted_pgvector_packages)
+Nothing on this machine was changed."
+}
+
+install_the_pgvector_the_database_runs_with() {
+  [ -n "${database_pgvector_package:-}" ] || return 0
+  privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y "$database_pgvector_package" || stop \
+"Installing $database_pgvector_package, which this host's PostgreSQL $database_major database
+needs before the package can be upgraded, failed, and apt's output is above.
+The package itself was not touched."
 }
 
 pgvector_packages_the_package_accepts() {
@@ -238,7 +271,7 @@ Nothing else on this machine was changed."
 and PostgreSQL publishes $postgresql_key_fingerprint for its apt repository.
 Nothing was added, and nothing on this machine was changed."
   echo "This machine's apt sources carry no pgvector. Adding PostgreSQL's own apt repository"
-  echo "($postgresql_repository_url, suite $codename-pgdg) for PostgreSQL $postgresql_major_from_its_repository and its pgvector only."
+  echo "($postgresql_repository_url, suite $codename-pgdg) for PostgreSQL $postgresql_major_from_its_repository and its pgvector only${database_pgvector_package:+, and PostgreSQL $database_major and its pgvector for the database this host already runs}."
   printf '%s\n' \
     "Types: deb" \
     "URIs: $postgresql_repository_url" \
@@ -251,7 +284,7 @@ Nothing was added, and nothing on this machine was changed."
     "Pin: origin $postgresql_repository_origin" \
     "Pin-Priority: -1" \
     "" \
-    "Package: postgresql-$postgresql_major_from_its_repository postgresql-client-$postgresql_major_from_its_repository postgresql-$postgresql_major_from_its_repository-pgvector postgresql-common postgresql-client-common libpq5" \
+    "Package: $(packages_the_repository_may_supply)" \
     "Pin: origin $postgresql_repository_origin" \
     "Pin-Priority: 500" \
     > "$work_dir/postgresql.pref"
@@ -267,6 +300,18 @@ Nothing was added, and nothing on this machine was changed."
 "apt-get update failed after PostgreSQL's own repository was added, and its output
 is above. Undo what this script wrote with:
   sudo rm -f $postgresql_source_path $postgresql_preferences_path $postgresql_keyring_path && sudo apt-get update"
+}
+
+packages_the_repository_may_supply() {
+  admitted="$(packages_of_one_major "$postgresql_major_from_its_repository") postgresql-common postgresql-client-common libpq5"
+  if [ -n "${database_major:-}" ] && [ "$database_major" != "$postgresql_major_from_its_repository" ]; then
+    admitted="$admitted $(packages_of_one_major "$database_major")"
+  fi
+  printf '%s' "$admitted"
+}
+
+packages_of_one_major() {
+  printf 'postgresql-%s postgresql-client-%s postgresql-%s-pgvector' "$1" "$1" "$1"
 }
 
 tell_what_to_do_next() {

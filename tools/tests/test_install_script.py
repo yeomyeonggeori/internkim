@@ -229,14 +229,19 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("-- host", completed.stderr)
 
     def linux_machine(self, manager, failing=False, sandbox_installs=True, apt_offers=("postgresql-17-pgvector",),
-                      served_fingerprint=published_postgresql_fingerprint):
+                      served_fingerprint=published_postgresql_fingerprint, database_major=None):
         """A machine that has one package manager, sudo and a sandbox for what root writes.
 
         An apt machine also answers `apt-cache policy` for the names in apt_offers,
-        and for the pinned pgvector once PostgreSQL's repository is in the sandbox.
+        and for whatever PostgreSQL's repository is pinned to admit once it is in
+        the sandbox. database_major is the PostgreSQL that made the host's
+        database, when the machine already has one.
         """
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.sandbox = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.database_version_path = directory / "PG_VERSION"
+        if database_major is not None:
+            self.database_version_path.write_text(f"{database_major}\n")
         if manager == "apt-get":
             self.write_apt_answers(directory, apt_offers, served_fingerprint)
         self.manager_log = directory / "manager.log"
@@ -257,11 +262,12 @@ class InstallScriptTests(unittest.TestCase):
 
     def write_apt_answers(self, directory, apt_offers, served_fingerprint):
         source = self.sandbox / "etc/apt/sources.list.d/internkim-postgresql.sources"
+        preferences = self.sandbox / "etc/apt/preferences.d/internkim-postgresql.pref"
         shims = {
             "dpkg-deb": f'#!/bin/sh\necho "postgresql, {package_pgvector_alternatives}, postgresql-client"\n',
             "apt-cache": (
                 "#!/bin/sh\n"
-                f'if [ -e "{source}" ] && [ "$2" = postgresql-15-pgvector ]; then echo "  Candidate: 0.8.6-1.pgdg22.04+2"; exit 0; fi\n'
+                f'if [ -e "{source}" ] && grep "^Package: " "{preferences}" | grep -qw -- "$2"; then echo "  Candidate: 0.8.6-1.pgdg22.04+2"; exit 0; fi\n'
                 f'case " {" ".join(apt_offers)} " in *" $2 "*) echo "  Candidate: 1.0" ;; *) echo "  Candidate: (none)" ;; esac\n'
             ),
             "gpg": f'#!/bin/sh\necho "pub:-:4096:1:7FCC7D46ACCC4CF8:::::::scSC::::::23::0:"\necho "fpr:::::::::{served_fingerprint}:"\n',
@@ -290,6 +296,7 @@ class InstallScriptTests(unittest.TestCase):
     def run_host_install(self, shims, machine=("Linux", "aarch64"), arguments=(), extra_environment=None, first=()):
         environment = dict(os.environ)
         environment["INTERNKIM_TEST_SANDBOX"] = str(self.sandbox)
+        environment["INTERNKIM_INSTALL_DATABASE_VERSION_PATH"] = str(self.database_version_path)
         environment.update(extra_environment or {})
         environment["PATH"] = os.pathsep.join([*first, shims, self.uname_shim(*machine), self.path_without_a_package_manager()])
         return subprocess.run(
@@ -366,6 +373,46 @@ class InstallScriptTests(unittest.TestCase):
         self.assertFalse([name for name in allowed if name.startswith(("postgresql-1", "postgresql-client-1")) and "15" not in name], allowed)
         calls = self.manager_log.read_text().splitlines()
         self.assertEqual([call.split()[1] for call in calls], ["update", "update", "install"], calls)
+
+    def pinned_packages(self):
+        preferences = (self.sandbox / "etc/apt/preferences.d/internkim-postgresql.pref").read_text().split("\n\n")
+        return preferences[1].splitlines()[0].removeprefix("Package: ").split()
+
+    def test_a_host_whose_database_postgresql_14_made_takes_that_majors_pgvector_before_the_package(self):
+        shims = self.linux_machine("apt-get", apt_offers=(), database_major=14)
+        completed = self.run_host_install(shims, extra_environment=self.jammy())
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        allowed = self.pinned_packages()
+        for name in ("postgresql-14", "postgresql-client-14", "postgresql-14-pgvector", "postgresql-15-pgvector"):
+            self.assertIn(name, allowed)
+        self.assertFalse([name for name in allowed if re.match(r"postgresql-(client-)?1[6-9]", name)], allowed)
+        installs = [call for call in self.manager_log.read_text().splitlines() if call.startswith("apt-get install")]
+        self.assertEqual(installs[0], "apt-get install -y postgresql-14-pgvector", installs)
+        self.assertTrue(installs[1].startswith("apt-get install -y /"), installs)
+
+    def test_a_pin_written_for_15_alone_is_rewritten_for_the_database_postgresql_14_made(self):
+        shims = self.linux_machine("apt-get", apt_offers=(), database_major=14)
+        for path, contents in [
+            ("etc/apt/sources.list.d/internkim-postgresql.sources", "Types: deb\n"),
+            ("etc/apt/preferences.d/internkim-postgresql.pref",
+             "Package: *\nPin: origin apt.postgresql.org\nPin-Priority: -1\n\n"
+             "Package: postgresql-15 postgresql-client-15 postgresql-15-pgvector postgresql-common postgresql-client-common libpq5\n"
+             "Pin: origin apt.postgresql.org\nPin-Priority: 500\n"),
+        ]:
+            (self.sandbox / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.sandbox / path).write_text(contents)
+        completed = self.run_host_install(shims, extra_environment=self.jammy())
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("postgresql-14-pgvector", self.pinned_packages())
+        self.assertIn("apt-get install -y postgresql-14-pgvector", self.manager_log.read_text().splitlines())
+
+    def test_a_database_whose_major_the_package_takes_no_pgvector_for_is_refused_before_anything_changes(self):
+        shims = self.linux_machine("apt-get", apt_offers=(), database_major=13)
+        completed = self.run_host_install(shims, extra_environment=self.jammy())
+        self.assertEqual(completed.returncode, 1, completed.stdout)
+        self.assertIn("PostgreSQL 13", completed.stderr)
+        self.assertEqual([path for path in self.sandbox.rglob("*") if path.is_file()], [])
+        self.assertEqual(self.manager_log.read_text().splitlines(), ["apt-get update"])
 
     def test_a_postgresql_key_with_another_fingerprint_is_refused_and_nothing_is_added(self):
         shims = self.linux_machine("apt-get", apt_offers=(), served_fingerprint="0" * 40)
