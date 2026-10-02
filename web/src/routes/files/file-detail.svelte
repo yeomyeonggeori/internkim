@@ -13,7 +13,7 @@
 		formatFileSize,
 		formatModified,
 		parseDelimitedText
-	} from './files-view';
+	} from '$lib/files/view';
 	import { filesText } from './text';
 
 	let { file, onClose }: { file: WorkspaceEntry; onClose?: () => void } = $props();
