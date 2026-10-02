@@ -60,6 +60,7 @@ def declared_tap():
 
 install_shim = """#!/usr/bin/env python3
 import os
+import shutil
 import sys
 
 sandbox = os.environ["INTERNKIM_TEST_SANDBOX"]
