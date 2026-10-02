@@ -42,7 +42,7 @@ function statusBarColourOf(xml: string): string {
 }
 
 describe('the Android status bar colour', () => {
-	const css = readFileSync('src/app.css', 'utf8');
+	const css = readFileSync('src/theme.css', 'utf8');
 
 	for (const mode of modes) {
 		test(`matches the web --background token under ${mode.selector}`, () => {
