@@ -190,7 +190,7 @@ su -s /bin/sh postgres -c "$bin/pg_ctl -D $data -w -t 600 -l /tmp/postgres.log s
 su -s /bin/sh postgres -c "$bin/psql -XAtc 'select version()' -h /tmp postgres"
 su -s /bin/sh postgres -c "$bin/pg_dump -h /tmp --format=custom --no-owner --no-acl blueclaw" >/mnt/export/blueclaw.dump
 su -s /bin/sh postgres -c "$bin/pg_dump -h /tmp --schema-only --no-owner --no-acl blueclaw" >/mnt/export/blueclaw-schema.sql
-su -s /bin/sh postgres -c "$bin/psql -XAtc \"select relname, n_live_tup from pg_stat_user_tables order by relname\" -h /tmp blueclaw" >/mnt/export/blueclaw-row-counts.txt
+su -s /bin/sh postgres -c "$bin/psql -XAtc \"select relname, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', schemaname, relname), false, true, '')))[1]::text::bigint from pg_stat_user_tables order by relname\" -h /tmp blueclaw" >/mnt/export/blueclaw-row-counts.txt
 su -s /bin/sh postgres -c "$bin/pg_ctl -D $data -m fast stop"
 GUEST
 DUMP
