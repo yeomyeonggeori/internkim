@@ -2,13 +2,12 @@ package boxwifi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -176,17 +175,12 @@ func TestSetupReopensAfterJoinFailureAndShowsTheFailureNotice(t *testing.T) {
 
 	secondListener := <-listenerReady
 	baseURL := "http://" + secondListener.Addr().String()
-	formResponse, errorValue := http.Get(baseURL + "/")
-	if errorValue != nil {
+	var listing networkListing
+	if errorValue := json.Unmarshal([]byte(fetchBody(t, baseURL+"/networks")), &listing); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	body, errorValue := io.ReadAll(formResponse.Body)
-	formResponse.Body.Close()
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if !strings.Contains(string(body), pageTexts[englishLanguage].JoinFailure) {
-		t.Fatalf("form did not show the failure notice: %s", body)
+	if !listing.HasJoinFailed {
+		t.Fatal("the reopened page did not report the failed join")
 	}
 
 	submitJoin(t, baseURL, "Office", "correct-password").Body.Close()

@@ -1,0 +1,16 @@
+{
+	"scanned": [
+		{ "SSID": "Office", "SignalPercent": 80, "IsSecured": true },
+		{ "SSID": "사무실 2층", "SignalPercent": 40, "IsSecured": false }
+	],
+	"hasJoinFailed": true,
+	"networksResponse": {
+		"networks": [
+			{ "ssid": "Office", "isSecured": true, "signalPercent": 80 },
+			{ "ssid": "사무실 2층", "isSecured": false, "signalPercent": 40 }
+		],
+		"hasJoinFailed": true
+	},
+	"joinFields": ["ssid", "customSSID", "password"],
+	"joinStatuses": { "accepted": 200, "networkRequired": 400, "alreadySubmitted": 409 }
+}
