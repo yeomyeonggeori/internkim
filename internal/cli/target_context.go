@@ -181,18 +181,6 @@ func printCommandTargetEvidence(target commandTarget) {
 	}
 }
 
-func commandArgumentValue(arguments []string, name string, defaultValue string) string {
-	for index, argument := range arguments {
-		if argument == name && index+1 < len(arguments) {
-			return strings.TrimSpace(arguments[index+1])
-		}
-		if strings.HasPrefix(argument, name+"=") {
-			return strings.TrimSpace(strings.TrimPrefix(argument, name+"="))
-		}
-	}
-	return defaultValue
-}
-
 func hasCommandArgument(arguments []string, name string) bool {
 	for _, argument := range arguments {
 		if argument == name || strings.HasPrefix(argument, name+"=") {

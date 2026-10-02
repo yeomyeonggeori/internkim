@@ -65,38 +65,6 @@ func runLLM() {
 	}
 }
 
-func splitFlagsAndPositionals(arguments []string, booleanFlags map[string]bool, valueFlags map[string]bool) ([]string, []string) {
-	flagArguments := []string{}
-	positionalArguments := []string{}
-	for index := 0; index < len(arguments); index++ {
-		argument := arguments[index]
-		if !strings.HasPrefix(argument, "-") {
-			positionalArguments = append(positionalArguments, argument)
-			continue
-		}
-		flagBody := strings.TrimLeft(argument, "-")
-		flagName := flagBody
-		hasInlineValue := false
-		if equalIndex := strings.Index(flagBody, "="); equalIndex >= 0 {
-			flagName = flagBody[:equalIndex]
-			hasInlineValue = true
-		}
-		switch {
-		case booleanFlags[flagName]:
-			flagArguments = append(flagArguments, argument)
-		case valueFlags[flagName]:
-			flagArguments = append(flagArguments, argument)
-			if !hasInlineValue && index+1 < len(arguments) {
-				index++
-				flagArguments = append(flagArguments, arguments[index])
-			}
-		default:
-			positionalArguments = append(positionalArguments, argument)
-		}
-	}
-	return flagArguments, positionalArguments
-}
-
 func runLLMRequest(target verifyTarget, executionMode string, modelName string, providerName string, accelerator string, prompt string) error {
 	body := map[string]any{
 		"executionMode": executionMode,

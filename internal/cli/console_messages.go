@@ -24,11 +24,6 @@ func step(n, total int, text string) {
 	fmt.Printf("\n[%d/%d] %s\n", n, total, text)
 }
 
-func fatal(text string) {
-	fmt.Fprintf(os.Stderr, "\n✗ %s\n", text)
-	os.Exit(1)
-}
-
 func readSecret(prompt string) string {
 	fmt.Print(prompt)
 	b, err := term.ReadPassword(int(os.Stdin.Fd()))

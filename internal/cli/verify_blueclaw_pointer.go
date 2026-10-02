@@ -9,14 +9,6 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-func runVerifyDeployTree() error {
-	repositoryRootPath, errorValue := resolveRepositoryRootPath()
-	if errorValue != nil {
-		return errorValue
-	}
-	return checkDeployTree(repositoryRootPath, ReleaseComponentNames())
-}
-
 func runVerifyBlueclawPointer(arguments []string) error {
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
