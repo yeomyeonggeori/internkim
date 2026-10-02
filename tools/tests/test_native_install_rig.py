@@ -419,3 +419,76 @@ class AgentUpdateRigTests(unittest.TestCase):
         unit = (repository_root / "internal" / "hostupdate" / "unit.go").read_text()
         self.assertIn(f'UnitName = "{agent_update.UPDATE_UNIT_NAME.removesuffix(".service")}"', unit)
         self.assertIn(f"/{agent_update.UPDATE_UNIT_NAME}.d/", agent_update.UPDATE_UNIT_DROP_IN_PATH)
+
+
+import native_install_messenger as messenger  # noqa: E402
+
+
+class MessengerRigTests(unittest.TestCase):
+    def declared_in_package(self, name):
+        source = (repository_root / "internal" / "runtime" / "blueclaw" / "company_host_package.go").read_text()
+        match = re.search(rf'^\t{name}\s+=\s*"([^"]+)"', source, re.MULTILINE)
+        self.assertIsNotNone(match, f"company_host_package.go no longer declares {name}")
+        return match.group(1)
+
+    def test_the_guest_is_asked_at_the_addresses_and_paths_the_package_declares(self):
+        self.assertEqual(messenger.CHATD_ENDPOINT, self.declared_in_package("CompanyHostChatdEndpoint"))
+        self.assertEqual(messenger.IDENTITY_SEED_PATH, self.declared_in_package("CompanyHostIdentitySeedPath"))
+        self.assertEqual(messenger.AGENT_DATABASE_PATH, rig.COMPANY_CONDITION_PATH)
+        self.assertEqual(messenger.ADMIND_SOCKET_PATH, agent_update.ADMIND_SOCKET_PATH)
+        identity = (repository_root / "internal" / "buzzidentity" / "identity.go").read_text()
+        self.assertIn(f'AgentSubject = "{messenger.AGENT_IDENTITY_NAME}"', identity)
+        self.assertEqual(messenger.AGENT_UNIT_NAME, load_driver().AGENT_UNIT_NAME)
+
+    def test_a_persons_key_is_their_lowercased_address_under_the_seed(self):
+        expected = hashlib.sha256(b"seed|secret|member1@example.com").hexdigest()
+        self.assertEqual(messenger.buzz_secret("seed", "  Member1@Example.com "), expected)
+
+    def test_the_policy_path_is_the_one_the_agents_unit_passes(self):
+        shown = "{ path=/usr/bin/blueclaw ; argv[]=/usr/bin/blueclaw -listen 127.0.0.1:8080 -policy /run/internkim/policy.json -x y ; ignore_errors=no }"
+        self.assertEqual(messenger.policy_path_of(shown), "/run/internkim/policy.json")
+        self.assertEqual(messenger.policy_path_of("argv[]=/usr/bin/blueclaw"), "")
+
+    def test_a_person_without_an_address_is_not_a_person_the_messenger_can_reach(self):
+        policy = {"people": [{"personID": "a", "emails": ["a@example.com", "b@example.com"]}, {"personID": "c", "emails": []}, {"personID": "d"}]}
+        self.assertEqual(messenger.people_of(policy), [{"personID": "a", "email": "a@example.com"}])
+
+    def test_a_marker_is_found_wherever_a_message_keeps_its_text(self):
+        document = {"messages": [{"id": "1", "content": {"body": "hello"}}, {"id": "2", "parts": ["x", "rig marker 42"]}]}
+        self.assertTrue(messenger.holds_text(document, "marker 42"))
+        self.assertFalse(messenger.holds_text(document, "marker 43"))
+
+    def test_only_a_read_that_failed_is_a_failed_read(self):
+        bodies = [
+            json.dumps({"tool": "read", "failure": {"code": "not_found"}}),
+            json.dumps({"tool": "read", "failure": {"code": "invalid_input"}}),
+            json.dumps({"tool": "read", "output": {"content": "ok"}}),
+            json.dumps({"tool": "write", "failure": {"code": "not_found"}}),
+            "not json",
+        ]
+        self.assertEqual(len(messenger.reads_that_failed(bodies)), 2)
+
+    def test_a_message_id_is_checked_before_it_reaches_a_query(self):
+        self.assertTrue(messenger.is_a_hex_identifier("0123abcdef0123abcdef"))
+        self.assertFalse(messenger.is_a_hex_identifier("1'; drop table task_run; --"))
+        self.assertFalse(messenger.is_a_hex_identifier(""))
+
+    def test_the_picture_is_a_png_and_the_word_is_not_in_what_the_agent_is_asked(self):
+        picture = Path(load_driver().MESSENGER_PICTURE_SOURCE)
+        self.assertTrue(picture.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertNotIn(messenger.WORD_THE_PICTURE_CARRIES.lower(), messenger.PICTURE_QUESTION.lower())
+
+    def test_every_action_the_rig_asks_the_guest_for_exists(self):
+        driver_source = (repository_root / "tools" / "test-native-install").read_text()
+        asked = set(re.findall(r'ask_the_messenger\(\s*"(\w+)"', driver_source)) | set(re.findall(r'wait_for_the_messenger\(\s*"(\w+)"', driver_source))
+        self.assertTrue(asked)
+        self.assertLessEqual(asked, set(messenger.ACTIONS))
+
+    def test_the_picture_is_served_whole_for_chatd_to_fetch(self):
+        server = messenger.serving_once(b"\x89PNG-bytes", "image/png")
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/picture", timeout=5) as response:
+                self.assertEqual(response.read(), b"\x89PNG-bytes")
+                self.assertEqual(response.headers["Content-Type"], "image/png")
+        finally:
+            server.shutdown()

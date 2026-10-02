@@ -339,7 +339,8 @@ and delete the duplicates.
   | --- | --- | --- |
   | `./internkim dev plane` | does Linux startup, requester memory access, messaging and the public API work | minutes |
   | `./internkim dev simulate --scenario <name>` | does the agent loop decide correctly, against a scripted model | seconds |
-  | `./internkim dev fleet run --scenario <name>` | does it work on Linux — the cloud-hypervisor guest, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
+  | `tools/test-native-install` | does the installed company host work on Linux — install, member round trip, the agent's answer, a picture, a mention, a direct message, upgrade, backup and restore | ~15 minutes |
+  | `./internkim dev fleet run --scenario <name>` | does the device path work on Linux — the cloud-hypervisor guest, POSIX identity, the ext4 workspace, systemd, OTA | ~10 minutes |
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
   started or what it is told — goes through `./internkim dev plane` first. It runs
@@ -348,20 +349,21 @@ and delete the duplicates.
   that is wired wrong fails under its filesystem and process identity rules.
   The run keeps memory facts in its isolated guest database
   and workspace, and removes them with the fleet.
-- Anything on the messenger path is verified with
-  `./internkim dev fleet run --scenario buzz-attachment`. Buzz is what a
-  company's messages travel over. The scenario invites a person, derives their key from the device seed
-  the way `buzzidentity.Secret` does, sends the agent a picture through chatd's
-  person capabilities, and reads the task ledger. A message going the other way —
-  the agent writing to a person — is
-  `./internkim dev fleet run --scenario buzz-direct-message`: it asks through the
-  public API the way an outside client does, then reads the recipient's
-  own Buzz inbox for it.
-- The fleet VM is the Linux gate for both paths: a run starts a local central
-  plane and joins the VM to it, so the `buzz-*` scenarios above are plane work
-  even though the VM they run in is device machinery.
-  `./internkim dev fleet reprovision` pushes the working tree onto it, but the
-  guest skips a Blueclaw SHA it already has: commit a Blueclaw Go change first.
+- Anything on the messenger path is verified with the company host's rig,
+  `tools/test-native-install` (under `monkeys run @test` when the answer's wording
+  matters), whose step 11 runs on the installed package. Buzz is what a company's
+  messages travel over. The step takes the people the agent's roster holds,
+  derives a person's key from the host's identity seed the way
+  `buzzidentity.Secret` does, sends the agent a picture through chatd's person
+  capabilities, and reads the task ledger and the person's workspace. The agent
+  writing to a person goes through the public API on admind's socket, and the
+  recipient's own Buzz inbox is read for it. A mention of the agent in a channel they
+  share is read as a task in the agent's ledger. The guest half is
+  `tools/native_install_messenger.py`.
+- `./internkim dev fleet run` still covers the device path until it is removed.
+  Its `buzz-*` scenarios provision a device inside the VM and read device paths,
+  so they say nothing about an installed host: run them for a change to the
+  device, and run step 11 for a change to the messenger path.
 
 ## Blueclaw Skill Size Budget
 

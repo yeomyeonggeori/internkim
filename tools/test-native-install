@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_families import FAMILIES  # noqa: E402
 import native_install_agent_update as agent_update  # noqa: E402
+import native_install_messenger as messenger  # noqa: E402
 from native_install_rig import (  # noqa: E402
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
@@ -219,6 +220,12 @@ READINESS_COMMAND = "; ".join(
 def every_probe_answered(reading):
     lines = [line for line in reading.splitlines() if line.strip()]
     return bool(lines) and all(line.split()[-1] == "200" for line in lines)
+
+
+MESSENGER_PICTURE_SOURCE = Path(__file__).resolve().parent / "native_install_assets" / messenger.PICTURE_NAME
+MESSENGER_PROBE_COMMAND = HOST_PYTHON_PATH + " " + SHARE_PATH + "/native_install_messenger.py %(action)s %(arguments)s"
+LONGEST_WAIT_FOR_THE_AGENT_SECONDS = 600
+LONGEST_WAIT_FOR_A_DELIVERY_SECONDS = 180
 
 
 def message_asking_for_an_answer(occasion):
@@ -1088,6 +1095,175 @@ class Rig:
         self.machine.checked_shell(f"systemctl start {ADMIND_UNIT_NAME}")
         self.observe_the_agent_answered(step)
 
+    def ask_the_messenger(self, action, timeout_seconds=300, **arguments):
+        completed = self.machine.shell(
+            MESSENGER_PROBE_COMMAND % {"action": action, "arguments": shlex.quote(json.dumps(arguments))},
+            timeout_seconds=timeout_seconds,
+        )
+        for line in reversed(completed.stdout.splitlines()):
+            if line.startswith("{"):
+                return json.loads(line)
+        return {"refused": (completed.stderr.strip() or completed.stdout.strip() or "no answer")[-600:]}
+
+    def wait_for_the_messenger(self, action, is_ready, timeout_seconds=LONGEST_WAIT_FOR_A_DELIVERY_SECONDS, **arguments):
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            answer = self.ask_the_messenger(action, **arguments)
+            if is_ready(answer) or time.monotonic() > deadline:
+                return answer
+            time.sleep(5)
+
+    def what_the_messenger_services_said(self):
+        return self.machine.shell(
+            "journalctl -u chatd.service -u blueclaw.service --no-pager -n 400 2>/dev/null "
+            "| grep -i -E 'buzz|attachment|mention|connector|error|warn' | tail -n 25; true"
+        ).stdout.strip()[-2500:]
+
+    def recording(self, observation, passed, detail):
+        observation.record(passed, detail if passed else detail + "\n" + self.what_the_messenger_services_said())
+
+    def give_the_guest_the_messenger_probe(self):
+        for source in (Path(messenger.__file__), MESSENGER_PICTURE_SOURCE):
+            shutil.copyfile(source, self.machine.share_directory / source.name)
+
+    def wait_until_the_relay_knows(self, email):
+        pubkey = self.ask_the_messenger("identity", email=email).get("externalID", "")
+        roster = self.wait_in_the_guest(
+            RELAY_ROSTER_COMMAND % {"path": MESSENGER_DATABASE_PATH, "pubkey": pubkey or "nobody"},
+            lambda reported: "roster=yes" in reported,
+            timeout_seconds=600,
+        )
+        return pubkey, roster.stdout.strip()
+
+    def observe_the_messenger_paths(self, step, plane):
+        """What the buzz fleet scenarios proved on a device, proved on the installed host."""
+        self.give_the_guest_the_messenger_probe()
+        company_emails = plane.active_member_emails(self.company_id)
+        listed = self.wait_for_the_messenger(
+            "people",
+            lambda answer: {person["email"].lower() for person in answer.get("people", [])} >= {plane.administrator_email.lower()},
+            timeout_seconds=300,
+        )
+        people = listed.get("people", [])
+        step.observe(
+            "the agent's roster is the company's active members, the signed-in administrator among them",
+            f"the people in the policy document the agent's unit names with -policy, against the member rows "
+            f"the record holds for the company ({len(company_emails)} active)",
+            "a roster the agent holds and the company does not, or the reverse, is a person the agent either "
+            "answers without the company's say or ignores; the picture, mention and message checks below "
+            "all take their people from this list",
+        ).record(
+            bool(people)
+            and all(person["email"].lower() in company_emails for person in people)
+            and plane.administrator_email.lower() in {person["email"].lower() for person in people},
+            json.dumps({"people": [person["email"] for person in people], "company": company_emails, "refused": listed.get("refused")})[:500],
+        )
+        if len(people) < 2:
+            raise RigFailure(f"the messenger checks need a requester and a recipient, and the agent's roster holds {len(people)}")
+        requester = next(person for person in people if person["email"].lower() == plane.administrator_email.lower())
+        recipient = next(person for person in people if person is not requester)
+        self.observe_a_picture_reaches_the_agent(step, requester)
+        self.observe_the_api_messages_a_colleague(step, requester, recipient)
+        self.observe_an_inbound_mention(step, requester)
+
+    def observe_a_picture_reaches_the_agent(self, step, requester):
+        self.wait_until_the_relay_knows(requester["email"])
+        filename = f"rig-{uuid.uuid4().hex[:10]}-{messenger.PICTURE_NAME}"
+        sent = self.ask_the_messenger(
+            "send_picture", email=requester["email"], body=messenger.PICTURE_QUESTION,
+            filename=filename, picturePath=f"{SHARE_PATH}/{messenger.PICTURE_NAME}",
+        )
+        message_id = sent.get("messageID", "")
+        ledger = self.wait_for_the_messenger(
+            "ledger",
+            lambda answer: (answer.get("run") or {}).get("status") in messenger.SETTLED_STATUSES,
+            timeout_seconds=LONGEST_WAIT_FOR_THE_AGENT_SECONDS,
+            messageID=message_id or "none",
+        )
+        run = ledger.get("run") or {}
+        kept = self.ask_the_messenger("find_file", filename=filename).get("file") or {}
+        observation = step.observe(
+            "a picture a person sends the agent becomes a task of theirs and a file in their workspace",
+            "the agent's task ledger row whose reply target carries the sent message's id, and a file of the "
+            "picture's name under /workspace, hashed and stat'ed in the guest",
+            "the messenger answering sent says the relay stored it; the bridge that fetches an attachment "
+            "runs beside the workspace and once wrote a copy where the agent could not read it",
+        )
+        self.recording(
+            observation,
+            bool(message_id)
+            and run.get("requesterPersonID") == requester["personID"]
+            and kept.get("sha256") == sent.get("sha256")
+            and kept.get("owner", "").startswith("bc_person_"),
+            json.dumps({"sent": sent, "task": {key: run.get(key) for key in ("taskRunID", "status", "requesterPersonID")}, "file": kept})[:600],
+        )
+        failed_reads = messenger.reads_that_failed(run.get("events") or [])
+        step.observe(
+            "no read the agent made of the picture failed",
+            "every read tool event of that task, for a failure",
+            "the agent reading the reference it was handed and finding nothing is the failure the bridge once had, "
+            "and it shows only in the ledger",
+        ).record(bool(run) and not failed_reads, json.dumps(failed_reads)[:400] or "no read failed")
+        if rig_model_key() != RIG_MODEL_KEY:
+            reply = run.get("result") or ""
+            step.observe(
+                "the agent's answer carries the word the picture carries",
+                f"the task's result, for {messenger.WORD_THE_PICTURE_CARRIES}, which is written in the picture and nowhere the agent can read",
+                "an answer that guessed fails here and an answer that looked passes, which no ledger row can say",
+            ).record(messenger.WORD_THE_PICTURE_CARRIES.lower() in reply.lower(), reply[:300] or f"status {run.get('status')}")
+
+    def observe_the_api_messages_a_colleague(self, step, requester, recipient):
+        self.wait_until_the_relay_knows(requester["email"])
+        self.wait_until_the_relay_knows(recipient["email"])
+        marker = f"rig direct message through the api {uuid.uuid4().hex}"
+        invoked = self.ask_the_messenger(
+            "invoke_direct_message", requesterEmail=requester["email"], recipientEmail=recipient["email"], message=marker
+        )
+        answer = invoked.get("answer") or {}
+        step.observe(
+            "the public API accepts a direct message to a colleague on behalf of the requester",
+            "admind's message_send invocation over its socket with the requester asserted, the way the internkim-api skill calls it",
+            "capabilityd once chose its messenger from a string the caller sent and answered sent for a "
+            "message that left on another one",
+        ).record(
+            invoked.get("status") == "200" and not answer.get("isError"),
+            json.dumps(invoked)[:500],
+        )
+        inbox = self.wait_for_the_messenger(
+            "read_inbox",
+            lambda reading: reading.get("isDelivered") is True,
+            recipientEmail=recipient["email"], senderEmail=requester["email"], marker=marker,
+        )
+        step.observe(
+            "the recipient's own messenger inbox holds the message",
+            "the recipient's conversation with the requester, listed through chatd as the recipient with the key "
+            "derived from the host's identity seed",
+            "the API's answer is the company's account of its own run; the inbox is what the colleague sees",
+        ).record(inbox.get("isDelivered") is True, json.dumps(inbox)[:300])
+
+    def observe_an_inbound_mention(self, step, requester):
+        self.wait_until_the_relay_knows(requester["email"])
+        mention = self.ask_the_messenger(
+            "open_mention", email=requester["email"], channelName=f"rig-inbound-mention-{uuid.uuid4().hex[:10]}",
+            body="rig mention probe",
+        )
+        message_id = mention.get("messageID", "")
+        ledger = self.wait_for_the_messenger(
+            "ledger", lambda reading: bool(reading.get("run")), messageID=message_id or "none"
+        )
+        run = ledger.get("run") or {}
+        observation = step.observe(
+            "a person's message that mentions the agent in a channel becomes a task of theirs",
+            "the agent's task ledger row whose reply target carries the message id of a message sent with the agent's key "
+            "in its p-tag, in a channel the agent created and the sender joined",
+            "the relay accepting the event says nothing about whether chatd saw it and handed it to the agent",
+        )
+        self.recording(
+            observation,
+            bool(message_id) and bool(run) and run.get("requesterPersonID") == requester["personID"],
+            json.dumps({"mention": mention, "task": {key: run.get(key) for key in ("taskRunID", "status", "requesterPersonID")}})[:500],
+        )
+
     def observe_readiness_after_the_upgrade(self, step):
         answers = self.machine.shell(READINESS_COMMAND).stdout.strip()
         step.observe(
@@ -1705,6 +1881,8 @@ def main():
                 rig.observe_the_agent_answered(step_five)
                 step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
                 rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
+                step_eleven = rig.step(11, "the messenger carries a picture, a mention and an agent's direct message")
+                rig.observe_the_messenger_paths(step_eleven, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
 
             step_nine = None
