@@ -97,11 +97,43 @@ func TestABackupFromANewerFormatIsRefusedBeforeAnythingChanges(t *testing.T) {
 	}
 }
 
-func TestABackupFromANewerPostgreSQLIsRefused(t *testing.T) {
-	archivePath := exampleBackup(t, restorableManifest(), map[string]string{hostbackup.FilesMemberName: "files"})
-	errorValue := refusalOf(t, archivePath, machineRunningPostgreSQL("16"))
-	if !strings.Contains(errorValue.Error(), "PostgreSQL 17") || !strings.Contains(errorValue.Error(), "PostgreSQL 16") {
-		t.Errorf("the refusal does not name both majors: %v", errorValue)
+func dumpWithFormat(major byte, minor byte) string {
+	return "PGDMP" + string([]byte{major, minor, 0})
+}
+
+func TestADumpMadeByANewerMajorInTheFormatTheHostReadsIsAccepted(t *testing.T) {
+	archivePath := exampleBackup(t, restorableManifest(), map[string]string{
+		hostbackup.DatabaseMemberName(blueclaw.BlueclawDatabaseName): dumpWithFormat(1, 14),
+		hostbackup.FilesMemberName:                                   "files",
+	})
+	archive, errorValue := checkTheArchive(linuxPlatform{}, RestoreRequest{ArchivePath: archivePath, Now: time.Now()}, machineRunningPostgreSQL("14"))
+	if errorValue != nil {
+		t.Fatalf("a PostgreSQL 17 backup in format 1.14 was refused on PostgreSQL 14: %v", errorValue)
+	}
+	if archive.Manifest.PostgreSQLMajor != 17 {
+		t.Errorf("the archive was not the one written: %+v", archive.Manifest)
+	}
+}
+
+func TestADumpInAFormatNewerThanTheHostReadsIsRefused(t *testing.T) {
+	archivePath := exampleBackup(t, restorableManifest(), map[string]string{
+		hostbackup.DatabaseMemberName(blueclaw.BlueclawDatabaseName): dumpWithFormat(1, 15),
+		hostbackup.FilesMemberName:                                   "files",
+	})
+	errorValue := refusalOf(t, archivePath, machineRunningPostgreSQL("14"))
+	for _, wanted := range []string{"format 1.15", "PostgreSQL 14", "up to 1.14", "PostgreSQL 16 or newer"} {
+		if !strings.Contains(errorValue.Error(), wanted) {
+			t.Errorf("the refusal lacks %q: %v", wanted, errorValue)
+		}
+	}
+}
+
+func TestTheNewestFormatEachMajorReads(t *testing.T) {
+	cases := map[int]string{14: "1.14", 15: "1.14", 16: "1.15", 17: "1.16", 18: "1.16"}
+	for major, wanted := range cases {
+		if got := newestFormatReadBy(major).String(); got != wanted {
+			t.Errorf("PostgreSQL %d reads up to %s, want %s", major, got, wanted)
+		}
 	}
 }
 

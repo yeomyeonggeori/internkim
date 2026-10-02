@@ -104,9 +104,6 @@ func checkTheArchive(platform backupPlatform, request RestoreRequest, machine Ma
 	if errorValue := refuseANewerPackage(manifest.PackageVersion, PackageVersion); errorValue != nil {
 		return hostbackup.Archive{}, errorValue
 	}
-	if errorValue := refuseAnOlderDatabase(platform, machine, manifest.PostgreSQLMajor); errorValue != nil {
-		return hostbackup.Archive{}, errorValue
-	}
 	if errorValue := refuseToOverwriteWithoutConsent(manifest.CompanyID, request.Replace); errorValue != nil {
 		return hostbackup.Archive{}, errorValue
 	}
@@ -115,6 +112,9 @@ func checkTheArchive(platform backupPlatform, request RestoreRequest, machine Ma
 	}
 	if errorValue := archive.Verify(); errorValue != nil {
 		return hostbackup.Archive{}, fmt.Errorf("%s was refused before anything changed: %w", request.ArchivePath, errorValue)
+	}
+	if errorValue := refuseADumpTheHostCannotRead(platform, archive, machine); errorValue != nil {
+		return hostbackup.Archive{}, errorValue
 	}
 	return archive, nil
 }
@@ -204,19 +204,6 @@ func partAt(parts []int, index int) int {
 		return parts[index]
 	}
 	return 0
-}
-
-func refuseAnOlderDatabase(platform backupPlatform, machine Machine, archivedMajor int) error {
-	major, errorValue := platform.DatabaseMajor(machine)
-	if errorValue != nil {
-		return errorValue
-	}
-	if archivedMajor > major {
-		return fmt.Errorf(
-			"the backup's databases were dumped from PostgreSQL %d and this computer's is PostgreSQL %d. PostgreSQL restores a dump into the same or a newer major only, so install PostgreSQL %d or newer here first",
-			archivedMajor, major, archivedMajor)
-	}
-	return nil
 }
 
 func refuseToOverwriteWithoutConsent(archivedCompanyID string, isReplacing bool) error {

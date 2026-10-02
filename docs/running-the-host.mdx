@@ -185,9 +185,11 @@ the archive. The new computer takes over the old one's place on the hosted
 service, so turn the old one off first.
 
 The restore checks every part of the archive against its recorded checksum before
-it changes anything. It refuses an archive made by a newer internkim, and one whose
-databases came from a newer PostgreSQL major than this computer runs, because
-PostgreSQL restores a dump into the same or a newer major only. It then stops the
+it changes anything. It refuses an archive made by a newer internkim, and one holding a
+database dump in an archive format newer than this computer's `pg_restore` reads.
+A dump from a newer PostgreSQL major in a format it reads is restored in one
+transaction, and fails whole if the schema uses something the older server lacks.
+It then stops the
 services, puts the files back, recreates each person's account from the roster in
 the archive, gives every file back to its owner by account name, restores both
 databases and starts the services, which bring their schemas up to the installed
