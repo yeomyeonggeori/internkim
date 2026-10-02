@@ -29,6 +29,26 @@ func TestTheDeliveryRefreshPreparesTheSkillsBeforeItDeliversThem(t *testing.T) {
 	}
 }
 
+// A device mounts /dev shared, so a plain rbind ties the guest's /dev to the
+// host's and unmounting it fails busy; removing the preparation while it is
+// still mounted would then walk into the host's /dev and the skills it binds.
+func TestTheSkillPreparationLeavesNothingMountedAndRemovesNothingItMounted(t *testing.T) {
+	refresh := BlueclawDeliveryRefreshCommand()
+	rbind := strings.Index(refresh, `mount --rbind /dev "$preparation/root"/dev`)
+	slave := strings.Index(refresh, `mount --make-rslave "$preparation/root"/dev`)
+	if rbind < 0 || slave < rbind {
+		t.Fatalf("the guest's /dev is not made a slave of the host's right after it is bound:\n%s", refresh)
+	}
+	for _, unsafeRemoval := range []string{`|| true; rm -rf`, `rm -rf "$preparation"`} {
+		if strings.Contains(refresh, unsafeRemoval) {
+			t.Fatalf("the preparation is removed even when it is still mounted (%q):\n%s", unsafeRemoval, refresh)
+		}
+	}
+	if !strings.Contains(refresh, `then rm -rf --one-file-system "$preparation"`) {
+		t.Fatalf("the preparation is not removed only after a clean unmount, within its own file system:\n%s", refresh)
+	}
+}
+
 // The guest's setup runs on the interpreter and finds the tools its agent's
 // commands do; this holds the place to what the rootfs actually installs.
 func TestTheGuestSkillsPlaceIsWhatTheRootfsInstalls(t *testing.T) {
