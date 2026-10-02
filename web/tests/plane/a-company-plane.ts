@@ -113,6 +113,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--local-inference-mode': 'remote',
 			'--blueclaw-url': argumentsForPlane.blueclawURL,
 			'--admind-url': argumentsForPlane.admindURL,
+			'--admind-socket': argumentsForPlane.admindSocketPath,
 			'--chatd-endpoint': argumentsForPlane.chatdEndpoint,
 			'--chatd-platform': argumentsForPlane.chatdPlatform,
 			'--device-browser': argumentsForPlane.deviceBrowserPath,
@@ -121,8 +122,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--device-browser-capacity': '1',
 			'--device-browser-user': 'blueclaw',
 			'--file-read-python': argumentsForPlane.fileReadPythonPath
-		},
-		{ '--admind-socket': argumentsForPlane.admindSocketPath }
+		}
 	);
 }
 
