@@ -100,29 +100,57 @@ func TestJoinErrorNeverContainsThePassword(t *testing.T) {
 	}
 }
 
-func TestJoinRescansAndRetriesWhileTheNetworkIsNotYetSeen(t *testing.T) {
-	connectAttempts := 0
-	rescans := 0
-	radio := NetworkManagerRadio{KeyfileDirectory: t.TempDir(), JoinRetryWait: time.Millisecond, Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		if len(arguments) >= 3 && arguments[2] == "rescan" {
-			rescans++
-			return nil, nil
-		}
-		if len(arguments) < 4 || arguments[3] != "up" {
-			return nil, nil
-		}
-		connectAttempts++
-		if connectAttempts < 3 {
-			return []byte("Error: No network with SSID 'Office' found."), errors.New("exit status 10")
+func steppingClock(radio NetworkManagerRadio) NetworkManagerRadio {
+	current := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	radio.Now = func() time.Time { return current }
+	radio.Sleep = func(ctx context.Context, wait time.Duration) error {
+		current = current.Add(wait)
+		return nil
+	}
+	return radio
+}
+
+func TestJoinConnectsOnlyOnceTheNetworkAppearsInAScan(t *testing.T) {
+	var calls [][]string
+	scans := 0
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: t.TempDir(), Run: func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
+		calls = append(calls, append([]string{}, arguments...))
+		if strings.Contains(strings.Join(arguments, " "), "device wifi list") {
+			scans++
+			if scans < 3 {
+				return []byte("Neighbour\n"), nil
+			}
+			return []byte("Neighbour\nOffice\\:5G\n"), nil
 		}
 		return nil, nil
-	}}
+	}})
 
-	if errorValue := radio.Join(context.Background(), "Office", "office-password"); errorValue != nil {
+	if errorValue := radio.Join(context.Background(), "Office:5G", "office-password"); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if connectAttempts != 3 || rescans != 3 {
-		t.Fatalf("connect attempts = %d, rescans = %d, want 3 and 3", connectAttempts, rescans)
+	if scans != 3 {
+		t.Fatalf("scans = %d, want 3", scans)
+	}
+	ups := 0
+	for _, call := range calls {
+		if containsCall([][]string{call}, []string{"--wait", "30", "connection", "up", "id", "Office:5G"}) {
+			ups++
+		}
+	}
+	if ups != 1 {
+		t.Fatalf("connection up ran %d times, want once after the network appeared; calls = %v", ups, calls)
+	}
+}
+
+func TestJoinStillTriesAHiddenNetworkThatNeverAppearsInAScan(t *testing.T) {
+	var calls [][]string
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: t.TempDir(), Run: recordingRunner(&calls)})
+
+	if errorValue := radio.Join(context.Background(), "Hidden Office", "office-password"); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !containsCall(calls, []string{"--wait", "30", "connection", "up", "id", "Hidden Office"}) {
+		t.Fatalf("expected a connection attempt after the scan wait, calls = %v", calls)
 	}
 }
 
@@ -183,7 +211,7 @@ func TestCloseSetupNetworkDeletesTheProfileAndFileEvenWhenDownFails(t *testing.T
 func TestConnectionsNamedByAnSSIDCarryTheIdKeyword(t *testing.T) {
 	for _, ssid := range []string{"3", "help"} {
 		var calls [][]string
-		radio := NetworkManagerRadio{KeyfileDirectory: t.TempDir(), JoinRetryWait: time.Millisecond, Run: recordingRunner(&calls)}
+		radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: t.TempDir(), Run: recordingRunner(&calls)})
 
 		if errorValue := radio.Join(context.Background(), ssid, "office-password"); errorValue != nil {
 			t.Fatal(errorValue)
@@ -243,7 +271,7 @@ func TestIsOnlineTrustsFullAndOtherwiseAsksThePlane(t *testing.T) {
 func TestJoinWritesAKeyfileThatIsNotHiddenForADottedSSID(t *testing.T) {
 	var calls [][]string
 	directory := t.TempDir()
-	radio := NetworkManagerRadio{KeyfileDirectory: directory, JoinRetryWait: time.Millisecond, Run: recordingRunner(&calls)}
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)})
 
 	if errorValue := radio.Join(context.Background(), ".hidden", "office-password"); errorValue != nil {
 		t.Fatal(errorValue)

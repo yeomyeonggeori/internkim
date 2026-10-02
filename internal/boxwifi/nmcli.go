@@ -17,17 +17,15 @@ const (
 	setupConnectionName        = "internkim-setup"
 	setupNetworkAddress        = "10.42.0.1"
 	defaultCaptiveDNSPath      = "/etc/NetworkManager/dnsmasq-shared.d/internkim-setup.conf"
-	joinAttempts               = 4
 	joinKeyfilePrefix          = "internkim-"
 	defaultRescanMode          = "auto"
-	joinAttemptInterval        = 3 * time.Second
+	joinVisibleWait            = time.Minute
 	wpa3AccessPointWaitSeconds = "15"
 )
 
 type NetworkManagerRadio struct {
 	Run              func(ctx context.Context, name string, arguments ...string) ([]byte, error)
 	CaptiveDNSPath   string
-	JoinRetryWait    time.Duration
 	KeyfileDirectory string
 	ReachesPlane     func(ctx context.Context) bool
 	Now              func() time.Time
@@ -138,34 +136,24 @@ func (radio NetworkManagerRadio) Join(ctx context.Context, ssid, password string
 	if output, errorValue := radio.loadProfile(ctx, joinKeyfilePrefix+ssid, ssid, ssid, password); errorValue != nil {
 		return fmt.Errorf("saving %s: %s: %w", ssid, strings.TrimSpace(string(output)), errorValue)
 	}
-	var output []byte
-	var errorValue error
-	for attempt := 1; attempt <= joinAttempts; attempt++ {
-		radio.run(ctx, "device", "wifi", "rescan", "ssid", ssid)
-		output, errorValue = radio.run(ctx, "--wait", "30", "connection", "up", "id", ssid)
-		if errorValue == nil {
-			return nil
-		}
-		if !isNotYetSeen(output) || attempt == joinAttempts {
-			break
-		}
-		if waitError := waitFor(ctx, radio.joinRetryWait()); waitError != nil {
-			return waitError
-		}
+	waitUntil(ctx, joinVisibleWait, radio.now, radio.sleep, func() bool { return radio.sees(ctx, ssid) })
+	if output, errorValue := radio.run(ctx, "--wait", "30", "connection", "up", "id", ssid); errorValue != nil {
+		return fmt.Errorf("joining %s: %s: %w", ssid, strings.TrimSpace(string(output)), errorValue)
 	}
-	return fmt.Errorf("joining %s: %s: %w", ssid, strings.TrimSpace(string(output)), errorValue)
+	return nil
 }
 
-func isNotYetSeen(output []byte) bool {
-	text := strings.ToLower(string(output))
-	return strings.Contains(text, "no network with ssid") || strings.Contains(text, "no suitable device")
-}
-
-func (radio NetworkManagerRadio) joinRetryWait() time.Duration {
-	if radio.JoinRetryWait > 0 {
-		return radio.JoinRetryWait
+func (radio NetworkManagerRadio) sees(ctx context.Context, ssid string) bool {
+	output, errorValue := radio.run(ctx, "-t", "-f", "SSID", "device", "wifi", "list", "--rescan", "yes")
+	if errorValue != nil {
+		return false
 	}
-	return joinAttemptInterval
+	for _, line := range strings.Split(strings.TrimRight(string(output), "\n"), "\n") {
+		if fields := splitTerseFields(line); len(fields) > 0 && fields[0] == ssid {
+			return true
+		}
+	}
+	return false
 }
 
 func waitFor(ctx context.Context, wait time.Duration) error {

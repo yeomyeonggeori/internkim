@@ -155,7 +155,7 @@ func assertNoArgumentContains(t *testing.T, calls [][]string, secret string) {
 func TestSwitchWritesAPrivateKeyfileAndNeverPutsThePasswordOnTheCommandLine(t *testing.T) {
 	var calls [][]string
 	directory := t.TempDir()
-	radio := NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)}
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)})
 
 	if errorValue := radio.Switch(context.Background(), "Office-New", "office-password"); errorValue != nil {
 		t.Fatal(errorValue)
@@ -208,7 +208,7 @@ func TestSwitchRemovesThePendingKeyfileWhenJoiningFails(t *testing.T) {
 func TestAKeyfileWithoutAPasswordOmitsTheSecuritySection(t *testing.T) {
 	var calls [][]string
 	directory := t.TempDir()
-	radio := NetworkManagerRadio{KeyfileDirectory: directory, JoinRetryWait: time.Millisecond, Run: recordingRunner(&calls)}
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)})
 
 	if errorValue := radio.Join(context.Background(), "Open-Cafe", ""); errorValue != nil {
 		t.Fatal(errorValue)
@@ -225,7 +225,7 @@ func TestAKeyfileWithoutAPasswordOmitsTheSecuritySection(t *testing.T) {
 func TestJoinNeverPutsThePasswordOnTheCommandLineAndEscapesKeyfileValues(t *testing.T) {
 	var calls [][]string
 	directory := t.TempDir()
-	radio := NetworkManagerRadio{KeyfileDirectory: directory, JoinRetryWait: time.Millisecond, Run: recordingRunner(&calls)}
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)})
 
 	if errorValue := radio.Join(context.Background(), ` Back\slash`, "pass\nword"); errorValue != nil {
 		t.Fatal(errorValue)
@@ -245,7 +245,7 @@ func TestJoinNeverPutsThePasswordOnTheCommandLineAndEscapesKeyfileValues(t *test
 
 func TestAKeyfileRefusesAnSSIDWithANulByte(t *testing.T) {
 	var calls [][]string
-	radio := NetworkManagerRadio{KeyfileDirectory: t.TempDir(), Run: recordingRunner(&calls)}
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: t.TempDir(), Run: recordingRunner(&calls)})
 
 	if errorValue := radio.Join(context.Background(), "Bad\x00Net", "password"); errorValue == nil {
 		t.Fatal("expected an error")
@@ -271,7 +271,7 @@ func TestSwitchNeverOverwritesTheFileOfTheNetworkItIsLeaving(t *testing.T) {
 	if errorValue := os.WriteFile(livePath, []byte("the profile in use"), 0o600); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	radio := NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)}
+	radio := steppingClock(NetworkManagerRadio{KeyfileDirectory: directory, Run: recordingRunner(&calls)})
 
 	if errorValue := radio.Switch(context.Background(), "Office-New", "office-password"); errorValue != nil {
 		t.Fatal(errorValue)
