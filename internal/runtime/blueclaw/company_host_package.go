@@ -113,7 +113,8 @@ const (
 	CompanyHostSettingsPath = "/etc/internkim/company-host.env"
 
 	// An operator's own runtime document or roster, placed here, wins over the
-	// rendered template and the empty roster; absent, nothing happens.
+	// rendered template and the roster written before admind hands one over;
+	// absent, nothing happens.
 	CompanyHostRuntimeOverridePath = "/etc/internkim/runtime.json"
 	CompanyHostPolicyOverridePath  = "/etc/internkim/policy.json"
 
@@ -404,7 +405,7 @@ fi
 if [ -r %[21]s ]; then
   install -o %[3]s -g %[3]s -m 0640 %[21]s %[22]s
 else
-  [ -s %[22]s ] || printf '{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
+  [ -s %[22]s ] || printf '{"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
   chown %[3]s:%[3]s %[22]s
   chmod 0640 %[22]s
 fi

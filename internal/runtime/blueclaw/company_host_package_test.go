@@ -1,6 +1,7 @@
 package blueclaw
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -228,6 +229,33 @@ func TestThePrepareServiceCreatesTheStateRootWithTheModeThePackageGivesIt(t *tes
 	if !strings.Contains(CompanyHostPrepareScript(), expected) {
 		t.Fatalf("the prepare service does not create the state root as %q, so a company changes its mode", expected)
 	}
+}
+
+func TestThePrepareServicesRosterNamesNoPeopleUntilAdmindHandsThemOver(t *testing.T) {
+	placeholder := prepareServiceRosterPlaceholder(t)
+	var document map[string]any
+	if errorValue := json.Unmarshal([]byte(placeholder), &document); errorValue != nil {
+		t.Fatalf("the roster the prepare service writes is not JSON: %v\n%s", errorValue, placeholder)
+	}
+	if _, namesPeople := document["people"]; namesPeople {
+		t.Fatalf("the roster written before admind hands one over lists people, so blueclaw retires everyone it knows:\n%s", placeholder)
+	}
+}
+
+func prepareServiceRosterPlaceholder(t *testing.T) string {
+	t.Helper()
+	for _, line := range strings.Split(CompanyHostPrepareScript(), "\n") {
+		if !strings.HasSuffix(line, "> "+LinuxCompanyHostLayout().PolicyDocumentPath()) {
+			continue
+		}
+		_, afterPrintf, hasPrintf := strings.Cut(line, "printf '")
+		document, _, hasEnd := strings.Cut(afterPrintf, "\\n'")
+		if hasPrintf && hasEnd {
+			return document
+		}
+	}
+	t.Fatal("the prepare service writes no roster when the operator places none")
+	return ""
 }
 
 func settingOf(unitContents string, name string) string {
