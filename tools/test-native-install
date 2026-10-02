@@ -91,7 +91,8 @@ AGENT_UNIT_NAME = "blueclaw.service"
 LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS = 60
 
 # A host whose install has just returned on a release without the roster wait:
-# the agent has started on the empty roster the prepare step writes, and admind
+# the agent has started on the roster the prepare step writes, which names no
+# people because none has been handed over, and admind
 # has not yet handed it the company's people. Stopping admind holds it there.
 AGENT_WITHOUT_ITS_ROSTER_COMMAND = r"""
 set -e
@@ -103,7 +104,7 @@ import json, sys
 path = sys.argv[1]
 with open(path) as source:
     document = json.load(source)
-document["people"] = []
+document.pop("people", None)
 with open(path, "w") as target:
     json.dump(document, target)
 PYTHON
