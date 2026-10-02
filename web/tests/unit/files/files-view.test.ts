@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatFileSize, parseDelimitedText } from '../../../src/routes/files/files-view';
+import { formatFileSize, parseDelimitedText } from '../../../src/lib/files/view';
 
 describe('formatFileSize', () => {
 	test('keeps bytes under one kilobyte', () => {

@@ -79,7 +79,8 @@ import {
 } from './leave-tools';
 import { personInvite, personList, personUpdate } from './people-tools';
 import { companyDataRoomGet, companyDataRoomCategorySet, companyDataRoomRoleSet,
-	companyDataRoomShareCreate, companyDataRoomShareRevoke } from './data-room';
+	companyDataRoomShareCreate, companyDataRoomShareRevoke, companyDataRoomMemberRolesSet,
+	companyDataRoomLinksGet, companyDataRoomLinkCreate, companyDataRoomLinkRevoke } from './data-room';
 import { taskAdd, taskDelete, taskList, taskUpdate, taskVocabularySet } from './task-tools';
 import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
@@ -145,11 +146,15 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_document_update: (context, input) => companyDocumentUpdate(context, input),
 	company_document_upload: (context, input) => companyDocumentUpload(context, input),
 	company_document_download: (context, input) => companyDocumentDownload(context, input),
-	company_dataroom_get: (context) => companyDataRoomGet(context),
-	company_dataroom_category_update: (context, input) => companyDataRoomCategorySet(context, input),
-	company_dataroom_role_update: (context, input) => companyDataRoomRoleSet(context, input),
-	company_dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
-	company_dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
+	dataroom_get: (context) => companyDataRoomGet(context),
+	dataroom_links_get: (context) => companyDataRoomLinksGet(context),
+	dataroom_link_add: (context, input) => companyDataRoomLinkCreate(context, input),
+	dataroom_link_delete: (context, input) => companyDataRoomLinkRevoke(context, input),
+	dataroom_member_update: (context, input) => companyDataRoomMemberRolesSet(context, input),
+	dataroom_category_update: (context, input) => companyDataRoomCategorySet(context, input),
+	dataroom_role_update: (context, input) => companyDataRoomRoleSet(context, input),
+	dataroom_share_add: (context, input) => companyDataRoomShareCreate(context, input),
+	dataroom_share_delete: (context, input) => companyDataRoomShareRevoke(context, input),
 	notification_settings_get: (context) => notificationSettingsGet(context),
 	notification_settings_set: (context, input) => notificationSettingsSet(context, input),
 	conversation_mute: (context, input) => conversationMute(context, input),

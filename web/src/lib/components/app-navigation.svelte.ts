@@ -57,7 +57,6 @@ class AppNavigation {
 		{ href: this.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
 		{ href: this.link('/crm/'), label: text.crm, icon: HandshakeIcon },
 		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
-		{ href: this.link('/data-room/'), label: text.dataRoom, icon: FolderOpenIcon },
 		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon }
 	]);
 

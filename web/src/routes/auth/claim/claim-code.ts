@@ -1,1 +1,1 @@
-export const claimCodeLength = 8;
+export { emailCodeLength as claimCodeLength } from '$lib/auth/email-code';

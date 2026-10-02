@@ -808,6 +808,22 @@ function createPaths(copy: ApiCopy) {
 		'/tokens': listTokensPath(copy),
 		'/token': tokenPath(copy),
 		'/files': uploadFilePath(copy),
+		'/data-room/links/{linkID}': {
+			post: {
+				operationId: 'unlockDataRoomLink', summary: 'Open a share link with its six digit code and confidentiality acknowledgment',
+				security: [], description: 'Requires a same-origin share page request. Issues an HttpOnly cookie scoped to this link for up to one hour. Codes are rate limited; expired and revoked links cannot be opened.',
+				parameters: [{ name: 'linkID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false,
+					required: ['accessCode', 'noticeVersion'], properties: { accessCode: { type: 'string', pattern: '^[0-9]{6}$' }, noticeVersion: { type: 'string', const: '1' } } } } } },
+				responses: { '200': { description: 'Link session issued' }, '400': { description: 'Code and acknowledgment required' }, '403': { description: 'Code or link unavailable, or requests temporarily locked' } }
+			},
+			get: {
+				operationId: 'readDataRoomLink', summary: 'Read the documents permitted by an opened share link', security: [{ dataRoomSession: [] }],
+				description: 'Requires the HttpOnly session cookie issued after code entry and acknowledgment. The link, reader role, and creator permissions are checked on every read. Original downloads require a grant; signed URLs expire within one minute.',
+				parameters: [{ name: 'linkID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'Permitted categories and documents, or downloadURL' }, '401': { description: 'Code entry and acknowledgment required' }, '403': { description: 'Link expired or revoked' }, '404': { description: 'Document unavailable' } }
+			}
+		},
 		'/data-room/{companyID}': {
 			get: {
 				operationId: 'readDataRoom', summary: 'Read a shared data room or request a permitted file URL',
@@ -867,7 +883,8 @@ function toolInputSchemas(): Record<string, unknown> {
 function createComponents(copy: ApiCopy) {
 	return {
 		securitySchemes: {
-			memberToken: { type: 'http', scheme: 'bearer', description: copy.description }
+			memberToken: { type: 'http', scheme: 'bearer', description: copy.description },
+			dataRoomSession: { type: 'apiKey', in: 'cookie', name: 'data-room-session', description: 'HttpOnly session issued after code entry and confidentiality acknowledgment.' }
 		},
 		schemas: {
 			...toolInputSchemas(),

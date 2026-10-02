@@ -144,7 +144,7 @@ export const appShellText = {
 		crm: 'CRM',
 		organization: 'Organization',
 		files: 'Files',
-		dataRoom: 'Data room',
+		dataRoom: 'Dataroom',
 		assistant: 'internkim',
 		messenger: 'Messenger',
 		contact: 'Contact us',

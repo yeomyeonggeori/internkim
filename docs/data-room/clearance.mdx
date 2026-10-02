@@ -35,6 +35,34 @@ New members receive the employee role; administrators created with a company
 also receive leadership. Later changes to company administrator status do not
 assign or revoke a reader role. Manage these grants separately.
 
+## Code-protected links
+
+An active employee creates a link by choosing a reader role within their own
+member and circle grants. Every role is eligible, including leadership;
+`X` follows the same role and creator permissions. Its default lifetime is
+three days; the available lifetimes are defined by
+[`dataRoomLinkLifetimeHours`](https://github.com/yeomyeonggeori/internkim/blob/main/web/src/lib/data-room/links.ts).
+The database enforces a seven-day ceiling.
+
+The app generates a six digit code, displays it once and stores its salted
+password hash. The recipient enters the code and acknowledges the versioned
+confidentiality notice. This creates a guest session for up to one hour,
+bounded by the link's expiration, without creating a company member. Ten code
+attempts per network address in fifteen minutes temporarily lock further
+attempts. A link also has a shared ceiling of one hundred attempts per window.
+
+Every database read checks the link, current reader role and creator's current
+permissions. Role expansion cannot exceed the creator's access. The creator
+or a company administrator can revoke a link. An open page loses further
+access and clears its displayed documents on its next session check.
+Original download URLs expire within one minute. Already downloaded files
+cannot be recalled.
+
+Settings → Company replaces an employee's direct reader roles atomically.
+Circle grants continue to apply. The confidentiality acknowledgment records
+its notice version and time; any separate confidentiality agreement remains
+the company's responsibility.
+
 Legacy documents retain their numeric clearance policies until an
 administrator individually reclassifies them. Moving a legacy document into a
 category changes its readers. Old folders are not mechanically mapped to new

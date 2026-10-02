@@ -63,6 +63,7 @@ type PlaneRequest = {
 
 type CapabilitydPlaneArguments = {
 	socketPath: string;
+	blueclawWorkspacePath: string;
 	openRouterKeyPath: string;
 	blueclawURL: string;
 	admindURL: string;
@@ -83,6 +84,7 @@ type BlueclawPlaneArguments = {
 
 type AdmindPlaneArguments = {
 	listenAddress: string;
+	blueclawWorkspacePath: string;
 	capabilitySocketPath: string;
 	chatdEndpoint: string;
 	chatdPlatform: string;
@@ -112,7 +114,9 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--openrouter-key': argumentsForPlane.openRouterKeyPath,
 			'--local-inference-mode': 'remote',
 			'--blueclaw-url': argumentsForPlane.blueclawURL,
+			'--blueclaw-workspace': argumentsForPlane.blueclawWorkspacePath,
 			'--admind-url': argumentsForPlane.admindURL,
+			'--admind-socket': argumentsForPlane.admindSocketPath,
 			'--chatd-endpoint': argumentsForPlane.chatdEndpoint,
 			'--chatd-platform': argumentsForPlane.chatdPlatform,
 			'--device-browser': argumentsForPlane.deviceBrowserPath,
@@ -121,8 +125,7 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 			'--device-browser-capacity': '1',
 			'--device-browser-user': 'blueclaw',
 			'--file-read-python': argumentsForPlane.fileReadPythonPath
-		},
-		{ '--admind-socket': argumentsForPlane.admindSocketPath }
+		}
 	);
 }
 
@@ -140,10 +143,12 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 		'internkim-admind',
 		{
 			'-listen': argumentsForPlane.listenAddress,
+			'-listen-socket': argumentsForPlane.listenSocketPath,
 			'-capability-socket': argumentsForPlane.capabilitySocketPath,
 			'-chatd-endpoint': argumentsForPlane.chatdEndpoint,
 			'-chatd-platform': argumentsForPlane.chatdPlatform,
 			'-blueclaw-url': argumentsForPlane.blueclawURL,
+			'-blueclaw-workspace': argumentsForPlane.blueclawWorkspacePath,
 			'-blueclaw-policy': argumentsForPlane.blueclawPolicyPath,
 			'-buzz-key-seed-path': argumentsForPlane.buzzKeySeedPath,
 			'-buzz-database-url-path': argumentsForPlane.buzzDatabaseURLPath,
@@ -159,7 +164,6 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-install-users-sync': 'false'
 		},
 		{
-			'-listen-socket': argumentsForPlane.listenSocketPath,
 			'-state-dir': argumentsForPlane.stateDirectory,
 			'-database': argumentsForPlane.databasePath
 		}
@@ -397,6 +401,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					join(binaryDirectory, 'internkim-capabilityd'),
 					...capabilitydArgumentsForPlane({
 						socketPath: capabilitySocketPath,
+						blueclawWorkspacePath: join(runDirectory, 'workspace'),
 						openRouterKeyPath,
 						blueclawURL,
 						admindURL,
@@ -511,6 +516,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 					join(binaryDirectory, 'internkim-admind'),
 					...admindArgumentsForPlane({
 						listenAddress: `127.0.0.1:${admindPort}`,
+						blueclawWorkspacePath: join(runDirectory, 'workspace'),
 						capabilitySocketPath,
 						chatdEndpoint: connector.url,
 						chatdPlatform: admindPlatform,

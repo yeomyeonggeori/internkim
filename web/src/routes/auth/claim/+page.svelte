@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { REGEXP_ONLY_DIGITS } from 'bits-ui';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
@@ -171,6 +172,8 @@
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
 								inputId="claim-code-{fieldID}"
+								pushPasswordManagerStrategy="none"
+								pattern={REGEXP_ONLY_DIGITS}
 								maxlength={claimCodeLength}
 								bind:value={code}
 								disabled={busy}

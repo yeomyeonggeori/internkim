@@ -9,6 +9,7 @@ import {
 test('the plane starts every daemon with the current company-box contract', () => {
 	const argumentsForCapabilityd = capabilitydArgumentsForPlane({
 		socketPath: '/tmp/capability.sock',
+		blueclawWorkspacePath: '/tmp/workspace',
 		openRouterKeyPath: '/tmp/openrouter-key',
 		blueclawURL: 'http://127.0.0.1:8080',
 		admindURL: 'http://127.0.0.1:8081',
@@ -34,6 +35,7 @@ test('the plane starts every daemon with the current company-box contract', () =
 
 	const argumentsForAdmind = admindArgumentsForPlane({
 		listenAddress: '127.0.0.1:8081',
+		blueclawWorkspacePath: '/tmp/workspace',
 		capabilitySocketPath: '/tmp/capability.sock',
 		chatdEndpoint: 'http://127.0.0.1:8082',
 		chatdPlatform: 'buzz',

@@ -14,7 +14,7 @@ func (client *Client) DataRoomCategories(ctx context.Context, requesterEmail str
 	var answer struct {
 		Categories []DataRoomCategory `json:"categories"`
 	}
-	if errorValue := client.runRecordTool(ctx, requesterEmail, "company_dataroom_get", map[string]string{}, &answer); errorValue != nil {
+	if errorValue := client.runRecordTool(ctx, requesterEmail, "dataroom_get", map[string]string{}, &answer); errorValue != nil {
 		return nil, errorValue
 	}
 	return answer.Categories, nil

@@ -1,0 +1,70 @@
+export const dataRoomSharingText = {
+	ko: {
+		title: '데이터룸 링크 공유',
+		description: '역할의 자료를 공유합니다. 본인에게 허용된 범위에서만 만들 수 있습니다.',
+		label: '공유 이름',
+		role: '열람 역할',
+		lifetime: '유효 기간',
+		hours: '시간',
+		days: '일',
+		download: '원본 다운로드 허용',
+		create: '링크 만들기',
+		copy: '링크 복사',
+		copied: '복사됨',
+		code: '6자리 코드',
+		codeOnce: '코드는 이 화면에서만 표시됩니다. 링크와 코드를 받는 사람에게 전달하세요.',
+		links: '공유 링크',
+		revoke: '링크 파기',
+		revoked: '파기됨',
+		expired: '만료됨',
+		expires: '만료',
+		noLinks: '공유 링크가 없습니다.',
+		noRoles: '공유할 수 있는 역할이 없습니다. 관리자에게 데이터룸 권한을 요청하세요.',
+		live: '선택한 역할 범위의 현재 자료와 이후 추가되는 자료를 공유합니다.',
+		enterCode: '데이터룸 열기',
+		unlockDescription:
+			'공유받은 6자리 코드를 입력하고 기밀유지 안내에 동의하세요. 계정은 필요하지 않습니다.',
+		noticeTitle: '기밀유지 안내',
+		notice:
+			'이 데이터룸의 자료는 허용된 검토 목적으로만 사용하세요. 제공자의 사전 동의 없이 복제하거나 제3자에게 전달·공개하지 마세요. 무단 사용이나 공개는 적용되는 법률 및 별도 계약에 따라 법적 책임을 초래할 수 있습니다.',
+		consent: '기밀유지 안내를 읽었으며 위 조건에 동의합니다.',
+		unlock: '동의하고 열기',
+		failure: '데이터룸 요청을 처리하지 못했습니다.',
+		revokedDescription:
+			'파기하면 이미 열린 화면에서도 추가 열람이 차단됩니다. 내려받은 파일은 회수할 수 없으며, 발급된 다운로드 주소는 최대 1분 뒤 만료됩니다.'
+	},
+	en: {
+		title: 'Share dataroom link',
+		description: 'Share documents through a reader role within your own permissions.',
+		label: 'Share name',
+		role: 'Reader role',
+		lifetime: 'Expires after',
+		hours: 'hours',
+		days: 'days',
+		download: 'Allow original downloads',
+		create: 'Create link',
+		copy: 'Copy link',
+		copied: 'Copied',
+		code: 'Six digit code',
+		codeOnce: 'The code appears only here. Send the link and code to the recipient.',
+		links: 'Share links',
+		revoke: 'Revoke link',
+		revoked: 'Revoked',
+		expired: 'Expired',
+		expires: 'Expires',
+		noLinks: 'No share links yet.',
+		noRoles: 'No shareable roles. Ask an administrator for dataroom permissions.',
+		live: 'Shares current documents and future additions in the selected role.',
+		enterCode: 'Open dataroom',
+		unlockDescription:
+			'Enter the shared six digit code and acknowledge the confidentiality notice. No account is required.',
+		noticeTitle: 'Confidentiality notice',
+		notice:
+			'Use these materials only for the authorized review purpose. Do not copy, disclose, or share them with third parties without prior permission from the provider. Unauthorized use or disclosure may result in legal liability under applicable law and any separate agreement.',
+		consent: 'I have read the confidentiality notice and agree to these conditions.',
+		unlock: 'Agree and open',
+		failure: 'Could not complete the dataroom request.',
+		revokedDescription:
+			'Revoking blocks further access, including from open pages. Downloaded files cannot be recalled. Issued download URLs expire within one minute.'
+	}
+} as const;

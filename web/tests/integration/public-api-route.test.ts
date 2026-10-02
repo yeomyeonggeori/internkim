@@ -27,6 +27,7 @@ const { POST: issueCalendarFeed } = await import('../../src/routes/api/calendar/
 const { POST: removeMember } = await import('../../src/routes/api/member/remove/+server');
 const { POST: invitePerson } = await import('../../src/routes/api/member/invite/+server');
 const { GET: readDataRoom } = await import('../../src/routes/api/v1/data-room/[companyID]/+server');
+const { GET: readDataRoomLink, POST: unlockDataRoomLink } = await import('../../src/routes/api/v1/data-room/links/[linkID]/+server');
 const { POST: acceptDataRoom } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/+server');
 const { POST: sendDataRoomInvitation } = await import('../../src/routes/api/v1/data-room/invitations/[shareID]/send/+server');
 
@@ -43,6 +44,8 @@ let sessionToken = '';
 let administratorsToken = '';
 let administratorSession = '';
 let dataRoomInvitationID = '';
+let dataRoomLinkID = '';
+let dataRoomLinkCookie = '';
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -85,6 +88,19 @@ beforeAll(async () => {
 	});
 	if (invitation.error) throw new Error(invitation.error.message);
 	dataRoomInvitationID = z.string().uuid().parse(invitation.data);
+	const link = await administratorCaller.rpc('data_room_link_create', {
+		target_company: companyID, role_code: 'investor', label: 'Sample investor review', access_code: '123456'
+	});
+	if (link.error) throw new Error(link.error.message);
+	dataRoomLinkID = z.string().uuid().parse(link.data);
+	const request = asking(`/data-room/links/${dataRoomLinkID}`, null, {
+		method: 'POST', headers: { Origin: 'https://space.example.test', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ accessCode: '123456', noticeVersion: '1' })
+	});
+	const opened = await unlockDataRoomLink({ request, url: new URL(request.url), params: { linkID: dataRoomLinkID },
+		platform: undefined, cookies: { get: () => undefined, set: (_name, value) => { dataRoomLinkCookie = value; } },
+		getClientAddress: () => '127.0.0.1' });
+	expect(opened.status).toBe(200);
 }, networkHookTimeout);
 
 afterAll(async () => {
@@ -836,6 +852,13 @@ function reachDocumented(operation: Operation, revocableName: string): Promise<R
 	const path = operation.path.replace('{name}', 'task_list');
 	if (path === '/mcp') return speakMCP(holdersToken);
 	if (path === '/tokens') return tokens(holdersToken);
+	if (operation.path === '/data-room/links/{linkID}') {
+		const linkID = dataRoomLinkID;
+		const request = asking(`/data-room/links/${linkID}`, sessionToken, { method });
+		const route = method === 'POST' ? unlockDataRoomLink : readDataRoomLink;
+		return answerOf(() => Promise.resolve(route({ request, url: new URL(request.url),
+			params: { linkID }, platform: undefined, cookies: { get: () => dataRoomLinkCookie, set: () => {} }, getClientAddress: () => '127.0.0.1' })));
+	}
 	if (path === '/data-room/{companyID}') {
 		const request = asking(`/data-room/${companyID}`, sessionToken);
 		return answerOf(() => Promise.resolve(readDataRoom({ request, url: new URL(request.url),
@@ -926,7 +949,9 @@ describe('the documented endpoints', () => {
 			'get /agent/replies',
 			'get /data-room/{companyID}',
 			'post /data-room/invitations/{shareID}',
-			'post /data-room/invitations/{shareID}/send'
+			'post /data-room/invitations/{shareID}/send',
+			'get /data-room/links/{linkID}',
+			'post /data-room/links/{linkID}'
 		];
 		expect(served.filter((operation) => !documented.has(operation))).toEqual([]);
 	});

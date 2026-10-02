@@ -47,33 +47,69 @@ type catalogGateCase struct {
 
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
-		"company_dataroom_get": {
+		"dataroom_member_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_dataroom_get","result":{"categories":[],"roles":[],"shares":[],"canManage":false}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_member_update","result":{"saved":true}}`)},
+			input:   `{"memberID":"62000000-0000-4000-8000-000000000001","roleCodes":["finance"]}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"saved":true`)
+			},
+		},
+		"dataroom_links_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_links_get","result":{"links":[],"shareableRoleCodes":["finance"],"downloadableRoleCodes":[]}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"shareableRoleCodes":["finance"]`)
+			},
+		},
+		"dataroom_link_add": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_link_add","result":{"linkID":"62000000-0000-4000-8000-000000000001","accessCode":"123456"}}`)},
+			input:   `{"roleCode":"finance","label":"Sample financial review"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"accessCode":"123456"`)
+			},
+		},
+		"dataroom_link_delete": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_link_delete","result":{"saved":true}}`)},
+			input:   `{"linkID":"62000000-0000-4000-8000-000000000001"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"saved":true`)
+			},
+		},
+		"dataroom_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_get","result":{"categories":[],"roles":[],"shares":[],"canManage":false}}`)},
 			input:   `{}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
-		"company_dataroom_category_update": {
+		"dataroom_category_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_dataroom_category_update","result":{"saved":true}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_category_update","result":{"saved":true}}`)},
 			input:   `{"code":"FZ","parent":"F","slug":"custom","name":"Custom","nameKO":"추가","description":"Sample finance records."}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
-		"company_dataroom_role_update": {
+		"dataroom_role_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_dataroom_role_update","result":{"saved":true}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_role_update","result":{"saved":true}}`)},
 			input:   `{"code":"custom","name":"Custom","nameKO":"","readableCategories":["FS"]}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
-		"company_dataroom_share_add": {
+		"dataroom_share_add": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_dataroom_share_add","result":{"shareID":"62000000-0000-4000-8000-000000000001"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_share_add","result":{"shareID":"62000000-0000-4000-8000-000000000001"}}`)},
 			input:   `{"roleCode":"investor","audience":"email","email":"sample@example.com"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
-		"company_dataroom_share_delete": {
+		"dataroom_share_delete": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_dataroom_share_delete","result":{"saved":true}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_share_delete","result":{"saved":true}}`)},
 			input:   `{"shareID":"62000000-0000-4000-8000-000000000001"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},

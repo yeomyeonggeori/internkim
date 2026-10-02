@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { dataRoomGetResultSchema, dataRoomCategorySetInputSchema, dataRoomRoleSetInputSchema,
-	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema } from '../catalog/data-room';
+	dataRoomShareCreateInputSchema, dataRoomShareRevokeInputSchema, dataRoomMemberRolesInputSchema } from '../catalog/data-room';
 import type { RecordContext } from './company';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
+import { dataRoomLinkInputSchema, dataRoomLinkRevokeSchema, dataRoomLinksSchema, generateDataRoomCode } from '$lib/data-room/links';
 
 const categoryRowSchema = z.object({
 	code: z.string(), parent: z.string().nullable(), slug: z.string(),
@@ -96,5 +97,44 @@ export async function companyDataRoomShareCreate(context: RecordContext, value: 
 export async function companyDataRoomShareRevoke(context: RecordContext, value: unknown) {
 	const share = dataRoomShareRevokeInputSchema.parse(value);
 	await dataRoomCall(context.caller, 'data_room_share_revoke', { target_share: share.shareID });
+	return { saved: true };
+}
+
+export async function companyDataRoomMemberRolesSet(context: RecordContext, value: unknown) {
+	const assignment = dataRoomMemberRolesInputSchema.parse(value);
+	await dataRoomCall(context.caller, 'data_room_member_roles_set', {
+		target_company: context.companyID, target_member: assignment.memberID, role_codes: assignment.roleCodes
+	});
+	return { saved: true };
+}
+
+export async function companyDataRoomLinksGet(context: RecordContext) {
+	const [shareableRoleCodes, downloadableRoleCodes] = await Promise.all([
+		dataRoomCall(context.caller, 'data_room_shareable_roles', { target_company: context.companyID }),
+		dataRoomCall(context.caller, 'data_room_shareable_roles', { target_company: context.companyID, download: true })
+	]);
+	const { data, error } = await context.caller.from('data_room_link')
+		.select('id,role_code,label,can_download,created_at,expires_at,revoked_at')
+		.eq('company_id', context.companyID).order('created_at', { ascending: false });
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
+	return dataRoomLinksSchema.parse({ shareableRoleCodes, downloadableRoleCodes, links: (data ?? []).map((link) => ({
+		id: link.id, roleCode: link.role_code, label: link.label, canDownload: link.can_download,
+		createdAt: link.created_at, expiresAt: link.expires_at, revokedAt: link.revoked_at
+	})) });
+}
+
+export async function companyDataRoomLinkCreate(context: RecordContext, value: unknown) {
+	const link = dataRoomLinkInputSchema.parse(value);
+	const accessCode = generateDataRoomCode();
+	const linkID = await dataRoomCall(context.caller, 'data_room_link_create', {
+		target_company: context.companyID, role_code: link.roleCode, label: link.label,
+		access_code: accessCode, lifetime_hours: link.lifetimeHours, can_download: link.canDownload
+	});
+	return { linkID: z.string().uuid().parse(linkID), accessCode };
+}
+
+export async function companyDataRoomLinkRevoke(context: RecordContext, value: unknown) {
+	const link = dataRoomLinkRevokeSchema.parse(value);
+	await dataRoomCall(context.caller, 'data_room_link_revoke', { target_link: link.linkID });
 	return { saved: true };
 }
