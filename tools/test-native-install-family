@@ -132,11 +132,13 @@ def connection_document(app_url):
 
 
 class StubApp(http.server.BaseHTTPRequestHandler):
-    """The two routes of the company app that `internkim install` and the box unit call.
+    """The routes of the company app that `internkim install`, the box unit and admind call.
 
     On Linux `internkim install` does not read the connection file itself: it claims
     the computer with the app and is handed the company back. The stub hands back
-    the company in `connection`, and nothing else the app does is reproduced.
+    the company in `connection`, and tells admind the company has no members yet, which
+    is the roster admind hands the agent before the install calls the server ready.
+    Nothing else the app does is reproduced.
     """
 
     issued = None
@@ -161,6 +163,17 @@ class StubApp(http.server.BaseHTTPRequestHandler):
             self.send_error(404)
             return
         body = json.dumps(answers[self.path]).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path != "/api/agent/member":
+            self.send_error(404)
+            return
+        body = json.dumps({"members": []}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

@@ -61,6 +61,8 @@ type Service struct {
 	mailNotifyMarkMutex     sync.Mutex
 	taskNotifyMarkMutex     sync.Mutex
 	startedAt               time.Time
+	rosterReadinessMutex    sync.Mutex
+	rosterReadiness         rosterReadiness
 }
 
 func NewService(configuration Configuration) *Service {

@@ -17,9 +17,19 @@ const (
 	preservedRosterEmailSuffix      = "@internkim.test"
 )
 
+type rosterReadiness struct {
+	AppliedAt   time.Time
+	LastFailure string
+}
+
 func (service *Service) startBlueclawRosterReconcile(ctx context.Context) {
 	go func() {
-		service.reconcileBlueclawRosterWithTimeout(ctx)
+		if errorValue := service.waitUntilBlueclawAnswers(ctx, "the roster"); errorValue != nil {
+			return
+		}
+		if errorValue := service.reconcileBlueclawRosterUntilItLands(ctx); errorValue != nil {
+			return
+		}
 		ticker := time.NewTicker(blueclawRosterReconcileInterval)
 		defer ticker.Stop()
 		for {
@@ -27,18 +37,68 @@ func (service *Service) startBlueclawRosterReconcile(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				service.reconcileBlueclawRosterWithTimeout(ctx)
+				if errorValue := service.reconcileBlueclawRosterWithTimeout(ctx); errorValue != nil {
+					log.Printf("blueclaw roster reconcile failed: %v", errorValue)
+				}
 			}
 		}
 	}()
 }
 
-func (service *Service) reconcileBlueclawRosterWithTimeout(ctx context.Context) {
+func (service *Service) reconcileBlueclawRosterUntilItLands(ctx context.Context) error {
+	wait := firstWaitForBlueclaw
+	reported := ""
+	for {
+		errorValue := service.reconcileBlueclawRosterWithTimeout(ctx)
+		if errorValue == nil {
+			return nil
+		}
+		if errorValue.Error() != reported {
+			reported = errorValue.Error()
+			log.Printf("blueclaw roster reconcile failed, trying again until it lands: %v", errorValue)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
+		wait = min(wait*2, longestWaitForBlueclaw)
+	}
+}
+
+func (service *Service) reconcileBlueclawRosterWithTimeout(ctx context.Context) error {
 	reconcileContext, cancel := context.WithTimeout(ctx, blueclawRosterReconcileTimeout)
 	defer cancel()
-	if errorValue := service.reconcileBlueclawRoster(reconcileContext); errorValue != nil {
-		log.Printf("blueclaw roster reconcile failed: %v", errorValue)
+	errorValue := service.reconcileBlueclawRoster(reconcileContext)
+	service.recordRosterReconcile(errorValue)
+	return errorValue
+}
+
+func (service *Service) recordRosterReconcile(errorValue error) {
+	service.rosterReadinessMutex.Lock()
+	defer service.rosterReadinessMutex.Unlock()
+	if errorValue != nil {
+		service.rosterReadiness.LastFailure = errorValue.Error()
+		return
 	}
+	service.rosterReadiness = rosterReadiness{AppliedAt: time.Now().UTC()}
+}
+
+func (service *Service) currentRosterReadiness() rosterReadiness {
+	service.rosterReadinessMutex.Lock()
+	defer service.rosterReadinessMutex.Unlock()
+	return service.rosterReadiness
+}
+
+func (service *Service) writeRosterReadiness(responseWriter http.ResponseWriter) {
+	readiness := service.currentRosterReadiness()
+	if readiness.AppliedAt.IsZero() {
+		responseWriter.Header().Set("Content-Type", "application/json")
+		responseWriter.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(responseWriter).Encode(map[string]any{"status": "waiting", "lastFailure": readiness.LastFailure})
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{"status": "applied", "appliedAt": readiness.AppliedAt})
 }
 
 func (service *Service) reconcileBlueclawRoster(ctx context.Context) error {

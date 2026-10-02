@@ -1,4 +1,10 @@
-import type { Addressing, AskedPermission, BlueclawACPClient } from './acp-session';
+import { RequestError } from '@agentclientprotocol/sdk';
+import {
+	AgentUnreachable,
+	type Addressing,
+	type AskedPermission,
+	type BlueclawACPClient
+} from './acp-session';
 import { readInboundMessage, type InboundMessage } from './inbound-message';
 import type { InboundQueue, QueuedInboundEvent } from './inbound-queue';
 
@@ -29,6 +35,8 @@ export class InboundTurns {
 	private readonly pendingByConversation = new Map<string, PendingQuestion>();
 	/** The event each running turn is still owed, by conversation. */
 	private readonly turnInFlight = new Map<string, RunningTurn>();
+	/** How many times in a row the agent could not be reached for each event; no ceiling ends this. */
+	private readonly unreachedInARow = new Map<string, number>();
 	private draining: Promise<void> = Promise.resolve();
 
 	constructor(settings: InboundTurnSettings) {
@@ -50,7 +58,7 @@ export class InboundTurns {
 
 	private async handTheRunToBlueclaw(running: RunningTurn): Promise<void> {
 		running.blueclawOpenedARun = true;
-		await this.settings.queue.forget(running.eventKey);
+		await this.forget(running.eventKey);
 	}
 
 	/** The question already reached the person before this relay last stopped; only wait. */
@@ -96,7 +104,7 @@ export class InboundTurns {
 			const inbound = readInboundMessage(event.body);
 			if (!inbound) {
 				this.settings.report?.(`dropped ${event.key}: it is not a message the agent can answer`);
-				await this.settings.queue.forget(event.key);
+				await this.forget(event.key);
 				continue;
 			}
 			const conversationID = inbound.addressing.conversationID;
@@ -109,7 +117,7 @@ export class InboundTurns {
 			if (pending) {
 				this.pendingByConversation.delete(conversationID);
 				pending.answer(inbound.message);
-				await this.settings.queue.forget(event.key);
+				await this.forget(event.key);
 				continue;
 			}
 			if (running) continue;
@@ -154,19 +162,38 @@ export class InboundTurns {
 			for (const line of answered.progress) {
 				this.settings.report?.(`progress: ${line}`);
 			}
-			await this.settings.queue.forget(event.key);
+			await this.forget(event.key);
 		} catch (failure) {
 			if (running.blueclawOpenedARun) {
 				await this.leaveItToBlueclaw(event, failure);
 				return;
 			}
+			if (failure instanceof AgentUnreachable) {
+				await this.waitForTheAgent(event, failure);
+				return;
+			}
+			this.unreachedInARow.delete(event.key);
 			await this.giveItAnotherGo(event, failure);
 		}
 	}
 
+	private async forget(key: string): Promise<void> {
+		this.unreachedInARow.delete(key);
+		await this.settings.queue.forget(key);
+	}
+
+	private async waitForTheAgent(event: QueuedInboundEvent, failure: AgentUnreachable): Promise<void> {
+		const unreached = (this.unreachedInARow.get(event.key) ?? 0) + 1;
+		this.unreachedInARow.set(event.key, unreached);
+		this.settings.report?.(
+			`${event.key} stays queued until the agent takes it (${unreached} in a row): ${failure.message}`
+		);
+		await this.waitBeforeRetrying(unreached);
+	}
+
 	private async leaveItToBlueclaw(event: QueuedInboundEvent, failure: unknown): Promise<void> {
-		this.settings.report?.(`${event.key} is blueclaw's to finish: ${String(failure)}`);
-		await this.settings.queue.forget(event.key);
+		this.settings.report?.(`${event.key} is blueclaw's to finish: ${described(failure)}`);
+		await this.forget(event.key);
 	}
 
 	private async giveItAnotherGo(event: QueuedInboundEvent, failure: unknown): Promise<void> {
@@ -174,12 +201,12 @@ export class InboundTurns {
 		const attempted = { ...event, attempts };
 		if (this.settings.queue.hasExhausted(attempted)) {
 			this.settings.report?.(
-				`dropped ${event.key} after ${attempts} attempts: ${String(failure)}`
+				`dropped ${event.key} after ${attempts} attempts: ${described(failure)}`
 			);
-			await this.settings.queue.forget(event.key);
+			await this.forget(event.key);
 			return;
 		}
-		this.settings.report?.(`${event.key} failed on attempt ${attempts}: ${String(failure)}`);
+		this.settings.report?.(`${event.key} failed on attempt ${attempts}: ${described(failure)}`);
 		await this.waitBeforeRetrying(attempts);
 	}
 
@@ -191,4 +218,12 @@ export class InboundTurns {
 		const wait = this.settings.waitBeforeRetrying ?? ((milliseconds) => Bun.sleep(milliseconds));
 		return wait(delay);
 	}
+}
+
+/** A refusal the agent answered with carries its reason in the data, not in the message. */
+function described(failure: unknown): string {
+	if (failure instanceof RequestError && failure.data !== undefined) {
+		return `${String(failure)} ${JSON.stringify(failure.data)}`;
+	}
+	return String(failure);
 }

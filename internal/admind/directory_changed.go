@@ -14,7 +14,9 @@ func (service *Service) handleDirectoryChanged(responseWriter http.ResponseWrite
 	// door did not read again: somebody invited and asking a question in the same
 	// minute was told they are not an active member until the two-minute pass came
 	// round.
-	service.reconcileBlueclawRosterWithTimeout(request.Context())
+	if errorValue := service.reconcileBlueclawRosterWithTimeout(request.Context()); errorValue != nil {
+		log.Printf("blueclaw roster reconcile failed after the directory changed: %v", errorValue)
+	}
 	recording := service.recordBuzzCredentials(request.Context())
 	log.Printf("buzz credentials after the directory changed: %s", recording)
 	if service.canWriteToBuzzRelay() {

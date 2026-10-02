@@ -91,7 +91,7 @@ const buzzCredentialSweepInterval = 2 * time.Minute
 // and the agent could not tell who they were. It reconciles on a clock too now.
 func (service *Service) startBuzzCredentialSweep(ctx context.Context) {
 	go func() {
-		if errorValue := service.waitUntilBlueclawAnswers(ctx); errorValue != nil {
+		if errorValue := service.waitUntilBlueclawAnswers(ctx, "buzz credentials"); errorValue != nil {
 			return
 		}
 		log.Printf("buzz credentials at startup: %s", service.recordBuzzCredentials(ctx))
@@ -117,7 +117,7 @@ var (
 	longestWaitForBlueclaw = 5 * time.Second
 )
 
-func (service *Service) waitUntilBlueclawAnswers(ctx context.Context) error {
+func (service *Service) waitUntilBlueclawAnswers(ctx context.Context, waiter string) error {
 	wait := firstWaitForBlueclaw
 	for {
 		errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, blueclawruntime.BlueclawHealthCheckPath, nil, nil)
@@ -125,7 +125,7 @@ func (service *Service) waitUntilBlueclawAnswers(ctx context.Context) error {
 			return nil
 		}
 		if wait == firstWaitForBlueclaw {
-			log.Printf("buzz credentials wait for blueclaw, which does not answer yet: %v", errorValue)
+			log.Printf("%s wait for blueclaw, which does not answer yet: %v", waiter, errorValue)
 		}
 		select {
 		case <-ctx.Done():

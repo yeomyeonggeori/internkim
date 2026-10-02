@@ -3,13 +3,18 @@ package admind
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func rosterPolicyWithEmails(emails ...string) map[string]any {
@@ -396,4 +401,67 @@ func deliveredCompanyField(t *testing.T, service *Service, field string) string 
 		t.Fatal(errorValue)
 	}
 	return policyDocument.Company[field]
+}
+
+func rosterReadinessAnswer(t *testing.T, service *Service) int {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	service.handleAdmin(recorder, httptest.NewRequest(http.MethodGet, blueclawruntime.AdmindRosterReadinessPath, nil))
+	return recorder.Code
+}
+
+func TestTheRosterReachesBlueclawAsSoonAsItAnswersRatherThanAtTheNextTick(t *testing.T) {
+	firstWaitForBlueclaw, longestWaitForBlueclaw = 10*time.Millisecond, 20*time.Millisecond
+	t.Cleanup(func() { firstWaitForBlueclaw, longestWaitForBlueclaw = 250*time.Millisecond, 5*time.Second })
+	healthRefusalsLeft := atomic.Int32{}
+	healthRefusalsLeft.Store(3)
+	policyRefusalsLeft := atomic.Int32{}
+	policyRefusalsLeft.Store(2)
+	reloads := atomic.Int32{}
+	service := serviceWhoseDirectorySays(t, `{"members":[
+		{"memberID":"member-1","email":"active@example.com","name":"최견본","role":"member","status":"active"}
+	]}`)
+	service.Configuration.BlueclawPolicyDeliveryPath = filepath.Join(t.TempDir(), "policy.json")
+	answering := service.HTTPClient.Transport
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Host == "blueclaw.local" && request.URL.Path == "/admin/api/health" && healthRefusalsLeft.Add(-1) >= 0 {
+			return nil, errors.New("connection refused")
+		}
+		if request.URL.Host == "blueclaw.local" && request.URL.Path == "/admin/api/policy" && policyRefusalsLeft.Add(-1) >= 0 {
+			return nil, errors.New("connection refused")
+		}
+		if request.URL.Path == "/admin/api/policy/reload" {
+			reloads.Add(1)
+		}
+		return answering.RoundTrip(request)
+	})}
+	if code := rosterReadinessAnswer(t, service); code != http.StatusServiceUnavailable {
+		t.Fatalf("the roster readiness answered %d before any roster reached blueclaw", code)
+	}
+	ctx, stop := context.WithCancel(t.Context())
+	defer stop()
+
+	service.startBlueclawRosterReconcile(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for rosterReadinessAnswer(t, service) != http.StatusOK && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if code := rosterReadinessAnswer(t, service); code != http.StatusOK {
+		t.Fatalf("blueclaw came up and the roster readiness still answered %d, so a member who writes now is unknown to the agent", code)
+	}
+	if reloads.Load() != 1 {
+		t.Fatalf("the roster was delivered %d times, want once", reloads.Load())
+	}
+	delivered, errorValue := os.ReadFile(service.Configuration.BlueclawPolicyDeliveryPath)
+	if errorValue != nil {
+		t.Fatalf("read the delivered roster: %v", errorValue)
+	}
+	var policyDocument map[string]any
+	if errorValue := json.Unmarshal(delivered, &policyDocument); errorValue != nil {
+		t.Fatalf("parse the delivered roster: %v", errorValue)
+	}
+	if !slices.Contains(rosterPolicyEmails(policyDocument), "active@example.com") {
+		t.Fatalf("the delivered roster does not name the member: %s", delivered)
+	}
 }

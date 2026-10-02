@@ -3,6 +3,7 @@ import {
 	ClientSideConnection,
 	ndJsonStream,
 	PROTOCOL_VERSION,
+	RequestError,
 	type Client,
 	type RequestPermissionRequest,
 	type RequestPermissionResponse,
@@ -39,6 +40,23 @@ export type MessageFacts = {
 };
 
 export const approvalReplyExtensionMethod = '_kim.intern/approvalReply';
+
+/** The agent never answered: it was not listening, or it went away before it replied. */
+export class AgentUnreachable extends Error {
+	constructor(cause: unknown) {
+		super(`the agent could not be reached: ${String(cause)}`, { cause });
+		this.name = 'AgentUnreachable';
+	}
+}
+
+async function fromTheAgent<T>(request: Promise<T>): Promise<T> {
+	try {
+		return await request;
+	} catch (failure) {
+		if (failure instanceof RequestError) throw failure;
+		throw new AgentUnreachable(failure);
+	}
+}
 
 const firstReconnectDelayMilliseconds = 250;
 const longestReconnectDelayMilliseconds = 5_000;
@@ -150,16 +168,18 @@ export class BlueclawACPClient {
 		message: string,
 		facts?: MessageFacts
 	): Promise<AnsweredTurn> {
-		const agent = await this.agent();
-		const sessionID = await this.sessionFor(agent, requester, addressing);
+		const agent = await fromTheAgent(this.agent());
+		const sessionID = await fromTheAgent(this.sessionFor(agent, requester, addressing));
 		const openTurn: OpenTurn = { messageSegments: [], progress: [] };
 		this.turnBySession.set(sessionID, openTurn);
 		try {
-			const answer = await agent.prompt({
-				sessionId: sessionID,
-				prompt: [{ type: 'text', text: message }],
-				...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
-			});
+			const answer = await fromTheAgent(
+				agent.prompt({
+					sessionId: sessionID,
+					prompt: [{ type: 'text', text: message }],
+					...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
+				})
+			);
 			return {
 				reply: openTurn.messageSegments.join(''),
 				progress: openTurn.progress,
