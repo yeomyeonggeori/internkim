@@ -19,6 +19,7 @@ export class FilesState {
 	loadingPaths = $state<Record<string, boolean>>({});
 	isLoading = $state<boolean>(false);
 	isUploading = $state<boolean>(false);
+	uploadedFraction = $state<number>(0);
 	errorMessage = $state<string>('');
 
 	private loadFailedMessage: string;
@@ -100,9 +101,12 @@ export class FilesState {
 	async upload(files: File[]) {
 		if (!this.currentPath || files.length === 0) return;
 		this.isUploading = true;
+		this.uploadedFraction = 0;
 		this.errorMessage = '';
 		try {
-			await uploadWorkspaceFiles(this.currentPath, files);
+			await uploadWorkspaceFiles(this.currentPath, files, (sentBytes, totalBytes) => {
+				this.uploadedFraction = totalBytes > 0 ? sentBytes / totalBytes : 0;
+			});
 			delete this.childrenCache[this.currentPath];
 			await this.loadChildren(this.currentPath);
 		} catch (error) {

@@ -39,6 +39,7 @@
 	import {
 		attachmentStateOf,
 		formatAttachmentMeta,
+		preparingLabel,
 		openableAttachments,
 		pictureAddressesOf
 	} from './channel-attachments';
@@ -54,6 +55,7 @@
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import InfoIcon from '@lucide/svelte/icons/info';
+	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -555,13 +557,26 @@
 								{/if}
 							</Attachment.Title>
 							{#if attachmentState === 'error'}
-								<Attachment.Description>{text.attachmentUnavailable}</Attachment.Description>
+								<Attachment.Description title={attachmentSource.failure(attachment.url)}>
+									{text.attachmentUnavailable}
+								</Attachment.Description>
+							{:else if attachmentState === 'processing'}
+								<Attachment.Description>
+									{preparingLabel(text.attachmentPreparing, attachmentSource.progress(attachment.url))}
+								</Attachment.Description>
 							{:else if formatAttachmentMeta(attachment)}
 								<Attachment.Description>
 									{formatAttachmentMeta(attachment)}
 								</Attachment.Description>
 							{/if}
 						</Attachment.Content>
+						{#if attachmentState === 'error'}
+							<Attachment.Actions>
+								<Attachment.Action aria-label={text.retry} onclick={() => attachmentSource.retry(attachment.url)}>
+									<RotateCwIcon />
+								</Attachment.Action>
+							</Attachment.Actions>
+						{/if}
 					{/if}
 				</Attachment.Root>
 			{/each}

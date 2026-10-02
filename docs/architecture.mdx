@@ -283,7 +283,7 @@ What "serves it" means depends on the capability, and each branch is in
 - Workspace views (`person.memory.*`, `person.files.*`, `person.runs.*`,
   `person.skills.*`, `person.persona.*` and their siblings) and the public
   API's company tools (`person.api.request`, `person.api.file`) are forwarded
-  to `admind` over its unix socket.
+  to `admind` over its unix socket. Moving a file is described below.
 - Link previews (`asset.link`) are built by the relay, which stores the
   preview image in Supabase Storage so the answer stays small.
 
@@ -301,6 +301,36 @@ it works before anything is stored.
 An answer larger than the byte ceiling is refused with a `413` naming the
 size, because the transport would otherwise drop it silently; the ceiling and
 its default are in [Running the host](/docs/running-the-host#how-big-an-answer-may-be).
+
+### How a file crosses
+
+A file never travels on the socket. The call only names it, and the bytes go
+through the company's `asset` bucket, whose prefixes are listed in
+[What lives where](/docs/what-lives-where#the-record).
+
+To read one, the browser calls `person.media.prepare` for a messenger
+attachment or `person.files.download` for a workspace file, with a
+`transferID` it chose. The relay checks the request as the member: the
+messenger reads with the member's own key, and admind lists the directory as
+the member before anything is read. The relay then copies the file into the
+bucket with a resumable upload, asking the connector or admind for one 6 MiB
+range at a time. A copy that already exists is answered at once with its
+address. Otherwise the call answers `pending`, and the relay delivers
+`transfer.progress` events while it copies, then `transfer.done` with the
+address or `transfer.failed` with the reason. The browser signs the address
+with its own session, so row level security decides who may open it.
+
+To send one, the browser uploads it into its member's `upload/` prefix with a
+resumable upload of its own, then calls `person.media.upload` or
+`person.files.upload` naming the object. The relay reads it with the member's
+session. For a message, the connector fetches it from a short-lived signed
+address, spools it to disk while hashing it and puts it in the messenger's
+media store, and the message is then sent naming what came back. For the Files
+screen, the relay streams it to admind, which has Blueclaw write it as the
+member's POSIX identity. Either way the upload is deleted once it is taken.
+
+No process holds a whole file. Bun reads an HTTP response as fast as it
+arrives, whatever the reader does with it, so every read is one bounded range.
 
 ## How a message becomes work
 

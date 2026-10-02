@@ -16,6 +16,7 @@ mock.module('../../../src/lib/admin-api', () => ({
 }));
 mock.module('../../../src/lib/supabase', () => ({ isSupabaseConfigured: () => centralConfigured }));
 mock.module('../../../src/lib/host-bridge', () => ({
+	onCompanyEvent: () => () => undefined,
 	callCompanyApp: async (call: { capability: string; body: Record<string, unknown> }) => {
 		companyCalls.push(call);
 		return { status: 200, body: { taskRunID: 'company-run', status: 'running' } };

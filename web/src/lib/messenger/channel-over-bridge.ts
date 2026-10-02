@@ -15,6 +15,7 @@ import {
 	fetchChannels,
 	fetchPeople,
 	fetchPosts,
+	keepAttachmentForSending,
 	openDirectChannel,
 	removeReaction,
 	writePost,
@@ -303,7 +304,9 @@ export async function bridgeSendMessage(
 	mentions?: Mentions
 ): Promise<void> {
 	if (!channelID) throw new Error('choose a conversation first');
-	await writePost(channelID, text, replyToRootID, attachments, mentions);
+	const kept = [];
+	for (const attachment of attachments) kept.push(await keepAttachmentForSending(attachment));
+	await writePost(channelID, text, replyToRootID, kept, mentions);
 }
 
 export async function bridgeEditMessage(channelID: string | undefined, messageID: string, text: string): Promise<void> {

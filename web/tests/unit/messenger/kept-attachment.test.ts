@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	addressesToSign,
 	keptAssetPathOf,
 	readableAddresses,
 	type AttachmentSigner
@@ -84,51 +83,5 @@ describe('opening one', () => {
 		const readable = await readableAddresses(failing, projectURL, [addressOf('a/b')]);
 
 		expect(readable.size).toBe(0);
-	});
-});
-
-describe('finding an address the browser can be given', () => {
-	const onTheCompanyMachine = { url: 'http://localhost:3000/media/9f2c.pdf' };
-	const kept = addressOf(`${company}/shared/attachment/9f2c.pdf`);
-
-	test('a file on the company machine is copied to the bucket first', async () => {
-		const asked: string[] = [];
-
-		const addresses = await addressesToSign([onTheCompanyMachine], projectURL, async (attachment) => {
-			asked.push(attachment.url);
-			return { address: kept };
-		});
-
-		expect(asked).toEqual([onTheCompanyMachine.url]);
-		expect(addresses.get(onTheCompanyMachine.url)).toBe(kept);
-	});
-
-	test('one already in the bucket is not copied again', async () => {
-		let copies = 0;
-
-		const addresses = await addressesToSign([{ url: kept }], projectURL, async () => {
-			copies += 1;
-			return { address: kept };
-		});
-
-		expect(copies).toBe(0);
-		expect(addresses.get(kept)).toBe(kept);
-	});
-
-	test('a file the company server will not copy is left out rather than guessed at', async () => {
-		const addresses = await addressesToSign([onTheCompanyMachine], projectURL, async () => null);
-
-		expect(addresses.size).toBe(0);
-	});
-
-	test('one that fails does not take the rest of the page with it', async () => {
-		const second = { url: 'http://localhost:3000/media/aaaa.png' };
-
-		const addresses = await addressesToSign([onTheCompanyMachine, second], projectURL, async (attachment) => {
-			if (attachment.url === onTheCompanyMachine.url) throw new Error('the company server is down');
-			return { address: kept };
-		});
-
-		expect([...addresses.keys()]).toEqual([second.url]);
 	});
 });

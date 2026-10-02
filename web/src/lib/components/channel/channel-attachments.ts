@@ -1,6 +1,6 @@
 import type { ChannelMessageAttachment, ChannelOutgoingAttachment } from './channel-api';
 import type { AttachmentState } from '$lib/components/ui/attachment/index.js';
-import type { AttachmentSourceStatus } from '$lib/stores/attachment-source.svelte';
+import type { AttachmentProgress, AttachmentSourceStatus } from '$lib/stores/attachment-source.svelte';
 
 export function openableAttachments(
 	attachments: ChannelMessageAttachment[],
@@ -17,6 +17,11 @@ export function attachmentStateOf(source: string | undefined, status: Attachment
 	if (status === 'loading') return 'processing';
 	if (status === 'failed') return 'error';
 	return 'done';
+}
+
+export function preparingLabel(label: string, progress: AttachmentProgress | null): string {
+	if (!progress || progress.totalBytes <= 0) return label;
+	return `${label} ${Math.floor((progress.copiedBytes / progress.totalBytes) * 100)}%`;
 }
 
 export function pictureAddressesOf(attachments: ChannelMessageAttachment[]): string[] {
@@ -55,11 +60,10 @@ const reencodedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export async function fileToAttachment(file: File): Promise<ChannelOutgoingAttachment> {
 	if (reencodedImageTypes.has(file.type)) return reencodeImage(file);
-	const contentBase64 = await blobToBase64(file);
 	return {
 		filename: file.name,
 		contentType: file.type || 'application/octet-stream',
-		contentBase64
+		content: file
 	};
 }
 
@@ -80,7 +84,7 @@ async function reencodeImage(file: File): Promise<ChannelOutgoingAttachment> {
 	return {
 		filename: withExtension(file.name, outputType),
 		contentType: outputType,
-		contentBase64: await blobToBase64(blob)
+		content: blob
 	};
 }
 
@@ -91,19 +95,6 @@ function canvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob> {
 			type,
 			0.9
 		);
-	});
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => {
-			const result = reader.result;
-			if (typeof result !== 'string') return reject(new Error('unexpected file read result'));
-			resolve(result.slice(result.indexOf(',') + 1));
-		};
-		reader.onerror = () => reject(reader.error ?? new Error('file read failed'));
-		reader.readAsDataURL(blob);
 	});
 }
 

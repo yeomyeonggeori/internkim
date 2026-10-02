@@ -6,7 +6,12 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
-	import { workspaceDownloadURL, type WorkspaceEntry } from './files-api';
+	import {
+		isWorkspaceOnTheCompanyComputer,
+		workspaceDownloadURL,
+		workspaceFileForReading,
+		type WorkspaceEntry
+	} from './files-api';
 	import {
 		codeLanguageForFile,
 		fileVisual,
@@ -24,44 +29,88 @@
 	const imagePattern = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i;
 	const tabularPattern = /\.(csv|tsv)$/i;
 	const maxPreviewBytes = 2 * 1024 * 1024;
+	const maxImagePreviewBytes = 20 * 1024 * 1024;
+	const isOnTheCompanyComputer = isWorkspaceOnTheCompanyComputer();
 
 	const isImage = $derived(imagePattern.test(file.name));
 	const isTabular = $derived(tabularPattern.test(file.name));
-	const downloadURL = $derived(workspaceDownloadURL(file.agentPath));
+	const deviceDownloadURL = $derived(workspaceDownloadURL(file.agentPath));
 	const previewLanguage = $derived(codeLanguageForFile(file.name));
 	const isTextFile = $derived(!isImage && previewLanguage !== null);
 	const canPreviewText = $derived(isTextFile && file.size <= maxPreviewBytes);
 	const isTextFileTooLarge = $derived(isTextFile && file.size > maxPreviewBytes);
-
+	const canPreviewImage = $derived(isImage && (!isOnTheCompanyComputer || file.size <= maxImagePreviewBytes));
 	let previewContent = $state('');
+	let previewURL = $state('');
 	let isPreviewLoading = $state(false);
 	let hasPreviewError = $state(false);
+	let isPreparingDownload = $state(false);
+	let preparedFraction = $state<number | null>(null);
+	let downloadFailure = $state('');
+
+	const imageSource = $derived(isOnTheCompanyComputer ? previewURL : deviceDownloadURL);
 
 	const tableDelimiter = $derived(file.name.toLowerCase().endsWith('.tsv') ? '\t' : ',');
 	const tableRows = $derived(isTabular ? parseDelimitedText(previewContent, tableDelimiter) : []);
 
 	$effect(() => {
-		if (!canPreviewText) {
-			previewContent = '';
-			return;
-		}
-		void loadTextPreview(downloadURL);
+		downloadFailure = '';
+		previewContent = '';
+		previewURL = '';
+		if (!canPreviewText && !(isOnTheCompanyComputer && canPreviewImage)) return;
+		void loadPreview(file);
 	});
 
-	async function loadTextPreview(url: string) {
+	async function readableAddressOf(entry: WorkspaceEntry): Promise<string> {
+		if (!isOnTheCompanyComputer) return workspaceDownloadURL(entry.agentPath);
+		return workspaceFileForReading(entry, 'preview');
+	}
+
+	async function loadPreview(entry: WorkspaceEntry) {
 		isPreviewLoading = true;
 		hasPreviewError = false;
-		previewContent = '';
 		try {
-			const response = await fetch(url, { credentials: 'include' });
+			const address = await readableAddressOf(entry);
+			if (entry !== file) return;
+			if (isImage) {
+				previewURL = address;
+				return;
+			}
+			const response = await fetch(address, isOnTheCompanyComputer ? {} : { credentials: 'include' });
 			if (!response.ok) throw new Error(`preview returned ${response.status}`);
-			previewContent = await response.text();
+			const content = await response.text();
+			if (entry === file) previewContent = content;
 		} catch {
-			hasPreviewError = true;
+			if (entry === file) hasPreviewError = true;
 		} finally {
-			isPreviewLoading = false;
+			if (entry === file) isPreviewLoading = false;
 		}
 	}
+
+	async function downloadFromTheCompanyComputer() {
+		const entry = file;
+		isPreparingDownload = true;
+		preparedFraction = null;
+		downloadFailure = '';
+		try {
+			const address = await workspaceFileForReading(entry, 'download', (copiedBytes, totalBytes) => {
+				preparedFraction = totalBytes > 0 ? copiedBytes / totalBytes : null;
+			});
+			const anchor = document.createElement('a');
+			anchor.href = address;
+			anchor.download = entry.name;
+			anchor.click();
+		} catch (failure) {
+			downloadFailure = failure instanceof Error && failure.message ? failure.message : text.downloadFailed;
+		} finally {
+			isPreparingDownload = false;
+			preparedFraction = null;
+		}
+	}
+
+	const preparingLabel = $derived(
+		preparedFraction === null ? text.preparing : `${text.preparing} ${Math.floor(preparedFraction * 100)}%`
+	);
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
@@ -85,12 +134,16 @@
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
-		{#if isImage}
+		{#if canPreviewImage && imageSource}
 		<img
-			src={downloadURL}
+			src={imageSource}
 			alt={file.name}
 			class="bg-muted max-h-80 w-full rounded-md border object-contain"
 		/>
+	{:else if canPreviewImage && isPreviewLoading}
+		<p class="text-muted-foreground text-sm">{text.previewLoading}</p>
+	{:else if canPreviewImage && hasPreviewError}
+		<p class="text-destructive text-sm">{text.previewError}</p>
 	{:else if canPreviewText}
 		{#if isPreviewLoading}
 			<p class="text-muted-foreground text-sm">{text.previewLoading}</p>
@@ -127,10 +180,20 @@
 		{/if}
 	</div>
 
-	<div class="border-t p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
-		<Button href={downloadURL} download={file.name} class="w-full">
-			<DownloadIcon />
-			{text.download}
-		</Button>
+	<div class="flex flex-col gap-2 border-t p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
+		{#if isOnTheCompanyComputer}
+			<Button onclick={downloadFromTheCompanyComputer} disabled={isPreparingDownload} class="w-full">
+				<DownloadIcon />
+				{isPreparingDownload ? preparingLabel : downloadFailure ? text.retry : text.download}
+			</Button>
+			{#if downloadFailure}
+				<p role="alert" class="text-destructive text-sm">{downloadFailure}</p>
+			{/if}
+		{:else}
+			<Button href={deviceDownloadURL} download={file.name} class="w-full">
+				<DownloadIcon />
+				{text.download}
+			</Button>
+		{/if}
 	</div>
 </div>

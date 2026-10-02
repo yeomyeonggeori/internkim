@@ -1,4 +1,6 @@
 import { extensionOf } from './asset-store';
+import { leafNameOf, type Answered, type KeptFileReference } from './file-transfer';
+import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
 
 export type Call = {
@@ -14,9 +16,11 @@ const personPrefix = 'person.';
 // device has to hear about it rather than wait for its own timer to come round.
 export const directoryChangedCapability = 'directory.changed';
 const sendCapability = 'person.message.send';
-const readCapability = 'person.message.attachment';
+const prepareMediaCapability = 'person.media.prepare';
+const uploadMediaCapability = 'person.media.upload';
+const downloadFileCapability = 'person.files.download';
+const uploadFileCapability = 'person.files.upload';
 const pictureCapability = 'person.picture';
-const refusedStatus = 415;
 const registrationPrefix = 'person.credential.';
 const issueCapability = 'person.credential.issue';
 const mailPrefix = 'person.mail.';
@@ -31,7 +35,8 @@ const requesterPermissionHeader = 'X-INTERNKIM-REQUESTER-PERMISSION';
 // Bun's fetch refuses a body on OPTIONS as well as on GET and HEAD.
 const methodsThatCarryNoBody = new Set(['GET', 'HEAD', 'OPTIONS']);
 const admindHost = 'http://internkim';
-const workspaceUploadPath = '/files/api/upload';
+const workspaceFilePath = '/files/api/file';
+const workspaceDownloadPath = '/files/api/download';
 const tellPath = '/tell/api/direct-message';
 
 export function mailOperationOf(capability: string): string | null {
@@ -86,8 +91,12 @@ export function admindAPIURL(request: PublicAPIRequest): string {
 	return `${admindHost}/api/v1${request.path}${request.query}`;
 }
 
-export function workspaceUploadURL(directoryPath: string): string {
-	return `${admindHost}${workspaceUploadPath}?path=${encodeURIComponent(directoryPath)}`;
+export function workspaceFileURL(path: string): string {
+	return `${admindHost}${workspaceFilePath}?path=${encodeURIComponent(path)}`;
+}
+
+export function workspaceDownloadURL(path: string): string {
+	return `${admindHost}${workspaceDownloadPath}?path=${encodeURIComponent(path)}`;
 }
 
 export type AdmindCall = {
@@ -96,27 +105,33 @@ export type AdmindCall = {
 	requester: string;
 	permission?: string;
 	contentType?: string;
-	body?: FormData | string;
+	range?: string;
+	body?: string | ReadableStream<Uint8Array>;
 };
 
 export async function forwardToAdmind(
 	socketPath: string,
 	call: AdmindCall
 ): Promise<{ status: number; body: unknown }> {
-	const response = await fetch(call.url, {
+	const response = await askAdmind(socketPath, call);
+	return { status: response.status, body: await answerBodyOf(response) };
+}
+
+export function askAdmind(socketPath: string, call: AdmindCall): Promise<Response> {
+	return fetch(call.url, {
 		unix: socketPath,
 		method: call.method,
 		headers: {
 			[requesterEmailHeader]: call.requester,
 			...(call.permission ? { [requesterPermissionHeader]: call.permission } : {}),
-			...(call.contentType ? { 'Content-Type': call.contentType } : {})
+			...(call.contentType ? { 'Content-Type': call.contentType } : {}),
+			...(call.range ? { Range: call.range } : {})
 		},
 		body: call.body
 	}).catch((unreachable) => {
 		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
 		throw new Error(`admind did not answer on ${socketPath}: ${reason}`);
 	});
-	return { status: response.status, body: await answerBodyOf(response) };
 }
 
 export function forwardToAdmindAPI(
@@ -176,12 +191,9 @@ export type Dispatch = {
 		body: Record<string, unknown>,
 		largestBytes?: number
 	) => Promise<{ status: number; body: unknown }>;
-	keepAttachment: (contentBase64: string, contentType: string) => Promise<KeptAttachment>;
-	keptAlready: (digest: string, contentType: string) => Promise<KeptAttachment | null>;
-	keptFileBytes: (kept: KeptFileReference) => Promise<Uint8Array<ArrayBuffer>>;
+	transfer: FileTransfer;
 	keptPersonPicture: (request: { externalID: string; avatarURL: string; actor: ActorCredential }) => Promise<string>;
 	askAdmindAsRequester: (call: AdmindCall) => Promise<{ status: number; body: unknown }>;
-	largestFileBytes: number;
 	askMaild: (operation: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	mailAccountOf: (memberID: string) => Promise<Record<string, unknown> | null>;
 	connectMessengerAccount: (memberID: string, account: ConnectedAccount) => Promise<void>;
@@ -192,19 +204,18 @@ export type ConnectedAccount = { kind: string; externalID: string; name: string;
 
 export type ActorCredential = { kind: string; secret: string };
 
-export type SentAttachment = { filename: string; contentType: string; contentBase64: string };
-
-export type KeptAttachment = { address: string; sizeBytes: number; digest: string };
-
-export type KeptFileReference = {
-	requester: string;
-	permission: string;
-	digest: string;
-	contentType: string;
-	filename: string;
+export type FileTransfer = {
+	prepareMedia: (memberID: string, actor: ActorCredential, body: Record<string, unknown>) => Promise<Answered>;
+	takeUploadIntoMessenger: (
+		memberID: string,
+		actor: ActorCredential,
+		requesterEmail: string,
+		body: Record<string, unknown>
+	) => Promise<Answered>;
+	prepareWorkspaceFile: (memberID: string, requesterEmail: string, body: Record<string, unknown>) => Promise<Answered>;
+	takeUploadIntoWorkspace: (memberID: string, requesterEmail: string, body: Record<string, unknown>) => Promise<Answered>;
+	writeKeptFileIntoWorkspace: (kept: KeptFileReference, path: string) => Promise<{ path: string; sizeBytes: number }>;
 };
-
-type ReadFile = { filename: string; contentType: string; contentBase64: string };
 
 export async function serveCallForMember(
 	dispatch: Dispatch,
@@ -249,44 +260,24 @@ async function serveForMember(
 		return { status: 409, body: { error: 'this member has connected no messenger account' }, replyTo };
 	}
 	if (capability === sendCapability) {
-		const sent = await sendKeepingWhatIsRefused(dispatch, body, actor);
+		const sent = await dispatch.askChatd(sendCapability, { ...body, actor });
 		if (sent.status < 300) {
 			dispatch.messageArrived(String(body.conversationID ?? ''), messageIDOf(sent.body));
 		}
 		return { ...sent, replyTo };
 	}
-	if (capability === readCapability) {
-		return { ...(await keptForReading(dispatch, body, actor)), replyTo };
+	if (capability === prepareMediaCapability) {
+		return { ...(await dispatch.transfer.prepareMedia(replyTo, actor, body)), replyTo };
+	}
+	if (capability === uploadMediaCapability) {
+		const requesterEmail = await dispatch.emailOfMember(replyTo);
+		if (!requesterEmail) return { ...noAddressRefusal(), replyTo };
+		return { ...(await dispatch.transfer.takeUploadIntoMessenger(replyTo, actor, requesterEmail, body)), replyTo };
 	}
 	if (capability === pictureCapability) {
 		return { ...(await keptPictureForReading(dispatch, body, actor)), replyTo };
 	}
 	return { ...(await dispatch.askChatd(capability, { ...body, actor })), replyTo };
-}
-
-// The messenger stores a file on this machine, and the browser asking for it is
-// somewhere else entirely. So the answer is never the file: it is an address in
-// the company's own bucket, which the reader signs for with their own session.
-// The bucket is addressed by content, so a file already kept is answered for
-// without the messenger being asked for a single byte.
-async function keptForReading(
-	dispatch: Dispatch,
-	body: Record<string, unknown>,
-	actor: ActorCredential
-): Promise<{ status: number; body: unknown }> {
-	const named = describedFile(body);
-	const already = named.digest ? await dispatch.keptAlready(named.digest, named.contentType) : null;
-	if (already) return { status: 200, body: { attachment: { ...already, ...named } } };
-
-	const answer = await dispatch.askChatd(readCapability, { ...body, actor }, dispatch.largestFileBytes);
-	const read = fileOf(answer);
-	if (!read) return { status: answer.status, body: { attachment: null } };
-
-	const kept = await dispatch.keepAttachment(read.contentBase64, read.contentType);
-	return {
-		status: 200,
-		body: { attachment: { ...kept, filename: read.filename, contentType: read.contentType } }
-	};
 }
 
 // A face is answered the way a file is: an address in the company's bucket
@@ -308,74 +299,9 @@ async function keptPictureForReading(
 	}
 }
 
-function describedFile(body: Record<string, unknown>): { filename: string; contentType: string; digest: string } {
-	return {
-		filename: typeof body.filename === 'string' ? body.filename : '',
-		contentType: typeof body.contentType === 'string' ? body.contentType : '',
-		digest: typeof body.digest === 'string' ? body.digest.trim() : ''
-	};
-}
-
-function fileOf(answer: { status: number; body: unknown }): ReadFile | null {
-	if (answer.status !== 200) return null;
-	const file = (answer.body as { file?: unknown } | null)?.file as Partial<ReadFile> | null | undefined;
-	if (!file || typeof file.contentBase64 !== 'string' || file.contentBase64 === '') return null;
-	return {
-		filename: typeof file.filename === 'string' ? file.filename : '',
-		contentType: typeof file.contentType === 'string' ? file.contentType : 'application/octet-stream',
-		contentBase64: file.contentBase64
-	};
-}
-
-// The messenger's own store takes most files and refuses some by type. One it
-// refuses still belongs to the conversation, so it is kept where the company
-// can read it and the message is sent again naming it there.
-async function sendKeepingWhatIsRefused(
-	dispatch: Dispatch,
-	body: Record<string, unknown>,
-	actor: ActorCredential
-): Promise<{ status: number; body: unknown }> {
-	const answer = await dispatch.askChatd(sendCapability, { ...body, actor });
-	const refused = refusedAttachmentsOf(answer);
-	if (refused.length === 0) return answer;
-
-	const attachments = await keptInsteadOfUploaded(dispatch, sentAttachmentsOf(body), refused);
-	return dispatch.askChatd(sendCapability, { ...body, attachments, actor });
-}
-
 function messageIDOf(body: unknown): string {
 	const id = (body as { id?: unknown } | null)?.id;
 	return typeof id === 'string' ? id : '';
-}
-
-function refusedAttachmentsOf(answer: { status: number; body: unknown }): number[] {
-
-	if (answer.status !== refusedStatus) return [];
-	const refused = (answer.body as { refusedAttachments?: unknown } | null)?.refusedAttachments;
-	if (!Array.isArray(refused)) return [];
-	return refused
-		.map((one) => (one as { index?: unknown }).index)
-		.filter((index): index is number => typeof index === 'number');
-}
-
-function sentAttachmentsOf(body: Record<string, unknown>): SentAttachment[] {
-	const sent = body.attachments;
-	return Array.isArray(sent) ? (sent as SentAttachment[]) : [];
-}
-
-async function keptInsteadOfUploaded(
-	dispatch: Dispatch,
-	attachments: SentAttachment[],
-	refused: number[]
-): Promise<(SentAttachment | KeptAttachment)[]> {
-	const toKeep = new Set(refused);
-	return Promise.all(
-		attachments.map(async (attachment, index) => {
-			if (!toKeep.has(index)) return attachment;
-			const kept = await dispatch.keepAttachment(attachment.contentBase64, attachment.contentType);
-			return { filename: attachment.filename, contentType: attachment.contentType, ...kept };
-		})
-	);
 }
 
 async function serveRegistration(
@@ -459,7 +385,6 @@ export async function servePublicAPIRequest(
 }
 
 const apiInboxDirectory = 'inbox/api';
-const refusedLeafNames = new Set(['', '.', '..', '.blueclaw']);
 
 export function publicAPIFileOf(body: Record<string, unknown>): KeptFileReference | null {
 	const requester = oneHeaderLine(body.requester);
@@ -477,11 +402,6 @@ export function publicAPIFileOf(body: Record<string, unknown>): KeptFileReferenc
 	};
 }
 
-export function leafNameOf(offered: string, fallback: string): string {
-	const named = offered.trim().replaceAll('\\', '/').split('/').pop()?.trim() ?? '';
-	return refusedLeafNames.has(named) ? fallback : named;
-}
-
 export async function servePublicAPIFile(
 	dispatch: Dispatch,
 	body: Record<string, unknown>
@@ -492,46 +412,17 @@ export async function servePublicAPIFile(
 	const home = await personalHomeOf(dispatch, kept);
 	if (!home) return { status: 409, body: { error: 'this address has no home in the workspace' } };
 
-	const directoryPath = `${home}/${apiInboxDirectory}`;
-	const bytes = await dispatch.keptFileBytes(kept);
-	const filename = leafNameOf(kept.filename, kept.digest + extensionOf(kept.contentType));
-	const uploaded = await dispatch.askAdmindAsRequester({
-		method: 'POST',
-		url: workspaceUploadURL(directoryPath),
-		requester: kept.requester,
-		permission: kept.permission,
-		body: onePartUpload(filename, kept.contentType, bytes)
+	const filename = leafNameOf(kept.filename) || kept.digest + extensionOf(kept.contentType);
+	const path = `${home}/${apiInboxDirectory}/${filename}`;
+	const written = await dispatch.transfer.writeKeptFileIntoWorkspace(kept, path).catch((failure: unknown) => {
+		if (failure instanceof TransferFailed) return failure;
+		throw failure;
 	});
-	if (uploaded.status !== 200) return uploaded;
-
-	const written = writtenNameOf(uploaded.body);
-	if (!written) {
-		return { status: 502, body: { error: 'the workspace took the call and wrote no file' } };
-	}
+	if (written instanceof TransferFailed) return { status: written.status, body: { error: written.message } };
 	return {
 		status: 200,
-		body: {
-			file: {
-				path: `${directoryPath}/${written}`,
-				sizeBytes: bytes.byteLength,
-				digest: kept.digest,
-				contentType: kept.contentType
-			}
-		}
+		body: { file: { path: written.path, sizeBytes: written.sizeBytes, digest: kept.digest, contentType: kept.contentType } }
 	};
-}
-
-function onePartUpload(filename: string, contentType: string, bytes: Uint8Array<ArrayBuffer>): FormData {
-	const upload = new FormData();
-	upload.append('file', new Blob([bytes], { type: contentType }), filename);
-	return upload;
-}
-
-function writtenNameOf(body: unknown): string {
-	const uploaded = (body as { uploaded?: unknown } | null)?.uploaded;
-	if (!Array.isArray(uploaded)) return '';
-	const written = uploaded[0];
-	return typeof written === 'string' ? written : '';
 }
 
 async function personalHomeOf(dispatch: Dispatch, kept: KeptFileReference): Promise<string | null> {
@@ -555,12 +446,16 @@ async function serveWorkspace(
 	memberID: string
 ): Promise<{ status: number; body: unknown }> {
 	const requesterEmail = await dispatch.emailOfMember(memberID);
-	if (!requesterEmail) {
-		return { status: 409, body: { error: 'this member has no address the workspace knows' } };
-	}
+	if (!requesterEmail) return noAddressRefusal();
+	if (capability === downloadFileCapability) return dispatch.transfer.prepareWorkspaceFile(memberID, requesterEmail, body);
+	if (capability === uploadFileCapability) return dispatch.transfer.takeUploadIntoWorkspace(memberID, requesterEmail, body);
 	const call = workspaceCallOf(capability, body, requesterEmail);
 	if (!call) return { status: 404, body: { error: `the app has nothing called ${capability}` } };
 	return dispatch.askAdmindAsRequester(call);
+}
+
+function noAddressRefusal(): Answered {
+	return { status: 409, body: { error: 'this member has no address the workspace knows' } };
 }
 
 export const workspaceCapabilityPaths: Record<string, string> = {

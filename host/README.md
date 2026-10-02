@@ -92,16 +92,13 @@ larger comes back without a picture, and the call survives.
 
 ### Files never cross it
 
-A message attachment is not answered with the file. The messenger stores it on
-this machine and the browser asking for it is somewhere else, so the relay puts
-a copy in the company's `asset` bucket and answers with its address; the reader
-signs for that with their own session. Nothing about the file's size touches the
-ceiling above, and a 91 MB archive opens the same way a screenshot does.
-
-`LARGEST_FILE_BYTES` bounds only what the relay holds in memory while copying
-one across, and defaults to 200,000,000. The bucket is addressed by content and
-the message names the hash, so a file already copied is answered for without the
-messenger being read at all.
+A file is never an answer. The relay copies it into the company's `asset`
+bucket a 6 MiB range at a time and answers with its address, or answers
+`pending` and delivers `transfer.done` once the copy is in; a browser sending a
+file puts it in the bucket first and the relay takes it from there.
+`docs/architecture.mdx`, under "How a file crosses", has the whole path. Nothing
+about a file's size touches the ceiling above, and the relay never holds more
+than a few ranges of one.
 
 `make build-relay` compiles it into a single
 `internkim-relay` executable, so the box needs no Bun and no
@@ -124,7 +121,6 @@ read, whether required or optional, in one table:
 | `GATEWAY_SERVER_KEY` | relay | the key the relay authenticates with when it connects out to the Cloudflare gateway worker; unset means no gateway connection |
 | `GATEWAY_URL` | relay | the Cloudflare gateway worker's URL a company's relay and the web app's public-API caller reach it through; unset means no gateway |
 | `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file |
-| `LARGEST_FILE_BYTES` | relay | the largest attachment the relay holds in memory while copying it into the asset bucket; defaults to 200,000,000 |
 | `MAILD_BASE_URL` | relay | maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092 |
 | `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); the relay and the host's prepare script refuse to start without it, and the host's capabilityd and admind are handed it from its environment file |
 | `RELAY_STATE_DIR` | relay + host | where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay |

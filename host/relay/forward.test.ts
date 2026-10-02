@@ -3,13 +3,13 @@ import {
 	admindAPIURL,
 	answerBodyOf,
 	apiRequestCapability,
+	askAdmind,
 	forwardToAdmind,
 	forwardToAdmindAPI,
 	forwardToChatd,
 	isPersonCapability,
 	isRegistrationCapability,
 	isWorkspaceCapability,
-	leafNameOf,
 	mailOperationOf,
 	publicAPIRequestOf,
 	publicAPIFileOf,
@@ -20,12 +20,14 @@ import {
 	tellCallOf,
 	workspaceCallOf,
 	workspaceCapabilityPaths,
-	workspaceUploadURL,
+	workspaceDownloadURL,
+	workspaceFileURL,
 	type AdmindCall,
 	type ConnectedAccount,
-	type KeptFileReference,
 	type PublicAPIRequest
 } from './forward';
+import { leafNameOf, type KeptFileReference } from './file-transfer';
+import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -36,11 +38,13 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 	const connected: { memberID: string; account: ConnectedAccount }[] = [];
 	const admindCalls: AdmindCall[] = [];
 	const arrivals: { conversationID: string; messageID: string }[] = [];
+	const transfers: { operation: string; memberID: string; requester?: string; actor?: unknown; body: unknown }[] = [];
 	return {
 		asked,
 		connected,
 		admindCalls,
 		arrivals,
+		transfers,
 		dispatch: {
 			connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 				connected.push({ memberID, account });
@@ -83,13 +87,28 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			},
 
 			memberOfExternalID: async (externalID: string) => externalIDs[externalID] ?? null,
-			keepAttachment: async (contentBase64: string) => ({
-				address: keptAddress(contentBase64),
-				sizeBytes: Buffer.from(contentBase64, 'base64').byteLength,
-				digest: contentBase64
-			}),
-			keptAlready: async () => null,
-			keptFileBytes: async () => new TextEncoder().encode('kept bytes'),
+			transfer: {
+				prepareMedia: async (memberID: string, actor: unknown, body: Record<string, unknown>) => {
+					transfers.push({ operation: 'prepareMedia', memberID, actor, body });
+					return { status: 200, body: { transfer: { state: 'pending' } } };
+				},
+				takeUploadIntoMessenger: async (memberID: string, actor: unknown, requester: string, body: Record<string, unknown>) => {
+					transfers.push({ operation: 'takeUploadIntoMessenger', memberID, actor, requester, body });
+					return { status: 200, body: { transfer: { state: 'pending' } } };
+				},
+				prepareWorkspaceFile: async (memberID: string, requester: string, body: Record<string, unknown>) => {
+					transfers.push({ operation: 'prepareWorkspaceFile', memberID, requester, body });
+					return { status: 200, body: { transfer: { state: 'pending' } } };
+				},
+				takeUploadIntoWorkspace: async (memberID: string, requester: string, body: Record<string, unknown>) => {
+					transfers.push({ operation: 'takeUploadIntoWorkspace', memberID, requester, body });
+					return { status: 200, body: { transfer: { state: 'pending' } } };
+				},
+				writeKeptFileIntoWorkspace: async (kept: KeptFileReference, path: string) => {
+					transfers.push({ operation: 'writeKeptFileIntoWorkspace', memberID: '', requester: kept.requester, body: { kept, path } });
+					return { path, sizeBytes: 'kept bytes'.length };
+				}
+			},
 			keptPersonPicture: async ({ externalID, avatarURL }: { externalID: string; avatarURL: string }) => {
 				asked.push({ capability: 'person.picture', body: { externalID, avatarURL } });
 				return externalID === 'npub-bare' ? '' : keptAddress(`person-picture/${externalID}`);
@@ -97,8 +116,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 			askAdmindAsRequester: async (call: AdmindCall) => {
 				admindCalls.push(call);
 				return { status: 200, body: { served: call.url } };
-			},
-			largestFileBytes: 200_000_000
+			}
 		}
 	};
 }
@@ -117,49 +135,6 @@ describe('persona identity forwarding', () => {
 		expect(workspaceCallOf('person.persona.soul.update', {}, 'sample@example.test')).toBeNull();
 	});
 });
-
-function dispatchThatRefuses(refusedAttachments: { index: number; filename: string }[]) {
-	const { asked, arrivals, dispatch } = dispatchThatKnows({});
-	let sends = 0;
-	return {
-		asked,
-		arrivals,
-		dispatch: {
-			...dispatch,
-			askChatd: async (capability: string, body: Record<string, unknown>) => {
-				asked.push({ capability, body });
-				if (capability !== 'person.message.send') return { status: 200, body: {} };
-				sends += 1;
-				if (sends > 1) return { status: 200, body: { id: 'event-1' } };
-				return {
-					status: 415,
-					body: {
-						error: 'the store refused them',
-						refusedAttachments: refusedAttachments.map((one) => ({
-							...one,
-							status: 415,
-							reason: 'disallowed content type'
-						}))
-					}
-				};
-			}
-		}
-	};
-}
-
-function dispatchHolding(file: { filename: string; contentType: string; contentBase64: string } | null) {
-	const { asked, dispatch } = dispatchThatKnows({});
-	return {
-		asked,
-		dispatch: {
-			...dispatch,
-			askChatd: async (capability: string, body: Record<string, unknown>, largestBytes?: number) => {
-				asked.push({ capability, body: { ...body, largestBytes } });
-				return { status: 200, body: { file } };
-			}
-		}
-	};
-}
 
 describe('isPersonCapability', () => {
 	test('person capabilities need an actor, assets do not', () => {
@@ -260,77 +235,68 @@ describe('a message the app sent', () => {
 	});
 });
 
-describe('a message carrying a file the messenger will not store', () => {
-	const send = {
-		callID: 'c1',
-		capability: 'person.message.send',
-		body: {
-			conversationID: 'channel-1',
-			body: 'here it is',
-			attachments: [
-				{ filename: 'notes.pdf', contentType: 'application/pdf', contentBase64: 'AAAA' },
-				{ filename: 'page.html', contentType: 'text/html', contentBase64: 'BBBB' }
-			]
-		}
-	};
+describe('a file moving between a browser and this machine', () => {
+	test('is prepared for reading as the member who asked, with their own messenger credential', async () => {
+		const { dispatch, transfers } = dispatchThatKnows({});
 
-	test('is sent again with that file kept where the company can read it', async () => {
-		const { asked, arrivals, dispatch } = dispatchThatRefuses([{ index: 1, filename: 'page.html' }]);
+		const served = await serveCallForMember(
+			dispatch,
+			{ capability: 'person.media.prepare', body: { transferID: 'transfer-1', mediaURL: 'https://relay.test/media/a.png' } },
+			'member-1'
+		);
 
-		const served = await serveCallForMember(dispatch, send, 'member-1');
-
-		expect(served.status).toBe(200);
-		expect(arrivals).toEqual([{ conversationID: 'channel-1', messageID: 'event-1' }]);
-
-		const sent = asked.filter((entry) => entry.capability === 'person.message.send');
-		expect(sent).toHaveLength(2);
-		expect(sent[1]?.body.attachments).toEqual([
-			{ filename: 'notes.pdf', contentType: 'application/pdf', contentBase64: 'AAAA' },
+		expect(served).toEqual({ status: 200, body: { transfer: { state: 'pending' } }, replyTo: 'member-1' });
+		expect(transfers).toEqual([
 			{
-				filename: 'page.html',
-				contentType: 'text/html',
-				address: 'https://company.supabase.co/storage/v1/object/asset/company-1/shared/attachment/BBBB',
-				sizeBytes: 3,
-				digest: 'BBBB'
+				operation: 'prepareMedia',
+				memberID: 'member-1',
+				actor: { kind: 'buzz-secret', secret: 'a-held-secret' },
+				body: { transferID: 'transfer-1', mediaURL: 'https://relay.test/media/a.png' }
 			}
 		]);
 	});
 
-	test('the files it did store are not kept a second time', async () => {
-		const kept: string[] = [];
-		const { dispatch } = dispatchThatRefuses([{ index: 1, filename: 'page.html' }]);
+	test('an upload for the messenger is taken as the member, under their own address', async () => {
+		const { dispatch, transfers } = dispatchThatKnows({});
 
-		await serveCallForMember(
-			{
-				...dispatch,
-				keepAttachment: async (contentBase64: string) => {
-					kept.push(contentBase64);
-					return { address: 'https://company.supabase.co/a', sizeBytes: 3, digest: 'a' };
-				}
-			},
-			send,
+		await serveCallForMember(dispatch, { capability: 'person.media.upload', body: { transferID: 'transfer-2' } }, 'member-1');
+
+		expect(transfers[0]).toMatchObject({ operation: 'takeUploadIntoMessenger', memberID: 'member-1', requester: 'sample@example.test' });
+	});
+
+	test('a workspace file is read and written as the member, never through a workspace route', async () => {
+		const { dispatch, transfers, admindCalls } = dispatchThatKnows({});
+
+		await serveCallForMember(dispatch, { capability: 'person.files.download', body: { transferID: 'transfer-3', path: '/workspace/a' } }, 'member-1');
+		await serveCallForMember(dispatch, { capability: 'person.files.upload', body: { transferID: 'transfer-4' } }, 'member-1');
+
+		expect(transfers.map((one) => [one.operation, one.requester])).toEqual([
+			['prepareWorkspaceFile', 'sample@example.test'],
+			['takeUploadIntoWorkspace', 'sample@example.test']
+		]);
+		expect(admindCalls).toEqual([]);
+	});
+
+	test('a member the record has no address for moves nothing', async () => {
+		const { dispatch, transfers } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(dispatch, { capability: 'person.files.download', body: {} }, 'member-2');
+
+		expect(served.status).toBe(409);
+		expect(transfers).toEqual([]);
+	});
+
+	test('a member with no messenger account cannot read the messenger', async () => {
+		const { dispatch, transfers } = dispatchThatKnows({});
+
+		const served = await serveCallForMember(
+			{ ...dispatch, messengerCredentialOf: async () => null },
+			{ capability: 'person.media.prepare', body: { transferID: 'transfer-5' } },
 			'member-1'
 		);
 
-		expect(kept).toEqual(['BBBB']);
-	});
-
-	test('a message the messenger took whole is sent once', async () => {
-		const { asked, dispatch } = dispatchThatKnows({});
-
-		const served = await serveCallForMember(dispatch, send, 'member-1');
-
-		expect(served.status).toBe(200);
-		expect(asked.filter((entry) => entry.capability === 'person.message.send')).toHaveLength(1);
-	});
-
-	test('a refusal that names no file is handed back as it came', async () => {
-		const { asked, dispatch } = dispatchThatRefuses([]);
-
-		const served = await serveCallForMember(dispatch, send, 'member-1');
-
-		expect(served.status).toBe(415);
-		expect(asked.filter((entry) => entry.capability === 'person.message.send')).toHaveLength(1);
+		expect(served.status).toBe(409);
+		expect(transfers).toEqual([]);
 	});
 });
 
@@ -381,101 +347,6 @@ describe('the picture of a person', () => {
 	test('is asked after by account, or not at all', async () => {
 		const { dispatch } = dispatchThatKnows({});
 		expect((await serveCallForMember(dispatch, read({}), 'member-1')).status).toBe(400);
-	});
-});
-
-describe('opening a file the messenger holds on this machine', () => {
-	const read = {
-		callID: 'c1',
-		capability: 'person.message.attachment',
-		body: {
-			messageID: 'http://localhost:3000/media/9f2c.pdf',
-			filename: '2026 예산.pdf',
-			contentType: 'application/pdf',
-			digest: '9f2c'
-		}
-	};
-	const file = { filename: '9f2c.pdf', contentType: 'application/pdf', contentBase64: 'AAAA' };
-
-	test('is answered with an address in the company bucket, never with the file', async () => {
-		const { dispatch } = dispatchHolding(file);
-
-		const served = await serveCallForMember(dispatch, read, 'member-1');
-
-		expect(served.status).toBe(200);
-		expect(served.body).toEqual({
-			attachment: {
-				address: keptAddress('AAAA'),
-				sizeBytes: 3,
-				digest: 'AAAA',
-				filename: '9f2c.pdf',
-				contentType: 'application/pdf'
-			}
-		});
-	});
-
-	test('one already kept is answered without the messenger being asked at all', async () => {
-		const { asked, dispatch } = dispatchHolding(file);
-
-		const served = await serveCallForMember(
-			{
-				...dispatch,
-				keptAlready: async (digest: string) => ({
-					address: keptAddress(digest),
-					sizeBytes: 91_000_000,
-					digest
-				})
-			},
-			read,
-			'member-1'
-		);
-
-		expect(asked).toEqual([]);
-		expect(served.body).toEqual({
-			attachment: {
-				address: keptAddress('9f2c'),
-				sizeBytes: 91_000_000,
-				digest: '9f2c',
-				filename: '2026 예산.pdf',
-				contentType: 'application/pdf'
-			}
-		});
-	});
-
-	test('a message that names no hash is read rather than guessed at', async () => {
-		const { asked, dispatch } = dispatchHolding(file);
-		let askedFor = '';
-
-		await serveCallForMember(
-			{
-				...dispatch,
-				keptAlready: async (digest: string) => {
-					askedFor = digest;
-					return null;
-				}
-			},
-			{ ...read, body: { ...read.body, digest: '' } },
-			'member-1'
-		);
-
-		expect(askedFor).toBe('');
-		expect(asked).toHaveLength(1);
-	});
-
-	test('the messenger is asked for the whole file, not what a picture may weigh', async () => {
-		const { asked, dispatch } = dispatchHolding(file);
-
-		await serveCallForMember(dispatch, read, 'member-1');
-
-		expect(asked[0]?.body.largestBytes).toBe(200_000_000);
-	});
-
-	test('a file the messenger will not serve is answered as no attachment', async () => {
-		const { dispatch } = dispatchHolding(null);
-
-		const served = await serveCallForMember(dispatch, read, 'member-1');
-
-		expect(served.body).toEqual({ attachment: null });
 	});
 });
 
@@ -1009,15 +880,15 @@ describe('a file the plane already kept in the company bucket', () => {
 	};
 
 	function dispatchWithHome(agentPath: string | null) {
-		const { dispatch, admindCalls } = dispatchThatKnows({});
+		const { dispatch, admindCalls, transfers } = dispatchThatKnows({});
 		return {
 			admindCalls,
+			transfers,
 			dispatch: {
 				...dispatch,
 				askAdmindAsRequester: async (call: AdmindCall) => {
 					admindCalls.push(call);
-					if (call.url.includes('/files/api/roots')) return { status: 200, body: rootsOf(agentPath) };
-					return { status: 200, body: { uploaded: [uploadedNameOf(call)] } };
+					return { status: 200, body: rootsOf(agentPath) };
 				}
 			}
 		};
@@ -1033,9 +904,8 @@ describe('a file the plane already kept in the company bucket', () => {
 		};
 	}
 
-	function uploadedNameOf(call: AdmindCall): string {
-		const part = call.body instanceof FormData ? call.body.get('file') : null;
-		return part instanceof File ? part.name : '';
+	function writtenPathsOf(transfers: { body: unknown }[]): string[] {
+		return transfers.map((one) => (one.body as { path: string }).path);
 	}
 
 	test('is read as a digest, a content type and who asked, and never as a destination', () => {
@@ -1056,8 +926,8 @@ describe('a file the plane already kept in the company bucket', () => {
 		expect(publicAPIFileOf({ ...kept, permission: '' })).toBeNull();
 	});
 
-	test('is uploaded to admind, into the requester own home, under the inbox a file arrives in', async () => {
-		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+	test('is written into the requester own home, under the inbox a file arrives in', async () => {
+		const { dispatch, transfers } = dispatchWithHome('/workspace/private/people/person-1');
 
 		const served = await servePublicAPIFile(dispatch, kept);
 
@@ -1070,65 +940,30 @@ describe('a file the plane already kept in the company bucket', () => {
 				contentType: 'image/png'
 			}
 		});
-		expect(admindCalls[1]).toMatchObject({
-			method: 'POST',
-			url: workspaceUploadURL('/workspace/private/people/person-1/inbox/api'),
-			requester: 'sample@example.test',
-			permission: 'write'
-		});
-	});
-
-	test('is asked for under the name admind reports back, never the one the relay offered', async () => {
-		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
-		const renaming = {
-			...dispatch,
-			askAdmindAsRequester: async (call: AdmindCall) => {
-				const answer = await dispatch.askAdmindAsRequester(call);
-				if (call.url.includes('/files/api/roots')) return answer;
-				return { status: 200, body: { uploaded: ['mascot-1.png'] } };
+		expect(transfers).toEqual([
+			{
+				operation: 'writeKeptFileIntoWorkspace',
+				memberID: '',
+				requester: 'sample@example.test',
+				body: { kept, path: '/workspace/private/people/person-1/inbox/api/mascot.png' }
 			}
-		};
-
-		const served = await servePublicAPIFile(renaming, kept);
-
-		expect(served.body).toEqual({
-			file: {
-				path: '/workspace/private/people/person-1/inbox/api/mascot-1.png',
-				sizeBytes: 'kept bytes'.length,
-				digest,
-				contentType: 'image/png'
-			}
-		});
-		expect(admindCalls).toHaveLength(2);
+		]);
 	});
 
 	test('carries the leaf of the name offered, so a caller cannot climb out of the directory', async () => {
-		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+		const { dispatch, transfers } = dispatchWithHome('/workspace/private/people/person-1');
 
-		const served = await servePublicAPIFile(dispatch, { ...kept, filename: '../../../etc/passwd' });
+		await servePublicAPIFile(dispatch, { ...kept, filename: '../../../etc/passwd' });
 
-		expect(served.body).toEqual({
-			file: {
-				path: '/workspace/private/people/person-1/inbox/api/passwd',
-				sizeBytes: 'kept bytes'.length,
-				digest,
-				contentType: 'image/png'
-			}
-		});
-		expect(admindCalls[1]?.url).toBe(
-			workspaceUploadURL('/workspace/private/people/person-1/inbox/api')
-		);
+		expect(writtenPathsOf(transfers)).toEqual(['/workspace/private/people/person-1/inbox/api/passwd']);
 	});
 
 	test('takes the digest and its extension when the caller offered no name', async () => {
-		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+		const { dispatch, transfers } = dispatchWithHome('/workspace/private/people/person-1');
 
-		const served = await servePublicAPIFile(dispatch, { ...kept, filename: '   ' });
+		await servePublicAPIFile(dispatch, { ...kept, filename: '   ' });
 
-		expect(served.body).toMatchObject({
-			file: { path: `/workspace/private/people/person-1/inbox/api/${digest}.png` }
-		});
-		expect(admindCalls).toHaveLength(2);
+		expect(writtenPathsOf(transfers)).toEqual([`/workspace/private/people/person-1/inbox/api/${digest}.png`]);
 	});
 
 	test('is refused when the address the key resolved to has no home, before anything is uploaded', async () => {
@@ -1149,93 +984,57 @@ describe('a file the plane already kept in the company bucket', () => {
 		expect(admindCalls).toEqual([]);
 	});
 
-	test('answers what admind answered when admind refuses the write', async () => {
-		const { dispatch, admindCalls } = dispatchWithHome('/workspace/private/people/person-1');
+	test('answers what the workspace answered when it refuses the write', async () => {
+		const { dispatch } = dispatchWithHome('/workspace/private/people/person-1');
 		const refusing = {
 			...dispatch,
-			askAdmindAsRequester: async (call: AdmindCall) => {
-				const answer = await dispatch.askAdmindAsRequester(call);
-				if (call.url.includes('/files/api/roots')) return answer;
-				return { status: 403, body: { error: 'workspace path is not accessible' } };
+			transfer: {
+				...dispatch.transfer,
+				writeKeptFileIntoWorkspace: async () => {
+					throw new TransferFailed(403, 'workspace path is not accessible');
+				}
 			}
 		};
 
 		const served = await servePublicAPIFile(refusing, kept);
 
 		expect(served).toEqual({ status: 403, body: { error: 'workspace path is not accessible' } });
-		expect(admindCalls).toHaveLength(2);
-	});
-
-	test('answers a failure when admind takes the call and writes nothing', async () => {
-		const { dispatch } = dispatchWithHome('/workspace/private/people/person-1');
-		const writingNothing = {
-			...dispatch,
-			askAdmindAsRequester: async (call: AdmindCall) => {
-				const answer = await dispatch.askAdmindAsRequester(call);
-				if (call.url.includes('/files/api/roots')) return answer;
-				return { status: 200, body: { uploaded: [] } };
-			}
-		};
-
-		expect((await servePublicAPIFile(writingNothing, kept)).status).toBe(502);
 	});
 });
 
 describe('the name a kept file takes in the workspace', () => {
 	test('is the leaf of what was offered, never a directory the caller chose', () => {
-		expect(leafNameOf('report.pdf', 'fallback')).toBe('report.pdf');
-		expect(leafNameOf('../../etc/passwd', 'fallback')).toBe('passwd');
-		expect(leafNameOf('C:\\Users\\someone\\report.pdf', 'fallback')).toBe('report.pdf');
+		expect(leafNameOf('report.pdf')).toBe('report.pdf');
+		expect(leafNameOf('../../etc/passwd')).toBe('passwd');
+		expect(leafNameOf('C:\\Users\\someone\\report.pdf')).toBe('report.pdf');
 	});
 
-	test('is the fallback when nothing usable was offered', () => {
-		expect(leafNameOf('', 'digest.png')).toBe('digest.png');
-		expect(leafNameOf('   ', 'digest.png')).toBe('digest.png');
-		expect(leafNameOf('..', 'digest.png')).toBe('digest.png');
-		expect(leafNameOf('/.blueclaw', 'digest.png')).toBe('digest.png');
+	test('is nothing when nothing usable was offered', () => {
+		for (const offered of ['', '   ', '.', '..', '.blueclaw', 'dir/']) expect(leafNameOf(offered)).toBe('');
 	});
 });
 
-describe('the upload admind is asked for', () => {
-	test('names the directory the relay derived, as a query it cannot be mistaken for a path', () => {
-		expect(workspaceUploadURL('/workspace/private/people/person-1/inbox/api')).toBe(
-			'http://internkim/files/api/upload?path=%2Fworkspace%2Fprivate%2Fpeople%2Fperson-1%2Finbox%2Fapi'
-		);
-	});
-});
-
-describe('the materialising capability, over the socket admind listens on', () => {
-	const digest = 'b'.repeat(64);
-	const uploads: { path: string; search: string; headers: Record<string, string>; filename: string; content: string }[] = [];
+describe('a workspace file, over the socket admind listens on', () => {
+	const arrived: { method: string; path: string; search: string; headers: Record<string, string>; content: string }[] = [];
 	let socketPath = '';
 	let admind: ReturnType<typeof Bun.serve> | null = null;
 
 	beforeEach(() => {
-		uploads.length = 0;
-		socketPath = join(tmpdir(), `relay-upload-${crypto.randomUUID().slice(0, 8)}.sock`);
+		arrived.length = 0;
+		socketPath = join(tmpdir(), `relay-file-${crypto.randomUUID().slice(0, 8)}.sock`);
 		admind = Bun.serve({
 			unix: socketPath,
 			fetch: async (request) => {
 				const asked = new URL(request.url);
-				if (asked.pathname === '/files/api/roots') {
-					return Response.json({
-						roots: [{ id: 'personal', kind: 'personal', agentPath: '/workspace/private/people/person-1' }]
-					});
-				}
 				const headers: Record<string, string> = {};
 				request.headers.forEach((value, name) => {
 					headers[name] = value;
 				});
-				const part = (await request.formData()).get('file');
-				const file = part instanceof File ? part : new File([], '');
-				uploads.push({
-					path: asked.pathname,
-					search: asked.search,
-					headers,
-					filename: file.name,
-					content: await file.text()
-				});
-				return Response.json({ uploaded: [file.name] });
+				arrived.push({ method: request.method, path: asked.pathname, search: asked.search, headers, content: await request.text() });
+				if (request.method === 'GET') {
+					return new Response('2345', { status: 206, headers: { 'content-range': 'bytes 2-5/10' } });
+				}
+				return Response.json({ path: asked.searchParams.get('path'), sizeBytes: 12 });
 			}
 		});
 	});
@@ -1246,36 +1045,46 @@ describe('the materialising capability, over the socket admind listens on', () =
 		rmSync(socketPath, { force: true });
 	});
 
-	test('posts the bytes as one multipart part, under the two headers only the relay writes', async () => {
-		const { dispatch } = dispatchThatKnows({});
-
-		const served = await servePublicAPIFile(
-			{ ...dispatch, askAdmindAsRequester: (call: AdmindCall) => forwardToAdmind(socketPath, call) },
-			{
-				requester: 'sample@example.test',
-				permission: 'write',
-				digest,
-				contentType: 'text/plain',
-				filename: 'notes.txt'
-			}
-		);
-
-		expect(served.status).toBe(200);
-		expect(served.body).toEqual({
-			file: {
-				path: '/workspace/private/people/person-1/inbox/api/notes.txt',
-				sizeBytes: 'kept bytes'.length,
-				digest,
-				contentType: 'text/plain'
+	test('is written by streaming its bytes to the exact path, under the two headers only the relay writes', async () => {
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode('report-'));
+				controller.enqueue(new TextEncoder().encode('bytes'));
+				controller.close();
 			}
 		});
-		expect(uploads).toHaveLength(1);
-		expect(uploads[0]?.path).toBe('/files/api/upload');
-		expect(uploads[0]?.search).toBe('?path=%2Fworkspace%2Fprivate%2Fpeople%2Fperson-1%2Finbox%2Fapi');
-		expect(uploads[0]?.filename).toBe('notes.txt');
-		expect(uploads[0]?.content).toBe('kept bytes');
-		expect(uploads[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
-		expect(uploads[0]?.headers['x-internkim-requester-permission']).toBe('write');
+
+		const response = await askAdmind(socketPath, {
+			method: 'PUT',
+			url: workspaceFileURL('/workspace/private/people/person-1/inbox/api/report.pdf'),
+			requester: 'sample@example.test',
+			permission: 'write',
+			body
+		});
+
+		expect(response.status).toBe(200);
+		expect(arrived[0]).toMatchObject({
+			method: 'PUT',
+			path: '/files/api/file',
+			search: '?path=%2Fworkspace%2Fprivate%2Fpeople%2Fperson-1%2Finbox%2Fapi%2Freport.pdf',
+			content: 'report-bytes'
+		});
+		expect(arrived[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
+		expect(arrived[0]?.headers['x-internkim-requester-permission']).toBe('write');
+	});
+
+	test('is read one range at a time, as the person who asked', async () => {
+		const response = await askAdmind(socketPath, {
+			method: 'GET',
+			url: workspaceDownloadURL('/workspace/private/people/person-1/digits.txt'),
+			requester: 'sample@example.test',
+			range: 'bytes=2-5'
+		});
+
+		expect(response.status).toBe(206);
+		expect(await response.text()).toBe('2345');
+		expect(arrived[0]?.headers.range).toBe('bytes=2-5');
+		expect(arrived[0]?.headers['x-internkim-requester-email']).toBe('sample@example.test');
 	});
 });
 

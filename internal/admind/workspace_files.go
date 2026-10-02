@@ -2,6 +2,7 @@ package admind
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -96,6 +97,8 @@ func (service *Service) handleFiles(responseWriter http.ResponseWriter, request 
 		service.downloadWorkspaceFile(responseWriter, request, access)
 	case request.Method == http.MethodPost && path == "/upload":
 		service.uploadWorkspaceFiles(responseWriter, request, access)
+	case request.Method == http.MethodPut && path == "/file":
+		service.writeWorkspaceFileAsRequester(responseWriter, request, access)
 	default:
 		http.NotFound(responseWriter, request)
 	}
@@ -212,6 +215,60 @@ func (service *Service) downloadWorkspaceFile(responseWriter http.ResponseWriter
 		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
 		return
 	}
+	if askedRange := request.Header.Get("Range"); askedRange != "" {
+		proxyRequest.Header.Set("Range", askedRange)
+	}
+	proxyResponse, errorValue := service.httpClient().Do(proxyRequest)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
+		return
+	}
+	defer proxyResponse.Body.Close()
+	if !isWorkspaceFileAnswer(proxyResponse.StatusCode) {
+		http.Error(responseWriter, workspaceRefusalOf(proxyResponse), proxyResponse.StatusCode)
+		return
+	}
+	for _, name := range []string{"Content-Length", "Content-Range", "Accept-Ranges", "Last-Modified"} {
+		if value := proxyResponse.Header.Get(name); value != "" {
+			responseWriter.Header().Set(name, value)
+		}
+	}
+	responseWriter.Header().Set("Content-Type", "application/octet-stream")
+	responseWriter.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeContentDispositionFilename(filepath.Base(agentPath))+`"`)
+	responseWriter.WriteHeader(proxyResponse.StatusCode)
+	_, _ = io.Copy(responseWriter, proxyResponse.Body)
+}
+
+func isWorkspaceFileAnswer(status int) bool {
+	return status == http.StatusOK || status == http.StatusPartialContent || status == http.StatusRequestedRangeNotSatisfiable
+}
+
+func workspaceRefusalOf(response *http.Response) string {
+	said, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+	if trimmed := strings.TrimSpace(string(said)); trimmed != "" {
+		return trimmed
+	}
+	return http.StatusText(response.StatusCode)
+}
+
+func (service *Service) writeWorkspaceFileAsRequester(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
+	agentPath, _, errorValue := service.resolveWorkspaceHostPath(access, request.URL.Query().Get("path"))
+	if errorValue != nil {
+		writeWorkspacePathError(responseWriter, errorValue)
+		return
+	}
+	if _, isFileName := sanitizeWorkspaceUploadFileName(filepath.Base(agentPath)); !isFileName {
+		http.Error(responseWriter, "the path must name a file", http.StatusBadRequest)
+		return
+	}
+	proxyURL := strings.TrimRight(service.Configuration.BlueclawBaseURL, "/") + "/admin/api/workspace/file?" + workspaceReadQuery(access.personID, agentPath)
+	proxyRequest, errorValue := http.NewRequestWithContext(request.Context(), http.MethodPut, proxyURL, request.Body)
+	if errorValue != nil {
+		http.Error(responseWriter, errorValue.Error(), http.StatusInternalServerError)
+		return
+	}
+	proxyRequest.ContentLength = request.ContentLength
+	proxyRequest.Header.Set("Content-Type", "application/octet-stream")
 	proxyResponse, errorValue := service.httpClient().Do(proxyRequest)
 	if errorValue != nil {
 		http.Error(responseWriter, errorValue.Error(), http.StatusBadGateway)
@@ -219,12 +276,17 @@ func (service *Service) downloadWorkspaceFile(responseWriter http.ResponseWriter
 	}
 	defer proxyResponse.Body.Close()
 	if proxyResponse.StatusCode != http.StatusOK {
-		http.NotFound(responseWriter, request)
+		http.Error(responseWriter, workspaceRefusalOf(proxyResponse), proxyResponse.StatusCode)
 		return
 	}
-	responseWriter.Header().Set("Content-Type", "application/octet-stream")
-	responseWriter.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeContentDispositionFilename(filepath.Base(agentPath))+`"`)
-	_, _ = io.Copy(responseWriter, proxyResponse.Body)
+	var written struct {
+		SizeBytes int64 `json:"sizeBytes"`
+	}
+	if errorValue := json.NewDecoder(proxyResponse.Body).Decode(&written); errorValue != nil {
+		http.Error(responseWriter, "the workspace wrote the file and said nothing usable about it", http.StatusBadGateway)
+		return
+	}
+	service.writeJSON(responseWriter, map[string]any{"path": agentPath, "sizeBytes": written.SizeBytes})
 }
 
 func (service *Service) uploadWorkspaceFiles(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {

@@ -37,6 +37,10 @@ export function projectURL(): string {
 	return centralPlane().projectURL;
 }
 
+export function publishableKey(): string {
+	return centralPlane().publishableKey;
+}
+
 export function isSupabaseConfigured(): boolean {
 	const plane = centralPlane();
 	return Boolean(plane.projectURL && plane.publishableKey);

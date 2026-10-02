@@ -269,7 +269,7 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
 - 워크스페이스 화면(`person.memory.*`, `person.files.*`, `person.runs.*`,
   `person.skills.*`, `person.persona.*`와 그 이웃들)과 공개 API의 회사
   도구(`person.api.request`, `person.api.file`)는 `admind`의 unix 소켓으로
-  전달됩니다.
+  전달됩니다. 파일을 옮기는 일은 아래에 있습니다.
 - 링크 미리보기(`asset.link`)는 릴레이가 만들고, 미리보기 이미지는
   답이 작게 유지되도록 Supabase Storage에 넣습니다.
 
@@ -286,6 +286,34 @@ blueclaw는 프로세스 하나이고, 저마다 한 가지 일을 하는 별개
 바이트 상한보다 큰 답은 크기를 명시한 `413`으로 거절됩니다. 그냥 보내면
 전송로가 소리 없이 떨어뜨리기 때문입니다. 상한과 기본값은
 [호스트 굴리기](/ko/docs/running-the-host#how-big-an-answer-may-be)에 있습니다.
+
+### 파일이 건너가는 방법 [#how-a-file-crosses]
+
+파일은 소켓으로 오가지 않습니다. 호출은 파일의 이름만 대고, 바이트는 회사의
+`asset` 버킷을 거칩니다. 버킷의 경로는
+[무엇이 어디에 사는가](/ko/docs/what-lives-where#the-record)에 있습니다.
+
+읽을 때 브라우저는 메신저 첨부면 `person.media.prepare`를, 워크스페이스
+파일이면 `person.files.download`를 자기가 정한 `transferID`와 함께
+호출합니다. 릴레이는 요청을 그 구성원으로서 확인합니다. 메신저는 구성원
+자신의 키로 읽고, admind는 무엇이든 읽기 전에 그 구성원으로서 디렉터리를
+나열합니다. 그런 다음 릴레이가 커넥터나 admind에 6 MiB 범위를 하나씩
+요청해서, 이어 올리기 업로드로 버킷에 복사합니다. 이미 있는 사본은 바로
+주소로 답합니다. 아니면 호출은 `pending`으로 답하고, 릴레이는 복사하는 동안
+`transfer.progress` 이벤트를 보내다가 주소를 담은 `transfer.done`이나 이유를
+담은 `transfer.failed`를 보냅니다. 브라우저는 자기 세션으로 주소에 서명하므로,
+누가 열 수 있는지는 행 수준 보안이 정합니다.
+
+보낼 때 브라우저는 파일을 자기 구성원의 `upload/` 경로에 직접 이어 올리기로
+올리고, 그 객체를 지목해 `person.media.upload`나 `person.files.upload`를
+호출합니다. 릴레이는 구성원의 세션으로 그것을 읽습니다. 메시지라면 커넥터가
+잠깐만 유효한 서명 주소에서 파일을 가져와 해시를 계산하며 디스크에 받아
+두었다가 메신저의 미디어 저장소에 넣고, 메시지는 돌아온 것을 가리키며
+보내집니다. 파일 화면이라면 릴레이가 admind로 흘려 보내고, admind는 Blueclaw가
+그 구성원의 POSIX 신원으로 쓰게 합니다. 어느 쪽이든 업로드는 가져간 뒤 지워집니다.
+
+어떤 프로세스도 파일 전체를 쥐지 않습니다. Bun은 읽는 쪽이 무엇을 하든 HTTP
+응답을 도착하는 대로 읽어 들이므로, 읽기는 하나하나가 정해진 크기의 범위입니다.
 
 ## 메시지가 일이 되는 방법 [#how-a-message-becomes-work]
 

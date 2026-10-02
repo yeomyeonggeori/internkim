@@ -289,6 +289,18 @@ GROUPS = [
         working_directory="host/relay",
     ),
     Group(
+        "file-transfer",
+        [
+            "host/relay/*",
+            "web/src/lib/transfer/*",
+            "web/tests/transfer/*",
+            "supabase/config.toml",
+        ],
+        [BUN_INSTALL, holding_the_local_plane(["bun", "run", "test:transfer"])],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "connection-gateway",
         ["workers/connection-gateway/*"],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],

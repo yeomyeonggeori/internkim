@@ -17,21 +17,29 @@ mock.module('../../../src/lib/host-bridge', () => ({
 				attachments: []
 			}
 		};
-	}
+	},
+	onCompanyEvent: () => () => undefined
 }));
 
 const { writePost } = await import('../../../src/lib/messenger/messenger-api');
 
-const attachment = { filename: 'evidence.png', contentType: 'image/png', contentBase64: 'AAAA' };
+const attachment = {
+	filename: 'evidence.png',
+	contentType: 'image/png',
+	address: 'https://company.supabase.test/storage/v1/object/asset/company-1/shared/attachment/9f2c.png',
+	sizeBytes: 11,
+	digest: '9f2c'
+};
 
 describe('what person.message.send is asked to carry', () => {
-	test('a file picked in the composer reaches the call, instead of the message going without it', async () => {
+	test('a file the messenger already holds is named by the call, never carried inside it', async () => {
 		asked.length = 0;
 
 		await writePost('channel-1', 'here it is', undefined, [attachment]);
 
 		const send = asked.find((call) => call.capability === 'person.message.send');
 		expect(send?.body.attachments).toEqual([attachment]);
+		expect(JSON.stringify(send?.body)).not.toContain('contentBase64');
 		expect(send?.body.conversationID).toBe('channel-1');
 	});
 

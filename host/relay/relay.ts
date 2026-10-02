@@ -5,27 +5,38 @@ import { readLinkPreview, type LinkPreview } from './link-preview';
 import {
 	assetBucket,
 	attachmentAddress,
-	attachmentAlreadyKept,
-	attachmentKind,
-	keepMessageAttachment,
 	keepSharedAsset,
 	personPictureKind,
-	sharedAssetKeptAs,
-	sharedAssetPath
+	sharedAssetKeptAs
 } from './asset-store';
+import {
+	prepareMedia,
+	prepareWorkspaceFile,
+	removeExpiredCopies,
+	takeUploadIntoMessenger,
+	takeUploadIntoWorkspace,
+	writeKeptFileIntoWorkspace,
+	type ActorCredential,
+	type FileTransferDependencies,
+	type KeptFileReference
+} from './file-transfer';
+import type { StoreAccess } from './transfer-store';
+import { Transfers } from './transfers';
 import { PersonPictures, type PictureRequest } from './person-picture';
 import { defaultAnswerByteCeiling, largestRawBytesThatFit } from './answer-size';
 import { positiveNumberSetting } from './settings';
 import {
 	answerBodyOf,
+	askAdmind,
 	defaultAdmindSocketPath,
 	forwardToAdmind,
 	forwardToAdmindAPI,
 	forwardToChatd,
+	workspaceCallOf,
+	workspaceDownloadURL,
+	workspaceFileURL,
 	type AdmindCall,
 	type ConnectedAccount,
-	type KeptAttachment,
-	type KeptFileReference,
 	type PublicAPIRequest
 } from './forward';
 import { notifyRequestOf, readArrivedMessage, type ArrivedMessage } from './arrived';
@@ -61,14 +72,7 @@ const answerByteCeiling = positiveNumberSetting(
 	defaultAnswerByteCeiling
 );
 const largestPictureBytes = largestRawBytesThatFit(answerByteCeiling);
-// A file never crosses the gateway — it is kept in the bucket and read from
-// there — so this bounds only what the relay will hold in memory while copying
-// one across. The largest attachment in a real company's history was 91 MB.
-const largestFileBytes = positiveNumberSetting(
-	'LARGEST_FILE_BYTES',
-	process.env.LARGEST_FILE_BYTES,
-	200_000_000
-);
+const transferCopiesKeptDays = 7;
 
 
 function required(name: string): string {
@@ -95,6 +99,7 @@ const companyID = hostSession.companyID;
 console.log(`acting as the host of company ${companyID}`);
 
 setInterval(() => void keepGoing('session', keepSessionFresh), 60_000);
+setInterval(() => void keepGoing('expiring transfer copies', letExpiredCopiesGo), 60 * 60_000);
 
 
 function openGatewayConnection(): GatewayConnection | null {
@@ -135,19 +140,77 @@ async function readMessengerCredential(memberID: string): Promise<{ kind: string
 	return { kind: held.credential.kind, secret: held.credential.secret };
 }
 
+const hostAccess: StoreAccess = { projectURL, apiKey: publishableKey, accessToken: freshHostAccessToken };
+
+const memberSessions = new Map<string, Promise<{ accessToken: string; expiresAt: number }>>();
+
+async function memberAccessToken(requesterEmail: string): Promise<string> {
+	const held = await memberSessions.get(requesterEmail)?.catch(() => undefined);
+	if (held && held.expiresAt - Math.floor(Date.now() / 1000) > 300) return held.accessToken;
+	const asking = askForMemberSession(requesterEmail);
+	memberSessions.set(requesterEmail, asking);
+	return (await asking).accessToken;
+}
+
+const transfers = new Transfers((event, memberID) => gateway?.deliver(event, [memberID]));
+
+const fileTransfer: FileTransferDependencies = {
+	companyID,
+	hostAccess,
+	memberAccess: (requesterEmail) => ({
+		projectURL,
+		apiKey: publishableKey,
+		accessToken: () => memberAccessToken(requesterEmail)
+	}),
+	transfers,
+	readMediaRange: (actor, mediaURL, rangeHeader) => askChatdRaw('person.media.read', { actor, mediaURL, range: rangeHeader }),
+	uploadMedia: (actor, sourceURL, contentType) => dispatch.askChatd('person.media.upload', { actor, sourceURL, contentType }),
+	listWorkspaceDirectory: (requesterEmail, directoryPath) => {
+		const call = workspaceCallOf('person.files.list', { path: directoryPath }, requesterEmail);
+		if (!call) throw new Error('the relay lost its own route to a workspace listing');
+		return forwardToAdmind(admindSocketPath, call);
+	},
+	readWorkspaceRange: (requesterEmail, path, rangeHeader) =>
+		askAdmind(admindSocketPath, { method: 'GET', url: workspaceDownloadURL(path), requester: requesterEmail, range: rangeHeader }),
+	writeWorkspaceFile: async (write, body) => {
+		const response = await askAdmind(admindSocketPath, {
+			method: 'PUT',
+			url: workspaceFileURL(write.path),
+			requester: write.requester,
+			permission: write.permission,
+			contentType: 'application/octet-stream',
+			body
+		});
+		return { status: response.status, body: await answerBodyOf(response) };
+	},
+	report: (line) => console.log(`transfer: ${line}`)
+};
+
+function askChatdRaw(capability: string, body: Record<string, unknown>): Promise<Response> {
+	const url = `${chatdBaseURL}/v1/platform/${encodeURIComponent(messengerPlatform)}/${encodeURIComponent(capability)}`;
+	return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+}
+
 const dispatch = {
 	messageArrived: tellBrowsers,
 	serveAsset: asset,
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
-	keepAttachment,
-	keptAlready,
-	keptFileBytes,
+	transfer: {
+		prepareMedia: (memberID: string, actor: ActorCredential, body: Record<string, unknown>) =>
+			prepareMedia(fileTransfer, memberID, actor, body),
+		takeUploadIntoMessenger: (memberID: string, actor: ActorCredential, requesterEmail: string, body: Record<string, unknown>) =>
+			takeUploadIntoMessenger(fileTransfer, memberID, actor, requesterEmail, body),
+		prepareWorkspaceFile: (memberID: string, requesterEmail: string, body: Record<string, unknown>) =>
+			prepareWorkspaceFile(fileTransfer, memberID, requesterEmail, body),
+		takeUploadIntoWorkspace: (memberID: string, requesterEmail: string, body: Record<string, unknown>) =>
+			takeUploadIntoWorkspace(fileTransfer, memberID, requesterEmail, body),
+		writeKeptFileIntoWorkspace: (kept: KeptFileReference, path: string) => writeKeptFileIntoWorkspace(fileTransfer, kept, path)
+	},
 	keptPersonPicture: async (request: PictureRequest) => {
 		const path = await personPictures.keptPathOf(request);
 		return path ? attachmentAddress(projectURL, path) : '';
 	},
-	largestFileBytes,
 	askMaild: async (operation: string, body: Record<string, unknown>) => {
 		const response = await fetch(`${maildBaseURL}/v1/mail/${encodeURIComponent(operation)}`, {
 			method: 'POST',
@@ -236,36 +299,6 @@ async function askWhichCredentialTheMessengerNeeds(): Promise<string> {
 async function asset(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	if (capability === 'asset.link') return previewOf(String(body.url ?? ''));
 	throw new Error(`the app has nothing called ${capability}`);
-}
-
-async function keptAlready(digest: string, contentType: string): Promise<KeptAttachment | null> {
-	const kept = await attachmentAlreadyKept(client.storage.from(assetBucket), companyID, digest, contentType);
-	if (!kept) return null;
-	return { address: attachmentAddress(projectURL, kept.path), sizeBytes: kept.sizeBytes, digest };
-}
-
-async function keepAttachment(contentBase64: string, contentType: string): Promise<KeptAttachment> {
-	const bytes = new Uint8Array(Buffer.from(contentBase64, 'base64'));
-	const kept = await keepMessageAttachment(
-		client.storage.from(assetBucket),
-		companyID,
-		bytes,
-		contentType.trim() || 'application/octet-stream'
-	);
-	return {
-		address: attachmentAddress(projectURL, kept.path),
-		sizeBytes: bytes.byteLength,
-		digest: kept.digest
-	};
-}
-
-async function keptFileBytes(kept: KeptFileReference): Promise<Uint8Array<ArrayBuffer>> {
-	const objectPath = sharedAssetPath(companyID, attachmentKind, kept.digest, kept.contentType);
-	const held = await client.storage.from(assetBucket).download(objectPath);
-	if (held.error || !held.data) {
-		throw new Error(`the asset store holds nothing at ${objectPath}: ${held.error?.message ?? 'no file'}`);
-	}
-	return new Uint8Array(await held.data.arrayBuffer());
 }
 
 const linkPreviews = new Map<string, LinkPreview | null>();
@@ -534,6 +567,14 @@ async function askForHostSession(): Promise<{ companyID: string; accessToken: st
 	});
 	if (!response.ok) throw new Error(`the central plane refused this company computer credential (${response.status})`);
 	return (await response.json()) as { companyID: string; accessToken: string; expiresAt: number };
+}
+
+async function letExpiredCopiesGo(): Promise<void> {
+	const expired = await client.rpc('expired_transfer_copies', { kept_days: transferCopiesKeptDays });
+	if (expired.error) throw new Error(expired.error.message);
+	const paths = (expired.data ?? []).filter((path: unknown): path is string => typeof path === 'string');
+	const removed = await removeExpiredCopies(fileTransfer, paths);
+	if (removed > 0) console.log(`let ${removed} transfer copies older than ${transferCopiesKeptDays} days go`);
 }
 
 async function keepSessionFresh(): Promise<void> {

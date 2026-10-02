@@ -1,3 +1,10 @@
+import {
+	copiedForReading,
+	TransferFailed,
+	uploadedThroughTheHost,
+	type ReadableCopy,
+	type TransferProgress
+} from '$lib/transfer/company-transfer';
 import { callCompanyApp } from '$lib/host-bridge';
 
 export type MessengerPerson = {
@@ -287,32 +294,56 @@ export async function fetchPosts(channelID: string, before?: string): Promise<Me
 	return answer.messages.map(asPost);
 }
 
-// The messenger holds the file on the company's own machine, which a browser
-// somewhere else cannot reach. The relay puts a copy in the company's bucket
-// and names it; the reader signs for that with their own session.
-export async function keepAttachmentForReading(
-	attachment: MessengerAttachment
-): Promise<KeptAttachment | null> {
-	const answer = await ask<{ attachment: KeptAttachment | null }>('person.message.attachment', {
-		messageID: attachment.url,
-		filename: attachment.filename,
-		contentType: attachment.contentType,
-		digest: attachment.digest
-	});
-	return answer.attachment;
+export function copyAttachmentForReading(
+	attachment: MessengerAttachment,
+	onProgress?: TransferProgress
+): Promise<ReadableCopy> {
+	return copiedForReading(
+		'person.media.prepare',
+		{ mediaURL: attachment.url, filename: attachment.filename, contentType: attachment.contentType, digest: attachment.digest },
+		onProgress
+	);
 }
 
 export type OutgoingAttachment = {
 	filename: string;
 	contentType: string;
-	contentBase64: string;
+	content: Blob;
 };
+
+export function keptAttachmentOf(result: unknown): KeptAttachment {
+	const kept = (result as { attachment?: Partial<KeptAttachment> } | null)?.attachment;
+	if (!kept || typeof kept.address !== 'string' || typeof kept.digest !== 'string') {
+		throw new TransferFailed(502, 'the company computer took the file and said nothing about where it went');
+	}
+	return {
+		address: kept.address,
+		digest: kept.digest,
+		sizeBytes: typeof kept.sizeBytes === 'number' ? kept.sizeBytes : 0,
+		filename: typeof kept.filename === 'string' ? kept.filename : '',
+		contentType: typeof kept.contentType === 'string' ? kept.contentType : 'application/octet-stream'
+	};
+}
+
+export async function keepAttachmentForSending(
+	attachment: OutgoingAttachment,
+	onProgress?: TransferProgress
+): Promise<KeptAttachment> {
+	const result = await uploadedThroughTheHost(
+		'person.media.upload',
+		attachment.content,
+		attachment.contentType,
+		{ filename: attachment.filename },
+		onProgress
+	);
+	return keptAttachmentOf(result);
+}
 
 export async function writePost(
 	channelID: string,
 	body: string,
 	parentID?: string,
-	attachments: OutgoingAttachment[] = [],
+	attachments: KeptAttachment[] = [],
 	mentions?: MessengerMentions
 ): Promise<MessengerPost> {
 	const message = await ask<PersonalMessage>('person.message.send', {
