@@ -33,7 +33,7 @@
 	}: Props = $props();
 
 	const fieldRowClass = 'flex items-center gap-3 border-b px-4';
-	const labelClass = 'w-20 shrink-0 text-xs font-normal text-muted-foreground';
+	const labelClass = 'w-14 shrink-0 text-xs font-normal text-muted-foreground sm:w-20';
 	const fieldClass = 'h-11 rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent';
 
 	let isCopyShown = $state(false);
@@ -56,9 +56,9 @@
 
 <Sheet.Root bind:open>
 	<Sheet.Content class="flex w-full flex-col gap-0 p-0 sm:max-w-2xl" onOpenAutoFocus={focusRequestedField}>
-		<Sheet.Header class="gap-1 border-b p-4">
+		<Sheet.Header class="gap-1 border-b p-4 pr-14">
 			<Sheet.Title class="text-base">{text.composeSheet.title}</Sheet.Title>
-			<Sheet.Description class="text-xs">{fromAddress}</Sheet.Description>
+			<Sheet.Description class="break-all text-xs">{fromAddress}</Sheet.Description>
 		</Sheet.Header>
 
 		<form class="flex min-h-0 flex-1 flex-col" onsubmit={submitCompose}>
@@ -96,7 +96,7 @@
 				bind:value={composeDraft.body}
 			/>
 
-			<Sheet.Footer class="flex-row items-center justify-between gap-3 border-t p-4">
+			<Sheet.Footer class="flex-row items-center justify-between gap-3 border-t p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
 				<p class="min-w-0 flex-1 text-xs leading-5 text-destructive">{composeMessage}</p>
 				<Button type="submit" size="lg" class="shrink-0 gap-2" disabled={!canSend}>
 					<SendIcon />

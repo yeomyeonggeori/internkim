@@ -135,7 +135,7 @@
 
 <svelte:head><title>{isStartingCompany ? text.startCompanyTitle : text.claimTitle}</title></svelte:head>
 
-<main class="flex min-h-svh items-center justify-center overflow-y-auto p-6">
+<main class="flex min-h-svh items-center justify-center overflow-y-auto p-4 sm:p-6">
 	<Card.Root class="mx-auto w-full max-w-sm">
 		<Card.Header>
 			<Card.Title class="text-2xl">{isStartingCompany ? text.startCompanyTitle : text.claimTitle}</Card.Title>
@@ -171,6 +171,7 @@
 						<Field>
 							<FieldLabel for="claim-code-{fieldID}">{text.claimCodeLabel}</FieldLabel>
 							<InputOTP.Root
+								class="w-full gap-1.5"
 								inputId="claim-code-{fieldID}"
 								pushPasswordManagerStrategy="none"
 								pattern={REGEXP_ONLY_DIGITS}
@@ -180,15 +181,15 @@
 								onComplete={proveTheAddress}
 							>
 								{#snippet children({ cells })}
-									<InputOTP.Group>
+									<InputOTP.Group class="min-w-0 flex-1">
 										{#each cells.slice(0, Math.ceil(claimCodeLength / 2)) as cell (cell)}
-											<InputOTP.Slot {cell} />
+											<InputOTP.Slot {cell} class="h-11 min-w-0 flex-1" />
 										{/each}
 									</InputOTP.Group>
 									<InputOTP.Separator />
-									<InputOTP.Group>
+									<InputOTP.Group class="min-w-0 flex-1">
 										{#each cells.slice(Math.ceil(claimCodeLength / 2)) as cell (cell)}
-											<InputOTP.Slot {cell} />
+											<InputOTP.Slot {cell} class="h-11 min-w-0 flex-1" />
 										{/each}
 									</InputOTP.Group>
 								{/snippet}

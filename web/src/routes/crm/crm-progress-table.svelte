@@ -4,6 +4,8 @@
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
+	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { buttonVariants } from '$lib/components/ui/button';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 	import { currentCRMDate } from './crm-date';
@@ -98,15 +100,21 @@
 </script>
 
 <div class="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card shadow-sm">
+	<Collapsible.Root class="border-b p-2 sm:hidden">
+		<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'sm' })}>{text.sort}</Collapsible.Trigger>
+		<Collapsible.Content class="flex flex-wrap gap-2 pt-2">
+			{#each [{ key: 'name', label: text.opportunity }, { key: 'organization', label: text.organizationName }, { key: 'pipeline', label: text.progressKind }, { key: 'stage', label: text.stage }, { key: 'amount', label: text.expectedValue }, { key: 'targetDate', label: text.targetDate }, { key: 'owner', label: text.progressOwner }, { key: 'staleDays', label: text.staleDays }] as column (column.key)}<CRMTableColumnHeader label={column.label} sortKey={column.key} {sort} onSort={toggleSort} />{/each}
+		</Collapsible.Content>
+	</Collapsible.Root>
 	<div class="min-w-0">
-		<Table.Root class="table-auto">
+		<Table.Root class="table-fixed sm:table-auto">
 			<Table.Header class="bg-muted/50 text-left">
 				<Table.Row class="hover:bg-transparent">
 					<Table.Head class="w-full pl-4" aria-sort={ariaSort('name')}><CRMTableColumnHeader label={text.opportunity} sortKey="name" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap sm:table-cell" aria-sort={ariaSort('organization')}><CRMTableColumnHeader label={text.organizationName} sortKey="organization" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap lg:table-cell" aria-sort={ariaSort('pipeline')}><CRMTableColumnHeader label={text.progressKind} sortKey="pipeline" {sort} onSort={toggleSort} /></Table.Head>
-					<Table.Head class="whitespace-nowrap" aria-sort={ariaSort('stage')}><CRMTableColumnHeader label={text.stage} sortKey="stage" {sort} onSort={toggleSort} /></Table.Head>
-					<Table.Head class="whitespace-nowrap pr-6 text-right tabular-nums md:pr-0" aria-sort={ariaSort('amount')}><CRMTableColumnHeader label={text.expectedValue} sortKey="amount" {sort} onSort={toggleSort} /></Table.Head>
+					<Table.Head class="hidden whitespace-nowrap sm:table-cell" aria-sort={ariaSort('stage')}><CRMTableColumnHeader label={text.stage} sortKey="stage" {sort} onSort={toggleSort} /></Table.Head>
+					<Table.Head class="hidden whitespace-nowrap pr-6 text-right tabular-nums sm:table-cell md:pr-0" aria-sort={ariaSort('amount')}><CRMTableColumnHeader label={text.expectedValue} sortKey="amount" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap pr-6 text-right tabular-nums md:table-cell lg:pr-0" aria-sort={ariaSort('targetDate')}><CRMTableColumnHeader label={text.targetDate} sortKey="targetDate" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap pr-6 xl:table-cell xl:pr-0">{text.nextAction}</Table.Head>
 					<Table.Head class="hidden whitespace-nowrap pr-6 lg:table-cell xl:pr-0" aria-sort={ariaSort('owner')}><CRMTableColumnHeader label={text.progressOwner} sortKey="owner" {sort} onSort={toggleSort} /></Table.Head>
@@ -125,13 +133,18 @@
 						onkeydown={(event) => handleRowKeydown(event, opportunity.id)}
 					>
 						<Table.Cell class="w-full whitespace-normal pl-4 font-medium">
-							<div class="flex min-w-0 items-center gap-2">
-								<p class="truncate">{opportunity.name}</p>
+							<div class="flex min-w-0 flex-wrap items-center gap-2 sm:flex-nowrap">
+								<p class="break-words sm:truncate">{opportunity.name}</p>
 								{#if opportunity.calendarEventID}
 									<Badge variant="outline" class="shrink-0">{text.calendarRegistered}</Badge>
 								{:else if opportunity.calendarRegistrationState === 'failed'}
 									<Badge variant="destructive" class="shrink-0">{text.calendarCreateError}</Badge>
 								{/if}
+							</div>
+							<div class="mt-2 grid gap-2 font-normal sm:hidden">
+								<p class="break-words text-sm text-muted-foreground">{organization?.name ?? text.none}</p>
+								<div class="flex flex-wrap items-center justify-between gap-2"><Badge variant={getStageVariant(opportunity.stage)}>{opportunityStageLabel(stages, opportunity.stage, text)}</Badge><span class="break-all font-medium tabular-nums">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}</span></div>
+								{#if opportunity.targetDate}<p class={isDeadlineMissed(opportunity) ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>{text.targetDate} · {formatCRMDate(opportunity.targetDate, currentLocale.value)}</p>{/if}
 							</div>
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
@@ -140,10 +153,10 @@
 						<Table.Cell class="hidden whitespace-nowrap lg:table-cell">
 							<CRMPipelineBadge {opportunity} {organization} {pipelines} {text} />
 						</Table.Cell>
-						<Table.Cell class="whitespace-nowrap">
+						<Table.Cell class="hidden whitespace-nowrap sm:table-cell">
 							{@const StageIcon = dealStageIcon(opportunity.stage)}<Badge variant={getStageVariant(opportunity.stage)}><StageIcon data-icon="inline-start" aria-hidden="true" />{opportunityStageLabel(stages, opportunity.stage, text)}</Badge>
 						</Table.Cell>
-						<Table.Cell class="whitespace-nowrap pr-6 text-right font-medium tabular-nums md:pr-0">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}</Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap pr-6 text-right font-medium tabular-nums sm:table-cell md:pr-0">{opportunity.expectedValue === undefined ? text.noValue : formatViewMoney(crmViewCurrency.viewAmount(opportunity.expectedValue, opportunity.currency), text.noValue, currentLocale.value)}</Table.Cell>
 						<Table.Cell class={`hidden whitespace-nowrap pr-6 text-right tabular-nums md:table-cell lg:pr-0 ${isDeadlineMissed(opportunity) ? 'text-destructive' : 'text-muted-foreground'}`}>
 							{opportunity.targetDate ? formatCRMDate(opportunity.targetDate, currentLocale.value) : text.none}
 						</Table.Cell>

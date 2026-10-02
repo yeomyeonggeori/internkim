@@ -3,6 +3,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import type { AttendanceKind } from '../attendance-context.svelte';
@@ -12,6 +13,7 @@
 
 	const text = createPageText(attendanceText);
 	const handWritten = getHandWrittenState();
+	const isMobile = new MediaQuery('(max-width: 639px)');
 
 	function kindLabel(kind: AttendanceKind): string {
 		return kind === 'clock_in' ? text.clockIn : text.clockOut;
@@ -41,6 +43,35 @@
 		return wasMoved(record) ? text.handWritten.undoReasonMoved : text.handWritten.undoReasonAdded;
 	}
 </script>
+
+{#snippet undoControl(record: HandWrittenRecord)}
+	<AlertDialog.Root>
+		<AlertDialog.Trigger
+			class={buttonVariants({ variant: 'outline', size: 'sm' })}
+			disabled={handWritten.undoingEventID !== ''}
+			data-testid="hand-written-undo"
+		>
+			{text.handWritten.undo}
+		</AlertDialog.Trigger>
+		<AlertDialog.Content data-testid="hand-written-undo-dialog">
+			<AlertDialog.Header>
+				<AlertDialog.Title>{undoTitle(record)}</AlertDialog.Title>
+				<AlertDialog.Description>
+					{undoDescription(record)}
+				</AlertDialog.Description>
+			</AlertDialog.Header>
+			<AlertDialog.Footer>
+				<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
+				<AlertDialog.Action
+					data-testid="hand-written-undo-confirm"
+					onclick={() => void handWritten.undo(record, undoReason(record))}
+				>
+					{text.handWritten.undo}
+				</AlertDialog.Action>
+			</AlertDialog.Footer>
+		</AlertDialog.Content>
+	</AlertDialog.Root>
+{/snippet}
 
 <section class="mx-auto min-h-0 w-full max-w-7xl space-y-5" data-testid="hand-written-view">
 	<header class="flex flex-wrap items-start justify-between gap-4">
@@ -76,6 +107,19 @@
 				<p class="py-6 text-sm text-muted-foreground" data-testid="hand-written-empty">
 					{text.handWritten.empty}
 				</p>
+			{:else if isMobile.current}
+				<ul class="divide-y">
+					{#each handWritten.records as record (record.eventID)}
+						<li class="grid min-w-0 gap-3 py-4" data-testid="hand-written-row" data-event-id={record.eventID}>
+							<div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="break-words font-medium">{record.person}</p><p class="text-sm text-muted-foreground">{kindLabel(record.kind)}</p></div>{@render undoControl(record)}</div>
+							<dl class="grid gap-2 text-sm">
+								<div><dt class="text-xs text-muted-foreground">{text.handWritten.now}</dt><dd data-testid="hand-written-now">{record.date} {record.time}</dd></div>
+								<div><dt class="text-xs text-muted-foreground">{text.handWritten.before}</dt><dd data-testid="hand-written-before">{wasMoved(record) ? `${record.originalDate} ${record.originalTime}` : text.handWritten.neverMoved}</dd></div>
+								<div><dt class="text-xs text-muted-foreground">{text.handWritten.reason}</dt><dd class="break-words">{record.reason || text.handWritten.noReason}</dd></div>
+							</dl>
+						</li>
+					{/each}
+				</ul>
 			{:else}
 				<Table.Root>
 					<Table.Header>
@@ -106,32 +150,7 @@
 									{record.reason || text.handWritten.noReason}
 								</Table.Cell>
 								<Table.Cell class="text-right">
-									<AlertDialog.Root>
-										<AlertDialog.Trigger
-											class={buttonVariants({ variant: 'outline', size: 'sm' })}
-											disabled={handWritten.undoingEventID !== ''}
-											data-testid="hand-written-undo"
-										>
-											{text.handWritten.undo}
-										</AlertDialog.Trigger>
-										<AlertDialog.Content data-testid="hand-written-undo-dialog">
-											<AlertDialog.Header>
-												<AlertDialog.Title>{undoTitle(record)}</AlertDialog.Title>
-												<AlertDialog.Description>
-													{undoDescription(record)}
-												</AlertDialog.Description>
-											</AlertDialog.Header>
-											<AlertDialog.Footer>
-												<AlertDialog.Cancel>{text.cancel}</AlertDialog.Cancel>
-												<AlertDialog.Action
-													data-testid="hand-written-undo-confirm"
-													onclick={() => void handWritten.undo(record, undoReason(record))}
-												>
-													{text.handWritten.undo}
-												</AlertDialog.Action>
-											</AlertDialog.Footer>
-										</AlertDialog.Content>
-									</AlertDialog.Root>
+									{@render undoControl(record)}
 								</Table.Cell>
 							</Table.Row>
 						{/each}

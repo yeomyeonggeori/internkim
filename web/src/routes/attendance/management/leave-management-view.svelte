@@ -6,6 +6,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Table from '$lib/components/ui/table';
+	import * as Sheet from '$lib/components/ui/sheet';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -21,6 +23,9 @@
 	const text = createPageText(attendanceText);
 	const management = getLeaveManagementState();
 	let search = $state('');
+	const isMobile = new MediaQuery('(max-width: 639px)');
+	let showsEmployeeDetail = $state(false);
+	let requestedEmployeeEmail = $state('');
 	const isUnlimited = $derived(management.payload?.balanceTrackingMode === 'unlimited');
 
 	const filteredEmployees = $derived(
@@ -51,10 +56,31 @@
 		void management.selectEmployee(employeeEmail);
 	}
 
+	function openMobileEmployee(employeeEmail: string): void {
+		requestedEmployeeEmail = employeeEmail;
+		showsEmployeeDetail = true;
+		void management.selectEmployee(employeeEmail);
+	}
+
 	function leaveTypeName(id: string, name: string): string {
 		return localizedLeaveTypeName(id, name, currentLocale.value);
 	}
 </script>
+
+{#snippet managementActions()}
+	<div class="flex flex-wrap gap-2">
+		{#if !showsEmployeeDetail || (!management.isLoading && !management.errorMessage && management.payload?.detail?.employee.email === requestedEmployeeEmail)}
+			{#if !isUnlimited}<LeaveAdjustmentDialog />{/if}
+			<PastLeaveDialog />
+		{/if}
+		<Button variant={management.isLoading ? 'secondary' : 'ghost'} size="icon"
+			aria-label={text.management.refresh} aria-busy={management.isLoading}
+			onclick={() => management.load(showsEmployeeDetail ? requestedEmployeeEmail : management.selectedEmployeeEmail)}
+			disabled={management.isLoading} data-testid="leave-management-refresh">
+			<RefreshCwIcon class={management.isLoading ? 'animate-spin text-primary' : ''} />
+		</Button>
+	</div>
+{/snippet}
 
 <section class="mx-auto min-h-0 w-full max-w-7xl space-y-5" data-testid="leave-management-view">
 	<header class="flex flex-wrap items-start justify-between gap-4">
@@ -66,23 +92,7 @@
 					: text.management.description}
 			</p>
 		</div>
-		<div class="flex flex-wrap gap-2">
-			{#if !isUnlimited}
-				<LeaveAdjustmentDialog />
-			{/if}
-			<PastLeaveDialog />
-			<Button
-				variant={management.isLoading ? 'secondary' : 'ghost'}
-				size="icon"
-				aria-label={text.management.refresh}
-				aria-busy={management.isLoading}
-				onclick={() => management.load()}
-				disabled={management.isLoading}
-				data-testid="leave-management-refresh"
-			>
-				<RefreshCwIcon class={management.isLoading ? 'animate-spin text-primary' : ''} />
-			</Button>
-		</div>
+		{#if !isMobile.current || !showsEmployeeDetail}{@render managementActions()}{/if}
 	</header>
 
 	{#if management.errorMessage}
@@ -98,9 +108,27 @@
 					<Card.Title>{text.management.employeeList}</Card.Title>
 					<Card.Description>{text.management.employeeListDescription}</Card.Description>
 				</div>
-				<Input bind:value={search} placeholder={text.management.searchPlaceholder} />
+				<Input bind:value={search} aria-label={text.management.searchPlaceholder} placeholder={text.management.searchPlaceholder} />
 			</Card.Header>
 			<Card.Content class="min-h-0 overflow-x-auto">
+				{#if isMobile.current}
+					<ul class="divide-y">
+						{#each filteredEmployees as employee (employee.email)}
+							<li class="grid min-w-0 gap-3 py-3">
+								<Button variant="ghost" class="h-auto min-h-11 w-full min-w-0 justify-start whitespace-normal px-0 text-left" onclick={() => openMobileEmployee(employee.email)}>
+									<PersonAvatar name={displayPersonName(employee.displayName)} email={employee.email} class="size-10 shrink-0" />
+									<span class="min-w-0"><span class="block break-words font-medium">{displayPersonName(employee.displayName)}</span><span class="block break-all text-xs text-muted-foreground">{employee.email}</span></span>
+								</Button>
+								<dl class="grid grid-cols-2 gap-2 text-sm">
+									{#if !isUnlimited}<div><dt class="text-xs text-muted-foreground">{text.management.available}</dt><dd class="font-medium tabular-nums">{dayValue(employee.availableMilliDays)}</dd></div>{/if}
+									<div><dt class="text-xs text-muted-foreground">{text.management.used}</dt><dd class="tabular-nums">{dayValue(employee.usedMilliDays)}</dd></div>
+									<div><dt class="text-xs text-muted-foreground">{text.management.pending}</dt><dd class="tabular-nums">{dayValue(employee.reservedMilliDays)}</dd></div>
+									{#if !isUnlimited}<div><dt class="text-xs text-muted-foreground">{text.management.granted}</dt><dd class="tabular-nums">{dayValue(employee.grantedMilliDays)}</dd></div><div><dt class="text-xs text-muted-foreground">{text.management.expiring}</dt><dd class="tabular-nums">{dayValue(employee.expiringMilliDays)}</dd></div>{/if}
+								</dl>
+							</li>
+						{:else}<li class="py-8 text-center text-muted-foreground">{text.management.noEmployees}</li>{/each}
+					</ul>
+				{:else}
 				<Table.Root>
 					<Table.Header>
 						<Table.Row>
@@ -172,11 +200,20 @@
 						{/each}
 					</Table.Body>
 				</Table.Root>
+				{/if}
 			</Card.Content>
 		</Card.Root>
 
+		{#snippet employeeDetails()}
 		<div class="min-w-0 space-y-5">
-			{#if management.payload?.detail}
+			{#if isMobile.current && management.isLoading}
+				<p role="status" class="p-4 text-sm text-muted-foreground" aria-busy="true">{text.loading}</p>
+			{:else if isMobile.current && management.errorMessage}
+				<p role="alert" class="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{management.errorMessage}</p>
+				<Button variant="outline" onclick={() => void management.selectEmployee(requestedEmployeeEmail)}>{text.management.refresh}</Button>
+			{:else if isMobile.current && management.payload?.detail?.employee.email !== requestedEmployeeEmail}
+				<p class="p-4 text-sm text-muted-foreground">{text.management.selectEmployeePrompt}</p>
+			{:else if management.payload?.detail}
 				{@const detail = management.payload.detail}
 				<Card.Root>
 					<Card.Header
@@ -296,5 +333,14 @@
 				</div>
 			{/if}
 		</div>
+		{/snippet}
+		{#if isMobile.current}
+			<Sheet.Root bind:open={showsEmployeeDetail}>
+				<Sheet.Content side="right" class="w-full gap-0 p-0">
+					<Sheet.Header class="border-b p-3 pr-14 text-left"><Sheet.Title>{text.management.title}</Sheet.Title><Sheet.Description class="break-all">{requestedEmployeeEmail}</Sheet.Description>{@render managementActions()}</Sheet.Header>
+					<div class="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">{@render employeeDetails()}</div>
+				</Sheet.Content>
+			</Sheet.Root>
+		{:else}{@render employeeDetails()}{/if}
 	</div>
 </section>

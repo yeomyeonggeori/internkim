@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
 	import { crmLabel } from './crm-labels';
@@ -20,9 +21,10 @@
 		stages: CRMPipelineStage[];
 		text: CRMText;
 		onMove: (request: CRMPipelineBoardMoveRequest) => void;
+		onEdit: (opportunityID: string) => void;
 	};
 
-	let { opportunities, organizations, pipelines, nextActions, stages, text, onMove }: Props = $props();
+	let { opportunities, organizations, pipelines, nextActions, stages, text, onMove, onEdit }: Props = $props();
 
 	const columnClass = [
 		'crm-pipeline-board-column group flex h-full min-h-0',
@@ -115,7 +117,7 @@
 									ondrop={(event) => boardDrag.handleCardDrop(event, stage, stageOpportunities, opportunity)}
 								>
 									<div class="min-w-0">
-										<p class="line-clamp-2 text-sm font-semibold leading-5 text-card-foreground">{opportunity.name}</p>
+										<Button variant="ghost" class="h-auto min-h-11 w-full justify-start whitespace-normal px-0 text-left font-semibold" onclick={() => onEdit(opportunity.id)}><span class="line-clamp-2">{opportunity.name}</span></Button>
 										<p class="mt-1 truncate text-xs text-muted-foreground">{organization?.name ?? text.none}</p>
 									</div>
 									<div class="flex flex-wrap gap-1.5">

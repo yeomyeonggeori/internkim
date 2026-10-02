@@ -11,11 +11,11 @@
 	<title>{text.title}</title>
 </svelte:head>
 
-<div class="flex min-h-0 w-full flex-1 justify-center p-4">
-	<Card.Root class="flex min-h-0 w-full max-w-3xl flex-col gap-0 overflow-hidden">
-		<Card.Header class="gap-1 border-b">
+<div class="flex min-h-0 w-full flex-1 justify-center sm:p-4">
+	<Card.Root class="flex min-h-0 w-full max-w-3xl flex-col gap-0 overflow-hidden rounded-none border-x-0 sm:rounded-xl sm:border-x">
+		<Card.Header class="gap-1 border-b py-3 sm:py-4">
 			<Card.Title>{text.title}</Card.Title>
-			<Card.Description>{text.description}</Card.Description>
+			<Card.Description class="hidden sm:block">{text.description}</Card.Description>
 		</Card.Header>
 		<Channel />
 	</Card.Root>

@@ -217,7 +217,7 @@
 	{#if dailyCostRows.length > 0}
 	<section class="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3">
 		<p class="text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
-		<div class="grid w-fit grid-cols-[auto_auto_auto_auto] gap-x-8 gap-y-1 text-sm tabular-nums">
+		<div class="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 gap-y-2 text-sm tabular-nums sm:w-fit sm:grid-cols-[auto_auto_auto_auto] sm:gap-x-8 sm:gap-y-1">
 			<span class="text-xs text-muted-foreground">{text.dailyCostDateColumn}</span>
 			<span class="text-right text-xs text-muted-foreground">{text.columnCost}</span>
 			<span class="text-right text-xs text-muted-foreground">{text.dailyCostTasksColumn}</span>

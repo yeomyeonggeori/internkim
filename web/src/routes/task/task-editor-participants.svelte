@@ -106,12 +106,12 @@
 			{@const email = selectedParticipant?.email ?? ''}
 			<PersonChip name={displayPersonName(name)} {email} seed={participantID || name} image={selectedParticipant?.image ?? ''}>
 				{#if email}
-					<span class="text-[10px] text-muted-foreground">{email}</span>
+					<span class="max-w-28 min-w-0 truncate text-xs text-muted-foreground sm:max-w-none sm:text-[10px]" title={email}>{email}</span>
 				{/if}
 				{#if canEditTask && canEditTaskAssignment && canRemoveParticipant(taskDraft, participantID)}
 					<button
 						type="button"
-						class="-mr-0.5 inline-flex size-4 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+						class="-mr-0.5 inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground sm:size-4"
 						aria-label={text.removeParticipantAction.replace('{name}', email ? `${name} (${email})` : name)}
 						onclick={() => removeParticipantID(participantID)}
 					>

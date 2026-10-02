@@ -185,7 +185,7 @@
 			<Field.Field>
 				<Field.Label for="box-model-key">{text.modelKey}</Field.Label>
 				<div class="flex flex-wrap items-center gap-2">
-					<Input id="box-model-key" class="min-w-64 flex-1" bind:value={modelKey} type="password" autocomplete="off" />
+					<Input id="box-model-key" class="w-full min-w-0 sm:min-w-64 sm:flex-1" bind:value={modelKey} type="password" autocomplete="off" />
 					<Button type="submit" disabled={isSendingModelKey}>
 						{isSendingModelKey ? text.sendingModelKey : text.sendModelKey}
 					</Button>

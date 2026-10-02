@@ -22,7 +22,7 @@
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import type { WebAuthSession } from '$lib/web-auth-session';
 
-	let { session }: { session: WebAuthSession | null } = $props();
+	let { session, onSearch }: { session: WebAuthSession | null; onSearch?: () => void } = $props();
 
 	const text = createPageText(appShellText);
 	const sidebar = useSidebar();
@@ -99,6 +99,7 @@
 </AppRailShell>
 
 <AppMobileNavigation
+	{onSearch}
 	displayUserName={appNavigation.displayUserName}
 	isActive={appNavigation.isActive}
 	logOut={requestLogOut}

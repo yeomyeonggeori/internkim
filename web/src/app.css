@@ -311,11 +311,11 @@
   }
 
   :root {
-    --app-mobile-nav-item-height: 3.5rem;
-    --app-mobile-nav-padding: 0.375rem;
+    --app-mobile-nav-item-height: 3rem;
+    --app-mobile-nav-padding: 0.25rem;
     --app-mobile-nav-height: calc(var(--app-mobile-nav-item-height) + var(--app-mobile-nav-padding) * 2);
-    --app-mobile-nav-width: min(calc(100vw - 1.5rem), 30rem);
-    --app-mobile-nav-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    --app-mobile-nav-width: 100vw;
+    --app-mobile-nav-bottom: env(safe-area-inset-bottom, 0px);
     --app-floating-action-gap: 0.75rem;
     --app-floating-action-size: 3.5rem;
 
@@ -330,32 +330,20 @@
 
   .internkim-app-mobile-navigation {
     position: fixed;
-    bottom: var(--app-mobile-nav-bottom);
+    bottom: var(--app-viewport-bottom, 0px);
     left: 50%;
     z-index: 40;
     width: var(--app-mobile-nav-width);
-    height: var(--app-mobile-nav-height);
-    padding: var(--app-mobile-nav-padding);
+    height: calc(var(--app-mobile-nav-height) + var(--app-mobile-nav-bottom));
+    padding: var(--app-mobile-nav-padding) max(0.25rem, env(safe-area-inset-right)) calc(var(--app-mobile-nav-padding) + var(--app-mobile-nav-bottom)) max(0.25rem, env(safe-area-inset-left));
     translate: -50% 0;
   }
 
   .internkim-app-floating-action {
     position: fixed;
-    right: calc((100vw - var(--app-mobile-nav-width)) / 2);
-    bottom: calc(var(--app-mobile-nav-bottom) + var(--app-mobile-nav-height) + var(--app-floating-action-gap));
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: calc(var(--app-viewport-bottom, 0px) + var(--app-mobile-nav-bottom) + var(--app-mobile-nav-height) + var(--app-floating-action-gap));
     z-index: 40;
-  }
-
-  @media (min-width: 576px) {
-    .internkim-app-mobile-navigation[data-has-floating-action='true'] {
-      translate: calc(-50% - (var(--app-floating-action-gap) + var(--app-floating-action-size)) / 2) 0;
-    }
-
-    .internkim-app-floating-action {
-      right: auto;
-      bottom: calc(var(--app-mobile-nav-bottom) + var(--app-mobile-nav-padding));
-      left: calc(50% + var(--app-mobile-nav-width) / 2 + var(--app-floating-action-gap) / 2 - var(--app-floating-action-size) / 2);
-    }
   }
 
   @media (min-width: 640px) {
@@ -422,4 +410,138 @@ html.internkim-embedded [data-app-chrome] {
 
 html.internkim-embedded [data-app-shell-scroll] {
   padding-bottom: 0;
+}
+
+@media (max-width: 639px) {
+  [data-sonner-toaster].toaster [data-sonner-toast] {
+    pointer-events: auto;
+    padding-right: 48px;
+    max-height: calc(var(--app-viewport-height, 100dvh) - 80px);
+    overflow-y: auto;
+  }
+  [data-sonner-toaster].toaster [data-sonner-toast] [data-button] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  [data-sonner-toaster].toaster [data-sonner-toast] [data-close-button] {
+    top: 0;
+    right: 0;
+    left: auto;
+    width: 44px;
+    height: 44px;
+    transform: none;
+    border: 0;
+    background: transparent;
+  }
+  [data-slot='button'], [data-slot='toggle'],
+  [class~='group/button'], [class~='group/toggle'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .messenger-channel-list [data-sidebar='menu-button'],
+  .messenger-channel-list [data-sidebar='group-label'] {
+    min-height: 44px;
+  }
+  .messenger-channel-list [data-sidebar='group-label'] {
+    padding-right: 56px;
+  }
+  .messenger-channel-list [data-sidebar='group-action'] {
+    top: 8px;
+    right: 8px;
+    width: 44px;
+    height: 44px;
+  }
+  .messenger-channel-list [data-sidebar='group-action']::after {
+    display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  [data-slot='select-trigger'], [data-slot='tabs-trigger'],
+  [data-slot='underline-tabs-trigger'], [data-slot='command-item'],
+  [data-slot='select-item'], [data-slot='dropdown-menu-item'] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  input[data-slot='input'], input[data-slot='input-group-control'], input[data-slot='command-input'],
+  textarea[data-slot], select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  [data-slot='command-input-wrapper'] [data-slot='input-group'] {
+    height: 44px !important;
+  }
+  [data-slot='tabs-list'], [data-slot='underline-tabs-list'] {
+    min-height: 48px;
+    height: auto;
+    max-width: 100%;
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+  [data-slot='tabs-trigger'] { flex-shrink: 0; }
+  .internkim-app-crumbs [data-slot='breadcrumb-list'] { flex-wrap: nowrap; }
+	.internkim-app-header {
+		padding-left: max(12px, env(safe-area-inset-left));
+		padding-right: max(12px, env(safe-area-inset-right));
+	}
+	[data-app-shell-scroll] {
+		padding-left: env(safe-area-inset-left);
+		padding-right: env(safe-area-inset-right);
+	}
+  .internkim-app-crumbs [data-slot='breadcrumb-item'] { min-width: 0; }
+  .internkim-app-crumbs [data-slot='breadcrumb-page'] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  [data-slot='dialog-content']:not([data-mobile-fullscreen]), [data-slot='alert-dialog-content'] {
+    top: calc(var(--app-viewport-top, 0px) + var(--app-viewport-height, 100dvh) / 2);
+    max-height: calc(var(--app-viewport-height, 100dvh) - 24px);
+    max-width: calc(100vw - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  [data-slot='dialog-content']:has([data-slot='command']) {
+    top: calc(var(--app-viewport-top, 0px) + 12px);
+    transform: none;
+    display: flex;
+    flex-direction: column;
+    translate: -50% 0;
+  }
+  [data-slot='dialog-content'][data-mobile-fullscreen] {
+    top: var(--app-viewport-top, 0px);
+    height: var(--app-viewport-height, 100dvh);
+    max-height: none;
+    max-width: none;
+  }
+  [data-slot='command-list'] {
+    max-height: min(288px, calc(var(--app-viewport-height, 100dvh) - 100px));
+  }
+  [data-slot='select-content'] {
+    max-height: min(var(--bits-select-content-available-height, 100dvh), calc(var(--app-viewport-height, 100dvh) - 24px));
+    overscroll-behavior: contain;
+  }
+  [data-slot='sheet-content'][data-side='left'],
+  [data-slot='sheet-content'][data-side='right'] {
+    bottom: auto;
+    top: var(--app-viewport-top, 0px);
+    height: var(--app-viewport-height, 100dvh);
+  }
+  [data-slot='sheet-content'][data-side='bottom'] {
+    bottom: var(--app-viewport-bottom, 0px);
+    max-height: calc(var(--app-viewport-height, 100dvh) - 12px);
+  }
+  [data-slot='switch']::after, [data-slot='checkbox']::after {
+    top: calc(50% - 22px);
+    bottom: auto;
+    height: 44px;
+  }
+  [data-slot='checkbox']::after {
+    left: calc(50% - 22px);
+    right: auto;
+    width: 44px;
+  }
+  label:has([data-slot='switch']), label:has([data-slot='checkbox']) {
+    min-height: 44px;
+  }
 }

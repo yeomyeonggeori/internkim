@@ -60,7 +60,7 @@
 
 <svelte:head><title>{text.title}</title></svelte:head>
 
-<main class="flex min-h-dvh flex-1 items-center justify-center p-6">
+<main class="flex min-h-dvh flex-1 items-center justify-center p-4 sm:p-6">
 	<WebAuthGate session={data.session} returnPath={page.url.pathname + page.url.search}>
 		<Card.Root class="mx-auto w-full max-w-sm">
 			<Card.Header>

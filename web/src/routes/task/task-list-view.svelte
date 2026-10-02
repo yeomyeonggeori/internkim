@@ -103,6 +103,7 @@
 </script>
 
 <TaskTable
+	mobileLabels={text.table}
 	{taskTable}
 	columnCount={taskColumns.length}
 	pageSize={taskPagination.pageSize}

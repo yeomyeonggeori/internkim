@@ -65,12 +65,12 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
-	<div class="flex items-start gap-3 border-b p-4">
+	<div class="flex items-start gap-3 border-b p-4 {onClose ? '' : 'pr-14'}">
 		<div class="bg-muted flex size-11 shrink-0 items-center justify-center rounded-lg">
 			<FileTypeIcon class="size-6 {visual.colorClass}" />
 		</div>
 		<div class="min-w-0 flex-1">
-			<h2 class="truncate text-base leading-tight font-semibold">{file.name}</h2>
+			<h2 class="break-all text-base leading-tight font-semibold">{file.name}</h2>
 			<p class="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
 				<span class="tabular-nums">{formatFileSize(file.size)}</span>
 				<span aria-hidden="true">·</span>
@@ -127,7 +127,7 @@
 		{/if}
 	</div>
 
-	<div class="border-t p-4">
+	<div class="border-t p-4 max-sm:pb-[max(1rem,env(safe-area-inset-bottom))]">
 		<Button href={downloadURL} download={file.name} class="w-full">
 			<DownloadIcon />
 			{text.download}

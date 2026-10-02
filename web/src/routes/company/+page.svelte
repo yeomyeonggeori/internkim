@@ -178,10 +178,10 @@
 
 <main class="bg-background text-foreground min-h-svh">
 	<div class="mx-auto flex min-h-svh w-full max-w-6xl flex-col px-5 py-6 sm:px-8 sm:py-8">
-		<header class="flex items-center justify-between gap-4">
-			<div class="flex items-center gap-3">
+		<header class="flex flex-wrap items-center justify-between gap-3">
+			<div class="flex min-w-0 items-center gap-3">
 				<div class="bg-primary text-primary-foreground grid size-9 place-items-center rounded-lg"><BuildingIcon class="size-4" /></div>
-				<span class="text-sm font-semibold">{profile?.brandName || profile?.name || 'Company page'}</span>
+				<span class="min-w-0 break-words text-sm font-semibold">{profile?.brandName || profile?.name || 'Company page'}</span>
 			</div>
 			<div class="flex items-center gap-2">
 				{#if availableLanguages.length > 1}
@@ -201,7 +201,7 @@
 		{#if pageState === 'loading'}
 			<div class="grid flex-1 place-items-center"><Spinner class="size-6" /></div>
 		{:else if pageState === 'locked'}
-			<div class="grid flex-1 place-items-center py-16">
+			<div class="grid flex-1 place-items-center py-8 sm:py-16">
 				<Card.Root class="w-full max-w-md">
 					<Card.Header>
 						<Badge variant="secondary" class="mb-3 w-fit"><LockIcon data-icon="inline-start" />{text.protected}</Badge>

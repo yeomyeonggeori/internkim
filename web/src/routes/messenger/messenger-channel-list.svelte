@@ -69,7 +69,7 @@
 	{/if}
 {/snippet}
 
-<Sidebar.Provider class={cn('h-full min-h-0 w-auto', className)} style="--sidebar-width: {sidebarWidth};">
+<Sidebar.Provider class={cn('messenger-channel-list h-full min-h-0 w-auto', className)} style="--sidebar-width: {sidebarWidth};">
 	<Sidebar.Root collapsible="none">
 		<Sidebar.Content class="pt-2">
 			<MessengerChannelSection

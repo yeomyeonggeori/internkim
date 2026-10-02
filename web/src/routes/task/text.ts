@@ -197,6 +197,8 @@ export const taskText = {
 			}
 		},
 		table: {
+			sort: '정렬',
+			details: '업무 정보',
 			owner: '담당자',
 			business: '사업',
 			type: '종류',
@@ -447,6 +449,8 @@ export const taskText = {
 			}
 		},
 		table: {
+			sort: 'Sort',
+			details: 'Task details',
 			owner: 'Owner',
 			business: 'Business',
 			type: 'Type',

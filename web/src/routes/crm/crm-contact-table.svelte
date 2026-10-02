@@ -1,5 +1,7 @@
 <script lang="ts">
 	import * as Table from '$lib/components/ui/table';
+	import * as Collapsible from '$lib/components/ui/collapsible';
+	import { buttonVariants } from '$lib/components/ui/button';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import PersonChip from '$lib/components/person-chip.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
@@ -63,12 +65,18 @@
 </script>
 
 <div class="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card shadow-sm">
+	<Collapsible.Root class="border-b p-2 sm:hidden">
+		<Collapsible.Trigger class={buttonVariants({ variant: 'ghost', size: 'sm' })}>{text.sort}</Collapsible.Trigger>
+		<Collapsible.Content class="flex flex-wrap gap-2 pt-2">
+			{#each [{ key: 'name', label: text.contactName }, { key: 'organization', label: text.organizationName }, { key: 'title', label: text.contactTitle }, { key: 'owner', label: text.internalOwner }] as column (column.key)}<CRMTableColumnHeader label={column.label} sortKey={column.key} {sort} onSort={toggleSort} />{/each}
+		</Collapsible.Content>
+	</Collapsible.Root>
 	<div class="min-w-0">
-		<Table.Root class="table-auto">
+		<Table.Root class="table-fixed sm:table-auto">
 			<Table.Header class="bg-muted/50 text-left">
 				<Table.Row class="hover:bg-transparent">
 					<Table.Head class="w-full pl-4" aria-sort={ariaSort('name')}><CRMTableColumnHeader label={text.contactName} sortKey="name" {sort} onSort={toggleSort} /></Table.Head>
-					<Table.Head class="whitespace-nowrap pr-6 sm:pr-0" aria-sort={ariaSort('organization')}><CRMTableColumnHeader label={text.organizationName} sortKey="organization" {sort} onSort={toggleSort} /></Table.Head>
+					<Table.Head class="hidden whitespace-nowrap sm:table-cell sm:pr-0" aria-sort={ariaSort('organization')}><CRMTableColumnHeader label={text.organizationName} sortKey="organization" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap md:table-cell" aria-sort={ariaSort('title')}><CRMTableColumnHeader label={text.contactTitle} sortKey="title" {sort} onSort={toggleSort} /></Table.Head>
 					<Table.Head class="hidden whitespace-nowrap pr-6 sm:table-cell sm:pr-6 lg:pr-0">{text.email}</Table.Head>
 					<Table.Head class="hidden whitespace-nowrap pr-6 lg:table-cell xl:pr-0" aria-sort={ariaSort('owner')}><CRMTableColumnHeader label={text.internalOwner} sortKey="owner" {sort} onSort={toggleSort} /></Table.Head>
@@ -88,10 +96,13 @@
 					>
 						<Table.Cell class="w-full whitespace-normal pl-4">
 							<div class="flex flex-wrap items-center gap-2">
-								<span class="font-medium">{contact.name}</span>
+								<span class="break-words font-medium">{contact.name}</span>
 							</div>
+							<p class="mt-1 break-words text-sm text-muted-foreground sm:hidden">{organization?.name ?? text.none}</p>
+							{#if contact.title}<p class="mt-1 break-words text-sm text-muted-foreground md:hidden">{contact.title}</p>{/if}
+							{#if contact.email}<a class="inline-flex min-h-11 max-w-full items-center break-all text-primary sm:hidden" href={`mailto:${contact.email}`} onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>{contact.email}</a>{/if}
 						</Table.Cell>
-						<Table.Cell class="whitespace-nowrap pr-6 text-muted-foreground sm:pr-0"><p class="truncate">{organization?.name ?? text.none}</p></Table.Cell>
+						<Table.Cell class="hidden whitespace-nowrap text-muted-foreground sm:table-cell sm:pr-0"><p class="truncate">{organization?.name ?? text.none}</p></Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap md:table-cell">{contact.title || text.none}</Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap pr-6 sm:table-cell lg:pr-0"><a class="block truncate text-primary hover:underline" href={`mailto:${contact.email}`} onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>{contact.email}</a></Table.Cell>
 						<Table.Cell class="hidden whitespace-nowrap pr-6 lg:table-cell xl:pr-0">

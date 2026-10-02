@@ -314,10 +314,10 @@
 						{@render StatusCell('Mattermost', localFleetStatus?.mattermost)}
 					</div>
 					<div class="grid gap-2 rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs text-muted-foreground sm:grid-cols-2">
-						<a class="truncate text-primary underline-offset-4 hover:underline" href={localFleetStatus?.adminURL || undefined} target="_blank" rel="noreferrer">
+						<a class="flex min-h-11 items-center break-all text-primary underline-offset-4 hover:underline sm:min-h-0" href={localFleetStatus?.adminURL || undefined} target="_blank" rel="noreferrer">
 							Admin: {localFleetStatus?.adminURL || 'not available'}
 						</a>
-						<a class="truncate text-primary underline-offset-4 hover:underline" href={localFleetStatus?.mattermostURL || undefined} target="_blank" rel="noreferrer">
+						<a class="flex min-h-11 items-center break-all text-primary underline-offset-4 hover:underline sm:min-h-0" href={localFleetStatus?.mattermostURL || undefined} target="_blank" rel="noreferrer">
 							Mattermost: {localFleetStatus?.mattermostURL || 'not available'}
 						</a>
 					</div>
@@ -347,7 +347,7 @@
 								<div class="min-w-0">
 									<Card.Title class="flex items-center gap-2 text-base">
 										<ServerIcon class="size-4 text-muted-foreground" />
-										<button class="truncate text-left hover:underline" onclick={() => (selectedTargetID = target.id)}>{target.name}</button>
+										<Button variant="ghost" class="h-auto min-w-0 shrink whitespace-normal break-all px-0 text-left" onclick={() => (selectedTargetID = target.id)}>{target.name}</Button>
 									</Card.Title>
 									<Card.Description class="mt-1 truncate">{target.adminURL}</Card.Description>
 								</div>
@@ -402,15 +402,15 @@
 					<Card.Description>{selectedJob()?.action ?? 'No job selected'}</Card.Description>
 				</Card.Header>
 				<Card.Content class="p-0">
-					<div class="h-[520px] overflow-auto bg-zinc-950 p-3 font-mono text-xs text-zinc-100">
+					<div class="h-[min(520px,60dvh)] overflow-auto bg-zinc-950 p-3 font-mono text-xs text-zinc-100">
 						{#if selectedJobEvents().length === 0}
 							<div class="text-zinc-500">Run a target action to stream logs here.</div>
 						{/if}
 						{#each selectedJobEvents() as event}
-							<div class="grid grid-cols-[70px_54px_minmax(0,1fr)] gap-2 border-b border-white/5 py-1">
+							<div class="grid grid-cols-[70px_1fr] gap-2 border-b border-white/5 py-2 sm:grid-cols-[70px_54px_minmax(0,1fr)] sm:py-1">
 								<span class="text-zinc-500">{formatDate(event.at)}</span>
 								<span class={event.level === 'error' ? 'text-red-300' : 'text-emerald-300'}>{event.level}</span>
-								<span class="break-words">{event.message}</span>
+								<span class="col-span-2 break-words sm:col-span-1">{event.message}</span>
 							</div>
 						{/each}
 					</div>

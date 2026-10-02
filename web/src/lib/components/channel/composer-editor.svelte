@@ -61,6 +61,18 @@
 		editor?.commands.focus('end');
 	}
 
+	export function focusSelection(): void {
+		editor?.commands.focus();
+	}
+
+	export function selectionElement(): HTMLElement | null {
+		return editor && !editor.state.selection.empty ? editor.view.dom : null;
+	}
+
+	export function clearFormatting(): void {
+		editor?.chain().focus().unsetAllMarks().clearNodes().run();
+	}
+
 	export function format(chosen: ComposerFormat, askLinkAddress: () => string | null): void {
 		if (editor) applyComposerFormat(editor, chosen, askLinkAddress);
 	}

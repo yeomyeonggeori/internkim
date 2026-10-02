@@ -76,7 +76,7 @@
 			</Field.Field>
 		{/if}
 		{#if failure}<p role="alert" class="text-sm text-destructive">{failure}</p>{/if}
-		<Button type="submit" disabled={isBusy || (isCodeSent && code.length !== emailCodeLength)}>{isCodeSent ? 'Open data room' : 'Send verification code'}</Button>
+		<Button type="submit" class="w-full sm:w-auto" disabled={isBusy || (isCodeSent && code.length !== emailCodeLength)}>{isCodeSent ? 'Open data room' : 'Send verification code'}</Button>
 		{#if isCodeSent}<Button variant="ghost" onclick={() => { isCodeSent = false; code = ''; }}>Use another email</Button>{/if}
 	</form>
 </main>

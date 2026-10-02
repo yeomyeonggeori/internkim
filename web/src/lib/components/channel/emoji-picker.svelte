@@ -62,13 +62,13 @@
 			<Command.List>
 				{#if query.trim() === ''}
 					<Command.Group heading={text.quickEmojiTitle}>
-						<div class="grid grid-cols-8 gap-1 p-1">
+						<div class="grid grid-cols-5 gap-1 p-1 sm:grid-cols-8">
 							{#each quickGlyphs as glyph (glyph)}
 								<button
 									type="button"
 									aria-label={glyph}
 									onclick={() => pickEmoji(glyph)}
-									class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden"
+									class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden max-sm:min-h-11 max-sm:min-w-11"
 								>
 									{glyph}
 								</button>
@@ -77,14 +77,14 @@
 					</Command.Group>
 					{#each emojiCategories() as category (category.name)}
 						<Command.Group heading={categoryLabels[category.name] ?? category.name}>
-							<div class="grid grid-cols-8 gap-1 p-1 [contain-intrinsic-size:auto_12rem] [content-visibility:auto]">
+							<div class="grid grid-cols-5 gap-1 p-1 sm:grid-cols-8 [contain-intrinsic-size:auto_12rem] [content-visibility:auto]">
 								{#each category.emoji as emoji (emoji.name)}
 									<button
 										type="button"
 										aria-label={emoji.name}
 										title={emoji.name}
 										onclick={() => pickEmoji(emoji.glyph)}
-										class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden"
+										class="hover:bg-muted focus-visible:bg-muted flex aspect-square items-center justify-center rounded-sm text-base outline-hidden max-sm:min-h-11 max-sm:min-w-11"
 									>
 										{emoji.glyph}
 									</button>
@@ -94,7 +94,7 @@
 					{/each}
 				{:else}
 					{#each searchResults as emoji (emoji.name)}
-						<Command.Item value={emoji.name} onSelect={() => pickEmoji(emoji.glyph)}>
+						<Command.Item value={emoji.name} class="max-sm:min-h-11" onSelect={() => pickEmoji(emoji.glyph)}>
 							<span class="text-base">{emoji.glyph}</span>
 							<span class="truncate">{emoji.name}</span>
 						</Command.Item>

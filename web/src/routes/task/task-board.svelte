@@ -100,7 +100,7 @@
 	}
 
 	function createTaskInColumn(status: string): void {
-		if (!isTaskBoardStatus(status)) return;
+		if (!isTaskBoardStatus(status) || !canCreateTaskInColumn(status, participantScope)) return;
 		createTask(status);
 	}
 </script>
@@ -188,10 +188,11 @@
 									type="button"
 									variant="ghost"
 									size="sm"
-									class="h-8 w-full justify-center text-muted-foreground opacity-0 pointer-events-none transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+									class="h-8 w-full justify-center text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:pointer-events-auto sm:opacity-0 sm:pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
 									aria-label={addTaskLabel(column.status)}
 									title={addTaskLabel(column.status)}
 									data-task-board-footer-add-task={column.status}
+									disabled={!canCreateTaskInColumn(column.status, participantScope)}
 									onclick={() => createTaskInColumn(column.status)}
 								>
 									<PlusIcon class="size-4" />

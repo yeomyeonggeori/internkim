@@ -3,7 +3,9 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import { Popover } from 'bits-ui';
+	import * as Popover from '$lib/components/ui/popover';
+	import * as ButtonGroup from '$lib/components/ui/button-group';
+	import { Button } from '$lib/components/ui/button';
 	import { attendanceText } from './text';
 
 	type Props = {
@@ -106,22 +108,21 @@
 	}
 </script>
 
-<div class={`inline-flex items-center ${rootSpacingClass}`}>
-	<button
+<ButtonGroup.Root class={`inline-flex items-center ${rootSpacingClass}`}>
+	<Button variant="ghost" size="icon"
 		type="button"
 		aria-label={text.previousMonth}
 		class={`flex ${navigationButtonClass} items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
 		onclick={() => moveSelectedMonth(-1)}
 	>
 		<ChevronLeftIcon class="size-4" />
-	</button>
+	</Button>
 	<Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
-		<Popover.Trigger
-			class={`border-input bg-background hover:bg-accent flex h-8 items-center justify-center rounded-md border px-3 text-sm font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${triggerWidthClass}`}
-		>
-			{triggerLabel}
+		<Popover.Trigger>
+			{#snippet child({ props })}
+				<Button {...props} variant="outline" class={`h-8 px-3 font-medium tabular-nums ${triggerWidthClass}`}>{triggerLabel}</Button>
+			{/snippet}
 		</Popover.Trigger>
-		<Popover.Portal>
 			<Popover.Content
 				side="bottom"
 				align="center"
@@ -129,15 +130,15 @@
 				class="w-56 rounded-md border border-border/50 bg-popover p-2 text-popover-foreground shadow-sm outline-none data-open:animate-in data-closed:animate-out data-open:fade-in-0 data-closed:fade-out-0 data-open:zoom-in-95 data-closed:zoom-out-95"
 			>
 				<header class="mb-1.5 flex items-center gap-1">
-					<button
+					<Button variant="ghost" size="icon"
 						type="button"
 						aria-label={previousPickerLabel}
 						class="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
 						onclick={movePickerBackward}
 					>
 						<ChevronLeftIcon class="size-3.5" />
-					</button>
-					<button
+					</Button>
+					<Button variant="ghost"
 						type="button"
 						class="flex-1 rounded py-1 text-xs font-semibold tabular-nums hover:bg-accent"
 						onclick={togglePickerMode}
@@ -147,20 +148,20 @@
 						{:else}
 							{pickerYearWindowStart}–{pickerYearWindowStart + 11}
 						{/if}
-					</button>
-					<button
+					</Button>
+					<Button variant="ghost" size="icon"
 						type="button"
 						aria-label={nextPickerLabel}
 						class="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
 						onclick={movePickerForward}
 					>
 						<ChevronRightIcon class="size-3.5" />
-					</button>
+					</Button>
 				</header>
 				{#if pickerMode === 'month'}
 					<div class="grid grid-cols-3 gap-1">
 						{#each monthShortLabels as label, index (index)}
-							<button
+							<Button variant="ghost"
 								type="button"
 								class="flex h-8 items-center justify-center rounded text-xs tabular-nums transition-colors {pickerYear === selectedYearMonth.year && index === selectedYearMonth.month - 1
 									? 'bg-primary font-semibold text-primary-foreground'
@@ -168,13 +169,13 @@
 								onclick={() => selectMonth(index)}
 							>
 								{label}
-							</button>
+							</Button>
 						{/each}
 					</div>
 				{:else}
 					<div class="grid grid-cols-3 gap-1">
 						{#each Array.from({ length: 12 }, (_, index) => pickerYearWindowStart + index) as year (year)}
-							<button
+							<Button variant="ghost"
 								type="button"
 								class="flex h-8 items-center justify-center rounded text-xs tabular-nums transition-colors {year === pickerYear
 									? 'bg-primary font-semibold text-primary-foreground'
@@ -182,19 +183,18 @@
 								onclick={() => selectYear(year)}
 							>
 								{year}
-							</button>
+							</Button>
 						{/each}
 					</div>
 				{/if}
 			</Popover.Content>
-		</Popover.Portal>
 	</Popover.Root>
-	<button
+	<Button variant="ghost" size="icon"
 		type="button"
 		aria-label={text.nextMonth}
 		class={`flex ${navigationButtonClass} items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
 		onclick={() => moveSelectedMonth(1)}
 	>
 		<ChevronRightIcon class="size-4" />
-	</button>
-</div>
+	</Button>
+</ButtonGroup.Root>

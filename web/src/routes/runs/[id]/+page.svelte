@@ -264,7 +264,7 @@
 					</Tabs.Root>
 					<label class="relative min-w-0 sm:w-64">
 						<SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input bind:value={eventSearchQuery} placeholder={text.searchEvents} class="pl-8" />
+						<Input bind:value={eventSearchQuery} aria-label={text.searchEvents} placeholder={text.searchEvents} class="pl-8" />
 					</label>
 				</div>
 				{#if ledgerSections.length === 0}

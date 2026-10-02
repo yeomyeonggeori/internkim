@@ -35,7 +35,7 @@
 			id={`mention-row-${name}-${index}`}
 			role="option"
 			aria-selected={index === active}
-			class={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm ${
+			class={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm max-sm:min-h-11 ${
 				index === active ? 'bg-accent text-accent-foreground' : ''
 			}`}
 			onmousedown={(event) => {

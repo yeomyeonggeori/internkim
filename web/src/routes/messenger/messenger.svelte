@@ -357,9 +357,9 @@
 
 <Sheet.Root bind:open={isChannelSheetOpen}>
 	<Sheet.Content side="left" class="gap-0 p-0" closeLabel={text.closeChannelList}>
-		<Sheet.Header class="sr-only">
+		<Sheet.Header class="min-h-16 justify-center border-b px-4 py-3">
 			<Sheet.Title>{text.channelListTitle}</Sheet.Title>
-			<Sheet.Description>{text.channelListDescription}</Sheet.Description>
+			<Sheet.Description class="sr-only">{text.channelListDescription}</Sheet.Description>
 		</Sheet.Header>
 		<MessengerChannelList
 			{activeID}
@@ -394,14 +394,14 @@
 				{selectChannel}
 			/>
 			<div class="flex min-h-0 min-w-0 flex-1 flex-col">
-				<header class="flex h-14 shrink-0 items-center gap-2 border-b px-6">
+				<header class="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:h-14 sm:px-6">
 					<Sheet.Trigger>
 						{#snippet child({ props })}
 							<Button
 								{...props}
 								variant="ghost"
 								size="icon-sm"
-								class="-ml-2 shrink-0 sm:hidden"
+								class="shrink-0 sm:hidden"
 								aria-label={text.openChannelList}
 							>
 								<PanelLeftIcon />

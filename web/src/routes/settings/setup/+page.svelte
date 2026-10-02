@@ -85,7 +85,7 @@
 <svelte:head><title>{text.title}</title></svelte:head>
 
 <main class="min-h-0 flex-1 overflow-y-auto">
-	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-8 sm:px-6">
+	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-4 sm:px-6 sm:py-8">
 		<header class="grid gap-2">
 			<h1 class="text-2xl font-semibold">{text.title}</h1>
 			<p class="text-muted-foreground">{text.description}</p>
@@ -103,7 +103,7 @@
 				<Card.Content class="grid min-w-0 gap-6">
 					<BoxConnection />
 					<Collapsible.Root class="grid gap-4">
-						<Collapsible.Trigger class="justify-self-start text-sm underline">{text.otherComputer}</Collapsible.Trigger>
+						<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">{text.otherComputer}</Collapsible.Trigger>
 						<Collapsible.Content class="grid min-w-0 gap-4">
 							<p class="text-sm text-muted-foreground">{text.otherComputerDescription}</p>
 							<div class="grid justify-items-start gap-2">
@@ -116,7 +116,7 @@
 								<p class="text-sm font-medium">{text.install}</p>
 								<p class="text-sm text-muted-foreground">{text.installDescription}</p>
 								<pre aria-label={text.install} class="max-w-full overflow-x-auto rounded-md bg-muted p-3 text-xs"><code>{text.installCommand}{'\n'}{text.configureCommand}</code></pre>
-								<a class="justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
+								<a class="inline-flex min-h-11 items-center justify-self-start text-sm underline" href={currentLocale.value === 'ko' ? 'https://docs.intern.kim/ko/quickstart' : 'https://docs.intern.kim/quickstart'}>{text.guide}</a>
 							</div>
 							<p class="text-sm text-muted-foreground">{text.installHint}</p>
 						</Collapsible.Content>
