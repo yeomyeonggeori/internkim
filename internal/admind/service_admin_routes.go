@@ -2,9 +2,10 @@ package admind
 
 import (
 	"net/http"
-
 	"strings"
 	"time"
+
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type adminSessionResponse struct {
@@ -70,6 +71,10 @@ func (service *Service) handleAdminSessionRoute(responseWriter http.ResponseWrit
 	}
 	if request.Method == http.MethodGet && path == "/health" {
 		service.writeAdminHealth(responseWriter)
+		return true
+	}
+	if request.Method == http.MethodGet && path == strings.TrimPrefix(blueclawruntime.AdmindRosterReadinessPath, "/admin/api") {
+		service.writeRosterReadiness(responseWriter)
 		return true
 	}
 	return false

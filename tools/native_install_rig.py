@@ -98,7 +98,8 @@ CONFIGURATION_DIRECTORY = "/etc/internkim"
 MESSENGER_READINESS = (3000, "/_readiness")
 AGENT_HEALTH = (8080, "/admin/api/health")
 ADMIN_GATEWAY_HEALTH = (18080, "/admin/api/health")
-READINESS_PROBES = (MESSENGER_READINESS, AGENT_HEALTH, ADMIN_GATEWAY_HEALTH)
+AGENT_ROSTER = (18080, "/admin/api/health/roster")
+READINESS_PROBES = (MESSENGER_READINESS, AGENT_HEALTH, ADMIN_GATEWAY_HEALTH, AGENT_ROSTER)
 REVISION_PROBE = ADMIN_GATEWAY_HEALTH
 
 # The bridge every message a person sends passes through on its way to the
@@ -386,7 +387,7 @@ def build_stand_in_package(directory, version, revision):
         (
             "./lib/systemd/system/internkim-admind.service",
             0o644,
-            stand_in_unit("internkim-admind", *ADMIN_GATEWAY_HEALTH).encode(),
+            stand_in_unit("internkim-admind", *ADMIN_GATEWAY_HEALTH, AGENT_ROSTER[1]).encode(),
         ),
         (
             "./lib/systemd/system/buzz-relay.service",
@@ -448,7 +449,7 @@ def build_stand_in_package(directory, version, revision):
     return package_path
 
 
-def stand_in_unit(name, port, path):
+def stand_in_unit(name, port, *paths):
     """A unit shaped like the package's: it declines to start until a company exists.
 
     The real units carry ConditionPathExists over a file `internkim install`
@@ -465,7 +466,7 @@ def stand_in_unit(name, port, path):
             "",
             "[Service]",
             "Type=simple",
-            f"ExecStart=/usr/lib/internkim/health-server {port} {path}",
+            f"ExecStart=/usr/lib/internkim/health-server {port} {' '.join(paths)}",
             "Restart=on-failure",
             "",
             "[Install]",
@@ -482,13 +483,13 @@ import sys
 import time
 
 port = int(sys.argv[1])
-path = sys.argv[2]
+paths = sys.argv[2:]
 started_at = time.time()
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path != path:
+        if self.path not in paths:
             self.send_response(404)
             self.end_headers()
             return

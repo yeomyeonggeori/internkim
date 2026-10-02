@@ -3,6 +3,7 @@ import {
 	AgentSideConnection,
 	ndJsonStream,
 	PROTOCOL_VERSION,
+	RequestError,
 	type Agent,
 	type LoadSessionRequest,
 	type NewSessionRequest,
@@ -12,7 +13,7 @@ import {
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BlueclawACPClient, sessionMetaKey, type Addressing } from './acp-session';
+import { AgentUnreachable, BlueclawACPClient, sessionMetaKey, type Addressing } from './acp-session';
 import { HeldQuestionStore } from './held-question-store';
 
 function aQuestionStore(directoryPath?: string): HeldQuestionStore {
@@ -38,6 +39,7 @@ type AgentBehaviour = {
 	reply?: string;
 	askPermissionAbout?: { toolCallID: string; question: string };
 	approvalReplies?: { reply: string; optionID: string }[];
+	refuseSessionsWith?: string;
 };
 
 const cleanUps: (() => void)[] = [];
@@ -99,6 +101,9 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 			}),
 			newSession: async (request: NewSessionRequest) => {
 				sessionsOpened.push(request);
+				if (behaviour.refuseSessionsWith) {
+					throw new RequestError(-32603, 'Internal error', { error: behaviour.refuseSessionsWith });
+				}
 				return { sessionId: 'session-1' };
 			},
 			loadSession: async (request: LoadSessionRequest) => {
@@ -336,4 +341,37 @@ test('an unanswered question is not asked again after a restart, and is delivere
 	expect(answered.outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 	expect(agent.approvalRepliesRead).toEqual(['응 보내줘']);
 	await waitUntil(async () => (await questions.read('held-1')) === null, 'the delivered question to be forgotten');
+});
+
+function aClientOn(socketPath: string): BlueclawACPClient {
+	const client = new BlueclawACPClient({
+		socketPath,
+		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
+		questions: aQuestionStore(),
+		askThePerson: async () => '',
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
+	});
+	cleanUps.push(() => client.close());
+	return client;
+}
+
+test('an agent that is not listening yet is unreachable, which is not a refusal', async () => {
+	const directory = mkdtempSync(join(tmpdir(), 'acp-relay-'));
+	cleanUps.push(() => rmSync(directory, { recursive: true, force: true }));
+	const client = aClientOn(join(directory, 'nobody-listens.sock'));
+
+	const failure = await client.ask(sampleRequester, sampleAddressing, '안녕하세요').catch((caught: unknown) => caught);
+
+	expect(failure).toBeInstanceOf(AgentUnreachable);
+});
+
+test('a refusal the agent answers with stays a refusal', async () => {
+	const agent = anAgentOnASocket({ refuseSessionsWith: 'a session without a conversation is nothing to answer in' });
+	const client = aClientOn(agent.socketPath);
+
+	const failure = await client.ask(sampleRequester, sampleAddressing, '안녕하세요').catch((caught: unknown) => caught);
+
+	expect(failure).toBeInstanceOf(RequestError);
+	expect(failure).not.toBeInstanceOf(AgentUnreachable);
 });

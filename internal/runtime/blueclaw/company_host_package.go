@@ -121,6 +121,7 @@ const (
 	CompanyHostMaildServiceName    = "internkim-maild"
 	CompanyHostMaildListenAddress  = "127.0.0.1:18092"
 	CompanyHostAdmindListenAddress = "127.0.0.1:18080"
+	AdmindRosterReadinessPath      = "/admin/api/health/roster"
 	CompanyHostChatdEndpoint       = "http://127.0.0.1:18090"
 	CompanyHostArrivalsInboundURL  = "http://127.0.0.1:18091/inbound"
 	CompanyHostBrowserFirstPort    = "9230"

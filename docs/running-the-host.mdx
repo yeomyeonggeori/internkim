@@ -29,8 +29,9 @@ it. On a Mac it adds our Homebrew tap, `yeomyeonggeori/tap`, and installs the
 `internkim` formula, whose bottle comes from the same GitHub Release and is
 checked against the checksum the formula carries. The second command configures the company, asks for the OpenRouter API key,
 and registers the host services. They start with the computer and recover after
-a service exits. When installation finishes, open the printed company setup
-address and choose Check connection.
+a service exits. Installation finishes once every service answers and the agent
+holds the company's roster, so a member can write to it right away. Then open the
+printed company setup address and choose Check connection.
 
 On Linux the connection file is optional. After the first command alone, the
 computer waits for a company and shows an eight-character code at
@@ -56,8 +57,10 @@ The tap carries only the latest release, so a Mac stays on the default channel.
 
 On a connected Linux host the upgrade rewrites the settings the first install
 wrote, prepares the database again, restarts the services and returns once every
-one of them answers. If one does not, it names that service and how to read why;
-`sudo internkim refresh` runs the same steps again once that is fixed.
+one of them answers and the agent holds the roster again. If one does not, it
+names that service and how to read why; `sudo internkim refresh` runs the same
+steps again once that is fixed. A message that arrives while the agent restarts
+waits in the messenger's queue and is answered when the agent is back.
 
 ## Remove
 
@@ -193,7 +196,7 @@ PostgreSQL restores a dump into the same or a newer major only. It then stops th
 services, puts the files back, recreates each person's account from the roster in
 the archive, gives every file back to its owner by account name, restores both
 databases and starts the services, which bring their schemas up to the installed
-version. A file whose owner has no account on the new computer stays owned by root,
+version. Like the install, it returns once the agent holds the roster. A file whose owner has no account on the new computer stays owned by root,
 and the restore lists it.
 
 To restore onto the computer the backup came from, add `--replace`. The restore

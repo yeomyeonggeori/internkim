@@ -3,12 +3,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type {
-	Addressing,
-	AnsweredTurn,
-	BlueclawACPClient,
-	MessageFacts,
-	Requester
+import { RequestError } from '@agentclientprotocol/sdk';
+import {
+	AgentUnreachable,
+	type Addressing,
+	type AnsweredTurn,
+	type BlueclawACPClient,
+	type MessageFacts,
+	type Requester
 } from './acp-session';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
@@ -259,14 +261,14 @@ describe('InboundTurns', () => {
 		expect(await answering, 'the held question was answered by the request that asked it').toBe('응 보내줘');
 	});
 
-	test('a turn that keeps failing is retried and then dropped by name', async () => {
+	test('a turn the agent keeps refusing is retried and then dropped by name, with its reason', async () => {
 		const directoryPath = directoryForOneTest();
 		const reported: string[] = [];
 		let attempted = 0;
 		const client = {
 			ask: async (): Promise<AnsweredTurn> => {
 				attempted += 1;
-				throw new Error('blueclaw is not listening');
+				throw new RequestError(-32603, 'Internal error', { error: 'a prompt with no text is nothing to answer' });
 			}
 		};
 		const turns = new InboundTurns({
@@ -288,7 +290,42 @@ describe('InboundTurns', () => {
 		const dropped = reported.find((line) => line.startsWith('dropped'));
 		expect(dropped).toContain(firstKey);
 		expect(dropped).toContain('after 2 attempts');
-		expect(dropped).toContain('blueclaw is not listening');
+		expect(dropped).toContain('a prompt with no text is nothing to answer');
+		expect(await eventsStillOnDisk(directoryPath)).toEqual([]);
+	});
+
+	test('a message the agent cannot be reached for outlasts the attempt ceiling and is answered once it is back', async () => {
+		const directoryPath = directoryForOneTest();
+		const reported: string[] = [];
+		const posted: string[] = [];
+		const delays: number[] = [];
+		let attempted = 0;
+		const client = {
+			ask: async (): Promise<AnsweredTurn> => {
+				attempted += 1;
+				if (attempted <= 5) throw new AgentUnreachable(new Error('connect ENOENT /run/internkim/acp/blueclaw-acp.sock'));
+				return { reply: '받았습니다', progress: [], stopReason: 'end_turn' };
+			}
+		};
+		const turns = new InboundTurns({
+			client: client as unknown as BlueclawACPClient,
+			queue: new InboundQueue({ directoryPath, attemptCeiling: 2 }),
+			postToConversation: async (_addressing, message) => {
+				posted.push(message);
+			},
+			waitBeforeRetrying: async (milliseconds) => {
+				delays.push(milliseconds);
+			},
+			report: (line) => reported.push(line)
+		});
+
+		await turns.keep(firstKey, aChatdBody());
+		await waitUntil(() => posted.length > 0, 'the reply once the agent is back');
+		await turns.settled();
+
+		expect(posted).toEqual(['받았습니다']);
+		expect(reported.filter((line) => line.startsWith('dropped'))).toEqual([]);
+		expect(delays).toEqual([250, 500, 1_000, 2_000, 4_000]);
 		expect(await eventsStillOnDisk(directoryPath)).toEqual([]);
 	});
 

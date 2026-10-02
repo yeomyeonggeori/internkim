@@ -306,6 +306,16 @@ class StandInDeclinesTests(unittest.TestCase):
         for name, contents in units.items():
             self.assertIn(f"ConditionPathExists={rig.COMPANY_CONDITION_PATH}", contents, name)
 
+    def test_the_stand_in_admin_gateway_answers_every_probe_on_its_port(self):
+        admind = self.units()["./lib/systemd/system/internkim-admind.service"]
+        served = next(
+            line.split()[1:] for line in admind.splitlines() if line.startswith("ExecStart=")
+        )
+        port, _ = rig.ADMIN_GATEWAY_HEALTH
+        for probe_port, path in rig.READINESS_PROBES:
+            if probe_port == port:
+                self.assertIn(path, served[1:], f"the stand-in admind does not answer {path}")
+
     def test_the_stand_in_ships_the_conffile_the_package_ships(self):
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         package = rig.build_stand_in_package(directory, "1.0.0", "one")

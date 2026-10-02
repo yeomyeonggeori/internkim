@@ -35,6 +35,7 @@ from native_install_rig import (  # noqa: E402
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
     DOCUMENT_ENVIRONMENT_PATHS,
+    HOST_PYTHON_PATH,
     HOST_PYTHON_VERSION,
     DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
     CONFFILE_EDIT,
@@ -75,6 +76,45 @@ from native_install_rig import (  # noqa: E402
 DEFAULT_PACKAGE_DIRECTORY = Path(".artifacts/native-package")
 RELAY_UNIT_NAME = "internkim-relay.service"
 BOX_UNIT_NAME = "internkim-box.service"
+ADMIND_UNIT_NAME = "internkim-admind.service"
+AGENT_UNIT_NAME = "blueclaw.service"
+
+# The relay used to give a message eight tries, 250 ms apart and doubling, and
+# drop it after the eighth: 32 seconds. A message held past that is one the old
+# relay would have lost.
+LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS = 60
+
+# A host whose install has just returned on a release without the roster wait:
+# the agent has started on the empty roster the prepare step writes, and admind
+# has not yet handed it the company's people. Stopping admind holds it there.
+AGENT_WITHOUT_ITS_ROSTER_COMMAND = r"""
+set -e
+systemctl stop %(admind)s
+policy="$(systemctl show %(agent)s -p ExecStart --value | sed -n 's/.* -policy \([^ ;]*\).*/\1/p' | head -n 1)"
+[ -n "$policy" ] || { echo "the agent's unit names no -policy"; exit 1; }
+%(python)s - "$policy" <<'PYTHON'
+import json, sys
+path = sys.argv[1]
+with open(path) as source:
+    document = json.load(source)
+document["people"] = []
+with open(path, "w") as target:
+    json.dump(document, target)
+PYTHON
+systemctl restart %(agent)s
+for attempt in $(seq 1 60); do
+  curl -fsS --max-time 2 http://127.0.0.1:8080/admin/api/health >/dev/null 2>&1 && exit 0
+  sleep 2
+done
+echo "the agent did not answer after its restart"; exit 1
+"""
+
+RELAY_QUEUE_COMMAND = r"""
+pid="$(systemctl show %(relay)s -p MainPID --value 2>/dev/null)"
+directory="$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null | sed -n 's/^RELAY_STATE_DIR=//p')"
+printf 'queued=%%s\n' "$(ls "${directory:-/var/lib/internkim/relay}/inbound" 2>/dev/null | grep -c '\.json$' || true)"
+printf 'dropped=%%s\n' "$(journalctl -u %(relay)s --no-pager --since '-%(seconds)s seconds' 2>/dev/null | grep -c 'dropped ' || true)"
+"""
 RUNNING_STATE = "yes/active/success/0"
 CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 NAMES_THE_PACKAGE_CARRIES = ("python3-venv", "fonts-nanum", "chromium")
@@ -978,6 +1018,48 @@ class Rig:
             ).stdout.strip()[-1500:],
         )
 
+    def observe_a_message_that_arrives_before_the_roster(self, step, plane):
+        """What the stranger run lost: a member who writes before the agent knows them."""
+        self.machine.checked_shell(
+            AGENT_WITHOUT_ITS_ROSTER_COMMAND
+            % {"admind": ADMIND_UNIT_NAME, "agent": AGENT_UNIT_NAME, "python": HOST_PYTHON_PATH}
+        )
+        self.message_text = message_asking_for_an_answer("before the roster")
+        session = plane.member_session(self.company_id, self.message_text)
+        message_id = (session.get("sent") or {}).get("messageID") or ""
+        self.sent_messages.append((message_id, self.message_text))
+        time.sleep(LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS)
+        waited_seconds = LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS + 30
+        held = self.machine.shell(
+            RELAY_QUEUE_COMMAND % {"relay": RELAY_UNIT_NAME, "seconds": waited_seconds}
+        ).stdout.strip()
+        unanswered = self.machine.shell(
+            AGENT_ANSWER_COMMAND % {
+                "agent_path": COMPANY_CONDITION_PATH,
+                "messenger_path": MESSENGER_DATABASE_PATH,
+                "text": self.message_text,
+                "message": message_id or "no-message",
+            }
+        ).stdout.strip()
+        reported = dict(line.split("=", 1) for line in (held + "\n" + unanswered).splitlines() if "=" in line)
+        step.observe(
+            "a message the agent cannot place yet stays queued past the point the relay used to drop it",
+            f"the relay's own inbound queue on disk and its journal {LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS}s after "
+            "the message was sent, with admind stopped and the agent started on an empty roster, and the agent's "
+            "task ledger for the message's text",
+            "the member's message landing in the messenger says only that the relay stored it; the relay gave a "
+            "message it could not hand over 32 seconds and then deleted it, and the agent started no task for it",
+        ).record(
+            bool(message_id)
+            and reported.get("queued", "0") not in ("", "0")
+            and reported.get("dropped") == "0"
+            and not reported.get("task"),
+            f"message {message_id or 'not sent'}\n{held}\n{unanswered}"
+            + (f"\n{session['refused']}" if session.get("refused") else ""),
+        )
+        self.machine.checked_shell(f"systemctl start {ADMIND_UNIT_NAME}")
+        self.observe_the_agent_answered(step)
+
     def observe_readiness_after_the_upgrade(self, step):
         answers = self.machine.shell(READINESS_COMMAND).stdout.strip()
         step.observe(
@@ -1311,6 +1393,8 @@ def main():
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
                 rig.observe_the_member_round_trip(step_five, rig.plane)
                 rig.observe_the_agent_answered(step_five)
+                step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
+                rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()
 
             step_three = rig.step(3, "running the line again moves it to a newer release")
