@@ -72,9 +72,8 @@ func (thisComputer) CarriesFile(path string) error {
 }
 
 type installArguments struct {
-	ConnectionPath     string
-	StateDirectoryPath string
-	ModelKeyPath       string
+	ConnectionPath string
+	ModelKeyPath   string
 }
 
 func main() {
@@ -116,7 +115,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 }
 
 func printUsage(command string) {
-	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
+	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
@@ -246,7 +245,6 @@ func boxDaemon(appURL string) box.Daemon {
 
 func parseInstallArguments(arguments []string) (installArguments, error) {
 	flags := flag.NewFlagSet("install", flag.ContinueOnError)
-	stateDirectoryPath := flags.String("state-directory", "", "persistent private installation directory")
 	modelKeyPath := flags.String("model-key-file", "", "read the OpenRouter key from this private file")
 	var connectionPaths []string
 	remaining := arguments
@@ -264,9 +262,8 @@ func parseInstallArguments(arguments []string) (installArguments, error) {
 		return installArguments{}, fmt.Errorf("name the internkim-host.json downloaded from company setup")
 	}
 	return installArguments{
-		ConnectionPath:     connectionPaths[0],
-		StateDirectoryPath: *stateDirectoryPath,
-		ModelKeyPath:       *modelKeyPath,
+		ConnectionPath: connectionPaths[0],
+		ModelKeyPath:   *modelKeyPath,
 	}, nil
 }
 
@@ -316,10 +313,9 @@ func runInstall(arguments []string) error {
 		return installByClaiming(parsed, connection, modelKey)
 	}
 	installation, errorValue := companyhost.Install(companyhost.Request{
-		Connection:         connection,
-		StateDirectoryPath: parsed.StateDirectoryPath,
-		ModelKey:           modelKey,
-		PromptForModelKey:  func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
+		Connection:        connection,
+		ModelKey:          modelKey,
+		PromptForModelKey: func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
 	}, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
@@ -339,13 +335,6 @@ func installByClaiming(parsed installArguments, connection companyhost.Connectio
 		}
 	}
 	daemon := boxDaemon(connection.AppURL)
-	if parsed.StateDirectoryPath != "" {
-		stateDirectoryPath, errorValue := filepath.Abs(parsed.StateDirectoryPath)
-		if errorValue != nil {
-			return errorValue
-		}
-		daemon.Places.CompanyStateDirectoryPath = func(string) string { return stateDirectoryPath }
-	}
 	if errorValue := daemon.InstallWithConnectionFile(context.Background(), connection.AgentKey, strings.TrimSpace(modelKey)); errorValue != nil {
 		return errorValue
 	}
