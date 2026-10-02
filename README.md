@@ -113,7 +113,7 @@ deploy the web app.
 `supabase/migrations` is the schema of record and `web/` is the web app and the API.
 `host/` holds the company computer's boot order and the relay, and `cmd/` and
 `internal/` hold the Go programs. [CONTRIBUTING.md](CONTRIBUTING.md) covers builds,
-checks and contributions; [measurements](web/tests/performance/README.md) cover navigation.
+checks and contributions; [architecture](docs/architecture.mdx) covers navigation reads.
 
 ## License
 
