@@ -87,12 +87,13 @@ func (service *Service) tellRequesterHowTheUpdateEnded(ctx context.Context, note
 
 func (service *Service) hostUpdateReportSchedule(ctx context.Context, note hostupdate.Note) ([]byte, error) {
 	dependencies := service.hostUpdate()
+	companyLocation := service.companyTimeLocation(ctx)
 	facts, errorValue := json.Marshal(map[string]any{
 		"fromVersion":         note.FromVersion,
 		"toVersion":           note.ToVersion,
 		"installedVersionNow": dependencies.Machine.InstalledVersion,
-		"startedAt":           note.StartedAt.Format(time.RFC3339),
-		"outcome":             note.Outcome,
+		"startedAt":           note.StartedAt.In(companyLocation).Format(time.RFC3339),
+		"outcome":             outcomeInLocation(note.Outcome, companyLocation),
 	})
 	if errorValue != nil {
 		return nil, errorValue
@@ -102,9 +103,18 @@ func (service *Service) hostUpdateReportSchedule(ctx context.Context, note hostu
 		Description:     "Host update result",
 		Kind:            "once",
 		RunAt:           dependencies.Now().Add(hostUpdateReportDelay).UTC().Format(time.RFC3339),
-		TimeZone:        service.companyTimeZoneName(ctx),
+		TimeZone:        companyLocation.String(),
 		Platform:        note.Requester.Platform,
 		ConversationID:  note.Requester.ConversationID,
 		ReplyTargetID:   note.Requester.ReplyTargetID,
 	})
+}
+
+func outcomeInLocation(outcome *hostupdate.Outcome, location *time.Location) *hostupdate.Outcome {
+	if outcome == nil {
+		return nil
+	}
+	inLocation := *outcome
+	inLocation.FinishedAt = outcome.FinishedAt.In(location)
+	return &inLocation
 }

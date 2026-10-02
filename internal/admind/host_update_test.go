@@ -322,6 +322,29 @@ func TestAFinishedUpdateIsReportedInItsConversationAndTheNoteCleared(t *testing.
 	}
 }
 
+func TestTheResultReportGivesItsTimesInTheCompanyTimeZone(t *testing.T) {
+	rig := newHostUpdateRig(t)
+	finishedNote(t, rig.notePath, true)
+	note, _, _ := hostupdate.ReadNote(rig.notePath)
+	note.StartedAt = note.StartedAt.UTC()
+	note.Outcome.FinishedAt = note.Outcome.FinishedAt.UTC()
+	body, errorValue := rig.service.hostUpdateReportSchedule(t.Context(), note)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	var schedule hostUpdateReportSchedule
+	json.Unmarshal(body, &schedule)
+	companyLocation := rig.service.companyTimeLocation(t.Context())
+	for _, want := range []string{
+		`"startedAt":"` + note.StartedAt.In(companyLocation).Format(time.RFC3339) + `"`,
+		`"finishedAt":"` + note.Outcome.FinishedAt.In(companyLocation).Format(time.RFC3339Nano) + `"`,
+	} {
+		if !strings.Contains(schedule.TaskInstruction, want) {
+			t.Fatalf("the report lacks %s in %s: %s", want, companyLocation, schedule.TaskInstruction)
+		}
+	}
+}
+
 func TestAResultTheAgentCannotTakeYetIsKeptForTheNextTry(t *testing.T) {
 	rig := newHostUpdateRig(t)
 	rig.reportStatus = http.StatusServiceUnavailable
