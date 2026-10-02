@@ -56,7 +56,6 @@ func postInstallBody(format linuxPackageFormat) string {
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
-		`  systemctl unmask "$unit" >/dev/null 2>&1 || true`,
 		`  systemctl enable "$unit" >/dev/null 2>&1 || refuse "could not enable $unit"`,
 		`done`,
 		bringTheCompanyBackOnThisRelease(blueclaw.CompanyHostCurrentPath, refreshCommand()),
