@@ -323,6 +323,7 @@ and delete the duplicates.
   | --- | --- | --- |
   | `./internkim dev plane` | does Linux startup, requester memory access, messaging and the public API work | minutes |
   | `./internkim dev simulate --scenario <name>` | does the agent loop decide correctly, against a scripted model | seconds |
+  | `tools/test-native-install` | does the installed company host work on Linux — install, member round trip, the agent's answer, a picture, a mention, a direct message, upgrade, backup and restore | ~15 minutes |
   | `./internkim dev fleet run --scenario workspace-ownership` | does the POSIX helper keep a requester to their own workspace on Linux | minutes |
 
 - Anything on the company plane — a message tool, the public API, how a daemon is
@@ -333,9 +334,17 @@ and delete the duplicates.
   The run keeps memory facts in its isolated guest database
   and workspace, and removes them with the VM. Arguments after `dev plane` go to the
   plane's test runner, as in `./internkim dev plane -t "leaves on the messenger"`.
-- `tools/test-native-install` installs the host package in a disposable Linux
-  guest and checks the member-to-agent round trip. Attachments, inbound
-  mentions and agent-initiated direct messages have no automated Linux check.
+- Anything on the messenger path is verified with the company host's rig,
+  `tools/test-native-install` (under `monkeys run @test` when the answer's wording
+  matters), whose step 12 runs on the installed package. Buzz is what a company's
+  messages travel over. The step takes the people the agent's roster holds,
+  derives a person's key from the host's identity seed the way
+  `buzzidentity.Secret` does, sends the agent a picture through chatd's person
+  capabilities, and reads the task ledger and the person's workspace. The agent
+  writing to a person goes through the public API on admind's socket, and the
+  recipient's own Buzz inbox is read for it. A mention of the agent in a channel is
+  read from the agent's connector diagnostic. The guest half is
+  `tools/native_install_messenger.py`.
 
 ## Blueclaw Skill Size Budget
 

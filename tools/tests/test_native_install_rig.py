@@ -525,12 +525,15 @@ class RecordingRig:
     def observe_a_message_that_arrives_before_the_roster(self, step, plane):
         self.judged.append(("before the roster", self.installed))
 
+    def observe_the_messenger_paths(self, step, plane):
+        self.judged.append(("messenger", self.installed))
+
     def __getattr__(self, name):
         return lambda *arguments, **keywords: None
 
 
 class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
-    JUDGMENTS = ["typing", "pdf", "before the roster"]
+    JUDGMENTS = ["typing", "pdf", "before the roster", "messenger"]
 
     def judged_in(self, releases, is_an_agent_update=False, requests=None):
         options = type(
@@ -558,7 +561,7 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
         self.assertEqual(self.judged_in(["older", "newer"]), [(name, "newer") for name in self.JUDGMENTS])
 
     def test_an_agent_update_judges_the_release_it_moves_to(self):
-        self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer")])
+        self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer"), ("messenger", "newer")])
 
     def test_a_batch_of_requests_is_delivered_after_the_member_round_trip_and_nothing_is_judged_after_it(self):
         delivered = []
@@ -625,3 +628,65 @@ class ReleaseVersionOfTests(unittest.TestCase):
     def test_a_version_that_is_not_one_stops_the_rig(self):
         with self.assertRaises(rig.RigFailure):
             rig.release_version_of("0.0.0+standin1")
+
+
+import native_install_messenger as messenger  # noqa: E402
+
+
+class MessengerRigTests(unittest.TestCase):
+    def declared_in_package(self, name):
+        source = (repository_root / "internal" / "runtime" / "blueclaw" / "company_host_package.go").read_text()
+        match = re.search(rf'^\t{name}\s+=\s*"([^"]+)"', source, re.MULTILINE)
+        self.assertIsNotNone(match, f"company_host_package.go no longer declares {name}")
+        return match.group(1)
+
+    def test_the_guest_is_asked_at_the_addresses_and_paths_the_package_declares(self):
+        self.assertEqual(messenger.CHATD_ENDPOINT, self.declared_in_package("CompanyHostChatdEndpoint"))
+        self.assertEqual(messenger.IDENTITY_SEED_PATH, self.declared_in_package("CompanyHostIdentitySeedPath"))
+        self.assertEqual(messenger.AGENT_DATABASE_PATH, rig.COMPANY_CONDITION_PATH)
+        self.assertEqual(messenger.ADMIND_SOCKET_PATH, agent_update.ADMIND_SOCKET_PATH)
+        self.assertEqual(messenger.AGENT_ENDPOINT, f"http://127.0.0.1:{rig.AGENT_HEALTH[0]}")
+        self.assertEqual(messenger.AGENT_UNIT_NAME, load_driver().AGENT_UNIT_NAME)
+
+    def test_a_persons_key_is_their_lowercased_address_under_the_seed(self):
+        expected = hashlib.sha256(b"seed|secret|member1@example.com").hexdigest()
+        self.assertEqual(messenger.buzz_secret("seed", "  Member1@Example.com "), expected)
+
+    def test_the_policy_path_is_the_one_the_agents_unit_passes(self):
+        shown = "{ path=/usr/bin/blueclaw ; argv[]=/usr/bin/blueclaw -listen 127.0.0.1:8080 -policy /run/internkim/policy.json -x y ; ignore_errors=no }"
+        self.assertEqual(messenger.policy_path_of(shown), "/run/internkim/policy.json")
+        self.assertEqual(messenger.policy_path_of("argv[]=/usr/bin/blueclaw"), "")
+
+    def test_a_person_without_an_address_is_not_a_person_the_messenger_can_reach(self):
+        policy = {"people": [{"personID": "a", "emails": ["a@example.com", "b@example.com"]}, {"personID": "c", "emails": []}, {"personID": "d"}]}
+        self.assertEqual(messenger.people_of(policy), [{"personID": "a", "email": "a@example.com"}])
+
+    def test_a_marker_is_found_wherever_a_message_keeps_its_text(self):
+        document = {"messages": [{"id": "1", "content": {"body": "hello"}}, {"id": "2", "parts": ["x", "rig marker 42"]}]}
+        self.assertTrue(messenger.holds_text(document, "marker 42"))
+        self.assertFalse(messenger.holds_text(document, "marker 43"))
+
+    def test_only_a_read_that_found_nothing_is_a_missing_file(self):
+        bodies = [
+            json.dumps({"tool": "read", "failure": {"code": "not_found"}}),
+            json.dumps({"tool": "read", "output": {"content": "ok"}}),
+            json.dumps({"tool": "write", "failure": {"code": "not_found"}}),
+            "not json",
+        ]
+        self.assertEqual(len(messenger.reads_that_found_nothing(bodies)), 1)
+
+    def test_a_message_id_is_checked_before_it_reaches_a_query(self):
+        self.assertTrue(messenger.is_a_hex_identifier("0123abcdef0123abcdef"))
+        self.assertFalse(messenger.is_a_hex_identifier("1'; drop table task_run; --"))
+        self.assertFalse(messenger.is_a_hex_identifier(""))
+
+    def test_the_picture_is_a_png_and_the_word_is_not_in_what_the_agent_is_asked(self):
+        picture = Path(load_driver().MESSENGER_PICTURE_SOURCE)
+        self.assertTrue(picture.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertNotIn(messenger.WORD_THE_PICTURE_CARRIES.lower(), messenger.PICTURE_QUESTION.lower())
+
+    def test_every_action_the_rig_asks_the_guest_for_exists(self):
+        driver_source = (repository_root / "tools" / "test-native-install").read_text()
+        asked = set(re.findall(r'ask_the_messenger\(\s*"(\w+)"', driver_source)) | set(re.findall(r'wait_for_the_messenger\(\s*"(\w+)"', driver_source))
+        self.assertTrue(asked)
+        self.assertLessEqual(asked, set(messenger.ACTIONS))

@@ -450,6 +450,8 @@ GROUPS = [
             "tools/native_install_deliveries.py",
             "tools/native-install-requests-example/*",
             "tools/tests/test_native_install_deliveries.py",
+            "tools/native_install_messenger.py",
+            "tools/native_install_assets/*",
             "internal/admind/host_update.go",
             "internal/hostupdate/*",
             "web/static/install.sh",
