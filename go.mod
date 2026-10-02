@@ -14,7 +14,6 @@ require (
 	github.com/mdlayher/vsock v1.2.1
 	github.com/nbd-wtf/go-nostr v0.52.3
 	golang.org/x/crypto v0.56.0
-	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0
 	modernc.org/sqlite v1.48.2
 )
@@ -86,6 +85,7 @@ require (
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	modernc.org/libc v1.70.0 // indirect

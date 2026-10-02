@@ -16,12 +16,6 @@ func EnsureBlueclawSupervisorBinary(targetPath string, scriptDir string) error {
 	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw-supervisor", "linux", "arm64")
 }
 
-// A Mac runs the supervisor itself and the guest inside vfkit, so the supervisor is the one
-// binary in the pair that is not built for the guest's platform.
-func EnsureBlueclawSupervisorBinaryForHost(targetPath string, scriptDir string, operatingSystem string, architecture string) error {
-	return ensureBlueclawCommandBinary(targetPath, scriptDir, "./cmd/blueclaw-supervisor", operatingSystem, architecture)
-}
-
 func ensureBlueclawCommandBinary(targetPath string, scriptDir string, packagePath string, operatingSystem string, architecture string) error {
 	blueclawDirectory := BlueclawSubmoduleRoot(scriptDir)
 	if _, error := os.Stat(filepath.Join(blueclawDirectory, "go.mod")); error != nil {

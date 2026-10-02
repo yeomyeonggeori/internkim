@@ -149,8 +149,6 @@ func runNamedCommand(name string) {
 		runOps()
 	case "dev":
 		runDev()
-	case "mac":
-		runMac()
 	case "lab":
 		runLab()
 	case "sim":
@@ -185,7 +183,6 @@ func printUsage() {
 	fmt.Println("  test     Run a prompt through disposable Local Fleet; use -o <file> for one returned attachment")
 	fmt.Println("  llm      One-shot LLM ping (local by default, --remote for OpenRouter)")
 	fmt.Println("  ops      Serve the local personal fleet console")
-	fmt.Println("  mac      Install and run the Blueclaw guest on this Mac under vfkit")
 	fmt.Println("  lab      Run container-based Blueclaw-aligned lab workflows")
 	fmt.Println("  sim      Deprecated alias for lab")
 }
