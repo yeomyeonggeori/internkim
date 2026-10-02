@@ -6,8 +6,9 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
-	"strings"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func publishedInstallScript(t *testing.T) string {
@@ -41,17 +42,16 @@ func TestInstallScriptRecordsTheChannelWhereTheAgentReadsIt(t *testing.T) {
 	}
 }
 
-func TestInstallScriptAsksForPackageManagersInTheOrderTheAgentDoes(t *testing.T) {
-	match := regexp.MustCompile(`for candidate in ([a-z\- ]+); do`).FindStringSubmatch(publishedInstallScript(t))
-	if match == nil {
-		t.Fatal("install.sh no longer lists the package managers it looks for")
-	}
+func TestTheAgentAsksForTheManagersThePackageIsPublishedFor(t *testing.T) {
 	commands := []string{}
 	for _, candidate := range updateMethods {
 		commands = append(commands, candidate.Command)
 	}
-	commands = slices.DeleteFunc(commands, func(command string) bool { return command == "brew" })
-	if got, want := strings.Fields(match[1]), commands; strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Fatalf("install.sh looks for %v and the agent for %v", got, want)
+	published := []string{}
+	for _, manager := range blueclaw.PackageManagers() {
+		published = append(published, string(manager))
+	}
+	if want := append(published, "brew"); !slices.Equal(commands, want) {
+		t.Fatalf("the agent looks for %v and the package is published for %v", commands, want)
 	}
 }
