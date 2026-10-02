@@ -96,7 +96,7 @@
 							{#if networks.length === 0}
 								<p class="text-muted-foreground text-sm">{text.noNetworks}</p>
 							{/if}
-							<Item.Group class="gap-1">
+							<Item.Group class="max-h-56 gap-1 overflow-y-auto overscroll-contain">
 								{#each networks as network (network.ssid)}
 									{@render networkChoice(network.ssid, network.ssid, network.isSecured)}
 								{/each}
