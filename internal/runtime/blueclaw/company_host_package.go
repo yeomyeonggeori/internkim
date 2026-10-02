@@ -382,6 +382,7 @@ else
   MODEL_API_KEY_PATH=%[8]s \
   ADMIN_ASSERTION_KEY_PATH=%[6]s \
   POSIX_HELPER_PATH=%[23]s \
+  MIGRATION_DIRECTORY_PATH=%[30]s \
     %[18]s --template %[19]s --capabilityd %[20]s --out %[14]s --work %[4]s
   chgrp %[3]s %[14]s
   chmod 0640 %[14]s
@@ -423,5 +424,6 @@ fi
 		fmt.Sprintf("%04o", CompanyHostRunPathMode),
 		RelayUserName,
 		fmt.Sprintf("%04o", CompanyHostACPSocketDirectoryMode),
-		layout.ACPSocketDirectoryPath())
+		layout.ACPSocketDirectoryPath(),
+		layout.MigrationPath)
 }

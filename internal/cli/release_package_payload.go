@@ -613,7 +613,7 @@ func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
 		},
 		{
 			SourcePath:      filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath, "migrations"),
-			Destination:     blueclaw.CompanyPackageMigrationPath,
+			Destination:     packageLayout.MigrationPath,
 			Mode:            0o755,
 			IsDirectoryTree: true,
 		},
