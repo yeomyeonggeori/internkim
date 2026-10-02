@@ -26,17 +26,24 @@ Attachments and pictures the chat screen shows are copied into the company's
 on another network can open them. The conversation they came from stays on
 the messenger.
 
+## A person's memory
+
+One SQLite file per subject, under the workspace's `.blueclaw/memory`, written
+and read only by the service. A person's own file holds what they said and what
+was said about them; a circle's file holds what its members share. Which file
+opens is the access boundary, so the operating system decides who reads a
+memory.
+
 ## The agent's store
 
-The host's own Postgres, defined in `.dependency/blueclaw/migrations/`. It
-needs the `vector` extension. The company host package installs and supervises
-Postgres with the rest of the host services.
+The host's own Postgres, defined in `.dependency/blueclaw/migrations/`. The
+company host package installs and supervises Postgres with the rest of the host
+services.
 
 | | |
 |---|---|
 | Conversation | `raw_event`, `conversation`, `attachment`, `connector_outbox`, `live_reply_post` |
 | Execution | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token`, `morning_briefing_schedule` |
-| Memory | `memory_episode`, `memory_fact`, `memory_fact_circle`, `memory_fact_embedding`, `memory_profile`, `memory_job` |
 | Policy and identity | `person`, `person_email`, `platform_account`, `policy_channel_rule`, `policy_revision` |
 | Operations | `admin_audit_log`, `backup_lock` |
 

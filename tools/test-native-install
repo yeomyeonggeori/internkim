@@ -128,11 +128,6 @@ printf 'task=%%s\n' "$(psql "$agent_url" -tAc "select status from task_run where
 printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at" 2>&1 | tr -d ' \n')"
 """
 
-VECTOR_EXTENSION_COMMAND = r"""
-url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
-psql "$url" -tAc "select (select extname from pg_extension where extname = 'vector') || ' ' || coalesce(to_regclass('public.memory_fact_embedding')::text, 'no-embedding-table')" 2>&1
-"""
-
 BRIDGE_COMMAND = (
     "printf 'bridge=%(port)s%(path)s=%%s\\n' "
     "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
@@ -206,25 +201,17 @@ done
 # is a real package on bookworm, jammy and noble and a pure virtual name on
 # trixie, where `postgresql` provides it; asking only dpkg's status would call an
 # honoured line missing.
-REMEMBERED_FACT_ROWS = """
+REMEMBERED_ROW = """
 begin;
-insert into memory_episode (episode_id, source_kind, source_id, requester_person_id, content, occurred_at, receipt)
-  values ('rig-backup-episode', 'explicit', 'rig-backup-episode', 'rig-person', 'rig backup', now(), '{}');
-insert into memory_fact (fact_id, episode_id, owner_person_id, kind, content, valid_from)
-  values ('rig-backup-near', 'rig-backup-episode', 'rig-person', 'fact', '%(phrase)s', now()),
-         ('rig-backup-far', 'rig-backup-episode', 'rig-person', 'fact', 'far', now());
-insert into memory_fact_embedding (fact_id, embedding)
-  select fact_id, ('[' || string_agg(case when position = axis then '1' else '0' end, ',' order by position) || ']')::vector
-  from (values ('rig-backup-near', 1), ('rig-backup-far', 2)) facts (fact_id, axis), generate_series(1, 1024) position
-  group by fact_id;
+insert into conversation (conversation_id, platform, external_conversation_id, conversation_type,
+                          display_name, last_seen_at, created_at, updated_at)
+  values ('rig-backup-conversation', 'rig', 'rig-backup-conversation', 'direct', '%(phrase)s', now(), now(), now());
 commit;
 """
 
-NEAREST_REMEMBERED_FACT = """
+REMEMBERED_ROW_AFTER_RESTORE = """
 select current_setting('server_version_num')::int / 10000,
-  (select content from memory_fact where fact_id = (
-     select fact_id from memory_fact_embedding where fact_id like 'rig-backup-%'
-     order by embedding <=> ('[0.9,0.1' || repeat(',0', 1022) || ']')::vector limit 1));
+  (select display_name from conversation where conversation_id = 'rig-backup-conversation');
 """
 
 PERSONS_FILE_COMMAND = r"""
@@ -1003,19 +990,8 @@ class Rig:
             "a person a host that drops what they say next",
         ).record(every_probe_answered(answers), answers or "nothing answered")
 
-    def observe_the_vector_extension_after_the_upgrade(self, step):
-        extensions = self.machine.shell(VECTOR_EXTENSION_COMMAND % {"agent_path": COMPANY_CONDITION_PATH}).stdout.strip()
-        step.observe(
-            "the agent's database carries the vector extension and the memory store its embedding table",
-            f"pg_extension and memory_fact_embedding in the database {COMPANY_CONDITION_PATH} names",
-            "the install creates the extension as the cluster's superuser, which the agent's own migration "
-            "cannot do, and the memory store's migration had already run without it on a host an earlier "
-            "release connected; without both, recall matches words alone and nothing fails",
-        ).record(extensions == "vector memory_fact_embedding", extensions or "no vector extension")
-
     def observe_the_upgraded_host_answers(self, step, plane):
         self.observe_readiness_after_the_upgrade(step)
-        self.observe_the_vector_extension_after_the_upgrade(step)
         observe_the_conversion_environment(self.machine, step)
         self.message_text = message_asking_for_an_answer("after the upgrade")
         self.observe_the_host_holds_the_gateway_socket(step)
@@ -1046,13 +1022,13 @@ class Rig:
             self.machine, self.files_command = held
 
     def take_a_backup(self, step):
-        remembered = self.machine.shell(in_the_agents_database(REMEMBERED_FACT_ROWS % {"phrase": self.remembered_phrase}))
+        remembered = self.machine.shell(in_the_agents_database(REMEMBERED_ROW % {"phrase": self.remembered_phrase}))
         written = self.machine.shell(PERSONS_FILE_COMMAND % {"phrase": shlex.quote(self.persons_phrase)})
         self.persons_file = written.stdout.strip().splitlines()[-1] if written.returncode == 0 else ""
         self.source_ownership = self.machine.shell(OWNERSHIP_COMMAND % {"path": self.persons_file or "/nonexistent"}).stdout
         step.observe(
-            "the company has a remembered fact with its embedding, a message and a file a person owns",
-            "the agent's database after inserting two facts with embeddings, and a file written into the home "
+            "the company has a row carrying a phrase, a message and a file a person owns",
+            "the agent's database after inserting a conversation carrying the phrase, and a file written into the home "
             "of the first bc_person_ account the roster made, owned by it",
             "the restore can only be judged against data the backup was taken over",
         ).record(
@@ -1141,13 +1117,12 @@ class Rig:
         return step
 
     def observe_what_came_back(self, step):
-        nearest = self.machine.shell(in_the_agents_database(NEAREST_REMEMBERED_FACT))
+        nearest = self.machine.shell(in_the_agents_database(REMEMBERED_ROW_AFTER_RESTORE))
         fields = nearest.stdout.strip().split("|")
         step.observe(
-            "the remembered fact is found again by its embedding, on this machine's own PostgreSQL",
-            "the PostgreSQL major the restored database runs on and the fact a cosine-distance query ranks first",
-            "the dump crossing a major is what a logical backup is for, and the ranking is the vector "
-            "extension and the embedding table both having come back",
+            "the remembered phrase comes back, on this machine's own PostgreSQL",
+            "the PostgreSQL major the restored database runs on and the phrase the restored row carries",
+            "the dump crossing a major is what a logical backup is for",
         ).record(len(fields) == 2 and fields[1] == self.remembered_phrase, nearest.stdout.strip()[-300:])
 
         sent_message_id, sent_message_text = self.sent_messages[0] if self.sent_messages else ("", "")
