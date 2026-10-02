@@ -32,9 +32,6 @@ func writePrivateFile(path string, content []byte) error {
 }
 
 func PrepareStateDirectory(directoryPath string, connection Connection) (string, error) {
-	if errorValue := refuseAnotherCompany(directoryPath, connection); errorValue != nil {
-		return "", errorValue
-	}
 	if errorValue := os.MkdirAll(directoryPath, 0o700); errorValue != nil {
 		return "", errorValue
 	}
@@ -59,20 +56,6 @@ func PrepareStateDirectory(directoryPath string, connection Connection) (string,
 		return "", errorValue
 	}
 	return secretDirectoryPath, nil
-}
-
-func refuseAnotherCompany(directoryPath string, connection Connection) error {
-	previous, errorValue := ReadConnection(filepath.Join(directoryPath, connectionFileName))
-	if os.IsNotExist(errorValue) {
-		return nil
-	}
-	if errorValue != nil {
-		return errorValue
-	}
-	if previous.Company.ID != connection.Company.ID {
-		return fmt.Errorf("this directory belongs to another company. Choose a different --state-directory")
-	}
-	return nil
 }
 
 func KeepSecret(secretDirectoryPath, name string) (string, error) {
