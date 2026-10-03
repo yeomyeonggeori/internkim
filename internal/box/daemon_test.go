@@ -381,6 +381,30 @@ func TestAnEmptyBoxGetsOnlineBeforeItAnnounces(t *testing.T) {
 	}
 }
 
+func TestABoxIsNamedAfterItsKeyBeforeItShowsItsPageOrAnnounces(t *testing.T) {
+	plane := &fakePlane{}
+	recorded := &installs{}
+	daemon, _ := daemonFor(t, plane, recorded)
+	namedWith := ""
+	announcementsWhenNamed := -1
+	daemon.NameHost = func(ctx context.Context, boxPublicKey string) error {
+		namedWith = boxPublicKey
+		announcementsWhenNamed = plane.announcements
+		return nil
+	}
+	runSteps(t, daemon, 1)
+	identity, errorValue := LoadOrCreateIdentity(identityPathIn(daemon.Places.StateDirectoryPath))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if namedWith != identity.PublicKey() {
+		t.Fatalf("the box was named after %q, want its own key %q", namedWith, identity.PublicKey())
+	}
+	if announcementsWhenNamed != 0 {
+		t.Fatalf("the box was named after %d announcements, want before the first so it announces its new name", announcementsWhenNamed)
+	}
+}
+
 func TestABoxThatHasACompanyLeavesItsNetworkAlone(t *testing.T) {
 	plane := &fakePlane{}
 	recorded := &installs{}

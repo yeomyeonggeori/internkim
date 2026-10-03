@@ -5,6 +5,7 @@ baseImageURL="$1"
 releaseTag="$2"
 outputImage="$3"
 wifiCountry="$4"
+timeZone="$5"
 growBy="3G"
 root=/mnt/kim-mini
 baseImage="$(dirname "$outputImage")/$(basename "$baseImageURL")"
@@ -65,12 +66,14 @@ boxUnit="$(chroot "$root" sh -c 'for directory in /usr/lib/systemd/system /lib/s
 [ -n "$boxUnit" ] || { echo "the package installed no internkim-box.service" >&2; exit 1; }
 boxCommand="$(sed -n 's/^ExecStart=//p' "$root$boxUnit")"
 mkdir -p "$root/etc/systemd/system/internkim-box.service.d"
-printf '[Service]\nExecStart=\nExecStart=%s --wifi-setup\n' "$boxCommand" > "$root/etc/systemd/system/internkim-box.service.d/kim-mini.conf"
+printf '[Service]\nExecStart=\nExecStart=%s --wifi-setup --host-name-from-key\n' "$boxCommand" > "$root/etc/systemd/system/internkim-box.service.d/kim-mini.conf"
 
 chroot "$root" raspi-config nonint do_wifi_country "$wifiCountry"
 grep -q "cfg80211.ieee80211_regdom=$wifiCountry" "$root/boot/firmware/cmdline.txt" || { echo "raspi-config did not set the Wi-Fi country to $wifiCountry" >&2; exit 1; }
 sed -i 's/^WirelessEnabled=.*/WirelessEnabled=true/' "$root/var/lib/NetworkManager/NetworkManager.state"
 grep -q '^WirelessEnabled=true$' "$root/var/lib/NetworkManager/NetworkManager.state" || { echo "NetworkManager still starts with Wi-Fi off" >&2; exit 1; }
+chroot "$root" raspi-config nonint do_change_timezone "$timeZone"
+[ "$(readlink "$root/etc/localtime")" = "/usr/share/zoneinfo/$timeZone" ] || { echo "raspi-config did not set the time zone to $timeZone" >&2; exit 1; }
 
 echo kimmini > "$root/etc/hostname"
 sed -i 's/^127\.0\.1\.1.*/127.0.1.1\tkimmini/' "$root/etc/hosts"

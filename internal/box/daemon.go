@@ -36,6 +36,7 @@ type Daemon struct {
 	Client          Client
 	Places          Places
 	Install         func(companyhost.Request) error
+	NameHost        func(ctx context.Context, boxPublicKey string) error
 	GetOnline       func(ctx context.Context, boxPublicKey string) error
 	ChangeWifi      func(ctx context.Context, ssid, password string) error
 	ScanWifi        func(ctx context.Context) ([]NearbyNetwork, error)
@@ -53,6 +54,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
+	daemon.nameHost(ctx, identity)
 	daemon.getOnlineWhileEmpty(ctx, identity)
 	if daemon.ChangeWifi != nil {
 		watcherContext, stopWatcher := context.WithCancel(ctx)
@@ -216,6 +218,15 @@ func connectionOf(session Session) companyhost.Connection {
 func (daemon Daemon) untilRenewal(session HostSession) time.Duration {
 	wait := time.Unix(session.ExpiresAt, 0).Sub(daemon.now()) - sessionRenewalMargin
 	return max(wait, shortestSessionWait)
+}
+
+func (daemon Daemon) nameHost(ctx context.Context, identity Identity) {
+	if daemon.NameHost == nil {
+		return
+	}
+	if errorValue := daemon.NameHost(ctx, identity.PublicKey()); errorValue != nil {
+		log.Printf("naming this box after its key: %v; it keeps its current host name", errorValue)
+	}
 }
 
 func (daemon Daemon) getOnlineWhileEmpty(ctx context.Context, identity Identity) {

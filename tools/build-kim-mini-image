@@ -7,19 +7,21 @@ baseImageURL="https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspio
 releaseTag=""
 releaseDirectory=""
 wifiCountry="KR"
+timeZone="Asia/Seoul"
 outputDirectory="$repositoryRoot/.artifacts/kim-mini"
 
 usage() {
   cat <<USAGE
 Usage:
-  tools/build-kim-mini-image --release <vYYYY.MM.DD.HHMMSS> [--wifi-country KR] [--base-image-url <url>]
-  tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--base-image-url <url>]
+  tools/build-kim-mini-image --release <vYYYY.MM.DD.HHMMSS> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
+  tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--time-zone Asia/Seoul] [--base-image-url <url>]
 
 Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
-package of that release installed, the box started with --wifi-setup, and Wi-Fi
-turned on for the country the box is sold in, which Raspberry Pi OS otherwise
-leaves off until someone picks one. It runs
-in a privileged arm64 Linux container through Docker and writes
+package of that release installed, the box started with --wifi-setup and
+--host-name-from-key, and Wi-Fi turned on for the country the box is sold in,
+which Raspberry Pi OS otherwise leaves off until someone picks one. The clock
+keeps that country's time zone, where Raspberry Pi OS would keep Europe/London.
+It runs in a privileged arm64 Linux container through Docker and writes
 .artifacts/kim-mini/kim-mini-<release>.img.xz. Write it to a card with
 tools/flash-kim-mini, which also records the day the box was made.
 
@@ -34,6 +36,7 @@ while [ "$#" -gt 0 ]; do
     --release) releaseTag="$2"; shift 2 ;;
     --base-image-url) baseImageURL="$2"; shift 2 ;;
     --wifi-country) wifiCountry="$2"; shift 2 ;;
+    --time-zone) timeZone="$2"; shift 2 ;;
     --release-directory) releaseDirectory="$(cd "$2" && pwd)"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage >&2; exit 1 ;;
@@ -49,4 +52,4 @@ docker run --rm --privileged --platform linux/arm64 \
   -v "$scriptDirectory/kim-mini-image:/work/tools:ro" \
   -v "$repositoryRoot/web/static/install.sh:/work/install.sh:ro" \
   -v "$outputDirectory:/output" \
-  debian:trixie sh /work/tools/assemble "$baseImageURL" "$releaseTag" "/output/kim-mini-$releaseTag.img" "$wifiCountry"
+  debian:trixie sh /work/tools/assemble "$baseImageURL" "$releaseTag" "/output/kim-mini-$releaseTag.img" "$wifiCountry" "$timeZone"
