@@ -202,9 +202,13 @@
     "description": "the client secret half of the same Access service token, from the @host vault profile beside its client id",
     "isInVault": true
   },
+  "INTERNKIM_SSH_ASKPASS": {
+    "process": "cli",
+    "description": "set by `internkim ssh` on the ssh it starts, so that ssh's SSH_ASKPASS call of the same binary answers with the console password instead of running a command"
+  },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
-    "description": "the company host's login password, from the @host vault profile; `internkim ssh` logs in with it through sshpass, and uses the caller's own key when it is unset",
+    "description": "the company host's login password, from the @host vault profile; `internkim ssh` hands it to ssh as its askpass answer, and uses the caller's own key when it is unset",
     "isInVault": true
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
