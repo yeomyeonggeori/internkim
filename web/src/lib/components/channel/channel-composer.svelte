@@ -12,7 +12,6 @@
 
 <script lang="ts">
 	import * as Attachment from '$lib/components/ui/attachment/index.js';
-	import * as ButtonGroup from '$lib/components/ui/button-group/index.js';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import ComposerFormatButtons from './composer-format-buttons.svelte';
@@ -330,27 +329,34 @@
 			<ComposerFormatToolbar {disabled} {activeFormats} onFormat={format} />
 		{/if}
 		<InputGroup.Addon align="block-end" class="composer-actions hidden pt-1 sm:flex">
-			<ButtonGroup.Root class="composer-tools" aria-label={text.composerTools}>
-				<ButtonGroup.Root aria-label={text.addAttachment}>
+			<div class="composer-tools" role="group" aria-label={text.composerTools}>
+				{#if canMention}
+					<InputGroup.Button variant="ghost" size="icon-sm" aria-label={text.addMention} {disabled} onclick={() => void startMention()}>
+						<AtSignIcon />
+					</InputGroup.Button>
+				{/if}
 				<InputGroup.Button
 					type="button"
-					variant="outline"
+					variant="ghost"
 					size="icon-sm"
 					aria-label={text.addAttachment}
 					onclick={() => fileInput?.click()}
 					disabled={disabled || editing !== null}
 				>
-					<PaperclipIcon data-icon="inline-start" />
+					<PaperclipIcon />
 				</InputGroup.Button>
-				</ButtonGroup.Root>
-				<ButtonGroup.Root aria-label={text.composerTextTools}>
+				<EmojiPicker onPick={insertEmoji} side="top" align="start">
+					{#snippet trigger({ props })}
+						<InputGroup.Button {...props} variant="ghost" size="icon-sm" aria-label={text.addEmoji} {disabled}>
+							<SmilePlusIcon />
+						</InputGroup.Button>
+					{/snippet}
+				</EmojiPicker>
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						{#snippet child({ props })}
-								<Toggle
-									{...props}
-									variant="outline"
-								size="sm"
+							<Toggle
+								{...props}
 								aria-label={formatToggleLabel}
 								bind:pressed={showsFormatToolbar}
 								onPressedChange={rememberFormatToolbarShown}
@@ -362,20 +368,7 @@
 					</Tooltip.Trigger>
 					<Tooltip.Content side="top">{formatToggleLabel}</Tooltip.Content>
 				</Tooltip.Root>
-				<EmojiPicker onPick={insertEmoji} side="top" align="start">
-					{#snippet trigger({ props })}
-						<InputGroup.Button {...props} variant="outline" size="icon-sm" aria-label={text.addEmoji} {disabled}>
-						<SmilePlusIcon />
-						</InputGroup.Button>
-					{/snippet}
-				</EmojiPicker>
-				{#if canMention}
-					<InputGroup.Button variant="outline" size="icon-sm" aria-label={text.addMention} {disabled} onclick={() => void startMention()}>
-						<AtSignIcon />
-					</InputGroup.Button>
-				{/if}
-				</ButtonGroup.Root>
-			</ButtonGroup.Root>
+			</div>
 			{@render sendButton('ms-auto hidden sm:inline-flex')}
 		</InputGroup.Addon>
 	</InputGroup.Root>
@@ -418,7 +411,7 @@
 	.channel-composer :global(.composer-tools) {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.25rem;
 	}
 	@media (max-width: 639px) {
 		.channel-composer :global(.composer-input) {
