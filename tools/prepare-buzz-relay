@@ -58,7 +58,13 @@ source_repository="https://github.com/block/buzz"
 patched_s3_repository="https://github.com/eastriverlee/rust-s3.git"
 patched_s3_revision="786653e1b4abd47cb046ef1227aa646d97073c2c"
 fixed_rustls_version="0.23.45"
-built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-1+rustls-$fixed_rustls_version"
+
+# buzz's imeta check (crates/buzz-relay/src/handlers/imeta.rs) requires `m` to
+# equal the MIME infer sniffed, and infer names a Word, Excel or PowerPoint file
+# only by the order of its zip entries, otherwise calling it application/zip.
+declared_mime_patch="$repository_root/tools/buzz-relay-patches/declared-mime-agrees-with-stored.patch"
+declared_mime_patch_digest="$(git hash-object "$declared_mime_patch" | cut -c1-12)"
+built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-1+declared-mime-$declared_mime_patch_digest+rustls-$fixed_rustls_version"
 
 relay_binary="$artifact_directory/buzz-relay"
 admin_binary="$artifact_directory/buzz-admin"
@@ -139,6 +145,13 @@ if "[patch.crates-io]" not in text:
     raise SystemExit("buzz no longer patches crates.io; place the rust-s3 patch by hand")
 manifest.write_text(text.replace("[patch.crates-io]\n", f"[patch.crates-io]\n{entry}\n", 1))
 PATCH
+
+declared_mime_patched_files=()
+while IFS=$'\t' read -r _ _ patched_file; do
+  declared_mime_patched_files+=("$patched_file")
+done < <(git -C "$source_directory" apply --numstat "$declared_mime_patch")
+git -C "$source_directory" checkout "$pinned_revision" -- "${declared_mime_patched_files[@]}"
+git -C "$source_directory" apply "$declared_mime_patch"
 
 if [ "$target" = "darwin-arm64" ]; then
   (cd "$source_directory" \
