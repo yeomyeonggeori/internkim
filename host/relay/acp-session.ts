@@ -85,6 +85,7 @@ export type ACPSessionSettings = {
 };
 
 type OpenTurn = {
+	addressing: Addressing;
 	messageSegments: string[];
 	progress: string[];
 };
@@ -104,6 +105,7 @@ export class BlueclawACPClient {
 	private readonly heldByConversation = new Map<string, HeldSession>();
 	private readonly heldBySession = new Map<string, HeldSession>();
 	private readonly turnBySession = new Map<string, OpenTurn>();
+	private readonly turnsAwaitingAnAnswer = new Set<OpenTurn>();
 	/**
 	 * The words the person answered with, not the agent's reading of them: a
 	 * restarted agent asks again and has to be told the same thing, and only the
@@ -170,7 +172,7 @@ export class BlueclawACPClient {
 	): Promise<AnsweredTurn> {
 		const agent = await fromTheAgent(this.agent());
 		const sessionID = await fromTheAgent(this.sessionFor(agent, requester, addressing));
-		const openTurn: OpenTurn = { messageSegments: [], progress: [] };
+		const openTurn: OpenTurn = { addressing, messageSegments: [], progress: [] };
 		this.turnBySession.set(sessionID, openTurn);
 		try {
 			const answer = await fromTheAgent(
@@ -186,7 +188,8 @@ export class BlueclawACPClient {
 				stopReason: answer.stopReason
 			};
 		} finally {
-			this.turnBySession.delete(sessionID);
+			this.turnsAwaitingAnAnswer.delete(openTurn);
+			if (this.turnBySession.get(sessionID) === openTurn) this.turnBySession.delete(sessionID);
 		}
 	}
 
@@ -314,12 +317,15 @@ export class BlueclawACPClient {
 
 		const toolCallID = request.toolCall.toolCallId;
 		const question = request.toolCall.title ?? '';
+		const askingTurn = this.turnBySession.get(request.sessionId);
 		const alreadyAsked = this.answeredPermissions.get(toolCallID);
-		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held);
+		const asking =
+			alreadyAsked ??
+			this.askAndPersist(toolCallID, question, held, askingTurn?.addressing ?? held.addressing);
 		this.answeredPermissions.set(toolCallID, asking);
 		const connectionThatAsked = this.connection;
 		try {
-			const words = await asking;
+			const words = await this.setAsideUntilAnswered(request.sessionId, askingTurn, asking);
 			// The daemon that asked this is gone; the one that replaced it asked
 			// again, and that request is the one worth answering.
 			if (this.connection !== connectionThatAsked) return { outcome: { outcome: 'cancelled' } };
@@ -339,18 +345,38 @@ export class BlueclawACPClient {
 	 * relay that stops between either step finds them on disk when it starts
 	 * again.
 	 */
-	private async askAndPersist(toolCallID: string, question: string, held: HeldSession): Promise<string> {
+	private async askAndPersist(
+		toolCallID: string,
+		question: string,
+		held: HeldSession,
+		addressing: Addressing
+	): Promise<string> {
 		await this.settings.questions.keep({
 			toolCallID,
 			sessionID: held.sessionID,
 			requester: held.requester,
-			addressing: held.addressing,
+			addressing,
 			question,
 			askedAt: new Date().toISOString()
 		});
-		const words = await this.settings.askThePerson({ toolCallID, question }, held.addressing);
+		const words = await this.settings.askThePerson({ toolCallID, question }, addressing);
 		await this.settings.questions.answer(toolCallID, words);
 		return words;
+	}
+
+	private async setAsideUntilAnswered(
+		sessionID: string,
+		askingTurn: OpenTurn | undefined,
+		asking: Promise<string>
+	): Promise<string> {
+		if (!askingTurn) return asking;
+		this.turnBySession.delete(sessionID);
+		this.turnsAwaitingAnAnswer.add(askingTurn);
+		try {
+			return await asking;
+		} finally {
+			if (this.turnsAwaitingAnAnswer.delete(askingTurn)) this.turnBySession.set(sessionID, askingTurn);
+		}
 	}
 
 	private heldSessionOf(sessionID: string): HeldSession | undefined {

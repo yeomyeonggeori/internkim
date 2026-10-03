@@ -5,6 +5,7 @@ import {
 	type AskedPermission,
 	type BlueclawACPClient
 } from './acp-session';
+import { isAReplyInTheThreadOf } from './conversation-post';
 import { readInboundMessage, type InboundMessage } from './inbound-message';
 import type { InboundQueue, QueuedInboundEvent } from './inbound-queue';
 
@@ -17,13 +18,17 @@ export type InboundTurnSettings = {
 };
 
 type PendingQuestion = {
+	addressing: Addressing;
+	answered: Promise<string>;
 	answer: (words: string) => void;
 };
 
 type RunningTurn = {
 	eventKey: string;
+	conversationID: string;
 	/** Set once the agent asks something, which only a started run can do. */
 	blueclawOpenedARun: boolean;
+	question?: PendingQuestion;
 	finished: Promise<void>;
 };
 
@@ -32,9 +37,8 @@ const longestRetryDelayMilliseconds = 30_000;
 
 export class InboundTurns {
 	private readonly settings: InboundTurnSettings;
-	private readonly pendingByConversation = new Map<string, PendingQuestion>();
-	/** The event each running turn is still owed, by conversation. */
-	private readonly turnInFlight = new Map<string, RunningTurn>();
+	private readonly pendingQuestions = new Set<PendingQuestion>();
+	private readonly turnsInFlight = new Map<string, RunningTurn>();
 	/** How many times in a row the agent could not be reached for each event; no ceiling ends this. */
 	private readonly unreachedInARow = new Map<string, number>();
 	private draining: Promise<void> = Promise.resolve();
@@ -49,24 +53,31 @@ export class InboundTurns {
 	}
 
 	askThePerson = async (asked: AskedPermission, addressing: Addressing): Promise<string> => {
-		const running = this.turnInFlight.get(addressing.conversationID);
-		if (running) await this.handTheRunToBlueclaw(running);
-		const answering = this.awaitAnAlreadyAskedQuestion(addressing);
+		const asking = this.activeTurnIn(addressing.conversationID);
+		const question = this.holdQuestion(addressing);
+		if (asking) await this.handTheRunToBlueclaw(asking, question);
 		await this.settings.postToConversation(addressing, asked.question);
-		return answering;
+		this.startDraining();
+		return question.answered;
 	};
 
-	private async handTheRunToBlueclaw(running: RunningTurn): Promise<void> {
+	private async handTheRunToBlueclaw(running: RunningTurn, question: PendingQuestion): Promise<void> {
 		running.blueclawOpenedARun = true;
+		running.question = question;
 		await this.forget(running.eventKey);
 	}
 
 	/** The question already reached the person before this relay last stopped; only wait. */
 	awaitAnAlreadyAskedQuestion = (addressing: Addressing): Promise<string> => {
-		return new Promise<string>((resolve) => {
-			this.pendingByConversation.set(addressing.conversationID, { answer: resolve });
-		});
+		return this.holdQuestion(addressing).answered;
 	};
+
+	private holdQuestion(addressing: Addressing): PendingQuestion {
+		const { promise, resolve } = Promise.withResolvers<string>();
+		const question: PendingQuestion = { addressing, answered: promise, answer: resolve };
+		this.pendingQuestions.add(question);
+		return question;
+	}
 
 	/**
 	 * Answers only once the event is on disk, so the 202 chatd retries until it
@@ -91,9 +102,9 @@ export class InboundTurns {
 	 */
 	async settled(): Promise<void> {
 		await this.draining;
-		const finishing = [...this.turnInFlight]
-			.filter(([conversationID]) => !this.pendingByConversation.has(conversationID))
-			.map(([, running]) => running.finished);
+		const finishing = [...this.turnsInFlight.values()]
+			.filter((running) => !this.isWaitingForAnAnswer(running))
+			.map((running) => running.finished);
 		if (finishing.length === 0) return;
 		await Promise.all(finishing);
 		await this.settled();
@@ -107,22 +118,41 @@ export class InboundTurns {
 				await this.forget(event.key);
 				continue;
 			}
-			const conversationID = inbound.addressing.conversationID;
-			// The event a running turn was started on stays queued until the turn
-			// finishes or asks something, and it is not an answer to anything.
-			const running = this.turnInFlight.get(conversationID);
-			const isTheEventItsOwnTurnIsRunningOn = running?.eventKey === event.key;
-			if (isTheEventItsOwnTurnIsRunningOn) continue;
-			const pending = this.pendingByConversation.get(conversationID);
-			if (pending) {
-				this.pendingByConversation.delete(conversationID);
-				pending.answer(inbound.message);
-				await this.forget(event.key);
+			if (this.turnsInFlight.has(event.key)) continue;
+			if (this.activeTurnIn(inbound.addressing.conversationID)) continue;
+			const question = this.questionAnsweredBy(inbound);
+			if (question) {
+				await this.deliverTheAnswer(question, event, inbound);
 				continue;
 			}
-			if (running) continue;
 			this.beginTurn(event, inbound);
 		}
+	}
+
+	private activeTurnIn(conversationID: string): RunningTurn | undefined {
+		return [...this.turnsInFlight.values()].find(
+			(running) => running.conversationID === conversationID && !this.isWaitingForAnAnswer(running)
+		);
+	}
+
+	private isWaitingForAnAnswer(running: RunningTurn): boolean {
+		return running.question !== undefined && this.pendingQuestions.has(running.question);
+	}
+
+	private questionAnsweredBy(inbound: InboundMessage): PendingQuestion | undefined {
+		return [...this.pendingQuestions].find((question) =>
+			isAReplyInTheThreadOf(inbound.addressing, question.addressing)
+		);
+	}
+
+	private async deliverTheAnswer(
+		question: PendingQuestion,
+		event: QueuedInboundEvent,
+		inbound: InboundMessage
+	): Promise<void> {
+		this.pendingQuestions.delete(question);
+		question.answer(inbound.message);
+		await this.forget(event.key);
 	}
 
 	/**
@@ -130,11 +160,15 @@ export class InboundTurns {
 	 * waiting for a message that has to come through this same queue.
 	 */
 	private beginTurn(event: QueuedInboundEvent, inbound: InboundMessage): void {
-		const conversationID = inbound.addressing.conversationID;
-		const running: RunningTurn = { eventKey: event.key, blueclawOpenedARun: false, finished: Promise.resolve() };
-		this.turnInFlight.set(conversationID, running);
+		const running: RunningTurn = {
+			eventKey: event.key,
+			conversationID: inbound.addressing.conversationID,
+			blueclawOpenedARun: false,
+			finished: Promise.resolve()
+		};
+		this.turnsInFlight.set(event.key, running);
 		running.finished = this.runTurn(event, inbound, running).finally(() => {
-			this.turnInFlight.delete(conversationID);
+			this.turnsInFlight.delete(event.key);
 			this.startDraining();
 		});
 	}

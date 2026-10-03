@@ -24,6 +24,12 @@ export function conversationPoster(
 	};
 }
 
+export function isAReplyInTheThreadOf(message: Addressing, thread: Addressing): boolean {
+	if (!message.isThread) return false;
+	if (message.conversationID !== thread.conversationID) return false;
+	return replyThreadOf(message) === replyThreadOf(thread);
+}
+
 function replyThreadOf(addressing: Addressing): string {
 	return addressing.replyTargetID ?? addressing.conversationID;
 }
