@@ -5,8 +5,6 @@ import (
 	"log"
 	"strings"
 	"time"
-
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
 )
 
 func (service *Service) linkedTaskID(taskID string) string {
@@ -50,9 +48,6 @@ func (service *Service) recordLinkActorEmail() string {
 	return service.seedAdminEmail()
 }
 
-// Everyone signs in at the company's own address and the record lives behind it,
-// so that is where a link points. A device address is what is left for a company
-// that has not moved.
 func (service *Service) taskLinkBaseURL() string {
 	if appURL := strings.TrimSpace(service.Configuration.CentralPlaneAppURL); appURL != "" {
 		return appURL
@@ -60,18 +55,5 @@ func (service *Service) taskLinkBaseURL() string {
 	if taskPublicURL := strings.TrimSpace(service.Configuration.TaskPublicURL); taskPublicURL != "" {
 		return taskPublicURL
 	}
-	if written := strings.TrimSpace(readTrimmedFile(service.Configuration.TaskPublicURLPath)); written != "" {
-		return written
-	}
-	return service.deviceTaskBaseURL()
-}
-
-func (service *Service) deviceTaskBaseURL() string {
-	if deviceURL := strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)); deviceURL != "" {
-		return deviceURL
-	}
-	if fleetID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath)); fleetID != "" {
-		return fleetdomain.Subdomain(strings.ToLower(fleetID), service.fleetZone())
-	}
-	return ""
+	return strings.TrimSpace(readTrimmedFile(service.Configuration.TaskPublicURLPath))
 }

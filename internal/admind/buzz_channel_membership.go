@@ -546,14 +546,6 @@ func (service *Service) raiseAdminsStandingInRoom(ctx context.Context, relay *sq
 	}
 }
 
-func (service *Service) bootstrapBuzzPubkey() (string, error) {
-	seed := service.buzzKeySeed()
-	if seed == "" {
-		return "", errors.New("this device holds no buzz key seed")
-	}
-	return buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
-}
-
 const memberRoomQuery = `
 SELECT id FROM channels
 WHERE channel_type = 'stream'

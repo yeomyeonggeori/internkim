@@ -3,61 +3,43 @@ package cli
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
-func runDeviceSSH() {
-	arguments := commandControlArguments(os.Args[2:])
-	shouldElevate := hasControlFlag(arguments, "--sudo")
-	target := resolveCommandTarget(withoutControlFlag(arguments, "--sudo"))
-	connection := target.sshConnection()
-	fmt.Printf("SSH: %s@%s\n", connection.user, connection.host)
-	remoteArguments := commandRemoteArguments(os.Args[2:])
-	if shouldElevate {
+func runHostSSH() {
+	controlArguments, remoteArguments := splitAtDoubleDash(os.Args[2:])
+	repositoryRootPath, errorValue := resolveRepositoryRootPath()
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	connection, errorValue := hostSSHFromEnvironment(repositoryRootPath)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	if slices.Contains(controlArguments, "--sudo") {
 		if len(remoteArguments) == 0 {
 			fatal("--sudo needs a command after --")
 		}
 		remoteArguments = []string{connection.privilegedCommand(strings.Join(remoteArguments, " "))}
 	}
-	if errorValue := connection.runInteractiveSSH(remoteArguments); errorValue != nil {
+	fmt.Printf("SSH: %s@%s\n", connection.user, connection.hostname)
+	command, errorValue := connection.command(remoteArguments)
+	if errorValue != nil {
+		fatal(errorValue.Error())
+	}
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	if errorValue := command.Run(); errorValue != nil {
 		fatal(errorValue.Error())
 	}
 }
 
-func withoutControlFlag(arguments []string, name string) []string {
-	remaining := make([]string, 0, len(arguments))
-	for _, argument := range arguments {
-		if argument == name {
-			continue
-		}
-		remaining = append(remaining, argument)
+func splitAtDoubleDash(arguments []string) ([]string, []string) {
+	index := slices.Index(arguments, "--")
+	if index < 0 {
+		return arguments, nil
 	}
-	return remaining
-}
-
-func hasControlFlag(arguments []string, name string) bool {
-	for _, argument := range arguments {
-		if argument == name {
-			return true
-		}
-	}
-	return false
-}
-
-func commandControlArguments(arguments []string) []string {
-	for index, argument := range arguments {
-		if argument == "--" {
-			return arguments[:index]
-		}
-	}
-	return arguments
-}
-
-func commandRemoteArguments(arguments []string) []string {
-	for index, argument := range arguments {
-		if argument == "--" {
-			return arguments[index+1:]
-		}
-	}
-	return nil
+	return arguments[:index], arguments[index+1:]
 }

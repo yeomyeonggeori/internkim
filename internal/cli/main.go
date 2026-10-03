@@ -53,9 +53,7 @@ func runNamedCommand(name string) {
 	case "--help", "-h":
 		printUsage()
 	case "ssh":
-		runDeviceSSH()
-	case "recover":
-		runRecover()
+		runHostSSH()
 	case "release":
 		runRelease()
 	case "doctor":
@@ -77,8 +75,7 @@ func printUsage() {
 	fmt.Println("Usage: internkim <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  ssh      Open SSH to the device")
-	fmt.Println("  recover  Recover narrow device maintenance paths")
+	fmt.Println("  ssh      Open SSH to the company host through Cloudflare Access")
 	fmt.Println("  release  Publish and inspect release sets")
 	fmt.Println("  doctor   Check host dependencies")
 	fmt.Println("  verify   Run API and browser verification")

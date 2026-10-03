@@ -29,9 +29,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminDirectoryRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminRecoveryRoute(responseWriter, request, path) {
-		return
-	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
 		return
@@ -96,14 +93,6 @@ func (service *Service) adminDirectoryHandler(method string, path string) http.H
 	default:
 		return nil
 	}
-}
-
-func (service *Service) handleAdminRecoveryRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
-		service.handleSSHRecovery(responseWriter, request, path)
-		return true
-	}
-	return false
 }
 
 func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {

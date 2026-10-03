@@ -39,7 +39,7 @@ describe('no worker configuration writes the fleet domain down again', () => {
 	});
 
 	for (const { worker, written } of configurations) {
-		test(`${worker} declares no routes, so its hostname comes from fleetdomain at deploy time`, () => {
+		test(`${worker} declares no routes, so its hostname comes from companyzone at deploy time`, () => {
 			expect(written).not.toMatch(/"routes"/);
 			expect(written).not.toMatch(/"zone_name"/);
 		});

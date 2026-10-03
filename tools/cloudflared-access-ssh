@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""ProxyCommand for reaching a device over Cloudflare Access with its service token.
+"""ProxyCommand for reaching the company host over Cloudflare Access with a service token.
 
-A service token lasts a year and needs no browser;
-`tools/provision-cloudflare-ssh-service-token` creates one and attaches the
-policy that admits it. It lives in the @board vault profile.
+A service token needs no browser. Its two halves live in the @host vault
+profile, beside the hostname they admit. ssh starts this with whatever
+environment it holds, so without the token in the environment it re-executes
+itself under `monkeys run @host`:
 
-ssh starts this with whatever environment it holds, so this re-executes itself
-under `monkeys run @board` to be handed the token:
+    ssh -o ProxyCommand='tools/cloudflared-access-ssh %h' internkim@<hostname>
 
-    Host 0.ssh.*.intern.kim 1.ssh.*.intern.kim
-      ProxyCommand /path/to/tools/cloudflared-access-ssh %h
-
-With no token it stops and says which key is missing. It never starts
-`cloudflared access ssh` without one, because that opens a browser sign-in.
+`internkim @host ssh` passes the same ProxyCommand. With no token it stops and
+says which key is missing. It never starts `cloudflared access ssh` without one,
+because that opens a browser sign-in.
 """
 import os
 import pathlib
@@ -20,7 +18,7 @@ import shutil
 import sys
 
 repositoryRoot = pathlib.Path(__file__).resolve().parent.parent
-tokenProfile = "board"
+tokenProfile = "host"
 clientIDVariable = "INTERNKIM_CF_ACCESS_CLIENT_ID"
 clientSecretVariable = "INTERNKIM_CF_ACCESS_CLIENT_SECRET"
 vaultMarker = "INTERNKIM_ENVIRONMENT_FROM_VAULT"
@@ -65,7 +63,7 @@ if token is None and os.environ.get(vaultMarker) != tokenProfile:
 if token is None:
     refuse(
         f"@{tokenProfile} holds no {clientIDVariable} and {clientSecretVariable}; "
-        "run tools/provision-cloudflare-ssh-service-token"
+        "create a service token in Cloudflare Zero Trust and remember both halves there"
     )
 
 clientID, clientSecret = token

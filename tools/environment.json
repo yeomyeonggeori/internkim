@@ -105,8 +105,8 @@
     "isInVault": true
   },
   "CLOUDFLARE_API_TOKEN": {
-    "process": "tools/provision-cloudflare-ssh-service-token",
-    "description": "a Cloudflare API token with Pages edit rights, used to provision an SSH Access service token and implicitly by Wrangler for Pages deploys",
+    "process": "web/scripts/deploy-pages.ts, web/scripts/deploy-worker.ts",
+    "description": "a Cloudflare API token with Pages edit rights, handed to Wrangler for Pages and Worker deploys",
     "isInVault": true
   },
   "CLOUDFLARE_DOMAIN": {
@@ -189,22 +189,22 @@
   },
   "INTERNKIM_BUZZ_KEY_SEED": {
     "process": "tools/mirror-local",
-    "description": "the Buzz identity seed every imported identity and channel is derived from; tools/mirror-local writes it to the local bridge's seed file; from the @board vault profile",
+    "description": "the Buzz identity seed every imported identity and channel is derived from; tools/mirror-local writes it to the local bridge's seed file; from the @host vault profile",
     "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_ID": {
-    "process": "tools/cloudflared-access-ssh, internal/cli",
-    "description": "the client id half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault and handed to a command by `monkeys run`; the ssh ProxyCommand authenticates with it where an operator would answer a browser login",
+    "process": "tools/cloudflared-access-ssh",
+    "description": "the client id half of the Cloudflare Access service token that admits ssh to the company host, from the @host vault profile; tools/cloudflared-access-ssh authenticates with it where an operator would answer a browser login",
     "isInVault": true
   },
   "INTERNKIM_CF_ACCESS_CLIENT_SECRET": {
-    "process": "tools/cloudflared-access-ssh, internal/cli",
-    "description": "the client secret half of the internkim-cli-ssh Cloudflare Access service token, held in the operating system's vault beside its client id",
+    "process": "tools/cloudflared-access-ssh",
+    "description": "the client secret half of the same Access service token, from the @host vault profile beside its client id",
     "isInVault": true
   },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
-    "description": "the board's console password, from the @board vault profile; `internkim ssh` and `internkim recover` log in with it when no --password is given",
+    "description": "the company host's login password, from the @host vault profile; `internkim ssh` logs in with it through sshpass, and uses the caller's own key when it is unset",
     "isInVault": true
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
@@ -227,24 +227,9 @@
     "process": "tools/prepare-container-kernel",
     "description": "the kernel version built for the Apple Container VM; defaults to 6.1.68"
   },
-  "INTERNKIM_DEVICE_URL": {
-    "process": "cli",
-    "description": "the device's public admin address, from the @board vault profile; `internkim recover` posts its signed recovery requests there",
-    "isInVault": true
-  },
   "INTERNKIM_ENVIRONMENT_FROM_VAULT": {
     "process": "cli",
     "description": "set by the CLI on the run it starts through `monkeys run`, so that run knows the vault environment already arrived and does not start another"
-  },
-  "INTERNKIM_FLEET_ID": {
-    "process": "cli",
-    "description": "the device's fleet ID, from the @board vault profile; `internkim recover` names the device with it in a signed recovery request",
-    "isInVault": true
-  },
-  "INTERNKIM_FLEET_SECRET": {
-    "process": "cli",
-    "description": "the device's fleet secret, from the @board vault profile; `internkim recover` signs its recovery requests with it",
-    "isInVault": true
   },
   "INTERNKIM_GATE_MODEL": {
     "process": "tools/verify-api",
@@ -276,8 +261,12 @@
   },
   "INTERNKIM_SSH_HOSTNAME": {
     "process": "cli",
-    "description": "the board's ssh hostname, from the @board vault profile; `internkim ssh` and `internkim recover` reach the board by it when no --host is given",
+    "description": "the hostname the company host's Cloudflare Access ssh application answers on, from the @host vault profile; `internkim ssh` reaches the host by it",
     "isInVault": true
+  },
+  "INTERNKIM_SSH_USER": {
+    "process": "cli",
+    "description": "the account `internkim ssh` logs in as on the company host; defaults to internkim"
   },
   "INTERNKIM_TEST_CDP_BROWSER": {
     "process": "go tests",

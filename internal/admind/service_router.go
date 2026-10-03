@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/companyzone"
 )
 
 func (service *Service) router() http.Handler {
@@ -77,7 +77,6 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/buzz-ghost-rooms", service.handleBuzzGhostRooms)
 	multiplexer.HandleFunc("/agent/api/buzz-identity-report", service.handleBuzzIdentityReport)
 	multiplexer.HandleFunc("/agent/api/person-pictures", service.handlePersonPictures)
-	multiplexer.HandleFunc("/agent/api/buzz-rewrite-old-links", service.handleBuzzRewriteOldLinks)
 	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
@@ -214,8 +213,8 @@ func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, reque
 	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
 }
 
-func (service *Service) fleetZone() string {
-	return fleetdomain.Zone(service.Configuration.APIBaseURL)
+func (service *Service) companyZone() string {
+	return companyzone.Zone(service.Configuration.APIBaseURL)
 }
 
 func (service *Service) isAllowedOrigin(origin string) bool {
@@ -227,5 +226,5 @@ func (service *Service) isAllowedOrigin(origin string) bool {
 		return false
 	}
 	host := strings.ToLower(parsedURL.Hostname())
-	return fleetdomain.Covers(service.fleetZone(), host) || host == "localhost" || host == "127.0.0.1"
+	return companyzone.Covers(service.companyZone(), host) || host == "localhost" || host == "127.0.0.1"
 }

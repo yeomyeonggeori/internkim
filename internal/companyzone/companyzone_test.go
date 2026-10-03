@@ -1,4 +1,4 @@
-package fleetdomain
+package companyzone
 
 import "testing"
 
@@ -16,18 +16,6 @@ func TestZoneDropsTheAPILabel(t *testing.T) {
 	}
 }
 
-func TestHostAndSubdomainStayEmptyWithoutAZone(t *testing.T) {
-	if host := Host("FLEET01", "example.test"); host != "fleet01.example.test" {
-		t.Fatalf("host = %q", host)
-	}
-	if host := Host("fleet01", ""); host != "" {
-		t.Fatalf("host without a zone = %q", host)
-	}
-	if address := Subdomain("updates", ""); address != "" {
-		t.Fatalf("subdomain without a zone = %q", address)
-	}
-}
-
 func TestConfigurationWinsOverTheDefaultZone(t *testing.T) {
 	if Default() == "" {
 		t.Fatal("a build with no self-hosting settings still needs a zone to serve")
@@ -38,8 +26,8 @@ func TestConfigurationWinsOverTheDefaultZone(t *testing.T) {
 }
 
 func TestCoversAcceptsTheZoneAndItsLabelsOnly(t *testing.T) {
-	if !Covers("example.test", "device.example.test") {
-		t.Fatal("a device under the zone must be covered")
+	if !Covers("example.test", "company.example.test") {
+		t.Fatal("a host under the zone must be covered")
 	}
 	if !Covers("example.test", "EXAMPLE.TEST") {
 		t.Fatal("the zone itself must be covered whatever its case")
