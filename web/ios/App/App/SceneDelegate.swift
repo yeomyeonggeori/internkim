@@ -12,9 +12,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.makeKeyAndVisible()
 
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        AttendanceTimeSheetOpening.present(from: connectionOptions.urlContexts, over: window)
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        if AttendanceTimeSheetOpening.present(from: URLContexts, over: window) { return }
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
     }
 

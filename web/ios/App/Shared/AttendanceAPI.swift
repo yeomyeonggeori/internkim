@@ -73,9 +73,13 @@ struct AttendanceAPI {
         try await invoke("company_settings_get", input: [:])
     }
 
-    func clock(kind: String, location: String?) async throws -> AttendanceWrite {
+    func clock(kind: String, location: String?, at chosen: AttendanceChosenTime?) async throws -> AttendanceWrite {
         var input: [String: Any] = ["kind": kind]
         if let location, !location.isEmpty, kind == "clock_in" { input["location"] = location }
+        if let chosen {
+            input["date"] = chosen.day
+            input["time"] = chosen.time
+        }
         return try await invoke("attendance_add", input: input)
     }
 

@@ -2,7 +2,7 @@ import Foundation
 import WidgetKit
 
 enum AttendanceClockPress {
-    static func press(kind: String, location: String?) {
+    static func press(kind: String, location: String?, chosen: AttendanceChosenTime?) {
         AttendanceLocationChoice.close()
 
         guard let api = try? AttendanceAPI.held() else {
@@ -14,7 +14,8 @@ enum AttendanceClockPress {
         let origin = api.credential.origin
         let zone = AttendanceWidgetCache.held(origin: origin).settings?.companyTimeZone
         let tapped = Date()
-        let optimistic = zone.map { AttendanceWidgetCache.optimisticRow(kind: kind, location: location, now: tapped, timeZone: $0) }
+        let occurred = zone.flatMap { chosen?.moment(in: $0) } ?? tapped
+        let optimistic = zone.map { AttendanceWidgetCache.optimisticRow(kind: kind, location: location, now: occurred, timeZone: $0) }
 
         if let optimistic {
             AttendanceWidgetCache.amend(origin: origin) {
@@ -26,7 +27,7 @@ enum AttendanceClockPress {
         }
 
         let saving = Task {
-            await save(api: api, kind: kind, location: location, zone: zone, pressed: optimistic)
+            await save(api: api, kind: kind, location: location, chosen: chosen, zone: zone, pressed: optimistic)
         }
         ProcessInfo.processInfo.performExpiringActivity(withReason: "Saving an attendance clock press") { expired in
             guard !expired else { return }
@@ -39,11 +40,12 @@ enum AttendanceClockPress {
         }
     }
 
-    private static func save(api: AttendanceAPI, kind: String, location: String?, zone: TimeZone?, pressed: AttendanceRow?) async {
+    private static func save(api: AttendanceAPI, kind: String, location: String?, chosen: AttendanceChosenTime?, zone: TimeZone?, pressed: AttendanceRow?) async {
         let origin = api.credential.origin
         var closeCards = false
         do {
-            let written = try await api.clock(kind: kind, location: location)
+            let written = try await api.clock(kind: kind, location: location, at: chosen)
+            if chosen != nil { AttendanceChosenTime.clear() }
             let added = zone.flatMap { zone in written.event.flatMap { AttendanceWidgetCache.row(from: $0, timeZone: zone) } }
             AttendanceWidgetCache.amend(origin: origin) {
                 $0.settle(pressed: pressed, written: written, added: added, now: Date())

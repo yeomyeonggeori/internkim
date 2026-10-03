@@ -9,6 +9,7 @@ struct AttendanceEntry: TimelineEntry {
     let failure: String?
     var refusal: String?
     var isChoosingLocation = false
+    var chosenTime: AttendanceChosenTime? = nil
 
     var workedMinutes: Int {
         today.elapsedMinutes(at: date)
@@ -27,7 +28,8 @@ struct AttendanceEntry: TimelineEntry {
             timeZone: timeZone,
             failure: failure,
             refusal: refusal,
-            isChoosingLocation: isChoosingLocation
+            isChoosingLocation: isChoosingLocation,
+            chosenTime: chosenTime
         )
     }
 
@@ -131,14 +133,16 @@ struct AttendanceProvider: AppIntentTimelineProvider {
                 rows = listed
             }
 
-            let today = AttendanceToday.of(rows: rows, today: CompanyClock.day(of: now, in: zone), now: now)
+            let day = CompanyClock.day(of: now, in: zone)
+            let today = AttendanceToday.of(rows: rows, today: day, now: now)
             let entry = AttendanceEntry(
                 date: now,
                 today: today,
                 locations: settings.workLocations,
                 configuredWorkplace: chosen,
                 timeZone: zone,
-                failure: nil
+                failure: nil,
+                chosenTime: AttendanceChosenTime.held(today: day)
             )
             return (entry, isStale)
         } catch {

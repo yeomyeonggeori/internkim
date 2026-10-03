@@ -9,14 +9,22 @@ struct ClockInIntent: AppIntent {
     @Parameter(title: "Location")
     var location: String?
 
+    @Parameter(title: "Day")
+    var chosenDay: String?
+
+    @Parameter(title: "Time")
+    var chosenTime: String?
+
     init() {}
 
-    init(location: String?) {
+    init(location: String?, chosen: AttendanceChosenTime?) {
         self.location = location
+        self.chosenDay = chosen?.day
+        self.chosenTime = chosen?.time
     }
 
     func perform() async throws -> some IntentResult {
-        AttendanceClockPress.press(kind: "clock_in", location: location)
+        AttendanceClockPress.press(kind: "clock_in", location: location, chosen: AttendanceChosenTime(day: chosenDay, time: chosenTime))
         return .result()
     }
 }
@@ -29,7 +37,7 @@ struct ClockOutIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
-        AttendanceClockPress.press(kind: "clock_out", location: nil)
+        AttendanceClockPress.press(kind: "clock_out", location: nil, chosen: nil)
         return .result()
     }
 }
@@ -39,10 +47,21 @@ struct HomeClockOutIntent: AppIntent {
     static var title: LocalizedStringResource = "Clock out"
     static var isDiscoverable = false
 
+    @Parameter(title: "Day")
+    var chosenDay: String?
+
+    @Parameter(title: "Time")
+    var chosenTime: String?
+
     init() {}
 
+    init(chosen: AttendanceChosenTime?) {
+        self.chosenDay = chosen?.day
+        self.chosenTime = chosen?.time
+    }
+
     func perform() async throws -> some IntentResult {
-        AttendanceClockPress.press(kind: "clock_out", location: nil)
+        AttendanceClockPress.press(kind: "clock_out", location: nil, chosen: AttendanceChosenTime(day: chosenDay, time: chosenTime))
         return .result()
     }
 }

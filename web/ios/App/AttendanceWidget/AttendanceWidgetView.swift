@@ -16,7 +16,7 @@ struct AttendanceWidgetView: View {
                 Spacer(minLength: 0)
             } else if family == .systemMedium {
                 if #available(iOS 17.0, *), entry.isChoosingLocation, !otherLocations.isEmpty {
-                    AttendanceLocationPicker(locations: otherLocations)
+                    AttendanceLocationPicker(locations: otherLocations, chosen: entry.chosenTime)
                 } else {
                     mediumBody
                 }
@@ -51,6 +51,9 @@ struct AttendanceWidgetView: View {
                 statusLine
             }
             .frame(maxHeight: .infinity)
+            if #available(iOS 17.0, *), offersOtherTime {
+                AttendanceOtherTimeLink(kind: entry.today.isWorking ? "clock_out" : "clock_in", chosen: entry.chosenTime)
+            }
             HStack(spacing: 8) {
                 actionButtons(showingLocations: true)
             }
@@ -117,12 +120,23 @@ struct AttendanceWidgetView: View {
         AttendanceDefaultWorkplace.others(besides: defaultLocation, among: entry.locations)
     }
 
+    private var offersOtherTime: Bool {
+        entry.today.isWorking || !choice.needsChoice || !otherLocations.isEmpty
+    }
+
     @ViewBuilder
     private func actionButtons(showingLocations: Bool) -> some View {
         if #available(iOS 17.0, *) {
             if entry.today.isWorking {
-                Button(intent: HomeClockOutIntent()) {
-                    Label("Clock out", systemImage: "arrow.right.from.line").frame(maxWidth: .infinity)
+                Button(intent: HomeClockOutIntent(chosen: entry.chosenTime)) {
+                    Group {
+                        if let chosen = entry.chosenTime {
+                            Label("Clock out at \(chosen.time)", systemImage: "arrow.right.from.line")
+                        } else {
+                            Label("Clock out", systemImage: "arrow.right.from.line")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             } else if choice.needsChoice {
@@ -144,9 +158,11 @@ struct AttendanceWidgetView: View {
                         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
                 }
             } else {
-                Button(intent: ClockInIntent(location: defaultLocation?.name)) {
+                Button(intent: ClockInIntent(location: defaultLocation?.name, chosen: entry.chosenTime)) {
                     Group {
-                        if showingLocations, let location = defaultLocation {
+                        if let chosen = entry.chosenTime {
+                            Label("Clock in at \(chosen.time)", systemImage: "arrow.right.to.line")
+                        } else if showingLocations, let location = defaultLocation {
                             Label("Clock in at \(location.name)", systemImage: "arrow.right.to.line")
                         } else {
                             Label("Clock in", systemImage: "arrow.right.to.line")

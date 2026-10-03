@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7A11C0DE0000000000000617 /* AttendanceChosenTimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000604 /* AttendanceChosenTimeTests.swift */; };
+		7A11C0DE0000000000000611 /* AttendanceChosenTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000601 /* AttendanceChosenTime.swift */; };
+		7A11C0DE0000000000000612 /* AttendanceChosenTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000601 /* AttendanceChosenTime.swift */; };
+		7A11C0DE0000000000000613 /* AttendanceChosenTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000601 /* AttendanceChosenTime.swift */; };
+		7A11C0DE0000000000000614 /* AttendanceTimeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000602 /* AttendanceTimeSheet.swift */; };
+		7A11C0DE0000000000000615 /* AttendanceOtherTimeLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE0000000000000603 /* AttendanceOtherTimeLink.swift */; };
+		7A11C0DE0000000000000616 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A11C0DE000000000000010C /* Localizable.xcstrings */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		40F1B0201C1A9868A2C05D24 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA65565007F3F68122E20447 /* NotificationService.swift */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
@@ -100,6 +107,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		7A11C0DE0000000000000604 /* AttendanceChosenTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceChosenTimeTests.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000601 /* AttendanceChosenTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceChosenTime.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000602 /* AttendanceTimeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceTimeSheet.swift; sourceTree = "<group>"; };
+		7A11C0DE0000000000000603 /* AttendanceOtherTimeLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceOtherTimeLink.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -228,6 +239,7 @@
 				7A11C0DE0000000000000003 /* PageThemePlugin.swift */,
 				7A11C0DE0000000000000006 /* ForegroundNotificationsPlugin.swift */,
 				7A11C0DE0000000000000104 /* AttendanceWidgetPlugin.swift */,
+				7A11C0DE0000000000000602 /* AttendanceTimeSheet.swift */,
 				7A11C0DE0000000000000110 /* AttendanceActivityPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -267,6 +279,7 @@
 				7A11C0DE0000000000000112 /* AttendanceLockScreenCards.swift */,
 				7A11C0DE000000000000011B /* AttendanceDefaultWorkplace.swift */,
 				7A11C0DE0000000000000301 /* AttendanceWidgetCache.swift */,
+				7A11C0DE0000000000000601 /* AttendanceChosenTime.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -282,6 +295,7 @@
 				7A11C0DE000000000000010D /* AttendanceRefusal.swift */,
 				7A11C0DE0000000000000113 /* AttendanceLocationChoice.swift */,
 				7A11C0DE0000000000000119 /* AttendanceLocationPicker.swift */,
+				7A11C0DE0000000000000603 /* AttendanceOtherTimeLink.swift */,
 				7A11C0DE000000000000010F /* AttendanceLiveActivity.swift */,
 				7A11C0DE000000000000011A /* AttendanceWorkplaceEntity.swift */,
 				7A11C0DE000000000000010C /* Localizable.xcstrings */,
@@ -299,6 +313,7 @@
 				7A11C0DE000000000000011C /* AttendanceDefaultWorkplaceTests.swift */,
 				7A11C0DE000000000000021A /* AttendanceActivityStateTests.swift */,
 				7A11C0DE0000000000000304 /* AttendanceWidgetCacheTests.swift */,
+				7A11C0DE0000000000000604 /* AttendanceChosenTimeTests.swift */,
 			);
 			path = AttendanceWidgetTests;
 			sourceTree = "<group>";
@@ -432,6 +447,7 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				7A11C0DE0000000000000616 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -490,6 +506,8 @@
 				7A11C0DE0000000000000503 /* AttendanceClockPress.swift in Sources */,
 				7A11C0DE0000000000000405 /* AttendanceRefusal.swift in Sources */,
 				7A11C0DE0000000000000406 /* AttendanceLocationChoice.swift in Sources */,
+				7A11C0DE0000000000000611 /* AttendanceChosenTime.swift in Sources */,
+				7A11C0DE0000000000000614 /* AttendanceTimeSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -514,6 +532,8 @@
 				7A11C0DE000000000000012F /* AttendanceWorkplaceEntity.swift in Sources */,
 				7A11C0DE0000000000000130 /* AttendanceDefaultWorkplace.swift in Sources */,
 				7A11C0DE0000000000000302 /* AttendanceWidgetCache.swift in Sources */,
+				7A11C0DE0000000000000612 /* AttendanceChosenTime.swift in Sources */,
+				7A11C0DE0000000000000615 /* AttendanceOtherTimeLink.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -532,6 +552,8 @@
 				7A11C0DE000000000000021B /* AttendanceActivityStateTests.swift in Sources */,
 				7A11C0DE0000000000000303 /* AttendanceWidgetCache.swift in Sources */,
 				7A11C0DE0000000000000305 /* AttendanceWidgetCacheTests.swift in Sources */,
+				7A11C0DE0000000000000613 /* AttendanceChosenTime.swift in Sources */,
+				7A11C0DE0000000000000617 /* AttendanceChosenTimeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

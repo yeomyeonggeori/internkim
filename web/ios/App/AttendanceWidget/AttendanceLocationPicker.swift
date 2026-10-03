@@ -3,6 +3,7 @@ import SwiftUI
 @available(iOS 17.0, *)
 struct AttendanceLocationPicker: View {
     let locations: [WorkLocation]
+    let chosen: AttendanceChosenTime?
 
     private static let shown = 6
 
@@ -23,7 +24,7 @@ struct AttendanceLocationPicker: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     GridRow {
                         ForEach(row, id: \.name) { location in
-                            Button(intent: ClockInIntent(location: location.name)) {
+                            Button(intent: ClockInIntent(location: location.name, chosen: chosen)) {
                                 name(of: location).frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
