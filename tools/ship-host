@@ -72,6 +72,7 @@ class Shipment:
     log_directory: Path = ARTIFACTS_DIRECTORY
     previous_tag: str = ""
     tag: str = ""
+    host_tag: str = ""
     host_architecture: str = PACKAGE_ARCHITECTURE
     failed_actions: list = field(default_factory=list)
 
@@ -255,10 +256,15 @@ def read_host_architecture(shipment):
     shipment.host_architecture = last_line(run_on_host(shipment, "dpkg --print-architecture"))
 
 
-def check_host_runs(shipment):
-    version = last_line(run_on_host(shipment, f"dpkg-query -W -f '${{Version}}' {PACKAGE_NAME}"))
-    if version != shipment.tag.lstrip("v"):
-        raise ShipFailure("check the host", f"{PACKAGE_NAME} is {version or 'not installed'} and the release is {shipment.tag}")
+def read_host_tag(shipment):
+    version = last_line(run_on_host(shipment, f"dpkg-query -W -f '${{Version}}\\n' {PACKAGE_NAME} || true"))
+    return "v" + version if version else ""
+
+
+def check_host_runs(shipment, tag):
+    host_tag = read_host_tag(shipment)
+    if host_tag != tag:
+        raise ShipFailure("check the host", f"{PACKAGE_NAME} is {host_tag or 'not installed'} and the release is {tag}")
     problems = inactive_units(run_on_host(shipment, HOST_UNIT_STATES_SCRIPT))
     if problems:
         raise ShipFailure("check the host", "; ".join(problems))
@@ -274,13 +280,18 @@ def watch_the_agent(shipment):
     after = read_agent_restarts(shipment)
     if after > before:
         raise ShipFailure("watch the host", f"{AGENT_UNIT} restarted {after - before} times in {SETTLE_SECONDS} seconds")
-    check_host_runs(shipment)
+    check_host_runs(shipment, shipment.tag)
 
 
 def upgrade_host(shipment):
     run_on_host(shipment, INSTALL_LINE)
-    check_host_runs(shipment)
+    check_host_runs(shipment, shipment.tag)
     watch_the_agent(shipment)
+
+
+def roll_the_host_back(shipment):
+    run_on_host(shipment, host_downgrade_script(shipment.host_tag, shipment.host_architecture))
+    check_host_runs(shipment, shipment.host_tag)
 
 
 def host_downgrade_script(tag, architecture):
@@ -294,8 +305,8 @@ def host_downgrade_script(tag, architecture):
 
 def rollback_actions(shipment):
     previous = shipment.previous_tag
-    return [
-        ("roll the host back to " + previous, lambda: run_on_host(shipment, host_downgrade_script(previous, shipment.host_architecture))),
+    host_actions = [("roll the host back to " + shipment.host_tag, lambda: roll_the_host_back(shipment))] if shipment.host_tag else []
+    return host_actions + [
         ("mark " + shipment.tag + " a prerelease", lambda: shipment.run(["gh", "release", "edit", shipment.tag, "--repo", RELEASE_REPOSITORY, "--prerelease"])),
         ("point stable at " + previous, lambda: promote_to_stable(shipment, previous)),
         ("make " + previous + " the latest release", lambda: shipment.run(["gh", "release", "edit", previous, "--repo", RELEASE_REPOSITORY, "--latest"])),
@@ -313,11 +324,12 @@ def roll_back(shipment):
 
 def upgrade_host_or_roll_back(shipment):
     read_host_architecture(shipment)
+    shipment.host_tag = read_host_tag(shipment)
     try:
         upgrade_host(shipment)
     except (CommandFailure, ShipFailure) as failure:
         roll_back(shipment)
-        left_undone = "; rollback left undone: " + ", ".join(shipment.failed_actions) if shipment.failed_actions else "; rolled back to " + shipment.previous_tag
+        left_undone = "; rollback left undone: " + ", ".join(shipment.failed_actions) if shipment.failed_actions else "; rolled back"
         raise ShipFailure("upgrade our own host", f"{failure}{left_undone}")
 
 
@@ -333,7 +345,7 @@ def planned_steps(options):
     if options.skip_host:
         return steps
     return steps + [
-        (lambda shipment: f"upgrade our own host to {shipment.tag}, watch it for {SETTLE_SECONDS} seconds, roll back to {shipment.previous_tag} on failure", upgrade_host_or_roll_back),
+        (lambda shipment: f"upgrade our own host to {shipment.tag}, watch it for {SETTLE_SECONDS} seconds, roll it back to the release it ran on failure", upgrade_host_or_roll_back),
     ]
 
 

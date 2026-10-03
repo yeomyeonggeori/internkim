@@ -536,8 +536,11 @@ and delete the duplicates.
   `SHA256SUMS`, runs the Debian 13 rig and its `--people-upgrade` step (a host
   that already has people and memory must stay up through the upgrade),
   promotes, upgrades the host and watches `blueclaw` for two minutes. A
-  failure on the host puts the host and stable back on the previous stable
-  release and marks the failed one a prerelease. `--plan` prints the tags and
+  failure on the host puts the host back on the release it ran, stable back
+  on the previous stable, and marks the failed one a prerelease. The older
+  stable can be older than the host's database, which an agent cannot start
+  on. If the failed release migrated the database, even the release the host
+  ran may not start, and ship-host says so. `--plan` prints the tags and
   steps; `--skip-host` stops after promotion.
 - The web app is deployed as "SaaS Web Deployment" above says.
 - A green `systemctl` is not a working agent: look for a task run newer than

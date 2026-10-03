@@ -11,6 +11,7 @@ repository_root = Path(__file__).resolve().parents[2]
 
 NEW_TAG = "v2026.10.03.045216"
 PREVIOUS_TAG = "v2026.10.02.172114"
+HOST_TAG = "v2026.10.03.093452"
 HEALTHY_UNITS = "internkim-admind.service active\nblueclaw.service active\nchatd.service active\nbuzz-relay.service active\n"
 
 
@@ -30,7 +31,7 @@ class ScriptedCommands:
         self.calls = []
         self.host_answers = {
             "dpkg --print-architecture": "arm64\n",
-            "dpkg-query": NEW_TAG.lstrip("v") + "\n",
+            "dpkg-query": [HOST_TAG.lstrip("v") + "\n", NEW_TAG.lstrip("v") + "\n"],
             "systemctl list-unit-files": HEALTHY_UNITS,
             "systemctl show -p NRestarts": "0\n",
             **(host_answers or {}),
@@ -74,8 +75,13 @@ class ScriptedCommands:
     def host_answer(self, script):
         for marker, answer in self.host_answers.items():
             if marker in script:
-                return "SSH: operator@host\n" + answer
+                return "SSH: operator@host\n" + self.next_answer(answer)
         return "SSH: operator@host\n"
+
+    def next_answer(self, answer):
+        if isinstance(answer, str):
+            return answer
+        return answer.pop(0) if len(answer) > 1 else answer[0]
 
     def matching(self, text):
         return [index for index, call in enumerate(self.calls) if text in " ".join(call)]
@@ -209,6 +215,10 @@ class OrderTest(unittest.TestCase):
         self.assertFalse(commands.matching("test-native-install"))
 
 
+def wrong_version_then_back():
+    return [HOST_TAG.lstrip("v") + "\n", "0.0.0\n", HOST_TAG.lstrip("v") + "\n"]
+
+
 class RollbackTest(unittest.TestCase):
     def failing_host(self, host_answers=None, failing=()):
         commands = ScriptedCommands(host_answers, failing)
@@ -219,7 +229,7 @@ class RollbackTest(unittest.TestCase):
 
     def test_a_restarting_agent_rolls_the_host_and_stable_back_in_order(self):
         readings = iter(["0\n", "3\n"])
-        commands = ScriptedCommands()
+        commands = ScriptedCommands({"dpkg-query": [HOST_TAG.lstrip("v") + "\n", NEW_TAG.lstrip("v") + "\n", HOST_TAG.lstrip("v") + "\n"]})
         original = commands.host_answer
         commands.host_answer = lambda script: "SSH: x\n" + next(readings) if "NRestarts" in script else original(script)
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
@@ -232,29 +242,49 @@ class RollbackTest(unittest.TestCase):
         ]
         self.assertEqual(order, sorted(order))
         self.assertIn("restarted 3 times", str(raised.exception))
-        self.assertIn("rolled back to " + PREVIOUS_TAG, str(raised.exception))
+        self.assertIn("rolled back", str(raised.exception))
+        self.assertNotIn("rollback left undone", str(raised.exception))
 
-    def test_the_downgrade_fetches_the_previous_tag_for_the_hosts_architecture(self):
-        commands, _ = self.failing_host({"dpkg --print-architecture": "amd64\n", "dpkg-query": "0.0.0\n"})
+    def test_the_host_goes_back_to_the_release_it_ran_and_not_to_the_previous_stable(self):
+        commands, _ = self.failing_host({"dpkg --print-architecture": "amd64\n", "dpkg-query": wrong_version_then_back()})
         downgrade = commands.calls[commands.matching("--allow-downgrades")[0]][-1]
-        self.assertIn(f"{PREVIOUS_TAG}/internkim-amd64.deb", downgrade)
+        self.assertIn(f"{HOST_TAG}/internkim-amd64.deb", downgrade)
+        self.assertNotIn(PREVIOUS_TAG, downgrade)
+        self.assertTrue(commands.matching("--channel stable --version " + PREVIOUS_TAG))
+
+    def test_a_host_without_the_package_is_not_downgraded(self):
+        commands, _ = self.failing_host({"dpkg-query": ["\n", "0.0.0\n"]})
+        self.assertFalse(commands.matching("--allow-downgrades"))
+        self.assertTrue(commands.matching("--prerelease"))
+
+    def test_a_host_that_does_not_come_back_on_the_release_it_ran_is_named(self):
+        _, failure = self.failing_host({"dpkg-query": [HOST_TAG.lstrip("v") + "\n", "0.0.0\n"]})
+        self.assertIn("rollback left undone", str(failure))
+        self.assertIn("roll the host back to " + HOST_TAG, str(failure))
+
+    def test_the_version_read_ends_in_a_newline(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        version_read = commands.calls[commands.matching("dpkg-query")[0]][-1]
+        self.assertIn("${Version}\\n", version_read)
 
     def test_the_failed_tag_is_marked_a_prerelease(self):
-        commands, _ = self.failing_host({"dpkg-query": "0.0.0\n"})
+        commands, _ = self.failing_host({"dpkg-query": wrong_version_then_back()})
         edit = commands.calls[commands.matching("release edit " + NEW_TAG)[0]]
         self.assertIn("--prerelease", edit)
 
     def test_a_wrong_version_names_what_failed(self):
-        _, failure = self.failing_host({"dpkg-query": "2026.10.02.172114\n"})
+        _, failure = self.failing_host({"dpkg-query": [HOST_TAG.lstrip("v") + "\n", "2026.10.02.172114\n", HOST_TAG.lstrip("v") + "\n"]})
         self.assertIn("upgrade our own host", str(failure))
-        self.assertIn("is 2026.10.02.172114", str(failure))
+        self.assertIn("is v2026.10.02.172114", str(failure))
 
     def test_a_unit_that_is_not_active_fails_the_upgrade(self):
         _, failure = self.failing_host({"systemctl list-unit-files": HEALTHY_UNITS.replace("chatd.service active", "chatd.service failed")})
         self.assertIn("chatd.service is failed", str(failure))
 
     def test_every_rollback_action_is_tried_and_the_ones_that_failed_are_named(self):
-        commands = ScriptedCommands({"dpkg-query": "0.0.0\n"}, failing=("--allow-downgrades",))
+        commands = ScriptedCommands({"dpkg-query": wrong_version_then_back()}, failing=("--allow-downgrades",))
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
             ship_quietly(shipment_with(commands, directory=directory))
         self.assertTrue(commands.matching("--prerelease"))
