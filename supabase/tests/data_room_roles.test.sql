@@ -15,12 +15,12 @@ insert into public.member (id, company_id, user_id, email, status, is_admin)
 select is((select count(*) from public.data_room_category where company_id = '62000000-0000-0000-0000-000000000010'), 48::bigint, 'a company starts with the fixed taxonomy and X');
 select is((select count(*) from public.data_room_role where company_id = '62000000-0000-0000-0000-000000000010'), 8::bigint, 'a company starts with eight reader roles');
 
-insert into public.company_document (company_id, document_type, title, category_code, storage_path)
+insert into public.company_document (id, company_id, document_type, title, category_code, storage_path)
 values
-  ('62000000-0000-0000-0000-000000000010', 'report', 'Statement', 'FS', '62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a', 64)),
-  ('62000000-0000-0000-0000-000000000010', 'report', 'Payroll', 'FP', null),
-  ('62000000-0000-0000-0000-000000000010', 'report', 'Evaluation', 'HA', null),
-  ('62000000-0000-0000-0000-000000000010', 'report', 'Unclassified', 'X', null);
+  ('62000000-0000-0000-0000-0000000000d1', '62000000-0000-0000-0000-000000000010', 'report', 'Statement', 'FS', '62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.pdf'),
+  ('62000000-0000-0000-0000-0000000000d2', '62000000-0000-0000-0000-000000000010', 'report', 'Payroll', 'FP', null),
+  ('62000000-0000-0000-0000-0000000000d3', '62000000-0000-0000-0000-000000000010', 'report', 'Evaluation', 'HA', null),
+  ('62000000-0000-0000-0000-0000000000d4', '62000000-0000-0000-0000-000000000010', 'report', 'Unclassified', 'X', null);
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
@@ -36,9 +36,9 @@ select is((select count(*) from public.company_document where company_id = '6200
 select public.data_room_share_accept(:'share_id');
 select is((select count(*) from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 2::bigint, 'an accountant reads statements and payroll without personnel evaluations');
 select is((select count(*) from public.member where user_id = auth.uid()), 0::bigint, 'acceptance creates no company member');
-select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a', 64)), 'read-only guests cannot fetch the original through storage');
-select ok(public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a', 64) || '/text.md'), 'derived text uses the same read scope');
-select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/HA/' || repeat('a', 64) || '/text.md'), 'a guessed path cannot expose a hidden category');
+select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.pdf'), 'read-only guests cannot fetch the original through storage');
+select ok(public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.text.md'), 'derived text uses the same read scope');
+select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/evaluation.62000000-0000-0000-0000-0000000000d3.text.md'), 'a guessed path cannot expose a hidden category');
 select throws_ok($$select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'accountant', 'Accountant', array['H'])$$, '42501', 'only a company administrator manages data room roles', 'a guest cannot edit their role');
 
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000003"}', true);
@@ -61,7 +61,7 @@ select is((select count(*) from public.company_document where company_id = '6200
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
 select public.data_room_share_revoke(:'share_id');
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000002"}', true);
-select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a', 64) || '/text.md'), 'revocation applies to derived objects too');
+select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.text.md'), 'revocation applies to derived objects too');
 select ok(not public.data_room_may_read('62000000-0000-0000-0000-000000000099', 'FS'), 'a grant belongs to exactly one company');
 
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
@@ -76,12 +76,12 @@ select throws_ok($$update public.data_room_category set code = 'Q' where company
 
 reset role;
 insert into storage.objects (bucket_id, name) values
-  ('asset', '62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a',64) || '/content.txt');
+  ('asset', '62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.content.txt');
 set local role anon;
 select set_config('request.jwt.claims', '{}', true);
 select is((select count(*) from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 1::bigint, 'publication exposes only the selected role');
 select is((select count(*) from storage.objects where bucket_id = 'asset' and name like '62000000-0000-0000-0000-000000000010/%'), 1::bigint, 'published previews are readable through storage RLS');
-select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a',64)), 'publication does not imply original downloads');
+select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.pdf'), 'publication does not imply original downloads');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
@@ -100,29 +100,34 @@ select set_config('request.jwt.claims', '{}', true);
 select is((select count(*) from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 0::bigint, 'expired and revoked publications expose nothing');
 
 reset role;
-update public.company_document set category_code = 'HA' where title = 'Statement' and company_id = '62000000-0000-0000-0000-000000000010';
+update public.company_document
+  set category_code = 'HA', storage_path = '62000000-0000-0000-0000-000000000010/dataroom/H/HA/statement.62000000-0000-0000-0000-0000000000d1.pdf'
+  where id = '62000000-0000-0000-0000-0000000000d1';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
 select public.data_room_share_create('62000000-0000-0000-0000-000000000010', 'accountant', 'email', 'data-guest@example.com') as new_guest_share \gset
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000002"}', true);
 select public.data_room_share_accept(:'new_guest_share');
-select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/FS/' || repeat('a',64) || '/content.txt'), 'reclassification protects the old object path');
+select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.content.txt'), 'reclassification protects a file wherever it was left');
 select ok(not public.data_room_may_read('62000000-0000-0000-0000-000000000010', 'HA'), 'reclassification does not retain old category grants');
 
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
 insert into public.data_room_category (company_id, code, slug, name)
 values ('62000000-0000-0000-0000-000000000010', 'Z', 'sample', 'Sample');
-select ok(public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/Z/' || repeat('b',64)), 'a parent without children accepts uploads');
-select ok(not public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/F/' || repeat('b',64)), 'a parent with children refuses uploads');
-select lives_ok($$insert into public.company_document (company_id, document_type, title, category_code)
-  values ('62000000-0000-0000-0000-000000000010', 'report', 'Sample leaf', 'Z')$$, 'a parent without children accepts documents');
+select lives_ok($$insert into public.company_document (id, company_id, document_type, title, category_code)
+  values ('62000000-0000-0000-0000-0000000000d5', '62000000-0000-0000-0000-000000000010', 'report', 'Sample leaf', 'Z')$$, 'a parent without children accepts documents');
+select ok(public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/Z/sample-leaf.62000000-0000-0000-0000-0000000000d5.pdf'), 'whoever may change a document uploads its files');
+select ok(not public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/Z/sample.62000000-0000-0000-0000-0000000000ff.pdf'), 'a file names a document that exists');
 select throws_ok($$insert into public.company_document (company_id, document_type, title, category_code)
   values ('62000000-0000-0000-0000-000000000010', 'report', 'Sample branch', 'F')$$,
   '22023', 'file a document in a category without children', 'a parent with children refuses documents');
 insert into public.data_room_category (company_id, code, parent, slug, name)
 values ('62000000-0000-0000-0000-000000000010', 'ZA', 'Z', 'child', 'Sample child');
-select ok(not public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/Z/' || repeat('b',64)), 'adding a child removes the parent as an upload destination');
-select ok(public.asset_dataroom_writer_may_write('62000000-0000-0000-0000-000000000010/dataroom/ZA/' || repeat('b',64)), 'the new child accepts uploads');
+select throws_ok($$insert into public.company_document (company_id, document_type, title, category_code)
+  values ('62000000-0000-0000-0000-000000000010', 'report', 'Late leaf', 'Z')$$,
+  '22023', 'file a document in a category without children', 'adding a child removes the parent as a filing destination');
+select lives_ok($$insert into public.company_document (id, company_id, document_type, title, category_code, storage_path)
+  values ('62000000-0000-0000-0000-0000000000d6', '62000000-0000-0000-0000-000000000010', 'report', 'Sample child', 'ZA', '62000000-0000-0000-0000-000000000010/dataroom/Z/ZA/sample-child.62000000-0000-0000-0000-0000000000d6.pdf')$$, 'the new child accepts documents and their files');
 
 select * from finish();
 rollback;

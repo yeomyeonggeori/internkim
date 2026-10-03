@@ -458,6 +458,7 @@ describe('the document ledger', () => {
 describe('the data room', () => {
 	const digest = 'a'.repeat(64);
 	let statementID = '';
+	let briefID = '';
 
 	test('refuses a member filing in a category their roles do not read', async () => {
 		const refused = await asSample('company_document_register', {
@@ -514,43 +515,82 @@ describe('the data room', () => {
 		expect(resultOf(restated).supersedes).toBe(statementID);
 	});
 
-	test('signs an upload into a category the member reads and refuses one they do not', async () => {
-		const signed = await asSample('company_document_upload', { categoryCode: 'PO', sha256: digest });
-		const refused = await asSample('company_document_upload', { categoryCode: 'FS', sha256: digest });
-
-		expect(signed.status).toBe(200);
-		expect(resultOf(signed).storagePath).toBe(`${companyID}/dataroom/PO/${digest}`);
-		expect(String(resultOf(signed).uploadURL)).toContain('/upload/sign/');
-		expect(refused.status).toBeGreaterThanOrEqual(400);
-	});
-
-	test('hands the stored file back through a signed download named by the document', async () => {
-		const signed = await asSample('company_document_upload', { categoryCode: 'PO', sha256: digest, fileName: 'text.md' });
-		const put = await fetch(String(resultOf(signed).uploadURL), {
-			method: 'PUT',
-			headers: { 'content-type': 'text/markdown' },
-			body: '# the derived text'
-		});
-		expect(put.ok).toBe(true);
-
+	test('names the original by its category, its name and its document', async () => {
 		const registered = await asSample('company_document_register', {
 			kind: 'internal',
 			documentType: 'product-brief',
 			title: 'internkim product brief',
 			summary: 'What internkim is, for a member who asks.',
 			categoryCode: 'PO',
-			sha256: digest,
-			storagePath: `${companyID}/dataroom/PO/${digest}`
+			sha256: digest
 		});
-		const download = await asSample('company_document_download', {
-			documentHint: resultOf(registered).documentID,
-			fileName: 'text.md'
-		});
+		briefID = resultOf(registered).documentID as string;
 
+		const signed = await asSample('company_document_upload', { documentHint: briefID, originalFileName: 'InternKim Brief.pdf' });
+		expect(signed.status).toBe(200);
+		expect(resultOf(signed).storagePath).toBe(`${companyID}/dataroom/P/PO/internkim-brief.${briefID}.pdf`);
+		const put = await fetch(String(resultOf(signed).uploadURL), {
+			method: 'PUT',
+			headers: { 'content-type': 'application/pdf' },
+			body: '%PDF the brief'
+		});
+		expect(put.ok).toBe(true);
+	});
+
+	test('refuses an upload for a document the member may not change', async () => {
+		const refused = await asSample('company_document_upload', { documentHint: statementID, originalFileName: 'statement.pdf' });
+
+		expect(refused.status).toBeGreaterThanOrEqual(400);
+	});
+
+	test('hands a derived file back from beside its original', async () => {
+		const signed = await asSample('company_document_upload', { documentHint: briefID, fileName: 'content.txt' });
+		expect(resultOf(signed).storagePath).toBe(`${companyID}/dataroom/P/PO/internkim-brief.${briefID}.content.txt`);
+		const put = await fetch(String(resultOf(signed).uploadURL), {
+			method: 'PUT',
+			headers: { 'content-type': 'text/plain' },
+			body: 'the derived text'
+		});
+		expect(put.ok).toBe(true);
+
+		const download = await asSample('company_document_download', { documentHint: briefID, fileName: 'content.txt' });
 		expect(download.status).toBe(200);
-		expect(resultOf(download).storagePath).toBe(`${companyID}/dataroom/PO/${digest}/text.md`);
 		const fetched = await fetch(String(resultOf(download).downloadURL));
-		expect(await fetched.text()).toBe('# the derived text');
+		expect(await fetched.text()).toBe('the derived text');
+	});
+
+	test('keeps the files where they are when a member may not reclassify', async () => {
+		const refused = await asSample('company_document_update', { documentHint: briefID, categoryCode: 'GP' });
+		expect(refused.status).toBe(403);
+
+		const download = await asSample('company_document_download', { documentHint: briefID, fileName: 'content.txt' });
+		expect(resultOf(download).storagePath).toBe(`${companyID}/dataroom/P/PO/internkim-brief.${briefID}.content.txt`);
+		expect(await (await fetch(String(resultOf(download).downloadURL))).text()).toBe('the derived text');
+	});
+
+	test('moves the files with the document when an administrator reclassifies it', async () => {
+		const moved = await asAdmin('company_document_update', { documentHint: briefID, categoryCode: 'GP' });
+		expect(moved.status).toBe(200);
+		expect(resultOf(moved).storagePath).toBe(`${companyID}/dataroom/G/GP/internkim-brief.${briefID}.pdf`);
+
+		const download = await asSample('company_document_download', { documentHint: briefID, fileName: 'content.txt' });
+		expect(resultOf(download).storagePath).toBe(`${companyID}/dataroom/G/GP/internkim-brief.${briefID}.content.txt`);
+		expect(await (await fetch(String(resultOf(download).downloadURL))).text()).toBe('the derived text');
+	});
+
+	test('reclassifies a document whose original was named but never uploaded', async () => {
+		const registered = await asSample('company_document_register', {
+			kind: 'internal',
+			documentType: 'memo',
+			title: 'unsent memo',
+			summary: 'A memo whose file never arrived.'
+		});
+		const memoID = resultOf(registered).documentID as string;
+		await asSample('company_document_upload', { documentHint: memoID, originalFileName: 'memo.txt' });
+
+		const moved = await asAdmin('company_document_update', { documentHint: memoID, categoryCode: 'GC' });
+		expect(moved.status).toBe(200);
+		expect(resultOf(moved).storagePath).toBe(`${companyID}/dataroom/G/GC/memo.${memoID}.txt`);
 	});
 
 	test('says so when the named document keeps no file', async () => {

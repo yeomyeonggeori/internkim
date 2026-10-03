@@ -709,16 +709,16 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_document_upload": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_upload","result":{"storagePath":"company-1/dataroom/2/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12","uploadURL":"https://example.test/storage/v1/object/upload/sign/asset/company-1/dataroom/2/ab12?token=signed"}}`)},
-			input:   `{"sha256":"ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_upload","result":{"storagePath":"company-1/dataroom/Q/QQ/abc-quote.document-1.pdf","uploadURL":"https://example.test/storage/v1/object/upload/sign/asset/company-1/dataroom/Q/QQ/abc-quote.document-1.pdf?token=signed"}}`)},
+			input:   `{"documentHint":"Q-2026-001","originalFileName":"abc quote.pdf"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"storagePath":"company-1/dataroom/2/`)
+				expectResultHolds(t, answered, `"storagePath":"company-1/dataroom/Q/QQ/`)
 			},
 		},
 		"company_document_download": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_download","result":{"storagePath":"company-1/dataroom/2/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12","downloadURL":"https://example.test/storage/v1/object/sign/asset/company-1/dataroom/2/ab12?token=signed"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_download","result":{"storagePath":"company-1/dataroom/Q/QQ/abc-quote.document-1.pdf","downloadURL":"https://example.test/storage/v1/object/sign/asset/company-1/dataroom/Q/QQ/abc-quote.document-1.pdf?token=signed"}}`)},
 			input:   `{"documentHint":"Q-2026-001"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)

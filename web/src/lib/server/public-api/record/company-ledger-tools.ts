@@ -1,4 +1,5 @@
 import { assetBucket } from '../asset-address';
+import { dataRoomFolder, derivedPath, originalPath } from '$lib/data-room/storage-path';
 import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
@@ -52,7 +53,6 @@ export type DataRoomDocumentInput = {
 	supersedesHint?: string;
 	sha256?: string;
 	tags?: string[];
-	storagePath?: string;
 };
 
 export type CompanyDocumentRegisterInput = DataRoomDocumentInput & {
@@ -80,13 +80,9 @@ export type CompanyDocumentListInput = {
 	query?: string;
 };
 
-export type CompanyDocumentUploadInput = { categoryCode?: string; sha256?: string; fileName?: string };
+export type CompanyDocumentUploadInput = { documentHint?: string; originalFileName?: string; fileName?: string };
 
-export type CompanyDocumentDownloadInput = {
-	documentHint?: string;
-	storagePath?: string;
-	fileName?: string;
-};
+export type CompanyDocumentDownloadInput = { documentHint?: string; fileName?: string };
 
 export type CompanyDocumentSearchInput = { query?: string; limit?: number };
 
@@ -612,16 +608,68 @@ export async function companyDocumentUpdate(
 		throw new Error('a document update names at least one thing to change');
 	}
 
+	const relocation = await relocationOf(context, held, change.category_code);
+	if (relocation) change.storage_path = relocation.storagePath;
+	const moves = relocation?.moves ?? [];
+	await moveFiles(context, moves);
+	try {
+		return answeredDocument(await writtenDocument(context, held.id, change));
+	} catch (refusal) {
+		await putFilesBack(context, moves);
+		throw refusal;
+	}
+}
+
+async function writtenDocument(context: RecordContext, documentID: string, change: Record<string, unknown>): Promise<DocumentRow> {
 	const { data, error } = await context.caller
 		.from('company_document')
 		.update(change)
-		.eq('id', held.id)
+		.eq('id', documentID)
 		.select(documentColumns)
 		.returns<DocumentRow[]>();
 	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
 	const written = (data ?? [])[0];
 	if (!written) throw new RecordRefusedTheWrite(onlyAColleagueWritesDocuments, 403);
-	return answeredDocument(written);
+	return written;
+}
+
+type FileMove = { from: string; to: string };
+
+type Relocation = { storagePath: string; moves: FileMove[] };
+
+async function relocationOf(context: RecordContext, held: DocumentRow, categoryCode: unknown): Promise<Relocation | null> {
+	if (typeof categoryCode !== 'string' || categoryCode === held.category_code || !held.storage_path) return null;
+	const fromFolder = dataRoomFolder(context.companyID, held.category_code);
+	const toFolder = dataRoomFolder(context.companyID, categoryCode);
+	const relocated = (path: string) => toFolder + path.slice(fromFolder.length);
+	const filesOfTheDocument = derivedPath(held.storage_path, held.id, '');
+	const { data, error } = await context.caller.storage
+		.from(assetBucket)
+		.list(fromFolder, { search: filesOfTheDocument.slice(fromFolder.length + 1), limit: 1000 });
+	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
+	const moves = data
+		.map((file) => `${fromFolder}/${file.name}`)
+		.filter((path) => path.startsWith(filesOfTheDocument))
+		.map((path) => ({ from: path, to: relocated(path) }));
+	return { storagePath: relocated(held.storage_path), moves };
+}
+
+async function moveFiles(context: RecordContext, moves: FileMove[]): Promise<void> {
+	const moved: FileMove[] = [];
+	for (const move of moves) {
+		const { error } = await context.caller.storage.from(assetBucket).move(move.from, move.to);
+		if (error) {
+			await putFilesBack(context, moved);
+			throw new RecordRefusedTheWrite(`${move.from} could not move to ${move.to}: ${error.message}`, statusOfStorageError(error));
+		}
+		moved.push(move);
+	}
+}
+
+async function putFilesBack(context: RecordContext, moves: FileMove[]): Promise<void> {
+	for (const move of [...moves].reverse()) {
+		await context.caller.storage.from(assetBucket).move(move.to, move.from);
+	}
 }
 
 export async function companyDocumentList(
@@ -693,7 +741,6 @@ async function dataRoomChangeOf(
 	if (orNull(input.status)) change.status = input.status?.trim();
 	if (input.sha256 !== undefined) change.sha256 = sha256Of(input.sha256);
 	if (input.tags !== undefined) change.tags = tagsOf(input.tags);
-	if (orNull(input.storagePath)) change.storage_path = input.storagePath?.trim();
 	if (orNull(input.supersedesHint)) {
 		change.supersedes = (await supersededDocumentOfHint(context, input.supersedesHint ?? '', input.categoryCode ?? categoryCode)).id;
 	}
@@ -709,22 +756,15 @@ async function supersededDocumentOfHint(
 	return documentAmong(candidates, hint.trim());
 }
 
-function dataRoomObjectPath(companyID: string, category: string, sha256: string, fileName: string | null): string {
-	const original = `${companyID}/dataroom/${category}/${sha256}`;
-	return fileName === null ? original : `${original}/${fileName}`;
-}
-
 export async function companyDocumentUpload(
 	context: RecordContext,
 	input: CompanyDocumentUploadInput
 ): Promise<CompanyDocumentUploadResult> {
-	const category = input.categoryCode ?? inboxCategoryCode;
-	const storagePath = dataRoomObjectPath(
-		context.companyID,
-		category,
-		sha256Of(input.sha256),
-		derivedFileNameOf(input.fileName)
-	);
+	const held = await companyDocumentOfHint(context, input.documentHint ?? '');
+	const fileName = derivedFileNameOf(input.fileName);
+	const storagePath = fileName === null
+		? await recordedOriginalPath(context, held, input.originalFileName)
+		: derivedPath(storedOriginalOf(held), held.id, fileName);
 
 	const { data, error } = await context.caller.storage
 		.from(assetBucket)
@@ -733,13 +773,38 @@ export async function companyDocumentUpload(
 	return { storagePath, uploadURL: data.signedUrl };
 }
 
+async function recordedOriginalPath(
+	context: RecordContext,
+	held: DocumentRow,
+	originalFileName: string | undefined
+): Promise<string> {
+	const fileName = textOf(originalFileName, "an upload names the original's file name, or the fileName of a file derived from it");
+	const storagePath = originalPath(
+		{ companyID: context.companyID, categoryCode: held.category_code, documentID: held.id },
+		fileName,
+		[held.title, held.document_type]
+	);
+	if (held.storage_path === storagePath) return storagePath;
+	if (held.storage_path) {
+		throw new RecordRefusedTheWrite(
+			'this document already holds its original; register the new file as a document that supersedes it',
+			409,
+			'company_document_has_original'
+		);
+	}
+	const { error } = await context.caller.from('company_document').update({ storage_path: storagePath }).eq('id', held.id);
+	if (error) throw refuseTheWrite(error, onlyAColleagueWritesDocuments);
+	return storagePath;
+}
+
 export async function companyDocumentDownload(
 	context: RecordContext,
 	input: CompanyDocumentDownloadInput
 ): Promise<CompanyDocumentDownloadResult> {
-	const original = await storedOriginalOf(context, input);
+	const held = await companyDocumentOfHint(context, input.documentHint ?? '');
+	const original = storedOriginalOf(held);
 	const fileName = derivedFileNameOf(input.fileName);
-	const storagePath = fileName === null ? original : `${original}/${fileName}`;
+	const storagePath = fileName === null ? original : derivedPath(original, held.id, fileName);
 
 	const { data, error } = await context.caller.storage
 		.from(assetBucket)
@@ -748,14 +813,7 @@ export async function companyDocumentDownload(
 	return { storagePath, downloadURL: data.signedUrl };
 }
 
-async function storedOriginalOf(
-	context: RecordContext,
-	input: CompanyDocumentDownloadInput
-): Promise<string> {
-	const storagePath = orNull(input.storagePath);
-	if (storagePath) return storagePath;
-	if (!orNull(input.documentHint)) throw new Error('a download names the document or its storagePath');
-	const held = await companyDocumentOfHint(context, input.documentHint ?? '');
+function storedOriginalOf(held: DocumentRow): string {
 	if (!held.storage_path) {
 		throw new RecordRefusedTheWrite('this document keeps no file in the data room', 404, 'company_document_no_file');
 	}

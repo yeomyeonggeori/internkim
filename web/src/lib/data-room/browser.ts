@@ -32,9 +32,7 @@ export function documentCategoryLabel(
 }
 
 export function documentFileName(document: DataRoomDocument): string {
-	const storedFileName = document.storagePath?.split('/').pop();
-	if (storedFileName && !/^[a-f0-9]{64}$/.test(storedFileName)) return storedFileName;
-	return document.filePath?.split('/').pop() || document.title;
+	return document.storagePath?.split('/').pop() || document.filePath?.split('/').pop() || document.title;
 }
 
 export function dataRoomFolderEntries(

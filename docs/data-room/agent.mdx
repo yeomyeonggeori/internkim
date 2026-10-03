@@ -8,14 +8,15 @@ with an `other` option. Parent categories declare their semantic group in
 the template; children inherit it. One category wins directly; two category answers
 are compared by their selected-option probabilities. Two `other` answers
 or a probability tie become `X`.
-Upload the original and `content.txt` with the returned category and hash,
-then register their metadata. Unregistered category files cannot be read.
+Register the document with the returned category and hash, then upload the
+original under its file name and `content.txt` beside it. A file belongs to a
+registered document, so its path names that document.
 
 | Step | Action |
 |---|---|
 | Classify | Choose one eligible category from the document's business function |
-| Upload | Put the original and derived files in the asset store |
-| Register | Record the title, summary, category and file location in the document ledger |
+| Register | Record the title, summary, category and hash in the document ledger |
+| Upload | Put the original and derived files where the document's category keeps them |
 
 Storage is the combined result of upload and registration, not another step.
 
