@@ -1024,7 +1024,7 @@ func personEmailsForTest(person map[string]any) []string {
 }
 
 func blueclawPolicyWithSeedAdmin() string {
-	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true}],"channels":[],"retention":{"rawEventDays":60}}`
+	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"isAdmin":true}],"channels":[],"retention":{"rawEventDays":60}}`
 }
 
 func writeTestFile(t *testing.T, document string) string {

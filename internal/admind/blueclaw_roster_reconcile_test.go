@@ -176,7 +176,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
 		StateDirectory:             t.TempDir(),
 	})
-	settledPolicy := `{"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"grantedClasses":["internal"],"isAdmin":false,"personID":"user-1","securityLevelName":"member","securityLevelRank":10}]}`
+	settledPolicy := `{"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"isAdmin":false,"personID":"user-1"}]}`
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":

@@ -98,19 +98,10 @@ func applyBlueclawPersonAttributes(person map[string]any, name string, role stri
 			person["note"] = trimmedNote
 		}
 	}
-	if normalizeAdminUserRole(role) == "admin" {
-		person["isAdmin"] = true
-		person["securityLevelName"] = "admin"
-		person["securityLevelRank"] = 100
-		person["grantedClasses"] = []string{"internal", "executive"}
-		return
+	person["isAdmin"] = normalizeAdminUserRole(role) == "admin"
+	for _, retired := range retiredPersonFields {
+		delete(person, retired)
 	}
-	person["isAdmin"] = false
-	if strings.TrimSpace(policyString(person["securityLevelName"])) == "" || policyString(person["securityLevelName"]) == "admin" {
-		person["securityLevelName"] = "member"
-	}
-	if rank, _ := person["securityLevelRank"].(float64); rank == 0 || rank == 100 {
-		person["securityLevelRank"] = 10
-	}
-	person["grantedClasses"] = []string{"internal"}
 }
+
+var retiredPersonFields = []string{"securityLevelName", "securityLevelRank", "grantedClasses"}
