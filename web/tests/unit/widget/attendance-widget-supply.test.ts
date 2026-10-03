@@ -6,11 +6,15 @@ import {
 
 describe('widgetTokenNameFor', () => {
 	test('names the token after the install so two phones never collide', () => {
-		expect(widgetTokenNameFor('8E1F2C3D-4A5B-6C7D-8E9F-0A1B2C3D4E5F')).toBe('ios-widget-8e1f2c3d');
+		expect(widgetTokenNameFor('ios', '8E1F2C3D-4A5B-6C7D-8E9F-0A1B2C3D4E5F')).toBe('ios-widget-8e1f2c3d');
+	});
+
+	test('names an Android widget apart from an iPhone one', () => {
+		expect(widgetTokenNameFor('android', '8e1f2c3d-4a5b-6c7d-8e9f-0a1b2c3d4e5f')).toBe('android-widget-8e1f2c3d');
 	});
 
 	test('keeps the name within what the token store takes', () => {
-		expect(widgetTokenNameFor('8E1F2C3D-4A5B-6C7D-8E9F-0A1B2C3D4E5F').length).toBeLessThanOrEqual(64);
+		expect(widgetTokenNameFor('android', '8E1F2C3D-4A5B-6C7D-8E9F-0A1B2C3D4E5F').length).toBeLessThanOrEqual(64);
 	});
 });
 
