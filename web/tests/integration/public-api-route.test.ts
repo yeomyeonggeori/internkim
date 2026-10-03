@@ -1021,36 +1021,39 @@ describe('a personal access token does not administer the company', () => {
 	});
 });
 
-describe('an administrator reaches only people below their own clearance', () => {
-	let middleSession = '';
-	let topAdministratorID = '';
+describe('an administrator and another administrator', () => {
+	let secondSession = '';
+	let firstAdministratorID = '';
 
 	beforeAll(async () => {
-		const { data: top } = await client
+		const { data: first } = await client
 			.from('member')
 			.select('id')
 			.eq('company_id', companyID)
 			.eq('email', `${slug}-admin@example.test`)
 			.single();
-		topAdministratorID = top!.id;
-		const middleID = await addMember(client, companyID, `${slug}-middle-admin@example.test`);
-		await client.from('member').update({ is_admin: true, clearance: 2, status: 'active' }).eq('id', middleID);
-		middleSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, middleID)).accessToken;
+		firstAdministratorID = first!.id;
+		const secondID = await addMember(client, companyID, `${slug}-second-admin@example.test`);
+		await client.from('member').update({ is_admin: true, status: 'active' }).eq('id', secondID);
+		secondSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, secondID)).accessToken;
 	}, networkHookTimeout);
 
-	test('resets the password of somebody below, and of nobody above', async () => {
-		expect((await resetting(middleSession, { memberID })).status).toBe(200);
-		expect((await resetting(middleSession, { memberID: topAdministratorID })).status).toBe(403);
+	test('resets a colleague\'s password, and refuses another administrator\'s', async () => {
+		expect((await resetting(secondSession, { memberID })).status).toBe(200);
+		expect((await resetting(secondSession, { memberID: firstAdministratorID })).status).toBe(403);
 	});
 
-	test('removes nobody above', async () => {
-		expect((await removing(middleSession, { memberID: topAdministratorID })).status).toBe(403);
-		const { data: top } = await client.from('member').select('status').eq('id', topAdministratorID).single();
-		expect(top!.status).toBe('active');
+	test('removes another administrator', async () => {
+		const departingID = await addMember(client, companyID, `${slug}-departing-admin@example.test`);
+		await client.from('member').update({ is_admin: true, status: 'active' }).eq('id', departingID);
+
+		expect((await removing(secondSession, { memberID: departingID })).status).toBe(200);
+		const { data: departing } = await client.from('member').select('status').eq('id', departingID).single();
+		expect(departing!.status).toBe('withdrawn');
 	});
 
-	test('invites an administrator at their own clearance, never above it', async () => {
-		const answer = await inviting(middleSession, {
+	test('invites a colleague as an administrator', async () => {
+		const answer = await inviting(secondSession, {
 			email: `${slug}-promoted@example.test`,
 			name: 'Promoted',
 			isAdmin: true
@@ -1058,10 +1061,10 @@ describe('an administrator reaches only people below their own clearance', () =>
 		expect(answer.status).toBe(200);
 		const { data: promoted } = await client
 			.from('member')
-			.select('is_admin, clearance')
+			.select('is_admin')
 			.eq('email', `${slug}-promoted@example.test`)
 			.single();
-		expect(promoted).toEqual({ is_admin: true, clearance: 2 });
+		expect(promoted).toEqual({ is_admin: true });
 	});
 });
 

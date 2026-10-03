@@ -112,8 +112,8 @@ do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
-  insert into public.company_document (company_id, kind, document_number, document_type, title, counterpart, summary, requester_id)
-  values ('00000000-0000-0000-0000-0000000000c0', 'issued', 'Q-2026-001', 'quote', 'ABC Trading onboarding quote', 'ABC Trading', 'A quote for the onboarding consulting.', '000000cc-0000-0000-0000-000000000001');
+  insert into public.company_document (company_id, kind, document_number, document_type, title, counterpart, summary, requester_id, category_code)
+  values ('00000000-0000-0000-0000-0000000000c0', 'issued', 'Q-2026-001', 'quote', 'ABC Trading onboarding quote', 'ABC Trading', 'A quote for the onboarding consulting.', '000000cc-0000-0000-0000-000000000001', 'X');
 end;
 $$;
 
@@ -129,8 +129,8 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
-  insert into public.company_document (company_id, document_number, document_type, title)
-  values ('00000000-0000-0000-0000-0000000000c0', 'Q-2026-001', 'quote', 'A second quote claiming the same number');
+  insert into public.company_document (company_id, document_number, document_type, title, requester_id, category_code)
+  values ('00000000-0000-0000-0000-0000000000c0', 'Q-2026-001', 'quote', 'A second quote claiming the same number', '000000cc-0000-0000-0000-000000000001', 'X');
   reset role;
 end $$;$block$, '23505', null, 'one company hands out a document number once');
 
@@ -138,8 +138,8 @@ select throws_ok($block$do $$
 begin
   set local role authenticated;
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
-  insert into public.company_document (company_id, document_type, title, kind)
-  values ('00000000-0000-0000-0000-0000000000c0', 'quote', 'A quote of no known kind', 'draft');
+  insert into public.company_document (company_id, document_type, title, kind, requester_id, category_code)
+  values ('00000000-0000-0000-0000-0000000000c0', 'quote', 'A quote of no known kind', 'draft', '000000cc-0000-0000-0000-000000000001', 'X');
   reset role;
 end $$;$block$, '23514', null, 'a document is issued, received or internal');
 

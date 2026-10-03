@@ -5,18 +5,15 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
 	import { Label } from '$lib/components/ui/label';
-	import * as Select from '$lib/components/ui/select';
 	import BriefcaseBusinessIcon from '@lucide/svelte/icons/briefcase-business';
 	import ComponentIcon from '@lucide/svelte/icons/component';
 	import MailIcon from '@lucide/svelte/icons/mail';
 	import PhoneIcon from '@lucide/svelte/icons/phone';
-	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import TimerIcon from '@lucide/svelte/icons/timer';
 	import UserRoundIcon from '@lucide/svelte/icons/user-round';
 	import type { AdminPageText } from '../admin/admin-types';
 	import OrganizationProfileFields from '../admin/organization-profile-fields.svelte';
 	import type { OrgGroup, UserRecord } from '../../lib/organization/types';
-	import { dataRoomClearanceLabel, dataRoomClearanceOf } from './organization-clearance-model';
 	import type { organizationDirectoryText } from './text';
 	import type { PageText } from '$lib/i18n/page-text.svelte';
 
@@ -34,8 +31,6 @@
 		adminText?: AdminPageText;
 		isSaving?: boolean;
 		hasInvalidSupervisor?: boolean;
-		canEditClearance?: boolean;
-		clearanceChoices?: number[];
 		onEdit?: () => void;
 		onSave?: () => void | Promise<void>;
 		onCancel?: () => void;
@@ -55,8 +50,6 @@
 		adminText,
 		isSaving = false,
 		hasInvalidSupervisor = false,
-		canEditClearance = false,
-		clearanceChoices = [],
 		onEdit = () => {},
 		onSave = () => {},
 		onCancel = () => {}
@@ -81,15 +74,6 @@
 
 	function personTitle(person: UserRecord): string {
 		return person.jobTitle || text.noTitle;
-	}
-
-	function clearanceLabel(person: UserRecord): string {
-		return dataRoomClearanceLabel(dataRoomClearanceOf(person), text);
-	}
-
-	function selectClearanceValue(value: string): void {
-		if (!localEditingRecord) return;
-		localEditingRecord.clearance = Number(value);
 	}
 
 	function directSupervisorLabel(person: UserRecord): string {
@@ -153,26 +137,6 @@
 						{isSaving}
 						layout="stacked"
 					/>
-					{#if canEditClearance}
-						<div class="grid min-h-14 content-start gap-1.5">
-							<Label class="text-xs">{text.dataRoomClearance}</Label>
-							<Select.Root
-								type="single"
-								value={String(dataRoomClearanceOf(localEditingRecord))}
-								onValueChange={selectClearanceValue}
-								disabled={isSaving}
-							>
-								<Select.Trigger class="w-full font-normal" aria-label={text.dataRoomClearance} data-testid="organization-clearance-select">
-									{clearanceLabel(localEditingRecord)}
-								</Select.Trigger>
-								<Select.Content>
-									{#each clearanceChoices as choice (choice)}
-										<Select.Item value={String(choice)} label={dataRoomClearanceLabel(choice, text)}>{dataRoomClearanceLabel(choice, text)}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-					{/if}
 				</div>
 			{:else}
 				<Item.Group class="gap-2">
@@ -216,13 +180,6 @@
 						<Item.Content>
 							<Item.Description>{text.hireDate}</Item.Description>
 							<Item.Title class="w-full truncate">{record.hireDate || text.notProvided}</Item.Title>
-						</Item.Content>
-					</Item.Root>
-					<Item.Root variant="muted" size="sm">
-						<Item.Media variant="icon"><ShieldIcon /></Item.Media>
-						<Item.Content>
-							<Item.Description>{text.dataRoomClearance}</Item.Description>
-							<Item.Title class="w-full truncate" data-testid="organization-clearance">{clearanceLabel(record)}</Item.Title>
 						</Item.Content>
 					</Item.Root>
 				</Item.Group>

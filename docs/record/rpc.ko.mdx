@@ -11,9 +11,10 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `announce_event_reminders` | — | `void` | definer | service_role |
 | `apns_key_keep` | `new_key_id text, new_team_id text, new_bundle_id text, new_private_key text, new_environment text DEFAULT 'production'::text` | `void` | definer | service_role |
 | `ask_about_shifts_nobody_closed` | — | `void` | definer | service_role |
-| `asset_clearance` | `object_name text` | `smallint` | invoker | anon, authenticated, service_role |
 | `asset_company` | `object_name text` | `uuid` | invoker | anon, authenticated, service_role |
 | `asset_dataroom_writer_may_write` | `object_name text` | `boolean` | definer | anon, authenticated, service_role |
+| `asset_is_own_upload` | `object_name text` | `boolean` | invoker | anon, authenticated, service_role |
+| `asset_is_transfer_copy` | `object_name text` | `boolean` | invoker | anon, authenticated, service_role |
 | `asset_reader_may_read` | `object_name text` | `boolean` | definer | anon, authenticated, service_role |
 | `asset_scope` | `object_name text` | `text` | invoker | anon, authenticated, service_role |
 | `asset_segment` | `object_name text, segment_index integer` | `text` | invoker | anon, authenticated, service_role |
@@ -39,6 +40,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `company_holidays_save` | `target_holidays jsonb` | `jsonb` | definer | authenticated |
 | `company_of_circle` | `target_circle uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_member` | `target_member uuid` | `uuid` | invoker | authenticated, service_role |
+| `company_of_messenger_address` | `address_slug text` | `uuid` | definer | anon, authenticated, service_role |
 | `company_of_task` | `target_task uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_of_team` | `target_team uuid` | `uuid` | invoker | authenticated, service_role |
 | `company_topic` | `target_company uuid` | `text` | invoker | anon, authenticated, service_role |
@@ -51,16 +53,22 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `data_room_administrator` | `target_company uuid` | `boolean` | definer | anon, authenticated, service_role |
 | `data_room_document_readable` | `document company_document` | `boolean` | definer | anon, authenticated, service_role |
 | `data_room_document_writable` | `document company_document` | `boolean` | definer | anon, authenticated, service_role |
+| `data_room_link_create` | `target_company uuid, role_code text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false` | `uuid` | definer | authenticated, service_role |
+| `data_room_link_revoke` | `target_link uuid` | `void` | definer | authenticated, service_role |
+| `data_room_link_unlock` | `target_link uuid, access_code text, notice_version text, client_fingerprint text` | `jsonb` | definer | service_role |
 | `data_room_may_read` | `target_company uuid, target_category text, download boolean DEFAULT false` | `boolean` | definer | anon, authenticated, service_role |
 | `data_room_member` | `target_company uuid` | `uuid` | definer | anon, authenticated, service_role |
+| `data_room_member_roles_set` | `target_company uuid, target_member uuid, role_codes text[]` | `void` | definer | authenticated, service_role |
 | `data_room_role_set` | `target_company uuid, role_code text, role_name text, readable_categories text[], role_name_ko text DEFAULT ''::text` | `void` | definer | authenticated, service_role |
 | `data_room_share_accept` | `target_share uuid` | `uuid` | definer | authenticated, service_role |
 | `data_room_share_applies` | `share data_room_share` | `boolean` | definer | anon, authenticated, service_role |
 | `data_room_share_create` | `target_company uuid, role_code text, audience text, recipient_email text DEFAULT NULL::text, recipient_member uuid DEFAULT NULL::uuid, recipient_circle uuid DEFAULT NULL::uuid, expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone, can_download boolean DEFAULT false` | `uuid` | definer | authenticated, service_role |
 | `data_room_share_revoke` | `target_share uuid` | `void` | definer | authenticated, service_role |
+| `data_room_shareable_roles` | `target_company uuid, download boolean DEFAULT false` | `text[]` | definer | authenticated, service_role |
 | `data_room_visible_category` | `target_company uuid, target_category text` | `boolean` | definer | anon, authenticated, service_role |
 | `digest_app_url_keep` | `new_app_url text` | `boolean` | definer | service_role |
 | `digest_target_keep` | `new_project_url text` | `void` | definer | service_role |
+| `expired_transfer_copies` | `kept_days integer` | `SETOF text` | definer | authenticated, service_role |
 | `fcm_key_keep` | `new_project_id text, new_client_email text, new_private_key text` | `void` | definer | service_role |
 | `is_a_scheduled_job` | `presented text` | `boolean` | definer | service_role |
 | `is_company_admin` | — | `boolean` | definer | anon, authenticated, service_role |
@@ -76,7 +84,6 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `leave_management_source` | — | `jsonb` | definer | authenticated, service_role |
 | `leave_return_early` | `work_location text` | `jsonb` | definer | authenticated, service_role |
 | `member_hr_file` | `target_member uuid` | `TABLE(member_id uuid, leave_days numeric, note text)` | definer | authenticated, service_role |
-| `member_is_below_me` | `target_member uuid` | `boolean` | definer | authenticated, service_role |
 | `member_leave_days` | `target_member uuid` | `numeric` | definer | anon, authenticated, service_role |
 | `member_leave_days_set` | `target_member uuid, granted_days numeric` | `numeric` | definer | anon, authenticated, service_role |
 | `member_leave_remaining` | `target_member uuid, target_year integer` | `numeric` | definer | anon, authenticated, service_role |
@@ -89,8 +96,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `member_topic` | `target_member uuid` | `text` | invoker | anon, authenticated, service_role |
 | `member_work_hours` | `target_member uuid` | `jsonb` | definer | anon, authenticated, service_role |
 | `member_work_hours_on` | `target_member uuid, target_day date` | `jsonb` | definer | anon, authenticated, service_role |
-| `my_app_company` | — | `uuid` | invoker | anon, authenticated, service_role |
-| `my_clearance` | — | `smallint` | definer | authenticated, service_role |
+| `my_app_company` | — | `uuid` | definer | anon, authenticated, service_role |
 | `my_company_topic` | — | `text` | definer | anon, authenticated, service_role |
 | `my_member` | — | `uuid` | definer | anon, authenticated, service_role |
 | `my_member_topic` | — | `text` | definer | anon, authenticated, service_role |
@@ -131,13 +137,11 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | 이름 |
 | --- |
 | `abandon_the_profile_image` |
-| `administrator_starts_at_full_clearance` |
 | `announce_task_write` |
 | `bind_member_to_new_user` |
 | `data_room_guard_category` |
 | `data_room_guard_document` |
 | `derive_task_status_from_dates` |
-| `document_is_lowered_only_from_its_own_clearance` |
 | `enforce_crm_reference_consistency` |
 | `follow_children_completion` |
 | `guard_task_authority_shape` |

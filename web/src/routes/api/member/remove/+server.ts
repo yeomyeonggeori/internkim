@@ -2,7 +2,6 @@ import {
 	adminCallerOf,
 	asMember,
 	controlPlane,
-	isBelowCaller,
 	planeCredentialsOf,
 	removeMember
 } from '$lib/server/control-plane';
@@ -25,9 +24,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const memberID = typeof body.memberID === 'string' ? body.memberID.trim() : '';
 	if (!memberID) error(400, 'which member to remove');
 	if (memberID === caller.memberID) error(400, 'an admin does not remove themselves');
-	if (!(await isBelowCaller(callerClient, memberID))) {
-		error(403, 'an administrator removes only somebody below their own clearance');
-	}
 
 	const client = controlPlane(plane);
 	const { wasRemoved } = await removeMember(client, caller.companyID, memberID, { purge: body.purge === true });
