@@ -13,6 +13,7 @@ final class AttendanceWidgetStore {
     private static final String tokenNameKey = "widget.tokenName";
     private static final String originKey = "widget.origin";
     private static final String workplaceKeyPrefix = "widget.workplace.";
+    private static final String dismissedOngoingKey = "widget.ongoing.dismissedClockInAt";
 
     private AttendanceWidgetStore() {}
 
@@ -66,6 +67,16 @@ final class AttendanceWidgetStore {
 
     static void forgetWorkplace(Context context, int widgetID) {
         preferences(context).edit().remove(workplaceKeyPrefix + widgetID).apply();
+    }
+
+    @Nullable
+    static Long dismissedOngoing(Context context) {
+        SharedPreferences preferences = preferences(context);
+        return preferences.contains(dismissedOngoingKey) ? preferences.getLong(dismissedOngoingKey, 0) : null;
+    }
+
+    static void keepDismissedOngoing(Context context, long clockInAt) {
+        preferences(context).edit().putLong(dismissedOngoingKey, clockInAt).apply();
     }
 
     static final class Credential {
