@@ -83,7 +83,7 @@ version the host is on.
 On a connected Linux host the update rewrites the settings the first install
 wrote, prepares the database again, restarts the services and returns once every
 one of them answers and the agent holds the roster again. The agent, the relay
-and the messenger are away for DOWNTIME_TEXT. A message sent in that window
+and the messenger are away for about a minute. A message sent in that window
 fails and has to be sent again. A
 task running at the restart is interrupted and resumed once when the agent is
 back; one that cannot be resumed is marked failed and its requester is told. A
@@ -166,10 +166,10 @@ files is copied through SQLite's own snapshot. The archive holds:
 
 | | |
 |---|---|
-| The agent's database | conversations, task history, the ledger, memory and its embeddings |
+| The agent's database | conversations, task history and the ledger |
 | The messenger's database | every channel and message |
 | `/var/lib/internkim` | the company's keys, the seed that signs messages as each person, the messenger's attachments |
-| `/workspace` | every person's and circle's files, with their owners and modes |
+| `/workspace` | every person's and circle's files and memory, with their owners and modes |
 | `/var/lib/internkim-relay` | messages and approval questions still waiting for the agent |
 | `/root/.internkim` | the admin gateway's own databases and settings |
 | `/etc/internkim` | the operator's settings |

@@ -68,14 +68,15 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 
 | 경로 | 만질 수 있는 사람 | 담는 것 |
 |---|---|---|
-| `home/<path>` | 본인 | 영속하는 개인 파일 |
+| `private/people/<personID>` | 본인 | 본인의 `$HOME`: 영속하는 개인 파일 |
 | `private/people/<personID>/tmp/<task>` | 본인 | 초안과 빌드 중간물 |
 | `private/people/<personID>/artifacts/<slug>` | 본인 | 완성된 개인 결과물 |
+| `private/protected/<personID>` | 서비스가 쓰고 본인이 읽음 | 본인의 기억 |
 | `circles/<circleID>` | 그 서클의 그룹 | 의도적인 팀 공유 |
 | `shared/public` | 전원; 외부인에게 보여도 안전 | 외부 공유 가능한 콘텐츠 |
 | `shared/cache/dependencies` | 전원 | 패키지 캐시 전용 |
 | `skills` | 읽기와 실행 | 번들 스킬 소스 |
-| `.blueclaw` | 서비스만 | 데이터베이스, 로그, 내부 상태 |
+| `.blueclaw` | 서비스만 | 폴리시, 로그, 내부 상태 |
 
 ## 완성물이 떠나는 길 [#delivery]
 

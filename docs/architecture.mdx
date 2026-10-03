@@ -253,7 +253,7 @@ The package registers each as its own service with systemd or launchd;
 | Moli (`moli serve`), one per requester | `127.0.0.1:9230` and up | the device browser for plain public-text navigation; capabilityd starts each person's on first use, with their own profile, and stops it when idle | `internal/browser/device_browsers.go` |
 | `internkim-admind` | `127.0.0.1:18080`, `/run/internkim/admind.sock` | the workspace screens, the roster, and the company tools the plane carries to the host | `cmd/internkim-admind/`, `internal/admind/` |
 | `internkim-maild` | `127.0.0.1:18092` | answers mail for whichever account a call carries | `cmd/internkim-maild/` |
-| the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, memory, policy | — |
+| the agent's store | `DATABASE_URL` | Postgres holding conversations, runs, policy | — |
 
 ## What the agent is made of
 
@@ -266,8 +266,9 @@ blueclaw is one process built from separate repositories, each with one job:
 | [bluememo](https://github.com/yeomyeonggeori/bluememo) | long-term memory: facts extracted from finished work, scoped by owner and circle | `.dependency/blueclaw/.dependency/bluememo/` |
 | internkim-plugin | the skills the agent loads for a kind of work | `.dependency/internkim-plugin/` |
 
-Memory is one SQLite file per subject, under the workspace's
-`.blueclaw/memory`. When a run finishes, bluememo has a model extract
+Memory is one SQLite file per subject, in that subject's protected directory
+in the workspace, as [What lives where](/docs/what-lives-where#a-persons-memory)
+lays out. When a run finishes, bluememo has a model extract
 self-contained sentences from it; a newer sentence replaces an older one, and a
 person can ask the agent to forget one. Recall searches the file by embedding
 and by words and answers without calling a model. None of it lives in
@@ -363,7 +364,9 @@ path, and the relay reads it through admind as the person the reply answers,
 so only what that person may read is posted. The relay copies it into that
 member's `transfer/` prefix, calls `person.media.upload` with the member's key,
 and posts a message as the agent naming what came back. The reply counts as
-delivered only when both the upload and the post landed.
+delivered only when both the upload and the post landed. A reply's files go out
+before its words, so when a file does not arrive the person gets a notice
+naming it instead of words saying it is attached.
 
 No process holds a whole file. Bun reads an HTTP response as fast as it
 arrives, whatever the reader does with it, so every read is one bounded range.
@@ -467,7 +470,7 @@ Host my-company-host
   ProxyCommand cloudflared access ssh --hostname %h
 ```
 
-A Cloudflare Tunnel is one convenient answer, and the one we use while
-developing. Tailscale, a jump host and WireGuard are others. internkim
+A Cloudflare Tunnel is one convenient answer, and the one we use for our own
+company's host. Tailscale, a jump host and WireGuard are others. internkim
 installs none of them, asks for none of them, and cannot tell which you
 chose: the choice is yours and it stays outside the product.
