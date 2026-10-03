@@ -53,7 +53,7 @@ import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
 import { agentFilePoster, conversationPoster } from './conversation-post';
 import { HeldQuestionStore } from './held-question-store';
-import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
+import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
 
 
@@ -135,6 +135,22 @@ function tellBrowsers(conversationID: string, messageID: string): void {
 }
 
 const credentials = new CredentialCache(readMessengerCredential);
+
+const arrivalWatchers = new ArrivalWatchers({
+	activeMemberIDs: () => activeMemberIDsOf(client, companyID),
+	credentialOf: (memberID) => credentials.credentialOf(memberID),
+	askChatd: (capability, body) => dispatch.askChatd(capability, body),
+	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
+	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
+	report: (line) => console.log(line),
+	now: () => Date.now()
+});
+
+async function credentialOfMemberActedFor(memberID: string): Promise<{ kind: string; secret: string } | null> {
+	const credential = await credentials.credentialOf(memberID);
+	if (credential) void arrivalWatchers.watchOnceTheyAct(memberID, credential);
+	return credential;
+}
 
 async function readMessengerCredential(memberID: string): Promise<{ kind: string; secret: string } | null> {
 	const kind = await messengerCredentialKind();
@@ -247,7 +263,7 @@ const dispatch = {
 		if (member.error) throw new Error(member.error.message);
 		return member.data?.email ?? null;
 	},
-	messengerCredentialOf: (memberID: string) => credentials.credentialOf(memberID),
+	messengerCredentialOf: credentialOfMemberActedFor,
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
 			platform: messengerPlatform,
@@ -533,14 +549,7 @@ Bun.serve({
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
 
-keepWatchingArrivals({
-	activeMemberIDs: () => activeMemberIDsOf(client, companyID),
-	credentialOf: (memberID) => credentials.credentialOf(memberID),
-	askChatd: (capability, body) => dispatch.askChatd(capability, body),
-	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
-	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
-	report: (line) => console.log(line)
-});
+void keepWatchingArrivals(arrivalWatchers, (milliseconds, renew) => setTimeout(() => void renew(), milliseconds));
 
 // Whatever the last relay took and had not delivered is still on disk.
 inboundTurns.startDraining();
