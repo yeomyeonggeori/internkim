@@ -269,10 +269,14 @@ func buildBrewBunPrograms(repositoryRootPath string, libraryPath string, output 
 
 // The messenger is built by tools/prepare-buzz-relay from a pinned upstream
 // revision, on this Mac rather than in a container. A keg for an architecture
-// that artifact does not cover is refused rather than shipped without a
-// messenger.
+// that artifact does not cover, or whose artifact was built at a revision this
+// tree no longer builds, is refused rather than shipped without the messenger
+// this tree describes.
 func copyBrewMessengerPrograms(repositoryRootPath string, libraryPath string, output io.Writer) error {
-	for _, name := range []string{blueclaw.BuzzRelayName, blueclaw.BuzzAdminName} {
+	if errorValue := requireMessengerRevision(repositoryRootPath, brewMessengerArtifactPath, "darwin-arm64"); errorValue != nil {
+		return errorValue
+	}
+	for _, name := range messengerProgramNames {
 		sourcePath := filepath.Join(repositoryRootPath, brewMessengerArtifactPath, name)
 		if errorValue := requireMachOArm64(sourcePath, name); errorValue != nil {
 			return errorValue

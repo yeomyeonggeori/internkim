@@ -279,7 +279,10 @@ func packagedBunPrograms() []packagedBunProgram {
 }
 
 func buildPackagedPrograms(repositoryRootPath string, target packageTarget, version string, stagingPath string, output io.Writer) ([]packagedFile, error) {
-	packaged := []packagedFile{}
+	packaged, errorValue := messengerPrograms(repositoryRootPath, target)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	for _, program := range packagedGoPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
 		if errorValue := crossCompilePackagedProgram(repositoryRootPath, program, target, version, builtPath); errorValue != nil {
@@ -304,11 +307,6 @@ func buildPackagedPrograms(repositoryRootPath string, target packageTarget, vers
 			Mode:        0o755,
 		})
 	}
-	messenger, errorValue := messengerPrograms(repositoryRootPath, target)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	packaged = append(packaged, messenger...)
 	vendored, errorValue := vendoredPrograms(repositoryRootPath, target, stagingPath, output)
 	if errorValue != nil {
 		return nil, errorValue
@@ -361,12 +359,17 @@ func compilePackagedBunProgram(repositoryRootPath string, program packagedBunPro
 // The messenger is built by tools/prepare-buzz-relay from a pinned upstream revision
 // and lands in a directory per architecture, which blueclaw.BuzzRelayArtifactPathFor
 // names. The package carries those files; it does not build Rust. A package for an
-// architecture whose directory is missing or holds another one's binaries is refused
-// rather than shipped without a messenger.
+// architecture whose directory is missing, holds another one's binaries, or holds
+// binaries built at a revision this tree no longer builds is refused rather than
+// shipped without the messenger this tree describes.
 func messengerPrograms(repositoryRootPath string, target packageTarget) ([]packagedFile, error) {
+	artifactDirectory := blueclaw.BuzzRelayArtifactPathFor(target.Architecture)
+	if errorValue := requireMessengerRevision(repositoryRootPath, artifactDirectory, "linux-"+target.Architecture); errorValue != nil {
+		return nil, errorValue
+	}
 	packaged := []packagedFile{}
-	for _, name := range []string{blueclaw.BuzzRelayName, blueclaw.BuzzAdminName} {
-		sourcePath := filepath.Join(repositoryRootPath, blueclaw.BuzzRelayArtifactPathFor(target.Architecture), name)
+	for _, name := range messengerProgramNames {
+		sourcePath := filepath.Join(repositoryRootPath, artifactDirectory, name)
 		if errorValue := requireMessengerBinary(sourcePath, name, target); errorValue != nil {
 			return nil, errorValue
 		}
