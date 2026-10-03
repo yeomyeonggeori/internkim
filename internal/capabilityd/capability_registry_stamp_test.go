@@ -9,11 +9,10 @@ import (
 	"testing"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
-	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func TestTheLiveRegistryServesTheToolsTheStampedContractNames(t *testing.T) {
-	stampedContractDescriptors := roundTrippedDescriptors(t, blueclawruntime.CurrentCapabilityContract().ToolDescriptors)
+	stampedContractDescriptors := roundTrippedDescriptors(t, capabilities.DefaultToolDescriptors())
 	servedDescriptors := capabilities.RegistryDescriptors(servedCapabilityRegistry(t))
 
 	stampedNames, servedNames := sortedToolNames(stampedContractDescriptors), sortedToolNames(servedDescriptors)
