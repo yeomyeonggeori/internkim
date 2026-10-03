@@ -1,0 +1,12 @@
+[
+  {
+    "name": "weekly-report",
+    "text": "이샘플 팀의 이번 주 업무 보고서를 docx 문서로 만들어 주세요. 담당자는 박예시, 검토자는 최견본입니다."
+  },
+  {
+    "name": "summarize-notes",
+    "text": "첨부한 회의 메모를 한 장짜리 pdf 요약으로 만들어 주세요. 회신은 sample@example.com 으로 보내 주세요.",
+    "attachments": ["sample-notes.txt"],
+    "timeoutSeconds": 900
+  }
+]
