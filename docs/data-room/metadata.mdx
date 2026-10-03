@@ -7,10 +7,14 @@ date. `categoryCode` names a category without children or `X`. Optional fields
 include counterpart, covered period, tags, status and the document it supersedes.
 A replacement preserves earlier documents.
 
-`sha256` identifies the original bytes. `storagePath` identifies the original
-in the private asset bucket. Derived `content.txt` provides its text preview.
-The original remains unchanged; a standalone tree stores metadata in its
-`<file>.md` sidecar and generates catalogs from those labels.
+`sha256` identifies the original bytes. `storagePath` is where the original
+sits in the private asset bucket:
+`<company>/dataroom/<parent>/<category>/<name>.<documentID>.<extension>`, or
+directly under the parent for a category without children. A derived file sits
+beside it as `<name>.<documentID>.<file>`, so `content.txt`, the text preview,
+shares the document's identifier with the original. Reclassifying a document
+moves its files. The original remains unchanged; a standalone tree stores
+metadata in its `<file>.md` sidecar and generates catalogs from those labels.
 
 Write a summary that states the document's facts, amounts and dates. Review
 extraction warnings when OCR, transcription or a format converter is unavailable.

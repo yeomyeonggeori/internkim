@@ -403,5 +403,40 @@
 		"path": "company_document_upload.input.clearance",
 		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
 		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_register.input.storagePath",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_update.input.storagePath",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_upload.input.categoryCode",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_upload.input.sha256",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_upload.input.documentHint",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_download.input.storagePath",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_download.input.documentHint",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
 	}
 ]
