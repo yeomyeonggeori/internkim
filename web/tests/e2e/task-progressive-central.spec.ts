@@ -114,41 +114,145 @@ test('first task visit shows structure then real cards before directory completi
 		expect(saved.error).toBeNull();
 		expect(saved.data?.note).toBe('보드에 포함하지 않는 상세 메모');
 		expect(await taskParticipantIDsOf(id)).toEqual([member1ID]);
-		await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).not.toBeNull();
-		expect(await page.evaluate(() => JSON.parse(localStorage.getItem('internkim:task-snapshot:v1')!).state.completeness)).toBe('full');
+		await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-board-snapshots:v1'))).not.toBeNull();
+		expect(await page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).toBeNull();
 	} finally { releaseTasks(); releasePeople(); await removeTasks([id]); }
 });
 
-test('1501 historical rows keep the real board and its primary editor complete', async ({ page }) => {
+test('ordinary task editing avoids 1501 historical rows until relationships are requested', async ({ page }) => {
+	test.setTimeout(90_000);
 	const [id] = await seedTasks([{ title: '대량 이력 중 표시하는 업무', status: 'planned', participantIDs: [member1ID] }]);
 	const admin = centralPlaneAdminClient();
 	const historicalIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
+	const childTitle = '보드 밖의 오래된 완료 자녀';
+	const parentTitle = '보드 밖의 오래된 부모 후보';
+	let historyReads = 0;
+	page.on('request', request => { if (request.url().endsWith('/task_list/invoke')) historyReads++; });
+	let releaseHistory = () => {};
 	const readBoard = () => page.waitForResponse(response => response.url().endsWith('/task_board_get/invoke') && response.ok());
 	try {
+		const noted = await admin.from('task').update({ note: '일반 편집 뒤에도 유지하는 메모' }).eq('id', id);
+		if (noted.error) throw new Error(noted.error.message);
 		const initial = readBoard();
 		await signInToTheCentralPlane(page, '/example-co/task');
 		const before = (await (await initial).json()).result;
 		await expect(taskCard(page, id)).toBeVisible();
 		for (let offset = 0; offset < historicalIDs.length; offset += 500) {
-			const inserted = await admin.from('task').insert(historicalIDs.slice(offset, offset + 500).map(id => ({
-				id, company_id: exampleCompanyID, title: '보드 밖의 오래된 완료 업무', status: 'completed',
+			const inserted = await admin.from('task').insert(historicalIDs.slice(offset, offset + 500).map(historicalID => ({
+				id: historicalID, company_id: exampleCompanyID,
+				title: historicalID === historicalIDs[0] ? childTitle : historicalID === historicalIDs[1] ? parentTitle : '보드 밖의 오래된 완료 업무',
+				parent_task_id: historicalID === historicalIDs[0] ? id : null, status: 'completed',
 				starts_at: '2020-01-01T00:00:00Z', ends_at: '2020-01-02T00:00:00Z'
 			})));
 			if (inserted.error) throw new Error(inserted.error.message);
 		}
+		const participants = await admin.from('task_participant').insert(historicalIDs.slice(0, 2).map(taskID => ({ task_id: taskID, member_id: member1ID })));
+		if (participants.error) throw new Error(participants.error.message);
 		const next = readBoard();
 		await page.reload();
 		const after = (await (await next).json()).result;
 		expect(after.tasks.map((task: { taskID: string }) => task.taskID).sort()).toEqual(before.tasks.map((task: { taskID: string }) => task.taskID).sort());
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		await expect(taskCard(page, id).locator('[data-task-child-progress]')).toContainText('1/1');
 		await openTaskCard(page, id);
-		await expect(taskSheet(page).getByRole('button', { name: '업무 수정' })).toBeEnabled();
-		await taskSheet(page).getByRole('button', { name: '업무 수정' }).click();
-		await expect(taskSheet(page).getByPlaceholder('업무 내용')).toHaveValue('대량 이력 중 표시하는 업무');
+		const sheet = taskSheet(page);
+		await expect(sheet.getByRole('button', { name: '업무 수정' })).toBeEnabled();
+		await expect(sheet.getByRole('button', { name: '업무 관계', exact: true })).toBeVisible();
+		await sheet.getByRole('button', { name: '업무 수정' }).click();
+		await sheet.getByPlaceholder('업무 내용').fill('전체 이력을 읽지 않고 저장한 업무');
+		const saving = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
+		await sheet.getByRole('button', { name: '업무 저장' }).click();
+		expect((await saving).ok()).toBe(true);
+		await expect(sheet).not.toBeVisible();
+		await expect(taskCard(page, id)).toContainText('전체 이력을 읽지 않고 저장한 업무');
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		expect(historyReads).toBe(0);
+		expect(await taskParticipantIDsOf(id)).toEqual([member1ID]);
+		const saved = await admin.from('task').select('note').eq('id', id).single();
+		expect(saved.error).toBeNull();
+		expect(saved.data?.note).toBe('일반 편집 뒤에도 유지하는 메모');
+		expect(await page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).toBeNull();
+		await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-board-snapshots:v1'))).not.toBeNull();
+		await openTaskCard(page, id);
+		await sheet.getByRole('button', { name: '업무 수정' }).click();
+		const historyGate = new Promise<void>(resolve => { releaseHistory = resolve; });
+		await page.route('**/task_list/invoke', async route => { await historyGate; await route.continue(); });
+		const historyResponse = page.waitForResponse(response => response.url().endsWith('/task_list/invoke') && response.ok());
+		await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+		await expect.poll(() => historyReads).toBe(1);
+		await expect(sheet.locator('[data-task-relationships]')).toHaveCount(0);
+		await expect(sheet.getByPlaceholder('업무 내용')).toBeEditable();
+		releaseHistory();
+		const historyBody = await (await historyResponse).text();
+		const historicalTasks: { taskID: string }[] = JSON.parse(historyBody).result.tasks;
+		expect(historicalIDs.every(historicalID => historicalTasks.some(task => task.taskID === historicalID))).toBe(true);
+		await expect(sheet.locator(`[data-task-relationship-task="${historicalIDs[0]}"]`)).toBeVisible();
+		await expect(sheet.getByLabel('자녀 업무 1 / 1 완료, 100%', { exact: true })).toBeVisible();
+		await expect.poll(() => page.evaluate(() => localStorage.getItem('internkim:task-snapshot:v1'))).not.toBeNull();
+		expect(historyReads).toBe(1);
+		console.log(JSON.stringify({ ordinaryOpenEditSaveHistoryReads: 0, relationshipDemandHistoryReads: historyReads, historyRows: historicalTasks.length, historyJSONBytes: Buffer.byteLength(historyBody), historicalFixtureRows: historicalIDs.length }));
+		await sheet.getByRole('button', { name: '부모 업무 추가' }).click();
+		const selector = page.getByRole('dialog', { name: '부모 업무', exact: true });
+		await selector.getByPlaceholder('부모 업무 검색').fill(childTitle);
+		await expect(selector.getByRole('option', { name: new RegExp(childTitle) })).toHaveCount(0);
+		await selector.getByPlaceholder('부모 업무 검색').fill(parentTitle);
+		await selector.getByRole('option', { name: new RegExp(parentTitle) }).click();
+		await expect(selector).not.toBeVisible();
+		await expect(sheet.locator(`[data-task-relationship-task="${historicalIDs[1]}"]`)).toBeVisible();
+		const attached = await admin.from('task').select('parent_task_id').eq('id', id).single();
+		expect(attached.error).toBeNull();
+		expect(attached.data?.parent_task_id).toBe(historicalIDs[1]);
 	} finally {
+		releaseHistory();
 		for (let offset = 0; offset < historicalIDs.length; offset += 100) await removeTasks(historicalIDs.slice(offset, offset + 100));
 		await removeTasks([id]);
 	}
+});
+
+test('initial and retained relationship failures retry without replacing the editable draft', async ({ page }) => {
+	const parentTitle = '관계 재시도에 사용하는 부모 업무';
+	const [id, parentID] = await seedTasks([
+		{ title: '관계 재시도 중 유지하는 업무', status: 'planned', participantIDs: [member1ID] },
+		{ title: parentTitle, status: 'planned', participantIDs: [member1ID] }
+	]);
+	let historyReads = 0;
+	try {
+		await signInToTheCentralPlane(page, '/example-co/task');
+		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+		await openTaskCard(page, id);
+		const sheet = taskSheet(page);
+		await sheet.getByRole('button', { name: '업무 수정' }).click();
+		await sheet.getByPlaceholder('업무 내용').fill('재시도 뒤에도 남아 있는 수정');
+		await page.route('**/task_list/invoke', async route => {
+			historyReads++;
+			if (historyReads === 1 || historyReads === 3) await route.fulfill({ status: 503, json: { error: 'Temporarily unavailable' } });
+			else await route.continue();
+		});
+		await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+		await expect(sheet.getByRole('status')).toContainText('Temporarily unavailable');
+		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await sheet.getByRole('button', { name: '다시 불러오기', exact: true }).click();
+		await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
+		expect(historyReads).toBe(2);
+		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await sheet.getByRole('button', { name: '부모 업무 추가' }).click();
+		const selector = page.getByRole('dialog', { name: '부모 업무', exact: true });
+		await selector.getByPlaceholder('부모 업무 검색').fill(parentTitle);
+		const saved = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
+		await selector.getByRole('option', { name: new RegExp(parentTitle) }).click();
+		expect((await saved).ok()).toBe(true);
+		await expect(selector).not.toBeVisible();
+		await expect(sheet.getByRole('status')).toContainText('Temporarily unavailable');
+		await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
+		await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toHaveCount(0);
+		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		await sheet.getByRole('button', { name: '다시 불러오기', exact: true }).click();
+		await expect(sheet.getByRole('button', { name: '자녀 업무 추가' })).toBeEnabled();
+		await expect(sheet.getByPlaceholder('업무 내용')).toHaveValue('재시도 뒤에도 남아 있는 수정');
+		const attached = await centralPlaneAdminClient().from('task').select('parent_task_id').eq('id', id).single();
+		expect(attached.error).toBeNull();
+		expect(attached.data?.parent_task_id).toBe(parentID);
+	} finally { await removeTasks([id, parentID]); }
 });
 
 test('directory denial wins over a later task preview and cannot reappear on revisit', async ({ page }) => {

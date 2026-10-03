@@ -65,8 +65,9 @@ Opening a task board starts `task_board_get` and `person_list` together. The
 board reads visible status/date ranges and direct-child progress without the
 company's complete history. Board snapshots are distinct from complete states
 and keyed by account and week. List, report and member views request complete
-history on demand; basic editing can open from a card while relationship data
-loads separately. Secondary panes load their JavaScript on first use. A saved complete task snapshot is
+history on demand. Opening and editing a card uses the board data; choosing
+Task relationships requests the complete graph for progress, search and cycle
+checks. Secondary panes load their JavaScript on first use. A saved complete task snapshot is
 scoped to the project, company, member and role, expires after 24 hours, and is
 revalidated. Writes, logout and denied access invalidate it; a response started
 before invalidation cannot restore the old snapshot.

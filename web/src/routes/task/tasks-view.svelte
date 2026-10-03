@@ -35,15 +35,8 @@
 
 	const page = createTasksController();
 	let taskViewTab = $state('board');
-	let requestedRelationshipsFor = '';
 	$effect(() => {
 		if (taskViewTab === 'list') untrack(() => { void ensureFullState(); });
-	});
-	$effect(() => {
-		const taskID = page.editor.taskDraft?.id ?? '';
-		if (taskID === requestedRelationshipsFor) return;
-		requestedRelationshipsFor = taskID;
-		if (taskID) untrack(() => { void ensureFullState(); });
 	});
 	$effect(() => {
 		const nextSummary = summary;
@@ -212,9 +205,10 @@
 	setTaskParent={page.setTaskParent}
 	setTaskParents={page.setTaskParents}
 	createChildTask={page.createChildTask}
+	hasRelationshipData={summary?.completeness === 'full'}
 	relationshipsReady={summary?.completeness === 'full' && !isHistoryLoading && !isLoading}
 	relationshipsLoadingLabel={text.loadingHistory}
 	relationshipsError={historyError}
 	relationshipsRetryLabel={text.retryHistory}
-	retryRelationships={ensureFullState}
+	loadRelationships={ensureFullState}
 />
