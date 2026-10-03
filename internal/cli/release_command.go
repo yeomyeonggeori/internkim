@@ -16,7 +16,7 @@ type releaseSubcommand struct {
 
 var releaseSubcommands = []releaseSubcommand{
 	{name: "packages", summary: "Build the release directory without publishing it: deb, rpm and archlinux packages, the Homebrew bottle and formula, and their SHA256SUMS", flags: []string{"--format", "--architecture", "--out", "--version"}, run: runReleasePackages},
-	{name: "host", summary: "Build the company host for Linux and Apple-silicon Macs and publish it as a GitHub Release on the stable or testing channel; stable also gives the Homebrew tap its formula", flags: []string{"--channel"}, run: runReleaseHost},
+	{name: "host", summary: "Build the company host for Linux and Apple-silicon Macs and publish it as a GitHub Release on the stable or testing channel; stable also gives the Homebrew tap its formula; --channel stable --version <tag> promotes a tested release without building", flags: []string{"--channel", "--version"}, run: runReleaseHost},
 }
 
 func runRelease() {

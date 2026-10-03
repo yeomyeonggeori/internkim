@@ -44,6 +44,9 @@ func runReleaseHost(arguments []string) error {
 	if channel != stableChannel && channel != testingChannel {
 		return fmt.Errorf("release host --channel takes %s or %s", stableChannel, testingChannel)
 	}
+	if tag := commandArgumentValue(arguments, "--version", ""); tag != "" {
+		return promoteNamedHostRelease(tag, channel, os.Stdout)
+	}
 	repositoryRootPath, errorValue := resolveRepositoryRootPath()
 	if errorValue != nil {
 		return errorValue
@@ -141,6 +144,24 @@ func promoteHostRelease(release gitHubRelease, channel string, output io.Writer)
 		fmt.Fprintf(output, "promoted %s from testing to stable\n", release.TagName)
 	}
 	return publishFormulaToTap(release.TagName, output)
+}
+
+// promoteNamedHostRelease makes the release that was tested stable, named by
+// its tag rather than by this checkout's HEAD: nothing is built, so the tree
+// has nothing to prove, and main moving on after the test does not change
+// which bytes were tested.
+func promoteNamedHostRelease(tag string, channel string, output io.Writer) error {
+	if channel != stableChannel {
+		return fmt.Errorf("release host --version names a tested release to make %s; a new %s release is built from a new commit on main", stableChannel, testingChannel)
+	}
+	release, isPublished, errorValue := publishedHostRelease(tag)
+	if errorValue != nil {
+		return errorValue
+	}
+	if !isPublished {
+		return fmt.Errorf("%s has no release on %s to promote", tag, hostReleaseRepository)
+	}
+	return promoteHostRelease(release, channel, output)
 }
 
 func releasedChannel(release gitHubRelease) string {
