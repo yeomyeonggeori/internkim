@@ -37,17 +37,6 @@
       ]
     },
     {
-      "name": "asset_clearance",
-      "arguments": "object_name text",
-      "returns": "smallint",
-      "security": "invoker",
-      "callableBy": [
-        "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
       "name": "asset_company",
       "arguments": "object_name text",
       "returns": "uuid",
@@ -63,6 +52,28 @@
       "arguments": "object_name text",
       "returns": "boolean",
       "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_is_own_upload",
+      "arguments": "object_name text",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_is_transfer_copy",
+      "arguments": "object_name text",
+      "returns": "boolean",
+      "security": "invoker",
       "callableBy": [
         "anon",
         "authenticated",
@@ -306,6 +317,17 @@
       ]
     },
     {
+      "name": "company_of_messenger_address",
+      "arguments": "address_slug text",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "company_of_task",
       "arguments": "target_task uuid",
       "returns": "uuid",
@@ -428,6 +450,35 @@
       ]
     },
     {
+      "name": "data_room_link_create",
+      "arguments": "target_company uuid, role_code text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_link_revoke",
+      "arguments": "target_link uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_link_unlock",
+      "arguments": "target_link uuid, access_code text, notice_version text, client_fingerprint text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "data_room_may_read",
       "arguments": "target_company uuid, target_category text, download boolean DEFAULT false",
       "returns": "boolean",
@@ -445,6 +496,16 @@
       "security": "definer",
       "callableBy": [
         "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_member_roles_set",
+      "arguments": "target_company uuid, target_member uuid, role_codes text[]",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
         "authenticated",
         "service_role"
       ]
@@ -501,6 +562,16 @@
       ]
     },
     {
+      "name": "data_room_shareable_roles",
+      "arguments": "target_company uuid, download boolean DEFAULT false",
+      "returns": "text[]",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "data_room_visible_category",
       "arguments": "target_company uuid, target_category text",
       "returns": "boolean",
@@ -526,6 +597,16 @@
       "returns": "void",
       "security": "definer",
       "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "expired_transfer_copies",
+      "arguments": "kept_days integer",
+      "returns": "SETOF text",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
         "service_role"
       ]
     },
@@ -684,16 +765,6 @@
       ]
     },
     {
-      "name": "member_is_below_me",
-      "arguments": "target_member uuid",
-      "returns": "boolean",
-      "security": "definer",
-      "callableBy": [
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
       "name": "member_leave_days",
       "arguments": "target_member uuid",
       "returns": "numeric",
@@ -828,19 +899,9 @@
       "name": "my_app_company",
       "arguments": "",
       "returns": "uuid",
-      "security": "invoker",
-      "callableBy": [
-        "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "my_clearance",
-      "arguments": "",
-      "returns": "smallint",
       "security": "definer",
       "callableBy": [
+        "anon",
         "authenticated",
         "service_role"
       ]
@@ -1163,13 +1224,11 @@
   ],
   "triggerFunctions": [
     "abandon_the_profile_image",
-    "administrator_starts_at_full_clearance",
     "announce_task_write",
     "bind_member_to_new_user",
     "data_room_guard_category",
     "data_room_guard_document",
     "derive_task_status_from_dates",
-    "document_is_lowered_only_from_its_own_clearance",
     "enforce_crm_reference_consistency",
     "follow_children_completion",
     "guard_task_authority_shape",

@@ -7,7 +7,7 @@ const document = companyDocumentResultSchema.parse({
 	documentID: '63000000-0000-0000-0000-000000000020', documentNumber: null,
 	kind: 'document', documentType: 'report', title: 'Sample statement', counterpart: null,
 	language: null, filePath: null, summary: null, requesterID: null, issuedAt: '2026-10-02',
-	categoryCode: 'FS', clearance: 0, domain: null, date: null, period: null, status: null,
+	categoryCode: 'FS', date: null, period: null, status: null,
 	supersedes: null, sha256: null, tags: [], published: null,
 	storagePath: 'company/dataroom/F/FS/statement.63000000-0000-0000-0000-000000000020.pdf'
 });

@@ -5,7 +5,6 @@ type NamedPerson = Partial<RecordPerson> & { personID: string; name: string; ema
 export function personInTheDirectory(person: NamedPerson): RecordPerson {
 	return {
 		isAdmin: false,
-		clearance: 1,
 		employmentStatus: 'active',
 		jobTitle: '',
 		teamID: '',

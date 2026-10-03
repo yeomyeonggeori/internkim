@@ -6,7 +6,6 @@ import {
 	asMember,
 	controlPlane,
 	inviteMember,
-	isAboveCaller,
 	promoteToAdministrator,
 	planeCredentialsOf
 } from '$lib/server/control-plane';
@@ -34,9 +33,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
 	const client = controlPlane(plane);
 	const memberID = await memberAddedAt(client, caller.companyID, email, { name });
-	if (await isAboveCaller(callerClient, caller.memberID, memberID)) {
-		error(403, 'an administrator invites nobody above their own clearance');
-	}
 	if (body.isAdmin === true) await promoteToAdministrator(callerClient, memberID);
 	const invitation = await inviteMember(client, memberID);
 	return json(invitation);

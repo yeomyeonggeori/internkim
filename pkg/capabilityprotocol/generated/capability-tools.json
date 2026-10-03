@@ -2892,11 +2892,6 @@
             "items": {
               "additionalProperties": false,
               "properties": {
-                "clearance": {
-                  "maximum": 3,
-                  "minimum": 1,
-                  "type": "integer"
-                },
                 "email": {
                   "type": "string"
                 },
@@ -2980,11 +2975,6 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
-                  "clearance": {
-                    "maximum": 3,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
                   "email": {
                     "type": "string"
                   },
@@ -3063,7 +3053,7 @@
         "state": "ok"
       },
       "canonicalName": "person_update",
-      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, the data room clearance they read at, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or a clearance, or marking somebody departed; all are wide changes somebody has to mean.",
+      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3074,12 +3064,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "clearance": {
-            "description": "The highest data room clearance the person reads, 1 to 3. Only an administrator sets it, for people below their own, up to their own.",
-            "maximum": 3,
-            "minimum": 1,
-            "type": "integer"
-          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -3130,12 +3114,6 @@
         "additionalProperties": false,
         "minProperties": 2,
         "properties": {
-          "clearance": {
-            "description": "The highest data room clearance the person reads, 1 to 3. Only an administrator sets it, for people below their own, up to their own.",
-            "maximum": 3,
-            "minimum": 1,
-            "type": "integer"
-          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -3201,11 +3179,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "clearance": {
-            "maximum": 3,
-            "minimum": 1,
-            "type": "integer"
-          },
           "email": {
             "type": "string"
           },
@@ -3276,11 +3249,6 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "clearance": {
-              "maximum": 3,
-              "minimum": 1,
-              "type": "integer"
-            },
             "email": {
               "type": "string"
             },
@@ -11370,7 +11338,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_list",
-      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility; legacy documents retain clearance access. Use to answer 'what quotes did we send to X'.",
+      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility. Use to answer 'what quotes did we send to X'.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -11386,18 +11354,8 @@
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
-          "clearance": {
-            "description": "Data room clearance to filter by, 0 to 3; only documents filed at exactly that clearance.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
-          },
           "counterpart": {
             "description": "Counterpart name to filter by, e.g. 'ABC Trading'.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "query": {
@@ -11432,19 +11390,7 @@
               "additionalProperties": false,
               "properties": {
                 "categoryCode": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "clearance": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "counterpart": {
                   "anyOf": [
@@ -11481,16 +11427,6 @@
                 },
                 "documentType": {
                   "type": "string"
-                },
-                "domain": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
                 },
                 "filePath": {
                   "anyOf": [
@@ -11652,8 +11588,6 @@
                 "requesterID",
                 "issuedAt",
                 "categoryCode",
-                "clearance",
-                "domain",
                 "date",
                 "period",
                 "status",
@@ -11694,19 +11628,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "categoryCode": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "clearance": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
+                    "type": "string"
                   },
                   "counterpart": {
                     "anyOf": [
@@ -11743,16 +11665,6 @@
                   },
                   "documentType": {
                     "type": "string"
-                  },
-                  "domain": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "filePath": {
                     "anyOf": [
@@ -11914,8 +11826,6 @@
                   "requesterID",
                   "issuedAt",
                   "categoryCode",
-                  "clearance",
-                  "domain",
                   "date",
                   "period",
                   "status",
@@ -11965,15 +11875,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
@@ -11985,10 +11889,6 @@
           },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -12024,7 +11924,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -12046,15 +11946,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
@@ -12066,10 +11960,6 @@
           },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -12105,7 +11995,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -12139,19 +12029,7 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "clearance": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+            "type": "string"
           },
           "counterpart": {
             "anyOf": [
@@ -12188,16 +12066,6 @@
           },
           "documentType": {
             "type": "string"
-          },
-          "domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "filePath": {
             "anyOf": [
@@ -12362,8 +12230,6 @@
           "requesterID",
           "issuedAt",
           "categoryCode",
-          "clearance",
-          "domain",
           "date",
           "period",
           "status",
@@ -12394,19 +12260,7 @@
           "additionalProperties": false,
           "properties": {
             "categoryCode": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "clearance": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
+              "type": "string"
             },
             "counterpart": {
               "anyOf": [
@@ -12443,16 +12297,6 @@
             },
             "documentType": {
               "type": "string"
-            },
-            "domain": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             },
             "filePath": {
               "anyOf": [
@@ -12617,8 +12461,6 @@
             "requesterID",
             "issuedAt",
             "categoryCode",
-            "clearance",
-            "domain",
             "date",
             "period",
             "status",
@@ -12691,19 +12533,7 @@
               "additionalProperties": false,
               "properties": {
                 "categoryCode": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "clearance": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "counterpart": {
                   "anyOf": [
@@ -12740,16 +12570,6 @@
                 },
                 "documentType": {
                   "type": "string"
-                },
-                "domain": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
                 },
                 "filePath": {
                   "anyOf": [
@@ -12911,8 +12731,6 @@
                 "requesterID",
                 "issuedAt",
                 "categoryCode",
-                "clearance",
-                "domain",
                 "date",
                 "period",
                 "status",
@@ -12953,19 +12771,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "categoryCode": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "clearance": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
+                    "type": "string"
                   },
                   "counterpart": {
                     "anyOf": [
@@ -13002,16 +12808,6 @@
                   },
                   "documentType": {
                     "type": "string"
-                  },
-                  "domain": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "filePath": {
                     "anyOf": [
@@ -13173,8 +12969,6 @@
                   "requesterID",
                   "issuedAt",
                   "categoryCode",
-                  "clearance",
-                  "domain",
                   "date",
                   "period",
                   "status",
@@ -13207,7 +13001,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_update",
-      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access; legacy clearance rules still apply.",
+      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -13219,15 +13013,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Corrected counterpart. Omit to keep unchanged.",
@@ -13235,10 +13023,6 @@
           },
           "date": {
             "description": "The date the document speaks from, in YYYY-MM-DD format.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -13266,7 +13050,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -13288,15 +13072,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Corrected counterpart. Omit to keep unchanged.",
@@ -13308,10 +13086,6 @@
           },
           "documentHint": {
             "description": "The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -13339,7 +13113,7 @@
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -13371,19 +13145,7 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "clearance": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+            "type": "string"
           },
           "counterpart": {
             "anyOf": [
@@ -13420,16 +13182,6 @@
           },
           "documentType": {
             "type": "string"
-          },
-          "domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "filePath": {
             "anyOf": [
@@ -13591,8 +13343,6 @@
           "requesterID",
           "issuedAt",
           "categoryCode",
-          "clearance",
-          "domain",
           "date",
           "period",
           "status",
@@ -13622,19 +13372,7 @@
           "additionalProperties": false,
           "properties": {
             "categoryCode": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "clearance": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
+              "type": "string"
             },
             "counterpart": {
               "anyOf": [
@@ -13671,16 +13409,6 @@
             },
             "documentType": {
               "type": "string"
-            },
-            "domain": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             },
             "filePath": {
               "anyOf": [
@@ -13842,8 +13570,6 @@
             "requesterID",
             "issuedAt",
             "categoryCode",
-            "clearance",
-            "domain",
             "date",
             "period",
             "status",
@@ -13883,12 +13609,6 @@
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
-          "clearance": {
-            "description": "Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
-          },
           "fileName": {
             "description": "Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.",
             "type": "string"
@@ -13908,12 +13628,6 @@
             "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "fileName": {
             "description": "Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.",
@@ -13988,7 +13702,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_download",
-      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Legacy documents retain clearance rules. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,

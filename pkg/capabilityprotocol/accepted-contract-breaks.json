@@ -363,5 +363,45 @@
 		"path": "artifact_review.input.artifactKind",
 		"reason": "With managed websites removed there is no site to review, so artifact_review no longer offers the 'site' kind. Only the company computer's own capabilityd answers artifact_review, and it ships in the same release as this catalog.",
 		"release": "the release cut after this change merges, which drops the descriptors and the capabilityd and admind handlers together"
+	},
+	{
+		"path": "person_update.input.clearance",
+		"reason": "Clearance is retired. A person reads the data room categories their roles grant.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_list.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_list.input.domain",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_register.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_register.input.domain",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_update.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_update.input.domain",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_upload.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
 	}
 ]

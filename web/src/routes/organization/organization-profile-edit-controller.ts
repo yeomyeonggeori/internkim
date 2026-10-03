@@ -1,10 +1,8 @@
-import type { OrgProfileUpdate } from '$lib/organization/types';
 import { copyUserRecord, reconcileEditingRecords } from '../admin/organization-editing-records';
 import {
 	isOrgProfileChanged,
 	normalizeOrgProfileRecord,
 	orgProfileSnapshot,
-	orgProfileUpdate,
 	type OrgProfileSnapshot
 } from '../admin/organization-profile-model';
 import { isSupervisorCandidateForRecord } from '../admin/organization-tree';
@@ -60,10 +58,4 @@ export function clearOrganizationProfileSaving(savingProfileUserIDs: Organizatio
 
 export function hasInvalidOrganizationSupervisor(records: UserRecord[], record: UserRecord): boolean {
 	return !isSupervisorCandidateForRecord(records, record);
-}
-
-export function organizationProfileSavePayload(record: UserRecord, originalProfiles: Record<string, OrgProfileSnapshot> = {}): OrgProfileUpdate {
-	const payload = orgProfileUpdate(record);
-	if (record.clearance === undefined || record.clearance === originalProfiles[record.memberID]?.clearance) return payload;
-	return { ...payload, clearance: record.clearance };
 }

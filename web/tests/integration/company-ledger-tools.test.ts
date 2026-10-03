@@ -316,10 +316,10 @@ describe('the category data room', () => {
 		expect(resultOf(listed).links).toEqual(expect.arrayContaining([expect.objectContaining({ id: linkID })]));
 		const revoked = await asSample('dataroom_link_delete', { linkID });
 		expect(revoked.status).toBe(200);
-		const cleared = await asAdmin('dataroom_member_update', {
-			memberID: sampleID, roleCodes: []
+		const restored = await asAdmin('dataroom_member_update', {
+			memberID: sampleID, roleCodes: ['employee']
 		});
-		expect(cleared.status).toBe(200);
+		expect(restored.status).toBe(200);
 	});
 	test('starts with the default template and assigns live scopes through a custom role', async () => {
 		const initial = await asAdmin('dataroom_get');
@@ -363,7 +363,6 @@ describe('the document ledger', () => {
 		const registered = await asSample('company_document_register', {
 			documentType: 'quote',
 			title: 'ABC Trading onboarding consulting quote',
-			clearance: 1,
 			counterpart: 'ABC Trading',
 			language: 'ko',
 			summary: 'A quote for onboarding consulting, 12,000,000 KRW, payable within 30 days of delivery.'
@@ -381,7 +380,7 @@ describe('the document ledger', () => {
 		const second = await asAdmin('company_document_register', {
 			documentType: 'quote',
 			title: 'BCD Manufacturing quote',
-			clearance: 1,
+			categoryCode: 'SS',
 			counterpart: 'BCD Manufacturing',
 			summary: 'A quote for a second engagement.'
 		});
@@ -404,7 +403,7 @@ describe('the document ledger', () => {
 			kind: 'received',
 			documentType: 'award-certificate',
 			title: 'Excellence award certificate',
-			clearance: 1,
+			categoryCode: 'GP',
 			counterpart: 'The Ministry',
 			summary: 'The certificate naming the reason the award was given.'
 		});
@@ -414,7 +413,7 @@ describe('the document ledger', () => {
 	});
 
 	test('is listed newest first and filtered by type and counterpart', async () => {
-		const quotes = await asSample('company_document_list', { type: 'quote' });
+		const quotes = await asAdmin('company_document_list', { type: 'quote' });
 		const counterpart = await asSample('company_document_list', { counterpart: 'abc trading' });
 
 		expect(resultOf(quotes).count).toBe(2);
@@ -460,27 +459,25 @@ describe('the data room', () => {
 	const digest = 'a'.repeat(64);
 	let statementID = '';
 
-	test('refuses a member filing above their own clearance', async () => {
+	test('refuses a member filing in a category their roles do not read', async () => {
 		const refused = await asSample('company_document_register', {
 			kind: 'internal',
 			documentType: 'financial-statement',
 			title: '2025 financial statement',
 			summary: 'The audited statement for 2025.',
-			domain: '03-finance',
-			clearance: 2
+			categoryCode: 'FS'
 		});
 
 		expect(refused.status).toBe(403);
 	});
 
-	test('files a document at its domain clearance with the frontmatter the standard names', async () => {
+	test('files a document in a category with the frontmatter the standard names', async () => {
 		const registered = await asAdmin('company_document_register', {
 			kind: 'internal',
 			documentType: 'financial-statement',
 			title: '2025 financial statement',
 			summary: 'The audited statement for 2025.',
-			domain: '03-finance',
-			clearance: 2,
+			categoryCode: 'FS',
 			date: '2026-03-31',
 			period: '2025',
 			status: 'current',
@@ -489,29 +486,27 @@ describe('the data room', () => {
 		});
 
 		expect(registered.status).toBe(200);
-		expect(resultOf(registered).clearance).toBe(2);
-		expect(resultOf(registered).domain).toBe('03-finance');
+		expect(resultOf(registered).categoryCode).toBe('FS');
 		expect(resultOf(registered).tags).toEqual(['audit', 'annual']);
 		expect(resultOf(registered).published).toBeNull();
 		statementID = resultOf(registered).documentID as string;
 	});
 
-	test('does not exist for a member below its clearance', async () => {
-		const forSample = await asSample('company_document_list', { domain: '03-finance' });
-		const forAdmin = await asAdmin('company_document_list', { domain: '03-finance', clearance: 2 });
+	test('does not exist for a member whose roles do not read its category', async () => {
+		const forSample = await asSample('company_document_list', { categoryCode: 'FS' });
+		const forAdmin = await asAdmin('company_document_list', { categoryCode: 'FS' });
 
 		expect(resultOf(forSample).count).toBe(0);
 		expect(resultOf(forAdmin).count).toBe(1);
 	});
 
-	test('is superseded by a document in the same domain, never overwritten', async () => {
+	test('is superseded by a document in the same category, never overwritten', async () => {
 		const restated = await asAdmin('company_document_register', {
 			kind: 'internal',
 			documentType: 'financial-statement',
 			title: '2025 financial statement, restated',
 			summary: 'The 2025 statement restated after the audit adjustment.',
-			domain: '03-finance',
-			clearance: 2,
+			categoryCode: 'FS',
 			supersedesHint: '2025 financial statement'
 		});
 
@@ -519,18 +514,18 @@ describe('the data room', () => {
 		expect(resultOf(restated).supersedes).toBe(statementID);
 	});
 
-	test('signs an upload at the requester clearance and refuses one above it', async () => {
-		const allowed = await asSample('company_document_upload', { clearance: 1, sha256: digest });
-		const refused = await asSample('company_document_upload', { clearance: 2, sha256: digest });
+	test('signs an upload into a category the member reads and refuses one they do not', async () => {
+		const signed = await asSample('company_document_upload', { categoryCode: 'PO', sha256: digest });
+		const refused = await asSample('company_document_upload', { categoryCode: 'FS', sha256: digest });
 
-		expect(allowed.status).toBe(200);
-		expect(resultOf(allowed).storagePath).toBe(`${companyID}/dataroom/1/${digest}`);
-		expect(String(resultOf(allowed).uploadURL)).toContain('/upload/sign/');
+		expect(signed.status).toBe(200);
+		expect(resultOf(signed).storagePath).toBe(`${companyID}/dataroom/PO/${digest}`);
+		expect(String(resultOf(signed).uploadURL)).toContain('/upload/sign/');
 		expect(refused.status).toBeGreaterThanOrEqual(400);
 	});
 
 	test('hands the stored file back through a signed download named by the document', async () => {
-		const signed = await asSample('company_document_upload', { clearance: 1, sha256: digest, fileName: 'text.md' });
+		const signed = await asSample('company_document_upload', { categoryCode: 'PO', sha256: digest, fileName: 'text.md' });
 		const put = await fetch(String(resultOf(signed).uploadURL), {
 			method: 'PUT',
 			headers: { 'content-type': 'text/markdown' },
@@ -543,10 +538,9 @@ describe('the data room', () => {
 			documentType: 'product-brief',
 			title: 'internkim product brief',
 			summary: 'What internkim is, for a member who asks.',
-			domain: '08-product',
-			clearance: 1,
+			categoryCode: 'PO',
 			sha256: digest,
-			storagePath: `${companyID}/dataroom/1/${digest}`
+			storagePath: `${companyID}/dataroom/PO/${digest}`
 		});
 		const download = await asSample('company_document_download', {
 			documentHint: resultOf(registered).documentID,
@@ -554,7 +548,7 @@ describe('the data room', () => {
 		});
 
 		expect(download.status).toBe(200);
-		expect(resultOf(download).storagePath).toBe(`${companyID}/dataroom/1/${digest}/text.md`);
+		expect(resultOf(download).storagePath).toBe(`${companyID}/dataroom/PO/${digest}/text.md`);
 		const fetched = await fetch(String(resultOf(download).downloadURL));
 		expect(await fetched.text()).toBe('# the derived text');
 	});
@@ -563,14 +557,5 @@ describe('the data room', () => {
 		const refused = await asSample('company_document_download', { documentHint: 'Q-2026-001' });
 
 		expect(refused.status).toBe(404);
-	});
-
-	test('reads the domain once an administrator raises the member clearance', async () => {
-		const raised = await asAdmin('person_update', { personHint: '이샘플', clearance: 2 });
-		expect(raised.status).toBe(200);
-		expect(resultOf(raised).clearance).toBe(2);
-
-		const forSample = await asSample('company_document_list', { domain: '03-finance' });
-		expect(resultOf(forSample).count).toBe(2);
 	});
 });

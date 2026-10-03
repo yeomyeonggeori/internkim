@@ -23,7 +23,6 @@ export type PersonUpdateInput = {
 	personHint?: string;
 	name?: string;
 	isAdmin?: boolean;
-	clearance?: number;
 	jobTitle?: string;
 	teamHint?: string;
 	supervisorHint?: string;
@@ -40,7 +39,7 @@ export type PersonInviteInput = {
 };
 
 export type PersonUpdateHomes = {
-	account: Record<string, string | boolean | number>;
+	account: Record<string, string | boolean>;
 	organization: Record<string, string>;
 };
 
@@ -48,10 +47,9 @@ export function homesOfPersonUpdate(
 	input: PersonUpdateInput,
 	resolved: { teamID?: string; supervisorID?: string }
 ): PersonUpdateHomes {
-	const account: Record<string, string | boolean | number> = {};
+	const account: Record<string, string | boolean> = {};
 	if (input.name !== undefined) account.name = input.name;
 	if (input.isAdmin !== undefined) account.isAdmin = input.isAdmin;
-	if (input.clearance !== undefined) account.clearance = input.clearance;
 
 	const organization: Record<string, string> = {};
 	if (input.jobTitle !== undefined) organization.jobTitle = input.jobTitle;
@@ -80,7 +78,6 @@ export function answeredPerson(
 		name: displayName,
 		email: person.email,
 		isAdmin: person.isAdmin,
-		clearance: person.clearance,
 		employmentStatus: person.employmentStatus,
 		...(mention ? { mention } : {}),
 		...(handle ? { handle } : {}),

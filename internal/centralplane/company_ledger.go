@@ -49,9 +49,7 @@ type CompanyDocument struct {
 	Summary        string                    `json:"summary"`
 	RequesterID    string                    `json:"requesterID"`
 	IssuedAt       string                    `json:"issuedAt"`
-	Clearance      int                       `json:"clearance"`
 	CategoryCode   string                    `json:"categoryCode"`
-	Domain         string                    `json:"domain"`
 	Date           string                    `json:"date"`
 	Period         string                    `json:"period"`
 	Status         string                    `json:"status"`

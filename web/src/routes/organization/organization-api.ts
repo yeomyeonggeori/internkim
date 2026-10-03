@@ -19,8 +19,7 @@ export async function saveOrganizationProfiles(profiles: OrgProfileUpdate[]): Pr
 			groupID: profile.groupID ?? '',
 			hireDate: profile.hireDate ?? '',
 			phoneNumber: profile.phoneNumber ?? '',
-			supervisorID: profile.supervisorID ?? '',
-			clearance: profile.clearance
+			supervisorID: profile.supervisorID ?? ''
 		}))
 	);
 }

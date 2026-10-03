@@ -5,7 +5,6 @@ export type RecordPerson = {
 	name: string;
 	email: string;
 	isAdmin?: boolean;
-	clearance?: number;
 	hireDate?: string;
 	timeZone?: string;
 };
