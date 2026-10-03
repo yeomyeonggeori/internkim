@@ -29,7 +29,6 @@ const address = 'https://space.example.test/api/v1';
 let companyID = '';
 let holdersToken = '';
 let readersToken = '';
-let holderID = '';
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -40,7 +39,6 @@ beforeAll(async () => {
 	companyID = provisioned.companyID;
 
 	const memberID = await addMember(client, companyID, `${slug}-holder@example.test`);
-	holderID = memberID;
 	const { data: account } = await client.auth.admin.createUser({
 		email: `${slug}-holder@example.test`,
 		email_confirm: true
@@ -226,8 +224,7 @@ async function aKeptServiceFile(name: string, categoryCode: string, date: string
 }
 
 describe('the company profile read over MCP', () => {
-	test('carries the profile as a file, with the newest seal the caller may read beside it', async () => {
-		await client.from('circle_member').insert({ company_id: companyID, circle_id: 'finance', member_id: holderID });
+	test('carries the profile as a file, with the newest seal and logo beside it, to a member no circle lets read their categories', async () => {
 		const older = await aKeptServiceFile('seal', 'CR', '2026-03-01', 'png', 'an older seal');
 		const sameDayFirst = await aKeptServiceFile('seal', 'CR', '2026-09-01', 'png', 'a seal replaced the same day');
 		const newest = await aKeptServiceFile('seal', 'CR', '2026-09-01', 'jpg', 'the newest seal');
@@ -247,13 +244,32 @@ describe('the company profile read over MCP', () => {
 			expect(answered.isError ?? false).toBe(false);
 			expect(profile.name).toBe('주식회사 예시');
 			expect(profile.sealImage).toBe('seal.jpg');
-			expect(profile.logoImage).toBe('');
+			expect(profile.logoImage).toBe('logo.png');
 			expect(atob(String(files.get('seal.jpg')?.blob))).toBe('the newest seal');
-			expect([...files.keys()].sort()).toEqual(['company-profile.json', 'seal.jpg']);
+			expect(atob(String(files.get('logo.png')?.blob))).toBe('a logo');
+			expect([...files.keys()].sort()).toEqual(['company-profile.json', 'logo.png', 'seal.jpg']);
 		} finally {
 			await connected.close();
 			await client.storage.from(assetBucket).remove([older, sameDayFirst, newest, logo]);
 		}
+	}, networkHookTimeout);
+
+	test('leaves the rest of the category hidden from that member', async () => {
+		const articlesID = crypto.randomUUID();
+		await client.from('company_document').insert({
+			id: articlesID, company_id: companyID, document_type: 'articles', title: 'Articles', category_code: 'CR',
+			storage_path: `${companyID}/dataroom/C/CR/articles.${articlesID}.pdf`
+		});
+
+		const seal = await aKeptServiceFile('seal', 'CR', '2026-10-04', 'png', 'a seal');
+
+		const listed = await invoke(holdersToken, 'company_document_list', { categoryCode: 'CR' });
+		const documents = (listed.body as { result: { documents: { storagePath: string | null }[] } }).result.documents;
+		await client.storage.from(assetBucket).remove([seal]);
+
+		expect(listed.status).toBe(200);
+		expect(documents.map((document) => document.storagePath)).toContain(seal);
+		expect(documents.some((document) => document.storagePath?.includes(articlesID))).toBe(false);
 	}, networkHookTimeout);
 
 	test('carries no file to a caller that does not keep them, nor for a tool that answers none', async () => {

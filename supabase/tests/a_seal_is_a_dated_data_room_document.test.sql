@@ -1,11 +1,12 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('55000000-0000-0000-0000-000000000001', 'administrator@example.test'),
   ('55000000-0000-0000-0000-000000000002', 'finance@example.test'),
-  ('55000000-0000-0000-0000-000000000003', 'colleague@example.test');
+  ('55000000-0000-0000-0000-000000000003', 'colleague@example.test'),
+  ('55000000-0000-0000-0000-000000000004', 'outsider@example.test');
 
 insert into public.company (id, name, slug, country, locale, timezone) values
   ('55000000-0000-0000-0000-0000000000a0', 'Sealing', 'sealing', 'KR', 'ko', 'Asia/Seoul');
@@ -21,6 +22,10 @@ insert into public.circle_member (company_id, circle_id, member_id) values
 insert into public.company_document (id, company_id, kind, document_type, title, category_code, document_date, requester_id) values
   ('55000000-0000-0000-0000-0000000000d1', '55000000-0000-0000-0000-0000000000a0', 'internal', 'seal', 'Company seal', 'CR', '2026-10-04', '55000000-0000-0000-0000-0000000000a1'),
   ('55000000-0000-0000-0000-0000000000d2', '55000000-0000-0000-0000-0000000000a0', 'internal', 'seal', 'Company seal', 'CR', '2026-10-04', '55000000-0000-0000-0000-0000000000a2');
+
+insert into public.company_document (id, company_id, document_type, title, category_code, requester_id, storage_path) values
+  ('55000000-0000-0000-0000-0000000000d3', '55000000-0000-0000-0000-0000000000a0', 'articles', 'Articles', 'CR', '55000000-0000-0000-0000-0000000000a1',
+   '55000000-0000-0000-0000-0000000000a0/dataroom/C/CR/articles.55000000-0000-0000-0000-0000000000d3.pdf');
 
 select hasnt_column('public', 'company', 'seal_image', 'the company keeps no seal of its own; the data room does');
 
@@ -77,11 +82,22 @@ end $$;$block$, '42501', null, 'somebody who files in the category but administe
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"55000000-0000-0000-0000-000000000003"}', true);
-select is_empty($$select 1 from public.company_document where id = '55000000-0000-0000-0000-0000000000d1'$$,
-  'a colleague whose circles do not read the category does not see the seal');
+select isnt_empty($$select 1 from public.company_document where id = '55000000-0000-0000-0000-0000000000d1'$$,
+  'any member sees the kept seal, though no circle of theirs reads its category');
+select ok(public.asset_reader_may_read('55000000-0000-0000-0000-0000000000a0/dataroom/C/CR/seal.2026-10-04.55000000-0000-0000-0000-0000000000d1.png'),
+  'any member downloads the kept seal for the forms they print');
+select is_empty($$select 1 from public.company_document where id = '55000000-0000-0000-0000-0000000000d3'$$,
+  'the rest of the category stays hidden from a member whose circles do not read it');
+select ok(not public.asset_reader_may_read('55000000-0000-0000-0000-0000000000a0/dataroom/C/CR/articles.55000000-0000-0000-0000-0000000000d3.pdf'),
+  'nor can that member download it');
+select is_empty($$select 1 from public.company_document where id = '55000000-0000-0000-0000-0000000000d2'$$,
+  'a version nobody has kept yet is no seal anyone else sees');
 select set_config('request.jwt.claims', '{"sub":"55000000-0000-0000-0000-000000000002"}', true);
 select isnt_empty($$select 1 from public.company_document where id = '55000000-0000-0000-0000-0000000000d1'$$,
   'a colleague whose circle reads the category sees the seal');
+select set_config('request.jwt.claims', '{"sub":"55000000-0000-0000-0000-000000000004"}', true);
+select ok(not public.asset_reader_may_read('55000000-0000-0000-0000-0000000000a0/dataroom/C/CR/seal.2026-10-04.55000000-0000-0000-0000-0000000000d1.png'),
+  'somebody outside the company never reads its seal');
 reset role;
 
 select finish();
