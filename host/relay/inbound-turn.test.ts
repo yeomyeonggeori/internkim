@@ -69,6 +69,26 @@ function aChatdBody(overrides: Record<string, unknown> = {}): Record<string, unk
 
 const firstKey = 'buzz:conversation-1:message-7';
 const secondKey = 'buzz:conversation-1:message-8';
+const thirdKey = 'buzz:conversation-1:message-9';
+
+function threadOf(rootMessageID: string): string {
+	return `buzz:conversation-1:${rootMessageID}`;
+}
+
+function aRootMessage(messageID: string, prompt: string): Record<string, unknown> {
+	return aChatdBody({ messageID, replyTargetID: threadOf(messageID), isThread: false, prompt });
+}
+
+function aReplyInTheThreadOf(rootMessageID: string, messageID: string, prompt: string): Record<string, unknown> {
+	return aChatdBody({ messageID, replyTargetID: threadOf(rootMessageID), isThread: true, prompt });
+}
+
+const addressingOfTheFirstThread: Addressing = {
+	platform: 'buzz',
+	conversationID: 'conversation-1',
+	replyTargetID: threadOf('message-7'),
+	isThread: false
+};
 
 const longestWaitMilliseconds = 3_000;
 
@@ -167,9 +187,10 @@ describe('InboundTurns', () => {
 		});
 	});
 
-	test('the answer to a question the turn asked is handed to that turn, not run as a new one', async () => {
+	test('a reply in the thread of a question the turn asked is handed to that turn, not run as a new one', async () => {
 		const calls: AskCall[] = [];
 		const posted: string[] = [];
+		const postedTo: Addressing[] = [];
 		const askedTheQuestion = '박예시에게 보낼까요?';
 		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
 		const turns = new InboundTurns({
@@ -179,18 +200,20 @@ describe('InboundTurns', () => {
 				return `보냈습니다: ${words}`;
 			}, calls),
 			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
-			postToConversation: async (_addressing, message) => {
+			postToConversation: async (addressing, message) => {
 				posted.push(message);
+				postedTo.push(addressing);
 			},
 			waitBeforeRetrying: async () => {}
 		});
 		putTheQuestion = (addressing) =>
 			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
 
-		await turns.keep(firstKey, aChatdBody());
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
 		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+		expect(postedTo[0].replyTargetID).toBe(threadOf('message-7'));
 
-		await turns.keep(secondKey, aChatdBody({ messageID: 'message-8', prompt: '응 보내줘' }));
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
 		await waitUntil(
 			() => posted.length === 2 || calls.length === 2,
 			'the turn to finish on the answer'
@@ -203,7 +226,7 @@ describe('InboundTurns', () => {
 		expect(posted[1]).toBe('보냈습니다: 응 보내줘');
 	});
 
-	test('a question already asked before a restart is answered by the next message, without posting again', async () => {
+	test('a question already asked before a restart is answered by the next reply in its thread, without posting again', async () => {
 		const posted: string[] = [];
 		const turns = new InboundTurns({
 			client: aClientThatSays('unused', []),
@@ -213,11 +236,9 @@ describe('InboundTurns', () => {
 			},
 			waitBeforeRetrying: async () => {}
 		});
-		const addressing: Addressing = { platform: 'buzz', conversationID: 'conversation-1' };
+		const answering = turns.awaitAnAlreadyAskedQuestion(addressingOfTheFirstThread);
 
-		const answering = turns.awaitAnAlreadyAskedQuestion(addressing);
-
-		await turns.keep(firstKey, aChatdBody({ prompt: '응 보내줘' }));
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
 
 		expect(await answering).toBe('응 보내줘');
 		expect(posted).toEqual([]);
@@ -242,7 +263,7 @@ describe('InboundTurns', () => {
 		});
 		putTheQuestion = (addressing) =>
 			turnsBeforeTheRestart.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
-		await turnsBeforeTheRestart.keep(firstKey, aChatdBody());
+		await turnsBeforeTheRestart.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
 		await waitUntil(() => postedBeforeTheRestart.includes(askedTheQuestion), 'the question to reach the requester');
 
 		const turnsAfterTheRestart = new InboundTurns({
@@ -251,14 +272,119 @@ describe('InboundTurns', () => {
 			postToConversation: async () => {},
 			waitBeforeRetrying: async () => {}
 		});
-		const answering = turnsAfterTheRestart.awaitAnAlreadyAskedQuestion({
-			platform: 'buzz',
-			conversationID: 'conversation-1'
-		});
+		const answering = turnsAfterTheRestart.awaitAnAlreadyAskedQuestion(addressingOfTheFirstThread);
 		turnsAfterTheRestart.startDraining();
-		await turnsAfterTheRestart.keep(secondKey, aChatdBody({ messageID: 'message-8', prompt: '응 보내줘' }));
+		await turnsAfterTheRestart.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
 
 		expect(await answering, 'the held question was answered by the request that asked it').toBe('응 보내줘');
+	});
+
+	test('a root message while a question is pending starts its own turn and leaves the question pending', async () => {
+		const calls: AskCall[] = [];
+		const posted: string[] = [];
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message !== '박예시한테 DM 보내줘') return `답장: ${message}`;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				return `보냈습니다: ${await putTheQuestion(addressing)}`;
+			}, calls),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: async (_addressing, message) => {
+				posted.push(message);
+			},
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+
+		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
+		await waitUntil(
+			() => posted.includes('답장: 오늘 일정 알려줘') || posted.includes('보냈습니다: 오늘 일정 알려줘'),
+			'the root message to be heard'
+		);
+
+		expect(posted, 'the root message was taken as the answer to the pending question').toEqual([
+			askedTheQuestion,
+			'답장: 오늘 일정 알려줘'
+		]);
+		expect(calls.map((call) => call.message)).toEqual(['박예시한테 DM 보내줘', '오늘 일정 알려줘']);
+
+		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '응 보내줘'));
+		await waitUntil(() => posted.includes('보냈습니다: 응 보내줘'), 'the reply in its thread to answer the question');
+		expect(calls).toHaveLength(2);
+	});
+
+	test('a reply in another thread while a question is pending starts its own turn and leaves the question pending', async () => {
+		const calls: AskCall[] = [];
+		const posted: string[] = [];
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message !== '박예시한테 DM 보내줘') return `답장: ${message}`;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				return `보냈습니다: ${await putTheQuestion(addressing)}`;
+			}, calls),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: async (_addressing, message) => {
+				posted.push(message);
+			},
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-5', 'message-8', '그건 취소해줘'));
+		await waitUntil(() => posted.length === 2, 'the reply in another thread to be heard');
+
+		expect(posted, 'a reply in another thread was taken as the answer to the pending question').toEqual([
+			askedTheQuestion,
+			'답장: 그건 취소해줘'
+		]);
+		expect(calls).toHaveLength(2);
+	});
+
+	test('a reply to a pending question waits while another turn in the conversation is still running', async () => {
+		const posted: string[] = [];
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		const otherTurn = Promise.withResolvers<string>();
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message === '오늘 일정 알려줘') return otherTurn.promise;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				return `보냈습니다: ${await putTheQuestion(addressing)}`;
+			}, []),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: async (_addressing, message) => {
+				posted.push(message);
+			},
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
+		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '응 보내줘'));
+		await Bun.sleep(10);
+
+		expect(posted, 'the question was answered while another turn was speaking in the conversation').toEqual([
+			askedTheQuestion
+		]);
+
+		otherTurn.resolve('오늘은 일정이 없습니다');
+		await waitUntil(() => posted.includes('보냈습니다: 응 보내줘'), 'the waiting answer to reach its question');
+		expect(posted).toEqual([askedTheQuestion, '오늘은 일정이 없습니다', '보냈습니다: 응 보내줘']);
 	});
 
 	test('a turn the agent keeps refusing is retried and then dropped by name, with its reason', async () => {

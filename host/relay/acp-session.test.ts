@@ -37,7 +37,8 @@ type AnAgentThatRecords = {
 
 type AgentBehaviour = {
 	reply?: string;
-	askPermissionAbout?: { toolCallID: string; question: string };
+	replyFor?: (prompt: string) => string;
+	askPermissionAbout?: { toolCallID: string; question: string; onlyWhenAskedTo?: string };
 	approvalReplies?: { reply: string; optionID: string }[];
 	refuseSessionsWith?: string;
 };
@@ -113,12 +114,14 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 				promptsTaken.push(request);
 				const connection = connectionOf();
 				if (!connection) throw new Error('the agent has no connection to answer on');
-				if (behaviour.askPermissionAbout) {
+				const prompt = promptTextOf(request);
+				const asking = behaviour.askPermissionAbout;
+				if (asking && (asking.onlyWhenAskedTo ?? prompt) === prompt) {
 					await connection.requestPermission({
 						sessionId: request.sessionId,
 						toolCall: {
-							toolCallId: behaviour.askPermissionAbout.toolCallID,
-							title: behaviour.askPermissionAbout.question
+							toolCallId: asking.toolCallID,
+							title: asking.question
 						},
 						options: [
 							{ optionId: 'approve_once', kind: 'allow_once', name: 'approve this call' },
@@ -126,12 +129,13 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 						]
 					});
 				}
-				if (behaviour.reply) {
+				const reply = behaviour.replyFor?.(prompt) ?? behaviour.reply;
+				if (reply) {
 					await connection.sessionUpdate({
 						sessionId: request.sessionId,
 						update: {
 							sessionUpdate: 'agent_message_chunk',
-							content: { type: 'text', text: behaviour.reply }
+							content: { type: 'text', text: reply }
 						}
 					});
 				}
@@ -169,6 +173,11 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 			});
 		}
 	};
+}
+
+function promptTextOf(request: PromptRequest): string {
+	const first = request.prompt[0];
+	return first?.type === 'text' ? first.text : '';
 }
 
 async function waitUntil(isReady: () => boolean | Promise<boolean>, waitedFor: string): Promise<void> {
@@ -341,6 +350,72 @@ test('an unanswered question is not asked again after a restart, and is delivere
 	expect(answered.outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 	expect(agent.approvalRepliesRead).toEqual(['응 보내줘']);
 	await waitUntil(async () => (await questions.read('held-1')) === null, 'the delivered question to be forgotten');
+});
+
+test('a question is put in the thread of the message whose turn asked it, not the one that opened the session', async () => {
+	const agent = anAgentOnASocket({
+		reply: '보냈습니다',
+		askPermissionAbout: { toolCallID: 'held-1', question: '박예시에게 보낼까요?', onlyWhenAskedTo: '박예시한테 DM 보내줘' },
+		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
+	});
+	const askedIn: Addressing[] = [];
+	const keptIn: (Addressing | undefined)[] = [];
+	const questions = aQuestionStore();
+	const client = new BlueclawACPClient({
+		socketPath: agent.socketPath,
+		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
+		questions,
+		askThePerson: async (_question, addressing) => {
+			askedIn.push(addressing);
+			keptIn.push((await questions.read('held-1'))?.addressing);
+			return '응 보내줘';
+		},
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
+	});
+	cleanUps.push(() => client.close());
+	const firstThread = { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-1', isThread: false };
+	const laterThread = { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-2', isThread: false };
+
+	await client.ask(sampleRequester, firstThread, '안녕하세요');
+	await client.ask(sampleRequester, laterThread, '박예시한테 DM 보내줘');
+
+	expect(agent.sessionsOpened).toHaveLength(1);
+	expect(askedIn.map((addressing) => addressing.replyTargetID)).toEqual([laterThread.replyTargetID]);
+	expect(keptIn.map((addressing) => addressing?.replyTargetID)).toEqual([laterThread.replyTargetID]);
+});
+
+test('a turn waiting on a question keeps its own reply while another turn runs in the same session', async () => {
+	const agent = anAgentOnASocket({
+		replyFor: (prompt) => `${prompt}에 답합니다`,
+		askPermissionAbout: { toolCallID: 'held-1', question: '박예시에게 보낼까요?', onlyWhenAskedTo: '박예시한테 DM 보내줘' },
+		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
+	});
+	const answer = Promise.withResolvers<string>();
+	let isAsked = false;
+	const client = new BlueclawACPClient({
+		socketPath: agent.socketPath,
+		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
+		questions: aQuestionStore(),
+		askThePerson: async () => {
+			isAsked = true;
+			return answer.promise;
+		},
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
+	});
+	cleanUps.push(() => client.close());
+
+	const waiting = client.ask(sampleRequester, sampleAddressing, '박예시한테 DM 보내줘');
+	await waitUntil(() => isAsked, 'the first turn to ask its question');
+	const meanwhile = await client.ask(sampleRequester, sampleAddressing, '오늘 일정 알려줘');
+	answer.resolve('응 보내줘');
+	const answered = await waiting;
+
+	expect(meanwhile.reply).toBe('오늘 일정 알려줘에 답합니다');
+	expect(answered.reply, 'the turn that waited lost its reply to the turn that ran meanwhile').toBe(
+		'박예시한테 DM 보내줘에 답합니다'
+	);
 });
 
 function aClientOn(socketPath: string): BlueclawACPClient {
