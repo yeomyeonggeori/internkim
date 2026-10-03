@@ -290,7 +290,7 @@ func holdsAnotherAdministrator(heldRoles map[string]string, excludedPubkey strin
 
 // The company account leaves a room the moment somebody else administers it.
 // Until then it stays, because it is the only key that can still seat people
-// there; the member and circle syncs put an administrator in first, so the stay
+// there; the member and seat syncs put an administrator in first, so the stay
 // is one tick, not a policy.
 func (service *Service) retireBootstrapFromRoom(ctx context.Context, relay *sql.DB, channelID string, seed string) {
 	bootstrapPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
@@ -496,7 +496,7 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed)
 }
 
-// The member and circle syncs cover the rooms the company runs, but the company
+// The member and seat syncs cover the rooms the company runs, but the company
 // account also stands in rooms it only mirrored — private rooms whose members
 // it seated. It leaves those the same way: any admin standing in the room is
 func (service *Service) retireBootstrapFromRemainingRooms(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, seed string) {
@@ -557,8 +557,7 @@ SELECT id FROM channels
 WHERE channel_type = 'stream'
   AND deleted_at IS NULL
   AND visibility = 'open'
-  AND created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))
-  AND name <> ALL($2::text[])`
+  AND created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))`
 
 // The rooms the company runs were opened by the key that owns the relay when
 // they were imported, and are opened by the agent now; a room a person opened
@@ -580,14 +579,10 @@ func (service *Service) companyRoomCreatorPubkeys() ([]string, error) {
 }
 
 // The whole company belongs in the rooms the whole company can already read.
-// A private room is somebody's decision about who is in it, and a circle room
-// is its circle's, so neither is a room to add everyone to.
+// A private room is somebody's decision about who is in it, so it is not a room
+// to add everyone to.
 func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]string, error) {
 	creatorPubkeys, errorValue := service.companyRoomCreatorPubkeys()
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	circleRoomNames, errorValue := service.circleRoomNames(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -595,7 +590,7 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	rows, errorValue := database.QueryContext(ctx, memberRoomQuery, pq.Array(creatorPubkeys), pq.Array(circleRoomNames))
+	rows, errorValue := database.QueryContext(ctx, memberRoomQuery, pq.Array(creatorPubkeys))
 	if errorValue != nil {
 		return nil, errorValue
 	}

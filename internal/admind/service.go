@@ -132,7 +132,7 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	go service.keepHostUpdateReported(ctx)
 	service.startBuzzAccountLinkSync(ctx)
 	service.startMemberChannelMembershipSync(ctx)
-	service.startCircleRoomMembershipSync(ctx)
+	service.startJoiningNoticePruning(ctx)
 	service.startAdminChannelSeatSync(ctx)
 }
 

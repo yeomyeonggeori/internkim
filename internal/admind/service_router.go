@@ -86,9 +86,7 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/company-ledger-coverage", localCallersOnly(service.handleCompanyLedgerCoverage))
 	multiplexer.HandleFunc("/agent/api/mail-account-carry", localCallersOnly(service.handleMailAccountCarry))
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", localCallersOnly(service.handleBuzzChannelVisibilityRepair))
-	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
-	multiplexer.HandleFunc("/agent/api/circle-room-membership", service.handleCircleRoomMembership)
 	multiplexer.HandleFunc("/agent/api/buzz-whose-key", service.handleBuzzWhoseKey)
 }
 

@@ -448,7 +448,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// real box: admind reads the company's roster and reconciles it on.
 		writeFileSync(
 			policyPath,
-			'{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n'
+			'{"people":[],"circles":[],"resourceAccess":[],"channels":[],"retention":{}}\n'
 		);
 
 		const render = Bun.spawnSync(

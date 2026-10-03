@@ -383,7 +383,7 @@ fi
 if [ -r %[21]s ]; then
   install -o %[3]s -g %[3]s -m 0640 %[21]s %[22]s
 else
-  [ -s %[22]s ] || printf '{"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
+  [ -s %[22]s ] || printf '{"circles":[],"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
   chown %[3]s:%[3]s %[22]s
   chmod 0640 %[22]s
 fi
