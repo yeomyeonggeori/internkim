@@ -181,7 +181,10 @@ func scheduleTheBackupUnlessMasked() string {
 	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
 	return strings.Join([]string{
 		`if [ "$(systemctl is-enabled ` + timer + ` 2>/dev/null)" != masked ]; then`,
-		`  systemctl enable --now ` + timer + ` >/dev/null 2>&1 || refuse "could not schedule the daily backup with ` + timer + `"`,
+		`  systemctl enable ` + timer + ` >/dev/null 2>&1 || refuse "could not schedule the daily backup with ` + timer + `"`,
+		`  if [ "$(systemctl is-system-running 2>/dev/null)" != offline ]; then`,
+		`    systemctl restart ` + timer + ` >/dev/null 2>&1 || refuse "could not start the daily backup schedule ` + timer + `"`,
+		`  fi`,
 		`fi`,
 	}, "\n")
 }
