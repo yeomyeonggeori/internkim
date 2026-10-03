@@ -6,54 +6,54 @@ title: 분류와 기본 역할
 
 | Code | Category | Parent | Scope |
 |---|---|---|---|
-| `C-corporate` | 법인·지배구조 | — | Legal entity, ownership and corporate decisions. |
-| `CR-registration` | 설립·등록·정관 | C | Formation, articles, registrations and legal entity records. |
-| `CO-ownership` | 주주·지분 | C | Shareholder registers, capitalization tables and ownership records. |
-| `CG-governance` | 이사회·주주총회 | C | Board and shareholder decisions, minutes and delegated authorities. |
-| `H-human-resources` | 인사·조직 | — | Employment, organization and employee records. |
-| `HO-organization` | 조직·인원 현황 | H | Organization charts, job descriptions and aggregate workforce information. |
-| `HP-policies` | 인사 규정 | H | Employment rules, benefits policies and employee handbooks. |
-| `HE-employment` | 고용·입퇴사 | H | Individual employment agreements, onboarding, leave and departure records. Payroll payments belong to FP. |
-| `HR-recruiting` | 채용 | H | Job postings, applications and hiring records. |
-| `HA-appraisals` | 평가 | H | Individual performance, disciplinary and development records. |
-| `F-finance` | 재무 | — | Financial position, accounting, tax and payments. |
-| `FS-statements` | 재무제표·감사보고서 | F | Financial statements, financial audit reports and consolidated results. Supporting accounting evidence belongs to FA. |
-| `FB-budgets` | 예산·재무계획 | F | Budgets, financial forecasts and financial models. |
-| `FT-tax` | 세무 | F | Tax returns, assessments and tax authority correspondence. Employee withholding belongs to FP. |
-| `FC-cash` | 은행·자금 | F | Bank statements, payments, treasury and account documentation. Excludes credentials and financing agreements, which belong to RA. |
-| `FA-accounting` | 회계장부·증빙 | F | Ledgers, invoices, receipts and accounting evidence. Underlying contracts follow the relationship. |
-| `FP-payroll` | 급여·원천징수 | F | Payroll registers, payslips, payroll calculations and employee tax withholding. Employment terms belong to HE. |
-| `S-sales` | 영업·마케팅 | — | Customers, commercial partnerships and market-facing work. |
-| `SS-sales` | 영업자료·견적·제안 | S | Proposals, quotes, sales materials and commercial analysis. Fundraising presentations belong to RP. |
-| `SM-marketing` | 브랜드·마케팅·시장조사 | S | Brand assets, campaigns, advertising and market research, including images and video. |
-| `SC-customers` | 고객 거래·계약 | S | Customer agreements, orders, correspondence and service records. Invoice originals belong to FA. |
-| `SP-partners` | 사업 파트너 | S | Distribution, referral and commercial partnership records. Procurement belongs to OS. |
-| `P-product` | 제품·서비스 | — | What the company delivers to customers. |
-| `PO-overview` | 제품소개·사용설명 | P | Product and service descriptions, catalogs and user-facing manuals. Persuasive sales materials belong to SS. |
-| `PD-development` | 명세·설계·개발·로드맵 | P | Specifications, designs, architecture, roadmaps and development records. |
-| `PQ-quality` | 시험·품질 | P | Testing, quality control, defects and acceptance records. Formal certifications belong to LC. |
-| `O-operations` | 운영 | — | Operating the company, facilities, procurement and internal systems. |
-| `OP-procedures` | 업무 절차 | O | Internal operating procedures and continuity plans. Employment rules belong to HP and security policies to LS. |
-| `OA-assets` | 시설·자산·임대차 | O | Asset registers, premises, leases, equipment and maintenance records. |
-| `OS-suppliers` | 구매·공급사·공급망 | O | Procurement, supplier agreements, correspondence and supply-chain records. |
-| `OI-it` | 사내 IT·시스템 | O | Internal IT administration, software subscriptions and routine incidents. Security incidents belong to LS. Never store credentials. |
-| `I-ip` | 지식재산 | — | Ownership, registration and licensing of intellectual property. |
-| `IR-rights` | 권리·등록 | I | Patents, trademarks, copyright ownership and intellectual property registrations. |
-| `IL-licenses` | 권리 양도·사용권 | I | Grants, assignments and acquisition of IP rights. Routine software subscriptions belong to OI. |
-| `L-legal` | 법무·준법 | — | Legal obligations, regulation and risk. |
-| `LC-compliance` | 인허가·인증·규제 | L | Permits, certifications, regulatory filings and compliance assessments. |
-| `LS-security` | 보안·개인정보 | L | Security and privacy policies, assessments and incidents. |
-| `LD-disputes` | 분쟁·법률 자문 | L | Claims, litigation, legal opinions and dispute records. |
-| `LI-insurance` | 보험 | L | Insurance policies, coverage and claims. |
-| `R-fundraising` | 자금 조달 | — | Raising equity or debt and communicating with capital providers. |
-| `RP-presentations` | 투자·조달 발표자료 | R | Fundraising decks and investment or financing narratives. Source financial statements remain in FS. |
-| `RA-agreements` | 투자·대출 계약·협상 | R | Equity and debt agreements, term sheets and financing negotiations. Resulting ownership registers belong to CO and resolutions to CG. |
-| `RR-reporting` | 투자자·금융기관 보고 | R | Investor and lender updates and correspondence outside agreement negotiations. |
-| `G-general` | 전사 기록 | — | Company-wide records outside a specific business function; not miscellaneous storage. |
-| `GP-profile` | 회사소개·연혁·전사 계획 | G | Company introductions, history, mission and general company plans. Financing presentations belong to RP. |
-| `GC-communications` | 전사 공지·커뮤니케이션 | G | General company announcements and communication records. |
-| `GE-events` | 행사·문화 기록 | G | Company events and culture records, including event photos and recordings. |
-| `X-inbox` | 분류 대기 | — | Unclassified or ambiguous documents. Choose X when context does not identify a destination. Do not invent missing facts. |
+| `C` | 법인·지배구조 | — | Legal entity, ownership and corporate decisions. |
+| `CR` | 설립·등록·정관 | C | Formation, articles, registrations and legal entity records. |
+| `CO` | 주주·지분 | C | Shareholder registers, capitalization tables and ownership records. |
+| `CG` | 이사회·주주총회 | C | Board and shareholder decisions, minutes and delegated authorities. |
+| `H` | 인사·조직 | — | Employment, organization and employee records. |
+| `HO` | 조직·인원 현황 | H | Organization charts, job descriptions and aggregate workforce information. |
+| `HP` | 인사 규정 | H | Employment rules, benefits policies and employee handbooks. |
+| `HE` | 고용·입퇴사 | H | Individual employment agreements, onboarding, leave and departure records. Payroll payments belong to FP. |
+| `HR` | 채용 | H | Job postings, applications and hiring records. |
+| `HA` | 평가 | H | Individual performance, disciplinary and development records. |
+| `F` | 재무 | — | Financial position, accounting, tax and payments. |
+| `FS` | 재무제표·감사보고서 | F | Financial statements, financial audit reports and consolidated results. Supporting accounting evidence belongs to FA. |
+| `FB` | 예산·재무계획 | F | Budgets, financial forecasts and financial models. |
+| `FT` | 세무 | F | Tax returns, assessments and tax authority correspondence. Employee withholding belongs to FP. |
+| `FC` | 은행·자금 | F | Bank statements, payments, treasury and account documentation. Excludes credentials and financing agreements, which belong to RA. |
+| `FA` | 회계장부·증빙 | F | Ledgers, invoices, receipts and accounting evidence. Underlying contracts follow the relationship. |
+| `FP` | 급여·원천징수 | F | Payroll registers, payslips, payroll calculations and employee tax withholding. Employment terms belong to HE. |
+| `S` | 영업·마케팅 | — | Customers, commercial partnerships and market-facing work. |
+| `SS` | 영업자료·견적·제안 | S | Proposals, quotes, sales materials and commercial analysis. Fundraising presentations belong to RP. |
+| `SM` | 브랜드·마케팅·시장조사 | S | Brand assets, campaigns, advertising and market research, including images and video. |
+| `SC` | 고객 거래·계약 | S | Customer agreements, orders, correspondence and service records. Invoice originals belong to FA. |
+| `SP` | 사업 파트너 | S | Distribution, referral and commercial partnership records. Procurement belongs to OS. |
+| `P` | 제품·서비스 | — | What the company delivers to customers. |
+| `PO` | 제품소개·사용설명 | P | Product and service descriptions, catalogs and user-facing manuals. Persuasive sales materials belong to SS. |
+| `PD` | 명세·설계·개발·로드맵 | P | Specifications, designs, architecture, roadmaps and development records. |
+| `PQ` | 시험·품질 | P | Testing, quality control, defects and acceptance records. Formal certifications belong to LC. |
+| `O` | 운영 | — | Operating the company, facilities, procurement and internal systems. |
+| `OP` | 업무 절차 | O | Internal operating procedures and continuity plans. Employment rules belong to HP and security policies to LS. |
+| `OA` | 시설·자산·임대차 | O | Asset registers, premises, leases, equipment and maintenance records. |
+| `OS` | 구매·공급사·공급망 | O | Procurement, supplier agreements, correspondence and supply-chain records. |
+| `OI` | 사내 IT·시스템 | O | Internal IT administration, software subscriptions and routine incidents. Security incidents belong to LS. Never store credentials. |
+| `I` | 지식재산 | — | Ownership, registration and licensing of intellectual property. |
+| `IR` | 권리·등록 | I | Patents, trademarks, copyright ownership and intellectual property registrations. |
+| `IL` | 권리 양도·사용권 | I | Grants, assignments and acquisition of IP rights. Routine software subscriptions belong to OI. |
+| `L` | 법무·준법 | — | Legal obligations, regulation and risk. |
+| `LC` | 인허가·인증·규제 | L | Permits, certifications, regulatory filings and compliance assessments. |
+| `LS` | 보안·개인정보 | L | Security and privacy policies, assessments and incidents. |
+| `LD` | 분쟁·법률 자문 | L | Claims, litigation, legal opinions and dispute records. |
+| `LI` | 보험 | L | Insurance policies, coverage and claims. |
+| `R` | 자금 조달 | — | Raising equity or debt and communicating with capital providers. |
+| `RP` | 투자·조달 발표자료 | R | Fundraising decks and investment or financing narratives. Source financial statements remain in FS. |
+| `RA` | 투자·대출 계약·협상 | R | Equity and debt agreements, term sheets and financing negotiations. Resulting ownership registers belong to CO and resolutions to CG. |
+| `RR` | 투자자·금융기관 보고 | R | Investor and lender updates and correspondence outside agreement negotiations. |
+| `G` | 전사 기록 | — | Company-wide records outside a specific business function; not miscellaneous storage. |
+| `GP` | 회사소개·연혁·전사 계획 | G | Company introductions, history, mission and general company plans. Financing presentations belong to RP. |
+| `GC` | 전사 공지·커뮤니케이션 | G | General company announcements and communication records. |
+| `GE` | 행사·문화 기록 | G | Company events and culture records, including event photos and recordings. |
+| `X` | 분류 대기 | — | Unclassified or ambiguous documents. Choose X when context does not identify a destination. Do not invent missing facts. |
 
 ## 기본 역할
 

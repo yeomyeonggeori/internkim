@@ -33,7 +33,7 @@ def template_reference(template, language="en", is_document=False):
               "| Code | Category | Parent | Scope |", "|---|---|---|---|"]
     for category in template["categories"]:
         name = category["nameKO"] if is_korean else category["name"]
-        lines.append(f'| `{category["code"]}-{category["slug"]}` | {name} | {category["parent"] or "—"} | {category["description"]} |')
+        lines.append(f'| `{category["code"]}` | {name} | {category["parent"] or "—"} | {category["description"]} |')
     lines += ["", "## 기본 역할" if is_korean else "## Default roles", "",
               "읽기 범위는 역할별 코드 배열입니다. 여러 역할을 받으면 범위를 합칩니다. 커스텀 역할을 추가하거나 기본 역할을 편집할 수 있습니다." if is_korean
               else "Each reader role names an array of category codes. Multiple grants combine. Add custom roles or edit these defaults.", "",
