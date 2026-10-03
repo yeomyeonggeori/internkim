@@ -62,11 +62,13 @@ A box is a Raspberry Pi with an SD card written from one image.
 `tools/build-kim-mini-image --release <tag>` builds it in an arm64 Linux
 container through Docker. It starts from Raspberry Pi OS Lite and installs that
 release's host package. The box service runs with `--wifi-setup` and
-`--host-name-from-key`, and Wi-Fi is on
-for the country given by `--wifi-country`, `KR` unless told otherwise. Raspberry
-Pi OS keeps Wi-Fi off until a country is chosen, and a new box has nobody to
-choose one. The package is installed while the image is built, so the box needs no
-internet before its first boot.
+`--host-name-from-key`, and Wi-Fi is on for the country given by
+`--wifi-country`, `KR` unless told otherwise. Raspberry Pi OS keeps Wi-Fi off
+until a country is chosen, and a new box has nobody to choose one. The box's
+clock keeps the time zone given by `--time-zone`, `Asia/Seoul` unless told
+otherwise, where Raspberry Pi OS would keep `Europe/London`. The package is
+installed while the image is built, so the box needs no internet before its
+first boot.
 
 `tools/flash-kim-mini <image> <diskN>` writes the image to a card on a Mac and
 records the day in `internkim-made-on`. It writes only to an SD card or USB disk,

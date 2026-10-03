@@ -5,6 +5,7 @@ baseImageURL="$1"
 releaseTag="$2"
 outputImage="$3"
 wifiCountry="$4"
+timeZone="$5"
 growBy="3G"
 root=/mnt/kim-mini
 baseImage="$(dirname "$outputImage")/$(basename "$baseImageURL")"
@@ -71,6 +72,8 @@ chroot "$root" raspi-config nonint do_wifi_country "$wifiCountry"
 grep -q "cfg80211.ieee80211_regdom=$wifiCountry" "$root/boot/firmware/cmdline.txt" || { echo "raspi-config did not set the Wi-Fi country to $wifiCountry" >&2; exit 1; }
 sed -i 's/^WirelessEnabled=.*/WirelessEnabled=true/' "$root/var/lib/NetworkManager/NetworkManager.state"
 grep -q '^WirelessEnabled=true$' "$root/var/lib/NetworkManager/NetworkManager.state" || { echo "NetworkManager still starts with Wi-Fi off" >&2; exit 1; }
+chroot "$root" raspi-config nonint do_change_timezone "$timeZone"
+[ "$(readlink "$root/etc/localtime")" = "/usr/share/zoneinfo/$timeZone" ] || { echo "raspi-config did not set the time zone to $timeZone" >&2; exit 1; }
 
 echo kimmini > "$root/etc/hostname"
 sed -i 's/^127\.0\.1\.1.*/127.0.1.1\tkimmini/' "$root/etc/hosts"
