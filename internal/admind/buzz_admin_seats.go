@@ -60,7 +60,6 @@ func adminsMissingTheirSeat(heldRoles map[string]string, adminPubkeys []string) 
 const everyStreamChannelQuery = `
 SELECT id::text FROM channels
 WHERE community_id = ANY($1::uuid[]) AND channel_type = 'stream' AND deleted_at IS NULL
-  AND name <> ALL($2::text[])
 ORDER BY id`
 
 func (service *Service) buzzCommunities(ctx context.Context, database *sql.DB) []string {
@@ -88,13 +87,12 @@ func everyStreamChannel(
 	ctx context.Context,
 	database *sql.DB,
 	communities []string,
-	circleRoomNames []string,
 ) ([]string, error) {
 	if len(communities) == 0 {
 		return nil, nil
 	}
 	rows, errorValue := database.QueryContext(
-		ctx, everyStreamChannelQuery, pq.Array(communities), pq.Array(circleRoomNames))
+		ctx, everyStreamChannelQuery, pq.Array(communities))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -197,13 +195,7 @@ func (service *Service) seatAdministratorsEverywhere(ctx context.Context, apply 
 		log.Printf("buzz admin seats: cannot reach the relay database: %v", errorValue)
 		return nil, true
 	}
-	circleRoomNames, errorValue := service.circleRoomNames(ctx)
-	if errorValue != nil {
-		log.Printf("buzz admin seats: the circle rooms could not be named: %v", errorValue)
-		return nil, true
-	}
-	channelIDs, errorValue := everyStreamChannel(
-		ctx, database, service.buzzCommunities(ctx, database), circleRoomNames)
+	channelIDs, errorValue := everyStreamChannel(ctx, database, service.buzzCommunities(ctx, database))
 	if errorValue != nil {
 		log.Printf("buzz admin seats: cannot read the channels: %v", errorValue)
 		return nil, true

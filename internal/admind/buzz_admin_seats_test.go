@@ -46,7 +46,6 @@ func TestEveryStreamChannelLeavesOutWhatIsNotACompanyChannel(t *testing.T) {
 		"community_id = ANY($1::uuid[])",
 		"channel_type = 'stream'",
 		"deleted_at IS NULL",
-		"name <> ALL($2::text[])",
 	} {
 		if !strings.Contains(everyStreamChannelQuery, left) {
 			t.Fatalf("the channel query no longer says %q", left)
@@ -55,7 +54,7 @@ func TestEveryStreamChannelLeavesOutWhatIsNotACompanyChannel(t *testing.T) {
 }
 
 func TestEveryStreamChannelAsksForNothingWhenNoCommunityIsKnown(t *testing.T) {
-	channelIDs, errorValue := everyStreamChannel(context.Background(), nil, nil, nil)
+	channelIDs, errorValue := everyStreamChannel(context.Background(), nil, nil)
 	if errorValue != nil || channelIDs != nil {
 		t.Fatalf("a device that knows no community should ask for nothing, got %v %v", channelIDs, errorValue)
 	}
