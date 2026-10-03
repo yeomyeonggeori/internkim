@@ -150,73 +150,72 @@ function paginatedSchedules(schedules: MemorySchedule[], searchParams: URLSearch
 }
 
 function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
-	const facts = [
+	const facts: MemoryFactsResponse['facts'] = [
 		{
 			factID: 'dev-fact-1',
-			episodeID: 'dev-episode-1',
-			ownerPersonID: 'dev-person',
-			circleIDs: [],
-			kind: 'identity',
+			originID: 'dev-origin-1',
+			scopeType: 'person',
+			isStatic: true,
 			content: '이샘플은 플랫폼 팀 소속이다.',
-			validFrom: '2026-06-17T12:00:00+09:00',
-			reinforcementCount: 1,
+			importance: 5,
+			storageStrength: 1.4,
+			createdAt: '2026-06-17T12:00:00+09:00',
+			lastRecalledAt: '2026-09-01T09:00:00+09:00',
 			triggerPhrases: ['플랫폼 팀에 물어볼 일', '팀 배정 확인']
 		},
 		{
 			factID: 'dev-fact-2',
-			episodeID: 'dev-episode-2',
-			ownerPersonID: 'dev-person',
-			circleIDs: [],
-			kind: 'preference',
+			originID: 'dev-origin-2',
+			scopeType: 'person',
+			isStatic: true,
 			content: '이샘플은 릴리스 노트를 짧은 한국어 문장으로 받는 것을 선호한다.',
-			validFrom: '2026-07-01T09:30:00+09:00',
-			reinforcementCount: 3,
+			importance: 4,
+			storageStrength: 1.2,
+			createdAt: '2026-07-01T09:30:00+09:00',
 			triggerPhrases: ['릴리스 노트 작성', '배포 공지 문구']
 		},
 		{
 			factID: 'dev-fact-3',
-			episodeID: 'dev-episode-3',
-			ownerPersonID: 'dev-person',
-			circleIDs: ['member'],
-			kind: 'fact',
-			content: '급여 자료는 HR 서클에서만 다룬다.',
-			validFrom: '2026-07-05T14:10:00+09:00',
-			reinforcementCount: 1,
+			originID: 'dev-origin-3',
+			scopeType: 'circle',
+			scopeID: 'human-resources',
+			isStatic: true,
+			content: '급여 자료는 인사 서클에서만 다룬다.',
+			importance: 4,
+			storageStrength: 1,
+			createdAt: '2026-07-05T14:10:00+09:00',
 			triggerPhrases: ['급여 명세 요청', '인사 자료 열람']
 		},
 		{
 			factID: 'dev-fact-4',
-			episodeID: 'dev-episode-4',
-			ownerPersonID: 'dev-colleague',
-			circleIDs: ['member'],
-			kind: 'fact',
+			originID: 'dev-origin-4',
+			scopeType: 'workspace',
+			isStatic: true,
 			content: '분기 런치 리뷰는 매주 금요일에 진행된다.',
-			validFrom: '2026-06-20T10:00:00+09:00',
-			reinforcementCount: 1,
+			importance: 3,
+			storageStrength: 1,
+			createdAt: '2026-06-20T10:00:00+09:00',
 			triggerPhrases: ['금요일 일정 잡기', '런치 리뷰 준비']
 		},
 		{
 			factID: 'dev-fact-5',
-			episodeID: 'dev-episode-5',
-			ownerPersonID: 'dev-person',
-			circleIDs: [],
-			kind: 'temporary',
+			originID: 'dev-origin-5',
+			scopeType: 'person',
+			isStatic: false,
 			content: '이샘플은 2026-09-11까지 휴가 중이다.',
-			validFrom: '2026-09-01T09:00:00+09:00',
+			occurredAt: '2026-09-01T00:00:00+09:00',
+			occurredUntil: '2026-09-11T23:59:59+09:00',
 			validUntil: '2026-09-12T00:00:00+09:00',
-			reinforcementCount: 1,
+			importance: 3,
+			storageStrength: 1,
+			createdAt: '2026-09-01T09:00:00+09:00',
 			triggerPhrases: []
 		}
-	] as const;
+	];
 	return {
 		personID: 'dev-person',
-		embeddingModel: 'perplexity/pplx-embed-v1-4b',
-		profile: {
-			identityLines: ['이샘플은 플랫폼 팀 소속이며 짧은 한국어 릴리스 노트를 선호한다.'],
-			currentLines: ['이샘플은 2026-09-11까지 휴가 중이다.'],
-			builtAt: '2026-09-01T09:05:00+09:00'
-		},
-		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID)).map((fact) => ({ ...fact, circleIDs: [...fact.circleIDs], triggerPhrases: [...fact.triggerPhrases] }))
+		index: { embeddingModel: 'baai/bge-m3', current: facts.length, stale: 0 },
+		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID))
 	};
 }
 
