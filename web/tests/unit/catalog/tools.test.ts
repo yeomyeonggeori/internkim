@@ -85,6 +85,7 @@ describe('canonical capability tools', () => {
       'attendance_leave_policy_get',
       'attendance_leave_policy_set',
       'attendance_list',
+      'attendance_team_page_get',
       'attendance_update',
       'attendance_work_policy_get',
       'attendance_work_policy_set',

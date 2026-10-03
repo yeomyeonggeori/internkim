@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { savedAttendanceEventSchema } from '$lib/attendance/recorded-attendance';
 import { currentAttendanceSchema } from '$lib/attendance/current-attendance';
+import { attendanceTeamPageInputSchema, attendanceTeamPageSchema } from '$lib/attendance/team-page';
 import { taskSizes } from '$lib/task/task-sizes';
 
 import {
@@ -1836,6 +1837,20 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
 ];
 
 const attendanceToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: 'attendance_team_page_get',
+    namespace: 'attendance',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_attendance',
+    policyResource: 'tool:attendance_team_page_get',
+    description: 'Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and clock-in locations. Employee search and location filtering happen before paging. Historical records are read separately.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: attendanceTeamPageInputSchema,
+    result: { schema: attendanceTeamPageSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
   {
     name: 'attendance_current_get',
     namespace: 'attendance',

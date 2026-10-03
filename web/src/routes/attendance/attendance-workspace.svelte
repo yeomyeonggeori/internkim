@@ -33,6 +33,7 @@
 		setWorkStatusState,
 		WorkStatusState
 	} from './work-status/work-status-state.svelte';
+	import { AttendanceTeamState, setAttendanceTeamState } from './team/attendance-team-state.svelte';
 
 	let { children, cacheScope }: { children: import('svelte').Snippet; cacheScope: string } = $props();
 	let isDisposed = false;
@@ -41,19 +42,24 @@
 	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope, myAttendanceToday.refresh));
 	const attendanceView = new AttendanceViewState(ensureSelectedAdminView);
 	const workStatus = untrack(() => new WorkStatusState(cacheScope));
-	const isAdmin = $derived(attendance.summary?.isAdmin ?? false);
+	const teamState = new AttendanceTeamState();
+	const isAdmin = $derived(myAttendanceToday.summary?.isAdmin ?? false);
+
+	function refreshLoadedSummary(): Promise<void> {
+		return attendance.summary ? attendance.load() : Promise.resolve();
+	}
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		clearAdminView('approvals');
 		clearAdminView('leaveManagement');
-		await Promise.all([myAttendanceToday.refresh(), attendance.load(), refreshSelectedAdminView()]);
+		await Promise.all([myAttendanceToday.refresh(), refreshLoadedSummary(), teamState.refresh(), refreshSelectedAdminView()]);
 	}
 
 	async function refreshAfterApprovalMutation(): Promise<void> {
 		clearAdminView('leaveManagement');
 		await Promise.all([
 			myAttendanceToday.refresh(),
-			attendance.load(),
+			refreshLoadedSummary(), teamState.refresh(),
 			employeeLeave.load()
 		]);
 	}
@@ -62,7 +68,7 @@
 		clearAdminView('approvals');
 		await Promise.all([
 			myAttendanceToday.refresh(),
-			attendance.load(),
+			refreshLoadedSummary(), teamState.refresh(),
 			employeeLeave.load()
 		]);
 	}
@@ -74,7 +80,7 @@
 		refreshAfterManagementMutation
 	);
 	const handWritten = new HandWrittenState(text.handWritten, async () => {
-		await Promise.all([myAttendanceToday.refresh(), attendance.load()]);
+		await Promise.all([myAttendanceToday.refresh(), refreshLoadedSummary(), teamState.refresh()]);
 	});
 	setAttendanceState(attendance);
 	setEmployeeLeaveState(employeeLeave);
@@ -83,6 +89,7 @@
 	setLeaveManagementState(leaveManagement);
 	setHandWrittenState(handWritten);
 	setWorkStatusState(workStatus);
+	setAttendanceTeamState(teamState);
 
 	const pendingAdminViews = new Map<string, Promise<void>>();
 
@@ -95,6 +102,7 @@
 
 	async function ensureSelectedAdminView(view: AttendanceWorkspaceView = attendanceView.selected): Promise<void> {
 		if (!isAdmin) return;
+		if (view !== 'approvals' && view !== 'leaveManagement' && view !== 'handWritten') return;
 		if (view === 'approvals' && leaveApproval.inbox) return;
 		if (view === 'leaveManagement' && leaveManagement.payload) return;
 		if (view === 'handWritten' && handWritten.dayRange.from) return;
@@ -108,7 +116,8 @@
 
 	function refreshServerClock(): void {
 		void myAttendanceToday.load(true);
-		void attendance.refreshServerClock();
+		if (attendance.summary) void attendance.refreshServerClock();
+		void teamState.refresh();
 	}
 
 	function refreshVisibleServerClock(): void {
@@ -120,15 +129,15 @@
 		if (!isAdmin) return;
 		if (selectedView === 'approvals') await leaveApproval.load();
 		if (selectedView === 'leaveManagement') await leaveManagement.load();
-		if (selectedView === 'handWritten') await handWritten.load(todayDateInTimeZone(attendance.summary?.timeZone));
+		if (selectedView === 'handWritten') await handWritten.load(todayDateInTimeZone(myAttendanceToday.summary?.timeZone));
 	}
 
 	onMount(() => {
 		myAttendanceToday.setClockEventHandler((event) => workStatus.applyAttendanceEvent(event));
+		myAttendanceToday.setClockMutationHandler(() => { void teamState.refresh(true); });
 		void myAttendanceToday.load();
-		void attendance.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
-			await Promise.all([myAttendanceToday.load(true), attendance.load(), employeeLeave.load(), refreshSelectedAdminView()]);
+			await Promise.all([myAttendanceToday.load(true), refreshLoadedSummary(), teamState.refresh(), employeeLeave.load(), refreshSelectedAdminView()]);
 		});
 		window.addEventListener('focus', refreshServerClock);
 		window.addEventListener('pageshow', refreshServerClock);
@@ -137,7 +146,9 @@
 			isDisposed = true;
 			attendance.dispose();
 			workStatus.dispose();
+			teamState.dispose();
 			myAttendanceToday.setClockEventHandler(undefined);
+			myAttendanceToday.setClockMutationHandler(undefined);
 			window.removeEventListener('focus', refreshServerClock);
 			window.removeEventListener('pageshow', refreshServerClock);
 			document.removeEventListener('visibilitychange', refreshVisibleServerClock);
@@ -173,15 +184,17 @@
 	$effect(() => {
 		const selectedView = attendanceView.selected;
 		if (!isAdmin) return;
-		untrack(() => void ensureSelectedAdminView(selectedView));
+		untrack(() => {
+			void ensureSelectedAdminView(selectedView);
+			if (selectedView === 'status' || selectedView === 'tools') void ensureSelectedAdminView('approvals');
+		});
 	});
 
 	$effect(() => {
 		const selectedView = attendanceView.selected;
 		if (!isAdmin) return;
 		const nextView = selectedView === 'approvals' ? 'leaveManagement'
-			: selectedView === 'leaveManagement' ? 'handWritten'
-			: selectedView === 'status' || selectedView === 'tools' ? 'approvals' : null;
+			: selectedView === 'leaveManagement' ? 'handWritten' : null;
 		if (!nextView) return;
 		const prepare = () => {
 			if (!isDisposed && document.visibilityState === 'visible') void ensureSelectedAdminView(nextView);

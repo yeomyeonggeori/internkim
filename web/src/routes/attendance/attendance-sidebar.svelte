@@ -8,14 +8,13 @@
 	import HistoryIcon from '@lucide/svelte/icons/history';
 	import PencilLineIcon from '@lucide/svelte/icons/pencil-line';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
-	import { getAttendanceState } from './attendance-context.svelte';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { getAttendanceViewState } from './attendance-view-state.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
 	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
 	import { attendanceText } from './text';
 
 	const text = createPageText(attendanceText);
-	const attendance = getAttendanceState();
 	const attendanceView = getAttendanceViewState();
 	const leaveApproval = getLeaveApprovalState();
 	const isSidebarHidden = new IsMobile(768);
@@ -41,7 +40,7 @@
 				<HistoryIcon />
 				<span class="flex-1 text-left">{text.leave.historyTab}</span>
 			</Button>
-			{#if attendance.summary?.isAdmin}
+			{#if myAttendanceToday.summary?.isAdmin}
 				<Button
 					variant={attendanceView.selected === 'approvals' ? 'secondary' : 'ghost'}
 					class="w-full justify-start"

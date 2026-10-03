@@ -6,9 +6,7 @@
 	import { localizedLeaveTypeName } from '$lib/i18n/leave-type-name';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import type { AttendanceText } from '../text';
-	import { getAttendanceState } from '../attendance-context.svelte';
 	import { milliDaysValue } from '../leave/leave-history-model';
-	import { leaveApprovalEmployeeName } from './leave-approval-employee-name';
 	import LeaveApprovalDecisionDialog from './leave-approval-decision-dialog.svelte';
 	import { getLeaveApprovalState } from './leave-approval-state.svelte';
 	import type { LeaveApprovalRequest, LeaveApprovalStatus } from './leave-approval-types';
@@ -21,10 +19,7 @@
 	let { request, text }: Props = $props();
 
 	const approval = getLeaveApprovalState();
-	const attendance = getAttendanceState();
-	const employeeName = $derived(
-		leaveApprovalEmployeeName(attendance.summary?.members ?? [], request.employeeEmail)
-	);
+	const employeeName = $derived(request.employeeName || request.employeeEmail);
 
 	function days(value: number): string {
 		return `${milliDaysValue(value)}${text.dayUnit}`;

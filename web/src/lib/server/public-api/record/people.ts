@@ -67,6 +67,17 @@ export async function peopleOfCompany(caller: SupabaseClient): Promise<RecordPer
 	return (data ?? []).map(recordPersonOf);
 }
 
+export async function peopleOfCompanyByIDs(caller: SupabaseClient, personIDs: string[]): Promise<RecordPerson[]> {
+	const { data, error } = await caller
+		.from('member')
+		.select(directoryColumns)
+		.in('id', personIDs)
+		.neq('status', 'withdrawn')
+		.returns<MemberRow[]>();
+	if (error) throw new Error(error.message);
+	return (data ?? []).map(recordPersonOf);
+}
+
 function recordPersonOf(member: MemberRow): RecordPerson {
 	return {
 		personID: member.id,

@@ -136,6 +136,13 @@ and never with the service key. The `result` keeps the existing `status`,
 `personID`, `kind`, `occurredAt`, and `location`. Treat the returned time and
 location as authoritative for the UI without refreshing the list.
 
+`attendance_team_page_get` reads either a bounded page of team cards or a
+searched, bounded employee page within one selected team. It derives the company
+from the authenticated member, enforces the team-view setting, and returns
+status, recent real clock actors and recorded locations without month history.
+Its `teamLimit` and `memberLimit` are capped at 24 and 48. The monthly comparison
+and an individual member's period history are separate requests.
+
 Every field here is the tool's own `outputSchema`, which the descriptor carries
 and the record answer is held to: nothing else may appear, and the record's
 answer is checked against it before it leaves. A task's title is `content`, and

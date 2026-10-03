@@ -76,7 +76,7 @@
 		errorMessage = '';
 		try {
 			await myAttendanceToday.closeAndClockIn(closeTime, selectedLocationID);
-			await attendance.load();
+			if (attendance.summary) await attendance.load();
 			closeTime = '';
 			isCloseOpen = false;
 		} catch (error) {
@@ -96,7 +96,7 @@
 				nextKind === 'clock_in' ? selectedLocationID : '',
 				confirmedEarlyReturn
 			);
-			await attendance.load();
+			if (attendance.summary) await attendance.load();
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.processingFailed;
 		} finally {

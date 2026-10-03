@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dayOfMonth, seoulInstant, seoulMonthToday, signInToAttendance } from './attendance-central-test-utils';
+import { dayOfMonth, seoulInstant, seoulMonthToday, signInToAttendance, openMonthlyAttendance } from './attendance-central-test-utils';
 import { cleanupCalendarEvents, seedCalendarEvents } from './calendar-central-test-utils';
 import { member1Email, member1ID } from './central-test-utils';
 
@@ -34,7 +34,7 @@ function dayCell(page: Page, date: string) {
 
 async function openDayDetail(page: Page, date: string): Promise<void> {
 	await signInToAttendance(page);
-	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 20000 });
+	await openMonthlyAttendance(page);
 	await dayCell(page, date).waitFor({ state: 'visible', timeout: 20000 });
 	await dayCell(page, date).click();
 	await page.getByTestId('team-status-day-detail-dialog').waitFor({ state: 'visible', timeout: 20000 });

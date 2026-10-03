@@ -124,7 +124,7 @@ export type AttendanceActiveLeave = {
 };
 
 export type AttendanceSummary = {
-	readScope?: 'mine' | 'all';
+	readScope?: 'mine' | 'person' | 'all';
 	[attendanceSummaryRecords]?: AttendanceSummaryRecords;
 	month: string;
 	serverTime?: string;

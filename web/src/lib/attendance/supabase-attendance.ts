@@ -14,7 +14,9 @@ import {
 	companySettings,
 	orderablePersonOf,
 	type RecordAttendance,
+	type RecordAttendanceList,
 	type RecordLeave,
+	type RecordLeaveList,
 	type RecordWorkLocation
 } from './attendance-record';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
@@ -101,6 +103,49 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		activeLeave: me ? await supabaseActiveLeave(timeZone, serverNow, todayLeave) : undefined,
 		locations: locationsOf(settings.workLocations),
 		teamViewVisibleToAll: settings.teamViewVisibleToAll,
+		teamViewBlocked: false
+	};
+}
+
+// A selected person's month uses only that member's event and leave rows. The
+// company comparison remains an explicit separate view.
+export async function supabaseAttendancePersonSummary(
+	month: string,
+	member: AttendanceMember,
+	requester: AttendanceSummary
+): Promise<AttendanceSummary> {
+	if (!member.memberID || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+		throw new Error('Select a member and month to read attendance');
+	}
+	const firstDay = `${month}-01`;
+	const lastDay = lastDayOfMonth(month);
+	const personHints = [member.memberID];
+	const [attendance, leave] = await Promise.all([
+		invokeTool<RecordAttendanceList>('attendance_list', {
+			personHints, from: shiftedDay(firstDay, -1), to: lastDay
+		}),
+		invokeTool<RecordLeaveList>('leave_list', {
+			personHints, status: 'approved', from: firstDay, to: lastDay
+		})
+	]);
+	if (attendance.count >= 20000) throw new Error('Attendance history exceeds the supported page; narrow the period');
+	const events = attendance.attendance.map((row) => eventOf(row, member.email, requester.timeZone));
+	return {
+		readScope: 'person',
+		month,
+		serverTime: attendance.serverTime,
+		timeZoneAuthoritative: true,
+		backdatedAfterMinutes: attendance.backdatedAfterMinutes,
+		currentUserEmail: requester.currentUserEmail,
+		currentMemberID: requester.currentMemberID,
+		isAdmin: requester.isAdmin,
+		timeZone: requester.timeZone,
+		events,
+		absences: leave.leave.flatMap((row) => absencesOf(row, member.email)),
+		members: [member],
+		todayStatus: todayStatusOf(events, member.email, requester.timeZone),
+		locations: requester.locations,
+		teamViewVisibleToAll: requester.teamViewVisibleToAll,
 		teamViewBlocked: false
 	};
 }

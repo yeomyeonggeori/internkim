@@ -29,6 +29,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `attendance_reconciliation_save` | `target_company uuid, attendance_work_policy jsonb, attendance_calendar jsonb` | `void` | invoker | service_role |
 | `attendance_remove` | `event_id uuid, reason text` | `jsonb` | definer | authenticated |
 | `attendance_server_time` | — | `timestamp with time zone` | invoker | authenticated, service_role |
+| `attendance_team_page` | `page_kind text DEFAULT 'teams'::text, team_offset integer DEFAULT 0, team_limit integer DEFAULT 12, selected_team_key text DEFAULT NULL::text, member_offset integer DEFAULT 0, member_limit integer DEFAULT 24, search_text text DEFAULT ''::text, location_filter text DEFAULT ''::text` | `jsonb` | invoker | authenticated |
 | `attendance_work_policies` | — | `TABLE(member_id uuid, work_hours jsonb, minimum_daily_minutes integer, work_mode text, work_policy jsonb)` | definer | anon, authenticated, service_role |
 | `attendance_work_policy_save` | `target_policy jsonb` | `jsonb` | definer | authenticated |
 | `box_pairing_attempts_remain` | `claiming_company uuid` | `boolean` | definer | 없음 |

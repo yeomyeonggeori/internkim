@@ -3,8 +3,9 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { onMount } from 'svelte';
 	import AttendanceMonthPicker from '../attendance-month-picker.svelte';
-	import { getAttendanceState } from '../attendance-context.svelte';
+	import { getAttendanceState, type AttendanceSummary } from '../attendance-context.svelte';
 	import { eachDayOfMonth, todayDateInTimeZone } from '../shared/attendance-date';
 	import { attendanceText } from '../text';
 	import { buildTeamStatusRows, resolveDefaultDate } from './team-status-table-model';
@@ -12,22 +13,29 @@
 
 	const attendance = getAttendanceState();
 	const text = createPageText(attendanceText);
+	let { initialMemberName = '', summary: scopedSummary, onSelectMonth: onScopedMonth }: {
+		initialMemberName?: string;
+		summary?: AttendanceSummary | null;
+		onSelectMonth?: (month: string) => void;
+	} = $props();
 	let searchText = $state('');
+	const summary = $derived(scopedSummary ?? attendance.summary);
+	onMount(() => { searchText = initialMemberName; });
 
-	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
-	const calendarMonth = $derived(attendance.summary?.month ?? attendance.selectedMonth);
+	const today = $derived(todayDateInTimeZone(summary?.timeZone));
+	const calendarMonth = $derived(summary?.month ?? attendance.selectedMonth);
 	const defaultAnchorDate = $derived(
-		attendance.summary ? resolveDefaultDate(attendance.summary.month, attendance.summary.events, today) : today
+		summary ? resolveDefaultDate(summary.month, summary.events, today) : today
 	);
-	const statusDates = $derived(attendance.summary ? eachDayOfMonth(attendance.summary.month) : []);
+	const statusDates = $derived(summary ? eachDayOfMonth(summary.month) : []);
 	const rows = $derived(
-		attendance.summary
+		summary
 			? buildTeamStatusRows(
-					attendance.summary.month,
-					attendance.summary,
+					summary.month,
+					summary,
 					text,
 					today,
-					attendance.currentMonthSummary ?? attendance.summary
+					scopedSummary ? summary : attendance.currentMonthSummary ?? summary
 				)
 			: []
 	);
@@ -40,6 +48,10 @@
 	]);
 
 	function selectMonth(month: string) {
+		if (onScopedMonth) {
+			onScopedMonth(month);
+			return;
+		}
 		attendance.selectedMonth = month;
 		attendance.load();
 	}
@@ -80,12 +92,13 @@
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
-		<TeamStatusTable
+		{#if summary}<TeamStatusTable
 			rows={filteredRows}
+			{summary}
 			{statusDates}
 			selectedDate={attendance.selectedDate || defaultAnchorDate}
 			{today}
 			{text}
-		/>
+		/>{/if}
 	</Card.Content>
 </Card.Root>

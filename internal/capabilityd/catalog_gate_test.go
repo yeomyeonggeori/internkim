@@ -469,6 +469,24 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"time":"09:02"`)
 			},
 		},
+		"attendance_current_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_current_get","result":{"memberID":"p1","email":"sample@example.com","companyID":"company-1","timeZone":"Asia/Seoul","serverTime":"2026-09-01T00:02:00Z","backdatedAfterMinutes":4320,"workLocations":[{"name":"Office","color":null}],"authorization":{"isAdmin":false,"teamViewVisibleToAll":true},"todayEvents":[],"latestEvent":null,"activeLeave":null}}`)},
+			input:   `{}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"memberID":"p1"`)
+			},
+		},
+		"attendance_team_page_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_team_page_get","result":{"companyID":"company-1","timeZone":"Asia/Seoul","serverTime":"2026-09-01T00:02:00Z","authorization":{"isAdmin":false,"teamViewVisibleToAll":true},"teamOffset":0,"teamLimit":12,"teamTotal":1,"teams":[{"teamKey":"team-1","name":"Sample Team","memberCount":1,"working":1,"done":0,"away":0,"needsCheckout":0,"notStarted":0,"recentClockIns":[],"recentClockOuts":[],"recordedLocations":[],"unknownLocationCount":0}],"selectedTeamKey":null,"memberOffset":0,"memberLimit":24,"memberTotal":0,"members":[]}}`)},
+			input:   `{"pageKind":"teams","teamLimit":12}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"teamKey":"team-1"`)
+			},
+		},
 		"attendance_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"added","eventID":"a2","backdated":false,"event":{"id":"a2","personID":"p1","kind":"clock_in","occurredAt":"2026-09-01T00:02:00Z","location":"본사"}}}`)},

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { localeOf, type Locale } from '$lib/i18n/locale';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { leaveKindsOfPolicy, leaveYearStartOfPolicy, type LeaveYearStart, type LeaveKind } from './leave';
-import { peopleOfCompany, type RecordPerson } from './people';
+import { peopleOfCompany, peopleOfCompanyByIDs, type RecordPerson } from './people';
 import type { TaskLabelDecider } from './task-labels';
 
 export type RecordContext = {
@@ -33,7 +33,8 @@ export async function recordContextOf(
 	requesterID: string,
 	now: Date,
 	decideTaskLabels: TaskLabelDecider,
-	includePeople = true
+	includePeople = true,
+	personIDs?: string[]
 ): Promise<RecordContext> {
 	const [company, people] = await Promise.all([
 		caller
@@ -41,7 +42,9 @@ export async function recordContextOf(
 			.select('id, task_vocabulary, timezone, locale, rules')
 			.limit(1)
 			.single<CompanyRow>(),
-		includePeople ? peopleOfCompany(caller) : Promise.resolve([])
+		includePeople
+			? personIDs ? peopleOfCompanyByIDs(caller, personIDs) : peopleOfCompany(caller)
+			: Promise.resolve([])
 	]);
 	if (company.error) throw new Error(company.error.message);
 

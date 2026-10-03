@@ -28,6 +28,7 @@ class MyAttendanceToday {
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
 	private clockEventHandler: ((event: AttendanceWriteEvent) => void) | undefined;
+	private clockMutationHandler: (() => void) | undefined;
 	private clockMutationSequence = 0;
 	private authorityGeneration = 0;
 	private loadPromise: Promise<AttendanceSummary | null> | undefined;
@@ -63,6 +64,10 @@ class MyAttendanceToday {
 
 	setClockEventHandler = (handler: ((event: AttendanceWriteEvent) => void) | undefined) => {
 		this.clockEventHandler = handler;
+	};
+
+	setClockMutationHandler = (handler: (() => void) | undefined) => {
+		this.clockMutationHandler = handler;
 	};
 
 	clear = (): void => {
@@ -142,6 +147,7 @@ class MyAttendanceToday {
 				await this.load(true);
 			}
 			if (authorityGeneration !== this.authorityGeneration) return;
+			this.clockMutationHandler?.();
 			toast.success(result?.removed ? this.takenBackClockMessage(kind) : this.recordedClockMessage(kind));
 			if (kind === 'clock_in' && (await lockScreenRefusesTheClock())) toast.info(text.lockScreenOff);
 		} catch (failure) {
@@ -188,10 +194,12 @@ class MyAttendanceToday {
 				reason: text.clockOutNobodyRecordedReason
 			});
 			if (authorityGeneration !== this.authorityGeneration) return;
+			this.clockMutationHandler?.();
 			await this.refresh();
 			if (authorityGeneration !== this.authorityGeneration) return;
 			await toggleAttendanceOnServer('clock_in', locationID, false);
 			if (authorityGeneration !== this.authorityGeneration) return;
+			this.clockMutationHandler?.();
 			await this.refresh();
 			if (authorityGeneration !== this.authorityGeneration) return;
 			toast.success(this.recordedClockMessage('clock_in'));

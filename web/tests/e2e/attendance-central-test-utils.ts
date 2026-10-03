@@ -42,6 +42,11 @@ export async function signInToAttendance(page: Page, path = '/example-co/attenda
 		.waitFor({ state: 'visible', timeout: 30000 });
 }
 
+export async function openMonthlyAttendance(page: Page): Promise<void> {
+	await page.getByRole('button', { name: '월간 현황 보기' }).click();
+	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 30000 });
+}
+
 export function seoulDateToday(): string {
 	return new Intl.DateTimeFormat('en-CA', {
 		timeZone: 'Asia/Seoul',

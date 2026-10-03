@@ -6,7 +6,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import type { Snippet } from 'svelte';
 	import ClockIcon from '@lucide/svelte/icons/clock';
-	import { getAttendanceState, type ChartMode } from '../attendance-context.svelte';
+	import { getAttendanceState, type AttendanceSummary, type ChartMode } from '../attendance-context.svelte';
 	import { loadedWorkTimeChartPlot, loadWorkTimeChartPlot } from './work-time-chart-plot-loader';
 	import { attendanceText } from '../text';
 	import { todayDateInTimeZone } from './attendance-date';
@@ -24,6 +24,7 @@
 		dailyValues: DailyValue[];
 		locations: WorkTimeChartLocation[];
 		formatValue: (value: number) => string;
+		summary?: AttendanceSummary | null;
 		compact?: boolean;
 		footer?: Snippet;
 	};
@@ -40,11 +41,13 @@
 		dailyValues,
 		locations,
 		formatValue,
+		summary: scopedSummary,
 		compact = false,
 		footer,
 	}: Props = $props();
 
 	const attendance = getAttendanceState();
+	const chartSummary = $derived(scopedSummary ?? attendance.summary);
 	let plotComponent = $state(loadedWorkTimeChartPlot());
 
 	void loadWorkTimeChartPlot().then((plot) => {
@@ -57,10 +60,10 @@
 		{ value: 'month', label: text.month },
 	]);
 
-	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
+	const today = $derived(todayDateInTimeZone(chartSummary?.timeZone));
 	const series = $derived(
 		buildSeries(
-			attendance.summary?.month ?? '',
+			chartSummary?.month ?? '',
 			dailyValues,
 			attendance.chartMode,
 			{
@@ -108,6 +111,8 @@
 		isPercentMode ? 100 : Math.max(1, ...chartData.map((point) => point.totalMinutes))
 	);
 	const pointsSummary = $derived(summarizeDailyValues(dailyValues, { today }));
+	const hasRecordedTime = $derived(dailyValues.some((day) =>
+		Object.values(day.minutesByLocation).some((minutes) => minutes > 0)));
 
 	function formatChartValue(value: number): string {
 		if (isPercentMode) return `${Math.round(value)}%`;
@@ -158,7 +163,11 @@
 		</div>
 	</Card.Header>
 	<Card.Content class={compact ? 'px-3 pb-3 pt-1' : undefined}>
-		{#if !plotComponent}
+		{#if !hasRecordedTime}
+			<div class={compact ? 'flex h-20 items-center justify-center rounded-md bg-muted/30 px-3 text-center text-xs text-muted-foreground' : 'flex h-48 items-center justify-center rounded-md bg-muted/30 text-sm text-muted-foreground'}>
+				{text.empty}
+			</div>
+		{:else if !plotComponent}
 			<Skeleton class={compact ? 'h-24 w-full' : 'h-72 w-full'} />
 		{:else}
 			{@const WorkTimeChartPlot = plotComponent}

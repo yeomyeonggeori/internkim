@@ -41,6 +41,7 @@ type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
 type MemberDirectory = {
 	emailOf: (memberID: string) => string;
+	nameOf: (memberID: string) => string;
 	timeZoneOf: (memberID: string) => string;
 };
 
@@ -225,6 +226,7 @@ function approvalOf(
 	return {
 		id: row.id,
 		employeeEmail: members.emailOf(row.member_id),
+		employeeName: members.nameOf(row.member_id),
 		leaveTypeID: row.kind,
 		leaveTypeName: directory.nameOf(row.kind),
 		balanceMode: directory.ownsAnnualBalance(row.kind) ? 'annual' : 'none',
@@ -257,11 +259,13 @@ async function companyTimeZone(): Promise<string> {
 async function memberDirectory(): Promise<MemberDirectory> {
 	const [companyZone, directory] = await Promise.all([companyTimeZone(), companyDirectory()]);
 	const emails = new Map(directory.people.map((person) => [person.personID, person.email]));
+	const names = new Map(directory.people.map((person) => [person.personID, person.name]));
 	const timeZones = new Map(
 		directory.people.map((person) => [person.personID, timeZoneOfPerson(person, companyZone)])
 	);
 	return {
 		emailOf: (memberID) => emails.get(memberID) ?? '',
+		nameOf: (memberID) => names.get(memberID) || emails.get(memberID) || '',
 		timeZoneOf: (memberID) => timeZones.get(memberID) || companyZone
 	};
 }

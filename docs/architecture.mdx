@@ -87,7 +87,11 @@ current state through `attendance_current_get`. Its caller-RLS `attendance_curre
 RPC returns company time, workplaces, today's own events, the latest own event
 across all dates, and active approved leave in one snapshot. It accepts no target
 identity and skips the whole-directory record context. Existing clock writes keep
-their authoritative validation. Team period history remains a separate read.
+their authoritative validation. The attendance landing page separately requests
+`attendance_team_page_get`: caller-RLS team cards and searched employee pages
+have fixed response bounds, and the employee filter runs before page enrichment.
+Selecting one employee loads that person's month events and approved leave by
+exact member ID. The company-wide month comparison remains an explicit action.
 Concurrent own reads share a promise; a verified memory snapshot lasts 15 seconds
 within the same company day. Focus, visibility, explicit refresh and successful
 record/leave changes refresh the own state independently of team history. Stored
@@ -113,8 +117,10 @@ navigation and disposal discard superseded ranges. National-holiday failure
 does not hide company events. Live attendance summaries carry their input
 records into overlapping work-status reads. Persisted summaries carry no such
 records and must revalidate. Leave details load when displayed. These changes
-use their existing history contracts. The own-current read adds one narrow RPC;
-there is no generic batch contract.
+use their existing history contracts. The own-current and team-page reads add
+two narrow RPCs; there is no generic batch contract. The selected-person month
+still calls the existing leave reader, whose security-definer query reads
+company history before JavaScript filters it.
 
 The shell loads search and legacy identity UI on demand. Central sign-in does
 not wait for the company computer's messaging identity; Messenger claims it

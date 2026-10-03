@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
 import { currentAttendance } from './current-attendance';
+import { teamAttendance } from './team-attendance';
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import {
@@ -96,6 +97,13 @@ import { sentencesOfSchemaRefusal } from '../schema-sentences';
 type ToolInput = Record<string, unknown>;
 type ToolRun = (context: RecordContext, input: ToolInput) => Promise<unknown> | unknown;
 
+function exactAttendancePersonIDs(name: string, input: ToolInput): string[] | undefined {
+	if (name !== 'attendance_list' && name !== 'leave_list') return;
+	const hints = input.personHints;
+	if (!Array.isArray(hints) || hints.length !== 1 || typeof hints[0] !== 'string') return;
+	return /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(hints[0]) ? [hints[0]] : undefined;
+}
+
 const readsWithoutPeople = new Set([
 	'company_settings_get', 'company_holiday_list', 'crm_organization_list',
 	'crm_contact_list', 'crm_opportunity_list', 'crm_vocabulary_get'
@@ -129,6 +137,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	leave_return_early: (context, input) => leaveReturnEarly(context, input),
 	attendance_list: (context, input) => attendanceList(context, input),
 	attendance_current_get: (context) => currentAttendance(context.caller),
+	attendance_team_page_get: (context, input) => teamAttendance(context.caller, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
 	attendance_delete: (context, input) => attendanceDelete(context, input),
@@ -242,7 +251,10 @@ export async function runToolOverTheRecord(
 	try {
 		const result = name === 'attendance_current_get'
 			? await currentAttendance(caller)
-			: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels, !readsWithoutPeople.has(name)), input);
+			: name === 'attendance_team_page_get'
+				? await teamAttendance(caller, input as Parameters<typeof teamAttendance>[1])
+				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
+					!readsWithoutPeople.has(name), exactAttendancePersonIDs(name, input)), input);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {

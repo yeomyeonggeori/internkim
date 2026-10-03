@@ -59,7 +59,7 @@ beforeAll(async () => {
 		email: `${slug}-sample@example.test`,
 		email_confirm: true
 	});
-	await client.from('member').update({ user_id: account.user!.id }).eq('id', sampleID);
+	await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', sampleID);
 
 	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, sampleID);
 	caller = asMember({ projectURL, publishableKey }, session.accessToken);
@@ -128,6 +128,15 @@ describe('person_list', () => {
 		const names = (result.people as { name: string }[]).map((person) => person.name);
 		expect(names).toContain('이샘플');
 		expect(names).toContain('박예시');
+	});
+});
+
+describe('attendance_team_page_get', () => {
+	test('answers a bounded team card from the caller company', async () => {
+		const result = resultOf(await run('attendance_team_page_get', { pageKind: 'teams', teamLimit: 1 }));
+		expect(result.companyID).toBe(companyID);
+		expect(result.teamTotal).toBeGreaterThan(0);
+		expect(result.teams).toHaveLength(1);
 	});
 });
 
