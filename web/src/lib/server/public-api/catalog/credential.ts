@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { messengerPlatformNames } from './protocol';
+import { messengerPlatformNames, type MessengerPlatform } from './protocol';
 
 export const messengerIdentityCredentialKind = 'buzz-secret';
 
@@ -26,5 +26,16 @@ export const credentialKinds = [
 ] as const;
 
 export const messengerIdentityCredentialKindSchema = z.enum(messengerIdentityCredentialKinds);
+
+type MessengerIdentityCredentialKind = z.infer<typeof messengerIdentityCredentialKindSchema>;
+
+const messengerPlatformOfIdentityCredentialKind: Record<MessengerIdentityCredentialKind, MessengerPlatform> = {
+  [messengerIdentityCredentialKind]: 'buzz',
+};
+
+export function messengerPlatformOfCredentialKind(kind: string): MessengerPlatform | null {
+  const identityKind = messengerIdentityCredentialKindSchema.safeParse(kind);
+  return identityKind.success ? messengerPlatformOfIdentityCredentialKind[identityKind.data] : null;
+}
 
 export const memberCredentialKindSchema = z.enum(memberCredentialKinds);

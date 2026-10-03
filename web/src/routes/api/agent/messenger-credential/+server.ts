@@ -1,7 +1,15 @@
 import { error, json } from '@sveltejs/kit';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { keepMemberCredential, memberBelongsToCompany, memberCredential } from '$lib/server/member-credential';
-import { memberCredentialKindSchema } from '$lib/server/public-api/catalog/credential';
+import {
+	connectMessengerAccount,
+	keepMemberCredential,
+	memberBelongsToCompany,
+	memberCredential
+} from '$lib/server/member-credential';
+import {
+	memberCredentialKindSchema,
+	messengerPlatformOfCredentialKind
+} from '$lib/server/public-api/catalog/credential';
 import type { RequestHandler } from './$types';
 
 // The company's own server asks for the credential it needs to act as a person
@@ -46,6 +54,19 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 		error(403, 'that member belongs to another company');
 	}
 
-	await keepMemberCredential(client, memberID, { kind: kind.data, externalID, secret });
+	const messengerPlatform = messengerPlatformOfCredentialKind(kind.data);
+	if (messengerPlatform === null) {
+		await keepMemberCredential(client, memberID, { kind: kind.data, externalID, secret });
+	} else {
+		if (!externalID) error(400, 'a messenger credential names the account it signs in as');
+		await connectMessengerAccount(client, companyID, {
+			memberID,
+			platform: messengerPlatform,
+			kind: kind.data,
+			externalID,
+			name: '',
+			secret
+		});
+	}
 	return json({ kept: { memberID, kind: kind.data } });
 };
