@@ -13683,6 +13683,114 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "company_image_upload",
+      "description": "Ask for a place to keep the company's seal or logo image. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as sealImage or logoImage. Only an administrator may keep a company image.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "fileName": {
+            "description": "The image file's own name with its extension: .png, .jpg, .jpeg, .gif or .webp.",
+            "type": "string"
+          },
+          "image": {
+            "description": "Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the letterhead logo and company picture.",
+            "enum": [
+              "seal",
+              "logo"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "fileName": {
+            "description": "The image file's own name with its extension: .png, .jpg, .jpeg, .gif or .webp.",
+            "type": "string"
+          },
+          "image": {
+            "description": "Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the letterhead logo and company picture.",
+            "enum": [
+              "seal",
+              "logo"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "image",
+          "fileName"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "company_image_upload",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "company_image_upload",
+      "namespace": "company",
+      "namespaceSummary": "The company's own record: its profile and settings, holidays, metrics over time, milestones and assets, and a data room of registered documents searchable by question.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "storagePath": {
+            "type": "string"
+          },
+          "uploadURL": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "storagePath",
+          "uploadURL"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:company_image_upload",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "storagePath": {
+              "type": "string"
+            },
+            "uploadURL": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "storagePath",
+            "uploadURL"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "company_document_download",
       "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
       "estimatedLatency": "low",
@@ -13768,7 +13876,7 @@
         "state": "ok"
       },
       "canonicalName": "company_info_get",
-      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+      "description": "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. The answer also carries that view as the file company-profile.json, with the kept seal and logo images beside it, for a document to print from as it is. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14052,7 +14160,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string.",
+      "description": "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with sealImage or logoImage, after company_image_upload.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14117,6 +14225,10 @@
             "description": "JSON object string of country-specific label-to-value pairs, e.g. {\"Business Registration Number\": \"123-45-67890\", \"Business Type\": \"Services\"}. Write each label in the language the country prints it in, because labels print on documents as-is.",
             "type": "string"
           },
+          "logoImage": {
+            "description": "The company logo, which is also its picture in the app: the storagePath company_image_upload answered for image 'logo', once the image was PUT to its uploadURL. An empty string removes it.",
+            "type": "string"
+          },
           "name": {
             "description": "Legal company name as it is registered, including the form of incorporation.",
             "type": "string"
@@ -14135,6 +14247,10 @@
           },
           "representativeTitle": {
             "description": "Representative's title. Defaults to the one customary in the language asked for.",
+            "type": "string"
+          },
+          "sealImage": {
+            "description": "The company seal: the storagePath company_image_upload answered for image 'seal', once the image was PUT to its uploadURL. An empty string removes the seal.",
             "type": "string"
           },
           "slogan": {
@@ -14206,6 +14322,10 @@
             "description": "JSON object string of country-specific label-to-value pairs, e.g. {\"Business Registration Number\": \"123-45-67890\", \"Business Type\": \"Services\"}. Write each label in the language the country prints it in, because labels print on documents as-is.",
             "type": "string"
           },
+          "logoImage": {
+            "description": "The company logo, which is also its picture in the app: the storagePath company_image_upload answered for image 'logo', once the image was PUT to its uploadURL. An empty string removes it.",
+            "type": "string"
+          },
           "name": {
             "description": "Legal company name as it is registered, including the form of incorporation.",
             "type": "string"
@@ -14224,6 +14344,10 @@
           },
           "representativeTitle": {
             "description": "Representative's title. Defaults to the one customary in the language asked for.",
+            "type": "string"
+          },
+          "sealImage": {
+            "description": "The company seal: the storagePath company_image_upload answered for image 'seal', once the image was PUT to its uploadURL. An empty string removes the seal.",
             "type": "string"
           },
           "slogan": {

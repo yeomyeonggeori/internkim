@@ -13,6 +13,7 @@ import {
 	companyHolidayUpdate,
 	companyInfoGet,
 	companyInfoSet,
+	companyImageUpload,
 	companySettingsGet,
 	companySettingsUpdate
 } from './company-tools';
@@ -131,6 +132,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	company_settings_update: (context, input) => companySettingsUpdate(context, input),
 	company_info_get: (context, input) => companyInfoGet(context, input),
 	company_info_set: (context, input) => companyInfoSet(context, input),
+	company_image_upload: (context, input) => companyImageUpload(context, input),
 	company_holiday_list: (context, input) => companyHolidayList(context, input),
 	company_holiday_add: (context, input) => companyHolidayAdd(context, input),
 	company_holiday_update: (context, input) => companyHolidayUpdate(context, input),

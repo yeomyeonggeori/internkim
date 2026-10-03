@@ -722,6 +722,15 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"storagePath":"company-1/dataroom/Q/QQ/`)
 			},
 		},
+		"company_image_upload": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_image_upload","result":{"storagePath":"company-1/shared/company/seal-1.png","uploadURL":"https://example.test/storage/v1/object/upload/sign/asset/company-1/shared/company/seal-1.png?token=signed"}}`)},
+			input:   `{"image":"seal","fileName":"seal.png"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"storagePath":"company-1/shared/company/seal-1.png"`)
+			},
+		},
 		"company_document_download": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_download","result":{"storagePath":"company-1/dataroom/Q/QQ/abc-quote.document-1.pdf","downloadURL":"https://example.test/storage/v1/object/sign/asset/company-1/dataroom/Q/QQ/abc-quote.document-1.pdf?token=signed"}}`)},

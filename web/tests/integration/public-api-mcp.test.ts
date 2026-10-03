@@ -18,6 +18,8 @@ const { fallback: reachTheAPI } = await import('../../src/routes/api/v1/[...path
 const { POST: reachMCP } = await import('../../src/routes/api/v1/mcp/+server');
 const { descriptorMetaKey } = await import('../../src/lib/server/public-api/mcp');
 const { isSeenByAModel } = await import('../../src/lib/server/public-api/catalog');
+const { assetBucket } = await import('../../src/lib/server/public-api/asset-address');
+const { capabilityAnsweredFilesMetaKey } = await import('../../src/lib/server/public-api/catalog/protocol');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -195,6 +197,61 @@ describe('a tool called over MCP', () => {
 			expect(overHTTP.status).toBe(403);
 			expect(overMCP.isError).toBe(true);
 			expect(overMCP.structuredContent).toEqual(overHTTP.body as Record<string, unknown>);
+		} finally {
+			await connected.close();
+		}
+	}, networkHookTimeout);
+});
+
+type EmbeddedFile = { uri: string; mimeType?: string; text?: string; blob?: string };
+
+function filesCarriedBy(answer: Awaited<ReturnType<Client['callTool']>>): Map<string, EmbeddedFile> {
+	const content = answer.content as Array<{ type: string; resource?: EmbeddedFile }>;
+	const files = content.flatMap((item) => (item.type === 'resource' && item.resource ? [item.resource] : []));
+	return new Map(files.map((file) => [decodeURIComponent(file.uri.replace('internkim://files/', '')), file]));
+}
+
+describe('the company profile read over MCP', () => {
+	test('carries the profile as a file, with the seal it names beside it', async () => {
+		const sealPath = `${companyID}/shared/company/seal-${crypto.randomUUID()}.png`;
+		const sealBytes = new TextEncoder().encode('a seal');
+		await client.storage.from(assetBucket).upload(sealPath, sealBytes, { contentType: 'image/png' });
+		await client.from('company').update({ seal_image: sealPath, profile: { name: { ko: '주식회사 예시' } } }).eq('id', companyID);
+
+		const connected = await anMCPClient(holdersToken);
+		try {
+			const answered = await connected.callTool({
+				name: 'company_info_get',
+				arguments: { language: 'ko' },
+				_meta: { [capabilityAnsweredFilesMetaKey]: 'kept' }
+			});
+			const files = filesCarriedBy(answered);
+			const profile = JSON.parse(String(files.get('company-profile.json')?.text));
+
+			expect(answered.isError ?? false).toBe(false);
+			expect(profile.name).toBe('주식회사 예시');
+			expect(profile.sealImage).toBe('seal.png');
+			expect(profile.logoImage).toBe('');
+			expect(atob(String(files.get('seal.png')?.blob))).toBe('a seal');
+			expect([...files.keys()].sort()).toEqual(['company-profile.json', 'seal.png']);
+		} finally {
+			await connected.close();
+		}
+	}, networkHookTimeout);
+
+	test('carries no file to a caller that does not keep them, nor for a tool that answers none', async () => {
+		const connected = await anMCPClient(holdersToken);
+		try {
+			const undeclared = await connected.callTool({ name: 'company_info_get', arguments: { language: 'ko' } });
+			const fileless = await connected.callTool({
+				name: 'task_list',
+				arguments: {},
+				_meta: { [capabilityAnsweredFilesMetaKey]: 'kept' }
+			});
+
+			expect(filesCarriedBy(undeclared).size).toBe(0);
+			expect(undeclared.structuredContent).toEqual((await invoke(holdersToken, 'company_info_get', { language: 'ko' })).body as Record<string, unknown>);
+			expect(filesCarriedBy(fileless).size).toBe(0);
 		} finally {
 			await connected.close();
 		}

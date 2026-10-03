@@ -46,6 +46,7 @@ VERBS_BY_EXCEPTION = {
     "company_document_classify": "classifies a document by meaning without writing a record",
     "company_document_upload": "asks for a place to put a file, not a record write",
     "company_document_download": "answers bytes, not a record",
+    "company_image_upload": "asks for a place to put the seal or logo, not a record write",
     "crm_activity_save": "saves an activity entry the CRM screens own",
     "crm_contact_archive": "archiving keeps the record and is not a delete",
     "crm_opportunity_archive": "archiving keeps the record and is not a delete",

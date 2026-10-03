@@ -101,11 +101,22 @@ const companyInfoSetInputSchema = z.strictObject({
   phone: z.string().describe("Main company phone number.").optional(),
   representative: z.string().describe("Representative's name; use the romanized name for the 'en' slot.").optional(),
   representativeTitle: z.string().describe("Representative's title. Defaults to the one customary in the language asked for.").optional(),
+  sealImage: z.string().describe("The company seal: the storagePath company_image_upload answered for image 'seal', once the image was PUT to its uploadURL. An empty string removes the seal.").optional(),
+  logoImage: z.string().describe("The company logo, which is also its picture in the app: the storagePath company_image_upload answered for image 'logo', once the image was PUT to its uploadURL. An empty string removes it.").optional(),
   slogan: z.string().describe("Company slogan for letterheads and introductions.").optional(),
   website: z.string().describe("Company website URL.").optional(),
 });
 
 const companyInfoSetInputIntentSchema = companyInfoSetInputSchema.partial();
+
+export const companyImages = ['seal', 'logo'] as const;
+
+const companyImageUploadInputSchema = z.strictObject({
+  image: z.enum(companyImages).describe("Which company image the file is: 'seal' for the seal stamped on forms, 'logo' for the letterhead logo and company picture."),
+  fileName: z.string().describe("The image file's own name with its extension: .png, .jpg, .jpeg, .gif or .webp."),
+});
+
+const companyImageUploadInputIntentSchema = companyImageUploadInputSchema.partial();
 
 const companyMetricListInputSchema = z.strictObject({
   fromYear: z.int().describe("Earliest year to include.").optional(),
@@ -234,6 +245,11 @@ export const companyDocumentUploadResultSchema = z.strictObject({
   uploadURL: z.string(),
 });
 
+export const companyImageUploadResultSchema = z.strictObject({
+  storagePath: z.string(),
+  uploadURL: z.string(),
+});
+
 export const companyDocumentDownloadResultSchema = z.strictObject({
   storagePath: z.string(),
   downloadURL: z.string(),
@@ -316,6 +332,20 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
+    name: "company_image_upload",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_image_upload",
+    description: "Ask for a place to keep the company's seal or logo image. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as sealImage or logoImage. Only an administrator may keep a company image.",
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: companyImageUploadInputSchema,
+    inputIntentSchema: companyImageUploadInputIntentSchema,
+    result: { schema: companyImageUploadResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+  },
+  {
     name: "company_document_download",
     namespace: "company",
     answeredBy: CapabilityAnsweredBy.Record,
@@ -334,7 +364,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_info_get",
-    description: "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+    description: "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. The answer also carries that view as the file company-profile.json, with the kept seal and logo images beside it, for a document to print from as it is. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyInfoGetInputSchema,
@@ -347,7 +377,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_info_set",
-    description: "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string.",
+    description: "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with sealImage or logoImage, after company_image_upload.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyInfoSetInputSchema,
@@ -458,3 +488,5 @@ export type CompanyDocumentListResult = z.infer<typeof companyDocumentListResult
 export type CompanyDocumentPublished = z.infer<typeof companyDocumentPublishedSchema>;
 export type CompanyDocumentUploadResult = z.infer<typeof companyDocumentUploadResultSchema>;
 export type CompanyDocumentDownloadResult = z.infer<typeof companyDocumentDownloadResultSchema>;
+export type CompanyImageUploadInput = z.infer<typeof companyImageUploadInputSchema>;
+export type CompanyImageUploadResult = z.infer<typeof companyImageUploadResultSchema>;
