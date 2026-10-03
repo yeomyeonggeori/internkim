@@ -48,7 +48,7 @@ mkdir -p "$outputDirectory"
 releaseMount=()
 [ -z "$releaseDirectory" ] || releaseMount=(-v "$releaseDirectory:/work/release:ro")
 docker run --rm --privileged --platform linux/arm64 \
-  "${releaseMount[@]}" \
+  ${releaseMount[@]+"${releaseMount[@]}"} \
   -v "$scriptDirectory/kim-mini-image:/work/tools:ro" \
   -v "$repositoryRoot/web/static/install.sh:/work/install.sh:ro" \
   -v "$outputDirectory:/output" \
