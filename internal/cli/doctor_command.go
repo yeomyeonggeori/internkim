@@ -26,7 +26,7 @@ func simulationDependencies(configuration internkimlab.Configuration) []hostDepe
 		},
 		{
 			name:        "sshpass",
-			purpose:     "password SSH into the lab VM and the company host",
+			purpose:     "password SSH into the lab VM",
 			installHint: "brew install sshpass, or apt install sshpass",
 		},
 	}
