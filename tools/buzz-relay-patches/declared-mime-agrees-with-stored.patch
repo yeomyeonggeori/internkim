@@ -1,0 +1,310 @@
+diff --git a/crates/buzz-media/src/validation.rs b/crates/buzz-media/src/validation.rs
+index 706c354d0..9479b8c93 100644
+--- a/crates/buzz-media/src/validation.rs
++++ b/crates/buzz-media/src/validation.rs
+@@ -195,18 +195,9 @@ pub fn validate_file_content(
+     match infer::get(bytes) {
+         Some(kind) => {
+             let mime = kind.mime_type().to_string();
+-            // Recognized media must never fall through exact-byte attachment
+-            // storage. Images and video use their canonical media validators;
+-            // audio is rejected until Buzz has an explicit sanitizer and
+-            // location-metadata validator for its container.
+-            if mime.starts_with("image/")
+-                || mime.starts_with("video/")
+-                || mime.starts_with("audio/")
+-            {
+-                return Err(MediaError::DisallowedContentType(mime));
+-            }
+-            // 3. Deny dangerous active-content / executable types.
+-            if BLOCKED_FILE_MIME_TYPES.contains(&mime.as_str()) {
++            // 3. Deny recognized media and dangerous active-content /
++            //    executable types (see `is_refused_on_file_path`).
++            if is_refused_on_file_path(&mime) {
+                 return Err(MediaError::DisallowedContentType(mime));
+             }
+             let ext = file_mime_to_ext(&mime)
+@@ -214,7 +205,7 @@ pub fn validate_file_content(
+                 .unwrap_or_else(|| kind.extension().to_string());
+             Ok((mime, ext))
+         }
+-        None => Ok(("application/octet-stream".to_string(), "bin".to_string())),
++        None => Ok((UNRECOGNISED_MIME.to_string(), "bin".to_string())),
+     }
+ }
+ 
+@@ -229,6 +220,74 @@ pub fn serve_inline(mime: &str) -> bool {
+     mime.starts_with("image/") || mime.starts_with("video/")
+ }
+ 
++/// The type the generic file path stores for bytes with no recognised signature.
++const UNRECOGNISED_MIME: &str = "application/octet-stream";
++
++/// The type the generic file path stores for a zip archive it can name no further.
++const ZIP_MIME: &str = "application/zip";
++
++/// Declared types whose files are zip archives, besides any `+zip` type
++/// (RFC 6839 structured syntax suffix, e.g. `application/epub+zip`).
++///
++/// `infer` names an OOXML file from where its parts sit in the archive (the
++/// first entry, or the third and fourth, under `word/`, `xl/` or `ppt/`), so a
++/// document from a writer that orders its parts differently sniffs as plain
++/// zip. An ODF package whose `mimetype` entry is not first, or a JAR, can fall
++/// back the same way.
++const ZIP_PACKAGED_MIME_TYPES: &[&str] = &[
++    "application/x-zip-compressed",
++    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
++    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
++    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
++    "application/vnd.oasis.opendocument.text",
++    "application/vnd.oasis.opendocument.spreadsheet",
++    "application/vnd.oasis.opendocument.presentation",
++    "application/vnd.oasis.opendocument.graphics",
++    "application/java-archive",
++];
++
++/// Whether the generic file path refuses content of this type.
++///
++/// Recognized media must never fall through exact-byte attachment storage.
++/// Images and video use their canonical media validators; audio is rejected
++/// until Buzz has an explicit sanitizer and location-metadata validator for its
++/// container. Active content and executables are never stored.
++fn is_refused_on_file_path(mime: &str) -> bool {
++    mime.starts_with("image/")
++        || mime.starts_with("video/")
++        || mime.starts_with("audio/")
++        || BLOCKED_FILE_MIME_TYPES.contains(&mime)
++}
++
++fn is_zip_packaged(mime: &str) -> bool {
++    mime.ends_with("+zip") || ZIP_PACKAGED_MIME_TYPES.contains(&mime)
++}
++
++/// Whether a type a client declares for a blob agrees with the type the store
++/// sniffed from its bytes.
++///
++/// Sniffing names the most specific type it can prove, which for a container
++/// is sometimes only the container: a Word document whose parts are ordered
++/// unusually is provably a zip archive and no more. A declaration agrees when
++/// it names the stored type, names nothing (`application/octet-stream`), or
++/// names a format the stored type is the container of: a zip-packaged format
++/// over a stored zip, or a format with no signature over unrecognised bytes.
++/// A type the generic file path would refuse never agrees with anything but
++/// itself, so a blocked type still cannot reach a valid imeta.
++pub fn declared_mime_matches_stored(declared: &str, stored: &str) -> bool {
++    if declared == stored || declared == UNRECOGNISED_MIME {
++        return true;
++    }
++    if is_refused_on_file_path(declared) {
++        return false;
++    }
++    match stored {
++        ZIP_MIME => is_zip_packaged(declared),
++        UNRECOGNISED_MIME => !infer::is_mime_supported(declared),
++        _ => false,
++    }
++}
++
+ /// Metadata extracted from a validated MP4 file.
+ #[derive(Debug, Clone)]
+ pub struct VideoMeta {
+@@ -2724,4 +2783,162 @@ mod tests {
+         assert!(!serve_inline("audio/mpeg"));
+         assert!(!serve_inline("text/plain"));
+     }
++
++    fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
++        let mut archive = Vec::new();
++        for (name, content) in entries {
++            archive.extend_from_slice(b"PK\x03\x04");
++            archive.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
++            archive.extend_from_slice(&(content.len() as u32).to_le_bytes());
++            archive.extend_from_slice(&(content.len() as u32).to_le_bytes());
++            archive.extend_from_slice(&(name.len() as u16).to_le_bytes());
++            archive.extend_from_slice(&0u16.to_le_bytes());
++            archive.extend_from_slice(name.as_bytes());
++            archive.extend_from_slice(content);
++        }
++        archive
++    }
++
++    fn stored_mime_of(bytes: &[u8]) -> String {
++        validate_file_content(bytes, &test_config()).unwrap().0
++    }
++
++    const DOCX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
++    const XLSX: &str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
++    const PPTX: &str = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
++
++    #[test]
++    fn office_documents_whose_parts_sniff_as_plain_zip_keep_their_declared_type() {
++        let docx = zip_of(&[
++            ("[Content_Types].xml", b"<Types/>"),
++            ("_rels/.rels", b"<Relationships/>"),
++            ("docProps/core.xml", b"<coreProperties/>"),
++            ("docProps/app.xml", b"<Properties/>"),
++            ("word/document.xml", b"<w:document/>"),
++        ]);
++        let pptx = zip_of(&[
++            ("[Content_Types].xml", b"<Types/>"),
++            ("_rels/.rels", b"<Relationships/>"),
++            ("docProps/app.xml", b"<Properties/>"),
++            ("docProps/core.xml", b"<coreProperties/>"),
++            ("ppt/presentation.xml", b"<p:presentation/>"),
++        ]);
++        assert_eq!(stored_mime_of(&docx), "application/zip");
++        assert_eq!(stored_mime_of(&pptx), "application/zip");
++        assert!(declared_mime_matches_stored(DOCX, &stored_mime_of(&docx)));
++        assert!(declared_mime_matches_stored(PPTX, &stored_mime_of(&pptx)));
++    }
++
++    #[test]
++    fn office_documents_the_sniffer_recognises_still_match_exactly() {
++        let xlsx = zip_of(&[
++            ("[Content_Types].xml", b"<Types/>"),
++            ("_rels/.rels", b"<Relationships/>"),
++            ("xl/workbook.xml", b"<workbook/>"),
++            ("xl/_rels/workbook.xml.rels", b"<Relationships/>"),
++        ]);
++        assert_eq!(stored_mime_of(&xlsx), XLSX);
++        assert!(declared_mime_matches_stored(XLSX, &stored_mime_of(&xlsx)));
++        assert!(!declared_mime_matches_stored(DOCX, &stored_mime_of(&xlsx)));
++    }
++
++    #[test]
++    fn zip_packages_named_by_their_own_mimetype_entry_keep_their_declared_type() {
++        let hwpx = zip_of(&[
++            ("mimetype", b"application/hwp+zip"),
++            ("version.xml", b"<version/>"),
++            ("Contents/section0.xml", b"<hs:sec/>"),
++        ]);
++        let stored = stored_mime_of(&hwpx);
++        assert_eq!(stored, "application/zip");
++        for declared in [
++            "application/hwp+zip",
++            "application/vnd.oasis.opendocument.text",
++            "application/java-archive",
++        ] {
++            assert!(
++                declared_mime_matches_stored(declared, &stored),
++                "{declared}"
++            );
++        }
++    }
++
++    #[test]
++    fn a_plain_zip_matches_under_either_name_browsers_give_it() {
++        let archive = zip_of(&[("notes/readme.txt", b"hello")]);
++        let stored = stored_mime_of(&archive);
++        assert_eq!(stored, "application/zip");
++        assert!(declared_mime_matches_stored("application/zip", &stored));
++        assert!(declared_mime_matches_stored(
++            "application/x-zip-compressed",
++            &stored
++        ));
++    }
++
++    #[test]
++    fn a_declaration_that_names_no_type_matches_whatever_was_stored() {
++        assert!(declared_mime_matches_stored(
++            "application/octet-stream",
++            "application/zip"
++        ));
++        assert!(declared_mime_matches_stored(
++            "application/octet-stream",
++            "application/pdf"
++        ));
++    }
++
++    #[test]
++    fn text_without_a_signature_keeps_its_declared_type() {
++        let stored = stored_mime_of(b"name,amount\nsample,3\n");
++        assert_eq!(stored, "application/octet-stream");
++        assert!(declared_mime_matches_stored("text/csv", &stored));
++        assert!(declared_mime_matches_stored("text/plain", &stored));
++        assert!(declared_mime_matches_stored("text/markdown", &stored));
++    }
++
++    #[test]
++    fn a_declared_type_the_bytes_contradict_is_refused() {
++        assert!(!declared_mime_matches_stored(
++            "image/png",
++            "application/zip"
++        ));
++        assert!(!declared_mime_matches_stored(
++            "application/pdf",
++            "application/zip"
++        ));
++        assert!(!declared_mime_matches_stored(
++            "application/pdf",
++            "application/octet-stream"
++        ));
++        assert!(!declared_mime_matches_stored(
++            "application/zip",
++            "application/octet-stream"
++        ));
++        assert!(!declared_mime_matches_stored(
++            DOCX,
++            "application/octet-stream"
++        ));
++        assert!(!declared_mime_matches_stored(DOCX, "application/pdf"));
++    }
++
++    #[test]
++    fn a_declared_type_the_file_path_refuses_never_matches() {
++        for refused in [
++            "image/svg+xml",
++            "application/javascript",
++            "application/vnd.android.package-archive",
++            "image/heic",
++            "audio/x-unknown",
++            "video/x-unknown",
++        ] {
++            assert!(
++                !declared_mime_matches_stored(refused, "application/zip"),
++                "{refused} must not ride on a stored zip"
++            );
++            assert!(
++                !declared_mime_matches_stored(refused, "application/octet-stream"),
++                "{refused} must not ride on an unrecognised blob"
++            );
++        }
++    }
+ }
+diff --git a/crates/buzz-relay/src/handlers/imeta.rs b/crates/buzz-relay/src/handlers/imeta.rs
+index e3d564e44..cda745879 100644
+--- a/crates/buzz-relay/src/handlers/imeta.rs
++++ b/crates/buzz-relay/src/handlers/imeta.rs
+@@ -1,7 +1,7 @@
+ //! imeta tag validation helpers — shared between ingest pipeline and bridge.
+ 
+ use buzz_core::tenant::TenantContext;
+-use buzz_media::validation::mime_to_ext;
++use buzz_media::validation::{declared_mime_matches_stored, mime_to_ext};
+ 
+ /// Validate imeta tags for correctness and safety.
+ ///
+@@ -72,9 +72,11 @@ pub fn validate_imeta_tags(tags: &[Vec<String>], media_base_url: &str) -> Result
+                 "m" => {
+                     // Accept any well-formed `type/subtype` MIME token. The
+                     // authoritative gate is `verify_imeta_blobs`, which requires
+-                    // `m` to equal the stored sidecar MIME — and a sidecar only
+-                    // exists for content that passed the upload validator's
+-                    // deny-list. So a blocked type can never reach a valid imeta.
++                    // `m` to agree with the stored sidecar MIME — and a sidecar
++                    // only exists for content that passed the upload validator's
++                    // deny-list, while `declared_mime_matches_stored` never lets a
++                    // blocked type agree with another. So a blocked type can never
++                    // reach a valid imeta.
+                     if !is_well_formed_mime(value) {
+                         return Err("imeta m must be a valid MIME type".into());
+                     }
+@@ -255,7 +257,7 @@ pub async fn verify_imeta_blobs(
+         }
+ 
+         // 3. Cross-check claimed metadata against sidecar.
+-        if !m_value.is_empty() && sidecar.mime_type != m_value {
++        if !m_value.is_empty() && !declared_mime_matches_stored(&m_value, &sidecar.mime_type) {
+             return Err(format!(
+                 "imeta m ({m_value}) does not match stored MIME ({})",
+                 sidecar.mime_type
