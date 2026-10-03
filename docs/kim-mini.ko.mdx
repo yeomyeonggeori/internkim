@@ -42,6 +42,18 @@ icon: Bot
 수 있습니다. 또한 누구든 같은 이름과 비밀번호로 비슷한 네트워크를 띄워 사무실 비밀번호를 받아 낼 수
 있습니다.
 
+## 상자 만들기
+
+상자는 하나의 이미지로 SD카드를 구운 Raspberry Pi입니다.
+`tools/build-kim-mini-image --release <tag>`는 Docker의 arm64 Linux 컨테이너에서 이 이미지를 만듭니다.
+Raspberry Pi OS Lite에 그 릴리스의 호스트 패키지를 설치하고, 상자 서비스를 `--wifi-setup`으로 실행하며,
+`--wifi-country`로 정한 나라(기본 `KR`)에 맞춰 Wi-Fi를 켭니다. Raspberry Pi OS는 나라를 고르기 전까지
+Wi-Fi를 꺼 두는데, 새 상자에는 그걸 고를 사람이 없습니다. 패키지는 이미지를 만들 때 설치되므로 상자는
+처음 켜지기 전에 인터넷이 필요 없습니다.
+
+`tools/flash-kim-mini <image> <diskN>`은 Mac에서 이미지를 카드에 굽고 그날을 `internkim-made-on`에 적습니다.
+SD카드나 USB 디스크에만 쓰며, 지우기 전에 디스크 이름을 한 번 더 입력받습니다.
+
 ## 상자 연결하기
 
 1. 상자는 사무실 네트워크에 붙어, 아직 어느 회사에도 속하지 않은 상자로서 자신의 공개 키를 30초마다

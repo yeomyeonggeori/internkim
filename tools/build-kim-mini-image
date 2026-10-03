@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scriptDirectory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repositoryRoot="$(cd "$scriptDirectory/.." && pwd)"
+baseImageURL="https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2026-09-15/2026-09-15-raspios-trixie-arm64-lite.img.xz"
+releaseTag=""
+releaseDirectory=""
+wifiCountry="KR"
+outputDirectory="$repositoryRoot/.artifacts/kim-mini"
+
+usage() {
+  cat <<USAGE
+Usage:
+  tools/build-kim-mini-image --release <vYYYY.MM.DD.HHMMSS> [--wifi-country KR] [--base-image-url <url>]
+  tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--base-image-url <url>]
+
+Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
+package of that release installed, the box started with --wifi-setup, and Wi-Fi
+turned on for the country the box is sold in, which Raspberry Pi OS otherwise
+leaves off until someone picks one. It runs
+in a privileged arm64 Linux container through Docker and writes
+.artifacts/kim-mini/kim-mini-<release>.img.xz. Write it to a card with
+tools/flash-kim-mini, which also records the day the box was made.
+
+--release-directory installs from a directory that \`internkim release packages\`
+wrote instead of from GitHub, to try a build that is not released; --release
+then only names the output.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --release) releaseTag="$2"; shift 2 ;;
+    --base-image-url) baseImageURL="$2"; shift 2 ;;
+    --wifi-country) wifiCountry="$2"; shift 2 ;;
+    --release-directory) releaseDirectory="$(cd "$2" && pwd)"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage >&2; exit 1 ;;
+  esac
+done
+[ -n "$releaseTag" ] || { usage >&2; exit 1; }
+
+mkdir -p "$outputDirectory"
+releaseMount=()
+[ -z "$releaseDirectory" ] || releaseMount=(-v "$releaseDirectory:/work/release:ro")
+docker run --rm --privileged --platform linux/arm64 \
+  "${releaseMount[@]}" \
+  -v "$scriptDirectory/kim-mini-image:/work/tools:ro" \
+  -v "$repositoryRoot/web/static/install.sh:/work/install.sh:ro" \
+  -v "$outputDirectory:/output" \
+  debian:trixie sh /work/tools/assemble "$baseImageURL" "$releaseTag" "/output/kim-mini-$releaseTag.img" "$wifiCountry"
