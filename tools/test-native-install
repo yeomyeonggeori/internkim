@@ -187,6 +187,27 @@ messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | h
 printf 'pdfs=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at and answer.tags @> '[[\"imeta\", \"m application/pdf\"]]'::jsonb" 2>&1 | tr -d ' \n')"
 """
 
+# The agent writes its log to the directory its runtime document names; its
+# journal stays empty.
+AGENT_LOG_COMMAND = r"""
+runtime="$(systemctl show %(agent)s -p ExecStart --value | sed -n 's/.* -runtime \([^ ;]*\).*/\1/p' | head -n 1)"
+directory="$(%(python)s -c 'import json, sys; print(json.load(open(sys.argv[1]))["logging"]["directoryPath"])' "$runtime" 2>/dev/null)"
+[ -n "$directory" ] || { echo "the agent's runtime document $runtime names no log directory"; exit 0; }
+cat "$directory"/blueclaw-*.jsonl 2>/dev/null | grep -E '%(pattern)s' | tail -n %(lines)s | cut -c1-400
+"""
+
+# The agent's own account of a task: how it ended, the events it recorded, and
+# the words it posted after the member's message.
+AGENT_LEDGER_COMMAND = r"""
+agent_url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
+messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
+task="$(psql "$agent_url" -tAc "select task_run_id from task_run where position('%(marker)s' in prompt) > 0 order by created_at desc limit 1" 2>&1 | tr -d ' \n')"
+printf 'task=%%s status=%%s\n' "$task" "$(psql "$agent_url" -tAc "select status from task_run where task_run_id = '$task'" 2>&1 | tr -d ' \n')"
+printf 'events=%%s\n' "$(psql "$agent_url" -tAc "select name from task_event where task_run_id = '$task' order by created_at" 2>&1 | uniq -c | awk '{print $2 "x" $1}' | tr '\n' ' ')"
+psql "$agent_url" -tAc "select name || ': ' || left(body, 600) from task_event where task_run_id = '$task' and name in ('completion.change_check', 'agent.evidence_missing', 'agent.failure_report') order by created_at desc limit 3" 2>&1
+psql "$messenger_url" -tAc "select 'answered: ' || left(replace(answer.content, chr(10), ' '), 300) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at order by answer.created_at" 2>&1
+"""
+
 BRIDGE_COMMAND = (
     "printf 'bridge=%(port)s%(path)s=%%s\\n' "
     "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
@@ -1064,10 +1085,20 @@ class Rig:
             f"conversation {conversation_id or 'none'}, member {messenger_identity or 'nobody'}\n"
             + json.dumps(typing)[:400]
             + "\n"
-            + self.machine.shell(
-                f"journalctl -u {AGENT_UNIT_NAME} --no-pager -n 400 2>/dev/null | grep -m 5 progress; true"
-            ).stdout.strip()[-800:],
+            + self.agent_log_lines("progress", 5)
+            + "\n"
+            + self.relay_journal_lines("arrival watch|typing not told", 10),
         )
+
+    def agent_log_lines(self, pattern, lines):
+        return self.machine.shell(
+            AGENT_LOG_COMMAND % {"agent": AGENT_UNIT_NAME, "python": HOST_PYTHON_PATH, "pattern": pattern, "lines": lines}
+        ).stdout.strip()[-2000:]
+
+    def relay_journal_lines(self, pattern, lines):
+        return self.machine.shell(
+            f"journalctl -u {RELAY_UNIT_NAME} --no-pager 2>/dev/null | grep -E '{pattern}' | tail -n {lines}; true"
+        ).stdout.strip()[-1500:]
 
     def last_sent_message_id(self):
         return self.sent_messages[-1][0] if self.sent_messages else ""
@@ -1117,8 +1148,18 @@ class Rig:
             the_agent_sent_a_pdf(reported.stdout),
             f"asked in {message_id or 'no message'}: {reported.stdout.strip()}\n"
             + self.machine.shell(
-                f"journalctl -u {RELAY_UNIT_NAME} --no-pager -n 400 2>/dev/null | grep -E 'did not reach|transfer:' | tail -n 10; true"
-            ).stdout.strip()[-1500:],
+                AGENT_LEDGER_COMMAND
+                % {
+                    "agent_path": COMPANY_CONDITION_PATH,
+                    "messenger_path": MESSENGER_DATABASE_PATH,
+                    "marker": self.message_text.split()[-1],
+                    "message": message_id or "no-message",
+                }
+            ).stdout.strip()[-1500:]
+            + "\n"
+            + self.agent_log_lines("resource_link|reply\\.(failed|sent|undelivered)|outbound\\.(sent|failed)", 10)
+            + "\n"
+            + self.relay_journal_lines("did not reach|transfer:", 10),
         )
 
     def observe_a_message_that_arrives_before_the_roster(self, step, plane):
