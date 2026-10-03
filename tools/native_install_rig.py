@@ -1165,7 +1165,7 @@ class CompanyPlane:
         issued["centralPlane"]["projectURL"] = self.project_url
         return issued
 
-    def member_session(self, company_id, message_text):
+    def member_session(self, company_id, message_text, typing_wait_seconds=0):
         """What a member does in a browser: sign in, open the wire, say something.
 
         Run in its own process because the browser's half of this wire is a
@@ -1184,6 +1184,7 @@ class CompanyPlane:
                 "MEMBER_SESSION_EMAIL": self.administrator_email,
                 "MEMBER_SESSION_PASSWORD": self.administrator_password,
                 "MEMBER_SESSION_MESSAGE": message_text,
+                "MEMBER_SESSION_TYPING_WAIT_MS": str(typing_wait_seconds * 1000),
             },
             timeout=300,
         )

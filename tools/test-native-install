@@ -91,6 +91,8 @@ AGENT_UNIT_NAME = "blueclaw.service"
 # relay would have lost.
 LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS = 60
 
+TYPING_WAIT_SECONDS = 30
+
 # A host whose install has just returned on a release without the roster wait:
 # the agent has started on the roster the prepare step writes, which names no
 # people because none has been handed over, and admind
@@ -948,7 +950,7 @@ class Rig:
             + self.relay_reported_of_the_gateway(),
         )
 
-    def observe_the_member_round_trip(self, step, plane):
+    def observe_the_member_round_trip(self, step, plane, is_watching_for_typing=False):
         """A person signs in, says something, and the company answers.
 
         Everything here goes over the member's own websocket to the gateway,
@@ -972,7 +974,11 @@ class Rig:
             lambda reported: "roster=yes" in reported,
             timeout_seconds=600,
         )
-        session = plane.member_session(self.company_id, self.message_text)
+        session = plane.member_session(
+            self.company_id,
+            self.message_text,
+            TYPING_WAIT_SECONDS if is_watching_for_typing else 0,
+        )
         presence = session.get("presence") or {}
         sent = session.get("sent") or {}
 
@@ -1017,6 +1023,30 @@ class Rig:
             f"the messenger knows this member as {messenger_identity or 'nobody'}; "
             f"{roster.stdout.strip()}; {bridge.stdout.strip()}\n"
             + json.dumps({"status": sent.get("status"), "messageID": message_id, "body": sent.get("body")})[:500],
+        )
+        if is_watching_for_typing:
+            self.observe_the_agent_typing(step, session, messenger_identity)
+
+    def observe_the_agent_typing(self, step, session, messenger_identity):
+        conversation_id = (session.get("conversation") or {}).get("id") or ""
+        typing = session.get("typing") or []
+        someone_else_typing = [
+            event for event in typing if event.get("authorExternalID") not in ("", messenger_identity)
+        ]
+        step.observe(
+            "the member sees the agent typing in the conversation they wrote in",
+            f"the typing.started frames the member's own websocket received within {TYPING_WAIT_SECONDS}s "
+            "of sending, for that conversation and from anyone but the member",
+            "an answer takes a model's time to write, and a person who sees nothing in that time thinks "
+            "nobody heard; the frame is what the messenger draws the typing line from",
+        ).record(
+            bool(someone_else_typing),
+            f"conversation {conversation_id or 'none'}, member {messenger_identity or 'nobody'}\n"
+            + json.dumps(typing)[:400]
+            + "\n"
+            + self.machine.shell(
+                f"journalctl -u {AGENT_UNIT_NAME} --no-pager -n 400 2>/dev/null | grep -m 5 progress; true"
+            ).stdout.strip()[-800:],
         )
 
     def last_sent_message_id(self):
@@ -1701,7 +1731,7 @@ def main():
                 rig.observe_running_services(step_five)
                 observe_a_real_conversion(rig.machine, step_five)
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
-                rig.observe_the_member_round_trip(step_five, rig.plane)
+                rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=True)
                 rig.observe_the_agent_answered(step_five)
                 step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
                 rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
