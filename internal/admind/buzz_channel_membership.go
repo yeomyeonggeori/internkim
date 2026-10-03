@@ -26,7 +26,8 @@ const memberChannelSyncInterval = 24 * time.Hour
 // while it is still doing that, so its first run grants nobody. Until the
 // roster holds everyone this company named, the pass runs on this clock
 // instead; a box installed a minute ago used to be unable to carry a message
-// from anyone until the next day.
+// from anyone until the next day. A person let in whose room with the agent
+// could not be opened yet keeps it on this clock too.
 const memberChannelFirstPassInterval = 30 * time.Second
 
 func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
@@ -46,8 +47,11 @@ func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 }
 
 func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) time.Duration {
-	stillOutside := service.pubkeysTheRelayMayNotHold(ctx, pubkeysOf(service.everyoneTheRelayShouldHold(ctx)))
-	if len(stillOutside) > 0 {
+	everyone := service.everyoneTheRelayShouldHold(ctx)
+	if len(service.pubkeysTheRelayMayNotHold(ctx, pubkeysOf(everyone))) > 0 {
+		return memberChannelFirstPassInterval
+	}
+	if len(service.admittedMembersWithoutTheAgentDirectRoom(ctx, everyone)) > 0 {
 		return memberChannelFirstPassInterval
 	}
 	return memberChannelSyncInterval
@@ -411,6 +415,7 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	}
 	member := service.everyoneTheRelayShouldHold(ctx)
 	service.letOntoTheRelay(ctx, pubkeysOf(member))
+	service.openTheAgentDirectRoomForEveryMember(ctx, member)
 	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil {
 		log.Printf("buzz member membership: channel query failed: %v", errorValue)
@@ -656,6 +661,7 @@ func (service *Service) usersSyncCacheEmails() []string {
 type buzzMember struct {
 	Pubkey string
 	Role   string
+	Email  string
 }
 
 func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
@@ -672,7 +678,7 @@ func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
 			continue
 		}
 		seen[pubkey] = true
-		members = append(members, buzzMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email)})
+		members = append(members, buzzMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email), Email: email})
 	}
 	return members
 }
