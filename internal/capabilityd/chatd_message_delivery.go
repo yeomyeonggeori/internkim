@@ -48,13 +48,8 @@ func (service Service) chatdServesTheMessenger() bool {
 }
 
 func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest, input platformMessageSendInput) (capabilities.ToolInvokeResponse, error) {
-	if input.DeliveryTarget.Type == "directMessage" {
-		if strings.TrimSpace(input.DeliveryTarget.PersonHint) != "" || len(input.DeliveryTarget.PersonHints) > 0 {
-			return service.invokeChatdDirectMessageSend(ctx, request, input)
-		}
-		failure := platformToolStaticFailure("unsupported_target", "platform_route",
-			"targetType=directMessage without personHint answers the requester, and on "+service.companyMessenger()+" that is this conversation; reply with targetType=currentChannel or currentThread")
-		return platformToolErrorResponse(request.ToolName, failure), nil
+	if input.DeliveryTarget.Type == "directMessage" && !addressesOnlyTheRequester(input.DeliveryTarget) {
+		return service.invokeChatdDirectMessageSend(ctx, request, input)
 	}
 	if input.Pin {
 		failure := platformToolStaticFailure("invalid_input", "platform_route",
@@ -85,8 +80,12 @@ func (service Service) invokeChatdPlatformMessageSend(ctx context.Context, reque
 }
 
 func chatdMessagePostTarget(toolContext capabilities.ToolInvokeContext, target platformMessageDeliveryTarget) (chatdMessagePostRequest, platformToolFailure, bool) {
+	if target.Type == "directMessage" && !landsInTheAnsweredConversation(toolContext, target) {
+		return chatdMessagePostRequest{}, platformToolStaticFailure("unsupported_target", "platform_route",
+			"targetType=directMessage without personHint is the requester's direct conversation, and this request did not arrive there; reply here with targetType=currentThread"), true
+	}
 	switch target.Type {
-	case "currentThread":
+	case "currentThread", "directMessage":
 		replyTargetID := strings.TrimSpace(toolContext.ReplyTargetID)
 		if replyTargetID == "" {
 			return chatdMessagePostRequest{}, platformToolStaticFailure("thread_not_available", "context", "current platform thread is not available"), true
@@ -104,8 +103,7 @@ func chatdMessagePostTarget(toolContext capabilities.ToolInvokeContext, target p
 		// conversation that is the conversation's own. A channel post aimed at
 		// the room the request came from is not a channel post; asking for the
 		// channel's name is what keeps the copy out of the DM.
-		if channelID != "" && channelID == strings.TrimSpace(toolContext.ChannelID) &&
-			strings.EqualFold(strings.TrimSpace(toolContext.ConversationType), "direct") {
+		if channelID != "" && channelID == strings.TrimSpace(toolContext.ChannelID) && isDirectConversation(toolContext) {
 			return chatdMessagePostRequest{}, platformToolStaticFailure("invalid_target", "input_decode",
 				"channelID "+channelID+" is this direct conversation, not a channel; name the channel with channelName, or use targetType=currentChannel to reply here"), true
 		}

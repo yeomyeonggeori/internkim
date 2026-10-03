@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -232,7 +233,9 @@ func TestInvokeCapabilityToolRequiresDescriptorApproval(t *testing.T) {
 	}
 }
 
-func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
+func TestMessageSendIntoTheAnsweredConversationNeedsNoApproval(t *testing.T) {
+	channelThread := capabilities.ToolInvokeContext{ConversationID: "conversation-1", ConversationType: "channel", ChannelID: "channel-1", ReplyTargetID: "thread-1"}
+	requesterDirect := capabilities.ToolInvokeContext{ConversationID: "conversation-2", ConversationType: "direct", ChannelID: "channel-2", ReplyTargetID: "thread-2"}
 	testCases := []struct {
 		name             string
 		input            string
@@ -241,32 +244,38 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 	}{
 		{
 			name:             "directMessage still requires approval",
-			input:            `{"targetType":"directMessage"}`,
+			input:            `{"targetType":"directMessage","message":"안내"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: true,
 		},
 		{
 			name:             "currentThread in the originating conversation is pre-approved",
-			input:            `{"targetType":"currentThread"}`,
-			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
-			requiresApproval: false,
-		},
-		{
-			name:             "currentChannel in the originating conversation is pre-approved",
-			input:            `{"targetType":"currentChannel"}`,
+			input:            `{"targetType":"currentThread","message":"안내"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
 			requiresApproval: false,
 		},
 		{
 			name:             "currentThread without a trusted originating conversation still requires approval",
-			input:            `{"targetType":"currentThread"}`,
+			input:            `{"targetType":"currentThread","message":"안내"}`,
 			context:          capabilities.ToolInvokeContext{ConversationID: ""},
 			requiresApproval: true,
 		},
 		{
-			name:             "named channel still requires approval",
-			input:            `{"targetType":"channel","channelName":"general"}`,
-			context:          capabilities.ToolInvokeContext{ConversationID: "conversation-1"},
+			name:             "a direct message to the requester asked from their own direct conversation is that conversation",
+			input:            `{"targetType":"directMessage","message":"안내","attachments":["~/documents/report.pdf"]}`,
+			context:          requesterDirect,
+			requiresApproval: false,
+		},
+		{
+			name:             "a direct message to the requester asked from a channel thread goes somewhere else",
+			input:            `{"targetType":"directMessage","message":"안내"}`,
+			context:          channelThread,
+			requiresApproval: true,
+		},
+		{
+			name:             "a direct message to another person from the requester's direct conversation still requires approval",
+			input:            `{"targetType":"directMessage","personHint":"박예시","message":"안내"}`,
+			context:          requesterDirect,
 			requiresApproval: true,
 		},
 		{
@@ -284,9 +293,8 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 				Input:    json.RawMessage(testCase.input),
 				Context:  testCase.context,
 			}
-			service := Service{}
 			descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
-			response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
+			response, isDenied := Service{}.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
 			if isDenied != testCase.requiresApproval {
 				t.Fatalf("expected requiresApproval=%v, got isDenied=%v response=%+v", testCase.requiresApproval, isDenied, response)
 			}
@@ -297,94 +305,56 @@ func TestMessageSendCurrentConversationApprovalGate(t *testing.T) {
 	}
 }
 
-func TestMessageSendSelfDirectMessageApprovalGate(t *testing.T) {
-	requesterContext := capabilities.ToolInvokeContext{
-		RequesterPersonID: "person-yesi",
-		ConversationID:    "conversation-1",
-	}
-
-	t.Run("directMessage resolving to the requester is pre-approved", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
-		request := capabilities.ToolInvokeRequest{
-			ToolName: "message_send",
-			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
-			Context:  requesterContext,
-		}
-		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
-		if isDenied {
-			t.Fatalf("expected self direct message to be pre-approved, got %+v", response)
-		}
-	})
-
-	t.Run("directMessage resolving to a different person still requires approval", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
-		request := capabilities.ToolInvokeRequest{
-			ToolName: "message_send",
-			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
-			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-someone-else", ConversationID: "conversation-1"},
-		}
-		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
-		if !isDenied {
-			t.Fatal("expected direct message to a different person to require approval")
-		}
-		assertCapabilityApprovalRequired(t, response, "message_send")
-	})
-
-	t.Run("directMessage broadcast with personHints still requires approval", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
-		request := capabilities.ToolInvokeRequest{
-			ToolName: "message_send",
-			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플","personHints":["샘플"]}`),
-			Context:  requesterContext,
-		}
-		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
-		if !isDenied {
-			t.Fatal("expected multi-recipient directMessage to require approval")
-		}
-		assertCapabilityApprovalRequired(t, response, "message_send")
-	})
-
-	t.Run("recipient resolution failure still requires approval", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {}))
-		server.Close()
-		service := Service{Configuration: Configuration{BlueclawBaseURL: server.URL}}
-		request := capabilities.ToolInvokeRequest{
-			ToolName: "message_send",
-			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
-			Context:  requesterContext,
-		}
-		descriptor := descriptorForCapabilityToolTest(t, request.ToolName)
-		response, isDenied := service.capabilityToolApprovalDeniedResponse(context.Background(), request, descriptor)
-		if !isDenied {
-			t.Fatal("expected resolution failure to require approval")
-		}
-		assertCapabilityApprovalRequired(t, response, "message_send")
-	})
-
-	t.Run("scheduled run never qualifies for the self direct-message pre-approval", func(t *testing.T) {
-		service := platformDMResolverTestService(t, platformDMResolvedSampleResponse())
-		request := capabilities.ToolInvokeRequest{
-			ToolName: "message_send",
-			Input:    json.RawMessage(`{"targetType":"directMessage","personHint":"샘플"}`),
-			Context:  capabilities.ToolInvokeContext{RequesterPersonID: "person-yesi", ConversationID: "conversation-1", IsScheduledRun: true},
-		}
-		if service.isPreApprovedSelfDirectMessageSend(context.Background(), request) {
-			t.Fatal("expected scheduled runs to never qualify for the self direct-message pre-approval")
-		}
-	})
+type answeredConversationCase struct {
+	Name                           string          `json:"name"`
+	ConversationType               string          `json:"conversationType"`
+	ChannelID                      string          `json:"channelID"`
+	Input                          json.RawMessage `json:"input"`
+	LandsInTheAnsweredConversation bool            `json:"landsInTheAnsweredConversation"`
 }
 
-func TestMessageSendPreApprovalExcludesScheduledRuns(t *testing.T) {
-	request := capabilities.ToolInvokeRequest{
-		ToolName: "message_send",
-		Input:    json.RawMessage(`{"targetType":"currentThread"}`),
-		Context:  capabilities.ToolInvokeContext{ConversationID: "conversation-1", IsScheduledRun: true},
+func TestCapabilitydAndTheTurnGateAgreeOnTheAnsweredConversation(t *testing.T) {
+	blueclawPath := filepath.Join("..", "..", ".dependency", "blueclaw")
+	if _, errorValue := os.Stat(filepath.Join(blueclawPath, "go.mod")); errorValue != nil {
+		t.Skip("blueclaw is not checked out: git submodule update --init --recursive")
 	}
-	if isPreApprovedCurrentConversationMessageSend(request) {
-		t.Fatal("expected scheduled runs to never qualify for the current-conversation pre-approval")
+	document, errorValue := os.ReadFile(filepath.Join(blueclawPath, "internal", "approvalgate", "testdata", "answered_conversation_cases.json"))
+	if errorValue != nil {
+		t.Fatalf("blueclaw's turn gate no longer publishes the cases both gates are held to: %v", errorValue)
+	}
+	var cases []answeredConversationCase
+	if errorValue := json.Unmarshal(document, &cases); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, answeredCase := range cases {
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message_send",
+			Input:    answeredCase.Input,
+			Context: capabilities.ToolInvokeContext{
+				ConversationID:   "conversation-1",
+				ConversationType: answeredCase.ConversationType,
+				ChannelID:        answeredCase.ChannelID,
+			},
+		}
+		if sendsIntoTheAnsweredConversation(request) != answeredCase.LandsInTheAnsweredConversation {
+			t.Errorf("%s: blueclaw's turn gate says %v and capabilityd disagrees", answeredCase.Name, answeredCase.LandsInTheAnsweredConversation)
+		}
+	}
+}
+
+func TestMessageSendIntoTheAnsweredConversationExcludesScheduledRuns(t *testing.T) {
+	for _, input := range []string{
+		`{"targetType":"currentThread","message":"안내"}`,
+		`{"targetType":"directMessage","message":"안내"}`,
+	} {
+		request := capabilities.ToolInvokeRequest{
+			ToolName: "message_send",
+			Input:    json.RawMessage(input),
+			Context:  capabilities.ToolInvokeContext{ConversationID: "conversation-1", ConversationType: "direct", IsScheduledRun: true},
+		}
+		if sendsIntoTheAnsweredConversation(request) {
+			t.Fatalf("a scheduled run has no conversation being answered, yet %s passed", input)
+		}
 	}
 }
 

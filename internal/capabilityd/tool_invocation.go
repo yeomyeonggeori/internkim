@@ -242,10 +242,7 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 	if requesterApprovedThisCall(request.Context) || request.Context.IsScheduledRun {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	if isPreApprovedCurrentConversationMessageSend(request) {
-		return capabilities.ToolInvokeResponse{}, false
-	}
-	if service.isPreApprovedSelfDirectMessageSend(ctx, request) {
+	if sendsIntoTheAnsweredConversation(request) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	toolName := strings.TrimSpace(request.ToolName)
@@ -270,71 +267,18 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 	}, true
 }
 
-// A reply into the same thread or channel the user is already talking in
-// carries no more authority than the message that prompted it, so it does
-// not need a separate approval step. Scheduled/proactive runs are excluded
-// because there is no live user turn granting that authority in the moment.
-func isPreApprovedCurrentConversationMessageSend(request capabilities.ToolInvokeRequest) bool {
-	if request.ToolName != "message_send" {
-		return false
-	}
-	if request.Context.IsScheduledRun {
+func sendsIntoTheAnsweredConversation(request capabilities.ToolInvokeRequest) bool {
+	if request.ToolName != "message_send" || request.Context.IsScheduledRun {
 		return false
 	}
 	if strings.TrimSpace(request.Context.ConversationID) == "" {
 		return false
 	}
-	deliveryTargetType := decodeMessageSendDeliveryTarget(request.Input).Type
-	return deliveryTargetType == "currentThread" || deliveryTargetType == "currentChannel"
-}
-
-// A direct message the bot sends back to the same person who asked for it
-// carries no more authority than a reply in their current thread/channel:
-// no third party is involved, only the delivery channel differs. Broadcasts
-// with multiple recipient hints are excluded because that is a different
-// trust shape.
-func (service Service) isPreApprovedSelfDirectMessageSend(ctx context.Context, request capabilities.ToolInvokeRequest) bool {
-	if request.ToolName != "message_send" {
+	input, errorValue := decodePlatformMessageSendInput(request.Input)
+	if errorValue != nil {
 		return false
 	}
-	if request.Context.IsScheduledRun {
-		return false
-	}
-	deliveryTarget := decodeMessageSendDeliveryTarget(request.Input)
-	if deliveryTarget.Type != "directMessage" {
-		return false
-	}
-	personHint := strings.TrimSpace(deliveryTarget.PersonHint)
-	if personHint == "" || len(deliveryTarget.PersonHints) > 0 {
-		return false
-	}
-	recipient, _, hasFailure := service.resolvePlatformDMRecipient(ctx, personHint, request.Context.ResponseLanguage)
-	if hasFailure {
-		return false
-	}
-	return isPlatformDMSelfRecipient(request.Context, recipient)
-}
-
-type messageSendDeliveryTarget struct {
-	Type        string   `json:"type"`
-	PersonHint  string   `json:"personHint"`
-	PersonHints []string `json:"personHints"`
-}
-
-func decodeMessageSendDeliveryTarget(input json.RawMessage) messageSendDeliveryTarget {
-	var decodedInput struct {
-		TargetType  string   `json:"targetType"`
-		PersonHint  string   `json:"personHint"`
-		PersonHints []string `json:"personHints"`
-	}
-	if errorValue := json.Unmarshal(input, &decodedInput); errorValue != nil {
-		return messageSendDeliveryTarget{}
-	}
-	return messageSendDeliveryTarget{
-		Type:        decodedInput.TargetType,
-		PersonHint:  decodedInput.PersonHint,
-		PersonHints: decodedInput.PersonHints,
-	}
+	return landsInTheAnsweredConversation(request.Context, input.DeliveryTarget)
 }
 
 func decodeToolInvokeRequest(toolName string, reader io.Reader) (capabilities.ToolInvokeRequest, error) {
