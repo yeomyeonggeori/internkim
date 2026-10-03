@@ -13,8 +13,8 @@ const categoryRowSchema = z.object({
 const roleRowSchema = z.object({ code: z.string(), name: z.string(), name_ko: z.string() });
 const permissionRowSchema = z.object({ role_code: z.string(), category_code: z.string() });
 const shareRowSchema = z.object({
-	id: z.string(), role_code: z.string(), audience: z.enum(['member', 'circle', 'email', 'public']),
-	email: z.string().nullable(), member_id: z.string().nullable(), circle_id: z.string().nullable(),
+	id: z.string(), role_code: z.string(), audience: z.enum(['member', 'email', 'public']),
+	email: z.string().nullable(), member_id: z.string().nullable(),
 	accepted_at: z.string().nullable(), expires_at: z.string().nullable(), revoked_at: z.string().nullable(),
 	can_download: z.boolean()
 });
@@ -59,7 +59,7 @@ export async function companyDataRoomGet(context: RecordContext) {
 function answeredShare(value: unknown) {
 	const row = shareRowSchema.parse(value);
 	return { id: row.id, roleCode: row.role_code, audience: row.audience,
-		email: row.email, memberID: row.member_id, circleID: row.circle_id,
+		email: row.email, memberID: row.member_id,
 		acceptedAt: row.accepted_at, expiresAt: row.expires_at, revokedAt: row.revoked_at,
 		canDownload: row.can_download };
 }
@@ -88,7 +88,7 @@ export async function companyDataRoomShareCreate(context: RecordContext, value: 
 	const share = dataRoomShareCreateInputSchema.parse(value);
 	const shareID = await dataRoomCall(context.caller, 'data_room_share_create', {
 		target_company: context.companyID, role_code: share.roleCode, audience: share.audience,
-		recipient_email: share.email, recipient_member: share.memberID, recipient_circle: share.circleID,
+		recipient_email: share.email, recipient_member: share.memberID,
 		expires_at: share.expiresAt, can_download: share.canDownload ?? false
 	});
 	return { shareID: z.string().uuid().parse(shareID) };

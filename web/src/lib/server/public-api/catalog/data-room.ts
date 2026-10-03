@@ -11,10 +11,9 @@ export const dataRoomCategorySetInputSchema = dataRoomCategorySchema;
 export const dataRoomRoleSetInputSchema = dataRoomRoleSchema;
 export const dataRoomShareCreateInputSchema = z.strictObject({
 	roleCode: z.string(),
-	audience: z.enum(['member', 'circle', 'email', 'public']),
+	audience: z.enum(['member', 'email', 'public']),
 	email: z.string().regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/).optional(),
 	memberID: z.string().uuid().optional(),
-	circleID: z.string().uuid().optional(),
 	expiresAt: z.string().optional(),
 	canDownload: z.boolean().optional()
 });
@@ -51,7 +50,7 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 	dataRoomTool('dataroom_link_add', 'Create a code-protected share link for a reader role within your own permissions, including leadership. Every category follows the role and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.', dataRoomLinkInputSchema, dataRoomLinkCreatedSchema, true),
 	dataRoomTool('dataroom_link_delete', 'Revoke a link created by you, or any company link if you are an administrator. Existing guest sessions lose access immediately; downloaded files cannot be recalled.', dataRoomLinkRevokeSchema, dataRoomSavedSchema, true),
 	dataRoomTool('dataroom_member_update',
-		'Assign direct reader roles to an active employee. Replaces their direct member grants atomically; circle grants still apply. Only administrators can assign roles. Parent category grants include every child.',
+		'Assign the reader roles an active member holds; the roles a member holds are also their circles. Replaces them atomically. Only administrators can assign roles. Parent category grants include every child.',
 		dataRoomMemberRolesInputSchema, dataRoomSavedSchema, true),
 	{
 		name: 'company_document_classify', namespace: 'company', answeredBy: CapabilityAnsweredBy.Company,
@@ -72,7 +71,7 @@ export const dataRoomToolDefinitions: CapabilityToolDefinition[] = [
 		'Create or edit a reader role using readableCategories. A parent grants all descendants; otherwise name intermediate codes. Existing recipients of this role change access immediately. Read dataroom_get and confirm the affected recipients first. Read roles confer no administrative or editing rights.',
 		dataRoomRoleSetInputSchema, dataRoomSavedSchema, true),
 	dataRoomTool('dataroom_share_add',
-		'Share live data room categories by assigning a reader role to a member, internal circle, external email or explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.',
+		'Share live data room categories by assigning a reader role to a member, an external email or an explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.',
 		dataRoomShareCreateInputSchema, dataRoomShareCreatedSchema, true),
 	dataRoomTool('dataroom_share_delete',
 		'Revoke a data room share by its exact shareID from dataroom_get. Other active grants still apply. Already downloaded files cannot be recalled; existing signed URLs expire within ten minutes.',

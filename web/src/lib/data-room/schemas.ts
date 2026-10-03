@@ -42,8 +42,8 @@ export const companyDocumentListResultSchema = z.strictObject({
 });
 
 export const dataRoomShareSchema = z.strictObject({
- id: z.string(), roleCode: z.string(), audience: z.enum(['member', 'circle', 'email', 'public']),
- email: z.string().nullable(), memberID: z.string().nullable(), circleID: z.string().nullable(),
+ id: z.string(), roleCode: z.string(), audience: z.enum(['member', 'email', 'public']),
+ email: z.string().nullable(), memberID: z.string().nullable(),
  acceptedAt: z.string().nullable(), expiresAt: z.string().nullable(), revokedAt: z.string().nullable(),
  canDownload: z.boolean()
 });

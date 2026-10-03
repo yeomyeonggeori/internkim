@@ -35,7 +35,8 @@ description: 워크스페이스 도구, 그것이 실행되는 POSIX 신원, 완
 ## 명령은 누구로 실행되나 [#identity]
 
 정책의 모든 사람은 실제 리눅스 사용자로, 모든 서클은 실제 그룹으로
-투영됩니다(`.dependency/blueclaw/internal/security/posix_identity.go`):
+투영됩니다(`.dependency/blueclaw/internal/security/posix_identity.go`). 사람의
+서클은 그 사람이 가진 데이터룸 역할입니다:
 
 | 정책 객체 | 리눅스 객체 |
 |---|---|
