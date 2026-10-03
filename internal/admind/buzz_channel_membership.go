@@ -27,7 +27,8 @@ const memberChannelSyncInterval = 24 * time.Hour
 // roster holds everyone this company named, the pass runs on this clock
 // instead; a box installed a minute ago used to be unable to carry a message
 // from anyone until the next day. A person let in whose room with the agent
-// could not be opened yet keeps it on this clock too.
+// could not be opened yet keeps it on this clock too, and so does an agent
+// whose profile has no picture yet.
 const memberChannelFirstPassInterval = 30 * time.Second
 
 func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
@@ -52,6 +53,9 @@ func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) 
 		return memberChannelFirstPassInterval
 	}
 	if len(service.admittedMembersWithoutTheAgentDirectRoom(ctx, everyone)) > 0 {
+		return memberChannelFirstPassInterval
+	}
+	if service.agentProfileLacksAPicture(ctx) {
 		return memberChannelFirstPassInterval
 	}
 	return memberChannelSyncInterval
@@ -415,6 +419,7 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	}
 	member := service.everyoneTheRelayShouldHold(ctx)
 	service.letOntoTheRelay(ctx, pubkeysOf(member))
+	service.publishTheAgentProfile(ctx)
 	service.openTheAgentDirectRoomForEveryMember(ctx, member)
 	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil {

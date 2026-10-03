@@ -339,3 +339,27 @@ func TestTheBuiltPackageLandsWhereTheInstallRigLooks(t *testing.T) {
 		t.Fatalf("the install rig globs for a package not named %s", blueclaw.CompanyPackageName)
 	}
 }
+
+func TestEveryHostCarriesTheAgentPictureWhereAdmindIsToldToFindIt(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	for _, layout := range []blueclaw.CompanyHostLayout{packageLayout, blueclaw.MacCompanyHostLayout("/opt/homebrew")} {
+		carried := slices.IndexFunc(carriedLibraryFiles(layout), func(file packagedFile) bool {
+			return file.Destination == layout.AgentProfilePicturePath()
+		})
+		if carried < 0 {
+			t.Fatalf("the host rooted at %s carries no agent picture at %s", layout.LibraryRoot, layout.AgentProfilePicturePath())
+		}
+		source := filepath.Join(repositoryRootPath, carriedLibraryFiles(layout)[carried].SourcePath)
+		if _, errorValue := os.Stat(source); errorValue != nil {
+			t.Fatalf("the agent picture the package carries is not at %s: %v", source, errorValue)
+		}
+		service, isBundled := blueclaw.CompanyHostServiceNamed(layout, blueclaw.AdmindServiceName)
+		if !isBundled {
+			t.Fatal("the host runs no admind")
+		}
+		named := slices.Index(service.Command, "-agent-profile-picture")
+		if named < 0 || named+1 >= len(service.Command) || service.Command[named+1] != layout.AgentProfilePicturePath() {
+			t.Fatalf("admind is started as %v and not told the agent picture is at %s", service.Command, layout.AgentProfilePicturePath())
+		}
+	}
+}

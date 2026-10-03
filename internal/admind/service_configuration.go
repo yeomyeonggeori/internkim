@@ -55,7 +55,7 @@ type Configuration struct {
 	FontsDirectory                 string
 	IdentityDocumentPath           string
 	SoulDocumentPath               string
-	BotProfileImagePath            string
+	AgentProfilePicturePath        string
 	BlueclawWorkspacePath          string
 	BuzzInviteKeyPath              string
 	BuzzCommunityID                string
@@ -114,7 +114,6 @@ func DefaultConfiguration() Configuration {
 		FontsDirectory:                 "/opt/internkim/fonts",
 		IdentityDocumentPath:           "/root/.internkim/config/identity.json",
 		SoulDocumentPath:               "/root/.internkim/config/soul.json",
-		BotProfileImagePath:            "/opt/internkim/board-ui/logo.png",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
 	}
 }
@@ -289,9 +288,6 @@ func (configuration Configuration) withFontsDefaults(defaultConfiguration Config
 func (configuration Configuration) withPersonaDefaults(defaultConfiguration Configuration) Configuration {
 	configuration.IdentityDocumentPath = stateFilePath(configuration, defaultConfiguration, configuration.IdentityDocumentPath, defaultConfiguration.IdentityDocumentPath, "identity.json")
 	configuration.SoulDocumentPath = stateFilePath(configuration, defaultConfiguration, configuration.SoulDocumentPath, defaultConfiguration.SoulDocumentPath, "soul.json")
-	if configuration.BotProfileImagePath == "" {
-		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
-	}
 	if configuration.BotUsername == "" {
 		configuration.BotUsername = defaultConfiguration.BotUsername
 	}

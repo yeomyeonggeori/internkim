@@ -178,9 +178,12 @@ func addMemberTags(channelID, memberPubkeyHex, role string) nostr.Tags {
 	return tags
 }
 
-func (publisher *Publisher) SetProfile(ctx context.Context, actorSecretHex, displayName string) error {
-	content := `{"display_name":` + jsonString(displayName) + `,"name":` + jsonString(displayName) + `}`
-	return publisher.signAndPublish(ctx, actorSecretHex, ProfileKind, content, nostr.Tags{})
+func (publisher *Publisher) SetProfile(ctx context.Context, actorSecretHex, displayName, pictureURL string) error {
+	content := `{"display_name":` + jsonString(displayName) + `,"name":` + jsonString(displayName)
+	if pictureURL != "" {
+		content += `,"picture":` + jsonString(pictureURL)
+	}
+	return publisher.signAndPublish(ctx, actorSecretHex, ProfileKind, content+`}`, nostr.Tags{})
 }
 
 func (publisher *Publisher) signAndPublish(ctx context.Context, actorSecretHex string, kind int, content string, tags nostr.Tags) error {

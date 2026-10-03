@@ -80,12 +80,12 @@ func TestAKegWithNoMacOSProgramHasNoBottleTag(t *testing.T) {
 
 func TestTheKegCarriesThePrepareScriptAndMigrationsTheRuntimeDocumentNames(t *testing.T) {
 	repository := t.TempDir()
-	for _, source := range []string{
-		".dependency/internkim-plugin/skills/skill.md",
-		".dependency/blueclaw/migrations/0001.sql",
-		"host/runtime.template.json",
-		documentConversionLockPath,
-	} {
+	layout := blueclaw.MacCompanyHostLayout("")
+	sources := []string{".dependency/internkim-plugin/skills/skill.md", ".dependency/blueclaw/migrations/0001.sql"}
+	for _, file := range carriedLibraryFiles(layout) {
+		sources = append(sources, file.SourcePath)
+	}
+	for _, source := range sources {
 		path := filepath.Join(repository, source)
 		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
 			t.Fatal(errorValue)
@@ -98,7 +98,6 @@ func TestTheKegCarriesThePrepareScriptAndMigrationsTheRuntimeDocumentNames(t *te
 	if errorValue := copyBrewCarriedTrees(repository, libraryPath); errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	layout := blueclaw.MacCompanyHostLayout("")
 	script, errorValue := os.ReadFile(filepath.Join(libraryPath, "prepare-company-host"))
 	if errorValue != nil {
 		t.Fatalf("the keg has no prepare script for the LaunchDaemon to run: %v", errorValue)

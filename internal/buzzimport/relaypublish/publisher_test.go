@@ -79,7 +79,7 @@ func TestARelayReachedOnLoopbackHearsAndIsSignedItsPublicName(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	defer publisher.Close()
-	if errorValue := publisher.SetProfile(ctx, testSecretHex, "Sample"); errorValue != nil {
+	if errorValue := publisher.SetProfile(ctx, testSecretHex, "Sample", ""); errorValue != nil {
 		t.Fatal(errorValue)
 	}
 

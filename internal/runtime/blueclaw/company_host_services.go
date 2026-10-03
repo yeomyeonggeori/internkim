@@ -301,6 +301,7 @@ func companyHostAdminService(layout CompanyHostLayout) CompanyHostService {
 			"-blueclaw-url", BlueclawBaseURL,
 			"-blueclaw-policy", layout.PolicyDocumentPath(),
 			"-blueclaw-workspace", layout.WorkspacePath,
+			"-agent-profile-picture", layout.AgentProfilePicturePath(),
 			"-buzz-key-seed-path", CompanyHostIdentitySeedPath,
 			"-buzz-database-url-path", CompanyHostBuzzDatabasePath,
 			"-buzz-relay-key-path", CompanyHostBuzzRelayKeyPath,
