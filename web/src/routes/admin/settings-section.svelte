@@ -10,11 +10,10 @@
 
 	type SettingsSectionProps = {
 		adminBaseURL: string;
-		isDeviceReachable: boolean;
 		text: AdminPageText;
 	};
 
-	let { adminBaseURL, isDeviceReachable, text }: SettingsSectionProps = $props();
+	let { adminBaseURL, text }: SettingsSectionProps = $props();
 
 	let loadedAdminBaseURL = $state('');
 	let workspaceSettings = $state<WorkspaceSettings>({ timeZone: '', language: 'ko' });
@@ -117,7 +116,7 @@
 		</Field.Group>
 	</Card.Content>
 	<Card.Footer class="justify-end">
-		<Button disabled={!isDeviceReachable || isLoadingWorkspaceSettings || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
+		<Button disabled={isLoadingWorkspaceSettings || isSavingWorkspaceSettings} onclick={saveWorkspaceSettings}>
 			{#if isSavingWorkspaceSettings}
 				<LoaderIcon class="size-4 animate-spin" />
 			{/if}

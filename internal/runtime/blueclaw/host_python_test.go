@@ -78,3 +78,14 @@ func TestEveryServiceFindsTheHostsPythonFirst(t *testing.T) {
 		}
 	}
 }
+
+func TestThePrepareScriptNamesTheMigrationsEachLayoutInstalls(t *testing.T) {
+	for _, layout := range []blueclaw.CompanyHostLayout{blueclaw.LinuxCompanyHostLayout(), blueclaw.MacCompanyHostLayout("/opt/homebrew")} {
+		if layout.MigrationPath == "" {
+			t.Fatalf("the layout names no migrations path")
+		}
+		if !strings.Contains(blueclaw.CompanyHostPrepareScriptFor(layout), "MIGRATION_DIRECTORY_PATH="+layout.MigrationPath+" ") {
+			t.Errorf("the prepare script does not render the runtime document with %s", layout.MigrationPath)
+		}
+	}
+}

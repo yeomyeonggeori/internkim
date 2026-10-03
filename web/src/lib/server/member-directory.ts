@@ -6,29 +6,25 @@ import { settleSignInOfMember } from './control-plane';
 
 export type CompanyDirectory = { client: SupabaseClient; companyID: string };
 
-type CircleRow = { name: string; circle_member: { member_id: string }[] | null };
+type CircleMembership = { member_id: string; circle_id: string };
 
-export function circleNamesByMemberID(circles: CircleRow[]): Map<string, string[]> {
-	const namesByMemberID = new Map<string, string[]>();
-	for (const circle of circles) {
-		for (const membership of circle.circle_member ?? []) {
-			const held = namesByMemberID.get(membership.member_id) ?? [];
-			held.push(circle.name);
-			namesByMemberID.set(membership.member_id, held);
-		}
+export function circlesByMemberID(memberships: CircleMembership[]): Map<string, string[]> {
+	const circlesOfMember = new Map<string, string[]>();
+	for (const { member_id: memberID, circle_id: circle } of memberships) {
+		circlesOfMember.set(memberID, [...(circlesOfMember.get(memberID) ?? []), circle]);
 	}
-	return namesByMemberID;
+	return circlesOfMember;
 }
 
 export async function circlesOfTheCompany(directory: CompanyDirectory): Promise<Map<string, string[]>> {
-	const circles = await directory.client
-		.from('circle')
-		.select('name, circle_member(member_id)')
+	const memberships = await directory.client
+		.from('circle_member')
+		.select('member_id, circle_id')
 		.eq('company_id', directory.companyID)
-		.order('name')
-		.returns<CircleRow[]>();
-	if (circles.error) throw new Error(circles.error.message);
-	return circleNamesByMemberID(circles.data ?? []);
+		.order('circle_id')
+		.returns<CircleMembership[]>();
+	if (memberships.error) throw new Error(memberships.error.message);
+	return circlesByMemberID(memberships.data ?? []);
 }
 
 export const memberWriteSchema = z.object({

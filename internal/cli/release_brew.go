@@ -269,10 +269,14 @@ func buildBrewBunPrograms(repositoryRootPath string, libraryPath string, output 
 
 // The messenger is built by tools/prepare-buzz-relay from a pinned upstream
 // revision, on this Mac rather than in a container. A keg for an architecture
-// that artifact does not cover is refused rather than shipped without a
-// messenger.
+// that artifact does not cover, or whose artifact was built at a revision this
+// tree no longer builds, is refused rather than shipped without the messenger
+// this tree describes.
 func copyBrewMessengerPrograms(repositoryRootPath string, libraryPath string, output io.Writer) error {
-	for _, name := range []string{blueclaw.BuzzRelayName, blueclaw.BuzzAdminName} {
+	if errorValue := requireMessengerRevision(repositoryRootPath, brewMessengerArtifactPath, "darwin-arm64"); errorValue != nil {
+		return errorValue
+	}
+	for _, name := range messengerProgramNames {
 		sourcePath := filepath.Join(repositoryRootPath, brewMessengerArtifactPath, name)
 		if errorValue := requireMachOArm64(sourcePath, name); errorValue != nil {
 			return errorValue
@@ -341,19 +345,21 @@ func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
 		}
 	}
 	layout := blueclaw.MacCompanyHostLayout("")
-	for _, carried := range []struct{ source, destination string }{
-		{"host/runtime.template.json", layout.RuntimeTemplatePath()},
-		{documentConversionLockPath, layout.DocumentRequirementsPath()},
-	} {
-		destinationPath := filepath.Join(libraryPath, strings.TrimPrefix(carried.destination, layout.LibraryRoot))
+	for _, carried := range carriedLibraryFiles(layout) {
+		destinationPath := filepath.Join(libraryPath, strings.TrimPrefix(carried.Destination, layout.LibraryRoot))
 		if errorValue := os.MkdirAll(filepath.Dir(destinationPath), 0o755); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := copyFile(filepath.Join(repositoryRootPath, carried.source), destinationPath, 0o644); errorValue != nil {
+		if errorValue := copyFile(filepath.Join(repositoryRootPath, carried.SourcePath), destinationPath, carried.Mode); errorValue != nil {
 			return errorValue
 		}
 	}
-	return nil
+	return writeBrewPrepareScript(libraryPath, layout)
+}
+
+func writeBrewPrepareScript(libraryPath string, layout blueclaw.CompanyHostLayout) error {
+	scriptPath := filepath.Join(libraryPath, strings.TrimPrefix(layout.PrepareScriptPath(), layout.HelperRoot))
+	return os.WriteFile(scriptPath, []byte(blueclaw.CompanyHostPrepareScriptFor(layout)), 0o755)
 }
 
 // writeGzippedTar tars a directory and returns what the result hashes to. A

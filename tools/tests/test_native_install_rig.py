@@ -190,6 +190,17 @@ class DependencyReadingTests(unittest.TestCase):
         )
 
 
+
+class AgentPdfReadingTests(unittest.TestCase):
+    def test_a_counted_pdf_is_a_file_received(self):
+        driver = load_driver()
+        self.assertTrue(driver.the_agent_sent_a_pdf("pdfs=1\n"))
+
+    def test_none_counted_or_an_unreadable_store_is_nothing_received(self):
+        driver = load_driver()
+        self.assertFalse(driver.the_agent_sent_a_pdf("pdfs=0\n"))
+        self.assertFalse(driver.the_agent_sent_a_pdf('pdfs=ERROR:relation"events"doesnotexist\n'))
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -241,6 +252,9 @@ class AddressesTheRigSpellsTests(unittest.TestCase):
     def test_the_conffile_and_the_condition_are_the_paths_the_package_uses(self):
         self.assertEqual(rig.CONFFILE_PATH, self.package("CompanyHostSettingsPath"))
         self.assertEqual(rig.COMPANY_CONDITION_PATH, self.package("CompanyHostEnvironmentPath"))
+
+    def test_the_skills_tree_is_where_the_package_delivers_the_skills(self):
+        self.assertEqual(rig.SKILLS_PATH, self.package("CompanyPackageLibraryRoot") + "/skills")
 
     def test_the_messenger_store_is_read_through_the_file_the_install_writes(self):
         self.assertEqual(rig.MESSENGER_DATABASE_PATH, self.package("CompanyHostBuzzDatabasePath"))
@@ -416,3 +430,97 @@ class AgentUpdateRigTests(unittest.TestCase):
         unit = (repository_root / "internal" / "hostupdate" / "unit.go").read_text()
         self.assertIn(f'UnitName = "{agent_update.UPDATE_UNIT_NAME.removesuffix(".service")}"', unit)
         self.assertIn(f"/{agent_update.UPDATE_UNIT_NAME}.d/", agent_update.UPDATE_UNIT_DROP_IN_PATH)
+
+
+from unittest import mock  # noqa: E402
+
+rig_driver = load_driver()
+
+
+class SilentMachine:
+    def shell(self, script, **keywords):
+        return subprocess.CompletedProcess(script, 0, stdout="", stderr="")
+
+
+class RecordingRig:
+    """Stands in for the rig's machine-driving methods and records which release each judgment lands on."""
+
+    observe_the_upgraded_host_answers = rig_driver.Rig.observe_the_upgraded_host_answers
+
+    def __init__(self, releases):
+        self.machine = SilentMachine()
+        self.installed = releases[0]
+        self.steps = []
+        self.plane = None
+        self.judged = []
+
+    def step(self, number, name):
+        step = rig_driver.Step(number, name)
+        self.steps.append(step)
+        return step
+
+    def start_the_plane(self):
+        self.plane = "plane"
+
+    def run_step_three(self, step, releases):
+        self.installed = releases[-1]
+
+    def run_step_ten(self, step, releases, plane):
+        self.installed = releases[-1]
+
+    def observe_the_member_round_trip(self, step, plane, is_watching_for_typing=False):
+        if is_watching_for_typing:
+            self.judged.append(("typing", self.installed))
+
+    def observe_the_agent_sends_a_pdf(self, step, plane):
+        self.judged.append(("pdf", self.installed))
+
+    def observe_a_message_that_arrives_before_the_roster(self, step, plane):
+        self.judged.append(("before the roster", self.installed))
+
+    def __getattr__(self, name):
+        return lambda *arguments, **keywords: None
+
+
+class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
+    JUDGMENTS = ["typing", "pdf", "before the roster"]
+
+    def judged_in(self, releases, is_an_agent_update=False):
+        options = type("Options", (), {"stand_in": False, "without_company": False, "agent_update": is_an_agent_update, "restore_family": "fedora"})()
+        recording = RecordingRig(releases)
+        with mock.patch.object(rig_driver, "rig_model_key", lambda: "a real key"), \
+                mock.patch.object(rig_driver, "observe_a_real_conversion", lambda machine, step: None):
+            rig_driver.run_every_step(recording, options, releases, baseline=None)
+        return recording.judged
+
+    def test_a_single_release_is_judged_on_what_it_does(self):
+        self.assertEqual(self.judged_in(["release"]), [(name, "release") for name in self.JUDGMENTS])
+
+    def test_an_upgrade_judges_the_release_it_moves_to_and_not_the_one_it_moves_from(self):
+        self.assertEqual(self.judged_in(["older", "newer"]), [(name, "newer") for name in self.JUDGMENTS])
+
+    def test_an_agent_update_judges_the_release_it_moves_to(self):
+        self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer")])
+
+
+class ArchivedModeTests(unittest.TestCase):
+    def archive_holding(self, directory, name, mode):
+        inner_path = Path(directory) / "files.tar"
+        with tarfile.open(inner_path, "w") as inner:
+            member = tarfile.TarInfo(name)
+            member.mode = mode
+            inner.addfile(member, io.BytesIO(b""))
+        archive_path = Path(directory) / "backup.tar"
+        with tarfile.open(archive_path, "w") as archive:
+            archive.add(inner_path, arcname="files.tar")
+        return archive_path
+
+    def test_the_mode_is_read_from_the_files_member_under_the_workspace_role(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = self.archive_holding(directory, "workspace/private/people/a/rig-backup.md", 0o640)
+            self.assertEqual(rig_driver.archived_mode(archive_path, "/workspace/private/people/a/rig-backup.md"), "640")
+
+    def test_a_file_the_backup_did_not_carry_is_absent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = self.archive_holding(directory, "workspace/other.md", 0o600)
+            self.assertEqual(rig_driver.archived_mode(archive_path, "/workspace/private/people/a/rig-backup.md"), "absent")

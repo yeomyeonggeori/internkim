@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createDevMemoryMockResponse, createDevMemoryMockState } from '../../../dev-memory-mock-plugin';
 import type { MemoryScheduleListResponse } from '../../../src/routes/memory/memory-schedule-api';
-import type { MemoryFactsResponse } from '../../../src/routes/memory/memory-facts-api';
+import { memoryFactsResponseSchema, type MemoryFactsResponse } from '../../../src/routes/memory/memory-facts-api';
 
 describe('dev memory mock plugin', () => {
 	test('returns schedules with page and page size pagination', async () => {
@@ -21,7 +21,7 @@ describe('dev memory mock plugin', () => {
 		expect(body.schedules?.[0]?.taskScheduleID).toBe('dev-schedule-016');
 	});
 
-	test('returns facts and a profile so the memory tab can load, and forgets on request', async () => {
+	test('returns facts in the shape blueclaw answers with, and forgets on request', async () => {
 		const state = createDevMemoryMockState('admin@example.com');
 		const response = await createDevMemoryMockResponse(state, {
 			method: 'GET',
@@ -30,8 +30,7 @@ describe('dev memory mock plugin', () => {
 		});
 
 		expect(response?.status).toBe(200);
-		const body = response?.body as MemoryFactsResponse;
-		expect(body.profile.identityLines.length > 0).toBe(true);
+		const body = memoryFactsResponseSchema.parse(response?.body);
 		expect(body.facts.length).toBe(5);
 
 		const forgotten = await createDevMemoryMockResponse(state, {

@@ -50,17 +50,11 @@ class CompanyHostSourceBuildTests(unittest.TestCase):
         connection.write_text(json.dumps(connection_document()))
         model_key = directory / "model-key"
         model_key.write_text("sk-or-example\n")
-        state = directory / "state"
-        completed = subprocess.run(
-            [
-                str(binary), "install", str(connection),
-                "--state-directory", str(state),
-                "--model-key-file", str(model_key),
-            ],
+        return subprocess.run(
+            [str(binary), "install", str(connection), "--model-key-file", str(model_key)],
             capture_output=True,
             text=True,
         )
-        return completed, state
 
     def test_the_build_produces_the_command_the_package_installs(self):
         binary = self.build()
@@ -69,12 +63,11 @@ class CompanyHostSourceBuildTests(unittest.TestCase):
         self.assertIn("install <internkim-host.json>", completed.stderr)
 
     @unittest.skipIf(os.geteuid() == 0, "root would install a company on this machine rather than refuse")
-    def test_an_install_without_privilege_refuses_before_writing_anything(self):
-        completed, state = self.run_install()
+    def test_an_install_without_privilege_refuses(self):
+        completed = self.run_install()
         self.assertEqual(completed.returncode, 1)
         self.assertIn("needs root", completed.stderr)
         self.assertIn("sudo", completed.stderr)
-        self.assertFalse(state.exists(), "the refusal left a half-written company behind")
 
 
 if __name__ == "__main__":

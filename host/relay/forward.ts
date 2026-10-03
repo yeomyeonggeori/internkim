@@ -2,6 +2,7 @@ import { extensionOf } from './asset-store';
 import { leafNameOf, type Answered, type KeptFileReference } from './file-transfer';
 import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
+import { chatdRestartWaitMilliseconds, fetchWhenChatdListens } from './chatd-reach';
 
 export type Call = {
 	callID?: string;
@@ -164,14 +165,16 @@ export async function forwardToChatd(
 	platform: string,
 	capability: string,
 	body: Record<string, unknown>,
-	largestBytes: number
+	largestBytes: number,
+	restartWaitMilliseconds = chatdRestartWaitMilliseconds
 ): Promise<{ status: number; body: unknown }> {
 	const url = `${chatdBaseURL}/v1/platform/${encodeURIComponent(platform)}/${encodeURIComponent(capability)}`;
-	const response = await fetch(url, {
+	const request = {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ ...body, largestBytes })
-	}).catch((unreachable) => {
+	};
+	const response = await fetchWhenChatdListens(url, request, restartWaitMilliseconds).catch((unreachable) => {
 		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
 		throw new Error(`${chatdBaseURL} did not answer: ${reason}`);
 	});
@@ -183,6 +186,7 @@ export type Served = { status: number; body: unknown; replyTo: string | null };
 export type Dispatch = {
 	messageArrived: (conversationID: string, messageID: string) => void;
 	serveAsset: (capability: string, body: Record<string, unknown>) => Promise<unknown>;
+	serveMessenger: (capability: string, body: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
 	askAdmindAPI: (request: PublicAPIRequest) => Promise<{ status: number; body: unknown }>;
 	emailOfMember: (memberID: string) => Promise<string | null>;
 	tellAdmindTheDirectoryChanged: () => Promise<{ status: number; body: unknown }>;

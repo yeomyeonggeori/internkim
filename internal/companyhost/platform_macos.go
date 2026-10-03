@@ -41,7 +41,6 @@ const (
 	macServiceAccountShell = "/usr/bin/false"
 )
 
-// What `brew services` is asked to start, in the order the bundle needs them.
 var macDistributionFormulas = map[string]string{
 	databaseServiceName: "postgresql@17",
 	cacheServiceName:    "redis",
@@ -189,11 +188,7 @@ func identityNumbersIn(listing string) []int {
 }
 
 func (platform macPlatform) StartTheDatabaseAndTheCache(machine Machine) error {
-	formulas := sortedAndUnique([]string{
-		macDistributionFormulas[databaseServiceName],
-		macDistributionFormulas[cacheServiceName],
-	})
-	for _, formula := range formulas {
+	for _, formula := range []string{macDistributionFormulas[databaseServiceName], macDistributionFormulas[cacheServiceName]} {
 		if errorValue := machine.Run("brew", []string{"services", "start", formula}, nil, io.Discard); errorValue != nil {
 			return fmt.Errorf(
 				"`brew services start %s` failed. It is one of the two Homebrew commands that may run as root, "+

@@ -1,17 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const facts = [
-	{ factID: 'fact-preference', episodeID: 'episode-preference', ownerPersonID: 'tester', circleIDs: [], kind: 'preference', content: '금요일 오후에 회고하는 것을 선호한다.', validFrom: '2026-08-01T09:00:00Z', reinforcementCount: 3, lastRecalledAt: '2026-08-20T09:00:00Z' },
-	{ factID: 'fact-language', episodeID: 'episode-language', ownerPersonID: 'tester', circleIDs: ['member'], kind: 'fact', content: '한국어로 답변받는 것을 선호한다.', validFrom: '2026-08-02T09:00:00Z', reinforcementCount: 1 },
-	{ factID: 'fact-previous', episodeID: 'episode-previous', ownerPersonID: 'tester', circleIDs: [], kind: 'temporary', content: '예전에는 월요일 오전 회고를 선호했다.', validFrom: '2025-08-01T09:00:00Z', validUntil: '2026-01-01T09:00:00Z', reinforcementCount: 1 }
+	{ factID: 'fact-preference', originID: 'origin-preference', scopeType: 'person', isStatic: true, content: '금요일 오후에 회고하는 것을 선호한다.', importance: 4, storageStrength: 1.2, createdAt: '2026-08-01T09:00:00Z', lastRecalledAt: '2026-08-20T09:00:00Z', triggerPhrases: [] },
+	{ factID: 'fact-language', originID: 'origin-language', scopeType: 'circle', scopeID: 'member', isStatic: true, content: '한국어로 답변받는 것을 선호한다.', importance: 3, storageStrength: 1, createdAt: '2026-08-02T09:00:00Z', triggerPhrases: [] },
+	{ factID: 'fact-previous', originID: 'origin-previous', scopeType: 'person', isStatic: false, content: '예전에는 월요일 오전 회고를 선호했다.', occurredAt: '2025-08-01T09:00:00Z', validUntil: '2026-01-01T09:00:00Z', importance: 2, storageStrength: 1, createdAt: '2025-08-01T09:00:00Z', triggerPhrases: [] }
 ];
-const identityLine = '이샘플은 플랫폼 팀 소속이다.';
 
 function factsResponse(returnedFacts = facts) {
 	return {
 		personID: 'tester',
-		embeddingModel: 'perplexity/pplx-embed-v1-4b',
-		profile: { personID: 'tester', identityLines: [identityLine], currentLines: [], builtFromFactCount: returnedFacts.length, builtAt: '2026-08-20T09:00:00Z' },
+		index: { embeddingModel: 'baai/bge-m3', current: returnedFacts.length, stale: 0 },
 		facts: returnedFacts
 	};
 }
@@ -34,14 +32,14 @@ test.describe('memory workbench', () => {
 		});
 		await page.goto('/memory/');
 		await expect(page.locator('#memory-search')).toBeVisible();
-		await expect(page.getByLabel('프로필').getByText(identityLine)).toBeVisible();
+		await expect(page.getByText('서클 · member')).toBeVisible();
 		await expect(page.getByRole('main').getByRole('tab')).toHaveCount(0);
 		await page.locator('#memory-search').fill('금요일');
 		await expect(page.getByRole('button', { name: /금요일 오후에 회고/ })).toBeVisible();
 		await expect(page.getByText('한국어로 답변받는 것을 선호한다.')).toBeHidden();
 		await expect(page.getByText('검색 결과')).toBeVisible();
 		await page.getByRole('button', { name: /금요일 오후에 회고/ }).click();
-		await expect(page.getByLabel('저장된 기억').getByText('3회')).toBeVisible();
+		await expect(page.getByLabel('저장된 기억').getByText('4/5')).toBeVisible();
 		await page.screenshot({ path: '.artifacts/memory-ui/workbench-desktop-detail.png', fullPage: true });
 		await page.getByRole('button', { name: '검색 지우기', exact: true }).click();
 		await expect(page.locator('#memory-search')).toHaveValue('');
@@ -62,7 +60,7 @@ test.describe('memory workbench', () => {
 		await page.getByRole('main').getByRole('button', { name: '새로고침' }).click();
 		await expect.poll(() => requestCount).toBeGreaterThanOrEqual(2);
 		await expect(page.getByText('예전에는 월요일 오전 회고를 선호했다.')).toBeHidden();
-		await page.getByRole('checkbox', { name: '이전 기억 포함', exact: true }).check();
+		await page.getByRole('checkbox', { name: '지난 기억 포함', exact: true }).check();
 		await expect(page.getByText('예전에는 월요일 오전 회고를 선호했다.')).toBeVisible();
 	});
 
@@ -114,7 +112,7 @@ test.describe('memory workbench', () => {
 		await page.goto('/memory/');
 		await page.getByRole('button', { name: /금요일 오후에 회고/ }).click();
 		await expect(page.getByLabel('저장된 기억')).toBeVisible();
-		await expect(page.getByLabel('저장된 기억').getByText('마지막 회상')).toBeVisible();
+		await expect(page.getByLabel('저장된 기억').getByText('마지막으로 떠올린 때')).toBeVisible();
 		await page.screenshot({ path: '.artifacts/memory-ui/workbench-mobile-detail.png', fullPage: true });
 		await page.getByRole('button', { name: '기억 목록', exact: true }).click();
 		await expect(page.getByLabel('저장된 기억')).toBeHidden();

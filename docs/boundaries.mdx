@@ -30,7 +30,8 @@ view.
 
 Each person is a real operating-system user and each circle a real group: a
 person becomes a stable `bc_person_<shortID>` user, a circle becomes a
-`bc_circle_<circleID>` group. The agent runs a person's work as that user, so
+`bc_circle_<circleID>` group, and a person's circles are the ones the company
+places them in. The agent runs a person's work as that user, so
 the workspace, the terminal, and any program it starts are bounded by ordinary
 file permissions.
 
@@ -41,8 +42,7 @@ goes down through `WorkspaceActor → blueclaw-posix-helper`. The helper is a
 authorization: it checks that its real UID is `root` or `blueclaw`, then drops
 to the requester's UID, GID and supplementary groups before doing anything.
 The host package installs it at `/usr/lib/internkim/blueclaw-posix-helper` on
-Linux and in the keg's `libexec` on a Mac, and a device carries the same binary
-inside its guest's rootfs. Without it blueclaw
+Linux and in the keg's `libexec` on a Mac. Without it blueclaw
 refuses every workspace tool. On both, the blueclaw service itself runs as the
 `blueclaw` user, because the terminal refuses to execute for root.
 

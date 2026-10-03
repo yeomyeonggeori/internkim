@@ -24,14 +24,8 @@ func (service *Service) adminConsoleActorEmail(request *http.Request) string {
 }
 
 func (service *Service) authenticatedCallerEmail(request *http.Request) string {
-	if email := service.cloudflareAccessVerifier().verifiedEmail(request.Context(), request); email != "" {
-		return email
-	}
 	if service.Configuration.TrustProxyForwardedEmail {
 		return forwardedProxyEmail(request)
-	}
-	if service.cloudflareAccessVerifier().isConfigured() {
-		return ""
 	}
 	if !trustsForwardedIdentity(service.Configuration.ListenAddress) || carriesProxyMarker(request) {
 		return ""
@@ -48,18 +42,6 @@ func forwardedProxyEmail(request *http.Request) string {
 	)))
 }
 
-func (service *Service) cloudflareAccessVerifier() *cloudflareAccessVerifier {
-	service.cloudflareAccessOnce.Do(func() {
-		audiences := strings.Split(service.Configuration.CloudflareAccessAUDs, ",")
-		service.cloudflareAccessCheck = newCloudflareAccessVerifier(
-			service.Configuration.CloudflareAccessTeamDomain,
-			audiences,
-			service.httpClient(),
-		)
-	})
-	return service.cloudflareAccessCheck
-}
-
 func trustsForwardedIdentity(listenAddress string) bool {
 	host, _, splitError := net.SplitHostPort(strings.TrimSpace(listenAddress))
 	if splitError != nil {
@@ -71,12 +53,6 @@ func trustsForwardedIdentity(listenAddress string) bool {
 	default:
 		return false
 	}
-}
-
-func (service *Service) hasDeviceAuth() bool {
-	fleetID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	return fleetID != "" && fleetSecret != ""
 }
 
 func (service *Service) isClaimedAdminEmail(email string) bool {

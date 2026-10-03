@@ -41,8 +41,7 @@ type Installation struct {
 }
 
 type Request struct {
-	ConnectionPath     string
-	Connection         *Connection
+	Connection         Connection
 	StateDirectoryPath string
 	ModelKey           string
 	PromptForModelKey  func() (string, error)
@@ -57,7 +56,7 @@ func Install(request Request, machine Machine, progress io.Writer) (Installation
 }
 
 func installOn(platform companyHostPlatform, request Request, machine Machine, progress io.Writer) (Installation, error) {
-	connection, errorValue := requestedConnection(request)
+	connection, errorValue := validatedConnection(request.Connection)
 	if errorValue != nil {
 		return Installation{}, errorValue
 	}
@@ -81,6 +80,9 @@ func installOn(platform companyHostPlatform, request Request, machine Machine, p
 	if errorValue := prepareDatabases(platform, machine, company, progress); errorValue != nil {
 		return Installation{}, errorValue
 	}
+	if errorValue := rehomeTheMessengerCommunity(platform, machine, connection, progress); errorValue != nil {
+		return Installation{}, errorValue
+	}
 
 	fmt.Fprintln(progress, "4/5 Installing and starting the services…")
 	if errorValue := platform.SuperviseTheBundle(machine, progress); errorValue != nil {
@@ -98,14 +100,11 @@ func installOn(platform companyHostPlatform, request Request, machine Machine, p
 	}, nil
 }
 
-func requestedConnection(request Request) (Connection, error) {
-	if request.Connection == nil {
-		return ReadConnection(request.ConnectionPath)
-	}
-	if errorValue := validateConnection(*request.Connection); errorValue != nil {
+func validatedConnection(connection Connection) (Connection, error) {
+	if errorValue := validateConnection(connection); errorValue != nil {
 		return Connection{}, errorValue
 	}
-	return normalizeConnection(*request.Connection), nil
+	return normalizeConnection(connection), nil
 }
 
 // RequireAdministrator makes the refusal a sentence rather than a permission

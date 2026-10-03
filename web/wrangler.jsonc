@@ -5,8 +5,5 @@
 	"compatibility_flags": [
 		"nodejs_als"
 	],
-	"pages_build_output_dir": ".svelte-kit/cloudflare",
-	"kv_namespaces": [
-		{ "binding": "KV", "id": "6159b353bb4d498cb715e86b794bab57" }
-	]
+	"pages_build_output_dir": ".svelte-kit/cloudflare"
 }

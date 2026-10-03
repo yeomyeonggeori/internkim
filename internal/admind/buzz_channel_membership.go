@@ -26,7 +26,9 @@ const memberChannelSyncInterval = 24 * time.Hour
 // while it is still doing that, so its first run grants nobody. Until the
 // roster holds everyone this company named, the pass runs on this clock
 // instead; a box installed a minute ago used to be unable to carry a message
-// from anyone until the next day.
+// from anyone until the next day. A person let in whose room with the agent
+// could not be opened yet keeps it on this clock too, and so does an agent
+// whose profile has no picture yet.
 const memberChannelFirstPassInterval = 30 * time.Second
 
 func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
@@ -46,8 +48,14 @@ func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 }
 
 func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) time.Duration {
-	stillOutside := service.pubkeysTheRelayMayNotHold(ctx, pubkeysOf(service.everyoneTheRelayShouldHold(ctx)))
-	if len(stillOutside) > 0 {
+	everyone := service.everyoneTheRelayShouldHold(ctx)
+	if len(service.pubkeysTheRelayMayNotHold(ctx, pubkeysOf(everyone))) > 0 {
+		return memberChannelFirstPassInterval
+	}
+	if len(service.admittedMembersWithoutTheAgentDirectRoom(ctx, everyone)) > 0 {
+		return memberChannelFirstPassInterval
+	}
+	if service.agentProfileLacksAPicture(ctx) {
 		return memberChannelFirstPassInterval
 	}
 	return memberChannelSyncInterval
@@ -146,7 +154,7 @@ func (service *Service) connectToTheRelayOnceItAnswers(ctx context.Context, acto
 			case <-time.After(relayConnectRetryDelay):
 			}
 		}
-		publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), actorSecretHex)
+		publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), service.Configuration.BuzzRelayURL, actorSecretHex)
 		if errorValue == nil {
 			return publisher, nil
 		}
@@ -286,7 +294,7 @@ func holdsAnotherAdministrator(heldRoles map[string]string, excludedPubkey strin
 
 // The company account leaves a room the moment somebody else administers it.
 // Until then it stays, because it is the only key that can still seat people
-// there; the member and circle syncs put an administrator in first, so the stay
+// there; the member and seat syncs put an administrator in first, so the stay
 // is one tick, not a policy.
 func (service *Service) retireBootstrapFromRoom(ctx context.Context, relay *sql.DB, channelID string, seed string) {
 	bootstrapPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
@@ -411,6 +419,8 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	}
 	member := service.everyoneTheRelayShouldHold(ctx)
 	service.letOntoTheRelay(ctx, pubkeysOf(member))
+	service.publishTheAgentProfile(ctx)
+	service.openTheAgentDirectRoomForEveryMember(ctx, member)
 	channelIDs, errorValue := service.buzzStreamChannelsWeOpened(ctx)
 	if errorValue != nil {
 		log.Printf("buzz member membership: channel query failed: %v", errorValue)
@@ -485,12 +495,13 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 		service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
 	}
 	log.Printf("buzz member membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
+	service.seatTheAgentInOpenRooms(ctx, relay, connections, seed)
 	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
 	service.nameMembersTheRelayCannotName(ctx, relay)
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed)
 }
 
-// The member and circle syncs cover the rooms the company runs, but the company
+// The member and seat syncs cover the rooms the company runs, but the company
 // account also stands in rooms it only mirrored — private rooms whose members
 // it seated. It leaves those the same way: any admin standing in the room is
 func (service *Service) retireBootstrapFromRemainingRooms(ctx context.Context, relay *sql.DB, connections *buzzActorConnections, seed string) {
@@ -546,21 +557,12 @@ func (service *Service) raiseAdminsStandingInRoom(ctx context.Context, relay *sq
 	}
 }
 
-func (service *Service) bootstrapBuzzPubkey() (string, error) {
-	seed := service.buzzKeySeed()
-	if seed == "" {
-		return "", errors.New("this device holds no buzz key seed")
-	}
-	return buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.BootstrapSubject))
-}
-
 const memberRoomQuery = `
 SELECT id FROM channels
 WHERE channel_type = 'stream'
   AND deleted_at IS NULL
   AND visibility = 'open'
-  AND created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))
-  AND name <> ALL($2::text[])`
+  AND created_by = ANY(ARRAY(SELECT decode(unnest($1::text[]), 'hex')))`
 
 // The rooms the company runs were opened by the key that owns the relay when
 // they were imported, and are opened by the agent now; a room a person opened
@@ -582,14 +584,10 @@ func (service *Service) companyRoomCreatorPubkeys() ([]string, error) {
 }
 
 // The whole company belongs in the rooms the whole company can already read.
-// A private room is somebody's decision about who is in it, and a circle room
-// is its circle's, so neither is a room to add everyone to.
+// A private room is somebody's decision about who is in it, so it is not a room
+// to add everyone to.
 func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]string, error) {
 	creatorPubkeys, errorValue := service.companyRoomCreatorPubkeys()
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	circleRoomNames, errorValue := service.circleRoomNames(ctx)
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -597,7 +595,7 @@ func (service *Service) buzzStreamChannelsWeOpened(ctx context.Context) ([]strin
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	rows, errorValue := database.QueryContext(ctx, memberRoomQuery, pq.Array(creatorPubkeys), pq.Array(circleRoomNames))
+	rows, errorValue := database.QueryContext(ctx, memberRoomQuery, pq.Array(creatorPubkeys))
 	if errorValue != nil {
 		return nil, errorValue
 	}
@@ -663,6 +661,7 @@ func (service *Service) usersSyncCacheEmails() []string {
 type buzzMember struct {
 	Pubkey string
 	Role   string
+	Email  string
 }
 
 func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
@@ -679,7 +678,7 @@ func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
 			continue
 		}
 		seen[pubkey] = true
-		members = append(members, buzzMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email)})
+		members = append(members, buzzMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email), Email: email})
 	}
 	return members
 }

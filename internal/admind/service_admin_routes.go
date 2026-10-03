@@ -19,7 +19,6 @@ type adminSessionResponse struct {
 	BootstrapError         string `json:"bootstrapError,omitempty"`
 	TemporaryPassword      string `json:"temporaryPassword,omitempty"`
 	TemporaryPasswordEmail string `json:"temporaryPasswordEmail,omitempty"`
-	DeviceManaged          bool   `json:"deviceManaged"`
 }
 
 func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request *http.Request) {
@@ -30,17 +29,8 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 	if service.handleAdminDirectoryRoute(responseWriter, request, path) {
 		return
 	}
-	if service.handleAdminRecoveryRoute(responseWriter, request, path) {
-		return
-	}
-	if service.handleAdminSignedUpdateRoute(responseWriter, request, path) {
-		return
-	}
 	if !service.isAuthorized(request) {
 		http.Error(responseWriter, "admin access required", http.StatusForbidden)
-		return
-	}
-	if service.handleAdminUpdateRoute(responseWriter, request, path) {
 		return
 	}
 	if service.handleAdminDiagnosticsRoute(responseWriter, request, path) {
@@ -56,9 +46,6 @@ func (service *Service) handleAdmin(responseWriter http.ResponseWriter, request 
 		return
 	}
 	if service.handleAdminCompanyRoute(responseWriter, request, path) {
-		return
-	}
-	if service.handleAdminBackupRoute(responseWriter, request, path) {
 		return
 	}
 	http.NotFound(responseWriter, request)
@@ -108,56 +95,6 @@ func (service *Service) adminDirectoryHandler(method string, path string) http.H
 	}
 }
 
-func (service *Service) handleAdminRecoveryRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	if strings.HasPrefix(path, "/recovery/ssh-tunnel") {
-		service.handleSSHRecovery(responseWriter, request, path)
-		return true
-	}
-	return false
-}
-
-func (service *Service) handleAdminSignedUpdateRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	if strings.HasPrefix(path, "/updates/blueclaw/uploads") {
-		service.handleBlueclawUpdateUpload(responseWriter, request, path)
-		return true
-	}
-	if request.Method == http.MethodGet && path == "/updates/status" {
-		service.writeReleaseUpdateStatus(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodGet && path == "/updates/releases" {
-		service.writeReleaseHistory(responseWriter, request)
-		return true
-	}
-	if request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/jobs/") {
-		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/jobs/"))
-		return true
-	}
-	if request.Method == http.MethodPost && path == "/updates/apply" && !service.isAuthorized(request) {
-		service.applyReleaseUpdateSigned(responseWriter, request)
-		return true
-	}
-	return false
-}
-
-func (service *Service) handleAdminUpdateRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/updates/apply":
-		service.applyReleaseUpdate(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/updates/rollback":
-		service.rollbackReleaseUpdate(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/updates/blueclaw/status":
-		service.writeBlueclawUpdateStatus(responseWriter)
-	case request.Method == http.MethodPost && path == "/updates/blueclaw/apply":
-		service.applyLatestBlueclawUpdate(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/updates/blueclaw/jobs/"):
-		service.writeJob(responseWriter, strings.TrimPrefix(path, "/updates/blueclaw/jobs/"))
-	default:
-		return false
-	}
-	return true
-}
-
 func (service *Service) handleAdminDiagnosticsRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
 	switch {
 	case request.Method == http.MethodGet && path == "/diagnostics/requests":
@@ -190,10 +127,6 @@ func (service *Service) handleAdminUserRoute(responseWriter http.ResponseWriter,
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
 		service.proxyUsers(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/circles":
-		service.saveBlueclawCircle(responseWriter, request)
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/circles/"):
-		service.deleteBlueclawCircle(responseWriter, request, strings.TrimPrefix(path, "/circles/"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
 		service.proxyUsers(responseWriter, request)
 	default:
@@ -230,14 +163,6 @@ func (service *Service) handleAdminSettingsRoute(responseWriter http.ResponseWri
 		service.writeWorkspaceSettings(responseWriter, request)
 	case request.Method == http.MethodPut && path == "/workspace-settings":
 		service.updateWorkspaceSettings(responseWriter, request)
-	case request.Method == http.MethodGet && path == "/wifi-profiles":
-		service.writeWifiProfiles(responseWriter)
-	case request.Method == http.MethodPost && path == "/wifi-profiles":
-		service.addWifiProfile(responseWriter, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/wifi-profiles/"):
-		service.updateWifiPassword(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/wifi-profiles/"):
-		service.removeWifiProfile(responseWriter, request, strings.TrimPrefix(path, "/wifi-profiles/"))
 	default:
 		return false
 	}
@@ -262,30 +187,6 @@ func (service *Service) handleAdminCompanyRoute(responseWriter http.ResponseWrit
 	return true
 }
 
-func (service *Service) handleAdminBackupRoute(responseWriter http.ResponseWriter, request *http.Request, path string) bool {
-	switch {
-	case request.Method == http.MethodPost && path == "/backups":
-		service.createBackup(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/status"):
-		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/status"))
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/backups/") && strings.HasSuffix(path, "/download"):
-		service.downloadBackup(responseWriter, request, strings.TrimSuffix(strings.TrimPrefix(path, "/backups/"), "/download"))
-	case request.Method == http.MethodPost && path == "/restore/uploads":
-		service.createRestoreUpload(responseWriter, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(path, "/restore/uploads/") && strings.Contains(path, "/chunks/"):
-		service.writeRestoreUploadChunk(responseWriter, request, path)
-	case request.Method == http.MethodPost && strings.HasPrefix(path, "/restore/uploads/") && strings.HasSuffix(path, "/complete"):
-		service.completeRestoreUpload(responseWriter, request, path)
-	case request.Method == http.MethodPost && path == "/restore":
-		service.createRestore(responseWriter, request)
-	case request.Method == http.MethodGet && strings.HasPrefix(path, "/restore/") && strings.HasSuffix(path, "/status"):
-		service.writeJob(responseWriter, strings.TrimSuffix(strings.TrimPrefix(path, "/restore/"), "/status"))
-	default:
-		return false
-	}
-	return true
-}
-
 func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, request *http.Request) {
 	callerEmail := service.authenticatedCallerEmail(request)
 	bootstrapResult := service.ensureFirstAdminClaim(request.Context(), callerEmail)
@@ -303,7 +204,6 @@ func (service *Service) writeAdminSession(responseWriter http.ResponseWriter, re
 		IsClaimed:         claimedAdminEmail != "",
 		BootstrapStatus:   bootstrapResult.Status,
 		BootstrapError:    bootstrapResult.Error,
-		DeviceManaged:     service.hasDeviceAuth(),
 	}
 	if isClaimedAdmin {
 		passwordDocument := service.consumeFirstAdminPassword(callerEmail)

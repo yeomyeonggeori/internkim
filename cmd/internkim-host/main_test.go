@@ -16,14 +16,13 @@ import (
 
 func TestTheConnectionFileIsFoundWhereverItSitsAmongTheOptions(t *testing.T) {
 	expected := installArguments{
-		ConnectionPath:     "internkim-host.json",
-		StateDirectoryPath: "/state",
-		ModelKeyPath:       "/key",
+		ConnectionPath: "internkim-host.json",
+		ModelKeyPath:   "/key",
 	}
 	orders := [][]string{
-		{"internkim-host.json", "--state-directory", "/state", "--model-key-file", "/key"},
-		{"--state-directory", "/state", "--model-key-file", "/key", "internkim-host.json"},
-		{"--state-directory=/state", "internkim-host.json", "--model-key-file=/key"},
+		{"internkim-host.json", "--model-key-file", "/key"},
+		{"--model-key-file", "/key", "internkim-host.json"},
+		{"internkim-host.json", "--model-key-file=/key"},
 	}
 	for _, arguments := range orders {
 		parsed, errorValue := parseInstallArguments(arguments)
@@ -37,7 +36,7 @@ func TestTheConnectionFileIsFoundWhereverItSitsAmongTheOptions(t *testing.T) {
 }
 
 func TestInstallRefusesAnAmbiguousOrMissingConnectionFile(t *testing.T) {
-	for _, arguments := range [][]string{{}, {"--state-directory", "/state"}, {"one.json", "two.json"}} {
+	for _, arguments := range [][]string{{}, {"--model-key-file", "/key"}, {"one.json", "two.json"}} {
 		if _, errorValue := parseInstallArguments(arguments); errorValue == nil {
 			t.Fatalf("%v was accepted", arguments)
 		}
@@ -121,6 +120,15 @@ func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
 	with := withWifiSetup(box.Daemon{}, "https://example.com", time.Time{})
 	if with.GetOnline == nil || with.ChangeWifi == nil || with.ScanWifi == nil {
 		t.Fatalf("a daemon built with the flag lacks a wifi hook: GetOnline=%t ChangeWifi=%t ScanWifi=%t", with.GetOnline != nil, with.ChangeWifi != nil, with.ScanWifi != nil)
+	}
+}
+
+func TestOnlyAComputerAskedToIsRenamedAfterItsKey(t *testing.T) {
+	if without := boxDaemon("https://example.com"); without.NameHost != nil {
+		t.Fatal("a daemon built without --host-name-from-key would rename this computer")
+	}
+	if with := withHostNameFromKey(box.Daemon{}); with.NameHost == nil {
+		t.Fatal("a daemon built with --host-name-from-key does not rename this computer")
 	}
 }
 

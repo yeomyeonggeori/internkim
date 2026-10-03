@@ -8,7 +8,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/companyzone"
 	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -45,42 +45,31 @@ type Configuration struct {
 	MattermostTokenPath            string
 	OpenRouterKeyPath              string
 	OpenRouterModelsURL            string
-	ReleaseRegistryURL             string
-	ReleaseDownloadTokenPath       string
 	MattermostBotTokenPath         string
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
 	APIURLPath                     string
-	FleetIDPath                    string
-	DeviceURLPath                  string
 	TaskPublicURLPath              string
-	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
 	FontsDirectory                 string
 	IdentityDocumentPath           string
 	SoulDocumentPath               string
-	BotProfileImagePath            string
+	AgentProfilePicturePath        string
 	BlueclawWorkspacePath          string
-	BlueclawRuntimeConfigPath      string
 	BuzzInviteKeyPath              string
 	BuzzCommunityID                string
 	BuzzRelayURL                   string
 	BuzzRelayPublicURL             string
-	BuzzRelayPublicURLPath         string
-	BuzzLandingBaseURL             string
 	BuzzAdminCommandPath           string
 	BuzzDatabaseURL                string
 	BuzzAccountLinksPath           string
 	BuzzKeySeedPath                string
 	BuzzRelayKeyPath               string
-	CloudflareAccessTeamDomain     string
-	CloudflareAccessAUDs           string
 	TrustProxyForwardedEmail       bool
 	TaskRunNotifyEnabled           bool
 	AttendanceNotifyEnabled        bool
 	MailNotifyEnabled              bool
-	UsersSyncInstallEnabled        bool
 }
 
 func DefaultConfiguration() Configuration {
@@ -90,7 +79,6 @@ func DefaultConfiguration() Configuration {
 		TaskRunNotifyEnabled:           true,
 		AttendanceNotifyEnabled:        true,
 		MailNotifyEnabled:              true,
-		UsersSyncInstallEnabled:        true,
 		MattermostBaseURL:              "http://127.0.0.1:8065",
 		MattermostTeamName:             "internkim",
 		BotUsername:                    "internkim",
@@ -109,7 +97,6 @@ func DefaultConfiguration() Configuration {
 		MattermostTokenPath:            "/root/.internkim/secrets/mattermost-bot-token",
 		OpenRouterKeyPath:              "/root/.internkim/secrets/openrouter-api-key",
 		OpenRouterModelsURL:            "https://openrouter.ai/api/v1/models",
-		ReleaseDownloadTokenPath:       "/root/.internkim/secrets/release-download-token",
 		MattermostBotTokenPath:         "/root/.internkim/secrets/mattermost-bot-token",
 		AdminEmailPath:                 "/root/.internkim/config/admin-email",
 		ClaimedAdminEmailPath:          "/root/.internkim/state/admin/claimed-admin-email",
@@ -121,19 +108,13 @@ func DefaultConfiguration() Configuration {
 		CentralPlaneProjectURLPath:     "/root/.internkim/env/central-plane-project-url",
 		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		CentralPlanePublishableKeyPath: "/root/.internkim/env/central-plane-publishable-key",
-		FleetIDPath:                    "/root/.internkim/env/fleet-id",
-		DeviceURLPath:                  "/root/.internkim/env/device-url",
-		BuzzRelayPublicURLPath:         blueclawruntime.BuzzRelayPublicURLFilePath,
 		TaskPublicURLPath:              "/root/.internkim/env/flow-public-url",
-		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
 		FontsDirectory:                 "/opt/internkim/fonts",
 		IdentityDocumentPath:           "/root/.internkim/config/identity.json",
 		SoulDocumentPath:               "/root/.internkim/config/soul.json",
-		BotProfileImagePath:            "/opt/internkim/board-ui/logo.png",
 		BlueclawWorkspacePath:          "/root/.blueclaw/workspace",
-		BlueclawRuntimeConfigPath:      "/root/.blueclaw/config/runtime.json",
 	}
 }
 
@@ -143,7 +124,7 @@ func companyAddressFrom(apiBaseURL string) string {
 	if apiBaseURL == "" {
 		return ""
 	}
-	zone := fleetdomain.Zone(apiBaseURL)
+	zone := companyzone.Zone(apiBaseURL)
 	if zone == "" {
 		return apiBaseURL
 	}
@@ -226,9 +207,6 @@ func (configuration Configuration) withCredentialDefaults(defaultConfiguration C
 	if configuration.OpenRouterModelsURL == "" {
 		configuration.OpenRouterModelsURL = defaultConfiguration.OpenRouterModelsURL
 	}
-	if configuration.ReleaseDownloadTokenPath == "" {
-		configuration.ReleaseDownloadTokenPath = defaultConfiguration.ReleaseDownloadTokenPath
-	}
 	if configuration.MattermostBotTokenPath == "" {
 		configuration.MattermostBotTokenPath = defaultConfiguration.MattermostBotTokenPath
 	}
@@ -288,23 +266,8 @@ func (configuration Configuration) withCentralPlaneDefaults(defaultConfiguration
 }
 
 func (configuration Configuration) withFleetDefaults(defaultConfiguration Configuration) Configuration {
-	if configuration.ReleaseRegistryURL == "" {
-		configuration.ReleaseRegistryURL = fleetdomain.Subdomain("updates", fleetdomain.Zone(configuration.APIBaseURL))
-	}
-	if configuration.FleetIDPath == "" {
-		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
-	}
-	if configuration.DeviceURLPath == "" {
-		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
-	}
-	if configuration.BuzzRelayPublicURLPath == "" {
-		configuration.BuzzRelayPublicURLPath = defaultConfiguration.BuzzRelayPublicURLPath
-	}
 	if configuration.TaskPublicURLPath == "" {
 		configuration.TaskPublicURLPath = defaultConfiguration.TaskPublicURLPath
-	}
-	if configuration.FleetSecretPath == "" {
-		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath
 	}
 	if configuration.AdminUIPath == "" {
 		configuration.AdminUIPath = defaultConfiguration.AdminUIPath
@@ -325,9 +288,6 @@ func (configuration Configuration) withFontsDefaults(defaultConfiguration Config
 func (configuration Configuration) withPersonaDefaults(defaultConfiguration Configuration) Configuration {
 	configuration.IdentityDocumentPath = stateFilePath(configuration, defaultConfiguration, configuration.IdentityDocumentPath, defaultConfiguration.IdentityDocumentPath, "identity.json")
 	configuration.SoulDocumentPath = stateFilePath(configuration, defaultConfiguration, configuration.SoulDocumentPath, defaultConfiguration.SoulDocumentPath, "soul.json")
-	if configuration.BotProfileImagePath == "" {
-		configuration.BotProfileImagePath = defaultConfiguration.BotProfileImagePath
-	}
 	if configuration.BotUsername == "" {
 		configuration.BotUsername = defaultConfiguration.BotUsername
 	}

@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { defaultZone, docsHost } from '../../../src/lib/server/fleet-domain';
 import { declaredZone } from '../fleet-domain-declaration';
 
-describe('the web zone declaration matches fleetdomain', () => {
-	test('defaultZone is the same string internal/fleetdomain/fleetdomain.go declares', () => {
+describe('the web zone declaration matches companyzone', () => {
+	test('defaultZone is the same string internal/companyzone/companyzone.go declares', () => {
 		expect(defaultZone).toBe(declaredZone());
 	});
 });

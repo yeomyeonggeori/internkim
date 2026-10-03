@@ -892,7 +892,7 @@
 						variant="outline"
 						size="sm"
 						onclick={scrollToBottom}
-						class="absolute bottom-[calc(var(--dock-height)+1rem)] left-1/2 -translate-x-1/2 shadow-md"
+						class="absolute bottom-[calc(var(--dock-height)+1rem)] left-1/2 z-10 -translate-x-1/2 shadow-md"
 					>
 						<ArrowDownIcon data-icon="inline-start" />
 						{jumpToLatestLabel(unseenCount, text)}

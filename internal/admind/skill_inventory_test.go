@@ -62,10 +62,8 @@ func TestSkillInventoryIsProxiedForAnAdministrator(t *testing.T) {
 	asked := []string{}
 	blueclaw := blueclawServingSkills(&asked)
 	defer blueclaw.Close()
-	service := NewService(Configuration{
-		BlueclawBaseURL: blueclaw.URL,
-		AdminEmailPath:  writeTestFile(t, "admin@example.com"),
-	})
+	service := NewService(Configuration{BlueclawBaseURL: blueclaw.URL})
+	seatAdministratorInTheCompanyForTest(t, service, "admin@example.com")
 
 	request := httptest.NewRequest(http.MethodGet, skillInventoryPath, nil)
 	request.Header.Set(requesterEmailHeader, "admin@example.com")

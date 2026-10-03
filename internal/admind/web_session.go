@@ -338,11 +338,6 @@ func (service *Service) webSessionSigningKey() ([]byte, error) {
 }
 
 func (service *Service) currentWebPolicyVersion(ctx context.Context) (string, error) {
-	if !service.hasDeviceAuth() {
-		adminEmail := service.seedAdminEmail()
-		claimedEmail := service.claimedAdminEmail()
-		return hashWebPolicyRecords([]string{"local", adminEmail, claimedEmail}), nil
-	}
 	records, errorValue := service.currentUserRecords(ctx)
 	if errorValue != nil {
 		return "", errorValue

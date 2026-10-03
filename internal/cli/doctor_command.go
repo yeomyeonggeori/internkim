@@ -26,7 +26,7 @@ func simulationDependencies(configuration internkimlab.Configuration) []hostDepe
 		},
 		{
 			name:        "sshpass",
-			purpose:     "password SSH into the lab VM and boards",
+			purpose:     "password SSH into the lab VM and the company host",
 			installHint: "brew install sshpass, or apt install sshpass",
 		},
 	}
@@ -69,7 +69,7 @@ func runDoctor() {
 		{name: "go", purpose: "CLI build/test", installHint: "brew install go"},
 		{name: "bun", purpose: "Pages checks and browser tests", installHint: "brew install oven-sh/bun/bun"},
 		{name: "bunx", purpose: "Playwright browser test runner", installHint: "brew install oven-sh/bun/bun"},
-		{name: "ssh", purpose: "board access", installHint: "included with macOS"},
+		{name: "ssh", purpose: "company host access", installHint: "included with macOS"},
 	}
 	dependencies = append(dependencies, simulationDependencies(configuration)...)
 

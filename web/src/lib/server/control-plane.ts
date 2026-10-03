@@ -86,19 +86,6 @@ export async function adminCallerOf(client: SupabaseClient): Promise<AdminCaller
 	return { memberID: member.id, companyID: member.company_id };
 }
 
-export async function isBelowCaller(caller: SupabaseClient, memberID: string): Promise<boolean> {
-	const { data, error } = await caller.rpc('member_is_below_me', { target_member: memberID });
-	if (error) throw new Error(`clearance of ${memberID}: ${error.message}`);
-	return data === true;
-}
-
-export async function isAboveCaller(caller: SupabaseClient, callerID: string, memberID: string): Promise<boolean> {
-	const { data, error } = await caller.from('member').select('id, clearance').in('id', [callerID, memberID]);
-	if (error) throw new Error(`clearance of ${memberID}: ${error.message}`);
-	const clearanceOf = (id: string) => data.find((row) => row.id === id)?.clearance ?? Number.POSITIVE_INFINITY;
-	return clearanceOf(memberID) > clearanceOf(callerID);
-}
-
 export async function promoteToAdministrator(caller: SupabaseClient, memberID: string): Promise<void> {
 	const { error } = await caller.rpc('person_set', {
 		target_member: memberID,
@@ -780,15 +767,6 @@ export async function companyOfFleet(client: SupabaseClient, fleetID: string): P
 		.maybeSingle();
 	if (error) throw new Error(`fleet ${fleetID}: ${error.message}`);
 	return data?.company_id ?? null;
-}
-
-export async function replaceFleetAgentKey(
-	client: SupabaseClient,
-	companyID: string,
-	fleetID: string,
-): Promise<AgentKey> {
-	const name = `${fleetCredentialKind} ${fleetID}`;
-	return issueAgentKey(client, companyID, name, { replaceStanding: true });
 }
 
 export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {

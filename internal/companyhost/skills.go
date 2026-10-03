@@ -98,12 +98,6 @@ func PrepareTheBundledSkills(runner SkillSetupRunner, progress io.Writer) error 
 	return prepareSkillsAt(platform.Layout().BundledSkillsPlace(), runner, progress)
 }
 
-// PrepareTheGuestSkills prepares the skills a device delivers to its guest,
-// from inside the guest's root filesystem, by the same rule.
-func PrepareTheGuestSkills(runner SkillSetupRunner, progress io.Writer) error {
-	return prepareSkillsAt(blueclaw.GuestBundledSkillsPlace(), runner, progress)
-}
-
 func prepareSkillsAt(place blueclaw.BundledSkillsPlace, runner SkillSetupRunner, progress io.Writer) error {
 	syscall.Umask(0o022)
 	return prepareSkillsIn(place, runner, progress)

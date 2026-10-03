@@ -2,16 +2,18 @@ import { expect, test } from '@playwright/test';
 
 const memoryFactsFixture = {
 	personID: 'person-1',
-	profile: { identityLines: ['이샘플은 플랫폼 팀 소속이다.'], currentLines: [] },
+	index: { embeddingModel: 'baai/bge-m3', current: 12, stale: 0 },
 	facts: Array.from({ length: 12 }, (_, index) => ({
 		factID: `fact-${index}`,
-		episodeID: `episode-${index}`,
-		ownerPersonID: 'person-1',
-		circleIDs: ['member'],
-		kind: 'fact',
+		originID: `origin-${index}`,
+		scopeType: 'circle',
+		scopeID: 'member',
+		isStatic: true,
 		content: `Memory fact ${index}`,
-		validFrom: `2026-06-${String(index + 1).padStart(2, '0')}T09:00:00Z`,
-		reinforcementCount: 1
+		importance: 3,
+		storageStrength: 1,
+		createdAt: `2026-06-${String(index + 1).padStart(2, '0')}T09:00:00Z`,
+		triggerPhrases: []
 	}))
 };
 
@@ -70,12 +72,12 @@ test.describe('memory facts', () => {
 		});
 	});
 
-	test('shows the profile above the remembered facts', async ({ page }) => {
+	test('lists the remembered facts with the circle they belong to', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.goto('/memory/');
 
-		await expect(page.getByLabel('프로필').getByText('이샘플은 플랫폼 팀 소속이다.')).toBeVisible();
 		await expect(page.getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
+		await expect(page.getByRole('button', { name: /Memory fact 0/ }).getByText('서클 · member')).toBeVisible();
 		await expect(page.getByRole('link', { name: '기억 지도' })).toHaveCount(0);
 	});
 

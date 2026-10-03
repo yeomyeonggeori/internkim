@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { liveActivityPayload } from '../../../supabase/functions/_shared/apns-live-activity.ts';
 import { activityChangesFor, activityEndsWithNothingOnRecord } from '../../../supabase/functions/_shared/attendance-live-activity.ts';
-import { widgetClockOf, widgetRefreshPayload } from '../../../supabase/functions/_shared/attendance-widget-refresh.ts';
+import {
+	widgetClockOf,
+	widgetDeviceKinds,
+	widgetRefreshPayload
+} from '../../../supabase/functions/_shared/attendance-widget-refresh.ts';
+import { fcmWidgetRefreshMessage } from '../../../supabase/functions/_shared/fcm.ts';
+import { noPushKeys } from '../../../supabase/functions/_shared/push-keys.ts';
 
 const alert = { title: '출근', body: '사무실 · 09:02' };
 const starter = { kind: 'apns-activity-start', address: 'start-token' };
@@ -110,5 +116,23 @@ describe("the push that refreshes a member's own widgets", () => {
 			widget: 'attendance',
 			clock: 'clock_out'
 		});
+	});
+
+	test('reaches an Android phone as data alone, so nothing is shown there either', () => {
+		expect(fcmWidgetRefreshMessage('device-token-sample', 'clock_in')).toEqual({
+			message: {
+				token: 'device-token-sample',
+				data: { widget: 'attendance', clock: 'clock_in' },
+				android: { priority: 'NORMAL' }
+			}
+		});
+	});
+
+	test('goes to iPhones and Android phones only where the plane holds their key', () => {
+		const apns = { keyID: 'k', teamID: 't', bundleID: 'b', privateKey: 'p', environment: 'sandbox' as const };
+		const fcm = { projectID: 'p', clientEmail: 'c@example.com', privateKey: 'k' };
+		expect(widgetDeviceKinds(noPushKeys)).toEqual([]);
+		expect(widgetDeviceKinds({ ...noPushKeys, fcm })).toEqual(['fcm']);
+		expect(widgetDeviceKinds({ ...noPushKeys, apns, fcm })).toEqual(['apns', 'fcm']);
 	});
 });

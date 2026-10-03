@@ -3,14 +3,14 @@ import { readFileSync } from 'node:fs';
 import { declaredZone } from './fleet-domain-declaration';
 
 // supabase/config.toml is Supabase's own file, read by the Supabase CLI, so it
-// cannot import internal/fleetdomain's declaration. This test is the check
+// cannot import internal/companyzone's declaration. This test is the check
 // that keeps its zone lines from drifting away from the one declaration.
 
 function configTOML(): string {
 	return readFileSync(new URL('../../../supabase/config.toml', import.meta.url), 'utf8');
 }
 
-describe('supabase/config.toml carries the same zone fleetdomain declares', () => {
+describe('supabase/config.toml carries the same zone companyzone declares', () => {
 	const zone = declaredZone();
 	const config = configTOML();
 

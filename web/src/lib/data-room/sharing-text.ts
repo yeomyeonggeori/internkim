@@ -1,9 +1,9 @@
 export const dataRoomSharingText = {
 	ko: {
 		title: '데이터룸 링크 공유',
-		description: '역할의 자료를 공유합니다. 본인에게 허용된 범위에서만 만들 수 있습니다.',
+		description: '고른 서클이 읽는 자료를 링크로 공유합니다. 본인에게 허용된 범위에서만 만들 수 있습니다.',
 		label: '공유 이름',
-		role: '열람 역할',
+		circle: '서클',
 		lifetime: '유효 기간',
 		hours: '시간',
 		days: '일',
@@ -19,8 +19,8 @@ export const dataRoomSharingText = {
 		expired: '만료됨',
 		expires: '만료',
 		noLinks: '공유 링크가 없습니다.',
-		noRoles: '공유할 수 있는 역할이 없습니다. 관리자에게 데이터룸 권한을 요청하세요.',
-		live: '선택한 역할 범위의 현재 자료와 이후 추가되는 자료를 공유합니다.',
+		noCircles: '공유할 수 있는 서클이 없습니다. 관리자에게 서클을 요청하세요.',
+		live: '선택한 서클이 읽는 현재 자료와 이후 추가되는 자료를 공유합니다.',
 		enterCode: '데이터룸 열기',
 		unlockDescription:
 			'공유받은 6자리 코드를 입력하고 기밀유지 안내에 동의하세요. 계정은 필요하지 않습니다.',
@@ -35,9 +35,9 @@ export const dataRoomSharingText = {
 	},
 	en: {
 		title: 'Share dataroom link',
-		description: 'Share documents through a reader role within your own permissions.',
+		description: 'Share what one circle reads, within your own permissions.',
 		label: 'Share name',
-		role: 'Reader role',
+		circle: 'Circle',
 		lifetime: 'Expires after',
 		hours: 'hours',
 		days: 'days',
@@ -53,8 +53,8 @@ export const dataRoomSharingText = {
 		expired: 'Expired',
 		expires: 'Expires',
 		noLinks: 'No share links yet.',
-		noRoles: 'No shareable roles. Ask an administrator for dataroom permissions.',
-		live: 'Shares current documents and future additions in the selected role.',
+		noCircles: 'No circle you can share. Ask an administrator to add you to one.',
+		live: 'Shares current documents and future additions in the selected circle.',
 		enterCode: 'Open dataroom',
 		unlockDescription:
 			'Enter the shared six digit code and acknowledge the confidentiality notice. No account is required.',

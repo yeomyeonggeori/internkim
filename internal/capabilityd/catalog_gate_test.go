@@ -56,10 +56,16 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"boardWeek":"2026-09-28"`)
 			},
 		},
-		"dataroom_member_update": {
+		"circle_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_member_update","result":{"saved":true}}`)},
-			input:   `{"memberID":"62000000-0000-4000-8000-000000000001","roleCodes":["finance"]}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_list","result":{"circles":[{"id":"finance","name":"Finance","nameKO":"재무","readableCategories":["F"],"memberIDs":[]}]}}`)},
+			input:   `{}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"circle_member_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_member_update","result":{"saved":true}}`)},
+			input:   `{"memberID":"62000000-0000-4000-8000-000000000001","circleIDs":["finance"]}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"saved":true`)
@@ -67,17 +73,17 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"dataroom_links_get": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_links_get","result":{"links":[],"shareableRoleCodes":["finance"],"downloadableRoleCodes":[]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_links_get","result":{"links":[],"shareableCircleIDs":["finance"],"downloadableCircleIDs":[]}}`)},
 			input:   `{}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"shareableRoleCodes":["finance"]`)
+				expectResultHolds(t, answered, `"shareableCircleIDs":["finance"]`)
 			},
 		},
 		"dataroom_link_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_link_add","result":{"linkID":"62000000-0000-4000-8000-000000000001","accessCode":"123456"}}`)},
-			input:   `{"roleCode":"finance","label":"Sample financial review"}`,
+			input:   `{"circleID":"finance","label":"Sample financial review"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"accessCode":"123456"`)
@@ -94,7 +100,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"dataroom_get": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_get","result":{"categories":[],"roles":[],"shares":[],"canManage":false}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_get","result":{"categories":[],"shares":[],"canManage":false}}`)},
 			input:   `{}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
@@ -104,16 +110,16 @@ func gateCases() map[string]catalogGateCase {
 			input:   `{"code":"FZ","parent":"F","slug":"custom","name":"Custom","nameKO":"추가","description":"Sample finance records."}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
-		"dataroom_role_update": {
+		"circle_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_role_update","result":{"saved":true}}`)},
-			input:   `{"code":"custom","name":"Custom","nameKO":"","readableCategories":["FS"]}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_update","result":{"saved":true}}`)},
+			input:   `{"id":"custom","name":"Custom","nameKO":"","readableCategories":["FS"]}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
 		"dataroom_share_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_share_add","result":{"shareID":"62000000-0000-4000-8000-000000000001"}}`)},
-			input:   `{"roleCode":"investor","audience":"email","email":"sample@example.com"}`,
+			input:   `{"circleID":"investor","audience":"email","email":"sample@example.com"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
 		"dataroom_share_delete": {
@@ -682,7 +688,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_document_register": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_register","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","clearance":1,"domain":null,"date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null,"storageDirectory":"/workspace/circles/member/documents/quote"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_register","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null,"storageDirectory":"/workspace/circles/member/documents/quote"}}`)},
 			input:   `{"documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","summary":"A quote for the onboarding consulting."}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -691,7 +697,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_document_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_list","result":{"count":1,"documents":[{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","clearance":1,"domain":null,"date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_list","result":{"count":1,"documents":[{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null}]}}`)},
 			input:   `{"type":"quote"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -700,7 +706,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_document_search": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_search","result":{"count":1,"documents":[{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","clearance":1,"domain":null,"date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null}]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_search","result":{"count":1,"documents":[{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":null,"summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null}]}}`)},
 			input:   `{"query":"what did we quote ABC Trading","limit":3}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -709,7 +715,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_document_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_update","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":"shared/documents/quote/abc.md","summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","clearance":1,"domain":null,"date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_update","result":{"documentID":"document-1","documentNumber":"Q-2026-001","kind":"issued","documentType":"quote","title":"ABC Trading onboarding quote","counterpart":"ABC Trading","language":"ko","filePath":"shared/documents/quote/abc.md","summary":"A quote for the onboarding consulting.","requesterID":"member-1","issuedAt":"2026-09-04T00:00:00Z","date":null,"period":null,"status":null,"supersedes":null,"sha256":null,"tags":[],"storagePath":null,"published":null}}`)},
 			input:   `{"documentHint":"Q-2026-001","filePath":"shared/documents/quote/abc.md"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -718,16 +724,16 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"company_document_upload": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_upload","result":{"storagePath":"company-1/dataroom/2/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12","uploadURL":"https://example.test/storage/v1/object/upload/sign/asset/company-1/dataroom/2/ab12?token=signed"}}`)},
-			input:   `{"clearance":2,"sha256":"ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12"}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_upload","result":{"storagePath":"company-1/dataroom/Q/QQ/abc-quote.document-1.pdf","uploadURL":"https://example.test/storage/v1/object/upload/sign/asset/company-1/dataroom/Q/QQ/abc-quote.document-1.pdf?token=signed"}}`)},
+			input:   `{"documentHint":"Q-2026-001","originalFileName":"abc quote.pdf"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"storagePath":"company-1/dataroom/2/`)
+				expectResultHolds(t, answered, `"storagePath":"company-1/dataroom/Q/QQ/`)
 			},
 		},
 		"company_document_download": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_download","result":{"storagePath":"company-1/dataroom/2/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12","downloadURL":"https://example.test/storage/v1/object/sign/asset/company-1/dataroom/2/ab12?token=signed"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"company_document_download","result":{"storagePath":"company-1/dataroom/Q/QQ/abc-quote.document-1.pdf","downloadURL":"https://example.test/storage/v1/object/sign/asset/company-1/dataroom/Q/QQ/abc-quote.document-1.pdf?token=signed"}}`)},
 			input:   `{"documentHint":"Q-2026-001"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
@@ -944,7 +950,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"person_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_update","result":{"personID":"person-1","name":"\uc774\uc0d8\ud50c","email":"member@example.com","handle":"sample","mention":"@\uc774\uc0d8\ud50c","jobTitle":"\ud3b8\uc9d1\uc7a5","teamID":"team-1","teamName":"\ud3b8\uc9d1\ud300","supervisorID":"","supervisorName":"","phoneNumber":"","hireDate":"2026-03-02","isAdmin":false,"clearance":1,"employmentStatus":"active"}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"person_update","result":{"personID":"person-1","name":"\uc774\uc0d8\ud50c","email":"member@example.com","handle":"sample","mention":"@\uc774\uc0d8\ud50c","jobTitle":"\ud3b8\uc9d1\uc7a5","teamID":"team-1","teamName":"\ud3b8\uc9d1\ud300","supervisorID":"","supervisorName":"","phoneNumber":"","hireDate":"2026-03-02","isAdmin":false,"employmentStatus":"active"}}`)},
 			input:   `{"personHint":"member@example.com","jobTitle":"\ud3b8\uc9d1\uc7a5"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)

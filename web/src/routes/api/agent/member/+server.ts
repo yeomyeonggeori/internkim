@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { callingAgent, environmentOf } from '$lib/server/agent-request';
-import { circleNamesByMemberID, memberWriteSchema, saveMember, withdrawMember } from '$lib/server/member-directory';
+import { circlesOfTheCompany, memberWriteSchema, saveMember, withdrawMember } from '$lib/server/member-directory';
 
 export const GET: RequestHandler = async ({ request, url, platform }) => {
 	const { client, companyID } = await callingAgent(request, environmentOf(platform));
@@ -26,15 +26,9 @@ export const GET: RequestHandler = async ({ request, url, platform }) => {
 		.returns<{ id: string; name: string }[]>();
 	if (teams.error) return json({ error: teams.error.message }, { status: 502 });
 
-	const circles = await client
-		.from('circle')
-		.select('name, circle_member(member_id)')
-		.eq('company_id', companyID)
-		.order('name')
-		.returns<{ name: string; circle_member: { member_id: string }[] | null }[]>();
-	if (circles.error) return json({ error: circles.error.message }, { status: 502 });
+	const circles = await circlesOfTheCompany({ client, companyID });
 
-	const named = namedMembers(rows, teams.data ?? [], circleNamesByMemberID(circles.data ?? []));
+	const named = namedMembers(rows, teams.data ?? [], circles);
 	if (!email) return json({ members: named });
 	return json({ member: named.find((member) => member.email === email) ?? null });
 };

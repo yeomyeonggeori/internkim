@@ -181,3 +181,16 @@ export async function companyOfHost(
 	const company = await response.json();
 	return typeof company === 'string' ? company : null;
 }
+
+export async function companyOfMessengerAddress(
+	supabaseURL: string,
+	apiKey: string,
+	slug: string,
+	fetchDocument: FetchDocument = fetchThroughTheRuntime
+): Promise<string | null> {
+	const url = `${supabaseURL.replace(/\/+$/, '')}/rest/v1/rpc/company_of_messenger_address?address_slug=${encodeURIComponent(slug)}`;
+	const response = await fetchDocument(url, { headers: { apikey: apiKey } });
+	if (!response.ok) throw new Error(`the record answered ${response.status} for the messenger address ${slug}`);
+	const company = await response.json();
+	return typeof company === 'string' ? company : null;
+}

@@ -57,7 +57,8 @@ DOCUMENT_MODULES_THE_CONVERSION_IMPORTS = (
 HOST_PYTHON_VERSION = "3.13.13"
 DOCUMENT_ENVIRONMENT_PATHS = ("/opt/internkim/python", "/opt/internkim/document-venv")
 HOST_PYTHON_PATH = DOCUMENT_ENVIRONMENT_PATHS[0] + "/bin/python3"
-OFFICE_COMMAND_PATH = "/opt/internkim/skills/office/scripts/office"
+SKILLS_PATH = "/opt/internkim/skills"
+OFFICE_COMMAND_PATH = SKILLS_PATH + "/office/scripts/office"
 CAPABILITYD_UNIT = "internkim-capabilityd.service"
 PACKAGE_NAME = "internkim"
 SHARE_PATH = "/srv/internkim-rig"
@@ -1164,7 +1165,7 @@ class CompanyPlane:
         issued["centralPlane"]["projectURL"] = self.project_url
         return issued
 
-    def member_session(self, company_id, message_text):
+    def member_session(self, company_id, message_text, typing_wait_seconds=0):
         """What a member does in a browser: sign in, open the wire, say something.
 
         Run in its own process because the browser's half of this wire is a
@@ -1183,6 +1184,7 @@ class CompanyPlane:
                 "MEMBER_SESSION_EMAIL": self.administrator_email,
                 "MEMBER_SESSION_PASSWORD": self.administrator_password,
                 "MEMBER_SESSION_MESSAGE": message_text,
+                "MEMBER_SESSION_TYPING_WAIT_MS": str(typing_wait_seconds * 1000),
             },
             timeout=300,
         )

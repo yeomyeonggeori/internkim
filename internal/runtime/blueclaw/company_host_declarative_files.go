@@ -42,7 +42,7 @@ func CompanyHostTmpfilesFile() string {
 		fmt.Sprintf("d %s %s root root -", CompanyHostStateRoot, stateMode),
 		fmt.Sprintf("d %s %s root root -", CompanyHostCompaniesRoot, stateMode),
 		fmt.Sprintf("d %s 0755 root root -", CompanyHostConfigurationRoot),
-		fmt.Sprintf("z %s 4755 root root -", CompanyHostPOSIXHelperPath),
+		fmt.Sprintf("z %s 4755 root root -", LinuxCompanyHostLayout().POSIXHelperPath()),
 		"",
 	}
 	return strings.Join(lines, "\n")

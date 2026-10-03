@@ -72,9 +72,8 @@ func (thisComputer) CarriesFile(path string) error {
 }
 
 type installArguments struct {
-	ConnectionPath     string
-	StateDirectoryPath string
-	ModelKeyPath       string
+	ConnectionPath string
+	ModelKeyPath   string
 }
 
 func main() {
@@ -84,57 +83,41 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "install":
-		if errorValue := runInstall(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nInstallation stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Installation stopped", runInstall(os.Args[2:]))
 	case "box":
 		runBox(os.Args[2:])
 	case "backup":
-		if errorValue := runBackup(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nBackup stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Backup stopped", runBackup(os.Args[2:]))
 	case "restore":
-		if errorValue := runRestore(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nRestore stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
-	case "import-device":
-		if errorValue := runImportDevice(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nImport stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Restore stopped", runRestore(os.Args[2:]))
 	case "refresh":
-		if errorValue := runRefresh(); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nThe company was not brought back: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("The company was not brought back", runRefresh())
 	case blueclaw.SkillPreparationVerb:
 		if len(os.Args) > 2 {
 			printUsage(command)
 		}
-		if errorValue := companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nThe skills were not prepared: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("The skills were not prepared", companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout))
 	case "update":
-		if errorValue := runUpdate(os.Args[2:]); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "\nUpdate stopped: %s\n", errorValue)
-			os.Exit(1)
-		}
+		stopOnFailure("Update stopped", runUpdate(os.Args[2:]))
 	default:
 		printUsage(command)
 	}
 }
 
+func stopOnFailure(whatStopped string, errorValue error) {
+	if errorValue == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "\n%s: %s\n", whatStopped, errorValue)
+	os.Exit(1)
+}
+
 func printUsage(command string) {
-	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--state-directory DIR] [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup]\n", command)
+	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-key]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
 	fmt.Fprintf(os.Stderr, "       %s %s\n", command, blueclaw.SkillPreparationVerb)
 	fmt.Fprintf(os.Stderr, "       %s update --version vYYYY.MM.DD.HHMMSS\n", command)
@@ -149,6 +132,7 @@ func runBox(arguments []string) {
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
 	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
+	namesHostFromKey := flags.Bool("host-name-from-key", false, "name this computer kimmini- plus the last four characters of its key, as a Kim mini is named")
 	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
@@ -160,6 +144,9 @@ func runBox(arguments []string) {
 	daemon := boxDaemon(*appURL)
 	if *setsUpWifi {
 		daemon = withWifiSetup(daemon, *appURL, madeOnFrom(*madeOnPath))
+	}
+	if *namesHostFromKey {
+		daemon = withHostNameFromKey(daemon)
 	}
 	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
@@ -192,6 +179,11 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	daemon.ScanWifi = func(ctx context.Context) ([]box.NearbyNetwork, error) {
 		return scanNearbyNetworks(ctx, watcherRadio)
 	}
+	return daemon
+}
+
+func withHostNameFromKey(daemon box.Daemon) box.Daemon {
+	daemon.NameHost = boxwifi.HostNamer{}.Name
 	return daemon
 }
 
@@ -259,7 +251,6 @@ func boxDaemon(appURL string) box.Daemon {
 
 func parseInstallArguments(arguments []string) (installArguments, error) {
 	flags := flag.NewFlagSet("install", flag.ContinueOnError)
-	stateDirectoryPath := flags.String("state-directory", "", "persistent private installation directory")
 	modelKeyPath := flags.String("model-key-file", "", "read the OpenRouter key from this private file")
 	var connectionPaths []string
 	remaining := arguments
@@ -277,9 +268,8 @@ func parseInstallArguments(arguments []string) (installArguments, error) {
 		return installArguments{}, fmt.Errorf("name the internkim-host.json downloaded from company setup")
 	}
 	return installArguments{
-		ConnectionPath:     connectionPaths[0],
-		StateDirectoryPath: *stateDirectoryPath,
-		ModelKeyPath:       *modelKeyPath,
+		ConnectionPath: connectionPaths[0],
+		ModelKeyPath:   *modelKeyPath,
 	}, nil
 }
 
@@ -321,14 +311,17 @@ func runInstall(arguments []string) error {
 	if errorValue != nil {
 		return errorValue
 	}
+	connection, errorValue := companyhost.ReadConnection(parsed.ConnectionPath)
+	if errorValue != nil {
+		return errorValue
+	}
 	if companyhost.ThisMachineKeepsABoxSessionFresh() {
-		return installByClaiming(parsed, modelKey)
+		return installByClaiming(parsed, connection, modelKey)
 	}
 	installation, errorValue := companyhost.Install(companyhost.Request{
-		ConnectionPath:     parsed.ConnectionPath,
-		StateDirectoryPath: parsed.StateDirectoryPath,
-		ModelKey:           modelKey,
-		PromptForModelKey:  func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
+		Connection:        connection,
+		ModelKey:          modelKey,
+		PromptForModelKey: func() (string, error) { return readModelKey(os.Stdin, os.Stdout) },
 	}, thisComputer{}, os.Stdout)
 	if errorValue != nil {
 		return errorValue
@@ -339,25 +332,15 @@ func runInstall(arguments []string) error {
 	return nil
 }
 
-func installByClaiming(parsed installArguments, modelKey string) error {
-	connection, errorValue := companyhost.ReadConnection(parsed.ConnectionPath)
-	if errorValue != nil {
-		return errorValue
-	}
+func installByClaiming(parsed installArguments, connection companyhost.Connection, modelKey string) error {
 	if modelKey == "" {
+		var errorValue error
 		modelKey, errorValue = readModelKey(os.Stdin, os.Stdout)
 		if errorValue != nil {
 			return errorValue
 		}
 	}
 	daemon := boxDaemon(connection.AppURL)
-	if parsed.StateDirectoryPath != "" {
-		stateDirectoryPath, errorValue := filepath.Abs(parsed.StateDirectoryPath)
-		if errorValue != nil {
-			return errorValue
-		}
-		daemon.Places.CompanyStateDirectoryPath = func(string) string { return stateDirectoryPath }
-	}
 	if errorValue := daemon.InstallWithConnectionFile(context.Background(), connection.AgentKey, strings.TrimSpace(modelKey)); errorValue != nil {
 		return errorValue
 	}

@@ -1,0 +1,85 @@
+#!/bin/sh
+set -eu
+
+baseImageURL="$1"
+releaseTag="$2"
+outputImage="$3"
+wifiCountry="$4"
+timeZone="$5"
+growBy="3G"
+root=/mnt/kim-mini
+baseImage="$(dirname "$outputImage")/$(basename "$baseImageURL")"
+
+apt-get update -qq
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates xz-utils parted e2fsprogs fdisk util-linux >/dev/null
+
+[ -e "$baseImage" ] || curl -fsSL -o "$baseImage" "$baseImageURL"
+expectedChecksum="$(curl -fsSL "$baseImageURL.sha256" | cut -d' ' -f1)"
+echo "$expectedChecksum  $baseImage" | sha256sum -c --quiet || { echo "$baseImage does not match $baseImageURL.sha256" >&2; exit 1; }
+
+xz -dc "$baseImage" > "$outputImage"
+truncate -s "+$growBy" "$outputImage"
+parted -s "$outputImage" resizepart 2 100%
+
+partitionDevice() {
+  partitionNumber="$1"
+  sectorSize=512
+  startSector="$(partx -g -o START -n "$partitionNumber" "$outputImage" | tr -d ' ')"
+  sectorCount="$(partx -g -o SECTORS -n "$partitionNumber" "$outputImage" | tr -d ' ')"
+  losetup -f --show -o "$((startSector * sectorSize))" --sizelimit "$((sectorCount * sectorSize))" "$outputImage"
+}
+
+bootDevice="$(partitionDevice 1)"
+rootDevice="$(partitionDevice 2)"
+cleanUp() {
+  for mounted in "$root/dev/pts" "$root/dev" "$root/proc" "$root/sys" "$root/boot/firmware" "$root"; do
+    umount "$mounted" 2>/dev/null || true
+  done
+  losetup -d "$bootDevice" "$rootDevice" 2>/dev/null || true
+}
+trap cleanUp EXIT
+
+e2fsck -fy "$rootDevice" >/dev/null || [ $? -le 1 ]
+resize2fs "$rootDevice" >/dev/null
+
+mkdir -p "$root"
+mount "$rootDevice" "$root"
+mount "$bootDevice" "$root/boot/firmware"
+mount --bind /dev "$root/dev"
+mount --bind /dev/pts "$root/dev/pts"
+mount -t proc proc "$root/proc"
+mount -t sysfs sysfs "$root/sys"
+mv "$root/etc/resolv.conf" "$root/etc/resolv.conf.kim-mini-image"
+cp /etc/resolv.conf "$root/etc/resolv.conf"
+
+cp /work/install.sh "$root/tmp/internkim-install.sh"
+if [ -d /work/release ]; then
+  cp -R /work/release "$root/tmp/internkim-release"
+  chroot "$root" env INTERNKIM_INSTALL_RELEASE_URL=file:///tmp/internkim-release sh /tmp/internkim-install.sh host
+  rm -r "$root/tmp/internkim-release"
+else
+  chroot "$root" sh /tmp/internkim-install.sh host --version "$releaseTag"
+fi
+rm "$root/tmp/internkim-install.sh"
+
+boxUnit="$(chroot "$root" sh -c 'for directory in /usr/lib/systemd/system /lib/systemd/system /etc/systemd/system; do [ -e "$directory/internkim-box.service" ] && echo "$directory/internkim-box.service" && break; done')"
+[ -n "$boxUnit" ] || { echo "the package installed no internkim-box.service" >&2; exit 1; }
+boxCommand="$(sed -n 's/^ExecStart=//p' "$root$boxUnit")"
+mkdir -p "$root/etc/systemd/system/internkim-box.service.d"
+printf '[Service]\nExecStart=\nExecStart=%s --wifi-setup --host-name-from-key\n' "$boxCommand" > "$root/etc/systemd/system/internkim-box.service.d/kim-mini.conf"
+
+chroot "$root" raspi-config nonint do_wifi_country "$wifiCountry"
+grep -q "cfg80211.ieee80211_regdom=$wifiCountry" "$root/boot/firmware/cmdline.txt" || { echo "raspi-config did not set the Wi-Fi country to $wifiCountry" >&2; exit 1; }
+sed -i 's/^WirelessEnabled=.*/WirelessEnabled=true/' "$root/var/lib/NetworkManager/NetworkManager.state"
+grep -q '^WirelessEnabled=true$' "$root/var/lib/NetworkManager/NetworkManager.state" || { echo "NetworkManager still starts with Wi-Fi off" >&2; exit 1; }
+chroot "$root" raspi-config nonint do_change_timezone "$timeZone"
+[ "$(readlink "$root/etc/localtime")" = "/usr/share/zoneinfo/$timeZone" ] || { echo "raspi-config did not set the time zone to $timeZone" >&2; exit 1; }
+
+echo kimmini > "$root/etc/hostname"
+sed -i 's/^127\.0\.1\.1.*/127.0.1.1\tkimmini/' "$root/etc/hosts"
+chroot "$root" apt-get clean
+mv -f "$root/etc/resolv.conf.kim-mini-image" "$root/etc/resolv.conf"
+cleanUp
+trap - EXIT
+xz -T0 -f "$outputImage"
+echo "built $outputImage.xz from $(basename "$baseImageURL") and internkim $releaseTag"

@@ -3477,11 +3477,6 @@
             "items": {
               "additionalProperties": false,
               "properties": {
-                "clearance": {
-                  "maximum": 3,
-                  "minimum": 1,
-                  "type": "integer"
-                },
                 "email": {
                   "type": "string"
                 },
@@ -3565,11 +3560,6 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
-                  "clearance": {
-                    "maximum": 3,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
                   "email": {
                     "type": "string"
                   },
@@ -3648,7 +3638,7 @@
         "state": "ok"
       },
       "canonicalName": "person_update",
-      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, the data room clearance they read at, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or a clearance, or marking somebody departed; all are wide changes somebody has to mean.",
+      "description": "Change what the company directory holds about one person: their name, their job title, their organization, who they report to, their phone number, the day they started, whether they administer the company, and whether they still work here. Only the fields the call names change. A person may correct their own phone number and start date; every other field, and anybody else's, is an administrator's. Ask the requester first before raising or lowering administrator rights or marking somebody departed; both are wide changes somebody has to mean.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3659,12 +3649,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "clearance": {
-            "description": "The highest data room clearance the person reads, 1 to 3. Only an administrator sets it, for people below their own, up to their own.",
-            "maximum": 3,
-            "minimum": 1,
-            "type": "integer"
-          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -3715,12 +3699,6 @@
         "additionalProperties": false,
         "minProperties": 2,
         "properties": {
-          "clearance": {
-            "description": "The highest data room clearance the person reads, 1 to 3. Only an administrator sets it, for people below their own, up to their own.",
-            "maximum": 3,
-            "minimum": 1,
-            "type": "integer"
-          },
           "employmentStatus": {
             "description": "Whether they still work here. Only an administrator may mark somebody departed or bring them back.",
             "enum": [
@@ -3786,11 +3764,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "clearance": {
-            "maximum": 3,
-            "minimum": 1,
-            "type": "integer"
-          },
           "email": {
             "type": "string"
           },
@@ -3861,11 +3834,6 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "clearance": {
-              "maximum": 3,
-              "minimum": 1,
-              "type": "integer"
-            },
             "email": {
               "type": "string"
             },
@@ -12425,7 +12393,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_list",
-      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility; legacy documents retain clearance access. Use to answer 'what quotes did we send to X'.",
+      "description": "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility. Use to answer 'what quotes did we send to X'.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -12441,18 +12409,8 @@
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
           },
-          "clearance": {
-            "description": "Data room clearance to filter by, 0 to 3; only documents filed at exactly that clearance.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
-          },
           "counterpart": {
             "description": "Counterpart name to filter by, e.g. 'ABC Trading'.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "query": {
@@ -12487,19 +12445,7 @@
               "additionalProperties": false,
               "properties": {
                 "categoryCode": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "clearance": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "counterpart": {
                   "anyOf": [
@@ -12536,16 +12482,6 @@
                 },
                 "documentType": {
                   "type": "string"
-                },
-                "domain": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
                 },
                 "filePath": {
                   "anyOf": [
@@ -12707,8 +12643,6 @@
                 "requesterID",
                 "issuedAt",
                 "categoryCode",
-                "clearance",
-                "domain",
                 "date",
                 "period",
                 "status",
@@ -12749,19 +12683,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "categoryCode": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "clearance": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
+                    "type": "string"
                   },
                   "counterpart": {
                     "anyOf": [
@@ -12798,16 +12720,6 @@
                   },
                   "documentType": {
                     "type": "string"
-                  },
-                  "domain": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "filePath": {
                     "anyOf": [
@@ -12969,8 +12881,6 @@
                   "requesterID",
                   "issuedAt",
                   "categoryCode",
-                  "clearance",
-                  "domain",
                   "date",
                   "period",
                   "status",
@@ -13008,7 +12918,7 @@
         "mode": "success",
         "targetKind": "company"
       },
-      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
+      "description": "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date and hash, and its files are uploaded with company_document_upload once it is registered; one that replaces an older document names it with supersedesHint instead of editing it.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -13020,15 +12930,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
@@ -13040,10 +12944,6 @@
           },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -13070,16 +12970,12 @@
             "description": "'current', 'superseded' or 'draft'.",
             "type": "string"
           },
-          "storagePath": {
-            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
-            "type": "string"
-          },
           "summary": {
             "description": "2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file.",
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -13101,15 +12997,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Counterpart company or person name, e.g. 'ABC Trading'.",
@@ -13121,10 +13011,6 @@
           },
           "documentType": {
             "description": "Document type slug from the paperwork catalog, e.g. 'quote', 'service-agreement', 'employment-certificate'.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -13151,16 +13037,12 @@
             "description": "'current', 'superseded' or 'draft'.",
             "type": "string"
           },
-          "storagePath": {
-            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
-            "type": "string"
-          },
           "summary": {
             "description": "2-3 sentence summary of the document's key terms: parties, amounts, dates, obligations. Written so later questions can be answered without opening the file.",
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -13194,19 +13076,7 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "clearance": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+            "type": "string"
           },
           "counterpart": {
             "anyOf": [
@@ -13243,16 +13113,6 @@
           },
           "documentType": {
             "type": "string"
-          },
-          "domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "filePath": {
             "anyOf": [
@@ -13417,8 +13277,6 @@
           "requesterID",
           "issuedAt",
           "categoryCode",
-          "clearance",
-          "domain",
           "date",
           "period",
           "status",
@@ -13449,19 +13307,7 @@
           "additionalProperties": false,
           "properties": {
             "categoryCode": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "clearance": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
+              "type": "string"
             },
             "counterpart": {
               "anyOf": [
@@ -13498,16 +13344,6 @@
             },
             "documentType": {
               "type": "string"
-            },
-            "domain": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             },
             "filePath": {
               "anyOf": [
@@ -13672,8 +13508,6 @@
             "requesterID",
             "issuedAt",
             "categoryCode",
-            "clearance",
-            "domain",
             "date",
             "period",
             "status",
@@ -13746,19 +13580,7 @@
               "additionalProperties": false,
               "properties": {
                 "categoryCode": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "clearance": {
-                  "maximum": 9007199254740991,
-                  "minimum": -9007199254740991,
-                  "type": "integer"
+                  "type": "string"
                 },
                 "counterpart": {
                   "anyOf": [
@@ -13795,16 +13617,6 @@
                 },
                 "documentType": {
                   "type": "string"
-                },
-                "domain": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
                 },
                 "filePath": {
                   "anyOf": [
@@ -13966,8 +13778,6 @@
                 "requesterID",
                 "issuedAt",
                 "categoryCode",
-                "clearance",
-                "domain",
                 "date",
                 "period",
                 "status",
@@ -14008,19 +13818,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "categoryCode": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "clearance": {
-                    "maximum": 9007199254740991,
-                    "minimum": -9007199254740991,
-                    "type": "integer"
+                    "type": "string"
                   },
                   "counterpart": {
                     "anyOf": [
@@ -14057,16 +13855,6 @@
                   },
                   "documentType": {
                     "type": "string"
-                  },
-                  "domain": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "filePath": {
                     "anyOf": [
@@ -14228,8 +14016,6 @@
                   "requesterID",
                   "issuedAt",
                   "categoryCode",
-                  "clearance",
-                  "domain",
                   "date",
                   "period",
                   "status",
@@ -14262,7 +14048,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_update",
-      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access; legacy clearance rules still apply.",
+      "description": "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access and move the document's files to the new category's folder.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14274,15 +14060,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Corrected counterpart. Omit to keep unchanged.",
@@ -14290,10 +14070,6 @@
           },
           "date": {
             "description": "The date the document speaks from, in YYYY-MM-DD format.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -14312,16 +14088,12 @@
             "description": "'current', 'superseded' or 'draft'.",
             "type": "string"
           },
-          "storagePath": {
-            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
-            "type": "string"
-          },
           "summary": {
             "description": "Replacement summary. Omit to keep unchanged.",
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -14343,15 +14115,9 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.",
+            "description": "Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.",
             "pattern": "^[A-Z]{1,2}$",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "counterpart": {
             "description": "Corrected counterpart. Omit to keep unchanged.",
@@ -14363,10 +14129,6 @@
           },
           "documentHint": {
             "description": "The document to update: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Never the new title this call is about to set.",
-            "type": "string"
-          },
-          "domain": {
-            "description": "Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.",
             "type": "string"
           },
           "filePath": {
@@ -14385,16 +14147,12 @@
             "description": "'current', 'superseded' or 'draft'.",
             "type": "string"
           },
-          "storagePath": {
-            "description": "Where the original sits in the asset bucket, as company_document_upload answered it.",
-            "type": "string"
-          },
           "summary": {
             "description": "Replacement summary. Omit to keep unchanged.",
             "type": "string"
           },
           "supersedesHint": {
-            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.",
+            "description": "The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.",
             "type": "string"
           },
           "tags": {
@@ -14426,19 +14184,7 @@
         "additionalProperties": false,
         "properties": {
           "categoryCode": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "clearance": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
+            "type": "string"
           },
           "counterpart": {
             "anyOf": [
@@ -14475,16 +14221,6 @@
           },
           "documentType": {
             "type": "string"
-          },
-          "domain": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "filePath": {
             "anyOf": [
@@ -14646,8 +14382,6 @@
           "requesterID",
           "issuedAt",
           "categoryCode",
-          "clearance",
-          "domain",
           "date",
           "period",
           "status",
@@ -14677,19 +14411,7 @@
           "additionalProperties": false,
           "properties": {
             "categoryCode": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "clearance": {
-              "maximum": 9007199254740991,
-              "minimum": -9007199254740991,
-              "type": "integer"
+              "type": "string"
             },
             "counterpart": {
               "anyOf": [
@@ -14726,16 +14448,6 @@
             },
             "documentType": {
               "type": "string"
-            },
-            "domain": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             },
             "filePath": {
               "anyOf": [
@@ -14897,8 +14609,6 @@
             "requesterID",
             "issuedAt",
             "categoryCode",
-            "clearance",
-            "domain",
             "date",
             "period",
             "status",
@@ -14922,7 +14632,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_upload",
-      "description": "Ask for a place in the company data room to put one file. Answers the storagePath the file will sit at, keyed by its categoryCode and SHA-256, and a signed URL to PUT the bytes to. Category permissions decide whether the requester may write there; omitted categories default to X. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
+      "description": "Ask for a place in the company data room to put one file of a registered document. Answers the storagePath, which is the document's category folder and <name>.<documentID>.<extension>, and a signed URL to PUT the bytes to. Upload the original first with originalFileName, then each derived file with its fileName, which sits beside it as <name>.<documentID>.<fileName>. Whoever may change the document may upload its files. The URL is good for two hours.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -14933,23 +14643,16 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "categoryCode": {
-            "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
-            "pattern": "^[A-Z]{1,2}$",
+          "documentHint": {
+            "description": "The registered document the file belongs to: its id from company_document_register or a prior list or search result, its document number, or its exact CURRENT title.",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "fileName": {
-            "description": "Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.",
+            "description": "Name of a file derived from the original, e.g. 'content.txt' or 'thumbnail.png'. Give this or originalFileName.",
             "type": "string"
           },
-          "sha256": {
-            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+          "originalFileName": {
+            "description": "The original file's own name with its extension, e.g. '2025 audit report.pdf'. Give this or fileName.",
             "type": "string"
           }
         },
@@ -14959,28 +14662,21 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "categoryCode": {
-            "description": "The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.",
-            "pattern": "^[A-Z]{1,2}$",
+          "documentHint": {
+            "description": "The registered document the file belongs to: its id from company_document_register or a prior list or search result, its document number, or its exact CURRENT title.",
             "type": "string"
-          },
-          "clearance": {
-            "description": "Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.",
-            "maximum": 3,
-            "minimum": 0,
-            "type": "integer"
           },
           "fileName": {
-            "description": "Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.",
+            "description": "Name of a file derived from the original, e.g. 'content.txt' or 'thumbnail.png'. Give this or originalFileName.",
             "type": "string"
           },
-          "sha256": {
-            "description": "Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.",
+          "originalFileName": {
+            "description": "The original file's own name with its extension, e.g. '2025 audit report.pdf'. Give this or fileName.",
             "type": "string"
           }
         },
         "required": [
-          "sha256"
+          "documentHint"
         ],
         "type": "object"
       },
@@ -15043,7 +14739,7 @@
         "state": "ok"
       },
       "canonicalName": "company_document_download",
-      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Legacy documents retain clearance rules. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+      "description": "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -15055,18 +14751,17 @@
         "additionalProperties": false,
         "properties": {
           "documentHint": {
-            "description": "The document whose original to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Give this or storagePath.",
+            "description": "The document whose file to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title.",
             "type": "string"
           },
           "fileName": {
-            "description": "Name of a derived file stored beside the original, e.g. '01-summary.md'. Omit for the original itself.",
-            "type": "string"
-          },
-          "storagePath": {
-            "description": "The object's path in the asset bucket, as a document result's storagePath shows it. Give this or documentHint.",
+            "description": "Name of a file derived from the original, e.g. 'content.txt'. Omit for the original itself.",
             "type": "string"
           }
         },
+        "required": [
+          "documentHint"
+        ],
         "type": "object"
       },
       "inputSchemaStrict": true,
@@ -17381,12 +17076,12 @@
       "modelVisible": true,
       "name": "dataroom_links_get",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "downloadableRoleCodes": {
+          "downloadableCircleIDs": {
             "items": {
               "type": "string"
             },
@@ -17398,6 +17093,9 @@
               "properties": {
                 "canDownload": {
                   "type": "boolean"
+                },
+                "circleID": {
+                  "type": "string"
                 },
                 "createdAt": {
                   "type": "string"
@@ -17422,14 +17120,11 @@
                       "type": "null"
                     }
                   ]
-                },
-                "roleCode": {
-                  "type": "string"
                 }
               },
               "required": [
                 "id",
-                "roleCode",
+                "circleID",
                 "label",
                 "canDownload",
                 "createdAt",
@@ -17440,7 +17135,7 @@
             },
             "type": "array"
           },
-          "shareableRoleCodes": {
+          "shareableCircleIDs": {
             "items": {
               "type": "string"
             },
@@ -17449,8 +17144,8 @@
         },
         "required": [
           "links",
-          "shareableRoleCodes",
-          "downloadableRoleCodes"
+          "shareableCircleIDs",
+          "downloadableCircleIDs"
         ],
         "type": "object"
       },
@@ -17464,7 +17159,7 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "downloadableRoleCodes": {
+            "downloadableCircleIDs": {
               "items": {
                 "type": "string"
               },
@@ -17476,6 +17171,9 @@
                 "properties": {
                   "canDownload": {
                     "type": "boolean"
+                  },
+                  "circleID": {
+                    "type": "string"
                   },
                   "createdAt": {
                     "type": "string"
@@ -17500,14 +17198,11 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "roleCode": {
-                    "type": "string"
                   }
                 },
                 "required": [
                   "id",
-                  "roleCode",
+                  "circleID",
                   "label",
                   "canDownload",
                   "createdAt",
@@ -17518,7 +17213,7 @@
               },
               "type": "array"
             },
-            "shareableRoleCodes": {
+            "shareableCircleIDs": {
               "items": {
                 "type": "string"
               },
@@ -17527,8 +17222,8 @@
           },
           "required": [
             "links",
-            "shareableRoleCodes",
-            "downloadableRoleCodes"
+            "shareableCircleIDs",
+            "downloadableCircleIDs"
           ],
           "type": "object"
         }
@@ -17545,7 +17240,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_link_add",
-      "description": "Company dataroom: Create a code-protected share link for a reader role within your own permissions, including leadership. Every category follows the role and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.",
+      "description": "Company dataroom: Create a code-protected share link that reads as one circle, within your own permissions. Every category follows the circle and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17560,6 +17255,10 @@
             "default": false,
             "type": "boolean"
           },
+          "circleID": {
+            "minLength": 1,
+            "type": "string"
+          },
           "label": {
             "maxLength": 120,
             "minLength": 1,
@@ -17576,10 +17275,6 @@
               168
             ],
             "type": "number"
-          },
-          "roleCode": {
-            "minLength": 1,
-            "type": "string"
           }
         },
         "type": "object"
@@ -17592,6 +17287,10 @@
             "default": false,
             "type": "boolean"
           },
+          "circleID": {
+            "minLength": 1,
+            "type": "string"
+          },
           "label": {
             "maxLength": 120,
             "minLength": 1,
@@ -17608,14 +17307,10 @@
               168
             ],
             "type": "number"
-          },
-          "roleCode": {
-            "minLength": 1,
-            "type": "string"
           }
         },
         "required": [
-          "roleCode",
+          "circleID",
           "label",
           "lifetimeHours",
           "canDownload"
@@ -17628,7 +17323,7 @@
       "modelVisible": true,
       "name": "dataroom_link_add",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17735,7 +17430,7 @@
       "modelVisible": true,
       "name": "dataroom_link_delete",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17751,112 +17446,6 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:dataroom_link_delete",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "singleton",
-            "objectType": "data_room"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "saved": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "saved"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "approvalScope": "company",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "dataroom_member_update",
-      "description": "Company dataroom: Assign direct reader roles to an active employee. Replaces their direct member grants atomically; circle grants still apply. Only administrators can assign roles. Parent category grants include every child.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "memberID",
-          "roleCodes"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_member_update",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_member_update",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "saved": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "saved"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_member_update",
       "privacyClass": "workspace_company",
       "requiresApproval": true,
       "requiresUserPresence": false,
@@ -17972,7 +17561,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_get",
-      "description": "Company dataroom: Read the company data room categories, reader roles and active invitations. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template.",
+      "description": "Company dataroom: Read the company data room categories and its shares with people outside the company. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17991,7 +17580,7 @@
       "modelVisible": true,
       "name": "dataroom_get",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18057,38 +17646,6 @@
             },
             "type": "array"
           },
-          "roles": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "code": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "name": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "nameKO": {
-                  "type": "string"
-                },
-                "readableCategories": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "code",
-                "name",
-                "nameKO",
-                "readableCategories"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
           "shares": {
             "items": {
               "additionalProperties": false,
@@ -18105,8 +17662,6 @@
                 },
                 "audience": {
                   "enum": [
-                    "member",
-                    "circle",
                     "email",
                     "public"
                   ],
@@ -18116,14 +17671,7 @@
                   "type": "boolean"
                 },
                 "circleID": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
+                  "type": "string"
                 },
                 "email": {
                   "anyOf": [
@@ -18148,16 +17696,6 @@
                 "id": {
                   "type": "string"
                 },
-                "memberID": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "revokedAt": {
                   "anyOf": [
                     {
@@ -18167,18 +17705,13 @@
                       "type": "null"
                     }
                   ]
-                },
-                "roleCode": {
-                  "type": "string"
                 }
               },
               "required": [
                 "id",
-                "roleCode",
+                "circleID",
                 "audience",
                 "email",
-                "memberID",
-                "circleID",
                 "acceptedAt",
                 "expiresAt",
                 "revokedAt",
@@ -18191,7 +17724,6 @@
         },
         "required": [
           "categories",
-          "roles",
           "shares",
           "canManage"
         ],
@@ -18268,38 +17800,6 @@
               },
               "type": "array"
             },
-            "roles": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "code": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "name": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "nameKO": {
-                    "type": "string"
-                  },
-                  "readableCategories": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "code",
-                  "name",
-                  "nameKO",
-                  "readableCategories"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
             "shares": {
               "items": {
                 "additionalProperties": false,
@@ -18316,8 +17816,6 @@
                   },
                   "audience": {
                     "enum": [
-                      "member",
-                      "circle",
                       "email",
                       "public"
                     ],
@@ -18327,14 +17825,7 @@
                     "type": "boolean"
                   },
                   "circleID": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "type": "string"
                   },
                   "email": {
                     "anyOf": [
@@ -18359,16 +17850,6 @@
                   "id": {
                     "type": "string"
                   },
-                  "memberID": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
                   "revokedAt": {
                     "anyOf": [
                       {
@@ -18378,18 +17859,13 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "roleCode": {
-                    "type": "string"
                   }
                 },
                 "required": [
                   "id",
-                  "roleCode",
+                  "circleID",
                   "audience",
                   "email",
-                  "memberID",
-                  "circleID",
                   "acceptedAt",
                   "expiresAt",
                   "revokedAt",
@@ -18402,7 +17878,6 @@
           },
           "required": [
             "categories",
-            "roles",
             "shares",
             "canManage"
           ],
@@ -18538,7 +18013,7 @@
       "modelVisible": true,
       "name": "dataroom_category_update",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18590,128 +18065,8 @@
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "dataroom_role_update",
-      "description": "Company dataroom: Create or edit a reader role using readableCategories. A parent grants all descendants; otherwise name intermediate codes. Existing recipients of this role change access immediately. Read dataroom_get and confirm the affected recipients first. Read roles confer no administrative or editing rights.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "nameKO": {
-            "type": "string"
-          },
-          "readableCategories": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "nameKO": {
-            "type": "string"
-          },
-          "readableCategories": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "code",
-          "name",
-          "nameKO",
-          "readableCategories"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_role_update",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_role_update",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "saved": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "saved"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_role_update",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "singleton",
-            "objectType": "data_room"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "saved": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "saved"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "approvalScope": "company",
-      "availability": {
-        "state": "ok"
-      },
       "canonicalName": "dataroom_share_add",
-      "description": "Company dataroom: Share live data room categories by assigning a reader role to a member, internal circle, external email or explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.",
+      "description": "Company dataroom: Share live data room categories with someone outside the company by lending them what one circle reads: an external email or an explicitly public audience. Current and future documents in those categories become readable. Confirm the audience and scope first. Recipients must accept using their verified email; do not invite them as company members. Company members read through the circles they belong to, set with circle_member_update. Public publication is a distinct explicit request and never includes X.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -18724,8 +18079,6 @@
         "properties": {
           "audience": {
             "enum": [
-              "member",
-              "circle",
               "email",
               "public"
             ],
@@ -18735,8 +18088,6 @@
             "type": "boolean"
           },
           "circleID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
           "email": {
@@ -18744,14 +18095,6 @@
             "type": "string"
           },
           "expiresAt": {
-            "type": "string"
-          },
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCode": {
             "type": "string"
           }
         },
@@ -18763,8 +18106,6 @@
         "properties": {
           "audience": {
             "enum": [
-              "member",
-              "circle",
               "email",
               "public"
             ],
@@ -18774,8 +18115,6 @@
             "type": "boolean"
           },
           "circleID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "type": "string"
           },
           "email": {
@@ -18784,18 +18123,10 @@
           },
           "expiresAt": {
             "type": "string"
-          },
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCode": {
-            "type": "string"
           }
         },
         "required": [
-          "roleCode",
+          "circleID",
           "audience"
         ],
         "type": "object"
@@ -18806,7 +18137,7 @@
       "modelVisible": true,
       "name": "dataroom_share_add",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18903,7 +18234,7 @@
       "modelVisible": true,
       "name": "dataroom_share_delete",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -18928,6 +18259,368 @@
             "effect": "updated",
             "effectIdentity": "singleton",
             "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_list",
+      "description": "Company circles: Read every circle with the members who belong to it and the data room categories it reads. A circle is also a shared workspace folder and a shared memory on the company computer. A parent category grants all its children.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_list",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "type": "string"
+                },
+                "memberIDs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "nameKO": {
+                  "type": "string"
+                },
+                "readableCategories": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "nameKO",
+                "readableCategories",
+                "memberIDs"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "circles"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "circles": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "type": "string"
+                  },
+                  "memberIDs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nameKO": {
+                    "type": "string"
+                  },
+                  "readableCategories": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameKO",
+                  "readableCategories",
+                  "memberIDs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "circles"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_update",
+      "description": "Company circles: Create or edit a circle. id is its lowercase identifier, such as leadership, and never changes; name and nameKO are what people read. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "type": "string"
+          },
+          "readableCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "type": "string"
+          },
+          "readableCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "nameKO",
+          "readableCategories"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_update",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "circle"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_member_update",
+      "description": "Company circles: Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle's workspace folder, memory and data room categories.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberID",
+          "circleIDs"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_member_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_member_update",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_member_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "circle"
           }
         ],
         "schema": {

@@ -363,5 +363,170 @@
 		"path": "artifact_review.input.artifactKind",
 		"reason": "With managed websites removed there is no site to review, so artifact_review no longer offers the 'site' kind. Only the company computer's own capabilityd answers artifact_review, and it ships in the same release as this catalog.",
 		"release": "the release cut after this change merges, which drops the descriptors and the capabilityd and admind handlers together"
+	},
+	{
+		"path": "person_update.input.clearance",
+		"reason": "Clearance is retired. A person reads the data room categories their roles grant.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_list.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_list.input.domain",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_register.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_register.input.domain",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_update.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_update.input.domain",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_upload.input.clearance",
+		"reason": "A document's access is its category. Clearance and the legacy domain are retired, and the migration filed every legacy document under a category.",
+		"release": "the clearance retirement release carries this catalog to company hosts before the plane that drops the columns deploys"
+	},
+	{
+		"path": "company_document_register.input.storagePath",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_update.input.storagePath",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_upload.input.categoryCode",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_upload.input.sha256",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_upload.input.documentHint",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_download.input.storagePath",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "company_document_download.input.documentHint",
+		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
+		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "dataroom_get.result.shares[].circleID",
+		"reason": "A person's circles are the data room roles they hold, so a role is never shared with a circle: the circle audience and circleID are gone from shares.",
+		"release": "the circle-is-a-role release; no shipped skill shares a role with a circle"
+	},
+	{
+		"path": "dataroom_share_add.input.audience",
+		"reason": "A person's circles are the data room roles they hold, so a role is never shared with a circle: the circle audience and circleID are gone from shares.",
+		"release": "the circle-is-a-role release; no shipped skill shares a role with a circle"
+	},
+	{
+		"path": "dataroom_share_add.input.circleID",
+		"reason": "A person's circles are the data room roles they hold, so a role is never shared with a circle: the circle audience and circleID are gone from shares.",
+		"release": "the circle-is-a-role release; no shipped skill shares a role with a circle"
+	},
+	{
+		"path": "dataroom_links_get.result.shareableRoleCodes",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_links_get.result.downloadableRoleCodes",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_links_get.result.links[].roleCode",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_links_get.result.links[].circleID",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_links_get.result.shareableCircleIDs",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_links_get.result.downloadableCircleIDs",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_link_add.input.roleCode",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_link_add.input.circleID",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_member_update",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_role_update",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_get.result.roles",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_get.result.shares[].roleCode",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_get.result.shares[].memberID",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_share_add.input.memberID",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "dataroom_share_add.input.roleCode",
+		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
+		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
 	}
 ]

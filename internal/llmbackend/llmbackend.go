@@ -301,9 +301,6 @@ func completeChatWithProviderChain(providers []Provider, requestTrace string, co
 }
 
 func providerFailure(provider Provider, errorValue error) string {
-	if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {
-		return failure
-	}
 	if namedProvider, ok := provider.(interface{ Name() string }); ok {
 		providerName := namedProvider.Name()
 		if strings.HasPrefix(errorValue.Error(), providerName+": ") {
@@ -312,16 +309,6 @@ func providerFailure(provider Provider, errorValue error) string {
 		return providerName + ": " + errorValue.Error()
 	}
 	return errorValue.Error()
-}
-
-func nativeActionFallbackError(nativeError error, fallbackError error) error {
-	if nativeError == nil {
-		return fallbackError
-	}
-	if fallbackError == nil {
-		return nativeError
-	}
-	return errors.New("native action tool call failed: " + nativeError.Error() + "; json schema fallback failed: " + fallbackError.Error())
 }
 
 func nativeActionModelFallbackError(nativeErrors []error, fallbackErrors []error, promptedErrors []error) error {
@@ -362,10 +349,6 @@ func joinedErrors(errorValues []error) string {
 
 func logFallback(provider Provider, errorValue error, requestTrace string) {
 	if errorValue != nil {
-		if failure, isUnavailable := providerUnavailableFailure(errorValue); isUnavailable {
-			log.Printf("llm provider failed; trying next provider: %s; %s", failure, requestTrace)
-			return
-		}
 		log.Printf("llm provider failed; trying next provider: %v; %s", errorValue, requestTrace)
 	}
 }

@@ -157,14 +157,13 @@ CRM 활동 테이블도 없습니다. `organization_id`를 가진 task가 곧 �
 | `attendance` | 같은 회사 | 본인과 관리자 |
 | `leave` | 같은 회사 | 신청은 본인, 결정은 관리자 |
 | `push_device` | 본인 | 본인 |
-| `circle`, `circle_member` | 같은 회사 | 그 회사 관리자 |
 | `empty_box` | API만, 상자가 알린 네트워크의 관리자에게 목록으로 | API만, 상자가 보여 주는 코드로 연결 |
 | `box_pairing_refusal` | API만 | API만 |
 
-서클은 asset 버킷이 권한을 주는 단위입니다. `circle_member`가 구성원을 넣으면
-그 사람은 `<company>/circle/<circleID>/…`를 읽습니다. 팀은 따로
-`<company>/team/<teamID>/…`에 권한을 줍니다. 구성원은 팀 하나와 여러 서클에
-속할 수 있고, 두 번째 경로 조각이 둘 중 어느 것도 아닌 경로는 거절됩니다.
+팀은 `<company>/team/<teamID>/…`에 권한을 주고, 구성원은 팀 하나에
+속합니다. 두 번째 경로 조각이 어느 범위도 아닌 경로는 거절됩니다. 구성원의
+서클은 `circle_member`에 있으며
+[접근과 공유](/docs/data-room/access)에서 설명합니다.
 
 에이전트는 자신이 대신하는 구성원으로, 그 구성원의 토큰을 들고 쓰므로 따로
 정책이 필요하지 않습니다.

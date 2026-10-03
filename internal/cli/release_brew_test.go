@@ -77,3 +77,38 @@ func TestAKegWithNoMacOSProgramHasNoBottleTag(t *testing.T) {
 		t.Fatal("a keg with no Mach-O program was given a minimum macOS")
 	}
 }
+
+func TestTheKegCarriesThePrepareScriptAndMigrationsTheRuntimeDocumentNames(t *testing.T) {
+	repository := t.TempDir()
+	layout := blueclaw.MacCompanyHostLayout("")
+	sources := []string{".dependency/internkim-plugin/skills/skill.md", ".dependency/blueclaw/migrations/0001.sql"}
+	for _, file := range carriedLibraryFiles(layout) {
+		sources = append(sources, file.SourcePath)
+	}
+	for _, source := range sources {
+		path := filepath.Join(repository, source)
+		if errorValue := os.MkdirAll(filepath.Dir(path), 0o755); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+		if errorValue := os.WriteFile(path, []byte("x"), 0o644); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	libraryPath := t.TempDir()
+	if errorValue := copyBrewCarriedTrees(repository, libraryPath); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script, errorValue := os.ReadFile(filepath.Join(libraryPath, "prepare-company-host"))
+	if errorValue != nil {
+		t.Fatalf("the keg has no prepare script for the LaunchDaemon to run: %v", errorValue)
+	}
+	if string(script) != blueclaw.CompanyHostPrepareScriptFor(layout) {
+		t.Errorf("the keg's prepare script is not the one rendered for the Mac layout")
+	}
+	if !strings.Contains(string(script), "MIGRATION_DIRECTORY_PATH="+layout.MigrationPath+" ") {
+		t.Errorf("the prepare script does not name the keg's migrations %s", layout.MigrationPath)
+	}
+	if _, errorValue := os.Stat(filepath.Join(libraryPath, "migrations", "0001.sql")); errorValue != nil {
+		t.Errorf("the keg does not carry the migrations at %s: %v", layout.MigrationPath, errorValue)
+	}
+}

@@ -299,48 +299,6 @@ func (service Service) VirtualMachineIPAddress(ctx context.Context) (string, err
 	return service.resolveVirtualMachineIPAddress(ctx)
 }
 
-func (service Service) RuntimeBuilderPrepare(ctx context.Context) error {
-	if errorValue := service.VirtualMachineUp(ctx); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.waitForVirtualMachineSSH(ctx); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.ensureWritableVirtualMachineRootWithRepair(ctx); errorValue != nil {
-		return errorValue
-	}
-
-	fmt.Println("provisioning Ubuntu")
-	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-ubuntu.sh"), []string{""}); errorValue != nil {
-		return errorValue
-	}
-	if errorValue := service.ensureWritableVirtualMachineRootWithRepair(ctx); errorValue != nil {
-		return errorValue
-	}
-
-	fmt.Println("provisioning Blueclaw runtime builder")
-	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "provision-blueclaw-runtime-builder.sh"), []string{""}); errorValue != nil {
-		return errorValue
-	}
-
-	return service.runtimeBuilderCheck(ctx, "")
-}
-
-func (service Service) RuntimeBuilderCheck(ctx context.Context) error {
-	return service.runtimeBuilderCheck(ctx, service.configuration.VirtualMachine.MountDirectoryPath)
-}
-
-func (service Service) runtimeBuilderCheck(ctx context.Context, mountDirectoryPath string) error {
-	if errorValue := service.ensureRunningVirtualMachineWithSSH(ctx); errorValue != nil {
-		return errorValue
-	}
-
-	fmt.Println("checking Blueclaw runtime builder")
-	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "check-blueclaw-runtime-builder.sh"), []string{
-		mountDirectoryPath,
-	})
-}
-
 func (service Service) VirtualMachineDiagnostics(ctx context.Context) string {
 	listOutput, listError := service.commandRunner.Output(ctx, service.buildContainerListCommand())
 	bootLogOutput, bootLogError := service.commandRunner.Output(ctx, service.buildContainerBootLogCommand())
@@ -386,132 +344,6 @@ func (service Service) ProvisionUbuntu(ctx context.Context) error {
 	}
 
 	return service.ensureWritableVirtualMachineRootWithRepair(ctx)
-}
-
-func (service Service) Setup(ctx context.Context, executablePath string, setupArguments []string) error {
-	return service.setupTarget(ctx, executablePath, "lab", setupArguments)
-}
-
-func (service Service) SetupSimulation(ctx context.Context, executablePath string, setupArguments []string) error {
-	return service.setupTarget(ctx, executablePath, "sim", setupArguments)
-}
-
-func (service Service) setupTarget(ctx context.Context, executablePath string, boardType string, setupArguments []string) error {
-	if errorValue := service.ProvisionUbuntu(ctx); errorValue != nil {
-		return errorValue
-	}
-
-	fmt.Println("running setup")
-	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-
-	arguments := service.buildSetupArguments(virtualMachineIPAddress, boardType, setupArguments)
-
-	return service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName:       executablePath,
-		Arguments:            arguments,
-		WorkingDirectoryPath: service.repositoryRootPath,
-		EnvironmentVariables: service.setupEnvironmentVariables(),
-	})
-}
-
-func (service Service) ScenarioCloudflare(ctx context.Context) error {
-	return service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "scenario-cloudflare.sh"), []string{
-		service.configuration.VirtualMachine.MountDirectoryPath,
-	})
-}
-
-func (service Service) ScenarioEndToEnd(ctx context.Context, executablePath string, setupArguments []string) error {
-	return service.scenarioEndToEndTarget(ctx, executablePath, "lab", setupArguments)
-}
-
-func (service Service) ScenarioSimulationEndToEnd(ctx context.Context, executablePath string, setupArguments []string) error {
-	return service.scenarioEndToEndTarget(ctx, executablePath, "sim", setupArguments)
-}
-
-func (service Service) scenarioEndToEndTarget(ctx context.Context, executablePath string, boardType string, setupArguments []string) error {
-	if errorValue := service.setupTarget(ctx, executablePath, boardType, setupArguments); errorValue != nil {
-		return errorValue
-	}
-	if containsSetupSelector(setupArguments) {
-		return nil
-	}
-	if errorValue := service.runRemoteScript(ctx, filepath.Join("lab", "scripts", "scenario-e2e.sh"), []string{
-		service.configuration.VirtualMachine.MountDirectoryPath,
-	}); errorValue != nil {
-		return errorValue
-	}
-	return service.ScenarioCloudflare(ctx)
-}
-
-func (service Service) PrintSimulationPlan(ctx context.Context, executablePath string, setupArguments []string) error {
-	fmt.Println("simulation plan")
-
-	hasVirtualMachine, errorValue := service.VirtualMachineExists(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !hasVirtualMachine {
-		fmt.Printf("container %q: missing\n", service.configuration.VirtualMachine.Container.Name)
-		fmt.Println("inner setup plan: unavailable until the container exists")
-		return nil
-	}
-
-	fmt.Printf("container %q: exists\n", service.configuration.VirtualMachine.Container.Name)
-
-	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
-	if errorValue != nil || strings.TrimSpace(virtualMachineIPAddress) == "" {
-		fmt.Println("inner setup plan: unavailable until the VM is running")
-		return nil
-	}
-
-	return service.commandRunner.Run(ctx, ExecutableCommand{
-		ExecutableName:       executablePath,
-		Arguments:            service.buildSetupArguments(virtualMachineIPAddress, "sim", setupArguments),
-		WorkingDirectoryPath: service.repositoryRootPath,
-		EnvironmentVariables: service.setupEnvironmentVariables(),
-	})
-}
-
-func (service Service) buildSetupArguments(virtualMachineIPAddress string, boardType string, setupArguments []string) []string {
-	arguments := []string{
-		"setup",
-		"--board",
-		boardType,
-		"--ssh",
-		"--host",
-		virtualMachineIPAddress,
-		"--user",
-		service.configuration.VirtualMachine.SSHUsername,
-		"--password",
-		service.configuration.VirtualMachine.SSHPassword,
-	}
-	arguments = append(arguments, setupArguments...)
-	if defaultSkippedSteps := simulationDefaultSkippedSteps(setupArguments); len(defaultSkippedSteps) > 0 {
-		arguments = append(arguments, "--skip", strings.Join(defaultSkippedSteps, ","))
-	}
-	return arguments
-}
-
-func simulationDefaultSkippedSteps(setupArguments []string) []string {
-	if containsSetupSelector(setupArguments) {
-		return nil
-	}
-
-	return []string{"wifi"}
-}
-
-func containsSetupSelector(arguments []string) bool {
-	for _, argument := range arguments {
-		if argument == "--only" || strings.HasPrefix(argument, "--only=") ||
-			argument == "--from" || strings.HasPrefix(argument, "--from=") ||
-			argument == "--skip" || strings.HasPrefix(argument, "--skip=") {
-			return true
-		}
-	}
-	return false
 }
 
 func (service Service) buildContainerListCommand() ExecutableCommand {
@@ -725,24 +557,6 @@ func (service Service) waitForVirtualMachineSSH(ctx context.Context) error {
 	return errors.New("virtual machine ssh did not become ready")
 }
 
-func (service Service) ensureRunningVirtualMachineWithSSH(ctx context.Context) error {
-	isVirtualMachineRunning, errorValue := service.VirtualMachineRunning(ctx)
-	if errorValue != nil {
-		return errorValue
-	}
-	if !isVirtualMachineRunning {
-		return errors.New("container is not running\n" + service.VirtualMachineDiagnostics(ctx))
-	}
-	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
-	if errorValue != nil || strings.TrimSpace(virtualMachineIPAddress) == "" {
-		return errors.New("container is running but has no IP address\n" + service.VirtualMachineDiagnostics(ctx))
-	}
-	if !service.virtualMachineSSHReady(ctx) {
-		return errors.New("container SSH is not ready\n" + service.VirtualMachineDiagnostics(ctx))
-	}
-	return nil
-}
-
 func (service Service) virtualMachineSSHReady(ctx context.Context) bool {
 	virtualMachineIPAddress, errorValue := service.resolveVirtualMachineIPAddress(ctx)
 	if errorValue != nil || virtualMachineIPAddress == "" {
@@ -856,11 +670,4 @@ func shouldUseRepositoryRootForSharedWorkspace(sharedWorkspacePath string) bool 
 
 func (service Service) sharedWorkspacePath() string {
 	return service.configuration.VirtualMachine.SharedWorkspacePath
-}
-
-func (service Service) setupEnvironmentVariables() map[string]string {
-	return map[string]string{
-		"INTERNKIM_BLUECLAW_USE_LOCAL":        "1",
-		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB": "1",
-	}
 }

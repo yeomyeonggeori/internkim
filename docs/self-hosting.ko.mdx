@@ -73,6 +73,12 @@ bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-
 - `api.<zone>`은 같은 프로젝트에 연결합니다. 공개 API가 같은 라우트이기 때문입니다.
 - `GATEWAY_URL`과 `GATEWAY_ADMIN_TOKEN`이 있어야 API 호출이 연결 게이트웨이를 거쳐 회사
   컴퓨터에 닿습니다. 없으면 호출은 `503`으로 답하고, 카탈로그와 토큰은 그대로 동작합니다.
+- 구성원이 Buzz 데스크톱 앱이나 폰 앱을 쓰는 회사는 메신저 주소 `<slug>.<zone>`을
+  게이트웨이의 Workers 라우트로 줍니다. 그 호스트명은 메신저의 것이고 Pages에 연결하지
+  않습니다. 릴레이가 `/api/` 아래에 자기 경로를 갖고 있기 때문입니다. 브라우저로 그 주소를
+  열면 여전히 `308`로 존 주소로 보냅니다. 게이트웨이는
+  `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`로
+  배포하고, 배포가 라우트 목록을 통째로 바꾸므로 남길 라우트를 모두 적습니다.
 - `supabase config push`는 `config.toml` 전체를 보내므로 파일에 없는 설정은 CLI 기본값으로
   돌아갑니다. 종료 코드를 믿기 전에 출력되는 diff를 읽으세요.
 
@@ -88,7 +94,20 @@ bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-
 터널이나 서버는 운영자의 것입니다. [다른 호스트](/docs/architecture#why-the-host-has-no-inbound-port)와
 마찬가지로 `~/.ssh/config`가 그 길을 가리킵니다.
 
-## 레거시 디바이스 경로
+### 내 Cloudflare Tunnel로 접속하기
 
-회사별 어플라이언스는 레거시 디바이스 경로이며, [해당 페이지](/docs/device)가
-설명합니다. 단계가 아니고, 더는 이것을 대상으로 새로 설계하지 않습니다.
+저희 회사의 호스트도 이렇게 접속합니다. 호스트에서 내 Cloudflare 계정의 터널이 공개
+호스트 이름 하나를 `ssh://localhost:22`로 이어 줍니다. Zero Trust에서 그 호스트 이름에
+만든 self-hosted Access 애플리케이션은 운영자가 로그인하면 들여보내고, Service Auth
+정책은 서비스 토큰을 들여보냅니다. 서비스 토큰은 브라우저가 필요 없어서 스크립트가
+씁니다. 어느 네트워크에서든:
+
+```
+Host ssh.example.com
+  User <호스트의 계정>
+  ProxyCommand cloudflared access ssh --hostname %h --service-token-id <client id> --service-token-secret <client secret>
+```
+
+토큰 플래그 두 개를 빼면 `cloudflared`가 대신 브라우저 로그인을 엽니다. 이
+저장소에서는 `tools/cloudflared-access-ssh`가 금고에서 토큰을 읽는 그 ProxyCommand이고,
+`./internkim @host ssh`가 그것을 거쳐 접속합니다.

@@ -702,9 +702,9 @@ func (service *Service) handlePersona(responseWriter http.ResponseWriter, reques
 	}
 }
 
-// The document lives in the person's private home inside the guest, which their
-// POSIX user owns, so blueclaw reads and writes it as that person; admind checks
-// the document against the schema first so a refusal names the field here.
+// The document lives in the person's private home, which their POSIX user owns,
+// so blueclaw reads and writes it as that person; admind checks the document
+// against the schema first so a refusal names the field here.
 func (service *Service) writeUserDocument(responseWriter http.ResponseWriter, request *http.Request, personID string) {
 	service.proxyPersonaUser(responseWriter, request, personID, http.MethodGet, nil)
 }

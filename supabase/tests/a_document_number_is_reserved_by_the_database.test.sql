@@ -67,8 +67,8 @@ select is(
   'a different prefix counts from the start'
 );
 
-insert into public.company_document (company_id, document_number, document_type, title) values
-  ('52000000-0000-0000-0000-0000000000a0', 'PO-2026-007', 'purchase-order', 'numbered before the sequence existed');
+insert into public.company_document (company_id, document_number, document_type, title, category_code) values
+  ('52000000-0000-0000-0000-0000000000a0', 'PO-2026-007', 'purchase-order', 'numbered before the sequence existed', 'X');
 
 select is(
   public.reserve_document_number('52000000-0000-0000-0000-0000000000a0', 'PO-2026-'),

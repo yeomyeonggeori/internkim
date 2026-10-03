@@ -42,11 +42,11 @@ func TestThePackageShipsEveryProgramItsUnitsStart(t *testing.T) {
 			t.Fatalf("%s: %v", target.Architecture, errorValue)
 		}
 		shippedPaths := map[string]bool{
-			blueclaw.CompanyPackagePreparePath:                  true,
-			blueclaw.LinuxCompanyHostLayout().DataServicePath(): true,
+			packageLayout.PrepareScriptPath(): true,
+			packageLayout.DataServicePath():   true,
 		}
 		for _, name := range shipped {
-			shippedPaths[blueclaw.CompanyPackageBinaryPath(name)] = true
+			shippedPaths[packageLayout.BinaryPath(name)] = true
 		}
 		for _, unit := range blueclaw.CompanyPackageUnits() {
 			for _, line := range strings.Split(unit.Contents, "\n") {
@@ -97,16 +97,13 @@ func TestTheStateRootIsPrivate(t *testing.T) {
 
 // The helper is setuid root. If the package ever stops saying so, the agent silently
 // loses the ability to act as the person who asked.
-func TestTheHelperIsShippedSetuidWhereTheRuntimeLooksForIt(t *testing.T) {
+func TestTheHelperIsShippedSetuid(t *testing.T) {
 	for _, program := range packagedGoPrograms() {
 		if program.Name != blueclaw.POSIXHelperProgramName {
 			continue
 		}
 		if program.Mode&os.ModeSetuid == 0 {
 			t.Fatalf("%s is shipped %o rather than setuid", program.Name, program.Mode)
-		}
-		if program.InstalledPath() != blueclaw.CompanyHostPOSIXHelperPath {
-			t.Fatalf("the package installs the helper at %s and the rendered runtime names %s", program.InstalledPath(), blueclaw.CompanyHostPOSIXHelperPath)
 		}
 		return
 	}
@@ -121,7 +118,7 @@ func TestThePackageShipsTheControlCommand(t *testing.T) {
 	for _, program := range packagedGoPrograms() {
 		installed[program.InstalledPath()] = true
 	}
-	controlPath := blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName)
+	controlPath := packageLayout.BinaryPath(blueclaw.CompanyPackageName)
 	if !installed[controlPath] {
 		t.Fatalf("the package installs no %s", controlPath)
 	}
@@ -150,7 +147,7 @@ func TestThePostInstallBuildsTheConversionEnvironmentBeforeItRestartsTheServices
 	for _, format := range linuxPackageFormats() {
 		script := maintainerScript(format, postInstallScript)
 		restart := strings.Index(script, "systemctl restart")
-		for _, command := range blueclaw.LinuxCompanyHostLayout().InstallStepCommands() {
+		for _, command := range packageLayout.InstallStepCommands() {
 			position := strings.Index(script, shellWords(command.Arguments)+" || refuse")
 			if position < 0 || position > restart {
 				t.Fatalf("the %s postinst does not %s before it restarts the services:\n%s", format.Name, command.Purpose, script)
@@ -340,5 +337,29 @@ func TestTheBuiltPackageLandsWhereTheInstallRigLooks(t *testing.T) {
 	}
 	if !strings.Contains(string(rig), `PACKAGE_NAME = "`+blueclaw.CompanyPackageName+`"`) {
 		t.Fatalf("the install rig globs for a package not named %s", blueclaw.CompanyPackageName)
+	}
+}
+
+func TestEveryHostCarriesTheAgentPictureWhereAdmindIsToldToFindIt(t *testing.T) {
+	repositoryRootPath := filepath.Join("..", "..")
+	for _, layout := range []blueclaw.CompanyHostLayout{packageLayout, blueclaw.MacCompanyHostLayout("/opt/homebrew")} {
+		carried := slices.IndexFunc(carriedLibraryFiles(layout), func(file packagedFile) bool {
+			return file.Destination == layout.AgentProfilePicturePath()
+		})
+		if carried < 0 {
+			t.Fatalf("the host rooted at %s carries no agent picture at %s", layout.LibraryRoot, layout.AgentProfilePicturePath())
+		}
+		source := filepath.Join(repositoryRootPath, carriedLibraryFiles(layout)[carried].SourcePath)
+		if _, errorValue := os.Stat(source); errorValue != nil {
+			t.Fatalf("the agent picture the package carries is not at %s: %v", source, errorValue)
+		}
+		service, isBundled := blueclaw.CompanyHostServiceNamed(layout, blueclaw.AdmindServiceName)
+		if !isBundled {
+			t.Fatal("the host runs no admind")
+		}
+		named := slices.Index(service.Command, "-agent-profile-picture")
+		if named < 0 || named+1 >= len(service.Command) || service.Command[named+1] != layout.AgentProfilePicturePath() {
+			t.Fatalf("admind is started as %v and not told the agent picture is at %s", service.Command, layout.AgentProfilePicturePath())
+		}
 	}
 }

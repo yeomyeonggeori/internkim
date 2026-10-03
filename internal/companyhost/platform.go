@@ -8,9 +8,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-// The same install, on the two machines a company host runs on. Six steps, and
-// only four of them differ: the company's files are written the same way on
-// both, and the wait is the same six probes against the same loopback addresses.
+// The same install, on the two machines a company host runs on.
 //
 // Nothing here decides what the company host *is*. The services come from
 // blueclaw.CompanyHostServices, the units and the plists are rendered from that
@@ -29,21 +27,14 @@ const (
 )
 
 type companyHostPlatform interface {
-	// Describe is what a refusal calls this machine.
 	Describe() string
-	// NameOfItsSupervisor is what keeps the services running here.
 	NameOfItsSupervisor() string
-	// Layout is where this machine keeps the company host's own files.
 	Layout() blueclaw.CompanyHostLayout
 	// EnsureServiceAccounts creates the unprivileged accounts the bundle runs
 	// services as, where the package did not declare them.
 	EnsureServiceAccounts(machine Machine) error
-	// StartTheDatabaseAndTheCache starts what the distribution supervises.
 	StartTheDatabaseAndTheCache(machine Machine) error
-	// RunDatabaseStatements runs SQL as somebody the cluster lets in.
 	RunDatabaseStatements(machine Machine, statements string, progress io.Writer) error
-	// SuperviseTheBundle writes the service definitions, registers them and
-	// starts them.
 	SuperviseTheBundle(machine Machine, progress io.Writer) error
 	// CarriesItInThePackage is true for a dependency the package on this
 	// machine brings with it, so the machine is not asked for it.
@@ -56,7 +47,6 @@ type companyHostPlatform interface {
 	// one command this machine installs software with, or nothing when this
 	// repository does not know it.
 	HowToInstallTheseByHand(machine Machine, missing []missingPiece) []string
-	// SupervisorIdentityFor is what this machine's supervisor calls a service.
 	SupervisorIdentityFor(serviceName string) string
 	// SupervisorStateOf is the supervisor's own one-word answer, for a refusal
 	// that has to say whether the process is even there.
@@ -65,8 +55,6 @@ type companyHostPlatform interface {
 	HowToSeeWhyItIsSilent(identity string) []string
 }
 
-// ThisMachine is the platform the installer is running on. A machine this
-// repository has no install for is refused by name rather than part way through.
 func ThisMachineKeepsABoxSessionFresh() bool {
 	return runtime.GOOS == "linux"
 }
@@ -79,6 +67,8 @@ func KeepTheBoxSessionFresh(machine Machine, progress io.Writer) error {
 	return machine.Run("systemctl", []string{"restart", unit}, nil, progress)
 }
 
+// ThisMachine is the platform the installer is running on. A machine this
+// repository has no install for is refused by name rather than part way through.
 func ThisMachine() (companyHostPlatform, error) {
 	return platformFor(runtime.GOOS, homebrewPrefix())
 }

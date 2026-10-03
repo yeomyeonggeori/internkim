@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="attendance_widget_background">#1C1C1E</color>
+    <color name="attendance_widget_text">#FFFFFF</color>
+    <color name="attendance_widget_text_secondary">#AEAEB2</color>
+    <color name="attendance_widget_text_dimmed">#59FFFFFF</color>
+    <color name="attendance_widget_track">#3A3A3C</color>
+    <color name="attendance_widget_button">#1C3557</color>
+    <color name="attendance_widget_accent">#0A84FF</color>
+    <color name="attendance_widget_on_accent">#FFFFFF</color>
+    <color name="attendance_widget_refusal">#FF453A</color>
+</resources>

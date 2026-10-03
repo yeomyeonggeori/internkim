@@ -9,7 +9,7 @@ import (
 
 	"strings"
 
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/companyzone"
 )
 
 func (service *Service) router() http.Handler {
@@ -28,8 +28,6 @@ func (service *Service) router() http.Handler {
 	service.registerFileRoutes(multiplexer)
 	service.registerTaskRunRoutes(multiplexer)
 	service.registerCompanyRoutes(multiplexer)
-	service.registerAssetRoutes(multiplexer)
-	service.registerBoardRoutes(multiplexer)
 	service.registerHostRoutes(multiplexer)
 	multiplexer.Handle("/", service.mattermostProxy())
 	return service.withRequestMetrics(service.withReadAPITimeout(service.withCORS(multiplexer)))
@@ -47,21 +45,15 @@ func (service *Service) registerPublicAPIRoutes(multiplexer *http.ServeMux) {
 
 func (service *Service) registerTaskRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc(dataRoomClassificationPath, service.answerDataRoomClassification)
-	multiplexer.HandleFunc("/task", service.serveTaskPage)
 	multiplexer.HandleFunc(taskAPIPrefix+"/", service.handleTaskAPI)
 	multiplexer.HandleFunc(recordToolPathPrefix, service.handleRecordTool)
 	multiplexer.HandleFunc(tellDirectMessagePath, service.handleTellDirectMessage)
-	multiplexer.HandleFunc("/task/", service.serveTaskPage)
 	multiplexer.HandleFunc(retiredTaskAPIPrefix+"/", http.NotFound)
-	multiplexer.HandleFunc("/flow", service.serveTaskPage)
-	multiplexer.HandleFunc("/flow/", service.serveTaskPage)
 }
 
 func (service *Service) registerMemoryRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/memory", service.serveMemoryPage)
 	multiplexer.HandleFunc("/memory/api/", service.handleMemory)
 	multiplexer.HandleFunc("/persona/api/", service.handlePersona)
-	multiplexer.HandleFunc("/memory/", service.serveMemoryPage)
 }
 
 func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
@@ -85,7 +77,6 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/buzz-ghost-rooms", service.handleBuzzGhostRooms)
 	multiplexer.HandleFunc("/agent/api/buzz-identity-report", service.handleBuzzIdentityReport)
 	multiplexer.HandleFunc("/agent/api/person-pictures", service.handlePersonPictures)
-	multiplexer.HandleFunc("/agent/api/buzz-rewrite-old-links", service.handleBuzzRewriteOldLinks)
 	multiplexer.HandleFunc("/agent/api/calendar-record-coverage", service.handleCalendarRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/attendance-record-coverage", service.handleAttendanceRecordCoverage)
 	multiplexer.HandleFunc("/agent/api/task-record-coverage", service.handleTaskRecordCoverage)
@@ -95,16 +86,12 @@ func (service *Service) registerAgentRoutes(multiplexer *http.ServeMux) {
 	multiplexer.HandleFunc("/agent/api/company-ledger-coverage", localCallersOnly(service.handleCompanyLedgerCoverage))
 	multiplexer.HandleFunc("/agent/api/mail-account-carry", localCallersOnly(service.handleMailAccountCarry))
 	multiplexer.HandleFunc("/agent/api/buzz-channel-visibility-repair", localCallersOnly(service.handleBuzzChannelVisibilityRepair))
-	multiplexer.HandleFunc("/agent/api/buzz-channel-membership-repair", service.handleBuzzChannelMembershipRepair)
 	multiplexer.HandleFunc("/agent/api/buzz-channel-retire", service.handleBuzzChannelRetire)
-	multiplexer.HandleFunc("/agent/api/circle-room-membership", service.handleCircleRoomMembership)
 	multiplexer.HandleFunc("/agent/api/buzz-whose-key", service.handleBuzzWhoseKey)
 }
 
 func (service *Service) registerCalendarRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/calendar", service.serveCalendarPage)
 	multiplexer.HandleFunc("/calendar/api/", service.handleCalendar)
-	multiplexer.HandleFunc("/calendar/", service.serveCalendarPage)
 }
 
 func (service *Service) registerAuthenticationRoutes(multiplexer *http.ServeMux) {
@@ -119,15 +106,11 @@ func (service *Service) registerAuthenticationRoutes(multiplexer *http.ServeMux)
 }
 
 func (service *Service) registerMailRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/mail", service.serveMailPage)
 	multiplexer.HandleFunc("/mail/api/", service.handleMail)
-	multiplexer.HandleFunc("/mail/", service.serveMailPage)
 }
 
 func (service *Service) registerOrganizationRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/organization", service.serveOrganizationPage)
 	multiplexer.HandleFunc("/organization/api/", service.handleOrganization)
-	multiplexer.HandleFunc("/organization/", service.serveOrganizationPage)
 }
 
 func (service *Service) registerBuzzRoutes(multiplexer *http.ServeMux) {
@@ -143,32 +126,12 @@ func (service *Service) registerFileRoutes(multiplexer *http.ServeMux) {
 }
 
 func (service *Service) registerTaskRunRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/runs", service.serveTaskRunsPage)
 	multiplexer.HandleFunc("/runs/api", service.handleTaskRuns)
 	multiplexer.HandleFunc("/runs/api/", service.handleTaskRuns)
-	multiplexer.HandleFunc("/runs/", service.serveTaskRunsPage)
 }
 
 func (service *Service) registerCompanyRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/company", service.serveCompanySharePage)
 	multiplexer.HandleFunc("/company/api/", service.handleCompanyShare)
-	multiplexer.HandleFunc("/company/", service.serveCompanySharePage)
-}
-
-func (service *Service) registerAssetRoutes(multiplexer *http.ServeMux) {
-	multiplexer.Handle("/_app/", http.FileServer(http.Dir(service.Configuration.AdminUIPath)))
-	multiplexer.HandleFunc("/logo.svg", service.serveAdminAsset)
-	multiplexer.Handle(relayProxyPrefix, service.handleRelayProxy())
-	multiplexer.Handle(relayProxyPrefix+"/", service.handleRelayProxy())
-}
-
-func (service *Service) registerBoardRoutes(multiplexer *http.ServeMux) {
-	multiplexer.HandleFunc("/messenger", service.serveBoardSection("messenger"))
-	multiplexer.HandleFunc("/messenger/", service.serveBoardSection("messenger"))
-	multiplexer.HandleFunc("/settings", service.serveBoardSection("settings"))
-	multiplexer.HandleFunc("/settings/", service.serveBoardSection("settings"))
-	multiplexer.HandleFunc("/assistant", service.serveBoardSection("assistant"))
-	multiplexer.HandleFunc("/assistant/", service.serveBoardSection("assistant"))
 }
 
 func (service *Service) withCORS(next http.Handler) http.Handler {
@@ -248,12 +211,8 @@ func (service *Service) serveAdminPage(responseWriter http.ResponseWriter, reque
 	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
 }
 
-func (service *Service) serveAdminAsset(responseWriter http.ResponseWriter, request *http.Request) {
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, strings.TrimPrefix(request.URL.Path, "/")))
-}
-
-func (service *Service) fleetZone() string {
-	return fleetdomain.Zone(service.Configuration.APIBaseURL)
+func (service *Service) companyZone() string {
+	return companyzone.Zone(service.Configuration.APIBaseURL)
 }
 
 func (service *Service) isAllowedOrigin(origin string) bool {
@@ -265,5 +224,5 @@ func (service *Service) isAllowedOrigin(origin string) bool {
 		return false
 	}
 	host := strings.ToLower(parsedURL.Hostname())
-	return fleetdomain.Covers(service.fleetZone(), host) || host == "localhost" || host == "127.0.0.1"
+	return companyzone.Covers(service.companyZone(), host) || host == "localhost" || host == "127.0.0.1"
 }

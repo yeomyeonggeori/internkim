@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -55,40 +53,6 @@ type calendarEventWriteRequest struct {
 }
 
 type calendarPeopleInput []string
-
-func (service *Service) serveCalendarPage(responseWriter http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/calendar" {
-		http.Redirect(responseWriter, request, "/calendar/", http.StatusFound)
-		return
-	}
-	if service.serveCalendarStaticFile(responseWriter, request) {
-		return
-	}
-	service.serveCalendarIndex(responseWriter, request)
-}
-
-func (service *Service) serveCalendarStaticFile(responseWriter http.ResponseWriter, request *http.Request) bool {
-	relativePath := strings.TrimPrefix(request.URL.Path, "/calendar/")
-	if relativePath == "" {
-		return false
-	}
-	filePath := filepath.Join(service.Configuration.AdminUIPath, "calendar", relativePath)
-	fileInformation, errorValue := os.Stat(filePath)
-	if errorValue != nil || fileInformation.IsDir() {
-		return false
-	}
-	http.ServeFile(responseWriter, request, filePath)
-	return true
-}
-
-func (service *Service) serveCalendarIndex(responseWriter http.ResponseWriter, request *http.Request) {
-	calendarIndexPath := filepath.Join(service.Configuration.AdminUIPath, "calendar", "index.html")
-	if fileInformation, errorValue := os.Stat(calendarIndexPath); errorValue == nil && !fileInformation.IsDir() {
-		http.ServeFile(responseWriter, request, calendarIndexPath)
-		return
-	}
-	http.ServeFile(responseWriter, request, filepath.Join(service.Configuration.AdminUIPath, "index.html"))
-}
 
 func (service *Service) handleCalendar(responseWriter http.ResponseWriter, request *http.Request) {
 	path := strings.TrimPrefix(request.URL.Path, "/calendar/api")

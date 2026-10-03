@@ -2,10 +2,11 @@ package admind
 
 import (
 	"encoding/json"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestMailAccountRequiresAuthenticatedActor(t *testing.T) {

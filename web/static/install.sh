@@ -22,10 +22,10 @@ esac
 
 package_name="internkim"
 release_repository="yeomyeonggeori/internkim"
-channel="${INTERNKIM_INSTALL_CHANNEL:-stable}"
+channel="stable"
 pinned_version=""
 channel_record_path="/var/lib/internkim/release-channel"
-homebrew_tap="${INTERNKIM_INSTALL_HOMEBREW_TAP:-yeomyeonggeori/tap}"
+homebrew_tap="yeomyeonggeori/tap"
 
 stop() {
   echo "$1" >&2
@@ -113,10 +113,10 @@ release_download_url() {
   fi
 }
 
-# GitHub lists releases newest first, prereleases included, and one is all this
-# asks for, so the response holds exactly one tag_name.
 curl_options="-fsSL --retry 3 --retry-delay 2 --speed-limit 1024 --speed-time 60"
 
+# GitHub lists releases newest first, prereleases included, and one is all this
+# asks for, so the response holds exactly one tag_name.
 newest_release_tag() {
   releases_url="https://api.github.com/repos/$release_repository/releases?per_page=1"
   listed_tag="$(curl $curl_options "$releases_url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')"

@@ -46,8 +46,14 @@ test('the jump-to-latest button counts messages that arrive while the reader is 
 	const unseen = page.getByRole('button', { name: '새 메시지 2개' });
 	await expect(unseen).toBeVisible();
 
-	await unseen.click();
+	const box = await unseen.boundingBox();
+	if (box === null) throw new Error('the jump-to-latest button has no layout box to click');
+	await page.mouse.move(box.x - 120, box.y + box.height / 2);
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 10 });
+	await page.mouse.down();
+	await page.mouse.up();
 	await expect(page.locator('[data-message-id="message-new-2"]')).toBeInViewport();
+	await expect(page.getByRole('button', { name: '스레드 닫기' })).toBeHidden();
 	await expect(unseen).toBeHidden();
 	await expect(jumpToLatest).toBeHidden();
 });

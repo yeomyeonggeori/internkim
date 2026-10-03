@@ -1,0 +1,384 @@
+#!/usr/bin/env python3
+"""Take a host release from origin/main to stable and onto our own host.
+
+Every step prints one line and a failing step stops the run. A failure after
+the host was touched puts the host and stable back on the previous stable
+release and marks the failed one a prerelease.
+
+    tools/ship-host [--skip-host] [--plan]
+"""
+
+import argparse
+import hashlib
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+RELEASE_REPOSITORY = "yeomyeonggeori/internkim"
+INTERNKIM = str(REPOSITORY_ROOT / "internkim")
+WITH_LOCAL_PLANE = str(REPOSITORY_ROOT / "tools" / "with-local-plane")
+INSTALL_RIG = str(REPOSITORY_ROOT / "tools" / "test-native-install")
+INSTALL_LINE = "curl -fsSL https://intern.kim/install.sh | sh -s -- host"
+PACKAGE_NAME = "internkim"
+PACKAGE_ARCHITECTURE = os.environ.get("INTERNKIM_RIG_ARCHITECTURE", "arm64")
+CHECKSUMS_NAME = "SHA256SUMS"
+RIG_DISTRIBUTION = "debian-13"
+AGENT_UNIT = "blueclaw.service"
+SETTLE_SECONDS = 120
+FAILURE_OUTPUT_LINES = 40
+RIG_PROFILE = "@test"
+ARTIFACTS_DIRECTORY = REPOSITORY_ROOT / ".artifacts" / "ship-host"
+REPORT_MARKERS = ("✗", "—")
+PASSED_OBSERVATION_PREFIX = "    ✓"
+
+HOST_UNIT_STATES_SCRIPT = r"""
+for unit in $(systemctl list-unit-files --no-legend --plain 'internkim-*.service' blueclaw.service chatd.service buzz-relay.service | awk '{print $1}'); do
+  [ "$(systemctl show -p Type --value "$unit")" = oneshot ] && [ "$(systemctl show -p RemainAfterExit --value "$unit")" = no ] && continue
+  printf '%s %s\n' "$unit" "$(systemctl is-active "$unit")"
+done
+"""
+
+
+class ShipFailure(Exception):
+    def __init__(self, step, detail):
+        super().__init__(f"{step}: {detail}")
+        self.step = step
+        self.detail = detail
+
+
+class CommandFailure(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Options:
+    skip_host: bool
+    is_plan: bool
+
+
+@dataclass
+class Shipment:
+    options: Options
+    run: object
+    sleep: object
+    directory: Path
+    log_directory: Path = ARTIFACTS_DIRECTORY
+    previous_tag: str = ""
+    tag: str = ""
+    host_tag: str = ""
+    host_architecture: str = PACKAGE_ARCHITECTURE
+    failed_actions: list = field(default_factory=list)
+
+
+def parse_arguments(arguments):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--skip-host", action="store_true", help="stop after stable is promoted")
+    parser.add_argument("--plan", action="store_true", dest="is_plan", help="print the steps and the tags, change nothing")
+    parsed = parser.parse_args(arguments)
+    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan)
+
+
+def tag_for_commit_time(epoch_seconds):
+    committed = datetime.fromtimestamp(int(epoch_seconds), timezone.utc)
+    return "v" + committed.strftime("%Y.%m.%d.%H%M%S")
+
+
+def tag_from_release_output(output):
+    found = re.search(r"released (v\d{4}\.\d{2}\.\d{2}\.\d{6}) on testing", output)
+    if found is None:
+        raise ShipFailure("cut a testing release", f"release host did not report a tag: {output.strip()[-300:]}")
+    return found.group(1)
+
+
+def package_directory_name(tag):
+    return f"{PACKAGE_NAME}-{tag}"
+
+
+def package_asset_name(suffix=".deb"):
+    return f"{PACKAGE_NAME}-{PACKAGE_ARCHITECTURE}{suffix}"
+
+
+def assets_under_test():
+    return [package_asset_name(".deb"), package_asset_name(".rpm")]
+
+
+def checksum_lines(text):
+    pairs = (line.split(None, 1) for line in text.splitlines() if line.strip())
+    return {name.strip().lstrip("*"): digest for digest, name in pairs}
+
+
+def mismatched_assets(directory, assets):
+    expected = checksum_lines((directory / CHECKSUMS_NAME).read_text())
+    mismatched = []
+    for asset in assets:
+        recorded = expected.get(asset)
+        actual = hashlib.sha256((directory / asset).read_bytes()).hexdigest()
+        if recorded != actual:
+            mismatched.append(asset)
+    return mismatched
+
+
+def inactive_units(report):
+    states = [line.split() for line in report.splitlines() if re.fullmatch(r"\S+\.service \S+", line.strip())]
+    if not states:
+        return ["no unit was reported"]
+    return [f"{unit} is {state}" for unit, state in states if state != "active"]
+
+
+def last_line(output):
+    lines = [line for line in output.splitlines() if line.strip()]
+    return lines[-1].strip() if lines else ""
+
+
+def is_report_line(line):
+    return line.startswith(REPORT_MARKERS)
+
+
+def report_lines(output):
+    lines = []
+    is_inside_report = False
+    is_inside_passed_observation = False
+    for line in output.splitlines():
+        if is_report_line(line):
+            is_inside_report = True
+            is_inside_passed_observation = False
+        elif not line.startswith(" "):
+            is_inside_report = False
+        elif line.startswith(PASSED_OBSERVATION_PREFIX):
+            is_inside_passed_observation = True
+        elif not line.startswith("     "):
+            is_inside_passed_observation = False
+        if is_inside_report and not is_inside_passed_observation:
+            lines.append(line)
+    return lines
+
+
+def failure_excerpt(output):
+    report = report_lines(output)
+    if report:
+        return "\n".join(report)
+    return "\n".join(output.strip().splitlines()[-FAILURE_OUTPUT_LINES:])
+
+
+def write_log(log_path, output):
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_text(output)
+
+
+def run_command(arguments, log_path=None):
+    completed = subprocess.run(arguments, cwd=REPOSITORY_ROOT, capture_output=True, text=True)
+    output = completed.stdout + completed.stderr
+    if log_path is not None:
+        write_log(log_path, output)
+    if completed.returncode != 0:
+        where = f"\nfull output: {log_path}" if log_path is not None else ""
+        raise CommandFailure(f"{' '.join(arguments)} exited {completed.returncode}{where}\n{failure_excerpt(output)}")
+    return completed.stdout
+
+
+def run_on_host(shipment, script):
+    output = shipment.run([INTERNKIM, "@host", "ssh", "--sudo", "--", script])
+    return "\n".join(line for line in output.splitlines() if not line.startswith("SSH: "))
+
+
+def read_previous_stable_tag(run):
+    return run(["gh", "release", "view", "--repo", RELEASE_REPOSITORY, "--json", "tagName", "--jq", ".tagName"]).strip()
+
+
+def read_origin_tag(run):
+    return tag_for_commit_time(run(["git", "show", "-s", "--format=%ct", "origin/main"]).strip())
+
+
+def refuse_unless_origin_main(shipment):
+    shipment.run(["git", "fetch", "--quiet", "origin"])
+    head = shipment.run(["git", "rev-parse", "HEAD"]).strip()
+    origin = shipment.run(["git", "rev-parse", "origin/main"]).strip()
+    if head != origin:
+        raise ShipFailure("check the tree", f"HEAD is {head[:12]} and origin/main is {origin[:12]}")
+    shipment.run([INTERNKIM, "verify", "release-tree"])
+
+
+def cut_testing_release(shipment):
+    output = shipment.run([INTERNKIM, "release", "host", "--channel", "testing"])
+    shipment.tag = tag_from_release_output(output)
+
+
+def download_release(shipment, tag, assets):
+    directory = shipment.directory / package_directory_name(tag)
+    patterns = [argument for asset in [*assets, CHECKSUMS_NAME] for argument in ("--pattern", asset)]
+    shipment.run(["gh", "release", "download", tag, "--repo", RELEASE_REPOSITORY, *patterns, "--dir", str(directory)])
+    mismatched = mismatched_assets(directory, assets)
+    if mismatched:
+        raise ShipFailure("verify checksums", f"{tag} has {', '.join(mismatched)} that {CHECKSUMS_NAME} does not vouch for")
+    return directory
+
+
+def download_and_verify(shipment):
+    download_release(shipment, shipment.tag, assets_under_test())
+    download_release(shipment, shipment.previous_tag, [package_asset_name()])
+
+
+def rig_command(shipment, extra_arguments):
+    return [
+        "monkeys", "run", RIG_PROFILE,
+        WITH_LOCAL_PLANE, INSTALL_RIG,
+        "--distribution", RIG_DISTRIBUTION,
+        "--package-directory", str(shipment.directory / package_directory_name(shipment.tag)),
+        "--older-package-directory", str(shipment.directory / package_directory_name(shipment.previous_tag)),
+        *extra_arguments,
+    ]
+
+
+def rig_log_path(shipment, name):
+    return shipment.log_directory / shipment.tag / f"{name}.log"
+
+
+def run_install_rig(shipment):
+    shipment.run(rig_command(shipment, []), log_path=rig_log_path(shipment, "install-rig"))
+
+
+def run_people_upgrade_rig(shipment):
+    shipment.run(rig_command(shipment, ["--people-upgrade"]), log_path=rig_log_path(shipment, "people-upgrade-rig"))
+
+
+def promote_to_stable(shipment, tag=None):
+    shipment.run([INTERNKIM, "release", "host", "--channel", "stable", "--version", tag or shipment.tag])
+
+
+def read_host_architecture(shipment):
+    shipment.host_architecture = last_line(run_on_host(shipment, "dpkg --print-architecture"))
+
+
+def read_host_tag(shipment):
+    version = last_line(run_on_host(shipment, f"dpkg-query -W -f '${{Version}}\\n' {PACKAGE_NAME} || true"))
+    return "v" + version if version else ""
+
+
+def check_host_runs(shipment, tag):
+    host_tag = read_host_tag(shipment)
+    if host_tag != tag:
+        raise ShipFailure("check the host", f"{PACKAGE_NAME} is {host_tag or 'not installed'} and the release is {tag}")
+    problems = inactive_units(run_on_host(shipment, HOST_UNIT_STATES_SCRIPT))
+    if problems:
+        raise ShipFailure("check the host", "; ".join(problems))
+
+
+def read_agent_restarts(shipment):
+    return int(last_line(run_on_host(shipment, f"systemctl show -p NRestarts --value {AGENT_UNIT}")))
+
+
+def watch_the_agent(shipment):
+    before = read_agent_restarts(shipment)
+    shipment.sleep(SETTLE_SECONDS)
+    after = read_agent_restarts(shipment)
+    if after > before:
+        raise ShipFailure("watch the host", f"{AGENT_UNIT} restarted {after - before} times in {SETTLE_SECONDS} seconds")
+    check_host_runs(shipment, shipment.tag)
+
+
+def upgrade_host(shipment):
+    run_on_host(shipment, INSTALL_LINE)
+    check_host_runs(shipment, shipment.tag)
+    watch_the_agent(shipment)
+
+
+def roll_the_host_back(shipment):
+    run_on_host(shipment, host_downgrade_script(shipment.host_tag, shipment.host_architecture))
+    check_host_runs(shipment, shipment.host_tag)
+
+
+def host_downgrade_script(tag, architecture):
+    asset = f"{PACKAGE_NAME}-{architecture}.deb"
+    url = f"https://github.com/{RELEASE_REPOSITORY}/releases/download/{tag}/{asset}"
+    return (
+        f"set -e; curl -fsSL {url} -o /tmp/{asset}; "
+        f"DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades /tmp/{asset}"
+    )
+
+
+def rollback_actions(shipment):
+    previous = shipment.previous_tag
+    host_actions = [("roll the host back to " + shipment.host_tag, lambda: roll_the_host_back(shipment))] if shipment.host_tag else []
+    return host_actions + [
+        ("mark " + shipment.tag + " a prerelease", lambda: shipment.run(["gh", "release", "edit", shipment.tag, "--repo", RELEASE_REPOSITORY, "--prerelease"])),
+        ("point stable at " + previous, lambda: promote_to_stable(shipment, previous)),
+        ("make " + previous + " the latest release", lambda: shipment.run(["gh", "release", "edit", previous, "--repo", RELEASE_REPOSITORY, "--latest"])),
+    ]
+
+
+def roll_back(shipment):
+    for description, action in rollback_actions(shipment):
+        print(f"  rollback: {description}")
+        try:
+            action()
+        except (CommandFailure, ShipFailure) as failure:
+            shipment.failed_actions.append(f"{description} ({failure})")
+
+
+def upgrade_host_or_roll_back(shipment):
+    read_host_architecture(shipment)
+    shipment.host_tag = read_host_tag(shipment)
+    try:
+        upgrade_host(shipment)
+    except (CommandFailure, ShipFailure) as failure:
+        roll_back(shipment)
+        left_undone = "; rollback left undone: " + ", ".join(shipment.failed_actions) if shipment.failed_actions else "; rolled back"
+        raise ShipFailure("upgrade our own host", f"{failure}{left_undone}")
+
+
+def planned_steps(options):
+    steps = [
+        (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main", refuse_unless_origin_main),
+        (lambda shipment: "cut the testing release", cut_testing_release),
+        (lambda shipment: f"download {shipment.tag} and {shipment.previous_tag} and verify their checksums", download_and_verify),
+        (lambda shipment: f"run the {RIG_DISTRIBUTION} install and upgrade rig, {shipment.previous_tag} to {shipment.tag}", run_install_rig),
+        (lambda shipment: f"upgrade a host that already has people, {shipment.previous_tag} to {shipment.tag}", run_people_upgrade_rig),
+        (lambda shipment: f"promote {shipment.tag} to stable", promote_to_stable),
+    ]
+    if options.skip_host:
+        return steps
+    return steps + [
+        (lambda shipment: f"upgrade our own host to {shipment.tag}, watch it for {SETTLE_SECONDS} seconds, roll it back to the release it ran on failure", upgrade_host_or_roll_back),
+    ]
+
+
+def print_plan(shipment):
+    shipment.tag = read_origin_tag(shipment.run)
+    print(f"tag       {shipment.tag}")
+    print(f"previous  {shipment.previous_tag}")
+    for number, (describe, _) in enumerate(planned_steps(shipment.options), 1):
+        print(f"{number}. {describe(shipment)}")
+
+
+def ship(shipment):
+    shipment.previous_tag = read_previous_stable_tag(shipment.run)
+    if shipment.options.is_plan:
+        print_plan(shipment)
+        return
+    for number, (describe, step) in enumerate(planned_steps(shipment.options), 1):
+        print(f"{number}. {describe(shipment)}", flush=True)
+        step(shipment)
+    print(f"shipped {shipment.tag}; stable was {shipment.previous_tag}")
+
+
+def main():
+    options = parse_arguments(sys.argv[1:])
+    with tempfile.TemporaryDirectory(prefix="ship-host-") as directory:
+        shipment = Shipment(options=options, run=run_command, sleep=time.sleep, directory=Path(directory))
+        try:
+            ship(shipment)
+        except (CommandFailure, ShipFailure) as failure:
+            print(f"ship-host stopped at {failure}", file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

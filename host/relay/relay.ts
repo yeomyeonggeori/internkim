@@ -10,6 +10,7 @@ import {
 	sharedAssetKeptAs
 } from './asset-store';
 import {
+	keepWorkspaceFileInTheMessenger,
 	prepareMedia,
 	prepareWorkspaceFile,
 	removeExpiredCopies,
@@ -18,7 +19,8 @@ import {
 	writeKeptFileIntoWorkspace,
 	type ActorCredential,
 	type FileTransferDependencies,
-	type KeptFileReference
+	type KeptFileReference,
+	type WorkspaceFile
 } from './file-transfer';
 import type { StoreAccess } from './transfer-store';
 import { Transfers } from './transfers';
@@ -41,16 +43,19 @@ import {
 } from './forward';
 import { notifyRequestOf, readArrivedMessage, type ArrivedMessage } from './arrived';
 import { connectToGateway, type GatewayConnection } from './gateway-socket';
+import { MessengerRelay } from './messenger-calls';
+import { messengerStoreOf } from './messenger-store';
 import { CredentialCache } from './credential-cache';
 import { BlueclawACPClient, defaultBlueclawACPSocketPath } from './acp-session';
 import { RecordCatalogs, ticketOf } from './record-catalog';
 import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
-import { conversationPoster } from './conversation-post';
+import { agentFilePoster, conversationPoster } from './conversation-post';
 import { HeldQuestionStore } from './held-question-store';
-import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
+import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
+import { fetchWhenChatdListens } from './chatd-reach';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -59,6 +64,7 @@ await hostCredential();
 const chatdBaseURL = process.env.CHATD_BASE_URL ?? 'http://127.0.0.1:18090';
 const arrivalsPort = positiveNumberSetting('ARRIVALS_PORT', process.env.ARRIVALS_PORT, 18091);
 const maildBaseURL = process.env.MAILD_BASE_URL ?? 'http://127.0.0.1:18092';
+const messengerRelayURL = process.env.MESSENGER_RELAY_URL ?? 'ws://127.0.0.1:3000';
 const admindBaseURL = process.env.ADMIND_BASE_URL ?? 'http://127.0.0.1:18080';
 const admindSocketPath = process.env.ADMIND_SOCKET_PATH ?? defaultAdmindSocketPath;
 const blueclawACPSocketPath = process.env.BLUECLAW_ACP_SOCKET_PATH ?? defaultBlueclawACPSocketPath;
@@ -112,7 +118,8 @@ function openGatewayConnection(): GatewayConnection | null {
 		companyID,
 		...(serverKey ? { serverKey } : { hostAccessToken: freshHostAccessToken }),
 		dispatch,
-		byteCeiling: answerByteCeiling
+		byteCeiling: answerByteCeiling,
+		messengerRelayURL
 	});
 }
 
@@ -129,6 +136,22 @@ function tellBrowsers(conversationID: string, messageID: string): void {
 }
 
 const credentials = new CredentialCache(readMessengerCredential);
+
+const arrivalWatchers = new ArrivalWatchers({
+	activeMemberIDs: () => activeMemberIDsOf(client, companyID),
+	credentialOf: (memberID) => credentials.credentialOf(memberID),
+	askChatd: (capability, body) => dispatch.askChatd(capability, body),
+	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
+	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
+	report: (line) => console.log(line),
+	now: () => Date.now()
+});
+
+async function credentialOfMemberActedFor(memberID: string): Promise<{ kind: string; secret: string } | null> {
+	const credential = await credentials.credentialOf(memberID);
+	if (credential) void arrivalWatchers.watchOnceTheyAct(memberID, credential);
+	return credential;
+}
 
 async function readMessengerCredential(memberID: string): Promise<{ kind: string; secret: string } | null> {
 	const kind = await messengerCredentialKind();
@@ -188,12 +211,15 @@ const fileTransfer: FileTransferDependencies = {
 
 function askChatdRaw(capability: string, body: Record<string, unknown>): Promise<Response> {
 	const url = `${chatdBaseURL}/v1/platform/${encodeURIComponent(messengerPlatform)}/${encodeURIComponent(capability)}`;
-	return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+	return fetchWhenChatdListens(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
+
+const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), messengerStoreOf(companyID, hostAccess));
 
 const dispatch = {
 	messageArrived: tellBrowsers,
 	serveAsset: asset,
+	serveMessenger: (capability: string, body: Record<string, unknown>) => messenger.serve(capability, body),
 	askChatd: (capability: string, body: Record<string, unknown>, largestBytes?: number) =>
 		forwardToChatd(chatdBaseURL, messengerPlatform, capability, body, largestBytes ?? largestPictureBytes),
 	transfer: {
@@ -238,7 +264,7 @@ const dispatch = {
 		if (member.error) throw new Error(member.error.message);
 		return member.data?.email ?? null;
 	},
-	messengerCredentialOf: (memberID: string) => credentials.credentialOf(memberID),
+	messengerCredentialOf: credentialOfMemberActedFor,
 	connectMessengerAccount: async (memberID: string, account: ConnectedAccount) => {
 		await askTheRecord('POST', '/api/agent/messenger-account', {
 			platform: messengerPlatform,
@@ -439,12 +465,40 @@ function isRecord(offered: unknown): offered is Record<string, unknown> {
 	return typeof offered === 'object' && offered !== null;
 }
 
+const postToConversation = conversationPoster({
+	askChatd: (capability, body) => dispatch.askChatd(capability, body),
+	tellBrowsers
+});
+
+async function memberIDOfEmail(email: string): Promise<string | null> {
+	const member = await client
+		.from('member')
+		.select('id')
+		.eq('company_id', companyID)
+		.eq('email', email)
+		.maybeSingle<{ id: string }>();
+	if (member.error) throw new Error(member.error.message);
+	return member.data?.id ?? null;
+}
+
+async function keepForTheMessenger(requesterEmail: string, file: WorkspaceFile) {
+	const memberID = await memberIDOfEmail(requesterEmail);
+	if (!memberID) throw new Error(`nobody in this company signs in as ${requesterEmail}, so ${file.filename} has nobody to be handed over as`);
+	const actor = await credentials.credentialOf(memberID);
+	if (!actor) throw new Error(`${requesterEmail} holds no messenger credential, so ${file.filename} cannot be handed to the messenger as them`);
+	return keepWorkspaceFileInTheMessenger(fileTransfer, memberID, actor, requesterEmail, file);
+}
+
+const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConversation });
+
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
 		workspaceRootPath,
 		catalogFor: (requesterEmail, conversationID) =>
 			recordCatalogs.serversFor(requesterEmail, conversationID),
+		postToConversation,
+		postFileToConversation,
 		questions: new HeldQuestionStore({
 			directoryPath: `${relayStateDirectory}/questions`,
 			report: (line) => console.log(`questions: ${line}`)
@@ -457,11 +511,7 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		directoryPath: `${relayStateDirectory}/inbound`,
 		report: (line) => console.log(`inbound: ${line}`)
 	}),
-	postToConversation: conversationPoster({
-		askChatd: (capability, body) => dispatch.askChatd(capability, body),
-		tellBrowsers,
-		report: (line) => console.log(`reply: ${line}`)
-	}),
+	postToConversation,
 	report: (line) => console.log(`acp: ${line}`)
 });
 
@@ -500,14 +550,7 @@ Bun.serve({
 });
 console.log(`arrivals accepted on 127.0.0.1:${arrivalsPort}`);
 
-keepWatchingArrivals({
-	activeMemberIDs: () => activeMemberIDsOf(client, companyID),
-	credentialOf: (memberID) => credentials.credentialOf(memberID),
-	askChatd: (capability, body) => dispatch.askChatd(capability, body),
-	arrivalsURL: `http://127.0.0.1:${arrivalsPort}${arrivalsPath}`,
-	typingURL: `http://127.0.0.1:${arrivalsPort}${typingPath}`,
-	report: (line) => console.log(line)
-});
+void keepWatchingArrivals(arrivalWatchers, (milliseconds, renew) => setTimeout(() => void renew(), milliseconds));
 
 // Whatever the last relay took and had not delivered is still on disk.
 inboundTurns.startDraining();

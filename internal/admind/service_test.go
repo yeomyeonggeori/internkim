@@ -1,9 +1,7 @@
 package admind
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -247,25 +245,6 @@ func TestAdminIdentityReadsLegacyTopLevelFallbacks(t *testing.T) {
 	}
 }
 
-func TestBackupIncludedPathsUseCanonicalConfigurationAndStateDirectories(t *testing.T) {
-	paths := strings.Join(backupIncludedPaths(), "\n")
-
-	for _, fragment := range []string{
-		"/root/.internkim/config",
-		"/root/.internkim/state",
-		"/root/.internkim/secrets",
-		"/root/.blueclaw/config",
-		"/root/.blueclaw/workspace",
-	} {
-		if !strings.Contains(paths, fragment) {
-			t.Fatalf("expected backup paths to include %q", fragment)
-		}
-	}
-	if strings.Contains(paths, "/root/.internkim/admin-email") {
-		t.Fatalf("backup paths should not include legacy admin email file: %s", paths)
-	}
-}
-
 func TestGatewayRedirectsAdminPage(t *testing.T) {
 	adminUIPath := t.TempDir()
 	if errorValue := os.WriteFile(filepath.Join(adminUIPath, "index.html"), []byte("admin ui"), 0o600); errorValue != nil {
@@ -309,7 +288,8 @@ func TestGatewayRedirectsAdminPage(t *testing.T) {
 }
 
 func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
-	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	service := NewService(Configuration{})
+	seatAdministratorInTheCompanyForTest(t, service, "admin@example.com")
 	handler := service.router()
 
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/requests", nil)
@@ -368,20 +348,14 @@ func TestWorkspaceSettingsRejectsInvalidLanguage(t *testing.T) {
 
 func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminEmailPath := filepath.Join(deviceDirectory, "admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminEmailPath, "setup@example.com")
 
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        adminEmailPath,
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
@@ -415,11 +389,7 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 
 func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 	adminUIPath := t.TempDir()
 	writeFile(t, filepath.Join(adminUIPath, "index.html"), "admin ui")
 
@@ -429,8 +399,6 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 		APIBaseURL:                 "https://api.example.test",
 		AdminEmailPath:             filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath:      claimedAdminEmailPath,
-		FleetIDPath:                fleetIDPath,
-		FleetSecretPath:            fleetSecretPath,
 		StateDirectory:             t.TempDir(),
 		AdminUIPath:                adminUIPath,
 	})
@@ -499,18 +467,12 @@ func TestAdminSessionReportsMissingAccessIdentity(t *testing.T) {
 
 func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
@@ -775,36 +737,6 @@ func TestWebLogoutSuppressesAuthenticationWithMarkerCookie(t *testing.T) {
 	}
 }
 
-func TestTasksPageRefreshServesApplicationShell(t *testing.T) {
-	adminUIPath := t.TempDir()
-	writeFile(t, filepath.Join(adminUIPath, "index.html"), "application shell")
-	service := NewService(Configuration{
-		AdminUIPath: adminUIPath,
-	})
-	request := httptest.NewRequest(http.MethodGet, "/runs/run-1", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "application shell" {
-		t.Fatalf("tasks page status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestTasksPageRedirectsBarePath(t *testing.T) {
-	service := NewService(Configuration{AdminUIPath: t.TempDir()})
-	request := httptest.NewRequest(http.MethodGet, "/runs", nil)
-	request.RemoteAddr = "198.51.100.10:443"
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusFound || response.Header().Get("Location") != "/runs/" {
-		t.Fatalf("runs redirect status = %d location = %q", response.Code, response.Header().Get("Location"))
-	}
-}
-
 func TestCloudflareAuthCallbackIssuesWebSession(t *testing.T) {
 	service := newTaskAuthorizationTestService(t)
 	request := httptest.NewRequest(http.MethodGet, "/auth/verify/callback?return=/calendar/", nil)
@@ -940,15 +872,11 @@ func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
 
 func newTaskAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
-	fleetIDPath := writeTestFile(t, "device-1")
-	fleetSecretPath := writeTestFile(t, "secret-1")
 	service := NewService(Configuration{
 		StateDirectory:        filepath.Join(t.TempDir(), "state"),
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		TaskDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -967,9 +895,6 @@ func newTaskAuthorizationTestService(t *testing.T) *Service {
 		}
 		if request.URL.Path == "/admin/api/policy" && request.Method == http.MethodGet {
 			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
-		}
-		if request.URL.Path == "/api/agent/key" {
-			return jsonResponse(http.StatusNotFound, `{}`, nil), nil
 		}
 		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
 		return nil, nil
@@ -993,97 +918,6 @@ func jsonResponse(statusCode int, body string, header http.Header) *http.Respons
 		StatusCode: statusCode,
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Header:     header,
-	}
-}
-
-func TestEncryptDecryptRoundTrip(t *testing.T) {
-	directoryPath := t.TempDir()
-	plainPath := filepath.Join(directoryPath, "plain.tar.gz")
-	encryptedPath := filepath.Join(directoryPath, "backup.ikbak")
-	decryptedPath := filepath.Join(directoryPath, "decrypted.tar.gz")
-	document := []byte("backup document")
-	if errorValue := os.WriteFile(plainPath, document, 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	if errorValue := encryptFile(plainPath, encryptedPath, "passphrase"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := decryptFile(encryptedPath, decryptedPath, "passphrase"); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	decryptedDocument, errorValue := os.ReadFile(decryptedPath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(decryptedDocument) != string(document) {
-		t.Fatalf("decrypted document = %q", string(decryptedDocument))
-	}
-}
-
-func TestRestoreUploadAssembly(t *testing.T) {
-	directoryPath := t.TempDir()
-	chunksPath := filepath.Join(directoryPath, "chunks")
-	if errorValue := os.MkdirAll(chunksPath, 0o700); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(chunksPath, "0"), []byte("hello "), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := os.WriteFile(filepath.Join(chunksPath, "1"), []byte("world"), 0o600); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	service := NewService(Configuration{})
-	bundlePath := filepath.Join(directoryPath, "bundle.ikbak")
-	errorValue := service.assembleRestoreUpload(&RestoreUpload{DirectoryPath: directoryPath}, 2, bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	document, errorValue := os.ReadFile(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if string(document) != "hello world" {
-		t.Fatalf("assembled document = %q", string(document))
-	}
-}
-
-func TestRestoreUploadAssemblyRequiresEveryChunk(t *testing.T) {
-	service := NewService(Configuration{})
-	errorValue := service.assembleRestoreUpload(&RestoreUpload{DirectoryPath: t.TempDir()}, 1, filepath.Join(t.TempDir(), "bundle.ikbak"))
-	if errorValue == nil {
-		t.Fatal("expected missing chunk error")
-	}
-}
-
-func TestExtractBundleRejectsUnsafePath(t *testing.T) {
-	bundlePath := filepath.Join(t.TempDir(), "backup.tar.gz")
-	bundleFile, errorValue := os.Create(bundlePath)
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	gzipWriter := gzip.NewWriter(bundleFile)
-	tarWriter := tar.NewWriter(gzipWriter)
-	if errorValue := tarWriter.WriteHeader(&tar.Header{Name: "../evil", Mode: 0o600, Size: 4}); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if _, errorValue := tarWriter.Write([]byte("evil")); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := tarWriter.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := gzipWriter.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	if errorValue := bundleFile.Close(); errorValue != nil {
-		t.Fatal(errorValue)
-	}
-
-	_, errorValue = extractBundle(bundlePath, t.TempDir())
-	if errorValue == nil {
-		t.Fatal("expected unsafe path error")
 	}
 }
 
@@ -1190,7 +1024,7 @@ func personEmailsForTest(person map[string]any) []string {
 }
 
 func blueclawPolicyWithSeedAdmin() string {
-	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"securityLevelName":"admin","securityLevelRank":100,"grantedClasses":["internal","executive"],"isAdmin":true}],"channels":[],"retention":{"rawEventDays":60}}`
+	return `{"people":[{"personID":"00000000-0000-0000-0000-000000000001","displayName":"Intern Kim Admin","emails":["admin@example.com"],"isAdmin":true}],"channels":[],"retention":{"rawEventDays":60}}`
 }
 
 func writeTestFile(t *testing.T, document string) string {

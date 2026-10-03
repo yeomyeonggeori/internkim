@@ -51,12 +51,12 @@ func postInstallBody(format linuxPackageFormat) string {
 		`systemd-sysusers ` + blueclaw.CompanyPackageSysusersPath + ` || refuse "systemd-sysusers could not create the service accounts declared in ` + blueclaw.CompanyPackageSysusersPath + `"`,
 		`systemd-tmpfiles --create ` + blueclaw.CompanyPackageTmpfilesPath + ` || refuse "systemd-tmpfiles could not create the directories declared in ` + blueclaw.CompanyPackageTmpfilesPath + `"`,
 		`command -v fc-cache >/dev/null 2>&1 && fc-cache -f ` + path.Dir(blueclaw.CompanyPackageDocumentFontPath) + ` >/dev/null 2>&1 || true`,
-		hostSetupLines(blueclaw.LinuxCompanyHostLayout().InstallStepCommands()),
+		hostSetupLines(packageLayout.InstallStepCommands()),
 		forgetTheDeviceUsersSync(``),
 		``,
 		`systemctl daemon-reload >/dev/null 2>&1 || refuse "systemd did not reload; this package supervises its services with systemd"`,
 		`for unit in ` + unitFileNames() + `; do`,
-		`  systemctl unmask "$unit" >/dev/null 2>&1 || true`,
+		`  [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = masked ] && continue`,
 		`  systemctl enable "$unit" >/dev/null 2>&1 || refuse "could not enable $unit"`,
 		`done`,
 		bringTheCompanyBackOnThisRelease(blueclaw.CompanyHostCurrentPath, refreshCommand()),
@@ -94,10 +94,9 @@ func preRemoveBody(format linuxPackageFormat) string {
 // rpm and pacman have no purge; their own rule keeps an edited configuration file
 // beside the removed one.
 func postRemoveBody(format linuxPackageFormat) string {
-	debianLayout := blueclaw.LinuxCompanyHostLayout()
 	lines := []string{
 		`if ` + format.RemovalTest("postrm") + `; then`,
-		`  rm -rf ` + debianLayout.PythonRoot() + ` ` + debianLayout.DocumentVirtualEnvironmentPath() + ` ` + debianLayout.SkillsPath(),
+		`  rm -rf ` + packageLayout.PythonRoot() + ` ` + packageLayout.DocumentVirtualEnvironmentPath() + ` ` + packageLayout.SkillsPath(),
 		`fi`,
 		``,
 	}
@@ -158,7 +157,7 @@ func bringTheCompanyBackOnThisRelease(currentPath string, refresh string) string
 }
 
 func refreshCommand() string {
-	return blueclaw.CompanyPackageBinaryPath(blueclaw.CompanyPackageName) + ` refresh`
+	return packageLayout.BinaryPath(blueclaw.CompanyPackageName) + ` refresh`
 }
 
 func boxUnitFileName() string {
@@ -182,7 +181,10 @@ func scheduleTheBackupUnlessMasked() string {
 	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
 	return strings.Join([]string{
 		`if [ "$(systemctl is-enabled ` + timer + ` 2>/dev/null)" != masked ]; then`,
-		`  systemctl enable --now ` + timer + ` >/dev/null 2>&1 || refuse "could not schedule the daily backup with ` + timer + `"`,
+		`  systemctl enable ` + timer + ` >/dev/null 2>&1 || refuse "could not schedule the daily backup with ` + timer + `"`,
+		`  if [ "$(systemctl is-system-running 2>/dev/null)" != offline ]; then`,
+		`    systemctl restart ` + timer + ` >/dev/null 2>&1 || refuse "could not start the daily backup schedule ` + timer + `"`,
+		`  fi`,
 		`fi`,
 	}, "\n")
 }

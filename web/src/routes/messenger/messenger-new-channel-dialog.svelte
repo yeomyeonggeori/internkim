@@ -44,7 +44,7 @@
 		visibility = 'open';
 		memberIDs = [];
 		errorMessage = '';
-		fetchChannelCandidates()
+		fetchChannelCandidates(text.title)
 			.then((found) => (candidates = found))
 			.catch(() => (candidates = []));
 	});

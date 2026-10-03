@@ -8,19 +8,18 @@ import (
 )
 
 const rosterAuthorityRule = "the host writes the roster and the agent never authors its own. " +
-	"The roster reaches the agent on a delivery share the guest mounts read-only, so a service the device runs " +
-	"on its own can only read it there. Change the roster by editing the delivered policy document and calling " +
+	"Change the roster by editing the delivered policy document and calling " +
 	"deliverBlueclawPolicy in admind; never by asking the agent to mutate its own people."
 
 const agentRosterMutationEndpoint = "/admin/api/people"
 
-func servicesTheDeviceRunsUnattended() []string {
-	return []string{"cmd", "internal/admind", "internal/provisioning", "internal/runtime"}
+func servicesTheHostRunsUnattended() []string {
+	return []string{"cmd", "internal/admind", "internal/runtime"}
 }
 
-func TestServicesTheDeviceRunsUnattendedNeverAskTheAgentToWriteTheRoster(t *testing.T) {
+func TestServicesTheHostRunsUnattendedNeverAskTheAgentToWriteTheRoster(t *testing.T) {
 	repositoryRoot := repositoryRootPath(t)
-	for _, directory := range servicesTheDeviceRunsUnattended() {
+	for _, directory := range servicesTheHostRunsUnattended() {
 		for _, sourcePath := range goSourcePaths(t, filepath.Join(repositoryRoot, directory)) {
 			content, readError := os.ReadFile(sourcePath)
 			if readError != nil {

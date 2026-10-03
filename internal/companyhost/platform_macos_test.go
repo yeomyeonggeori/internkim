@@ -272,7 +272,7 @@ func environmentFilesForTest(layout blueclaw.CompanyHostLayout) map[string]strin
 			if source.FilePath == "" {
 				continue
 			}
-			contentsByPath[source.FilePath] = "MESSENGER_PLATFORM=buzz\nINTERNKIM_APP_URL=https://example.test\nSUPABASE_URL=https://example.supabase.test\nSUPABASE_PUBLISHABLE_KEY=publishable\n"
+			contentsByPath[source.FilePath] = "MESSENGER_PLATFORM=buzz\nINTERNKIM_APP_URL=https://example.test\nSUPABASE_URL=https://example.supabase.test\nSUPABASE_PUBLISHABLE_KEY=publishable\nRELAY_URL=wss://acme.example.test\n"
 		}
 	}
 	return contentsByPath

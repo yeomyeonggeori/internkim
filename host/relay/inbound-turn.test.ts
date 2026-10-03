@@ -3,11 +3,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RequestError } from '@agentclientprotocol/sdk';
+import { RequestError, type StopReason } from '@agentclientprotocol/sdk';
 import {
 	AgentUnreachable,
 	type Addressing,
-	type AnsweredTurn,
 	type BlueclawACPClient,
 	type MessageFacts,
 	type Requester
@@ -34,23 +33,46 @@ type AskCall = {
 
 type AnswerTheTurn = (message: string, addressing: Addressing) => Promise<string>;
 
-function aClientThat(answer: AnswerTheTurn, calls: AskCall[]): BlueclawACPClient {
+type Conversation = {
+	posted: string[];
+	postedTo: Addressing[];
+	post: (addressing: Addressing, message: string) => Promise<string>;
+};
+
+function aConversation(refusal?: string): Conversation {
+	const posted: string[] = [];
+	const postedTo: Addressing[] = [];
+	return {
+		posted,
+		postedTo,
+		post: async (addressing, message) => {
+			if (refusal) throw new Error(refusal);
+			posted.push(message);
+			postedTo.push(addressing);
+			return `posted-${posted.length}`;
+		}
+	};
+}
+
+function aClientThat(answer: AnswerTheTurn, calls: AskCall[], conversation: Conversation): BlueclawACPClient {
 	const client = {
 		ask: async (
 			requester: Requester,
 			addressing: Addressing,
 			message: string,
 			facts?: MessageFacts
-		): Promise<AnsweredTurn> => {
+		): Promise<StopReason> => {
 			calls.push({ requester, addressing, message, facts });
-			return { reply: await answer(message, addressing), progress: [], stopReason: 'end_turn' };
+			const reply = await answer(message, addressing);
+			if (reply) await conversation.post(addressing, reply);
+			return 'end_turn';
 		}
 	};
 	return client as unknown as BlueclawACPClient;
 }
 
-function aClientThatSays(reply: string, calls: AskCall[]): BlueclawACPClient {
-	return aClientThat(async () => reply, calls);
+function aClientThatSays(reply: string, calls: AskCall[], conversation: Conversation): BlueclawACPClient {
+	return aClientThat(async () => reply, calls, conversation);
 }
 
 function aChatdBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -69,6 +91,26 @@ function aChatdBody(overrides: Record<string, unknown> = {}): Record<string, unk
 
 const firstKey = 'buzz:conversation-1:message-7';
 const secondKey = 'buzz:conversation-1:message-8';
+const thirdKey = 'buzz:conversation-1:message-9';
+
+function threadOf(rootMessageID: string): string {
+	return `buzz:conversation-1:${rootMessageID}`;
+}
+
+function aRootMessage(messageID: string, prompt: string): Record<string, unknown> {
+	return aChatdBody({ messageID, replyTargetID: threadOf(messageID), isThread: false, prompt });
+}
+
+function aReplyInTheThreadOf(rootMessageID: string, messageID: string, prompt: string): Record<string, unknown> {
+	return aChatdBody({ messageID, replyTargetID: threadOf(rootMessageID), isThread: true, prompt });
+}
+
+const addressingOfTheFirstThread: Addressing = {
+	platform: 'buzz',
+	conversationID: 'conversation-1',
+	replyTargetID: threadOf('message-7'),
+	isThread: false
+};
 
 const longestWaitMilliseconds = 3_000;
 
@@ -92,13 +134,12 @@ describe('InboundTurns', () => {
 	test('a kept message becomes a turn and its reply goes back to the conversation', async () => {
 		const directoryPath = directoryForOneTest();
 		const calls: AskCall[] = [];
-		const posted: { addressing: Addressing; message: string }[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
 		const turns = new InboundTurns({
-			client: aClientThatSays('보냈습니다', calls),
+			client: aClientThatSays('보냈습니다', calls, conversation),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async (addressing, message) => {
-				posted.push({ addressing, message });
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async () => {}
 		});
 
@@ -109,8 +150,8 @@ describe('InboundTurns', () => {
 		expect(calls).toHaveLength(1);
 		expect(calls[0].message).toBe('박예시한테 DM 보내줘');
 		expect(calls[0].requester.email).toBe('sample@example.com');
-		expect(posted[0].message).toBe('보냈습니다');
-		expect(posted[0].addressing.conversationID).toBe('conversation-1');
+		expect(posted[0]).toBe('보냈습니다');
+		expect(conversation.postedTo[0].conversationID).toBe('conversation-1');
 		await waitUntil(
 			async () => (await eventsStillOnDisk(directoryPath)).length === 0,
 			'the delivered event to leave the queue'
@@ -120,13 +161,12 @@ describe('InboundTurns', () => {
 	test('the same message kept twice runs one turn and is refused the second time', async () => {
 		const directoryPath = directoryForOneTest();
 		const calls: AskCall[] = [];
-		const posted: string[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
 		const turns = new InboundTurns({
-			client: aClientThatSays('보냈습니다', calls),
+			client: aClientThatSays('보냈습니다', calls, conversation),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async (_addressing, message) => {
-				posted.push(message);
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async () => {}
 		});
 
@@ -144,13 +184,12 @@ describe('InboundTurns', () => {
 
 	test('the facts of the message reach the agent alongside the words', async () => {
 		const calls: AskCall[] = [];
-		const posted: string[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
 		const turns = new InboundTurns({
-			client: aClientThatSays('보냈습니다', calls),
+			client: aClientThatSays('보냈습니다', calls, conversation),
 			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
-			postToConversation: async (_addressing, message) => {
-				posted.push(message);
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async () => {}
 		});
 
@@ -167,9 +206,10 @@ describe('InboundTurns', () => {
 		});
 	});
 
-	test('the answer to a question the turn asked is handed to that turn, not run as a new one', async () => {
+	test('a reply in the thread of a question the turn asked is handed to that turn, not run as a new one', async () => {
 		const calls: AskCall[] = [];
-		const posted: string[] = [];
+		const conversation = aConversation();
+		const { posted, postedTo } = conversation;
 		const askedTheQuestion = '박예시에게 보낼까요?';
 		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
 		const turns = new InboundTurns({
@@ -177,20 +217,19 @@ describe('InboundTurns', () => {
 				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
 				const words = await putTheQuestion(addressing);
 				return `보냈습니다: ${words}`;
-			}, calls),
+			}, calls, conversation),
 			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
-			postToConversation: async (_addressing, message) => {
-				posted.push(message);
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async () => {}
 		});
 		putTheQuestion = (addressing) =>
-			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing).then((put) => put.answered);
 
-		await turns.keep(firstKey, aChatdBody());
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
 		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+		expect(postedTo[0].replyTargetID).toBe(threadOf('message-7'));
 
-		await turns.keep(secondKey, aChatdBody({ messageID: 'message-8', prompt: '응 보내줘' }));
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
 		await waitUntil(
 			() => posted.length === 2 || calls.length === 2,
 			'the turn to finish on the answer'
@@ -203,21 +242,18 @@ describe('InboundTurns', () => {
 		expect(posted[1]).toBe('보냈습니다: 응 보내줘');
 	});
 
-	test('a question already asked before a restart is answered by the next message, without posting again', async () => {
-		const posted: string[] = [];
+	test('a question already asked before a restart is answered by the next reply in its thread, without posting again', async () => {
+		const conversation = aConversation();
+		const posted = conversation.posted;
 		const turns = new InboundTurns({
-			client: aClientThatSays('unused', []),
+			client: aClientThatSays('unused', [], conversation),
 			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
-			postToConversation: async (_addressing, message) => {
-				posted.push(message);
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async () => {}
 		});
-		const addressing: Addressing = { platform: 'buzz', conversationID: 'conversation-1' };
+		const answering = turns.awaitAnAlreadyAskedQuestion(addressingOfTheFirstThread);
 
-		const answering = turns.awaitAnAlreadyAskedQuestion(addressing);
-
-		await turns.keep(firstKey, aChatdBody({ prompt: '응 보내줘' }));
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
 
 		expect(await answering).toBe('응 보내줘');
 		expect(posted).toEqual([]);
@@ -227,38 +263,141 @@ describe('InboundTurns', () => {
 		const directoryPath = directoryForOneTest();
 		const askedTheQuestion = '박예시에게 보낼까요?';
 		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
-		const postedBeforeTheRestart: string[] = [];
+		const conversationBeforeTheRestart = aConversation();
+		const postedBeforeTheRestart = conversationBeforeTheRestart.posted;
 		const turnsBeforeTheRestart = new InboundTurns({
 			client: aClientThat(async (_message, addressing) => {
 				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
 				await putTheQuestion(addressing);
 				return new Promise<string>(() => {});
-			}, []),
+			}, [], conversationBeforeTheRestart),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async (_addressing, message) => {
-				postedBeforeTheRestart.push(message);
-			},
+			postToConversation: conversationBeforeTheRestart.post,
 			waitBeforeRetrying: async () => {}
 		});
 		putTheQuestion = (addressing) =>
-			turnsBeforeTheRestart.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing);
-		await turnsBeforeTheRestart.keep(firstKey, aChatdBody());
+			turnsBeforeTheRestart
+				.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing)
+				.then((put) => put.answered);
+		await turnsBeforeTheRestart.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
 		await waitUntil(() => postedBeforeTheRestart.includes(askedTheQuestion), 'the question to reach the requester');
 
 		const turnsAfterTheRestart = new InboundTurns({
-			client: aClientThatSays('unused', []),
+			client: aClientThatSays('unused', [], aConversation()),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async () => {},
+			postToConversation: aConversation().post,
 			waitBeforeRetrying: async () => {}
 		});
-		const answering = turnsAfterTheRestart.awaitAnAlreadyAskedQuestion({
-			platform: 'buzz',
-			conversationID: 'conversation-1'
-		});
+		const answering = turnsAfterTheRestart.awaitAnAlreadyAskedQuestion(addressingOfTheFirstThread);
 		turnsAfterTheRestart.startDraining();
-		await turnsAfterTheRestart.keep(secondKey, aChatdBody({ messageID: 'message-8', prompt: '응 보내줘' }));
+		await turnsAfterTheRestart.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
 
 		expect(await answering, 'the held question was answered by the request that asked it').toBe('응 보내줘');
+	});
+
+	test('a root message while a question is pending starts its own turn and leaves the question pending', async () => {
+		const calls: AskCall[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message !== '박예시한테 DM 보내줘') return `답장: ${message}`;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				return `보냈습니다: ${await putTheQuestion(addressing)}`;
+			}, calls, conversation),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: conversation.post,
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing).then((put) => put.answered);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+
+		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
+		await waitUntil(
+			() => posted.includes('답장: 오늘 일정 알려줘') || posted.includes('보냈습니다: 오늘 일정 알려줘'),
+			'the root message to be heard'
+		);
+
+		expect(posted, 'the root message was taken as the answer to the pending question').toEqual([
+			askedTheQuestion,
+			'답장: 오늘 일정 알려줘'
+		]);
+		expect(calls.map((call) => call.message)).toEqual(['박예시한테 DM 보내줘', '오늘 일정 알려줘']);
+
+		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '응 보내줘'));
+		await waitUntil(() => posted.includes('보냈습니다: 응 보내줘'), 'the reply in its thread to answer the question');
+		expect(calls).toHaveLength(2);
+	});
+
+	test('a reply in another thread while a question is pending starts its own turn and leaves the question pending', async () => {
+		const calls: AskCall[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message !== '박예시한테 DM 보내줘') return `답장: ${message}`;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				return `보냈습니다: ${await putTheQuestion(addressing)}`;
+			}, calls, conversation),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: conversation.post,
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing).then((put) => put.answered);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-5', 'message-8', '그건 취소해줘'));
+		await waitUntil(() => posted.length === 2, 'the reply in another thread to be heard');
+
+		expect(posted, 'a reply in another thread was taken as the answer to the pending question').toEqual([
+			askedTheQuestion,
+			'답장: 그건 취소해줘'
+		]);
+		expect(calls).toHaveLength(2);
+	});
+
+	test('a reply to a pending question waits while another turn in the conversation is still running', async () => {
+		const conversation = aConversation();
+		const posted = conversation.posted;
+		const askedTheQuestion = '박예시에게 보낼까요?';
+		const otherTurn = Promise.withResolvers<string>();
+		let putTheQuestion: ((addressing: Addressing) => Promise<string>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message === '오늘 일정 알려줘') return otherTurn.promise;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				return `보냈습니다: ${await putTheQuestion(addressing)}`;
+			}, [], conversation),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: conversation.post,
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: askedTheQuestion }, addressing).then((put) => put.answered);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => posted.includes(askedTheQuestion), 'the question to reach the requester');
+		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
+		await turns.keep(thirdKey, aReplyInTheThreadOf('message-7', 'message-9', '응 보내줘'));
+		await Bun.sleep(10);
+
+		expect(posted, 'the question was answered while another turn was speaking in the conversation').toEqual([
+			askedTheQuestion
+		]);
+
+		otherTurn.resolve('오늘은 일정이 없습니다');
+		await waitUntil(() => posted.includes('보냈습니다: 응 보내줘'), 'the waiting answer to reach its question');
+		expect(posted).toEqual([askedTheQuestion, '오늘은 일정이 없습니다', '보냈습니다: 응 보내줘']);
 	});
 
 	test('a turn the agent keeps refusing is retried and then dropped by name, with its reason', async () => {
@@ -266,7 +405,7 @@ describe('InboundTurns', () => {
 		const reported: string[] = [];
 		let attempted = 0;
 		const client = {
-			ask: async (): Promise<AnsweredTurn> => {
+			ask: async (): Promise<StopReason> => {
 				attempted += 1;
 				throw new RequestError(-32603, 'Internal error', { error: 'a prompt with no text is nothing to answer' });
 			}
@@ -274,7 +413,7 @@ describe('InboundTurns', () => {
 		const turns = new InboundTurns({
 			client: client as unknown as BlueclawACPClient,
 			queue: new InboundQueue({ directoryPath, attemptCeiling: 2 }),
-			postToConversation: async () => {},
+			postToConversation: aConversation().post,
 			waitBeforeRetrying: async () => {},
 			report: (line) => reported.push(line)
 		});
@@ -297,22 +436,22 @@ describe('InboundTurns', () => {
 	test('a message the agent cannot be reached for outlasts the attempt ceiling and is answered once it is back', async () => {
 		const directoryPath = directoryForOneTest();
 		const reported: string[] = [];
-		const posted: string[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
 		const delays: number[] = [];
 		let attempted = 0;
 		const client = {
-			ask: async (): Promise<AnsweredTurn> => {
+			ask: async (): Promise<StopReason> => {
 				attempted += 1;
 				if (attempted <= 5) throw new AgentUnreachable(new Error('connect ENOENT /run/internkim/acp/blueclaw-acp.sock'));
-				return { reply: '받았습니다', progress: [], stopReason: 'end_turn' };
+				await conversation.post(addressingOfTheFirstThread, '받았습니다');
+				return 'end_turn';
 			}
 		};
 		const turns = new InboundTurns({
 			client: client as unknown as BlueclawACPClient,
 			queue: new InboundQueue({ directoryPath, attemptCeiling: 2 }),
-			postToConversation: async (_addressing, message) => {
-				posted.push(message);
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async (milliseconds) => {
 				delays.push(milliseconds);
 			},
@@ -333,22 +472,21 @@ describe('InboundTurns', () => {
 		const directoryPath = directoryForOneTest();
 		const neverAnswered: AskCall[] = [];
 		const beforeRestart = new InboundTurns({
-			client: aClientThat(() => new Promise<string>(() => {}), neverAnswered),
+			client: aClientThat(() => new Promise<string>(() => {}), neverAnswered, aConversation()),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async () => {},
+			postToConversation: aConversation().post,
 			waitBeforeRetrying: async () => {}
 		});
 		await beforeRestart.keep(firstKey, aChatdBody());
 		await waitUntil(() => neverAnswered.length === 1, 'the stopped relay to start its turn');
 
 		const calls: AskCall[] = [];
-		const posted: string[] = [];
+		const conversation = aConversation();
+		const posted = conversation.posted;
 		const afterRestart = new InboundTurns({
-			client: aClientThatSays('보냈습니다', calls),
+			client: aClientThatSays('보냈습니다', calls, conversation),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async (_addressing, message) => {
-				posted.push(message);
-			},
+			postToConversation: conversation.post,
 			waitBeforeRetrying: async () => {}
 		});
 
@@ -368,9 +506,9 @@ describe('InboundTurns', () => {
 		const reported: string[] = [];
 		const calls: AskCall[] = [];
 		const turns = new InboundTurns({
-			client: aClientThatSays('보냈습니다', calls),
+			client: aClientThatSays('보냈습니다', calls, aConversation()),
 			queue: new InboundQueue({ directoryPath }),
-			postToConversation: async () => {},
+			postToConversation: aConversation().post,
 			waitBeforeRetrying: async () => {},
 			report: (line) => reported.push(line)
 		});
@@ -383,5 +521,36 @@ describe('InboundTurns', () => {
 		expect(reported[0]).toContain(firstKey);
 		expect(reported[0]).toContain('not a message the agent can answer');
 		expect(await eventsStillOnDisk(directoryPath)).toEqual([]);
+	});
+
+	test('a question the conversation refuses is not left waiting for an answer', async () => {
+		const calls: AskCall[] = [];
+		const conversation = aConversation();
+		const refusingConversation = aConversation('chatd refused the post with 503');
+		const questionFailures: unknown[] = [];
+		let putTheQuestion: ((addressing: Addressing) => Promise<unknown>) | null = null;
+		const turns = new InboundTurns({
+			client: aClientThat(async (message, addressing) => {
+				if (message !== '박예시한테 DM 보내줘') return `답장: ${message}`;
+				if (!putTheQuestion) throw new Error('the test never handed over askThePerson');
+				await putTheQuestion(addressing).catch((failure: unknown) => questionFailures.push(failure));
+				return '';
+			}, calls, conversation),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			postToConversation: refusingConversation.post,
+			waitBeforeRetrying: async () => {}
+		});
+		putTheQuestion = (addressing) =>
+			turns.askThePerson({ toolCallID: 'held-1', question: '박예시에게 보낼까요?' }, addressing);
+
+		await turns.keep(firstKey, aRootMessage('message-7', '박예시한테 DM 보내줘'));
+		await waitUntil(() => questionFailures.length === 1, 'the refused question to fail');
+		await turns.keep(secondKey, aReplyInTheThreadOf('message-7', 'message-8', '응 보내줘'));
+		await waitUntil(() => calls.length === 2, 'the reply in the thread to be heard');
+
+		expect(
+			conversation.posted,
+			'a reply in the thread of a question nobody saw was swallowed as its answer'
+		).toEqual(['답장: 응 보내줘']);
 	});
 });

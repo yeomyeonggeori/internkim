@@ -16,6 +16,7 @@ import json
 import shlex
 import shutil
 import sys
+import tarfile
 import tempfile
 import time
 import uuid
@@ -26,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_families import FAMILIES  # noqa: E402
 import native_install_agent_update as agent_update  # noqa: E402
 from native_install_rig import (  # noqa: E402
+    AGENT_HEALTH,
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
     BACKUP_UNIT_NAME,
@@ -39,6 +41,7 @@ from native_install_rig import (  # noqa: E402
     DEFAULT_DISTRIBUTION,
     DISTRIBUTIONS,
     DOCUMENT_ENVIRONMENT_PATHS,
+    SKILLS_PATH,
     HOST_PYTHON_PATH,
     HOST_PYTHON_VERSION,
     DOCUMENT_MODULES_THE_CONVERSION_IMPORTS,
@@ -90,8 +93,11 @@ AGENT_UNIT_NAME = "blueclaw.service"
 # relay would have lost.
 LONGER_THAN_THE_RELAY_USED_TO_WAIT_SECONDS = 60
 
+TYPING_WAIT_SECONDS = 30
+
 # A host whose install has just returned on a release without the roster wait:
-# the agent has started on the empty roster the prepare step writes, and admind
+# the agent has started on the roster the prepare step writes, which names no
+# people because none has been handed over, and admind
 # has not yet handed it the company's people. Stopping admind holds it there.
 AGENT_WITHOUT_ITS_ROSTER_COMMAND = r"""
 set -e
@@ -103,7 +109,7 @@ import json, sys
 path = sys.argv[1]
 with open(path) as source:
     document = json.load(source)
-document["people"] = []
+document.pop("people", None)
 with open(path, "w") as target:
     json.dump(document, target)
 PYTHON
@@ -121,6 +127,42 @@ directory="$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null | sed -n 's/^REL
 printf 'queued=%%s\n' "$(ls "${directory:-/var/lib/internkim/relay}/inbound" 2>/dev/null | grep -c '\.json$' || true)"
 printf 'dropped=%%s\n' "$(journalctl -u %(relay)s --no-pager --since '-%(seconds)s seconds' 2>/dev/null | grep -c 'dropped ' || true)"
 """
+PEOPLE_DIRECTORY = "/workspace/private/people"
+PRIOR_PERSON_MEMORY_DIRECTORY = "/workspace/.blueclaw/memory/persons"
+AGENT_SERVICE_USER = "blueclaw"
+MINIMUM_PEOPLE = 2
+OBSERVED_SECONDS_AFTER_UPGRADE = 120
+OBSERVATION_INTERVAL_SECONDS = 10
+
+LIST_PEOPLE_COMMAND = f"ls -1 {PEOPLE_DIRECTORY} 2>/dev/null"
+
+DESCRIBE_PEOPLE_COMMAND = (
+    f"for person in $(ls -1 {PEOPLE_DIRECTORY}); do "
+    f"stat -c '%n %U:%G %a' {PEOPLE_DIRECTORY}/$person {PEOPLE_DIRECTORY}/$person/.protected 2>&1; done"
+)
+
+WRITE_PRIOR_MEMORY_COMMAND = r"""
+set -eu
+install -d -o %(user)s -m 0700 %(directory)s
+for person in %(people)s; do
+  runuser -u %(user)s -- %(python)s - "%(directory)s/$person.db" <<'PYTHON'
+import sqlite3, sys
+connection = sqlite3.connect(sys.argv[1])
+connection.execute("create table rig_prior_memory (fact text)")
+connection.execute("insert into rig_prior_memory values ('written by the release before the upgrade')")
+connection.commit()
+connection.close()
+PYTHON
+done
+"""
+
+AGENT_STATE_COMMAND = (
+    f"printf 'active=%s restarts=%s health=%s\\n' "
+    f"\"$(systemctl is-active {AGENT_UNIT_NAME})\" "
+    f"\"$(systemctl show -p NRestarts --value {AGENT_UNIT_NAME})\" "
+    f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 5 http://127.0.0.1:{AGENT_HEALTH[0]}{AGENT_HEALTH[1]})\""
+)
+
 RUNNING_STATE = "yes/active/success/0"
 CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 NAMES_THE_PACKAGE_CARRIES = ("python3-venv", "fonts-nanum", "chromium")
@@ -174,6 +216,36 @@ printf 'task=%%s\n' "$(psql "$agent_url" -tAc "select status from task_run where
 printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at" 2>&1 | tr -d ' \n')"
 """
 
+# Whether the agent's answer carried a PDF: a message in the messenger's store
+# from anyone but the member, written after theirs, whose media tags name one.
+# The relay writes that tag only once the messenger kept the file and the post
+# that references it landed.
+AGENT_PDF_COMMAND = r"""
+messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
+printf 'pdfs=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at and answer.tags @> '[[\"imeta\", \"m application/pdf\"]]'::jsonb" 2>&1 | tr -d ' \n')"
+"""
+
+# The agent writes its log to the directory its runtime document names; its
+# journal stays empty.
+AGENT_LOG_COMMAND = r"""
+runtime="$(systemctl show %(agent)s -p ExecStart --value | sed -n 's/.* -runtime \([^ ;]*\).*/\1/p' | head -n 1)"
+directory="$(%(python)s -c 'import json, sys; print(json.load(open(sys.argv[1]))["logging"]["directoryPath"])' "$runtime" 2>/dev/null)"
+[ -n "$directory" ] || { echo "the agent's runtime document $runtime names no log directory"; exit 0; }
+cat "$directory"/blueclaw-*.jsonl 2>/dev/null | grep -E '%(pattern)s' | tail -n %(lines)s | cut -c1-400
+"""
+
+# The agent's own account of a task: how it ended, the events it recorded, and
+# the words it posted after the member's message.
+AGENT_LEDGER_COMMAND = r"""
+agent_url="$(sed -n 's/^DATABASE_URL=//p' %(agent_path)s 2>/dev/null | head -1)"
+messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
+task="$(psql "$agent_url" -tAc "select task_run_id from task_run where position('%(marker)s' in prompt) > 0 order by created_at desc limit 1" 2>&1 | tr -d ' \n')"
+printf 'task=%%s status=%%s\n' "$task" "$(psql "$agent_url" -tAc "select status from task_run where task_run_id = '$task'" 2>&1 | tr -d ' \n')"
+printf 'events=%%s\n' "$(psql "$agent_url" -tAc "select name from task_event where task_run_id = '$task' order by created_at" 2>&1 | uniq -c | awk '{print $2 "x" $1}' | tr '\n' ' ')"
+psql "$agent_url" -tAc "select name || ': ' || left(body, 600) from task_event where task_run_id = '$task' and name in ('completion.change_check', 'agent.evidence_missing', 'agent.failure_report') order by created_at desc limit 3" 2>&1
+psql "$messenger_url" -tAc "select 'answered: ' || left(replace(answer.content, chr(10), ' '), 300) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at order by answer.created_at" 2>&1
+"""
+
 BRIDGE_COMMAND = (
     "printf 'bridge=%(port)s%(path)s=%%s\\n' "
     "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
@@ -192,6 +264,7 @@ UNOWNED_BY_DESIGN = [
     ("/etc/systemd/system/timers.target.wants", "the same, for the daily backup's timer"),
     (STATE_DIRECTORY, "the state tree is deliberately not package-owned so remove and purge leave it (plan §5)"),
     *((path, "the install step builds the conversion environment from the lock; postrm removes it") for path in DOCUMENT_ENVIRONMENT_PATHS),
+    (SKILLS_PATH, "the install step runs each skill's own setup, which keeps what the skill needs beside it; postrm removes the skills tree"),
 ]
 
 UNOWNED_BY_DEBIAN = [
@@ -221,6 +294,17 @@ def every_probe_answered(reading):
 def message_asking_for_an_answer(occasion):
     marker = " ".join(part for part in ("native install rig", occasion, uuid.uuid4().hex) if part)
     return f"Please confirm in one short sentence that this message reached you. {marker}"
+
+
+def message_asking_for_a_pdf():
+    marker = f"native install rig {uuid.uuid4().hex}"
+    return f"Make a one-page PDF whose only line reads '{marker}', and send me the PDF file itself. {marker}"
+
+
+def the_agent_sent_a_pdf(reading):
+    reported = dict(line.split("=", 1) for line in reading.splitlines() if "=" in line)
+    sent = reported.get("pdfs", "")
+    return sent.isdigit() and int(sent) > 0
 
 
 def the_agent_answered(reading):
@@ -261,8 +345,6 @@ select current_setting('server_version_num')::int / 10000,
 """
 
 BACKUP_CONVERSATION = "rig-backup-conversation"
-OLDER_BACKUP_CONVERSATION = "rig-older-backup-conversation"
-PGVECTOR_CONTROL_FILES_COMMAND = "find /usr/share /usr/lib -name vector.control 2>/dev/null; true"
 UPGRADE_FOOTPRINT_COMMAND = REPOSITORY_LISTING_COMMAND + f"; cat {DATABASE_DATA_DIRECTORY}/PG_VERSION 2>/dev/null; true"
 
 PERSONS_FILE_COMMAND = r"""
@@ -286,6 +368,24 @@ OWNERSHIP_COMMAND = (
     "stat -c 'workspace=%%U:%%G %%u' /workspace; "
     "printf 'blueclaw=%%s postgres=%%s\\n' \"$(id -u blueclaw)\" \"$(id -u " + DATABASE_USER + ")\""
 )
+
+
+RESTORED_TASKS_QUERY = (
+    "select to_char(created_at, 'HH24:MI:SS') || ' ' || status || ' ' || left(regexp_replace(prompt, '\\s+', ' ', 'g'), 80) "
+    "from task_run order by created_at desc limit 3"
+)
+
+
+def archived_mode(archive_path, file_path):
+    """The mode the backup recorded for one file, read from files.tar inside the archive."""
+    relative = str(file_path).removeprefix("/workspace/")
+    with tarfile.open(archive_path) as archive:
+        files = archive.extractfile("files.tar")
+        with tarfile.open(fileobj=files) as inner:
+            for member in inner.getmembers():
+                if member.name == f"workspace/{relative}":
+                    return f"{member.mode:o}"
+    return "absent"
 
 
 def in_the_agents_database(statements):
@@ -397,8 +497,6 @@ class Rig:
         self.package_under_test = None
         self.message_text = message_asking_for_an_answer("")
         self.remembered_phrase = f"rig remembers {uuid.uuid4().hex[:12]}"
-        self.older_phrase = f"rig remembered before the upgrade {uuid.uuid4().hex[:12]}"
-        self.older_archive_path = None
         self.persons_file = ""
         self.persons_phrase = f"rig keeps {uuid.uuid4().hex[:12]}"
         self.archive_path = None
@@ -845,6 +943,11 @@ class Rig:
 
     # ------------------------------------------------------------------ step 5
 
+    def start_the_plane(self):
+        self.plane = CompanyPlane(self.working_directory / "plane", self.machine.host_gateway())
+        self.plane.start()
+        self.plane.reach_the_record_from(self.machine)
+
     def give_the_guest_a_company(self, step, plane):
         """Everything a person does between downloading the file and a running box."""
         connection = plane.connection_document()
@@ -945,7 +1048,7 @@ class Rig:
             + self.relay_reported_of_the_gateway(),
         )
 
-    def observe_the_member_round_trip(self, step, plane):
+    def observe_the_member_round_trip(self, step, plane, is_watching_for_typing=False):
         """A person signs in, says something, and the company answers.
 
         Everything here goes over the member's own websocket to the gateway,
@@ -969,7 +1072,11 @@ class Rig:
             lambda reported: "roster=yes" in reported,
             timeout_seconds=600,
         )
-        session = plane.member_session(self.company_id, self.message_text)
+        session = plane.member_session(
+            self.company_id,
+            self.message_text,
+            TYPING_WAIT_SECONDS if is_watching_for_typing else 0,
+        )
         presence = session.get("presence") or {}
         sent = session.get("sent") or {}
 
@@ -1015,6 +1122,40 @@ class Rig:
             f"{roster.stdout.strip()}; {bridge.stdout.strip()}\n"
             + json.dumps({"status": sent.get("status"), "messageID": message_id, "body": sent.get("body")})[:500],
         )
+        if is_watching_for_typing:
+            self.observe_the_agent_typing(step, session, messenger_identity)
+
+    def observe_the_agent_typing(self, step, session, messenger_identity):
+        conversation_id = (session.get("conversation") or {}).get("id") or ""
+        typing = session.get("typing") or []
+        someone_else_typing = [
+            event for event in typing if event.get("authorExternalID") not in ("", messenger_identity)
+        ]
+        step.observe(
+            "the member sees the agent typing in the conversation they wrote in",
+            f"the typing.started frames the member's own websocket received within {TYPING_WAIT_SECONDS}s "
+            "of sending, for that conversation and from anyone but the member",
+            "an answer takes a model's time to write, and a person who sees nothing in that time thinks "
+            "nobody heard; the frame is what the messenger draws the typing line from",
+        ).record(
+            bool(someone_else_typing),
+            f"conversation {conversation_id or 'none'}, member {messenger_identity or 'nobody'}\n"
+            + json.dumps(typing)[:400]
+            + "\n"
+            + self.agent_log_lines("progress", 5)
+            + "\n"
+            + self.relay_journal_lines("arrival watch|typing not told", 10),
+        )
+
+    def agent_log_lines(self, pattern, lines):
+        return self.machine.shell(
+            AGENT_LOG_COMMAND % {"agent": AGENT_UNIT_NAME, "python": HOST_PYTHON_PATH, "pattern": pattern, "lines": lines}
+        ).stdout.strip()[-2000:]
+
+    def relay_journal_lines(self, pattern, lines):
+        return self.machine.shell(
+            f"journalctl -u {RELAY_UNIT_NAME} --no-pager 2>/dev/null | grep -E '{pattern}' | tail -n {lines}; true"
+        ).stdout.strip()[-1500:]
 
     def last_sent_message_id(self):
         return self.sent_messages[-1][0] if self.sent_messages else ""
@@ -1041,6 +1182,41 @@ class Rig:
             answered.stdout.strip() + "\n" + self.machine.shell(
                 f"journalctl -u {RELAY_UNIT_NAME} -u blueclaw.service -u chatd.service --no-pager -n 30 2>/dev/null; true"
             ).stdout.strip()[-1500:],
+        )
+
+    def observe_the_agent_sends_a_pdf(self, step, plane):
+        """A person asks for a file, and the file is what reaches them."""
+        self.message_text = message_asking_for_a_pdf()
+        sent = plane.member_session(self.company_id, self.message_text).get("sent") or {}
+        message_id = sent.get("messageID") or ""
+        self.sent_messages.append((message_id, self.message_text))
+        reported = self.wait_in_the_guest(
+            AGENT_PDF_COMMAND % {"messenger_path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"},
+            the_agent_sent_a_pdf,
+            timeout_seconds=900,
+        )
+        step.observe(
+            "the member receives the PDF the agent made, as a file in their conversation",
+            "the messenger's store for a message from anyone but the member, written after theirs, whose "
+            "media tags name an application/pdf",
+            "an answer that says a file is attached is words; the media tag is what the messenger draws the "
+            "file from, and the relay writes it only after the messenger kept the file and the post landed",
+        ).record(
+            the_agent_sent_a_pdf(reported.stdout),
+            f"asked in {message_id or 'no message'}: {reported.stdout.strip()}\n"
+            + self.machine.shell(
+                AGENT_LEDGER_COMMAND
+                % {
+                    "agent_path": COMPANY_CONDITION_PATH,
+                    "messenger_path": MESSENGER_DATABASE_PATH,
+                    "marker": self.message_text.split()[-1],
+                    "message": message_id or "no-message",
+                }
+            ).stdout.strip()[-1500:]
+            + "\n"
+            + self.agent_log_lines("resource_link|reply\\.(failed|sent|undelivered)|outbound\\.(sent|failed)", 10)
+            + "\n"
+            + self.relay_journal_lines("did not reach|transfer:", 10),
         )
 
     def observe_a_message_that_arrives_before_the_roster(self, step, plane):
@@ -1102,7 +1278,7 @@ class Rig:
         observe_the_conversion_environment(self.machine, step)
         self.message_text = message_asking_for_an_answer("after the upgrade")
         self.observe_the_host_holds_the_gateway_socket(step)
-        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_member_round_trip(step, plane, is_watching_for_typing=True)
         self.observe_the_agent_answered(step)
         retired = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND)
         step.observe(
@@ -1111,6 +1287,64 @@ class Rig:
             "the install drops the extension as the cluster's superuser and the agent's migration drops the tables; "
             "a database still carrying either makes every later backup need pgvector to restore",
         ).record(retired.returncode == 0 and not retired.stdout.strip(), retired.stdout.strip() or "none")
+
+    def run_people_upgrade(self, releases):
+        if len(releases) < 2:
+            raise RigFailure("--people-upgrade needs --older-package-directory: a host that has people is upgraded from an earlier release")
+        step = self.step(12, "a host that already has people and their memory is upgraded and its agent stays up")
+        self.start_the_plane()
+        self.give_the_guest_a_company(step, self.plane)
+        self.observe_running_services(step)
+        people = self.observe_people_hold_homes(step)
+        self.write_prior_memory(people)
+        self.upgrade_through_the_line(releases[1])
+        self.observe_the_agent_stays_up(step)
+
+    def observe_people_hold_homes(self, step):
+        people = self.machine.shell(LIST_PEOPLE_COMMAND).stdout.split()
+        described = self.machine.shell(DESCRIBE_PEOPLE_COMMAND).stdout.strip()
+        step.observe(
+            f"the host holds a home for at least {MINIMUM_PEOPLE} people before the upgrade",
+            f"the directories under {PEOPLE_DIRECTORY} the older agent made, with their owners and modes",
+            "a host with no person homes is the fresh install the rig has always upgraded, which cannot meet "
+            "what an upgrade finds in the homes of the people a company already has",
+        ).record(len(people) >= MINIMUM_PEOPLE, described or "no person home exists")
+        return people
+
+    def write_prior_memory(self, people):
+        self.machine.checked_shell(
+            WRITE_PRIOR_MEMORY_COMMAND
+            % {
+                "user": AGENT_SERVICE_USER,
+                "directory": PRIOR_PERSON_MEMORY_DIRECTORY,
+                "people": " ".join(shlex.quote(person) for person in people),
+                "python": HOST_PYTHON_PATH,
+            }
+        )
+
+    def upgrade_through_the_line(self, newer_release):
+        self.release.publish(newer_release)
+        gateway = self.machine.host_gateway()
+        return self.machine.shell(
+            f"set -eu\nexport INTERNKIM_INSTALL_RELEASE_URL={self.release.download_url(gateway)}\n"
+            f"curl -fsSL http://{gateway}:{self.release.port}/install.sh -o /tmp/install.sh\n"
+            "sh /tmp/install.sh host </dev/null 2>&1 | tail -25\n"
+        )
+
+    def observe_the_agent_stays_up(self, step):
+        readings = []
+        for _ in range(OBSERVED_SECONDS_AFTER_UPGRADE // OBSERVATION_INTERVAL_SECONDS):
+            readings.append(self.machine.shell(AGENT_STATE_COMMAND).stdout.strip())
+            time.sleep(OBSERVATION_INTERVAL_SECONDS)
+        step.observe(
+            f"the agent stays active, answers its health check and is not restarted for {OBSERVED_SECONDS_AFTER_UPGRADE} seconds after the upgrade",
+            f"{AGENT_UNIT_NAME}'s ActiveState, NRestarts and its health endpoint, read every {OBSERVATION_INTERVAL_SECONDS} seconds",
+            "a unit that fails on start and is restarted reports active for most of every second, so a reading taken "
+            "once when the upgrade returns passes a crash loop",
+        ).record(
+            all(reading == "active=active restarts=0 health=200" for reading in readings),
+            "\n".join(readings),
+        )
 
     def run_step_ten(self, step, releases, plane):
         """An administrator asks the agent for the newer release, the way host_update asks admind."""
@@ -1225,7 +1459,7 @@ class Rig:
         )
 
         self.message_text = message_asking_for_an_answer("sent again after the agent update")
-        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_member_round_trip(step, plane, is_watching_for_typing=True)
         self.observe_the_agent_answered(step)
 
         promised_seconds = agent_update.promised_downtime_seconds()
@@ -1390,64 +1624,7 @@ class Rig:
             self.machine.checked_shell(f"cp {archive} {SHARE_PATH}/")
             self.archive_path = self.machine.share_directory / Path(archive).name
 
-    def take_the_older_backup(self, step):
-        if self.machine.shell(f"systemctl cat {BACKUP_TIMER_NAME} >/dev/null 2>&1").returncode != 0:
-            return step.block("the older release takes no backup, so there is none from before the upgrade to restore")
-        carried = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND).stdout.strip()
-        if not carried:
-            return step.block(
-                "the older release's database carries no vector extension and no memory table, "
-                "so its backup proves nothing a newer one does not"
-            )
-        remembered = self.machine.shell(
-            in_the_agents_database(REMEMBERED_ROW % {"conversation": OLDER_BACKUP_CONVERSATION, "phrase": self.older_phrase})
-        )
-        backed_up = self.machine.shell(f"{PACKAGE_NAME} backup 2>&1", timeout_seconds=1800)
-        archive = self.machine.shell(f"ls -1 {BACKUPS_DIRECTORY}/internkim-backup-*.tar | tail -n 1").stdout.strip()
-        step.observe(
-            "the older release backs up a database that carries the retired memory store",
-            f"what the blueclaw database holds of the vector extension and the memory tables, and the exit status of "
-            f"`{PACKAGE_NAME} backup` on the older release",
-            "a backup of a database that never had them would restore anywhere, and this is the one a host "
-            "upgrading today already holds",
-        ).record(
-            remembered.returncode == 0 and backed_up.returncode == 0 and bool(archive),
-            f"carried: {carried}\n{backed_up.stdout.strip()[-600:]}",
-        )
-        if backed_up.returncode == 0 and archive:
-            self.machine.checked_shell(f"cp {archive} {SHARE_PATH}/")
-            self.older_archive_path = self.machine.share_directory / Path(archive).name
-
-    def restore_the_older_backup(self, step, family, share):
-        shutil.copyfile(self.older_archive_path, share / self.older_archive_path.name)
-        restored = self.restored_machine.shell(
-            f"{PACKAGE_NAME} restore {SHARE_PATH}/{self.older_archive_path.name} 2>&1", timeout_seconds=1800
-        )
-        control_files = self.restored_machine.shell(PGVECTOR_CONTROL_FILES_COMMAND).stdout.strip()
-        step.observe(
-            f"`internkim restore` brings back the older release's backup on a fresh {family.name} machine with no pgvector",
-            f"the exit status of `{PACKAGE_NAME} restore` and every vector.control on the machine",
-            "the backup names the vector extension and tables typed on it, and a restore that needed them would "
-            "fail on every machine this release installs",
-        ).record(restored.returncode == 0 and not control_files, f"vector.control: {control_files or 'none'}\n{restored.stdout.strip()[-1500:]}")
-        with self.driving(self.restored_machine, family.files_command):
-            phrase = self.machine.shell(
-                in_the_agents_database(REMEMBERED_ROW_AFTER_RESTORE % {"conversation": OLDER_BACKUP_CONVERSATION})
-            )
-            retired = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND)
-        fields = phrase.stdout.strip().split("|")
-        step.observe(
-            "the older backup's row is back, and the agent migrated it on this release to no vector extension "
-            "and no memory table",
-            "the phrase the restored row carries, and pg_extension and pg_tables in the restored blueclaw database",
-            "the restore leaves out only what is typed on vector; everything else has to come back, and the "
-            "agent's own migration is what drops the rest",
-        ).record(
-            len(fields) == 2 and fields[1] == self.older_phrase and retired.returncode == 0 and not retired.stdout.strip(),
-            f"{phrase.stdout.strip()[-300:]}\nleft: {retired.stdout.strip() or 'none'}",
-        )
-
-    def restore_elsewhere(self, step, plane, older_step=None):
+    def restore_elsewhere(self, step, plane):
         family = FAMILIES[self.options.restore_family]
         if self.archive_path is None:
             return step.block("no archive was written, so there is nothing to restore")
@@ -1466,13 +1643,9 @@ class Rig:
         installed = self.restored_machine.shell(
             self.release.install_line(self.restored_machine.host_gateway()), timeout_seconds=2400
         )
-        replacing = ""
-        if self.older_archive_path and older_step:
-            self.restore_the_older_backup(older_step, family, share)
-            replacing = " --replace"
         shutil.copyfile(self.archive_path, share / self.archive_path.name)
         restored = self.restored_machine.shell(
-            f"{PACKAGE_NAME} restore{replacing} {SHARE_PATH}/{self.archive_path.name} 2>&1", timeout_seconds=1800
+            f"{PACKAGE_NAME} restore {SHARE_PATH}/{self.archive_path.name} 2>&1", timeout_seconds=1800
         )
         step.observe(
             f"`internkim restore` brings the company back on a fresh {family.name} machine",
@@ -1521,7 +1694,10 @@ class Rig:
         ).record(
             bool(source_owner) and owned.startswith(source_owner + " 640 ") and self.persons_phrase in owned
             and "workspace=blueclaw:blueclaw " in self.source_ownership and "workspace=blueclaw:blueclaw " in owned,
-            f"before: {self.source_ownership.strip()}\nafter:  {owned.strip()}",
+            f"before: {self.source_ownership.strip()}\n"
+            f"archived: {archived_mode(self.archive_path, self.persons_file) if self.persons_file else 'no file'}\n"
+            f"after:  {owned.strip()}\n"
+            f"the restored agent's latest tasks:\n{self.machine.shell(in_the_agents_database(RESTORED_TASKS_QUERY)).stdout.strip()}",
         )
 
     # ----------------------------------------------------------------- report
@@ -1588,6 +1764,71 @@ def kept_or_temporary_directory(is_kept):
     yield tempfile.mkdtemp(prefix="internkim-install-rig-")
 
 
+def judge_what_the_release_under_test_does(rig):
+    step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
+    if rig_model_key() == RIG_MODEL_KEY:
+        step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
+    else:
+        rig.observe_the_agent_sends_a_pdf(step_eleven, rig.plane)
+    step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
+    rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
+
+
+def run_every_step(rig, options, releases, baseline):
+    step_two = rig.step(2, "the machine is in the state the package manager would have left it")
+    rig.run_step_two(step_two, baseline)
+
+    rig.plant_state()
+
+    step_five = rig.step(5, "a person signs in and exchanges a message")
+    revision_before = {}
+    is_an_upgrade = len(releases) > 1
+    if options.stand_in or options.without_company:
+        step_five.block(
+            "not run against a stand-in: the package under test carries none of the "
+            "services a company would be given to"
+            if options.stand_in
+            else "not run: --without-company was passed, so no plane issued this guest a company"
+        )
+    else:
+        rig.start_the_plane()
+        rig.give_the_guest_a_company(step_five, rig.plane)
+        rig.observe_running_services(step_five)
+        observe_a_real_conversion(rig.machine, step_five)
+        rig.observe_the_host_holds_the_gateway_socket(step_five)
+        rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
+        rig.observe_the_agent_answered(step_five)
+        revision_before = rig.build_identity_the_guest_reports()
+        if not is_an_upgrade:
+            judge_what_the_release_under_test_does(rig)
+
+    is_an_agent_update = options.agent_update and rig.plane and is_an_upgrade
+    if is_an_agent_update:
+        step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
+        rig.run_step_ten(step_ten, releases, rig.plane)
+    else:
+        step_three = rig.step(3, "running the line again moves it to a newer release")
+        rig.run_step_three(step_three, releases)
+
+    if not options.stand_in and not options.without_company:
+        if is_an_upgrade and not is_an_agent_update:
+            step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
+            rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
+            rig.observe_the_processes_moved(
+                step_seven, revision_before, rig.build_identity_the_guest_reports()
+            )
+        if is_an_upgrade:
+            judge_what_the_release_under_test_does(rig)
+        step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
+        rig.take_a_backup(step_six)
+
+    step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
+    rig.run_step_four(step_four)
+
+    if rig.plane:
+        rig.restore_elsewhere(step_six, rig.plane)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
@@ -1626,6 +1867,12 @@ def main():
         action="store_true",
         help="move to the newer release the way an administrator's host_update does, through admind's socket, "
         "instead of running the line again (step 10 in place of steps 3 and 7)",
+    )
+    parser.add_argument(
+        "--people-upgrade",
+        action="store_true",
+        help="judge only whether a host that already has people and memory stays up through the upgrade "
+        "(step 12 in place of every other step after the install)",
     )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
@@ -1676,62 +1923,10 @@ def main():
             step_one = rig.step(1, "one command installs the company host")
             rig.run_step_one(step_one)
 
-            step_two = rig.step(2, "the machine is in the state the package manager would have left it")
-            rig.run_step_two(step_two, baseline)
-
-            rig.plant_state()
-
-            step_five = rig.step(5, "a person signs in and exchanges a message")
-            revision_before = {}
-            if options.stand_in or options.without_company:
-                step_five.block(
-                    "not run against a stand-in: the package under test carries none of the "
-                    "services a company would be given to"
-                    if options.stand_in
-                    else "not run: --without-company was passed, so no plane issued this guest a company"
-                )
+            if options.people_upgrade:
+                rig.run_people_upgrade(releases)
             else:
-                rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
-                rig.plane.start()
-                rig.plane.reach_the_record_from(rig.machine)
-                rig.give_the_guest_a_company(step_five, rig.plane)
-                rig.observe_running_services(step_five)
-                observe_a_real_conversion(rig.machine, step_five)
-                rig.observe_the_host_holds_the_gateway_socket(step_five)
-                rig.observe_the_member_round_trip(step_five, rig.plane)
-                rig.observe_the_agent_answered(step_five)
-                step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
-                rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
-                revision_before = rig.build_identity_the_guest_reports()
-
-            step_nine = None
-            if not options.stand_in and not options.without_company and len(releases) > 1:
-                step_nine = rig.step(9, "a backup the older release took comes back on a fresh machine without pgvector")
-                rig.take_the_older_backup(step_nine)
-
-            is_an_agent_update = options.agent_update and rig.plane and len(releases) > 1
-            if is_an_agent_update:
-                step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
-                rig.run_step_ten(step_ten, releases, rig.plane)
-            else:
-                step_three = rig.step(3, "running the line again moves it to a newer release")
-                rig.run_step_three(step_three, releases)
-
-            if not options.stand_in and not options.without_company:
-                if len(releases) > 1 and not is_an_agent_update:
-                    step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
-                    rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
-                    rig.observe_the_processes_moved(
-                        step_seven, revision_before, rig.build_identity_the_guest_reports()
-                    )
-                step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
-                rig.take_a_backup(step_six)
-
-            step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
-            rig.run_step_four(step_four)
-
-            if rig.plane:
-                rig.restore_elsewhere(step_six, rig.plane, step_nine)
+                run_every_step(rig, options, releases, baseline)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep:

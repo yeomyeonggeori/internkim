@@ -123,6 +123,7 @@ read, whether required or optional, in one table:
 | `INTERNKIM_APP_URL` | relay + host | where everyone signs in (https://<zone> unless the company serves the app itself); required by the relay, and handed to the host's admind from its environment file |
 | `MAILD_BASE_URL` | relay | maild's base URL the relay calls to answer mail; defaults to http://127.0.0.1:18092 |
 | `MESSENGER_PLATFORM` | relay + host | which messenger the company runs (buzz or mattermost); the relay and the host's prepare script refuse to start without it, and the host's capabilityd and admind are handed it from its environment file |
+| `MESSENGER_RELAY_URL` | relay | the company's Buzz relay on loopback, which the relay dials for every native app the gateway carries; defaults to ws://127.0.0.1:3000 |
 | `RELAY_STATE_DIR` | relay + host | where the relay keeps the state it must survive a restart with, chiefly the durable queue of inbound messenger events under inbound/; defaults to /var/lib/internkim/relay |
 | `SUPABASE_PUBLISHABLE_KEY` | relay + host | the Supabase project's publishable (anon) key; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
 | `SUPABASE_URL` | relay + host | the Supabase project URL; required across the relay, the host's admind, the web app and the gateway worker, and used by web/scripts' one-off ops scripts |
@@ -175,20 +176,6 @@ after a crash or a reboot:
 
 Restarting matters: the relay is the only thing answering the messenger
 screen, and a process that dies without coming back leaves that screen empty.
-
-On a device this repository deploys to, none of that is done by hand.
-`internkim deploy --components relay` carries the binary and writes the unit,
-and provisioning places the settings:
-
-```
-INTERNKIM_RELAY_ENV=<relay.env> INTERNKIM_RELAY_AGENT_KEY=<agent key> \
-  internkim setup --only relay
-```
-
-The unit carries `ConditionPathExists`, so a device with no settings leaves it
-stopped. A component the device has never installed takes two deploys: the
-release is applied by the `admind` already running, so the first deploy installs
-the new `admind` and skips the component it does not know yet.
 
 ## What it holds
 

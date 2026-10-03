@@ -268,9 +268,6 @@ func TestProvisionScriptsAcceptBindMountedWorkspace(t *testing.T) {
 	relativeScriptPaths := []string{
 		"lab/scripts/provision-ubuntu.sh",
 		"lab/scripts/provision-blueclaw-dev-session.sh",
-		"lab/scripts/provision-blueclaw-runtime-builder.sh",
-		"lab/scripts/check-blueclaw-runtime-builder.sh",
-		".dependency/blueclaw/lab/scripts/provision-ubuntu.sh",
 	}
 	for _, relativeScriptPath := range relativeScriptPaths {
 		scriptContent := readRepositoryScript(t, relativeScriptPath)
@@ -325,54 +322,6 @@ func TestProvisionUbuntuRestartsReadOnlyVirtualMachineOnce(t *testing.T) {
 	}
 	if startCommandCount != 1 {
 		t.Fatalf("expected one container restart, got %d", startCommandCount)
-	}
-}
-
-func TestRuntimeBuilderPrepareAvoidsSharedWorkspaceSync(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.RuntimeBuilderPrepare(context.Background())
-	if errorValue != nil {
-		t.Fatalf("expected runtime builder prepare to succeed: %v", errorValue)
-	}
-	for _, command := range commandRunner.runCommands {
-		if command.ExecutableName == "rsync" {
-			t.Fatalf("expected runtime builder prepare to avoid shared workspace rsync, got %v", command.Arguments)
-		}
-	}
-	joinedScripts := make([]string, 0, len(commandRunner.runCommands))
-	for _, command := range commandRunner.runCommands {
-		if command.StandardInputPath != "" {
-			joinedScripts = append(joinedScripts, command.StandardInputPath)
-		}
-	}
-	joinedScriptPaths := strings.Join(joinedScripts, " ")
-	for _, expectedFragment := range []string{"provision-ubuntu.sh", "provision-blueclaw-runtime-builder.sh", "check-blueclaw-runtime-builder.sh"} {
-		if !strings.Contains(joinedScriptPaths, expectedFragment) {
-			t.Fatalf("expected runtime builder scripts to include %q, got %v", expectedFragment, joinedScripts)
-		}
-	}
-}
-
-func TestRuntimeBuilderCheckUsesDedicatedBuilderScript(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.RuntimeBuilderCheck(context.Background())
-	if errorValue != nil {
-		t.Fatalf("expected runtime builder check to succeed: %v", errorValue)
-	}
-	if len(commandRunner.runCommands) != 2 {
-		t.Fatalf("expected ssh readiness and builder check script, got %d", len(commandRunner.runCommands))
-	}
-	checkCommand := commandRunner.runCommands[1]
-	if !strings.HasSuffix(checkCommand.StandardInputPath, "lab/scripts/check-blueclaw-runtime-builder.sh") {
-		t.Fatalf("expected builder check script, got %q", checkCommand.StandardInputPath)
 	}
 }
 
@@ -436,115 +385,6 @@ func TestVirtualMachineDiagnosticsIncludesRecoveryCommands(t *testing.T) {
 	}
 }
 
-func TestSetupUsesCurrentExecutableWithHostOverride(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.Setup(context.Background(), "/repo/internkim", nil)
-	if errorValue != nil {
-		t.Fatalf("expected setup to succeed: %v", errorValue)
-	}
-	if len(commandRunner.runCommands) != 5 {
-		t.Fatalf("expected provision and setup commands, got %d", len(commandRunner.runCommands))
-	}
-	setupCommand := commandRunner.runCommands[4]
-	if setupCommand.ExecutableName != "/repo/internkim" {
-		t.Fatalf("expected setup command to use current executable, got %q", setupCommand.ExecutableName)
-	}
-	if strings.Join(setupCommand.Arguments, " ") != "setup --board lab --ssh --host 192.168.65.10 --user admin --password admin --skip wifi" {
-		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
-	}
-	if setupCommand.EnvironmentVariables["INTERNKIM_BLUECLAW_USE_LOCAL"] != "1" {
-		t.Fatalf("expected simulation setup to build local Blueclaw changes, got %v", setupCommand.EnvironmentVariables)
-	}
-}
-
-func TestSetupPassesSelectorArgumentsWithoutDefaultForce(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.Setup(context.Background(), "/repo/internkim", []string{"--only", "blueclaw-config"})
-	if errorValue != nil {
-		t.Fatalf("expected setup to succeed: %v", errorValue)
-	}
-
-	setupCommand := commandRunner.runCommands[4]
-	if strings.Join(setupCommand.Arguments, " ") != "setup --board lab --ssh --host 192.168.65.10 --user admin --password admin --only blueclaw-config" {
-		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
-	}
-}
-
-func TestSetupSimulationUsesSimulationTargetState(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.SetupSimulation(context.Background(), "/repo/internkim", []string{"--only", "services"})
-	if errorValue != nil {
-		t.Fatalf("expected simulation setup to succeed: %v", errorValue)
-	}
-
-	setupCommand := commandRunner.runCommands[4]
-	if strings.Join(setupCommand.Arguments, " ") != "setup --board sim --ssh --host 192.168.65.10 --user admin --password admin --only services" {
-		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
-	}
-}
-
-func TestScenarioEndToEndRunsSetupAndScenarios(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.ScenarioEndToEnd(context.Background(), "/repo/internkim", nil)
-	if errorValue != nil {
-		t.Fatalf("expected end-to-end scenario to succeed: %v", errorValue)
-	}
-	if len(commandRunner.runCommands) != 7 {
-		t.Fatalf("expected provision, setup, and two default scenario commands, got %d", len(commandRunner.runCommands))
-	}
-}
-
-func TestScenarioSimulationEndToEndUsesSimulationTargetState(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: runningContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.ScenarioSimulationEndToEnd(context.Background(), "/repo/internkim", []string{"--only", "services"})
-	if errorValue != nil {
-		t.Fatalf("expected simulation scenario to succeed: %v", errorValue)
-	}
-
-	setupCommand := commandRunner.runCommands[4]
-	if strings.Join(setupCommand.Arguments, " ") != "setup --board sim --ssh --host 192.168.65.10 --user admin --password admin --only services" {
-		t.Fatalf("unexpected setup arguments: %v", setupCommand.Arguments)
-	}
-}
-
-func TestPrintSimulationPlanDoesNotCreateOrStartMissingVirtualMachine(t *testing.T) {
-	commandRunner := &fakeCommandRunner{
-		outputValue: missingContainerListJSON,
-	}
-	service := NewService(buildTestConfiguration(), commandRunner, "/repo")
-
-	errorValue := service.PrintSimulationPlan(context.Background(), "/repo/internkim", []string{"--plan"})
-	if errorValue != nil {
-		t.Fatalf("expected simulation plan to succeed: %v", errorValue)
-	}
-	if len(commandRunner.runCommands) != 0 {
-		t.Fatalf("expected dry run to skip clone and setup commands, got %d", len(commandRunner.runCommands))
-	}
-	if len(commandRunner.startCommands) != 0 {
-		t.Fatalf("expected dry run to skip vm start commands, got %d", len(commandRunner.startCommands))
-	}
-}
-
 func readRepositoryScript(t *testing.T, relativeScriptPath string) string {
 	t.Helper()
 	scriptPath := filepath.Join("..", "..", relativeScriptPath)
@@ -575,27 +415,3 @@ func buildTestConfiguration() Configuration {
 	})
 }
 
-// The shared builder container outlives the checkout it was created for. One
-// left pointing at a directory that has since been deleted cannot start, and
-// the container runtime reports an invalid state rather than the stale mount.
-func TestABuilderSharingADifferentWorkspaceIsNotReused(t *testing.T) {
-	entry := containerListEntry{Configuration: containerListEntryConfiguration{
-		ID:     "internkim-lab",
-		Mounts: []containerListEntryMount{{Destination: "/mnt/shared/workspace", Source: "/gone/scratchpad/deploy-main/"}},
-	}}
-
-	if entry.sharesWorkspaceAt("/repo") {
-		t.Fatal("expected a builder mounted elsewhere to be recreated")
-	}
-	if !entry.sharesWorkspaceAt("/gone/scratchpad/deploy-main") {
-		t.Fatal("expected a trailing slash to make no difference")
-	}
-}
-
-func TestABuilderTheListReportsNoMountsForIsLeftAlone(t *testing.T) {
-	entry := containerListEntry{Configuration: containerListEntryConfiguration{ID: "internkim-lab"}}
-
-	if !entry.sharesWorkspaceAt("/repo") {
-		t.Fatal("expected no evidence to mean no recreation")
-	}
-}

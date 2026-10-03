@@ -10,14 +10,14 @@ export const dataRoomLinkSessionSchema = z.object({
 export const dataRoomAccessCodePattern = '[0-9]{6}';
 const dataRoomAccessCodeSchema = z.string().regex(new RegExp(`^${dataRoomAccessCodePattern}$`));
 export const dataRoomLinkInputSchema = z.strictObject({
-	roleCode: z.string().min(1),
+	circleID: z.string().min(1),
 	label: z.string().trim().min(1).max(120),
 	lifetimeHours: z.literal(dataRoomLinkLifetimeHours).default(72),
 	canDownload: z.boolean().default(false)
 });
 export const dataRoomLinkSchema = z.strictObject({
 	id: z.string().uuid(),
-	roleCode: z.string(),
+	circleID: z.string(),
 	label: z.string(),
 	canDownload: z.boolean(),
 	createdAt: z.string(),
@@ -25,7 +25,7 @@ export const dataRoomLinkSchema = z.strictObject({
 	revokedAt: z.string().nullable()
 });
 export const dataRoomLinksSchema = z.strictObject({
-	links: z.array(dataRoomLinkSchema), shareableRoleCodes: z.array(z.string()), downloadableRoleCodes: z.array(z.string())
+	links: z.array(dataRoomLinkSchema), shareableCircleIDs: z.array(z.string()), downloadableCircleIDs: z.array(z.string())
 });
 export const dataRoomLinkCreatedSchema = z.strictObject({
 	linkID: z.string().uuid(),

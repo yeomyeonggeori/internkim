@@ -23,15 +23,7 @@ func (service *Service) resolveUserActorByEmail(ctx context.Context, email strin
 	if normalizedEmail == "" {
 		return userActor{}, false, nil
 	}
-	if service.hasDeviceAuth() {
-		actor, found, errorValue := service.resolveUserActorFromUserRecords(ctx, normalizedEmail)
-		return actor, found, errorValue
-	}
-	personID, errorValue := service.resolveMemoryPersonIDFromPolicy(ctx, normalizedEmail)
-	if errorValue != nil || personID == "" {
-		return userActor{}, false, errorValue
-	}
-	return userActor{UserID: personID, Email: normalizedEmail, Name: normalizedEmail}, true, nil
+	return service.resolveUserActorFromUserRecords(ctx, normalizedEmail)
 }
 
 func (service *Service) resolveUserActorFromUserRecords(ctx context.Context, email string) (userActor, bool, error) {

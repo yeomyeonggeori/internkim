@@ -81,6 +81,13 @@ wildcards.
 - `GATEWAY_URL` and `GATEWAY_ADMIN_TOKEN` let an API call reach the company's
   computer through the connection gateway. Without them an invocation answers `503`,
   while the catalog and the tokens still work.
+- A company whose people use the Buzz desktop or phone app gives the gateway its
+  messenger address, `<slug>.<zone>`, as a Workers route. That hostname belongs to
+  the messenger and is not attached to Pages, because the relay answers paths under
+  `/api/` of its own. A page opened there in a browser is still sent on to the zone
+  with a `308`. Deploy the gateway with
+  `web/scripts/deploy-worker.ts workers/connection-gateway --route-subdomain <gateway> --route-subdomain <slug>`,
+  naming every route it keeps, since a deploy replaces the set.
 - `supabase config push` sends the whole `config.toml`, so any setting the file
   omits returns to the CLI default. Read the diff it prints before trusting the exit
   code.
@@ -97,8 +104,21 @@ company chooses its own route to the computer:
 The tunnel or the server is the operator's. `~/.ssh/config` names the route, as
 for [any host](/docs/architecture#why-the-host-has-no-inbound-port).
 
-## The legacy device path
+### Through your own Cloudflare Tunnel
 
-The per-company appliance is the legacy device path, and
-[its page](/docs/device) describes it. It is not a level and nothing new is
-designed against it.
+We reach our own company's host this way. On the host, a tunnel from your
+Cloudflare account carries one public hostname to `ssh://localhost:22`. In Zero
+Trust, a self-hosted Access application on that hostname admits your operators
+when they sign in, and a Service Auth policy admits a service token, which
+scripts use because it needs no browser. From any network:
+
+```
+Host ssh.example.com
+  User <account on the host>
+  ProxyCommand cloudflared access ssh --hostname %h --service-token-id <client id> --service-token-secret <client secret>
+```
+
+Leave out the two token flags and `cloudflared` opens a browser sign-in
+instead. In this repository, `tools/cloudflared-access-ssh` is that
+ProxyCommand with the token read from the vault, and `./internkim @host ssh`
+connects through it.

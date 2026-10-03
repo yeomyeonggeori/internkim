@@ -5,11 +5,14 @@ import {
 	PROTOCOL_VERSION,
 	RequestError,
 	type Client,
+	type ContentBlock,
 	type RequestPermissionRequest,
 	type RequestPermissionResponse,
 	type SessionNotification,
 	type StopReason
 } from '@agentclientprotocol/sdk';
+import { fileURLToPath } from 'node:url';
+import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 import type { HeldQuestion, HeldQuestionStore } from './held-question-store';
 
 export const defaultBlueclawACPSocketPath = '/run/internkim/acp/blueclaw-acp.sock';
@@ -40,6 +43,19 @@ export type MessageFacts = {
 };
 
 export const approvalReplyExtensionMethod = '_kim.intern/approvalReply';
+export const deliveryMetaKey = 'kim.intern/delivery';
+export const deliveredExtensionMethod = '_kim.intern/delivered';
+export const undeliveredExtensionMethod = '_kim.intern/undelivered';
+
+export type Delivery = {
+	deliveryID?: string;
+	replyTargetID?: string;
+};
+
+export type PutQuestion = {
+	messageID: string;
+	answered: Promise<string>;
+};
 
 /** The agent never answered: it was not listening, or it went away before it replied. */
 export class AgentUnreachable extends Error {
@@ -61,33 +77,31 @@ async function fromTheAgent<T>(request: Promise<T>): Promise<T> {
 const firstReconnectDelayMilliseconds = 250;
 const longestReconnectDelayMilliseconds = 5_000;
 
+/** Posts the message and answers with the ID it was posted under; throws when it was not posted. */
+export type PostToConversation = (addressing: Addressing, message: string, attachments?: KeptAttachment[]) => Promise<string>;
+
+export type PostFileToConversation = (addressing: Addressing, requesterEmail: string, file: WorkspaceFile) => Promise<string>;
+
 export type AskedPermission = {
 	toolCallID: string;
 	question: string;
-};
-
-export type AnsweredTurn = {
-	reply: string;
-	progress: string[];
-	stopReason: StopReason;
 };
 
 export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
 	catalogFor: (requesterEmail: string, conversationID: string) => McpServerEntry[];
+	postToConversation: PostToConversation;
+	postFileToConversation: PostFileToConversation;
 	questions: HeldQuestionStore;
-	/** Puts the question to the requester and answers with the words they wrote back. */
-	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<string>;
+	/** Posts the question to the requester; `answered` settles with the words they write back. */
+	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<PutQuestion>;
 	/** Waits for the answer to a question already asked before a restart, without asking again. */
 	awaitAnAlreadyAskedQuestion: (addressing: Addressing) => Promise<string>;
 	report?: (line: string) => void;
 };
 
-type OpenTurn = {
-	messageSegments: string[];
-	progress: string[];
-};
+type PostOutcome = { messageID: string } | { reason: string };
 
 type HeldSession = {
 	sessionID: string;
@@ -103,7 +117,6 @@ export class BlueclawACPClient {
 	private isClosed = false;
 	private readonly heldByConversation = new Map<string, HeldSession>();
 	private readonly heldBySession = new Map<string, HeldSession>();
-	private readonly turnBySession = new Map<string, OpenTurn>();
 	/**
 	 * The words the person answered with, not the agent's reading of them: a
 	 * restarted agent asks again and has to be told the same thing, and only the
@@ -167,27 +180,17 @@ export class BlueclawACPClient {
 		addressing: Addressing,
 		message: string,
 		facts?: MessageFacts
-	): Promise<AnsweredTurn> {
+	): Promise<StopReason> {
 		const agent = await fromTheAgent(this.agent());
 		const sessionID = await fromTheAgent(this.sessionFor(agent, requester, addressing));
-		const openTurn: OpenTurn = { messageSegments: [], progress: [] };
-		this.turnBySession.set(sessionID, openTurn);
-		try {
-			const answer = await fromTheAgent(
-				agent.prompt({
-					sessionId: sessionID,
-					prompt: [{ type: 'text', text: message }],
-					...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
-				})
-			);
-			return {
-				reply: openTurn.messageSegments.join(''),
-				progress: openTurn.progress,
-				stopReason: answer.stopReason
-			};
-		} finally {
-			this.turnBySession.delete(sessionID);
-		}
+		const answer = await fromTheAgent(
+			agent.prompt({
+				sessionId: sessionID,
+				prompt: [{ type: 'text', text: message }],
+				...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
+			})
+		);
+		return answer.stopReason;
 	}
 
 	private async agent(): Promise<ClientSideConnection> {
@@ -294,28 +297,72 @@ export class BlueclawACPClient {
 	}
 
 	private readUpdate(notification: SessionNotification): void {
-		const openTurn = this.turnBySession.get(notification.sessionId);
-		if (!openTurn) return;
 		const update = notification.update;
-		if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text') {
-			openTurn.messageSegments.push(update.content.text);
+		if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text') {
+			this.settings.report?.(`progress: ${update.content.text}`);
 			return;
 		}
-		if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text') {
-			openTurn.progress.push(update.content.text);
+		if (update.sessionUpdate !== 'agent_message_chunk') return;
+		void this.deliverChunk(notification.sessionId, update.content, deliveryOf(notification._meta));
+	}
+
+	private async deliverChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<void> {
+		const outcome = await this.postChunk(sessionID, content, delivery);
+		await this.tellTheAgent(delivery, outcome);
+	}
+
+	private async postChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<PostOutcome> {
+		const held = this.heldSessionOf(sessionID);
+		if (!held) return { reason: `this relay holds no session ${sessionID}, so it has no conversation to post in` };
+		try {
+			return { messageID: await this.post(content, held.requester, addressedBy(held, delivery)) };
+		} catch (failure) {
+			return { reason: String(failure) };
+		}
+	}
+
+	private post(content: ContentBlock, requester: Requester, addressing: Addressing): Promise<string> {
+		if (content.type === 'text') return this.settings.postToConversation(addressing, content.text);
+		if (content.type === 'resource_link') {
+			return this.settings.postFileToConversation(addressing, requester.email, workspaceFileOf(content));
+		}
+		throw new Error(`this relay posts text and files, so a ${content.type} block did not reach the person`);
+	}
+
+	private async tellTheAgent(delivery: Delivery, outcome: PostOutcome): Promise<void> {
+		if ('reason' in outcome) this.settings.report?.(`a message did not reach the person: ${outcome.reason}`);
+		if (!delivery.deliveryID) return;
+		const [method, report] =
+			'messageID' in outcome
+				? [deliveredExtensionMethod, deliveredReport(delivery.deliveryID, outcome.messageID)]
+				: [undeliveredExtensionMethod, undeliveredReport(delivery.deliveryID, outcome.reason)];
+		try {
+			const agent = await this.agent();
+			await agent.request(method, report);
+		} catch (failure) {
+			this.settings.report?.(`blueclaw was not told what became of ${delivery.deliveryID}: ${String(failure)}`);
 		}
 	}
 
 	private async answerPermission(
 		request: RequestPermissionRequest
 	): Promise<RequestPermissionResponse> {
+		const delivery = deliveryOf(request._meta);
 		const held = this.heldSessionOf(request.sessionId);
-		if (!held) return { outcome: { outcome: 'cancelled' } };
+		if (!held) {
+			await this.tellTheAgent(delivery, {
+				reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in`
+			});
+			return { outcome: { outcome: 'cancelled' } };
+		}
 
 		const toolCallID = request.toolCall.toolCallId;
 		const question = request.toolCall.title ?? '';
 		const alreadyAsked = this.answeredPermissions.get(toolCallID);
-		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held);
+		if (alreadyAsked) {
+			await this.tellTheAgent(delivery, { reason: `${toolCallID} was already put to the person and was not posted again` });
+		}
+		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held, addressedBy(held, delivery), delivery);
 		this.answeredPermissions.set(toolCallID, asking);
 		const connectionThatAsked = this.connection;
 		try {
@@ -328,6 +375,7 @@ export class BlueclawACPClient {
 			await this.settings.questions.forget(toolCallID);
 			return { outcome: { outcome: 'selected', optionId: optionID } };
 		} catch (failure) {
+			if (this.answeredPermissions.get(toolCallID) === asking) this.answeredPermissions.delete(toolCallID);
 			this.settings.report?.(`nobody answered ${toolCallID}: ${String(failure)}`);
 			return { outcome: { outcome: 'cancelled' } };
 		}
@@ -339,18 +387,42 @@ export class BlueclawACPClient {
 	 * relay that stops between either step finds them on disk when it starts
 	 * again.
 	 */
-	private async askAndPersist(toolCallID: string, question: string, held: HeldSession): Promise<string> {
+	private async askAndPersist(
+		toolCallID: string,
+		question: string,
+		held: HeldSession,
+		addressing: Addressing,
+		delivery: Delivery
+	): Promise<string> {
 		await this.settings.questions.keep({
 			toolCallID,
 			sessionID: held.sessionID,
 			requester: held.requester,
-			addressing: held.addressing,
+			addressing,
 			question,
 			askedAt: new Date().toISOString()
 		});
-		const words = await this.settings.askThePerson({ toolCallID, question }, held.addressing);
+		const put = await this.putTheQuestion(toolCallID, question, addressing, delivery);
+		const words = await put.answered;
 		await this.settings.questions.answer(toolCallID, words);
 		return words;
+	}
+
+	private async putTheQuestion(
+		toolCallID: string,
+		question: string,
+		addressing: Addressing,
+		delivery: Delivery
+	): Promise<PutQuestion> {
+		try {
+			const put = await this.settings.askThePerson({ toolCallID, question }, addressing);
+			await this.tellTheAgent(delivery, { messageID: put.messageID });
+			return put;
+		} catch (failure) {
+			await this.settings.questions.forget(toolCallID);
+			await this.tellTheAgent(delivery, { reason: String(failure) });
+			throw failure;
+		}
 	}
 
 	private heldSessionOf(sessionID: string): HeldSession | undefined {
@@ -370,13 +442,57 @@ export class BlueclawACPClient {
 		reply: string
 	): Promise<string> {
 		const agent = await this.agent();
-		const read = await agent.request<{ optionId: string }>(approvalReplyExtensionMethod, {
-			sessionId: sessionID,
-			toolCallId: toolCallID,
-			reply
-		});
-		return read.optionId;
+		const read = await agent.request<Record<string, unknown>>(
+			approvalReplyExtensionMethod,
+			approvalReplyRequest(sessionID, toolCallID, reply)
+		);
+		return optionChosenIn(read);
 	}
+}
+
+export function deliveryOf(meta: Record<string, unknown> | null | undefined): Delivery {
+	const carried = meta?.[deliveryMetaKey];
+	if (typeof carried !== 'object' || carried === null) return {};
+	const deliveryID = nonEmptyStringIn(carried, 'deliveryID');
+	const replyTargetID = nonEmptyStringIn(carried, 'replyTargetID');
+	return { ...(deliveryID ? { deliveryID } : {}), ...(replyTargetID ? { replyTargetID } : {}) };
+}
+
+function nonEmptyStringIn(carried: object, name: string): string | undefined {
+	const value: unknown = Reflect.get(carried, name);
+	return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+export function deliveredReport(deliveryID: string, messageID: string): Record<string, string> {
+	return { deliveryID, messageID };
+}
+
+export function undeliveredReport(deliveryID: string, reason: string): Record<string, string> {
+	return { deliveryID, reason };
+}
+
+export function approvalReplyRequest(sessionID: string, toolCallID: string, reply: string): Record<string, string> {
+	return { sessionId: sessionID, toolCallId: toolCallID, reply };
+}
+
+export function optionChosenIn(answer: Record<string, unknown>): string {
+	const optionID = answer.optionId;
+	if (typeof optionID !== 'string') throw new Error(`blueclaw read the reply as no option: ${JSON.stringify(answer)}`);
+	return optionID;
+}
+
+function addressedBy(held: HeldSession, delivery: Delivery): Addressing {
+	if (!delivery.replyTargetID) return held.addressing;
+	return { ...held.addressing, replyTargetID: delivery.replyTargetID };
+}
+
+const unnamedContentType = 'application/octet-stream';
+
+function workspaceFileOf(link: { name: string; uri: string; mimeType?: string | null }): WorkspaceFile {
+	if (!URL.canParse(link.uri) || new URL(link.uri).protocol !== 'file:') {
+		throw new Error(`the agent named ${link.name} by ${link.uri}, which is not a file on this computer`);
+	}
+	return { filename: link.name, workspacePath: fileURLToPath(link.uri), contentType: link.mimeType || unnamedContentType };
 }
 
 function messageMetaFrom(facts: MessageFacts): Record<string, unknown> {

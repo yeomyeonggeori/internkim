@@ -34,6 +34,12 @@ export type FileTransferDependencies = {
 	report: (line: string) => void;
 };
 
+export type WorkspaceFile = {
+	filename: string;
+	workspacePath: string;
+	contentType: string;
+};
+
 export type KeptAttachment = {
 	filename: string;
 	contentType: string;
@@ -239,6 +245,24 @@ export async function takeUploadIntoMessenger(
 	return startUpload(dependencies, watcher, upload.object, async () => ({
 		attachment: await keptInTheMessenger(dependencies, actor, sourceURL, upload)
 	}));
+}
+
+export async function keepWorkspaceFileInTheMessenger(
+	dependencies: FileTransferDependencies,
+	memberID: string,
+	actor: ActorCredential,
+	requesterEmail: string,
+	file: WorkspaceFile
+): Promise<KeptAttachment> {
+	const object = `${dependencies.companyID}/person/${memberID}/${transferKind}/${crypto.randomUUID()}`;
+	const source: RangedSource = (rangeHeader) => dependencies.readWorkspaceRange(requesterEmail, file.workspacePath, rangeHeader);
+	try {
+		await copyIntoStore(dependencies.hostAccess, object, file.contentType, source);
+		const sourceURL = await signedReadURL(dependencies.hostAccess, object, uploadReadableSeconds);
+		return await keptInTheMessenger(dependencies, actor, sourceURL, { object, filename: file.filename, contentType: file.contentType });
+	} finally {
+		await letGoOfUpload(dependencies, object);
+	}
 }
 
 export function leafNameOf(offered: string): string {

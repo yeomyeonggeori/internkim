@@ -113,68 +113,14 @@ func newEphemeralCleanupContext(contextValue context.Context) (context.Context, 
 
 func (service Service) runAction(contextValue context.Context, logger Logger, request JobRequest) error {
 	switch request.Action {
-	case ActionUp:
-		if errorValue := service.validateRuntimeBaseSource(); errorValue != nil {
-			return errorValue
-		}
-		return service.runPlans(contextValue, logger, service.upPlans(request.SkipWeb))
 	case ActionDown:
 		return service.runPlans(contextValue, logger, service.downPlans())
-	case ActionReset:
-		return service.runPlans(contextValue, logger, service.resetPlans())
-	case ActionRunRecipe:
-		if request.VirtualSession {
-			return errors.New("virtual session mode requires --scenario")
-		}
-		return service.RunRecipe(contextValue, logger, firstNonEmpty(request.Recipe, DefaultRecipe))
 	case ActionRunScenario:
-		if !request.VirtualSession && scenarioNeedsRuntimeBase(request.Scenario) {
-			if errorValue := service.validateRuntimeBaseSource(); errorValue != nil {
-				return errorValue
-			}
-		}
 		return service.RunScenario(contextValue, logger, request.Scenario, request.VirtualSession, request.KeepArtifacts)
-	case ActionUpgradeGate:
-		if strings.TrimSpace(request.Scenario) == "" {
-			return errors.New("upgrade gate requires --scenario")
-		}
-		return service.runPlans(contextValue, logger, service.upgradePathGatePlans(strings.TrimSpace(request.Scenario)))
-	case ActionVerifyRegression:
-		if request.VirtualSession {
-			return errors.New("virtual session regression is not supported")
-		}
-		return service.VerifyRegression(contextValue, logger, request.Base, request.Scenario)
+	case ActionRunCompanyPlane:
+		return service.runPlans(contextValue, logger, service.companyPlaneScenarioPlans())
 	default:
 		return fmt.Errorf("unsupported local fleet action: %s", request.Action)
-	}
-}
-
-func scenarioNeedsRuntimeBase(scenario string) bool {
-	return scenario != "company-plane" && scenario != "workspace-ownership"
-}
-
-func (service Service) validateRuntimeBaseSource() error {
-	manifestPath := filepath.Join(service.options.RepositoryRootPath, blueclaw.BlueclawRuntimeArtifactPath, "manifest.json")
-	document, errorValue := os.ReadFile(manifestPath)
-	if errorValue != nil {
-		return fmt.Errorf("Blueclaw runtime base source is unavailable; run make prepare-blueclaw-runtime-base: %w", errorValue)
-	}
-	manifest, errorValue := blueclaw.ParseRuntimeArtifactManifest(document)
-	if errorValue != nil {
-		return fmt.Errorf("Blueclaw runtime base source is invalid; run make prepare-blueclaw-runtime-base: %w", errorValue)
-	}
-	if errorValue := blueclaw.ValidateRuntimeArtifactSource(service.options.RepositoryRootPath, manifest); errorValue != nil {
-		return fmt.Errorf("Blueclaw runtime base source is stale; run make prepare-blueclaw-runtime-base: %w", errorValue)
-	}
-	return nil
-}
-
-func (service Service) RunRecipe(contextValue context.Context, logger Logger, recipe string) error {
-	switch strings.TrimSpace(recipe) {
-	case "", DefaultRecipe:
-		return service.runPlans(contextValue, logger, service.predeployGatePlans())
-	default:
-		return fmt.Errorf("unsupported local fleet recipe: %s", recipe)
 	}
 }
 
@@ -211,23 +157,7 @@ func (service Service) scenarioPlanBuilders() map[string]scenarioPlanBuilder {
 		return func(bool) ([]CommandPlan, error) { return build(), nil }
 	}
 	return map[string]scenarioPlanBuilder{
-		"company-plane":                always(service.companyPlaneScenarioPlans),
-		"model-configuration-upgrade":  always(service.modelConfigurationUpgradeScenarioPlans),
-		"buzz-attachment":              always(service.buzzAttachmentScenarioPlans),
-		"buzz-direct-message":          always(service.buzzDirectMessageScenarioPlans),
-		"buzz-inbound-mention":         always(service.buzzInboundMentionScenarioPlans),
-		"restart-policy-survival":      always(service.restartPolicySurvivalScenarioPlans),
-		"workspace-persistence":        always(service.workspacePersistenceScenarioPlans),
-		"workspace-ownership":          always(service.workspaceOwnershipScenarioPlans),
-		"learning-settings":            always(service.learningSettingsScenarioPlans),
-		"morning-briefing":             always(service.morningBriefingScenarioPlans),
-		"memory-store":                 always(service.memoryStoreScenarioPlans),
-		"firing-schedules-nothing":     always(service.firingSchedulesNothingScenarioPlans),
-		"schedule-through-the-catalog": always(service.scheduleThroughTheCatalogScenarioPlans),
-		"personal-settings":            always(service.personalSettingsScenarioPlans),
-		"task-history-retry":           always(service.taskHistoryRetryScenarioPlans),
-		"web-backed-ui":                always(service.webBackedScenarioPlans),
-		"regression-proof":             always(service.webBackedScenarioPlans),
+		"workspace-ownership": always(service.workspaceOwnershipScenarioPlans),
 	}
 }
 
@@ -239,20 +169,6 @@ func ScenarioNames() []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-func (service Service) VerifyRegression(contextValue context.Context, logger Logger, base string, scenario string) error {
-	normalizedBase := firstNonEmpty(base, "main")
-	normalizedScenario := strings.TrimSpace(scenario)
-	if normalizedScenario == "" {
-		return errors.New("scenario is required")
-	}
-	logger.Info("checking base branch " + normalizedBase)
-	if errorValue := service.runPlans(contextValue, logger, service.baseRegressionPlans(normalizedBase, normalizedScenario)); errorValue == nil {
-		return fmt.Errorf("scenario %s passed on %s; regression test is not proving the fix", normalizedScenario, normalizedBase)
-	}
-	logger.Info("base failed as expected")
-	return service.RunScenario(contextValue, logger, normalizedScenario, false, false)
 }
 
 func (service Service) EnsureConfiguration() error {

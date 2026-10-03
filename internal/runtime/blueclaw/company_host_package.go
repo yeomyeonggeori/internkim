@@ -7,40 +7,32 @@ import (
 )
 
 // The company host installed by a package manager is the relay, capabilityd, blueclaw,
-// admind, maild and chatd, supervised by systemd. It is not the device, and four of
-// those services differ from their device units in ways no argument bridges:
-// blueclaw runs its own binary here and a Cloud Hypervisor guest there, capabilityd is
-// reached over a unix socket here and a vsock there, admind carries the central plane's
-// addresses here and none there, and a package may not write /usr/local, so every path moves
-// to /usr/bin. What is shared is shared: the relay unit is the one renderer with the
-// binary path passed in, and every name, port and address below is the constant the
-// device path already uses.
+// admind, maild and chatd, supervised by systemd. A package may not write /usr/local, so
+// every path moves to /usr/bin. The relay unit is the one renderer with the binary path
+// passed in, and every name, port and address below is the constant the rest of the
+// bundle already uses.
 const (
-	CompanyPackageName         = "internkim"
-	BoxServiceName             = "internkim-box"
-	CompanyPackageMaintainer   = "internkim <support@intern.kim>"
-	CompanyPackageVendor       = "yeomyeonggeori"
-	CompanyPackageHomepage     = "https://intern.kim"
-	CompanyPackageSection      = "admin"
-	CompanyPackageBinaryRoot   = "/usr/bin"
-	CompanyPackageLibraryRoot  = "/opt/internkim"
-	CompanyPackageHelperRoot   = "/usr/lib/internkim"
-	CompanyPackageUnitRoot     = "/usr/lib/systemd/system"
-	CompanyPackageSkillsPath   = "/opt/internkim/skills"
-	CompanyPackageTemplatePath = "/opt/internkim/runtime.template.json"
+	CompanyPackageName        = "internkim"
+	BoxServiceName            = "internkim-box"
+	CompanyPackageMaintainer  = "internkim <support@intern.kim>"
+	CompanyPackageVendor      = "yeomyeonggeori"
+	CompanyPackageHomepage    = "https://intern.kim"
+	CompanyPackageSection     = "admin"
+	CompanyPackageBinaryRoot  = "/usr/bin"
+	CompanyPackageLibraryRoot = "/opt/internkim"
+	CompanyPackageHelperRoot  = "/usr/lib/internkim"
+	CompanyPackageUnitRoot    = "/usr/lib/systemd/system"
 
 	CompanyPackageDocumentFontPath        = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 	CompanyPackageDocumentFontLicensePath = "/usr/share/fonts/truetype/internkim/NanumGothic-OFL.txt"
 	CompanyPackageMigrationPath           = "/opt/blueclaw/migrations"
-	CompanyPackagePreparePath             = "/usr/lib/internkim/prepare-company-host"
 
 	// POSIXHelperProgramName is what lets the unprivileged agent act as the
 	// person who asked, and it is the one setuid file the package ships. The FHS
 	// keeps packages out of /usr/local, where the device path keeps it, so
 	// the packaged host names its own path and the rendered runtime document
 	// carries that name rather than the device's.
-	POSIXHelperProgramName     = "blueclaw-posix-helper"
-	CompanyHostPOSIXHelperPath = "/usr/lib/internkim/" + POSIXHelperProgramName
+	POSIXHelperProgramName = "blueclaw-posix-helper"
 
 	// The company directory is keyed by company id, and a unit rendered at package
 	// build time cannot name an id nobody has chosen yet. `internkim install` points
@@ -69,10 +61,6 @@ const (
 	CompanyHostLogPath                     = "/var/log/internkim"
 	CompanyHostBrowserStatePath            = "/var/lib/internkim-moli"
 	CompanyHostRunPath                     = "/run/internkim"
-	CompanyHostRunSecretsPath              = "/run/internkim/secrets"
-	CompanyHostRunModelKeyPath             = "/run/internkim/secrets/openrouter-key"
-	CompanyHostRuntimeDocument             = "/run/internkim/runtime.json"
-	CompanyHostPolicyDocument              = "/run/internkim/policy.json"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"
 
@@ -113,7 +101,8 @@ const (
 	CompanyHostSettingsPath = "/etc/internkim/company-host.env"
 
 	// An operator's own runtime document or roster, placed here, wins over the
-	// rendered template and the empty roster; absent, nothing happens.
+	// rendered template and the roster written before admind hands one over;
+	// absent, nothing happens.
 	CompanyHostRuntimeOverridePath = "/etc/internkim/runtime.json"
 	CompanyHostPolicyOverridePath  = "/etc/internkim/policy.json"
 
@@ -127,13 +116,6 @@ const (
 	CompanyHostBrowserFirstPort    = "9230"
 	CompanyHostBrowserCapacity     = "4"
 )
-
-// CompanyPackageBinaryPath is where the package puts a program it ships. The FHS
-// keeps packages out of /usr/local, which is also what keeps a packaged
-// install from colliding with the device path's own binaries during convergence.
-func CompanyPackageBinaryPath(programName string) string {
-	return CompanyPackageBinaryRoot + "/" + programName
-}
 
 // CompanyPackageUnit is one systemd unit the package installs.
 type CompanyPackageUnit struct {
@@ -341,10 +323,6 @@ func CompanyHostSettingsFile() string {
 		"BUZZ_S3_BUCKET=" + BuzzMediaBucket,
 		"BUZZ_S3_REGION=us-east-1",
 		"",
-		"# The address clients reach this company's messenger at. Loopback until a",
-		"# public host terminates TLS in front of it.",
-		"RELAY_URL=" + BuzzRelayLocalURL,
-		"",
 	}, "\n")
 }
 
@@ -396,6 +374,7 @@ else
   MODEL_API_KEY_PATH=%[8]s \
   ADMIN_ASSERTION_KEY_PATH=%[6]s \
   POSIX_HELPER_PATH=%[23]s \
+  MIGRATION_DIRECTORY_PATH=%[30]s \
     %[18]s --template %[19]s --capabilityd %[20]s --out %[14]s --work %[4]s
   chgrp %[3]s %[14]s
   chmod 0640 %[14]s
@@ -404,7 +383,7 @@ fi
 if [ -r %[21]s ]; then
   install -o %[3]s -g %[3]s -m 0640 %[21]s %[22]s
 else
-  [ -s %[22]s ] || printf '{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
+  [ -s %[22]s ] || printf '{"circles":[],"resourceAccess":[],"channels":[],"retention":{}}\n' > %[22]s
   chown %[3]s:%[3]s %[22]s
   chmod 0640 %[22]s
 fi
@@ -437,5 +416,6 @@ fi
 		fmt.Sprintf("%04o", CompanyHostRunPathMode),
 		RelayUserName,
 		fmt.Sprintf("%04o", CompanyHostACPSocketDirectoryMode),
-		layout.ACPSocketDirectoryPath())
+		layout.ACPSocketDirectoryPath(),
+		layout.MigrationPath)
 }

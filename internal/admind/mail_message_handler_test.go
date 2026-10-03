@@ -1,10 +1,11 @@
 package admind
 
 import (
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestMailHandlersUseBackendForActions(t *testing.T) {

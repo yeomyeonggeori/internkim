@@ -14,32 +14,21 @@ signed becomes unverifiable without it. Back up the company directory under
 
 ## Reaching it from outside
 
-Nothing outside the machine reaches this stack, and for most companies nothing
-has to. People sign in at `<zone>`, the same address for every company, and
-the messenger they see is answered by a relay that talks outbound only. No
-hostname to buy, no port to open, no certificate to renew.
+Nothing outside the machine reaches this stack. People sign in at `<zone>`, the
+same address for every company, and the messenger they see is answered by a
+relay that talks outbound only. No hostname to buy, no port to open, no
+certificate to renew.
 
-The exception is a company that wants to use a Buzz client app, because an app
-connects to the relay itself. Then the relay needs a name on the public internet,
-and that name belongs to the company: point a tunnel (Cloudflare Tunnel, a
-Tailscale funnel, an ordinary reverse proxy) at `127.0.0.1:3000` on the machine
-this stack runs on, and hand the domain to whatever configures the relay.
-
-| Where the relay runs | How the name gets in |
-|---|---|
-| a company host the package installed | `BUZZ_MEDIA_BASE_URL=https://<domain>/media`, and `CHATD_BUZZ_RELAY_URL=wss://<domain>` for the agent beside it |
-| a device this repository provisions | `internkim setup --only buzz-public-host,buzz-chatd --relay-domain <domain>` |
-
-Nothing works the domain out for you. A relay with no domain stays on loopback,
-which is what the paragraph above describes, and the provisioning step that would
-configure one does nothing.
-
-The device path does the rest of what a public name needs: an `/etc/hosts` alias
-so clients on the box resolve it to loopback, a self-signed certificate for it,
-stunnel terminating TLS on `127.0.0.1:443`, and the community row re-keyed to it,
-since the relay picks the community from the `Host` header. Setup remembers the
-domain, so later runs keep it, and a run with a different `--relay-domain` moves
-the community across.
+A Buzz app connects to the relay itself, at the company's messenger address
+`<slug>.<zone>`. On a company host the package installed, the connection
+gateway answers that address and carries each app's socket to this machine over
+the relay's own outbound connection, so the relay still listens on loopback
+alone. `internkim install` derives the address from the connection file and
+writes it as `RELAY_URL`, `BUZZ_MEDIA_BASE_URL` and `CHATD_BUZZ_RELAY_URL` in
+`host.env`; chatd reaches the relay at `CHATD_BUZZ_RELAY_DIAL_URL` (loopback) and
+presents the address as `Host`. Every install and upgrade moves a lone community
+to that address before the relay starts, since the relay picks the community
+from the `Host` header.
 
 Pick the name once if you can. Every attachment the relay has stored is addressed
 at the name it carried at the time, so a rename leaves those addresses pointing
@@ -73,10 +62,9 @@ in a request much later.
 ## Bringing a Mattermost workspace across
 
 `buzz-migrate`, which the package ships, imports a Mattermost team into the
-relay. admind's recovery script is the reference invocation: it names the
-Mattermost address and a file holding its session token, the relay's database,
-`buzz-admin`, the key seed, and the bridge that keeps what each imported message
-became. `--channels 광장` imports one channel while you check the result, and
+relay. It takes the Mattermost address and a file holding its session token, the
+relay's database, `buzz-admin`, the key seed, and the bridge that keeps what each
+imported message became. `--channels 광장` imports one channel while you check the result, and
 `--since <unix-millis>` picks up where a previous run stopped.
 
 **The seed is read from the file rather than passed in, and that is the point.**
@@ -101,8 +89,8 @@ silent. History signed under one seed belongs to keys a person signing in under
 another seed never derives, so they cannot see or own it.
 
 - Keep it in one place a reader can find: `INTERNKIM_BUZZ_KEY_SEED` in the
-  vault on a development machine, the service secrets directory on a device,
-  and a copy in the operations vault off the box. A second local copy that
+  vault on a development machine, the host's secrets directory on the host,
+  and a copy in the operations vault off the host. A second local copy that
   disagrees derives identities nobody can sign in as.
 - Never set it inline for one command. `tools/mirror-local` writes it to a seed
   file only when the variable is set, and an inline value is not persisted

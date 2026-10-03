@@ -57,12 +57,9 @@ GROUPS = [
         [
             "tools/verify",
             "tools/tests/test_verification_plan.py",
-            "tools/deploy-main",
-            "tools/tests/test_deploy_main.py",
         ],
         [
             ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verification_plan.py"],
-            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_deploy_main.py"],
         ],
     ),
     Group(
@@ -72,7 +69,7 @@ GROUPS = [
     ),
     Group(
         "data-room-template",
-        ["web/src/lib/data-room/*", "tools/generate-data-room-template", "docs/data-room/layout*", ".dependency/internkim-plugin*", "supabase/migrations/20261003000006*"],
+        ["web/src/lib/data-room/*", "tools/generate-data-room-template", "docs/data-room/layout*", ".dependency/internkim-plugin*", "supabase/migrations/20261004000006*"],
         [["python3", "tools/generate-data-room-template", "--check"]],
     ),
     Group(
@@ -310,7 +307,12 @@ GROUPS = [
     ),
     Group(
         "relay",
-        ["host/relay/*"],
+        [
+            "host/relay/*",
+            ".dependency/blueclaw*",
+            "workers/connection-gateway/src/host-protocol.ts",
+            "workers/connection-gateway/src/base64.ts",
+        ],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="host/relay",
     ),
@@ -331,6 +333,22 @@ GROUPS = [
         ["workers/connection-gateway/*"],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="workers/connection-gateway",
+    ),
+    Group(
+        "messenger-gateway",
+        [
+            "workers/connection-gateway/*",
+            "host/relay/gateway-socket.ts",
+            "host/relay/gateway-connector.ts",
+            "host/relay/fair-outbox.ts",
+            "host/relay/messenger-*.ts",
+            "host/relay/transfer-store.ts",
+            "web/tests/messenger-gateway/*",
+            "supabase/migrations/*messenger_address*",
+        ],
+        [BUN_INSTALL, holding_the_local_plane(["bun", "run", "test:messenger-gateway"])],
+        working_directory="web",
+        lane="web",
     ),
     Group(
         "docs-site",
@@ -386,6 +404,11 @@ GROUPS = [
         # tools/test-native-install --stand-in
         # tools/test-native-install-family --family <family>
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"]],
+    ),
+    Group(
+        "ship-host",
+        ["tools/ship-host", "tools/tests/test_ship_host.py"],
+        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_ship_host.py"]],
     ),
     Group(
         "model-evaluation-harness",

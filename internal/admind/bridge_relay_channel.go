@@ -45,7 +45,7 @@ func (service *Service) ensureBridgeRelayChannel(ctx context.Context, buzzChanne
 	// which is what lets it seat the members below; the key that owns the
 	// relay stays out of the room entirely.
 	agentSecret := buzzidentity.Secret(service.buzzKeySeed(), buzzidentity.AgentSubject)
-	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), agentSecret)
+	publisher, errorValue := relaypublish.Connect(ctx, service.buzzRelayEffectiveURL(), service.Configuration.BuzzRelayURL, agentSecret)
 	if errorValue != nil {
 		return errorValue
 	}

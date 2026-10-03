@@ -44,7 +44,7 @@
 	$effect(() => {
 		if (!open) return;
 		chosenIDs = [];
-		fetchChannelCandidates()
+		fetchChannelCandidates(text.title)
 			.then((found) => (candidates = found))
 			.catch(() => (candidates = []));
 	});

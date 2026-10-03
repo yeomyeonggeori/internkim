@@ -796,7 +796,7 @@ func (pool *publisherPool) as(ctx context.Context, actorSecretHex string) (*rela
 	if known, isOpen := pool.open[actorSecretHex]; isOpen {
 		return known, nil
 	}
-	publisher, errorValue := relaypublish.Connect(ctx, pool.relayURL, actorSecretHex)
+	publisher, errorValue := relaypublish.Connect(ctx, pool.relayURL, "", actorSecretHex)
 	if errorValue != nil {
 		return nil, errorValue
 	}

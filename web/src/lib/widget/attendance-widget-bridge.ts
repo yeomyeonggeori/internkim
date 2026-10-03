@@ -17,10 +17,20 @@ type AttendanceWidgetPlugin = {
 	forget(): Promise<void>;
 };
 
-type AttendanceWidgetShell = { widget: AttendanceWidgetPlugin };
+export type WidgetPlatform = 'ios' | 'android';
+
+const widgetPlatforms: readonly WidgetPlatform[] = ['ios', 'android'];
+
+type AttendanceWidgetShell = { platform: WidgetPlatform; widget: AttendanceWidgetPlugin };
 
 export async function attendanceWidgetShell(): Promise<AttendanceWidgetShell | null> {
-	if (!isInsideNativeShell() || shellPlatform() !== 'ios') return null;
+	if (!isInsideNativeShell()) return null;
+	const platform = widgetPlatformOf(shellPlatform());
+	if (!platform) return null;
 	const { registerPlugin } = await import('@capacitor/core');
-	return { widget: registerPlugin<AttendanceWidgetPlugin>('AttendanceWidget') };
+	return { platform, widget: registerPlugin<AttendanceWidgetPlugin>('AttendanceWidget') };
+}
+
+function widgetPlatformOf(shell: string): WidgetPlatform | null {
+	return widgetPlatforms.find((platform) => platform === shell) ?? null;
 }

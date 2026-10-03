@@ -158,6 +158,7 @@ func (service *Service) alwaysRetainedRosterEmails() []string {
 func reconcileRosterPeople(policyDocument map[string]any, records []adminUserMutation, retainedEmails []string, language string) {
 	adoptRosterRecords(policyDocument, records, language)
 	dropRosterPeopleTheDirectoryNoLongerKnows(policyDocument, rosterDirectoryEmails(records), rosterEmailSet(retainedEmails))
+	declareTheCirclesPeopleHold(policyDocument)
 }
 
 func adoptRosterRecords(policyDocument map[string]any, records []adminUserMutation, language string) {

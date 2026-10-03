@@ -95,6 +95,7 @@ type AdmindPlaneArguments = {
 	buzzRelayKeyPath: string;
 	buzzAdminCommandPath: string;
 	buzzRelayURL: string;
+	buzzRelayPublicURL: string;
 	buzzAccountLinksPath: string;
 	centralPlaneAppURL: string;
 	centralPlaneAgentKeyPath: string;
@@ -112,7 +113,6 @@ export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlane
 		{
 			'--socket': argumentsForPlane.socketPath,
 			'--openrouter-key': argumentsForPlane.openRouterKeyPath,
-			'--local-inference-mode': 'remote',
 			'--blueclaw-url': argumentsForPlane.blueclawURL,
 			'--blueclaw-workspace': argumentsForPlane.blueclawWorkspacePath,
 			'--admind-url': argumentsForPlane.admindURL,
@@ -155,13 +155,13 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-buzz-relay-key-path': argumentsForPlane.buzzRelayKeyPath,
 			'-buzz-admin-command': argumentsForPlane.buzzAdminCommandPath,
 			'-buzz-relay-url': argumentsForPlane.buzzRelayURL,
+			'-buzz-relay-public-url': argumentsForPlane.buzzRelayPublicURL,
 			'-buzz-account-links': argumentsForPlane.buzzAccountLinksPath,
 			'-central-plane-app-url': argumentsForPlane.centralPlaneAppURL,
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
 			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
 			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
-			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey,
-			'-install-users-sync': 'false'
+			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
 		},
 		{
 			'-state-dir': argumentsForPlane.stateDirectory,
@@ -170,9 +170,22 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 	);
 }
 
+function messengerAddressOf(slug: string, appURL: string): string {
+	const described = Bun.spawnSync([
+		join(environmentValue('COMPANY_PLANE_BIN'), 'describe-company-host'),
+		'messenger-url',
+		slug,
+		appURL
+	]);
+	if (described.exitCode !== 0) {
+		throw new Error(`describe-company-host named no messenger for ${appURL}: ${described.stderr.toString()}`);
+	}
+	return described.stdout.toString().trim();
+}
+
 function environmentValue(name: string): string {
 	const value = process.env[name];
-	if (!value) throw new Error(`${name} is not set; run this through tools/company-plane`);
+	if (!value) throw new Error(`${name} is not set; run this through ./internkim dev plane`);
 	return value;
 }
 
@@ -435,7 +448,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		// real box: admind reads the company's roster and reconciles it on.
 		writeFileSync(
 			policyPath,
-			'{"people":[],"circles":[],"circleSync":{},"resourceAccess":[],"channels":[],"retention":{}}\n'
+			'{"people":[],"circles":[],"resourceAccess":[],"channels":[],"retention":{}}\n'
 		);
 
 		const render = Bun.spawnSync(
@@ -527,6 +540,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						buzzRelayKeyPath: join(runDirectory, 'secrets', 'buzz-relay-key'),
 						buzzAdminCommandPath: join(binaryDirectory, 'buzz-admin'),
 						buzzRelayURL: 'ws://127.0.0.1:1',
+						buzzRelayPublicURL: messengerAddressOf(`plane-${runIdentifier}`, environmentValue('INTERNKIM_APP_URL')),
 						buzzAccountLinksPath: join(runDirectory, 'state', 'buzz-account-links.json'),
 						centralPlaneAppURL: environmentValue('INTERNKIM_APP_URL'),
 						centralPlaneAgentKeyPath: agentKeyPath,

@@ -199,9 +199,6 @@ func claimedAdminPerson(person map[string]any, email string) map[string]any {
 	person["displayName"] = "Intern Kim Admin"
 	person["emails"] = []string{email}
 	person["circles"] = []string{"member", "admin"}
-	person["securityLevelName"] = "admin"
-	person["securityLevelRank"] = 100
-	person["grantedClasses"] = []string{"internal", "executive"}
 	person["isAdmin"] = true
 	return person
 }
@@ -224,6 +221,9 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 }
 
 func policyStringList(value any) []string {
+	if written, isWritten := value.([]string); isWritten {
+		return append([]string{}, written...)
+	}
 	values, _ := value.([]any)
 	result := []string{}
 	for _, item := range values {

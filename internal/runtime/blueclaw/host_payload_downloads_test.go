@@ -1,8 +1,6 @@
 package blueclaw_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -120,20 +118,4 @@ func machineFor(t *testing.T, debianArchitecture string) string {
 	}
 	t.Fatalf("no machine name for %s", debianArchitecture)
 	return ""
-}
-
-// Every place that unpacks a vendored tarball has to ask for the path the declaration
-// names. versity nests its binary under a directory named for the release, so the
-// obvious `tar -xzf … versitygw` exits 2 with "Not found in archive" and installs
-// nothing.
-func TestTheDeviceExtractsTheMediaStoreFromThePathTheDeclarationNames(t *testing.T) {
-	step, readError := os.ReadFile(filepath.Join(repositoryRootFromHere,
-		"internal", "provisioning", "steps", "step_buzz_media.go"))
-	if readError != nil {
-		t.Fatal(readError)
-	}
-	if !strings.Contains(string(step), "release.PathInsideArchive") {
-		t.Fatal("step_buzz_media.go unpacks the media tarball without asking the declaration where the " +
-			"program sits, so a release that nests it differently installs nothing and reports success")
-	}
 }

@@ -1,53 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { fetchMemoryFacts, forgetMemoryFact, normalizeMemoryFactsResponse } from '../../../src/routes/memory/memory-facts-api';
+import { fetchMemoryFacts, forgetMemoryFact } from '../../../src/routes/memory/memory-facts-api';
 
-describe('memory facts api normalizer', () => {
-	test('keeps well-formed facts and drops the rest', () => {
-		const response = normalizeMemoryFactsResponse({
-			personID: 'person-1',
-			embeddingModel: 'perplexity/pplx-embed-v1-4b',
-			profile: { identityLines: ['이샘플 prefers bullets', 7], currentLines: [], builtAt: '2026-09-02T10:00:00Z' },
-			facts: [
-				{
-					factID: 'fact-1',
-					episodeID: 'episode-1',
-					ownerPersonID: 'person-1',
-					circleIDs: ['member', 7],
-					kind: 'preference',
-					content: '이샘플 prefers bullets',
-					validFrom: '2026-09-02T10:00:00Z',
-					validUntil: '0001-01-01T00:00:00Z',
-					reinforcementCount: 2,
-					lastRecalledAt: '0001-01-01T00:00:00Z',
-					triggerPhrases: ['  회의록 정리  ', '', 7, '발표 자료 준비']
-				},
-				{ factID: 'fact-2', content: 'missing kind and scope', validFrom: '2026-09-02T10:00:00Z' },
-				{ factID: 'fact-3', kind: 'rumour', ownerPersonID: 'person-1', content: 'unknown kind', validFrom: '2026-09-02T10:00:00Z' },
-				'not a fact'
-			]
-		});
-
-		expect(response.personID).toBe('person-1');
-		expect(response.embeddingModel).toBe('perplexity/pplx-embed-v1-4b');
-		expect(response.profile.identityLines).toEqual(['이샘플 prefers bullets']);
-		expect(response.profile.builtAt).toBe('2026-09-02T10:00:00Z');
-		expect(response.facts.length).toBe(1);
-		expect(response.facts[0]).toEqual({
-			factID: 'fact-1',
-			episodeID: 'episode-1',
-			ownerPersonID: 'person-1',
-			circleIDs: ['member'],
-			kind: 'preference',
-			content: '이샘플 prefers bullets',
-			triggerPhrases: ['회의록 정리', '발표 자료 준비'],
-			validFrom: '2026-09-02T10:00:00Z',
-			reinforcementCount: 2
-		});
-	});
-
-	test('tolerates an empty document', () => {
-		const response = normalizeMemoryFactsResponse(null);
-		expect(response).toEqual({ personID: '', profile: { identityLines: [], currentLines: [] }, facts: [] });
+describe('the memory facts api', () => {
+	test('refuses an answer that is not the shape blueclaw gives', async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = createFetchStub(async () => Response.json({ personID: 'person-1', facts: [{ factID: 'fact-1', kind: 'preference' }] }));
+		try {
+			expect(await rejectedErrorMessage(fetchMemoryFacts())).not.toBe('');
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	test('does not expose fetch failure response text', async () => {

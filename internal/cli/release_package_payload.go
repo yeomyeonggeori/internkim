@@ -224,7 +224,7 @@ func (program packagedGoProgram) InstalledPath() string {
 	if program.Destination != "" {
 		return program.Destination
 	}
-	return blueclaw.CompanyPackageBinaryPath(program.Name)
+	return packageLayout.BinaryPath(program.Name)
 }
 
 func packagedGoPrograms() []packagedGoProgram {
@@ -247,7 +247,7 @@ func packagedGoPrograms() []packagedGoProgram {
 			ModuleRoot:  blueclaw.BlueclawSubmodulePath,
 			Package:     "./cmd/blueclaw-posix-helper",
 			Mode:        os.ModeSetuid | 0o755,
-			Destination: blueclaw.CompanyHostPOSIXHelperPath,
+			Destination: packageLayout.POSIXHelperPath(),
 		},
 	}
 }
@@ -279,7 +279,10 @@ func packagedBunPrograms() []packagedBunProgram {
 }
 
 func buildPackagedPrograms(repositoryRootPath string, target packageTarget, version string, stagingPath string, output io.Writer) ([]packagedFile, error) {
-	packaged := []packagedFile{}
+	packaged, errorValue := messengerPrograms(repositoryRootPath, target)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	for _, program := range packagedGoPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
 		if errorValue := crossCompilePackagedProgram(repositoryRootPath, program, target, version, builtPath); errorValue != nil {
@@ -300,15 +303,10 @@ func buildPackagedPrograms(repositoryRootPath string, target packageTarget, vers
 		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.Architecture)
 		packaged = append(packaged, packagedFile{
 			SourcePath:  builtPath,
-			Destination: blueclaw.CompanyPackageBinaryPath(program.Name),
+			Destination: packageLayout.BinaryPath(program.Name),
 			Mode:        0o755,
 		})
 	}
-	messenger, errorValue := messengerPrograms(repositoryRootPath, target)
-	if errorValue != nil {
-		return nil, errorValue
-	}
-	packaged = append(packaged, messenger...)
 	vendored, errorValue := vendoredPrograms(repositoryRootPath, target, stagingPath, output)
 	if errorValue != nil {
 		return nil, errorValue
@@ -316,7 +314,7 @@ func buildPackagedPrograms(repositoryRootPath string, target packageTarget, vers
 	packaged = append(packaged, vendored...)
 	packaged = append(packaged, packagedFile{
 		SourcePath:  filepath.Join(repositoryRootPath, "tools", blueclaw.RenderCompanyRuntimeName),
-		Destination: blueclaw.CompanyPackageBinaryPath(blueclaw.RenderCompanyRuntimeName),
+		Destination: packageLayout.BinaryPath(blueclaw.RenderCompanyRuntimeName),
 		Mode:        0o755,
 	})
 	if errorValue := requirePackagedProgramsFit(packaged, target); errorValue != nil {
@@ -361,18 +359,23 @@ func compilePackagedBunProgram(repositoryRootPath string, program packagedBunPro
 // The messenger is built by tools/prepare-buzz-relay from a pinned upstream revision
 // and lands in a directory per architecture, which blueclaw.BuzzRelayArtifactPathFor
 // names. The package carries those files; it does not build Rust. A package for an
-// architecture whose directory is missing or holds another one's binaries is refused
-// rather than shipped without a messenger.
+// architecture whose directory is missing, holds another one's binaries, or holds
+// binaries built at a revision this tree no longer builds is refused rather than
+// shipped without the messenger this tree describes.
 func messengerPrograms(repositoryRootPath string, target packageTarget) ([]packagedFile, error) {
+	artifactDirectory := blueclaw.BuzzRelayArtifactPathFor(target.Architecture)
+	if errorValue := requireMessengerRevision(repositoryRootPath, artifactDirectory, "linux-"+target.Architecture); errorValue != nil {
+		return nil, errorValue
+	}
 	packaged := []packagedFile{}
-	for _, name := range []string{blueclaw.BuzzRelayName, blueclaw.BuzzAdminName} {
-		sourcePath := filepath.Join(repositoryRootPath, blueclaw.BuzzRelayArtifactPathFor(target.Architecture), name)
+	for _, name := range messengerProgramNames {
+		sourcePath := filepath.Join(repositoryRootPath, artifactDirectory, name)
 		if errorValue := requireMessengerBinary(sourcePath, name, target); errorValue != nil {
 			return nil, errorValue
 		}
 		packaged = append(packaged, packagedFile{
 			SourcePath:  sourcePath,
-			Destination: blueclaw.CompanyPackageBinaryPath(name),
+			Destination: packageLayout.BinaryPath(name),
 			Mode:        0o755,
 		})
 	}
@@ -392,7 +395,7 @@ func vendoredPrograms(repositoryRootPath string, target packageTarget, stagingPa
 		}
 		packaged = append(packaged, packagedFile{
 			SourcePath:  programPath,
-			Destination: blueclaw.CompanyPackageBinaryPath(download.ProgramName),
+			Destination: packageLayout.BinaryPath(download.ProgramName),
 			Mode:        0o755,
 		})
 	}
@@ -562,7 +565,7 @@ func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
 	}
 	packaged = append(packaged, packagedFile{
 		SourcePath:  preparePath,
-		Destination: blueclaw.CompanyPackagePreparePath,
+		Destination: packageLayout.PrepareScriptPath(),
 		Mode:        0o755,
 	})
 	dataServicePath := filepath.Join(stagingPath, blueclaw.CompanyHostDataServiceProgramName)
@@ -571,7 +574,7 @@ func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
 	}
 	packaged = append(packaged, packagedFile{
 		SourcePath:  dataServicePath,
-		Destination: blueclaw.LinuxCompanyHostLayout().DataServicePath(),
+		Destination: packageLayout.DataServicePath(),
 		Mode:        blueclaw.CompanyHostDataServiceMode,
 	})
 	for _, declaration := range []struct {
@@ -607,26 +610,20 @@ func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
 	carried := []packagedFile{
 		{
 			SourcePath:      filepath.Join(repositoryRootPath, ".dependency/internkim-plugin/skills"),
-			Destination:     blueclaw.CompanyPackageSkillsPath,
+			Destination:     packageLayout.SkillsPath(),
 			Mode:            0o755,
 			IsDirectoryTree: true,
 		},
 		{
 			SourcePath:      filepath.Join(repositoryRootPath, blueclaw.BlueclawSubmodulePath, "migrations"),
-			Destination:     blueclaw.CompanyPackageMigrationPath,
+			Destination:     packageLayout.MigrationPath,
 			Mode:            0o755,
 			IsDirectoryTree: true,
 		},
-		{
-			SourcePath:  filepath.Join(repositoryRootPath, "host/runtime.template.json"),
-			Destination: blueclaw.CompanyPackageTemplatePath,
-			Mode:        0o644,
-		},
-		{
-			SourcePath:  filepath.Join(repositoryRootPath, documentConversionLockPath),
-			Destination: blueclaw.LinuxCompanyHostLayout().DocumentRequirementsPath(),
-			Mode:        0o644,
-		},
+	}
+	for _, file := range carriedLibraryFiles(packageLayout) {
+		file.SourcePath = filepath.Join(repositoryRootPath, file.SourcePath)
+		carried = append(carried, file)
 	}
 	for _, file := range carried {
 		if _, errorValue := os.Stat(file.SourcePath); errorValue != nil {
@@ -634,6 +631,16 @@ func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
 		}
 	}
 	return carried, nil
+}
+
+const agentProfilePictureSourcePath = "assets/internkim.square.png"
+
+func carriedLibraryFiles(layout blueclaw.CompanyHostLayout) []packagedFile {
+	return []packagedFile{
+		{SourcePath: "host/runtime.template.json", Destination: layout.RuntimeTemplatePath(), Mode: 0o644},
+		{SourcePath: documentConversionLockPath, Destination: layout.DocumentRequirementsPath(), Mode: 0o644},
+		{SourcePath: agentProfilePictureSourcePath, Destination: layout.AgentProfilePicturePath(), Mode: 0o644},
+	}
 }
 
 // shippedProgramNames is every program the package puts in /usr/bin, derived from

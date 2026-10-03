@@ -25,8 +25,6 @@ func newPublicToolWorkspaceTestService(t *testing.T, workspaceFiles map[string]s
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
-		FleetIDPath:           writeTestFile(t, "device-1"),
-		FleetSecretPath:       writeTestFile(t, "secret-1"),
 		BlueclawBaseURL:       "http://blueclaw.local",
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)

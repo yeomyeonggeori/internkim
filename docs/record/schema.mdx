@@ -164,14 +164,13 @@ the service role.
 | `attendance` | the company | the member, and administrators |
 | `leave` | the company | requested by the member, decided by an administrator |
 | `push_device` | the owner | the owner |
-| `circle`, `circle_member` | the company | its administrators |
 | `empty_box` | the API only, listed to an administrator on the network the box announced from | the API only; claimed with the code the box shows |
 | `box_pairing_refusal` | the API only | the API only |
 
-A circle is the unit the asset bucket grants on: a member reads
-`<company>/circle/<circleID>/…` when `circle_member` puts them there. A team
-grants its own `<company>/team/<teamID>/…`. A member sits in one team and any
-number of circles, and a path whose second segment neither defines is denied.
+A team grants its own `<company>/team/<teamID>/…`, a member sits in one team,
+and a path whose second segment no scope defines is denied. A member's circles
+are their rows in `circle_member`, described in
+[Access and sharing](/docs/data-room/access).
 
 The agent writes as the member it acts for, with that member's token, so it
 needs no policy of its own.

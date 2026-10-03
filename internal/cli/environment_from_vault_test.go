@@ -238,3 +238,20 @@ func checkoutWithAFakeVault(t *testing.T, doctorBody string) string {
 	t.Setenv("PATH", binaryDirectory)
 	return repositoryRootPath
 }
+
+func TestHostKeysLiveInTheHostProfileAndNeverInProduction(t *testing.T) {
+	manifest, errorValue := os.ReadFile(filepath.Join("..", "..", vaultManifestName))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	hostKeys := vaultManifestNames(string(manifest), "host")
+	if len(hostKeys) == 0 {
+		t.Fatal("the manifest declares no @host profile, so ssh to the company host has nowhere to read from")
+	}
+	productionKeys := vaultManifestNames(string(manifest), "production")
+	for _, key := range hostKeys {
+		if slices.Contains(productionKeys, key) {
+			t.Fatalf("%s is a host key and is also in @production, which is handed to employees", key)
+		}
+	}
+}

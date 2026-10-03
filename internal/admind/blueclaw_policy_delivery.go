@@ -23,8 +23,8 @@ func (service *Service) deliverBlueclawPolicy(ctx context.Context, policyDocumen
 	return service.blueclawJSONRequest(ctx, http.MethodPost, "/admin/api/policy/reload", nil, nil)
 }
 
-// The guest reads this file over a share while the host rewrites it, so
-// truncating it leaves a window where the roster is half a document.
+// The agent reads this file while admind rewrites it, so truncating it
+// leaves a window where the roster is half a document.
 func replaceWholeFile(path string, document []byte) error {
 	replacement, errorValue := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
 	if errorValue != nil {

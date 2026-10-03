@@ -1,6 +1,7 @@
 package blueclaw
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -107,7 +108,7 @@ func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesValues(t *testing.T) 
 	if packaged == "" {
 		t.Fatal("the package installs no relay unit, and the relay is what keeps the screen alive when the agent is down")
 	}
-	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, CompanyPackageBinaryPath(RelayName))
+	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, LinuxCompanyHostLayout().BinaryPath(RelayName))
 	expected = strings.ReplaceAll(expected,
 		RelayStateDirectoryPath(RelayStateDirectoryName), RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName))
 	expected = strings.ReplaceAll(expected,
@@ -166,8 +167,8 @@ func TestThePackageCarriesTheMediaStoreAndTheRelayWaitsForIt(t *testing.T) {
 	if media == "" {
 		t.Fatalf("the package installs no %s unit, so the messenger has nowhere to put attachments", BuzzMediaServiceName)
 	}
-	if !strings.Contains(media, CompanyPackageBinaryPath(BuzzMediaProgramName)) {
-		t.Fatalf("the %s unit does not start %s", BuzzMediaServiceName, CompanyPackageBinaryPath(BuzzMediaProgramName))
+	if !strings.Contains(media, LinuxCompanyHostLayout().BinaryPath(BuzzMediaProgramName)) {
+		t.Fatalf("the %s unit does not start %s", BuzzMediaServiceName, LinuxCompanyHostLayout().BinaryPath(BuzzMediaProgramName))
 	}
 	if strings.Contains(media, "--versioning-dir") {
 		t.Fatal("the packaged media unit enables versioning; read TestBuzzMediaUnitDoesNotEnableVersioning before adding it")
@@ -228,6 +229,33 @@ func TestThePrepareServiceCreatesTheStateRootWithTheModeThePackageGivesIt(t *tes
 	if !strings.Contains(CompanyHostPrepareScript(), expected) {
 		t.Fatalf("the prepare service does not create the state root as %q, so a company changes its mode", expected)
 	}
+}
+
+func TestThePrepareServicesRosterNamesNoPeopleUntilAdmindHandsThemOver(t *testing.T) {
+	placeholder := prepareServiceRosterPlaceholder(t)
+	var document map[string]any
+	if errorValue := json.Unmarshal([]byte(placeholder), &document); errorValue != nil {
+		t.Fatalf("the roster the prepare service writes is not JSON: %v\n%s", errorValue, placeholder)
+	}
+	if _, namesPeople := document["people"]; namesPeople {
+		t.Fatalf("the roster written before admind hands one over lists people, so blueclaw retires everyone it knows:\n%s", placeholder)
+	}
+}
+
+func prepareServiceRosterPlaceholder(t *testing.T) string {
+	t.Helper()
+	for _, line := range strings.Split(CompanyHostPrepareScript(), "\n") {
+		if !strings.HasSuffix(line, "> "+LinuxCompanyHostLayout().PolicyDocumentPath()) {
+			continue
+		}
+		_, afterPrintf, hasPrintf := strings.Cut(line, "printf '")
+		document, _, hasEnd := strings.Cut(afterPrintf, "\\n'")
+		if hasPrintf && hasEnd {
+			return document
+		}
+	}
+	t.Fatal("the prepare service writes no roster when the operator places none")
+	return ""
 }
 
 func settingOf(unitContents string, name string) string {

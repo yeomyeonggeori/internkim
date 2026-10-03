@@ -15,30 +15,23 @@ const companyMetricCurrencies = [
   'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR',
 ] as const;
 
-const dataRoomClearanceSchema = z.int().min(0).max(3);
 
-const dataRoomDomainSchema = z.string().describe("Legacy filing domain, preserved for documents awaiting semantic reclassification. New documents use categoryCode.");
 
 const dataRoomSha256Schema = z.string().describe("Lowercase hex SHA-256 of the original file. Keys the object in the asset bucket and every file derived from it.");
 
 const dataRoomDocumentFields = {
-  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient. New filings use categoryCode; domain and clearance are legacy migration fields.").optional(),
-  clearance: dataRoomClearanceSchema.describe("Data room clearance the document is readable at: 0 public, 1 every member, 2 management, 3 representative and board. A member registers at their own clearance or below; the record refuses higher.").optional(),
+  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("Exact leaf category code from dataroom_get, such as FS, FP, or a parent with no children. Parents with children cannot hold new filings. Choose by business function; use X when context is insufficient.").optional(),
   date: z.string().describe("The date the document speaks from, in YYYY-MM-DD format.").optional(),
-  domain: dataRoomDomainSchema.optional(),
   period: z.string().describe("The period the document covers when there is one, e.g. '2025' or '2026-Q1'.").optional(),
   sha256: dataRoomSha256Schema.optional(),
   status: z.string().describe("'current', 'superseded' or 'draft'.").optional(),
-  storagePath: z.string().describe("Where the original sits in the asset bucket, as company_document_upload answered it.").optional(),
-  supersedesHint: z.string().describe("The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category, or the same domain for legacy documents. Nothing is overwritten; the older document stays and this one names it.").optional(),
+  supersedesHint: z.string().describe("The document this one replaces: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. It must be filed in the same category. Nothing is overwritten; the older document stays and this one names it.").optional(),
   tags: z.array(z.string()).describe("Short lowercase tags, e.g. ['audit', 'k-ifrs'].").optional(),
 };
 
 const companyDocumentListInputSchema = z.strictObject({
   categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe('Exact parent or intermediate category code; a parent includes its children.').optional(),
-  clearance: dataRoomClearanceSchema.describe("Data room clearance to filter by, 0 to 3; only documents filed at exactly that clearance.").optional(),
   counterpart: z.string().describe("Counterpart name to filter by, e.g. 'ABC Trading'.").optional(),
-  domain: dataRoomDomainSchema.optional(),
   query: z.string().describe("Keyword filter matched against title, summary, and counterpart.").optional(),
   type: z.string().describe("Document type slug to filter by, e.g. 'quote'. Leave empty for all types.").optional(),
 });
@@ -73,18 +66,16 @@ const companyDocumentUpdateInputSchema = z.strictObject({
 const companyDocumentUpdateInputIntentSchema = companyDocumentUpdateInputSchema.omit({ documentHint: true }).partial();
 
 const companyDocumentUploadInputSchema = z.strictObject({
-  categoryCode: z.string().regex(/^[A-Z]{1,2}$/).describe("The exact leaf category code or X, including a parent with no children. Files and their document must use the same category. Existing recipients of this category can read new registered files.").optional(),
-  clearance: dataRoomClearanceSchema.describe("Legacy file clearance from 0 to 3. Omit for category-based filing; do not combine with categoryCode.").optional(),
-  fileName: z.string().describe("Name of a file derived from the original, e.g. '01-summary.md' or 'thumbnail.png', stored beside it under the same hash. Omit for the original itself.").optional(),
-  sha256: dataRoomSha256Schema,
+  documentHint: z.string().describe("The registered document the file belongs to: its id from company_document_register or a prior list or search result, its document number, or its exact CURRENT title."),
+  originalFileName: z.string().describe("The original file's own name with its extension, e.g. '2025 audit report.pdf'. Give this or fileName.").optional(),
+  fileName: z.string().describe("Name of a file derived from the original, e.g. 'content.txt' or 'thumbnail.png'. Give this or originalFileName.").optional(),
 });
 
 const companyDocumentUploadInputIntentSchema = companyDocumentUploadInputSchema.partial();
 
 const companyDocumentDownloadInputSchema = z.strictObject({
-  documentHint: z.string().describe("The document whose original to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title. Give this or storagePath.").optional(),
-  fileName: z.string().describe("Name of a derived file stored beside the original, e.g. '01-summary.md'. Omit for the original itself.").optional(),
-  storagePath: z.string().describe("The object's path in the asset bucket, as a document result's storagePath shows it. Give this or documentHint.").optional(),
+  documentHint: z.string().describe("The document whose file to fetch: its id from a prior company_document_list or search result, its document number, or its exact CURRENT title."),
+  fileName: z.string().describe("Name of a file derived from the original, e.g. 'content.txt'. Omit for the original itself.").optional(),
 });
 
 const companyInfoGetInputSchema = z.strictObject({
@@ -261,7 +252,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_list",
-    description: "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility; legacy documents retain clearance access. Use to answer 'what quotes did we send to X'.",
+    description: "List registered company documents newest first, with their numbers, counterparts, file paths, summaries, and where each sits in the data room. Filter by category, type, counterpart, or keyword. Category grants decide visibility. Use to answer 'what quotes did we send to X'.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentListInputSchema,
@@ -274,7 +265,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_register",
-    description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date, hash and the storagePath company_document_upload answered; one that replaces an older document names it with supersedesHint instead of editing it.",
+    description: "Register a company document in the document ledger and, for kind=issued, receive the official document number to print in the document plus the storage directory to save the final file in. Call BEFORE rendering an official document so the number appears in it. Always include a 2-3 sentence summary of the document's key terms (parties, amounts, dates) so later questions can be answered without re-reading the file. A document filed in the data room names its categoryCode, date and hash, and its files are uploaded with company_document_upload once it is registered; one that replaces an older document names it with supersedesHint instead of editing it.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentRegisterInputSchema,
@@ -302,7 +293,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_update",
-    description: "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, storage path, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access; legacy clearance rules still apply.",
+    description: "Update a registered company document's file path, title, counterpart, summary, or where it sits in the data room: its categoryCode, date, period, status, tags, hash, and the document it supersedes. Name the document with documentHint from a prior list or search result. Use when a file was moved or renamed so the ledger keeps tracking it, or when an administrator reclassifies it. Category changes require administrator access and move the document's files to the new category's folder.",
     version: "2",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentUpdateInputSchema,
@@ -316,7 +307,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_upload",
-    description: "Ask for a place in the company data room to put one file. Answers the storagePath the file will sit at, keyed by its categoryCode and SHA-256, and a signed URL to PUT the bytes to. Category permissions decide whether the requester may write there; omitted categories default to X. Upload the original first, then each derived file with its fileName under the same hash, then register or update the document with the storagePath. The URL is good for two hours.",
+    description: "Ask for a place in the company data room to put one file of a registered document. Answers the storagePath, which is the document's category folder and <name>.<documentID>.<extension>, and a signed URL to PUT the bytes to. Upload the original first with originalFileName, then each derived file with its fileName, which sits beside it as <name>.<documentID>.<fileName>. Whoever may change the document may upload its files. The URL is good for two hours.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentUploadInputSchema,
@@ -330,7 +321,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_document_download",
-    description: "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint, or give a storagePath from a document result, and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Legacy documents retain clearance rules. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
+    description: "Fetch a company document's original, or one of the files derived from it, out of the data room. Name the document with documentHint and add fileName for a derived file. Answers a signed URL good for ten minutes; category permissions and the share's download setting decide access. Read the sidecar and the summary first and fetch the original only when they cannot answer; an original goes to the requester themselves and passing it on is their own act.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyDocumentDownloadInputSchema,

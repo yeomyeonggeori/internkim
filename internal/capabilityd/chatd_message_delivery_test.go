@@ -342,21 +342,46 @@ func TestChatdMessageUpdateAddsAFileWithoutChangingTheText(testContext *testing.
 	}
 }
 
-func TestChatdMessageSendRefusesDirectMessagesLoudly(testContext *testing.T) {
+func TestChatdMessageSendRefusesARequesterDirectMessageFromAnotherConversation(testContext *testing.T) {
 	service := Service{Configuration: Configuration{ChatdEndpoint: "http://127.0.0.1:18090", ChatdPlatform: "buzz"}}
 	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
 		Input:    json.RawMessage(`{"targetType":"directMessage","message":"안내"}`),
-		Context:  capabilities.ToolInvokeContext{Platform: "buzz"},
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ConversationType: "channel", ChannelID: "channel-1", ReplyTargetID: "thread-1"},
 	})
 	if errorValue != nil {
 		testContext.Fatalf("send failed: %v", errorValue)
 	}
 	if response.Outcome != capabilities.ToolOutcomeFailed {
-		testContext.Fatal("direct messages are not routed yet and must refuse loudly")
+		testContext.Fatal("the requester's direct conversation is not routed from a channel and must refuse loudly")
 	}
-	if !strings.Contains(response.Content, "currentChannel") {
+	if !strings.Contains(response.Content, "currentThread") {
 		testContext.Fatalf("refusal should point at a working target, answered %q", response.Content)
+	}
+}
+
+func TestChatdMessageSendPostsARequesterDirectMessageIntoTheDirectConversationBeingAnswered(testContext *testing.T) {
+	var receivedRequest chatdMessagePostRequest
+	chatdServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		json.NewDecoder(request.Body).Decode(&receivedRequest)
+		json.NewEncoder(writer).Encode(chatdMessagePostResponse{MessageID: "event-8"})
+	}))
+	defer chatdServer.Close()
+
+	service := Service{Configuration: Configuration{ChatdEndpoint: chatdServer.URL, ChatdPlatform: "buzz"}}
+	response, errorValue := service.invokePlatformMessageSend(context.Background(), capabilities.ToolInvokeRequest{
+		ToolName: "message_send",
+		Input:    json.RawMessage(`{"targetType":"directMessage","message":"안내"}`),
+		Context:  capabilities.ToolInvokeContext{Platform: "buzz", ConversationType: "direct", ChannelID: "channel-2", ReplyTargetID: "thread-2"},
+	})
+	if errorValue != nil {
+		testContext.Fatalf("send failed: %v", errorValue)
+	}
+	if response.Outcome == capabilities.ToolOutcomeFailed {
+		testContext.Fatalf("send answered failure: %s", response.Content)
+	}
+	if receivedRequest.ThreadID != "thread-2" || receivedRequest.Message != "안내" {
+		testContext.Fatalf("chatd received %+v, expected a post into the conversation being answered", receivedRequest)
 	}
 }
 

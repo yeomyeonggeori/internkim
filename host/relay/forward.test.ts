@@ -50,6 +50,7 @@ function dispatchThatKnows(externalIDs: Record<string, string>) {
 				connected.push({ memberID, account });
 			},
 			serveAsset: async (capability: string) => ({ served: capability }),
+			serveMessenger: async (capability: string) => ({ status: 200, body: { served: capability } }),
 			askMaild: async (operation: string, body: Record<string, unknown>) => {
 				asked.push({ capability: `mail.${operation}`, body });
 				return { status: 200, body: { mailboxes: [] } };

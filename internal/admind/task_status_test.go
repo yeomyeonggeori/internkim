@@ -29,4 +29,3 @@ func TestCleanTaskStatusTranslatesOnlyStoredValues(t *testing.T) {
 		t.Error("a natural-language variant is the model's to interpret, never this map's")
 	}
 }
-

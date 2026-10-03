@@ -1,8 +1,13 @@
 import { parseRoutedCall, serveRoutedCall, type GatewayAnswer } from './gateway-connector';
 import type { Dispatch } from './forward';
+import { FairOutbox } from './fair-outbox';
+import { MessengerStreams } from './messenger-streams';
+import { isStreamKind, parseStreamMessage, pingFrame } from '../../workers/connection-gateway/src/host-protocol';
 
 const firstRetryMilliseconds = 500;
 const longestRetryMilliseconds = 30_000;
+export const pingEveryMilliseconds = 30_000;
+export const silenceBeforeRedialMilliseconds = 75_000;
 
 export function retryDelayMilliseconds(consecutiveFailures: number): number {
 	const doubled = firstRetryMilliseconds * 2 ** Math.max(consecutiveFailures - 1, 0);
@@ -46,7 +51,10 @@ export function connectToGateway(settings: {
 	hostAccessToken?: () => Promise<string>;
 	dispatch: Dispatch;
 	byteCeiling: number;
+	messengerRelayURL: string;
 	report?: (line: string) => void;
+	pingMilliseconds?: number;
+	silenceMilliseconds?: number;
 }): GatewayConnection {
 	const report = settings.report ?? ((line: string) => console.error(line));
 	if (!settings.serverKey && !settings.hostAccessToken) {
@@ -58,6 +66,24 @@ export function connectToGateway(settings: {
 	let consecutiveFailures = 0;
 	let socket: WebSocket | null = null;
 	let isClosed = false;
+	let lastHeardAt = Date.now();
+	const outbox = new FairOutbox(() => {
+		const open = socket;
+		if (open?.readyState !== WebSocket.OPEN) return null;
+		return { send: (document) => open.send(document), bufferedBytes: () => open.bufferedAmount };
+	});
+	const streams = new MessengerStreams(settings.messengerRelayURL, outbox, report);
+	const pingMilliseconds = settings.pingMilliseconds ?? pingEveryMilliseconds;
+	const silenceMilliseconds = settings.silenceMilliseconds ?? silenceBeforeRedialMilliseconds;
+	const keepAlive = setInterval(() => {
+		if (socket?.readyState !== WebSocket.OPEN) return;
+		if (Date.now() - lastHeardAt > silenceMilliseconds) {
+			report(`the gateway said nothing for ${silenceMilliseconds}ms; dialling again`);
+			socket.close();
+			return;
+		}
+		socket.send(pingFrame);
+	}, pingMilliseconds);
 
 	const dial = async () => {
 		if (isClosed) return;
@@ -75,10 +101,14 @@ export function connectToGateway(settings: {
 		}
 		socket.addEventListener('open', () => {
 			consecutiveFailures = 0;
+			lastHeardAt = Date.now();
 			report(`gateway connected for company ${settings.companyID}`);
 		});
-		socket.addEventListener('message', (message) => void answerOne(message.data));
-		socket.addEventListener('close', redial);
+		socket.addEventListener('message', (message) => hear(message.data));
+		socket.addEventListener('close', () => {
+			streams.closeEverything();
+			redial();
+		});
 		socket.addEventListener('error', () => report(`gateway connection for ${settings.companyID} failed`));
 	};
 
@@ -91,8 +121,19 @@ export function connectToGateway(settings: {
 	// A refused call reaches the person as an empty screen and nothing else, so
 	// the reason is said here. Without it the only evidence that the messenger
 	// was even asked for anything is on the other side of the gateway.
-	const answerOne = async (data: unknown) => {
-		const call = parseRoutedCall(readJSON(data));
+	const hear = (data: unknown) => {
+		lastHeardAt = Date.now();
+		const payload = readJSON(data);
+		const streamMessage = isStreamKind(kindOf(payload)) ? parseStreamMessage(payload) : null;
+		if (streamMessage) {
+			streams.take(streamMessage);
+			return;
+		}
+		void answerOne(payload);
+	};
+
+	const answerOne = async (payload: unknown) => {
+		const call = parseRoutedCall(payload);
 		if (!call) return;
 		const answer = await serveRoutedCall(call, settings.dispatch, settings.byteCeiling);
 		if (answer.status >= 400) {
@@ -123,6 +164,7 @@ export function connectToGateway(settings: {
 	return {
 		close: () => {
 			isClosed = true;
+			clearInterval(keepAlive);
 			socket?.close();
 		},
 		deliver
@@ -136,6 +178,11 @@ export function reasonOf(body: unknown): string {
 		if (typeof said === 'string' && said.trim() !== '') return said;
 	}
 	return 'no reason given';
+}
+
+function kindOf(payload: unknown): unknown {
+	if (typeof payload !== 'object' || payload === null) return undefined;
+	return 'kind' in payload ? payload.kind : undefined;
 }
 
 function readJSON(data: unknown): unknown {

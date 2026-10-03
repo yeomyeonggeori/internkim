@@ -48,6 +48,16 @@ test('the stand-in refuses a direct message with nothing written in it', async (
 	}
 });
 
+test('the stand-in refuses a post to no thread, channel or channel name', async () => {
+	const connector = aConnectorNobodyRuns();
+	try {
+		expect(await ask(connector.url, 'message.post', { message: '안녕하세요' })).toBe(400);
+		expect(await ask(connector.url, 'message.post', { threadID: 'buzz:room', message: '안녕하세요' })).toBe(200);
+	} finally {
+		connector.stop();
+	}
+});
+
 test('the rules the stand-in copies are still the rules chatd has', () => {
 	const contract = readFileSync(chatdParser, 'utf8');
 	const parser = contract.slice(contract.indexOf('parseDirectMessagePostRequest'));
@@ -63,5 +73,11 @@ test('the rules the stand-in copies are still the rules chatd has', () => {
 	expect(
 		rules.includes('requireString(record, "counterpartPubkeyHex")'),
 		'chatd no longer requires a recipient; a-messenger-nobody-runs.ts still does'
+	).toBe(true);
+	const postParser = contract.slice(contract.indexOf('parseMessagePostRequest'));
+	const postRules = postParser.slice(0, postParser.indexOf('\n}'));
+	expect(
+		postRules.includes('message.post requires threadID, channelID, or channelName'),
+		'chatd no longer requires a thread, channel or channel name on a post; a-messenger-nobody-runs.ts still does'
 	).toBe(true);
 });

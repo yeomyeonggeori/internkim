@@ -24,6 +24,9 @@ type CompanyHostLayout struct {
 	// LibraryRoot holds the skills, the migrations, the runtime template and
 	// the document interpreter.
 	LibraryRoot string
+	// MigrationPath is where the package puts the database migrations the
+	// runtime document names.
+	MigrationPath string
 	// WorkspacePath is the root of the tree POSIX permissions are the boundary
 	// of. It is never inside CompanyHostStateRoot, which is 0700 root:root and
 	// which no task user can traverse.
@@ -68,6 +71,7 @@ func LinuxCompanyHostLayout() CompanyHostLayout {
 		CommandRoot:   CompanyPackageBinaryRoot,
 		HelperRoot:    CompanyPackageHelperRoot,
 		LibraryRoot:   CompanyPackageLibraryRoot,
+		MigrationPath: CompanyPackageMigrationPath,
 		WorkspacePath: CompanyHostWorkspacePath,
 		RunPath:       CompanyHostRunPath,
 		AgentHomePath: BlueclawHomePath,
@@ -103,10 +107,11 @@ func MacCompanyHostLayout(homebrewPrefix string) CompanyHostLayout {
 	prefix := strings.TrimRight(homebrewPrefix, "/")
 	keg := prefix + "/opt/" + CompanyPackageName
 	return CompanyHostLayout{
-		BinaryRoot:  keg + "/libexec",
-		CommandRoot: keg + "/bin",
-		HelperRoot:  keg + "/libexec",
-		LibraryRoot: keg + "/libexec",
+		BinaryRoot:    keg + "/libexec",
+		CommandRoot:   keg + "/bin",
+		HelperRoot:    keg + "/libexec",
+		LibraryRoot:   keg + "/libexec",
+		MigrationPath: keg + "/libexec/migrations",
 		ProgramDirectories: []string{
 			keg + "/libexec", prefix + "/bin", prefix + "/sbin",
 			"/usr/bin", "/bin", "/usr/sbin", "/sbin",
@@ -142,6 +147,10 @@ func (layout CompanyHostLayout) SkillsPath() string {
 
 func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
+}
+
+func (layout CompanyHostLayout) AgentProfilePicturePath() string {
+	return layout.LibraryRoot + "/agent-profile-picture.png"
 }
 
 // SearchPath is the PATH every service is started with. The agent hands it on

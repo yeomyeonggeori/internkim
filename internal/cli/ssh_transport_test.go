@@ -1,44 +1,49 @@
 package cli
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
 
-var errRetryableForTest = errors.New("ssh refused this attempt")
-
-func TestEverySSHTransportPinsPasswordAuthentication(t *testing.T) {
-	client := &sshClient{user: "admin", host: "127.0.0.1", port: "22", pass: "secret"}
-	transports := map[string]string{
-		"ssh":   strings.Join(client.sshArgs(), " "),
-		"scp":   strings.Join(client.scpArgs(), " "),
-		"rsync": client.rsyncSSHCommand("ssh"),
+func TestSSHReachesTheHostThroughTheAccessHelper(t *testing.T) {
+	t.Setenv("INTERNKIM_SSH_HOSTNAME", "ssh.example.test")
+	t.Setenv("INTERNKIM_SSH_USER", "")
+	t.Setenv("INTERNKIM_CONSOLE_PASSWORD", "")
+	connection, errorValue := hostSSHFromEnvironment("/checkout")
+	if errorValue != nil {
+		t.Fatal(errorValue)
 	}
-	for name, arguments := range transports {
-		if !strings.Contains(arguments, "PreferredAuthentications=password") ||
-			!strings.Contains(arguments, "PubkeyAuthentication=no") {
-			t.Errorf("the %s transport offers keys before the password it was given: %s", name, arguments)
-		}
+	arguments := strings.Join(connection.sshArguments([]string{"uptime"}), " ")
+	if !strings.Contains(arguments, "ProxyCommand='/checkout/tools/cloudflared-access-ssh' %h") {
+		t.Errorf("ssh does not go through the Access helper: %s", arguments)
+	}
+	if !strings.HasSuffix(arguments, "internkim@ssh.example.test uptime") {
+		t.Errorf("ssh does not log in as the default user on the named host: %s", arguments)
 	}
 }
 
-func TestASparseUploadRetriesTheFailureSSHCallsTransient(t *testing.T) {
-	if !isRetryableSSHFailure("Permission denied, please try again.") {
-		t.Fatal("this test is asserting against the wrong phrase")
+func TestSSHRefusesWithoutAHostname(t *testing.T) {
+	t.Setenv("INTERNKIM_SSH_HOSTNAME", "")
+	if _, errorValue := hostSSHFromEnvironment("/checkout"); errorValue == nil {
+		t.Fatal("ssh started without a host to reach")
 	}
-	attempts := 0
-	output, errorValue := retryWhileSSHFailureIsTransient(func() (string, error) {
-		attempts++
-		if attempts < 3 {
-			return "Permission denied, please try again.", errRetryableForTest
-		}
-		return "sent", nil
-	})
-	if errorValue != nil || output != "sent" {
-		t.Fatalf("a transient refusal ended the upload: %q %v", output, errorValue)
+}
+
+func TestSSHPinsPasswordAuthenticationWhenGivenAPassword(t *testing.T) {
+	connection := hostSSH{user: "admin", hostname: "ssh.example.test", password: "secret"}
+	arguments := strings.Join(connection.sshArguments(nil), " ")
+	if !strings.Contains(arguments, "PreferredAuthentications=password") ||
+		!strings.Contains(arguments, "PubkeyAuthentication=no") {
+		t.Errorf("ssh offers keys before the password it was given: %s", arguments)
 	}
-	if attempts != 3 {
-		t.Fatalf("expected three attempts, got %d", attempts)
+	if strings.Contains(arguments, "secret") {
+		t.Errorf("the password is on the ssh command line: %s", arguments)
+	}
+}
+
+func TestSSHLeavesKeyAuthenticationAloneWithoutAPassword(t *testing.T) {
+	connection := hostSSH{user: "admin", hostname: "ssh.example.test"}
+	if strings.Contains(strings.Join(connection.sshArguments(nil), " "), "PubkeyAuthentication=no") {
+		t.Error("ssh refused keys although no password was given")
 	}
 }

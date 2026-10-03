@@ -4,8 +4,8 @@ import { member1ID, member3ID } from './central-test-utils';
 import { openTaskFilters, seedTasks, removeTasks, taskRowOf } from './task-central-test-utils';
 import { seedAttendanceEvents, cleanupAttendanceEvents, seoulInstant, seoulMonthToday, monthBefore, dayOfMonth } from './attendance-central-test-utils';
 import { readFileSync } from 'node:fs';
-import type { DataRoomCategory, DataRoomRole } from '../../src/lib/data-room/model';
-const dataRoomTemplate: { categories: DataRoomCategory[]; roles: DataRoomRole[] } = JSON.parse(readFileSync(new URL('../../src/lib/data-room/template.json', import.meta.url), 'utf8'));
+import type { Circle, DataRoomCategory } from '../../src/lib/data-room/model';
+const dataRoomTemplate: { categories: DataRoomCategory[]; circles: Circle[] } = JSON.parse(readFileSync(new URL('../../src/lib/data-room/template.json', import.meta.url), 'utf8'));
 
 test.describe.configure({ mode: 'serial', timeout: 150_000 });
 test.use({ locale: 'ko-KR' });
@@ -101,19 +101,29 @@ for (const width of [320, 360, 390, 568, 1280]) {
 			await fits(page, 'attendance-undo-confirm');
 			await page.getByRole('button', { name: '취소', exact: true }).click();
 		}
-		await page.route('**/api/v1/tools/company_dataroom_get/invoke', route => route.fulfill({ json: { result: { categories: dataRoomTemplate.categories, roles: dataRoomTemplate.roles, shares: [], canManage: true } } }));
+		const topLevelFolders = dataRoomTemplate.categories.filter(category => !category.parent);
+		const folder = topLevelFolders[0];
+		const subfolders = dataRoomTemplate.categories.filter(category => category.parent === folder.code);
+		await page.route('**/api/v1/tools/dataroom_get/invoke', route => route.fulfill({ json: { result: { categories: dataRoomTemplate.categories, shares: [], canManage: true } } }));
 		await page.route('**/api/v1/tools/company_document_list/invoke', route => route.fulfill({ json: { result: { count: 0, documents: [] } } }));
-		await page.goto('/example-co/data-room');
-		if (width < 768) {
-			await page.getByRole('button', { name: '문서 분류', exact: true }).click();
-			await expect(page.getByRole('option')).toHaveCount(dataRoomTemplate.categories.length + 1);
-			await page.getByRole('option').last().click();
-			await expect(page.getByRole('listbox')).toBeHidden();
-		}
+		await page.route('**/api/v1/tools/dataroom_links_get/invoke', route => route.fulfill({ json: { result: { links: [], shareableCircleIDs: dataRoomTemplate.circles.map(circle => circle.id), downloadableCircleIDs: [] } } }));
+		await page.route('**/api/v1/tools/circle_list/invoke', route => route.fulfill({ json: { result: { circles: dataRoomTemplate.circles.map(circle => ({ ...circle, memberIDs: [] })) } } }));
+		await page.goto('/example-co/files/data-room');
+		const browser = page.getByRole('region', { name: '데이터룸', exact: true });
+		await expect(browser.getByRole('button')).toHaveCount(topLevelFolders.length);
 		await fits(page, 'data-room');
-		await page.getByRole('button', { name: '공유', exact: true }).click();
-		await page.getByRole('button', { name: '커스텀 역할 만들기', exact: true }).click();
-		await expect(page.getByRole('checkbox').first()).toBeVisible();
-		await fits(page, 'data-room-role');
+		await browser.getByRole('button', { name: folder.nameKO }).click();
+		await expect(browser.getByRole('button')).toHaveCount(subfolders.length);
+		await expect(page.getByRole('tabpanel', { name: '데이터룸' }).getByLabel('breadcrumb')).toContainText(folder.nameKO);
+		await fits(page, 'data-room-folder');
+		await page.getByRole('button', { name: '링크 공유', exact: true }).click();
+		await expect(page.getByRole('dialog')).toBeVisible();
+		await fits(page, 'data-room-share');
+		await page.keyboard.press('Escape');
+		await page.goto('/example-co/settings');
+		await page.getByRole('tab', { name: '관리자', exact: true }).click();
+		await page.getByRole('button', { name: '서클 추가', exact: true }).click();
+		await expect(page.getByRole('dialog').getByRole('checkbox').first()).toBeVisible();
+		await fits(page, 'circle-editor');
 	});
 }

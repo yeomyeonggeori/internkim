@@ -13,12 +13,9 @@ vocabulary. The scenarios that mutate wait on an approval button, and the Buzz
 path has no such surface, so a driver must define what "the user approved"
 means before it can assert on it.
 
-The Linux acceptance gate is the fleet:
-
-```bash
-./internkim dev fleet run --scenario buzz-attachment
-./internkim dev fleet run --scenario buzz-direct-message
-```
+The Linux check of the member-to-agent round trip is `tools/test-native-install`.
+Attachments, inbound mentions and agent-initiated direct messages have no automated
+Linux check.
 
 Retained scenario directories keep screenshots and downloaded files under
 `evidence/`. Result, event, timing and Playwright trace data

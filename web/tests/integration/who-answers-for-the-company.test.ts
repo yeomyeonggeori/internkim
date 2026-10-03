@@ -14,19 +14,8 @@ const slug = `who-answers-${Date.now()}`;
 
 let companyID = '';
 let adminID = '';
-let representativeID = '';
+let secondAdminID = '';
 let sampleID = '';
-
-async function seatRepresentative(memberID: string): Promise<void> {
-	const { data, error } = await record
-		.from('circle')
-		.insert({ company_id: companyID, name: 'representative' })
-		.select('id')
-		.single<{ id: string }>();
-	if (error) throw new Error(error.message);
-	const seated = await record.from('circle_member').insert({ circle_id: data.id, member_id: memberID });
-	if (seated.error) throw new Error(seated.error.message);
-}
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -38,9 +27,9 @@ beforeAll(async () => {
 	adminID = provisioned.adminMemberID;
 	await record.from('member').update({ is_admin: true, status: 'active' }).eq('id', adminID);
 
-	representativeID = await addMember(record, companyID, `${slug}-representative@example.test`);
+	secondAdminID = await addMember(record, companyID, `${slug}-second-admin@example.test`);
 	sampleID = await addMember(record, companyID, `${slug}-sample@example.test`);
-	await record.from('member').update({ is_admin: true, status: 'active' }).eq('id', representativeID);
+	await record.from('member').update({ is_admin: true, status: 'active' }).eq('id', secondAdminID);
 	await record.from('member').update({ status: 'active' }).eq('id', sampleID);
 }, networkHookTimeout);
 
@@ -49,19 +38,13 @@ afterAll(async () => {
 }, networkHookTimeout);
 
 describe('who is asked to act on somebody else behalf', () => {
-	test('is every administrator while the company names no representative', async () => {
+	test('is every administrator', async () => {
 		const asked = await whoAnswersFor(record, companyID, sampleID);
 
-		expect(asked.sort()).toEqual([adminID, representativeID].sort());
-	});
-
-	test('is the representative alone once the company names one', async () => {
-		await seatRepresentative(representativeID);
-
-		expect(await whoAnswersFor(record, companyID, sampleID)).toEqual([representativeID]);
+		expect(asked.sort()).toEqual([adminID, secondAdminID].sort());
 	});
 
 	test('never asks the person who asked', async () => {
-		expect(await whoAnswersFor(record, companyID, representativeID)).toEqual([]);
+		expect(await whoAnswersFor(record, companyID, secondAdminID)).toEqual([adminID]);
 	});
 });

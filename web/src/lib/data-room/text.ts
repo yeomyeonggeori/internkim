@@ -19,20 +19,18 @@ export const dataRoomText = {
 		status: '상태',
 		tags: '태그',
 		loadFailed: '자료를 불러오지 못했습니다.',
-		permissions: '데이터룸 권한',
-		permissionsDescription: '직원별로 읽을 수 있는 자료를 역할로 지정합니다.',
+		circles: '서클',
+		circlesDescription: '서클은 공유 폴더와 공유 기억, 데이터룸에서 읽을 분류를 함께 묶습니다. 사람마다 속할 서클을 고릅니다.',
 		save: '저장',
-		roles: '역할',
-		noRoles: '부여된 역할 없음',
-		chooseRoles: '역할 선택',
-		directRolesDescription: '직접 부여된 역할을 변경합니다. 소속 그룹의 권한은 추가로 적용됩니다.',
-		createRole: '커스텀 역할 추가',
-		readerRole: '열람 역할',
-		roleCode: '역할 코드',
-		roleName: '역할 이름 (영어)',
-		koreanRoleName: '역할 이름 (한국어)',
-		roleDescription:
-			'대분류를 선택하면 현재와 이후 추가되는 모든 하위 분류에 접근할 수 있습니다. 저장하면 기존 사용자와 공유 링크에도 적용됩니다.'
+		noCircles: '속한 서클 없음',
+		chooseCircles: '서클 선택',
+		createCircle: '서클 추가',
+		circle: '서클',
+		circleID: '서클 ID',
+		circleName: '이름 (영어)',
+		koreanCircleName: '이름 (한국어)',
+		circleDescription:
+			'이 서클 사람들이 읽을 분류를 고릅니다. 대분류를 고르면 현재와 이후 추가되는 하위 분류까지 포함합니다. 저장하면 이 서클의 사람과 공유 링크에 바로 적용됩니다.'
 	},
 	en: {
 		title: 'Dataroom',
@@ -54,19 +52,17 @@ export const dataRoomText = {
 		status: 'Status',
 		tags: 'Tags',
 		loadFailed: 'Could not load documents.',
-		permissions: 'Dataroom permissions',
-		permissionsDescription: 'Assign reader roles to each employee.',
+		circles: 'Circles',
+		circlesDescription: 'A circle gives its people a shared folder, a shared memory and the data room categories it reads. Choose the circles each person belongs to.',
 		save: 'Save',
-		roles: 'Roles',
-		noRoles: 'No assigned roles',
-		chooseRoles: 'Choose roles',
-		directRolesDescription: 'Change direct assignments. Circle permissions also apply.',
-		createRole: 'Add custom role',
-		readerRole: 'Reader role',
-		roleCode: 'Role code',
-		roleName: 'Role name (English)',
-		koreanRoleName: 'Role name (Korean)',
-		roleDescription:
-			'A parent grants access to all current and future children. Saving also changes access for existing recipients and share links.'
+		noCircles: 'No circles',
+		chooseCircles: 'Choose circles',
+		createCircle: 'Add circle',
+		circle: 'Circle',
+		circleID: 'Circle ID',
+		circleName: 'Name (English)',
+		koreanCircleName: 'Name (Korean)',
+		circleDescription:
+			'Choose the categories this circle reads. A parent includes all current and future children. Saving changes access right away for its people and share links.'
 	}
 } as const;

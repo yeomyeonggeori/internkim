@@ -33,6 +33,7 @@ func (blob Blob) Named(filename string) Blob {
 
 type Uploader struct {
 	HTTPBaseURL string
+	RelayHost   string
 	HTTPClient  *http.Client
 }
 
@@ -90,6 +91,9 @@ func (uploader Uploader) Upload(ctx context.Context, actorSecretHex string, cont
 			return Blob{}, errorValue
 		}
 		request.Header.Set("Authorization", authorization)
+		if uploader.RelayHost != "" {
+			request.Host = uploader.RelayHost
+		}
 		request.Header.Set("Content-Type", mimeType)
 		request.Header.Set("X-SHA-256", digestHex)
 		response, errorValue = uploader.httpClient().Do(request)

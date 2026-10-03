@@ -10,12 +10,13 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
-func systemctlAnswering(t *testing.T, enablement string) (string, string) {
+func systemctlAnsweringInState(t *testing.T, enablement, systemState string) (string, string) {
 	t.Helper()
 	directory := t.TempDir()
 	logPath := filepath.Join(directory, "systemctl.log")
 	script := "#!/bin/sh\necho \"$*\" >> " + logPath + "\n" +
-		"if [ \"$1\" = is-enabled ]; then echo " + enablement + "; fi\n"
+		"if [ \"$1\" = is-enabled ]; then echo " + enablement + "; fi\n" +
+		"if [ \"$1\" = is-system-running ]; then echo " + systemState + "; fi\n"
 	if errorValue := os.WriteFile(filepath.Join(directory, "systemctl"), []byte(script), 0o755); errorValue != nil {
 		t.Fatal(errorValue)
 	}
@@ -23,8 +24,12 @@ func systemctlAnswering(t *testing.T, enablement string) (string, string) {
 }
 
 func runTheBackupSchedule(t *testing.T, enablement string) string {
+	return runTheBackupScheduleInState(t, enablement, "running")
+}
+
+func runTheBackupScheduleInState(t *testing.T, enablement, systemState string) string {
 	t.Helper()
-	directory, logPath := systemctlAnswering(t, enablement)
+	directory, logPath := systemctlAnsweringInState(t, enablement, systemState)
 	script := "refuse() { echo \"$1\" >&2; exit 1; }\n" + scheduleTheBackupUnlessMasked()
 	command := exec.Command("sh", "-c", script)
 	command.Env = append(os.Environ(), "PATH="+directory+":"+os.Getenv("PATH"))
@@ -38,15 +43,35 @@ func runTheBackupSchedule(t *testing.T, enablement string) string {
 func TestThePostInstallSchedulesTheDailyBackup(t *testing.T) {
 	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
 	for _, enablement := range []string{"disabled", "enabled"} {
-		if logged := runTheBackupSchedule(t, enablement); !strings.Contains(logged, "enable --now "+timer) {
+		logged := runTheBackupSchedule(t, enablement)
+		if !strings.Contains(logged, "enable "+timer) || !strings.Contains(logged, "restart "+timer) {
 			t.Errorf("with the timer %s the post-install ran:\n%s", enablement, logged)
 		}
 	}
 }
 
+func TestThePostInstallSchedulesTheBackupInAnImageWithoutStartingIt(t *testing.T) {
+	timer := blueclaw.CompanyPackageBackupUnits().Timer.FileName()
+	logged := runTheBackupScheduleInState(t, "disabled", "offline")
+	if !strings.Contains(logged, "enable "+timer) {
+		t.Errorf("an install into an image left the backup unscheduled:\n%s", logged)
+	}
+	if strings.Contains(logged, "restart "+timer) {
+		t.Errorf("an install with systemd not running tried to restart the timer:\n%s", logged)
+	}
+}
+
 func TestThePostInstallLeavesAMaskedBackupTimerOff(t *testing.T) {
-	if logged := runTheBackupSchedule(t, "masked"); strings.Contains(logged, "enable --now") || strings.Contains(logged, "unmask") {
+	if logged := runTheBackupSchedule(t, "masked"); strings.Contains(logged, "enable ") || strings.Contains(logged, "restart ") || strings.Contains(logged, "unmask") {
 		t.Errorf("an upgrade turned scheduled backups back on:\n%s", logged)
+	}
+}
+
+func TestThePostInstallNeverUnmasksAUnit(t *testing.T) {
+	for _, format := range linuxPackageFormats() {
+		if strings.Contains(maintainerScript(format, postInstallScript), "unmask") {
+			t.Errorf("%s's postinst undoes an administrator's mask", format.Name)
+		}
 	}
 }
 

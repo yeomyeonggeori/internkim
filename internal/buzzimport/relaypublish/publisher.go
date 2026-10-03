@@ -2,9 +2,12 @@ package relaypublish
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/coder/websocket"
 	nostr "github.com/nbd-wtf/go-nostr"
 )
 
@@ -15,29 +18,121 @@ const (
 	OpenDirectKind    = 41010
 )
 
+const (
+	answerWait        = 15 * time.Second
+	largestFrameBytes = 1 << 24
+)
+
 type Publisher struct {
-	relay *nostr.Relay
+	connection *websocket.Conn
 }
 
-func Connect(ctx context.Context, relayURL string, actorSecretHex string) (*Publisher, error) {
-	relay, errorValue := nostr.RelayConnect(ctx, relayURL)
+func Connect(ctx context.Context, relayURL, dialURL, actorSecretHex string) (*Publisher, error) {
+	options, errorValue := dialOptionsFor(relayURL, dialURL)
 	if errorValue != nil {
 		return nil, errorValue
 	}
-	// The relay sends its NIP-42 challenge right after the socket opens; give the
-	// read loop a moment to record it before signing the auth event against it.
-	time.Sleep(700 * time.Millisecond)
-	if errorValue := relay.Auth(ctx, func(event *nostr.Event) error {
-		return event.Sign(actorSecretHex)
-	}); errorValue != nil {
-		relay.Close()
+	connection, _, errorValue := websocket.Dial(ctx, addressToDial(relayURL, dialURL), options)
+	if errorValue != nil {
+		return nil, fmt.Errorf("could not open the relay at %s: %w", addressToDial(relayURL, dialURL), errorValue)
+	}
+	connection.SetReadLimit(largestFrameBytes)
+	publisher := &Publisher{connection: connection}
+	if errorValue := publisher.authenticate(ctx, nostr.NormalizeURL(relayURL), actorSecretHex); errorValue != nil {
+		connection.CloseNow()
 		return nil, errorValue
 	}
-	return &Publisher{relay: relay}, nil
+	return publisher, nil
+}
+
+func addressToDial(relayURL, dialURL string) string {
+	if strings.TrimSpace(dialURL) == "" {
+		return relayURL
+	}
+	return dialURL
+}
+
+func dialOptionsFor(relayURL, dialURL string) (*websocket.DialOptions, error) {
+	if strings.TrimSpace(dialURL) == "" {
+		return &websocket.DialOptions{}, nil
+	}
+	named, errorValue := url.Parse(relayURL)
+	if errorValue != nil || named.Host == "" {
+		return nil, fmt.Errorf("the relay is named by %q, which is not an address", relayURL)
+	}
+	return &websocket.DialOptions{Host: named.Host}, nil
 }
 
 func (publisher *Publisher) Close() {
-	publisher.relay.Close()
+	publisher.connection.Close(websocket.StatusNormalClosure, "")
+}
+
+func (publisher *Publisher) authenticate(ctx context.Context, relayURL, actorSecretHex string) error {
+	challenge, errorValue := publisher.awaitChallenge(ctx)
+	if errorValue != nil {
+		return errorValue
+	}
+	event := nostr.Event{
+		CreatedAt: nostr.Now(),
+		Kind:      nostr.KindClientAuthentication,
+		Tags:      nostr.Tags{nostr.Tag{"relay", relayURL}, nostr.Tag{"challenge", challenge}},
+	}
+	if errorValue := event.Sign(actorSecretHex); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := publisher.send(ctx, &nostr.AuthEnvelope{Event: event}); errorValue != nil {
+		return errorValue
+	}
+	return publisher.awaitAcceptance(ctx, event.ID)
+}
+
+func (publisher *Publisher) awaitChallenge(ctx context.Context) (string, error) {
+	waiting, cancel := context.WithTimeout(ctx, answerWait)
+	defer cancel()
+	for {
+		envelope, errorValue := publisher.read(waiting)
+		if errorValue != nil {
+			return "", fmt.Errorf("the relay sent no sign-in challenge: %w", errorValue)
+		}
+		if auth, isAuth := envelope.(*nostr.AuthEnvelope); isAuth && auth.Challenge != nil {
+			return *auth.Challenge, nil
+		}
+	}
+}
+
+func (publisher *Publisher) awaitAcceptance(ctx context.Context, eventID string) error {
+	waiting, cancel := context.WithTimeout(ctx, answerWait)
+	defer cancel()
+	for {
+		envelope, errorValue := publisher.read(waiting)
+		if errorValue != nil {
+			return fmt.Errorf("the relay did not answer event %s: %w", eventID, errorValue)
+		}
+		answer, isAnswer := envelope.(*nostr.OKEnvelope)
+		if !isAnswer || answer.EventID != eventID {
+			continue
+		}
+		if !answer.OK {
+			return fmt.Errorf("the relay refused event %s: %s", eventID, answer.Reason)
+		}
+		return nil
+	}
+}
+
+func (publisher *Publisher) read(ctx context.Context) (nostr.Envelope, error) {
+	_, message, errorValue := publisher.connection.Read(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	return nostr.ParseMessage(string(message)), nil
+}
+
+func (publisher *Publisher) send(ctx context.Context, envelope nostr.Envelope) error {
+	message, errorValue := envelope.MarshalJSON()
+	if errorValue != nil {
+		return errorValue
+	}
+	return publisher.connection.Write(ctx, websocket.MessageText, message)
 }
 
 func (publisher *Publisher) CreateChannel(ctx context.Context, actorSecretHex, channelID, name, purpose, channelType, visibility string) error {
@@ -83,9 +178,12 @@ func addMemberTags(channelID, memberPubkeyHex, role string) nostr.Tags {
 	return tags
 }
 
-func (publisher *Publisher) SetProfile(ctx context.Context, actorSecretHex, displayName string) error {
-	content := `{"display_name":` + jsonString(displayName) + `,"name":` + jsonString(displayName) + `}`
-	return publisher.signAndPublish(ctx, actorSecretHex, ProfileKind, content, nostr.Tags{})
+func (publisher *Publisher) SetProfile(ctx context.Context, actorSecretHex, displayName, pictureURL string) error {
+	content := `{"display_name":` + jsonString(displayName) + `,"name":` + jsonString(displayName)
+	if pictureURL != "" {
+		content += `,"picture":` + jsonString(pictureURL)
+	}
+	return publisher.signAndPublish(ctx, actorSecretHex, ProfileKind, content+`}`, nostr.Tags{})
 }
 
 func (publisher *Publisher) signAndPublish(ctx context.Context, actorSecretHex string, kind int, content string, tags nostr.Tags) error {
@@ -100,7 +198,7 @@ func (publisher *Publisher) signAndPublish(ctx context.Context, actorSecretHex s
 	}
 	var lastError error
 	for attempt := 0; attempt < 5; attempt++ {
-		lastError = publisher.relay.Publish(ctx, event)
+		lastError = publisher.publish(ctx, event)
 		if lastError == nil {
 			return nil
 		}
@@ -110,6 +208,13 @@ func (publisher *Publisher) signAndPublish(ctx context.Context, actorSecretHex s
 		time.Sleep(5500 * time.Millisecond)
 	}
 	return lastError
+}
+
+func (publisher *Publisher) publish(ctx context.Context, event nostr.Event) error {
+	if errorValue := publisher.send(ctx, &nostr.EventEnvelope{Event: event}); errorValue != nil {
+		return errorValue
+	}
+	return publisher.awaitAcceptance(ctx, event.ID)
 }
 
 func jsonString(value string) string {

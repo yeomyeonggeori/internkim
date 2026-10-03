@@ -434,11 +434,11 @@
       "choiceGroup": null
     }
   ],
-  "roles": [
+  "circles": [
     {
-      "code": "employee",
-      "name": "Employee",
-      "nameKO": "일반 구성원",
+      "id": "member",
+      "name": "Member",
+      "nameKO": "구성원",
       "readableCategories": [
         "HO",
         "HP",
@@ -449,7 +449,7 @@
       ]
     },
     {
-      "code": "leadership",
+      "id": "leadership",
       "name": "Leadership",
       "nameKO": "경영진",
       "readableCategories": [
@@ -467,9 +467,9 @@
       ]
     },
     {
-      "code": "finance",
+      "id": "finance",
       "name": "Finance",
-      "nameKO": "재무 담당",
+      "nameKO": "재무",
       "readableCategories": [
         "CR",
         "F",
@@ -483,9 +483,9 @@
       ]
     },
     {
-      "code": "people",
-      "name": "People",
-      "nameKO": "인사 담당",
+      "id": "human-resources",
+      "name": "HR",
+      "nameKO": "인사",
       "readableCategories": [
         "CR",
         "H",
@@ -496,7 +496,7 @@
       ]
     },
     {
-      "code": "investor",
+      "id": "investor",
       "name": "Investor",
       "nameKO": "투자자",
       "readableCategories": [
@@ -511,9 +511,9 @@
       ]
     },
     {
-      "code": "accountant",
+      "id": "accountant",
       "name": "Accountant",
-      "nameKO": "회계사·세무사",
+      "nameKO": "회계·세무 자문",
       "readableCategories": [
         "CR",
         "F",
@@ -526,7 +526,7 @@
       ]
     },
     {
-      "code": "legal",
+      "id": "legal",
       "name": "Legal adviser",
       "nameKO": "법률 자문",
       "readableCategories": [
@@ -543,7 +543,7 @@
       ]
     },
     {
-      "code": "lender",
+      "id": "lender",
       "name": "Lender",
       "nameKO": "금융기관",
       "readableCategories": [

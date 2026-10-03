@@ -93,7 +93,7 @@ func (service *Service) describeRetirableRoom(
 		}
 		return service.describeRoomForRetirement(ctx, relay, mapping, shape)
 	}
-	if shape.Visibility == "open" || shape.ChannelType == "dm" || circleIDOfRoom(shape.RoomName) != "" {
+	if shape.Visibility == "open" || shape.ChannelType == "dm" {
 		return buzzRetiredRoom{}, false, nil
 	}
 	roomMembers, errorValue := service.mattermostRoomMemberCount(ctx, mapping.ExternalChannelID)

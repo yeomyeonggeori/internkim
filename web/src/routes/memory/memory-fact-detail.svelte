@@ -9,15 +9,15 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Field from '$lib/components/ui/field';
 	import { forgetMemoryFact, type MemoryFact } from './memory-facts-api';
-	import { isLiveMemoryFact, memoryAudience, memoryDate, memoryKindLabel } from './memory-workbench-model';
+	import { isCurrentMemory, memoryDate, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
-	let { fact, text, onForgotten }: { fact: MemoryFact; text: MemoryText; onForgotten: (factID: string) => void } = $props();
+	let { fact, scope, text, onForgotten }: { fact: MemoryFact; scope: string; text: MemoryText; onForgotten: (factID: string) => void } = $props();
 	let isForgetting = $state(false);
 	let isConfirmingForget = $state(false);
 	let reason = $state('');
 	let errorMessage = $state('');
-	const isLive = $derived(isLiveMemoryFact(fact));
+	const isLive = $derived(isCurrentMemory(fact));
 
 	function beginForget(): void {
 		reason = '';
@@ -42,8 +42,8 @@
 	<header class="flex flex-col gap-3">
 		<h2 class="text-sm font-semibold">{text.memoryDetails}</h2>
 		<div class="flex flex-wrap items-center gap-2">
-			<Badge variant="secondary">{memoryKindLabel(fact.kind, text)}</Badge>
-			<Badge variant="secondary">{memoryAudience(fact, text)}</Badge>
+			<Badge variant="secondary">{scope}</Badge>
+			<Badge variant="secondary">{fact.isStatic ? text.always : text.happened}</Badge>
 			<Badge variant="outline">{isLive ? text.current : text.previousMemory}</Badge>
 		</div>
 	</header>
@@ -65,9 +65,10 @@
 	{/if}
 	<Separator />
 	<dl class="grid grid-cols-1 gap-4 break-words text-sm sm:grid-cols-2">
-		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{fact.validUntil ? text.validity : text.validFrom}</dt><dd>{memoryDate(fact.validFrom, text, currentLocale.value)}{#if fact.validUntil} → {memoryDate(fact.validUntil, text, currentLocale.value)}{/if}</dd></div>
-		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.circles}</dt><dd>{fact.circleIDs.length > 0 ? fact.circleIDs.join(', ') : text.myMemory}</dd></div>
-		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.reinforcementCount}</dt><dd>{text.reinforcementCountTemplate.replace('{count}', String(fact.reinforcementCount))}</dd></div>
+		{#if !fact.isStatic}<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.occurredAt}</dt><dd>{memoryWhen(fact, text, currentLocale.value)}</dd></div>{/if}
+		{#if fact.validUntil}<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.validUntil}</dt><dd>{memoryDate(fact.validUntil, text, currentLocale.value)}</dd></div>{/if}
+		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.importance}</dt><dd>{text.importanceTemplate.replace('{count}', String(fact.importance))}</dd></div>
+		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.createdAt}</dt><dd>{memoryDate(fact.createdAt, text, currentLocale.value)}</dd></div>
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.lastRecalledAt}</dt><dd>{fact.lastRecalledAt ? memoryDate(fact.lastRecalledAt, text, currentLocale.value) : text.neverRecalled}</dd></div>
 	</dl>
 	<section class="grid gap-2" aria-label={text.triggerPhrases}>
