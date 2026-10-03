@@ -38,12 +38,15 @@ so losing one costs a second read from the computer that holds the file.
 
 ## A person's memory
 
-One SQLite file per subject, under the workspace's `.blueclaw/memory`, written
-and read only by the service. A person's own file holds what they said and what
-was said about them, a circle's file holds what its members share, and one file
-holds what the whole workspace shares. Which file opens is the access boundary:
-for a reader, the service opens their own file, their circles' files and the
-workspace's file, and no other.
+One SQLite file per subject, each in that subject's protected directory in the
+workspace: `private/protected/<personID>/memory.db` for a person,
+`circles/<circleID>/.protected/memory.db` for a circle, and
+`shared/.protected/memory.db` for the whole workspace. A person's own file
+holds what they said and what was said about them, a circle's file holds what
+its members share, and the workspace's file holds what everyone shares. The
+service writes every file, and the subject's group may only read it. A recall
+runs as the reader's own Linux user, so the kernel decides which files open:
+their own, their circles' and the workspace's.
 
 ## The agent's store
 
@@ -51,28 +54,20 @@ The host's own Postgres, defined in `.dependency/blueclaw/migrations/`. The
 company host package installs and supervises Postgres with the rest of the host
 services.
 
-| | |
-|---|---|
-| Conversation | `raw_event`, `conversation`, `attachment`, `connector_outbox`, `live_reply_post` |
-| Execution | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token`, `morning_briefing_schedule` |
-| Policy and identity | `person`, `person_email`, `platform_account`, `policy_channel_rule`, `policy_revision` |
-| Operations | `admin_audit_log`, `backup_lock` |
+Its tables hold the conversation and its attachments, every run with its
+steps, events and schedules, the model calls a run made, the people and
+channel rules projected from the policy, and the audit log.
 
 None of it is a company record. It is the agent's working state: what was
-said, what it did, what it remembers, and what it is allowed to touch.
+said, what it did, and what it is allowed to touch.
 `task_event` is the ledger the rest of the system trusts: every tool call,
 its full input, and every routing decision land there, which is what makes a
 failed run diagnosable after the fact.
 
-The memory tables are [bluememo](https://github.com/yeomyeonggeori/bluememo)'s:
-episodes of finished work, the facts a model extracted from them, the circles
-each fact is shared with, the embeddings recall searches, and the jobs that
-extract and condense.
-
 ## The relay's state
 
-`RELAY_STATE_DIR`, `/var/lib/internkim/relay` unless set, holds what the relay
-must survive a restart with: `inbound/`, the messages the agent has not taken
+`RELAY_STATE_DIR`, which the package sets to `/var/lib/internkim-relay`, holds
+what the relay must survive a restart with: `inbound/`, the messages the agent has not taken
 yet, and `questions/`, the approval questions still waiting for an answer.
 Both empty themselves as the work moves on.
 

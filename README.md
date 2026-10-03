@@ -49,8 +49,8 @@ sudo internkim install ~/Downloads/internkim-host.json
 
 The first command installs `internkim` from the latest GitHub Release. It uses apt on
 Debian 13 and Ubuntu 22.04 or 24.04, dnf on Fedora and on RHEL-compatible 10 (Rocky,
-AlmaLinux), pacman on Arch Linux, and the Homebrew tap on macOS. Linux machines can
-be arm64 or amd64. The second command asks for an
+AlmaLinux), pacman on Arch Linux, and the Homebrew tap on an Apple-silicon Mac.
+Linux machines can be arm64 or amd64. The second command asks for an
 [OpenRouter API key](https://openrouter.ai/settings/keys) and registers the services.
 On Linux the machine then signs in with a key it generated itself, so the
 downloaded file is used once and never again.
@@ -71,7 +71,7 @@ browser or messenger app, any network
     ├── blueclaw ────── the agent: runs tools as the requester, approval, task ledger
     ├── chatd ───────── messenger adapter (Buzz)
     ├── capabilityd ─── holds provider keys: model calls, mail, web, browser
-    └── Postgres ────── the agent's own store: conversations, runs, memory
+    └── Postgres ────── the agent's own store: conversations, runs, the ledger
 ```
 
 The records a company would still need after replacing every computer live in
@@ -102,7 +102,7 @@ The pages live in `docs/` and are published at
 
 ## Self-hosting
 
-The host always runs on the company's own computer. The record can move to the
+The host always runs on a machine the company controls. The record can move to the
 company's own Supabase project, hosted or self-hosted, and the web app and the
 public API to its own Cloudflare account and domain. [Self-hosting
 levels](https://docs.intern.kim/self-hosting) says what each level moves and how to
@@ -111,9 +111,9 @@ deploy the web app.
 ## Contributing
 
 `supabase/migrations` is the schema of record and `web/` is the web app and the API.
-`host/` holds the company computer's boot order and the relay, and `cmd/` and
+`host/` holds the relay and the Buzz stack, and `cmd/` and
 `internal/` hold the Go programs. [CONTRIBUTING.md](CONTRIBUTING.md) covers builds,
-checks and contributions; [architecture](docs/architecture.mdx) covers navigation reads.
+checks and contributions; [architecture](docs/architecture.mdx) maps the tree.
 
 ## License
 

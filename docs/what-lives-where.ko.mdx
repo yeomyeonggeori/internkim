@@ -37,37 +37,33 @@ icon: Map
 
 ## 사람의 기억 [#a-persons-memory]
 
-주체마다 SQLite 파일 하나로, 워크스페이스의 `.blueclaw/memory` 아래에 있고
-서비스만 읽고 씁니다. 사람의 파일은 그가 말한 것과 그에 대해 말해진 것을
-담고, 서클의 파일은 구성원이 공유하는 것을, 파일 하나는 워크스페이스 전체가
-공유하는 것을 담습니다. 어느 파일이 열리는지가 접근 경계입니다. 서비스는 읽는
-사람에게 그의 파일, 그가 속한 서클의 파일, 워크스페이스의 파일만 엽니다.
+주체마다 SQLite 파일 하나이고, 워크스페이스 안 그 주체의 보호 디렉터리에
+있습니다. 사람은 `private/protected/<personID>/memory.db`, 서클은
+`circles/<circleID>/.protected/memory.db`, 워크스페이스 전체는
+`shared/.protected/memory.db`입니다. 사람의 파일은 그가 말한 것과 그에 대해
+말해진 것을 담고, 서클의 파일은 구성원이 공유하는 것을, 워크스페이스의 파일은
+모두가 공유하는 것을 담습니다. 파일은 모두 서비스가 쓰고, 주체의 그룹은 읽기만
+합니다. 회상은 읽는 사람 자신의 리눅스 사용자로 돌기 때문에 어느 파일이
+열리는지는 커널이 정합니다. 그의 파일, 그가 속한 서클의 파일, 워크스페이스의
+파일입니다.
 
 ## 에이전트의 저장소 [#the-agents-store]
 
 호스트 자신의 Postgres이고, `.dependency/blueclaw/migrations/`가 정의합니다.
 회사 호스트 패키지가 다른 서비스와 함께 Postgres를 설치하고 관리합니다.
 
-| | |
-|---|---|
-| 대화 | `raw_event`, `conversation`, `attachment`, `connector_outbox`, `live_reply_post` |
-| 실행 | `task_run`, `task_attempt`, `task_step`, `task_event`, `task_schedule`, `task_session`, `task_artifact`, `task_wait_token`, `morning_briefing_schedule` |
-| 폴리시와 신원 | `person`, `person_email`, `platform_account`, `policy_channel_rule`, `policy_revision` |
-| 운영 | `admin_audit_log`, `backup_lock` |
+테이블에는 대화와 그 첨부, 실행마다의 단계·이벤트·일정, 실행이 한 모델 호출,
+폴리시에서 투영된 사람과 채널 규칙, 감사 로그가 있습니다.
 
 어느 것도 회사의 기록이 아닙니다. 에이전트의 작업 상태입니다. 무엇이
-말해졌고, 무엇을 했고, 무엇을 기억하고, 무엇을 만져도 되는지. `task_event`는
+말해졌고, 무엇을 했고, 무엇을 만져도 되는지. `task_event`는
 시스템의 나머지가 신뢰하는 원장으로, 모든 도구 호출과 그 입력 전문, 모든
 라우팅 결정이 여기 남습니다. 실패한 실행을 사후에 진단할 수 있는 근거가
 이것입니다.
 
-기억 테이블은 [bluememo](https://github.com/yeomyeonggeori/bluememo)의
-것입니다. 끝난 일의 에피소드, 모델이 거기서 뽑은 사실, 사실마다 공유된 서클,
-회상이 검색하는 임베딩, 그리고 추출과 요약을 맡는 작업들.
-
 ## 릴레이의 상태 [#the-relays-state]
 
-`RELAY_STATE_DIR`(따로 정하지 않으면 `/var/lib/internkim/relay`)에는 릴레이가
+`RELAY_STATE_DIR`(패키지는 `/var/lib/internkim-relay`로 정합니다)에는 릴레이가
 재시작을 넘어 가져가야 하는 것이 있습니다. `inbound/`는 에이전트가 아직
 가져가지 않은 메시지, `questions/`는 아직 답을 기다리는 승인 질문입니다. 둘 다
 일이 진행되면 스스로 비워집니다.

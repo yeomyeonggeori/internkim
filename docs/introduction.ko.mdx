@@ -33,8 +33,8 @@ icon: BookOpen
 Supabase 프로젝트 하나입니다. Postgres가 회사의 기록을 담고, row level
 security가 누가 어떤 행을 읽을 수 있는지 정하고, Supabase Auth가 비밀번호,
 패스키, Google 계정으로 로그인을 처리합니다. 스키마는
-`supabase/migrations`의 마이그레이션 디렉토리이고, 테이블 목록은
-[무엇이 어디 사는지](/ko/docs/what-lives-where)에 있습니다.
+`supabase/migrations`의 마이그레이션 디렉토리이고, 각 테이블의 뜻은
+[테이블이 뜻하는 것](/ko/docs/record/schema)에 있습니다.
 
 그 옆에 우리가 굴리는 것이 셋 더 있습니다.
 
@@ -66,9 +66,9 @@ Supabase의 나머지 없이 Postgres만 쓰는 것은 다른 약속입니다. �
 
 켜 둔 컴퓨터 한 대입니다. 리눅스 서버든, 잠들지 않는 Mac이든, 구석의 작은
 상자든요. 그 위에서 에이전트, 메신저에 붙는 커넥터, 그 주변의 데몬들, 그리고
-대화·실행 내역·기억을 담는 자기만의 Postgres가 돕니다.
-[호스트 굴리기](/ko/docs/running-the-host)에 프로세스 목록과 각각이 필요로 하는
-것이 있습니다.
+대화와 실행 내역을 담는 자기만의 Postgres가 돌고, 사람과 서클마다 기억 파일이
+하나씩 있습니다. [아키텍처](/ko/docs/architecture#the-processes-on-the-host)에
+프로세스 목록과 각각이 하는 일이 있습니다.
 
 회사에 연결된 뒤로는 이 컴퓨터 바깥에서 들어오는 요청을 받는 것이 없습니다. 모든
 연결이 바깥으로 나가므로, 유지할
@@ -110,5 +110,5 @@ Supabase의 나머지 없이 Postgres만 쓰는 것은 다른 약속입니다. �
 | [아키텍처](/ko/docs/architecture) | 무엇이 무엇과 이야기하고, 각 프로세스가 트리 어디에 사는지 |
 | [경계](/ko/docs/boundaries) | 누가 무엇을 해도 되는지를 정하는 두 가지 |
 | [무엇이 어디 사는지](/ko/docs/what-lives-where) | 어떤 데이터가 중앙에 있고 어떤 것이 그 컴퓨터에 있는지 |
-| [호스트 굴리기](/ko/docs/running-the-host) | 켜 둔 컴퓨터의 기동 순서와 설정 |
+| [호스트 굴리기](/ko/docs/running-the-host) | 켜 둔 컴퓨터의 설치, 업데이트, 백업 |
 | [용어집](/ko/docs/glossary) | 이 문서가 정확하게 쓰는 낱말들 |
