@@ -485,6 +485,7 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 		service.retireBootstrapFromRoom(ctx, relay, channelID, seed)
 	}
 	log.Printf("buzz member membership: granted %d, failed %d, already in %d", granted, failed, alreadyIn)
+	service.seatTheAgentInOpenRooms(ctx, relay, connections, seed)
 	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
 	service.nameMembersTheRelayCannotName(ctx, relay)
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed)
