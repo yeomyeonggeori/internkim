@@ -310,7 +310,12 @@ GROUPS = [
     ),
     Group(
         "relay",
-        ["host/relay/*", "workers/connection-gateway/src/host-protocol.ts", "workers/connection-gateway/src/base64.ts"],
+        [
+            "host/relay/*",
+            ".dependency/blueclaw*",
+            "workers/connection-gateway/src/host-protocol.ts",
+            "workers/connection-gateway/src/base64.ts",
+        ],
         [BUN_INSTALL, ["bun", "run", "check"], ["bun", "test"]],
         working_directory="host/relay",
     ),
