@@ -111,7 +111,13 @@ Transport changes reject pending old replies. Existing message and asset
 caches discard late results from a previous account.
 
 Mail reads its account, then fetches mailbox and message lists once in
-parallel. Settings keeps its general section mounted while resolving the
+parallel. A message link seeds its mailbox before loading and selects only
+the requested list-derived UID, paging when needed. Missing messages keep a
+visible error and retry through refresh. Leave approvals start policy, pending
+requests and member labels together; the existing leave RPC still reads company
+history before filtering. Notification preferences load alongside push status;
+status reads use the current worker registration without waiting for worker
+activation. Preference switches require confirmed reachability. Settings keeps its general section mounted while resolving the
 role. Data-room and operations screens publish independent valid responses as
 they arrive. CRM waits for complete core records and currency metadata, while
 owner-directory enrichment loads separately. Only directory-dependent inputs

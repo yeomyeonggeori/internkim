@@ -7,6 +7,8 @@ export type MailPageText = PageText<typeof mailText>;
 
 export type MailComposeFocusField = 'to' | 'body';
 
+export type RequestedMailMessage = { mailbox: string; uid: number };
+
 export type MailMessagePageCacheEntry = {
 	actorEmail: string;
 	mailbox: string;
@@ -28,6 +30,7 @@ export type MailPageControllerState = {
 	messageDetailCache: Map<string, MailMessage>;
 	selectedMailbox: string;
 	selectedMessage: MailMessage | null;
+	requestedMessage?: RequestedMailMessage | null;
 	searchText: string;
 	activeSearchText: string;
 	messagePageIndex: number;

@@ -27,7 +27,7 @@ const heldNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 
 Object.defineProperty(globalThis, 'navigator', {
 	configurable: true,
-	value: { serviceWorker: { ready: Promise.resolve(registration) } }
+	value: { serviceWorker: { ready: new Promise(() => {}), getRegistration: async () => registration } }
 });
 Object.defineProperty(globalThis, 'Notification', { configurable: true, value: { permission: 'granted' } });
 Object.defineProperty(globalThis, 'window', {

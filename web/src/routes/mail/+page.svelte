@@ -61,6 +61,10 @@
 	});
 
 	onMount(() => {
+		if (requestedMessage) {
+			page.requestMailboxMessage(requestedMessage);
+			appliedMessageKey = `${requestedMessage.mailbox}:${requestedMessage.uid}`;
+		}
 		void page.loadMail();
 		return pageActions.setRefresh(page.loadMail);
 	});

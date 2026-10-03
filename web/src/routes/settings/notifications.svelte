@@ -29,7 +29,10 @@
 
 	let reach = $state<Reachability>('off');
 	let settings = $state<NotificationSettings>({ categories: [], mutedConversationIDs: [] });
-	let isLoading = $state(true);
+	let isLoadingReachability = $state(true);
+	let isLoadingSettings = $state(true);
+	let reachabilityFailed = $state(false);
+	let isDisposed = false;
 	let isSwitching = $state(false);
 	let isTesting = $state(false);
 
@@ -43,18 +46,36 @@
 		mail: text.notifyMail
 	});
 
-	async function load() {
+	async function loadReachability() {
 		try {
-			reach = await reachability();
-			settings = await myNotificationSettings();
+			const next = await reachability();
+			if (!isDisposed) reach = next;
 		} catch {
-			toast.error(text.notifyLoadFailed);
+			if (!isDisposed) {
+				reachabilityFailed = true;
+				toast.error(text.notifyLoadFailed);
+			}
 		} finally {
-			isLoading = false;
+			if (!isDisposed) isLoadingReachability = false;
 		}
 	}
 
-	onMount(load);
+	async function loadSettings() {
+		try {
+			const next = await myNotificationSettings();
+			if (!isDisposed) settings = next;
+		} catch {
+			if (!isDisposed) toast.error(text.notifyLoadFailed);
+		} finally {
+			if (!isDisposed) isLoadingSettings = false;
+		}
+	}
+
+	onMount(() => {
+		void loadReachability();
+		void loadSettings();
+		return () => { isDisposed = true; };
+	});
 
 	async function switchReach() {
 		isSwitching = true;
@@ -107,7 +128,7 @@
 			<p class="text-sm text-muted-foreground">{text.notifyUnsupported}</p>
 		{:else if reach === 'unconfigured'}
 			<p class="text-sm text-muted-foreground">{text.notifyUnconfigured}</p>
-		{:else if !isLoading}
+		{:else if !isLoadingReachability && !reachabilityFailed}
 			<Button class="w-full gap-2" onclick={switchReach} disabled={isSwitching}>
 				<BellIcon class="size-4" />
 				{reach === 'on' ? text.notifyStop : text.notifyStart}
@@ -123,7 +144,9 @@
 					{isInsideNativeShell() ? text.notifyBlockedOnDevice : text.notifyBlocked}
 				</p>
 			{/if}
-			<div class="grid gap-3" class:opacity-50={reach !== 'on'}>
+		{/if}
+		{#if !isLoadingSettings}
+			<div class="grid gap-3" class:opacity-50={isLoadingReachability || reach !== 'on'}>
 				{#each settings.categories.filter((choice) => choice.isChoosable) as choice (choice.category)}
 					<div class="flex items-center justify-between gap-4">
 						<Label for="{fieldID}-{choice.category}" class="text-sm font-normal">
@@ -133,7 +156,7 @@
 							<Switch
 								id="{fieldID}-{choice.category}"
 								checked={choice.isOn}
-								disabled={reach !== 'on'}
+								disabled={isLoadingReachability || reachabilityFailed || reach !== 'on'}
 								onCheckedChange={(wanted) => choose(choice.category, wanted)}
 							/>
 						</div>

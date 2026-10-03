@@ -171,12 +171,15 @@ export async function cancelSupabaseLeaveRequest(requestID: string): Promise<voi
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
-	const directory = await supabaseLeaveTypeDirectory();
-	const rows = (await leaveInFull())
+	const [directory, answered, members] = await Promise.all([
+		supabaseLeaveTypeDirectory(),
+		invokeTool<RecordLeaveList>('leave_list', { scope: 'all', status: 'requested' }),
+		memberDirectory()
+	]);
+	const rows = answered.leave.map(leaveRowOf)
 		.filter((row) => row.status === 'requested')
 		.sort((left, right) => left.starts_at.localeCompare(right.starts_at));
 
-	const members = await memberDirectory();
 	const pending = rows.map((row) => approvalOf(row, members, directory));
 	return { pendingCount: pending.length, pending };
 }
