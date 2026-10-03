@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { assetBucket } from '../asset-address';
-import { companyImages } from '../catalog/company';
-import { companyImagesKept } from './company-tools';
+import { serviceFileNames } from '$lib/data-room/service-files';
+import { newestServiceFile, type KeptServiceFile } from './service-files';
 
 export type AnsweredFile = {
 	name: string;
@@ -10,26 +10,27 @@ export type AnsweredFile = {
 	bytes?: Uint8Array;
 };
 
-type FilesOfAnswer = (caller: SupabaseClient, body: unknown) => Promise<AnsweredFile[]>;
+export type AnsweringCompany = { caller: SupabaseClient; companyID: string };
+
+type FilesOfAnswer = (company: AnsweringCompany, body: unknown) => Promise<AnsweredFile[]>;
 
 const filesOfTool: Record<string, FilesOfAnswer> = {
 	company_info_get: companyProfileFiles
 };
 
-export async function filesAnsweredBy(toolName: string, caller: SupabaseClient, body: unknown): Promise<AnsweredFile[]> {
+export async function filesAnsweredBy(toolName: string, company: AnsweringCompany, body: unknown): Promise<AnsweredFile[]> {
 	const files = filesOfTool[toolName];
-	return files ? files(caller, body) : [];
+	return files ? files(company, body) : [];
 }
 
-async function companyProfileFiles(caller: SupabaseClient, body: unknown): Promise<AnsweredFile[]> {
-	const kept = await companyImagesKept(caller);
+async function companyProfileFiles(company: AnsweringCompany, body: unknown): Promise<AnsweredFile[]> {
 	const images: AnsweredFile[] = [];
 	const printed: Record<string, unknown> = { ...profileIn(body) };
-	for (const image of companyImages) {
-		const path = kept[image];
-		const file = path ? await storedImage(caller, path, `${image}${extensionOfPath(path)}`) : undefined;
+	for (const name of serviceFileNames) {
+		const kept = await newestServiceFile(company.caller, company.companyID, name);
+		const file = kept ? await storedImage(company.caller, kept) : undefined;
 		if (file) images.push(file);
-		printed[`${image}Image`] = file?.name ?? '';
+		printed[`${name}Image`] = file?.name ?? '';
 	}
 	const profileFile = { name: 'company-profile.json', mimeType: 'application/json', text: JSON.stringify(printed, null, 2) };
 	return [profileFile, ...images];
@@ -44,14 +45,17 @@ function profileIn(body: unknown): Record<string, unknown> {
 	return { ...result };
 }
 
-async function storedImage(caller: SupabaseClient, path: string, name: string): Promise<AnsweredFile> {
-	const { data, error } = await caller.storage.from(assetBucket).download(path);
-	if (error) throw new Error(`the company image at ${path} could not be read: ${error.message}`);
-	return { name, mimeType: data.type || 'application/octet-stream', bytes: new Uint8Array(await data.arrayBuffer()) };
+async function storedImage(caller: SupabaseClient, kept: KeptServiceFile): Promise<AnsweredFile | undefined> {
+	const { data, error } = await caller.storage.from(assetBucket).download(kept.storagePath);
+	if (error && isWithheldFromTheCaller(error)) return undefined;
+	if (error) throw new Error(`the company image at ${kept.storagePath} could not be read: ${error.message}`);
+	return {
+		name: `${kept.name}.${kept.extension}`,
+		mimeType: data.type || 'application/octet-stream',
+		bytes: new Uint8Array(await data.arrayBuffer())
+	};
 }
 
-function extensionOfPath(path: string): string {
-	const name = path.slice(path.lastIndexOf('/') + 1);
-	const dot = name.lastIndexOf('.');
-	return dot > 0 ? name.slice(dot).toLowerCase() : '';
+function isWithheldFromTheCaller(error: Error): boolean {
+	return 'status' in error && (error.status === 400 || error.status === 403 || error.status === 404);
 }

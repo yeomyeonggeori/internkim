@@ -11,6 +11,9 @@ mock.module('$env/dynamic/private', () => ({
 const { runToolOverTheRecord, previewToolOverTheRecord } = await import('../../src/lib/server/public-api/record');
 const { buildCapabilityToolCatalog } = await import('../../src/lib/server/public-api/catalog/tools');
 const { protocolVersion } = await import('../../src/lib/server/public-api/catalog/protocol');
+const { newestServiceFile } = await import('../../src/lib/server/public-api/record/service-files');
+const { assetBucket } = await import('../../src/lib/server/public-api/asset-address');
+const { dayIn } = await import('../../src/lib/server/public-api/record/days');
 
 const networkHookTimeout = 60_000;
 const client = controlPlane({ projectURL, serviceRoleKey });
@@ -226,13 +229,22 @@ const aPixelPNG = Uint8Array.from(
 	(character) => character.charCodeAt(0)
 );
 
-async function imagesKept(): Promise<{ seal_image: string | null; profile_image: string | null }> {
-	const { data } = await client.from('company').select('seal_image, profile_image').eq('id', companyID).single();
-	return data as { seal_image: string | null; profile_image: string | null };
+const uploadedPaths: string[] = [];
+
+type KeptDocument = { id: string; category_code: string; document_date: string; supersedes: string | null; storage_path: string | null };
+
+async function documentAt(storagePath: string): Promise<KeptDocument> {
+	const { data } = await client
+		.from('company_document')
+		.select('id, category_code, document_date, supersedes, storage_path')
+		.eq('storage_path', storagePath)
+		.single<KeptDocument>();
+	if (!data) throw new Error(`no document keeps ${storagePath}`);
+	return data;
 }
 
-async function anUploadedImage(image: 'seal' | 'logo', fileName: string): Promise<string> {
-	const asked = await asAdmin('company_image_upload', { image, fileName });
+async function anUploadedImage(image: 'seal' | 'logo', fileName: string, date?: string): Promise<string> {
+	const asked = await asAdmin('company_image_upload', { image, fileName, ...(date ? { date } : {}) });
 	expect(asked.status).toBe(200);
 	const put = await fetch(String(resultOf(asked).uploadURL), {
 		method: 'PUT',
@@ -240,59 +252,104 @@ async function anUploadedImage(image: 'seal' | 'logo', fileName: string): Promis
 		body: aPixelPNG
 	});
 	expect(put.ok).toBe(true);
-	return String(resultOf(asked).storagePath);
+	const storagePath = String(resultOf(asked).storagePath);
+	uploadedPaths.push(storagePath);
+	return storagePath;
 }
 
-describe('the company seal and logo', () => {
-	test('are kept once in the company folder of its shared scope', async () => {
-		const sealPath = await anUploadedImage('seal', '법인인감.png');
-		const logoPath = await anUploadedImage('logo', 'logo.PNG');
+async function aKeptImage(image: 'seal' | 'logo', date: string): Promise<string> {
+	const storagePath = await anUploadedImage(image, `${image}.png`, date);
+	expect((await asAdmin('company_info_set', { language: 'ko', [`${image}Image`]: storagePath })).status).toBe(200);
+	return storagePath;
+}
 
-		expect(sealPath.startsWith(`${companyID}/shared/company/seal-`)).toBe(true);
-		expect(logoPath.endsWith('.png')).toBe(true);
+async function newestSealPath(): Promise<string | undefined> {
+	return (await newestServiceFile(admin, companyID, 'seal'))?.storagePath;
+}
+
+const uuidPattern = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+
+describe('the company seal and logo', () => {
+	afterAll(async () => {
+		await client.storage.from(assetBucket).remove(uploadedPaths);
+	}, networkHookTimeout);
+
+	test('are kept as dated data room documents under a fixed name in their categories', async () => {
+		const sealPath = await anUploadedImage('seal', '법인인감.png', '2026-03-01');
+		const logoPath = await anUploadedImage('logo', 'logo.JPG');
+		const today = dayIn('Asia/Seoul', now);
+
+		expect(sealPath).toMatch(new RegExp(`^${companyID}/dataroom/C/CR/seal\\.2026-03-01\\.${uuidPattern}\\.png$`));
+		expect(logoPath).toMatch(new RegExp(`^${companyID}/dataroom/S/SM/logo\\.${today}\\.${uuidPattern}\\.jpg$`));
 
 		const written = await asAdmin('company_info_set', { language: 'ko', sealImage: sealPath, logoImage: logoPath });
 		expect(written.status).toBe(200);
 		expect(resultOf(written).name).toBe('주식회사 예시');
 
-		expect(await imagesKept()).toEqual({ seal_image: sealPath, profile_image: logoPath });
+		expect(await documentAt(sealPath)).toMatchObject({ category_code: 'CR', document_date: '2026-03-01', supersedes: null });
+		expect(await documentAt(logoPath)).toMatchObject({ category_code: 'SM', document_date: today });
+		expect(await newestSealPath()).toBe(sealPath);
+		const { data: company } = await client.from('company').select('profile_image').eq('id', companyID).single();
+		expect(company?.profile_image).toBeNull();
 	});
 
-	test('refuse a seal path that company_image_upload did not answer', async () => {
-		const elsewhere = await asAdmin('company_info_set', {
-			language: 'ko',
-			sealImage: `${companyID}/shared/attachment/seal.png`
-		});
-		const neverPut = await asAdmin('company_info_set', {
-			language: 'ko',
-			sealImage: `${companyID}/shared/company/seal-${crypto.randomUUID()}.png`
-		});
+	test('a later seal is a new document that supersedes the one before it, which stays', async () => {
+		const earlier = await newestSealPath();
+		const later = await aKeptImage('seal', '2026-09-01');
+
+		expect(await newestSealPath()).toBe(later);
+		expect((await documentAt(later)).supersedes).toBe((await documentAt(String(earlier))).id);
+		expect((await documentAt(String(earlier))).storage_path).toBe(String(earlier));
+	});
+
+	test('a seal dated before the newest is kept without replacing it', async () => {
+		const newest = await newestSealPath();
+		const backdated = await aKeptImage('seal', '2025-01-01');
+
+		expect(await newestSealPath()).toBe(newest);
+		expect((await documentAt(backdated)).supersedes).toBeNull();
+	});
+
+	test('of two seals dated the same day, the one created later is the newest', async () => {
+		const sameDay = await aKeptImage('seal', '2026-09-01');
+
+		expect(await newestSealPath()).toBe(sameDay);
+	});
+
+	test('refuse a path that company_image_upload did not answer for that image, or one nothing was put at', async () => {
+		const elsewhere = await asAdmin('company_info_set', { language: 'ko', sealImage: `${companyID}/shared/company/seal.png` });
+		const asked = await asAdmin('company_image_upload', { image: 'seal', fileName: 'seal.png' });
+		const askedPath = String(resultOf(asked).storagePath);
+		const swapped = await asAdmin('company_info_set', { language: 'ko', logoImage: askedPath });
+		const neverPut = await asAdmin('company_info_set', { language: 'ko', sealImage: askedPath });
 
 		expect(elsewhere.status).toBe(400);
+		expect(swapped.status).toBe(400);
 		expect(neverPut.status).toBe(409);
 	});
 
-	test('refuse an image that is neither a seal nor a logo, or not a picture', async () => {
+	test('remove no kept version when given an empty path', async () => {
+		const newest = await newestSealPath();
+		const emptied = await asAdmin('company_info_set', { language: 'ko', sealImage: '' });
+
+		expect(emptied.status).toBe(400);
+		expect(await newestSealPath()).toBe(newest);
+	});
+
+	test('refuse an image that is no service file, not a picture, or dated on no calendar day', async () => {
 		const unknownImage = await asAdmin('company_image_upload', { image: 'signature', fileName: 'sign.png' });
 		const notAPicture = await asAdmin('company_image_upload', { image: 'seal', fileName: 'seal.pdf' });
+		const noSuchDay = await asAdmin('company_image_upload', { image: 'seal', fileName: 'seal.png', date: '2026-02-30' });
 
 		expect(unknownImage.status).toBe(400);
 		expect(notAPicture.status).toBe(400);
+		expect(noSuchDay.status).toBe(400);
 	});
 
 	test('are an administrator to keep', async () => {
 		const asked = await asSample('company_image_upload', { image: 'seal', fileName: 'seal.png' });
 
-		expect(asked.status).toBeGreaterThanOrEqual(400);
-		expect((await imagesKept()).seal_image).not.toBeNull();
-	});
-
-	test('a seal given as an empty string is removed and the logo stays', async () => {
-		const written = await asAdmin('company_info_set', { language: 'ko', sealImage: '' });
-
-		expect(written.status).toBe(200);
-		expect((await imagesKept()).seal_image).toBeNull();
-		expect((await imagesKept()).profile_image).not.toBeNull();
+		expect(asked.status).toBe(403);
 	});
 });
 
