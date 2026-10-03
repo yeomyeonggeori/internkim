@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
+	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import * as Item from '$lib/components/ui/item';
@@ -10,9 +11,11 @@
 	import type { EmptyBox, VerifiedBoxAnswer } from '$lib/company/box';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import BoxWifiChange from './box-wifi-change.svelte';
+	import ConnectedComputer from './connected-computer.svelte';
 	import { connectBox, disconnectBox, fetchBoxes, giveBoxModelKey, verifyBoxCode, type Boxes } from './host-setup-client';
 	import { hostSetupText } from './text';
 
+	let { isCompanyComputerOnline }: { isCompanyComputerOnline: boolean } = $props();
 	const text = createPageText(hostSetupText);
 	const refreshMilliseconds = 5000;
 	let boxes = $state<Boxes>({ connected: null, empty: [] });
@@ -115,8 +118,38 @@
 	}
 </script>
 
+{#snippet waitingBoxes()}
+	<Item.Group class="gap-2">
+		{#each boxes.empty as box (box.publicKey)}
+			<Item.Root variant="outline">
+				<Item.Content>
+					<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
+					<Item.Description class="font-mono">{shortBoxName(box.publicKey)}</Item.Description>
+					<Item.Description>{whereTheCodeIs(box)}</Item.Description>
+				</Item.Content>
+				<Item.Actions>
+					<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => verify(event, box.publicKey)}>
+						<Input
+							class="w-36 font-mono uppercase"
+							aria-label={text.pairingCode}
+							placeholder="ABCD-EFGH"
+							autocomplete="off"
+							maxlength={32}
+							bind:value={pairingCodes[box.publicKey]}
+						/>
+						<Button type="submit" disabled={connectingKey !== ''}>
+							{connectingKey === box.publicKey ? text.connecting : text.connect}
+						</Button>
+					</form>
+				</Item.Actions>
+			</Item.Root>
+		{/each}
+	</Item.Group>
+{/snippet}
+
 <div class="grid min-w-0 gap-4">
-	{#if step === 'searching'}
+	{#if isCompanyComputerOnline && !boxes.connected}<ConnectedComputer />{/if}
+	{#if step === 'searching' && !isCompanyComputerOnline}
 		<div role="status" class="grid gap-1">
 			<p class="flex items-center gap-2 text-sm font-medium"><Spinner />{text.searching}</p>
 			<p class="text-sm text-muted-foreground">{text.searchingHint}</p>
@@ -136,33 +169,16 @@
 				</Button>
 			</Item.Actions>
 		</Item.Root>
+	{:else if step === 'choosing' && isCompanyComputerOnline}
+		<Collapsible.Root class="grid gap-2">
+			<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">
+				{text.showWaitingBoxes.replace('{count}', String(boxes.empty.length))}
+			</Collapsible.Trigger>
+			<Collapsible.Content>{@render waitingBoxes()}</Collapsible.Content>
+		</Collapsible.Root>
 	{:else if step === 'choosing'}
-		<Item.Group class="gap-2">
-			{#each boxes.empty as box (box.publicKey)}
-				<Item.Root variant="outline">
-					<Item.Content>
-						<Item.Title>{box.hostName ?? text.foundBox}</Item.Title>
-						<Item.Description class="font-mono">{shortBoxName(box.publicKey)}</Item.Description>
-						<Item.Description>{whereTheCodeIs(box)}</Item.Description>
-					</Item.Content>
-					<Item.Actions>
-						<form class="flex flex-wrap items-center gap-2" onsubmit={(event) => verify(event, box.publicKey)}>
-							<Input
-								class="w-36 font-mono uppercase"
-								aria-label={text.pairingCode}
-								placeholder="ABCD-EFGH"
-								autocomplete="off"
-								maxlength={32}
-								bind:value={pairingCodes[box.publicKey]}
-							/>
-							<Button type="submit" disabled={connectingKey !== ''}>
-								{connectingKey === box.publicKey ? text.connecting : text.connect}
-							</Button>
-						</form>
-					</Item.Actions>
-				</Item.Root>
-			{/each}
-		</Item.Group>
+		<p class="text-sm font-medium">{text.waitingBoxes}</p>
+		{@render waitingBoxes()}
 	{:else if boxes.connected}
 		<Item.Root variant="outline">
 			<Item.Content>
