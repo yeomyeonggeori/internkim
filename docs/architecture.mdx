@@ -379,12 +379,15 @@ message. From there the relay carries it:
 3. blueclaw runs the turn. Every tool call it makes to that address, the relay
    forwards to the app's `/api/v1/mcp` as the requester, with a member session
    it minted for them, so the agent never holds the bearer.
-4. The reply comes back over ACP, and the relay posts it to the conversation
-   through the connector.
+4. Each reply comes back over ACP as the agent writes it, naming the thread it
+   belongs in. The relay posts it there through the connector and tells
+   blueclaw which message it became, or why it was not posted. blueclaw
+   records a reply as sent only on that word.
 
 Approval travels the same way. When the gate holds a call, blueclaw asks
-the relay over ACP, the relay posts the question into the conversation, and
-the requester's next message there is the answer. blueclaw decides what those
+the relay over ACP, the relay posts the question into the thread it names and
+reports the post as it does a reply, and the requester's next message in that
+thread is the answer. blueclaw decides what those
 words mean, and anything it cannot read as a yes declines. The relay keeps the
 open question on disk beside the inbound queue, so a restart on either side
 asks nothing twice and loses nothing.

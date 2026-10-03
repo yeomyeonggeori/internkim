@@ -446,12 +446,18 @@ function isRecord(offered: unknown): offered is Record<string, unknown> {
 	return typeof offered === 'object' && offered !== null;
 }
 
+const postToConversation = conversationPoster({
+	askChatd: (capability, body) => dispatch.askChatd(capability, body),
+	tellBrowsers
+});
+
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
 		workspaceRootPath,
 		catalogFor: (requesterEmail, conversationID) =>
 			recordCatalogs.serversFor(requesterEmail, conversationID),
+		postToConversation,
 		questions: new HeldQuestionStore({
 			directoryPath: `${relayStateDirectory}/questions`,
 			report: (line) => console.log(`questions: ${line}`)
@@ -464,11 +470,7 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		directoryPath: `${relayStateDirectory}/inbound`,
 		report: (line) => console.log(`inbound: ${line}`)
 	}),
-	postToConversation: conversationPoster({
-		askChatd: (capability, body) => dispatch.askChatd(capability, body),
-		tellBrowsers,
-		report: (line) => console.log(`reply: ${line}`)
-	}),
+	postToConversation,
 	report: (line) => console.log(`acp: ${line}`)
 });
 

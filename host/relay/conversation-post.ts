@@ -5,22 +5,22 @@ export type ChatdAnswer = { status: number; body: unknown };
 export type ConversationPostSettings = {
 	askChatd: (capability: string, body: Record<string, unknown>) => Promise<ChatdAnswer>;
 	tellBrowsers: (conversationID: string, messageID: string) => void;
-	report: (line: string) => void;
 };
 
 export function conversationPoster(
 	settings: ConversationPostSettings
-): (addressing: Addressing, message: string) => Promise<void> {
+): (addressing: Addressing, message: string) => Promise<string> {
 	return async (addressing, message) => {
 		const threadID = replyThreadOf(addressing);
 		const posted = await settings.askChatd('message.post', { threadID, message });
 		if (posted.status >= 300) {
-			settings.report(
+			throw new Error(
 				`chatd refused the post to ${threadID} in ${addressing.conversationID} with ${posted.status}: ${JSON.stringify(posted.body)}`
 			);
-			return;
 		}
-		settings.tellBrowsers(addressing.conversationID, postedMessageIDOf(posted.body));
+		const messageID = postedMessageIDOf(posted.body);
+		settings.tellBrowsers(addressing.conversationID, messageID);
+		return messageID;
 	};
 }
 

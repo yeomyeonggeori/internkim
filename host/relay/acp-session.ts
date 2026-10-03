@@ -5,6 +5,7 @@ import {
 	PROTOCOL_VERSION,
 	RequestError,
 	type Client,
+	type ContentBlock,
 	type RequestPermissionRequest,
 	type RequestPermissionResponse,
 	type SessionNotification,
@@ -40,6 +41,19 @@ export type MessageFacts = {
 };
 
 export const approvalReplyExtensionMethod = '_kim.intern/approvalReply';
+export const deliveryMetaKey = 'kim.intern/delivery';
+export const deliveredExtensionMethod = '_kim.intern/delivered';
+export const undeliveredExtensionMethod = '_kim.intern/undelivered';
+
+export type Delivery = {
+	deliveryID?: string;
+	replyTargetID?: string;
+};
+
+export type PutQuestion = {
+	messageID: string;
+	answered: Promise<string>;
+};
 
 /** The agent never answered: it was not listening, or it went away before it replied. */
 export class AgentUnreachable extends Error {
@@ -66,29 +80,21 @@ export type AskedPermission = {
 	question: string;
 };
 
-export type AnsweredTurn = {
-	reply: string;
-	progress: string[];
-	stopReason: StopReason;
-};
-
 export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
 	catalogFor: (requesterEmail: string, conversationID: string) => McpServerEntry[];
+	/** Posts the message and answers with the ID it was posted under; throws when it was not posted. */
+	postToConversation: (addressing: Addressing, message: string) => Promise<string>;
 	questions: HeldQuestionStore;
-	/** Puts the question to the requester and answers with the words they wrote back. */
-	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<string>;
+	/** Posts the question to the requester; `answered` settles with the words they write back. */
+	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<PutQuestion>;
 	/** Waits for the answer to a question already asked before a restart, without asking again. */
 	awaitAnAlreadyAskedQuestion: (addressing: Addressing) => Promise<string>;
 	report?: (line: string) => void;
 };
 
-type OpenTurn = {
-	addressing: Addressing;
-	messageSegments: string[];
-	progress: string[];
-};
+type PostOutcome = { messageID: string } | { reason: string };
 
 type HeldSession = {
 	sessionID: string;
@@ -104,8 +110,6 @@ export class BlueclawACPClient {
 	private isClosed = false;
 	private readonly heldByConversation = new Map<string, HeldSession>();
 	private readonly heldBySession = new Map<string, HeldSession>();
-	private readonly turnBySession = new Map<string, OpenTurn>();
-	private readonly turnsAwaitingAnAnswer = new Set<OpenTurn>();
 	/**
 	 * The words the person answered with, not the agent's reading of them: a
 	 * restarted agent asks again and has to be told the same thing, and only the
@@ -169,28 +173,17 @@ export class BlueclawACPClient {
 		addressing: Addressing,
 		message: string,
 		facts?: MessageFacts
-	): Promise<AnsweredTurn> {
+	): Promise<StopReason> {
 		const agent = await fromTheAgent(this.agent());
 		const sessionID = await fromTheAgent(this.sessionFor(agent, requester, addressing));
-		const openTurn: OpenTurn = { addressing, messageSegments: [], progress: [] };
-		this.turnBySession.set(sessionID, openTurn);
-		try {
-			const answer = await fromTheAgent(
-				agent.prompt({
-					sessionId: sessionID,
-					prompt: [{ type: 'text', text: message }],
-					...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
-				})
-			);
-			return {
-				reply: openTurn.messageSegments.join(''),
-				progress: openTurn.progress,
-				stopReason: answer.stopReason
-			};
-		} finally {
-			this.turnsAwaitingAnAnswer.delete(openTurn);
-			if (this.turnBySession.get(sessionID) === openTurn) this.turnBySession.delete(sessionID);
-		}
+		const answer = await fromTheAgent(
+			agent.prompt({
+				sessionId: sessionID,
+				prompt: [{ type: 'text', text: message }],
+				...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
+			})
+		);
+		return answer.stopReason;
 	}
 
 	private async agent(): Promise<ClientSideConnection> {
@@ -297,35 +290,71 @@ export class BlueclawACPClient {
 	}
 
 	private readUpdate(notification: SessionNotification): void {
-		const openTurn = this.turnBySession.get(notification.sessionId);
-		if (!openTurn) return;
 		const update = notification.update;
-		if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text') {
-			openTurn.messageSegments.push(update.content.text);
+		if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text') {
+			this.settings.report?.(`progress: ${update.content.text}`);
 			return;
 		}
-		if (update.sessionUpdate === 'agent_thought_chunk' && update.content.type === 'text') {
-			openTurn.progress.push(update.content.text);
+		if (update.sessionUpdate !== 'agent_message_chunk') return;
+		void this.deliverChunk(notification.sessionId, update.content, deliveryOf(notification._meta));
+	}
+
+	private async deliverChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<void> {
+		const outcome = await this.postChunk(sessionID, content, delivery);
+		await this.tellTheAgent(delivery, outcome);
+	}
+
+	private async postChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<PostOutcome> {
+		const held = this.heldSessionOf(sessionID);
+		if (!held) return { reason: `this relay holds no session ${sessionID}, so it has no conversation to post in` };
+		if (content.type !== 'text') {
+			return { reason: `this relay posts only text, so ${describedContent(content)} did not reach the person` };
+		}
+		try {
+			return { messageID: await this.settings.postToConversation(addressedBy(held, delivery), content.text) };
+		} catch (failure) {
+			return { reason: String(failure) };
+		}
+	}
+
+	private async tellTheAgent(delivery: Delivery, outcome: PostOutcome): Promise<void> {
+		if ('reason' in outcome) this.settings.report?.(`a message did not reach the person: ${outcome.reason}`);
+		if (!delivery.deliveryID) return;
+		const [method, report] =
+			'messageID' in outcome
+				? [deliveredExtensionMethod, deliveredReport(delivery.deliveryID, outcome.messageID)]
+				: [undeliveredExtensionMethod, undeliveredReport(delivery.deliveryID, outcome.reason)];
+		try {
+			const agent = await this.agent();
+			await agent.request(method, report);
+		} catch (failure) {
+			this.settings.report?.(`blueclaw was not told what became of ${delivery.deliveryID}: ${String(failure)}`);
 		}
 	}
 
 	private async answerPermission(
 		request: RequestPermissionRequest
 	): Promise<RequestPermissionResponse> {
+		const delivery = deliveryOf(request._meta);
 		const held = this.heldSessionOf(request.sessionId);
-		if (!held) return { outcome: { outcome: 'cancelled' } };
+		if (!held) {
+			await this.tellTheAgent(delivery, {
+				reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in`
+			});
+			return { outcome: { outcome: 'cancelled' } };
+		}
 
 		const toolCallID = request.toolCall.toolCallId;
 		const question = request.toolCall.title ?? '';
-		const askingTurn = this.turnBySession.get(request.sessionId);
 		const alreadyAsked = this.answeredPermissions.get(toolCallID);
-		const asking =
-			alreadyAsked ??
-			this.askAndPersist(toolCallID, question, held, askingTurn?.addressing ?? held.addressing);
+		if (alreadyAsked) {
+			await this.tellTheAgent(delivery, { reason: `${toolCallID} was already put to the person and was not posted again` });
+		}
+		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held, addressedBy(held, delivery), delivery);
 		this.answeredPermissions.set(toolCallID, asking);
 		const connectionThatAsked = this.connection;
 		try {
-			const words = await this.setAsideUntilAnswered(request.sessionId, askingTurn, asking);
+			const words = await asking;
 			// The daemon that asked this is gone; the one that replaced it asked
 			// again, and that request is the one worth answering.
 			if (this.connection !== connectionThatAsked) return { outcome: { outcome: 'cancelled' } };
@@ -334,6 +363,7 @@ export class BlueclawACPClient {
 			await this.settings.questions.forget(toolCallID);
 			return { outcome: { outcome: 'selected', optionId: optionID } };
 		} catch (failure) {
+			if (this.answeredPermissions.get(toolCallID) === asking) this.answeredPermissions.delete(toolCallID);
 			this.settings.report?.(`nobody answered ${toolCallID}: ${String(failure)}`);
 			return { outcome: { outcome: 'cancelled' } };
 		}
@@ -349,7 +379,8 @@ export class BlueclawACPClient {
 		toolCallID: string,
 		question: string,
 		held: HeldSession,
-		addressing: Addressing
+		addressing: Addressing,
+		delivery: Delivery
 	): Promise<string> {
 		await this.settings.questions.keep({
 			toolCallID,
@@ -359,23 +390,26 @@ export class BlueclawACPClient {
 			question,
 			askedAt: new Date().toISOString()
 		});
-		const words = await this.settings.askThePerson({ toolCallID, question }, addressing);
+		const put = await this.putTheQuestion(toolCallID, question, addressing, delivery);
+		const words = await put.answered;
 		await this.settings.questions.answer(toolCallID, words);
 		return words;
 	}
 
-	private async setAsideUntilAnswered(
-		sessionID: string,
-		askingTurn: OpenTurn | undefined,
-		asking: Promise<string>
-	): Promise<string> {
-		if (!askingTurn) return asking;
-		this.turnBySession.delete(sessionID);
-		this.turnsAwaitingAnAnswer.add(askingTurn);
+	private async putTheQuestion(
+		toolCallID: string,
+		question: string,
+		addressing: Addressing,
+		delivery: Delivery
+	): Promise<PutQuestion> {
 		try {
-			return await asking;
-		} finally {
-			if (this.turnsAwaitingAnAnswer.delete(askingTurn)) this.turnBySession.set(sessionID, askingTurn);
+			const put = await this.settings.askThePerson({ toolCallID, question }, addressing);
+			await this.tellTheAgent(delivery, { messageID: put.messageID });
+			return put;
+		} catch (failure) {
+			await this.settings.questions.forget(toolCallID);
+			await this.tellTheAgent(delivery, { reason: String(failure) });
+			throw failure;
 		}
 	}
 
@@ -396,13 +430,53 @@ export class BlueclawACPClient {
 		reply: string
 	): Promise<string> {
 		const agent = await this.agent();
-		const read = await agent.request<{ optionId: string }>(approvalReplyExtensionMethod, {
-			sessionId: sessionID,
-			toolCallId: toolCallID,
-			reply
-		});
-		return read.optionId;
+		const read = await agent.request<Record<string, unknown>>(
+			approvalReplyExtensionMethod,
+			approvalReplyRequest(sessionID, toolCallID, reply)
+		);
+		return optionChosenIn(read);
 	}
+}
+
+export function deliveryOf(meta: Record<string, unknown> | null | undefined): Delivery {
+	const carried = meta?.[deliveryMetaKey];
+	if (typeof carried !== 'object' || carried === null) return {};
+	const deliveryID = nonEmptyStringIn(carried, 'deliveryID');
+	const replyTargetID = nonEmptyStringIn(carried, 'replyTargetID');
+	return { ...(deliveryID ? { deliveryID } : {}), ...(replyTargetID ? { replyTargetID } : {}) };
+}
+
+function nonEmptyStringIn(carried: object, name: string): string | undefined {
+	const value: unknown = Reflect.get(carried, name);
+	return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+export function deliveredReport(deliveryID: string, messageID: string): Record<string, string> {
+	return { deliveryID, messageID };
+}
+
+export function undeliveredReport(deliveryID: string, reason: string): Record<string, string> {
+	return { deliveryID, reason };
+}
+
+export function approvalReplyRequest(sessionID: string, toolCallID: string, reply: string): Record<string, string> {
+	return { sessionId: sessionID, toolCallId: toolCallID, reply };
+}
+
+export function optionChosenIn(answer: Record<string, unknown>): string {
+	const optionID = answer.optionId;
+	if (typeof optionID !== 'string') throw new Error(`blueclaw read the reply as no option: ${JSON.stringify(answer)}`);
+	return optionID;
+}
+
+function addressedBy(held: HeldSession, delivery: Delivery): Addressing {
+	if (!delivery.replyTargetID) return held.addressing;
+	return { ...held.addressing, replyTargetID: delivery.replyTargetID };
+}
+
+function describedContent(content: ContentBlock): string {
+	if (content.type === 'resource_link') return `the file ${content.name} (${content.uri})`;
+	return `a ${content.type} block`;
 }
 
 function messageMetaFrom(facts: MessageFacts): Record<string, unknown> {

@@ -3,7 +3,8 @@ import {
 	AgentUnreachable,
 	type Addressing,
 	type AskedPermission,
-	type BlueclawACPClient
+	type BlueclawACPClient,
+	type PutQuestion
 } from './acp-session';
 import { isAReplyInTheThreadOf } from './conversation-post';
 import { readInboundMessage, type InboundMessage } from './inbound-message';
@@ -12,7 +13,7 @@ import type { InboundQueue, QueuedInboundEvent } from './inbound-queue';
 export type InboundTurnSettings = {
 	client: BlueclawACPClient;
 	queue: InboundQueue;
-	postToConversation: (addressing: Addressing, message: string) => Promise<void>;
+	postToConversation: (addressing: Addressing, message: string) => Promise<string>;
 	waitBeforeRetrying?: (milliseconds: number) => Promise<void>;
 	report?: (line: string) => void;
 };
@@ -52,13 +53,19 @@ export class InboundTurns {
 		await this.settings.client.restoreOutstandingQuestions();
 	}
 
-	askThePerson = async (asked: AskedPermission, addressing: Addressing): Promise<string> => {
+	askThePerson = async (asked: AskedPermission, addressing: Addressing): Promise<PutQuestion> => {
 		const asking = this.activeTurnIn(addressing.conversationID);
 		const question = this.holdQuestion(addressing);
 		if (asking) await this.handTheRunToBlueclaw(asking, question);
-		await this.settings.postToConversation(addressing, asked.question);
-		this.startDraining();
-		return question.answered;
+		try {
+			const messageID = await this.settings.postToConversation(addressing, asked.question);
+			return { messageID, answered: question.answered };
+		} catch (failure) {
+			this.pendingQuestions.delete(question);
+			throw failure;
+		} finally {
+			this.startDraining();
+		}
 	};
 
 	private async handTheRunToBlueclaw(running: RunningTurn, question: PendingQuestion): Promise<void> {
@@ -179,23 +186,12 @@ export class InboundTurns {
 		running: RunningTurn
 	): Promise<void> {
 		try {
-			const answered = await this.settings.client.ask(
-				inbound.requester,
-				inbound.addressing,
-				inbound.message,
-				{
-					messageID: inbound.messageID,
-					replyTargetID: inbound.addressing.replyTargetID,
-					isThread: inbound.addressing.isThread,
-					context: inbound.context
-				}
-			);
-			if (answered.reply) {
-				await this.settings.postToConversation(inbound.addressing, answered.reply);
-			}
-			for (const line of answered.progress) {
-				this.settings.report?.(`progress: ${line}`);
-			}
+			await this.settings.client.ask(inbound.requester, inbound.addressing, inbound.message, {
+				messageID: inbound.messageID,
+				replyTargetID: inbound.addressing.replyTargetID,
+				isThread: inbound.addressing.isThread,
+				context: inbound.context
+			});
 			await this.forget(event.key);
 		} catch (failure) {
 			if (running.blueclawOpenedARun) {
