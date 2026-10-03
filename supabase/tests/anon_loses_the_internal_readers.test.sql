@@ -66,7 +66,7 @@ select is_empty(
   select role, name
   from (values
     ('anon', 'internal.company_of_member(uuid)'), ('anon', 'internal.company_of_task(uuid)'),
-    ('anon', 'internal.company_of_team(uuid)'), ('anon', 'internal.company_of_circle(uuid)')
+    ('anon', 'internal.company_of_team(uuid)')
   ) as expected(role, name)
   where has_function_privilege(role, name, 'execute')
   $$,
@@ -78,7 +78,7 @@ select is_empty(
   select role, name
   from (values
     ('anon', 'public.company_of_member(uuid)'), ('anon', 'public.company_of_task(uuid)'),
-    ('anon', 'public.company_of_team(uuid)'), ('anon', 'public.company_of_circle(uuid)')
+    ('anon', 'public.company_of_team(uuid)')
   ) as expected(role, name)
   where has_function_privilege(role, name, 'execute')
   $$,

@@ -34,7 +34,7 @@ func uniqueAdminStrings(values []string) []string {
 }
 
 // declareTheCirclesPeopleHold makes the policy's circles exactly the ones
-// somebody holds. A circle is a data room role on the central plane, so the
+// somebody holds. Circles live on the central plane, so the
 // people decide which circles exist here; admin is a role, not a place.
 func declareTheCirclesPeopleHold(policyDocument map[string]any) {
 	existing := map[string]map[string]any{}

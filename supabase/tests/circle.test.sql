@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(10);
 
 insert into auth.users (id, email) values
   ('44000000-0000-0000-0000-000000000001', 'circle-a@example.test'),
@@ -19,85 +19,66 @@ insert into public.member (id, company_id, email, user_id, status, is_admin) val
   ('44000000-0000-0000-0000-0000000000b1', '44000000-0000-0000-0000-0000000000b0',
    'circle-b@example.test', '44000000-0000-0000-0000-000000000002', 'active', false);
 
-insert into public.circle (id, company_id, name) values
-  ('44000000-0000-0000-0000-0000000000c1', '44000000-0000-0000-0000-0000000000a0', 'Member'),
-  ('44000000-0000-0000-0000-0000000000c2', '44000000-0000-0000-0000-0000000000a0', 'C-Level'),
-  ('44000000-0000-0000-0000-0000000000d1', '44000000-0000-0000-0000-0000000000b0', 'Member');
-
-insert into public.circle_member (circle_id, member_id) values
-  ('44000000-0000-0000-0000-0000000000c1', '44000000-0000-0000-0000-0000000000a1');
-
+select set_eq(
+  $$select id from public.circle where company_id = '44000000-0000-0000-0000-0000000000a0'$$,
+  array['member', 'leadership', 'finance', 'human-resources', 'investor', 'accountant', 'legal', 'lender'],
+  'a company starts with the default circles'
+);
+select is(
+  (select name_ko from public.circle where company_id = '44000000-0000-0000-0000-0000000000a0' and id = 'member'),
+  '구성원',
+  'the circle everyone is in is called member, so the employer is in it too'
+);
+select set_eq(
+  $$select circle_id from public.circle_member where member_id = '44000000-0000-0000-0000-0000000000a1'$$,
+  array['member'],
+  'a new member is in the member circle and no other'
+);
+select set_eq(
+  $$select circle_id from public.circle_member where member_id = '44000000-0000-0000-0000-0000000000a2'$$,
+  array['member', 'leadership'],
+  'an administrator also starts in leadership'
+);
 select throws_ok(
-  $$insert into public.circle (company_id, name)
-    values ('44000000-0000-0000-0000-0000000000a0', 'Member')$$,
-  '23505',
+  $$insert into public.circle (company_id, id, name) values ('44000000-0000-0000-0000-0000000000a0', 'Not An ID', 'Bad')$$,
+  '23514',
   null,
-  'one company does not get two circles of the same name, the way it does not get two teams'
+  'a circle id is a lowercase name a folder and a group can carry'
 );
 
+update public.circle set id = 'everyone'
+  where company_id = '44000000-0000-0000-0000-0000000000b0' and id = 'member';
+select set_eq(
+  $$select circle_id from public.circle_member where member_id = '44000000-0000-0000-0000-0000000000b1'$$,
+  array['everyone'],
+  'changing a circle id carries the people in it'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000001"}', true);
+select is(
+  (select count(*) from public.circle_member),
+  3::bigint,
+  'a member sees who is in the circles of their own company, and no other'
+);
+select throws_ok(
+  $$select public.member_circles_set('44000000-0000-0000-0000-0000000000a0', '44000000-0000-0000-0000-0000000000a1', array['leadership'])$$,
+  '42501',
+  'only administrators place people in circles',
+  'a member does not put themselves in a circle'
+);
+
+select set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000003"}', true);
 select lives_ok(
-  $$insert into public.circle (company_id, name)
-    values ('44000000-0000-0000-0000-0000000000b0', 'C-Level')$$,
-  'the same name in another company is a different circle'
+  $$select public.member_circles_set('44000000-0000-0000-0000-0000000000a0', '44000000-0000-0000-0000-0000000000a1', array['finance', 'member'])$$,
+  'an administrator places a member in circles'
 );
-
-do $$
-declare
-  visible_circles integer;
-  visible_memberships integer;
-  rows_changed integer;
-begin
-  set local role authenticated;
-  perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000001"}', true);
-
-  select count(*) into visible_circles from public.circle;
-  assert visible_circles = 2, 'a member sees the circles of their own company and no other';
-
-  select count(*) into visible_memberships from public.circle_member;
-  assert visible_memberships = 1, 'a member sees memberships of their own company only';
-
-  update public.circle set name = 'Renamed' where name = 'Member';
-  get diagnostics rows_changed = row_count;
-  assert rows_changed = 0, 'a member who is not an admin does not edit a circle';
-
-  assert public.is_in_circle('44000000-0000-0000-0000-0000000000c1'), 'a member is in the circle they were put in';
-  assert not public.is_in_circle('44000000-0000-0000-0000-0000000000c2'), 'a member is not in a circle they were not';
-  assert not public.is_in_circle(null), 'a path with no circle in it resolves to no membership';
-
-  reset role;
-end;
-$$;
-
-select pass('a member reads their own company circles and memberships, and no other');
-select pass('a member who is not an admin cannot edit a circle');
-select pass('is_in_circle answers for the caller, and denies a null circle');
-
-do $$
-declare
-  rows_changed integer;
-  planting_blocked boolean := false;
-begin
-  set local role authenticated;
-  perform set_config('request.jwt.claims', '{"sub":"44000000-0000-0000-0000-000000000003"}', true);
-
-  update public.circle set name = 'Renamed' where name = 'Member'
-    and company_id = '44000000-0000-0000-0000-0000000000a0';
-  get diagnostics rows_changed = row_count;
-  assert rows_changed = 1, 'an admin edits a circle of their own company';
-
-  begin
-    insert into public.circle (company_id, name)
-    values ('44000000-0000-0000-0000-0000000000b0', 'Planted');
-  exception when insufficient_privilege then
-    planting_blocked := true;
-  end;
-  assert planting_blocked, 'an admin of one company does not create a circle in another';
-
-  reset role;
-end;
-$$;
-
-select pass('an admin keeps the circles of their own company, and no other');
+select set_eq(
+  $$select circle_id from public.circle_member where member_id = '44000000-0000-0000-0000-0000000000a1'$$,
+  array['finance', 'member'],
+  'placing a member replaces the circles they were in'
+);
+reset role;
 
 select finish();
 rollback;

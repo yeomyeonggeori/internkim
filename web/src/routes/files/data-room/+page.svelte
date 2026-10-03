@@ -97,7 +97,7 @@
 			<TooltipIconButton label={text.refresh} variant="ghost" size="icon-sm" onclick={load}
 				><RefreshCwIcon /></TooltipIconButton
 			>
-			{#if room}<ShareLinks {room} />{/if}
+			{#if room}<ShareLinks />{/if}
 		</div>
 		{#if errorMessage}<div role="alert" class="mb-4 flex items-center justify-between gap-3">
 				<p class="text-destructive text-sm">{errorMessage}</p>

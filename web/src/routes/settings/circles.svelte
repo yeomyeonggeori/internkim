@@ -9,42 +9,34 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { invokeTool } from '$lib/public-api-call';
 	import { supabaseOrganizationDirectory } from '$lib/organization/supabase-directory';
-	import { dataRoomGetResultSchema } from '$lib/data-room/schemas';
+	import { circleListResultSchema, dataRoomGetResultSchema } from '$lib/data-room/schemas';
 	import { dataRoomText } from '$lib/data-room/text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
-	import DataRoomRoles from './data-room-roles.svelte';
+	import CircleEditor from './circle-editor.svelte';
 
 	type Employee = { id: string; name: string; email: string };
 	const text = createPageText(dataRoomText);
 	let room = $state<z.infer<typeof dataRoomGetResultSchema> | null>(null);
 	let employees = $state<Employee[]>([]);
 	let selectedEmployee = $state<Employee | null>(null);
-	let selectedRoles = $state<string[]>([]);
+	let circles = $state<z.infer<typeof circleListResultSchema>['circles']>([]);
+	let selectedCircles = $state<string[]>([]);
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let errorMessage = $state('');
-	const roles = $derived(room?.roles ?? []);
 	const fieldID = $props.id();
 
-	function roleName(code: string): string {
-		const role = roles.find((candidate) => candidate.code === code);
-		return currentLocale.value === 'ko' ? role?.nameKO || role?.name || code : role?.name || code;
+	function circleName(circle: (typeof circles)[number]): string {
+		return currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name;
 	}
 
-	function rolesOf(employeeID: string): string[] {
-		return [
-			...new Set(
-				room?.shares
-					.filter(
-						(share) =>
-							share.memberID === employeeID &&
-							!share.revokedAt &&
-							(!share.expiresAt || Date.parse(share.expiresAt) > Date.now())
-					)
-					.map((share) => share.roleCode) ?? []
-			)
-		];
+	function circlesOf(employeeID: string): typeof circles {
+		return circles.filter((circle) => circle.memberIDs.includes(employeeID));
+	}
+
+	async function loadCircles() {
+		circles = circleListResultSchema.parse(await invokeTool('circle_list', {})).circles;
 	}
 
 	async function load() {
@@ -53,7 +45,8 @@
 		try {
 			const [answer, directory] = await Promise.all([
 				invokeTool('dataroom_get', {}),
-				supabaseOrganizationDirectory()
+				supabaseOrganizationDirectory(),
+				loadCircles()
 			]);
 			room = dataRoomGetResultSchema.parse(answer);
 			employees = (directory.records ?? []).flatMap((record) =>
@@ -70,25 +63,25 @@
 
 	function edit(employee: Employee) {
 		selectedEmployee = employee;
-		selectedRoles = rolesOf(employee.id);
+		selectedCircles = circlesOf(employee.id).map((circle) => circle.id);
 		errorMessage = '';
 	}
 
-	function toggle(code: string, checked: boolean) {
-		selectedRoles = checked
-			? [...selectedRoles, code]
-			: selectedRoles.filter((role) => role !== code);
+	function toggle(circleID: string, checked: boolean) {
+		selectedCircles = checked
+			? [...selectedCircles, circleID]
+			: selectedCircles.filter((selected) => selected !== circleID);
 	}
 
 	async function save() {
 		if (!selectedEmployee) return;
 		isSaving = true;
 		try {
-			await invokeTool('dataroom_member_update', {
+			await invokeTool('circle_member_update', {
 				memberID: selectedEmployee.id,
-				roleCodes: selectedRoles
+				circleIDs: selectedCircles
 			});
-			room = dataRoomGetResultSchema.parse(await invokeTool('dataroom_get', {}));
+			await loadCircles();
 			selectedEmployee = null;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.loadFailed;
@@ -101,8 +94,8 @@
 
 <section class="grid gap-4">
 	<header class="grid gap-1">
-		<h2 class="text-xl font-semibold">{text.permissions}</h2>
-		<p class="text-sm text-muted-foreground">{text.permissionsDescription}</p>
+		<h2 class="text-xl font-semibold">{text.circles}</h2>
+		<p class="text-sm text-muted-foreground">{text.circlesDescription}</p>
 	</header>
 	<Card.Root
 		><Card.Content>
@@ -110,8 +103,8 @@
 			{:else}<Table.Root
 					><Table.Header
 						><Table.Row
-							><Table.Head>{text.name}</Table.Head><Table.Head>{text.roles}</Table.Head><Table.Head
-								><span class="sr-only">{text.chooseRoles}</span></Table.Head
+							><Table.Head>{text.name}</Table.Head><Table.Head>{text.circles}</Table.Head><Table.Head
+								><span class="sr-only">{text.chooseCircles}</span></Table.Head
 							></Table.Row
 						></Table.Header
 					>
@@ -121,10 +114,10 @@
 									><p class="font-medium">{employee.name}</p>
 									<p class="text-xs text-muted-foreground">{employee.email}</p></Table.Cell
 								><Table.Cell
-									>{rolesOf(employee.id).map(roleName).join(', ') || text.noRoles}</Table.Cell
+									>{circlesOf(employee.id).map(circleName).join(', ') || text.noCircles}</Table.Cell
 								><Table.Cell class="text-right"
 									><Button variant="outline" size="sm" onclick={() => edit(employee)}
-										>{text.chooseRoles}</Button
+										>{text.chooseCircles}</Button
 									></Table.Cell
 								></Table.Row
 							>{/each}</Table.Body
@@ -133,7 +126,7 @@
 		</Card.Content></Card.Root
 	>
 	{#if errorMessage}<p role="alert" class="text-sm text-destructive">{errorMessage}</p>{/if}
-	{#if room?.canManage}<DataRoomRoles {room} onSaved={load} />{/if}
+	{#if room?.canManage}<CircleEditor {circles} categories={room.categories} onSaved={loadCircles} />{/if}
 </section>
 
 <Dialog.Root
@@ -144,20 +137,20 @@
 >
 	<Dialog.Content
 		><Dialog.Header
-			><Dialog.Title>{text.chooseRoles}</Dialog.Title><Dialog.Description
-				>{selectedEmployee?.name} · {text.directRolesDescription}</Dialog.Description
+			><Dialog.Title>{text.chooseCircles}</Dialog.Title><Dialog.Description
+				>{selectedEmployee?.name}</Dialog.Description
 			></Dialog.Header
 		>
 		<div class="grid gap-3">
-			{#each roles as role (role.code)}<div class="flex items-start gap-3">
+			{#each circles as circle (circle.id)}<div class="flex items-start gap-3">
 					<Checkbox
-						id="{fieldID}-{role.code}"
-						checked={selectedRoles.includes(role.code)}
-						onCheckedChange={(checked) => toggle(role.code, checked === true)}
+						id="{fieldID}-{circle.id}"
+						checked={selectedCircles.includes(circle.id)}
+						onCheckedChange={(checked) => toggle(circle.id, checked === true)}
 						disabled={isSaving}
-					/><label for="{fieldID}-{role.code}" class="grid gap-1 text-sm"
-						><span>{roleName(role.code)}</span><span class="text-xs text-muted-foreground"
-							>{role.readableCategories.join(', ')}</span
+					/><label for="{fieldID}-{circle.id}" class="grid gap-1 text-sm"
+						><span>{circleName(circle)}</span><span class="text-xs text-muted-foreground"
+							>{circle.readableCategories.join(', ')}</span
 						></label
 					>
 				</div>{/each}

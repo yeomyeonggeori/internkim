@@ -1,14 +1,15 @@
 ---
 title: Access and sharing
-description: Reader roles, invitations and publication.
+description: Circles, invitations and publication.
 ---
 
-A role contains `readableCategories`, an array of codes. `F` includes all
-finance children, including ones added later. `FS` grants financial
-statements alone. Multiple active grants combine; there are no deny overrides.
-Reader roles grant reading. Company administration and document editing are
-separate permissions. Filing eligibility does not limit permission scopes:
-both parent and intermediate codes can appear in a role.
+A company member reads the data room through the circles they belong to. A
+circle names `readableCategories`, an array of codes. `F` includes all finance
+children, including ones added later. `FS` grants financial statements alone.
+Belonging to several circles combines them; there are no deny overrides. A
+circle grants reading. Company administration and document editing are
+separate permissions. Filing eligibility does not limit a circle's scope:
+both parent and intermediate codes can appear in one.
 
 | readableCategories | Access |
 |---|---|
@@ -17,30 +18,36 @@ both parent and intermediate codes can appear in a role.
 | `["FS", "FP"]` | Financial statements and payroll |
 
 A category without children can hold documents. A category with children
-groups their documents and remains a valid permission scope.
+groups their documents and remains a valid scope.
 
-Company administrators assign roles to members, external emails or explicitly
-public audiences. The roles a member holds are their circles. A verified email
-recipient must accept the invitation and gains no company membership, circle
-or host filesystem identity. An expired or revoked grant stops new reads. Original file downloads
+A circle is also a shared folder and a shared memory on the company host. Its
+`id` is the lowercase name the host uses for both, such as `leadership`, and
+its name is what people read. Every new member joins `member`; administrators
+created with a company also join `leadership`. Later changes to administrator
+status change no circle. Settings → Company places each member in circles and
+edits what each circle reads.
+
+Editing a circle immediately changes what its members and every share of it
+can read. Adding a child immediately extends existing parent scopes. Review
+those readers before changing either. Category codes and ancestry are stable.
+
+## Sharing outside the company
+
+An administrator lends what one circle reads to an external email or an
+explicitly public audience. A verified email recipient must accept the
+invitation and gains no company membership, circle or host filesystem
+identity. An expired or revoked share stops new reads. Original file downloads
 require `canDownload`; text previews follow read access. A downloaded copy
 cannot be recalled, and issued file links expire within ten minutes.
 
-Publication requires an explicit public grant. It never publishes `X`.
-Editing a role immediately changes every active recipient's scope. Adding a
-child immediately extends existing parent grants. Review those recipients
-before changing either. Category codes and ancestry are stable.
-
-New members receive the member role; administrators created with a company
-also receive leadership. Later changes to company administrator status do not
-assign or revoke a reader role. Manage these grants separately.
+Publication requires an explicit public share. It never publishes `X`.
 
 ## Code-protected links
 
-An active member creates a link by choosing a reader role within their own
-grants. Every role is eligible, including leadership;
-`X` follows the same role and creator permissions. Its default lifetime is
-three days; the available lifetimes are defined by
+An active member creates a link by choosing a circle within their own access.
+Every circle is eligible, including leadership; `X` follows the same circle and
+creator permissions. Its default lifetime is three days; the available
+lifetimes are defined by
 [`dataRoomLinkLifetimeHours`](https://github.com/yeomyeonggeori/internkim/blob/main/web/src/lib/data-room/links.ts).
 The database enforces a seven-day ceiling.
 
@@ -51,16 +58,14 @@ bounded by the link's expiration, without creating a company member. Ten code
 attempts per network address in fifteen minutes temporarily lock further
 attempts. A link also has a shared ceiling of one hundred attempts per window.
 
-Every database read checks the link, current reader role and creator's current
-permissions. Role expansion cannot exceed the creator's access. The creator
-or a company administrator can revoke a link. An open page loses further
-access and clears its displayed documents on its next session check.
-Original download URLs expire within one minute. Already downloaded files
-cannot be recalled.
+Every database read checks the link, what its circle reads now and the
+creator's current access. Widening the circle cannot exceed the creator's
+access. The creator or a company administrator can revoke a link. An open page
+loses further access and clears its displayed documents on its next session
+check. Original download URLs expire within one minute. Already downloaded
+files cannot be recalled.
 
-Settings → Company replaces a member's reader roles atomically. The roles a
-member holds are also their circles on the company host. The confidentiality acknowledgment records
-its notice version and time; any separate confidentiality agreement remains
-the company's responsibility.
+The confidentiality acknowledgment records its notice version and time; any
+separate confidentiality agreement remains the company's responsibility.
 
 Moving a document into another category changes its readers.

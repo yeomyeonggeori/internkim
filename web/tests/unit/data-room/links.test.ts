@@ -13,11 +13,11 @@ describe('share link contract', () => {
 		expect(dataRoomLinkSessionSchema.safeParse({ ...session, companyID: 'company' }).success).toBe(false);
 	});
 	test('defaults to three days and refuses unsupported or overlong lifetimes', () => {
-		expect(dataRoomLinkInputSchema.parse({ label: 'Review', roleCode: 'investor' }).lifetimeHours).toBe(72);
-		expect(dataRoomLinkInputSchema.safeParse({ label: 'Review', roleCode: 'investor', lifetimeHours: 169 }).success).toBe(false);
+		expect(dataRoomLinkInputSchema.parse({ label: 'Review', circleID: 'investor' }).lifetimeHours).toBe(72);
+		expect(dataRoomLinkInputSchema.safeParse({ label: 'Review', circleID: 'investor', lifetimeHours: 169 }).success).toBe(false);
 	});
 	test('the database supports exactly the same lifetime choices', () => {
-		const migration = readFileSync(new URL('../../../../supabase/migrations/20261003000012_data_room_links_and_member_roles.sql', import.meta.url), 'utf8');
+		const migration = readFileSync(new URL('../../../../supabase/migrations/20261004000007_a_circle_is_one_table.sql', import.meta.url), 'utf8');
 		expect(migration).toContain(`lifetime_hours not in (${dataRoomLinkLifetimeHours.join(', ')})`);
 		expect(migration).toContain(`access_code !~ '^${dataRoomAccessCodePattern}$'`);
 	});

@@ -6,31 +6,25 @@ import { settleSignInOfMember } from './control-plane';
 
 export type CompanyDirectory = { client: SupabaseClient; companyID: string };
 
-type HeldRole = { member_id: string | null; role_code: string };
+type CircleMembership = { member_id: string; circle_id: string };
 
-export function circlesByMemberID(held: HeldRole[]): Map<string, string[]> {
+export function circlesByMemberID(memberships: CircleMembership[]): Map<string, string[]> {
 	const circlesOfMember = new Map<string, string[]>();
-	for (const { member_id: memberID, role_code: circle } of held) {
-		if (!memberID) continue;
-		const circles = circlesOfMember.get(memberID) ?? [];
-		if (!circles.includes(circle)) circles.push(circle);
-		circlesOfMember.set(memberID, circles);
+	for (const { member_id: memberID, circle_id: circle } of memberships) {
+		circlesOfMember.set(memberID, [...(circlesOfMember.get(memberID) ?? []), circle]);
 	}
 	return circlesOfMember;
 }
 
 export async function circlesOfTheCompany(directory: CompanyDirectory): Promise<Map<string, string[]>> {
-	const held = await directory.client
-		.from('data_room_share')
-		.select('member_id, role_code')
+	const memberships = await directory.client
+		.from('circle_member')
+		.select('member_id, circle_id')
 		.eq('company_id', directory.companyID)
-		.eq('audience', 'member')
-		.is('revoked_at', null)
-		.or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-		.order('role_code')
-		.returns<HeldRole[]>();
-	if (held.error) throw new Error(held.error.message);
-	return circlesByMemberID(held.data ?? []);
+		.order('circle_id')
+		.returns<CircleMembership[]>();
+	if (memberships.error) throw new Error(memberships.error.message);
+	return circlesByMemberID(memberships.data ?? []);
 }
 
 export const memberWriteSchema = z.object({

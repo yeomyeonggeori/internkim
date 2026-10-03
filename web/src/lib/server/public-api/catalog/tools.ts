@@ -13,6 +13,7 @@ import {
 import { browserControlToolDefinitions } from './browser';
 import { companyToolDefinitions } from './company';
 import { dataRoomToolDefinitions } from './data-room';
+import { circleToolDefinitions } from './circle';
 import { hostToolDefinitions } from './host';
 import { crmToolDefinitions } from './crm';
 import {
@@ -1883,6 +1884,7 @@ const capabilityToolDefinitions: CapabilityToolDefinition[] = [
   ...artifactToolDefinitions,
   ...companyToolDefinitions,
   ...dataRoomToolDefinitions,
+  ...circleToolDefinitions,
   ...crmToolDefinitions,
   ...settingsToolDefinitions,
   ...notificationToolDefinitions,

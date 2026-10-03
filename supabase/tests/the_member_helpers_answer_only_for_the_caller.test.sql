@@ -44,10 +44,6 @@ insert into public.team (id, company_id, name) values
   ('79000000-0000-0000-0000-0000000000e1', '79000000-0000-0000-0000-0000000000c1', 'Ours'),
   ('79000000-0000-0000-0000-0000000000e2', '79000000-0000-0000-0000-0000000000c2', 'Theirs');
 
-insert into public.circle (id, company_id, name) values
-  ('79000000-0000-0000-0000-0000000000f1', '79000000-0000-0000-0000-0000000000c1', 'Ours'),
-  ('79000000-0000-0000-0000-0000000000f2', '79000000-0000-0000-0000-0000000000c2', 'Theirs');
-
 -- The leak this closes: a colleague's id went in and their leave balance,
 -- granted days, hours, minimum, timezone and locale came back, for any member.
 select lives_ok($block$do $$
@@ -171,8 +167,6 @@ begin
     'a member names the company of a task at home';
   assert public.company_of_team('79000000-0000-0000-0000-0000000000e1') = own_company,
     'a member names the company of an organization at home';
-  assert public.company_of_circle('79000000-0000-0000-0000-0000000000f1') = own_company,
-    'a member names the company of a circle at home';
 
   assert public.company_of_member('79000000-0000-0000-0000-0000000000b1') is null,
     'a member is not told which company a stranger belongs to';
@@ -180,8 +174,6 @@ begin
     'a member is not told which company another task belongs to';
   assert public.company_of_team('79000000-0000-0000-0000-0000000000e2') is null,
     'a member is not told which company another organization belongs to';
-  assert public.company_of_circle('79000000-0000-0000-0000-0000000000f2') is null,
-    'a member is not told which company another circle belongs to';
 
   reset role;
 end $$;$block$, 'the company helpers name only the caller own company');
@@ -215,7 +207,7 @@ select is_empty(
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
     and p.prosrc ~ ('public\.(' ||
-      'company_of_member|company_of_task|company_of_team|company_of_circle|' ||
+      'company_of_member|company_of_task|company_of_team|' ||
       'member_leave_remaining|member_leave_days|member_timezone|member_today|member_locale|' ||
       'member_work_hours|member_work_hours_on|member_minimum_daily_minutes)\s*\(')
   $$,
@@ -233,7 +225,7 @@ select is_empty(
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
     and p.proname in (
-      'company_of_member', 'company_of_task', 'company_of_team', 'company_of_circle',
+      'company_of_member', 'company_of_task', 'company_of_team',
       'member_leave_remaining', 'member_leave_days', 'member_timezone', 'member_today',
       'member_locale', 'member_work_hours', 'member_work_hours_on', 'member_minimum_daily_minutes'
     )
@@ -247,7 +239,7 @@ select is_empty(
   $$
   select missing.name
   from (values
-    ('company_of_member'), ('company_of_task'), ('company_of_team'), ('company_of_circle'),
+    ('company_of_member'), ('company_of_task'), ('company_of_team'),
     ('member_leave_remaining'), ('member_leave_days'), ('member_timezone'), ('member_today'),
     ('member_locale'), ('member_work_hours'), ('member_work_hours_on'),
     ('member_minimum_daily_minutes')

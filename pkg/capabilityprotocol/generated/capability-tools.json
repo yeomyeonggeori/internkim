@@ -16021,12 +16021,12 @@
       "modelVisible": true,
       "name": "dataroom_links_get",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
-          "downloadableRoleCodes": {
+          "downloadableCircleIDs": {
             "items": {
               "type": "string"
             },
@@ -16038,6 +16038,9 @@
               "properties": {
                 "canDownload": {
                   "type": "boolean"
+                },
+                "circleID": {
+                  "type": "string"
                 },
                 "createdAt": {
                   "type": "string"
@@ -16062,14 +16065,11 @@
                       "type": "null"
                     }
                   ]
-                },
-                "roleCode": {
-                  "type": "string"
                 }
               },
               "required": [
                 "id",
-                "roleCode",
+                "circleID",
                 "label",
                 "canDownload",
                 "createdAt",
@@ -16080,7 +16080,7 @@
             },
             "type": "array"
           },
-          "shareableRoleCodes": {
+          "shareableCircleIDs": {
             "items": {
               "type": "string"
             },
@@ -16089,8 +16089,8 @@
         },
         "required": [
           "links",
-          "shareableRoleCodes",
-          "downloadableRoleCodes"
+          "shareableCircleIDs",
+          "downloadableCircleIDs"
         ],
         "type": "object"
       },
@@ -16104,7 +16104,7 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "additionalProperties": false,
           "properties": {
-            "downloadableRoleCodes": {
+            "downloadableCircleIDs": {
               "items": {
                 "type": "string"
               },
@@ -16116,6 +16116,9 @@
                 "properties": {
                   "canDownload": {
                     "type": "boolean"
+                  },
+                  "circleID": {
+                    "type": "string"
                   },
                   "createdAt": {
                     "type": "string"
@@ -16140,14 +16143,11 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "roleCode": {
-                    "type": "string"
                   }
                 },
                 "required": [
                   "id",
-                  "roleCode",
+                  "circleID",
                   "label",
                   "canDownload",
                   "createdAt",
@@ -16158,7 +16158,7 @@
               },
               "type": "array"
             },
-            "shareableRoleCodes": {
+            "shareableCircleIDs": {
               "items": {
                 "type": "string"
               },
@@ -16167,8 +16167,8 @@
           },
           "required": [
             "links",
-            "shareableRoleCodes",
-            "downloadableRoleCodes"
+            "shareableCircleIDs",
+            "downloadableCircleIDs"
           ],
           "type": "object"
         }
@@ -16185,7 +16185,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_link_add",
-      "description": "Company dataroom: Create a code-protected share link for a reader role within your own permissions, including leadership. Every category follows the role and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.",
+      "description": "Company dataroom: Create a code-protected share link that reads as one circle, within your own permissions. Every category follows the circle and creator permissions. Lifetime defaults to three days and cannot exceed seven days. Returns a newly generated six digit code once. Recipients must acknowledge the confidentiality notice.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -16200,6 +16200,10 @@
             "default": false,
             "type": "boolean"
           },
+          "circleID": {
+            "minLength": 1,
+            "type": "string"
+          },
           "label": {
             "maxLength": 120,
             "minLength": 1,
@@ -16216,10 +16220,6 @@
               168
             ],
             "type": "number"
-          },
-          "roleCode": {
-            "minLength": 1,
-            "type": "string"
           }
         },
         "type": "object"
@@ -16232,6 +16232,10 @@
             "default": false,
             "type": "boolean"
           },
+          "circleID": {
+            "minLength": 1,
+            "type": "string"
+          },
           "label": {
             "maxLength": 120,
             "minLength": 1,
@@ -16248,14 +16252,10 @@
               168
             ],
             "type": "number"
-          },
-          "roleCode": {
-            "minLength": 1,
-            "type": "string"
           }
         },
         "required": [
-          "roleCode",
+          "circleID",
           "label",
           "lifetimeHours",
           "canDownload"
@@ -16268,7 +16268,7 @@
       "modelVisible": true,
       "name": "dataroom_link_add",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16375,7 +16375,7 @@
       "modelVisible": true,
       "name": "dataroom_link_delete",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16391,112 +16391,6 @@
       },
       "outputSchemaStrict": true,
       "policyResource": "tool:dataroom_link_delete",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "singleton",
-            "objectType": "data_room"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "saved": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "saved"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "approvalScope": "company",
-      "availability": {
-        "state": "ok"
-      },
-      "canonicalName": "dataroom_member_update",
-      "description": "Company dataroom: Assign the reader roles an active member holds; the roles a member holds are also their circles. Replaces them atomically. Only administrators can assign roles. Parent category grants include every child.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCodes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "memberID",
-          "roleCodes"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_member_update",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_member_update",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "saved": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "saved"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_member_update",
       "privacyClass": "workspace_company",
       "requiresApproval": true,
       "requiresUserPresence": false,
@@ -16612,7 +16506,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_get",
-      "description": "Company dataroom: Read the company data room categories, reader roles and active invitations. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template.",
+      "description": "Company dataroom: Read the company data room categories and its shares with people outside the company. A parent code grants all current and future children. Reads expose only permitted categories; administrators can manage the template. Circles and who belongs to them are circle_list.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -16631,7 +16525,7 @@
       "modelVisible": true,
       "name": "dataroom_get",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -16697,38 +16591,6 @@
             },
             "type": "array"
           },
-          "roles": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "code": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "name": {
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "nameKO": {
-                  "type": "string"
-                },
-                "readableCategories": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                }
-              },
-              "required": [
-                "code",
-                "name",
-                "nameKO",
-                "readableCategories"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
           "shares": {
             "items": {
               "additionalProperties": false,
@@ -16745,7 +16607,6 @@
                 },
                 "audience": {
                   "enum": [
-                    "member",
                     "email",
                     "public"
                   ],
@@ -16753,6 +16614,9 @@
                 },
                 "canDownload": {
                   "type": "boolean"
+                },
+                "circleID": {
+                  "type": "string"
                 },
                 "email": {
                   "anyOf": [
@@ -16777,16 +16641,6 @@
                 "id": {
                   "type": "string"
                 },
-                "memberID": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
                 "revokedAt": {
                   "anyOf": [
                     {
@@ -16796,17 +16650,13 @@
                       "type": "null"
                     }
                   ]
-                },
-                "roleCode": {
-                  "type": "string"
                 }
               },
               "required": [
                 "id",
-                "roleCode",
+                "circleID",
                 "audience",
                 "email",
-                "memberID",
                 "acceptedAt",
                 "expiresAt",
                 "revokedAt",
@@ -16819,7 +16669,6 @@
         },
         "required": [
           "categories",
-          "roles",
           "shares",
           "canManage"
         ],
@@ -16896,38 +16745,6 @@
               },
               "type": "array"
             },
-            "roles": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "code": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "name": {
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "nameKO": {
-                    "type": "string"
-                  },
-                  "readableCategories": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "code",
-                  "name",
-                  "nameKO",
-                  "readableCategories"
-                ],
-                "type": "object"
-              },
-              "type": "array"
-            },
             "shares": {
               "items": {
                 "additionalProperties": false,
@@ -16944,7 +16761,6 @@
                   },
                   "audience": {
                     "enum": [
-                      "member",
                       "email",
                       "public"
                     ],
@@ -16952,6 +16768,9 @@
                   },
                   "canDownload": {
                     "type": "boolean"
+                  },
+                  "circleID": {
+                    "type": "string"
                   },
                   "email": {
                     "anyOf": [
@@ -16976,16 +16795,6 @@
                   "id": {
                     "type": "string"
                   },
-                  "memberID": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
                   "revokedAt": {
                     "anyOf": [
                       {
@@ -16995,17 +16804,13 @@
                         "type": "null"
                       }
                     ]
-                  },
-                  "roleCode": {
-                    "type": "string"
                   }
                 },
                 "required": [
                   "id",
-                  "roleCode",
+                  "circleID",
                   "audience",
                   "email",
-                  "memberID",
                   "acceptedAt",
                   "expiresAt",
                   "revokedAt",
@@ -17018,7 +16823,6 @@
           },
           "required": [
             "categories",
-            "roles",
             "shares",
             "canManage"
           ],
@@ -17154,7 +16958,7 @@
       "modelVisible": true,
       "name": "dataroom_category_update",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17206,128 +17010,8 @@
       "availability": {
         "state": "ok"
       },
-      "canonicalName": "dataroom_role_update",
-      "description": "Company dataroom: Create or edit a reader role using readableCategories. A parent grants all descendants; otherwise name intermediate codes. Existing recipients of this role change access immediately. Read dataroom_get and confirm the affected recipients first. Read roles confer no administrative or editing rights.",
-      "estimatedLatency": "low",
-      "idempotency": {
-        "required": false,
-        "scope": "operation",
-        "supported": false
-      },
-      "inputIntentSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "nameKO": {
-            "type": "string"
-          },
-          "readableCategories": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "inputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "code": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "nameKO": {
-            "type": "string"
-          },
-          "readableCategories": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "code",
-          "name",
-          "nameKO",
-          "readableCategories"
-        ],
-        "type": "object"
-      },
-      "inputSchemaStrict": true,
-      "modelName": "dataroom_role_update",
-      "modelVisibility": "visible",
-      "modelVisible": true,
-      "name": "dataroom_role_update",
-      "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
-      "outputSchema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "additionalProperties": false,
-        "properties": {
-          "saved": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "saved"
-        ],
-        "type": "object"
-      },
-      "outputSchemaStrict": true,
-      "policyResource": "tool:dataroom_role_update",
-      "privacyClass": "workspace_company",
-      "requiresApproval": true,
-      "requiresUserPresence": false,
-      "resultContract": {
-        "effects": [
-          {
-            "effect": "updated",
-            "effectIdentity": "singleton",
-            "objectType": "data_room"
-          }
-        ],
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "additionalProperties": false,
-          "properties": {
-            "saved": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "saved"
-          ],
-          "type": "object"
-        }
-      },
-      "sideEffect": "workspace_write",
-      "sideEffectClass": "workspace_write",
-      "version": "1",
-      "worksOffline": false
-    },
-    {
-      "answeredBy": "record",
-      "approvalScope": "company",
-      "availability": {
-        "state": "ok"
-      },
       "canonicalName": "dataroom_share_add",
-      "description": "Company dataroom: Share live data room categories by assigning a reader role to a member, an external email or an explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.",
+      "description": "Company dataroom: Share live data room categories with someone outside the company by lending them what one circle reads: an external email or an explicitly public audience. Current and future documents in those categories become readable. Confirm the audience and scope first. Recipients must accept using their verified email; do not invite them as company members. Company members read through the circles they belong to, set with circle_member_update. Public publication is a distinct explicit request and never includes X.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17340,7 +17024,6 @@
         "properties": {
           "audience": {
             "enum": [
-              "member",
               "email",
               "public"
             ],
@@ -17349,19 +17032,14 @@
           "canDownload": {
             "type": "boolean"
           },
+          "circleID": {
+            "type": "string"
+          },
           "email": {
             "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
             "type": "string"
           },
           "expiresAt": {
-            "type": "string"
-          },
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCode": {
             "type": "string"
           }
         },
@@ -17373,7 +17051,6 @@
         "properties": {
           "audience": {
             "enum": [
-              "member",
               "email",
               "public"
             ],
@@ -17382,24 +17059,19 @@
           "canDownload": {
             "type": "boolean"
           },
+          "circleID": {
+            "type": "string"
+          },
           "email": {
             "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
             "type": "string"
           },
           "expiresAt": {
             "type": "string"
-          },
-          "memberID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
-          },
-          "roleCode": {
-            "type": "string"
           }
         },
         "required": [
-          "roleCode",
+          "circleID",
           "audience"
         ],
         "type": "object"
@@ -17410,7 +17082,7 @@
       "modelVisible": true,
       "name": "dataroom_share_add",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17507,7 +17179,7 @@
       "modelVisible": true,
       "name": "dataroom_share_delete",
       "namespace": "dataroom",
-      "namespaceSummary": "The company document archive: categories, reader roles, employee access, and revocable sharing links.",
+      "namespaceSummary": "The company document archive: categories, sharing with people outside the company, and revocable links.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -17532,6 +17204,368 @@
             "effect": "updated",
             "effectIdentity": "singleton",
             "objectType": "data_room"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_list",
+      "description": "Company circles: Read every circle with the members who belong to it and the data room categories it reads. A circle is also a shared workspace folder and a shared memory on the company computer. A parent category grants all its children.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_list",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_list",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circles": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "pattern": "^[a-z][a-z0-9-]*$",
+                  "type": "string"
+                },
+                "memberIDs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "name": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "nameKO": {
+                  "type": "string"
+                },
+                "readableCategories": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "nameKO",
+                "readableCategories",
+                "memberIDs"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "circles"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_list",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "circles": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "pattern": "^[a-z][a-z0-9-]*$",
+                    "type": "string"
+                  },
+                  "memberIDs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "nameKO": {
+                    "type": "string"
+                  },
+                  "readableCategories": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "nameKO",
+                  "readableCategories",
+                  "memberIDs"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "circles"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_update",
+      "description": "Company circles: Create or edit a circle. id is its lowercase identifier, such as leadership, and never changes; name and nameKO are what people read. readableCategories names the data room categories its members read, and a parent grants all descendants. Members change access immediately, so read circle_list and confirm who is affected first. A circle confers no administrative or editing rights.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "type": "string"
+          },
+          "readableCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "nameKO": {
+            "type": "string"
+          },
+          "readableCategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "nameKO",
+          "readableCategories"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_update",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "circle"
+          }
+        ],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "saved": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "saved"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "workspace_write",
+      "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "approvalScope": "company",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "circle_member_update",
+      "description": "Company circles: Set the circles an active member belongs to, replacing them atomically. Only administrators place people in circles. A member gains each circle's workspace folder, memory and data room categories.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputIntentSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "circleIDs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memberID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberID",
+          "circleIDs"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "circle_member_update",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "circle_member_update",
+      "namespace": "circle",
+      "namespaceSummary": "Groups of people who share a workspace folder, a memory, and the data room categories they read.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "saved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "saved"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:circle_member_update",
+      "privacyClass": "workspace_company",
+      "requiresApproval": true,
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [
+          {
+            "effect": "updated",
+            "effectIdentity": "singleton",
+            "objectType": "circle"
           }
         ],
         "schema": {

@@ -84,12 +84,12 @@ beforeAll(async () => {
 	administratorSession = (await sessionForMember({ projectURL, serviceRoleKey, signingKey }, provisioned.adminMemberID)).accessToken;
 	const administratorCaller = asMember({ projectURL, publishableKey }, administratorSession);
 	const invitation = await administratorCaller.rpc('data_room_share_create', {
-		target_company: companyID, role_code: 'investor', audience: 'email', recipient_email: `${slug}-holder@example.test`
+		target_company: companyID, circle_id: 'investor', audience: 'email', recipient_email: `${slug}-holder@example.test`
 	});
 	if (invitation.error) throw new Error(invitation.error.message);
 	dataRoomInvitationID = z.string().uuid().parse(invitation.data);
 	const link = await administratorCaller.rpc('data_room_link_create', {
-		target_company: companyID, role_code: 'investor', label: 'Sample investor review', access_code: '123456'
+		target_company: companyID, circle_id: 'investor', label: 'Sample investor review', access_code: '123456'
 	});
 	if (link.error) throw new Error(link.error.message);
 	dataRoomLinkID = z.string().uuid().parse(link.data);

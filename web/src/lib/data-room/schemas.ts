@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dataRoomCategorySchema, dataRoomRoleSchema } from './model';
+import { circleSchema, dataRoomCategorySchema } from './model';
 
 export const sharedDataRoomSchema = z.object({
 	categories: z.array(z.object({ code: z.string(), parent: z.string().nullable(),
@@ -42,13 +42,16 @@ export const companyDocumentListResultSchema = z.strictObject({
 });
 
 export const dataRoomShareSchema = z.strictObject({
- id: z.string(), roleCode: z.string(), audience: z.enum(['member', 'email', 'public']),
- email: z.string().nullable(), memberID: z.string().nullable(),
+ id: z.string(), circleID: z.string(), audience: z.enum(['email', 'public']),
+ email: z.string().nullable(),
  acceptedAt: z.string().nullable(), expiresAt: z.string().nullable(), revokedAt: z.string().nullable(),
  canDownload: z.boolean()
 });
 
 export const dataRoomGetResultSchema = z.strictObject({
- categories: z.array(dataRoomCategorySchema), roles: z.array(dataRoomRoleSchema),
- shares: z.array(dataRoomShareSchema), canManage: z.boolean()
+ categories: z.array(dataRoomCategorySchema), shares: z.array(dataRoomShareSchema), canManage: z.boolean()
+});
+
+export const circleListResultSchema = z.strictObject({
+ circles: z.array(circleSchema.extend({ memberIDs: z.array(z.string()) }))
 });

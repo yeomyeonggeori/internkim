@@ -17,21 +17,21 @@ insert into public.company_document (company_id, document_type, title, category_
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"63000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_role_set('63000000-0000-0000-0000-000000000010', 'statements', 'Statements', array['FS']);
-select public.data_room_role_set('63000000-0000-0000-0000-000000000010', 'creator-statements', 'Creator statements', array['FS']);
-select lives_ok($$select public.data_room_member_roles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array['creator-statements'])$$, 'administrators assign employee roles');
-select is((select count(*) from public.data_room_share where member_id = '63000000-0000-0000-0000-000000000012' and revoked_at is null), 1::bigint, 'assignments replace previous direct grants');
-select throws_ok($$select public.data_room_member_roles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array['unknown'])$$,
-  '22023', 'existing company roles required', 'unknown roles fail atomically');
-select is((select role_code from public.data_room_share where member_id = '63000000-0000-0000-0000-000000000012' and revoked_at is null), 'creator-statements', 'failed assignments preserve previous access');
+select public.circle_set('63000000-0000-0000-0000-000000000010', 'statements', 'Statements', array['FS']);
+select public.circle_set('63000000-0000-0000-0000-000000000010', 'creator-statements', 'Creator statements', array['FS']);
+select lives_ok($$select public.member_circles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array['creator-statements'])$$, 'administrators place people in circles');
+select is((select count(*) from public.circle_member where member_id = '63000000-0000-0000-0000-000000000012'), 1::bigint, 'assignments replace previous direct grants');
+select throws_ok($$select public.member_circles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array['unknown'])$$,
+  '22023', 'existing company circles required', 'unknown circles fail atomically');
+select is((select circle_id from public.circle_member where member_id = '63000000-0000-0000-0000-000000000012'), 'creator-statements', 'failed assignments preserve previous access');
 select public.data_room_link_create('63000000-0000-0000-0000-000000000010', 'leadership', 'Leadership review', '123456') as leadership_link \gset
 select ok(:'leadership_link' is not null, 'leadership is shareable when the creator has its permissions');
 
 select set_config('request.jwt.claims', '{"sub":"63000000-0000-0000-0000-000000000002"}', true);
-select throws_ok($$select public.data_room_member_roles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array['leadership'])$$,
-  '42501', 'only administrators assign employee reader roles', 'employees cannot grant themselves roles');
+select throws_ok($$select public.member_circles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array['leadership'])$$,
+  '42501', 'only administrators place people in circles', 'employees cannot put themselves in circles');
 select throws_ok($$select public.data_room_link_create('63000000-0000-0000-0000-000000000010', 'accountant', 'Too broad', '123456')$$,
-  '42501', 'the reader role exceeds your permissions', 'links cannot exceed the creator scope');
+  '42501', 'the circle reads more than you may', 'links cannot exceed the creator scope');
 select throws_ok($$select public.data_room_link_create('63000000-0000-0000-0000-000000000010', 'statements', 'Too long', '123456', 169)$$,
   '22023', 'six digit code and supported lifetime required', 'links cannot live more than seven days');
 select throws_ok($$select public.data_room_link_create('63000000-0000-0000-0000-000000000010', 'statements', 'Bad code', '12345')$$,
@@ -51,20 +51,20 @@ select is((select count(*) from public.member where user_id = :'session_id'::uui
 
 set local role authenticated;
 select set_config('request.jwt.claims', jsonb_build_object('sub', :'leadership_session')::text, true);
-select ok(public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'X'), 'X follows the role and creator permissions in a protected link');
+select ok(public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'X'), 'X follows the circle and creator permissions in a protected link');
 select set_config('request.jwt.claims', jsonb_build_object('sub', :'session_id')::text, true);
-select is((select count(*) from public.company_document where company_id = '63000000-0000-0000-0000-000000000010'), 1::bigint, 'guest RLS exposes only the linked role');
+select is((select count(*) from public.company_document where company_id = '63000000-0000-0000-0000-000000000010'), 1::bigint, 'guest RLS exposes only the linked circle');
 select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'FS', true), 'a read-only link does not authorize downloads');
-select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'X'), 'a role without X cannot expose the inbox');
+select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'X'), 'a circle without X cannot expose the inbox');
 select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000099', 'FS'), 'sessions cannot cross company boundaries');
 select throws_ok(format('select public.data_room_link_revoke(%L)', :'link_id'), '42501', 'only the creator or an administrator revokes this link', 'guests cannot revoke links');
 
 select set_config('request.jwt.claims', '{"sub":"63000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_role_set('63000000-0000-0000-0000-000000000010', 'statements', 'Statements', array['FS', 'FP']);
+select public.circle_set('63000000-0000-0000-0000-000000000010', 'statements', 'Statements', array['FS', 'FP']);
 select set_config('request.jwt.claims', jsonb_build_object('sub', :'session_id')::text, true);
-select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'FP'), 'role expansion cannot exceed the creator permissions');
+select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'FP'), 'circle expansion cannot exceed the creator permissions');
 select set_config('request.jwt.claims', '{"sub":"63000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_member_roles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array[]::text[]);
+select public.member_circles_set('63000000-0000-0000-0000-000000000010', '63000000-0000-0000-0000-000000000012', array[]::text[]);
 select set_config('request.jwt.claims', jsonb_build_object('sub', :'session_id')::text, true);
 select ok(not public.data_room_may_read('63000000-0000-0000-0000-000000000010', 'FS'), 'creator permission removal immediately restricts existing sessions');
 

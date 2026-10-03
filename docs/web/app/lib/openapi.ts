@@ -819,7 +819,7 @@ function createPaths(copy: ApiCopy) {
 			},
 			get: {
 				operationId: 'readDataRoomLink', summary: 'Read the documents permitted by an opened share link', security: [{ dataRoomSession: [] }],
-				description: 'Requires the HttpOnly session cookie issued after code entry and acknowledgment. The link, reader role, and creator permissions are checked on every read. Original downloads require a grant; signed URLs expire within one minute.',
+				description: 'Requires the HttpOnly session cookie issued after code entry and acknowledgment. The link, its circle, and the permissions of its creator are checked on every read. Original downloads require a grant; signed URLs expire within one minute.',
 				parameters: [{ name: 'linkID', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }, { name: 'documentID', in: 'query', schema: { type: 'string', format: 'uuid' } }],
 				responses: { '200': { description: 'Permitted categories and documents, or downloadURL' }, '401': { description: 'Code entry and acknowledgment required' }, '403': { description: 'Link expired or revoked' }, '404': { description: 'Document unavailable' } }
 			}
