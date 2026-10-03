@@ -2,12 +2,13 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
-import { capabilityDescriptorMetaKey } from './catalog/protocol';
+import { capabilityAnsweredFilesMetaKey, capabilityDescriptorMetaKey } from './catalog/protocol';
 import { isSeenByAModel, toolsAModelReachesWith } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { toolAnswerOrRefusal } from '$lib/server/public-api/tool-call';
 import type { CallingMember } from '$lib/server/member-request';
 import type { Environment } from '$lib/server/agent-request';
+import { filesAnsweredBy, type AnsweredFile } from '$lib/server/public-api/record/answered-files';
 
 export { capabilityDescriptorMetaKey as descriptorMetaKey } from './catalog/protocol';
 
@@ -28,12 +29,32 @@ function mcpToolOf(descriptor: ToolDescriptor): Tool {
 	};
 }
 
-function toolResultOf(status: number, body: unknown): CallToolResult {
+function toolResultOf(status: number, body: unknown, files: AnsweredFile[] = []): CallToolResult {
 	return {
-		content: [{ type: 'text', text: JSON.stringify(body) }],
+		content: [{ type: 'text', text: JSON.stringify(body) }, ...files.map(embeddedResourceOf)],
 		structuredContent: body as CallToolResult['structuredContent'],
 		isError: status >= 300
 	};
+}
+
+function embeddedResourceOf(file: AnsweredFile): CallToolResult['content'][number] {
+	const uri = `internkim://files/${encodeURIComponent(file.name)}`;
+	if (file.bytes) {
+		return { type: 'resource', resource: { uri, mimeType: file.mimeType, blob: base64Of(file.bytes) } };
+	}
+	return { type: 'resource', resource: { uri, mimeType: file.mimeType, text: file.text ?? '' } };
+}
+
+function base64Of(bytes: Uint8Array): string {
+	let written = '';
+	for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+		written += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+	}
+	return btoa(written);
+}
+
+function keepsAnsweredFiles(meta: Record<string, unknown> | undefined): boolean {
+	return meta?.[capabilityAnsweredFilesMetaKey] === 'kept';
 }
 
 function companyToolServer(environment: Environment, member: CallingMember): Server {
@@ -51,7 +72,10 @@ function companyToolServer(environment: Environment, member: CallingMember): Ser
 		const answered = await toolAnswerOrRefusal(environment, member, request.params.name, {
 			input: request.params.arguments ?? {}
 		});
-		return toolResultOf(answered.status, answered.body);
+		if (answered.status >= 300 || !keepsAnsweredFiles(request.params._meta)) {
+			return toolResultOf(answered.status, answered.body);
+		}
+		return toolResultOf(answered.status, answered.body, await filesAnsweredBy(request.params.name, member.caller, answered.body));
 	});
 
 	return server;

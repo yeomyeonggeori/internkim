@@ -221,6 +221,81 @@ describe('the company master profile', () => {
 	});
 });
 
+const aPixelPNG = Uint8Array.from(
+	atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='),
+	(character) => character.charCodeAt(0)
+);
+
+async function imagesKept(): Promise<{ seal_image: string | null; profile_image: string | null }> {
+	const { data } = await client.from('company').select('seal_image, profile_image').eq('id', companyID).single();
+	return data as { seal_image: string | null; profile_image: string | null };
+}
+
+async function anUploadedImage(image: 'seal' | 'logo', fileName: string): Promise<string> {
+	const asked = await asAdmin('company_image_upload', { image, fileName });
+	expect(asked.status).toBe(200);
+	const put = await fetch(String(resultOf(asked).uploadURL), {
+		method: 'PUT',
+		headers: { 'content-type': 'image/png' },
+		body: aPixelPNG
+	});
+	expect(put.ok).toBe(true);
+	return String(resultOf(asked).storagePath);
+}
+
+describe('the company seal and logo', () => {
+	test('are kept once in the company folder of its shared scope', async () => {
+		const sealPath = await anUploadedImage('seal', '법인인감.png');
+		const logoPath = await anUploadedImage('logo', 'logo.PNG');
+
+		expect(sealPath.startsWith(`${companyID}/shared/company/seal-`)).toBe(true);
+		expect(logoPath.endsWith('.png')).toBe(true);
+
+		const written = await asAdmin('company_info_set', { language: 'ko', sealImage: sealPath, logoImage: logoPath });
+		expect(written.status).toBe(200);
+		expect(resultOf(written).name).toBe('주식회사 예시');
+
+		expect(await imagesKept()).toEqual({ seal_image: sealPath, profile_image: logoPath });
+	});
+
+	test('refuse a seal path that company_image_upload did not answer', async () => {
+		const elsewhere = await asAdmin('company_info_set', {
+			language: 'ko',
+			sealImage: `${companyID}/shared/attachment/seal.png`
+		});
+		const neverPut = await asAdmin('company_info_set', {
+			language: 'ko',
+			sealImage: `${companyID}/shared/company/seal-${crypto.randomUUID()}.png`
+		});
+
+		expect(elsewhere.status).toBe(400);
+		expect(neverPut.status).toBe(409);
+	});
+
+	test('refuse an image that is neither a seal nor a logo, or not a picture', async () => {
+		const unknownImage = await asAdmin('company_image_upload', { image: 'signature', fileName: 'sign.png' });
+		const notAPicture = await asAdmin('company_image_upload', { image: 'seal', fileName: 'seal.pdf' });
+
+		expect(unknownImage.status).toBe(400);
+		expect(notAPicture.status).toBe(400);
+	});
+
+	test('are an administrator to keep', async () => {
+		const asked = await asSample('company_image_upload', { image: 'seal', fileName: 'seal.png' });
+
+		expect(asked.status).toBeGreaterThanOrEqual(400);
+		expect((await imagesKept()).seal_image).not.toBeNull();
+	});
+
+	test('a seal given as an empty string is removed and the logo stays', async () => {
+		const written = await asAdmin('company_info_set', { language: 'ko', sealImage: '' });
+
+		expect(written.status).toBe(200);
+		expect((await imagesKept()).seal_image).toBeNull();
+		expect((await imagesKept()).profile_image).not.toBeNull();
+	});
+});
+
 describe('the days the company is closed', () => {
 	test('are added by name and date, and listed earliest first', async () => {
 		const added = await asAdmin('company_holiday_add', {
