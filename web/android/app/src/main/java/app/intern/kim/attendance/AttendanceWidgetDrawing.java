@@ -60,7 +60,7 @@ final class AttendanceWidgetDrawing {
         if (isMedium && isChoosingLocation && !others.isEmpty()) {
             views.setViewVisibility(R.id.attendance_widget_today, View.GONE);
             views.setViewVisibility(R.id.attendance_widget_picker, View.VISIBLE);
-            drawPicker(context, views, others);
+            drawPicker(context, views, others, size.isTall());
             return views;
         }
         views.setViewVisibility(R.id.attendance_widget_today, View.VISIBLE);
@@ -195,10 +195,10 @@ final class AttendanceWidgetDrawing {
         );
     }
 
-    private static void drawPicker(Context context, RemoteViews views, List<WorkLocation> locations) {
+    private static void drawPicker(Context context, RemoteViews views, List<WorkLocation> locations, boolean isTall) {
         views.setOnClickPendingIntent(R.id.attendance_widget_back, action(context, AttendanceWidgetProvider.actionHideLocations, null));
-        int offered = Math.min(locations.size(), pickerButtons.length);
-        int perRow = pickerColumns(offered);
+        int offered = Math.min(locations.size(), isTall ? pickerButtons.length : pickerColumnsAtMost);
+        int perRow = isTall ? pickerColumns(offered) : Math.max(1, offered);
         for (int slot = 0; slot < pickerButtons.length; slot++) {
             int button = pickerButtons[slot];
             int column = slot % pickerColumnsAtMost;
