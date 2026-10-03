@@ -37,7 +37,7 @@ class ScriptedCommands:
         }
         self.failing = failing
 
-    def __call__(self, arguments):
+    def __call__(self, arguments, log_path=None):
         self.calls.append(arguments)
         for marker in self.failing:
             if marker in " ".join(arguments):
@@ -255,6 +255,58 @@ class RollbackTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.CommandFailure):
             ship_quietly(shipment_with(commands, directory=directory))
         self.assertFalse(commands.matching("release edit"))
+
+
+RIG_REPORT = """boot noise
+✓ step 1 · the machine boots
+    ✓ it is up
+        observes: uptime
+✗ step 4 · apt remove leaves what the plan says
+    ✓ the package is gone
+        observes: dpkg -s
+        | fine
+    ✗ the data directory stays
+        observes: ls
+        | missing
+— step 11 · a person asks for a PDF
+    blocked: not run: no model key
+✗ native install rig
+"""
+
+
+class RigFailureTest(unittest.TestCase):
+    def test_both_rigs_run_under_the_test_profile(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        rig_calls = [commands.calls[index] for index in commands.matching("test-native-install")]
+        self.assertEqual(len(rig_calls), 2)
+        for call in rig_calls:
+            self.assertEqual(call[:3], ["monkeys", "run", "@test"])
+
+    def test_the_report_keeps_failed_and_blocked_steps_without_passed_observations(self):
+        lines = ship_host.report_lines(RIG_REPORT)
+        self.assertEqual(lines[0], "✗ step 4 · apt remove leaves what the plan says")
+        self.assertIn("    ✗ the data directory stays", lines)
+        self.assertIn("        | missing", lines)
+        self.assertIn("— step 11 · a person asks for a PDF", lines)
+        self.assertIn("    blocked: not run: no model key", lines)
+        self.assertNotIn("    ✓ the package is gone", lines)
+        self.assertNotIn("        | fine", lines)
+        self.assertNotIn("boot noise", lines)
+
+    def test_a_failing_rig_prints_its_failed_lines_and_the_log_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "install-rig.log"
+            stubbed_rig = ["sh", "-c", f"printf '%s' '{RIG_REPORT}'; exit 1"]
+            with self.assertRaises(ship_host.CommandFailure) as raised:
+                ship_host.run_command(stubbed_rig, log_path=log_path)
+            self.assertEqual(log_path.read_text(), RIG_REPORT)
+        message = str(raised.exception)
+        self.assertIn(str(log_path), message)
+        self.assertIn("✗ step 4 · apt remove leaves what the plan says", message)
+        self.assertIn("— step 11 · a person asks for a PDF", message)
+        self.assertIn("        | missing", message)
 
 
 class ReportParsingTest(unittest.TestCase):
