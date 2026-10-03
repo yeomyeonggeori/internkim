@@ -485,8 +485,19 @@ class RecordingRig:
 class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
     JUDGMENTS = ["typing", "pdf", "before the roster"]
 
-    def judged_in(self, releases, is_an_agent_update=False):
-        options = type("Options", (), {"stand_in": False, "without_company": False, "agent_update": is_an_agent_update, "restore_family": "fedora"})()
+    def judged_in(self, releases, is_an_agent_update=False, requests=None):
+        options = type(
+            "Options",
+            (),
+            {
+                "stand_in": False,
+                "without_company": False,
+                "agent_update": is_an_agent_update,
+                "restore_family": "fedora",
+                "requests": requests,
+                "deliveries": "deliveries",
+            },
+        )()
         recording = RecordingRig(releases)
         with mock.patch.object(rig_driver, "rig_model_key", lambda: "a real key"), \
                 mock.patch.object(rig_driver, "observe_a_real_conversion", lambda machine, step: None):
@@ -501,6 +512,23 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
 
     def test_an_agent_update_judges_the_release_it_moves_to(self):
         self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer")])
+
+    def test_a_batch_of_requests_is_delivered_after_the_member_round_trip_and_nothing_is_judged_after_it(self):
+        delivered = []
+
+        class RecordingDeliveries:
+            def __init__(self, machine, plane, directory):
+                delivered.append(("directory", directory))
+
+            def deliver_all(self, requests):
+                delivered.append(("requests", requests))
+
+        requests_path = repository_root / "tools" / "native-install-requests-example" / "requests.json"
+        with mock.patch.object(rig_driver, "Deliveries", RecordingDeliveries):
+            judged = self.judged_in(["release"], requests=str(requests_path))
+        self.assertEqual(judged, [("typing", "release")])
+        self.assertEqual([kind for kind, _ in delivered], ["directory", "requests"])
+        self.assertEqual([request["name"] for request in delivered[1][1]], ["weekly-report", "summarize-notes"])
 
 
 class ArchivedModeTests(unittest.TestCase):
