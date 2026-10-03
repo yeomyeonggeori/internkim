@@ -82,7 +82,7 @@ func (service *Service) nameMemberFromTheDirectory(
 	if displayName == "" {
 		return false
 	}
-	if errorValue := service.publishBuzzProfile(ctx, secretHex, displayName); errorValue != nil {
+	if errorValue := service.publishBuzzProfile(ctx, secretHex, displayName, ""); errorValue != nil {
 		log.Printf("buzz profiles: %s stays a key: %v", email, errorValue)
 		return false
 	}
@@ -90,13 +90,13 @@ func (service *Service) nameMemberFromTheDirectory(
 	return true
 }
 
-func (service *Service) publishBuzzProfile(ctx context.Context, secretHex string, displayName string) error {
+func (service *Service) publishBuzzProfile(ctx context.Context, secretHex string, displayName string, pictureURL string) error {
 	publisher, errorValue := service.connectToTheRelayOnceItAnswers(ctx, secretHex)
 	if errorValue != nil {
 		return errorValue
 	}
 	defer publisher.Close()
-	return publisher.SetProfile(ctx, secretHex, displayName)
+	return publisher.SetProfile(ctx, secretHex, displayName, pictureURL)
 }
 
 func (service *Service) recordedNamesByEmail(ctx context.Context) map[string]string {

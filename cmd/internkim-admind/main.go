@@ -61,7 +61,7 @@ func main() {
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", configuration.OpenRouterKeyPath, "OpenRouter key path")
 	flag.StringVar(&configuration.OpenRouterModelsURL, "openrouter-models-url", configuration.OpenRouterModelsURL, "OpenRouter models URL for key validation")
 	flag.StringVar(&configuration.AdminUIPath, "admin-ui-path", configuration.AdminUIPath, "admin UI static directory")
-	flag.StringVar(&configuration.BotProfileImagePath, "bot-profile-image", configuration.BotProfileImagePath, "bot profile image path")
+	flag.StringVar(&configuration.AgentProfilePicturePath, "agent-profile-picture", configuration.AgentProfilePicturePath, "picture the agent's messenger profile shows until somebody sets another")
 	flag.StringVar(&configuration.BlueclawWorkspacePath, "blueclaw-workspace", configuration.BlueclawWorkspacePath, "Blueclaw host workspace path")
 	flag.StringVar(&configuration.BuzzInviteKeyPath, "buzz-invite-key", configuration.BuzzInviteKeyPath, "Buzz derived invite HMAC key path (hex)")
 	flag.StringVar(&configuration.BuzzCommunityID, "buzz-community-id", configuration.BuzzCommunityID, "Buzz community UUID invites admit into")

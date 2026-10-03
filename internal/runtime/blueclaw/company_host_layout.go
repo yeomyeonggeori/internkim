@@ -149,6 +149,10 @@ func (layout CompanyHostLayout) RuntimeTemplatePath() string {
 	return layout.LibraryRoot + "/runtime.template.json"
 }
 
+func (layout CompanyHostLayout) AgentProfilePicturePath() string {
+	return layout.LibraryRoot + "/agent-profile-picture.png"
+}
+
 // SearchPath is the PATH every service is started with. The agent hands it on
 // to every command a requester runs, so the host's own Python comes first and
 // a requester's `python3` is that interpreter on every machine the package

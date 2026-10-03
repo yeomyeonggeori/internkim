@@ -345,15 +345,12 @@ func copyBrewCarriedTrees(repositoryRootPath string, libraryPath string) error {
 		}
 	}
 	layout := blueclaw.MacCompanyHostLayout("")
-	for _, carried := range []struct{ source, destination string }{
-		{"host/runtime.template.json", layout.RuntimeTemplatePath()},
-		{documentConversionLockPath, layout.DocumentRequirementsPath()},
-	} {
-		destinationPath := filepath.Join(libraryPath, strings.TrimPrefix(carried.destination, layout.LibraryRoot))
+	for _, carried := range carriedLibraryFiles(layout) {
+		destinationPath := filepath.Join(libraryPath, strings.TrimPrefix(carried.Destination, layout.LibraryRoot))
 		if errorValue := os.MkdirAll(filepath.Dir(destinationPath), 0o755); errorValue != nil {
 			return errorValue
 		}
-		if errorValue := copyFile(filepath.Join(repositoryRootPath, carried.source), destinationPath, 0o644); errorValue != nil {
+		if errorValue := copyFile(filepath.Join(repositoryRootPath, carried.SourcePath), destinationPath, carried.Mode); errorValue != nil {
 			return errorValue
 		}
 	}

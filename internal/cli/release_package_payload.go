@@ -620,16 +620,10 @@ func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
 			Mode:            0o755,
 			IsDirectoryTree: true,
 		},
-		{
-			SourcePath:  filepath.Join(repositoryRootPath, "host/runtime.template.json"),
-			Destination: packageLayout.RuntimeTemplatePath(),
-			Mode:        0o644,
-		},
-		{
-			SourcePath:  filepath.Join(repositoryRootPath, documentConversionLockPath),
-			Destination: packageLayout.DocumentRequirementsPath(),
-			Mode:        0o644,
-		},
+	}
+	for _, file := range carriedLibraryFiles(packageLayout) {
+		file.SourcePath = filepath.Join(repositoryRootPath, file.SourcePath)
+		carried = append(carried, file)
 	}
 	for _, file := range carried {
 		if _, errorValue := os.Stat(file.SourcePath); errorValue != nil {
@@ -637,6 +631,16 @@ func carriedTrees(repositoryRootPath string) ([]packagedFile, error) {
 		}
 	}
 	return carried, nil
+}
+
+const agentProfilePictureSourcePath = "assets/internkim.square.png"
+
+func carriedLibraryFiles(layout blueclaw.CompanyHostLayout) []packagedFile {
+	return []packagedFile{
+		{SourcePath: "host/runtime.template.json", Destination: layout.RuntimeTemplatePath(), Mode: 0o644},
+		{SourcePath: documentConversionLockPath, Destination: layout.DocumentRequirementsPath(), Mode: 0o644},
+		{SourcePath: agentProfilePictureSourcePath, Destination: layout.AgentProfilePicturePath(), Mode: 0o644},
+	}
 }
 
 // shippedProgramNames is every program the package puts in /usr/bin, derived from
