@@ -221,6 +221,9 @@ func blueclawPersonEmailsExcept(person map[string]any, excludedEmail string) []s
 }
 
 func policyStringList(value any) []string {
+	if written, isWritten := value.([]string); isWritten {
+		return append([]string{}, written...)
+	}
 	values, _ := value.([]any)
 	result := []string{}
 	for _, item := range values {

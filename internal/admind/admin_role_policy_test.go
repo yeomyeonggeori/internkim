@@ -79,19 +79,6 @@ func TestSomebodyTheDirectoryDoesNotCallAdminIsRefusedTheAdminConsole(t *testing
 	}
 }
 
-func TestAdminCannotDeleteReservedAdminCircle(t *testing.T) {
-	service := newAdminConsoleAuthorizationTestService(t)
-	request := httptest.NewRequest(http.MethodDelete, "/admin/api/circles/admin", nil)
-	request.Header.Set("Cf-Access-Authenticated-User-Email", "owner@example.com")
-	response := httptest.NewRecorder()
-
-	service.router().ServeHTTP(response, request)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("delete circle status = %d body = %s", response.Code, response.Body.String())
-	}
-}
-
 func newAdminConsoleAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
 	rootPath := t.TempDir()

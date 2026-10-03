@@ -5,7 +5,6 @@ import type {
 	AttendanceWorkPolicyResponse,
 	AttendanceWorkPolicyRevision,
 	AgentSoul,
-	CircleRecord,
 	CompanyHoliday,
 	CompanyHolidayInput,
 	CompanyHolidaysResponse,
@@ -121,24 +120,6 @@ export async function fetchUsers(adminBaseURL: string, fallbackMessage: string):
 	return readJSON<UsersResponse>(response, fallbackMessage);
 }
 
-export async function createCircle(adminBaseURL: string, circle: CircleRecord, fallbackMessage: string): Promise<void> {
-	const response = await fetch(`${adminBaseURL}/circles`, {
-		method: 'POST',
-		credentials: 'include',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(circle)
-	});
-	await readVoid(response, fallbackMessage);
-}
-
-export async function deleteCircle(adminBaseURL: string, circleID: string, fallbackMessage: string): Promise<void> {
-	const response = await fetch(`${adminBaseURL}/circles/${encodeURIComponent(circleID)}`, {
-		method: 'DELETE',
-		credentials: 'include'
-	});
-	await readVoid(response, fallbackMessage);
-}
-
 export async function createUser(adminBaseURL: string, user: NewUserRequest, fallbackMessage: string): Promise<UsersResponse> {
 	const response = await fetch(`${adminBaseURL}/users?includePolicy=true`, {
 		method: 'POST',
@@ -187,10 +168,6 @@ export type UserSaveRequest = Pick<UserRecord, 'memberID' | 'handle' | 'email' |
 async function readJSON<ResponseBody>(response: Response, fallbackMessage: string): Promise<ResponseBody> {
 	if (!response.ok) throw new AdminApiError(await responseErrorMessage(response, fallbackMessage), response.status);
 	return (await response.json()) as ResponseBody;
-}
-
-async function readVoid(response: Response, fallbackMessage: string): Promise<void> {
-	if (!response.ok) throw new AdminApiError(await responseErrorMessage(response, fallbackMessage), response.status);
 }
 
 async function responseErrorMessage(response: Response, fallbackMessage: string): Promise<string> {

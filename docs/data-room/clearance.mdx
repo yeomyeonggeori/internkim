@@ -31,14 +31,14 @@ Editing a role immediately changes every active recipient's scope. Adding a
 child immediately extends existing parent grants. Review those recipients
 before changing either. Category codes and ancestry are stable.
 
-New members receive the employee role; administrators created with a company
+New members receive the member role; administrators created with a company
 also receive leadership. Later changes to company administrator status do not
 assign or revoke a reader role. Manage these grants separately.
 
 ## Code-protected links
 
-An active employee creates a link by choosing a reader role within their own
-member and circle grants. Every role is eligible, including leadership;
+An active member creates a link by choosing a reader role within their own
+grants. Every role is eligible, including leadership;
 `X` follows the same role and creator permissions. Its default lifetime is
 three days; the available lifetimes are defined by
 [`dataRoomLinkLifetimeHours`](https://github.com/yeomyeonggeori/internkim/blob/main/web/src/lib/data-room/links.ts).
@@ -58,8 +58,8 @@ access and clears its displayed documents on its next session check.
 Original download URLs expire within one minute. Already downloaded files
 cannot be recalled.
 
-Settings → Company replaces an employee's direct reader roles atomically.
-Circle grants continue to apply. The confidentiality acknowledgment records
+Settings → Company replaces a member's reader roles atomically. The roles a
+member holds are also their circles on the company host. The confidentiality acknowledgment records
 its notice version and time; any separate confidentiality agreement remains
 the company's responsibility.
 
