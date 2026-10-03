@@ -2,7 +2,6 @@
 set -euo pipefail
 
 repository_path="$1"
-guest_init_path="${2:-$repository_path/assets/blueclaw-runtime/guest-init}"
 workspace_path="$(mktemp -d)"
 helper_path="$repository_path/.artifacts/workspace-ownership/blueclaw-posix-helper"
 trap 'rm -rf "$workspace_path"' EXIT
@@ -11,35 +10,24 @@ chmod 0755 "$workspace_path"
 getent group blueclaw >/dev/null || groupadd --system blueclaw
 id blueclaw >/dev/null 2>&1 || useradd --system --no-create-home --gid blueclaw blueclaw
 
-python3 - "$guest_init_path" "$workspace_path" <<'PY'
-import json
-import pathlib
-import sys
+mkdir -p "$workspace_path/.blueclaw/config"
+chown blueclaw:blueclaw "$workspace_path" "$workspace_path/.blueclaw"
+cat > "$workspace_path/policy.json" <<'JSON'
+{
+  "people": [
+    {"personID": "owner", "circles": ["team"]},
+    {"personID": "reader", "circles": ["team"]},
+    {"personID": "outsider", "circles": []}
+  ],
+  "circles": [{"circleID": "team"}]
+}
+JSON
 
-source = pathlib.Path(sys.argv[1]).read_text()
-workspace = pathlib.Path(sys.argv[2])
-functions = []
-for name in ("ensure_workspace_directory", "prepare_blueclaw_workspace"):
-    start = source.index(name + "() {")
-    end = source.index("\n}\n", start) + 2
-    functions.append(source[start:end].replace("/workspace", str(workspace)))
-(workspace / "prepare.sh").write_text("set -euo pipefail\n" + "\n".join(functions) + "\nprepare_blueclaw_workspace\n")
-(workspace / "policy.json").write_text(json.dumps({
-    "people": [
-        {"personID": "owner", "circles": ["team"]},
-        {"personID": "reader", "circles": ["team"]},
-        {"personID": "outsider", "circles": []},
-    ],
-    "circles": [{"circleID": "team"}],
-}))
-PY
-
-prepare_workspace() {
-  bash "$workspace_path/prepare.sh"
+sync_workspace() {
   "$helper_path" sync --workspace "$workspace_path" --policy "$workspace_path/policy.json"
 }
 
-prepare_workspace
+sync_workspace
 shared_project="$workspace_path/circles/team/sites/sample-site"
 private_directory="$workspace_path/private/people/owner/drafts"
 public_directory="$workspace_path/shared/public/sample-site"
@@ -82,15 +70,15 @@ assert_access() {
 
 assert_access
 before_ownership="$(snapshot_ownership)"
-for boot_number in 1 2; do
-  prepare_workspace
+for sync_number in 1 2; do
+  sync_workspace
   after_ownership="$(snapshot_ownership)"
   if [ "$before_ownership" != "$after_ownership" ]; then
-    printf 'ownership changed during boot preparation %s\nbefore:\n%s\nafter:\n%s\n' \
-      "$boot_number" "$before_ownership" "$after_ownership" >&2
+    printf 'ownership changed during workspace sync %s\nbefore:\n%s\nafter:\n%s\n' \
+      "$sync_number" "$before_ownership" "$after_ownership" >&2
     exit 1
   fi
   assert_access
 done
 printf '%s\n' "$after_ownership"
-echo 'workspace-ownership: preserved across two boot preparations; member access and private boundaries verified'
+echo 'workspace-ownership: preserved across repeated workspace syncs; member access and private boundaries verified'

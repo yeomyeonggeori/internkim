@@ -99,29 +99,6 @@ func TestSSHRecoverySnapshotCapturesDiagnosticsWithoutSecrets(t *testing.T) {
 	}
 }
 
-func TestSSHRecoveryLimitBlueclawUsesBoundedRuntimeUpdate(t *testing.T) {
-	service := newRecoveryTestService(t)
-	commands := []string{}
-	requireCommandStates(t, blueclawResourceLimitCommand(),
-		"virtual_cpu_count=2", "memory_mib=4096", "systemctl restart blueclaw", "jq --argjson virtualCPUCount")
-	service.RunCommand = recordingRecoveryRunner(&commands,
-		blueclawResourceLimitCommand(), "runtime vcpuCount=2 memoryMiB=4096\nblueclaw health ok\n")
-
-	recorder := httptest.NewRecorder()
-	request := signedRecoveryRequest(t, service, "limit-blueclaw", "nonce-1", time.Now().UTC())
-	service.handleAdmin(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
-	}
-	if !containsString(commands, "sh -lc "+blueclawResourceLimitCommand()) {
-		t.Fatalf("expected Blueclaw limit command, got %+v", commands)
-	}
-	if !strings.Contains(recorder.Body.String(), "runtime vcpuCount=2 memoryMiB=4096") {
-		t.Fatalf("expected resource limit result in response, got %s", recorder.Body.String())
-	}
-}
-
 func TestSSHRecoveryRestartBlueclawReturnsDiagnostics(t *testing.T) {
 	service := newRecoveryTestService(t)
 	commands := []string{}
@@ -277,82 +254,6 @@ func TestBootDiagnosisReadsTheRuntimeWhereTheGuestBootsFromIt(t *testing.T) {
 	}
 	if strings.Contains(command, "/.blueclaw/runtime/current") {
 		t.Fatal("the workspace image no longer carries a runtime, so reading one reports a directory nothing writes")
-	}
-}
-
-func TestBuzzRelayTerminatorSkipsWithoutAPublicHost(t *testing.T) {
-	service := newRecoveryTestService(t)
-	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
-	invoked := make(chan struct{}, 1)
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		invoked <- struct{}{}
-		return []byte("ok\n"), nil
-	}
-
-	service.ensureBuzzRelayTerminator()
-
-	select {
-	case <-invoked:
-		t.Fatal("a relay with no public host terminates no TLS, so nothing should install or enable stunnel")
-	case <-time.After(200 * time.Millisecond):
-	}
-}
-
-func TestBuzzRelayTerminatorSkipsOnACompanyHost(t *testing.T) {
-	service := newRecoveryTestService(t)
-	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
-	service.Configuration.BuzzRelayPublicURL = "wss://acme.example.test"
-	service.Configuration.BuzzRelayPublicURLPath = filepath.Join(t.TempDir(), "buzz-relay-public-url")
-	invoked := make(chan struct{}, 1)
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		invoked <- struct{}{}
-		return []byte("ok\n"), nil
-	}
-
-	service.ensureBuzzRelayTerminator()
-
-	select {
-	case <-invoked:
-		t.Fatal("a company host's public URL is a flag, not a device's provisioned relay, so nothing should install or enable stunnel")
-	case <-time.After(200 * time.Millisecond):
-	}
-}
-
-func TestBuzzRelayTerminatorRunsOnADeviceWithAProvisionedPublicHost(t *testing.T) {
-	service := newRecoveryTestService(t)
-	service.Configuration.BuzzRelayURL = blueclaw.BuzzRelayLocalURL
-	service.Configuration.BuzzRelayPublicURLPath = writeTestFile(t, "wss://relay.example.test")
-	invoked := make(chan string, 1)
-	service.RunCommand = func(ctx context.Context, name string, arguments ...string) ([]byte, error) {
-		invoked <- strings.TrimSpace(name + " " + strings.Join(arguments, " "))
-		return []byte("ok\n"), nil
-	}
-
-	service.ensureBuzzRelayTerminator()
-
-	select {
-	case command := <-invoked:
-		if !strings.Contains(command, "buzz-relay-stunnel") {
-			t.Fatalf("expected the stunnel repair command, got %s", command)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("a device whose provisioning recorded a public host must keep its TLS terminator running")
-	}
-}
-
-func TestBuzzRelayRepairCommandInstallsStunnelBeforeEnablingIt(t *testing.T) {
-	command := buzzRelayRepairCommand()
-
-	installIndex := strings.Index(command, "command -v stunnel4")
-	enableIndex := strings.Index(command, "systemctl enable buzz-relay-stunnel")
-	if installIndex == -1 {
-		t.Fatal("the repair command must install stunnel4 before it enables the unit that runs it")
-	}
-	if enableIndex == -1 {
-		t.Fatal("expected the repair command to enable buzz-relay-stunnel")
-	}
-	if installIndex > enableIndex {
-		t.Fatalf("stunnel4 must be installed before the unit is enabled, install at %d enable at %d", installIndex, enableIndex)
 	}
 }
 

@@ -238,3 +238,20 @@ func checkoutWithAFakeVault(t *testing.T, doctorBody string) string {
 	t.Setenv("PATH", binaryDirectory)
 	return repositoryRootPath
 }
+
+func TestBoardKeysLiveInTheBoardProfileAndNeverInProduction(t *testing.T) {
+	manifest, errorValue := os.ReadFile(filepath.Join("..", "..", vaultManifestName))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	boardKeys := vaultManifestNames(string(manifest), "board")
+	if len(boardKeys) == 0 {
+		t.Fatal("the manifest declares no @board profile, so board ssh and the cutover bridge have nowhere to read from")
+	}
+	productionKeys := vaultManifestNames(string(manifest), "production")
+	for _, key := range boardKeys {
+		if slices.Contains(productionKeys, key) {
+			t.Fatalf("%s is a board key and is also in @production, which is handed to employees", key)
+		}
+	}
+}

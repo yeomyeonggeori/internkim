@@ -2,10 +2,11 @@ package admind
 
 import (
 	"encoding/json"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestMailMessagesReturnNextCursor(t *testing.T) {

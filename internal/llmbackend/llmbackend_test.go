@@ -8,12 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
 )
@@ -22,15 +20,6 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (transport roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return transport(request)
-}
-
-func setLiteRTConstrainedRunnerPath(t *testing.T, path string) {
-	t.Helper()
-	previousPath := LiteRTConstrainedRunnerBinaryPath
-	LiteRTConstrainedRunnerBinaryPath = path
-	t.Cleanup(func() {
-		LiteRTConstrainedRunnerBinaryPath = previousPath
-	})
 }
 
 func TestOpenRouterStructuredRequestPreservesSchema(t *testing.T) {
@@ -837,151 +826,8 @@ func TestOpenRouterBackendResolvesDefaultModel(t *testing.T) {
 	}
 }
 
-func TestOllamaBackendStructuredOutputIsUnsupported(t *testing.T) {
-	backend := OllamaBackend{BaseURL: "https://ollama.test", ModelName: "gemma3:1b"}
-
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages: []Message{{Role: "user", Content: "hi"}},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "deterministic structured output") {
-		t.Fatalf("expected deterministic structured output error, got %v", errorValue)
-	}
-}
-
-func TestLlamaCppBackendStructuredOutputUsesResponseFormat(t *testing.T) {
-	var receivedDocument map[string]any
-	backend := LlamaCppBackend{
-		BaseURL:   "https://llamacpp.test",
-		ModelName: "default",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/v1/chat/completions" {
-				t.Fatalf("unexpected path: %s", request.URL.Path)
-			}
-			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
-				t.Fatalf("expected request body: %v", errorValue)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages: []Message{{Role: "user", Content: "hi"}},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected llamacpp completion: %v", errorValue)
-	}
-	responseFormat, isFound := receivedDocument["response_format"].(map[string]any)
-	if !isFound {
-		t.Fatalf("expected response_format field, got %+v", receivedDocument)
-	}
-	if responseFormat["type"] != "json_schema" {
-		t.Fatalf("expected json_schema response_format, got %+v", responseFormat)
-	}
-	if response.ConstraintMode != ConstraintModeLlamaJSONSchema {
-		t.Fatalf("expected llama JSON schema mode, got %q", response.ConstraintMode)
-	}
-}
-
-func TestLlamaCppBackendUsesChatToolCallingForAgentActions(t *testing.T) {
-	var receivedDocument map[string]any
-	backend := LlamaCppBackend{
-		BaseURL:   "https://llamacpp.test",
-		ModelName: "default",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/v1/chat/completions" {
-				t.Fatalf("unexpected path: %s", request.URL.Path)
-			}
-			if errorValue := json.NewDecoder(request.Body).Decode(&receivedDocument); errorValue != nil {
-				t.Fatalf("expected request body: %v", errorValue)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-1","type":"function","function":{"name":"finish","arguments":"{\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages:               []Message{{Role: "user", Content: "finish"}},
-		StructuredOutputSchema: testAgentActionSchema(),
-	})
-
-	if errorValue != nil {
-		t.Fatalf("expected native action response: %v", errorValue)
-	}
-	if response.Content != `{"action":"finish","completionEvidence":[],"goalSatisfied":true,"goalStatus":"satisfied","message":"done","qualityReview":[]}` {
-		t.Fatalf("expected final reply action, got %s", response.Content)
-	}
-	if _, isFound := receivedDocument["response_format"]; isFound {
-		t.Fatalf("expected native tool request to omit response_format, got %+v", receivedDocument)
-	}
-	if _, isFound := receivedDocument["tools"]; !isFound {
-		t.Fatalf("expected tools in request, got %+v", receivedDocument)
-	}
-	if receivedDocument["tool_choice"] != "required" {
-		t.Fatalf("expected required tool choice, got %+v", receivedDocument)
-	}
-}
-
-func TestLlamaCppBackendFallsBackToJSONSchemaWhenActionToolCallIsMissing(t *testing.T) {
-	requestDocuments := []map[string]any{}
-	backend := LlamaCppBackend{
-		BaseURL:   "https://llamacpp.test",
-		ModelName: "default",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if request.URL.Path != "/v1/chat/completions" {
-				t.Fatalf("unexpected path: %s", request.URL.Path)
-			}
-			var requestDocument map[string]any
-			if errorValue := json.NewDecoder(request.Body).Decode(&requestDocument); errorValue != nil {
-				t.Fatalf("expected request body: %v", errorValue)
-			}
-			requestDocuments = append(requestDocuments, requestDocument)
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"action\":\"finish\",\"message\":\"done\",\"goalStatus\":\"satisfied\",\"goalSatisfied\":true,\"completionEvidence\":[],\"qualityReview\":[]}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	response, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages:               []Message{{Role: "user", Content: "finish"}},
-		StructuredOutputSchema: testAgentActionSchema(),
-	})
-
-	if errorValue != nil {
-		t.Fatalf("expected JSON schema fallback response: %v", errorValue)
-	}
-	if response.ConstraintMode != ConstraintModeLlamaJSONSchema {
-		t.Fatalf("expected llama JSON schema fallback mode, got %q", response.ConstraintMode)
-	}
-	if len(requestDocuments) != 2 {
-		t.Fatalf("expected native request then JSON schema fallback, got %d requests", len(requestDocuments))
-	}
-	if _, isFound := requestDocuments[0]["tools"]; !isFound {
-		t.Fatalf("expected first request to use native tools, got %+v", requestDocuments[0])
-	}
-	if _, isFound := requestDocuments[1]["response_format"]; !isFound {
-		t.Fatalf("expected second request to use JSON schema, got %+v", requestDocuments[1])
-	}
-}
-
 func TestCompactMessagesForContextWindowPreservesSystemAndRecentCollapsingMiddle(t *testing.T) {
-	hugeMiddleMessage := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	hugeMiddleMessage := strings.Repeat("x", int(testContextWindowTokens)*4*2)
 	messages := []Message{
 		{Role: "system", Content: "you are a helpful assistant"},
 		{Role: "user", Content: hugeMiddleMessage},
@@ -994,11 +840,11 @@ func TestCompactMessagesForContextWindowPreservesSystemAndRecentCollapsingMiddle
 		{Role: "assistant", Content: "most recent turn"},
 	}
 
-	compacted, errorValue := compactMessagesForContextWindow(messages, LlamaCppLocalContextWindowTokens)
+	compacted, errorValue := compactMessagesForContextWindow(messages, testContextWindowTokens)
 	if errorValue != nil {
 		t.Fatalf("expected compaction to succeed rather than error out: %v", errorValue)
 	}
-	if estimatedMessagesTokens(compacted) > inputTokenBudget(LlamaCppLocalContextWindowTokens) {
+	if estimatedMessagesTokens(compacted) > inputTokenBudget(testContextWindowTokens) {
 		t.Fatalf("expected compacted messages to fit the context window budget, got %d estimated tokens", estimatedMessagesTokens(compacted))
 	}
 	if compacted[0].Role != "system" || compacted[0].Content != "you are a helpful assistant" {
@@ -1021,7 +867,7 @@ func TestCompactMessagesForContextWindowPreservesSystemAndRecentCollapsingMiddle
 func TestCompactMessagesForContextWindowLeavesLargeWindowUntouched(t *testing.T) {
 	largeMessages := []Message{
 		{Role: "system", Content: "you are a helpful assistant"},
-		{Role: "user", Content: strings.Repeat("y", int(LlamaCppLocalContextWindowTokens)*4*2)},
+		{Role: "user", Content: strings.Repeat("y", int(testContextWindowTokens)*4*2)},
 	}
 
 	compacted, errorValue := compactMessagesForContextWindow(largeMessages, DefaultContextWindowTokens)
@@ -1035,17 +881,17 @@ func TestCompactMessagesForContextWindowLeavesLargeWindowUntouched(t *testing.T)
 
 func TestCompactMessagesForContextWindowFailsWhenNoMiddleContentCanBeCollapsed(t *testing.T) {
 	singleHugeMessage := []Message{
-		{Role: "user", Content: strings.Repeat("z", int(LlamaCppLocalContextWindowTokens)*4*2)},
+		{Role: "user", Content: strings.Repeat("z", int(testContextWindowTokens)*4*2)},
 	}
 
-	_, errorValue := compactMessagesForContextWindow(singleHugeMessage, LlamaCppLocalContextWindowTokens)
+	_, errorValue := compactMessagesForContextWindow(singleHugeMessage, testContextWindowTokens)
 	if errorValue == nil {
 		t.Fatal("expected a single oversized message with nothing to collapse to fail with a clear error")
 	}
 }
 
 func TestAutoProviderCompactsMessagesGenericallyBeforeDispatch(t *testing.T) {
-	hugeMiddleMessage := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	hugeMiddleMessage := strings.Repeat("x", int(testContextWindowTokens)*4*2)
 	oversizedMessages := []Message{
 		{Role: "system", Content: "you are a helpful assistant"},
 		{Role: "user", Content: hugeMiddleMessage},
@@ -1057,7 +903,7 @@ func TestAutoProviderCompactsMessagesGenericallyBeforeDispatch(t *testing.T) {
 		{Role: "assistant", Content: "most recent turn"},
 	}
 
-	smallWindowRecorder := &recordingContextWindowProvider{contextWindowTokens: LlamaCppLocalContextWindowTokens}
+	smallWindowRecorder := &recordingContextWindowProvider{contextWindowTokens: testContextWindowTokens}
 	auto := AutoProvider{Providers: []Provider{smallWindowRecorder}}
 
 	if _, errorValue := auto.CompleteText(context.Background(), TextRequest{Messages: oversizedMessages}); errorValue != nil {
@@ -1101,176 +947,6 @@ func (provider *recordingContextWindowProvider) CompleteText(_ context.Context, 
 	return Response{}, nil
 }
 
-func TestLlamaCppBackendAllowsPromptWithinContextWindow(t *testing.T) {
-	requestCount := 0
-	backend := LlamaCppBackend{
-		BaseURL:   "https://llamacpp.test",
-		ModelName: "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requestCount++
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{\"reply\":\"ok\"}"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages: []Message{{Role: "user", Content: "hi"}},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected small prompt to dispatch normally: %v", errorValue)
-	}
-	if requestCount != 1 {
-		t.Fatalf("expected exactly one HTTP dispatch, got %d requests", requestCount)
-	}
-}
-
-func TestManagedLlamaCppBackendStartsServiceAndRetriesText(t *testing.T) {
-	chatRequests := 0
-	healthRequests := 0
-	startCommands := 0
-	backend := ManagedLlamaCppBackend{
-		Backend: LlamaCppBackend{
-			BaseURL:   "http://llamacpp.test",
-			ModelName: "local/gemma",
-			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-				switch request.URL.Path {
-				case "/health":
-					healthRequests++
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(strings.NewReader("OK")),
-						Header:     make(http.Header),
-					}, nil
-				case "/v1/chat/completions":
-					chatRequests++
-					if chatRequests == 1 {
-						return nil, &url.Error{Op: "Post", URL: request.URL.String(), Err: errors.New("connection refused")}
-					}
-					return &http.Response{
-						StatusCode: http.StatusOK,
-						Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"ready"}}]}`)),
-						Header:     make(http.Header),
-					}, nil
-				default:
-					t.Fatalf("unexpected path: %s", request.URL.Path)
-					return nil, nil
-				}
-			})},
-		},
-		ServiceName:  "internkim-llamacpp.service",
-		PollInterval: time.Millisecond,
-		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
-			_ = ctx
-			_ = standardInput
-			startCommands++
-			if executablePath != "systemctl" || strings.Join(arguments, " ") != "start internkim-llamacpp.service" {
-				t.Fatalf("unexpected start command: %s %v", executablePath, arguments)
-			}
-			return nil, nil
-		},
-	}
-
-	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
-		Messages: []Message{{Role: "user", Content: "hi"}},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected managed llama.cpp retry: %v", errorValue)
-	}
-	if response.Content != "ready" {
-		t.Fatalf("expected retry response, got %+v", response)
-	}
-	if startCommands != 1 || healthRequests != 1 || chatRequests != 2 {
-		t.Fatalf("expected one start, one health check, two chat requests; got starts=%d health=%d chat=%d", startCommands, healthRequests, chatRequests)
-	}
-}
-
-func TestManagedLlamaCppBackendDoesNotStartServiceForProviderError(t *testing.T) {
-	startCommands := 0
-	backend := ManagedLlamaCppBackend{
-		Backend: LlamaCppBackend{
-			BaseURL:   "http://llamacpp.test",
-			ModelName: "local/gemma",
-			HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusBadRequest,
-					Body:       io.NopCloser(strings.NewReader(`{"error":"schema rejected"}`)),
-					Header:     make(http.Header),
-				}, nil
-			})},
-		},
-		ServiceName:  "internkim-llamacpp.service",
-		PollInterval: time.Millisecond,
-		RunCommand: func(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
-			_ = ctx
-			_ = executablePath
-			_ = arguments
-			_ = standardInput
-			startCommands++
-			return nil, nil
-		},
-	}
-
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "schema rejected") {
-		t.Fatalf("expected provider error, got %v", errorValue)
-	}
-	if startCommands != 0 {
-		t.Fatalf("expected provider error not to start service, got %d", startCommands)
-	}
-}
-
-func TestMLXBackendStructuredOutputIsUnsupported(t *testing.T) {
-	backend := MLXBackend{BaseURL: "https://mlx.test", ModelName: "default"}
-
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		Messages: []Message{{Role: "user", Content: "hi"}},
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "deterministic structured output") {
-		t.Fatalf("expected deterministic structured output error, got %v", errorValue)
-	}
-}
-
-func TestStructuredOutputValidationRejectsNonJSON(t *testing.T) {
-	backend := LlamaCppBackend{
-		BaseURL:   "https://llamacpp.test",
-		ModelName: "default",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			_ = request
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"plain text"}}]}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{
-		StructuredOutputSchema: StructuredOutputSchema{
-			Name:     "reply",
-			Document: json.RawMessage(`{"type":"object","required":["reply"]}`),
-		},
-	})
-	if errorValue == nil {
-		t.Fatal("expected validation failure for non-JSON content")
-	}
-}
-
 func TestAutoProviderReportsAggregateErrorWhenAllFail(t *testing.T) {
 	auto := AutoProvider{
 		Providers: []Provider{
@@ -1288,81 +964,6 @@ func TestAutoProviderHasNoDefaultAttemptDeadline(t *testing.T) {
 	auto := AutoProvider{Providers: []Provider{deadlineRejectingProvider{}}}
 	if _, errorValue := auto.CompleteText(context.Background(), TextRequest{}); errorValue != nil {
 		t.Fatalf("expected provider call without an arbitrary deadline: %v", errorValue)
-	}
-}
-
-func TestLiteRTProviderPingReturnsUnavailableWhenConstrainedRunnerMissing(t *testing.T) {
-	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
-	setLiteRTConstrainedRunnerPath(t, missingPath)
-	backend := LiteRTProvider{
-		ModelPath:  "/models/model.litertlm",
-		RunnerPath: "/usr/local/bin/internkim-local-llm-runner",
-		Variant:    "gpu",
-		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			return nil, nil
-		},
-	}
-
-	errorValue := backend.Ping(context.Background())
-	if !IsProviderUnavailable(errorValue) {
-		t.Fatalf("expected provider unavailable error, got %v", errorValue)
-	}
-	if ProviderUnavailableReason(errorValue) != "constrained runner not installed" {
-		t.Fatalf("expected constrained runner reason, got %q", ProviderUnavailableReason(errorValue))
-	}
-}
-
-func TestLiteRTProviderCompleteStructuredReturnsUnavailableWithoutRunningCommand(t *testing.T) {
-	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
-	setLiteRTConstrainedRunnerPath(t, missingPath)
-	wasRunCommandCalled := false
-	backend := LiteRTProvider{
-		ModelPath:  "/models/model.litertlm",
-		RunnerPath: "/usr/local/bin/internkim-local-llm-runner",
-		Variant:    "gpu",
-		RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-			wasRunCommandCalled = true
-			return nil, nil
-		},
-	}
-
-	_, errorValue := backend.CompleteStructured(context.Background(), StructuredRequest{})
-	if !IsProviderUnavailable(errorValue) {
-		t.Fatalf("expected provider unavailable error, got %v", errorValue)
-	}
-	if wasRunCommandCalled {
-		t.Fatal("expected missing constrained runner to skip subprocess")
-	}
-}
-
-func TestAutoProviderReportsCompactUnavailableFailure(t *testing.T) {
-	missingPath := filepath.Join(t.TempDir(), "missing-constrained-runner")
-	setLiteRTConstrainedRunnerPath(t, missingPath)
-	auto := AutoProvider{
-		AllowStructuredFallback: true,
-		Providers: []Provider{
-			LiteRTProvider{
-				ModelPath:  "/models/model.litertlm",
-				RunnerPath: "/usr/local/bin/internkim-local-llm-runner",
-				Variant:    "gpu",
-				RunCommand: func(context.Context, string, []string, []byte) ([]byte, error) {
-					return nil, nil
-				},
-			},
-			staticProvider{errorValue: errors.New("remote provider rejected request with status 400 and a long schema explanation")},
-		},
-	}
-
-	_, errorValue := auto.CompleteStructured(context.Background(), StructuredRequest{})
-	if errorValue == nil {
-		t.Fatal("expected provider chain failure")
-	}
-	errorMessage := errorValue.Error()
-	if !strings.Contains(errorMessage, "litert: constrained runner not installed") {
-		t.Fatalf("expected compact LiteRT failure, got %v", errorValue)
-	}
-	if strings.Contains(errorMessage, "stat ") || strings.Contains(errorMessage, missingPath) {
-		t.Fatalf("expected LiteRT failure to omit stat details, got %v", errorValue)
 	}
 }
 
@@ -1408,89 +1009,6 @@ func TestStructuredRequestTraceIncludesReproductionMetadata(t *testing.T) {
 	}
 }
 
-func TestBuildLocalProviderSetUsesRequestedOrder(t *testing.T) {
-	providerSet := BuildLocalProviderSet(LocalProviderConfig{
-		ProviderOrder:   []string{"llamacpp", "ollama", "mlx"},
-		OllamaBaseURL:   "http://ollama.test",
-		OllamaModel:     "gemma3:1b",
-		LlamaCppBaseURL: "http://llamacpp.test",
-		LlamaCppModel:   "local/gemma",
-		MLXBaseURL:      "http://mlx.test",
-		MLXModel:        "mlx-community/gemma",
-	})
-
-	expectedNames := []string{"llamacpp", "ollama", "mlx"}
-	if len(providerSet.Backends) != len(expectedNames) {
-		t.Fatalf("expected %d backends, got %d", len(expectedNames), len(providerSet.Backends))
-	}
-	for index, backend := range providerSet.Backends {
-		if backend.Name() != expectedNames[index] {
-			t.Fatalf("expected %s at index %d, got %s", expectedNames[index], index, backend.Name())
-		}
-	}
-	if providerSet.ModelByBackendName["llamacpp"] != "local/gemma" {
-		t.Fatalf("expected llama.cpp model mapping, got %+v", providerSet.ModelByBackendName)
-	}
-}
-
-func TestBuildLocalProviderSetSkipsUnknownProviders(t *testing.T) {
-	providerSet := BuildLocalProviderSet(LocalProviderConfig{
-		ProviderOrder: []string{"unknown", "ollama"},
-	})
-
-	if len(providerSet.Backends) != 1 {
-		t.Fatalf("expected one backend, got %d", len(providerSet.Backends))
-	}
-	if providerSet.Backends[0].Name() != "ollama" {
-		t.Fatalf("expected ollama backend, got %s", providerSet.Backends[0].Name())
-	}
-}
-
-func TestBuildLocalProviderSetCreatesRequestedLiteRTAccelerator(t *testing.T) {
-	providerSet := BuildLocalProviderSet(LocalProviderConfig{
-		ProviderOrder:    []string{"litert"},
-		Accelerator:      "cpu",
-		LiteRTModelPath:  "/models/model.litertlm",
-		LiteRTRunnerPath: "/usr/local/bin/internkim-local-llm-runner",
-	})
-
-	if len(providerSet.Backends) != 1 {
-		t.Fatalf("expected one LiteRT backend, got %d", len(providerSet.Backends))
-	}
-	backend, isLiteRT := providerSet.Backends[0].(LiteRTProvider)
-	if !isLiteRT {
-		t.Fatalf("expected LiteRT provider, got %T", providerSet.Backends[0])
-	}
-	if backend.Variant != "cpu" {
-		t.Fatalf("expected cpu accelerator, got %q", backend.Variant)
-	}
-	if providerSet.ModelByBackendName["litert-cpu"] != "/models/model.litertlm" {
-		t.Fatalf("expected LiteRT model mapping, got %+v", providerSet.ModelByBackendName)
-	}
-}
-
-func TestLocalProviderSetDoesNotFallbackForStructuredByDefault(t *testing.T) {
-	providerSet := BuildLocalProviderSet(LocalProviderConfig{
-		ProviderOrder: []string{"ollama", "llamacpp"},
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			t.Fatalf("expected structured request not to reach llama.cpp after ollama rejection")
-			return nil, nil
-		})},
-	})
-
-	_, errorValue := providerSet.Provider.CompleteStructured(context.Background(), StructuredRequest{})
-	if errorValue == nil || !strings.Contains(errorValue.Error(), "ollama") {
-		t.Fatalf("expected first provider structured error, got %v", errorValue)
-	}
-}
-
-func TestParseProviderOrderUsesFallbackForEmptyValue(t *testing.T) {
-	order := ParseProviderOrder("", []string{"llamacpp", "ollama"})
-	if strings.Join(order, ",") != "llamacpp,ollama" {
-		t.Fatalf("expected fallback order, got %v", order)
-	}
-}
-
 func TestOpenRouterPingDetectsPlaceholderKey(t *testing.T) {
 	secretPath := filepath.Join(t.TempDir(), "key")
 	if errorValue := os.WriteFile(secretPath, []byte("internkim-simulation-openrouter-api-key"), 0o600); errorValue != nil {
@@ -1499,38 +1017,6 @@ func TestOpenRouterPingDetectsPlaceholderKey(t *testing.T) {
 	backend := OpenRouterBackend{KeyPath: secretPath}
 	if errorValue := backend.Ping(context.Background()); errorValue == nil {
 		t.Fatal("expected placeholder key to fail ping")
-	}
-}
-
-func TestOllamaStreamTextEmitsTokens(t *testing.T) {
-	backend := OllamaBackend{
-		BaseURL:   "https://ollama.test",
-		ModelName: "gemma3:1b",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			body := strings.Join([]string{
-				`{"message":{"role":"assistant","content":"hel"},"done":false}`,
-				`{"message":{"role":"assistant","content":"lo"},"done":false}`,
-				`{"message":{"role":"assistant","content":""},"done":true}`,
-			}, "\n")
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(body)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	tokens := []string{}
-	errorValue := backend.StreamText(context.Background(), TextRequest{
-		Messages: []Message{{Role: "user", Content: "hi"}},
-	}, func(token string) {
-		tokens = append(tokens, token)
-	})
-	if errorValue != nil {
-		t.Fatalf("expected stream success: %v", errorValue)
-	}
-	if strings.Join(tokens, "") != "hello" {
-		t.Fatalf("expected hello, got %v", tokens)
 	}
 }
 
@@ -2018,62 +1504,8 @@ func TestOpenRouterBackendReturnsZeroUsageWhenUsageBlockIsAbsent(t *testing.T) {
 	}
 }
 
-func TestOllamaBackendPopulatesUsageFromEvalCounts(t *testing.T) {
-	backend := OllamaBackend{
-		BaseURL:   "https://ollama.test",
-		ModelName: "gemma3:1b",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"hello from ollama"},"done":true,"prompt_eval_count":12,"eval_count":6}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
-		Messages: []Message{{Role: "user", Content: "hello"}},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected ollama text response: %v", errorValue)
-	}
-	if response.Usage.PromptTokens != 12 {
-		t.Fatalf("expected 12 prompt tokens, got %d", response.Usage.PromptTokens)
-	}
-	if response.Usage.CompletionTokens != 6 {
-		t.Fatalf("expected 6 completion tokens, got %d", response.Usage.CompletionTokens)
-	}
-	if response.Usage.TotalTokens != 18 {
-		t.Fatalf("expected 18 total tokens (12+6), got %d", response.Usage.TotalTokens)
-	}
-}
-
-func TestOllamaBackendReturnsZeroUsageWhenEvalCountsAreAbsent(t *testing.T) {
-	backend := OllamaBackend{
-		BaseURL:   "https://ollama.test",
-		ModelName: "gemma3:1b",
-		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"message":{"role":"assistant","content":"hello from ollama"},"done":true}`)),
-				Header:     make(http.Header),
-			}, nil
-		})},
-	}
-
-	response, errorValue := backend.CompleteText(context.Background(), TextRequest{
-		Messages: []Message{{Role: "user", Content: "hello"}},
-	})
-	if errorValue != nil {
-		t.Fatalf("expected ollama text response: %v", errorValue)
-	}
-	if response.Usage.PromptTokens != 0 || response.Usage.CompletionTokens != 0 || response.Usage.TotalTokens != 0 {
-		t.Fatalf("expected zero usage when eval counts are absent, got %+v", response.Usage)
-	}
-}
-
 func TestCompactMessagesForContextWindowPreservesMidConversationSystemMessages(t *testing.T) {
-	hugeMiddleMessage := strings.Repeat("x", int(LlamaCppLocalContextWindowTokens)*4*2)
+	hugeMiddleMessage := strings.Repeat("x", int(testContextWindowTokens)*4*2)
 	messages := []Message{
 		{Role: "system", Content: "you are a helpful assistant"},
 		{Role: "user", Content: hugeMiddleMessage},
@@ -2087,7 +1519,7 @@ func TestCompactMessagesForContextWindowPreservesMidConversationSystemMessages(t
 		{Role: "assistant", Content: "most recent turn"},
 	}
 
-	compacted, errorValue := compactMessagesForContextWindow(messages, LlamaCppLocalContextWindowTokens)
+	compacted, errorValue := compactMessagesForContextWindow(messages, testContextWindowTokens)
 	if errorValue != nil {
 		t.Fatalf("expected compaction to succeed: %v", errorValue)
 	}
@@ -2232,3 +1664,5 @@ func (provider stubStructuredProvider) complete() (Response, error) {
 	}
 	return provider.response, nil
 }
+
+const testContextWindowTokens int64 = 8192

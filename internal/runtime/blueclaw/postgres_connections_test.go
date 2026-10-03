@@ -54,26 +54,6 @@ func TestTheAgentIsToldTheShareTheBudgetGivesIt(t *testing.T) {
 	}
 }
 
-// A device is not rendered from the host template, it is rendered here. Nothing
-// bound this before, so deleting the field left every test passing and every
-// device asking the server for everything it allows.
-func TestTheDeviceRuntimeDocumentIsToldTheShareTheBudgetGivesIt(t *testing.T) {
-	document, errorValue := BlueclawRuntimeConfigDocumentWithOptions(RuntimeConfigOptions{
-		DatabaseConnectionString: "postgres://internkim@postgres/tenant_01?sslmode=disable",
-		WorkspaceRootPath:        "/workspace",
-	})
-	if errorValue != nil {
-		t.Fatal(errorValue)
-	}
-	share, isSet := databaseConnectionShareOf(t, document)
-	if !isSet {
-		t.Fatalf("the device runtime document names no database.%s, so a provisioned device falls back to everything the server allows", AgentDatabaseConnectionsField)
-	}
-	if share != AgentDatabaseConnections {
-		t.Fatalf("the device runtime document gives the agent %d connections against the %d the budget reserves for it", share, AgentDatabaseConnections)
-	}
-}
-
 // blueclaw is a separate Go module under a different licence, so the share can
 // only reach it as a field name written twice. blueclaw's committed device
 // example is the shape its own loader is tested against

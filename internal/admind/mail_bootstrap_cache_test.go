@@ -2,9 +2,10 @@ package admind
 
 import (
 	"encoding/json"
-	"github.com/yeomyeonggeori/internkim/internal/mail"
 	"net/http"
 	"testing"
+
+	"github.com/yeomyeonggeori/internkim/internal/mail"
 )
 
 func TestMailBootstrapReturnsCachedState(t *testing.T) {

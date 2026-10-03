@@ -24,14 +24,8 @@ func (service *Service) adminConsoleActorEmail(request *http.Request) string {
 }
 
 func (service *Service) authenticatedCallerEmail(request *http.Request) string {
-	if email := service.cloudflareAccessVerifier().verifiedEmail(request.Context(), request); email != "" {
-		return email
-	}
 	if service.Configuration.TrustProxyForwardedEmail {
 		return forwardedProxyEmail(request)
-	}
-	if service.cloudflareAccessVerifier().isConfigured() {
-		return ""
 	}
 	if !trustsForwardedIdentity(service.Configuration.ListenAddress) || carriesProxyMarker(request) {
 		return ""
@@ -46,18 +40,6 @@ func forwardedProxyEmail(request *http.Request) string {
 		request.Header.Get("X-Forwarded-Email"),
 		request.Header.Get("X-Auth-Request-Email"),
 	)))
-}
-
-func (service *Service) cloudflareAccessVerifier() *cloudflareAccessVerifier {
-	service.cloudflareAccessOnce.Do(func() {
-		audiences := strings.Split(service.Configuration.CloudflareAccessAUDs, ",")
-		service.cloudflareAccessCheck = newCloudflareAccessVerifier(
-			service.Configuration.CloudflareAccessTeamDomain,
-			audiences,
-			service.httpClient(),
-		)
-	})
-	return service.cloudflareAccessCheck
 }
 
 func trustsForwardedIdentity(listenAddress string) bool {

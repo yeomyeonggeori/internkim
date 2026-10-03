@@ -2,9 +2,9 @@ package admind
 
 import (
 	"context"
-	"reflect"
 	"net/http"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	nostr "github.com/nbd-wtf/go-nostr"

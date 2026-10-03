@@ -8,16 +8,13 @@ export type { OrgGroup, UserRecord } from '$lib/organization/types';
 export type { UserRole } from '$lib/types';
 export type WorkspaceLanguage = 'ko' | 'en';
 export type AdminSection =
-	| 'device'
 	| 'bot'
 	| 'credentials'
-	| 'backup'
 	| 'users'
 	| 'settings'
 	| 'workSettings'
 	| 'leaveSettings'
 	| 'sharing'
-	| 'network'
 	| 'buzz'
 	| 'apiTokens';
 
@@ -58,55 +55,6 @@ export type AdminSession = {
 	temporaryPassword?: string;
 	temporaryPasswordEmail?: string;
 	mattermostURL?: string;
-	deviceManaged?: boolean;
-};
-
-export type BackupManifest = {
-	fleetID?: string;
-	createdAt?: string;
-	components?: string[];
-};
-
-export type AdminJob = {
-	jobID: string;
-	type: string;
-	status: string;
-	phase: string;
-	error?: string;
-	downloadURL?: string;
-	manifest?: BackupManifest;
-	logs?: string[];
-};
-
-export type ReleaseUpdateSummary = {
-	releaseID: string;
-	channel?: string;
-	createdAt?: string;
-	components?: Record<string, { revision: string; sha256?: string }>;
-};
-
-export type BlueclawUpdateStatus = {
-	current?: ReleaseUpdateSummary;
-	latest?: ReleaseUpdateSummary;
-	state: string;
-	updateAllowed: boolean;
-	activeJob?: AdminJob;
-};
-
-export type ReleaseHistoryEntry = {
-	releaseID: string;
-	manifestURL: string;
-	createdAt: string;
-	isCurrent: boolean;
-};
-
-export type ReleaseHistoryResponse = {
-	entries?: ReleaseHistoryEntry[];
-};
-
-export type RestoreUploadResponse = {
-	uploadID: string;
-	chunkSize: number;
 };
 
 export type AgentToneRegister = 'formal' | 'polite' | 'casual';
@@ -233,17 +181,6 @@ export type AttendanceWorkPolicyResponse = {
 	currentMonth: string;
 	holidayDates: string[];
 	timeZone: string;
-};
-
-export type WifiProfile = {
-	name: string;
-	ssid: string;
-	isActive: boolean;
-	isManagedByInternkim: boolean;
-};
-
-export type WifiProfilesResponse = {
-	profiles?: WifiProfile[];
 };
 
 export type CompanyMetric = {

@@ -9,8 +9,6 @@ import (
 	_ "time/tzdata"
 
 	"github.com/yeomyeonggeori/internkim/internal/admind"
-	"github.com/yeomyeonggeori/internkim/internal/companyhost"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func readBuzzDatabaseURL(path string) (string, error) {
@@ -32,13 +30,6 @@ func readBuzzDatabaseURL(path string) (string, error) {
 }
 
 func main() {
-	if len(os.Args) == 2 && os.Args[1] == blueclaw.GuestSkillPreparationVerb {
-		if errorValue := companyhost.PrepareTheGuestSkills(companyhost.LocalProcesses{}, os.Stdout); errorValue != nil {
-			fmt.Fprintf(os.Stderr, "The guest's skills were not prepared: %s\n", errorValue)
-			os.Exit(1)
-		}
-		return
-	}
 	configuration := admind.DefaultConfiguration()
 	flag.StringVar(&configuration.ListenAddress, "listen", configuration.ListenAddress, "HTTP listen address")
 	flag.StringVar(&configuration.MattermostBaseURL, "mattermost-url", configuration.MattermostBaseURL, "Mattermost upstream URL")
@@ -72,8 +63,6 @@ func main() {
 	flag.StringVar(&configuration.FleetSecretPath, "fleet-secret-path", configuration.FleetSecretPath, "fleet secret file")
 	flag.StringVar(&configuration.OpenRouterKeyPath, "openrouter-key", configuration.OpenRouterKeyPath, "OpenRouter key path")
 	flag.StringVar(&configuration.OpenRouterModelsURL, "openrouter-models-url", configuration.OpenRouterModelsURL, "OpenRouter models URL for key validation")
-	flag.StringVar(&configuration.ReleaseRegistryURL, "release-registry-url", configuration.ReleaseRegistryURL, "internkim release registry URL")
-	flag.StringVar(&configuration.ReleaseDownloadTokenPath, "release-download-token", configuration.ReleaseDownloadTokenPath, "release registry download token path")
 	flag.StringVar(&configuration.AdminUIPath, "admin-ui-path", configuration.AdminUIPath, "admin UI static directory")
 	flag.StringVar(&configuration.BotProfileImagePath, "bot-profile-image", configuration.BotProfileImagePath, "bot profile image path")
 	flag.StringVar(&configuration.BlueclawWorkspacePath, "blueclaw-workspace", configuration.BlueclawWorkspacePath, "Blueclaw host workspace path")
@@ -81,20 +70,16 @@ func main() {
 	flag.StringVar(&configuration.BuzzCommunityID, "buzz-community-id", configuration.BuzzCommunityID, "Buzz community UUID invites admit into")
 	flag.StringVar(&configuration.BuzzRelayURL, "buzz-relay-url", configuration.BuzzRelayURL, "Buzz relay WebSocket URL used to connect from inside the box (loopback path)")
 	flag.StringVar(&configuration.BuzzRelayPublicURL, "buzz-relay-public-url", configuration.BuzzRelayPublicURL, "public wss URL for the relay, e.g. wss://relay.example.test; used for invite deep links, browser relay config, and the Host header presented to the relay")
-	flag.StringVar(&configuration.BuzzRelayPublicURLPath, "buzz-relay-public-url-path", configuration.BuzzRelayPublicURLPath, "file provisioning writes that URL to when the company gave its relay a domain; absent means loopback-only")
 	flag.StringVar(&configuration.BuzzAdminCommandPath, "buzz-admin-command", configuration.BuzzAdminCommandPath, "buzz-admin binary path for member polling")
 	flag.StringVar(&configuration.BuzzDatabaseURL, "buzz-database-url", configuration.BuzzDatabaseURL, "Buzz relay postgres URL for member polling")
 	buzzDatabaseURLPath := flag.String("buzz-database-url-path", "", "file holding the Buzz relay postgres URL (EnvironmentFile format); read when -buzz-database-url is empty")
 	flag.StringVar(&configuration.BuzzAccountLinksPath, "buzz-account-links", configuration.BuzzAccountLinksPath, "account links JSON file consumed by acpd")
 	flag.StringVar(&configuration.BuzzKeySeedPath, "buzz-key-seed-path", configuration.BuzzKeySeedPath, "file holding the Buzz identity derivation seed (must match the history importer)")
 	flag.StringVar(&configuration.BuzzRelayKeyPath, "buzz-relay-key-path", configuration.BuzzRelayKeyPath, "EnvironmentFile holding BUZZ_RELAY_PRIVATE_KEY for buzz-admin relay membership grants")
-	flag.StringVar(&configuration.CloudflareAccessTeamDomain, "cloudflare-access-team-domain", configuration.CloudflareAccessTeamDomain, "Cloudflare Access team domain (e.g. example.cloudflareaccess.com) whose JWT the web trusts")
-	flag.StringVar(&configuration.CloudflareAccessAUDs, "cloudflare-access-aud", configuration.CloudflareAccessAUDs, "comma-separated Cloudflare Access application AUD tags the web session accepts")
 	flag.BoolVar(&configuration.TrustProxyForwardedEmail, "trust-proxy-forwarded-email", configuration.TrustProxyForwardedEmail, "trust the X-Forwarded-Email/X-Auth-Request-Email header from a fronting identity proxy (oauth2-proxy, Authelia); enable only when such a proxy is the sole ingress")
 	flag.BoolVar(&configuration.TaskRunNotifyEnabled, "task-run-notify", configuration.TaskRunNotifyEnabled, "push a notification to the central plane when a task run needs approval, completes, or fails")
 	flag.BoolVar(&configuration.AttendanceNotifyEnabled, "attendance-notify", configuration.AttendanceNotifyEnabled, "push a notification when somebody clocks in or out, and when a leave request reaches the administrators")
 	flag.BoolVar(&configuration.MailNotifyEnabled, "mail-notify", configuration.MailNotifyEnabled, "push a notification when unread mail arrives for somebody with a connected account")
-	flag.BoolVar(&configuration.UsersSyncInstallEnabled, "install-users-sync", configuration.UsersSyncInstallEnabled, "write, enable and start the device's hourly users-sync script and timer under /usr/local/bin and /etc/systemd/system; the company host takes its roster from the central plane and turns this off")
 	flag.Parse()
 
 	if configuration.BuzzDatabaseURL == "" && *buzzDatabaseURLPath != "" {

@@ -34,7 +34,7 @@ description: 에이전트가 부를 수 있는 것들, 각 호출의 대가, 그
 대고 돌고, 브라우저와 모델 도구는 에이전트 곁에서만 돌며, 나머지는 회사의
 컴퓨터로 실려 갑니다. 호스트에서 에이전트는
 [HTTP API](/ko/docs/api/tools)가 서빙하는 바로 그 카탈로그를 릴레이를 거쳐
-MCP로 부르고, 디바이스 경로에서는 `internkim-capabilityd`를 거쳐 닿습니다.
+MCP로 부릅니다.
 전체 목록은 [카탈로그](/ko/docs/tools/catalog)에 있습니다.
 
 워크스페이스 도구는 요청자의 파일과 터미널을 다룹니다. 읽기, 쓰기,
@@ -136,7 +136,7 @@ flowchart LR
   TS["web/src/lib/server/public-api/catalog/<br/>(단일 정본)"] -->|make generate-protocol| JSON["pkg/capabilityprotocol/generated/<br/>capability-tools.json"]
   JSON -->|임베드, 해시 검증| Go["pkg/capabilityprotocol"]
   Go -->|admind가 runtime.json에 스탬프| Blueclaw["blueclaw<br/>capability_tool_provider"]
-  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock<br/>(게스트에서는 vsock)"]
+  Blueclaw -->|approvalgate| Socket["/run/internkim/capability.sock"]
   Socket --> Capabilityd["internkim-capabilityd<br/>조작을 실행"]
 ```
 
@@ -146,7 +146,7 @@ flowchart LR
 | 디스크립터 형태 | `.dependency/blueclaw/protocol/src/capability.ts` | 디스크립터가 말할 수 있는 것. 어떤 도구가 있는지는 모른다 |
 | 생성된 카탈로그 | `pkg/capabilityprotocol/generated/capability-tools.json` | Go 코드가 읽는 임베드·해시 검증 사본 |
 | 디스크립터 묶음 | `internal/capabilities/protocol.go` | 어떤 제공자가 어떤 디스크립터를 등록하는지 |
-| 설정 스탬프 | `internal/admind/blueclaw_updates.go` | blueclaw `runtime.json`에 `capabilities.toolDescriptors`를 씀 |
+| 설정 렌더링 | `tools/render-company-runtime` | 설치된 `capabilityd`에서 `capabilities.toolDescriptors`를 읽어 blueclaw `runtime.json`에 씀 |
 | 에이전트 바인딩 | `.dependency/blueclaw/internal/agentruntime/capability_tool_provider.go` | 디스크립터를 검증해 모델의 도구 셋에 바인딩 |
 | 승인 게이트 | `.dependency/blueclaw/internal/approvalgate/turn_gate.go` | 게이트된 호출을 사람 앞에 세움 |
 | 실행 | `internal/capabilityd/*_tool.go` | 네임스페이스별 실제 조작 |
@@ -154,8 +154,7 @@ flowchart LR
 도구를 바꾼다는 것은 TypeScript 디스크립터를 고치고 `make generate-protocol`을
 돌린 뒤 `capabilityd`와 blueclaw 페이로드를 같은 릴리스로 내보내는 일입니다.
 blueclaw는 프로토콜 신원 해시가 자기 것과 다른 디스크립터 셋을 거부하고,
-돌고 있는 장비는 설정 재스탬프(`setup --only blueclaw-config`)로 새 셋을
-받습니다.
+호스트는 패키지가 런타임 문서를 다시 렌더링할 때 새 셋을 받습니다.
 
 <Cards>
   <Card title="도구 카탈로그" href="/ko/docs/tools/catalog" description="정본 카탈로그에서 생성되는 네임스페이스별 전체 목록" />

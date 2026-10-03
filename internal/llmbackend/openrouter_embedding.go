@@ -193,3 +193,10 @@ func (backend OpenRouterEmbeddingBackend) client() *http.Client {
 	}
 	return backend.HTTPClient
 }
+
+func embeddingRequestInput(inputs []string) any {
+	if len(inputs) == 1 {
+		return inputs[0]
+	}
+	return inputs
+}

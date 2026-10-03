@@ -1,7 +1,6 @@
 package localfleet
 
 import (
-	"encoding/base64"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,54 +18,6 @@ func (service Service) startCentralPlanePlan() CommandPlan {
 		"--admin-port", strconv.Itoa(service.options.AdminHostPort),
 		"--agent-name", service.options.VirtualMachineName,
 	)
-}
-
-func (service Service) centralPlaneSettingsPath() string {
-	return filepath.Join(service.options.StateRootPath, "central-plane.env")
-}
-
-var centralPlaneDeviceSettings = []struct {
-	variable string
-	path     string
-	mode     string
-}{
-	{"CENTRAL_PLANE_APP_URL", "/root/.internkim/env/central-plane-app-url", "644"},
-	{"CENTRAL_PLANE_PROJECT_URL", "/root/.internkim/env/central-plane-project-url", "644"},
-	{"CENTRAL_PLANE_PUBLISHABLE_KEY", "/root/.internkim/env/central-plane-publishable-key", "644"},
-	{"CENTRAL_PLANE_AGENT_KEY", "/root/.internkim/secrets/central-plane-agent-key", "600"},
-}
-
-// A device that names no company keeps its own records, so the fleet says which
-// company this one belongs to before setup brings its services up.
-//
-// vm-ssh hands ssh whatever it is given, and ssh joins every operand after the
-// host with a space into one string for the remote login shell to re-split. So
-// the remote command is written here as a single argument, and the script it
-// runs travels encoded rather than through two shells' worth of quoting: the
-// values are the company's own keys, and a quote inside one used to end the
-// command early and run the rest of it as the unprivileged user.
-func (service Service) joinCentralPlaneCommand() string {
-	remoteSteps := []string{
-		"set -e",
-		"mkdir -p /root/.internkim/env /root/.internkim/secrets",
-	}
-	carried := []string{}
-	for _, setting := range centralPlaneDeviceSettings {
-		encodedVariable := setting.variable + "_BASE64"
-		remoteSteps = append(remoteSteps,
-			"printf '%s\\n' \"$(printf %s \"$"+encodedVariable+"\" | base64 -d)\" > "+setting.path,
-			"chmod "+setting.mode+" "+setting.path,
-		)
-		carried = append(carried, encodedVariable+`=$(printf %s "$`+setting.variable+`" | base64 | tr -d '\n')`)
-	}
-	encodedScript := base64.StdEncoding.EncodeToString([]byte(strings.Join(remoteSteps, "\n")))
-	remoteCommand := `"sudo env ` + strings.Join(carried, " ") +
-		` sh -c 'echo ` + encodedScript + ` | base64 -d | sh'"`
-	return strings.Join([]string{
-		". " + quoteShell(service.centralPlaneSettingsPath()),
-		quoteShell(service.options.ExecutablePath) + " lab vm-ssh --config " + quoteShell(service.configurationPath()) +
-			" -- " + remoteCommand,
-	}, " && ")
 }
 
 // The company is only reachable while the fleet's ssh session is up, so the app

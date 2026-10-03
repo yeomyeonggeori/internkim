@@ -39,7 +39,7 @@ def runThroughTheVault():
 
 def rememberInVault(name, value):
     completed = subprocess.run(
-        [monkeysCommandPath(), "remember", "@production", name], cwd=str(repositoryRoot),
+        [monkeysCommandPath(), "remember", "@board", name], cwd=str(repositoryRoot),
         input=value, capture_output=True, text=True,
     )
     if completed.returncode != 0:

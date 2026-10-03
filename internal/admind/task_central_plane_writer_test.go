@@ -29,4 +29,3 @@ func TestACompanyBoardRefusesAWriteItCannotAttribute(t *testing.T) {
 		t.Fatalf("a write nobody is named on is refused, got %v", errorValue)
 	}
 }
-

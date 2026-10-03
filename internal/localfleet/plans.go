@@ -8,12 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/blueclawworkspace"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 func (service Service) runPlans(contextValue context.Context, logger Logger, plans []CommandPlan) error {
@@ -85,115 +82,6 @@ func scanPlanOutput(pipe interface{ Read([]byte) (int, error) }, logger Logger, 
 	}
 }
 
-func (service Service) upPlans(skipWeb bool) []CommandPlan {
-	return service.upPlansThroughSetup(skipWeb, nil)
-}
-
-// The guest sees one thing: this worktree, mounted at /mnt/shared/workspace. So a
-// shared artifact that sync-worktree-local-state linked rather than copied points
-// at a host path the guest has no idea about, and the run dies ten minutes in with
-// a missing file. Say it in a second instead.
-func (service Service) checkSharedArtifactsCommand() string {
-	linkedArtifacts := []string{
-		".dependency/blueclaw-runtime",
-		".dependency/container-kernel",
-		".dependency/local-fleet-embedding",
-		".dependency/buzz-relay",
-	}
-	checks := make([]string, 0, len(linkedArtifacts))
-	for _, artifact := range linkedArtifacts {
-		checks = append(checks, "if [ -L "+quoteShell(artifact)+" ]; then linked=\"$linked "+artifact+"\"; fi")
-	}
-	return strings.Join([]string{
-		"cd " + quoteShell(service.options.RepositoryRootPath),
-		"linked=''",
-		strings.Join(checks, "; "),
-		"if [ -n \"$linked\" ]; then " +
-			"echo \"the guest mounts this worktree and nothing else, so it cannot follow a link out of it:$linked\" >&2; " +
-			"echo 'run tools/sync-worktree-local-state --copy <main worktree path> and try again' >&2; " +
-			"exit 1; fi",
-	}, " && ")
-}
-
-func (service Service) checkMessengerArtifactCommand() string {
-	blueclawPath := filepath.Join(service.options.RepositoryRootPath, ".dependency", "blueclaw")
-	chatdRevisionPath := filepath.Join(service.options.RepositoryRootPath, ".dependency", "buzz-relay", "CHATD_REVISION")
-	advice := "echo 'run make prepare-buzz-relay and try again' >&2; exit 1; fi"
-	return strings.Join([]string{
-		"pointerRevision=\"$(git -C " + quoteShell(blueclawPath) + " rev-parse HEAD 2>/dev/null || true)\"",
-		"if [ -z \"$pointerRevision\" ]; then echo 'the blueclaw submodule has no revision to build chatd from' >&2; exit 1; fi",
-		"builtRevision=\"$(cat " + quoteShell(chatdRevisionPath) + " 2>/dev/null || true)\"",
-		"if [ -z \"$builtRevision\" ]; then " +
-			"echo 'the chatd in .dependency/buzz-relay records no revision, so it was never built for this checkout' >&2; " +
-			advice,
-		"if [ \"$builtRevision\" != \"$pointerRevision\" ]; then " +
-			"echo \"the chatd in .dependency/buzz-relay was built from $builtRevision and .dependency/blueclaw points at $pointerRevision\" >&2; " +
-			advice,
-	}, " && ")
-}
-
-func (service Service) preparedFleetPlans() []CommandPlan {
-	return []CommandPlan{
-		service.startCentralPlanePlan(),
-		service.labCommand("vm-up"),
-		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
-		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
-		service.shellPlan("give the device its company", service.joinCentralPlaneCommand()),
-	}
-}
-
-func (service Service) upPlansThroughSetup(skipWeb bool, additionalSkippedSteps []string) []CommandPlan {
-	plans := []CommandPlan{
-		service.shellPlan("check the guest can see the shared artifacts", service.checkSharedArtifactsCommand()),
-		service.shellPlan("check the messenger binary was built for this checkout", service.checkMessengerArtifactCommand()),
-		service.prepareContainerKernelPlan(),
-		service.prepareLocalEmbeddingPlan(),
-		service.startCentralPlanePlan(),
-		service.labCommand("vm-up"),
-		service.shellPlan("check shared workspace", service.checkSharedWorkspaceCommand()),
-		service.shellPlan("start localhost tunnel", service.startTunnelCommand()),
-		service.command("make", "build"),
-	}
-	if !service.options.IsEphemeral && !slices.Contains(additionalSkippedSteps, "blueclaw-runtime-base") {
-		plans = append(plans, service.shellPlan("ensure reusable runtime base", service.ensureRuntimeBaseCommand()))
-	}
-	plans = append(plans,
-		service.shellPlan("give the device its company", service.joinCentralPlaneCommand()),
-		service.shellPlan("setup local fleet", service.setupCommand(skipWeb, additionalSkippedSteps...)),
-		service.configureLocalEmbeddingPlan(),
-	)
-	return plans
-}
-
-func (service Service) prepareLocalEmbeddingPlan() CommandPlan {
-	return service.command(filepath.Join(service.options.RepositoryRootPath, "tools", "prepare-local-fleet-embedding"))
-}
-
-func (service Service) configureLocalEmbeddingPlan() CommandPlan {
-	scriptPath := "/mnt/shared/workspace/lab/scripts/configure-local-embedding.sh"
-	return service.labCommand("vm-ssh", "sudo bash "+quoteShell(scriptPath))
-}
-
-func (service Service) upgradePathGatePlans(scenario string) []CommandPlan {
-	plans := service.upPlans(false)
-	plans = append(plans,
-		service.labCommand("vm-ssh", "sudo bash "+quoteShell("/mnt/shared/workspace/lab/scripts/regress-fleet-state.sh")),
-		service.upgradeReleaseApplyPlan(),
-		service.shellPlan("verify api after upgrade", service.verifyCommand("api")),
-		service.blueclawDevSessionPreparePlan(scenario),
-		service.virtualSessionPlan(scenario),
-	)
-	return plans
-}
-
-func (service Service) upgradeReleaseApplyPlan() CommandPlan {
-	return service.command(service.options.ExecutablePath, "deploy",
-		"--components", "admind,capabilityd,blueclawPayload",
-		"--board", "lab",
-		"--device-url", service.adminHostURL(),
-	)
-}
-
 func (service Service) virtualSessionScenarioPlans(scenario string) []CommandPlan {
 	return []CommandPlan{
 		service.prepareContainerKernelPlan(),
@@ -227,132 +115,11 @@ func (service Service) downPlans() []CommandPlan {
 	}
 }
 
-func (service Service) resetPlans() []CommandPlan {
-	return []CommandPlan{
-		service.shellPlan("reset local fleet", service.resetCommand()),
-	}
-}
-
 func (service Service) ephemeralCleanupPlans() []CommandPlan {
 	return []CommandPlan{
 		service.shellPlan("stop localhost tunnel", service.stopTunnelCommand()),
 		service.shellPlan("stop the company app", service.stopCentralPlaneCommand()),
 		service.shellPlan("remove ephemeral VM", service.removeVirtualMachineCommand()),
-	}
-}
-
-func (service Service) predeployGatePlans() []CommandPlan {
-	return append(service.upPlans(false),
-		service.shellPlan("verify api", service.verifyCommand("api")),
-		service.blueclawLabScenarioScriptPlan("buzz-direct-message"),
-		service.companyBrowserVerificationPlan(),
-	)
-}
-
-// The fleet already provisions the relay and chatd, so this one only needed a
-// scenario to use them.
-func (service Service) buzzAttachmentScenarioPlans() []CommandPlan {
-	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-attachment"))
-}
-
-func (service Service) buzzDirectMessageScenarioPlans() []CommandPlan {
-	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-direct-message"))
-}
-
-func (service Service) buzzInboundMentionScenarioPlans() []CommandPlan {
-	return append(service.upPlansThroughSetup(true, nil), service.blueclawLabScenarioScriptPlan("buzz-inbound-mention"))
-}
-
-func (service Service) restartPolicySurvivalScenarioPlans() []CommandPlan {
-	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("restart-policy-survival"))
-}
-
-func (service Service) modelConfigurationUpgradeScenarioPlans() []CommandPlan {
-	command := "printf '%s\\n' admin | sudo -S python3 /mnt/shared/workspace/lab/scripts/verify-model-configuration-upgrade.py /mnt/shared/workspace/.artifacts/model-configuration-upgrade.json"
-	return append(service.upPlansThroughSetup(true, nil), service.labCommand("vm-ssh", command))
-}
-
-func (service Service) workspacePersistenceScenarioPlans() []CommandPlan {
-	return append(service.upPlans(false), service.blueclawLabScenarioScriptPlan("workspace-persistence"))
-}
-
-func (service Service) learningSettingsScenarioPlans() []CommandPlan {
-	scriptArguments := []string{
-		"bash", "/mnt/shared/workspace/lab/scripts/scenario-learning-settings.sh",
-		"admin", "127.0.0.1:8065", "/mnt/shared/workspace",
-		service.virtualSessionArtifactDirectoryPath("learning-settings"),
-	}
-	return append(service.upPlans(true), service.labCommand("vm-ssh", quoteShellArguments(scriptArguments)))
-}
-
-func (service Service) morningBriefingScenarioPlans() []CommandPlan {
-	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-morning-briefing.py", service.virtualSessionArtifactDirectoryPath("morning-briefing")}
-	plans := []CommandPlan{
-		service.shellPlan("build briefing provider regression tests", "GOOS=linux GOARCH=arm64 go test -c -o build/briefing-provider.test ./internal/capabilityd"),
-		service.shellPlan("build morning briefing database tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/morning-briefing-postgres.test ./internal/store/postgres"),
-		service.shellPlan("build morning briefing model tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -tags 'appliance llmeval' -o ../../build/morning-briefing-live.test ./internal/e2e"),
-	}
-	plans = append(plans, service.upPlans(true)...)
-	return append(plans, service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
-}
-
-func (service Service) firingSchedulesNothingScenarioPlans() []CommandPlan {
-	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-firing-schedules-nothing.py", service.virtualSessionArtifactDirectoryPath("firing-schedules-nothing")}
-	return append(service.upPlans(true), service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
-}
-
-func (service Service) scheduleThroughTheCatalogScenarioPlans() []CommandPlan {
-	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-schedule-through-the-catalog.py", service.virtualSessionArtifactDirectoryPath("schedule-through-the-catalog")}
-	return append(service.upPlans(true), service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
-}
-
-func (service Service) memoryStoreScenarioPlans() []CommandPlan {
-	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-memory-store.py", service.virtualSessionArtifactDirectoryPath("memory-store")}
-	plans := []CommandPlan{
-		service.shellPlan("build memory host integration tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/memory-integration.test ./tests/integration"),
-		service.shellPlan("build memory model regression tests", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -tags 'appliance llmeval' -o ../../build/memory-live.test ./internal/e2e"),
-	}
-	plans = append(plans, service.upPlans(true)...)
-	return append(plans, service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)))
-}
-
-func (service Service) webBackedScenarioPlans() []CommandPlan {
-	return append(service.upPlans(false),
-		service.shellPlan("verify api", service.verifyCommand("api")),
-		service.companyBrowserVerificationPlan(),
-	)
-}
-
-func (service Service) personalSettingsScenarioPlans() []CommandPlan {
-	return append(service.upPlans(true), service.companyBrowserVerificationPlan())
-}
-
-func (service Service) companyBrowserVerificationPlan() CommandPlan {
-	return service.command(
-		"bun", "run", filepath.Join(service.options.RepositoryRootPath, "tools", "verify-personal-settings.ts"),
-		"--state-root", service.options.StateRootPath,
-		"--app-port", strconv.Itoa(service.options.CompanyAppPort),
-		"--admin-port", strconv.Itoa(service.options.AdminHostPort),
-		"--chatd-url", blueclaw.ChatdEndpoint,
-		"--config", service.configurationPath(),
-	)
-}
-
-func (service Service) taskHistoryRetryScenarioPlans() []CommandPlan {
-	arguments := []string{"sudo", "-S", "python3", "/mnt/shared/workspace/lab/scripts/scenario-task-history-retry.py", service.virtualSessionArtifactDirectoryPath("task-history-retry")}
-	return append(service.upPlans(true),
-		service.shellPlan("build task retry database acceptance", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/task-history-retry-postgres.test ./internal/store/postgres"),
-		service.shellPlan("build task retry runtime acceptance", "cd .dependency/blueclaw && GOOS=linux GOARCH=arm64 go test -c -o ../../build/task-history-retry-runtime.test ./internal/connectors"),
-		service.shellPlan("build task retry proxy acceptance", "GOOS=linux GOARCH=arm64 go test -c -o build/task-history-retry-admind.test ./internal/admind"),
-		service.labCommand("vm-ssh", "printf '%s\\n' admin | "+quoteShellArguments(arguments)),
-	)
-}
-
-func (service Service) baseRegressionPlans(base string, scenario string) []CommandPlan {
-	worktreePath := filepath.Join(service.options.StateRootPath, "worktrees", "base-"+safeName(base))
-	return []CommandPlan{
-		service.shellPlan("prepare base worktree", fmt.Sprintf("rm -rf %s && git worktree add --detach %s %s", quoteShell(worktreePath), quoteShell(worktreePath), quoteShell(base))),
-		service.shellPlan("run base scenario", fmt.Sprintf("cd %s && %s dev fleet run --scenario %s", quoteShell(worktreePath), quoteShell(service.options.ExecutablePath), quoteShell(scenario))),
 	}
 }
 
@@ -395,56 +162,6 @@ func (service Service) checkSharedWorkspaceCommand() string {
 	return "for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do " + command + " && exit 0; sleep 2; done; " + command
 }
 
-func (service Service) setupCommand(skipWeb bool, additionalSkippedSteps ...string) string {
-	skippedSteps := []string{"wifi", "local-llm"}
-	if skipWeb {
-		skippedSteps = append(skippedSteps, "web")
-	}
-	if !service.options.IsEphemeral {
-		skippedSteps = append(skippedSteps, "blueclaw-runtime-base")
-	}
-	for _, skippedStep := range additionalSkippedSteps {
-		if !slices.Contains(skippedSteps, skippedStep) {
-			skippedSteps = append(skippedSteps, skippedStep)
-		}
-	}
-	return service.setupSSHCommand("--force --skip " + strings.Join(skippedSteps, ","))
-}
-
-func (service Service) ensureRuntimeBaseCommand() string {
-	return service.setupSSHCommand("--only blueclaw-runtime-base --skip web")
-}
-
-func (service Service) setupSSHCommand(selectionArguments string) string {
-	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
-	setupCommandParts := append(service.setupEnvironmentAssignments(), quoteShell(service.options.ExecutablePath))
-	return strings.Join([]string{
-		"host=$(" + hostCommand + ")",
-		"test -n \"$host\"",
-		strings.Join(setupCommandParts, " ") + " setup --board lab --ssh --host \"$host\" --user admin --password admin --admin-email local-fleet-admin@internkim.test --wait-lock " + selectionArguments,
-	}, " && ")
-}
-
-func (service Service) setupEnvironmentAssignments() []string {
-	assignments := []string{
-		"INTERNKIM_BLUECLAW_USE_LOCAL=1",
-		"INTERNKIM_SKIP_PAGES_DEPLOY_FOR_LAB=1",
-	}
-	if pinnedModelName := strings.TrimSpace(os.Getenv(blueclaw.BlueclawTestModelEnvironment)); !service.options.ShouldUseRealModels && pinnedModelName != "" {
-		assignments = append(assignments, blueclaw.BlueclawTestModelEnvironment+"="+quoteShell(pinnedModelName))
-	}
-	if maximumModelTier := strings.TrimSpace(service.options.MaximumModelTier); maximumModelTier != "" {
-		assignments = append(assignments, blueclaw.BlueclawTestMaximumModelTierEnvironment+"="+quoteShell(maximumModelTier))
-	}
-	if generationSeed := strings.TrimSpace(service.options.GenerationSeed); generationSeed != "" {
-		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_SEED="+quoteShell(generationSeed))
-	}
-	if generationTemperature := strings.TrimSpace(service.options.GenerationTemperature); generationTemperature != "" {
-		assignments = append(assignments, "INTERNKIM_TEST_GENERATION_TEMPERATURE="+quoteShell(generationTemperature))
-	}
-	return assignments
-}
-
 func (service Service) startTunnelCommand() string {
 	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
 	pidPath := quoteShell(service.tunnelPIDPath())
@@ -472,24 +189,6 @@ func (service Service) stopTunnelCommand() string {
 	}, " && ")
 }
 
-func (service Service) verifyCommand(kind string) string {
-	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
-	return strings.Join([]string{
-		"host=$(" + hostCommand + ")",
-		"test -n \"$host\"",
-		quoteShell(service.options.ExecutablePath) + " verify " + kind + " --board lab --host \"$host\" --user admin --password admin",
-	}, " && ")
-}
-
-func (service Service) resetCommand() string {
-	hostCommand := quoteShell(service.options.ExecutablePath) + " lab vm-ip --config " + quoteShell(service.configurationPath())
-	return strings.Join([]string{
-		"host=$(" + hostCommand + " 2>/dev/null || true)",
-		"if [ -n \"$host\" ]; then " + quoteShell(service.options.ExecutablePath) + " reset blueclaw-history --board lab --host \"$host\" --user admin --password admin --confirm lab || true; fi",
-		"rm -rf " + quoteShell(service.leasesPath()),
-	}, " && ")
-}
-
 func (service Service) reapOrphanedEphemeralContainersCommand() string {
 	containerBinary := quoteShell("container")
 	currentName := quoteShell(service.options.VirtualMachineName)
@@ -512,12 +211,6 @@ func (service Service) removeVirtualMachineCommand() string {
 
 func (service Service) removeStateCommand() string {
 	return "rm -rf " + quoteShell(service.options.StateRootPath)
-}
-
-func (service Service) blueclawLabScenarioScriptPlan(scenario string) CommandPlan {
-	workspacePath := "/mnt/shared/workspace"
-	scriptPath := workspacePath + "/.dependency/blueclaw/lab/scripts/scenario-" + scenario + ".sh"
-	return service.labCommand("vm-ssh", "bash "+quoteShell(scriptPath)+" admin 127.0.0.1:8065 "+workspacePath)
 }
 
 func (service Service) blueclawDevSessionPreparePlan(scenario string) CommandPlan {
@@ -623,11 +316,6 @@ func (service Service) writeLastResult(value string) {
 
 func quoteShell(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
-}
-
-func safeName(value string) string {
-	replacer := strings.NewReplacer("/", "-", "\\", "-", " ", "-")
-	return replacer.Replace(strings.TrimSpace(value))
 }
 
 func safeIdentifier(value string) string {

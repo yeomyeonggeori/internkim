@@ -37,15 +37,10 @@ type Service struct {
 	centralPlaneClient      *centralplane.Client
 	mattermostAdminOnce     sync.Once
 	mattermostAdminClient   *mattermostadmin.Client
-	jobs                    map[string]*Job
-	uploads                 map[string]*RestoreUpload
-	blueclawUpdateUploads   map[string]*BlueclawUpdateUpload
 	buzzInviteStore         *buzzInviteStore
 	buzzInviteStoreOnce     sync.Once
 	buzzKeySeedOnce         sync.Once
 	buzzKeySeedValue        string
-	cloudflareAccessOnce    sync.Once
-	cloudflareAccessCheck   *cloudflareAccessVerifier
 	mailBackend             mail.Backend
 	mailPasswords           mail.PasswordOpener
 	companyShareMutex       sync.Mutex
@@ -69,16 +64,13 @@ type Service struct {
 func NewService(configuration Configuration) *Service {
 	configuration = configuration.withDefaults()
 	service := &Service{
-		Configuration:         configuration,
-		jobs:                  map[string]*Job{},
-		uploads:               map[string]*RestoreUpload{},
-		blueclawUpdateUploads: map[string]*BlueclawUpdateUpload{},
-		mailBackend:           mail.StandardBackend{},
-		mailPasswords:         mail.BoxPasswords(blueclawruntime.CompanyHostBoxStatePath),
-		companyShareAttempts:  map[string]companyShareAttempt{},
-		requestMetrics:        newAdminRequestMetrics(),
-		databaseSchemas:       newAdminDatabaseSchemas(),
-		startedAt:             time.Now().UTC(),
+		Configuration:        configuration,
+		mailBackend:          mail.StandardBackend{},
+		mailPasswords:        mail.BoxPasswords(blueclawruntime.CompanyHostBoxStatePath),
+		companyShareAttempts: map[string]companyShareAttempt{},
+		requestMetrics:       newAdminRequestMetrics(),
+		databaseSchemas:      newAdminDatabaseSchemas(),
+		startedAt:            time.Now().UTC(),
 	}
 	return service
 }
@@ -117,18 +109,13 @@ func (service *Service) Run(ctx context.Context) error {
 }
 
 func (service *Service) startBackgroundWork(ctx context.Context) {
-	go service.reconcileBlueclawRuntimeConfiguration(ctx)
 	go service.centralPlane()
-	if service.Configuration.UsersSyncInstallEnabled {
-		go service.keepUsersSyncInstalled(ctx)
-	}
 	if service.Configuration.TaskRunNotifyEnabled {
 		go service.keepTaskRunsNotified(ctx)
 	}
 	if service.Configuration.MailNotifyEnabled {
 		go service.keepMailAnnounced(ctx)
 	}
-	service.sweepUpdateLeftovers()
 	service.startPersonaSync(ctx)
 	service.startBlueclawRosterReconcile(ctx)
 	service.startCalendarSweep(ctx)
@@ -139,7 +126,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startCRMSweep(ctx)
 	service.startMailAccountSweep(ctx)
 	service.startTaskSweep(ctx)
-	removeAbandonedBackupIntermediates(abandonedBackupDirectory)
 	service.startBuzzMemberLinker(ctx)
 	service.startBuzzCredentialSweep(ctx)
 	go service.sayIfTheRelayIsOpen(ctx)
@@ -148,7 +134,6 @@ func (service *Service) startBackgroundWork(ctx context.Context) {
 	service.startMemberChannelMembershipSync(ctx)
 	service.startCircleRoomMembershipSync(ctx)
 	service.startAdminChannelSeatSync(ctx)
-	service.ensureBuzzRelayTerminator()
 }
 
 func (service *Service) startRequesterSocketListener(socketServer *http.Server) error {
@@ -226,10 +211,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func Run(configuration Configuration) error {

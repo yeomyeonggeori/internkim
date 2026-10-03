@@ -1,7 +1,6 @@
 package capabilityd
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"os/user"
 	"strconv"
@@ -23,13 +21,11 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/llmbackend"
 	"github.com/yeomyeonggeori/internkim/internal/modelladder"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
-	"github.com/yeomyeonggeori/internkim/internal/runtime/locallm"
 	"github.com/yeomyeonggeori/internkim/pkg/capabilityprotocol"
 )
 
 type Configuration struct {
 	SocketPath                    string
-	VSockPort                     int
 	OpenRouterKeyPath             string
 	BlueclawBaseURL               string
 	AdmindBaseURL                 string
@@ -43,19 +39,8 @@ type Configuration struct {
 	OpenRouterEmbeddingBaseURL    string
 	OpenRouterEmbeddingModel      string
 	OpenRouterImageModel          string
-	EmbeddingProviderOrder        []string
-	OllamaBaseURL                 string
-	OllamaModel                   string
-	LlamaCppBaseURL               string
-	LlamaCppModel                 string
-	LlamaCppEmbeddingBaseURL      string
-	LlamaCppEmbeddingModel        string
 	SocketGroupName               string
-	LiteRTModelPath               string
-	LocalLLMRunnerPath            string
-	LocalInferenceMode            string
 	LocalOnly                     bool
-	LocalBackendOrder             []string
 	ProviderAttemptTimeout        time.Duration
 	AgentBrowserPath              string
 	DeviceBrowserExecutablePath   string
@@ -90,7 +75,6 @@ type platformHealthState struct {
 func DefaultConfiguration() Configuration {
 	return Configuration{
 		SocketPath:                    "/run/internkim/capability.sock",
-		VSockPort:                     0,
 		OpenRouterKeyPath:             "/root/.internkim/secrets/openrouter-api-key",
 		BlueclawBaseURL:               "http://127.0.0.1:8080",
 		AdmindBaseURL:                 "http://127.0.0.1:18080",
@@ -102,17 +86,7 @@ func DefaultConfiguration() Configuration {
 		OpenRouterEmbeddingBaseURL:    "https://openrouter.ai/api/v1/embeddings",
 		OpenRouterEmbeddingModel:      llmbackend.DefaultEmbeddingModelName,
 		OpenRouterImageModel:          modelladder.ImageModel,
-		EmbeddingProviderOrder:        llmbackend.DefaultLocalEmbeddingProviderOrder,
-		OllamaBaseURL:                 "http://127.0.0.1:11434",
-		OllamaModel:                   "gemma3:1b",
-		LlamaCppBaseURL:               locallm.LlamaCppBaseURL,
-		LlamaCppModel:                 "local/gemma-4-E2B-it-qat-UD-Q4_K_XL",
-		LlamaCppEmbeddingBaseURL:      locallm.LlamaCppEmbeddingBaseURL,
-		LlamaCppEmbeddingModel:        llmbackend.DefaultEmbeddingModelName,
 		SocketGroupName:               "blueclaw",
-		LiteRTModelPath:               locallm.ModelPath(),
-		LocalLLMRunnerPath:            "/usr/local/bin/internkim-local-llm-runner",
-		LocalInferenceMode:            "",
 		LocalOnly:                     false,
 		ProviderAttemptTimeout:        0,
 		AgentBrowserPath:              "agent-browser",
@@ -136,21 +110,11 @@ func (service Service) Run(ctx context.Context) error {
 		service.DeviceBrowsers = service.Configuration.WithDefaults().newDeviceBrowsers()
 	}
 	go service.DeviceBrowsers.KeepTidy(ctx)
-	service.applyLocalInferenceMode(ctx)
 	listener, errorValue := service.listen()
 	if errorValue != nil {
 		return errorValue
 	}
 	defer listener.Close()
-
-	vsockListener, errorValue := service.listenVSock()
-	if errorValue != nil {
-		log.Printf("capabilityd vsock listener disabled: %v", errorValue)
-		vsockListener = nil
-	}
-	if vsockListener != nil {
-		defer vsockListener.Close()
-	}
 
 	server := &http.Server{
 		Handler:           service.router(),
@@ -163,15 +127,6 @@ func (service Service) Run(ctx context.Context) error {
 		defer cancel()
 		_ = server.Shutdown(shutdownContext)
 	}()
-	if vsockListener != nil {
-		go func() {
-			errorValue := server.Serve(vsockListener)
-			if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
-				log.Printf("capabilityd vsock listener stopped: %v", errorValue)
-			}
-		}()
-	}
-
 	errorValue = server.Serve(listener)
 	if errorValue != nil && !errors.Is(errorValue, http.ErrServerClosed) {
 		return errorValue
@@ -330,13 +285,6 @@ func (service Service) listen() (net.Listener, error) {
 	return listener, nil
 }
 
-func (service Service) listenVSock() (net.Listener, error) {
-	if service.Configuration.VSockPort <= 0 {
-		return nil, nil
-	}
-	return listenVSock(service.Configuration.VSockPort)
-}
-
 func (service Service) httpClient() *http.Client {
 	if service.HTTPClient != nil {
 		return service.HTTPClient
@@ -363,25 +311,6 @@ func (service Service) httpClientTimeout() time.Duration {
 		return 120 * time.Second
 	}
 	return providerTimeout + 30*time.Second
-}
-
-func (service Service) runCommand(ctx context.Context, executablePath string, arguments []string, standardInput []byte) ([]byte, error) {
-	if service.RunCommand != nil {
-		return service.RunCommand(ctx, executablePath, arguments, standardInput)
-	}
-
-	return defaultCommandLimiter.Run(ctx, func() ([]byte, error) {
-		commandContext, cancel := context.WithTimeout(ctx, 10*time.Minute)
-		defer cancel()
-
-		command := exec.CommandContext(commandContext, executablePath, arguments...)
-		command.Stdin = bytes.NewReader(standardInput)
-		output, errorValue := command.CombinedOutput()
-		if errorValue != nil {
-			return nil, fmt.Errorf("%s failed: %w: %s", executablePath, errorValue, strings.TrimSpace(string(output)))
-		}
-		return output, nil
-	})
 }
 
 func readSecretValue(path string) string {
@@ -505,35 +434,8 @@ func (configuration Configuration) WithDefaults() Configuration {
 	if configuration.OpenRouterImageModel == "" {
 		configuration.OpenRouterImageModel = defaultConfiguration.OpenRouterImageModel
 	}
-	if len(configuration.EmbeddingProviderOrder) == 0 {
-		configuration.EmbeddingProviderOrder = append([]string{}, defaultConfiguration.EmbeddingProviderOrder...)
-	}
-	if configuration.OllamaBaseURL == "" {
-		configuration.OllamaBaseURL = defaultConfiguration.OllamaBaseURL
-	}
-	if configuration.OllamaModel == "" {
-		configuration.OllamaModel = defaultConfiguration.OllamaModel
-	}
-	if configuration.LlamaCppBaseURL == "" {
-		configuration.LlamaCppBaseURL = defaultConfiguration.LlamaCppBaseURL
-	}
-	if configuration.LlamaCppModel == "" {
-		configuration.LlamaCppModel = defaultConfiguration.LlamaCppModel
-	}
-	if configuration.LlamaCppEmbeddingBaseURL == "" {
-		configuration.LlamaCppEmbeddingBaseURL = defaultConfiguration.LlamaCppEmbeddingBaseURL
-	}
-	if configuration.LlamaCppEmbeddingModel == "" {
-		configuration.LlamaCppEmbeddingModel = defaultConfiguration.LlamaCppEmbeddingModel
-	}
 	if configuration.SocketGroupName == "" {
 		configuration.SocketGroupName = defaultConfiguration.SocketGroupName
-	}
-	if configuration.LiteRTModelPath == "" {
-		configuration.LiteRTModelPath = defaultConfiguration.LiteRTModelPath
-	}
-	if configuration.LocalLLMRunnerPath == "" {
-		configuration.LocalLLMRunnerPath = defaultConfiguration.LocalLLMRunnerPath
 	}
 	if configuration.AgentBrowserPath == "" {
 		configuration.AgentBrowserPath = defaultConfiguration.AgentBrowserPath

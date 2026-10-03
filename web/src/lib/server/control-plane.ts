@@ -782,15 +782,6 @@ export async function companyOfFleet(client: SupabaseClient, fleetID: string): P
 	return data?.company_id ?? null;
 }
 
-export async function replaceFleetAgentKey(
-	client: SupabaseClient,
-	companyID: string,
-	fleetID: string,
-): Promise<AgentKey> {
-	const name = `${fleetCredentialKind} ${fleetID}`;
-	return issueAgentKey(client, companyID, name, { replaceStanding: true });
-}
-
 export async function revokeAgent(client: SupabaseClient, agentID: string): Promise<void> {
 	const { error } = await client
 		.from('agent')

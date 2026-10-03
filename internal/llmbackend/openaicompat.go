@@ -124,32 +124,6 @@ type openAIToolCall struct {
 	} `json:"function"`
 }
 
-func (client openAICompatClient) chatCompletions(ctx context.Context, request openAIRequest) (string, Usage, error) {
-	response, errorValue := client.chatCompletionResponse(ctx, request)
-	if errorValue != nil {
-		return "", Usage{}, errorValue
-	}
-	content := response.Choices[0].Message.Content
-	if strings.TrimSpace(content) == "" {
-		return "", Usage{}, errors.New("response content was empty")
-	}
-	return content, normalizeUsage(response.Usage), nil
-}
-
-func (client openAICompatClient) chatCompletionAction(ctx context.Context, request openAIRequest, toolSet nativeActionToolSet) (string, Usage, error) {
-	response, errorValue := client.chatCompletionResponse(ctx, request)
-	if errorValue != nil {
-		return "", Usage{}, errorValue
-	}
-	for _, toolCall := range response.Choices[0].Message.ToolCalls {
-		if toolCall.Type == "" || toolCall.Type == "function" {
-			content, errorValue := nativeActionJSON(toolSet, toolCall.Function.Name, toolCall.Function.Arguments)
-			return content, normalizeUsage(response.Usage), errorValue
-		}
-	}
-	return "", Usage{}, errors.New("chat completion response did not include tool_calls")
-}
-
 func (client openAICompatClient) chatCompletion(ctx context.Context, request ChatRequest) (ChatResponse, error) {
 	modelName := firstNonEmpty(request.Model, client.ModelName)
 	chatRequest := openAIChatCompletionRequest(modelName, request)
@@ -237,23 +211,6 @@ func sleepWithContext(ctx context.Context, duration time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
-}
-
-func (client openAICompatClient) pingPath(ctx context.Context, path string) error {
-	endpoint := strings.TrimRight(client.BaseURL, "/") + path
-	httpRequest, errorValue := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if errorValue != nil {
-		return errorValue
-	}
-	httpResponse, errorValue := client.client().Do(httpRequest)
-	if errorValue != nil {
-		return errorValue
-	}
-	defer httpResponse.Body.Close()
-	if httpResponse.StatusCode >= http.StatusBadRequest {
-		return errors.New("backend returned " + httpResponse.Status)
-	}
-	return nil
 }
 
 func (client openAICompatClient) client() *http.Client {
