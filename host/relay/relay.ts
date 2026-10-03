@@ -55,6 +55,7 @@ import { agentFilePoster, conversationPoster } from './conversation-post';
 import { HeldQuestionStore } from './held-question-store';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
+import { fetchWhenChatdListens } from './chatd-reach';
 
 
 const projectURL = required('SUPABASE_URL');
@@ -210,7 +211,7 @@ const fileTransfer: FileTransferDependencies = {
 
 function askChatdRaw(capability: string, body: Record<string, unknown>): Promise<Response> {
 	const url = `${chatdBaseURL}/v1/platform/${encodeURIComponent(messengerPlatform)}/${encodeURIComponent(capability)}`;
-	return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+	return fetchWhenChatdListens(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
 const messenger = new MessengerRelay(messengerRelayURL.replace(/^ws/, 'http'), messengerStoreOf(companyID, hostAccess));
