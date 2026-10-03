@@ -406,6 +406,11 @@ GROUPS = [
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"]],
     ),
     Group(
+        "ship-host",
+        ["tools/ship-host", "tools/tests/test_ship_host.py"],
+        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_ship_host.py"]],
+    ),
+    Group(
         "model-evaluation-harness",
         ["lab/scripts/evaluate-model-response.py", "tools/tests/test_evaluate_model_response.py"],
         [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_evaluate_model_response.py"]],

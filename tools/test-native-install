@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from native_install_families import FAMILIES  # noqa: E402
 import native_install_agent_update as agent_update  # noqa: E402
 from native_install_rig import (  # noqa: E402
+    AGENT_HEALTH,
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
     BACKUP_UNIT_NAME,
@@ -125,6 +126,42 @@ directory="$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null | sed -n 's/^REL
 printf 'queued=%%s\n' "$(ls "${directory:-/var/lib/internkim/relay}/inbound" 2>/dev/null | grep -c '\.json$' || true)"
 printf 'dropped=%%s\n' "$(journalctl -u %(relay)s --no-pager --since '-%(seconds)s seconds' 2>/dev/null | grep -c 'dropped ' || true)"
 """
+PEOPLE_DIRECTORY = "/workspace/private/people"
+PRIOR_PERSON_MEMORY_DIRECTORY = "/workspace/.blueclaw/memory/persons"
+AGENT_SERVICE_USER = "blueclaw"
+MINIMUM_PEOPLE = 2
+OBSERVED_SECONDS_AFTER_UPGRADE = 120
+OBSERVATION_INTERVAL_SECONDS = 10
+
+LIST_PEOPLE_COMMAND = f"ls -1 {PEOPLE_DIRECTORY} 2>/dev/null"
+
+DESCRIBE_PEOPLE_COMMAND = (
+    f"for person in $(ls -1 {PEOPLE_DIRECTORY}); do "
+    f"stat -c '%n %U:%G %a' {PEOPLE_DIRECTORY}/$person {PEOPLE_DIRECTORY}/$person/.protected 2>&1; done"
+)
+
+WRITE_PRIOR_MEMORY_COMMAND = r"""
+set -eu
+install -d -o %(user)s -m 0700 %(directory)s
+for person in %(people)s; do
+  runuser -u %(user)s -- %(python)s - "%(directory)s/$person.db" <<'PYTHON'
+import sqlite3, sys
+connection = sqlite3.connect(sys.argv[1])
+connection.execute("create table rig_prior_memory (fact text)")
+connection.execute("insert into rig_prior_memory values ('written by the release before the upgrade')")
+connection.commit()
+connection.close()
+PYTHON
+done
+"""
+
+AGENT_STATE_COMMAND = (
+    f"printf 'active=%s restarts=%s health=%s\\n' "
+    f"\"$(systemctl is-active {AGENT_UNIT_NAME})\" "
+    f"\"$(systemctl show -p NRestarts --value {AGENT_UNIT_NAME})\" "
+    f"\"$(curl -s -o /dev/null -w '%{{http_code}}' --max-time 5 http://127.0.0.1:{AGENT_HEALTH[0]}{AGENT_HEALTH[1]})\""
+)
+
 RUNNING_STATE = "yes/active/success/0"
 CARRIED_FONT_PATH = "/usr/share/fonts/truetype/internkim/NanumGothic.ttf"
 NAMES_THE_PACKAGE_CARRIES = ("python3-venv", "fonts-nanum", "chromium")
@@ -1231,6 +1268,66 @@ class Rig:
             "a database still carrying either makes every later backup need pgvector to restore",
         ).record(retired.returncode == 0 and not retired.stdout.strip(), retired.stdout.strip() or "none")
 
+    def run_people_upgrade(self, releases):
+        if len(releases) < 2:
+            raise RigFailure("--people-upgrade needs --older-package-directory: a host that has people is upgraded from an earlier release")
+        step = self.step(12, "a host that already has people and their memory is upgraded and its agent stays up")
+        self.plane = CompanyPlane(self.working_directory / "plane", self.machine.host_gateway())
+        self.plane.start()
+        self.plane.reach_the_record_from(self.machine)
+        self.give_the_guest_a_company(step, self.plane)
+        self.observe_running_services(step)
+        people = self.observe_people_hold_homes(step)
+        self.write_prior_memory(people)
+        self.upgrade_through_the_line(releases[1])
+        self.observe_the_agent_stays_up(step)
+
+    def observe_people_hold_homes(self, step):
+        people = self.machine.shell(LIST_PEOPLE_COMMAND).stdout.split()
+        described = self.machine.shell(DESCRIBE_PEOPLE_COMMAND).stdout.strip()
+        step.observe(
+            f"the host holds a home for at least {MINIMUM_PEOPLE} people before the upgrade",
+            f"the directories under {PEOPLE_DIRECTORY} the older agent made, with their owners and modes",
+            "a host with no person homes is the fresh install the rig has always upgraded, which cannot meet "
+            "what an upgrade finds in the homes of the people a company already has",
+        ).record(len(people) >= MINIMUM_PEOPLE, described or "no person home exists")
+        return people
+
+    def write_prior_memory(self, people):
+        self.machine.checked_shell(
+            WRITE_PRIOR_MEMORY_COMMAND
+            % {
+                "user": AGENT_SERVICE_USER,
+                "directory": PRIOR_PERSON_MEMORY_DIRECTORY,
+                "people": " ".join(shlex.quote(person) for person in people),
+                "python": HOST_PYTHON_PATH,
+            }
+        )
+
+    def upgrade_through_the_line(self, newer_release):
+        self.release.publish(newer_release)
+        gateway = self.machine.host_gateway()
+        return self.machine.shell(
+            f"set -eu\nexport INTERNKIM_INSTALL_RELEASE_URL={self.release.download_url(gateway)}\n"
+            f"curl -fsSL http://{gateway}:{self.release.port}/install.sh -o /tmp/install.sh\n"
+            "sh /tmp/install.sh host </dev/null 2>&1 | tail -25\n"
+        )
+
+    def observe_the_agent_stays_up(self, step):
+        readings = []
+        for _ in range(OBSERVED_SECONDS_AFTER_UPGRADE // OBSERVATION_INTERVAL_SECONDS):
+            readings.append(self.machine.shell(AGENT_STATE_COMMAND).stdout.strip())
+            time.sleep(OBSERVATION_INTERVAL_SECONDS)
+        step.observe(
+            f"the agent stays active, answers its health check and is not restarted for {OBSERVED_SECONDS_AFTER_UPGRADE} seconds after the upgrade",
+            f"{AGENT_UNIT_NAME}'s ActiveState, NRestarts and its health endpoint, read every {OBSERVATION_INTERVAL_SECONDS} seconds",
+            "a unit that fails on start and is restarted reports active for most of every second, so a reading taken "
+            "once when the upgrade returns passes a crash loop",
+        ).record(
+            all(reading == "active=active restarts=0 health=200" for reading in readings),
+            "\n".join(readings),
+        )
+
     def run_step_ten(self, step, releases, plane):
         """An administrator asks the agent for the newer release, the way host_update asks admind."""
         older = package_fields(releases[0] / asset_name(".deb"))["Version"]
@@ -1707,6 +1804,70 @@ def kept_or_temporary_directory(is_kept):
     yield tempfile.mkdtemp(prefix="internkim-install-rig-")
 
 
+def run_every_step(rig, options, releases, baseline):
+    step_two = rig.step(2, "the machine is in the state the package manager would have left it")
+    rig.run_step_two(step_two, baseline)
+
+    rig.plant_state()
+
+    step_five = rig.step(5, "a person signs in and exchanges a message")
+    revision_before = {}
+    if options.stand_in or options.without_company:
+        step_five.block(
+            "not run against a stand-in: the package under test carries none of the "
+            "services a company would be given to"
+            if options.stand_in
+            else "not run: --without-company was passed, so no plane issued this guest a company"
+        )
+    else:
+        rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
+        rig.plane.start()
+        rig.plane.reach_the_record_from(rig.machine)
+        rig.give_the_guest_a_company(step_five, rig.plane)
+        rig.observe_running_services(step_five)
+        observe_a_real_conversion(rig.machine, step_five)
+        rig.observe_the_host_holds_the_gateway_socket(step_five)
+        rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=True)
+        rig.observe_the_agent_answered(step_five)
+        step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
+        if rig_model_key() == RIG_MODEL_KEY:
+            step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
+        else:
+            rig.observe_the_agent_sends_a_pdf(step_eleven, rig.plane)
+        step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
+        rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
+        revision_before = rig.build_identity_the_guest_reports()
+
+    step_nine = None
+    if not options.stand_in and not options.without_company and len(releases) > 1:
+        step_nine = rig.step(9, "a backup the older release took comes back on a fresh machine without pgvector")
+        rig.take_the_older_backup(step_nine)
+
+    is_an_agent_update = options.agent_update and rig.plane and len(releases) > 1
+    if is_an_agent_update:
+        step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
+        rig.run_step_ten(step_ten, releases, rig.plane)
+    else:
+        step_three = rig.step(3, "running the line again moves it to a newer release")
+        rig.run_step_three(step_three, releases)
+
+    if not options.stand_in and not options.without_company:
+        if len(releases) > 1 and not is_an_agent_update:
+            step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
+            rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
+            rig.observe_the_processes_moved(
+                step_seven, revision_before, rig.build_identity_the_guest_reports()
+            )
+        step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
+        rig.take_a_backup(step_six)
+
+    step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
+    rig.run_step_four(step_four)
+
+    if rig.plane:
+        rig.restore_elsewhere(step_six, rig.plane, step_nine)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
@@ -1745,6 +1906,12 @@ def main():
         action="store_true",
         help="move to the newer release the way an administrator's host_update does, through admind's socket, "
         "instead of running the line again (step 10 in place of steps 3 and 7)",
+    )
+    parser.add_argument(
+        "--people-upgrade",
+        action="store_true",
+        help="judge only whether a host that already has people and memory stays up through the upgrade "
+        "(step 12 in place of every other step after the install)",
     )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")
@@ -1795,67 +1962,10 @@ def main():
             step_one = rig.step(1, "one command installs the company host")
             rig.run_step_one(step_one)
 
-            step_two = rig.step(2, "the machine is in the state the package manager would have left it")
-            rig.run_step_two(step_two, baseline)
-
-            rig.plant_state()
-
-            step_five = rig.step(5, "a person signs in and exchanges a message")
-            revision_before = {}
-            if options.stand_in or options.without_company:
-                step_five.block(
-                    "not run against a stand-in: the package under test carries none of the "
-                    "services a company would be given to"
-                    if options.stand_in
-                    else "not run: --without-company was passed, so no plane issued this guest a company"
-                )
+            if options.people_upgrade:
+                rig.run_people_upgrade(releases)
             else:
-                rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
-                rig.plane.start()
-                rig.plane.reach_the_record_from(rig.machine)
-                rig.give_the_guest_a_company(step_five, rig.plane)
-                rig.observe_running_services(step_five)
-                observe_a_real_conversion(rig.machine, step_five)
-                rig.observe_the_host_holds_the_gateway_socket(step_five)
-                rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=True)
-                rig.observe_the_agent_answered(step_five)
-                step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
-                if rig_model_key() == RIG_MODEL_KEY:
-                    step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
-                else:
-                    rig.observe_the_agent_sends_a_pdf(step_eleven, rig.plane)
-                step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
-                rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
-                revision_before = rig.build_identity_the_guest_reports()
-
-            step_nine = None
-            if not options.stand_in and not options.without_company and len(releases) > 1:
-                step_nine = rig.step(9, "a backup the older release took comes back on a fresh machine without pgvector")
-                rig.take_the_older_backup(step_nine)
-
-            is_an_agent_update = options.agent_update and rig.plane and len(releases) > 1
-            if is_an_agent_update:
-                step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
-                rig.run_step_ten(step_ten, releases, rig.plane)
-            else:
-                step_three = rig.step(3, "running the line again moves it to a newer release")
-                rig.run_step_three(step_three, releases)
-
-            if not options.stand_in and not options.without_company:
-                if len(releases) > 1 and not is_an_agent_update:
-                    step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
-                    rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
-                    rig.observe_the_processes_moved(
-                        step_seven, revision_before, rig.build_identity_the_guest_reports()
-                    )
-                step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
-                rig.take_a_backup(step_six)
-
-            step_four = rig.step(4, "apt remove and apt purge leave what the plan says they leave")
-            rig.run_step_four(step_four)
-
-            if rig.plane:
-                rig.restore_elsewhere(step_six, rig.plane, step_nine)
+                run_every_step(rig, options, releases, baseline)
         except RigFailure as failure:
             print(f"✗ native install rig\n    {failure}", file=sys.stderr)
             if not options.keep:

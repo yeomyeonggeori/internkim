@@ -531,6 +531,14 @@ and delete the duplicates.
   `--channel stable` promotes one and gives the Homebrew tap its formula. It
   refuses a dirty tree, a commit `main` lacks, or a submodule checkout off the
   recorded pointer. A host takes it by running the install line again.
+- `tools/ship-host` takes `origin/main` to stable and onto our own host in one
+  command: it cuts the testing release, checks the packages against
+  `SHA256SUMS`, runs the Debian 13 rig and its `--people-upgrade` step (a host
+  that already has people and memory must stay up through the upgrade),
+  promotes, upgrades the host and watches `blueclaw` for two minutes. A
+  failure on the host puts the host and stable back on the previous stable
+  release and marks the failed one a prerelease. `--plan` prints the tags and
+  steps; `--skip-host` stops after promotion.
 - The web app is deployed as "SaaS Web Deployment" above says.
 - A green `systemctl` is not a working agent: look for a task run newer than
   the upgrade.
