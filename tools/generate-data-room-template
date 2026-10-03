@@ -6,7 +6,7 @@ from pathlib import Path
 
 # An applied migration is never edited, so a template change is written to a
 # new migration and this path moves to it.
-TEMPLATE_MIGRATION = "supabase/migrations/20261004000004_the_data_room_template_names_member.sql"
+TEMPLATE_MIGRATION = "supabase/migrations/20261004000006_the_data_room_template_names_circles.sql"
 
 
 def generated_files(repository):
@@ -31,7 +31,7 @@ def generated_files(repository):
 
 def template_reference(template, language="en", is_document=False):
     is_korean = language == "ko"
-    title = "분류와 기본 역할" if is_korean else "Categories and default roles"
+    title = "분류와 기본 서클" if is_korean else "Categories and default circles"
     lines = ["---", f"title: {title}", "---", ""] if is_document else []
     lines += ["문서는 업무 목적에 따라 하위 분류가 없는 분류 또는 X에 보관합니다. 중분류가 없는 대분류도 선택할 수 있습니다. 대분류 권한은 이후 추가되는 하위 분류도 포함합니다." if is_korean
               else "File by business function in a category without children or X. A parent without children is a filing destination. A parent grant includes current and future children.", "",
@@ -39,14 +39,14 @@ def template_reference(template, language="en", is_document=False):
     for category in template["categories"]:
         name = category["nameKO"] if is_korean else category["name"]
         lines.append(f'| `{category["code"]}` | {name} | {category["parent"] or "—"} | {category["description"]} |')
-    lines += ["", "## 기본 역할" if is_korean else "## Default roles", "",
-              "읽기 범위는 역할별 코드 배열입니다. 여러 역할을 받으면 범위를 합칩니다. 커스텀 역할을 추가하거나 기본 역할을 편집할 수 있습니다." if is_korean
-              else "Each reader role names an array of category codes. Multiple grants combine. Add custom roles or edit these defaults.", "",
-              "| Role | Name | readableCategories |", "|---|---|---|"]
-    for role in template["roles"]:
-        name = role["nameKO"] if is_korean else role["name"]
-        codes = ", ".join(role["readableCategories"])
-        lines.append(f'| `{role["code"]}` | {name} | [{codes}] |')
+    lines += ["", "## 기본 서클" if is_korean else "## Default circles", "",
+              "읽기 범위는 서클별 코드 배열입니다. 여러 서클에 속하면 범위를 합칩니다. 서클을 새로 만들거나 기본 서클을 편집할 수 있습니다." if is_korean
+              else "Each circle names an array of category codes. Belonging to several circles combines them. Add circles or edit these defaults.", "",
+              "| Circle | Name | readableCategories |", "|---|---|---|"]
+    for circle in template["circles"]:
+        name = circle["nameKO"] if is_korean else circle["name"]
+        codes = ", ".join(circle["readableCategories"])
+        lines.append(f'| `{circle["id"]}` | {name} | [{codes}] |')
     return "\n".join(lines) + "\n"
 
 

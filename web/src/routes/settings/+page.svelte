@@ -12,7 +12,7 @@
 	import LearningSoulSection from '../admin/learning-soul-section.svelte';
 	import AgentIdentitySection from '../admin/agent-identity-section.svelte';
 	import CompanyMembers from './company-members.svelte';
-	import DataRoomPermissions from './data-room-permissions.svelte';
+	import Circles from './circles.svelte';
 	import AttendanceWorkSettingsSection from '../admin/attendance-work-settings-section.svelte';
 	import AttendanceLeavePolicySettings from '../admin/attendance-leave-policy-settings.svelte';
 	import LearnedSkillsSection from '../admin/learned-skills-section.svelte';
@@ -106,7 +106,7 @@
 		<p class="text-sm text-muted-foreground">{text.membersDescription}</p>
 	</header>
 	<CompanyMembers />
-	{#if isSupabaseConfigured()}<DataRoomPermissions />{/if}
+	{#if isSupabaseConfigured()}<Circles />{/if}
 	<AttendanceWorkSettingsSection adminBaseURL="" text={attendanceSettingsText} />
 	<AttendanceLeavePolicySettings adminBaseURL="" text={attendanceSettingsText} />
 	<header class="grid gap-1 pt-2">

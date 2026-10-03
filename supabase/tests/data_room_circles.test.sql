@@ -13,7 +13,7 @@ insert into public.member (id, company_id, user_id, email, status, is_admin)
     '62000000-0000-0000-0000-000000000001', 'data-admin@example.com', 'active', true);
 
 select is((select count(*) from public.data_room_category where company_id = '62000000-0000-0000-0000-000000000010'), 48::bigint, 'a company starts with the fixed taxonomy and X');
-select is((select count(*) from public.data_room_role where company_id = '62000000-0000-0000-0000-000000000010'), 8::bigint, 'a company starts with eight reader roles');
+select is((select count(*) from public.circle where company_id = '62000000-0000-0000-0000-000000000010'), 8::bigint, 'a company starts with eight circles');
 
 insert into public.company_document (id, company_id, document_type, title, category_code, storage_path)
 values
@@ -26,10 +26,10 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
 select public.data_room_share_create('62000000-0000-0000-0000-000000000010', 'accountant', 'email', 'data-guest@example.com') as share_id \gset
 select public.data_room_share_create('62000000-0000-0000-0000-000000000010', 'investor', 'email', 'data-other@example.com') as investor_share \gset
-select lives_ok($$select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'custom', 'Custom', array['F','FS'])$$, 'custom roles accept parent scopes');
-select is((select count(*) from public.data_room_role_category where role_code = 'custom' and company_id = '62000000-0000-0000-0000-000000000010'), 1::bigint, 'redundant children are normalized');
-select throws_ok($$select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'invalid', 'Invalid', array['ZZ'])$$, '22023', 'a role names an existing category', 'unknown codes are refused');
-select throws_ok($$select public.data_room_share_create('62000000-0000-0000-0000-000000000010', 'leadership', 'public')$$, '22023', 'the inbox cannot be published', 'public roles cannot include X');
+select lives_ok($$select public.circle_set('62000000-0000-0000-0000-000000000010', 'custom', 'Custom', array['F','FS'])$$, 'custom circles accept parent scopes');
+select is((select count(*) from public.circle_category where circle_id = 'custom' and company_id = '62000000-0000-0000-0000-000000000010'), 1::bigint, 'redundant children are normalized');
+select throws_ok($$select public.circle_set('62000000-0000-0000-0000-000000000010', 'invalid', 'Invalid', array['ZZ'])$$, '22023', 'a circle names an existing category', 'unknown codes are refused');
+select throws_ok($$select public.data_room_share_create('62000000-0000-0000-0000-000000000010', 'leadership', 'public')$$, '22023', 'the inbox cannot be published', 'public circles cannot include X');
 
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000002"}', true);
 select is((select count(*) from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 0::bigint, 'an unaccepted guest reads nothing');
@@ -39,7 +39,7 @@ select is((select count(*) from public.member where user_id = auth.uid()), 0::bi
 select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.pdf'), 'read-only guests cannot fetch the original through storage');
 select ok(public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.text.md'), 'derived text uses the same read scope');
 select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/evaluation.62000000-0000-0000-0000-0000000000d3.text.md'), 'a guessed path cannot expose a hidden category');
-select throws_ok($$select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'accountant', 'Accountant', array['H'])$$, '42501', 'only a company administrator manages data room roles', 'a guest cannot edit their role');
+select throws_ok($$select public.circle_set('62000000-0000-0000-0000-000000000010', 'accountant', 'Accountant', array['H'])$$, '42501', 'only a company administrator manages circles', 'a guest cannot edit their circle');
 
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000003"}', true);
 select public.data_room_share_accept(:'investor_share');
@@ -65,10 +65,10 @@ select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010
 select ok(not public.data_room_may_read('62000000-0000-0000-0000-000000000099', 'FS'), 'a grant belongs to exactly one company');
 
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'published', 'Published', array['FS']);
+select public.circle_set('62000000-0000-0000-0000-000000000010', 'published', 'Published', array['FS']);
 select public.data_room_share_create('62000000-0000-0000-0000-000000000010', 'published', 'public') as public_share \gset
-select throws_ok($$select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'published', 'Published', array['X'])$$,
-  '22023', 'the inbox cannot be published', 'editing a published role cannot add X');
+select throws_ok($$select public.circle_set('62000000-0000-0000-0000-000000000010', 'published', 'Published', array['X'])$$,
+  '22023', 'the inbox cannot be published', 'editing a published circle cannot add X');
 select throws_ok($$delete from public.data_room_category where company_id = '62000000-0000-0000-0000-000000000010' and code = 'X'$$,
   '22023', 'X is the reserved inbox', 'the inbox cannot be deleted');
 select throws_ok($$update public.data_room_category set code = 'Q' where company_id = '62000000-0000-0000-0000-000000000010' and code = 'X'$$,
@@ -79,17 +79,17 @@ insert into storage.objects (bucket_id, name) values
   ('asset', '62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.content.txt');
 set local role anon;
 select set_config('request.jwt.claims', '{}', true);
-select is((select count(*) from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 1::bigint, 'publication exposes only the selected role');
+select is((select count(*) from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 1::bigint, 'publication exposes only the selected circle');
 select is((select count(*) from storage.objects where bucket_id = 'asset' and name like '62000000-0000-0000-0000-000000000010/%'), 1::bigint, 'published previews are readable through storage RLS');
 select ok(not public.asset_reader_may_read('62000000-0000-0000-0000-000000000010/dataroom/F/FS/statement.62000000-0000-0000-0000-0000000000d1.pdf'), 'publication does not imply original downloads');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);
-select public.data_room_role_set('62000000-0000-0000-0000-000000000010', 'published', 'Published', array['FP']);
+select public.circle_set('62000000-0000-0000-0000-000000000010', 'published', 'Published', array['FP']);
 set local role anon;
 select set_config('request.jwt.claims', '{}', true);
-select is((select title from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 'Payroll', 'role edits immediately change the audience scope');
-select is((select count(*) from storage.objects where bucket_id = 'asset' and name like '62000000-0000-0000-0000-000000000010/%'), 0::bigint, 'role edits remove preview access too');
+select is((select title from public.company_document where company_id = '62000000-0000-0000-0000-000000000010'), 'Payroll', 'circle edits immediately change the audience scope');
+select is((select count(*) from storage.objects where bucket_id = 'asset' and name like '62000000-0000-0000-0000-000000000010/%'), 0::bigint, 'circle edits remove preview access too');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"62000000-0000-0000-0000-000000000001"}', true);

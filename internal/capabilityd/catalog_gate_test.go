@@ -47,10 +47,16 @@ type catalogGateCase struct {
 
 func gateCases() map[string]catalogGateCase {
 	return map[string]catalogGateCase{
-		"dataroom_member_update": {
+		"circle_list": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_member_update","result":{"saved":true}}`)},
-			input:   `{"memberID":"62000000-0000-4000-8000-000000000001","roleCodes":["finance"]}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_list","result":{"circles":[{"id":"finance","name":"Finance","nameKO":"재무","readableCategories":["F"],"memberIDs":[]}]}}`)},
+			input:   `{}`,
+			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
+		},
+		"circle_member_update": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_member_update","result":{"saved":true}}`)},
+			input:   `{"memberID":"62000000-0000-4000-8000-000000000001","circleIDs":["finance"]}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"saved":true`)
@@ -58,17 +64,17 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"dataroom_links_get": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_links_get","result":{"links":[],"shareableRoleCodes":["finance"],"downloadableRoleCodes":[]}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_links_get","result":{"links":[],"shareableCircleIDs":["finance"],"downloadableCircleIDs":[]}}`)},
 			input:   `{}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
-				expectResultHolds(t, answered, `"shareableRoleCodes":["finance"]`)
+				expectResultHolds(t, answered, `"shareableCircleIDs":["finance"]`)
 			},
 		},
 		"dataroom_link_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_link_add","result":{"linkID":"62000000-0000-4000-8000-000000000001","accessCode":"123456"}}`)},
-			input:   `{"roleCode":"finance","label":"Sample financial review"}`,
+			input:   `{"circleID":"finance","label":"Sample financial review"}`,
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
 				expectSucceeded(t, answered)
 				expectResultHolds(t, answered, `"accessCode":"123456"`)
@@ -85,7 +91,7 @@ func gateCases() map[string]catalogGateCase {
 		},
 		"dataroom_get": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_get","result":{"categories":[],"roles":[],"shares":[],"canManage":false}}`)},
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_get","result":{"categories":[],"shares":[],"canManage":false}}`)},
 			input:   `{}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
@@ -95,16 +101,16 @@ func gateCases() map[string]catalogGateCase {
 			input:   `{"code":"FZ","parent":"F","slug":"custom","name":"Custom","nameKO":"추가","description":"Sample finance records."}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
-		"dataroom_role_update": {
+		"circle_update": {
 			kind:    provesCarrying,
-			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_role_update","result":{"saved":true}}`)},
-			input:   `{"code":"custom","name":"Custom","nameKO":"","readableCategories":["FS"]}`,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"circle_update","result":{"saved":true}}`)},
+			input:   `{"id":"custom","name":"Custom","nameKO":"","readableCategories":["FS"]}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
 		"dataroom_share_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"dataroom_share_add","result":{"shareID":"62000000-0000-4000-8000-000000000001"}}`)},
-			input:   `{"roleCode":"investor","audience":"email","email":"sample@example.com"}`,
+			input:   `{"circleID":"investor","audience":"email","email":"sample@example.com"}`,
 			expect:  func(t *testing.T, answered capabilities.ToolInvokeResponse) { expectSucceeded(t, answered) },
 		},
 		"dataroom_share_delete": {

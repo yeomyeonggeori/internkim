@@ -3,6 +3,7 @@ import { addMember, asMember, controlPlane, provisionCompany, sessionForMember }
 import { projectURL, publishableKey, serviceRoleKey, signingKey } from './supabase-environment';
 import { heldToTheContract } from './tool-answers';
 import { leavesTaskLabelsUndecided } from '../../src/lib/server/public-api/record/task-labels';
+import { circleListResultSchema } from '../../src/lib/data-room/schemas';
 
 mock.module('$env/dynamic/private', () => ({
 	env: { SUPABASE_URL: projectURL, SUPABASE_SECRET_KEY: serviceRoleKey, SUPABASE_PUBLISHABLE_KEY: publishableKey, SUPABASE_JWT_SIGNING_KEY: signingKey }
@@ -300,13 +301,13 @@ describe('what happened to the company', () => {
 });
 
 describe('the category data room', () => {
-	test('assigns employee roles and creates and revokes code-protected links', async () => {
-		const assigned = await asAdmin('dataroom_member_update', {
-			memberID: sampleID, roleCodes: ['finance']
+	test('places people in circles and creates and revokes code-protected links', async () => {
+		const assigned = await asAdmin('circle_member_update', {
+			memberID: sampleID, circleIDs: ['finance']
 		});
 		expect(assigned.status).toBe(200);
 		const created = await asSample('dataroom_link_add', {
-			roleCode: 'finance', label: 'Sample finance review'
+			circleID: 'finance', label: 'Sample finance review'
 		});
 		expect(created.status).toBe(200);
 		const linkID = resultOf(created).linkID;
@@ -316,12 +317,12 @@ describe('the category data room', () => {
 		expect(resultOf(listed).links).toEqual(expect.arrayContaining([expect.objectContaining({ id: linkID })]));
 		const revoked = await asSample('dataroom_link_delete', { linkID });
 		expect(revoked.status).toBe(200);
-		const restored = await asAdmin('dataroom_member_update', {
-			memberID: sampleID, roleCodes: ['member']
+		const restored = await asAdmin('circle_member_update', {
+			memberID: sampleID, circleIDs: ['member']
 		});
 		expect(restored.status).toBe(200);
 	});
-	test('starts with the default template and assigns live scopes through a custom role', async () => {
+	test('starts with the default template and opens live scopes to the people of a custom circle', async () => {
 		const initial = await asAdmin('dataroom_get');
 		expect(resultOf(initial).canManage).toBe(true);
 		expect(resultOf(initial).categories).toHaveLength(48);
@@ -329,28 +330,42 @@ describe('the category data room', () => {
 			code: 'FZ', parent: 'F', slug: 'custom', name: 'Custom finance', nameKO: '추가 재무', description: 'Company-specific finance records.'
 		});
 		expect(category.status).toBe(200);
-		const role = await asAdmin('dataroom_role_update', {
-			code: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F', 'FS']
+		const circle = await asAdmin('circle_update', {
+			id: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F', 'FS']
 		});
-		expect(role.status).toBe(200);
+		expect(circle.status).toBe(200);
 		const filed = await asAdmin('company_document_register', {
 			documentType: 'report', categoryCode: 'FZ', title: 'Sample categorized statement', summary: 'A sample financial record.'
 		});
 		expect(filed.status).toBe(200);
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
-		const shared = await asAdmin('dataroom_share_add', { roleCode: 'room-test', audience: 'member', memberID: sampleID });
-		expect(shared.status).toBe(200);
-		const shareID = resultOf(shared).shareID;
-		expect(typeof shareID).toBe('string');
+		const joined = await asAdmin('circle_member_update', { memberID: sampleID, circleIDs: ['member', 'room-test'] });
+		expect(joined.status).toBe(200);
+		const { circles } = circleListResultSchema.parse(resultOf(await asSample('circle_list')));
+		expect(circles.find((listed) => listed.id === 'room-test'))
+			.toEqual({ id: 'room-test', name: 'Sample finance reader', nameKO: '', readableCategories: ['F'], memberIDs: [sampleID] });
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(1);
-		const revoked = await asAdmin('dataroom_share_delete', { shareID });
-		expect(revoked.status).toBe(200);
+		const left = await asAdmin('circle_member_update', { memberID: sampleID, circleIDs: ['member'] });
+		expect(left.status).toBe(200);
 		expect(resultOf(await asSample('company_document_list', { categoryCode: 'F' })).count).toBe(0);
 	});
 
-	test('a colleague cannot expand their own role', async () => {
-		const refused = await asSample('dataroom_role_update', {
-			code: 'member', name: 'Member', nameKO: '', readableCategories: ['F']
+	test('lends what a circle reads to someone outside the company, and takes it back', async () => {
+		const shared = await asAdmin('dataroom_share_add', {
+			circleID: 'investor', audience: 'email', email: 'circle-guest@example.test'
+		});
+		expect(shared.status).toBe(200);
+		const shareID = resultOf(shared).shareID;
+		expect(resultOf(await asAdmin('dataroom_get')).shares).toEqual(expect.arrayContaining([
+			expect.objectContaining({ id: shareID, circleID: 'investor', audience: 'email', email: 'circle-guest@example.test' })
+		]));
+		const revoked = await asAdmin('dataroom_share_delete', { shareID });
+		expect(revoked.status).toBe(200);
+	});
+
+	test('a colleague cannot widen what their own circle reads', async () => {
+		const refused = await asSample('circle_update', {
+			id: 'member', name: 'Member', nameKO: '', readableCategories: ['F']
 		});
 		expect(refused.status).toBe(403);
 	});
@@ -460,7 +475,7 @@ describe('the data room', () => {
 	let statementID = '';
 	let briefID = '';
 
-	test('refuses a member filing in a category their roles do not read', async () => {
+	test('refuses a member filing in a category their circles do not read', async () => {
 		const refused = await asSample('company_document_register', {
 			kind: 'internal',
 			documentType: 'financial-statement',
@@ -493,7 +508,7 @@ describe('the data room', () => {
 		statementID = resultOf(registered).documentID as string;
 	});
 
-	test('does not exist for a member whose roles do not read its category', async () => {
+	test('does not exist for a member whose circles do not read its category', async () => {
 		const forSample = await asSample('company_document_list', { categoryCode: 'FS' });
 		const forAdmin = await asAdmin('company_document_list', { categoryCode: 'FS' });
 

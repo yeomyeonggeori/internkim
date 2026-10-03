@@ -3,16 +3,16 @@ import { readFileSync } from 'node:fs';
 import { dataRoomTemplate, filingCategories, normalizeCategoryGrants } from '../../../src/lib/data-room/model';
 
 describe('the company data room template', () => {
-	test('every role names existing mnemonic scopes without redundant descendants', () => {
-		const { categories, roles } = dataRoomTemplate;
+	test('every circle names existing mnemonic scopes without redundant descendants', () => {
+		const { categories, circles } = dataRoomTemplate;
 		expect(categories.filter((category) => category.parent !== null)).toHaveLength(37);
 		expect(categories.filter((category) => category.parent === null)).toHaveLength(11);
 		expect(new Set(categories.map((category) => category.code)).size).toBe(categories.length);
 		for (const category of categories.filter((category) => category.parent !== null)) {
 			expect(category.parent).toBe(category.code[0]);
 		}
-		for (const role of roles) {
-			expect(normalizeCategoryGrants(role.readableCategories, categories)).toEqual(role.readableCategories);
+		for (const circle of circles) {
+			expect(normalizeCategoryGrants(circle.readableCategories, categories)).toEqual(circle.readableCategories);
 		}
 	});
 
@@ -36,7 +36,7 @@ describe('the company data room template', () => {
 	});
 
 	test('database initialization and the portable skill derive from the same source', () => {
-		const migration = readFileSync(new URL('../../../../supabase/migrations/20261004000004_the_data_room_template_names_member.sql', import.meta.url), 'utf8');
+		const migration = readFileSync(new URL('../../../../supabase/migrations/20261004000006_the_data_room_template_names_circles.sql', import.meta.url), 'utf8');
 		const embedded = migration.split('$json$')[1];
 		expect(JSON.parse(embedded ?? '')).toEqual(dataRoomTemplate);
 		const portable = readFileSync(new URL('../../../../.dependency/internkim-plugin/skills/dataroom/assets/template.json', import.meta.url), 'utf8');

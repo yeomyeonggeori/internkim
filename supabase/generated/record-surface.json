@@ -261,6 +261,16 @@
       "callableBy": []
     },
     {
+      "name": "circle_set",
+      "arguments": "target_company uuid, circle_id text, circle_name text, readable_categories text[], circle_name_ko text DEFAULT ''::text",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "claim_empty_box",
       "arguments": "claiming_company uuid, box_key text, ticket_hash text, fresh_since timestamp with time zone",
       "returns": "TABLE(outcome text, encryption_key text)",
@@ -294,16 +304,6 @@
       "security": "definer",
       "callableBy": [
         "authenticated"
-      ]
-    },
-    {
-      "name": "company_of_circle",
-      "arguments": "target_circle uuid",
-      "returns": "uuid",
-      "security": "invoker",
-      "callableBy": [
-        "authenticated",
-        "service_role"
       ]
     },
     {
@@ -451,7 +451,7 @@
     },
     {
       "name": "data_room_link_create",
-      "arguments": "target_company uuid, role_code text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false",
+      "arguments": "target_company uuid, circle_id text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false",
       "returns": "uuid",
       "security": "definer",
       "callableBy": [
@@ -501,26 +501,6 @@
       ]
     },
     {
-      "name": "data_room_member_roles_set",
-      "arguments": "target_company uuid, target_member uuid, role_codes text[]",
-      "returns": "void",
-      "security": "definer",
-      "callableBy": [
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "data_room_role_set",
-      "arguments": "target_company uuid, role_code text, role_name text, readable_categories text[], role_name_ko text DEFAULT ''::text",
-      "returns": "void",
-      "security": "definer",
-      "callableBy": [
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
       "name": "data_room_share_accept",
       "arguments": "target_share uuid",
       "returns": "uuid",
@@ -543,7 +523,7 @@
     },
     {
       "name": "data_room_share_create",
-      "arguments": "target_company uuid, role_code text, audience text, recipient_email text DEFAULT NULL::text, recipient_member uuid DEFAULT NULL::uuid, recipient_circle uuid DEFAULT NULL::uuid, expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone, can_download boolean DEFAULT false",
+      "arguments": "target_company uuid, circle_id text, audience text, recipient_email text DEFAULT NULL::text, expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone, can_download boolean DEFAULT false",
       "returns": "uuid",
       "security": "definer",
       "callableBy": [
@@ -562,7 +542,7 @@
       ]
     },
     {
-      "name": "data_room_shareable_roles",
+      "name": "data_room_shareable_circles",
       "arguments": "target_company uuid, download boolean DEFAULT false",
       "returns": "text[]",
       "security": "definer",
@@ -644,17 +624,6 @@
       "arguments": "profile jsonb",
       "returns": "boolean",
       "security": "invoker",
-      "callableBy": [
-        "anon",
-        "authenticated",
-        "service_role"
-      ]
-    },
-    {
-      "name": "is_in_circle",
-      "arguments": "target_circle uuid",
-      "returns": "boolean",
-      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",
@@ -748,6 +717,16 @@
       "name": "leave_return_early",
       "arguments": "work_location text",
       "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "member_circles_set",
+      "arguments": "target_company uuid, target_member uuid, circle_ids text[]",
+      "returns": "void",
       "security": "definer",
       "callableBy": [
         "authenticated",

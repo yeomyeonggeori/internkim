@@ -1,38 +1,37 @@
 <script lang="ts">
-	import { z } from 'zod';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Field from '$lib/components/ui/field';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { invokeTool } from '$lib/public-api-call';
-	import { dataRoomGetResultSchema } from '$lib/data-room/schemas';
-	import { normalizeCategoryGrants, categoryName, type DataRoomRole } from '$lib/data-room/model';
+	import { normalizeCategoryGrants, categoryName, type Circle, type DataRoomCategory } from '$lib/data-room/model';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { dataRoomText } from '$lib/data-room/text';
 	let {
-		room,
+		circles,
+		categories,
 		onSaved
-	}: { room: z.infer<typeof dataRoomGetResultSchema>; onSaved: () => Promise<void> } = $props();
+	}: { circles: Circle[]; categories: DataRoomCategory[]; onSaved: () => Promise<void> } = $props();
 	const text = createPageText(dataRoomText);
 	const fieldID = $props.id();
 	let isOpen = $state(false);
 	let isSaving = $state(false);
-	let code = $state('');
+	let id = $state('');
 	let name = $state('');
 	let nameKO = $state('');
 	let readableCategories = $state<string[]>([]);
 	let errorMessage = $state('');
 	let isExisting = $state(false);
-	const parents = $derived(room.categories.filter((category) => !category.parent));
+	const parents = $derived(categories.filter((category) => !category.parent));
 
-	function edit(role?: DataRoomRole) {
-		code = role?.code ?? '';
-		name = role?.name ?? '';
-		nameKO = role?.nameKO ?? '';
-		readableCategories = role?.readableCategories ?? [];
-		isExisting = !!role;
+	function edit(circle?: Circle) {
+		id = circle?.id ?? '';
+		name = circle?.name ?? '';
+		nameKO = circle?.nameKO ?? '';
+		readableCategories = circle?.readableCategories ?? [];
+		isExisting = !!circle;
 		errorMessage = '';
 		isOpen = true;
 	}
@@ -43,7 +42,7 @@
 				checked
 					? [...readableCategories, categoryCode]
 					: readableCategories.filter((value) => value !== categoryCode),
-				room.categories
+				categories
 			) ?? [];
 	}
 
@@ -52,8 +51,8 @@
 		isSaving = true;
 		errorMessage = '';
 		try {
-			await invokeTool('dataroom_role_update', {
-				code,
+			await invokeTool('circle_update', {
+				id,
 				name,
 				nameKO: nameKO || name,
 				readableCategories
@@ -69,40 +68,40 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
-	<Button variant="outline" onclick={() => edit()}>{text.createRole}</Button
-	>{#each room.roles as role (role.code)}<Button
+	<Button variant="outline" onclick={() => edit()}>{text.createCircle}</Button
+	>{#each circles as circle (circle.id)}<Button
 			variant="ghost"
 			size="sm"
-			onclick={() => edit(role)}
-			>{currentLocale.value === 'ko' ? role.nameKO || role.name : role.name}</Button
+			onclick={() => edit(circle)}
+			>{currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name}</Button
 		>{/each}
 </div>
 <Dialog.Root bind:open={isOpen}
 	><Dialog.Content class="max-h-[85vh] overflow-auto sm:max-w-2xl"
 		><Dialog.Header
-			><Dialog.Title>{text.readerRole}</Dialog.Title><Dialog.Description
-				>{text.roleDescription}</Dialog.Description
+			><Dialog.Title>{text.circle}</Dialog.Title><Dialog.Description
+				>{text.circleDescription}</Dialog.Description
 			></Dialog.Header
 		>
 		<form onsubmit={save} class="grid gap-5">
 			<Field.Group
 				><Field.Field
-					><Field.Label for="{fieldID}-code">{text.roleCode}</Field.Label><Input
-						id="{fieldID}-code"
+					><Field.Label for="{fieldID}-id">{text.circleID}</Field.Label><Input
+						id="{fieldID}-id"
 						required
 						pattern="[a-z][a-z0-9-]*"
-						bind:value={code}
+						bind:value={id}
 						disabled={isExisting || isSaving}
 					/></Field.Field
 				><Field.Field
-					><Field.Label for="{fieldID}-name">{text.roleName}</Field.Label><Input
+					><Field.Label for="{fieldID}-name">{text.circleName}</Field.Label><Input
 						id="{fieldID}-name"
 						required
 						bind:value={name}
 						disabled={isSaving}
 					/></Field.Field
 				><Field.Field
-					><Field.Label for="{fieldID}-name-ko">{text.koreanRoleName}</Field.Label><Input
+					><Field.Label for="{fieldID}-name-ko">{text.koreanCircleName}</Field.Label><Input
 						id="{fieldID}-name-ko"
 						bind:value={nameKO}
 						disabled={isSaving}
@@ -121,7 +120,7 @@
 								>{parent.code} · {categoryName(parent, currentLocale.value)}</label
 							>
 						</div>
-						{#each room.categories.filter((category) => category.parent === parent.code) as child (child.code)}<div
+						{#each categories.filter((category) => category.parent === parent.code) as child (child.code)}<div
 								class="ml-5 flex items-center gap-2"
 							>
 								<Checkbox

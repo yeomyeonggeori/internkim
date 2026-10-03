@@ -11,20 +11,20 @@ export const dataRoomCategorySchema = z.strictObject({
 	choiceGroup: z.number().int().min(1).max(2).nullable().optional()
 });
 
-export const dataRoomRoleSchema = z.strictObject({
-	code: z.string().min(1),
+export const circleSchema = z.strictObject({
+	id: z.string().regex(/^[a-z][a-z0-9-]*$/),
 	name: z.string().min(1),
 	nameKO: z.string(),
 	readableCategories: z.array(z.string())
 });
 
 export type DataRoomCategory = z.infer<typeof dataRoomCategorySchema>;
-export type DataRoomRole = z.infer<typeof dataRoomRoleSchema>;
+export type Circle = z.infer<typeof circleSchema>;
 
 export const dataRoomTemplate = z.strictObject({
 	version: z.number().int(),
 	categories: z.array(dataRoomCategorySchema),
-	roles: z.array(dataRoomRoleSchema)
+	circles: z.array(circleSchema)
 }).parse(defaultTemplate);
 
 export function filingCategories(categories: DataRoomCategory[]): DataRoomCategory[] {

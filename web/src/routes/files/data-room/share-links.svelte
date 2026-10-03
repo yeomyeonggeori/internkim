@@ -8,7 +8,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { invokeTool } from '$lib/public-api-call';
-	import { dataRoomGetResultSchema } from '$lib/data-room/schemas';
+	import { circleListResultSchema } from '$lib/data-room/schemas';
 	import {
 		dataRoomLinkLifetimeHours,
 		dataRoomLinksSchema,
@@ -18,28 +18,28 @@
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { dataRoomSharingText } from '$lib/data-room/sharing-text';
 	import { dataRoomText } from '$lib/data-room/text';
-	let { room }: { room: z.infer<typeof dataRoomGetResultSchema> } = $props();
 	const text = createPageText(dataRoomSharingText);
 	const browserText = createPageText(dataRoomText);
 	const fieldID = $props.id();
 	let isOpen = $state(false);
 	let isBusy = $state(false);
 	let label = $state('');
-	let roleCode = $state('investor');
+	let circleID = $state('investor');
 	let lifetimeHours = $state('72');
 	let canDownload = $state(false);
-	let shareableRoleCodes = $state<string[]>([]);
-	let downloadableRoleCodes = $state<string[]>([]);
+	let shareableCircleIDs = $state<string[]>([]);
+	let downloadableCircleIDs = $state<string[]>([]);
+	let circles = $state<z.infer<typeof circleListResultSchema>['circles']>([]);
 	let links = $state<z.infer<typeof dataRoomLinksSchema>['links']>([]);
 	let createdLink = $state<z.infer<typeof dataRoomLinkCreatedSchema> | null>(null);
 	let errorMessage = $state('');
 	let isCopied = $state(false);
-	const roleItems = $derived(
-		room.roles
-			.filter((role) => shareableRoleCodes.includes(role.code))
-			.map((role) => ({
-				value: role.code,
-				label: currentLocale.value === 'ko' ? role.nameKO || role.name : role.name
+	const circleItems = $derived(
+		circles
+			.filter((circle) => shareableCircleIDs.includes(circle.id))
+			.map((circle) => ({
+				value: circle.id,
+				label: currentLocale.value === 'ko' ? circle.nameKO || circle.name : circle.name
 			}))
 	);
 	const lifetimeItems = $derived(
@@ -55,10 +55,14 @@
 	);
 
 	async function refresh() {
-		const answer = dataRoomLinksSchema.parse(await invokeTool('dataroom_links_get', {}));
+		const [answer, circleList] = await Promise.all([
+			invokeTool('dataroom_links_get', {}).then((value) => dataRoomLinksSchema.parse(value)),
+			invokeTool('circle_list', {}).then((value) => circleListResultSchema.parse(value))
+		]);
 		links = answer.links;
-		shareableRoleCodes = answer.shareableRoleCodes;
-		downloadableRoleCodes = answer.downloadableRoleCodes;
+		circles = circleList.circles;
+		shareableCircleIDs = answer.shareableCircleIDs;
+		downloadableCircleIDs = answer.downloadableCircleIDs;
 	}
 
 	async function open() {
@@ -67,7 +71,7 @@
 		isBusy = true;
 		try {
 			await refresh();
-			if (!shareableRoleCodes.includes(roleCode)) roleCode = shareableRoleCodes[0] ?? '';
+			if (!shareableCircleIDs.includes(circleID)) circleID = shareableCircleIDs[0] ?? '';
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.failure;
 		} finally {
@@ -85,9 +89,9 @@
 			createdLink = dataRoomLinkCreatedSchema.parse(
 				await invokeTool('dataroom_link_add', {
 					label,
-					roleCode,
+					circleID,
 					lifetimeHours: Number(lifetimeHours),
-					canDownload: canDownload && downloadableRoleCodes.includes(roleCode)
+					canDownload: canDownload && downloadableCircleIDs.includes(circleID)
 				})
 			);
 			await refresh();
@@ -138,7 +142,7 @@
 				>{text.description}</Dialog.Description
 			></Dialog.Header
 		>
-		{#if roleItems.length}<form onsubmit={create} class="grid gap-4">
+		{#if circleItems.length}<form onsubmit={create} class="grid gap-4">
 				<Field.Group>
 					<Field.Field
 						><Field.Label for="{fieldID}-label">{text.label}</Field.Label><Input
@@ -150,24 +154,24 @@
 						/></Field.Field
 					>
 					<Field.Field
-						><Field.Label for="{fieldID}-role">{text.role}</Field.Label><Select.Root
+						><Field.Label for="{fieldID}-circle">{text.circle}</Field.Label><Select.Root
 							type="single"
-							items={roleItems}
-							bind:value={roleCode}
+							items={circleItems}
+							bind:value={circleID}
 							disabled={isBusy}
-							><Select.Trigger id="{fieldID}-role"
-								>{roleItems.find((item) => item.value === roleCode)?.label}</Select.Trigger
+							><Select.Trigger id="{fieldID}-circle"
+								>{circleItems.find((item) => item.value === circleID)?.label}</Select.Trigger
 							><Select.Content
 								><Select.Group
-									>{#each roleItems as item (item.value)}<Select.Item
+									>{#each circleItems as item (item.value)}<Select.Item
 											value={item.value}
 											label={item.label}>{item.label}</Select.Item
 										>{/each}</Select.Group
 								></Select.Content
 							></Select.Root
 						><Field.Description
-							>{room.roles
-								.find((role) => role.code === roleCode)
+							>{circles
+								.find((circle) => circle.id === circleID)
 								?.readableCategories.join(', ')}</Field.Description
 						></Field.Field
 					>
@@ -191,7 +195,7 @@
 					>
 				</Field.Group>
 				<div class="flex items-center gap-2">
-					<Checkbox id="{fieldID}-download" checked={canDownload && downloadableRoleCodes.includes(roleCode)} onCheckedChange={(checked) => canDownload = checked === true} disabled={isBusy || !downloadableRoleCodes.includes(roleCode)} /><label
+					<Checkbox id="{fieldID}-download" checked={canDownload && downloadableCircleIDs.includes(circleID)} onCheckedChange={(checked) => canDownload = checked === true} disabled={isBusy || !downloadableCircleIDs.includes(circleID)} /><label
 						for="{fieldID}-download"
 						class="text-sm">{text.download}</label
 					>
@@ -200,7 +204,7 @@
 				<Button type="submit" disabled={isBusy}
 					>{#if isBusy}<Spinner />{/if}{text.create}</Button
 				>
-			</form>{:else}<p class="text-sm text-muted-foreground">{text.noRoles}</p>{/if}
+			</form>{:else}<p class="text-sm text-muted-foreground">{text.noCircles}</p>{/if}
 		{#if createdLink}<section class="grid gap-3 rounded-lg border p-4" aria-label={text.code}>
 				<p class="text-sm text-muted-foreground">{text.codeOnce}</p>
 				<div class="flex gap-2">
@@ -219,7 +223,7 @@
 					<div class="min-w-0">
 						<p class="truncate font-medium">{link.label}</p>
 						<p class="text-xs text-muted-foreground">
-							{link.roleCode} · {link.revokedAt
+							{link.circleID} · {link.revokedAt
 								? text.revoked
 								: Date.parse(link.expiresAt) <= Date.now()
 									? text.expired
