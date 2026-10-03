@@ -41,7 +41,7 @@ PASSED_OBSERVATION_PREFIX = "    ✓"
 HOST_UNIT_STATES_SCRIPT = r"""
 for unit in $(systemctl list-unit-files --no-legend --plain 'internkim-*.service' blueclaw.service chatd.service buzz-relay.service | awk '{print $1}'); do
   [ "$(systemctl show -p Type --value "$unit")" = oneshot ] && [ "$(systemctl show -p RemainAfterExit --value "$unit")" = no ] && continue
-  printf '%s %s\n' "$unit" "$(systemctl is-active "$unit")"
+  printf '%s %s %s\n' "$unit" "$(systemctl is-active "$unit")" "$(systemctl show -p Result --value "$unit")"
 done
 """
 
@@ -126,10 +126,14 @@ def mismatched_assets(directory, assets):
 
 
 def inactive_units(report):
-    states = [line.split() for line in report.splitlines() if re.fullmatch(r"\S+\.service \S+", line.strip())]
+    states = [line.split() for line in report.splitlines() if re.fullmatch(r"\S+\.service \S+ \S+", line.strip())]
     if not states:
         return ["no unit was reported"]
-    return [f"{unit} is {state}" for unit, state in states if state != "active"]
+    return [f"{unit} is {state}" for unit, state, result in states if not is_running_or_finished_cleanly(state, result)]
+
+
+def is_running_or_finished_cleanly(state, result):
+    return state == "active" or (state == "inactive" and result == "success")
 
 
 def last_line(output):
@@ -284,7 +288,7 @@ def watch_the_agent(shipment):
 
 
 def upgrade_host(shipment):
-    run_on_host(shipment, INSTALL_LINE)
+    run_on_host(shipment, f"{INSTALL_LINE} --version {shipment.tag}")
     check_host_runs(shipment, shipment.tag)
     watch_the_agent(shipment)
 

@@ -15,6 +15,8 @@ import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
+import { keepUploadedImages } from './service-files';
+import type { ServiceFileImageField } from '$lib/data-room/service-files';
 import type { CompanyProfileResult } from '../catalog/company';
 import type {
 	AttendanceLeavePolicyResult,
@@ -36,6 +38,8 @@ export type CompanySettingsUpdateInput = {
 };
 
 export type CompanyInfoGetInput = { language?: string };
+
+export type CompanyInfoSetInput = CompanyProfileUpdate & Partial<Record<ServiceFileImageField, string>>;
 
 export type CompanyHolidayListInput = { year?: number };
 
@@ -194,12 +198,13 @@ export async function companyInfoGet(
 
 export async function companyInfoSet(
 	context: RecordContext,
-	input: CompanyProfileUpdate
+	input: CompanyInfoSetInput
 ): Promise<CompanyProfileResult> {
 	const language = languageAsked(input.language);
 	const row = await companyRow(context.caller);
 	const written = profileWithUpdate(profileOf(row.profile), input, language, context.now);
 
+	await keepUploadedImages(context, input);
 	await writeTheCompany(
 		context,
 		{ profile: written },

@@ -41,6 +41,37 @@ func TestSSHPinsPasswordAuthenticationWhenGivenAPassword(t *testing.T) {
 	}
 }
 
+func TestSSHAsksForThePasswordThroughAskpassInsteadOfTypingIt(t *testing.T) {
+	connection := hostSSH{user: "admin", hostname: "ssh.example.test", password: "secret"}
+	command, errorValue := connection.command([]string{"true"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.HasSuffix(command.Path, "ssh") || strings.Contains(command.Path, "sshpass") {
+		t.Errorf("the password is typed by %s instead of asked for by ssh", command.Path)
+	}
+	environment := strings.Join(command.Env, "\n")
+	for _, setting := range []string{"SSH_ASKPASS_REQUIRE=force", sshPasswordPromptVariable + "=1", "SSH_ASKPASS="} {
+		if !strings.Contains(environment, setting) {
+			t.Errorf("ssh is started without %s", setting)
+		}
+	}
+	if !strings.Contains(strings.Join(command.Args, " "), "NumberOfPasswordPrompts=1") {
+		t.Errorf("ssh retries a refused password: %v", command.Args)
+	}
+}
+
+func TestTheAskpassAnswerIsTheConsolePassword(t *testing.T) {
+	t.Setenv(sshPasswordPromptVariable, "1")
+	if !isAnsweringSSHPasswordPrompt() {
+		t.Fatal("the binary does not recognize ssh asking it for the password")
+	}
+	t.Setenv(sshPasswordPromptVariable, "")
+	if isAnsweringSSHPasswordPrompt() {
+		t.Fatal("the binary answers a password prompt it was not asked")
+	}
+}
+
 func TestSSHLeavesKeyAuthenticationAloneWithoutAPassword(t *testing.T) {
 	connection := hostSSH{user: "admin", hostname: "ssh.example.test"}
 	if strings.Contains(strings.Join(connection.sshArguments(nil), " "), "PubkeyAuthentication=no") {

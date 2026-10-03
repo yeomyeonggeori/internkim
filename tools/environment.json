@@ -202,9 +202,13 @@
     "description": "the client secret half of the same Access service token, from the @host vault profile beside its client id",
     "isInVault": true
   },
+  "INTERNKIM_SSH_ASKPASS": {
+    "process": "cli",
+    "description": "set by `internkim ssh` on the ssh it starts, so that ssh's SSH_ASKPASS call of the same binary answers with the console password instead of running a command"
+  },
   "INTERNKIM_CONSOLE_PASSWORD": {
     "process": "cli",
-    "description": "the company host's login password, from the @host vault profile; `internkim ssh` logs in with it through sshpass, and uses the caller's own key when it is unset",
+    "description": "the company host's login password, from the @host vault profile; `internkim ssh` hands it to ssh as its askpass answer, and uses the caller's own key when it is unset",
     "isInVault": true
   },
   "INTERNKIM_CONTAINER_KERNEL_CACHE_DIR": {
@@ -351,6 +355,14 @@
   "MEMBER_SESSION_TYPING_WAIT_MS": {
     "process": "tools/native-install-member-session.ts",
     "description": "how long the native-install rig's member session stays connected after sending, waiting for someone to be shown typing in the conversation; defaults to 0, which closes at once"
+  },
+  "MEMBER_SESSION_MEMBER_ID": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "the member row the session's attachments are kept under in the object store; empty when the session sends no attachment"
+  },
+  "MEMBER_SESSION_ATTACHMENTS": {
+    "process": "tools/native-install-member-session.ts",
+    "description": "a JSON list of {path, filename, contentType} the native-install rig's member session uploads the way the web app does and sends with its message; defaults to none"
   },
   "MESSENGER_RELAY_URL": {
     "process": "relay",

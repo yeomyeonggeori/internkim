@@ -490,6 +490,7 @@ func TestContractedDefaultToolsRemainModelVisible(t *testing.T) {
 		"company_document_update",
 		"company_document_upload",
 		"company_document_download",
+		"company_image_upload",
 	} {
 		descriptor := descriptorForTool(t, defaultDescriptors, toolName)
 		if descriptor.ModelVisibility != capabilityprotocol.ModelVisibilityVisible || !descriptor.ModelVisible || descriptor.ResultContract == nil {

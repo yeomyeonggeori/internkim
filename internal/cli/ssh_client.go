@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 )
 
 const defaultHostSSHUser = "internkim"
+
+const sshPasswordPromptVariable = "INTERNKIM_SSH_ASKPASS"
 
 type hostSSH struct {
 	hostname     string
@@ -34,22 +37,31 @@ func hostSSHFromEnvironment(repositoryRootPath string) (hostSSH, error) {
 func (connection hostSSH) sshArguments(remoteArguments []string) []string {
 	arguments := []string{"-o", "ProxyCommand=" + connection.proxyCommand, "-o", "StrictHostKeyChecking=accept-new"}
 	if connection.password != "" {
-		arguments = append(arguments, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
+		arguments = append(arguments, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no", "-o", "NumberOfPasswordPrompts=1")
 	}
 	arguments = append(arguments, connection.user+"@"+connection.hostname)
 	return append(arguments, remoteArguments...)
 }
 
 func (connection hostSSH) command(remoteArguments []string) (*exec.Cmd, error) {
+	command := exec.Command("ssh", connection.sshArguments(remoteArguments)...)
 	if connection.password == "" {
-		return exec.Command("ssh", connection.sshArguments(remoteArguments)...), nil
+		return command, nil
 	}
-	if _, errorValue := exec.LookPath("sshpass"); errorValue != nil {
-		return nil, errors.New("password SSH needs sshpass on PATH: brew install sshpass, or apt install sshpass")
+	executablePath, errorValue := currentExecutablePath()
+	if errorValue != nil {
+		return nil, errorValue
 	}
-	command := exec.Command("sshpass", append([]string{"-e", "ssh"}, connection.sshArguments(remoteArguments)...)...)
-	command.Env = append(os.Environ(), "SSHPASS="+connection.password)
+	command.Env = append(os.Environ(), "SSH_ASKPASS="+executablePath, "SSH_ASKPASS_REQUIRE=force", sshPasswordPromptVariable+"=1")
 	return command, nil
+}
+
+func isAnsweringSSHPasswordPrompt() bool {
+	return os.Getenv("INTERNKIM_SSH_ASKPASS") != ""
+}
+
+func answerSSHPasswordPrompt() {
+	fmt.Println(os.Getenv("INTERNKIM_CONSOLE_PASSWORD"))
 }
 
 func (connection hostSSH) privilegedCommand(command string) string {

@@ -10,6 +10,7 @@ import {
 } from './protocol';
 
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
+import { imageFieldOf, serviceFileImageExtensions, serviceFileNames, serviceFiles } from '$lib/data-room/service-files';
 
 const companyMetricCurrencies = [
   'USD', 'KRW', 'EUR', 'JPY', 'GBP', 'CNY', 'HKD', 'SGD', 'AUD', 'CAD', 'CHF', 'INR',
@@ -82,6 +83,13 @@ const companyInfoGetInputSchema = z.strictObject({
   language: z.string().describe("Document language to resolve the profile for, e.g. 'ko' or 'en'. Defaults to 'ko'. The response's missingFields lists core fields still empty for this language.").optional(),
 });
 
+const serviceFileImageFields = Object.fromEntries(serviceFiles.map((file) => [
+  imageFieldOf(file.name),
+  z.string().describe(`${file.title}: the storagePath company_image_upload answered for image '${file.name}', once the image was PUT to its uploadURL. It is kept as a new version beside the older ones, and forms print the version with the latest date.`).optional(),
+]));
+
+const serviceFileImageFieldNames = serviceFileNames.map(imageFieldOf).join(' or ');
+
 const companyInfoSetInputSchema = z.strictObject({
   address: z.string().describe("Registered head-office address.").optional(),
   bankAccount: z.string().describe("One-line bank account: bank, account number, holder. Use the 'en' slot for international wire details (SWIFT/IBAN).").optional(),
@@ -101,11 +109,20 @@ const companyInfoSetInputSchema = z.strictObject({
   phone: z.string().describe("Main company phone number.").optional(),
   representative: z.string().describe("Representative's name; use the romanized name for the 'en' slot.").optional(),
   representativeTitle: z.string().describe("Representative's title. Defaults to the one customary in the language asked for.").optional(),
+  ...serviceFileImageFields,
   slogan: z.string().describe("Company slogan for letterheads and introductions.").optional(),
   website: z.string().describe("Company website URL.").optional(),
 });
 
 const companyInfoSetInputIntentSchema = companyInfoSetInputSchema.partial();
+
+const companyImageUploadInputSchema = z.strictObject({
+  image: z.enum(serviceFileNames).describe(`Which company image the file is: ${serviceFiles.map((file) => `'${file.name}' for ${file.purpose}`).join(', ')}.`),
+  fileName: z.string().describe(`The image file's own name with its extension: ${serviceFileImageExtensions.map((extension) => `.${extension}`).join(', ')}.`),
+  date: z.string().describe("The day the image took effect, in YYYY-MM-DD format. Defaults to today.").optional(),
+});
+
+const companyImageUploadInputIntentSchema = companyImageUploadInputSchema.partial();
 
 const companyMetricListInputSchema = z.strictObject({
   fromYear: z.int().describe("Earliest year to include.").optional(),
@@ -234,6 +251,11 @@ export const companyDocumentUploadResultSchema = z.strictObject({
   uploadURL: z.string(),
 });
 
+export const companyImageUploadResultSchema = z.strictObject({
+  storagePath: z.string(),
+  uploadURL: z.string(),
+});
+
 export const companyDocumentDownloadResultSchema = z.strictObject({
   storagePath: z.string(),
   downloadURL: z.string(),
@@ -316,6 +338,20 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     sideEffect: CapabilitySideEffect.WorkspaceWrite,
   },
   {
+    name: "company_image_upload",
+    namespace: "company",
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: "workspace_company",
+    policyResource: "tool:company_image_upload",
+    description: `Ask for a place to keep a new version of a company image, such as the seal stamped on forms or the letterhead logo. Each version is a data room document of its own, dated the day it took effect, and every form prints the newest. Answers the storagePath and a signed URL to PUT the image's bytes to, good for two hours. Once the image is there, keep it with company_info_set, passing the storagePath as ${serviceFileImageFieldNames}. Only an administrator may keep a company image.`,
+    version: "1",
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: companyImageUploadInputSchema,
+    inputIntentSchema: companyImageUploadInputIntentSchema,
+    result: { schema: companyImageUploadResultSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.WorkspaceWrite,
+  },
+  {
     name: "company_document_download",
     namespace: "company",
     answeredBy: CapabilityAnsweredBy.Record,
@@ -334,7 +370,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_info_get",
-    description: "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
+    description: "Read the company master profile (name, representative, address, contact, bank account, country-specific legal attributes such as a business registration number). Pass language ('ko' or 'en') to get the view for that document language plus missingFields listing empty core fields. The answer also carries that view as the file company-profile.json, with the newest seal and logo images from the data room beside it, for a document to print from as it is. Call this before creating any company letterhead document; if missingFields is empty, never ask the user for company info again.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyInfoGetInputSchema,
@@ -347,7 +383,7 @@ export const companyToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: "workspace_company",
     policyResource: "tool:company_info_set",
-    description: "Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string.",
+    description: `Save or update the company master profile. Partial update: only provided fields are written, into the given language's slot for localized fields. Use after the user supplies company details, or when they report one has changed. Put country-specific identifiers (a business registration number, a corporate registration number, an industry classification, an EIN …) into legalAttributes as a label-to-value JSON object string. A seal or logo image the user gives is kept with ${serviceFileImageFieldNames}, after company_image_upload.`,
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companyInfoSetInputSchema,
@@ -458,3 +494,5 @@ export type CompanyDocumentListResult = z.infer<typeof companyDocumentListResult
 export type CompanyDocumentPublished = z.infer<typeof companyDocumentPublishedSchema>;
 export type CompanyDocumentUploadResult = z.infer<typeof companyDocumentUploadResultSchema>;
 export type CompanyDocumentDownloadResult = z.infer<typeof companyDocumentDownloadResultSchema>;
+export type CompanyImageUploadInput = z.infer<typeof companyImageUploadInputSchema>;
+export type CompanyImageUploadResult = z.infer<typeof companyImageUploadResultSchema>;

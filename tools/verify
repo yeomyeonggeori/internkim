@@ -395,6 +395,9 @@ GROUPS = [
             "tools/test-native-install-family",
             "tools/native_install_families.py",
             "tools/native_install_agent_update.py",
+            "tools/native_install_deliveries.py",
+            "tools/native-install-requests-example/*",
+            "tools/tests/test_native_install_deliveries.py",
             "internal/admind/host_update.go",
             "internal/hostupdate/*",
             "web/static/install.sh",
@@ -403,7 +406,10 @@ GROUPS = [
         # about ten minutes, so they are run by hand:
         # tools/test-native-install --stand-in
         # tools/test-native-install-family --family <family>
-        [["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"]],
+        [
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_rig.py"],
+            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_native_install_deliveries.py"],
+        ],
     ),
     Group(
         "ship-host",

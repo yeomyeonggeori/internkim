@@ -12,7 +12,10 @@ repository_root = Path(__file__).resolve().parents[2]
 NEW_TAG = "v2026.10.03.045216"
 PREVIOUS_TAG = "v2026.10.02.172114"
 HOST_TAG = "v2026.10.03.093452"
-HEALTHY_UNITS = "internkim-admind.service active\nblueclaw.service active\nchatd.service active\nbuzz-relay.service active\n"
+HEALTHY_UNITS = (
+    "internkim-admind.service active success\nblueclaw.service active success\n"
+    "chatd.service active success\nbuzz-relay.service active success\ninternkim-box.service inactive success\n"
+)
 
 
 def load_script():
@@ -262,6 +265,13 @@ class RollbackTest(unittest.TestCase):
         self.assertIn("rollback left undone", str(failure))
         self.assertIn("roll the host back to " + HOST_TAG, str(failure))
 
+    def test_the_host_installs_the_tag_that_was_shipped(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        install = commands.calls[commands.matching("install.sh")[0]][-1]
+        self.assertTrue(install.endswith("--version " + NEW_TAG))
+
     def test_the_version_read_ends_in_a_newline(self):
         commands = ScriptedCommands()
         with tempfile.TemporaryDirectory() as directory:
@@ -280,7 +290,7 @@ class RollbackTest(unittest.TestCase):
         self.assertIn("is v2026.10.02.172114", str(failure))
 
     def test_a_unit_that_is_not_active_fails_the_upgrade(self):
-        _, failure = self.failing_host({"systemctl list-unit-files": HEALTHY_UNITS.replace("chatd.service active", "chatd.service failed")})
+        _, failure = self.failing_host({"systemctl list-unit-files": HEALTHY_UNITS.replace("chatd.service active success", "chatd.service failed exit-code")})
         self.assertIn("chatd.service is failed", str(failure))
 
     def test_every_rollback_action_is_tried_and_the_ones_that_failed_are_named(self):
@@ -353,7 +363,11 @@ class RigFailureTest(unittest.TestCase):
 class ReportParsingTest(unittest.TestCase):
     def test_inactive_units_are_named(self):
         self.assertEqual(ship_host.inactive_units(HEALTHY_UNITS), [])
-        self.assertEqual(ship_host.inactive_units("blueclaw.service activating\n"), ["blueclaw.service is activating"])
+        self.assertEqual(ship_host.inactive_units("blueclaw.service activating success\n"), ["blueclaw.service is activating"])
+
+    def test_a_unit_that_exited_cleanly_is_not_a_problem_and_one_that_failed_is(self):
+        self.assertEqual(ship_host.inactive_units("internkim-box.service inactive success\n"), [])
+        self.assertEqual(ship_host.inactive_units("internkim-box.service inactive exit-code\n"), ["internkim-box.service is inactive"])
 
     def test_an_empty_report_is_a_failure(self):
         self.assertEqual(ship_host.inactive_units(""), ["no unit was reported"])

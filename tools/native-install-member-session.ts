@@ -12,10 +12,16 @@
 // guest's own relay is holding.
 
 import { typingEventKind } from '../web/src/lib/messenger/typing-signal';
+import { transferThroughTheHost, type HostConnection } from '../web/src/lib/transfer/host-transfer';
+import { uploadToStore } from '../web/src/lib/transfer/store-upload';
 
 type Frame = Record<string, unknown>;
 
 type Answer = { status: number; body: unknown };
+
+type AttachmentFile = { path: string; filename: string; contentType: string };
+
+type KeptAttachment = { address: string; digest: string; sizeBytes: number; filename: string; contentType: string };
 
 const settings = {
 	projectURL: required('MEMBER_SESSION_PROJECT_URL'),
@@ -26,7 +32,9 @@ const settings = {
 	password: required('MEMBER_SESSION_PASSWORD'),
 	messageText: required('MEMBER_SESSION_MESSAGE'),
 	answerTimeoutMilliseconds: Number(process.env.MEMBER_SESSION_ANSWER_TIMEOUT_MS ?? 60_000),
-	typingWaitMilliseconds: Number(process.env.MEMBER_SESSION_TYPING_WAIT_MS ?? 0)
+	typingWaitMilliseconds: Number(process.env.MEMBER_SESSION_TYPING_WAIT_MS ?? 0),
+	memberID: process.env.MEMBER_SESSION_MEMBER_ID?.trim() ?? '',
+	attachmentFiles: JSON.parse(process.env.MEMBER_SESSION_ATTACHMENTS ?? '[]') as AttachmentFile[]
 };
 
 function required(name: string): string {
@@ -57,6 +65,7 @@ function algorithmOf(token: string): string {
 
 class MemberConnection {
 	private readonly waiting = new Map<string, (answer: Answer) => void>();
+	private readonly listeners = new Set<(event: Frame) => void>();
 	readonly delivered: Frame[] = [];
 	private presence: Frame | null = null;
 
@@ -98,6 +107,10 @@ class MemberConnection {
 		}
 		if (frame.kind === 'deliver') {
 			this.delivered.push(frame);
+			const event = frame.event;
+			if (typeof event === 'object' && event !== null) {
+				for (const listener of this.listeners) listener(event as Frame);
+			}
 			return;
 		}
 		if (frame.kind !== 'result' || typeof frame.requestID !== 'string') return;
@@ -132,6 +145,13 @@ class MemberConnection {
 		return answered;
 	}
 
+	listen(listener: (event: Frame) => void): () => void {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	}
+
 	async untilSomeoneTypesIn(conversationID: string, waitMilliseconds: number): Promise<void> {
 		const deadline = Date.now() + waitMilliseconds;
 		while (Date.now() < deadline) {
@@ -156,15 +176,54 @@ function answerField(answer: Answer, name: string): string {
 	return typeof held === 'string' ? held : '';
 }
 
+function keptAttachmentOf(result: unknown, file: AttachmentFile): KeptAttachment {
+	const kept = (result as { attachment?: Partial<KeptAttachment> } | null)?.attachment;
+	if (!kept || typeof kept.address !== 'string' || typeof kept.digest !== 'string') {
+		throw new Error(`the company computer kept ${file.filename} and said nothing about where: ${JSON.stringify(result)}`);
+	}
+	return {
+		address: kept.address,
+		digest: kept.digest,
+		sizeBytes: typeof kept.sizeBytes === 'number' ? kept.sizeBytes : 0,
+		filename: typeof kept.filename === 'string' ? kept.filename : file.filename,
+		contentType: typeof kept.contentType === 'string' ? kept.contentType : file.contentType
+	};
+}
+
+async function keptAttachment(connection: MemberConnection, bearer: string, file: AttachmentFile): Promise<KeptAttachment> {
+	const storeSession = {
+		projectURL: settings.projectURL,
+		publishableKey: settings.publishableKey,
+		accessToken: async () => bearer,
+		companyID: settings.companyID,
+		memberID: settings.memberID
+	};
+	const object = await uploadToStore(storeSession, Bun.file(file.path), file.contentType);
+	const hostConnection: HostConnection = {
+		call: (call) => connection.ask(call.capability, call.body ?? {}),
+		listen: (listener) => connection.listen((event) => listener(event as Parameters<typeof listener>[0]))
+	};
+	const result = await transferThroughTheHost(hostConnection, {
+		capability: 'person.media.upload',
+		body: { filename: file.filename, object, contentType: file.contentType }
+	});
+	return keptAttachmentOf(result, file);
+}
+
 const session = await signIn();
 const connection = await MemberConnection.open(session.accessToken);
 const presence = await connection.whetherTheHostIsConnected();
+const attachments: KeptAttachment[] = [];
+for (const file of settings.attachmentFiles) {
+	attachments.push(await keptAttachment(connection, session.accessToken, file));
+}
 
 const conversation = await connection.ask('person.dm.ensure', { counterpartExternalIDs: [] });
 const conversationID = answerField(conversation, 'id');
 const sent = await connection.ask('person.message.send', {
 	conversationID,
-	body: settings.messageText
+	body: settings.messageText,
+	...(attachments.length > 0 ? { attachments } : {})
 });
 await connection.untilSomeoneTypesIn(conversationID, settings.typingWaitMilliseconds);
 connection.close();
@@ -175,6 +234,7 @@ console.log(
 		presence,
 		conversation: { status: conversation.status, id: conversationID, body: conversation.body },
 		sent: { status: sent.status, messageID: answerField(sent, 'id'), body: sent.body },
+		attachments,
 		delivered: connection.delivered,
 		typing: connection.delivered.filter((frame) => isTypingIn(frame, conversationID)).map((frame) => frame.event)
 	})

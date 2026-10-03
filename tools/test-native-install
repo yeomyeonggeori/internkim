@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from native_install_families import FAMILIES  # noqa: E402
 import native_install_agent_update as agent_update  # noqa: E402
+from native_install_deliveries import Deliveries, load_requests  # noqa: E402
 from native_install_rig import (  # noqa: E402
     AGENT_HEALTH,
     ARCHITECTURE,
@@ -1798,6 +1799,9 @@ def run_every_step(rig, options, releases, baseline):
         rig.observe_the_host_holds_the_gateway_socket(step_five)
         rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
         rig.observe_the_agent_answered(step_five)
+        if options.requests:
+            Deliveries(rig, rig.plane, options.deliveries).deliver_all(load_requests(options.requests))
+            return
         revision_before = rig.build_identity_the_guest_reports()
         if not is_an_upgrade:
             judge_what_the_release_under_test_does(rig)
@@ -1873,6 +1877,18 @@ def main():
         action="store_true",
         help="judge only whether a host that already has people and memory stays up through the upgrade "
         "(step 12 in place of every other step after the install)",
+    )
+    parser.add_argument(
+        "--requests",
+        help="a JSON list of {name, text, attachments, snippet, timeoutSeconds} the member sends once the host answers "
+        "(attachments are paths relative to the file); for each, the replies, the task's event log, every delivered "
+        "file and the workspace files the replies did not carry are kept under --deliveries/<name>, "
+        "and no later step runs",
+    )
+    parser.add_argument(
+        "--deliveries",
+        default=".artifacts/native-install-deliveries",
+        help="where --requests keeps what the agent delivered (default: %(default)s)",
     )
     parser.add_argument("--name", default=f"internkim-installrig-{uuid.uuid4().hex[:8]}")
     parser.add_argument("--keep", action="store_true", help="leave the guest running for autopsy")

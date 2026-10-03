@@ -110,6 +110,7 @@ describe('canonical capability tools', () => {
       'company_holiday_delete',
       'company_holiday_list',
       'company_holiday_update',
+      'company_image_upload',
       'company_info_get',
       'company_info_set',
       'company_metric_list',
@@ -296,6 +297,7 @@ describe('canonical capability tools', () => {
       'company_document_register',
       'company_document_update',
       'company_document_upload',
+      'company_image_upload',
       'company_info_set',
       'company_metric_record',
       'company_record_add',
@@ -917,6 +919,7 @@ describe('canonical capability tools', () => {
       browser_select: 'the device browser answers it and reports no effect',
       mail_connection_start: 'it hands back a setup address and writes nothing',
       company_document_upload: 'it hands back an upload address; company_document_register records the document',
+      company_image_upload: 'it hands back an upload address; company_info_set keeps the image',
     };
     const catalog = buildCapabilityToolCatalog(protocolVersion);
     const writes = catalog.tools.filter(tool => tool.sideEffectClass !== CapabilitySideEffect.Read
