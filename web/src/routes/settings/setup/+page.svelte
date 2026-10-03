@@ -26,6 +26,7 @@
 	let isOpeningMessenger = $state(false);
 	let errorMessage = $state('');
 	let connection = $state<'unchecked' | 'connected' | 'offline' | 'unavailable'>('unchecked');
+	let isCompanyComputerOnline = $state(false);
 
 	onMount(async () => {
 		try {
@@ -35,6 +36,7 @@
 		} finally {
 			isLoading = false;
 		}
+		if (status) isCompanyComputerOnline = await isCompanyAppRunning().catch(() => false);
 	});
 
 	function askForDownload() {
@@ -60,7 +62,8 @@
 	async function checkConnection() {
 		isChecking = true;
 		try {
-			connection = await isCompanyAppRunning() ? 'connected' : 'offline';
+			isCompanyComputerOnline = await isCompanyAppRunning();
+			connection = isCompanyComputerOnline ? 'connected' : 'offline';
 		} catch {
 			connection = 'unavailable';
 		} finally {
@@ -101,7 +104,7 @@
 					<Card.Description>{text.computerDescription}</Card.Description>
 				</Card.Header>
 				<Card.Content class="grid min-w-0 gap-6">
-					<BoxConnection />
+					<BoxConnection {isCompanyComputerOnline} />
 					<Collapsible.Root class="grid gap-4">
 						<Collapsible.Trigger class="inline-flex min-h-11 items-center justify-self-start text-sm underline">{text.otherComputer}</Collapsible.Trigger>
 						<Collapsible.Content class="grid min-w-0 gap-4">
