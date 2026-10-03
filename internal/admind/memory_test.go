@@ -25,8 +25,6 @@ func TestMemoryAPIUsesMattermostSessionUserFacts(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -67,8 +65,6 @@ func TestMemoryAPIResolvesTheSessionUserSchedules(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -122,8 +118,6 @@ func TestScheduleToolListSignsTheActiveRequesterAndForwardsExactInput(t *testing
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -208,8 +202,6 @@ func TestMemoryAPICancelScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -253,8 +245,6 @@ func TestMemoryAPIDeleteScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -298,8 +288,6 @@ func TestMemoryAPIUpdateScheduleInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -349,8 +337,6 @@ func TestMemoryAPIForgetInjectsResolvedPersonID(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -448,8 +434,6 @@ func TestMemoryAPISchedulesHidesUpstreamFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -487,8 +471,6 @@ func TestMemoryAPIFactsHidesUpstreamFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -526,8 +508,6 @@ func TestMemoryAPIFactsHidesIdentityFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -561,8 +541,6 @@ func TestMemoryAPIScheduleMutationHidesDecodeFailureDetails(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 
 	request := httptest.NewRequest(http.MethodPost, "/memory/api/schedules/update", strings.NewReader(`{`))
@@ -590,8 +568,6 @@ func TestScheduleToolCreateSignsTheRequesterAndForwardsTheExactDocument(t *testi
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -628,8 +604,6 @@ func TestScheduleToolWritesRefuseADocumentTheContractRefuses(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)
@@ -665,8 +639,6 @@ func TestScheduleToolCancelPassesBlueclawsRefusalThrough(t *testing.T) {
 	service := NewService(Configuration{
 		APIBaseURL:      "https://api.example.test",
 		BlueclawBaseURL: "http://blueclaw.local",
-		FleetIDPath:     writeTestFile(t, "device-1"),
-		FleetSecretPath: writeTestFile(t, "secret-1"),
 	})
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
 	seatPeopleInACompanyDirectoryForTest(t, service)

@@ -288,7 +288,8 @@ func TestGatewayRedirectsAdminPage(t *testing.T) {
 }
 
 func TestAdminRejectsUnauthorizedRemoteCaller(t *testing.T) {
-	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com")})
+	service := NewService(Configuration{})
+	seatAdministratorInTheCompanyForTest(t, service, "admin@example.com")
 	handler := service.router()
 
 	request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/requests", nil)
@@ -347,20 +348,14 @@ func TestWorkspaceSettingsRejectsInvalidLanguage(t *testing.T) {
 
 func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
 	adminEmailPath := filepath.Join(deviceDirectory, "admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, adminEmailPath, "setup@example.com")
 
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        adminEmailPath,
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
@@ -394,11 +389,7 @@ func TestAdminHealthDoesNotClaimFirstAuthenticatedCaller(t *testing.T) {
 
 func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 	adminUIPath := t.TempDir()
 	writeFile(t, filepath.Join(adminUIPath, "index.html"), "admin ui")
 
@@ -408,8 +399,6 @@ func TestAdminPageRequestClaimsFirstAuthenticatedCaller(t *testing.T) {
 		APIBaseURL:                 "https://api.example.test",
 		AdminEmailPath:             filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath:      claimedAdminEmailPath,
-		FleetIDPath:                fleetIDPath,
-		FleetSecretPath:            fleetSecretPath,
 		StateDirectory:             t.TempDir(),
 		AdminUIPath:                adminUIPath,
 	})
@@ -478,18 +467,12 @@ func TestAdminSessionReportsMissingAccessIdentity(t *testing.T) {
 
 func TestAdminSessionReportsFirstAdminBootstrapFailure(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        filepath.Join(deviceDirectory, "admin-email"),
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
@@ -889,15 +872,11 @@ func TestQuickTaskOnTheLocalSocketRequiresARequesterActor(t *testing.T) {
 
 func newTaskAuthorizationTestService(t *testing.T) *Service {
 	t.Helper()
-	fleetIDPath := writeTestFile(t, "device-1")
-	fleetSecretPath := writeTestFile(t, "secret-1")
 	service := NewService(Configuration{
 		StateDirectory:        filepath.Join(t.TempDir(), "state"),
 		APIBaseURL:            "https://api.example.test",
 		AdminEmailPath:        writeTestFile(t, "admin@example.com"),
 		ClaimedAdminEmailPath: writeTestFile(t, "admin@example.com"),
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		TaskDatabasePath:      filepath.Join(t.TempDir(), "flow.sqlite"),
 	})
 	seatPeopleInACompanyDirectoryForTest(t, service)

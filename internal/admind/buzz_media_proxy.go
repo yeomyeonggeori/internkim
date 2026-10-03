@@ -27,48 +27,15 @@ func (service *Service) buzzMediaOrigin() string {
 	return relayURL
 }
 
-func (service *Service) buzzPublicRelayOrigin() string {
-	return relayOriginForDeviceURL(service.configuredDeviceURL())
-}
-
-func mediaRelayHost(origin string) string {
-	if index := strings.Index(origin, "://"); index >= 0 {
-		return origin[index+3:]
-	}
-	return origin
-}
-
-func relayOriginForDeviceURL(deviceURL string) string {
-	scheme, host := "", deviceURL
-	if index := strings.Index(deviceURL, "://"); index >= 0 {
-		scheme, host = deviceURL[:index+3], deviceURL[index+3:]
-	}
-	if host == "" {
-		return ""
-	}
-	if dot := strings.Index(host, "."); dot >= 0 {
-		host = host[:dot] + "-relay" + host[dot:]
-	} else {
-		host += "-relay"
-	}
-	return scheme + host
-}
-
-func (service *Service) configuredDeviceURL() string {
-	return strings.TrimSuffix(strings.TrimSpace(readTrimmedFile(service.Configuration.DeviceURLPath)), "/")
-}
-
 func (service *Service) rewriteBuzzMedia(value string) string {
 	if value == "" {
 		return value
 	}
-	replacement := service.configuredDeviceURL() + mediaProxyPrefix
-	for _, origin := range []string{service.buzzMediaOrigin(), service.buzzPublicRelayOrigin()} {
-		if origin != "" {
-			value = strings.ReplaceAll(value, origin+"/", replacement)
-		}
+	origin := service.buzzMediaOrigin()
+	if origin == "" {
+		return value
 	}
-	return value
+	return strings.ReplaceAll(value, origin+"/", mediaProxyPrefix)
 }
 
 func (service *Service) handleBuzzMediaProxy(responseWriter http.ResponseWriter, request *http.Request) {
@@ -86,12 +53,6 @@ func (service *Service) handleBuzzMediaProxy(responseWriter http.ResponseWriter,
 	if errorValue != nil {
 		http.Error(responseWriter, "invalid media request", http.StatusBadRequest)
 		return
-	}
-	// The relay serves media per-community, routed by Host header. Fetching over
-	// loopback would present Host 127.0.0.1 and miss the community, so present
-	// the public relay host the way a browser would have.
-	if relayHost := mediaRelayHost(service.buzzPublicRelayOrigin()); relayHost != "" {
-		upstreamRequest.Host = relayHost
 	}
 	response, errorValue := service.httpClient().Do(upstreamRequest)
 	if errorValue != nil {

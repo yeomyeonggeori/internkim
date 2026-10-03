@@ -148,3 +148,15 @@ func memberJSONForTest(email string) string {
 func memberIDForTest(email string) string {
 	return "member-" + strings.ReplaceAll(strings.Split(email, "@")[0], ".", "-")
 }
+
+func seatAdministratorInTheCompanyForTest(t *testing.T, service *Service, administratorEmail string, otherMembers ...centralplane.Member) {
+	t.Helper()
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	directory := companyDirectoryHolding(append(otherMembers, memberForTest(administratorEmail, "이샘플", "admin"))...)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isCompanyDirectoryRequest(request) {
+			return directory.respond(t, request)
+		}
+		return http.DefaultTransport.RoundTrip(request)
+	})}
+}

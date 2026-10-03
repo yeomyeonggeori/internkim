@@ -55,12 +55,6 @@ func trustsForwardedIdentity(listenAddress string) bool {
 	}
 }
 
-func (service *Service) hasDeviceAuth() bool {
-	fleetID := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetIDPath))
-	fleetSecret := strings.TrimSpace(readTrimmedFile(service.Configuration.FleetSecretPath))
-	return fleetID != "" && fleetSecret != ""
-}
-
 func (service *Service) isClaimedAdminEmail(email string) bool {
 	claimedEmail := service.claimedAdminEmail()
 	return claimedEmail != "" && strings.EqualFold(claimedEmail, email)

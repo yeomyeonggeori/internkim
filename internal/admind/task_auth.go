@@ -160,16 +160,11 @@ func (service *Service) isEmailInUsersSyncCache(actorEmail string) bool {
 	return false
 }
 
-
 func (service *Service) isTaskAdminEmail(ctx context.Context, actorEmail string) bool {
 	if strings.TrimSpace(actorEmail) == "" {
 		return false
 	}
-	if service.hasDeviceAuth() {
-		return service.isCurrentAdminEmail(ctx, actorEmail) || service.isClaimedAdminEmail(actorEmail)
-	}
-	adminEmail := service.seedAdminEmail()
-	return adminEmail != "" && strings.EqualFold(actorEmail, adminEmail)
+	return service.isCurrentAdminEmail(ctx, actorEmail) || service.isClaimedAdminEmail(actorEmail)
 }
 
 func isActiveTaskUser(record adminUserMutation) bool {

@@ -147,25 +147,3 @@ func (service *Service) resolveMemoryPersonID(ctx context.Context, actorEmail st
 	}
 	return actor.UserID, nil
 }
-
-func (service *Service) resolveMemoryPersonIDFromPolicy(ctx context.Context, actorEmail string) (string, error) {
-	var policyDocument memoryPolicyDocument
-	if errorValue := service.blueclawJSONRequest(ctx, http.MethodGet, "/admin/api/policy", nil, &policyDocument); errorValue != nil {
-		return "", errorValue
-	}
-	for _, person := range policyDocument.People {
-		if personHasMemoryEmail(person, actorEmail) {
-			return strings.TrimSpace(person.PersonID), nil
-		}
-	}
-	return "", nil
-}
-
-func personHasMemoryEmail(person memoryPolicyPerson, actorEmail string) bool {
-	for _, email := range person.Emails {
-		if strings.EqualFold(strings.TrimSpace(email), strings.TrimSpace(actorEmail)) {
-			return true
-		}
-	}
-	return false
-}

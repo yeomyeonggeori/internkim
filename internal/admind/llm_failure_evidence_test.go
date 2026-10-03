@@ -18,7 +18,8 @@ func TestLLMFailureEvidenceRequiresAdminAndPreservesDocument(t *testing.T) {
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	service := NewService(Configuration{AdminEmailPath: writeTestFile(t, "admin@example.com"), BlueclawWorkspacePath: workspacePath})
+	service := NewService(Configuration{BlueclawWorkspacePath: workspacePath})
+	seatAdministratorInTheCompanyForTest(t, service, "admin@example.com")
 	for _, isAdmin := range []bool{false, true} {
 		request := httptest.NewRequest(http.MethodGet, "/admin/api/diagnostics/llm-failure?id="+identifier, nil)
 		request.RemoteAddr = "198.51.100.10:443"
