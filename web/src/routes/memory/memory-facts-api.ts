@@ -1,43 +1,60 @@
+import { z } from 'zod';
 import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
+import { invokeTool } from '$lib/public-api-call';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { circleListResultSchema } from '$lib/data-room/schemas';
+import type { Circle } from '$lib/data-room/model';
 import type { MemoryChange } from './memory-change';
 
-export const memoryFactKinds = ['identity', 'preference', 'fact', 'episode', 'temporary'] as const;
-export type MemoryFactKind = (typeof memoryFactKinds)[number];
+export const memoryScopeTypes = ['person', 'circle', 'workspace'] as const;
+export type MemoryScopeType = (typeof memoryScopeTypes)[number];
 
-export type MemoryFact = {
-	factID: string;
-	episodeID: string;
-	ownerPersonID: string;
-	circleIDs: string[];
-	kind: MemoryFactKind;
-	content: string;
-	validFrom: string;
-	validUntil?: string;
-	reinforcementCount: number;
-	lastRecalledAt?: string;
-	triggerPhrases: string[];
-};
+const timestamp = z.iso.datetime({ offset: true });
 
-export type MemoryProfile = {
-	identityLines: string[];
-	currentLines: string[];
-	builtAt?: string;
-};
+export const memoryFactSchema = z.object({
+	factID: z.string().min(1),
+	originID: z.string(),
+	scopeType: z.enum(memoryScopeTypes),
+	scopeID: z.string().optional(),
+	isStatic: z.boolean(),
+	content: z.string().min(1),
+	occurredAt: timestamp.optional(),
+	occurredUntil: timestamp.optional(),
+	validUntil: timestamp.optional(),
+	importance: z.number().int(),
+	storageStrength: z.number(),
+	createdAt: timestamp,
+	lastRecalledAt: timestamp.optional(),
+	coldSince: timestamp.optional(),
+	triggerPhrases: z.array(z.string())
+});
 
-export type MemoryFactsResponse = {
-	personID: string;
-	embeddingModel?: string;
-	profile: MemoryProfile;
-	facts: MemoryFact[];
-};
+export const memoryIndexSchema = z.object({
+	embeddingModel: z.string(),
+	current: z.number().int(),
+	stale: z.number().int()
+});
+
+export const memoryFactsResponseSchema = z.object({
+	personID: z.string(),
+	index: memoryIndexSchema,
+	facts: z.array(memoryFactSchema)
+});
+
+export type MemoryFact = z.infer<typeof memoryFactSchema>;
+export type MemoryFactsResponse = z.infer<typeof memoryFactsResponseSchema>;
 
 const defaultLimit = 200;
 
 export async function fetchMemoryFacts(): Promise<MemoryFactsResponse> {
 	const document = isSupabaseConfigured() ? await askTheCompanyApp() : await askTheDevice();
-	return normalizeMemoryFactsResponse(document);
+	return memoryFactsResponseSchema.parse(document);
+}
+
+export async function fetchCircles(): Promise<Circle[]> {
+	if (!isSupabaseConfigured()) return [];
+	return circleListResultSchema.parse(await invokeTool('circle_list', {})).circles;
 }
 
 export function factForgetRequest(factIDs: string[], reason: string): MemoryChange {
@@ -51,52 +68,6 @@ export function factForgetRequest(factIDs: string[], reason: string): MemoryChan
 
 export async function forgetMemoryFact(factID: string, reason: string): Promise<void> {
 	await changeMemory(factForgetRequest([factID], reason));
-}
-
-export function normalizeMemoryFactsResponse(document: unknown): MemoryFactsResponse {
-	const record = readRecord(document) ?? {};
-	const embeddingModel = readString(record.embeddingModel);
-	return {
-		personID: readString(record.personID) ?? '',
-		...(embeddingModel ? { embeddingModel } : {}),
-		profile: normalizeMemoryProfile(record.profile),
-		facts: readArray(record.facts, normalizeMemoryFact)
-	};
-}
-
-function normalizeMemoryProfile(document: unknown): MemoryProfile {
-	const record = readRecord(document) ?? {};
-	const builtAt = readTimestamp(record.builtAt);
-	return {
-		identityLines: readStringArray(record.identityLines),
-		currentLines: readStringArray(record.currentLines),
-		...(builtAt ? { builtAt } : {})
-	};
-}
-
-function normalizeMemoryFact(document: unknown): MemoryFact | undefined {
-	const record = readRecord(document);
-	if (!record) return undefined;
-	const factID = readString(record.factID);
-	const content = readString(record.content);
-	const validFrom = readTimestamp(record.validFrom);
-	const kind = readMemberOf(record.kind, memoryFactKinds);
-	if (!factID || !content || !validFrom || !kind) return undefined;
-	const validUntil = readTimestamp(record.validUntil);
-	const lastRecalledAt = readTimestamp(record.lastRecalledAt);
-	return {
-		factID,
-		episodeID: readString(record.episodeID) ?? '',
-		ownerPersonID: readString(record.ownerPersonID) ?? '',
-		circleIDs: readStringArray(record.circleIDs),
-		kind,
-		content,
-		validFrom,
-		...(validUntil ? { validUntil } : {}),
-		reinforcementCount: readCount(record.reinforcementCount),
-		...(lastRecalledAt ? { lastRecalledAt } : {}),
-		triggerPhrases: readStringArray(record.triggerPhrases)
-	};
 }
 
 async function askTheDevice(): Promise<unknown> {
@@ -127,46 +98,4 @@ async function changeMemory(change: MemoryChange): Promise<void> {
 	if (!response.ok) {
 		throw new Error(`Memory forget request returned ${response.status}`);
 	}
-}
-
-function readMemberOf<T extends string>(value: unknown, members: readonly T[]): T | undefined {
-	return members.find((member) => member === value);
-}
-
-function readArray<T>(value: unknown, normalizeItem: (document: unknown) => T | undefined): T[] {
-	if (!Array.isArray(value)) return [];
-	return value.flatMap((item) => {
-		const normalized = normalizeItem(item);
-		return normalized ? [normalized] : [];
-	});
-}
-
-function readRecord(document: unknown): Record<string, unknown> | undefined {
-	return isRecord(document) ? document : undefined;
-}
-
-function isRecord(document: unknown): document is Record<string, unknown> {
-	return typeof document === 'object' && document !== null && !Array.isArray(document);
-}
-
-function readString(value: unknown): string | undefined {
-	return typeof value === 'string' && value.trim() ? value : undefined;
-}
-
-function readTimestamp(value: unknown): string | undefined {
-	const text = readString(value);
-	if (!text || text.startsWith('0001-01-01')) return undefined;
-	return Number.isNaN(Date.parse(text)) ? undefined : text;
-}
-
-function readStringArray(value: unknown): string[] {
-	if (!Array.isArray(value)) return [];
-	return value.flatMap((item) => {
-		const text = readString(item);
-		return text ? [text.trim()] : [];
-	});
-}
-
-function readCount(value: unknown): number {
-	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }

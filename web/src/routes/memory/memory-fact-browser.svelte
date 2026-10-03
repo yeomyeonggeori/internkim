@@ -5,7 +5,6 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import RefreshIcon from '@lucide/svelte/icons/refresh-cw';
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
-	import UserRoundIcon from '@lucide/svelte/icons/user-round';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import XIcon from '@lucide/svelte/icons/x';
 	import * as Alert from '$lib/components/ui/alert';
@@ -17,12 +16,14 @@
 	import * as Empty from '$lib/components/ui/empty';
 	import { cn } from '$lib/utils';
 	import MemoryFactDetail from './memory-fact-detail.svelte';
-	import { fetchMemoryFacts, type MemoryFactsResponse } from './memory-facts-api';
-	import { filterMemoryFacts, isLiveMemoryFact, memoryAudience, memoryDate, memoryKindLabel } from './memory-workbench-model';
+	import type { Circle } from '$lib/data-room/model';
+	import { fetchCircles, fetchMemoryFacts, type MemoryFact, type MemoryFactsResponse } from './memory-facts-api';
+	import { filterMemoryFacts, isCurrentMemory, memoryScopeLabel, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
 	let { text }: { text: MemoryText } = $props();
 	let memory = $state<MemoryFactsResponse | null>(null);
+	let circles = $state<Circle[]>([]);
 	let selectedFactID = $state('');
 	let query = $state('');
 	let isLoading = $state(false);
@@ -30,9 +31,9 @@
 	let hasLoadError = $state(false);
 	let requestSequence = 0;
 	const errorMessage = $derived(hasLoadError ? text.loadFailed : '');
-	const identityLines = $derived(memory?.profile.identityLines ?? []);
-	const searchedFacts = $derived(filterMemoryFacts(memory?.facts ?? [], query));
-	const visibleFacts = $derived(searchedFacts.filter((fact) => includesPrevious || isLiveMemoryFact(fact)));
+	const scopeLabel = (fact: MemoryFact) => memoryScopeLabel(fact, circles, text, currentLocale.value);
+	const searchedFacts = $derived(filterMemoryFacts(memory?.facts ?? [], query, scopeLabel));
+	const visibleFacts = $derived(searchedFacts.filter((fact) => includesPrevious || isCurrentMemory(fact)));
 	const selectedFact = $derived(visibleFacts.find((fact) => fact.factID === selectedFactID));
 	const isSearching = $derived(query.trim().length > 0);
 
@@ -44,9 +45,10 @@
 		hasLoadError = false;
 		memory = null;
 		try {
-			const response = await fetchMemoryFacts();
+			const [response, knownCircles] = await Promise.all([fetchMemoryFacts(), fetchCircles()]);
 			if (requestID !== requestSequence) return;
 			memory = response;
+			circles = knownCircles;
 		} catch {
 			if (requestID === requestSequence) hasLoadError = true;
 		} finally {
@@ -111,17 +113,6 @@
 			{/each}
 		</div>
 	{:else if memory}
-		<section class="grid gap-2 border-t px-4 py-4" aria-label={text.profile}>
-			<h2 class="flex items-center gap-2 text-sm font-semibold"><UserRoundIcon class="size-4 text-muted-foreground" />{text.profile}</h2>
-			<p class="text-xs text-muted-foreground">{text.profileDescription}</p>
-			{#if identityLines.length > 0}
-				<ul class="grid gap-1 text-sm leading-6">
-					{#each identityLines as line, index (index)}<li class="break-words">{line}</li>{/each}
-				</ul>
-			{:else}
-				<p class="text-sm text-muted-foreground">{text.profileEmpty}</p>
-			{/if}
-		</section>
 		{#if visibleFacts.length > 0}
 			<div class="grid min-w-0 border-t lg:min-h-[28rem] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
 				<div class={cn('min-w-0 divide-y lg:max-h-[65svh] lg:overflow-y-auto', selectedFact && 'hidden lg:block')}>
@@ -131,10 +122,9 @@
 							onclick={() => selectedFactID = fact.factID}>
 							<p class="line-clamp-3 break-words text-sm leading-6">{fact.content}</p>
 							<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-								<span>{memoryKindLabel(fact.kind, text)}</span>
-								<span>{memoryAudience(fact, text)}</span>
-								<span>{memoryDate(fact.validFrom, text, currentLocale.value)}</span>
-								{#if !isLiveMemoryFact(fact)}<Badge variant="secondary">{text.previousMemory}</Badge>{/if}
+								<span>{scopeLabel(fact)}</span>
+								<span>{memoryWhen(fact, text, currentLocale.value)}</span>
+								{#if !isCurrentMemory(fact)}<Badge variant="secondary">{text.previousMemory}</Badge>{/if}
 							</div>
 						</button>
 					{/each}
@@ -143,7 +133,7 @@
 					{#if selectedFact}
 						<div class="px-4 pt-3 lg:hidden"><Button variant="ghost" size="sm" onclick={() => selectedFactID = ''}><ArrowLeftIcon data-icon="inline-start" />{text.factListTab}</Button></div>
 						{#key selectedFact.factID}
-							<MemoryFactDetail fact={selectedFact} {text} onForgotten={removeForgottenFact} />
+							<MemoryFactDetail fact={selectedFact} scope={scopeLabel(selectedFact)} {text} onForgotten={removeForgottenFact} />
 						{/key}
 					{:else}
 						<Empty.Root class="min-h-[28rem]"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{text.memoryDetails}</Empty.Title><Empty.Description>{text.selectMemory}</Empty.Description></Empty.Header></Empty.Root>
