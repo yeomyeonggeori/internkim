@@ -10,6 +10,7 @@ final class AttendanceWidgetCache {
     static final long settingsFreshFor = 6 * 60 * 60 * 1000L;
     static final long rowsTrustedFor = 120 * 1000L;
     static final long tapDrawnFromCacheFor = 5 * 1000L;
+    static final long rowsHeldForTicks = 30 * 60 * 1000L;
 
     final String origin;
 
@@ -45,6 +46,10 @@ final class AttendanceWidgetCache {
 
     static boolean drawsTapFromCache(@Nullable Long tappedAt, long now) {
         return tappedAt != null && now - tappedAt < tapDrawnFromCacheFor;
+    }
+
+    static boolean drawsTickFromCache(@Nullable Long rowsListedAt, @Nullable CompanySettings settings, long now) {
+        return settings != null && rowsListedAt != null && now - rowsListedAt < rowsHeldForTicks;
     }
 
     static boolean settingsAreFresh(@Nullable Long fetchedAt, long now) {

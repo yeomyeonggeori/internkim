@@ -13,12 +13,11 @@ import java.util.List;
 
 final class AttendanceDayBar {
 
-    private static final int heightDP = 6;
     private static final int fallbackWidthDP = 120;
 
     private AttendanceDayBar() {}
 
-    static Bitmap draw(Context context, List<AttendanceToday.Bar> bars, List<WorkLocation> locations, int widthDP) {
+    static Bitmap draw(Context context, List<AttendanceToday.Bar> bars, List<WorkLocation> locations, int widthDP, int heightDP) {
         float density = context.getResources().getDisplayMetrics().density;
         int width = Math.round((widthDP > 0 ? widthDP : fallbackWidthDP) * density);
         int height = Math.round(heightDP * density);

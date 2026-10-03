@@ -16,7 +16,7 @@ final class AttendanceClockPress {
             api = AttendanceAPI.held(context);
         } catch (AttendanceAPI.Failure noKey) {
             AttendanceRefusal.keep(context, noKey.getMessage(), System.currentTimeMillis());
-            AttendanceWidgetRefresh.redrawNow(context);
+            AttendanceWidgetRefresh.redrawNow(context, false);
             return;
         }
 
@@ -32,7 +32,7 @@ final class AttendanceClockPress {
                 cache.tappedAt = tapped;
                 cache.rowsTrustedUntil = tapped + AttendanceWidgetCache.rowsTrustedFor;
             });
-            AttendanceWidgetRefresh.redrawNow(context);
+            AttendanceWidgetRefresh.redrawNow(context, false);
         }
 
         save(context, api, kind, location, zone, optimistic);
@@ -57,6 +57,6 @@ final class AttendanceClockPress {
             AttendanceWidgetCacheStore.amend(context, origin, cache -> cache.refuse(pressed));
             AttendanceRefusal.keep(context, refused.getMessage(), System.currentTimeMillis());
         }
-        AttendanceWidgetRefresh.redrawNow(context);
+        AttendanceWidgetRefresh.redrawNow(context, false);
     }
 }

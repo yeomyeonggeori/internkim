@@ -1,6 +1,7 @@
 package app.intern.kim.attendance;
 
 import android.content.Context;
+import android.util.Log;
 import androidx.annotation.Nullable;
 import app.intern.kim.R;
 import java.io.ByteArrayOutputStream;
@@ -17,6 +18,7 @@ import org.json.JSONObject;
 
 final class AttendanceAPI {
 
+    private static final String logTag = "AttendanceWidget";
     private static final int timeoutMillis = 8000;
     private static final long dayMillis = 24 * 60 * 60 * 1000L;
 
@@ -73,23 +75,28 @@ final class AttendanceAPI {
             connection.setDoOutput(true);
             connection.setRequestProperty("Authorization", "Bearer " + credential.token);
             connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Connection", "close");
             try (OutputStream body = connection.getOutputStream()) {
                 body.write(new JSONObject().put("input", input).toString().getBytes(StandardCharsets.UTF_8));
             }
             int status = connection.getResponseCode();
             boolean isAnswered = status >= 200 && status < 300;
             String answer = readAll(isAnswered ? connection.getInputStream() : connection.getErrorStream());
-            if (!isAnswered) throw new Failure(refusalIn(answer, tool, status));
+            if (!isAnswered) {
+                Log.w(logTag, tool + " answered " + status + ": " + answer);
+                throw new Failure(refusalIn(answer, status));
+            }
             return new JSONObject(answer).getJSONObject("result");
         } catch (IOException unreachable) {
-            throw new Failure(context.getString(R.string.attendance_widget_unreachable, tool), unreachable);
+            Log.w(logTag, "the widget could not reach " + tool + " at " + credential.origin, unreachable);
+            throw new Failure(context.getString(R.string.attendance_widget_unreachable), unreachable);
         } finally {
             if (connection != null) connection.disconnect();
         }
     }
 
-    private String refusalIn(String answer, String tool, int status) {
-        String unexplained = context.getString(R.string.attendance_widget_answered, tool, status);
+    private String refusalIn(String answer, int status) {
+        String unexplained = context.getString(R.string.attendance_widget_answered, status);
         try {
             String said = new JSONObject(answer).optString("error");
             return said.isEmpty() ? unexplained : said;
@@ -99,7 +106,8 @@ final class AttendanceAPI {
     }
 
     private Failure unreadableAnswer(String tool, JSONException unreadable) {
-        return new Failure(context.getString(R.string.attendance_widget_unreadable, tool), unreadable);
+        Log.w(logTag, "the widget could not read what " + tool + " answered", unreadable);
+        return new Failure(context.getString(R.string.attendance_widget_unreadable), unreadable);
     }
 
     private static String readAll(@Nullable InputStream stream) throws IOException {

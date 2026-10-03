@@ -173,6 +173,15 @@ public class AttendanceWidgetCacheTest {
     }
 
     @Test
+    public void aMinuteTickDrawsFromRowsListedWithinHalfAnHour() {
+        CompanySettings settings = new CompanySettings("Asia/Seoul", Collections.emptyList());
+        assertTrue(AttendanceWidgetCache.drawsTickFromCache(now - 60_000, settings, now));
+        assertFalse(AttendanceWidgetCache.drawsTickFromCache(now - AttendanceWidgetCache.rowsHeldForTicks, settings, now));
+        assertFalse(AttendanceWidgetCache.drawsTickFromCache(null, settings, now));
+        assertFalse(AttendanceWidgetCache.drawsTickFromCache(now - 60_000, null, now));
+    }
+
+    @Test
     public void settingsAreFreshWithinSixHours() {
         assertTrue(AttendanceWidgetCache.settingsAreFresh(now - AttendanceWidgetCache.settingsFreshFor + 1000, now));
     }

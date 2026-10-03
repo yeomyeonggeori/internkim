@@ -1,15 +1,13 @@
 package app.intern.kim.attendance;
 
 import android.app.PendingIntent;
-import android.appwidget.AppWidgetManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Bundle;
-import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.RemoteViews;
 import androidx.annotation.Nullable;
@@ -19,9 +17,8 @@ import java.util.List;
 
 final class AttendanceWidgetDrawing {
 
-    private static final int mediumMinimumWidthDP = 250;
-    private static final int horizontalPaddingDP = 28;
     private static final int pickerColumnsAtMost = 3;
+    private static final float locationDotSize = 0.7f;
     private static final int[] pickerButtons = {
         R.id.attendance_widget_pick_0,
         R.id.attendance_widget_pick_1,
@@ -37,14 +34,13 @@ final class AttendanceWidgetDrawing {
         Context context,
         AttendanceWidgetEntry entry,
         int widgetID,
-        Bundle options,
+        AttendanceWidgetSize size,
         @Nullable String refusal,
         boolean isChoosingLocation
     ) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.attendance_widget);
         views.setOnClickPendingIntent(R.id.attendance_widget_root, openApp(context));
-        int widthDP = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
-        boolean isMedium = widthDP >= mediumMinimumWidthDP;
+        boolean isMedium = size.isMedium();
 
         if (entry.failure != null) {
             views.setViewVisibility(R.id.attendance_widget_failure, View.VISIBLE);
@@ -70,24 +66,24 @@ final class AttendanceWidgetDrawing {
         views.setViewVisibility(R.id.attendance_widget_today, View.VISIBLE);
         views.setViewVisibility(R.id.attendance_widget_picker, View.GONE);
 
+        size.scale(views);
         drawWorkedTime(context, views, entry);
         drawWhereabouts(context, views, entry, choice, isMedium);
         views.setImageViewBitmap(
             R.id.attendance_widget_day_bar,
-            AttendanceDayBar.draw(context, entry.today.bars(entry.currentTime()), entry.locations, Math.max(0, widthDP - horizontalPaddingDP))
+            AttendanceDayBar.draw(context, entry.today.bars(entry.currentTime()), entry.locations, size.barWidthDP(), size.barHeightDP())
         );
-        drawStatus(context, views, entry, refusal, isMedium);
+        drawStatus(views, entry, refusal, isMedium);
         drawButtons(context, views, entry, choice, others, isMedium);
         return views;
     }
 
     private static void drawWorkedTime(Context context, RemoteViews views, AttendanceWidgetEntry entry) {
-        long elapsed = entry.today.elapsedMillis(entry.date);
-        long base = SystemClock.elapsedRealtime() - elapsed;
-        boolean isWorking = entry.today.isWorking();
-        int color = !isWorking && elapsed == 0 ? R.color.attendance_widget_text_dimmed : R.color.attendance_widget_text;
-        views.setChronometer(R.id.attendance_widget_worked, base, null, isWorking);
-        views.setTextColor(R.id.attendance_widget_worked, context.getColor(color));
+        int minutes = entry.today.elapsedMinutes(entry.date);
+        boolean isDimmed = !entry.today.isWorking() && minutes == 0;
+        int color = context.getColor(isDimmed ? R.color.attendance_widget_text_dimmed : R.color.attendance_widget_text);
+        views.setTextViewText(R.id.attendance_widget_worked, AttendanceDurationText.of(context, minutes, color));
+        views.setTextColor(R.id.attendance_widget_worked, color);
     }
 
     private static void drawWhereabouts(
@@ -118,7 +114,6 @@ final class AttendanceWidgetDrawing {
     }
 
     private static void drawStatus(
-        Context context,
         RemoteViews views,
         AttendanceWidgetEntry entry,
         @Nullable String refusal,
@@ -126,30 +121,29 @@ final class AttendanceWidgetDrawing {
     ) {
         if (refusal != null) {
             views.setViewVisibility(R.id.attendance_widget_marks, View.GONE);
-            views.setViewVisibility(R.id.attendance_widget_refusal, View.VISIBLE);
+            views.setViewVisibility(R.id.attendance_widget_refusal_row, View.VISIBLE);
             views.setTextViewText(R.id.attendance_widget_refusal, refusal);
             return;
         }
-        views.setViewVisibility(R.id.attendance_widget_refusal, View.GONE);
+        views.setViewVisibility(R.id.attendance_widget_refusal_row, View.GONE);
         views.setViewVisibility(R.id.attendance_widget_marks, View.VISIBLE);
 
-        StringBuilder marks = new StringBuilder();
         AttendanceToday today = entry.today;
-        if (today.clockInTime() != null) {
-            marks.append(context.getString(R.string.attendance_widget_mark_clock_in, today.clockInTime()));
-        }
-        if (today.clockOutTime() != null && !today.isWorking()) {
-            appendMark(marks, context.getString(R.string.attendance_widget_mark_clock_out, today.clockOutTime()));
-        }
-        if (!isMedium && today.isWorking() && today.location() != null) {
-            appendMark(marks, context.getString(R.string.attendance_widget_mark_location, today.location()));
-        }
-        views.setTextViewText(R.id.attendance_widget_marks, marks);
+        drawMark(views, R.id.attendance_widget_mark_in_icon, R.id.attendance_widget_mark_in, today.clockInTime());
+        drawMark(views, R.id.attendance_widget_mark_out_icon, R.id.attendance_widget_mark_out, today.isWorking() ? null : today.clockOutTime());
+        drawMark(
+            views,
+            R.id.attendance_widget_mark_location_icon,
+            R.id.attendance_widget_mark_location,
+            !isMedium && today.isWorking() ? today.location() : null
+        );
     }
 
-    private static void appendMark(StringBuilder marks, String mark) {
-        if (marks.length() > 0) marks.append("   ");
-        marks.append(mark);
+    private static void drawMark(RemoteViews views, int icon, int label, @Nullable String shown) {
+        int visibility = shown == null ? View.GONE : View.VISIBLE;
+        views.setViewVisibility(icon, visibility);
+        views.setViewVisibility(label, visibility);
+        if (shown != null) views.setTextViewText(label, shown);
     }
 
     private static void drawButtons(
@@ -168,9 +162,7 @@ final class AttendanceWidgetDrawing {
 
         if (entry.today.isWorking()) {
             views.setViewVisibility(R.id.attendance_widget_other, View.GONE);
-            views.setTextViewText(R.id.attendance_widget_primary, context.getString(R.string.attendance_widget_clock_out));
-            views.setInt(R.id.attendance_widget_primary, "setBackgroundResource", R.drawable.attendance_widget_button);
-            views.setTextColor(R.id.attendance_widget_primary, context.getColor(R.color.attendance_widget_text));
+            drawPrimary(context, views, context.getString(R.string.attendance_widget_clock_out), false);
             views.setOnClickPendingIntent(R.id.attendance_widget_primary, action(context, AttendanceWidgetProvider.actionClockOut, null));
             return;
         }
@@ -185,10 +177,22 @@ final class AttendanceWidgetDrawing {
             ? context.getString(R.string.attendance_widget_clock_in_at, choice.location.name)
             : context.getString(R.string.attendance_widget_clock_in);
         String location = choice.location == null ? null : choice.location.name;
-        views.setTextViewText(R.id.attendance_widget_primary, label);
-        views.setInt(R.id.attendance_widget_primary, "setBackgroundResource", R.drawable.attendance_widget_button_prominent);
-        views.setTextColor(R.id.attendance_widget_primary, context.getColor(R.color.attendance_widget_on_accent));
+        drawPrimary(context, views, label, true);
         views.setOnClickPendingIntent(R.id.attendance_widget_primary, action(context, AttendanceWidgetProvider.actionClockIn, location));
+    }
+
+    private static void drawPrimary(Context context, RemoteViews views, String label, boolean isProminent) {
+        views.setTextViewText(R.id.attendance_widget_primary_label, label);
+        views.setViewVisibility(R.id.attendance_widget_primary_icon, isProminent ? View.VISIBLE : View.GONE);
+        views.setInt(
+            R.id.attendance_widget_primary,
+            "setBackgroundResource",
+            isProminent ? R.drawable.attendance_widget_button_prominent : R.drawable.attendance_widget_button
+        );
+        views.setTextColor(
+            R.id.attendance_widget_primary_label,
+            context.getColor(isProminent ? R.color.attendance_widget_on_accent : R.color.attendance_widget_accent)
+        );
     }
 
     private static void drawPicker(Context context, RemoteViews views, List<WorkLocation> locations) {
@@ -221,6 +225,7 @@ final class AttendanceWidgetDrawing {
     private static CharSequence dotted(Context context, WorkLocation location) {
         SpannableString named = new SpannableString("● " + location.name);
         named.setSpan(new ForegroundColorSpan(AttendanceDayBar.colorOf(context, location.color)), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        named.setSpan(new RelativeSizeSpan(locationDotSize), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return named;
     }
 

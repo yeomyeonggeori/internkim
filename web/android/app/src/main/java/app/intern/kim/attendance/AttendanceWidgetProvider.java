@@ -15,13 +15,14 @@ public class AttendanceWidgetProvider extends AppWidgetProvider {
     static final String actionShowLocations = "app.intern.kim.attendance.SHOW_LOCATIONS";
     static final String actionHideLocations = "app.intern.kim.attendance.HIDE_LOCATIONS";
     static final String actionRedraw = "app.intern.kim.attendance.REDRAW";
+    static final String actionTick = "app.intern.kim.attendance.TICK";
     static final String locationExtra = "location";
 
     private static final ExecutorService worker = Executors.newSingleThreadExecutor();
 
     static void redrawSoon(Context context) {
         Context application = context.getApplicationContext();
-        worker.execute(() -> AttendanceWidgetRefresh.redrawNow(application));
+        worker.execute(() -> AttendanceWidgetRefresh.redrawNow(application, false));
     }
 
     @Override
@@ -36,16 +37,18 @@ public class AttendanceWidgetProvider extends AppWidgetProvider {
                 long now = System.currentTimeMillis();
                 AttendanceLocationChoice.open(context, now);
                 AttendanceWidgetCacheStore.markTap(context, now);
-                AttendanceWidgetRefresh.redrawNow(context);
+                AttendanceWidgetRefresh.redrawNow(context, false);
             });
         } else if (actionHideLocations.equals(action)) {
             inBackground(() -> {
                 AttendanceLocationChoice.close(context);
                 AttendanceWidgetCacheStore.markTap(context, System.currentTimeMillis());
-                AttendanceWidgetRefresh.redrawNow(context);
+                AttendanceWidgetRefresh.redrawNow(context, false);
             });
         } else if (actionRedraw.equals(action)) {
-            inBackground(() -> AttendanceWidgetRefresh.redrawNow(context));
+            inBackground(() -> AttendanceWidgetRefresh.redrawNow(context, false));
+        } else if (actionTick.equals(action)) {
+            inBackground(() -> AttendanceWidgetRefresh.redrawNow(context, true));
         } else {
             super.onReceive(context, intent);
         }
@@ -53,12 +56,12 @@ public class AttendanceWidgetProvider extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context context, AppWidgetManager manager, int[] widgetIDs) {
-        inBackground(() -> AttendanceWidgetRefresh.redrawNow(context));
+        inBackground(() -> AttendanceWidgetRefresh.redrawNow(context, false));
     }
 
     @Override
     public void onAppWidgetOptionsChanged(Context context, AppWidgetManager manager, int widgetID, Bundle options) {
-        inBackground(() -> AttendanceWidgetRefresh.redrawNow(context));
+        inBackground(() -> AttendanceWidgetRefresh.redrawNow(context, false));
     }
 
     @Override

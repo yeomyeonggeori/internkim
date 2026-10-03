@@ -1,6 +1,7 @@
 package app.intern.kim.attendance;
 
 import android.content.Context;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -8,11 +9,14 @@ final class AttendanceWidgetReader {
 
     private AttendanceWidgetReader() {}
 
-    static AttendanceWidgetEntry read(Context context, long now) {
+    static AttendanceWidgetEntry read(Context context, long now, boolean isTick) {
         try {
             AttendanceAPI api = AttendanceAPI.held(context);
             String origin = api.credential.origin;
             AttendanceWidgetCache cache = AttendanceWidgetCacheStore.held(context, origin);
+            if (isTick && AttendanceWidgetCache.drawsTickFromCache(cache.rowsListedAt, cache.settings, now)) {
+                return fromHeld(cache, now);
+            }
             boolean drawsTap = AttendanceWidgetCache.drawsTapFromCache(cache.tappedAt, now);
             boolean isStale = false;
 
@@ -55,5 +59,14 @@ final class AttendanceWidgetReader {
         } catch (AttendanceAPI.Failure failure) {
             return AttendanceWidgetEntry.failed(now, failure.getMessage());
         }
+    }
+
+    private static AttendanceWidgetEntry fromHeld(AttendanceWidgetCache cache, long now) {
+        CompanySettings settings = cache.settings;
+        TimeZone zone = settings.companyTimeZone();
+        List<AttendanceRow> rows = new ArrayList<>(cache.rows);
+        if (cache.pending != null) rows.add(cache.pending);
+        AttendanceToday today = AttendanceToday.of(rows, CompanyClock.day(now, zone), now);
+        return new AttendanceWidgetEntry(now, today, settings.workLocations, zone, null, false);
     }
 }
