@@ -8,7 +8,7 @@ import (
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 
 	"github.com/yeomyeonggeori/internkim/internal/centralplane"
-	"github.com/yeomyeonggeori/internkim/internal/fleetdomain"
+	"github.com/yeomyeonggeori/internkim/internal/companyzone"
 	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -131,7 +131,7 @@ func companyAddressFrom(apiBaseURL string) string {
 	if apiBaseURL == "" {
 		return ""
 	}
-	zone := fleetdomain.Zone(apiBaseURL)
+	zone := companyzone.Zone(apiBaseURL)
 	if zone == "" {
 		return apiBaseURL
 	}

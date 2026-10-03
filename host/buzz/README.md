@@ -62,10 +62,9 @@ in a request much later.
 ## Bringing a Mattermost workspace across
 
 `buzz-migrate`, which the package ships, imports a Mattermost team into the
-relay. admind's recovery script is the reference invocation: it names the
-Mattermost address and a file holding its session token, the relay's database,
-`buzz-admin`, the key seed, and the bridge that keeps what each imported message
-became. `--channels 광장` imports one channel while you check the result, and
+relay. It takes the Mattermost address and a file holding its session token, the
+relay's database, `buzz-admin`, the key seed, and the bridge that keeps what each
+imported message became. `--channels 광장` imports one channel while you check the result, and
 `--since <unix-millis>` picks up where a previous run stopped.
 
 **The seed is read from the file rather than passed in, and that is the point.**
@@ -90,8 +89,8 @@ silent. History signed under one seed belongs to keys a person signing in under
 another seed never derives, so they cannot see or own it.
 
 - Keep it in one place a reader can find: `INTERNKIM_BUZZ_KEY_SEED` in the
-  vault on a development machine, the service secrets directory on a device,
-  and a copy in the operations vault off the box. A second local copy that
+  vault on a development machine, the host's secrets directory on the host,
+  and a copy in the operations vault off the host. A second local copy that
   disagrees derives identities nobody can sign in as.
 - Never set it inline for one command. `tools/mirror-local` writes it to a seed
   file only when the variable is set, and an inline value is not persisted

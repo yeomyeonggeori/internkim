@@ -15,6 +15,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/yeomyeonggeori/internkim/internal/buzzidentity"
+	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type circleRoomOutcome struct {
@@ -319,10 +320,20 @@ func (service *Service) circleRoomNames(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
-func (service *Service) bootstrapPubkeyOrEmpty() string {
-	pubkey, errorValue := service.bootstrapBuzzPubkey()
-	if errorValue != nil {
-		return ""
-	}
-	return pubkey
+// A client lists rooms from their kind 39000 discovery events, not from the
+// channels table, and reconcile-channels writes an event only where none
+// exists. A row changed without dropping its event leaves every client showing
+// the room as it was, through a reload and through a restart.
+func buzzRoomChangeRepublish() string {
+	return `
+export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' ` + blueclaw.BuzzRelayKeyEnvironmentFilePath + ` | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
+export DATABASE_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
+export RELAY_URL=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1)
+if [ -z "$BUZZ_RELAY_PRIVATE_KEY" ] || [ -z "$RELAY_URL" ]; then
+  echo "the rows changed but no client was told: this device names no relay key or public host"
+  exit 1
+fi
+printf '== told the clients ==\n'
+` + blueclaw.BuzzAdminBinaryPath + ` reconcile-channels
+`
 }

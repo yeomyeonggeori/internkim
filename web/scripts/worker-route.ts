@@ -13,6 +13,6 @@ export function zoneOfSettings(settings: Record<string, string | undefined>): st
 export function routePatternOfSubdomain(label: string, zone: string): string {
 	const subdomain = label.trim().toLowerCase();
 	if (!subdomain) throw new Error('name the subdomain the worker answers on');
-	if (subdomain.includes('.')) throw new Error(`${label} is a hostname, not a subdomain; the zone comes from fleetdomain`);
+	if (subdomain.includes('.')) throw new Error(`${label} is a hostname, not a subdomain; the zone comes from companyzone`);
 	return `${subdomain}.${zone}/*`;
 }

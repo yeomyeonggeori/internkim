@@ -2,70 +2,61 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
-type sshClient struct {
-	user string
-	pass string
-	host string
-	port string
+const defaultHostSSHUser = "internkim"
+
+type hostSSH struct {
+	hostname     string
+	user         string
+	password     string
+	proxyCommand string
 }
 
-func newSSH(user, pass, host string) *sshClient {
-	return &sshClient{user: user, pass: pass, host: host, port: "22"}
+func hostSSHFromEnvironment(repositoryRootPath string) (hostSSH, error) {
+	hostname := strings.TrimSpace(os.Getenv("INTERNKIM_SSH_HOSTNAME"))
+	if hostname == "" {
+		return hostSSH{}, errors.New("INTERNKIM_SSH_HOSTNAME names no host; run it as `internkim @host ssh`")
+	}
+	accessHelperPath := filepath.Join(repositoryRootPath, "tools", "cloudflared-access-ssh")
+	return hostSSH{
+		hostname:     hostname,
+		user:         firstNonEmptyString(strings.TrimSpace(os.Getenv("INTERNKIM_SSH_USER")), defaultHostSSHUser),
+		password:     os.Getenv("INTERNKIM_CONSOLE_PASSWORD"),
+		proxyCommand: quoteShellValue(accessHelperPath) + " %h",
+	}, nil
 }
 
-func requireSSHPass() error {
+func (connection hostSSH) sshArguments(remoteArguments []string) []string {
+	arguments := []string{"-o", "ProxyCommand=" + connection.proxyCommand, "-o", "StrictHostKeyChecking=accept-new"}
+	if connection.password != "" {
+		arguments = append(arguments, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
+	}
+	arguments = append(arguments, connection.user+"@"+connection.hostname)
+	return append(arguments, remoteArguments...)
+}
+
+func (connection hostSSH) command(remoteArguments []string) (*exec.Cmd, error) {
+	if connection.password == "" {
+		return exec.Command("ssh", connection.sshArguments(remoteArguments)...), nil
+	}
 	if _, errorValue := exec.LookPath("sshpass"); errorValue != nil {
-		return errors.New("password SSH needs sshpass on PATH: brew install sshpass, or apt install sshpass")
+		return nil, errors.New("password SSH needs sshpass on PATH: brew install sshpass, or apt install sshpass")
 	}
-	return nil
+	command := exec.Command("sshpass", append([]string{"-e", "ssh"}, connection.sshArguments(remoteArguments)...)...)
+	command.Env = append(os.Environ(), "SSHPASS="+connection.password)
+	return command, nil
 }
 
-func (s *sshClient) sshArgs(extra ...string) []string {
-	base := []string{
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "ConnectTimeout=10",
-		"-o", "LogLevel=ERROR",
-		"-p", s.port,
+func (connection hostSSH) privilegedCommand(command string) string {
+	if connection.password == "" {
+		return "sudo -p '' bash -lc " + quoteShellValue(command)
 	}
-	if s.pass != "" {
-		base = append(base, "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no")
-	}
-	return append(base, extra...)
-}
-
-func (s *sshClient) runInteractiveSSH(remoteArguments []string) error {
-	target := fmt.Sprintf("%s@%s", s.user, s.host)
-	commandName := "ssh"
-	commandArguments := append(s.sshArgs(target), remoteArguments...)
-	if s.pass != "" {
-		if errorValue := requireSSHPass(); errorValue != nil {
-			return errorValue
-		}
-		commandName = "sshpass"
-		commandArguments = append([]string{"-p", s.pass, "ssh"}, append(s.sshArgs(target), remoteArguments...)...)
-	}
-	command := exec.Command(commandName, commandArguments...)
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	return command.Run()
-}
-
-func (s *sshClient) privilegedCommand(command string) string {
-	if s.user == "root" {
-		return command
-	}
-	if s.pass != "" {
-		return "printf '%s\n' " + quoteShellValue(s.pass) + " | sudo -S -p '' bash -lc " + quoteShellValue(command)
-	}
-	return "sudo -p '' bash -lc " + quoteShellValue(command)
+	return "printf '%s\n' " + quoteShellValue(connection.password) + " | sudo -S -p '' bash -lc " + quoteShellValue(command)
 }
 
 func quoteShellValue(value string) string {

@@ -377,7 +377,7 @@ and delete the duplicates.
 - When the user asks to run a local web page for them to inspect, prefer the
   central plane: the local loop below, and hand over a real
   sign-in. A mock flag (`VITE_MOCK_TASKS=1` or `VITE_MOCK_ADMIN=1`, with an
-  explicit `VITE_DEV_USER_EMAIL`) is for device-backed screens that have no
+  explicit `VITE_DEV_USER_EMAIL`) is for host-backed screens that have no
   Supabase path yet; with those, verify `/auth/session` returns
   `authenticated: true` before giving the URL.
 - Unit tests must not reach the central plane. The app receives it at runtime
@@ -396,7 +396,7 @@ and delete the duplicates.
   document to each other. An endpoint added to one is added to the other.
 - That integration suite is also the API's smoke check. `cd web && bun run
   test:integration` runs the route handlers against the local control plane, so
-  it costs nothing: no model, no messenger, no device. It covers refusals, the
+  it costs nothing: no model, no messenger, no host. It covers refusals, the
   catalog, the token lifecycle, and that an invocation is refused rather than
   answered here when no gateway is configured. Add a case there when an
   endpoint is added, and run it before deploying the web app.
@@ -434,7 +434,7 @@ and delete the duplicates.
   reverts the rest. There is no dry run. The push output is a unified diff where
   `-` is the live state and `+` is what you are sending; read it before trusting
   a green exit.
-- The company web app runs on Supabase, not on a device. `supabase/migrations`
+- The company web app runs on Supabase, not on the company's host. `supabase/migrations`
   is the schema of record and `docs/record/schema.mdx` explains it. Never edit an
   applied migration; add the next one.
 - Local loop, in order, under the lock below: `supabase db reset` (schema
@@ -470,7 +470,7 @@ and delete the duplicates.
 
 - Which Supabase project the app talks to is decided at **runtime**, injected by
   `hooks.server.ts` into the `#central-plane` element, not baked in by `VITE_*`.
-  One build therefore serves both a device host and a company host — keep it
+  One build therefore serves every company's Supabase project. Keep it
   that way, and reach the values through `$env/dynamic/private`.
 - Custom domains always serve the **production** deployment; preview builds only
   ever answer on `*.pages.dev`. A hostname cannot point at a preview.
@@ -534,11 +534,10 @@ and delete the duplicates.
 - The web app is deployed as "SaaS Web Deployment" above says.
 - A green `systemctl` is not a working agent: look for a task run newer than
   the upgrade.
-- The Jetson that ran the device path is reached only for its cutover:
-  `./internkim @board recover --action migration-export` asks its admind for
-  the export, and `tools/cloudflared-access-ssh` is the ProxyCommand that
-  copies it off. `recover`, the fleet ID and secret, the device URL and
-  admind's recovery actions go once the Jetson is off.
+- Our own company host is a level 4 host (`docs/self-hosting.mdx`).
+  `./internkim @host ssh` reaches it through its Cloudflare Access
+  application with the service token in the `@host` vault profile;
+  `-- <command>` runs one command, and `--sudo` runs it as root.
 
 ## Blueclaw Terminal Permission Boundary
 

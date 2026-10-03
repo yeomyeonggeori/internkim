@@ -93,3 +93,21 @@ bun run scripts/deploy-pages.ts --project <your-pages-project> --output .svelte-
 
 터널이나 서버는 운영자의 것입니다. [다른 호스트](/docs/architecture#why-the-host-has-no-inbound-port)와
 마찬가지로 `~/.ssh/config`가 그 길을 가리킵니다.
+
+### 내 Cloudflare Tunnel로 접속하기
+
+저희 회사의 호스트도 이렇게 접속합니다. 호스트에서 내 Cloudflare 계정의 터널이 공개
+호스트 이름 하나를 `ssh://localhost:22`로 이어 줍니다. Zero Trust에서 그 호스트 이름에
+만든 self-hosted Access 애플리케이션은 운영자가 로그인하면 들여보내고, Service Auth
+정책은 서비스 토큰을 들여보냅니다. 서비스 토큰은 브라우저가 필요 없어서 스크립트가
+씁니다. 어느 네트워크에서든:
+
+```
+Host ssh.example.com
+  User <호스트의 계정>
+  ProxyCommand cloudflared access ssh --hostname %h --service-token-id <client id> --service-token-secret <client secret>
+```
+
+토큰 플래그 두 개를 빼면 `cloudflared`가 대신 브라우저 로그인을 엽니다. 이
+저장소에서는 `tools/cloudflared-access-ssh`가 금고에서 토큰을 읽는 그 ProxyCommand이고,
+`./internkim @host ssh`가 그것을 거쳐 접속합니다.

@@ -90,8 +90,6 @@ func main() {
 		stopOnFailure("Backup stopped", runBackup(os.Args[2:]))
 	case "restore":
 		stopOnFailure("Restore stopped", runRestore(os.Args[2:]))
-	case "import-device":
-		stopOnFailure("Import stopped", runImportDevice(os.Args[2:]))
 	case "refresh":
 		stopOnFailure("The company was not brought back", runRefresh())
 	case blueclaw.SkillPreparationVerb:
@@ -120,7 +118,6 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s import-device <migration-export-directory> --connection <internkim-host.json>\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
 	fmt.Fprintf(os.Stderr, "       %s %s\n", command, blueclaw.SkillPreparationVerb)
 	fmt.Fprintf(os.Stderr, "       %s update --version vYYYY.MM.DD.HHMMSS\n", command)
