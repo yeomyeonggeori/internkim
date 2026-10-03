@@ -49,10 +49,7 @@ type Configuration struct {
 	AdminEmailPath                 string
 	ClaimedAdminEmailPath          string
 	APIURLPath                     string
-	FleetIDPath                    string
-	DeviceURLPath                  string
 	TaskPublicURLPath              string
-	FleetSecretPath                string
 	AdminUIPath                    string
 	RepositoryRoot                 string
 	FontsDirectory                 string
@@ -111,10 +108,7 @@ func DefaultConfiguration() Configuration {
 		CentralPlaneProjectURLPath:     "/root/.internkim/env/central-plane-project-url",
 		CentralPlanePublishableKey:     centralplane.DefaultPublishableKey,
 		CentralPlanePublishableKeyPath: "/root/.internkim/env/central-plane-publishable-key",
-		FleetIDPath:                    "/root/.internkim/env/fleet-id",
-		DeviceURLPath:                  "/root/.internkim/env/device-url",
 		TaskPublicURLPath:              "/root/.internkim/env/flow-public-url",
-		FleetSecretPath:                "/root/.internkim/secrets/fleet-secret",
 		AdminUIPath:                    "/opt/internkim/admin-ui",
 		RepositoryRoot:                 "/",
 		FontsDirectory:                 "/opt/internkim/fonts",
@@ -273,17 +267,8 @@ func (configuration Configuration) withCentralPlaneDefaults(defaultConfiguration
 }
 
 func (configuration Configuration) withFleetDefaults(defaultConfiguration Configuration) Configuration {
-	if configuration.FleetIDPath == "" {
-		configuration.FleetIDPath = defaultConfiguration.FleetIDPath
-	}
-	if configuration.DeviceURLPath == "" {
-		configuration.DeviceURLPath = defaultConfiguration.DeviceURLPath
-	}
 	if configuration.TaskPublicURLPath == "" {
 		configuration.TaskPublicURLPath = defaultConfiguration.TaskPublicURLPath
-	}
-	if configuration.FleetSecretPath == "" {
-		configuration.FleetSecretPath = defaultConfiguration.FleetSecretPath
 	}
 	if configuration.AdminUIPath == "" {
 		configuration.AdminUIPath = defaultConfiguration.AdminUIPath

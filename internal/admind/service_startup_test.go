@@ -34,8 +34,6 @@ func TestRunServesRequesterMemoryOverTheSocket(t *testing.T) {
 	service.Configuration.CentralPlaneProjectURL = companyProjectURLForTest
 	service.Configuration.CentralPlanePublishableKey = "publishable"
 	service.Configuration.BlueclawBaseURL = "http://blueclaw.local"
-	service.Configuration.FleetIDPath = writeTestFile(t, "device-1")
-	service.Configuration.FleetSecretPath = writeTestFile(t, "secret-1")
 	service.Configuration.CentralPlaneAgentKeyPath = writeTestFile(t, "test-agent-key")
 	service.Configuration.BlueclawAssertionKeyPath = writeTestFile(t, "test-assertion-key")
 	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)

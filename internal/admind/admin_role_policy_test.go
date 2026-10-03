@@ -10,17 +10,11 @@ import (
 
 func TestAdminSessionReadsTheRoleFromTheDirectory(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, claimedAdminEmailPath, "owner@example.com")
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
@@ -42,17 +36,11 @@ func TestAdminSessionReadsTheRoleFromTheDirectory(t *testing.T) {
 
 func TestAdminSessionPreservesClaimedAdminRole(t *testing.T) {
 	deviceDirectory := t.TempDir()
-	fleetIDPath := filepath.Join(deviceDirectory, "fleet-id")
-	fleetSecretPath := filepath.Join(deviceDirectory, "fleet-secret")
 	claimedAdminEmailPath := filepath.Join(deviceDirectory, "claimed-admin-email")
-	writeFile(t, fleetIDPath, "dc719d8e")
-	writeFile(t, fleetSecretPath, "secret-value")
 	writeFile(t, claimedAdminEmailPath, "owner@example.com")
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		ClaimedAdminEmailPath: claimedAdminEmailPath,
-		FleetIDPath:           fleetIDPath,
-		FleetSecretPath:       fleetSecretPath,
 		StateDirectory:        t.TempDir(),
 		AdminUIPath:           t.TempDir(),
 	})
@@ -110,8 +98,6 @@ func newAdminConsoleAuthorizationTestService(t *testing.T) *Service {
 	service := NewService(Configuration{
 		APIBaseURL:            "https://api.example.test",
 		ClaimedAdminEmailPath: writeTestFile(t, "owner@example.com"),
-		FleetIDPath:           writeTestFile(t, "dc719d8e"),
-		FleetSecretPath:       writeTestFile(t, "secret-value"),
 		CalendarDatabasePath:  filepath.Join(rootPath, "calendar.sqlite"),
 		StateDirectory:        filepath.Join(rootPath, "state"),
 		AdminUIPath:           t.TempDir(),

@@ -53,6 +53,7 @@ func TestTaskRunRetryForwardsTrustedViewerAndPreservesBlueclawStatus(t *testing.
 			configuration := taskRetryTestConfiguration(t, "admin@example.com")
 			configuration.BlueclawBaseURL = blueclaw.URL
 			service := NewService(configuration)
+			seatAdministratorInTheCompanyForTest(t, service, "admin@example.com")
 			request := httptest.NewRequest(http.MethodPost, "/runs/api/retry", strings.NewReader(`{"taskRunID":"run-1","viewerEmail":"forged@example.com","viewerIsAdmin":false}`))
 			request.Header.Set(requesterEmailHeader, "admin@example.com")
 			response := httptest.NewRecorder()
@@ -69,6 +70,7 @@ func TestTaskRunRetryForwardsTrustedViewerAndPreservesBlueclawStatus(t *testing.
 
 func TestTaskRunRetryRejectsMalformedAndMissingTaskRunID(t *testing.T) {
 	service := NewService(taskRetryTestConfiguration(t, "admin@example.com"))
+	seatAdministratorInTheCompanyForTest(t, service, "admin@example.com")
 	for _, body := range []string{"not-json", `{}`} {
 		request := httptest.NewRequest(http.MethodPost, "/runs/api/retry", strings.NewReader(body))
 		request.Header.Set(requesterEmailHeader, "admin@example.com")
@@ -83,8 +85,6 @@ func TestTaskRunRetryRejectsMalformedAndMissingTaskRunID(t *testing.T) {
 func taskRetryTestConfiguration(t *testing.T, adminEmail string) Configuration {
 	t.Helper()
 	return Configuration{
-		AdminEmailPath:  writeTestFile(t, adminEmail),
-		FleetIDPath:     writeTestFile(t, ""),
-		FleetSecretPath: writeTestFile(t, ""),
+		AdminEmailPath: writeTestFile(t, adminEmail),
 	}
 }
