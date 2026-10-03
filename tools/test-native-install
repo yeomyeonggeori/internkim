@@ -924,6 +924,11 @@ class Rig:
 
     # ------------------------------------------------------------------ step 5
 
+    def start_the_plane(self):
+        self.plane = CompanyPlane(self.working_directory / "plane", self.machine.host_gateway())
+        self.plane.start()
+        self.plane.reach_the_record_from(self.machine)
+
     def give_the_guest_a_company(self, step, plane):
         """Everything a person does between downloading the file and a running box."""
         connection = plane.connection_document()
@@ -1254,7 +1259,7 @@ class Rig:
         observe_the_conversion_environment(self.machine, step)
         self.message_text = message_asking_for_an_answer("after the upgrade")
         self.observe_the_host_holds_the_gateway_socket(step)
-        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_member_round_trip(step, plane, is_watching_for_typing=True)
         self.observe_the_agent_answered(step)
         retired = self.machine.shell(RETIRED_MEMORY_STORE_COMMAND)
         step.observe(
@@ -1268,9 +1273,7 @@ class Rig:
         if len(releases) < 2:
             raise RigFailure("--people-upgrade needs --older-package-directory: a host that has people is upgraded from an earlier release")
         step = self.step(12, "a host that already has people and their memory is upgraded and its agent stays up")
-        self.plane = CompanyPlane(self.working_directory / "plane", self.machine.host_gateway())
-        self.plane.start()
-        self.plane.reach_the_record_from(self.machine)
+        self.start_the_plane()
         self.give_the_guest_a_company(step, self.plane)
         self.observe_running_services(step)
         people = self.observe_people_hold_homes(step)
@@ -1437,7 +1440,7 @@ class Rig:
         )
 
         self.message_text = message_asking_for_an_answer("sent again after the agent update")
-        self.observe_the_member_round_trip(step, plane)
+        self.observe_the_member_round_trip(step, plane, is_watching_for_typing=True)
         self.observe_the_agent_answered(step)
 
         promised_seconds = agent_update.promised_downtime_seconds()
@@ -1739,6 +1742,16 @@ def kept_or_temporary_directory(is_kept):
     yield tempfile.mkdtemp(prefix="internkim-install-rig-")
 
 
+def judge_what_the_release_under_test_does(rig):
+    step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
+    if rig_model_key() == RIG_MODEL_KEY:
+        step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
+    else:
+        rig.observe_the_agent_sends_a_pdf(step_eleven, rig.plane)
+    step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
+    rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
+
+
 def run_every_step(rig, options, releases, baseline):
     step_two = rig.step(2, "the machine is in the state the package manager would have left it")
     rig.run_step_two(step_two, baseline)
@@ -1747,6 +1760,7 @@ def run_every_step(rig, options, releases, baseline):
 
     step_five = rig.step(5, "a person signs in and exchanges a message")
     revision_before = {}
+    is_an_upgrade = len(releases) > 1
     if options.stand_in or options.without_company:
         step_five.block(
             "not run against a stand-in: the package under test carries none of the "
@@ -1755,25 +1769,18 @@ def run_every_step(rig, options, releases, baseline):
             else "not run: --without-company was passed, so no plane issued this guest a company"
         )
     else:
-        rig.plane = CompanyPlane(rig.working_directory / "plane", rig.machine.host_gateway())
-        rig.plane.start()
-        rig.plane.reach_the_record_from(rig.machine)
+        rig.start_the_plane()
         rig.give_the_guest_a_company(step_five, rig.plane)
         rig.observe_running_services(step_five)
         observe_a_real_conversion(rig.machine, step_five)
         rig.observe_the_host_holds_the_gateway_socket(step_five)
-        rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=True)
+        rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=not is_an_upgrade)
         rig.observe_the_agent_answered(step_five)
-        step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
-        if rig_model_key() == RIG_MODEL_KEY:
-            step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
-        else:
-            rig.observe_the_agent_sends_a_pdf(step_eleven, rig.plane)
-        step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
-        rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
         revision_before = rig.build_identity_the_guest_reports()
+        if not is_an_upgrade:
+            judge_what_the_release_under_test_does(rig)
 
-    is_an_agent_update = options.agent_update and rig.plane and len(releases) > 1
+    is_an_agent_update = options.agent_update and rig.plane and is_an_upgrade
     if is_an_agent_update:
         step_ten = rig.step(10, "an administrator asks the agent, and the host moves to the newer release and says so")
         rig.run_step_ten(step_ten, releases, rig.plane)
@@ -1782,12 +1789,14 @@ def run_every_step(rig, options, releases, baseline):
         rig.run_step_three(step_three, releases)
 
     if not options.stand_in and not options.without_company:
-        if len(releases) > 1 and not is_an_agent_update:
+        if is_an_upgrade and not is_an_agent_update:
             step_seven = rig.step(7, "after the upgrade the same person still reaches the agent and hears back")
             rig.observe_the_upgraded_host_answers(step_seven, rig.plane)
             rig.observe_the_processes_moved(
                 step_seven, revision_before, rig.build_identity_the_guest_reports()
             )
+        if is_an_upgrade:
+            judge_what_the_release_under_test_does(rig)
         step_six = rig.step(6, f"a backup brings the company back on a fresh {options.restore_family} machine")
         rig.take_a_backup(step_six)
 

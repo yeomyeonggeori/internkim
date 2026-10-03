@@ -430,3 +430,74 @@ class AgentUpdateRigTests(unittest.TestCase):
         unit = (repository_root / "internal" / "hostupdate" / "unit.go").read_text()
         self.assertIn(f'UnitName = "{agent_update.UPDATE_UNIT_NAME.removesuffix(".service")}"', unit)
         self.assertIn(f"/{agent_update.UPDATE_UNIT_NAME}.d/", agent_update.UPDATE_UNIT_DROP_IN_PATH)
+
+
+from unittest import mock  # noqa: E402
+
+rig_driver = load_driver()
+
+
+class SilentMachine:
+    def shell(self, script, **keywords):
+        return subprocess.CompletedProcess(script, 0, stdout="", stderr="")
+
+
+class RecordingRig:
+    """Stands in for the rig's machine-driving methods and records which release each judgment lands on."""
+
+    observe_the_upgraded_host_answers = rig_driver.Rig.observe_the_upgraded_host_answers
+
+    def __init__(self, releases):
+        self.machine = SilentMachine()
+        self.installed = releases[0]
+        self.steps = []
+        self.plane = None
+        self.judged = []
+
+    def step(self, number, name):
+        step = rig_driver.Step(number, name)
+        self.steps.append(step)
+        return step
+
+    def start_the_plane(self):
+        self.plane = "plane"
+
+    def run_step_three(self, step, releases):
+        self.installed = releases[-1]
+
+    def run_step_ten(self, step, releases, plane):
+        self.installed = releases[-1]
+
+    def observe_the_member_round_trip(self, step, plane, is_watching_for_typing=False):
+        if is_watching_for_typing:
+            self.judged.append(("typing", self.installed))
+
+    def observe_the_agent_sends_a_pdf(self, step, plane):
+        self.judged.append(("pdf", self.installed))
+
+    def observe_a_message_that_arrives_before_the_roster(self, step, plane):
+        self.judged.append(("before the roster", self.installed))
+
+    def __getattr__(self, name):
+        return lambda *arguments, **keywords: None
+
+
+class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
+    JUDGMENTS = ["typing", "pdf", "before the roster"]
+
+    def judged_in(self, releases, is_an_agent_update=False):
+        options = type("Options", (), {"stand_in": False, "without_company": False, "agent_update": is_an_agent_update, "restore_family": "fedora"})()
+        recording = RecordingRig(releases)
+        with mock.patch.object(rig_driver, "rig_model_key", lambda: "a real key"), \
+                mock.patch.object(rig_driver, "observe_a_real_conversion", lambda machine, step: None):
+            rig_driver.run_every_step(recording, options, releases, baseline=None)
+        return recording.judged
+
+    def test_a_single_release_is_judged_on_what_it_does(self):
+        self.assertEqual(self.judged_in(["release"]), [(name, "release") for name in self.JUDGMENTS])
+
+    def test_an_upgrade_judges_the_release_it_moves_to_and_not_the_one_it_moves_from(self):
+        self.assertEqual(self.judged_in(["older", "newer"]), [(name, "newer") for name in self.JUDGMENTS])
+
+    def test_an_agent_update_judges_the_release_it_moves_to(self):
+        self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer")])
