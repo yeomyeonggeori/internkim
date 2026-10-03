@@ -115,7 +115,7 @@ func (messenger relayAgentProfile) heldProfile(ctx context.Context) (buzzProfile
 }
 
 func (messenger relayAgentProfile) uploadPicture(ctx context.Context, content []byte, mimeType string) (string, error) {
-	uploader := media.Uploader{HTTPBaseURL: messenger.service.buzzMediaOrigin()}
+	uploader := media.Uploader{HTTPBaseURL: messenger.service.buzzMediaOrigin(), RelayHost: messenger.service.buzzRelayPublicHost()}
 	blob, errorValue := uploader.Upload(ctx, messenger.agentSecret, content, mimeType)
 	if errorValue != nil {
 		return "", errorValue
