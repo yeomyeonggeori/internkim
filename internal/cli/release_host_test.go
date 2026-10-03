@@ -240,3 +240,32 @@ func TestACommitBehindOriginMainIsNotReleased(t *testing.T) {
 		t.Fatalf("a commit behind origin/main was released, and its version would be older than main's: %q", refusal)
 	}
 }
+
+func TestANamedTestedReleaseIsPromotedWithoutLookingAtTheTree(t *testing.T) {
+	original := checkReleaseTree
+	checkReleaseTree = func(string) error { t.Fatal("promoting a published release checked the tree"); return nil }
+	t.Cleanup(func() { checkReleaseTree = original })
+	tap := tapAnswers(t, "the tested formula", "the old formula")
+	calls := recordGitHubCommands(t, func(arguments []string) (string, error) {
+		if arguments[0] == "release" && arguments[1] == "view" {
+			return `{"tagName":"v1","isPrerelease":true}`, nil
+		}
+		return tap(arguments)
+	})
+	if errorValue := runReleaseHost([]string{"--channel", "stable", "--version", "v1"}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !slices.Equal((*calls)[1], []string{"release", "edit", "v1", "--repo", hostReleaseRepository, "--prerelease=false", "--latest"}) {
+		t.Errorf("the named release was not made stable: %v", *calls)
+	}
+}
+
+func TestANamedReleaseIsOnlyPromotedToStable(t *testing.T) {
+	calls := recordGitHubCommands(t, func([]string) (string, error) { return "", nil })
+	if runReleaseHost([]string{"--channel", "testing", "--version", "v1"}) == nil {
+		t.Error("a named release was accepted for testing")
+	}
+	if len(*calls) != 0 {
+		t.Errorf("gh was asked %v", *calls)
+	}
+}
