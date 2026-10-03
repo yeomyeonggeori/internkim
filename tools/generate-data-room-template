@@ -4,19 +4,24 @@ import json
 from pathlib import Path
 
 
+# An applied migration is never edited, so a template change is written to a
+# new migration and this path moves to it.
+TEMPLATE_MIGRATION = "supabase/migrations/20261004000004_the_data_room_template_names_member.sql"
+
+
 def generated_files(repository):
     source = repository / "web/src/lib/data-room/template.json"
     template = json.loads(source.read_text())
     encoded = json.dumps(template, ensure_ascii=False, separators=(",", ":"))
     migration = "\n".join([
-        "create function internal.data_room_template()",
+        "create or replace function internal.data_room_template()",
         "returns jsonb language sql immutable set search_path = ''",
         "as $template$ select $json$" + encoded + "$json$::jsonb; $template$;",
         "revoke all on function internal.data_room_template() from public, anon, authenticated;",
         "",
     ])
     return {
-        repository / "supabase/migrations/20261003000006_data_room_template.sql": migration,
+        repository / TEMPLATE_MIGRATION: migration,
         repository / ".dependency/internkim-plugin/skills/dataroom/assets/template.json": source.read_text(),
         repository / ".dependency/internkim-plugin/skills/dataroom/references/domains.md": template_reference(template),
         repository / "docs/data-room/layout.mdx": template_reference(template, "en", True),

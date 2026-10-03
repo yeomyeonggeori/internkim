@@ -1,31 +1,28 @@
 import { describe, expect, test } from 'bun:test';
-import { circleNamesByMemberID } from '../../../src/lib/server/member-directory';
+import { circlesByMemberID } from '../../../src/lib/server/member-directory';
 
-describe('the circles a company keeps', () => {
-	test('gives each member the circles that name them', () => {
-		const held = circleNamesByMemberID([
-			{ name: 'admin', circle_member: [{ member_id: 'lee' }, { member_id: 'rain' }] },
-			{ name: 'c-level', circle_member: [{ member_id: 'lee' }] },
-			{ name: 'member', circle_member: [{ member_id: 'lee' }, { member_id: 'rain' }, { member_id: 'kwak' }] }
+describe('the circles a member holds', () => {
+	test('are the data room roles granted to them', () => {
+		const held = circlesByMemberID([
+			{ member_id: 'sample', role_code: 'leadership' },
+			{ member_id: 'sample', role_code: 'member' },
+			{ member_id: 'example', role_code: 'member' }
 		]);
 
-		expect(held.get('lee')).toEqual(['admin', 'c-level', 'member']);
-		expect(held.get('rain')).toEqual(['admin', 'member']);
-		expect(held.get('kwak')).toEqual(['member']);
+		expect(held.get('sample')).toEqual(['leadership', 'member']);
+		expect(held.get('example')).toEqual(['member']);
 	});
 
-	test('leaves out a member no circle names, rather than giving them an empty one', () => {
-		const held = circleNamesByMemberID([{ name: 'c-level', circle_member: [{ member_id: 'lee' }] }]);
-
-		expect(held.has('kwak')).toBe(false);
-	});
-
-	test('reads a circle nobody is in', () => {
-		const held = circleNamesByMemberID([
-			{ name: 'representative', circle_member: [] },
-			{ name: 'hr', circle_member: null }
+	test('name a role once when it is granted twice', () => {
+		const held = circlesByMemberID([
+			{ member_id: 'sample', role_code: 'hr' },
+			{ member_id: 'sample', role_code: 'hr' }
 		]);
 
-		expect(held.size).toBe(0);
+		expect(held.get('sample')).toEqual(['hr']);
+	});
+
+	test('leave out a grant that names no member', () => {
+		expect(circlesByMemberID([{ member_id: null, role_code: 'investor' }]).size).toBe(0);
 	});
 });

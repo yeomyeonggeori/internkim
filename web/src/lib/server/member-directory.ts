@@ -6,29 +6,31 @@ import { settleSignInOfMember } from './control-plane';
 
 export type CompanyDirectory = { client: SupabaseClient; companyID: string };
 
-type CircleRow = { name: string; circle_member: { member_id: string }[] | null };
+type HeldRole = { member_id: string | null; role_code: string };
 
-export function circleNamesByMemberID(circles: CircleRow[]): Map<string, string[]> {
-	const namesByMemberID = new Map<string, string[]>();
-	for (const circle of circles) {
-		for (const membership of circle.circle_member ?? []) {
-			const held = namesByMemberID.get(membership.member_id) ?? [];
-			held.push(circle.name);
-			namesByMemberID.set(membership.member_id, held);
-		}
+export function circlesByMemberID(held: HeldRole[]): Map<string, string[]> {
+	const circlesOfMember = new Map<string, string[]>();
+	for (const { member_id: memberID, role_code: circle } of held) {
+		if (!memberID) continue;
+		const circles = circlesOfMember.get(memberID) ?? [];
+		if (!circles.includes(circle)) circles.push(circle);
+		circlesOfMember.set(memberID, circles);
 	}
-	return namesByMemberID;
+	return circlesOfMember;
 }
 
 export async function circlesOfTheCompany(directory: CompanyDirectory): Promise<Map<string, string[]>> {
-	const circles = await directory.client
-		.from('circle')
-		.select('name, circle_member(member_id)')
+	const held = await directory.client
+		.from('data_room_share')
+		.select('member_id, role_code')
 		.eq('company_id', directory.companyID)
-		.order('name')
-		.returns<CircleRow[]>();
-	if (circles.error) throw new Error(circles.error.message);
-	return circleNamesByMemberID(circles.data ?? []);
+		.eq('audience', 'member')
+		.is('revoked_at', null)
+		.or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+		.order('role_code')
+		.returns<HeldRole[]>();
+	if (held.error) throw new Error(held.error.message);
+	return circlesByMemberID(held.data ?? []);
 }
 
 export const memberWriteSchema = z.object({

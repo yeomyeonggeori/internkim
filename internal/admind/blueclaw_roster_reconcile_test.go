@@ -176,7 +176,7 @@ func TestReconcileBlueclawRosterLeavesAnUnchangedRosterAlone(t *testing.T) {
 		AdminEmailPath:             writeTestFile(t, "owner@example.com"),
 		StateDirectory:             t.TempDir(),
 	})
-	settledPolicy := `{"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"isAdmin":false,"personID":"user-1"}]}`
+	settledPolicy := `{"circles":[{"circleID":"member","displayName":"member","workspaceDirectoryPath":"/workspace/circles/member"},{"circleID":"c-level","displayName":"c-level","workspaceDirectoryPath":"/workspace/circles/c-level"}],"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[{"circles":["member","c-level"],"displayName":"Member","emails":["member@example.com"],"isAdmin":false,"personID":"user-1"}]}`
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		switch {
 		case request.Method == http.MethodGet && request.URL.String() == "https://company.example.test/api/agent/company":
@@ -378,7 +378,7 @@ func newCompanyPolicyService(t *testing.T, companyRow func() (int, string)) *Ser
 			status, body := companyRow()
 			return jsonResponse(status, body, nil), nil
 		case "/admin/api/policy":
-			return jsonResponse(http.StatusOK, `{"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"circles":[{"circleID":"member","displayName":"member","workspaceDirectoryPath":"/workspace/circles/member"}],"company":{"brandName":"","description":"","locale":"ko","name":"","representative":"","slogan":"","timeZone":"Asia/Seoul","website":""},"people":[]}`, nil), nil
 		case "/admin/api/policy/reload":
 			return jsonResponse(http.StatusOK, `{}`, nil), nil
 		default:
@@ -463,5 +463,30 @@ func TestTheRosterReachesBlueclawAsSoonAsItAnswersRatherThanAtTheNextTick(t *tes
 	}
 	if !slices.Contains(rosterPolicyEmails(policyDocument), "active@example.com") {
 		t.Fatalf("the delivered roster does not name the member: %s", delivered)
+	}
+}
+
+func TestTheHostDeclaresExactlyTheCirclesPeopleHold(t *testing.T) {
+	policyDocument := map[string]any{
+		"circles": []any{
+			map[string]any{"circleID": "c-level", "displayName": "C-level"},
+			map[string]any{"circleID": "hr", "displayName": "인사"},
+		},
+		"people": []any{
+			map[string]any{"personID": "person-1", "circles": []string{"member", "hr", "admin"}},
+		},
+	}
+
+	declareTheCirclesPeopleHold(policyDocument)
+
+	declared := []string{}
+	for _, value := range policyDocument["circles"].([]any) {
+		declared = append(declared, value.(map[string]any)["circleID"].(string))
+	}
+	if !slices.Equal(declared, []string{"member", "hr"}) {
+		t.Fatalf("declared %v; a circle nobody holds retires, and admin is a role rather than a place", declared)
+	}
+	if name := policyDocument["circles"].([]any)[1].(map[string]any)["displayName"]; name != "인사" {
+		t.Fatalf("a circle already declared keeps its name, got %v", name)
 	}
 }

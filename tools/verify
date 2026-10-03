@@ -69,7 +69,7 @@ GROUPS = [
     ),
     Group(
         "data-room-template",
-        ["web/src/lib/data-room/*", "tools/generate-data-room-template", "docs/data-room/layout*", ".dependency/internkim-plugin*", "supabase/migrations/20261003000006*"],
+        ["web/src/lib/data-room/*", "tools/generate-data-room-template", "docs/data-room/layout*", ".dependency/internkim-plugin*", "supabase/migrations/20261004000004*"],
         [["python3", "tools/generate-data-room-template", "--check"]],
     ),
     Group(

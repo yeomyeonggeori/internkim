@@ -317,7 +317,7 @@ describe('the category data room', () => {
 		const revoked = await asSample('dataroom_link_delete', { linkID });
 		expect(revoked.status).toBe(200);
 		const restored = await asAdmin('dataroom_member_update', {
-			memberID: sampleID, roleCodes: ['employee']
+			memberID: sampleID, roleCodes: ['member']
 		});
 		expect(restored.status).toBe(200);
 	});
@@ -350,7 +350,7 @@ describe('the category data room', () => {
 
 	test('a colleague cannot expand their own role', async () => {
 		const refused = await asSample('dataroom_role_update', {
-			code: 'employee', name: 'Employee', nameKO: '', readableCategories: ['F']
+			code: 'member', name: 'Member', nameKO: '', readableCategories: ['F']
 		});
 		expect(refused.status).toBe(403);
 	});

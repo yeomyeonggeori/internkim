@@ -127,10 +127,6 @@ func (service *Service) handleAdminUserRoute(responseWriter http.ResponseWriter,
 		service.proxyUsers(responseWriter, request)
 	case request.Method == http.MethodPost && path == "/users":
 		service.proxyUsers(responseWriter, request)
-	case request.Method == http.MethodPost && path == "/circles":
-		service.saveBlueclawCircle(responseWriter, request)
-	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/circles/"):
-		service.deleteBlueclawCircle(responseWriter, request, strings.TrimPrefix(path, "/circles/"))
 	case request.Method == http.MethodDelete && strings.HasPrefix(path, "/users/"):
 		service.proxyUsers(responseWriter, request)
 	default:
