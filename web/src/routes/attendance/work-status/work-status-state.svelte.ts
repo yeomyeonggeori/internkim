@@ -10,6 +10,7 @@ import type { SupabaseWorkStatusInputs } from '$lib/attendance/supabase-work-sta
 import type { AttendanceWriteEvent } from '$lib/attendance/attendance-write';
 import { readCachedWorkStatusRows, writeCachedWorkStatusRows } from './work-status-cache';
 import type { AttendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
+import { attendanceCacheGeneration } from '../attendance-cache-generation';
 
 export class WorkStatusState {
 	payload = $state<AttendanceWorkStatus | null>(null);
@@ -17,6 +18,8 @@ export class WorkStatusState {
 	isLoading = $state(false);
 	errorMessage = $state('');
 	private requestSequence = 0;
+	private isDisposed = false;
+	private cacheGeneration = attendanceCacheGeneration();
 	private rows: SupabaseWorkStatusInputs | undefined;
 	private rowsAsOf: unknown;
 	private periodRequest: { period: AttendanceWorkStatusPeriod; anchor: string } | undefined;
@@ -25,13 +28,22 @@ export class WorkStatusState {
 
 	constructor(private readonly cacheScope = '') {}
 
+	dispose(): void {
+		this.isDisposed = true;
+		++this.requestSequence;
+		this.rows = undefined;
+		this.savedAttendanceEvents = [];
+	}
+
 	async load(
 		period: AttendanceWorkStatusPeriod,
 		anchor: string,
 		rowsAsOf?: unknown,
 		summaryRecords?: AttendanceSummaryRecords
 	): Promise<void> {
-		if (!anchor) return;
+		if (!anchor || this.isDisposed) return;
+		this.clearInvalidatedRows();
+		const cacheGeneration = attendanceCacheGeneration();
 		const asked = { period, anchor };
 		const month = { period: 'month' as const, anchor };
 		this.periodRequest = asked;
@@ -54,7 +66,7 @@ export class WorkStatusState {
 		this.errorMessage = '';
 		try {
 			const answered = await fetchAttendanceWorkStatusPair(asked, month, summaryRecords);
-			if (requestSequence !== this.requestSequence) return;
+			if (requestSequence !== this.requestSequence || cacheGeneration !== attendanceCacheGeneration()) return;
 			const rows = answered.rows;
 			const eventsDuringLoad = this.savedAttendanceEvents.slice(savedEventCount);
 			if (!rows || eventsDuringLoad.length === 0) {
@@ -65,7 +77,7 @@ export class WorkStatusState {
 			const merged = attendanceWorkStatusPairFrom(mergedRows, asked, month);
 			this.adopt(merged ?? { ...answered, rows: mergedRows }, rowsAsOf);
 		} catch (error) {
-			if (requestSequence !== this.requestSequence) return;
+			if (requestSequence !== this.requestSequence || cacheGeneration !== attendanceCacheGeneration()) return;
 			this.errorMessage = error instanceof Error ? error.message : String(error);
 		} finally {
 			if (requestSequence === this.requestSequence) this.isLoading = false;
@@ -73,6 +85,8 @@ export class WorkStatusState {
 	}
 
 	applyAttendanceEvent(event: AttendanceWriteEvent): void {
+		if (this.isDisposed) return;
+		this.clearInvalidatedRows();
 		this.savedAttendanceEvents = [...this.savedAttendanceEvents, event];
 		if (!this.rows || !this.periodRequest || !this.monthRequest) {
 			return;
@@ -94,11 +108,23 @@ export class WorkStatusState {
 	}
 
 	private adopt(answered: AttendanceWorkStatusPair, rowsAsOf: unknown): void {
+		if (this.isDisposed || this.cacheGeneration !== attendanceCacheGeneration()) return;
 		this.payload = answered.period;
 		this.monthPayload = answered.month;
 		this.rows = answered.rows;
 		this.rowsAsOf = answered.rows ? rowsAsOf : undefined;
 		if (answered.rows && rowsAsOf !== undefined) writeCachedWorkStatusRows(answered.rows, this.cacheScope);
+	}
+
+	private clearInvalidatedRows(): void {
+		if (this.cacheGeneration === attendanceCacheGeneration()) return;
+		this.cacheGeneration = attendanceCacheGeneration();
+		++this.requestSequence;
+		this.rows = undefined;
+		this.rowsAsOf = undefined;
+		this.payload = null;
+		this.monthPayload = null;
+		this.savedAttendanceEvents = [];
 	}
 }
 

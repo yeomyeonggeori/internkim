@@ -30,6 +30,7 @@ export async function dropLoginRole(administrator: SQL, roleName: string): Promi
 		select exists (select 1 from pg_catalog.pg_roles where rolname = ${roleName}) as exists
 	`;
 	if (!rows[0]?.exists) return;
+	await administrator.unsafe(`grant ${roleName} to current_user`);
 	await administrator.unsafe(`drop owned by ${roleName}`);
 	await administrator.unsafe(`drop role ${roleName}`);
 }

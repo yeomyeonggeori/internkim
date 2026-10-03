@@ -85,8 +85,9 @@ test('the first clock menu opens an existing clock-in without an eager task read
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		await page.waitForLoadState('networkidle');
 		expect(invokes.names).not.toContain('attendance_list');
+		expect(invokes.names).not.toContain('attendance_current_get');
 		const attendanceLoad = page.waitForResponse(
-			(response) => response.url().includes('/api/v1/tools/attendance_list/invoke') && response.ok(),
+			(response) => response.url().includes('/api/v1/tools/attendance_current_get/invoke') && response.ok(),
 			{ timeout: 30000 }
 		);
 		await page.keyboard.press('Period');

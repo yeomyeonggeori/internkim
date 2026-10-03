@@ -1,0 +1,21 @@
+import { mock } from 'bun:test';
+
+Reflect.set(globalThis, '$state', <Value>(value: Value): Value => value);
+let release = () => {};
+let stored = 0;
+let pending = new Promise<object>((resolve) => { release = () => resolve({ period: {}, month: {}, rows: {} }); });
+mock.module('../../../src/routes/attendance/attendance-api', () => ({ fetchAttendanceWorkStatusPair: () => pending, attendanceWorkStatusPairFrom: () => undefined }));
+mock.module('../../../src/routes/attendance/work-status/work-status-cache', () => ({ readCachedWorkStatusRows: () => undefined, writeCachedWorkStatusRows: () => { stored += 1; } }));
+const { WorkStatusState } = await import('../../../src/routes/attendance/work-status/work-status-state.svelte');
+const { clearCachedAttendanceSummaries } = await import('../../../src/routes/attendance/attendance-summary-cache');
+const disposed = new WorkStatusState('owned');
+const first = disposed.load('month', '2026-10-01', {});
+disposed.dispose();
+release(); await first;
+const disposedEmpty = disposed.payload === null;
+pending = new Promise<object>((resolve) => { release = () => resolve({ period: {}, month: {}, rows: {} }); });
+const invalidated = new WorkStatusState('owned');
+const second = invalidated.load('month', '2026-10-01', {});
+clearCachedAttendanceSummaries();
+release(); await second;
+console.log(JSON.stringify({ disposedEmpty, invalidatedEmpty: invalidated.payload === null, stored }));

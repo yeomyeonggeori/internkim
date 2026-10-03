@@ -81,7 +81,8 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		: undefined;
 
 	return {
-		[attendanceSummaryRecords]: { settings, directory, attendance, leave, from: firstDay, to: lastDay },
+		[attendanceSummaryRecords]: { readScope: 'all', settings, directory, attendance, leave, from: firstDay, to: lastDay },
+		readScope: 'all',
 		month: selectedMonth,
 		serverTime: attendance.serverTime,
 		timeZoneAuthoritative: true,
@@ -233,7 +234,7 @@ function absencesOf(row: RecordLeave, email: string): AttendanceAbsence[] {
 	return days;
 }
 
-function locationsOf(workLocations: RecordWorkLocation[]): AttendanceLocation[] {
+export function locationsOf(workLocations: RecordWorkLocation[]): AttendanceLocation[] {
 	return workLocations.map((location, index) => ({
 		id: location.name,
 		name: location.name,

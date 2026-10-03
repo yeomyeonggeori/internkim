@@ -38,7 +38,7 @@
 	let isDisposed = false;
 
 	const text = createPageText(attendanceText);
-	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope));
+	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope, myAttendanceToday.refresh));
 	const attendanceView = new AttendanceViewState(ensureSelectedAdminView);
 	const workStatus = untrack(() => new WorkStatusState(cacheScope));
 	const isAdmin = $derived(attendance.summary?.isAdmin ?? false);
@@ -46,12 +46,13 @@
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		clearAdminView('approvals');
 		clearAdminView('leaveManagement');
-		await Promise.all([attendance.load(), refreshSelectedAdminView()]);
+		await Promise.all([myAttendanceToday.refresh(), attendance.load(), refreshSelectedAdminView()]);
 	}
 
 	async function refreshAfterApprovalMutation(): Promise<void> {
 		clearAdminView('leaveManagement');
 		await Promise.all([
+			myAttendanceToday.refresh(),
 			attendance.load(),
 			employeeLeave.load()
 		]);
@@ -60,6 +61,7 @@
 	async function refreshAfterManagementMutation(): Promise<void> {
 		clearAdminView('approvals');
 		await Promise.all([
+			myAttendanceToday.refresh(),
 			attendance.load(),
 			employeeLeave.load()
 		]);
@@ -71,7 +73,9 @@
 		text.management,
 		refreshAfterManagementMutation
 	);
-	const handWritten = new HandWrittenState(text.handWritten, () => attendance.load());
+	const handWritten = new HandWrittenState(text.handWritten, async () => {
+		await Promise.all([myAttendanceToday.refresh(), attendance.load()]);
+	});
 	setAttendanceState(attendance);
 	setEmployeeLeaveState(employeeLeave);
 	setAttendanceViewState(attendanceView);
@@ -103,6 +107,7 @@
 	}
 
 	function refreshServerClock(): void {
+		void myAttendanceToday.load(true);
 		void attendance.refreshServerClock();
 	}
 
@@ -120,9 +125,10 @@
 
 	onMount(() => {
 		myAttendanceToday.setClockEventHandler((event) => workStatus.applyAttendanceEvent(event));
+		void myAttendanceToday.load();
 		void attendance.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
-			await Promise.all([attendance.load(), employeeLeave.load(), refreshSelectedAdminView()]);
+			await Promise.all([myAttendanceToday.load(true), attendance.load(), employeeLeave.load(), refreshSelectedAdminView()]);
 		});
 		window.addEventListener('focus', refreshServerClock);
 		window.addEventListener('pageshow', refreshServerClock);
@@ -130,6 +136,7 @@
 		return () => {
 			isDisposed = true;
 			attendance.dispose();
+			workStatus.dispose();
 			myAttendanceToday.setClockEventHandler(undefined);
 			window.removeEventListener('focus', refreshServerClock);
 			window.removeEventListener('pageshow', refreshServerClock);
@@ -142,10 +149,6 @@
 		attendance.selectedMonth;
 		attendance.chartMode;
 		attendance.persistFilters();
-	});
-
-	$effect(() => {
-		myAttendanceToday.adoptSummary(attendance.currentMonthSummary);
 	});
 
 	$effect(() => {

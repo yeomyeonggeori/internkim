@@ -90,9 +90,10 @@ export function workStatusMemberOf(person: RecordPerson): SupabaseWorkStatusMemb
 
 export async function supabaseWorkStatusInputs(
 	requests: AttendanceWorkStatusRequest[],
-	summaryRecords?: AttendanceSummaryRecords
+	providedSummaryRecords?: AttendanceSummaryRecords
 ): Promise<SupabaseWorkStatusInputs> {
 	const requestNow = new Date();
+	const summaryRecords = providedSummaryRecords?.readScope === 'mine' ? undefined : providedSummaryRecords;
 	const settingsRequest = summaryRecords ? Promise.resolve(summaryRecords.settings) : companySettings();
 	const directoryRequest = summaryRecords ? Promise.resolve(summaryRecords.directory) : companyDirectory();
 	const policiesRequest = supabaseWorkPolicies();

@@ -23,7 +23,7 @@
 	let taskState = $state<TaskState | null>(null);
 	let taskScope = untrack(() => data.taskScope);
 	let isDisposed = false;
-	let selectedWeek = '';
+	let selectedWeek = $state('');
 	let lastTaskQuery: string | undefined;
 	let activeTab = $state('tasks');
 	let TaskDefinitionsEditor = $state<typeof import('./task-definitions-editor.svelte').default | null>(null);
@@ -78,6 +78,8 @@
 		let restoreFrame = 0;
 		untrack(() => {
 			const scopeChanged = taskScope !== scope;
+			const requestedWeek = page.url.searchParams.get('week') ?? '';
+			const shownWeek = scopeChanged || !selectedWeek ? week : taskWeekForCode(requestedWeek || selectedWeek, new Date()).code;
 			if (scopeChanged) {
 				taskScope = scope;
 				focusedTaskID = '';
@@ -90,8 +92,8 @@
 				paneError = '';
 				pendingTaskID = page.url.searchParams.get('task') ?? '';
 			}
-			selectedWeek = week;
-			readSession.select(scope, week);
+			selectedWeek = shownWeek;
+			readSession.select(scope, shownWeek);
 			fullRequest = null;
 			boardRequest = null;
 			historyAfterPeople = null;
@@ -100,6 +102,8 @@
 				if (readSession.needsFullHistory()) {
 					stateReadGeneration = -1;
 					void ensureFullState();
+				} else if (shownWeek !== week) {
+					void loadTask(shownWeek, { reloadState: false });
 				} else {
 					const promise = applyTaskRead(taskRead, scope, readGeneration, week, false, {}, taskBoardRead);
 					const request = { scope, generation: readGeneration, week, promise };
@@ -107,7 +111,7 @@
 					void promise.finally(() => { if (boardRequest === request) boardRequest = null; });
 				}
 			}
-			if (!summary && cached?.state && cached.summary) restoreFrame = requestAnimationFrame(() => {
+			if (!summary && shownWeek === week && cached?.state && cached.summary) restoreFrame = requestAnimationFrame(() => {
 				if (isDisposed || summary || taskState || scope !== taskScope || readGeneration !== taskSnapshotGeneration()) return;
 				taskState = cached.state;
 				summary = cached.summary;
@@ -146,6 +150,7 @@
 		const shown = taskWeekForCode(week, new Date());
 		const weekChanged = selectedWeek !== shown.code;
 		selectedWeek = shown.code;
+		replaceWeekQuery(shown.code);
 		readSession.select(taskScope, selectedWeek);
 		if (weekChanged) {
 			fullRequest = null;
@@ -293,6 +298,11 @@
 		loadTask(week, { reloadState: false });
 	}
 
+	function openTaskWhenReady(taskID: string): void {
+		pendingTaskID = taskID;
+		openPendingTask();
+	}
+
 	function selectTab(tab: string) {
 		activeTab = tab;
 		paneError = '';
@@ -348,7 +358,10 @@
 		<div class={activeTab === 'tasks' ? 'flex flex-col gap-6' : 'hidden'}>
 			<TasksView
 				{summary}
+				shownWeek={selectedWeek ? taskWeekForCode(selectedWeek, new Date()) : summary?.week}
+				canNavigateWeek={Boolean(summary) && !cacheSavedAt}
 				{focusedTaskID}
+				{openTaskWhenReady}
 				{text}
 				isLoading={isLoading || !isStateFresh}
 				{ensureFullState}

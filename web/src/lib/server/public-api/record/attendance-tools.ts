@@ -92,7 +92,7 @@ async function rowsInWindow(
 ): Promise<{ rows: AttendanceRow[]; memberID: string | null; firstDay: string; lastDay: string }> {
 	const window = windowOf(context, from, to);
 	const whose = whoseRecords(context.people, personHints, scope, context.requesterID);
-	const rows = await attendanceOfCompany(context.caller, window.from, window.to, mostRecentRows);
+	const rows = await attendanceOfCompany(context.caller, window.from, window.to, mostRecentRows, whose.everyone ? undefined : whose.personIDs);
 	return {
 		rows: rows.filter((row) => whoseRecordsHolds(whose, row.member_id)),
 		memberID: ownerNamedBy(whose) || null,

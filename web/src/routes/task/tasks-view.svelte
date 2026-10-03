@@ -20,7 +20,10 @@
 
 	type Props = {
 		summary: TaskSummary | null;
+		shownWeek: TaskSummary['week'] | undefined;
+		canNavigateWeek: boolean;
 		focusedTaskID: string;
+		openTaskWhenReady: (taskID: string) => void;
 		text: TaskPageText;
 		isLoading: boolean;
 		ensureFullState: () => Promise<boolean>;
@@ -31,7 +34,7 @@
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, focusedTaskID, text, isLoading, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
+	let { summary, shownWeek, canNavigateWeek, focusedTaskID, openTaskWhenReady, text, isLoading, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
 
 	const page = createTasksController();
 	let taskViewTab = $state('board');
@@ -78,9 +81,9 @@
 			</Tabs.List>
 			<TaskWeekSelector
 				class="ml-auto"
-				week={summary?.week}
+				week={shownWeek}
 				currentWeekStartISO={summary?.currentWeek?.startISO ?? ''}
-				disabled={!summary || isLoading}
+				disabled={!canNavigateWeek}
 				selectWeekLabel={text.selectWeekDate}
 				currentWeekLabel={text.currentWeek}
 				lastWeekLabel={text.lastWeek}
@@ -118,7 +121,7 @@
 				boardText={text.task.board}
 				etcLabel={text.task.etcLabel}
 				statusLabel={page.statusLabel}
-				openTask={(task) => { if (!isLoading) page.openTask(task); }}
+				openTask={(task) => { if (isLoading) openTaskWhenReady(task.id); else page.openTask(task); }}
 				createTask={(status) => { if (!isLoading) page.createTask(status); }}
 				moveTask={page.moveTaskOnBoard}
 				pendingTaskIDs={page.board.pendingTaskIDs}
@@ -145,7 +148,7 @@
 				pendingStatusTaskID={page.pendingStatusTaskID}
 				statusLabel={page.statusLabel}
 				updateTaskStatus={page.updateTaskStatus}
-				openTask={(task) => { if (!isLoading) page.openTask(task); }}
+				openTask={(task) => { if (isLoading) openTaskWhenReady(task.id); else page.openTask(task); }}
 				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
 				{focusedTaskID}
 			/>

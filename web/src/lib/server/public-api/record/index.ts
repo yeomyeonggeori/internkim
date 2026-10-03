@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
+import { currentAttendance } from './current-attendance';
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import {
@@ -125,6 +126,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	leave_grant_set: (context, input) => leaveGrantSet(context, input),
 	leave_return_early: (context, input) => leaveReturnEarly(context, input),
 	attendance_list: (context, input) => attendanceList(context, input),
+	attendance_current_get: (context) => currentAttendance(context.caller),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
 	attendance_delete: (context, input) => attendanceDelete(context, input),
@@ -234,8 +236,9 @@ export async function runToolOverTheRecord(
 	if (!run) return { status: 404, body: { error: `no tool here goes by ${name}` } };
 
 	try {
-		const context = await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels, !readsWithoutPeople.has(name));
-		const result = await run(context, input);
+		const result = name === 'attendance_current_get'
+			? await currentAttendance(caller)
+			: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels, !readsWithoutPeople.has(name)), input);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {

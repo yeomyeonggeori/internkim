@@ -1,4 +1,5 @@
 import type { AttendanceSummary } from './attendance-context.svelte';
+import { invalidateAttendanceCacheGeneration } from './attendance-cache-generation';
 
 const storageKeyPrefix = 'attendance.summary.';
 
@@ -30,6 +31,7 @@ export function writeCachedAttendanceSummary(month: string, summary: AttendanceS
 }
 
 export function clearCachedAttendanceSummaries(): void {
+	invalidateAttendanceCacheGeneration();
 	if (typeof window === 'undefined') return;
 	try {
 		const storage = window.localStorage;

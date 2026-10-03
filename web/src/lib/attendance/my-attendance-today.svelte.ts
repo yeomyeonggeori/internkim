@@ -3,7 +3,8 @@ import { isPlainShortcut } from '$lib/keyboard-shortcut';
 import { lockScreenRefusesTheClock } from '$lib/widget/attendance-lock-screen';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { attendanceText } from '../../routes/attendance/text';
-import { addAttendanceEvent, fetchAttendanceSummary, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
+import { addAttendanceEvent, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
+import { supabaseCurrentAttendance } from './supabase-current-attendance';
 import { attendanceEventFromClock } from './supabase-attendance';
 import type { AttendanceWriteEvent } from './attendance-write';
 import type {
@@ -13,11 +14,11 @@ import type {
 import { computeDayEvents, statusForDay } from '../../routes/attendance/shared/attendance-aggregation';
 import { clockInNobodyClosed } from '../../routes/attendance/shared/attendance-work-segments';
 import {
-	currentMonthInTimeZone,
 	todayDateInTimeZone
 } from '../../routes/attendance/shared/attendance-date';
 
 const menuShortcutCode = 'Period';
+const ownStateFreshForMilliseconds = 15000;
 const text = createPageText(attendanceText);
 
 class MyAttendanceToday {
@@ -28,9 +29,12 @@ class MyAttendanceToday {
 	isSubmitting = $state(false);
 	private clockEventHandler: ((event: AttendanceWriteEvent) => void) | undefined;
 	private clockMutationSequence = 0;
+	private authorityGeneration = 0;
 	private loadPromise: Promise<AttendanceSummary | null> | undefined;
+	private loadedAt = $state(Number.NEGATIVE_INFINITY);
+	private hasFreshRead = false;
 
-	private today = $derived(todayDateInTimeZone(this.summary?.timeZone));
+	private today = $derived(todayDateInTimeZone(this.summary?.timeZone, this.currentServerTime()));
 	private myEvents = $derived(
 		(this.summary?.events ?? []).filter((event) => event.email === this.summary?.currentUserEmail)
 	);
@@ -57,24 +61,34 @@ class MyAttendanceToday {
 		this.nextKind === 'clock_in' ? clockInNobodyClosed(this.myEvents) : undefined
 	);
 
-	adoptSummary = (summary: AttendanceSummary | null) => {
-		if (summary) this.summary = summary;
-	};
-
 	setClockEventHandler = (handler: ((event: AttendanceWriteEvent) => void) | undefined) => {
 		this.clockEventHandler = handler;
 	};
 
 	clear = (): void => {
-		this.clockMutationSequence += 1;
+		this.authorityGeneration += 1;
+		this.invalidateRead();
 		this.summary = null;
 		this.loadFailure = '';
 		this.clockFailure = '';
-		this.loadPromise = undefined;
+		this.isSubmitting = false;
+		this.loadedAt = Number.NEGATIVE_INFINITY;
 	};
 
-	load = (): Promise<AttendanceSummary | null> => {
+	refresh = (): Promise<AttendanceSummary | null> => {
+		this.invalidateRead();
+		return this.load(true);
+	};
+
+	private invalidateRead(): void {
+		this.clockMutationSequence += 1;
+		this.loadPromise = undefined;
+		this.hasFreshRead = false;
+	}
+
+	load = (force = false): Promise<AttendanceSummary | null> => {
 		if (this.loadPromise) return this.loadPromise;
+		if (!force && this.isFresh()) return Promise.resolve(this.summary);
 		const loadPromise = this.loadFromServer();
 		const trackedLoad = loadPromise.finally(() => {
 			if (this.loadPromise === trackedLoad) this.loadPromise = undefined;
@@ -83,18 +97,31 @@ class MyAttendanceToday {
 		return trackedLoad;
 	};
 
+	private currentServerTime(): Date {
+		const serverTime = Date.parse(this.summary?.serverTime ?? '');
+		if (!Number.isFinite(serverTime)) return new Date();
+		return new Date(serverTime + performance.now() - this.loadedAt);
+	}
+
+	private isFresh(): boolean {
+		const summary = this.summary;
+		if (!this.hasFreshRead || !summary?.serverTime || performance.now() - this.loadedAt >= ownStateFreshForMilliseconds) return false;
+		return todayDateInTimeZone(summary.timeZone, this.currentServerTime()) === todayDateInTimeZone(summary.timeZone, new Date(summary.serverTime));
+	}
+
 	private loadFromServer = async (): Promise<AttendanceSummary | null> => {
 		const loadSequence = this.clockMutationSequence;
 		try {
-			const summary = await fetchAttendanceSummary({
-				month: currentMonthInTimeZone(this.summary?.timeZone)
-			});
+			const summary = await supabaseCurrentAttendance();
 			if (loadSequence !== this.clockMutationSequence) return this.summary;
 			this.summary = summary;
+			this.loadedAt = performance.now();
+			this.hasFreshRead = true;
 			this.loadFailure = '';
 		} catch (failure) {
 			if (loadSequence !== this.clockMutationSequence) return this.summary;
 			this.summary = null;
+			this.hasFreshRead = false;
 			this.loadFailure = failure instanceof Error ? failure.message : String(failure);
 		}
 		return this.summary;
@@ -102,25 +129,28 @@ class MyAttendanceToday {
 
 	clock = async (kind: AttendanceKind, locationID: string, confirmedEarlyReturn = false) => {
 		if (this.isSubmitting) return;
+		const authorityGeneration = this.authorityGeneration;
 		this.isSubmitting = true;
 		this.clockFailure = '';
 		try {
 			const result = await toggleAttendanceOnServer(kind, locationID, confirmedEarlyReturn);
-			this.clockMutationSequence += 1;
-			this.loadPromise = undefined;
+			if (authorityGeneration !== this.authorityGeneration) return;
+			this.invalidateRead();
 			if (result?.event && this.applyClockEvent(result.event)) {
 				this.clockEventHandler?.(result.event);
 			} else {
-				await this.load();
+				await this.load(true);
 			}
+			if (authorityGeneration !== this.authorityGeneration) return;
 			toast.success(result?.removed ? this.takenBackClockMessage(kind) : this.recordedClockMessage(kind));
 			if (kind === 'clock_in' && (await lockScreenRefusesTheClock())) toast.info(text.lockScreenOff);
 		} catch (failure) {
+			if (authorityGeneration !== this.authorityGeneration) return;
 			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
 			toast.error(text.clockFailed, { description: this.clockFailure });
 			throw failure;
 		} finally {
-			this.isSubmitting = false;
+			if (authorityGeneration === this.authorityGeneration) this.isSubmitting = false;
 		}
 	};
 
@@ -145,6 +175,7 @@ class MyAttendanceToday {
 	closeAndClockIn = async (clockOutTime: string, locationID: string) => {
 		const stillOpen = this.clockInNobodyClosed;
 		if (!stillOpen || this.isSubmitting) return;
+		const authorityGeneration = this.authorityGeneration;
 		this.isSubmitting = true;
 		this.clockFailure = '';
 		try {
@@ -156,17 +187,21 @@ class MyAttendanceToday {
 				locationID: '',
 				reason: text.clockOutNobodyRecordedReason
 			});
+			if (authorityGeneration !== this.authorityGeneration) return;
+			await this.refresh();
+			if (authorityGeneration !== this.authorityGeneration) return;
 			await toggleAttendanceOnServer('clock_in', locationID, false);
-			this.clockMutationSequence += 1;
-			this.loadPromise = undefined;
-			await this.load();
+			if (authorityGeneration !== this.authorityGeneration) return;
+			await this.refresh();
+			if (authorityGeneration !== this.authorityGeneration) return;
 			toast.success(this.recordedClockMessage('clock_in'));
 		} catch (failure) {
+			if (authorityGeneration !== this.authorityGeneration) return;
 			this.clockFailure = failure instanceof Error ? failure.message : String(failure);
 			toast.error(text.clockFailed, { description: this.clockFailure });
 			throw failure;
 		} finally {
-			this.isSubmitting = false;
+			if (authorityGeneration === this.authorityGeneration) this.isSubmitting = false;
 		}
 	};
 

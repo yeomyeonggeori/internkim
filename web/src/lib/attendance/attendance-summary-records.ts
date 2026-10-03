@@ -10,6 +10,7 @@ import type {
 export const attendanceSummaryRecords = Symbol('attendance-summary-records');
 
 export type AttendanceSummaryRecords = {
+	readScope?: 'all' | 'mine';
 	settings: RecordCompanySettings;
 	directory: RecordDirectory;
 	attendance: RecordAttendanceList;

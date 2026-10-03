@@ -60,7 +60,7 @@
 	let attendanceSessionKey = '';
 	let widgetSuppliedEmail = '';
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
-	$effect(() => {
+	$effect.pre(() => {
 		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
 		untrack(() => {
 			const hasSessionChanged = sessionKey !== attendanceSessionKey;

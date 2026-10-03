@@ -7537,6 +7537,476 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "attendance_current_get",
+      "description": "Read the authenticated requester's actionable attendance state in one record snapshot: company time zone and clock, registered workplaces, today's events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_current_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_current_get",
+      "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activeLeave": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "days": {
+                    "type": "number"
+                  },
+                  "endsAt": {
+                    "type": "string"
+                  },
+                  "kindID": {
+                    "type": "string"
+                  },
+                  "kindName": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "leaveID": {
+                    "type": "string"
+                  },
+                  "startsAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "leaveID",
+                  "kindID",
+                  "kindName",
+                  "days",
+                  "startsAt",
+                  "endsAt"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authorization": {
+            "additionalProperties": false,
+            "properties": {
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "teamViewVisibleToAll": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "isAdmin",
+              "teamViewVisibleToAll"
+            ],
+            "type": "object"
+          },
+          "backdatedAfterMinutes": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "companyID": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "latestEvent": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "clock_in",
+                      "clock_out"
+                    ],
+                    "type": "string"
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "personID",
+                  "kind",
+                  "occurredAt",
+                  "location"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberID": {
+            "type": "string"
+          },
+          "serverTime": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "todayEvents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "clock_in",
+                    "clock_out"
+                  ],
+                  "type": "string"
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "personID",
+                "kind",
+                "occurredAt",
+                "location"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "workLocations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "color"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "memberID",
+          "email",
+          "companyID",
+          "timeZone",
+          "serverTime",
+          "backdatedAfterMinutes",
+          "workLocations",
+          "authorization",
+          "todayEvents",
+          "latestEvent",
+          "activeLeave"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_current_get",
+      "privacyClass": "workspace_attendance",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activeLeave": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "days": {
+                      "type": "number"
+                    },
+                    "endsAt": {
+                      "type": "string"
+                    },
+                    "kindID": {
+                      "type": "string"
+                    },
+                    "kindName": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "leaveID": {
+                      "type": "string"
+                    },
+                    "startsAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "leaveID",
+                    "kindID",
+                    "kindName",
+                    "days",
+                    "startsAt",
+                    "endsAt"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "authorization": {
+              "additionalProperties": false,
+              "properties": {
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "teamViewVisibleToAll": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "isAdmin",
+                "teamViewVisibleToAll"
+              ],
+              "type": "object"
+            },
+            "backdatedAfterMinutes": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            },
+            "companyID": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "latestEvent": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "clock_in",
+                        "clock_out"
+                      ],
+                      "type": "string"
+                    },
+                    "location": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string"
+                    },
+                    "personID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personID",
+                    "kind",
+                    "occurredAt",
+                    "location"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "memberID": {
+              "type": "string"
+            },
+            "serverTime": {
+              "type": "string"
+            },
+            "timeZone": {
+              "type": "string"
+            },
+            "todayEvents": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "clock_in",
+                      "clock_out"
+                    ],
+                    "type": "string"
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "personID",
+                  "kind",
+                  "occurredAt",
+                  "location"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "workLocations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "color"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "memberID",
+            "email",
+            "companyID",
+            "timeZone",
+            "serverTime",
+            "backdatedAfterMinutes",
+            "workLocations",
+            "authorization",
+            "todayEvents",
+            "latestEvent",
+            "activeLeave"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "attendance_list",
       "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
       "estimatedLatency": "low",

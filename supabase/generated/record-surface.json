@@ -70,6 +70,28 @@
       ]
     },
     {
+      "name": "asset_is_own_upload",
+      "arguments": "object_name text",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "asset_is_transfer_copy",
+      "arguments": "object_name text",
+      "returns": "boolean",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "asset_reader_may_read",
       "arguments": "object_name text",
       "returns": "boolean",
@@ -149,6 +171,15 @@
       "callableBy": [
         "authenticated",
         "service_role"
+      ]
+    },
+    {
+      "name": "attendance_current",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
       ]
     },
     {
@@ -428,6 +459,35 @@
       ]
     },
     {
+      "name": "data_room_link_create",
+      "arguments": "target_company uuid, role_code text, label text, access_code text, lifetime_hours integer DEFAULT 72, can_download boolean DEFAULT false",
+      "returns": "uuid",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_link_revoke",
+      "arguments": "target_link uuid",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_link_unlock",
+      "arguments": "target_link uuid, access_code text, notice_version text, client_fingerprint text",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "service_role"
+      ]
+    },
+    {
       "name": "data_room_may_read",
       "arguments": "target_company uuid, target_category text, download boolean DEFAULT false",
       "returns": "boolean",
@@ -445,6 +505,16 @@
       "security": "definer",
       "callableBy": [
         "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
+      "name": "data_room_member_roles_set",
+      "arguments": "target_company uuid, target_member uuid, role_codes text[]",
+      "returns": "void",
+      "security": "definer",
+      "callableBy": [
         "authenticated",
         "service_role"
       ]
@@ -501,6 +571,16 @@
       ]
     },
     {
+      "name": "data_room_shareable_roles",
+      "arguments": "target_company uuid, download boolean DEFAULT false",
+      "returns": "text[]",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "data_room_visible_category",
       "arguments": "target_company uuid, target_category text",
       "returns": "boolean",
@@ -526,6 +606,16 @@
       "returns": "void",
       "security": "definer",
       "callableBy": [
+        "service_role"
+      ]
+    },
+    {
+      "name": "expired_transfer_copies",
+      "arguments": "kept_days integer",
+      "returns": "SETOF text",
+      "security": "definer",
+      "callableBy": [
+        "authenticated",
         "service_role"
       ]
     },
@@ -828,7 +918,7 @@
       "name": "my_app_company",
       "arguments": "",
       "returns": "uuid",
-      "security": "invoker",
+      "security": "definer",
       "callableBy": [
         "anon",
         "authenticated",

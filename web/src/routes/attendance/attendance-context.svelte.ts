@@ -124,6 +124,7 @@ export type AttendanceActiveLeave = {
 };
 
 export type AttendanceSummary = {
+	readScope?: 'mine' | 'all';
 	[attendanceSummaryRecords]?: AttendanceSummaryRecords;
 	month: string;
 	serverTime?: string;
@@ -160,7 +161,7 @@ export class AttendanceState {
 	private activeLoadCount = 0;
 	private isDisposed = false;
 
-	constructor(loadFailedMessage: string, private readonly cacheScope = '') {
+	constructor(loadFailedMessage: string, private readonly cacheScope = '', private readonly onRecordMutation?: () => Promise<unknown>) {
 		this.loadFailedMessage = loadFailedMessage;
 		this.serverClockSync = new AttendanceServerClockSync({
 			requestSummary: (month) => fetchAttendanceSummary({ month }),
@@ -315,25 +316,25 @@ export class AttendanceState {
 
 	async updateEvent(eventID: string, request: UpdateAttendanceEventRequest) {
 		const result = await updateAttendanceEvent(eventID, request);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 
 	async updateEvents(updates: { eventID: string; request: UpdateAttendanceEventRequest }[]) {
 		const result = await updateAttendanceEvents(updates);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 
 	async addEvent(request: AddAttendanceEventRequest): Promise<AttendanceWriteResult> {
 		const result = await addAttendanceEvent(request);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 
 	async removeEvent(request: RemoveAttendanceEventRequest): Promise<AttendanceWriteResult> {
 		const result = await removeAttendanceEvent(request);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 }

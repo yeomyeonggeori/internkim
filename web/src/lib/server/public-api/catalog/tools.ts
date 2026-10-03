@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { savedAttendanceEventSchema } from '$lib/attendance/recorded-attendance';
+import { currentAttendanceSchema } from '$lib/attendance/current-attendance';
 import { taskSizes } from '$lib/task/task-sizes';
 
 import {
@@ -1834,6 +1835,20 @@ const leaveToolDefinitions: CapabilityToolDefinition[] = [
 ];
 
 const attendanceToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: 'attendance_current_get',
+    namespace: 'attendance',
+    answeredBy: CapabilityAnsweredBy.Record,
+    privacyClass: 'workspace_attendance',
+    policyResource: 'tool:attendance_current_get',
+    description: 'Read the authenticated requester\'s actionable attendance state in one record snapshot: company time zone and clock, registered workplaces, today\'s events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.',
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    modelVisibility: CapabilityModelVisibility.Hidden,
+    inputSchema: z.strictObject({}),
+    result: { schema: currentAttendanceSchema, effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
   {
     name: 'attendance_list',
     namespace: 'attendance',
