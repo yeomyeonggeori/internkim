@@ -64,9 +64,37 @@ export function forgetFcmAccessToken(): void {
 	held = null;
 }
 
+export function fcmWidgetRefreshMessage(deviceToken: string, clock: string): Record<string, unknown> {
+	return {
+		message: {
+			token: deviceToken,
+			data: { widget: 'attendance', clock },
+			android: { priority: 'NORMAL' }
+		}
+	};
+}
+
 export async function sendFcm(
 	deviceToken: string,
 	notification: Notification,
+	key: FcmKey,
+	nowInSeconds: number
+): Promise<PushOutcome> {
+	return deliverFcm(deviceToken, fcmMessage(deviceToken, notification), key, nowInSeconds);
+}
+
+export async function sendFcmWidgetRefresh(
+	deviceToken: string,
+	clock: string,
+	key: FcmKey,
+	nowInSeconds: number
+): Promise<PushOutcome> {
+	return deliverFcm(deviceToken, fcmWidgetRefreshMessage(deviceToken, clock), key, nowInSeconds);
+}
+
+async function deliverFcm(
+	deviceToken: string,
+	message: Record<string, unknown>,
 	key: FcmKey,
 	nowInSeconds: number
 ): Promise<PushOutcome> {
@@ -84,7 +112,7 @@ export async function sendFcm(
 		const response = await fetch(`https://fcm.googleapis.com/v1/projects/${key.projectID}/messages:send`, {
 			method: 'POST',
 			headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-			body: JSON.stringify(fcmMessage(deviceToken, notification))
+			body: JSON.stringify(message)
 		});
 		const reason = await refusalCode(response);
 		const outcome = outcomeOfFcmAnswer(response.status, reason);

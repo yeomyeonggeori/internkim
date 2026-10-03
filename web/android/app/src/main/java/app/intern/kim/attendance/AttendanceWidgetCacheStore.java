@@ -43,6 +43,16 @@ final class AttendanceWidgetCacheStore {
         }
     }
 
+    static void distrustRows(Context context) {
+        AttendanceWidgetStore.Credential credential = AttendanceWidgetStore.credential(context);
+        if (credential == null) return;
+        amend(context, credential.origin, cache -> {
+            cache.rowsTrustedUntil = null;
+            cache.rowsListedAt = null;
+            cache.tappedAt = null;
+        });
+    }
+
     static void markTap(Context context, long moment) {
         AttendanceWidgetStore.Credential credential = AttendanceWidgetStore.credential(context);
         if (credential == null) return;
