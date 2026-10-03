@@ -37,6 +37,9 @@ func TestServiceLogsBlueclawWithoutFilterReturnsCatCommand(t *testing.T) {
 	if !strings.Contains(capturedArguments[1], "cat") || !strings.Contains(capturedArguments[1], "tail") {
 		t.Fatalf("expected cat+tail command, got %q", capturedArguments[1])
 	}
+	if !strings.Contains(capturedArguments[1], "/var/log/internkim/blueclaw-*.jsonl") {
+		t.Fatalf("expected the host's blueclaw log files, got %q", capturedArguments[1])
+	}
 	var logsResponse serviceLogsResponse
 	if decodeError := json.NewDecoder(response.Body).Decode(&logsResponse); decodeError != nil {
 		t.Fatalf("decode error: %v", decodeError)

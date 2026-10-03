@@ -179,9 +179,9 @@ func workspaceReadQuery(personID string, agentPath string) string {
 	return "personID=" + url.QueryEscape(personID) + "&path=" + url.QueryEscape(agentPath)
 }
 
-// The workspace lives inside the Blueclaw guest image, unreadable from the host,
-// so listings and downloads proxy to Blueclaw's read-only workspace endpoints.
-// admind still authorizes the web actor against the requested agent path first.
+// Listings and downloads proxy to Blueclaw's read-only workspace endpoints, which
+// read as the person. admind still authorizes the web actor against the requested
+// agent path first.
 func (service *Service) writeWorkspaceList(responseWriter http.ResponseWriter, request *http.Request, access workspaceAccess) {
 	agentPath, _, errorValue := service.resolveWorkspaceHostPath(access, request.URL.Query().Get("path"))
 	if errorValue != nil {

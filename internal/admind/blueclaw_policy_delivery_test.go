@@ -47,7 +47,7 @@ func TestAShorterRosterReplacesTheFileRatherThanTruncatingIt(t *testing.T) {
 	}
 }
 
-func TestTheDeliveredRosterIsReadableByTheGuestAndLeavesNothingBehind(t *testing.T) {
+func TestTheDeliveredRosterIsReadableByTheAgentAndLeavesNothingBehind(t *testing.T) {
 	directory := t.TempDir()
 	policyPath := filepath.Join(directory, "policy.json")
 	if errorValue := replaceWholeFile(policyPath, []byte(`{"people":[]}`)); errorValue != nil {
@@ -59,7 +59,7 @@ func TestTheDeliveredRosterIsReadableByTheGuestAndLeavesNothingBehind(t *testing
 		t.Fatal(errorValue)
 	}
 	if info.Mode().Perm() != deliveredPolicyMode {
-		t.Errorf("mode = %v, the guest reads this as a user that is not root", info.Mode().Perm())
+		t.Errorf("mode = %v, the agent reads this as a user that is not root", info.Mode().Perm())
 	}
 	entries, errorValue := os.ReadDir(directory)
 	if errorValue != nil {

@@ -92,18 +92,13 @@ const (
 	ChatdBinaryPath                = "/usr/local/bin/chatd"
 	ChatdEnvironmentFilePath       = "/root/.internkim/secrets/chatd-env"
 	ChatdListenPort                = "18090"
-	// The agent runs in the guest and reaches this machine on the outbound tap,
-	// so chatd answers there. The address is this machine's own interface, which
-	// the network beyond it cannot route to.
-	ChatdListenHostname      = "172.31.0.1"
-	ChatdEndpoint            = "http://172.31.0.1:18090"
-	ChatdHealthPath          = "/healthz"
-	ChatdBotUserName         = "internkim"
-	RelayName                = "internkim-relay"
-	RelayServiceName         = "internkim-relay"
-	RelayServicePath         = "/etc/systemd/system/internkim-relay.service"
-	RelayBinaryPath          = "/usr/local/bin/internkim-relay"
-	RelayEnvironmentFilePath = "/etc/internkim/relay.env"
+	ChatdHealthPath                = "/healthz"
+	ChatdBotUserName               = "internkim"
+	RelayName                      = "internkim-relay"
+	RelayServiceName               = "internkim-relay"
+	RelayServicePath               = "/etc/systemd/system/internkim-relay.service"
+	RelayBinaryPath                = "/usr/local/bin/internkim-relay"
+	RelayEnvironmentFilePath       = "/etc/internkim/relay.env"
 
 	// Where the relay keeps its own state, and the one place the device and the
 	// packaged host differ. The device's state root is 0755 and the relay's
