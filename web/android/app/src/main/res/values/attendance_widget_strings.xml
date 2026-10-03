@@ -20,4 +20,7 @@
     <string name="attendance_widget_unreadable">서버 응답을 읽지 못했어요. 잠시 후 다시 눌러 주세요</string>
     <string name="attendance_widget_hours">시간</string>
     <string name="attendance_widget_minutes">분</string>
+    <string name="attendance_ongoing_channel">출근 중 알림</string>
+    <string name="attendance_ongoing_title">근무 중 · %1$s</string>
+    <string name="attendance_ongoing_clocked_in">%1$s 출근</string>
 </resources>

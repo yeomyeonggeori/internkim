@@ -27,13 +27,13 @@ final class AttendanceWidgetRefresh {
     static void redrawNow(Context context, boolean isTick) {
         AppWidgetManager manager = AppWidgetManager.getInstance(context);
         int[] widgetIDs = manager.getAppWidgetIds(new ComponentName(context, AttendanceWidgetProvider.class));
+        long now = System.currentTimeMillis();
+        AttendanceWidgetEntry entry = AttendanceWidgetReader.read(context, now, isTick);
+        if (!isTick) AttendanceOngoingNotification.update(context, entry);
         if (widgetIDs.length == 0) {
             cancelRedraw(context);
             return;
         }
-
-        long now = System.currentTimeMillis();
-        AttendanceWidgetEntry entry = AttendanceWidgetReader.read(context, now, isTick);
         String refusal = AttendanceRefusal.recent(context, now);
         Long choiceCloses = AttendanceLocationChoice.closes(context, now);
         boolean isChoosingLocation = choiceCloses != null && !entry.today.isWorking();
