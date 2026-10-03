@@ -14,13 +14,20 @@ const (
 
 func SetupNetworkNameFor(boxPublicKey string, madeOn time.Time) string {
 	name := SetupNetworkName
-	if len(boxPublicKey) >= boxNameSuffixLength {
-		name += "-" + boxPublicKey[len(boxPublicKey)-boxNameSuffixLength:]
+	if suffix := boxNameSuffix(boxPublicKey); suffix != "" {
+		name += "-" + suffix
 	}
 	if !madeOn.IsZero() {
 		name += "-" + madeOn.Format(setupNetworkDateLayout)
 	}
 	return name
+}
+
+func boxNameSuffix(boxPublicKey string) string {
+	if len(boxPublicKey) < boxNameSuffixLength {
+		return ""
+	}
+	return boxPublicKey[len(boxPublicKey)-boxNameSuffixLength:]
 }
 
 type Network struct {

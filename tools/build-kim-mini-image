@@ -16,9 +16,9 @@ Usage:
   tools/build-kim-mini-image --release-directory <dir> --release <name> [--wifi-country KR] [--base-image-url <url>]
 
 Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
-package of that release installed, the box started with --wifi-setup, and Wi-Fi
-turned on for the country the box is sold in, which Raspberry Pi OS otherwise
-leaves off until someone picks one. It runs
+package of that release installed, the box started with --wifi-setup and
+--host-name-from-key, and Wi-Fi turned on for the country the box is sold in,
+which Raspberry Pi OS otherwise leaves off until someone picks one. It runs
 in a privileged arm64 Linux container through Docker and writes
 .artifacts/kim-mini/kim-mini-<release>.img.xz. Write it to a card with
 tools/flash-kim-mini, which also records the day the box was made.

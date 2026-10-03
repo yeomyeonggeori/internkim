@@ -123,6 +123,15 @@ func TestWifiSetupWiresGetOnlineChangeWifiAndScanWifiTogether(t *testing.T) {
 	}
 }
 
+func TestOnlyAComputerAskedToIsRenamedAfterItsKey(t *testing.T) {
+	if without := boxDaemon("https://example.com"); without.NameHost != nil {
+		t.Fatal("a daemon built without --host-name-from-key would rename this computer")
+	}
+	if with := withHostNameFromKey(box.Daemon{}); with.NameHost == nil {
+		t.Fatal("a daemon built with --host-name-from-key does not rename this computer")
+	}
+}
+
 func TestReachesURLTreatsAnyHTTPResponseAsReachable(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusServiceUnavailable)
