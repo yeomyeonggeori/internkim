@@ -7,14 +7,10 @@ import (
 )
 
 // The company host installed by a package manager is the relay, capabilityd, blueclaw,
-// admind, maild and chatd, supervised by systemd. It is not the device, and four of
-// those services differ from their device units in ways no argument bridges:
-// blueclaw runs its own binary here and a Cloud Hypervisor guest there, capabilityd is
-// reached over a unix socket here and a vsock there, admind carries the central plane's
-// addresses here and none there, and a package may not write /usr/local, so every path moves
-// to /usr/bin. What is shared is shared: the relay unit is the one renderer with the
-// binary path passed in, and every name, port and address below is the constant the
-// device path already uses.
+// admind, maild and chatd, supervised by systemd. A package may not write /usr/local, so
+// every path moves to /usr/bin. The relay unit is the one renderer with the binary path
+// passed in, and every name, port and address below is the constant the rest of the
+// bundle already uses.
 const (
 	CompanyPackageName        = "internkim"
 	BoxServiceName            = "internkim-box"

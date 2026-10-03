@@ -3,9 +3,12 @@ package admind
 import (
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	blueclawruntime "github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 type serviceLogsResponse struct {
@@ -96,11 +99,12 @@ func (service *Service) fetchServiceLogOutput(request *http.Request, serviceName
 }
 
 func (service *Service) fetchBlueclawLogs(request *http.Request, taskRunID string, limit int) (string, error) {
+	logFilePattern := filepath.Join(blueclawruntime.CompanyHostLogPath, "blueclaw-*.jsonl")
 	var shellCommand string
 	if taskRunID == "" {
-		shellCommand = fmt.Sprintf("cat /var/log/blueclaw-supervisor/*.jsonl 2>/dev/null | tail -n %d", limit)
+		shellCommand = fmt.Sprintf("cat %s 2>/dev/null | tail -n %d", logFilePattern, limit)
 	} else {
-		shellCommand = fmt.Sprintf("grep -hF '%s' /var/log/blueclaw-supervisor/*.jsonl 2>/dev/null | tail -n %d", taskRunID, limit)
+		shellCommand = fmt.Sprintf("grep -hF '%s' %s 2>/dev/null | tail -n %d", taskRunID, logFilePattern, limit)
 	}
 	output, commandError := service.runCommand(request.Context(), "sh", "-c", shellCommand)
 	if commandError != nil {

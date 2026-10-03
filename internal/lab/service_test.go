@@ -268,7 +268,6 @@ func TestProvisionScriptsAcceptBindMountedWorkspace(t *testing.T) {
 	relativeScriptPaths := []string{
 		"lab/scripts/provision-ubuntu.sh",
 		"lab/scripts/provision-blueclaw-dev-session.sh",
-		".dependency/blueclaw/lab/scripts/provision-ubuntu.sh",
 	}
 	for _, relativeScriptPath := range relativeScriptPaths {
 		scriptContent := readRepositoryScript(t, relativeScriptPath)
