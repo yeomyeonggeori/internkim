@@ -30,7 +30,7 @@
 			{@render children()}
 		</div>
 	</div>
-	<div class="bg-background hidden h-6 items-center px-4 pb-1 sm:flex">
+	<div class="bg-background hidden h-8 items-center px-4 pb-2 sm:flex">
 		{@render activityMarker()}
 	</div>
 </div>
