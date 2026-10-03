@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-// The guest reads its roster from a delivery share it cannot write, so asking it
-// to save one answers 500 forever. Every write goes through deliverBlueclawPolicy,
-// which writes on the host and then tells the guest to re-read.
-func TestNothingAsksTheGuestToSaveItsOwnPolicy(t *testing.T) {
+// The agent reads its roster from a file it cannot write, so asking it to save
+// one answers 500 forever. Every write goes through deliverBlueclawPolicy, which
+// writes the file and then tells the agent to re-read.
+func TestNothingAsksTheAgentToSaveItsOwnPolicy(t *testing.T) {
 	entries, errorValue := os.ReadDir(".")
 	if errorValue != nil {
 		t.Fatal(errorValue)
@@ -25,7 +25,7 @@ func TestNothingAsksTheGuestToSaveItsOwnPolicy(t *testing.T) {
 			t.Fatal(errorValue)
 		}
 		if strings.Contains(string(document), "/admin/api/policy/save") {
-			t.Errorf("%s posts the roster to the guest, whose delivery share is read-only; call deliverBlueclawPolicy instead", name)
+			t.Errorf("%s posts the roster to the agent, which cannot write its roster file; call deliverBlueclawPolicy instead", name)
 		}
 	}
 }
