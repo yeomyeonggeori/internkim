@@ -67,8 +67,12 @@ MCP로 부릅니다.
 `bash`는 호출 단위로 스스로 게이트를 겁니다: 에이전트가 무게 있다고 판단한
 명령에 `approvalRequired`를 켭니다.
 
-예외가 하나 있습니다. `targetType`이 `currentThread`나 `currentChannel`인
-`message_send`는 질문받은 대화에 답하는 것이라 두 번째 허락이 필요 없습니다.
+예외가 하나 있습니다. 에이전트가 지금 답하고 있는 대화에 도착하는
+`message_send`는 두 번째 허락이 필요 없습니다. `currentThread`와
+`currentChannel`, 현재 채널의 ID로 지정한 `channel`, 그리고 요청자 본인과의
+1:1 대화에서 받은 수신자 없는 `directMessage`가 여기에 해당합니다. 다른
+사람에게 보내는 DM이나, 채널에서 받은 요청을 요청자에게 DM으로 보내는 것은
+여전히 묻습니다.
 
 <Callout>
 붙잡힌 호출은 태스크 원장에 `approval.pending_call`로 영속되므로 승인은

@@ -393,6 +393,26 @@ func normalizePlatformMessageDeliveryTarget(target platformMessageDeliveryTarget
 	return target
 }
 
+func landsInTheAnsweredConversation(toolContext capabilities.ToolInvokeContext, target platformMessageDeliveryTarget) bool {
+	switch target.Type {
+	case "currentThread", "currentChannel":
+		return true
+	case "channel":
+		return target.ChannelID != "" && target.ChannelID == strings.TrimSpace(toolContext.ChannelID)
+	case "directMessage":
+		return addressesOnlyTheRequester(target) && isDirectConversation(toolContext)
+	}
+	return false
+}
+
+func addressesOnlyTheRequester(target platformMessageDeliveryTarget) bool {
+	return target.PersonHint == "" && len(target.PersonHints) == 0
+}
+
+func isDirectConversation(toolContext capabilities.ToolInvokeContext) bool {
+	return strings.EqualFold(strings.TrimSpace(toolContext.ConversationType), "direct")
+}
+
 func uniqueTrimmedPlatformMessageHints(hints []string) []string {
 	uniqueHints := []string{}
 	seenHint := map[string]bool{}

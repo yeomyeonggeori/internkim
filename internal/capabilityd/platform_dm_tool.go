@@ -1,11 +1,8 @@
 package capabilityd
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
@@ -27,113 +24,6 @@ type platformDMRecipient struct {
 	ExternalUserID string   `json:"externalUserID"`
 	Username       string   `json:"username"`
 	Mention        string   `json:"mention,omitempty"`
-}
-
-type platformDMResolvedRecipient struct {
-	PersonID       string   `json:"personID"`
-	DisplayName    string   `json:"displayName"`
-	Emails         []string `json:"emails"`
-	ExternalUserID string   `json:"externalUserID"`
-	Username       string   `json:"username"`
-}
-
-type platformDMRecipientResolution struct {
-	Status     string                        `json:"status"`
-	Recipient  *platformDMResolvedRecipient  `json:"recipient,omitempty"`
-	Candidates []platformDMResolvedRecipient `json:"candidates,omitempty"`
-}
-
-func isPlatformDMSelfRecipient(toolContext capabilities.ToolInvokeContext, recipient platformDMRecipient) bool {
-	if strings.TrimSpace(toolContext.RequesterPersonID) != "" && strings.TrimSpace(toolContext.RequesterPersonID) == recipient.PersonID {
-		return true
-	}
-	if strings.TrimSpace(toolContext.RequesterPlatformUserID) != "" && strings.TrimSpace(toolContext.RequesterPlatformUserID) == recipient.ExternalUserID {
-		return true
-	}
-	return false
-}
-
-// Who the hint names is settled against the company directory, and only then is
-// this platform asked which account is theirs. Deciding who somebody is from the
-// accounts this agent happens to have seen makes a colleague who has not written
-// to it yet into a stranger.
-func (service Service) resolvePlatformDMRecipient(ctx context.Context, personHint string, responseLanguage string) (platformDMRecipient, platformDMFailure, bool) {
-	named, directoryFailure, hasDirectoryFailure := service.namedDirectoryPerson(ctx, personHint, responseLanguage)
-	if hasDirectoryFailure {
-		return platformDMRecipient{}, directoryFailure, true
-	}
-	resolution, errorValue := service.fetchPlatformDMRecipientResolution(ctx, named.Email)
-	if errorValue != nil {
-		return platformDMRecipient{}, platformDMUnavailableFailure(errorValue), true
-	}
-	switch resolution.Status {
-	case "resolved":
-		recipient := platformDMRecipientFromResolution(resolution.Recipient)
-		if strings.TrimSpace(recipient.ExternalUserID) == "" {
-			return platformDMRecipient{}, platformDMRecipientNotFoundFailure(personHint), true
-		}
-		return recipient, platformDMFailure{}, false
-	case "ambiguous":
-		candidates := platformDMRecipientsFromResolution(resolution.Candidates)
-		message := fmt.Sprintf("recipient %q is ambiguous: %s", personHint, platformDMRecipientList(candidates))
-		failure := platformDMStaticFailure("recipient_ambiguous", "recipient_resolve", message)
-		failure.Candidates = candidates
-		return platformDMRecipient{}, failure, true
-	case "not_found", "unlinked":
-		return platformDMRecipient{}, platformDMRecipientNotFoundFailure(personHint), true
-	default:
-		errorValue := fmt.Errorf("recipient resolve returned unsupported status %q", resolution.Status)
-		return platformDMRecipient{}, platformDMUnavailableFailure(errorValue), true
-	}
-}
-
-func (service Service) fetchPlatformDMRecipientResolution(ctx context.Context, personHint string) (platformDMRecipientResolution, error) {
-	endpoint := strings.TrimRight(firstNonEmpty(service.Configuration.BlueclawBaseURL, DefaultConfiguration().BlueclawBaseURL), "/") + "/admin/api/identity/resolve-recipient"
-	requestBody, errorValue := json.Marshal(map[string]string{"platform": service.companyMessenger(), "hint": personHint})
-	if errorValue != nil {
-		return platformDMRecipientResolution{}, errorValue
-	}
-	request, errorValue := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(requestBody))
-	if errorValue != nil {
-		return platformDMRecipientResolution{}, errorValue
-	}
-	request.Header.Set("Content-Type", "application/json")
-	response, errorValue := service.httpClient().Do(request)
-	if errorValue != nil {
-		return platformDMRecipientResolution{}, errorValue
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return platformDMRecipientResolution{}, fmt.Errorf("recipient resolve failed with status %d", response.StatusCode)
-	}
-	var resolution platformDMRecipientResolution
-	if errorValue := json.NewDecoder(response.Body).Decode(&resolution); errorValue != nil {
-		return platformDMRecipientResolution{}, errorValue
-	}
-	return resolution, nil
-}
-
-func platformDMRecipientFromResolution(recipient *platformDMResolvedRecipient) platformDMRecipient {
-	if recipient == nil {
-		return platformDMRecipient{}
-	}
-	return platformDMRecipient{
-		PersonID:       strings.TrimSpace(recipient.PersonID),
-		DisplayName:    strings.TrimSpace(recipient.DisplayName),
-		Emails:         normalizedPlatformDMEmails(recipient.Emails),
-		ExternalUserID: strings.TrimSpace(recipient.ExternalUserID),
-		Username:       strings.TrimSpace(recipient.Username),
-		Mention:        platformMentionForUsername(recipient.Username),
-	}
-}
-
-func platformDMRecipientsFromResolution(recipients []platformDMResolvedRecipient) []platformDMRecipient {
-	resolvedRecipients := []platformDMRecipient{}
-	for recipientIndex := range recipients {
-		recipient := platformDMRecipientFromResolution(&recipients[recipientIndex])
-		resolvedRecipients = append(resolvedRecipients, recipient)
-	}
-	return resolvedRecipients
 }
 
 func platformDMRecipientNotFoundFailure(personHint string) platformDMFailure {
@@ -234,12 +124,4 @@ func isPlatformDMTransientError(errorValue error) bool {
 		}
 	}
 	return false
-}
-
-func platformMentionForUsername(username string) string {
-	trimmedUsername := strings.TrimSpace(strings.TrimPrefix(username, "@"))
-	if trimmedUsername == "" {
-		return ""
-	}
-	return "@" + trimmedUsername
 }

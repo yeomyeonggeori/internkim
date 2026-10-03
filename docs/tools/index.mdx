@@ -69,9 +69,12 @@ there rather than from a list written by hand. Among workspace tools,
 `file_delete` is gated, and `bash` gates itself per call: the agent sets
 `approvalRequired` on a command it judges consequential.
 
-One exemption: a `message_send` whose `targetType` is `currentThread` or
-`currentChannel` is the agent answering the conversation it was asked in, and
-that reply does not need a second yes.
+One exemption: a `message_send` that lands in the conversation the agent is
+answering does not need a second yes. That is `currentThread` and
+`currentChannel`, a `channel` named by the current channel's ID, and a
+`directMessage` with no recipient asked from the requester's own direct
+conversation. A direct message to anyone else, or to the requester from a
+channel, still asks.
 
 <Callout>
 A held call is persisted to the task ledger as `approval.pending_call`, so an
