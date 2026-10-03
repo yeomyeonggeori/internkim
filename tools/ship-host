@@ -288,7 +288,7 @@ def watch_the_agent(shipment):
 
 
 def upgrade_host(shipment):
-    run_on_host(shipment, INSTALL_LINE)
+    run_on_host(shipment, f"{INSTALL_LINE} --version {shipment.tag}")
     check_host_runs(shipment, shipment.tag)
     watch_the_agent(shipment)
 

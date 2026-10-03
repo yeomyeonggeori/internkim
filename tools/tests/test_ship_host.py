@@ -265,6 +265,13 @@ class RollbackTest(unittest.TestCase):
         self.assertIn("rollback left undone", str(failure))
         self.assertIn("roll the host back to " + HOST_TAG, str(failure))
 
+    def test_the_host_installs_the_tag_that_was_shipped(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        install = commands.calls[commands.matching("install.sh")[0]][-1]
+        self.assertTrue(install.endswith("--version " + NEW_TAG))
+
     def test_the_version_read_ends_in_a_newline(self):
         commands = ScriptedCommands()
         with tempfile.TemporaryDirectory() as directory:
