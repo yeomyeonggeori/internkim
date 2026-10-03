@@ -16,6 +16,7 @@ import json
 import shlex
 import shutil
 import sys
+import tarfile
 import tempfile
 import time
 import uuid
@@ -367,6 +368,24 @@ OWNERSHIP_COMMAND = (
     "stat -c 'workspace=%%U:%%G %%u' /workspace; "
     "printf 'blueclaw=%%s postgres=%%s\\n' \"$(id -u blueclaw)\" \"$(id -u " + DATABASE_USER + ")\""
 )
+
+
+RESTORED_TASKS_QUERY = (
+    "select to_char(created_at, 'HH24:MI:SS') || ' ' || status || ' ' || left(regexp_replace(prompt, '\\s+', ' ', 'g'), 80) "
+    "from task_run order by created_at desc limit 3"
+)
+
+
+def archived_mode(archive_path, file_path):
+    """The mode the backup recorded for one file, read from files.tar inside the archive."""
+    relative = str(file_path).removeprefix("/workspace/")
+    with tarfile.open(archive_path) as archive:
+        files = archive.extractfile("files.tar")
+        with tarfile.open(fileobj=files) as inner:
+            for member in inner.getmembers():
+                if member.name == f"workspace/{relative}":
+                    return f"{member.mode:o}"
+    return "absent"
 
 
 def in_the_agents_database(statements):
@@ -1675,7 +1694,10 @@ class Rig:
         ).record(
             bool(source_owner) and owned.startswith(source_owner + " 640 ") and self.persons_phrase in owned
             and "workspace=blueclaw:blueclaw " in self.source_ownership and "workspace=blueclaw:blueclaw " in owned,
-            f"before: {self.source_ownership.strip()}\nafter:  {owned.strip()}",
+            f"before: {self.source_ownership.strip()}\n"
+            f"archived: {archived_mode(self.archive_path, self.persons_file) if self.persons_file else 'no file'}\n"
+            f"after:  {owned.strip()}\n"
+            f"the restored agent's latest tasks:\n{self.machine.shell(in_the_agents_database(RESTORED_TASKS_QUERY)).stdout.strip()}",
         )
 
     # ----------------------------------------------------------------- report

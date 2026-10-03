@@ -501,3 +501,26 @@ class WhatTheRigJudgesIsTheReleaseUnderTest(unittest.TestCase):
 
     def test_an_agent_update_judges_the_release_it_moves_to(self):
         self.assertEqual(self.judged_in(["older", "newer"], is_an_agent_update=True), [("pdf", "newer"), ("before the roster", "newer")])
+
+
+class ArchivedModeTests(unittest.TestCase):
+    def archive_holding(self, directory, name, mode):
+        inner_path = Path(directory) / "files.tar"
+        with tarfile.open(inner_path, "w") as inner:
+            member = tarfile.TarInfo(name)
+            member.mode = mode
+            inner.addfile(member, io.BytesIO(b""))
+        archive_path = Path(directory) / "backup.tar"
+        with tarfile.open(archive_path, "w") as archive:
+            archive.add(inner_path, arcname="files.tar")
+        return archive_path
+
+    def test_the_mode_is_read_from_the_files_member_under_the_workspace_role(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = self.archive_holding(directory, "workspace/private/people/a/rig-backup.md", 0o640)
+            self.assertEqual(rig_driver.archived_mode(archive_path, "/workspace/private/people/a/rig-backup.md"), "640")
+
+    def test_a_file_the_backup_did_not_carry_is_absent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive_path = self.archive_holding(directory, "workspace/other.md", 0o600)
+            self.assertEqual(rig_driver.archived_mode(archive_path, "/workspace/private/people/a/rig-backup.md"), "absent")
