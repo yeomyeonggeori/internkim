@@ -100,8 +100,12 @@ def package_directory_name(tag):
     return f"{PACKAGE_NAME}-{tag}"
 
 
-def package_asset_name():
-    return f"{PACKAGE_NAME}-{PACKAGE_ARCHITECTURE}.deb"
+def package_asset_name(suffix=".deb"):
+    return f"{PACKAGE_NAME}-{PACKAGE_ARCHITECTURE}{suffix}"
+
+
+def assets_under_test():
+    return [package_asset_name(".deb"), package_asset_name(".rpm")]
 
 
 def checksum_lines(text):
@@ -205,21 +209,19 @@ def cut_testing_release(shipment):
     shipment.tag = tag_from_release_output(output)
 
 
-def download_release(shipment, tag):
+def download_release(shipment, tag, assets):
     directory = shipment.directory / package_directory_name(tag)
-    shipment.run([
-        "gh", "release", "download", tag, "--repo", RELEASE_REPOSITORY,
-        "--pattern", package_asset_name(), "--pattern", CHECKSUMS_NAME, "--dir", str(directory),
-    ])
-    mismatched = mismatched_assets(directory, [package_asset_name()])
+    patterns = [argument for asset in [*assets, CHECKSUMS_NAME] for argument in ("--pattern", asset)]
+    shipment.run(["gh", "release", "download", tag, "--repo", RELEASE_REPOSITORY, *patterns, "--dir", str(directory)])
+    mismatched = mismatched_assets(directory, assets)
     if mismatched:
         raise ShipFailure("verify checksums", f"{tag} has {', '.join(mismatched)} that {CHECKSUMS_NAME} does not vouch for")
     return directory
 
 
 def download_and_verify(shipment):
-    download_release(shipment, shipment.tag)
-    download_release(shipment, shipment.previous_tag)
+    download_release(shipment, shipment.tag, assets_under_test())
+    download_release(shipment, shipment.previous_tag, [package_asset_name()])
 
 
 def rig_command(shipment, extra_arguments):

@@ -63,10 +63,12 @@ class ScriptedCommands:
     def write_download(self, arguments):
         directory = Path(arguments[arguments.index("--dir") + 1])
         directory.mkdir(parents=True, exist_ok=True)
-        package = directory / ship_host.package_asset_name()
-        package.write_bytes(b"package")
+        patterns = [arguments[index + 1] for index, argument in enumerate(arguments) if argument == "--pattern"]
+        packages = [pattern for pattern in patterns if pattern != ship_host.CHECKSUMS_NAME]
         digest = hashlib.sha256(b"package").hexdigest()
-        (directory / ship_host.CHECKSUMS_NAME).write_text(f"{digest}  {package.name}\n")
+        for package in packages:
+            (directory / package).write_bytes(b"package")
+        (directory / ship_host.CHECKSUMS_NAME).write_text("".join(f"{digest}  {package}\n" for package in packages))
         return ""
 
     def host_answer(self, script):
@@ -182,6 +184,15 @@ class OrderTest(unittest.TestCase):
         self.assertFalse(commands.matching("--channel stable"))
         self.assertFalse(commands.matching("release edit"))
         self.assertFalse(commands.matching("ssh"))
+
+    def test_the_release_under_test_brings_the_package_the_restore_step_installs(self):
+        commands = ScriptedCommands()
+        with tempfile.TemporaryDirectory() as directory:
+            ship_quietly(shipment_with(commands, directory=directory))
+        downloads = [command for command in commands.calls if command[:3] == ["gh", "release", "download"]]
+        under_test = next(command for command in downloads if NEW_TAG in command)
+        self.assertIn(ship_host.package_asset_name(".rpm"), under_test)
+        self.assertIn(ship_host.package_asset_name(".deb"), under_test)
 
     def test_a_package_the_checksums_do_not_vouch_for_stops_the_run(self):
         commands = ScriptedCommands()
