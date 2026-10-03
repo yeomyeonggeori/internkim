@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
+	keepWorkspaceFileInTheMessenger,
 	prepareMedia,
 	prepareWorkspaceFile,
 	takeUploadIntoMessenger,
@@ -210,5 +211,108 @@ describe('taking an upload the browser put in the store', () => {
 
 		expect(answer.status).toBe(404);
 		expect(started).toEqual([]);
+	});
+});
+
+type StoreCall = { method: string; url: string; body?: string };
+
+function storeTakingUploads(): StoreCall[] {
+	const calls: StoreCall[] = [];
+	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+		const url = String(input);
+		const method = init?.method ?? 'GET';
+		calls.push({ method, url, body: typeof init?.body === 'string' ? init.body : undefined });
+		if (url.endsWith('/storage/v1/upload/resumable')) {
+			return new Response(null, { status: 201, headers: { location: `${projectURL}/storage/v1/upload/resumable/upload-1` } });
+		}
+		if (method === 'PATCH') return new Response(null, { status: 204 });
+		const signed = url.split('/storage/v1/object/sign/asset/')[1];
+		if (signed !== undefined) return Response.json({ signedURL: `/object/sign/asset/${signed}?token=t` });
+		if (method === 'DELETE') return Response.json([]);
+		return new Response('unexpected', { status: 599 });
+	}) as typeof fetch;
+	return calls;
+}
+
+function workspaceHolding(bytes: string): { asked: { requester: string; path: string }[]; read: FileTransferDependencies['readWorkspaceRange'] } {
+	const asked: { requester: string; path: string }[] = [];
+	return {
+		asked,
+		read: async (requester, path) => {
+			asked.push({ requester, path });
+			return new Response(bytes, {
+				status: 206,
+				headers: { 'content-range': `bytes 0-${bytes.length - 1}/${bytes.length}`, 'content-length': String(bytes.length) }
+			});
+		}
+	};
+}
+
+const agentDeck = {
+	filename: '분기 보고.pdf',
+	workspacePath: '/workspace/private/people/person-1/분기 보고.pdf',
+	contentType: 'application/pdf'
+};
+
+describe('handing the agent a file from the workspace to the messenger', () => {
+	test('reads it as the person answered, copies it under them, and has the messenger keep it as them', async () => {
+		const calls = storeTakingUploads();
+		const workspace = workspaceHolding('%PDF-1.7');
+		const uploads: { actor: unknown; sourceURL: string; contentType: string }[] = [];
+		const { values } = dependencies({
+			readWorkspaceRange: workspace.read,
+			uploadMedia: async (asWhom, sourceURL, contentType) => {
+				uploads.push({ actor: asWhom, sourceURL, contentType });
+				return { status: 200, body: { media: { address: 'http://127.0.0.1:3000/media/9f2c.pdf', digest: '9f2c', sizeBytes: 8 } } };
+			}
+		});
+
+		const kept = await keepWorkspaceFileInTheMessenger(values, 'member-1', actor, 'sample@example.test', agentDeck);
+
+		expect(workspace.asked).toEqual([{ requester: 'sample@example.test', path: agentDeck.workspacePath }]);
+		const opened = calls.find((call) => call.url.endsWith('/storage/v1/upload/resumable'));
+		expect(opened).toBeDefined();
+		const signed = calls.find((call) => call.url.includes('/storage/v1/object/sign/asset/'));
+		expect(signed?.url).toContain(`/asset/${companyID}/person/member-1/transfer/`);
+		expect(uploads).toHaveLength(1);
+		expect(uploads[0]).toMatchObject({ actor, contentType: 'application/pdf' });
+		expect(uploads[0]?.sourceURL).toContain(`${companyID}/person/member-1/transfer/`);
+		expect(kept).toEqual({
+			filename: '분기 보고.pdf',
+			contentType: 'application/pdf',
+			address: 'http://127.0.0.1:3000/media/9f2c.pdf',
+			digest: '9f2c',
+			sizeBytes: 8
+		});
+		expect(calls.filter((call) => call.method === 'DELETE')).toHaveLength(1);
+	});
+
+	test('a messenger that will not keep it fails with what the messenger said, and the copy is let go', async () => {
+		const calls = storeTakingUploads();
+		const { values } = dependencies({
+			readWorkspaceRange: workspaceHolding('%PDF-1.7').read,
+			uploadMedia: async () => ({ status: 502, body: { error: 'the media store is full' } })
+		});
+
+		const failure = await keepWorkspaceFileInTheMessenger(values, 'member-1', actor, 'sample@example.test', agentDeck).catch(
+			(caught: unknown) => caught
+		);
+
+		expect(String(failure)).toContain('the media store is full');
+		expect(calls.filter((call) => call.method === 'DELETE')).toHaveLength(1);
+	});
+
+	test('a file the person may not read is never copied, and fails with what the workspace said', async () => {
+		const calls = storeTakingUploads();
+		const { values } = dependencies({
+			readWorkspaceRange: async () => new Response('workspace path is not accessible', { status: 403 })
+		});
+
+		const failure = await keepWorkspaceFileInTheMessenger(values, 'member-2', actor, 'other@example.test', agentDeck).catch(
+			(caught: unknown) => caught
+		);
+
+		expect(String(failure)).toContain('workspace path is not accessible');
+		expect(calls.some((call) => call.url.endsWith('/storage/v1/upload/resumable'))).toBe(false);
 	});
 });

@@ -121,8 +121,8 @@ export class InboundTurns {
 		for (const event of await this.settings.queue.undelivered()) {
 			const inbound = readInboundMessage(event.body);
 			if (!inbound) {
-				this.settings.report?.(`dropped ${event.key}: it is not a message the agent can answer`);
 				await this.forget(event.key);
+				this.settings.report?.(`dropped ${event.key}: it is not a message the agent can answer`);
 				continue;
 			}
 			if (this.turnsInFlight.has(event.key)) continue;
@@ -230,10 +230,10 @@ export class InboundTurns {
 		const attempts = await this.settings.queue.recordAttempt(event.key);
 		const attempted = { ...event, attempts };
 		if (this.settings.queue.hasExhausted(attempted)) {
+			await this.forget(event.key);
 			this.settings.report?.(
 				`dropped ${event.key} after ${attempts} attempts: ${described(failure)}`
 			);
-			await this.forget(event.key);
 			return;
 		}
 		this.settings.report?.(`${event.key} failed on attempt ${attempts}: ${described(failure)}`);

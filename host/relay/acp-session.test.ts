@@ -29,6 +29,8 @@ import {
 	type PutQuestion
 } from './acp-session';
 import { HeldQuestionStore } from './held-question-store';
+import { agentFilePoster } from './conversation-post';
+import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 
 function aQuestionStore(directoryPath?: string): HeldQuestionStore {
 	return new HeldQuestionStore({ directoryPath: directoryPath ?? mkdtempSync(join(tmpdir(), 'acp-questions-')) });
@@ -255,16 +257,34 @@ async function waitUntil(isReady: () => boolean | Promise<boolean>, waitedFor: s
 	throw new Error(`waited too long for ${waitedFor}`);
 }
 
-type Posted = { addressing: Addressing; message: string };
+type Posted = { addressing: Addressing; message: string; attachments?: KeptAttachment[] };
 
 function aConversation(refusal?: string) {
 	const posted: Posted[] = [];
 	return {
 		posted,
-		post: async (addressing: Addressing, message: string): Promise<string> => {
+		post: async (addressing: Addressing, message: string, attachments?: KeptAttachment[]): Promise<string> => {
 			if (refusal) throw new Error(refusal);
-			posted.push({ addressing, message });
+			posted.push({ addressing, message, ...(attachments ? { attachments } : {}) });
 			return `posted-${posted.length}`;
+		}
+	};
+}
+
+async function noFileExpected(): Promise<string> {
+	throw new Error('no file was expected in this conversation');
+}
+
+type HandedOver = { requesterEmail: string; file: WorkspaceFile };
+
+function aMessengerKeeping(refusal?: string) {
+	const handedOver: HandedOver[] = [];
+	return {
+		handedOver,
+		keep: async (requesterEmail: string, file: WorkspaceFile): Promise<KeptAttachment> => {
+			handedOver.push({ requesterEmail, file });
+			if (refusal) throw new Error(refusal);
+			return { filename: file.filename, contentType: file.contentType, address: 'http://127.0.0.1:3000/media/9f2c.pdf', digest: '9f2c', sizeBytes: 2048 };
 		}
 	};
 }
@@ -287,6 +307,7 @@ test('a session names the requester and the conversation it answers in', async (
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -308,6 +329,7 @@ test('a second message in the same conversation reuses the session', async () =>
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -334,6 +356,7 @@ test('the person is asked, and the agent reads what they wrote', async () => {
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
@@ -374,6 +397,7 @@ test('an already-answered question survives a restart and is delivered without a
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
@@ -415,6 +439,7 @@ test('an unanswered question is not asked again after a restart, and is delivere
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions,
 		askThePerson: async (question) => {
 			asked.push(question.question);
@@ -457,6 +482,7 @@ test('a question is put in the thread of the message whose turn asked it, not th
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions,
 		askThePerson: async (_question, addressing) => {
 			askedIn.push(addressing);
@@ -491,6 +517,7 @@ test('each reply is posted in the thread it names, even while another turn waits
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: conversation.post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => {
 			isAsked = true;
@@ -525,6 +552,7 @@ test('a reply is posted as it arrives, and the agent is told once which message 
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: conversation.post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -548,6 +576,7 @@ test('a reply the conversation refuses is reported undelivered with the reason, 
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: conversation.post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -570,6 +599,7 @@ test('a reply that arrives with no turn open is posted in the thread it names an
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: conversation.post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -595,6 +625,90 @@ test('a reply that arrives with no turn open is posted in the thread it names an
 	]);
 });
 
+const agentDeckLink: ContentBlock = {
+	type: 'resource_link',
+	name: '분기 보고.pdf',
+	uri: 'file:///workspace/private/people/person-1/%EB%B6%84%EA%B8%B0%20%EB%B3%B4%EA%B3%A0.pdf',
+	mimeType: 'application/pdf',
+	size: 2048
+};
+
+function aClientPostingFilesThrough(socketPath: string, messenger: ReturnType<typeof aMessengerKeeping>, conversation: ReturnType<typeof aConversation>) {
+	const client = new BlueclawACPClient({
+		socketPath,
+		workspaceRootPath: '/workspace',
+		catalogFor: () => [],
+		postToConversation: conversation.post,
+		postFileToConversation: agentFilePoster({ keepForTheMessenger: messenger.keep, postToConversation: conversation.post }),
+		questions: aQuestionStore(),
+		askThePerson: async () => putWith(''),
+		awaitAnAlreadyAskedQuestion: neverAskedAgain()
+	});
+	cleanUps.push(() => client.close());
+	return client;
+}
+
+test('a file the agent replies with is kept by the messenger as the person it answers, posted, and reported delivered as that message', async () => {
+	const agent = anAgentOnASocket({});
+	const messenger = aMessengerKeeping();
+	const conversation = aConversation();
+	const client = aClientPostingFilesThrough(agent.socketPath, messenger, conversation);
+	await client.ask(sampleRequester, sampleAddressing, '한 장짜리 PDF 만들어줘');
+
+	await agent.speakWithNoTurnOpen('session-1', agentDeckLink, { deliveryID: 'file-1', replyTargetID: 'buzz:conversation-1:message-7' });
+	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the file');
+
+	expect(messenger.handedOver).toEqual([
+		{
+			requesterEmail: 'sample@example.test',
+			file: { filename: '분기 보고.pdf', workspacePath: '/workspace/private/people/person-1/분기 보고.pdf', contentType: 'application/pdf' }
+		}
+	]);
+	expect(conversation.posted).toEqual([
+		{
+			addressing: { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-7' },
+			message: '',
+			attachments: [{ filename: '분기 보고.pdf', contentType: 'application/pdf', address: 'http://127.0.0.1:3000/media/9f2c.pdf', digest: '9f2c', sizeBytes: 2048 }]
+		}
+	]);
+	expect(agent.deliveryReports).toEqual([
+		{ method: deliveredExtensionMethod, params: { deliveryID: 'file-1', messageID: 'posted-1' } }
+	]);
+});
+
+test('a file the messenger will not keep is reported undelivered with its reason, and nothing is posted', async () => {
+	const agent = anAgentOnASocket({});
+	const messenger = aMessengerKeeping('the messenger refused 분기 보고.pdf with 413');
+	const conversation = aConversation();
+	const client = aClientPostingFilesThrough(agent.socketPath, messenger, conversation);
+	await client.ask(sampleRequester, sampleAddressing, '한 장짜리 PDF 만들어줘');
+
+	await agent.speakWithNoTurnOpen('session-1', agentDeckLink, { deliveryID: 'file-1' });
+	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the file');
+
+	expect(conversation.posted).toEqual([]);
+	expect(agent.deliveryReports.map((report) => report.method)).toEqual([undeliveredExtensionMethod]);
+	expect(String(agent.deliveryReports[0].params.reason)).toContain('refused 분기 보고.pdf with 413');
+});
+
+test('a file named by anything but a path on this computer is reported undelivered, and never handed to the messenger', async () => {
+	const agent = anAgentOnASocket({});
+	const messenger = aMessengerKeeping();
+	const client = aClientPostingFilesThrough(agent.socketPath, messenger, aConversation());
+	await client.ask(sampleRequester, sampleAddressing, '한 장짜리 PDF 만들어줘');
+
+	await agent.speakWithNoTurnOpen(
+		'session-1',
+		{ type: 'resource_link', name: 'deck.pdf', uri: 'https://files.example.com/deck.pdf' },
+		{ deliveryID: 'file-1' }
+	);
+	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the file');
+
+	expect(messenger.handedOver).toEqual([]);
+	expect(agent.deliveryReports.map((report) => report.method)).toEqual([undeliveredExtensionMethod]);
+	expect(String(agent.deliveryReports[0].params.reason)).toContain('https://files.example.com/deck.pdf');
+});
+
 test('what the relay cannot post is reported undelivered, never dropped', async () => {
 	const agent = anAgentOnASocket({});
 	const conversation = aConversation();
@@ -603,6 +717,7 @@ test('what the relay cannot post is reported undelivered, never dropped', async 
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: conversation.post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()
@@ -612,8 +727,8 @@ test('what the relay cannot post is reported undelivered, never dropped', async 
 
 	await agent.speakWithNoTurnOpen(
 		'session-1',
-		{ type: 'resource_link', name: 'draft.pdf', uri: 'file:///workspace/draft.pdf' },
-		{ deliveryID: 'file-1' }
+		{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' },
+		{ deliveryID: 'picture-1' }
 	);
 	await agent.speakWithNoTurnOpen('session-nobody-holds', { type: 'text', text: '안녕하세요' }, { deliveryID: 'stray-1' });
 	await waitUntil(() => agent.deliveryReports.length === 2, 'the relay to report both');
@@ -621,7 +736,7 @@ test('what the relay cannot post is reported undelivered, never dropped', async 
 	expect(conversation.posted).toEqual([]);
 	const reasons = new Map(agent.deliveryReports.map((report) => [report.params.deliveryID, String(report.params.reason)]));
 	expect(agent.deliveryReports.every((report) => report.method === undeliveredExtensionMethod)).toBe(true);
-	expect(reasons.get('file-1')).toContain('draft.pdf');
+	expect(reasons.get('picture-1')).toContain('image');
 	expect(reasons.get('stray-1')).toContain('session-nobody-holds');
 });
 
@@ -633,6 +748,7 @@ test('a question asked with no turn running is put in the thread it names and re
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async (_question, addressing) => {
 			askedIn.push(addressing);
@@ -663,6 +779,7 @@ test('a question the conversation refuses is reported undelivered and forgotten'
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions,
 		askThePerson: async () => {
 			throw new Error('chatd refused the post to buzz:conversation-1:message-9 with 503');
@@ -689,6 +806,7 @@ function aClientOn(socketPath: string): BlueclawACPClient {
 		workspaceRootPath: '/workspace',
 		catalogFor: () => [],
 		postToConversation: aConversation().post,
+		postFileToConversation: noFileExpected,
 		questions: aQuestionStore(),
 		askThePerson: async () => putWith(''),
 		awaitAnAlreadyAskedQuestion: neverAskedAgain()

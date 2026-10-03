@@ -10,6 +10,7 @@ import {
 	sharedAssetKeptAs
 } from './asset-store';
 import {
+	keepWorkspaceFileInTheMessenger,
 	prepareMedia,
 	prepareWorkspaceFile,
 	removeExpiredCopies,
@@ -18,7 +19,8 @@ import {
 	writeKeptFileIntoWorkspace,
 	type ActorCredential,
 	type FileTransferDependencies,
-	type KeptFileReference
+	type KeptFileReference,
+	type WorkspaceFile
 } from './file-transfer';
 import type { StoreAccess } from './transfer-store';
 import { Transfers } from './transfers';
@@ -49,7 +51,7 @@ import { RecordCatalogs, ticketOf } from './record-catalog';
 import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
-import { conversationPoster } from './conversation-post';
+import { agentFilePoster, conversationPoster } from './conversation-post';
 import { HeldQuestionStore } from './held-question-store';
 import { activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
@@ -451,6 +453,27 @@ const postToConversation = conversationPoster({
 	tellBrowsers
 });
 
+async function memberIDOfEmail(email: string): Promise<string | null> {
+	const member = await client
+		.from('member')
+		.select('id')
+		.eq('company_id', companyID)
+		.eq('email', email)
+		.maybeSingle<{ id: string }>();
+	if (member.error) throw new Error(member.error.message);
+	return member.data?.id ?? null;
+}
+
+async function keepForTheMessenger(requesterEmail: string, file: WorkspaceFile) {
+	const memberID = await memberIDOfEmail(requesterEmail);
+	if (!memberID) throw new Error(`nobody in this company signs in as ${requesterEmail}, so ${file.filename} has nobody to be handed over as`);
+	const actor = await credentials.credentialOf(memberID);
+	if (!actor) throw new Error(`${requesterEmail} holds no messenger credential, so ${file.filename} cannot be handed to the messenger as them`);
+	return keepWorkspaceFileInTheMessenger(fileTransfer, memberID, actor, requesterEmail, file);
+}
+
+const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConversation });
+
 const inboundTurns: InboundTurns = new InboundTurns({
 	client: new BlueclawACPClient({
 		socketPath: blueclawACPSocketPath,
@@ -458,6 +481,7 @@ const inboundTurns: InboundTurns = new InboundTurns({
 		catalogFor: (requesterEmail, conversationID) =>
 			recordCatalogs.serversFor(requesterEmail, conversationID),
 		postToConversation,
+		postFileToConversation,
 		questions: new HeldQuestionStore({
 			directoryPath: `${relayStateDirectory}/questions`,
 			report: (line) => console.log(`questions: ${line}`)

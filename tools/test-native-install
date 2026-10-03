@@ -178,6 +178,15 @@ printf 'task=%%s\n' "$(psql "$agent_url" -tAc "select status from task_run where
 printf 'answers=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at" 2>&1 | tr -d ' \n')"
 """
 
+# Whether the agent's answer carried a PDF: a message in the messenger's store
+# from anyone but the member, written after theirs, whose media tags name one.
+# The relay writes that tag only once the messenger kept the file and the post
+# that references it landed.
+AGENT_PDF_COMMAND = r"""
+messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | head -1)"
+printf 'pdfs=%%s\n' "$(psql "$messenger_url" -tAc "select count(*) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at and answer.tags @> '[[\"imeta\", \"m application/pdf\"]]'::jsonb" 2>&1 | tr -d ' \n')"
+"""
+
 BRIDGE_COMMAND = (
     "printf 'bridge=%(port)s%(path)s=%%s\\n' "
     "\"$(curl -s -o /dev/null -w '%%{http_code}' --max-time 10 http://127.0.0.1:%(port)s%(path)s)\""
@@ -226,6 +235,17 @@ def every_probe_answered(reading):
 def message_asking_for_an_answer(occasion):
     marker = " ".join(part for part in ("native install rig", occasion, uuid.uuid4().hex) if part)
     return f"Please confirm in one short sentence that this message reached you. {marker}"
+
+
+def message_asking_for_a_pdf():
+    marker = f"native install rig {uuid.uuid4().hex}"
+    return f"Make a one-page PDF whose only line reads '{marker}', and send me the PDF file itself. {marker}"
+
+
+def the_agent_sent_a_pdf(reading):
+    reported = dict(line.split("=", 1) for line in reading.splitlines() if "=" in line)
+    sent = reported.get("pdfs", "")
+    return sent.isdigit() and int(sent) > 0
 
 
 def the_agent_answered(reading):
@@ -1076,6 +1096,31 @@ class Rig:
             ).stdout.strip()[-1500:],
         )
 
+    def observe_the_agent_sends_a_pdf(self, step, plane):
+        """A person asks for a file, and the file is what reaches them."""
+        self.message_text = message_asking_for_a_pdf()
+        sent = plane.member_session(self.company_id, self.message_text).get("sent") or {}
+        message_id = sent.get("messageID") or ""
+        self.sent_messages.append((message_id, self.message_text))
+        reported = self.wait_in_the_guest(
+            AGENT_PDF_COMMAND % {"messenger_path": MESSENGER_DATABASE_PATH, "message": message_id or "no-message"},
+            the_agent_sent_a_pdf,
+            timeout_seconds=900,
+        )
+        step.observe(
+            "the member receives the PDF the agent made, as a file in their conversation",
+            "the messenger's store for a message from anyone but the member, written after theirs, whose "
+            "media tags name an application/pdf",
+            "an answer that says a file is attached is words; the media tag is what the messenger draws the "
+            "file from, and the relay writes it only after the messenger kept the file and the post landed",
+        ).record(
+            the_agent_sent_a_pdf(reported.stdout),
+            f"asked in {message_id or 'no message'}: {reported.stdout.strip()}\n"
+            + self.machine.shell(
+                f"journalctl -u {RELAY_UNIT_NAME} --no-pager -n 400 2>/dev/null | grep -E 'did not reach|transfer:' | tail -n 10; true"
+            ).stdout.strip()[-1500:],
+        )
+
     def observe_a_message_that_arrives_before_the_roster(self, step, plane):
         """What the stranger run lost: a member who writes before the agent knows them."""
         self.machine.checked_shell(
@@ -1733,6 +1778,11 @@ def main():
                 rig.observe_the_host_holds_the_gateway_socket(step_five)
                 rig.observe_the_member_round_trip(step_five, rig.plane, is_watching_for_typing=True)
                 rig.observe_the_agent_answered(step_five)
+                step_eleven = rig.step(11, "a person who asks for a PDF receives the file in their conversation")
+                if rig_model_key() == RIG_MODEL_KEY:
+                    step_eleven.block("not run: no model key, so no agent can make a file; run under `monkeys run @test`")
+                else:
+                    rig.observe_the_agent_sends_a_pdf(step_eleven, rig.plane)
                 step_eight = rig.step(8, "a message that arrives before the agent holds the roster is answered once it does")
                 rig.observe_a_message_that_arrives_before_the_roster(step_eight, rig.plane)
                 revision_before = rig.build_identity_the_guest_reports()

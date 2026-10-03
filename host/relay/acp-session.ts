@@ -11,6 +11,8 @@ import {
 	type SessionNotification,
 	type StopReason
 } from '@agentclientprotocol/sdk';
+import { fileURLToPath } from 'node:url';
+import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 import type { HeldQuestion, HeldQuestionStore } from './held-question-store';
 
 export const defaultBlueclawACPSocketPath = '/run/internkim/acp/blueclaw-acp.sock';
@@ -75,6 +77,11 @@ async function fromTheAgent<T>(request: Promise<T>): Promise<T> {
 const firstReconnectDelayMilliseconds = 250;
 const longestReconnectDelayMilliseconds = 5_000;
 
+/** Posts the message and answers with the ID it was posted under; throws when it was not posted. */
+export type PostToConversation = (addressing: Addressing, message: string, attachments?: KeptAttachment[]) => Promise<string>;
+
+export type PostFileToConversation = (addressing: Addressing, requesterEmail: string, file: WorkspaceFile) => Promise<string>;
+
 export type AskedPermission = {
 	toolCallID: string;
 	question: string;
@@ -84,8 +91,8 @@ export type ACPSessionSettings = {
 	socketPath: string;
 	workspaceRootPath: string;
 	catalogFor: (requesterEmail: string, conversationID: string) => McpServerEntry[];
-	/** Posts the message and answers with the ID it was posted under; throws when it was not posted. */
-	postToConversation: (addressing: Addressing, message: string) => Promise<string>;
+	postToConversation: PostToConversation;
+	postFileToConversation: PostFileToConversation;
 	questions: HeldQuestionStore;
 	/** Posts the question to the requester; `answered` settles with the words they write back. */
 	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<PutQuestion>;
@@ -307,14 +314,19 @@ export class BlueclawACPClient {
 	private async postChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<PostOutcome> {
 		const held = this.heldSessionOf(sessionID);
 		if (!held) return { reason: `this relay holds no session ${sessionID}, so it has no conversation to post in` };
-		if (content.type !== 'text') {
-			return { reason: `this relay posts only text, so ${describedContent(content)} did not reach the person` };
-		}
 		try {
-			return { messageID: await this.settings.postToConversation(addressedBy(held, delivery), content.text) };
+			return { messageID: await this.post(content, held.requester, addressedBy(held, delivery)) };
 		} catch (failure) {
 			return { reason: String(failure) };
 		}
+	}
+
+	private post(content: ContentBlock, requester: Requester, addressing: Addressing): Promise<string> {
+		if (content.type === 'text') return this.settings.postToConversation(addressing, content.text);
+		if (content.type === 'resource_link') {
+			return this.settings.postFileToConversation(addressing, requester.email, workspaceFileOf(content));
+		}
+		throw new Error(`this relay posts text and files, so a ${content.type} block did not reach the person`);
 	}
 
 	private async tellTheAgent(delivery: Delivery, outcome: PostOutcome): Promise<void> {
@@ -474,9 +486,13 @@ function addressedBy(held: HeldSession, delivery: Delivery): Addressing {
 	return { ...held.addressing, replyTargetID: delivery.replyTargetID };
 }
 
-function describedContent(content: ContentBlock): string {
-	if (content.type === 'resource_link') return `the file ${content.name} (${content.uri})`;
-	return `a ${content.type} block`;
+const unnamedContentType = 'application/octet-stream';
+
+function workspaceFileOf(link: { name: string; uri: string; mimeType?: string | null }): WorkspaceFile {
+	if (!URL.canParse(link.uri) || new URL(link.uri).protocol !== 'file:') {
+		throw new Error(`the agent named ${link.name} by ${link.uri}, which is not a file on this computer`);
+	}
+	return { filename: link.name, workspacePath: fileURLToPath(link.uri), contentType: link.mimeType || unnamedContentType };
 }
 
 function messageMetaFrom(facts: MessageFacts): Record<string, unknown> {

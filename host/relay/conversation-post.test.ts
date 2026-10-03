@@ -31,7 +31,26 @@ function posterAnswering(answer: ChatdAnswer) {
 	return { post, asked, told };
 }
 
+const keptDeck = {
+	filename: '분기 보고.pdf',
+	contentType: 'application/pdf',
+	address: 'http://127.0.0.1:3000/media/9f2c.pdf',
+	digest: '9f2c',
+	sizeBytes: 2048
+};
+
 describe('conversationPoster', () => {
+	test('posts a file the messenger keeps as a message referencing it', async () => {
+		const { post, asked } = posterAnswering({ status: 200, body: { messageID: 'reply-file-1' } });
+
+		const messageID = await post(addressingOf({ conversationID: directConversationID, replyTargetID: answeredThreadID }), '', [keptDeck]);
+
+		expect(messageID).toBe('reply-file-1');
+		expect(asked).toEqual([
+			{ capability: 'message.post', body: { threadID: answeredThreadID, message: '', attachments: [keptDeck] } }
+		]);
+	});
+
 	test('posts the reply into the thread chatd named, not to a channel', async () => {
 		const { post, asked, told } = posterAnswering({ status: 200, body: { messageID: 'reply-1' } });
 
