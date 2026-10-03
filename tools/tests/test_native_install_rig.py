@@ -190,6 +190,17 @@ class DependencyReadingTests(unittest.TestCase):
         )
 
 
+
+class AgentPdfReadingTests(unittest.TestCase):
+    def test_a_counted_pdf_is_a_file_received(self):
+        driver = load_driver()
+        self.assertTrue(driver.the_agent_sent_a_pdf("pdfs=1\n"))
+
+    def test_none_counted_or_an_unreadable_store_is_nothing_received(self):
+        driver = load_driver()
+        self.assertFalse(driver.the_agent_sent_a_pdf("pdfs=0\n"))
+        self.assertFalse(driver.the_agent_sent_a_pdf('pdfs=ERROR:relation"events"doesnotexist\n'))
+
 if __name__ == "__main__":
     unittest.main()
 

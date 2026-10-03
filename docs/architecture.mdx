@@ -358,6 +358,13 @@ media store, and the message is then sent naming what came back. For the Files
 screen, the relay streams it to admind, which has Blueclaw write it as the
 member's POSIX identity. Either way the upload is deleted once it is taken.
 
+The agent sends a file the same way. Its reply names the file by its workspace
+path, and the relay reads it through admind as the person the reply answers,
+so only what that person may read is posted. The relay copies it into that
+member's `transfer/` prefix, calls `person.media.upload` with the member's key,
+and posts a message as the agent naming what came back. The reply counts as
+delivered only when both the upload and the post landed.
+
 No process holds a whole file. Bun reads an HTTP response as fast as it
 arrives, whatever the reader does with it, so every read is one bounded range.
 
