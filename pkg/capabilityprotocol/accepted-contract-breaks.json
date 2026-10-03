@@ -438,5 +438,20 @@
 		"path": "company_document_download.input.documentHint",
 		"reason": "A data room file sits at its document's category folder as <name>.<documentID>.<extension>, so a document is registered before its files are uploaded and is named by documentHint; the storage path is the record's to write.",
 		"release": "the data room path release carries this catalog and the data room skill to company hosts before the plane that enforces the path deploys"
+	},
+	{
+		"path": "dataroom_get.result.shares[].circleID",
+		"reason": "A person's circles are the data room roles they hold, so a role is never shared with a circle: the circle audience and circleID are gone from shares.",
+		"release": "the circle-is-a-role release; no shipped skill shares a role with a circle"
+	},
+	{
+		"path": "dataroom_share_add.input.audience",
+		"reason": "A person's circles are the data room roles they hold, so a role is never shared with a circle: the circle audience and circleID are gone from shares.",
+		"release": "the circle-is-a-role release; no shipped skill shares a role with a circle"
+	},
+	{
+		"path": "dataroom_share_add.input.circleID",
+		"reason": "A person's circles are the data room roles they hold, so a role is never shared with a circle: the circle audience and circleID are gone from shares.",
+		"release": "the circle-is-a-role release; no shipped skill shares a role with a circle"
 	}
 ]

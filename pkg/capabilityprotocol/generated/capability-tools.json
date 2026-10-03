@@ -16428,7 +16428,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_member_update",
-      "description": "Company dataroom: Assign direct reader roles to an active employee. Replaces their direct member grants atomically; circle grants still apply. Only administrators can assign roles. Parent category grants include every child.",
+      "description": "Company dataroom: Assign the reader roles an active member holds; the roles a member holds are also their circles. Replaces them atomically. Only administrators can assign roles. Parent category grants include every child.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -16746,7 +16746,6 @@
                 "audience": {
                   "enum": [
                     "member",
-                    "circle",
                     "email",
                     "public"
                   ],
@@ -16754,16 +16753,6 @@
                 },
                 "canDownload": {
                   "type": "boolean"
-                },
-                "circleID": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
                 },
                 "email": {
                   "anyOf": [
@@ -16818,7 +16807,6 @@
                 "audience",
                 "email",
                 "memberID",
-                "circleID",
                 "acceptedAt",
                 "expiresAt",
                 "revokedAt",
@@ -16957,7 +16945,6 @@
                   "audience": {
                     "enum": [
                       "member",
-                      "circle",
                       "email",
                       "public"
                     ],
@@ -16965,16 +16952,6 @@
                   },
                   "canDownload": {
                     "type": "boolean"
-                  },
-                  "circleID": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
                   },
                   "email": {
                     "anyOf": [
@@ -17029,7 +17006,6 @@
                   "audience",
                   "email",
                   "memberID",
-                  "circleID",
                   "acceptedAt",
                   "expiresAt",
                   "revokedAt",
@@ -17351,7 +17327,7 @@
         "state": "ok"
       },
       "canonicalName": "dataroom_share_add",
-      "description": "Company dataroom: Share live data room categories by assigning a reader role to a member, internal circle, external email or explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.",
+      "description": "Company dataroom: Share live data room categories by assigning a reader role to a member, an external email or an explicitly public audience. Current and future documents in the permitted categories become readable. Confirm the audience and scope first. External recipients must accept using their verified email; do not invite them as company members. Public publication is a distinct explicit request and never includes X.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -17365,7 +17341,6 @@
           "audience": {
             "enum": [
               "member",
-              "circle",
               "email",
               "public"
             ],
@@ -17373,11 +17348,6 @@
           },
           "canDownload": {
             "type": "boolean"
-          },
-          "circleID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
           },
           "email": {
             "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
@@ -17404,7 +17374,6 @@
           "audience": {
             "enum": [
               "member",
-              "circle",
               "email",
               "public"
             ],
@@ -17412,11 +17381,6 @@
           },
           "canDownload": {
             "type": "boolean"
-          },
-          "circleID": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-            "type": "string"
           },
           "email": {
             "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
