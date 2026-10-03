@@ -12,7 +12,7 @@ test('mail deep links skip INBOX and the first body, and resolve later pages fro
 	expect(await outcome('mail')).toEqual({
 		cold: { pages: ['Archive:'], bodies: [2], selected: 2 },
 		later: { pages: ['Archive:later'], bodies: [3], selected: 3 },
-		missing: true, retried: true, lateIgnored: true
+		missing: true, retried: true, lateIgnored: true, searchCanceled: true
 	});
 });
 

@@ -10,14 +10,15 @@ if (scenario === 'mail') {
 	let releaseLate = () => {};
 	let holdPage = false;
 	let missing = false;
-	const late = new Promise<{ messages: []; nextCursor: string }>((resolve) => { releaseLate = () => resolve({ messages: [], nextCursor: '' }); });
+	let late = new Promise<{ messages: []; nextCursor: string }>((resolve) => { releaseLate = () => resolve({ messages: [], nextCursor: '' }); });
 	mock.module('$lib/supabase', () => ({ isSupabaseConfigured: () => true }));
 	mock.module('../../src/routes/mail/mail-account-api', () => ({ recordMailAccount: async () => ({ email: 'sample@example.com', isConfigured: true, defaultMailbox: 'INBOX' }), keepRecordMailAccount: async () => ({}), testRecordMailAccount: async () => ({}) }));
 	mock.module('$lib/public-api-call', () => ({ invokeTool: async (name: string, input: Record<string, unknown>) => {
 		if (name === 'mail_mailbox_list') return { mailboxes: [] };
-		if (name === 'mail_message_list') {
+		if (name === 'mail_message_list' || name === 'mail_message_search') {
 			pages.push(`${input.mailbox}:${input.cursor ?? ''}`);
-			if (holdPage) return late;
+			if (holdPage && !input.query) return late;
+			if (input.query) return { messages: [{ uid: 4, mailbox: input.mailbox, subject: 'Search result', isRead: true }], nextCursor: '' };
 			if (missing) return { messages: [], nextCursor: '' };
 			const identifiers = input.cursor ? [3] : [1, 2];
 			return { messages: identifiers.map((uid) => ({ uid, mailbox: input.mailbox, subject: `Message ${uid}`, isRead: true })), nextCursor: input.cursor ? '' : 'later' };
@@ -54,7 +55,14 @@ if (scenario === 'mail') {
 	controller.selectMailbox('New');
 	releaseLate();
 	await reading;
-	console.log(JSON.stringify({ cold, later, missing: reportedMissing, retried, lateIgnored: controller.selectedMessage === null && controller.selectedMailbox === 'New' }));
+	const lateIgnored = controller.selectedMessage === null && controller.selectedMailbox === 'New';
+	late = new Promise<{ messages: []; nextCursor: string }>((resolve) => { releaseLate = () => resolve({ messages: [], nextCursor: '' }); });
+	const oldTarget = controller.openMailboxMessage('Searching', 99);
+	await turn();
+	controller.searchText = 'new query';
+	await controller.searchMessages();
+	releaseLate(); await oldTarget; await turn();
+	console.log(JSON.stringify({ cold, later, missing: reportedMissing, retried, lateIgnored, searchCanceled: controller.selectedMessage?.uid === 4 && controller.errorMessage === '' }));
 } else if (scenario === 'approval') {
 	const { defaultLeavePolicy } = await import('../../src/lib/attendance/leave-policy-defaults');
 	const policy = defaultLeavePolicy();

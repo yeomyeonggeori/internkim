@@ -107,7 +107,10 @@ class MailPageController {
 
 	loadMessages = () => loadMessagesPage(this, this.text, false);
 
-	searchMessages = () => loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: 0 });
+	searchMessages = () => {
+		this.requestedMessage = null;
+		return loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: 0 });
+	};
 
 	openMailboxMessage = async (mailbox: string, uid: number) => {
 		this.requestMailboxMessage({ mailbox, uid });
