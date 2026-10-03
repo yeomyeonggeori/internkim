@@ -29,6 +29,7 @@ const address = 'https://space.example.test/api/v1';
 let companyID = '';
 let holdersToken = '';
 let readersToken = '';
+let holderID = '';
 
 beforeAll(async () => {
 	const provisioned = await provisionCompany(
@@ -39,6 +40,7 @@ beforeAll(async () => {
 	companyID = provisioned.companyID;
 
 	const memberID = await addMember(client, companyID, `${slug}-holder@example.test`);
+	holderID = memberID;
 	const { data: account } = await client.auth.admin.createUser({
 		email: `${slug}-holder@example.test`,
 		email_confirm: true
@@ -211,12 +213,26 @@ function filesCarriedBy(answer: Awaited<ReturnType<Client['callTool']>>): Map<st
 	return new Map(files.map((file) => [decodeURIComponent(file.uri.replace('internkim://files/', '')), file]));
 }
 
+async function aKeptServiceFile(name: string, categoryCode: string, date: string, extension: string, bytes: string): Promise<string> {
+	const documentID = crypto.randomUUID();
+	const storagePath = `${companyID}/dataroom/${categoryCode[0]}/${categoryCode}/${name}.${date}.${documentID}.${extension}`;
+	await client.storage.from(assetBucket).upload(storagePath, new TextEncoder().encode(bytes), { contentType: `image/${extension}` });
+	const { error } = await client.from('company_document').insert({
+		id: documentID, company_id: companyID, kind: 'internal', document_type: name, title: name,
+		category_code: categoryCode, document_date: date, storage_path: storagePath
+	});
+	if (error) throw new Error(error.message);
+	return storagePath;
+}
+
 describe('the company profile read over MCP', () => {
-	test('carries the profile as a file, with the seal it names beside it', async () => {
-		const sealPath = `${companyID}/shared/company/seal-${crypto.randomUUID()}.png`;
-		const sealBytes = new TextEncoder().encode('a seal');
-		await client.storage.from(assetBucket).upload(sealPath, sealBytes, { contentType: 'image/png' });
-		await client.from('company').update({ seal_image: sealPath, profile: { name: { ko: '주식회사 예시' } } }).eq('id', companyID);
+	test('carries the profile as a file, with the newest seal the caller may read beside it', async () => {
+		await client.from('circle_member').insert({ company_id: companyID, circle_id: 'finance', member_id: holderID });
+		const older = await aKeptServiceFile('seal', 'CR', '2026-03-01', 'png', 'an older seal');
+		const sameDayFirst = await aKeptServiceFile('seal', 'CR', '2026-09-01', 'png', 'a seal replaced the same day');
+		const newest = await aKeptServiceFile('seal', 'CR', '2026-09-01', 'jpg', 'the newest seal');
+		const logo = await aKeptServiceFile('logo', 'SM', '2026-09-01', 'png', 'a logo');
+		await client.from('company').update({ profile: { name: { ko: '주식회사 예시' } } }).eq('id', companyID);
 
 		const connected = await anMCPClient(holdersToken);
 		try {
@@ -230,12 +246,13 @@ describe('the company profile read over MCP', () => {
 
 			expect(answered.isError ?? false).toBe(false);
 			expect(profile.name).toBe('주식회사 예시');
-			expect(profile.sealImage).toBe('seal.png');
+			expect(profile.sealImage).toBe('seal.jpg');
 			expect(profile.logoImage).toBe('');
-			expect(atob(String(files.get('seal.png')?.blob))).toBe('a seal');
-			expect([...files.keys()].sort()).toEqual(['company-profile.json', 'seal.png']);
+			expect(atob(String(files.get('seal.jpg')?.blob))).toBe('the newest seal');
+			expect([...files.keys()].sort()).toEqual(['company-profile.json', 'seal.jpg']);
 		} finally {
 			await connected.close();
+			await client.storage.from(assetBucket).remove([older, sameDayFirst, newest, logo]);
 		}
 	}, networkHookTimeout);
 

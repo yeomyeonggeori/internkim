@@ -3,8 +3,7 @@ import { currentAttendanceWorkPolicy } from '$lib/attendance/current-work-policy
 import { defaultLeavePolicy, systemLeaveTypeKind } from '$lib/attendance/leave-policy-defaults';
 import { defaultWorkPolicy, initialWorkPolicyEffectiveDate } from '$lib/attendance/work-policy-defaults';
 import { storedWorkPolicyRevisions } from '$lib/attendance/stored-work-policy';
-import { assetBucket, companyPictureKind } from '../asset-address';
-import { largestPictureACompanyCanHave } from '$lib/company/company-picture';
+import { assetBucket } from '../asset-address';
 import {
 	companyProfileView,
 	languageAsked,
@@ -16,8 +15,9 @@ import { titleNearness } from './hint-nearness';
 import { HintRefused, normalized, resolveHint, type HintMatcher } from './hint-resolution';
 import { RecordRefusedTheWrite, statusOfPostgresCode } from './tasks';
 import type { RecordContext } from './company';
-import { companyImages } from '../catalog/company';
-import type { CompanyImageUploadResult, CompanyProfileResult } from '../catalog/company';
+import { keepUploadedImages } from './service-files';
+import type { ServiceFileImageField } from '$lib/data-room/service-files';
+import type { CompanyProfileResult } from '../catalog/company';
 import type {
 	AttendanceLeavePolicyResult,
 	AttendanceWorkPolicyResult,
@@ -39,9 +39,7 @@ export type CompanySettingsUpdateInput = {
 
 export type CompanyInfoGetInput = { language?: string };
 
-export type CompanyInfoSetInput = CompanyProfileUpdate & { sealImage?: string; logoImage?: string };
-
-export type CompanyImageUploadInput = { image?: string; fileName?: string };
+export type CompanyInfoSetInput = CompanyProfileUpdate & Partial<Record<ServiceFileImageField, string>>;
 
 export type CompanyHolidayListInput = { year?: number };
 
@@ -88,11 +86,10 @@ type CompanyRow = {
 	rules: Record<string, unknown> | null;
 	profile: unknown;
 	profile_image: string | null;
-	seal_image: string | null;
 };
 
 const companyColumns =
-	'id, name, country, locale, timezone, currency_code, work_locations, rules, profile, profile_image, seal_image';
+	'id, name, country, locale, timezone, currency_code, work_locations, rules, profile, profile_image';
 
 async function companyRow(caller: SupabaseClient): Promise<CompanyRow> {
 	const { data, error } = await caller
@@ -191,17 +188,6 @@ async function writeTheAnnualGrant(context: RecordContext, leaveDays: number): P
 	});
 }
 
-export type CompanyImage = (typeof companyImages)[number];
-
-const companyImageColumns: Record<CompanyImage, 'seal_image' | 'profile_image'> = {
-	seal: 'seal_image',
-	logo: 'profile_image'
-};
-
-const companyImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
-
-type CompanyImageColumns = Partial<Record<'seal_image' | 'profile_image', string | null>>;
-
 export async function companyInfoGet(
 	context: RecordContext,
 	input: CompanyInfoGetInput
@@ -214,90 +200,17 @@ export async function companyInfoSet(
 	context: RecordContext,
 	input: CompanyInfoSetInput
 ): Promise<CompanyProfileResult> {
-	const { sealImage, logoImage, ...update } = input;
-	const language = languageAsked(update.language);
+	const language = languageAsked(input.language);
 	const row = await companyRow(context.caller);
-	const written = profileWithUpdate(profileOf(row.profile), update, language, context.now);
-	const images = await imageColumnsOffered(context, { seal: sealImage, logo: logoImage });
+	const written = profileWithUpdate(profileOf(row.profile), input, language, context.now);
 
+	await keepUploadedImages(context, input);
 	await writeTheCompany(
 		context,
-		{ profile: written, ...images },
+		{ profile: written },
 		'only an administrator can change the company master profile'
 	);
 	return companyProfileView(written, language);
-}
-
-export async function companyImagesKept(caller: SupabaseClient): Promise<Record<CompanyImage, string>> {
-	const row = await companyRow(caller);
-	return { seal: row.seal_image ?? '', logo: row.profile_image ?? '' };
-}
-
-export async function companyImageUpload(
-	context: RecordContext,
-	input: CompanyImageUploadInput
-): Promise<CompanyImageUploadResult> {
-	const image = companyImageOf(input.image);
-	const storagePath = `${companyImageFolder(context.companyID)}/${image}-${crypto.randomUUID()}${imageExtensionOf(input.fileName)}`;
-	const { data, error } = await context.caller.storage.from(assetBucket).createSignedUploadUrl(storagePath);
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
-	return { storagePath, uploadURL: data.signedUrl };
-}
-
-function companyImageOf(offered: string | undefined): CompanyImage {
-	const image = companyImages.find((name) => name === offered?.trim());
-	if (!image) throw new RecordRefusedTheWrite(`image is one of ${companyImages.join(', ')}`, 400);
-	return image;
-}
-
-function imageExtensionOf(fileName: string | undefined): string {
-	const written = fileName?.trim().toLowerCase() ?? '';
-	const extension = companyImageExtensions.find((candidate) => written.endsWith(candidate));
-	if (!extension) {
-		throw new RecordRefusedTheWrite(`a company image is a ${companyImageExtensions.join(', ')} file`, 400);
-	}
-	return extension;
-}
-
-function companyImageFolder(companyID: string): string {
-	return `${companyID}/shared/${companyPictureKind}`;
-}
-
-async function imageColumnsOffered(
-	context: RecordContext,
-	offered: Record<CompanyImage, string | undefined>
-): Promise<CompanyImageColumns> {
-	const columns: CompanyImageColumns = {};
-	for (const image of companyImages) {
-		const path = offered[image]?.trim();
-		if (path === undefined) continue;
-		columns[companyImageColumns[image]] = path ? await uploadedImagePath(context, image, path) : null;
-	}
-	return columns;
-}
-
-async function uploadedImagePath(context: RecordContext, image: CompanyImage, path: string): Promise<string> {
-	const folder = companyImageFolder(context.companyID);
-	if (!path.startsWith(`${folder}/${image}-`)) {
-		throw new RecordRefusedTheWrite(`${image}Image is the storagePath company_image_upload answered for the ${image}`, 400);
-	}
-	const name = path.slice(folder.length + 1);
-	const { data, error } = await context.caller.storage.from(assetBucket).list(folder, { search: name });
-	if (error) throw new RecordRefusedTheWrite(error.message, statusOfStorageError(error));
-	const held = (data ?? []).find((entry) => entry.name === name);
-	if (!held) {
-		throw new RecordRefusedTheWrite(`nothing is kept at ${path} yet: PUT the image to the uploadURL company_image_upload answered first`, 409);
-	}
-	const sizeBytes = Number(held.metadata?.size ?? 0);
-	if (sizeBytes > largestPictureACompanyCanHave) {
-		throw new RecordRefusedTheWrite(`this image is ${sizeBytes} bytes, over the ${largestPictureACompanyCanHave} a company image may be`, 413);
-	}
-	return path;
-}
-
-function statusOfStorageError(error: { status?: number }): number {
-	if (error.status === 400 || error.status === 403 || error.status === 404) return error.status;
-	return 502;
 }
 
 function holidaysHeld(rules: Record<string, unknown> | null): StoredHoliday[] {

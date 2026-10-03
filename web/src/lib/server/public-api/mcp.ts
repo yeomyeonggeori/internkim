@@ -75,7 +75,7 @@ function companyToolServer(environment: Environment, member: CallingMember): Ser
 		if (answered.status >= 300 || !keepsAnsweredFiles(request.params._meta)) {
 			return toolResultOf(answered.status, answered.body);
 		}
-		return toolResultOf(answered.status, answered.body, await filesAnsweredBy(request.params.name, member.caller, answered.body));
+		return toolResultOf(answered.status, answered.body, await filesAnsweredBy(request.params.name, member, answered.body));
 	});
 
 	return server;

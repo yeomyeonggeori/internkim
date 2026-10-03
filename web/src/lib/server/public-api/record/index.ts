@@ -13,10 +13,10 @@ import {
 	companyHolidayUpdate,
 	companyInfoGet,
 	companyInfoSet,
-	companyImageUpload,
 	companySettingsGet,
 	companySettingsUpdate
 } from './company-tools';
+import { companyImageUpload } from './service-files';
 import { crmActivityList, crmActivitySave } from './crm-activity-tools';
 import {
 	crmContactAdd,

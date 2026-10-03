@@ -149,6 +149,18 @@ foreign-currency deal closed without a converted amount is refused, and so is
 a lost deal without a written reason. The settled amount is never recomputed.
 A record in use is archived instead of deleted.
 
+## The seal and logo are data room documents [#service-files]
+
+The company row holds no seal. The seal, the letterhead logo and any later
+file the service itself reads are data room documents under a fixed name in a
+fixed category, as [document metadata](/docs/data-room/metadata) describes. A
+dated name, `<name>.<YYYY-MM-DD>.<documentID>.<extension>`, has to carry the
+document's `document_date`, and only an administrator writes one, so a member
+who files in the same category cannot put a seal of their own forward. Readers
+take the greatest date and, within one day, the latest `issued_at`.
+`company.profile_image` is the company's picture in the app; letterheads print
+the data room logo.
+
 ## Access [#access]
 
 `member` has no write policy, so nobody can set their own `is_admin`. Creating

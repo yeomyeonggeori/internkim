@@ -16,6 +16,15 @@ shares the document's identifier with the original. Reclassifying a document
 moves its files. The original remains unchanged; a standalone tree stores
 metadata in its `<file>.md` sidecar and generates catalogs from those labels.
 
+The service keeps its own files here too. The company seal and logo are
+ordinary documents under a fixed name in a fixed category, both listed once in
+`web/src/lib/data-room/service-files.ts`. Each version is stored as
+`<name>.<YYYY-MM-DD>.<documentID>.<extension>`, where the day is the
+document's `date`, the day the version took effect. Older versions stay, a new
+version supersedes the one it follows, and forms print the version with the
+latest date, the one created later when two share a day. Only an administrator
+keeps a version, and only readers of its category see it.
+
 Write a summary that states the document's facts, amounts and dates. Review
 extraction warnings when OCR, transcription or a format converter is unavailable.
 A missing derivative does not change the document's permissions.
