@@ -98,6 +98,36 @@ test.describe('messenger thread sheet', () => {
 		await expect(threadSheet.getByText(unansweredText)).toBeVisible();
 	});
 
+	test('going back closes the thread and keeps the conversation open', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await expect(threadSheet).toBeVisible();
+
+		await page.goBack();
+
+		await expect(threadSheet).toHaveCount(0);
+		await expect(page).toHaveURL(new RegExp(`/messenger\\?channel=${channelID}$`));
+		await expect(page.getByText(unansweredText)).toBeVisible();
+	});
+
+	test('closing the thread leaves no extra step for going back', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+		await page.getByRole('button', { name: /1개 답글/ }).click();
+		const threadSheet = page.getByRole('dialog', { name: '글타래' });
+		await expect(threadSheet).toBeVisible();
+
+		await page.keyboard.press('Escape');
+		await expect(threadSheet).toHaveCount(0);
+		await expect(page).toHaveURL(new RegExp(`/messenger\\?channel=${channelID}$`));
+
+		await page.goBack();
+
+		await expect(page).toHaveURL('about:blank');
+	});
+
 	test('opens the picture instead of the thread when a picture in a message is clicked', async ({ page }) => {
 		await page.setViewportSize({ width: 1280, height: 800 });
 		await page.goto(`/messenger?channel=${channelID}`);
