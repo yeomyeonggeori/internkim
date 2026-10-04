@@ -36,7 +36,7 @@ type Daemon struct {
 	Client          Client
 	Places          Places
 	Install         func(companyhost.Request) error
-	NameHost        func(ctx context.Context, boxPublicKey string) error
+	NameHost        func(ctx context.Context, companySlug string) error
 	GetOnline       func(ctx context.Context, boxPublicKey string) error
 	ChangeWifi      func(ctx context.Context, ssid, password string) error
 	ScanWifi        func(ctx context.Context) ([]NearbyNetwork, error)
@@ -54,7 +54,6 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
-	daemon.nameHost(ctx, identity)
 	daemon.getOnlineWhileEmpty(ctx, identity)
 	if daemon.ChangeWifi != nil {
 		watcherContext, stopWatcher := context.WithCancel(ctx)
@@ -72,7 +71,7 @@ func (daemon Daemon) Run(ctx context.Context) error {
 	}
 	defer func() { page.close() }()
 	for {
-		wait, isClaimed, errorValue := daemon.step(ctx, identity, page.localPage())
+		wait, isClaimed, errorValue := daemon.step(ctx, identity, page)
 		if errorValue == nil || isClaimed {
 			page = daemon.pairingPageFor(isClaimed, page, identity)
 		}
@@ -98,14 +97,16 @@ func (daemon Daemon) pairingPageFor(isClaimed bool, page *pairingPage, identity 
 	return page
 }
 
-func (daemon Daemon) step(ctx context.Context, identity Identity, page LocalPage) (time.Duration, bool, error) {
+func (daemon Daemon) step(ctx context.Context, identity Identity, page *pairingPage) (time.Duration, bool, error) {
 	session, isClaimed, errorValue := daemon.Client.Session(ctx, identity)
 	if errorValue != nil {
 		return 0, false, errorValue
 	}
 	if !isClaimed {
-		return announceInterval, false, daemon.announce(ctx, identity, page)
+		daemon.nameHost(ctx, "")
+		return announceInterval, false, daemon.announce(ctx, identity, page.localPage())
 	}
+	daemon.nameHost(ctx, session.Configuration.Company.Slug)
 	if errorValue := forgetPairingCode(daemon.Places.StateDirectoryPath); errorValue != nil {
 		return 0, true, errorValue
 	}
@@ -220,12 +221,12 @@ func (daemon Daemon) untilRenewal(session HostSession) time.Duration {
 	return max(wait, shortestSessionWait)
 }
 
-func (daemon Daemon) nameHost(ctx context.Context, identity Identity) {
+func (daemon Daemon) nameHost(ctx context.Context, companySlug string) {
 	if daemon.NameHost == nil {
 		return
 	}
-	if errorValue := daemon.NameHost(ctx, identity.PublicKey()); errorValue != nil {
-		log.Printf("naming this box after its key: %v; it keeps its current host name", errorValue)
+	if errorValue := daemon.NameHost(ctx, companySlug); errorValue != nil {
+		log.Printf("naming this box for its company: %v; it keeps its current host name", errorValue)
 	}
 }
 

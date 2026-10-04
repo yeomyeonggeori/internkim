@@ -7,32 +7,20 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
-const sampleBoxPublicKey = "DfNjfpwsVUGbJ9TutwdZmKHzIFi7_JfUwHtI4uxrYuA"
+const sampleCompanySlug = "sample-company"
 
-func TestHostNameEndsInTheSameFourCharactersAsTheSetupNetwork(t *testing.T) {
-	setupNetworkName := SetupNetworkNameFor(sampleBoxPublicKey, time.Time{})
-	if got := HostNameFor(sampleBoxPublicKey); got != strings.ToLower(setupNetworkName) {
-		t.Fatalf("host name = %q, want %q lowercased", got, setupNetworkName)
-	}
-	if got := HostNameFor(sampleBoxPublicKey); got != "kimmini-ryua" {
-		t.Fatalf("host name = %q, want kimmini-ryua", got)
+func TestAClaimedBoxIsNamedAfterItsCompanySlug(t *testing.T) {
+	if got := HostNameFor(sampleCompanySlug); got != sampleCompanySlug {
+		t.Fatalf("host name = %q, want %q", got, sampleCompanySlug)
 	}
 }
 
-func TestHostNameTurnsKeyCharactersAHostNameCannotHoldIntoHyphens(t *testing.T) {
-	cases := map[string]string{
-		"keyEndingFh_s": "kimmini-fh-s",
-		"keyEndingFh-s": "kimmini-fh-s",
-		"keyEndingFhs_": "kimmini-fhs",
-		"keyEnding_-_-": "kimmini",
-		"ab":            "kimmini",
-	}
-	for key, want := range cases {
-		if got := HostNameFor(key); got != want {
-			t.Errorf("host name for %q = %q, want %q", key, got, want)
+func TestABoxWithoutAUsableSlugIsNamedKimmini(t *testing.T) {
+	for _, slug := range []string{"", "Sample", "-sample", "sample-", "sample_company", "sample.company", strings.Repeat("a", 64)} {
+		if got := HostNameFor(slug); got != SetupNetworkName {
+			t.Errorf("host name for %q = %q, want %q", slug, got, SetupNetworkName)
 		}
 	}
 }
@@ -43,7 +31,7 @@ func TestNamerRenamesOnlyAComputerNamedSomethingElse(t *testing.T) {
 		wantsRename bool
 	}{
 		{current: "kimmini", wantsRename: true},
-		{current: "kimmini-ryua", wantsRename: false},
+		{current: sampleCompanySlug, wantsRename: false},
 	} {
 		var calls [][]string
 		hostsPath := filepath.Join(t.TempDir(), "hosts")
@@ -58,10 +46,10 @@ func TestNamerRenamesOnlyAComputerNamedSomethingElse(t *testing.T) {
 			CurrentHostName: func() (string, error) { return testCase.current, nil },
 			HostsPath:       hostsPath,
 		}
-		if errorValue := namer.Name(context.Background(), sampleBoxPublicKey); errorValue != nil {
+		if errorValue := namer.Name(context.Background(), sampleCompanySlug); errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		renamed := containsCall(calls, []string{"hostnamectl", "set-hostname", "kimmini-ryua"})
+		renamed := containsCall(calls, []string{"hostnamectl", "set-hostname", sampleCompanySlug})
 		if renamed != testCase.wantsRename {
 			t.Errorf("a computer named %q was renamed = %t, want %t; calls = %v", testCase.current, renamed, testCase.wantsRename, calls)
 		}
@@ -72,14 +60,14 @@ func TestNamerRenamesOnlyAComputerNamedSomethingElse(t *testing.T) {
 		if errorValue != nil {
 			t.Fatal(errorValue)
 		}
-		if string(hosts) != "127.0.0.1\tlocalhost\n127.0.1.1\tkimmini-ryua\n" {
+		if string(hosts) != "127.0.0.1\tlocalhost\n127.0.1.1\t"+sampleCompanySlug+"\n" {
 			t.Errorf("hosts after naming a computer named %q = %q, want 127.0.1.1 to follow the new name", testCase.current, hosts)
 		}
 	}
 }
 
 func TestHostsGainsALoopbackLineWhenItHadNone(t *testing.T) {
-	if got := hostsWithLoopbackName("127.0.0.1\tlocalhost\n", "kimmini-ryua"); got != "127.0.0.1\tlocalhost\n127.0.1.1\tkimmini-ryua\n" {
+	if got := hostsWithLoopbackName("127.0.0.1\tlocalhost\n", sampleCompanySlug); got != "127.0.0.1\tlocalhost\n127.0.1.1\t"+sampleCompanySlug+"\n" {
 		t.Fatalf("hosts = %q", got)
 	}
 }
@@ -100,7 +88,7 @@ func TestHostsFollowsTheNewNameEvenWhenMulticastDNSWillNotRestart(t *testing.T) 
 		HostsPath:       hostsPath,
 	}
 
-	if errorValue := namer.Name(context.Background(), sampleBoxPublicKey); errorValue == nil {
+	if errorValue := namer.Name(context.Background(), sampleCompanySlug); errorValue == nil {
 		t.Fatal("expected the failed restart to be reported")
 	}
 
@@ -108,7 +96,7 @@ func TestHostsFollowsTheNewNameEvenWhenMulticastDNSWillNotRestart(t *testing.T) 
 	if errorValue != nil {
 		t.Fatal(errorValue)
 	}
-	if string(hosts) != "127.0.1.1\tkimmini-ryua\n" {
+	if string(hosts) != "127.0.1.1\t"+sampleCompanySlug+"\n" {
 		t.Fatalf("hosts = %q, want 127.0.1.1 to follow the new name before the restart is tried", hosts)
 	}
 }

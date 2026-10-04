@@ -18,7 +18,7 @@ Usage:
 
 Builds the Kim mini SD card image: Raspberry Pi OS Lite with the internkim host
 package of that release installed, the box started with --wifi-setup and
---host-name-from-key, and Wi-Fi turned on for the country the box is sold in,
+--host-name-from-company, and Wi-Fi turned on for the country the box is sold in,
 which Raspberry Pi OS otherwise leaves off until someone picks one. The clock
 keeps that country's time zone, where Raspberry Pi OS would keep Europe/London.
 A login shell opens with fastfetch beside the round mark.

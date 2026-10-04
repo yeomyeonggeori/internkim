@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -16,9 +17,8 @@ import (
 const pairingPageReadTimeout = 5 * time.Second
 
 type pairingPage struct {
-	server    *http.Server
-	hostName  string
-	addresses []string
+	server *http.Server
+	port   string
 }
 
 func (daemon Daemon) openPairingPage(identity Identity) *pairingPage {
@@ -31,18 +31,16 @@ func (daemon Daemon) openPairingPage(identity Identity) *pairingPage {
 		return nil
 	}
 	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	hostName := localHostName()
 	page := &pairingPage{
-		server:    &http.Server{Handler: daemon.pairingPageHandler(identity), ReadHeaderTimeout: pairingPageReadTimeout},
-		hostName:  hostName,
-		addresses: localPageAddresses(hostName, lanAddress(), port),
+		server: &http.Server{Handler: daemon.pairingPageHandler(identity), ReadHeaderTimeout: pairingPageReadTimeout},
+		port:   port,
 	}
 	go func() {
 		if errorValue := page.server.Serve(listener); !errors.Is(errorValue, http.ErrServerClosed) {
 			log.Printf("the pairing page stopped: %v", errorValue)
 		}
 	}()
-	log.Printf("the pairing code is shown on this network at %s", strings.Join(page.addresses, " and "))
+	log.Printf("the pairing code is shown on this network at %s", strings.Join(page.localPage().Addresses, " and "))
 	return page
 }
 
@@ -59,7 +57,8 @@ func (page *pairingPage) localPage() LocalPage {
 	if page == nil {
 		return LocalPage{}
 	}
-	return LocalPage{HostName: page.hostName, Addresses: page.addresses}
+	hostName := localHostName()
+	return LocalPage{HostName: hostName, Addresses: localPageAddresses(hostName, lanAddress(), page.port)}
 }
 
 func (daemon Daemon) pairingPageHandler(identity Identity) http.Handler {
@@ -98,10 +97,33 @@ func fingerprintOf(publicKey string) string {
 }
 
 func localHostName() string {
+	if name := multicastHostName(); name != "" {
+		return name
+	}
 	name, errorValue := os.Hostname()
 	if errorValue != nil {
 		return ""
 	}
+	return firstLabel(name)
+}
+
+func multicastHostName() string {
+	output, errorValue := exec.Command("busctl", "call", "org.freedesktop.Avahi", "/", "org.freedesktop.Avahi.Server", "GetHostName").Output()
+	if errorValue != nil {
+		return ""
+	}
+	return hostNameFromBusctl(string(output))
+}
+
+func hostNameFromBusctl(output string) string {
+	quoted, isString := strings.CutPrefix(strings.TrimSpace(output), "s ")
+	if !isString {
+		return ""
+	}
+	return firstLabel(strings.Trim(quoted, `"`))
+}
+
+func firstLabel(name string) string {
 	label, _, _ := strings.Cut(strings.ToLower(name), ".")
 	return label
 }

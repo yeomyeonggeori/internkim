@@ -19,21 +19,23 @@ No per-box password, sticker, serial registered to a buyer or key is put in at
 assembly. On first boot the box generates an Ed25519 signing key and an X25519
 encryption key in `/var/lib/internkim/box`. The private halves never leave its disk.
 
-A box started with `--host-name-from-key`, as every Kim mini is, then takes the
-host name `kimmini-` plus the last four characters of that key in lowercase, for
-example `kimmini-ryua`, so two boxes on one network answer at different `.local`
-names. A host name cannot hold `_` and cannot end in `-`, so a `_` among those
-characters becomes `-` and a trailing `-` is dropped. The box renames itself only
-when its name differs and points `127.0.1.1` in `/etc/hosts` at the new name. A
-Linux computer that installed the host package keeps the name it has.
+A box started with `--host-name-from-company`, as every Kim mini is, is named
+`kimmini` while it belongs to no company and takes its company's address, such as
+`yeomyeonggeori`, once claimed. Disconnecting it names it `kimmini` again. Two
+empty boxes on one network do not collide: multicast DNS gives the second one to
+answer `kimmini-2.local`, and the box reports the name it was given. The box
+renames itself only when its name differs and points `127.0.1.1` in `/etc/hosts`
+at the new name. A Linux computer that installed the host package keeps the name
+it has.
 
 ## Getting online
 
 A box that has no company installed and is offline, and was started with
-`--wifi-setup`, opens its own Wi-Fi network named `kimmini-` plus the last four
-characters of its key and the day the box was made as `YYMMDD`, for example
-`kimmini-rYuA-261002`. The network appears only in that state and closes once the
-box is online. Its password is `intern-kim`, the same on every box.
+`--wifi-setup`, opens its own Wi-Fi network named `kimmini-` plus the day the box
+was made as `YYMMDD`, for example `kimmini-261002`. The network appears only in
+that state and closes once the box is online. Boxes made on the same day share a
+name, and a phone joins one of them; once that box is online its network closes
+and the next one is the only one left. Its password is `intern-kim`, the same on every box.
 
 A new box has no internet to learn the date from, so the day is written when the
 box is made, as `YYYY-MM-DD` in `/boot/firmware/internkim-made-on`. Without that
@@ -62,7 +64,7 @@ A box is a Raspberry Pi with an SD card written from one image.
 `tools/build-kim-mini-image --release <tag>` builds it in an arm64 Linux
 container through Docker. It starts from Raspberry Pi OS Lite and installs that
 release's host package. The box service runs with `--wifi-setup` and
-`--host-name-from-key`, and Wi-Fi is on for the country given by
+`--host-name-from-company`, and Wi-Fi is on for the country given by
 `--wifi-country`, `KR` unless told otherwise. Raspberry Pi OS keeps Wi-Fi off
 until a country is chosen, and a new box has nobody to choose one. The box's
 clock keeps the time zone given by `--time-zone`, `Asia/Seoul` unless told

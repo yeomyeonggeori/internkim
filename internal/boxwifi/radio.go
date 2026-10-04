@@ -8,26 +8,14 @@ import (
 const (
 	SetupNetworkName       = "kimmini"
 	SetupNetworkPassword   = "intern-kim"
-	boxNameSuffixLength    = 4
 	setupNetworkDateLayout = "060102"
 )
 
-func SetupNetworkNameFor(boxPublicKey string, madeOn time.Time) string {
-	name := SetupNetworkName
-	if suffix := boxNameSuffix(boxPublicKey); suffix != "" {
-		name += "-" + suffix
+func SetupNetworkNameFor(madeOn time.Time) string {
+	if madeOn.IsZero() {
+		return SetupNetworkName
 	}
-	if !madeOn.IsZero() {
-		name += "-" + madeOn.Format(setupNetworkDateLayout)
-	}
-	return name
-}
-
-func boxNameSuffix(boxPublicKey string) string {
-	if len(boxPublicKey) < boxNameSuffixLength {
-		return ""
-	}
-	return boxPublicKey[len(boxPublicKey)-boxNameSuffixLength:]
+	return SetupNetworkName + "-" + madeOn.Format(setupNetworkDateLayout)
 }
 
 type Network struct {
