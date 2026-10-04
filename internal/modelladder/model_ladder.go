@@ -9,10 +9,11 @@ import (
 const (
 	Endpoint = "https://openrouter.ai/api/v1"
 
-	PrimaryModel   = "z-ai/glm-5.3-flash"
-	EmbeddingModel = "baai/bge-m3"
-	ImageModel     = "google/gemini-3.1-flash-lite-image"
-	DecisionModel  = "~typesafe/jev-latest"
+	PrimaryModel      = "z-ai/glm-5.3-flash"
+	EmbeddingModel    = "baai/bge-m3"
+	ImageModel        = "google/gemini-3.1-flash-lite-image"
+	DecisionModel     = "~typesafe/jev-latest"
+	VisualReviewModel = "cloudflare/clef"
 )
 
 var DegradedModels = []string{
@@ -51,9 +52,10 @@ type Rung struct {
 }
 
 type Document struct {
-	Tiers     map[string][]Rung `json:"tiers"`
-	Embedding Rung              `json:"embedding"`
-	Decision  Rung              `json:"decision"`
+	Tiers        map[string][]Rung `json:"tiers"`
+	Embedding    Rung              `json:"embedding"`
+	Decision     Rung              `json:"decision"`
+	VisualReview Rung              `json:"visualReview"`
 }
 
 // OpenRouter serves decision-only models on its alpha decisions route, not on
@@ -104,9 +106,10 @@ func LanguageModelDocument(endpointURL string, apiKeyPath string) Document {
 		tiers[tier] = rungsForOneTier(tier, reachedEndpoint, apiKeyPath)
 	}
 	return Document{
-		Tiers:     tiers,
-		Embedding: Rung{Endpoint: reachedEndpoint, Model: EmbeddingModel, APIKeyPath: apiKeyPath},
-		Decision:  Rung{Endpoint: DecisionsURL(reachedEndpoint), Model: DecisionModel, APIKeyPath: apiKeyPath},
+		Tiers:        tiers,
+		Embedding:    Rung{Endpoint: reachedEndpoint, Model: EmbeddingModel, APIKeyPath: apiKeyPath},
+		Decision:     Rung{Endpoint: DecisionsURL(reachedEndpoint), Model: DecisionModel, APIKeyPath: apiKeyPath},
+		VisualReview: Rung{Endpoint: DecisionsURL(reachedEndpoint), Model: VisualReviewModel, APIKeyPath: apiKeyPath},
 	}
 }
 
