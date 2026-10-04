@@ -2,6 +2,7 @@
 	import CompanyBaseCurrency from './company-base-currency.svelte';
 	import CompanyProfileImage from './company-profile-image.svelte';
 	import CompanyConnections from './company-connections.svelte';
+	import CompanyHost from './company-host.svelte';
 	import SignInPasskeys from './sign-in-passkeys.svelte';
 	import SignInPassword from './sign-in-password.svelte';
 	import PersonalAPIKeys from './personal-access-tokens.svelte';
@@ -87,6 +88,9 @@
 			</Collapsible.Content>
 		{/if}
 	</Collapsible.Root>
+	{#if isSupabaseConfigured() && !isLoading && !isAdmin}
+		<CompanyHost isAdmin={false} />
+	{/if}
 {/snippet}
 
 {#snippet adminSections()}
@@ -96,6 +100,7 @@
 	</header>
 	{#if isSupabaseConfigured()}
 		<a href="/settings/setup" class={buttonVariants({ variant: 'outline', class: 'w-fit' })}>{setupText.title}</a>
+		<CompanyHost isAdmin />
 	{/if}
 	<CompanyProfileImage />
 	<CompanyBaseCurrency />

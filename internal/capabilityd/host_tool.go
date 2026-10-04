@@ -16,6 +16,8 @@ const (
 	admindHostVersionPath   = "/host/api/version"
 	admindHostUpdatePath    = "/host/api/update"
 	admindHostUpdatePlanURL = "/host/api/update/plan"
+
+	publicAPIHeldUpdateRefusal = `{"errorCode":"scheduled_start_unsupported","failureStage":"precondition","message":"a host update called through the API starts when it is called, and the API holds none for later; leave startsAt out to update now, or ask the agent, which offers a later time"}`
 )
 
 type hostUpdateRequester struct {
@@ -36,7 +38,21 @@ func (service Service) invokeHostVersionTool(ctx context.Context, request capabi
 }
 
 func (service Service) invokeHostUpdateTool(ctx context.Context, request capabilities.ToolInvokeRequest) (capabilities.ToolInvokeResponse, error) {
+	if asksThePublicAPIToHoldTheUpdate(request) {
+		return capabilityToolFailure(admindToolOrigin, request.ToolName, http.StatusBadRequest, json.RawMessage(publicAPIHeldUpdateRefusal)), nil
+	}
 	return service.answerThroughAdmindAsTheRequester(ctx, request, admindHostUpdatePath, hostUpdateBody(request))
+}
+
+func asksThePublicAPIToHoldTheUpdate(request capabilities.ToolInvokeRequest) bool {
+	if request.Context.TaskSource != capabilities.TaskSourcePublicAPI {
+		return false
+	}
+	var input struct {
+		StartsAt string `json:"startsAt"`
+	}
+	json.Unmarshal(request.Input, &input)
+	return strings.TrimSpace(input.StartsAt) != ""
 }
 
 func hostUpdateBody(request capabilities.ToolInvokeRequest) []byte {

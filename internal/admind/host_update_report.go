@@ -44,7 +44,7 @@ func (service *Service) keepHostUpdateReported(ctx context.Context) {
 func (service *Service) reportHostUpdateOnce(ctx context.Context) {
 	dependencies := service.hostUpdate()
 	note, isPending, errorValue := hostupdate.ReadNote(dependencies.NotePath)
-	if errorValue != nil || !isPending || !settleAnAbandonedUpdate(dependencies, &note) {
+	if errorValue != nil || !isPending || !settleAnAbandonedUpdate(dependencies, &note) || !note.Requester.HasConversation() {
 		return
 	}
 	if errorValue := service.tellRequesterHowTheUpdateEnded(ctx, note); errorValue != nil {

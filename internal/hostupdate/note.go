@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
@@ -18,6 +19,10 @@ type Requester struct {
 	Platform       string `json:"platform,omitempty"`
 	ConversationID string `json:"conversationID,omitempty"`
 	ReplyTargetID  string `json:"replyTargetID,omitempty"`
+}
+
+func (requester Requester) HasConversation() bool {
+	return strings.TrimSpace(requester.ConversationID) != ""
 }
 
 type Outcome struct {

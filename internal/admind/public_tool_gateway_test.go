@@ -400,3 +400,54 @@ func TestPublicAPICarriesNoConversationAtAll(t *testing.T) {
 		t.Fatalf("task source = %q", invoked.Context.TaskSource)
 	}
 }
+
+func TestThePublicAPICallIsTheAdministratorsConfirmationOfAHostUpdate(t *testing.T) {
+	for _, testCase := range []struct {
+		toolName       string
+		permission     string
+		isConfirmation bool
+	}{
+		{"host_update", publicAPIPermissionDelete, true},
+		{"host_version_get", publicAPIPermissionRead, false},
+	} {
+		t.Run(testCase.toolName, func(t *testing.T) {
+			service := newTaskAuthorizationTestService(t)
+			var invoked capabilities.ToolInvokeRequest
+			service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, func(request capabilities.ToolInvokeRequest) capabilities.ToolInvokeResponse {
+				invoked = request
+				return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Outcome: capabilities.ToolOutcomeSucceeded, Result: json.RawMessage(`{}`)}
+			})
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/"+testCase.toolName+"/invoke", strings.NewReader(`{"input":{}}`))
+			request.Header.Set(requesterEmailHeader, "admin@example.com")
+			request.Header.Set(requesterPermissionHeader, testCase.permission)
+			response := httptest.NewRecorder()
+
+			service.handlePublicAPI(response, arrivingOnTheRequesterSocket(request))
+
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+			}
+			if invoked.Context.IsApprovalContinuation != testCase.isConfirmation || invoked.Context.TaskSource != capabilities.TaskSourcePublicAPI {
+				t.Fatalf("the call reached the capability daemon as %#v", invoked.Context)
+			}
+			if invoked.Context.RequesterEmail != "admin@example.com" || invoked.Context.RequesterPersonID != "user-admin" || invoked.Context.ConversationID != "" {
+				t.Fatalf("the call reached the capability daemon for %#v", invoked.Context)
+			}
+		})
+	}
+}
+
+func TestAHostUpdateNeedsADeletingPermissionAtThePublicAPI(t *testing.T) {
+	service := newTaskAuthorizationTestService(t)
+	service.Configuration.CapabilitySocketPath = startPublicToolGatewayCapabilityServer(t, denyPermissionCapabilityHandler(t))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tools/host_update/invoke", strings.NewReader(`{"input":{}}`))
+	request.Header.Set(requesterEmailHeader, "admin@example.com")
+	request.Header.Set(requesterPermissionHeader, publicAPIPermissionWrite)
+	response := httptest.NewRecorder()
+
+	service.handlePublicAPI(response, arrivingOnTheRequesterSocket(request))
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
+	}
+}

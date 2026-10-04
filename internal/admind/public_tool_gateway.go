@@ -342,12 +342,6 @@ func (service *Service) writeCapabilityResponse(responseWriter http.ResponseWrit
 	service.writeJSON(responseWriter, publicToolInvokeAnswer(response))
 }
 
-// The wire between capabilityd and the agent says several things twice on
-// purpose: the agent's approval path reads failure fields out of the result
-// document, and older agents read status and isError where newer ones read
-// outcome. A public caller has none of that history, so the public answer says
-// each thing once: outcome is the verdict, message is the wording, and the
-// result keeps only what is not already said above it.
 func publicToolInvokeAnswer(response capabilities.ToolInvokeResponse) map[string]any {
 	answer := map[string]any{
 		"toolName": response.ToolName,
@@ -423,14 +417,12 @@ func decodeOptionalJSONBody(reader io.Reader, target any) error {
 	return json.Unmarshal(document, target)
 }
 
-// The public API is a door, not a conversation. Every conversation field stays
-// empty, Platform among them, and TaskSource is where the door is named.
 func publicToolInvokeContext(actor capabilities.ActorContext, descriptor capabilities.Descriptor) capabilities.ToolInvokeContext {
 	return capabilities.ToolInvokeContext{
 		RequesterPersonID:      actor.PersonID,
 		RequesterEmail:         strings.ToLower(strings.TrimSpace(actor.Email)),
 		RequesterName:          actor.DisplayName,
-		TaskSource:             "public_api",
+		TaskSource:             capabilities.TaskSourcePublicAPI,
 		IsApprovalContinuation: publicToolPermissionForDescriptor(descriptor) != "",
 	}
 }
