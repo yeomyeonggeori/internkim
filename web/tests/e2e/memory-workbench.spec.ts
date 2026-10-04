@@ -33,7 +33,7 @@ test.describe('memory workbench', () => {
 		});
 		await page.goto('/memory/');
 		await expect(page.locator('#memory-search')).toBeVisible();
-		await expect(page.getByRole('region', { name: '서클 · member' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'member' })).toBeVisible();
 		await expect(page.getByRole('main').getByRole('tab')).toHaveCount(0);
 		await page.locator('#memory-search').fill('금요일');
 		await expect(page.getByRole('button', { name: /금요일 오후에 회고/ })).toBeVisible();
@@ -131,7 +131,7 @@ test.describe('memory workbench', () => {
 		await page.goto('/memory/');
 
 		const layers = page.getByRole('complementary', { name: '기억의 층' });
-		await layers.getByRole('button', { name: /서클 · member/ }).click();
+		await layers.getByRole('button', { name: /^member/ }).click();
 		await expect(page.getByRole('button', { name: /한국어로 답변받는/ })).toBeVisible();
 		await expect(page.getByRole('button', { name: /금요일 오후에 회고/ })).toHaveCount(0);
 
@@ -139,6 +139,6 @@ test.describe('memory workbench', () => {
 		await page.getByRole('button', { name: '떠올리기' }).click();
 		await expect.poll(() => recallQuery).toBe('답변 언어');
 		await page.getByRole('list', { name: '떠올려 보기' }).getByRole('button', { name: /한국어로 답변받는/ }).click();
-		await expect(page.getByLabel('저장된 기억').getByText('서클 · member')).toBeVisible();
+		await expect(page.getByLabel('저장된 기억').getByText('member', { exact: true })).toBeVisible();
 	});
 });

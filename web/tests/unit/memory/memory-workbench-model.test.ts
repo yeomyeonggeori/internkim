@@ -27,9 +27,9 @@ describe('the remembered facts people inspect', () => {
 
 	test('a scope reads as mine, the circle by its name, or the whole company', () => {
 		expect(memoryScopeLabel(fact, [leadership], memoryText.ko, 'ko')).toBe('내 기억');
-		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.ko, 'ko')).toBe('서클 · 경영진');
-		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.en, 'en')).toBe('Circle · Leadership');
-		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'finance' }, [], memoryText.en, 'en')).toBe('Circle · finance');
+		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.ko, 'ko')).toBe('경영진');
+		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.en, 'en')).toBe('Leadership');
+		expect(memoryScopeLabel({ ...fact, scopeType: 'circle', scopeID: 'finance' }, [], memoryText.en, 'en')).toBe('finance');
 		expect(memoryScopeLabel({ ...fact, scopeType: 'workspace' }, [], memoryText.ko, 'ko')).toBe('회사 공용');
 	});
 
@@ -43,7 +43,7 @@ describe('the remembered facts people inspect', () => {
 
 	test('a layer says who reads it', () => {
 		expect(memoryLayerReader({ scopeType: 'person' }, [], memoryText.ko, 'ko')).toBe('나만 봅니다');
-		expect(memoryLayerReader({ scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.ko, 'ko')).toBe('경영진 서클 구성원이 봅니다');
+		expect(memoryLayerReader({ scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.ko, 'ko')).toBe('경영진만 봅니다');
 		expect(memoryLayerReader({ scopeType: 'workspace' }, [], memoryText.en, 'en')).toBe('Everyone in the company');
 	});
 

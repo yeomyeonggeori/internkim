@@ -18,7 +18,7 @@ export function filterMemoryFacts(facts: MemoryFact[], query: string, scopeLabel
 export function memoryScopeLabel(layer: MemoryLayer, circles: Circle[], text: MemoryText, locale: string): string {
 	if (layer.scopeType === 'person') return text.myMemory;
 	if (layer.scopeType === 'workspace') return text.companyMemory;
-	return `${text.circleMemory} · ${circleName(layer.scopeID ?? '', circles, locale)}`;
+	return circleName(layer.scopeID ?? '', circles, locale);
 }
 
 export function memoryLayerReader(layer: MemoryLayer, circles: Circle[], text: MemoryText, locale: string): string {
