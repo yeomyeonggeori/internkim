@@ -87,6 +87,7 @@ test('a question held across a blueclaw restart is asked once and answered once'
 		sender: { email: sender.email },
 		conversationID: theConversation(),
 		messageID: 'message-2',
+		isThread: true,
 		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);

@@ -89,6 +89,7 @@ test('a question held across a relay restart is asked once and answered once', a
 		sender: { email: sender.email },
 		conversationID: theConversation(),
 		messageID: 'message-2',
+		isThread: true,
 		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);
