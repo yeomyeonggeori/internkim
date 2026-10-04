@@ -3,11 +3,12 @@
 
 Usage: draw-logo <round mark png> <fastfetch config> <image root>
 
-The logo is written where the fastfetch config's logo source names, under the
-image root, as many columns and lines as that config's logo says.
-Each character cell holds two pixels, one above the other, drawn with half
-blocks in 24-bit color, so the mark keeps square pixels. A pixel is the brand
-blue, white, or left to the terminal's own background.
+Both logos are as many columns and lines as the fastfetch config's logo says,
+and are written under the image root. The logo source the config names is
+drawn in braille, eight dots to a character, in the light brand blue: the blue
+of the mark becomes dots and its white is left to the terminal. The same path
+with -console appended is drawn in half blocks, two square pixels to a
+character, for the Linux console, whose font has no braille.
 """
 
 import json
@@ -17,32 +18,68 @@ import sys
 from PIL import Image
 
 BRAND_BLUE = (14, 89, 179)
+LIGHT_BRAND_BLUE = (96, 156, 240)
 WHITE = (255, 255, 255)
-PALETTE = (BRAND_BLUE, WHITE)
 OPAQUE_ALPHA = 128
+SAMPLES_PER_SIDE = 8
+BRAILLE_BLANK = 0x2800
+BRAILLE_DOT_BITS = ((0x01, 0x08), (0x02, 0x10), (0x04, 0x20), (0x40, 0x80))
 RESET = "\x1b[0m"
+
+Color = tuple[int, int, int]
 
 
 def read_logo_settings(configuration_path: str) -> dict:
     return json.loads(pathlib.Path(configuration_path).read_text())["logo"]
 
 
-def nearest_palette_color(pixel: tuple[int, int, int, int]) -> tuple[int, int, int] | None:
+def sample_mark(mark_path: str, width: int, height: int) -> list[list[Color | None]]:
+    mark = Image.open(mark_path).convert("RGBA").resize((width * SAMPLES_PER_SIDE, height * SAMPLES_PER_SIDE), Image.LANCZOS)
+    return [[majority_color(mark, x, y) for x in range(width)] for y in range(height)]
+
+
+def majority_color(mark: Image.Image, x: int, y: int) -> Color | None:
+    counts: dict[Color | None, int] = {None: 0, BRAND_BLUE: 0, WHITE: 0}
+    for row in range(y * SAMPLES_PER_SIDE, (y + 1) * SAMPLES_PER_SIDE):
+        for column in range(x * SAMPLES_PER_SIDE, (x + 1) * SAMPLES_PER_SIDE):
+            counts[classify(mark.getpixel((column, row)))] += 1
+    return max(counts, key=lambda color: counts[color])
+
+
+def classify(pixel: tuple[int, int, int, int]) -> Color | None:
     *channels, alpha = pixel
     if alpha < OPAQUE_ALPHA:
         return None
-    return min(PALETTE, key=lambda color: sum((wanted - given) ** 2 for wanted, given in zip(color, channels)))
+    return min((BRAND_BLUE, WHITE), key=lambda color: sum((wanted - given) ** 2 for wanted, given in zip(color, channels)))
 
 
-def foreground(color: tuple[int, int, int]) -> str:
+def foreground(color: Color) -> str:
     return "\x1b[38;2;{};{};{}m".format(*color)
 
 
-def background(color: tuple[int, int, int]) -> str:
+def background(color: Color) -> str:
     return "\x1b[48;2;{};{};{}m".format(*color)
 
 
-def draw_cell(top: tuple[int, int, int] | None, bottom: tuple[int, int, int] | None) -> str:
+def draw_braille(mark_path: str, columns: int, lines: int) -> str:
+    dots = sample_mark(mark_path, columns * 2, lines * 4)
+    return "".join(draw_braille_line(dots[line * 4:line * 4 + 4], columns) + "\n" for line in range(lines))
+
+
+def draw_braille_line(dot_rows: list[list[Color | None]], columns: int) -> str:
+    cells = []
+    for column in range(columns):
+        bits = sum(BRAILLE_DOT_BITS[row][side] for row in range(4) for side in range(2) if dot_rows[row][column * 2 + side] == BRAND_BLUE)
+        cells.append(" " if bits == 0 else foreground(LIGHT_BRAND_BLUE) + chr(BRAILLE_BLANK + bits) + RESET)
+    return "".join(cells)
+
+
+def draw_half_blocks(mark_path: str, columns: int, lines: int) -> str:
+    pixels = sample_mark(mark_path, columns, lines * 2)
+    return "".join("".join(draw_half_block_cell(top, bottom) for top, bottom in zip(pixels[line * 2], pixels[line * 2 + 1])) + "\n" for line in range(lines))
+
+
+def draw_half_block_cell(top: Color | None, bottom: Color | None) -> str:
     if top is None and bottom is None:
         return " "
     if top is None:
@@ -50,25 +87,19 @@ def draw_cell(top: tuple[int, int, int] | None, bottom: tuple[int, int, int] | N
     if bottom is None:
         return foreground(top) + "▀" + RESET
     if top == bottom:
-        return foreground(top) + "█" + RESET
+        return background(top) + " " + RESET
     return foreground(top) + background(bottom) + "▀" + RESET
 
 
-def draw_logo(mark_path: str, width: int, height: int) -> str:
-    mark = Image.open(mark_path).convert("RGBA").resize((width, height * 2), Image.LANCZOS)
-    colors = [[nearest_palette_color(mark.getpixel((x, y))) for x in range(width)] for y in range(height * 2)]
-    lines = ["".join(draw_cell(top, bottom) for top, bottom in zip(colors[row], colors[row + 1])) for row in range(0, height * 2, 2)]
-    return "\n".join(lines) + "\n"
-
-
-def write_logo(mark_path: str, configuration_path: str, image_root: str) -> None:
+def write_logos(mark_path: str, configuration_path: str, image_root: str) -> None:
     logo = read_logo_settings(configuration_path)
     destination = pathlib.Path(image_root) / logo["source"].lstrip("/")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(draw_logo(mark_path, logo["width"], logo["height"]))
+    destination.write_text(draw_braille(mark_path, logo["width"], logo["height"]))
+    destination.with_name(destination.name + "-console").write_text(draw_half_blocks(mark_path, logo["width"], logo["height"]))
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         sys.exit(__doc__)
-    write_logo(*sys.argv[1:])
+    write_logos(*sys.argv[1:])

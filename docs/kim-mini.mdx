@@ -69,8 +69,9 @@ clock keeps the time zone given by `--time-zone`, `Asia/Seoul` unless told
 otherwise, where Raspberry Pi OS would keep `Europe/London`. The package is
 installed while the image is built, so the box needs no internet before its
 first boot.
-A login shell, on a monitor or over SSH, opens with fastfetch beside the
-round mark drawn in text.
+A login shell opens with fastfetch beside the round mark, drawn in braille
+dots over SSH and in half blocks on the box's own monitor, whose console font
+has no braille.
 
 `tools/flash-kim-mini <image> <diskN>` writes the image to a card on a Mac and
 records the day in `internkim-made-on`. It writes only to an SD card or USB disk,
