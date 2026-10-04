@@ -32,9 +32,9 @@ export function memoryLayerKey(layer: MemoryLayer): string {
 }
 
 export const memoryLayerDepth: Record<MemoryLayer['scopeType'], number> = {
-	person: 1,
-	circle: 2,
-	workspace: 3
+	person: 0,
+	circle: 1,
+	workspace: 2
 };
 
 export type MemoryLayerGroup = { layer: MemoryLayer; facts: MemoryFact[] };

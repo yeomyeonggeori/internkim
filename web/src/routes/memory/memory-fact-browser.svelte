@@ -17,7 +17,6 @@
 	import { cn } from '$lib/utils';
 	import MemoryFactDetail from './memory-fact-detail.svelte';
 	import MemoryImportance from './memory-importance.svelte';
-	import MemoryLayerDepth from './memory-layer-depth.svelte';
 	import MemoryLayerStack from './memory-layer-stack.svelte';
 	import MemoryRecallPreview from './memory-recall-preview.svelte';
 	import type { Circle } from '$lib/data-room/model';
@@ -139,7 +138,6 @@
 					{#each factGroups as group (memoryLayerKey(group.layer))}
 						<section aria-label={scopeLabel(group.layer)}>
 							<h3 class="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground">
-								<MemoryLayerDepth layer={group.layer} />
 								<span class="text-foreground">{scopeLabel(group.layer)}</span>
 							</h3>
 							<div class="divide-y border-b">
