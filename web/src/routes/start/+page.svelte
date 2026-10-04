@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import { slugShape } from '$lib/company-path';
+	import { pathAfterFounding } from './path-after-founding';
 	import { belongsToACompany, checkCompanyAddress, foundCompany } from '$lib/company/found-company';
 	import { homePath } from '$lib/home-path';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
@@ -111,7 +112,7 @@
 				locale: currentLocale.value,
 				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 			});
-			await goto(whereTheyWereGoing && whereTheyWereGoing !== homePath ? whereTheyWereGoing : '/settings/setup');
+			await goto(pathAfterFounding(whereTheyWereGoing));
 		} catch {
 			errorMessage = text.createFailed;
 			scheduleAddressCheck();
