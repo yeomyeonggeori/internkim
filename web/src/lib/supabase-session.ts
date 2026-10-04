@@ -92,8 +92,16 @@ export type ClaimOutcome =
 	| { kind: 'tooManyLately' }
 	| { kind: 'failed' };
 
-export async function askToClaim(email: string): Promise<ClaimOutcome> {
-	const response = await fetch('/api/auth/claim', {
+export function askToClaim(email: string): Promise<ClaimOutcome> {
+	return askForCode('/api/auth/claim', email);
+}
+
+export function askToStartCompany(email: string): Promise<ClaimOutcome> {
+	return askForCode('/api/auth/signup', email);
+}
+
+async function askForCode(path: string, email: string): Promise<ClaimOutcome> {
+	const response = await fetch(path, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ email: email.trim().toLowerCase() })
@@ -101,23 +109,6 @@ export async function askToClaim(email: string): Promise<ClaimOutcome> {
 	if (response.status === 429) return { kind: 'tooManyLately' };
 	if (!response.ok) return { kind: 'failed' };
 	return { kind: 'sent' };
-}
-
-export async function askToStartCompany(email: string): Promise<void> {
-	const response = await fetch('/api/auth/signup', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ email: email.trim().toLowerCase() })
-	});
-	if (response.ok) return;
-	const responseBody: unknown = await response.json().catch(() => null);
-	const message =
-		typeof responseBody === 'object' && responseBody !== null && 'message' in responseBody && typeof responseBody.message === 'string'
-			? responseBody.message
-			: typeof responseBody === 'object' && responseBody !== null && 'error' in responseBody && typeof responseBody.error === 'string'
-				? responseBody.error
-				: `sign-up returned ${response.status}`;
-	throw new Error(message);
 }
 
 export async function verifyClaimCode(email: string, code: string): Promise<void> {
