@@ -3,12 +3,10 @@
 
 Usage: draw-logo <round mark png> <fastfetch config> <image root>
 
-Both logos are as many columns and lines as the fastfetch config's logo says,
-and are written under the image root. The logo source the config names is
-drawn in braille, eight dots to a character, in the light brand blue: the blue
-of the mark becomes dots and its white is left to the terminal. The same path
-with -console appended is drawn in half blocks, two square pixels to a
-character, for the Linux console, whose font has no braille.
+The logo is written where the fastfetch config's logo source names, under the
+image root, as many columns and lines as that config's logo says. It is drawn
+in braille, eight dots to a character, in the light brand blue: the blue of the
+mark becomes dots and its white is left to the terminal.
 """
 
 import json
@@ -57,10 +55,6 @@ def foreground(color: Color) -> str:
     return "\x1b[38;2;{};{};{}m".format(*color)
 
 
-def background(color: Color) -> str:
-    return "\x1b[48;2;{};{};{}m".format(*color)
-
-
 def draw_braille(mark_path: str, columns: int, lines: int) -> str:
     dots = sample_mark(mark_path, columns * 2, lines * 4)
     return "".join(draw_braille_line(dots[line * 4:line * 4 + 4], columns) + "\n" for line in range(lines))
@@ -74,32 +68,14 @@ def draw_braille_line(dot_rows: list[list[Color | None]], columns: int) -> str:
     return "".join(cells)
 
 
-def draw_half_blocks(mark_path: str, columns: int, lines: int) -> str:
-    pixels = sample_mark(mark_path, columns, lines * 2)
-    return "".join("".join(draw_half_block_cell(top, bottom) for top, bottom in zip(pixels[line * 2], pixels[line * 2 + 1])) + "\n" for line in range(lines))
-
-
-def draw_half_block_cell(top: Color | None, bottom: Color | None) -> str:
-    if top is None and bottom is None:
-        return " "
-    if top is None:
-        return foreground(bottom) + "▄" + RESET
-    if bottom is None:
-        return foreground(top) + "▀" + RESET
-    if top == bottom:
-        return background(top) + " " + RESET
-    return foreground(top) + background(bottom) + "▀" + RESET
-
-
-def write_logos(mark_path: str, configuration_path: str, image_root: str) -> None:
+def write_logo(mark_path: str, configuration_path: str, image_root: str) -> None:
     logo = read_logo_settings(configuration_path)
     destination = pathlib.Path(image_root) / logo["source"].lstrip("/")
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(draw_braille(mark_path, logo["width"], logo["height"]))
-    destination.with_name(destination.name + "-console").write_text(draw_half_blocks(mark_path, logo["width"], logo["height"]))
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         sys.exit(__doc__)
-    write_logos(*sys.argv[1:])
+    write_logo(*sys.argv[1:])

@@ -2,7 +2,7 @@ case $- in
   *i*)
     if [ -t 1 ] && command -v fastfetch >/dev/null; then
       if [ "$TERM" = linux ]; then
-        fastfetch --logo /etc/xdg/fastfetch/kim-mini-logo-console
+        fastfetch --logo none
       else
         fastfetch
       fi

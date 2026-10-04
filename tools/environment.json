@@ -537,6 +537,6 @@
   },
   "TERM": {
     "process": "tools/kim-mini-image/fastfetch-at-login.sh",
-    "description": "the terminal type a Kim mini login shell runs in (standard POSIX variable); `linux` is the box's own console, whose font has no braille, so the login banner draws its half-block logo there"
+    "description": "the terminal type a Kim mini login shell runs in (standard POSIX variable); `linux` is the box's own console, whose font has no braille, so the login banner leaves its logo out there"
   }
 }
