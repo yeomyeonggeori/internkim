@@ -257,6 +257,12 @@ export async function releaseBox(client: SupabaseClient, companyID: string): Pro
 	return data.length > 0;
 }
 
+export async function releaseBoxOfKey(client: SupabaseClient, publicKey: string): Promise<boolean> {
+	const companyID = await companyOfFleet(client, publicKey);
+	if (!companyID) return false;
+	return releaseBox(client, companyID);
+}
+
 export async function claimBoxWithConnectionFile(
 	client: SupabaseClient,
 	publicKey: string,

@@ -18,7 +18,8 @@ import {
 	connectedBoxOf,
 	emptyBoxesAt,
 	keepSealedModelKey,
-	releaseBox
+	releaseBox,
+	releaseBoxOfKey
 } from '../../src/lib/server/box';
 import { pendingWifiChangeOf, recordNearbyNetworks, reportWifiOutcome, requestWifiChange, wifiChangeStatusFor } from '../../src/lib/server/box-wifi';
 import { adminPasswordStatusFor, noteAdminAccount, pendingAdminPasswordOf, reportAdminPasswordOutcome, requestAdminPassword } from '../../src/lib/server/box-admin-password';
@@ -380,6 +381,25 @@ describe('connecting an empty box', () => {
 		});
 		expect(announced).toMatchObject({ isClaimed: false, pairingCode: expect.any(String) });
 		expect(await releaseBox(client, releasing.companyID)).toBe(false);
+	});
+
+	test('a box reset by whoever holds it releases itself from the company that claimed it', async () => {
+		const claiming = await aCompany('claiming-by-mistake');
+		const box = await aBox();
+		await claimWithCode(claiming.companyID, box.publicKey, await announcedCode(box));
+
+		expect(await releaseBoxOfKey(client, box.publicKey)).toBe(true);
+
+		expect(await connectedBoxOf(client, claiming.companyID)).toBeNull();
+		expect(await boxSessionFor(credentials, box.publicKey, environment, appURL)).toBeNull();
+		const announced = await announceBox(client, {
+			publicKey: box.publicKey,
+			encryptionKey: box.encryptionKey,
+			publicAddress: officeAddress,
+			wantsPairingCode: true
+		});
+		expect(announced).toMatchObject({ isClaimed: false, pairingCode: expect.any(String) });
+		expect(await releaseBoxOfKey(client, box.publicKey)).toBe(false);
 	});
 
 	test('a model key waits for a connected box', async () => {

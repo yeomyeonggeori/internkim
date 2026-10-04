@@ -139,6 +139,15 @@ gateway alike, because a host session names the box it was issued to and holds
 only while that box is the company's. Claiming another box ends the first one's
 session the same way.
 
+Only the company that claimed a box can disconnect it, so a box someone else
+claimed by mistake is undone by whoever holds it. Put an empty file named
+`internkim-reset` on the card's boot partition, which a Mac mounts as `bootfs`,
+and start the box. It forgets the company it installed, signs a request with its
+own key asking the central plane to release it, retries until the plane answers,
+locks the `admin` password so that company's administrators can no longer log
+in, and deletes the file. It then announces itself as an empty box. The company's
+files stay on the card; writing the card again is what clears them.
+
 ## The box's identity replaces the agent key
 
 A host installed from a connection file proves itself with a bearer agent key, a

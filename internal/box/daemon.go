@@ -29,21 +29,23 @@ type Places struct {
 	ConnectionFilePath        string
 	CredentialPaths           []string
 	ModelKeyPath              string
+	ResetRequestPath          string
 	CompanyStateDirectoryPath func(companyID string) string
 }
 
 type Daemon struct {
-	Client           Client
-	Places           Places
-	Install          func(companyhost.Request) error
-	NameHost         func(ctx context.Context, companySlug string) error
-	GetOnline        func(ctx context.Context, boxPublicKey string) error
-	ChangeWifi       func(ctx context.Context, ssid, password string) error
-	ScanWifi         func(ctx context.Context) ([]NearbyNetwork, error)
-	SetAdminPassword func(ctx context.Context, password string) error
-	WatcherSleep     func(ctx context.Context, wait time.Duration) error
-	Sleep            func(context.Context, time.Duration) error
-	Now              func() time.Time
+	Client            Client
+	Places            Places
+	Install           func(companyhost.Request) error
+	NameHost          func(ctx context.Context, companySlug string) error
+	GetOnline         func(ctx context.Context, boxPublicKey string) error
+	ChangeWifi        func(ctx context.Context, ssid, password string) error
+	ScanWifi          func(ctx context.Context) ([]NearbyNetwork, error)
+	SetAdminPassword  func(ctx context.Context, password string) error
+	LockAdminPassword func(ctx context.Context) error
+	WatcherSleep      func(ctx context.Context, wait time.Duration) error
+	Sleep             func(context.Context, time.Duration) error
+	Now               func() time.Time
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {
@@ -55,6 +57,9 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		return errorValue
 	}
 	log.Printf("this box is %s", identity.PublicKey())
+	if errorValue := daemon.resetIfAsked(ctx, identity); errorValue != nil {
+		return errorValue
+	}
 	daemon.getOnlineWhileEmpty(ctx, identity)
 	if daemon.ChangeWifi != nil {
 		watcherContext, stopWatcher := context.WithCancel(ctx)
