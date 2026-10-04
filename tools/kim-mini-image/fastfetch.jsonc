@@ -1,0 +1,25 @@
+{
+  "logo": {
+    "type": "file-raw",
+    "source": "/etc/xdg/fastfetch/kim-mini-logo",
+    "width": 24,
+    "height": 12,
+    "padding": { "top": 0, "left": 1, "right": 3 }
+  },
+  "display": {
+    "color": { "keys": "blue", "title": "blue" }
+  },
+  "modules": [
+    "title",
+    "separator",
+    { "type": "command", "key": "Intern Kim", "text": "dpkg-query -W -f='${Version}' internkim" },
+    "os",
+    "host",
+    "kernel",
+    "uptime",
+    "cpu",
+    "memory",
+    { "type": "disk", "key": "Disk", "folders": "/" },
+    "localip"
+  ]
+}
