@@ -29966,6 +29966,125 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "host_diagnostics_get",
+      "description": "Read host diagnostics through the same execution records, event ledger, model exchanges, turn inputs, connector events, service logs and request metrics as the work-history web page. Only a company administrator may ask. Use recorded IDs for detail views. This reads existing evidence and executes no commands supplied by the caller.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "conversationID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "description": "The exact recorded model call or turn input ID, returned by the event ledger.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "messageID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "offset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "service": {
+            "description": "The exact service name accepted by the existing log viewer.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskRunID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "view": {
+            "description": "The existing work-history view to read: runs lists executions; run reads its event ledger; model_call reads a recorded model exchange; turn_input reads the recorded input; inbound reads connector events; service_logs reads service logs; requests reads request metrics.",
+            "enum": [
+              "runs",
+              "run",
+              "model_call",
+              "turn_input",
+              "inbound",
+              "service_logs",
+              "requests"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "view"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "host_diagnostics_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "host_diagnostics_get",
+      "namespace": "host",
+      "namespaceSummary": "The company's host: its recorded work and diagnostics, which internkim release it runs, and updating it.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "description": "The original view response serialized as JSON, preserving every recorded field.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:host_diagnostics_get",
+      "privacyClass": "workspace_company",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "document": {
+              "description": "The original view response serialized as JSON, preserving every recorded field.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "document"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "company",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "host_version_get",
       "description": "Read which version of internkim this company's host runs, the release channel it follows, how it is updated (apt, dnf, pacman or brew), and the latest stable release with its date and release notes, which says whether an update is available. previousStable is the stable release before the installed one. Any member may ask.",
       "estimatedLatency": "low",
@@ -29986,7 +30105,7 @@
       "modelVisible": true,
       "name": "host_version_get",
       "namespace": "host",
-      "namespaceSummary": "The company's host: which internkim release it runs, and updating it.",
+      "namespaceSummary": "The company's host: its recorded work and diagnostics, which internkim release it runs, and updating it.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
@@ -30324,7 +30443,7 @@
       "modelVisible": true,
       "name": "host_update",
       "namespace": "host",
-      "namespaceSummary": "The company's host: which internkim release it runs, and updating it.",
+      "namespaceSummary": "The company's host: its recorded work and diagnostics, which internkim release it runs, and updating it.",
       "outputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,

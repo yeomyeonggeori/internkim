@@ -19,6 +19,10 @@ func (service Service) answerThroughAdmindAsTheRequester(ctx context.Context, re
 		return capabilities.ToolInvokeResponse{}, errorValue
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
+	return service.answerAdmindRequesterTool(request, httpRequest, nil)
+}
+
+func (service Service) answerAdmindRequesterTool(request capabilities.ToolInvokeRequest, httpRequest *http.Request, adaptResult func(json.RawMessage) (json.RawMessage, error)) (capabilities.ToolInvokeResponse, error) {
 	response, errorValue := service.askAdmindAsTheRequester(httpRequest, request.Context.RequesterEmail)
 	if errorValue != nil {
 		return capabilities.ToolInvokeResponse{}, errorValue
@@ -33,6 +37,12 @@ func (service Service) answerThroughAdmindAsTheRequester(ctx context.Context, re
 	}
 	if !json.Valid(result) {
 		return capabilities.ToolInvokeResponse{}, fmt.Errorf("%s returned invalid JSON", request.ToolName)
+	}
+	if adaptResult != nil {
+		result, errorValue = adaptResult(result)
+		if errorValue != nil {
+			return capabilities.ToolInvokeResponse{}, errorValue
+		}
 	}
 	return capabilitySuccessResponseFrom(request.ToolName, "ok", json.RawMessage(result), admindToolOrigin)
 }

@@ -105,6 +105,7 @@ type AdmindPlaneArguments = {
 	listenSocketPath: string;
 	stateDirectory: string;
 	databasePath: string;
+	agentProfilePicturePath: string;
 };
 
 export function capabilitydArgumentsForPlane(argumentsForPlane: CapabilitydPlaneArguments): string[] {
@@ -161,7 +162,8 @@ export function admindArgumentsForPlane(argumentsForPlane: AdmindPlaneArguments)
 			'-central-plane-agent-key': argumentsForPlane.centralPlaneAgentKeyPath,
 			'-blueclaw-assertion-key': argumentsForPlane.blueclawAssertionKeyPath,
 			'-central-plane-project-url': argumentsForPlane.centralPlaneProjectURL,
-			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey
+			'-central-plane-publishable-key': argumentsForPlane.centralPlanePublishableKey,
+			'-agent-profile-picture': argumentsForPlane.agentProfilePicturePath
 		},
 		{
 			'-state-dir': argumentsForPlane.stateDirectory,
@@ -549,7 +551,8 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 						centralPlanePublishableKey: environmentValue('SUPABASE_PUBLISHABLE_KEY'),
 						listenSocketPath: requesterSocketPath,
 						stateDirectory: join(runDirectory, 'state'),
-						databasePath: join(runDirectory, 'state', 'internkim.sqlite')
+						databasePath: join(runDirectory, 'state', 'internkim.sqlite'),
+						agentProfilePicturePath: join(repositoryRoot, 'assets', 'internkim.square.png')
 					})
 				],
 				{ ...logsTo(join(runDirectory, 'admind.log')), cwd: runDirectory, env: theBoxEnvironment() }

@@ -55,13 +55,16 @@ test('the plane starts every daemon with the current company-box contract', () =
 		centralPlanePublishableKey: 'publishable-key',
 		listenSocketPath: '/tmp/admind.sock',
 		stateDirectory: '/tmp/state',
-		databasePath: '/tmp/internkim.sqlite'
+		databasePath: '/tmp/internkim.sqlite',
+		agentProfilePicturePath: '/tmp/agent-picture.png'
 	});
 	expect(argumentsForAdmind).toContain('-buzz-database-url-path');
 	expect(argumentsForAdmind).toContain('-buzz-relay-key-path');
 	expect(argumentsForAdmind).toContain('-buzz-account-links');
 	expect(argumentsForAdmind).toContain('-buzz-relay-public-url');
 	expect(argumentsForAdmind).toContain('-blueclaw-assertion-key');
+	expect(argumentsForAdmind).toContain('-agent-profile-picture');
+	expect(argumentsForAdmind).toContain('/tmp/agent-picture.png');
 });
 
 test('a plane told two different messengers refuses to start', async () => {

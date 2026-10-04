@@ -1,4 +1,5 @@
 import type { ACompanyPlane } from './a-company-plane';
+import type { NormalizedInboundEvent } from '../../../.dependency/blueclaw/chatd/src/relay-inbound';
 
 export type AnInboundMessage = {
 	conversationID: string;
@@ -9,6 +10,7 @@ export type AnInboundMessage = {
 	conversationType?: 'direct' | 'channel';
 	botMentioned?: boolean;
 	channelName?: string;
+	isThread?: boolean;
 };
 
 /**
@@ -19,7 +21,7 @@ export type AnInboundMessage = {
 export function aChatdInboundEvent(
 	plane: ACompanyPlane,
 	message: AnInboundMessage
-): Record<string, unknown> {
+): NormalizedInboundEvent {
 	const conversationType = message.conversationType ?? 'direct';
 	const senderID = message.sender.handle ?? message.sender.email;
 	return {
@@ -28,6 +30,7 @@ export function aChatdInboundEvent(
 		messageID: message.messageID,
 		senderID,
 		replyTargetID: message.conversationID,
+		isThread: message.isThread ?? false,
 		prompt: message.message,
 		context: {
 			messages: [],

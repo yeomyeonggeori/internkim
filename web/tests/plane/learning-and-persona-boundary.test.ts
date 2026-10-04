@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { z } from 'zod';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
 
 let plane: ACompanyPlane;
@@ -80,4 +81,27 @@ test('company memory facts are readable through the requester socket', async () 
 		expect(response.status, await response.clone().text()).toBe(200);
 		expect(await response.json()).toMatchObject({ facts: [] });
 	}
+});
+
+test('only an administrator reads the existing history through the public API and tool', async () => {
+	const memberResponse = await requestAsMember('/api/v1/diagnostics/runs', 1);
+	expect(memberResponse.status).toBe(403);
+	const spoofedResponse = await fetch(`${plane.admindURL}/api/v1/diagnostics/runs`, {
+		headers: { 'X-INTERNKIM-REQUESTER-EMAIL': plane.people[0].email }
+	});
+	expect(spoofedResponse.status).toBe(401);
+	const history = await requestAsMember('/runs/api');
+	expect(history.status, await history.clone().text()).toBe(200);
+	const diagnostics = await requestAsMember('/api/v1/diagnostics/runs');
+	expect(diagnostics.status, await diagnostics.clone().text()).toBe(200);
+	const existingDocument = await history.json();
+	expect(JSON.stringify(await diagnostics.json())).toBe(JSON.stringify(existingDocument));
+	const toolResponse = await requestAsMember('/api/v1/tools/host_diagnostics_get/invoke', 0, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ input: { view: 'runs' } })
+	});
+	expect(toolResponse.status, await toolResponse.clone().text()).toBe(200);
+	const answer = z.object({ outcome: z.literal('succeeded'), result: z.object({ document: z.string() }) }).parse(await toolResponse.json());
+	expect(JSON.stringify(JSON.parse(answer.result.document))).toBe(JSON.stringify(existingDocument));
 });

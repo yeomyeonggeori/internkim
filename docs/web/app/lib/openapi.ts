@@ -803,6 +803,32 @@ function namedToolPath(tool: CatalogTool, copy: ApiCopy) {
 	};
 }
 
+function diagnosticsPath(copy: ApiCopy) {
+	const tool = baseTools().find((candidate) => candidate.name === 'host_diagnostics_get');
+	const properties = tool?.inputSchema?.properties;
+	if (!tool || !properties || typeof properties !== 'object') {
+		throw new Error('The diagnostics tool must define its query fields.');
+	}
+	return {
+		get: {
+			operationId: 'readHostDiagnostics',
+			summary: 'Read the existing work-history view as a company administrator',
+			description: tool.description,
+			parameters: Object.keys(properties).map((name) => ({
+				name, in: name === 'view' ? 'path' : 'query', required: name === 'view',
+				schema: { $ref: `#/components/schemas/${inputSchemaNameOf(tool)}/properties/${name}` }
+			})),
+			responses: {
+				'200': { description: 'The original JSON document returned by the web page reader.' },
+				'400': errorResponse(copy.errors.badRequest),
+				'401': errorResponse(copy.errors.unauthorized),
+				'403': errorResponse(copy.errors.forbidden),
+				'502': errorResponse(copy.errors.badGateway)
+			}
+		}
+	};
+}
+
 function createPaths(copy: ApiCopy) {
 	const paths: Record<string, unknown> = {
 		'/tokens': listTokensPath(copy),
@@ -860,6 +886,7 @@ function createPaths(copy: ApiCopy) {
 		'/member/profile-image': memberPicturePath(copy),
 		'/agent/messages': agentMessagePath(copy),
 		'/agent/replies': agentRepliesPath(copy),
+		'/diagnostics/{view}': diagnosticsPath(copy),
 		'/tools': listToolsPath(copy),
 		'/tools/{name}': toolByNamePath(copy),
 		'/mcp': mcpPath(copy),

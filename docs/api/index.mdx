@@ -194,6 +194,13 @@ A call carried to the company is answered by `admind`, in its own words:
 | `403` | `tool is not available for this token` | an unknown tool, or one above the token's permission |
 | `502` | whatever failed to resolve | the descriptor or the actor could not be read |
 
+## Host diagnostics [#host-diagnostics]
+
+Company administrators can read the work-history page's existing views through
+`GET /v1/diagnostics/{view}` or the `host_diagnostics_get` MCP tool. Both reuse
+the page's readers and return its recorded evidence. The served reference
+lists the views and query fields from the tool contract.
+
 ## Keeping a file [#keeping-a-file]
 
 `POST /v1/files` takes the bytes themselves, up to 25 MB, with the file's own

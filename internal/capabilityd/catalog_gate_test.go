@@ -949,6 +949,17 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"isUpdateAvailable":true`)
 			},
 		},
+		"host_diagnostics_get": {
+			kind: provesBehaviour,
+			reaches: map[gateBackend]*standingIn{
+				admindOverTheSocket: answering(`{"taskEvents":[{"name":"tool.failed","body":"process exited"}]}`),
+			},
+			input: `{"view":"run","taskRunID":"sample-run"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"document":"{\"taskEvents\"`)
+			},
+		},
 		"host_update": {
 			kind: provesBehaviour,
 			reaches: map[gateBackend]*standingIn{

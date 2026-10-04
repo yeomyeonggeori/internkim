@@ -89,6 +89,8 @@ func (service *Service) handlePublicAPI(responseWriter http.ResponseWriter, requ
 		return
 	}
 	switch {
+	case request.Method == http.MethodGet && strings.HasPrefix(path, "/diagnostics/"):
+		service.readPublicHostDiagnostics(responseWriter, request, actor)
 	case request.Method == http.MethodPost && path == "/agent/messages":
 		service.handleAgentMessage(responseWriter, request, actor)
 	case request.Method == http.MethodGet && path == "/agent/replies":

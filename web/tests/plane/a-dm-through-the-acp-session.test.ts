@@ -81,6 +81,7 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 		sender: { email: sender.email },
 		conversationID: `conversation-${plane.runIdentifier}`,
 		messageID: 'message-2',
+		isThread: true,
 		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);
