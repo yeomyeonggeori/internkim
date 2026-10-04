@@ -75,10 +75,11 @@ describe('what the memory screen asks the plane to read', () => {
 		});
 	});
 
-	test('reads the schedules and the facts through capabilities the relay carries', () => {
+	test('reads the schedules, the facts and a recall preview through capabilities the relay carries', () => {
 		const carried = relayCapabilityPaths();
 
 		expect(carried['person.memory.schedules']).toBe('/memory/api/schedules');
 		expect(carried['person.memory.facts']).toBe('/memory/api/facts');
+		expect(carried['person.memory.recall']).toBe('/memory/api/recall');
 	});
 });

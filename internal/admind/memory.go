@@ -22,7 +22,11 @@ type memoryPolicyPerson struct {
 func (service *Service) handleMemory(responseWriter http.ResponseWriter, request *http.Request) {
 	path := strings.TrimPrefix(request.URL.Path, "/memory/api")
 	if request.Method == http.MethodGet && path == "/facts" {
-		service.writeUserMemoryFacts(responseWriter, request)
+		service.writeUserMemoryRead(responseWriter, request, "/admin/api/memory/facts", "limit")
+		return
+	}
+	if request.Method == http.MethodGet && path == "/recall" {
+		service.writeUserMemoryRead(responseWriter, request, "/admin/api/memory/recall", "query")
 		return
 	}
 	if request.Method == http.MethodPost && path == "/facts/forget" {
@@ -64,7 +68,9 @@ func (service *Service) handleMemory(responseWriter http.ResponseWriter, request
 	http.NotFound(responseWriter, request)
 }
 
-func (service *Service) writeUserMemoryFacts(responseWriter http.ResponseWriter, request *http.Request) {
+// writeUserMemoryRead answers a read of the requester's own memory, passing on
+// only the parameters the upstream route takes and naming the reader itself.
+func (service *Service) writeUserMemoryRead(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string, passedParameters ...string) {
 	actorEmail := service.memoryActorEmail(request)
 	if actorEmail == "" {
 		http.Error(responseWriter, "memory access required", http.StatusForbidden)
@@ -72,7 +78,7 @@ func (service *Service) writeUserMemoryFacts(responseWriter http.ResponseWriter,
 	}
 	personID, errorValue := service.resolveMemoryPersonID(request.Context(), actorEmail)
 	if errorValue != nil {
-		log.Printf("memory facts identity resolution failed: %v", errorValue)
+		log.Printf("memory read identity resolution failed: %v", errorValue)
 		http.Error(responseWriter, "memory identity unavailable", http.StatusBadGateway)
 		return
 	}
@@ -81,14 +87,14 @@ func (service *Service) writeUserMemoryFacts(responseWriter http.ResponseWriter,
 		return
 	}
 
-	var facts map[string]any
-	path := "/admin/api/memory/facts?" + memoryFactsQuery(request, personID)
-	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &facts); errorValue != nil {
-		log.Printf("memory facts upstream failed: %v", errorValue)
-		http.Error(responseWriter, "memory facts unavailable", http.StatusBadGateway)
+	var answer map[string]any
+	path := upstreamPath + "?" + memoryReadQuery(request, personID, passedParameters)
+	if errorValue := service.blueclawJSONRequest(request.Context(), http.MethodGet, path, nil, &answer); errorValue != nil {
+		log.Printf("memory read %s upstream failed: %v", upstreamPath, errorValue)
+		http.Error(responseWriter, "memory unavailable", http.StatusBadGateway)
 		return
 	}
-	service.writeJSON(responseWriter, facts)
+	service.writeJSON(responseWriter, answer)
 }
 
 func (service *Service) writeUserMemoryMutation(responseWriter http.ResponseWriter, request *http.Request, upstreamPath string) {
@@ -131,10 +137,12 @@ func (service *Service) memoryActorEmail(request *http.Request) string {
 	return assertedRequesterEmail(request)
 }
 
-func memoryFactsQuery(request *http.Request, personID string) string {
+func memoryReadQuery(request *http.Request, personID string, passedParameters []string) string {
 	query := url.Values{}
-	if limit := strings.TrimSpace(request.URL.Query().Get("limit")); limit != "" {
-		query.Set("limit", limit)
+	for _, name := range passedParameters {
+		if value := strings.TrimSpace(request.URL.Query().Get(name)); value != "" {
+			query.Set(name, value)
+		}
 	}
 	query.Set("readerPersonID", personID)
 	return query.Encode()

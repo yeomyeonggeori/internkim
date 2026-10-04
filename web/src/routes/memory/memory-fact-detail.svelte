@@ -2,6 +2,7 @@
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import EraserIcon from '@lucide/svelte/icons/eraser';
+	import ColorMarker from '$lib/components/color-marker.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -9,10 +10,11 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Field from '$lib/components/ui/field';
 	import { forgetMemoryFact, type MemoryFact } from './memory-facts-api';
-	import { isCurrentMemory, memoryDate, memoryWhen } from './memory-workbench-model';
+	import MemoryImportance from './memory-importance.svelte';
+	import { isCurrentMemory, memoryDate, memoryLayerTones, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
-	let { fact, scope, text, onForgotten }: { fact: MemoryFact; scope: string; text: MemoryText; onForgotten: (factID: string) => void } = $props();
+	let { fact, scope, reader, text, onForgotten }: { fact: MemoryFact; scope: string; reader: string; text: MemoryText; onForgotten: (factID: string) => void } = $props();
 	let isForgetting = $state(false);
 	let isConfirmingForget = $state(false);
 	let reason = $state('');
@@ -41,8 +43,12 @@
 <div class="flex min-w-0 flex-col gap-5 px-5 py-5 sm:px-6">
 	<header class="flex flex-col gap-3">
 		<h2 class="text-sm font-semibold">{text.memoryDetails}</h2>
+		<div class="flex items-center gap-2 text-sm">
+			<ColorMarker class={memoryLayerTones[fact.scopeType]} />
+			<span class="font-medium">{scope}</span>
+			<span class="min-w-0 truncate text-muted-foreground">{reader}</span>
+		</div>
 		<div class="flex flex-wrap items-center gap-2">
-			<Badge variant="secondary">{scope}</Badge>
 			<Badge variant="secondary">{fact.isStatic ? text.always : text.happened}</Badge>
 			<Badge variant="outline">{isLive ? text.current : text.previousMemory}</Badge>
 		</div>
@@ -67,7 +73,7 @@
 	<dl class="grid grid-cols-1 gap-4 break-words text-sm sm:grid-cols-2">
 		{#if !fact.isStatic}<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.occurredAt}</dt><dd>{memoryWhen(fact, text, currentLocale.value)}</dd></div>{/if}
 		{#if fact.validUntil}<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.validUntil}</dt><dd>{memoryDate(fact.validUntil, text, currentLocale.value)}</dd></div>{/if}
-		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.importance}</dt><dd>{text.importanceTemplate.replace('{count}', String(fact.importance))}</dd></div>
+		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.importance}</dt><dd class="flex items-center gap-2"><MemoryImportance importance={fact.importance} label={`${text.importance} ${text.importanceTemplate.replace('{count}', String(fact.importance))}`} />{text.importanceTemplate.replace('{count}', String(fact.importance))}</dd></div>
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.createdAt}</dt><dd>{memoryDate(fact.createdAt, text, currentLocale.value)}</dd></div>
 		<div class="grid gap-1"><dt class="text-xs text-muted-foreground">{text.lastRecalledAt}</dt><dd>{fact.lastRecalledAt ? memoryDate(fact.lastRecalledAt, text, currentLocale.value) : text.neverRecalled}</dd></div>
 	</dl>

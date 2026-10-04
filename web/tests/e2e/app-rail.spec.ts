@@ -6,7 +6,7 @@ const appRailSelector = '[data-app-rail]';
 const profileMenuSelector = '[data-app-rail-profile-menu]';
 const maximumProfileMenuRailGap = 8;
 
-const memoryFactsFixture = { personID: 'person-1', index: { embeddingModel: 'baai/bge-m3', current: 0, stale: 0 }, facts: [] };
+const memoryFactsFixture = { personID: 'person-1', layers: [{ scopeType: 'person', scopeID: 'person-1' }, { scopeType: 'workspace' }], index: { embeddingModel: 'baai/bge-m3', current: 0, stale: 0 }, facts: [] };
 
 type RailMetrics = {
 	menuLeft: number | null;

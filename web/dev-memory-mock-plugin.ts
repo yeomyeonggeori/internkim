@@ -10,7 +10,7 @@ import {
 	type DevMockRequest,
 	type DevMockResponse
 } from './dev-admin-mock';
-import type { MemoryFactsResponse } from './src/routes/memory/memory-facts-api';
+import type { MemoryFactsResponse, MemoryRecallResponse } from './src/routes/memory/memory-facts-api';
 import type { MemorySchedule } from './src/routes/memory/memory-schedule-api';
 
 type DevMemoryMockPluginOptions = {
@@ -74,6 +74,9 @@ export function createDevMemoryMockResponse(
 	if (request.method === 'GET' && request.pathname === '/memory/api/facts') {
 		return { status: 200, body: createDevMemoryFacts(state) };
 	}
+	if (request.method === 'GET' && request.pathname === '/memory/api/recall') {
+		return { status: 200, body: createDevMemoryRecall(state, request.searchParams.get('query') ?? '') };
+	}
 	if (request.method === 'POST' && request.pathname === '/memory/api/facts/forget') {
 		const factIDs = readForgottenFactIDs(request.body);
 		state.forgottenFactIDs.push(...factIDs);
@@ -100,6 +103,7 @@ export function createDevMemoryMockResponse(
 function shouldHandleDevMemoryMockRequest(method: string, pathname: string): boolean {
 	if (method === 'GET' && pathname === '/memory/api/schedules') return true;
 	if (method === 'GET' && pathname === '/memory/api/facts') return true;
+	if (method === 'GET' && pathname === '/memory/api/recall') return true;
 	if (method === 'POST' && pathname === '/memory/api/facts/forget') return true;
 	if (method === 'POST' && pathname === '/memory/api/schedules/delete') return true;
 	if (method === 'POST' && pathname === '/memory/api/schedules/cancel') return true;
@@ -214,9 +218,16 @@ function createDevMemoryFacts(state: DevMemoryMockState): MemoryFactsResponse {
 	];
 	return {
 		personID: 'dev-person',
+		layers: [{ scopeType: 'person', scopeID: 'dev-person' }, { scopeType: 'circle', scopeID: 'human-resources' }, { scopeType: 'workspace' }],
 		index: { embeddingModel: 'baai/bge-m3', current: facts.length, stale: 0 },
 		facts: facts.filter((fact) => !state.forgottenFactIDs.includes(fact.factID))
 	};
+}
+
+function createDevMemoryRecall(state: DevMemoryMockState, query: string): MemoryRecallResponse {
+	const words = query.split(/\s+/).filter(Boolean);
+	const facts = createDevMemoryFacts(state).facts.filter((fact) => words.some((word) => fact.content.includes(word)));
+	return { facts: facts.map(({ factID, scopeType, scopeID, content }) => ({ factID, scopeType, scopeID, content })) };
 }
 
 function readForgottenFactIDs(body: unknown): string[] {

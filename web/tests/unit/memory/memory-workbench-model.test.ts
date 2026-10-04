@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { filterMemoryFacts, isCurrentMemory, memoryScopeLabel, memoryWhen } from '../../../src/routes/memory/memory-workbench-model';
+import { filterMemoryFacts, groupFactsByLayer, isCurrentMemory, memoryLayerKey, memoryLayerReader, memoryScopeLabel, memoryWhen } from '../../../src/routes/memory/memory-workbench-model';
 import type { MemoryFact } from '../../../src/routes/memory/memory-facts-api';
 import { memoryText } from '../../../src/routes/memory/text';
 
@@ -39,6 +39,21 @@ describe('the remembered facts people inspect', () => {
 		const happened = memoryWhen({ ...fact, isStatic: false, occurredAt: '2026-10-05T00:00:00Z' }, memoryText.en, 'en');
 		expect(happened).toContain('2026');
 		expect(happened).not.toContain('→');
+	});
+
+	test('a layer says who reads it', () => {
+		expect(memoryLayerReader({ scopeType: 'person' }, [], memoryText.ko, 'ko')).toBe('나만 봅니다');
+		expect(memoryLayerReader({ scopeType: 'circle', scopeID: 'leadership' }, [leadership], memoryText.ko, 'ko')).toBe('경영진 서클 구성원이 봅니다');
+		expect(memoryLayerReader({ scopeType: 'workspace' }, [], memoryText.en, 'en')).toBe('Everyone in the company');
+	});
+
+	test('facts are grouped under the layers in stack order, and a layer with nothing shown is left out', () => {
+		const layers = [{ scopeType: 'person' as const, scopeID: 'me' }, { scopeType: 'circle' as const, scopeID: 'leadership' }, { scopeType: 'circle' as const, scopeID: 'member' }, { scopeType: 'workspace' as const }];
+		const company: MemoryFact = { ...fact, factID: 'fact:company', scopeType: 'workspace' };
+		const board: MemoryFact = { ...fact, factID: 'fact:board', scopeType: 'circle', scopeID: 'leadership' };
+		const groups = groupFactsByLayer(layers, [company, fact, board]);
+		expect(groups.map((group) => memoryLayerKey(group.layer))).toEqual(['person', 'circle:leadership', 'workspace']);
+		expect(groups.map((group) => group.facts.map((item) => item.factID))).toEqual([['fact:sample'], ['fact:board'], ['fact:company']]);
 	});
 
 	test('search filters by content, scope and the phrases that recall it', () => {
