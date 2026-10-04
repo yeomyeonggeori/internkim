@@ -197,7 +197,7 @@ func TestWatchForWifiChangesAppliesAPendingChangeOnEachTick(t *testing.T) {
 			applied <- ssid
 			return nil
 		},
-		WifiChangeSleep: func(ctx context.Context, wait time.Duration) error {
+		WatcherSleep: func(ctx context.Context, wait time.Duration) error {
 			select {
 			case <-ticks:
 				return nil
@@ -395,7 +395,7 @@ func TestRunWaitsForAWifiChangeInFlightBeforeReturning(t *testing.T) {
 			<-release
 			return nil
 		},
-		WifiChangeSleep: func(ctx context.Context, wait time.Duration) error {
+		WatcherSleep: func(ctx context.Context, wait time.Duration) error {
 			return ctx.Err()
 		},
 		Sleep: func(ctx context.Context, wait time.Duration) error {

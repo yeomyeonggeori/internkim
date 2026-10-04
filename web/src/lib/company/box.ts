@@ -76,7 +76,8 @@ export const connectedBoxSchema = z.object({
 	publicKey: boxKeySchema,
 	encryptionKey: boxKeySchema,
 	lastSeenAt: z.string().nullable(),
-	hasModelKey: z.boolean()
+	hasModelKey: z.boolean(),
+	hasAdminAccount: z.boolean()
 }).strict();
 
 export type ConnectedBox = z.infer<typeof connectedBoxSchema>;
@@ -121,3 +122,25 @@ export const wifiChangeStatusSchema = z.object({
 }).strict();
 
 export type WifiChangeStatus = z.infer<typeof wifiChangeStatusSchema>;
+
+export const minimumAdminPasswordLength = 12;
+
+export const adminPasswordOutcomeResultSchema = z.enum(['applied', 'failed']);
+
+export type AdminPasswordOutcomeResult = z.infer<typeof adminPasswordOutcomeResultSchema>;
+
+export const adminPasswordOutcomeSchema = z.object({
+	settingID: z.uuid(),
+	result: adminPasswordOutcomeResultSchema,
+	reportedAt: z.iso.datetime({ offset: true })
+}).strict();
+
+export type AdminPasswordOutcome = z.infer<typeof adminPasswordOutcomeSchema>;
+
+export const adminPasswordStatusSchema = z.object({
+	hasAdminAccount: z.boolean(),
+	pendingSettingID: z.uuid().nullable(),
+	outcome: adminPasswordOutcomeSchema.nullable()
+}).strict();
+
+export type AdminPasswordStatus = z.infer<typeof adminPasswordStatusSchema>;

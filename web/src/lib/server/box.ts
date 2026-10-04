@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { companyComputerName } from '$lib/company/host-setup';
 import { base64URLOf } from '$lib/company/seal-to-box';
 import {
+	adminPasswordOutcomeSchema,
 	boxConfigurationSchema,
 	boxKeySchema,
 	nearbyNetworkListSchema,
@@ -286,6 +287,12 @@ const wifiChangeSchema = z.object({
 	requestedAt: z.iso.datetime({ offset: true })
 }).strict();
 
+const adminPasswordSettingSchema = z.object({
+	settingID: z.uuid(),
+	sealed: sealedSecretSchema,
+	requestedAt: z.iso.datetime({ offset: true })
+}).strict();
+
 const nearbyNetworksSettingSchema = z.object({
 	networks: nearbyNetworkListSchema,
 	scannedAt: z.iso.datetime({ offset: true })
@@ -297,7 +304,10 @@ const boxSettingsSchema = z.object({
 	sealedModelKey: heldModelKeySchema.optional(),
 	wifiChange: wifiChangeSchema.optional(),
 	wifiOutcome: wifiOutcomeSchema.optional(),
-	nearbyNetworks: nearbyNetworksSettingSchema.optional()
+	nearbyNetworks: nearbyNetworksSettingSchema.optional(),
+	hasAdminAccount: z.literal(true).optional(),
+	adminPassword: adminPasswordSettingSchema.optional(),
+	adminPasswordOutcome: adminPasswordOutcomeSchema.optional()
 });
 
 type BoxSettings = z.infer<typeof boxSettingsSchema>;
@@ -341,7 +351,8 @@ export async function connectedBoxOf(client: SupabaseClient, companyID: string):
 		publicKey: box.publicKey,
 		encryptionKey: box.settings.encryptionKey,
 		lastSeenAt: box.settings.lastSeenAt ?? null,
-		hasModelKey: Boolean(box.settings.sealedModelKey)
+		hasModelKey: Boolean(box.settings.sealedModelKey),
+		hasAdminAccount: box.settings.hasAdminAccount ?? false
 	};
 }
 

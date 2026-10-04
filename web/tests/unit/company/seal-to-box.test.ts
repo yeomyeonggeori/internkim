@@ -8,10 +8,12 @@ import {
 	type SealedSecret
 } from '../../../src/lib/company/box';
 import {
+	adminPasswordPurpose,
 	base64URLOf,
 	boxSealingSuite,
 	bytesOfBase64URL,
 	modelKeyPurpose,
+	sealAdminPassword,
 	sealModelKey,
 	sealWifiNetwork,
 	wifiNetworkPurpose
@@ -22,6 +24,7 @@ const companyID = '00000000-0000-4000-8000-00000000000a';
 
 type RFC9180Vector = { info: string; ikmE: string; skRm: string; pkRm: string; enc: string; aad: string; pt: string; ct: string };
 type ModelKeyFixture = { modelKey: string; boxSecretKey: string; companyID: string; sealed: SealedSecret };
+type AdminPasswordFixture = { password: string; boxSecretKey: string; companyID: string; settingID: string; sealed: SealedSecret };
 type WifiNetworkFixture = {
 	ssid: string;
 	password: string;
@@ -144,6 +147,38 @@ describe('sealing a Wi-Fi network to a box', () => {
 
 		const opened = await openedBy(bytesOfBase64URL(fixture.boxSecretKey), fixture.sealed, purpose);
 		expect(JSON.parse(opened)).toEqual({ ssid: fixture.ssid, password: fixture.password });
+	});
+});
+
+describe('sealing an admin password to a box', () => {
+	const settingID = '00000000-0000-4000-8000-0000000000a1';
+
+	test('the box opens what the browser sealed to it', async () => {
+		const boxSecretKey = x25519.utils.randomSecretKey();
+		const boxEncryptionKey = base64URLOf(x25519.getPublicKey(boxSecretKey));
+
+		const sealed = await sealAdminPassword('correct horse battery', { companyID, encryptionKey: boxEncryptionKey }, settingID);
+
+		expect(sealedSecretSchema.safeParse(sealed).success).toBe(true);
+		expect(await openedBy(boxSecretKey, sealed, adminPasswordPurpose(companyID, boxEncryptionKey, settingID))).toBe('correct horse battery');
+	});
+
+	test('a password sealed for one setting does not open for another', async () => {
+		const boxSecretKey = x25519.utils.randomSecretKey();
+		const boxEncryptionKey = base64URLOf(x25519.getPublicKey(boxSecretKey));
+		const sealed = await sealAdminPassword('correct horse battery', { companyID, encryptionKey: boxEncryptionKey }, settingID);
+
+		await expect(
+			openedBy(boxSecretKey, sealed, adminPasswordPurpose(companyID, boxEncryptionKey, '00000000-0000-4000-8000-0000000000a2'))
+		).rejects.toThrow();
+	});
+
+	test('the admin password the box side opens in its tests opens here for the same purpose', async () => {
+		const fixture: AdminPasswordFixture = JSON.parse(testdata('sealed-admin-password.json'));
+
+		const purpose = adminPasswordPurpose(fixture.companyID, fixture.sealed.recipient, fixture.settingID);
+
+		expect(await openedBy(bytesOfBase64URL(fixture.boxSecretKey), fixture.sealed, purpose)).toBe(fixture.password);
 	});
 });
 

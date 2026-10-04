@@ -114,7 +114,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-company]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-company] [--admin-account NAME]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
@@ -133,6 +133,7 @@ func runBox(arguments []string) {
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
 	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
 	namesHostFromCompany := flags.Bool("host-name-from-company", false, "name this computer after the company it belongs to, and kimmini while it belongs to none, as a Kim mini is named")
+	adminAccount := flags.String("admin-account", "", "the login account whose password the company sets from company setup, as a Kim mini's admin is")
 	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
@@ -147,6 +148,9 @@ func runBox(arguments []string) {
 	}
 	if *namesHostFromCompany {
 		daemon = withHostNameFromCompany(daemon)
+	}
+	if *adminAccount != "" {
+		daemon = withAdminPasswordFor(daemon, *adminAccount)
 	}
 	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
@@ -185,6 +189,22 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 func withHostNameFromCompany(daemon box.Daemon) box.Daemon {
 	daemon.NameHost = boxwifi.HostNamer{}.Name
 	return daemon
+}
+
+func withAdminPasswordFor(daemon box.Daemon, account string) box.Daemon {
+	daemon.SetAdminPassword = func(ctx context.Context, password string) error {
+		return setPassword(ctx, account, password)
+	}
+	return daemon
+}
+
+func setPassword(ctx context.Context, account, password string) error {
+	command := exec.CommandContext(ctx, "chpasswd")
+	command.Stdin = strings.NewReader(account + ":" + password + "\n")
+	if output, errorValue := command.CombinedOutput(); errorValue != nil {
+		return fmt.Errorf("chpasswd refused the password for %s: %v: %s", account, errorValue, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func reachesURL(ctx context.Context, address string) bool {
