@@ -52,7 +52,7 @@ func TestAnEndpointWithNoKeyPathNamesNone(t *testing.T) {
 }
 
 func TestEveryModelNameIsAProviderQualifiedIdentifier(t *testing.T) {
-	for _, modelName := range append(ModelNames(), EmbeddingModel, ImageModel, DecisionModel) {
+	for _, modelName := range append(ModelNames(), EmbeddingModel, ImageModel, DecisionModel, VisualReviewModel) {
 		if !strings.Contains(modelName, "/") {
 			t.Fatalf("%q is not a model identifier an endpoint would recognize", modelName)
 		}
@@ -100,5 +100,12 @@ func TestThePlaneAsksTheDecisionModelBesideTheChatModels(t *testing.T) {
 		if decision.Endpoint != expectedDecisionsURL || decision.Model != DecisionModel || decision.APIKeyPath != "/run/example-key" {
 			t.Fatalf("model endpoint %q: expected the decision model at %q with the same key, got %+v", endpointURL, expectedDecisionsURL, decision)
 		}
+	}
+}
+
+func TestThePlaneAsksTheVisualReviewerOnTheDecisionsRoute(t *testing.T) {
+	document := LanguageModelDocument("https://gateway.example/api/v1", "/run/example-key")
+	if document.VisualReview.Endpoint != document.Decision.Endpoint || document.VisualReview.Model != VisualReviewModel || document.VisualReview.APIKeyPath != "/run/example-key" {
+		t.Fatalf("expected the visual reviewer beside the decision model with the same key, got %+v", document.VisualReview)
 	}
 }
