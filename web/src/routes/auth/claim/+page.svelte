@@ -57,26 +57,19 @@
 
 	const refusalText: Record<string, string> = {
 		tooManyLately: text.claimTooManyLately,
-		failed: text.claimFailed
+		failed: text.claimCodeNotSent
 	};
 
-	const askToClaimTheAddress = () =>
+	const askForTheCode = () =>
 		run(async () => {
 			code = '';
 			hasChosenAnAddress = true;
-			const outcome = await askToClaim(email);
+			const outcome = await (isStartingCompany ? askToStartCompany(email) : askToClaim(email));
 			if (outcome.kind === 'sent') {
 				step = 'sent';
 				return;
 			}
-			errorMessage = refusalText[outcome.kind] ?? text.claimFailed;
-		});
-
-	const askToStartTheCompany = () =>
-		run(async () => {
-			hasChosenAnAddress = true;
-			await askToStartCompany(email);
-			step = 'sent';
+			errorMessage = refusalText[outcome.kind] ?? text.claimCodeNotSent;
 		});
 
 	function openThePasswordStep() {
@@ -152,7 +145,7 @@
 			{#if !servesCompanies}
 				<p class="text-sm text-destructive">{text.claimFailed}</p>
 			{:else if step === 'address'}
-				<form onsubmit={(event) => { event.preventDefault(); isStartingCompany ? askToStartTheCompany() : askToClaimTheAddress(); }}>
+				<form onsubmit={(event) => { event.preventDefault(); askForTheCode(); }}>
 					<FieldGroup>
 						<Field>
 							<FieldLabel for="claim-email-{fieldID}">{text.emailLabel}</FieldLabel>
@@ -160,14 +153,14 @@
 							<FieldDescription>{isStartingCompany ? text.startCompanyEmailHint : text.claimAddressHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<Button type="submit" class="w-full" disabled={busy || !email.includes('@')}>{isStartingCompany ? text.startCompanySendLink : text.claimSendLink}</Button>
+						<Button type="submit" class="w-full" disabled={busy || !email.includes('@')}>{isStartingCompany ? text.startCompanySendCode : text.claimSendCode}</Button>
 					</FieldGroup>
 				</form>
 			{:else if step === 'signedIn'}
 				<FieldGroup>
 					<FieldDescription>{text.claimSignedInHint}</FieldDescription>
 					{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-					<Button type="button" class="w-full" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>
+					<Button type="button" class="w-full" onclick={askForTheCode} disabled={busy}>
 						{isStartingCompany ? text.startCompanySendCode : text.claimSendCode}
 					</Button>
 					<Button variant="ghost" class="w-full" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
@@ -204,12 +197,10 @@
 							<FieldDescription>{text.claimCodeHint}</FieldDescription>
 						</Field>
 						{#if errorMessage}<p class="text-sm text-destructive">{errorMessage}</p>{/if}
-						<div class="grid gap-5 max-sm:gap-1">
-							<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
-							<div class="flex flex-col gap-5 max-sm:flex-row max-sm:gap-1">
-								<Button variant="ghost" class="w-full max-sm:h-auto max-sm:min-w-0 max-sm:flex-1 max-sm:whitespace-normal max-sm:px-2" onclick={isStartingCompany ? askToStartTheCompany : askToClaimTheAddress} disabled={busy}>{text.claimResend}</Button>
-								<Button variant="ghost" class="w-full max-sm:h-auto max-sm:min-w-0 max-sm:flex-1 max-sm:whitespace-normal max-sm:px-2" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
-							</div>
+						<Button type="submit" class="w-full" disabled={busy || code.trim().length < claimCodeLength}>{text.claimVerify}</Button>
+						<div class="flex items-center justify-between">
+							<Button variant="link" size="sm" class="px-0 text-muted-foreground" onclick={askForTheCode} disabled={busy}>{text.claimResend}</Button>
+							<Button variant="link" size="sm" class="px-0 text-muted-foreground" onclick={startOver} disabled={busy}>{text.claimUseAnotherAddress}</Button>
 						</div>
 					</FieldGroup>
 				</form>
