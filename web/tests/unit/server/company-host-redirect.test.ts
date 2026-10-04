@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-	movesToTheOneAddress,
-	theOneAddressOf
-} from '../../../src/lib/server/company-host-redirect';
+import { movesToTheOneAddress } from '../../../src/lib/server/company-host-redirect';
 
 const zone = 'example.test';
 
@@ -16,7 +13,7 @@ describe('the one address every company signs in at', () => {
 	});
 
 	test('leaves the one address itself alone', () => {
-		expect(asks(theOneAddressOf(zone))).toBe(false);
+		expect(asks(zone)).toBe(false);
 	});
 
 	test('moves a page request on the api host, which is not a place to read', () => {
@@ -59,11 +56,5 @@ describe('a caller that carries its own credential', () => {
 
 	test('still moves a page request on the same host', () => {
 		expect(asks('samplecompany.example.test', '/apiary')).toBe(true);
-	});
-});
-
-describe('the host derived from the zone', () => {
-	test('is the zone itself, rather than a name under it', () => {
-		expect(theOneAddressOf('example.test')).toBe('example.test');
 	});
 });

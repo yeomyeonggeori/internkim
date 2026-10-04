@@ -477,15 +477,14 @@ and delete the duplicates.
 - `web/scripts/deploy-pages.ts` deploys a preview unless `--production` is
   passed. Keep that default.
 - Everyone signs in at one address, the zone itself. Every other hostname on the
-  zone, `space.<zone>` among them, answers `308` to it, so a company hostname is
-  a way in rather than a place. The exception is any path under `/api/`, which is answered where it
+  zone answers `308` to it, so a hostname is a way in rather than a place. The exception is any path under `/api/`, which is answered where it
   landed because a cross-origin redirect drops the caller's bearer token.
 - The `internkim` Pages project serves all of them. Never deploy to it from a
   branch that does not contain `origin/main`; that replaces what every company
   signs in at with a stale build, and the deploy reports success.
-- Pages custom domains do not accept wildcards. Each company hostname is
-  attached explicitly (`web/scripts/pages-domains.ts`), so creating a company
-  includes creating its hostname.
+- Pages custom domains do not accept wildcards, so a hostname is attached
+  explicitly with `web/scripts/pages-domains.ts`. Creating a company attaches
+  none: a company's address is its path, `<zone>/<slug>`.
 - Attaching a hostname writes its DNS too: `--attach` upserts a proxied CNAME at
   `<project>.pages.dev` in whichever zone hosts it. Moving a hostname between two
   Pages projects is therefore a detach and then an attach; `--detach` leaves the

@@ -11,12 +11,8 @@ function bareHost(value: string): string {
 	return value.trim().toLowerCase();
 }
 
-export function theOneAddressOf(zone: string): string {
-	return bareHost(zone);
-}
-
 export function theAppAddressOf(environment: { CLOUDFLARE_DOMAIN?: string }): string {
-	return `https://${theOneAddressOf(environment.CLOUDFLARE_DOMAIN || defaultZone)}`;
+	return `https://${bareHost(environment.CLOUDFLARE_DOMAIN || defaultZone)}`;
 }
 
 // fetch drops Authorization across origins, and every attached hostname is the
@@ -36,6 +32,6 @@ export function movesToTheOneAddress(question: CompanyHostQuestion): boolean {
 	if (!hostname || !zone) return false;
 	if (carriesACallerCredential(question.pathname)) return false;
 	if (describesTheHostItWasAskedOn(question.pathname)) return false;
-	if (hostname === theOneAddressOf(zone)) return false;
+	if (hostname === zone) return false;
 	return hostname.endsWith(`.${zone}`);
 }

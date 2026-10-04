@@ -2,7 +2,7 @@ import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { redirect, type Handle } from '@sveltejs/kit';
 import { homePath } from '$lib/home-path';
-import { movesToTheOneAddress, theOneAddressOf } from '$lib/server/company-host-redirect';
+import { movesToTheOneAddress } from '$lib/server/company-host-redirect';
 import { apiReferenceHomeFor } from '$lib/server/api-reference-redirect';
 import { defaultZone } from '$lib/server/fleet-domain';
 import { asksForConsent, unframeableHeaders } from '$lib/server/consent-framing';
@@ -31,7 +31,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (referenceHome) redirect(308, referenceHome);
 
 	if (!building && movesToTheOneAddress({ hostname: event.url.hostname, zone, pathname: event.url.pathname })) {
-		redirect(308, `https://${theOneAddressOf(zone)}${event.url.pathname}${event.url.search}`);
+		redirect(308, `https://${zone}${event.url.pathname}${event.url.search}`);
 	}
 
 	const response = await resolve(event, {
