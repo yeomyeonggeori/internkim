@@ -901,7 +901,7 @@ function documentedOperations(): Operation[] {
 function reachDocumented(operation: Operation, revocableName: string): Promise<RouteAnswer> {
 	const method = operation.method.toUpperCase();
 	const carriesBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
-	const path = operation.path.replace('{name}', 'task_list');
+	const path = operation.path.replace('{name}', 'task_list').replace('{view}', 'runs');
 	if (path === '/mcp') return speakMCP(holdersToken);
 	if (path === '/tokens') return tokens(holdersToken);
 	if (operation.path === '/data-room/links/{linkID}') {
@@ -999,6 +999,7 @@ describe('the documented endpoints', () => {
 			'post /member/profile-image',
 			'post /agent/messages',
 			'get /agent/replies',
+			'get /diagnostics/{view}',
 			'get /data-room/{companyID}',
 			'post /data-room/invitations/{shareID}',
 			'post /data-room/invitations/{shareID}/send',

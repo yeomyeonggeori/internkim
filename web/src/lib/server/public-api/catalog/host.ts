@@ -11,6 +11,20 @@ import { hostUpdateResultSchema, hostVersionGetResultSchema, releaseTagSchema } 
 
 export const hostVersionGetInputSchema = z.strictObject({});
 
+export const hostDiagnosticViews = ['runs', 'run', 'model_call', 'turn_input', 'inbound', 'service_logs', 'requests'] as const;
+
+export const hostDiagnosticsGetInputSchema = z.strictObject({
+  view: z.enum(hostDiagnosticViews).describe('The existing work-history view to read: runs lists executions; run reads its event ledger; model_call reads a recorded model exchange; turn_input reads the recorded input; inbound reads connector events; service_logs reads service logs; requests reads request metrics.'),
+  taskRunID: z.string().trim().min(1).optional(),
+  id: z.string().trim().min(1).describe('The exact recorded model call or turn input ID, returned by the event ledger.').optional(),
+  service: z.string().trim().min(1).describe('The exact service name accepted by the existing log viewer.').optional(),
+  conversationID: z.string().trim().min(1).optional(),
+  messageID: z.string().trim().min(1).optional(),
+  status: z.string().trim().min(1).optional(),
+  limit: z.number().int().min(1).max(1000).optional(),
+  offset: z.number().int().nonnegative().optional(),
+});
+
 export const hostUpdateInputSchema = z.strictObject({
   targetVersion: releaseTagSchema
     .describe('The exact tag of a stable release to install, from host_version_get. Omit it to install the latest stable release; name an older one, such as previousStable, to go back.')
@@ -24,6 +38,19 @@ export const hostUpdateInputSchema = z.strictObject({
 });
 
 export const hostToolDefinitions: CapabilityToolDefinition[] = [
+  {
+    name: 'host_diagnostics_get',
+    namespace: 'host',
+    answeredBy: CapabilityAnsweredBy.Company,
+    privacyClass: 'workspace_company',
+    policyResource: 'tool:host_diagnostics_get',
+    description: "Read host diagnostics through the same execution records, event ledger, model exchanges, turn inputs, connector events, service logs and request metrics as the work-history web page. Only a company administrator may ask. Use recorded IDs for detail views. This reads existing evidence and executes no commands supplied by the caller.",
+    version: '1',
+    estimatedLatency: CapabilityEstimatedLatency.Low,
+    inputSchema: hostDiagnosticsGetInputSchema,
+    result: { schema: z.strictObject({ document: z.string().describe('The original view response serialized as JSON, preserving every recorded field.') }), effects: [] },
+    sideEffect: CapabilitySideEffect.Read,
+  },
   {
     name: 'host_version_get',
     namespace: 'host',

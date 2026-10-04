@@ -8,7 +8,7 @@ export const capabilityNamespaceSummaries = {
   crm: 'Organizations and contacts the company deals with, deals moving through a pipeline, and the work recorded against them.',
   dataroom: 'The company document archive: categories, sharing with people outside the company, and revocable links.',
   document: 'Read a document in the workspace as text.',
-  host: "The company's host: which internkim release it runs, and updating it.",
+  host: "The company's host: its recorded work and diagnostics, which internkim release it runs, and updating it.",
   image: 'Look at an image, or generate a new one.',
   leave: 'Leave requests and balances: file, correct, approve, and set yearly entitlements.',
   mail: "The requester's email: connect an account, then read, search, file, and send.",

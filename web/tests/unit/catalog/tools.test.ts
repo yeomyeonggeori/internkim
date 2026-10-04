@@ -153,6 +153,7 @@ describe('canonical capability tools', () => {
       'event_delete',
       'event_list',
       'event_update',
+      'host_diagnostics_get',
       'host_update',
       'host_version_get',
       'image_generate',

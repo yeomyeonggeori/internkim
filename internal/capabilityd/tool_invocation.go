@@ -46,6 +46,7 @@ var capabilityToolRoutes = []capabilityToolRoute{
 	{ToolName: "task_label_get", Handler: Service.invokeTaskLabelTool},
 	{ToolName: "company_document_classify", Handler: Service.invokeDataRoomClassification},
 	{ToolName: "host_version_get", Handler: Service.invokeHostVersionTool},
+	{ToolName: "host_diagnostics_get", Handler: Service.invokeHostDiagnosticsTool},
 	{ToolName: hostUpdateToolName, Handler: Service.invokeHostUpdateTool},
 	{ToolName: "message_context", Handler: Service.invokePlatformMessageTool},
 	{ToolName: "message_search", Handler: Service.invokePlatformMessageTool},
