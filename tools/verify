@@ -125,6 +125,17 @@ GROUPS = [
         working_directory=".dependency/blueclaw",
     ),
     Group(
+        "bluecollar",
+        [".dependency/blueclaw*"],
+        [
+            ["go", "vet", "./..."],
+            ["go", "test", "./..."],
+            ["go", "-C", "cmd/bluecollar-acp", "vet", "./..."],
+            ["go", "-C", "cmd/bluecollar-acp", "test", "-race", "./..."],
+        ],
+        working_directory=".dependency/blueclaw/.dependency/bluecollar",
+    ),
+    Group(
         "blueclaw-scenarios",
         [
             ".dependency/blueclaw*",
