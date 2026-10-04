@@ -109,9 +109,9 @@
     "description": "a Cloudflare API token with Pages edit rights, handed to Wrangler for Pages and Worker deploys",
     "isInVault": true
   },
-  "CLOUDFLARE_EMAIL_SENDING_TOKEN": {
+  "CLOUDFLARE_EMAIL_TOKEN": {
     "process": "supabase config push",
-    "description": "a Cloudflare API token with Email Sending edit rights, the SMTP password production auth mail is sent with from noreply@intern.kim",
+    "description": "a Cloudflare API token with Email Sending rights, the SMTP password production auth mail is sent with from noreply@intern.kim",
     "isInVault": true
   },
   "CLOUDFLARE_DOMAIN": {
