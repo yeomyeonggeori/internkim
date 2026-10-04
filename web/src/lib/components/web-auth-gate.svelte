@@ -140,7 +140,9 @@
 								<FieldDescription class="text-center">
 									{text.firstTimePrompt}
 									<a class="underline" href={claimURL}>{text.claimAccount}</a>
-									<span class="px-1">·</span>
+								</FieldDescription>
+								<FieldDescription class="text-center">
+									{text.noCompanyPrompt}
 									<a class="underline" href={startCompanyURL}>{text.startCompany}</a>
 								</FieldDescription>
 							{:else}
