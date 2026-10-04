@@ -59,6 +59,7 @@
 	} from './channel-message-cache';
 	import { groupConsecutiveMessages } from './channel-message-groups';
 	import { jumpToLatestLabel, unseenMessageCount } from './channel-unseen-messages';
+	import { leaveOpenedThreadThroughHistory, rememberOpenedThread, threadRootIDInHistory } from './thread-history';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import InfoIcon from '@lucide/svelte/icons/info';
@@ -74,7 +75,7 @@
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
 	import { isSupabaseConfigured } from '$lib/supabase';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 
 	let {
 		isActive = true,
@@ -408,6 +409,7 @@
 	}
 
 	function openThread(rootMessage: ChannelMessage) {
+		rememberOpenedThread(rootMessage.id);
 		openThreadRoot = rootMessage;
 	}
 
@@ -462,9 +464,18 @@
 	}
 
 	function closeThread() {
+		if (leaveOpenedThreadThroughHistory()) return;
+		dismissThread();
+	}
+
+	function dismissThread() {
 		threadComposer?.clear();
 		openThreadRoot = null;
 	}
+
+	$effect(() => {
+		if (threadRootIDInHistory() === undefined && untrack(() => openThreadRoot) !== null) dismissThread();
+	});
 
 	async function answerChoice(optionLabel: string) {
 		if (isSending) return;
