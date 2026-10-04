@@ -584,6 +584,7 @@ func writeRenderedFiles(stagingPath string) ([]packagedFile, error) {
 	}{
 		{"declared-accounts", blueclaw.CompanyPackageSysusersPath, blueclaw.CompanyHostSysusersFile()},
 		{"declared-directories", blueclaw.CompanyPackageTmpfilesPath, blueclaw.CompanyHostTmpfilesFile()},
+		{"administrator-rules", blueclaw.CompanyPackagePolkitRulesPath, blueclaw.CompanyHostPolkitRules()},
 	} {
 		declarationPath := filepath.Join(stagingPath, declaration.name)
 		if errorValue := os.WriteFile(declarationPath, []byte(declaration.contents), 0o644); errorValue != nil {

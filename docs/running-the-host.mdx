@@ -141,6 +141,10 @@ systemctl status internkim-relay
 journalctl -u internkim-relay -n 50 --no-pager
 ```
 
+The package creates an `internkim-admin` group whose members can start, stop and
+restart these services without `sudo`. The group opens nothing else on the
+computer. `sudo usermod -aG internkim-admin <account>` adds an account to it.
+
 On macOS, run `launchctl print system/kim.intern.<service>` to inspect a
 service. Its logs are under `/var/log/internkim/`.
 
