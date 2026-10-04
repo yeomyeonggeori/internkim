@@ -227,6 +227,18 @@ project_id = "mutvimjbvmoludotyehk"
 timebox = "0s"
 inactivity_timeout = "0s"
 
+[remotes.production.auth.rate_limit]
+email_sent = 30
+
+[remotes.production.auth.email.smtp]
+enabled = true
+host = "smtp.mx.cloudflare.net"
+port = 465
+user = "api_token"
+pass = "env(CLOUDFLARE_EMAIL_SENDING_TOKEN)"
+admin_email = "noreply@intern.kim"
+sender_name = "internkim"
+
 [remotes.production.auth.email.template.magic_link]
 content_path = "./supabase/templates/magic-link.html"
 
