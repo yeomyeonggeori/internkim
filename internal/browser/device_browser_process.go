@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -18,10 +19,12 @@ const deviceBrowserStartTimeout = 20 * time.Second
 const deviceBrowserPortReleaseTimeout = 5 * time.Second
 const deviceBrowserStopTimeout = 5 * time.Second
 const deviceBrowserPollInterval = 100 * time.Millisecond
+const deviceBrowserDiagnosticBytes = 4096
 
 type deviceBrowserProcess struct {
-	command *exec.Cmd
-	exited  chan struct{}
+	command   *exec.Cmd
+	exited    chan struct{}
+	exitError error
 }
 
 func (process *deviceBrowserProcess) Exited() <-chan struct{} {
@@ -55,7 +58,7 @@ func LaunchDeviceBrowserProcess(ctx context.Context, launch DeviceBrowserLaunch)
 	}
 	if errorValue := waitForDevtools(ctx, launch.Port, process.exited); errorValue != nil {
 		process.Stop()
-		return nil, fmt.Errorf("the device browser on port %d did not start; see %s: %w", launch.Port, launch.LogPath, errorValue)
+		return nil, deviceBrowserStartupError(launch, process, errorValue)
 	}
 	return process, nil
 }
@@ -98,11 +101,42 @@ func startDeviceBrowserProcess(launch DeviceBrowserLaunch, owner *deviceBrowserO
 	}
 	process := &deviceBrowserProcess{command: command, exited: make(chan struct{})}
 	go func() {
-		_ = command.Wait()
+		process.exitError = command.Wait()
 		logFile.Close()
 		close(process.exited)
 	}()
 	return process, nil
+}
+
+func deviceBrowserStartupError(launch DeviceBrowserLaunch, process *deviceBrowserProcess, startupError error) error {
+	diagnostics, logError := deviceBrowserDiagnostics(launch.LogPath)
+	if logError != nil {
+		diagnostics = "browser diagnostics could not be read: " + logError.Error()
+	}
+	if diagnostics == "" {
+		diagnostics = "the browser wrote no startup diagnostics"
+	}
+	if process.exitError != nil {
+		diagnostics = process.exitError.Error() + "; " + diagnostics
+	}
+	return fmt.Errorf("the device browser on port %d did not start: %w; %s", launch.Port, startupError, diagnostics)
+}
+
+func deviceBrowserDiagnostics(logPath string) (string, error) {
+	file, errorValue := os.Open(logPath)
+	if errorValue != nil {
+		return "", errorValue
+	}
+	defer file.Close()
+	information, errorValue := file.Stat()
+	if errorValue != nil {
+		return "", errorValue
+	}
+	buffer := make([]byte, min(information.Size(), deviceBrowserDiagnosticBytes))
+	if _, errorValue := file.ReadAt(buffer, information.Size()-int64(len(buffer))); errorValue != nil {
+		return "", errorValue
+	}
+	return strings.TrimSpace(string(buffer)), nil
 }
 
 func waitForFreePort(ctx context.Context, port int) error {
