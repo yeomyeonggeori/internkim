@@ -21,12 +21,6 @@ export function memoryScopeLabel(layer: MemoryLayer, circles: Circle[], text: Me
 	return circleName(layer.scopeID ?? '', circles, locale);
 }
 
-export function memoryLayerReader(layer: MemoryLayer, circles: Circle[], text: MemoryText, locale: string): string {
-	if (layer.scopeType === 'person') return text.readByYou;
-	if (layer.scopeType === 'workspace') return text.readByEveryone;
-	return text.readByCircleTemplate.replace('{circle}', circleName(layer.scopeID ?? '', circles, locale));
-}
-
 function circleName(circleID: string, circles: Circle[], locale: string): string {
 	const circle = circles.find((candidate) => candidate.id === circleID);
 	if (!circle) return circleID;
@@ -37,10 +31,10 @@ export function memoryLayerKey(layer: MemoryLayer): string {
 	return layer.scopeType === 'circle' ? `circle:${layer.scopeID ?? ''}` : layer.scopeType;
 }
 
-export const memoryLayerTones: Record<MemoryLayer['scopeType'], string> = {
-	person: 'bg-foreground',
-	circle: 'bg-muted-foreground',
-	workspace: 'bg-muted-foreground/40'
+export const memoryLayerDepth: Record<MemoryLayer['scopeType'], number> = {
+	person: 1,
+	circle: 2,
+	workspace: 3
 };
 
 export type MemoryLayerGroup = { layer: MemoryLayer; facts: MemoryFact[] };

@@ -2,7 +2,6 @@
 	import SvelteMarkdown from '@humanspeak/svelte-markdown';
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import EraserIcon from '@lucide/svelte/icons/eraser';
-	import ColorMarker from '$lib/components/color-marker.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -11,10 +10,11 @@
 	import * as Field from '$lib/components/ui/field';
 	import { forgetMemoryFact, type MemoryFact } from './memory-facts-api';
 	import MemoryImportance from './memory-importance.svelte';
-	import { isCurrentMemory, memoryDate, memoryLayerTones, memoryWhen } from './memory-workbench-model';
+	import MemoryLayerDepth from './memory-layer-depth.svelte';
+	import { isCurrentMemory, memoryDate, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
-	let { fact, scope, reader, text, onForgotten }: { fact: MemoryFact; scope: string; reader: string; text: MemoryText; onForgotten: (factID: string) => void } = $props();
+	let { fact, scope, text, onForgotten }: { fact: MemoryFact; scope: string; text: MemoryText; onForgotten: (factID: string) => void } = $props();
 	let isForgetting = $state(false);
 	let isConfirmingForget = $state(false);
 	let reason = $state('');
@@ -44,9 +44,8 @@
 	<header class="flex flex-col gap-3">
 		<h2 class="text-sm font-semibold">{text.memoryDetails}</h2>
 		<div class="flex items-center gap-2 text-sm">
-			<ColorMarker class={memoryLayerTones[fact.scopeType]} />
+			<MemoryLayerDepth layer={fact} />
 			<span class="font-medium">{scope}</span>
-			<span class="min-w-0 truncate text-muted-foreground">{reader}</span>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
 			<Badge variant="secondary">{fact.isStatic ? text.always : text.happened}</Badge>

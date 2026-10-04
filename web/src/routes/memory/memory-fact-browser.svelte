@@ -15,14 +15,14 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Empty from '$lib/components/ui/empty';
 	import { cn } from '$lib/utils';
-	import ColorMarker from '$lib/components/color-marker.svelte';
 	import MemoryFactDetail from './memory-fact-detail.svelte';
 	import MemoryImportance from './memory-importance.svelte';
+	import MemoryLayerDepth from './memory-layer-depth.svelte';
 	import MemoryLayerStack from './memory-layer-stack.svelte';
 	import MemoryRecallPreview from './memory-recall-preview.svelte';
 	import type { Circle } from '$lib/data-room/model';
 	import { fetchCircles, fetchMemoryFacts, type MemoryLayer, type MemoryFactsResponse } from './memory-facts-api';
-	import { filterMemoryFacts, groupFactsByLayer, isCurrentMemory, memoryLayerKey, memoryLayerReader, memoryLayerTones, memoryScopeLabel, memoryWhen } from './memory-workbench-model';
+	import { filterMemoryFacts, groupFactsByLayer, isCurrentMemory, memoryLayerKey, memoryScopeLabel, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
 	let { text }: { text: MemoryText } = $props();
@@ -37,7 +37,6 @@
 	let requestSequence = 0;
 	const errorMessage = $derived(hasLoadError ? text.loadFailed : '');
 	const scopeLabel = (layer: MemoryLayer) => memoryScopeLabel(layer, circles, text, currentLocale.value);
-	const readerOf = (layer: MemoryLayer) => memoryLayerReader(layer, circles, text, currentLocale.value);
 	const countOf = (key: string) => (memory?.facts ?? []).filter((fact) => memoryLayerKey(fact) === key && isCurrentMemory(fact)).length;
 	const searchedFacts = $derived(filterMemoryFacts(memory?.facts ?? [], query, scopeLabel));
 	const visibleFacts = $derived(searchedFacts.filter((fact) => (includesPrevious || isCurrentMemory(fact)) && (selectedLayerKey === 'all' || memoryLayerKey(fact) === selectedLayerKey)));
@@ -85,7 +84,7 @@
 <div class="grid min-w-0 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
 <aside class="flex min-w-0 flex-col gap-5" aria-label={text.layersTitle}>
 	{#if memory}
-		<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} {readerOf} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
+		<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
 	{/if}
 	<MemoryRecallPreview labelOf={scopeLabel} onSelectFact={showRecalledFact} {text} />
 </aside>
@@ -140,9 +139,8 @@
 					{#each factGroups as group (memoryLayerKey(group.layer))}
 						<section aria-label={scopeLabel(group.layer)}>
 							<h3 class="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground">
-								<ColorMarker class={memoryLayerTones[group.layer.scopeType]} />
+								<MemoryLayerDepth layer={group.layer} />
 								<span class="text-foreground">{scopeLabel(group.layer)}</span>
-								<span class="truncate">{readerOf(group.layer)}</span>
 							</h3>
 							<div class="divide-y border-b">
 								{#each group.facts as fact (fact.factID)}
@@ -165,7 +163,7 @@
 					{#if selectedFact}
 						<div class="px-4 pt-3 xl:hidden"><Button variant="ghost" size="sm" onclick={() => selectedFactID = ''}><ArrowLeftIcon data-icon="inline-start" />{text.factListTab}</Button></div>
 						{#key selectedFact.factID}
-							<MemoryFactDetail fact={selectedFact} scope={scopeLabel(selectedFact)} reader={readerOf(selectedFact)} {text} onForgotten={removeForgottenFact} />
+							<MemoryFactDetail fact={selectedFact} scope={scopeLabel(selectedFact)} {text} onForgotten={removeForgottenFact} />
 						{/key}
 					{:else}
 						<Empty.Root class="min-h-[28rem]"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{text.memoryDetails}</Empty.Title><Empty.Description>{text.selectMemory}</Empty.Description></Empty.Header></Empty.Root>
