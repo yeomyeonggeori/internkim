@@ -75,7 +75,7 @@ type documentReadResult struct {
 }
 
 type workspaceImageAttachment struct {
-	DevicePath    string `json:"devicePath"`
+	DevicePath    string `json:"devicePath,omitempty"`
 	Filename      string `json:"filename"`
 	ContentType   string `json:"contentType"`
 	SizeBytes     int64  `json:"sizeBytes"`

@@ -190,7 +190,6 @@ func browserScreenshotResultOf(screenshot browserruntime.ScreenshotResult) brows
 		OK:     true,
 		Action: "screenshot",
 		Attachments: []workspaceImageAttachment{{
-			DevicePath:    screenshot.Filename,
 			Filename:      screenshot.Filename,
 			ContentType:   screenshot.ContentType,
 			SizeBytes:     screenshot.SizeBytes,
