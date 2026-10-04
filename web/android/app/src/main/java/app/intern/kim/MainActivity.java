@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PageThemePlugin.class);
         registerPlugin(AttendanceWidgetPlugin.class);
         super.onCreate(savedInstanceState);
+        getOnBackPressedDispatcher().addCallback(this, new WebViewHistoryBack(getBridge().getWebView(), getOnBackPressedDispatcher()));
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
             WebSettingsCompat.setWebAuthenticationSupport(
                 getBridge().getWebView().getSettings(),
