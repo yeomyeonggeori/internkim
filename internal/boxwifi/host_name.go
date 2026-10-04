@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -15,10 +16,13 @@ const (
 	multicastDNSService = "avahi-daemon.service"
 )
 
-func HostNameFor(boxPublicKey string) string {
-	name := strings.ToLower(SetupNetworkName + "-" + boxNameSuffix(boxPublicKey))
-	name = strings.ReplaceAll(name, "_", "-")
-	return strings.TrimRight(name, "-")
+var hostLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+
+func HostNameFor(companySlug string) string {
+	if !hostLabel.MatchString(companySlug) {
+		return SetupNetworkName
+	}
+	return companySlug
 }
 
 type HostNamer struct {
@@ -27,8 +31,8 @@ type HostNamer struct {
 	HostsPath       string
 }
 
-func (namer HostNamer) Name(ctx context.Context, boxPublicKey string) error {
-	name := HostNameFor(boxPublicKey)
+func (namer HostNamer) Name(ctx context.Context, companySlug string) error {
+	name := HostNameFor(companySlug)
 	current, errorValue := namer.currentHostName()
 	if errorValue != nil {
 		return fmt.Errorf("reading this computer's host name: %w", errorValue)

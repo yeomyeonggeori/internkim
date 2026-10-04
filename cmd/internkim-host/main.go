@@ -114,7 +114,7 @@ func stopOnFailure(whatStopped string, errorValue error) {
 
 func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "Usage: %s install <internkim-host.json> [--model-key-file FILE]\n", command)
-	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-key]\n", command)
+	fmt.Fprintf(os.Stderr, "       %s box [--app-url URL] [--wifi-setup] [--host-name-from-company]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s box code\n", command)
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
@@ -132,7 +132,7 @@ func runBox(arguments []string) {
 	flags := flag.NewFlagSet("box", flag.ExitOnError)
 	appURL := flags.String("app-url", blueclaw.CompanyPackageHomepage, "the address this company signs in at, which a box announces itself to")
 	setsUpWifi := flags.Bool("wifi-setup", false, "while this box is empty and offline, open the kimmini network and ask for the office Wi-Fi")
-	namesHostFromKey := flags.Bool("host-name-from-key", false, "name this computer kimmini- plus the last four characters of its key, as a Kim mini is named")
+	namesHostFromCompany := flags.Bool("host-name-from-company", false, "name this computer after the company it belongs to, and kimmini while it belongs to none, as a Kim mini is named")
 	madeOnPath := flags.String("made-on-file", boxwifi.DefaultMadeOnPath, "a file holding the day this box was made as YYYY-MM-DD, added to the kimmini network's name")
 	flags.Parse(arguments)
 	if errorValue := companyhost.RequireAdministrator(); errorValue != nil {
@@ -145,8 +145,8 @@ func runBox(arguments []string) {
 	if *setsUpWifi {
 		daemon = withWifiSetup(daemon, *appURL, madeOnFrom(*madeOnPath))
 	}
-	if *namesHostFromKey {
-		daemon = withHostNameFromKey(daemon)
+	if *namesHostFromCompany {
+		daemon = withHostNameFromCompany(daemon)
 	}
 	errorValue := daemon.Run(ctx)
 	if errors.Is(errorValue, box.ErrConnectedByFile) {
@@ -172,7 +172,7 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	watcherRadio := radio
 	watcherRadio.RescanMode = passiveRescanMode
 	daemon.GetOnline = func(ctx context.Context, boxPublicKey string) error {
-		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(boxPublicKey, madeOn)}
+		setup := boxwifi.Setup{Radio: radio, NetworkName: boxwifi.SetupNetworkNameFor(madeOn)}
 		return setup.Run(ctx)
 	}
 	daemon.ChangeWifi = radio.Switch
@@ -182,7 +182,7 @@ func withWifiSetup(daemon box.Daemon, appURL string, madeOn time.Time) box.Daemo
 	return daemon
 }
 
-func withHostNameFromKey(daemon box.Daemon) box.Daemon {
+func withHostNameFromCompany(daemon box.Daemon) box.Daemon {
 	daemon.NameHost = boxwifi.HostNamer{}.Name
 	return daemon
 }
