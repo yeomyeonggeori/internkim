@@ -78,7 +78,7 @@ test.describe('memory facts', () => {
 		await page.goto('/memory/');
 
 		await expect(page.getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
-		await expect(page.getByRole('region', { name: '서클 · member' }).getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'member' }).getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
 		await expect(page.getByRole('link', { name: '기억 지도' })).toHaveCount(0);
 	});
 
