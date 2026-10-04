@@ -40,13 +40,19 @@ printf '%s\n' "$diskInformation" | grep -E 'Device / Media Name|Disk Size' || tr
 read -r -p "Erase $disk and write $(basename "$image") to it? Type the disk name to go on: " typed
 [ "$typed" = "$disk" ] || { echo "nothing was written" >&2; exit 1; }
 
+sudo -v
+imageBytes="$(xz --robot --list "$image" | awk '$1 == "totals" { print $5 }')"
 diskutil unmountDisk "/dev/$disk"
-xz -dc "$image" | sudo dd of="/dev/r$disk" bs=4m
+echo "writing $((imageBytes / 1000000)) MB to $disk; dd reports its progress below"
+xz -dc "$image" | sudo dd of="/dev/r$disk" bs=4m status=progress
+echo "flushing the card"
 sync
 diskutil mountDisk "/dev/$disk" >/dev/null
+echo "recording the day the box was made"
 bootVolume="$(diskutil info "${disk}s1" | sed -n 's/^ *Mount Point: *//p')"
 [ -n "$bootVolume" ] || { echo "the card's boot partition did not mount, so internkim-made-on was not written" >&2; exit 1; }
 printf '%s\n' "$madeOn" > "$bootVolume/internkim-made-on"
+echo "ejecting $disk"
 for attempt in 1 2 3 4 5; do
   diskutil eject "/dev/$disk" >/dev/null 2>&1 && break
   [ "$attempt" -lt 5 ] || { echo "the card is written, but macOS would not let go of it; eject $disk from Finder" >&2; exit 1; }
