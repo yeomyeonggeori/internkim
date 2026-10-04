@@ -15,7 +15,7 @@
 	import { askToClaim, askToStartCompany, setSupabasePassword, verifyClaimCode } from '$lib/supabase-session';
 	import { isSupabaseConfigured, supabase } from '$lib/supabase';
 	import { claimCodeLength } from './claim-code';
-	import { hasThePasswordStepExpired } from './password-step';
+	import { hasThePasswordStepExpired, whenTheMailboxWasProved } from './password-step';
 	import FingerprintIcon from '@lucide/svelte/icons/fingerprint';
 	import { onMount } from 'svelte';
 
@@ -36,7 +36,7 @@
 
 	const describedStep: Record<typeof step, string> = $derived({
 		address: isStartingCompany ? text.startCompanyAddressDescription : text.claimAddressDescription,
-		signedIn: isStartingCompany ? text.startCompanySignedInDescription : text.claimSignedInDescription,
+		signedIn: (isStartingCompany ? text.startCompanySignedInDescription : text.claimSignedInDescription).replace('{email}', email),
 		sent: (isStartingCompany ? text.startCompanySentDescription : text.claimSentDescription).replace('{email}', email),
 		password: isStartingCompany ? text.startCompanyPasswordDescription : text.claimPasswordDescription,
 		passkey: isStartingCompany ? text.startCompanyPasskeyDescription : text.claimPasskeyDescription
@@ -129,7 +129,14 @@
 		const { data } = await supabase().auth.getSession();
 		if (!data.session || hasChosenAnAddress) return;
 		email = data.session.user.email ?? '';
-		step = 'signedIn';
+		const { data: claims } = await supabase().auth.getClaims();
+		const mailboxProvedAt = whenTheMailboxWasProved(claims?.claims.amr);
+		if (hasThePasswordStepExpired(mailboxProvedAt, Date.now())) {
+			step = 'signedIn';
+			return;
+		}
+		passwordStepOpenedAt = mailboxProvedAt;
+		step = 'password';
 	});
 </script>
 
