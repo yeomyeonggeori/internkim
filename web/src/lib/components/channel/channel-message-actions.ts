@@ -2,6 +2,7 @@ import { toast } from 'svelte-sonner';
 import { MessengerRefusal } from '$lib/messenger/messenger-api';
 import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 import { copyText } from '$lib/hooks/use-clipboard.svelte';
+import { feelHaptic } from '$lib/native-shell/haptics';
 import { deleteWarningFor } from './channel-delete-warning';
 import {
 	addChannelReaction,
@@ -52,6 +53,7 @@ export type MessageActions = {
 export function messageActionsFor(host: MessageActionHost): MessageActions {
 	async function changeReaction(message: ChannelMessage, value: string, glyph: string, isAdding: boolean): Promise<void> {
 		const before = message.reactions ?? [];
+		feelHaptic('touch');
 		host.showReactions(message.id, reactionsAfter(before, { value, glyph, isAdding, person: host.reader() }));
 		try {
 			if (isAdding) await addChannelReaction(message.id, value, host.channelID());

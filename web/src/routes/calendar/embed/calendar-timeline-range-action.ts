@@ -1,3 +1,4 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import type { ViewType as CalendarViewType } from '../calendar-view-type';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 import {
@@ -55,6 +56,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		const currentDate = timelineDateFromPointerEvent(options, event, false);
 		if (!currentDate) return;
 		event.preventDefault();
+		if (!selection.hasMoved) feelHaptic('touch');
 		options.setSelection({ ...selection, currentDate, currentAnchor: timelineAnchorFromPointerEvent(event), hasMoved: true });
 	};
 
@@ -68,6 +70,7 @@ export function installCalendarTimelineRangeAction(options: TimelineRangeActionO
 		event.stopPropagation();
 		event.stopImmediatePropagation();
 		lastRangeCreationTime = Date.now();
+		feelHaptic('touch');
 		options.createRangeEvent(selection.startDate, endDate, selection.currentAnchor);
 	};
 

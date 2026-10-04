@@ -1,5 +1,6 @@
 import { toast } from 'svelte-sonner';
 import { isPlainShortcut } from '$lib/keyboard-shortcut';
+import { feelHaptic } from '$lib/native-shell/haptics';
 import { lockScreenRefusesTheClock } from '$lib/widget/attendance-lock-screen';
 import { createPageText } from '$lib/i18n/page-text.svelte';
 import { attendanceText } from '../../routes/attendance/text';
@@ -148,6 +149,7 @@ class MyAttendanceToday {
 			}
 			if (authorityGeneration !== this.authorityGeneration) return;
 			this.clockMutationHandler?.();
+			feelHaptic('success');
 			toast.success(result?.removed ? this.takenBackClockMessage(kind) : this.recordedClockMessage(kind));
 			if (kind === 'clock_in' && (await lockScreenRefusesTheClock())) toast.info(text.lockScreenOff);
 		} catch (failure) {
@@ -202,6 +204,7 @@ class MyAttendanceToday {
 			this.clockMutationHandler?.();
 			await this.refresh();
 			if (authorityGeneration !== this.authorityGeneration) return;
+			feelHaptic('success');
 			toast.success(this.recordedClockMessage('clock_in'));
 		} catch (failure) {
 			if (authorityGeneration !== this.authorityGeneration) return;

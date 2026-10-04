@@ -1,6 +1,8 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import { createTaskBoardMove, type TaskBoardMoveRequest } from './task-board-drag';
 import { saveTaskBoardMove } from './task-board-save';
 import type { LoadTask } from './task-load-tracker';
+import { isTaskStatusCompleted } from './task-status';
 import { canUpdateTask } from './task-workspace-model';
 import { taskText } from './text';
 import type { TaskSummary } from './task-types';
@@ -75,6 +77,7 @@ export class TaskBoardController {
 				this.setSummary(previousSummary);
 			}
 			if (saveResult !== 'failed') {
+				if (isTaskStatusCompleted(request.targetStatus)) feelHaptic('success');
 				const statusLabels: Record<string, string> = this.text.status;
 				this.announceMove(`${task.content} → ${statusLabels[request.targetStatus] ?? request.targetStatus}`);
 			}

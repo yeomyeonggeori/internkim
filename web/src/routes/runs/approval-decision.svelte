@@ -7,6 +7,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import { decideApproval, type ApprovalDecision, type ApprovalOutcome, type PendingApproval } from './runs-api';
 	import type { TasksText } from './text';
+	import { feelHaptic } from '$lib/native-shell/haptics';
 
 	type Props = {
 		approval: PendingApproval;
@@ -30,7 +31,9 @@
 		decidingWith = decision;
 		decisionError = '';
 		try {
-			onDecided(await decideApproval(approval.taskRun.taskRunID, decision));
+			const outcome = await decideApproval(approval.taskRun.taskRunID, decision);
+			feelHaptic('success');
+			onDecided(outcome);
 		} catch {
 			decisionError = text.approvalDecisionError;
 		} finally {

@@ -1,3 +1,4 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
 import {
 	hasMonthRangePointerMoved,
@@ -58,6 +59,7 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 		if (hasMoved) {
 			event.preventDefault();
 		}
+		if (hasMoved && !selection.hasMoved) feelHaptic('touch');
 		options.setSelection({
 			...selection,
 			endDateKey: dateCell?.dateKey ?? selection.endDateKey,
@@ -77,6 +79,7 @@ export function installCalendarMonthRangeAction(options: MonthRangeActionOptions
 		event.preventDefault();
 		event.stopPropagation();
 		lastRangeCreationTime = Date.now();
+		feelHaptic('touch');
 		options.createRangeEvent(selection, monthDateAnchorFromPoint(event.clientX, event.clientY));
 	};
 

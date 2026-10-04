@@ -1,3 +1,4 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import { isEmbeddedFrame, openDetailWindow } from '$lib/embedded';
 import type { TaskBoardMoveRequest } from './task-board-drag';
 import { TaskBoardController } from './task-board-controller.svelte';
@@ -6,6 +7,7 @@ import { TaskFiltersController } from './task-filters-controller.svelte';
 import { taskBoardParticipantScope } from './task-board-participant-scope';
 import { taskBusinessColor, taskTypeColor } from './task-definition-colors';
 import { updateTaskStatus } from './task-persistence';
+import { isTaskStatusCompleted } from './task-status';
 import { TaskQuickCreateController } from './task-quick-create-controller.svelte';
 import { TaskRelationshipController } from './task-relationship-controller.svelte';
 import type { LoadTask } from './task-load-tracker';
@@ -193,6 +195,7 @@ class TasksController {
 			saveErrorMessage: this.text.task.saveError
 		});
 		if (result.status === 'failed') this.setPageErrorMessage(result.errorMessage);
+		if (result.status === 'saved' && isTaskStatusCompleted(nextStatus)) feelHaptic('success');
 		this.pendingStatusTaskID = '';
 	};
 

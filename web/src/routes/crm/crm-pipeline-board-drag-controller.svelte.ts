@@ -1,3 +1,4 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import type { CRMPipelineBoardMoveRequest } from './crm-pipeline-board-drag';
 import type { CRMOpportunity, CRMOpportunityStage } from './crm-types';
 
@@ -19,6 +20,7 @@ export class CRMPipelineBoardDragController {
 
 	handleOpportunityDragStart = (event: DragEvent, opportunity: CRMOpportunity): void => {
 		this.draggedOpportunityID = opportunity.id;
+		feelHaptic('touch');
 		event.dataTransfer?.setData(boardDragDataType, opportunity.id);
 		event.dataTransfer?.setData('text/plain', opportunity.id);
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
@@ -57,6 +59,7 @@ export class CRMPipelineBoardDragController {
 			this.handleOpportunityDragEnd();
 			return;
 		}
+		feelHaptic('touch');
 		this.moveOpportunity({ opportunityID, targetStage: stage, beforeOpportunityID: null });
 		this.handleOpportunityDragEnd();
 	};
@@ -98,6 +101,7 @@ export class CRMPipelineBoardDragController {
 		}
 		event.preventDefault();
 		event.stopPropagation();
+		feelHaptic('touch');
 		this.moveOpportunity(nextDropTarget);
 		this.handleOpportunityDragEnd();
 	};
