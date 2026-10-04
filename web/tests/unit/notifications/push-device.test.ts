@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { createMockFetch } from '../test-fetch';
 
-const publicAPICall = await import('../../../src/lib/public-api-call');
+const publicAPICall = { ...(await import('../../../src/lib/public-api-call')) };
 
 mock.module('$lib/public-api-call', () => ({
 	...publicAPICall,

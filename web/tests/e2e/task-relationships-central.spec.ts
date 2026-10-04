@@ -56,6 +56,7 @@ test('the detail shows the children the record hangs under the task', async ({ p
 	await openTaskCard(page, parentTaskID);
 
 	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	await expect(sheet.getByRole('heading', { name: '업무 관계' })).toBeVisible();
 	await expect(sheet.locator(`[data-task-relationship-task="${completedChildTaskID}"]`)).toBeVisible();
 	await expect(sheet.locator(`[data-task-relationship-task="${openChildTaskID}"]`)).toBeVisible();
@@ -67,6 +68,7 @@ test('the detail shows the parent the record gives a child', async ({ page }) =>
 	await openTaskCard(page, openChildTaskID);
 
 	const sheet = taskSheet(page);
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	const parentRow = sheet.locator(`[data-task-relationship-task="${parentTaskID}"]`);
 	await expect(parentRow).toBeVisible();
 	await expect(parentRow).toContainText(parentTitle);
@@ -87,17 +89,31 @@ test('a child connected in the sheet is a child on the record', async ({ page })
 
 	const sheet = taskSheet(page);
 	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	await sheet.getByRole('button', { name: '자녀 업무 추가' }).click();
 
 	const selector = page.getByRole('dialog', { name: '자녀 업무' });
 	await expect(selector).toBeVisible();
 	await selector.getByPlaceholder('자녀 업무 검색').fill(looseTitle);
 	await selector.getByRole('option', { name: new RegExp(looseTitle) }).click();
-	await selector.getByRole('button', { name: '선택한 업무 연결' }).click();
-	await expect(selector).not.toBeVisible();
-
-	expect((await taskRowOf(looseTaskID))?.parent_task_id).toBe(parentTaskID);
-	await expect(sheet.locator(`[data-task-relationship-task="${looseTaskID}"]`)).toBeVisible();
+	let releaseWrite = () => {};
+	let startWrite = () => {};
+	const writeGate = new Promise<void>(resolve => { releaseWrite = resolve; });
+	const writeStarted = new Promise<void>(resolve => { startWrite = resolve; });
+	await page.route('**/task_update/invoke', async route => { startWrite(); await writeGate; await route.continue(); });
+	try {
+		const saved = page.waitForResponse(response => response.url().endsWith('/task_update/invoke'));
+		await selector.getByRole('button', { name: '선택한 업무 연결' }).click();
+		await writeStarted;
+		await expect(selector).toBeVisible();
+		await expect(selector.getByRole('button', { name: '선택한 업무 연결' })).toBeDisabled();
+		expect((await taskRowOf(looseTaskID))?.parent_task_id).toBeNull();
+		releaseWrite();
+		expect((await saved).ok()).toBe(true);
+		await expect(selector).not.toBeVisible();
+		expect((await taskRowOf(looseTaskID))?.parent_task_id).toBe(parentTaskID);
+		await expect(sheet.locator(`[data-task-relationship-task="${looseTaskID}"]`)).toBeVisible();
+	} finally { releaseWrite(); }
 });
 
 test('a relationship released in the sheet is released on the record', async ({ page }) => {
@@ -106,6 +122,7 @@ test('a relationship released in the sheet is released on the record', async ({ 
 
 	const sheet = taskSheet(page);
 	await sheet.getByRole('button', { name: '업무 수정' }).click();
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
 	const childRow = sheet.locator(`[data-task-relationship-task="${looseTaskID}"]`);
 	await expect(childRow).toBeVisible();
 	await childRow.getByRole('button', { name: '관계 작업 더보기' }).click();

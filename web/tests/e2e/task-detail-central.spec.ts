@@ -133,6 +133,9 @@ test('a member who neither participates nor administers is told the sheet is rea
 	await expect(sheet.getByRole('button', { name: '업무 수정' })).toHaveCount(0);
 	await expect(sheet.getByRole('button', { name: '업무 저장' })).toHaveCount(0);
 	await expect(sheet.getByRole('button', { name: '업무 삭제' })).toHaveCount(0);
+	await sheet.getByRole('button', { name: '업무 관계', exact: true }).click();
+	await expect(sheet.getByRole('heading', { name: '업무 관계', exact: true })).toBeVisible();
+	await expect(sheet.getByRole('button', { name: /부모 업무 추가|자녀 업무 추가|관계 작업 더보기/ })).toHaveCount(0);
 });
 
 test('a participant added in the sheet is on the record', async ({ page }) => {

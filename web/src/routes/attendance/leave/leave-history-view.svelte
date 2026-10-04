@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
@@ -6,6 +8,8 @@
 	import LeaveTypeBalances from './leave-type-balances.svelte';
 
 	const text = createPageText(attendanceText);
+	const employeeLeave = getEmployeeLeaveState();
+	onMount(() => { void employeeLeave.ensureLoaded(); });
 </script>
 
 <div class="mx-auto grid w-full max-w-5xl gap-4" data-testid="leave-history-view">

@@ -3,7 +3,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { mergeProps } from 'bits-ui';
-	import { getAttendanceState } from '../attendance-context.svelte';
+	import type { AttendanceSummary } from '../attendance-context.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
 	import LocationLabel from '../shared/location-label.svelte';
@@ -14,6 +14,7 @@
 
 	type Props = {
 		row: TeamStatusPersonRow;
+		summary: AttendanceSummary;
 		columnIndex: number;
 		isLastColumn: boolean;
 		text: AttendanceText;
@@ -21,9 +22,8 @@
 		onWorkTimeOpenChange: (isOpen: boolean) => void;
 	};
 
-	let { row, columnIndex, isLastColumn, text, isWorkTimeOpen, onWorkTimeOpenChange }: Props = $props();
+	let { row, summary, columnIndex, isLastColumn, text, isWorkTimeOpen, onWorkTimeOpenChange }: Props = $props();
 
-	const attendance = getAttendanceState();
 	const dividerClass = $derived(
 		`${columnIndex === 0 ? '' : 'border-l'} ${isLastColumn ? 'border-r' : ''}`
 	);
@@ -32,14 +32,14 @@
 		role: 'columnheader',
 		'data-testid': `team-status-person-header-${row.email}`,
 	});
-	const employeeEvents = $derived((attendance.summary?.events ?? []).filter((event) => event.email === row.email));
-	const today = $derived(todayDateInTimeZone(attendance.summary?.timeZone));
+	const employeeEvents = $derived(summary.events.filter((event) => event.email === row.email));
+	const today = $derived(todayDateInTimeZone(summary.timeZone));
 	const dailyValues = $derived(buildDailyWorkTimeValues(
-		attendance.summary?.month ?? '',
+		summary.month,
 		employeeEvents,
 		{ currentDate: today, fallbackLocationName: text.location }
 	));
-	const chartLocations = $derived(buildWorkTimeChartLocations(attendance.summary?.locations ?? [], dailyValues));
+	const chartLocations = $derived(buildWorkTimeChartLocations(summary.locations, dailyValues));
 </script>
 
 {#snippet PersonHeader({ props }: { props?: Record<string, unknown> })}

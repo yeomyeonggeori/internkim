@@ -15,7 +15,7 @@
 	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { onMount } from 'svelte';
+	import { untrack } from 'svelte';
 	import CRMActivityDetailSheet from './crm-activity-detail-sheet.svelte';
 	import CRMActivityTable from './crm-activity-table.svelte';
 	import CRMContactEditSheet from './crm-contact-edit-sheet.svelte';
@@ -180,9 +180,27 @@
 		replaceState('/crm', page.state);
 	});
 
-	onMount(() => {
-		void controller.load(page.data.session?.email ?? '');
-		if (isSupabaseConfigured()) void supabaseMemberRole().then((role) => (isAdmin = role === 'admin'));
+	$effect(() => {
+		const email = page.data.session?.email ?? '';
+		untrack(() => {
+			if (controller.currentEmail && controller.currentEmail !== email) {
+				isOrganizationSheetOpen = false;
+				isRelationshipEditOpen = false;
+				isContactEditOpen = false;
+				isOpportunityEditOpen = false;
+				isActivityEditOpen = false;
+				isRecordSheetOpen = false;
+				relationshipView = 'all';
+				feedbackMessage = '';
+			}
+		});
+		let active = true;
+		untrack(() => { void controller.load(email); });
+		isAdmin = crmFixtureMode;
+		if (isSupabaseConfigured()) void supabaseMemberRole().then((role) => {
+			if (active) isAdmin = role === 'admin';
+		}).catch(() => {});
+		return () => { active = false; controller.dispose(); };
 	});
 
 	$effect(() => {
@@ -190,6 +208,7 @@
 	});
 
 	$effect(() => {
+		if (!controller.hasData) return;
 		if (!isViewCurrencyAvailable()) return;
 		void crmViewCurrency.follow(companyBaseCurrency, opportunityCurrencies);
 	});
@@ -206,7 +225,7 @@
 
 	let filteredOrganizations = $derived(controller.organizations.filter((organization) => {
 		if (!organizationMatchesFacets(organization, relationshipFacets, currentCRMDate())) return false;
-		return relationshipView === 'all' || organization.ownerName === controller.currentOwnerName;
+		return relationshipView === 'all' || organization.ownerPersonID === controller.currentOwnerPersonID;
 	}));
 	let filteredActivities = $derived(
 		activityView === 'all' ? controller.activities : controller.activities.filter((activity) => activity.kind === activityView)
@@ -343,7 +362,7 @@
 
 <svelte:head><title>{text.pageTitle}</title></svelte:head>
 
-<main data-crm-ready={!controller.isLoading && !controller.errorMessage} class="grid min-h-full w-full content-start gap-4 px-4 py-6 md:px-8">
+<main data-crm-ready={controller.hasData && !controller.permissionDenied} class="grid min-h-full w-full content-start gap-4 px-4 py-6 md:px-8">
 	{#if feedbackMessage}
 		<div role="status" class="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"><CheckCircle2Icon class="size-4 text-primary" /><span>{feedbackMessage}</span><Button type="button" variant="ghost" size="icon-sm" class="ml-auto" aria-label={text.cancel} onclick={() => (feedbackMessage = '')}><XIcon /></Button></div>
 	{/if}
@@ -356,7 +375,12 @@
 
 	{#if controller.isLoading}
 		<div role="status" class="flex min-h-64 items-center justify-center gap-2 rounded-md border text-sm text-muted-foreground"><LoaderCircleIcon class="size-4 animate-spin" />{text.loading}</div>
-	{:else if !controller.errorMessage}
+	{:else if controller.hasData && !controller.permissionDenied}
+		{#if controller.isDirectoryLoading}
+			<div role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircleIcon class="size-4 animate-spin" />{text.directoryLoading}</div>
+		{:else if controller.directoryErrorMessage}
+			<div role="alert" class="flex items-center gap-2 text-sm text-destructive"><AlertCircleIcon class="size-4" />{controller.directoryErrorMessage}<Button variant="outline" size="sm" onclick={() => controller.retryDirectory()}>{text.retry}</Button></div>
+		{/if}
 		<Collapsible.Root class="min-w-0" data-crm-metrics open={!isMobile.current || showsMetrics} onOpenChange={(open) => showsMetrics = open}>
 			<Collapsible.Trigger class="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium sm:hidden">{text.metricsOverview}<span aria-hidden="true">{showsMetrics ? '−' : '+'}</span></Collapsible.Trigger>
 			<Collapsible.Content>
@@ -371,8 +395,8 @@
 
 			<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine">{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
-					<Button type="button" class="ml-auto sm:order-last" onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine" disabled={!controller.isDirectoryReady}>{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
+					<Button type="button" class="ml-auto sm:order-last" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 					<Collapsible.Root class="w-full min-w-0 sm:contents" open={!isMobile.current || showsRelationshipFilters} onOpenChange={(open) => showsRelationshipFilters = open}>
 						<Collapsible.Trigger class="sm:hidden">{#snippet child({ props })}<Button {...props} variant="outline">{text.filters}{hasRelationshipFacets ? ' · ' + [selectedStatus, selectedType, selectedImportance, selectedLastContact].filter((value) => value !== 'all').length : ''}</Button>{/snippet}</Collapsible.Trigger>
 						<Collapsible.Content class="flex min-w-0 flex-wrap gap-2 py-2 sm:contents">
@@ -392,7 +416,7 @@
 
 			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-3 pb-24">
 				<div class="flex min-w-0 flex-wrap items-center gap-2">
-					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
+					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('contact')}><PlusIcon data-icon="inline-start" />{text.newContact}</Button>
 				</div>
 				<CRMContactTable contacts={controller.contacts} organizations={controller.organizations} people={controller.people} {text} onEdit={openContactEdit} />
 			</UnderlineTabs.Content>
@@ -417,7 +441,7 @@
 					{#if hasPipelineFacets}
 						<Button type="button" variant="ghost" onclick={resetPipelineFacets}>{text.resetFilters}</Button>
 					{/if}
-					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
+					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
 					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
@@ -432,7 +456,7 @@
 					{#if activityView !== 'all'}
 						<Button type="button" variant="ghost" onclick={() => (activityView = 'all')}>{text.resetFilters}</Button>
 					{/if}
-					<Button type="button" class="ml-auto" onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
+					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
 				</div>
 				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} opportunities={controller.opportunities} people={controller.people} taskDefinitions={activityTaskDefinitions} {text} onEdit={openActivityEdit} />
 			</UnderlineTabs.Content>
@@ -443,9 +467,13 @@
 	{/if}
 </main>
 
+{#if controller.hasData && !controller.permissionDenied}
 <CRMRelationshipDetailSheet bind:open={isOrganizationSheetOpen} organization={selectedOrganization} contacts={controller.contacts} opportunities={controller.opportunities} activities={controller.activities} stages={controller.stages} {organizationTypeDefinitions} {currencyCatalogue} {text} onEdit={openOrganizationEdit} />
-<CRMRelationshipEditSheet bind:open={isRelationshipEditOpen} organization={selectedOrganization} contacts={controller.contacts} organizationTypeOptions={controller.organizationTypeOptions} {organizationTypeDefinitions} people={controller.people} groups={controller.groups} {text} onSave={saveOrganization} onArchive={archiveOrganization} onEditContact={openRelationshipContactEdit} onCreateContact={openRelationshipContactCreate} />
 <CRMContactEditSheet bind:open={isContactEditOpen} contact={selectedContact} organizations={controller.organizations} opportunities={controller.opportunities} {text} onSave={saveContact} />
-<CRMOpportunityEditSheet {currencyCatalogue} {companyBaseCurrency} bind:open={isOpportunityEditOpen} opportunity={selectedOpportunity} organizations={controller.organizations} contacts={controller.contacts} pipelines={controller.pipelines} stages={controller.stages} businessOptions={controller.businessOptions} people={controller.people} groups={controller.groups} requestedStage={requestedOpportunityStage} {text} onSave={saveOpportunity} onArchive={archiveOpportunity} />
-<CRMActivityDetailSheet bind:open={isActivityEditOpen} activity={selectedActivity} organizations={controller.organizations} opportunities={controller.opportunities} contacts={controller.contacts} businessOptions={controller.businessOptions} activityKindOptions={controller.activityKindOptions} people={controller.people} groups={controller.groups} {text} onSave={saveActivity} />
+<CRMRelationshipEditSheet isDirectoryReady={controller.isDirectoryReady} bind:open={isRelationshipEditOpen} organization={selectedOrganization} contacts={controller.contacts} organizationTypeOptions={controller.organizationTypeOptions} {organizationTypeDefinitions} people={controller.people} groups={controller.groups} {text} onSave={saveOrganization} onArchive={archiveOrganization} onEditContact={openRelationshipContactEdit} onCreateContact={openRelationshipContactCreate} />
+<CRMOpportunityEditSheet isDirectoryReady={controller.isDirectoryReady} {currencyCatalogue} {companyBaseCurrency} bind:open={isOpportunityEditOpen} opportunity={selectedOpportunity} organizations={controller.organizations} contacts={controller.contacts} pipelines={controller.pipelines} stages={controller.stages} businessOptions={controller.businessOptions} people={controller.people} groups={controller.groups} requestedStage={requestedOpportunityStage} {text} onSave={saveOpportunity} onArchive={archiveOpportunity} />
+<CRMActivityDetailSheet isDirectoryReady={controller.isDirectoryReady} bind:open={isActivityEditOpen} activity={selectedActivity} organizations={controller.organizations} opportunities={controller.opportunities} contacts={controller.contacts} businessOptions={controller.businessOptions} activityKindOptions={controller.activityKindOptions} people={controller.people} groups={controller.groups} {text} onSave={saveActivity} />
+{#if controller.isDirectoryReady}
 <CRMRecordSheet {currencyCatalogue} {companyBaseCurrency} bind:open={isRecordSheetOpen} initialKind={createKind} initialOrganizationID={createOrganizationID} organizations={controller.organizations} contacts={controller.contacts} opportunities={controller.opportunities} pipelines={controller.pipelines} stages={controller.stages} businessOptions={controller.businessOptions} organizationTypeOptions={controller.organizationTypeOptions} {organizationTypeDefinitions} activityKindOptions={controller.activityKindOptions} defaultOwnerPersonID={controller.currentOwnerPersonID} people={controller.people} groups={controller.groups} {text} onCreate={handleCreate} />
+{/if}
+{/if}

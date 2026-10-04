@@ -31,5 +31,5 @@ export function saveCompanySettings(change: CompanySettingsChange): Promise<Comp
 }
 
 export async function companyTimeZone(): Promise<string> {
-	return (await companySettings()).timeZone;
+	return (await invokeTool<CompanySettings>('company_settings_get', { includeProfileImage: false })).timeZone;
 }

@@ -1,8 +1,40 @@
 import { describe, expect, test } from "bun:test";
 import { verifyEvent } from "nostr-tools/pure";
-import { buzzPublicKeyOf, signBuzzEvent, streamMessageTags } from "../../src/lib/buzz-relay-client";
+import { buzzPublicKeyOf, publishBuzzMessage, signBuzzEvent, streamMessageTags } from "../../src/lib/buzz-relay-client";
 
 const SECRET_KEY_HEX = "1178851e7a60684098157ea8fd4ef624c4fd094b41e274194843de1cd39c5aa8";
+
+test('an expired identity is refused before any relay connection or signature', async () => {
+	await expect(publishBuzzMessage('wss://relay.example.com', 'invalid-key', {
+		channelId: 'channel-1', content: 'test', isCurrent: () => false
+	})).rejects.toThrow('the signed-in identity changed');
+});
+
+test('an account change while connecting never sends relay authentication or a message', async () => {
+	const originalSocket = globalThis.WebSocket;
+	const sent: string[] = [];
+	let receive: (event: { data: string }) => void = () => {};
+	let closed = false;
+	class Socket {
+		set onmessage(handler: typeof receive) { receive = handler; }
+		send(value: string) { sent.push(value); }
+		close() { closed = true; }
+	}
+	Reflect.set(globalThis, 'WebSocket', Socket);
+	try {
+		let current = true;
+		const pending = publishBuzzMessage('wss://relay.example.com', SECRET_KEY_HEX, {
+			channelId: 'channel-1', content: 'test', isCurrent: () => current
+		});
+		current = false;
+		receive({ data: JSON.stringify(['AUTH', 'sample-challenge']) });
+		await expect(pending).rejects.toThrow('the signed-in identity changed');
+		expect(sent).toEqual([]);
+		expect(closed).toBe(true);
+	} finally {
+		Reflect.set(globalThis, 'WebSocket', originalSocket);
+	}
+});
 
 describe("buzz relay client — signing", () => {
 	test("signs a stream message that verifies against the derived pubkey", () => {

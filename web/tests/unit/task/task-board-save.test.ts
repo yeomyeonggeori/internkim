@@ -1,41 +1,34 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 
-const movedTaskRow = {
-	title: '보고서 초안',
-	note: null,
-	location: null,
-	business: null,
-	type: null,
-	size: 'M',
-	is_event: false,
-	is_whole_day: false,
-	notify_minutes_before: null,
-	updated_at: '2026-06-01T00:00:00Z',
-	task_participant: [{ member_id: 'member-1' }]
-};
+const centralPlane = { ...(await import('$lib/supabase')) };
+const publicAPICall = { ...(await import('../../../src/lib/public-api-call')) };
+const written: { name: string; input: Record<string, unknown> }[] = [];
 
 const plane = {
-	from: () => ({
-		select: () => ({
-			eq: () => ({
-				single: async () => ({ data: movedTaskRow, error: null })
-			})
-		})
-	}),
-	rpc: async () => ({ data: null, error: null }),
 	auth: { getSession: async () => ({ data: { session: null } }) },
 	functions: { invoke: async () => ({ data: null, error: null }) }
 };
 
 mock.module('$lib/supabase', () => ({
+	...centralPlane,
 	supabase: () => plane,
-	isSupabaseConfigured: () => true,
-	gatewayURL: () => '',
-	projectURL: () => '',
-	vapidPublicKey: () => ''
+	isSupabaseConfigured: () => true
+}));
+
+mock.module('../../../src/lib/public-api-call', () => ({
+	...publicAPICall,
+	invokeTool: async (name: string, input: Record<string, unknown>) => {
+		written.push({ name, input });
+		return { taskID: 'requested' };
+	}
 }));
 
 const { saveTaskBoardMove } = await import('../../../src/routes/task/task-board-save');
+
+afterAll(() => {
+	mock.module('$lib/supabase', () => centralPlane);
+	mock.module('../../../src/lib/public-api-call', () => publicAPICall);
+});
 
 describe('task board save', () => {
 	test('keeps a saved board move when reload fails afterward', async () => {
@@ -59,6 +52,7 @@ describe('task board save', () => {
 		});
 
 		expect(result).toBe('saved_with_reload_error');
+		expect(written).toEqual([{ name: 'task_update', input: { taskHint: 'requested', status: 'in_progress' } }]);
 		expect(loadOptions).toEqual([{ preserveActiveTabOnError: true }]);
 		expect(messages).toEqual(['업무 데이터를 불러오지 못했습니다.']);
 	});

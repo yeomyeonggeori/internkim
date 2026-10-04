@@ -42,53 +42,64 @@ export const taskStatusOptions = centralTaskStatusOptions;
 const untitledTask = '(제목 없음)';
 
 type ListedTasks = Awaited<ReturnType<typeof everyTaskOfTheCompany>>;
-type TaskViewer = { email: string; name: string; isAdmin: boolean };
-let beingRead: { scope: string; generation: number; listed: Promise<ListedTasks>; value: Promise<TaskState> } | null = null;
+type TaskViewer = { memberID: string; email: string; name: string; isAdmin: boolean };
+const beingRead = new Map<string, { scope: string; generation: number; listed: Promise<ListedTasks>; value: Promise<TaskState> }>();
 
 export function forgetTaskStateRead(scope: string): void {
-	if (beingRead?.scope === scope) beingRead = null;
+	for (const [key, reading] of beingRead) if (reading.scope === scope) beingRead.delete(key);
 }
 
-export function taskState(scope?: string): Promise<TaskState> {
+export function taskState(scope?: string, boardWeek?: string): Promise<TaskState> {
 	if (scope === undefined) {
-		return supabaseMember().then((member) => taskState(taskAccountScope(member, projectURL())));
+		return supabaseMember().then((member) => taskState(taskAccountScope(member, projectURL()), boardWeek));
 	}
-	return taskReadFor(scope).value;
+	return taskReadFor(scope, boardWeek).value;
 }
 
-export function taskBoardState(scope: string, viewer: TaskViewer): Promise<TaskState> {
-	return taskReadFor(scope).listed.then(listed => stateOfListedTasks(listed, [], '', viewer));
+export function taskBoardState(scope: string, viewer: TaskViewer, boardWeek?: string): Promise<TaskState> {
+	return taskReadFor(scope, boardWeek).listed.then(listed => taskBoardStateOf(listed, viewer, boardWeek));
 }
 
-function taskReadFor(scope: string) {
+export function taskBoardStateOf(listed: ListedTasks, viewer: TaskViewer, boardWeek?: string): TaskState {
+	return stateOfListedTasks(listed, [{
+		personID: viewer.memberID, email: viewer.email, name: viewer.name, isAdmin: viewer.isAdmin
+	}], viewer.memberID, boardWeek, viewer);
+}
+
+function taskReadFor(scope: string, boardWeek?: string) {
 	const generation = taskSnapshotGeneration();
-	if (beingRead?.scope === scope && beingRead.generation === generation) return beingRead;
-	const listed = everyTaskOfTheCompany();
-	const reading = { scope, generation, listed, value: readTaskState(listed) };
-	beingRead = reading;
+	const key = JSON.stringify([scope, boardWeek ?? 'full']);
+	const current = beingRead.get(key);
+	if (current?.generation === generation) return current;
+	const listed = everyTaskOfTheCompany(boardWeek);
+	const reading = { scope, generation, listed, value: readTaskState(listed, boardWeek) };
+	beingRead.set(key, reading);
 	void reading.value.catch(() => undefined).finally(() => {
-		if (beingRead === reading) beingRead = null;
+		if (beingRead.get(key) === reading) beingRead.delete(key);
 	});
 	return reading;
 }
 
-async function readTaskState(listedTasks: Promise<ListedTasks>): Promise<TaskState> {
+async function readTaskState(listedTasks: Promise<ListedTasks>, boardWeek?: string): Promise<TaskState> {
 	const [listed, directory] = await Promise.all([listedTasks, companyDirectory()]);
-	return stateOfListedTasks(listed, directory.people, directory.requesterID);
+	return stateOfListedTasks(listed, directory.people, directory.requesterID, boardWeek);
 }
 
-function stateOfListedTasks(listed: ListedTasks, people: RecordPerson[], requesterID: string, viewer?: TaskViewer): TaskState {
+function stateOfListedTasks(listed: ListedTasks, people: RecordPerson[], requesterID: string, boardWeek?: string, viewer?: TaskViewer): TaskState {
 	const tasks = sortedByEnd(listed.tasks.map(taskOf));
 	const memberIDs = people.map((person) => person.personID);
 	const tallies = memberTaskTallies(tasks, memberIDs);
-	const scoreDetails = memberScoreDetails(tasks, memberIDs, startOfISOWeek(new Date()));
+	const standingMetrics = boardWeek ? {} : standingMetricsOf(memberScoreDetails(tasks, memberIDs, startOfISOWeek(new Date())), tallies);
 	const me = people.find((person) => person.personID === requesterID);
 
 	return {
+		completeness: boardWeek ? 'board' : 'full',
+		peopleReady: viewer === undefined,
+		...(boardWeek ? { boardWeek, childProgressByParent: Object.fromEntries((listed.childProgress ?? []).map(({ parentTaskID, ...progress }) => [parentTaskID, progress])) } : {}),
 		currentWeek: taskWeekOfDate(new Date()),
 		members: people.map((person) => memberOf(person, tallies[person.personID])),
 		tasks,
-		metrics: { ...metricsOf(tasks), ...standingMetricsOf(scoreDetails, tallies) },
+		metrics: { ...metricsOf(tasks), ...standingMetrics },
 		definitions: taskDefinitionsOf(listed.registeredLabels),
 		statusOptions: taskStatusOptions,
 		currentUserEmail: me?.email ?? viewer?.email ?? '',
@@ -148,11 +159,21 @@ function withoutUnchosenLabels(written: WrittenTask): WrittenTask {
 	return { ...chosen, ...(business ? { business } : {}), ...(type ? { type } : {}) };
 }
 
-export async function saveTask(task: Task, statusBefore: string | null): Promise<void> {
-	const written = writtenTaskOf(task);
+export function changedTaskFields(task: Task, originalTask: Task): Partial<WrittenTask> {
+	if (task.id !== originalTask.id) throw new Error('a task edit must match its original task');
+	const original: Record<string, unknown> = writtenTaskOf(originalTask);
+	return Object.fromEntries(Object.entries(writtenTaskOf(task)).filter(
+		([key, value]) => JSON.stringify(value) !== JSON.stringify(original[key])
+	));
+}
+
+export async function saveTask(task: Task, statusBefore: string | null, originalTask?: Task): Promise<void> {
 	if (task.id) {
+		const written = originalTask ? changedTaskFields(task, originalTask) : writtenTaskOf(task);
+		if (Object.keys(written).length === 0) return;
 		await updateTask(task.id, written);
 	} else {
+		const written = writtenTaskOf(task);
 		await addTask({ ...withoutUnchosenLabels(written), ...(task.parentTaskID ? { parentTaskHint: task.parentTaskID } : {}) });
 	}
 	if (statusBefore !== null && statusBefore !== centralStatusFromWord(task.status)) {

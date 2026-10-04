@@ -29,7 +29,7 @@ import {
 } from './mail-page-utils';
 import type { MailMoveTarget } from './mail-page-utils';
 import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
-import type { MailComposeFocusField, MailMessagePageCacheEntry, MailPageText } from './mail-page-controller-types';
+import type { MailComposeFocusField, MailMessagePageCacheEntry, MailPageText, RequestedMailMessage } from './mail-page-controller-types';
 
 export function createMailPageController(text: MailPageText) {
 	return new MailPageController(text);
@@ -45,6 +45,7 @@ class MailPageController {
 	messageDetailCache = new Map<string, MailMessage>();
 	selectedMailbox = $state('INBOX');
 	selectedMessage = $state<MailMessage | null>(null);
+	requestedMessage = $state<RequestedMailMessage | null>(null);
 	searchText = $state('');
 	activeSearchText = $state('');
 	messagePageIndex = $state(0);
@@ -94,6 +95,7 @@ class MailPageController {
 			}
 			this.isLoading = false;
 			await Promise.all([loadPageMailboxes(this, this.text), this.loadMessages()]);
+			await this.resolveRequestedMessage();
 		} catch (error) {
 			this.hasLoadedAccount = true;
 			this.errorMessage = error instanceof Error ? error.message : this.text.errors.loadMail;
@@ -105,25 +107,68 @@ class MailPageController {
 
 	loadMessages = () => loadMessagesPage(this, this.text, false);
 
-	searchMessages = () => loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: 0 });
+	searchMessages = () => {
+		this.requestedMessage = null;
+		return loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: 0 });
+	};
 
 	openMailboxMessage = async (mailbox: string, uid: number) => {
-		this.selectedMailbox = mailbox;
+		this.requestMailboxMessage({ mailbox, uid });
 		await loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: 0 });
-		const message = this.messages.find((candidate) => candidate.mailbox === mailbox && candidate.uid === uid);
-		if (!message) return;
-		this.selectMessage(message);
+		await this.resolveRequestedMessage();
 	};
+
+	requestMailboxMessage = (message: RequestedMailMessage) => {
+		this.requestedMessage = message;
+		this.selectedMailbox = message.mailbox;
+		this.searchText = '';
+		this.selectedMessage = null;
+	};
+
+	private async resolveRequestedMessage() {
+		const requested = this.requestedMessage;
+		if (!requested) return;
+		const actor = this.mailActorEmail();
+		const visitedCursors = new Set<string>();
+		while (this.requestedMessage === requested && this.selectedMailbox === requested.mailbox && this.mailActorEmail() === actor) {
+			if (this.errorMessage) return;
+			const message = this.messages.find((candidate) => candidate.mailbox === requested.mailbox && candidate.uid === requested.uid);
+			if (message) {
+				this.requestedMessage = null;
+				this.selectMessage(message);
+				return;
+			}
+			if (!this.canLoadMoreMessages()) {
+				this.errorMessage = this.text.errors.messageNotFound;
+				return;
+			}
+			const pageIndex = this.messagePageIndex;
+			if (visitedCursors.has(this.nextCursor)) {
+				this.errorMessage = this.text.errors.loadMessages;
+				return;
+			}
+			visitedCursors.add(this.nextCursor);
+			await this.loadMoreMessages();
+			if (this.messagePageIndex === pageIndex) return;
+		}
+	}
 
 	loadMoreMessages = () => loadMessagesPage(this, this.text, { mode: 'cache-first', pageIndex: this.messagePageIndex + 1 });
 
 	setUnreadOnly = (isUnreadOnly: boolean) => setMailPageUnreadOnly(this, this.text, isUnreadOnly);
 
-	selectMailbox = (mailboxName: string) => selectMailPageMailbox(this, this.text, mailboxName);
+	selectMailbox = (mailboxName: string) => {
+		this.requestedMessage = null;
+		return selectMailPageMailbox(this, this.text, mailboxName);
+	};
 
-	selectMessage = (message: MailMessage) => selectMailPageMessage(this, this.text, message);
+	selectMessage = (message: MailMessage) => {
+		this.requestedMessage = null;
+		selectMailPageMessage(this, this.text, message);
+	};
 
 	clearSelectedMessage = () => {
+		this.requestedMessage = null;
 		this.selectedMessage = null;
 	};
 

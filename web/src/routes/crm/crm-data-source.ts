@@ -8,6 +8,9 @@ import type {
 	CRMTransitionPayload,
 	CRMVocabulary
 } from './crm-api-types';
+import type { CRMDataResponse } from './crm-api-types';
+import type { CRMReadPart } from './crm-public-api';
+export type { CRMReadPart } from './crm-public-api';
 import * as central from './crm-public-api';
 
 export { CRMApiError } from './crm-error';
@@ -16,8 +19,8 @@ export function loadCRMOrganizationDirectory() {
 	return supabaseOrganizationDirectory();
 }
 
-export function loadCRMData() {
-	return central.loadSupabaseCRMData();
+export function loadCRMData(previous?: CRMDataResponse, changed?: readonly CRMReadPart[]) {
+	return central.loadSupabaseCRMData(previous, changed);
 }
 
 export function createCRMOrganization(payload: CRMOrganizationPayload) {

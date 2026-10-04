@@ -132,6 +132,7 @@ export const mailTextKo = {
 		loadMailboxes: '메일함을 불러오지 못했습니다.',
 		loadMessages: '메일을 불러오지 못했습니다.',
 		loadMessage: '메일을 불러오지 못했습니다.',
+		messageNotFound: '요청한 메일함에 이 메일이 없습니다. 새로고침하여 다시 확인할 수 있습니다.',
 		saveAccount: '계정을 저장하지 못했습니다.',
 		sendMessage: '메일을 보내지 못했습니다.',
 		moveMessage: '메일을 옮기지 못했습니다.',

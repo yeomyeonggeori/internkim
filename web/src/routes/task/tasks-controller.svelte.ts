@@ -34,6 +34,7 @@ type TasksControllerInput = {
 	loadTask: LoadTask;
 	setPageErrorMessage: (message: string) => void;
 	announceMove?: (message: string) => void;
+	relationshipsReady?: boolean;
 };
 
 export function createTasksController() {
@@ -52,6 +53,7 @@ class TasksController {
 
 	private loadTask: LoadTask;
 	private setPageErrorMessage: (message: string) => void;
+	private relationshipsReady = false;
 
 	constructor() {
 		this.loadTask = async () => false;
@@ -80,6 +82,8 @@ class TasksController {
 
 	sync = (input: TasksControllerInput): void => {
 		this.summary = input.summary;
+		if (!this.summary) this.editor.closeEditor();
+		this.relationshipsReady = input.relationshipsReady ?? this.summary?.completeness === 'full';
 		this.text = input.text;
 		this.loadTask = input.loadTask;
 		this.setPageErrorMessage = input.setPageErrorMessage;
@@ -156,10 +160,12 @@ class TasksController {
 	};
 
 	createChildTask = (parentTaskID: string): void => {
+		if (!this.relationshipsReady || this.summary?.completeness !== 'full') return;
 		this.editor.createTask(undefined, [], parentTaskID);
 	};
 
 	setTaskParent = async (taskID: string, parentTaskID?: string): Promise<boolean> => {
+		if (!this.relationshipsReady || this.summary?.completeness !== 'full') return false;
 		const updated = await this.relationships.setParent(taskID, parentTaskID);
 		if (updated && this.editor.taskDraft?.id === taskID) {
 			this.editor.taskDraft = { ...this.editor.taskDraft, parentTaskID };
@@ -168,7 +174,7 @@ class TasksController {
 	};
 
 	setTaskParents = (taskIDs: string[], parentTaskID: string): Promise<boolean> =>
-		this.relationships.setParents(taskIDs, parentTaskID);
+		this.relationshipsReady && this.summary?.completeness === 'full' ? this.relationships.setParents(taskIDs, parentTaskID) : Promise.resolve(false);
 
 	createQuickTask = (allowDuplicate = false): Promise<TaskQuickTaskCreateResult> => this.quickTask.createQuickTask(allowDuplicate);
 

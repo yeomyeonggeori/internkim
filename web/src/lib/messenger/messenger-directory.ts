@@ -2,6 +2,7 @@ import { supabase } from '$lib/supabase';
 import { personName } from '$lib/person-name';
 import type { Locale } from '$lib/i18n/locale.svelte';
 import type { MessengerPerson } from './messenger-api';
+import { messengerCacheScope, onMessengerCacheReset, requireCurrentMessengerScope } from './cache-scope';
 
 export type MessengerDirectory = {
 	nameOfMember: Map<string, string>;
@@ -21,19 +22,30 @@ type MemberRow = {
 	is_admin: boolean;
 };
 
-let loading: Promise<MessengerDirectory> | null = null;
+let loading: { key: string; generation: number; value: Promise<MessengerDirectory> } | null = null;
 
-export function fetchMessengerDirectory(): Promise<MessengerDirectory> {
-	loading ??= readMessengerDirectory().catch((refusal) => {
-		loading = null;
-		throw refusal;
+export async function fetchMessengerDirectory(): Promise<MessengerDirectory> {
+	const scope = await messengerCacheScope();
+	if (loading?.key === scope.key && loading.generation === scope.generation) return loading.value;
+	const value = readMessengerDirectory().then(async (directory) => {
+		await requireCurrentMessengerScope(scope);
+		return directory;
 	});
-	return loading;
+	const lookup = { ...scope, value };
+	loading = lookup;
+	try {
+		return await value;
+	} catch (refusal) {
+		if (loading === lookup) loading = null;
+		throw refusal;
+	}
 }
 
 export function forgetMessengerDirectory(): void {
 	loading = null;
 }
+
+onMessengerCacheReset(forgetMessengerDirectory);
 
 // A member's messenger account is part of who they are, and is kept on the
 // member. contact is the company's address book for people who are not members
@@ -41,14 +53,11 @@ export function forgetMessengerDirectory(): void {
 async function readMessengerDirectory(): Promise<MessengerDirectory> {
 	const client = supabase();
 
-	const members = await client
-		.from('member')
-		.select('id, name, email, messenger, is_admin')
-		.neq('status', 'withdrawn')
-		.returns<MemberRow[]>();
+	const [members, people] = await Promise.all([
+		client.from('member').select('id, name, email, messenger, is_admin').neq('status', 'withdrawn').returns<MemberRow[]>(),
+		client.from('contact').select('name, messenger').returns<ContactRow[]>()
+	]);
 	if (members.error) throw new Error(members.error.message);
-
-	const people = await client.from('contact').select('name, messenger').returns<ContactRow[]>();
 	if (people.error) throw new Error(people.error.message);
 
 	const accounts = members.data.flatMap((member) =>

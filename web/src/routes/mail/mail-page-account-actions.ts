@@ -19,7 +19,7 @@ export async function loadMailBootstrap(controller: MailPageControllerState, tex
 		controller.messages = bootstrap.messages;
 		controller.nextCursor = bootstrap.nextCursor;
 		controller.hasMoreMessages = bootstrap.nextCursor !== '';
-		controller.selectedMessage = selectedVisibleMessage(controller.visibleMessages(), controller.selectedMessage, controller.canSelectFirstMessage);
+		controller.selectedMessage = selectedVisibleMessage(controller.visibleMessages(), controller.selectedMessage, controller.canSelectFirstMessage && !controller.requestedMessage);
 	}
 	if (!controller.account.isConfigured) {
 		controller.mailboxes = [];

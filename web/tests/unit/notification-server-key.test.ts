@@ -5,7 +5,7 @@ const published = 'BPublishedApplicationServerKey';
 let carriedKey = '';
 let lookups = 0;
 
-const centralPlane = await import('../../src/lib/supabase');
+const centralPlane = { ...(await import('../../src/lib/supabase')) };
 
 mock.module('$lib/supabase', () => ({
 	...centralPlane,
@@ -27,7 +27,7 @@ const heldNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 
 Object.defineProperty(globalThis, 'navigator', {
 	configurable: true,
-	value: { serviceWorker: { ready: Promise.resolve(registration) } }
+	value: { serviceWorker: { ready: new Promise(() => {}), getRegistration: async () => registration } }
 });
 Object.defineProperty(globalThis, 'Notification', { configurable: true, value: { permission: 'granted' } });
 Object.defineProperty(globalThis, 'window', {

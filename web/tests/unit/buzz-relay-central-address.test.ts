@@ -1,11 +1,18 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 type HostAnswer = { status: number; body: unknown };
 
 const asked: string[] = [];
 let answer: () => Promise<HostAnswer> = async () => ({ status: 200, body: {} });
 
+const hostBridge = { ...(await import('../../src/lib/host-bridge')) };
+
+afterAll(() => {
+	mock.module('../../src/lib/host-bridge', () => hostBridge);
+});
+
 mock.module('../../src/lib/host-bridge', () => ({
+	...hostBridge,
 	onCompanyEvent: () => () => undefined,
 	callCompanyApp: async ({ capability }: { capability: string }) => {
 		asked.push(capability);

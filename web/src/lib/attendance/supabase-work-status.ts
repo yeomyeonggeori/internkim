@@ -32,6 +32,7 @@ import { companyTimeInstant } from '$lib/attendance/supabase-work-status-range';
 import { attendanceHolidayDates } from '$lib/attendance/attendance-holidays';
 import { companyHolidayDatesBetween } from '$lib/attendance/company-holiday-dates';
 import { supabaseCompanyHolidays } from '$lib/attendance/supabase-company-holidays';
+import type { AttendanceSummaryRecords } from './attendance-summary-records';
 import type {
 	AttendanceEmployeeWorkStatus,
 	AttendanceWorkDayStatus,
@@ -88,21 +89,34 @@ export function workStatusMemberOf(person: RecordPerson): SupabaseWorkStatusMemb
 }
 
 export async function supabaseWorkStatusInputs(
-	requests: AttendanceWorkStatusRequest[]
+	requests: AttendanceWorkStatusRequest[],
+	providedSummaryRecords?: AttendanceSummaryRecords
 ): Promise<SupabaseWorkStatusInputs> {
 	const requestNow = new Date();
-	const settings = await companySettings();
-	const timeZone = settings.timeZone;
-	const coveredDays = coveredDaysOf(requests, timeZone, requestNow);
-	const firstDay = coveredDays[0];
-	const lastDay = coveredDays[coveredDays.length - 1];
-
-	const [directory, attendance, leave, policiesByMember] = await Promise.all([
-		companyDirectory(),
-		attendanceBetween(shiftedDay(firstDay, -1), lastDay),
-		approvedLeaveBetween(firstDay, lastDay),
-		supabaseWorkPolicies()
+	const summaryRecords = providedSummaryRecords?.readScope === 'mine' ? undefined : providedSummaryRecords;
+	const settingsRequest = summaryRecords ? Promise.resolve(summaryRecords.settings) : companySettings();
+	const directoryRequest = summaryRecords ? Promise.resolve(summaryRecords.directory) : companyDirectory();
+	const policiesRequest = supabaseWorkPolicies();
+	const [settings, directory, policiesByMember, records] = await Promise.all([
+		settingsRequest,
+		directoryRequest,
+		policiesRequest,
+		(async () => {
+			const settings = await settingsRequest;
+			const coveredDays = coveredDaysOf(requests, settings.timeZone, requestNow);
+			const firstDay = coveredDays[0];
+			const lastDay = coveredDays[coveredDays.length - 1];
+			const isCovered = summaryRecords && firstDay >= summaryRecords.from && lastDay <= summaryRecords.to;
+			const [attendance, leave, holidays] = await Promise.all([
+				isCovered ? summaryRecords.attendance : attendanceBetween(shiftedDay(firstDay, -1), lastDay),
+				isCovered ? summaryRecords.leave : approvedLeaveBetween(firstDay, lastDay),
+				workStatusHolidays(coveredDays)
+			]);
+			return { coveredDays, attendance, leave, holidays };
+		})()
 	]);
+	const timeZone = settings.timeZone;
+	const { coveredDays, attendance, leave, holidays } = records;
 	const members = directory.people.map(workStatusMemberOf);
 
 	return {
@@ -124,7 +138,7 @@ export async function supabaseWorkStatusInputs(
 			status: taken.status
 		})),
 		policiesByMember,
-		holidays: await workStatusHolidays(coveredDays),
+		holidays,
 		coveredDays,
 		now: requestNow
 	};

@@ -117,7 +117,7 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 				context.state.activeMobileEditorEventID = event.id;
 			},
 			notifyEventsChanged: broadcastCalendarEventsChanged,
-			invalidatePendingEventLoad: eventLoader.invalidatePendingLoad,
+			invalidatePendingEventLoad: () => eventLoader.invalidatePendingLoad(true),
 			refreshCalendar: eventLoader.refreshCurrentRange,
 			text: {
 				get calendarDeleteVersionConflictError() {

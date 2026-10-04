@@ -6,6 +6,8 @@ import {
 } from '$lib/currency/currency-catalogue';
 import { interimCompanyBaseCurrency, loadCompanyBaseCurrency } from '$lib/company/base-currency';
 import { loadCRMOrganizationDirectory } from './crm-data-source';
+import type { CRMReadPart } from './crm-data-source';
+import type { CRMDataResponse } from './crm-api-types';
 import {
 	CRMApiError,
 	archiveCRMOrganization,
@@ -85,10 +87,18 @@ export class CRMPageController {
 	people = $state<UserRecord[]>([]);
 	groups = $state<OrgGroup[]>([]);
 	isLoading = $state(true);
+	hasData = $state(false);
+	isDirectoryLoading = $state(false);
+	isDirectoryReady = $state(false);
+	directoryErrorMessage = $state('');
 	isSaving = $state(false);
 	permissionDenied = $state(false);
 	currentEmail = $state('');
 	private error = $state<unknown>(null);
+	private remoteData: CRMDataResponse | undefined;
+	private generation = 0;
+	private mutationQueue: Promise<void> = Promise.resolve();
+	private pendingMutations = 0;
 
 	constructor(private readonly text: CRMText) {}
 
@@ -125,33 +135,73 @@ export class CRMPageController {
 	}
 
 	async load(currentEmail: string): Promise<void> {
+		const generation = ++this.generation;
 		this.currentEmail = currentEmail;
 		this.isLoading = true;
+		this.hasData = false;
+		this.isSaving = false;
+		this.pendingMutations = 0;
+		this.mutationQueue = Promise.resolve();
+		this.remoteData = undefined;
+		this.people = [];
+		this.groups = [];
+		this.isDirectoryReady = false;
+		this.directoryErrorMessage = '';
 		this.error = null;
 		this.permissionDenied = false;
 		try {
 			if (fixtureMode) {
 				this.loadFixture(currentEmail);
+				this.hasData = true;
+				this.isDirectoryReady = true;
 				return;
 			}
-			const pendingData = loadCRMData();
-			const pendingCatalogue = loadCurrencyCatalogue();
-			const pendingBaseCurrency = loadCompanyBaseCurrency();
-			const directory = await this.loadOrganizationDirectory();
-			this.people = directory.records ?? [];
-			this.groups = directory.availableGroups ?? [];
+			void this.loadDirectory(generation);
 			const [data, catalogue, baseCurrency] = await Promise.all([
-				pendingData,
-				pendingCatalogue,
-				pendingBaseCurrency
+				loadCRMData(),
+				loadCurrencyCatalogue(),
+				loadCompanyBaseCurrency()
 			]);
+			if (generation !== this.generation) return;
+			this.validateCurrencies(data, catalogue);
 			this.currencyCatalogue = catalogue;
 			this.companyBaseCurrency = baseCurrency;
+			this.remoteData = data;
 			this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
+			this.hasData = true;
 		} catch (error) {
-			this.applyError(error);
+			if (generation === this.generation) this.applyError(error);
 		} finally {
-			this.isLoading = false;
+			if (generation === this.generation) this.isLoading = false;
+		}
+	}
+
+	dispose(): void {
+		this.generation += 1;
+		this.hasData = false;
+		this.isDirectoryReady = false;
+		this.remoteData = undefined;
+	}
+
+	async retryDirectory(): Promise<void> {
+		if (this.isDirectoryLoading) return;
+		await this.loadDirectory(this.generation);
+	}
+
+	private async loadDirectory(generation: number): Promise<void> {
+		this.isDirectoryLoading = true;
+		this.directoryErrorMessage = '';
+		try {
+			const directory = await loadCRMOrganizationDirectory();
+			if (generation !== this.generation) return;
+			this.people = directory.records ?? [];
+			this.groups = directory.availableGroups ?? [];
+			this.isDirectoryReady = true;
+			if (this.remoteData) this.applyViewData(mapCRMViewData(this.remoteData, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
+		} catch {
+			if (generation === this.generation) this.directoryErrorMessage = this.text.organizationLoadFailed;
+		} finally {
+			if (generation === this.generation) this.isDirectoryLoading = false;
 		}
 	}
 
@@ -161,13 +211,14 @@ export class CRMPageController {
 			await this.createRelationship(draft);
 			return;
 		}
-		await this.mutate(async () => {
-			const owner = resolveOwner(this.people, ownerHint(draft), this.currentEmail);
+		await this.mutate(async (assertCurrent) => {
 			if (draft.kind === 'contact') {
+				const owner = resolveOwner(this.people, ownerHint(draft), this.currentEmail);
 				await createCRMContact(contactPayloadFromDraft(draft, owner));
 				return;
 			}
 			if (draft.kind === 'progress') {
+				const owner = resolveOwner(this.people, ownerHint(draft), this.currentEmail);
 				const payload = opportunityPayloadFromDraft(draft, owner, browserTimeZone(), this.currencyCatalogue);
 				const transition = {
 					...this.transitionPayload('', draft.stage, null, {
@@ -180,17 +231,25 @@ export class CRMPageController {
 					stagePosition: 0
 				};
 				const created = await createCRMOpportunity({ ...payload, transition });
+				assertCurrent();
 				if (this.settlesThroughCloseEndpoint(draft.stage)) {
 					await transitionCRMOpportunity(created.id, transition);
 				}
 				return;
 			}
 			await createCRMActivity(activityPayloadFromDraft(draft));
-		});
+		}, draft.kind === 'contact' ? ['contacts'] : ['opportunities', 'activities']);
 	}
 
 	async saveOrganization(organization: CRMOrganization): Promise<void> {
 		await this.mutate(() => {
+			if (!this.isDirectoryReady) {
+				const existing = this.organizations.find((candidate) => candidate.id === organization.id);
+				if (!existing || existing.ownerPersonID !== organization.ownerPersonID) throw new Error(this.text.organizationLoadFailed);
+				return updateCRMOrganization(organization.id, organizationPayload({
+					...organization, ownerPersonID: existing.ownerPersonID, ownerCircleID: existing.ownerCircleID
+				}));
+			}
 			const owner = resolveOwner(this.people, organization.ownerPersonID ?? organization.ownerName, this.currentEmail);
 			const nextOrganization = {
 				...organization,
@@ -198,19 +257,19 @@ export class CRMPageController {
 				ownerCircleID: owner.groupID
 			};
 			return updateCRMOrganization(organization.id, organizationPayload(nextOrganization));
-		});
+		}, ['organizations']);
 	}
 
 	async archiveOrganization(organizationID: string): Promise<void> {
-		await this.mutate(() => archiveCRMOrganization(organizationID));
+		await this.mutate(() => archiveCRMOrganization(organizationID), ['organizations']);
 	}
 
 	async saveContact(contact: CRMContact): Promise<void> {
-		await this.mutate(() => updateCRMContact(contact.id, contactPayload(contact)));
+		await this.mutate(() => updateCRMContact(contact.id, contactPayload(contact)), ['contacts']);
 	}
 
 	async saveOpportunity(opportunity: CRMOpportunity): Promise<void> {
-		await this.mutate(async () => {
+		await this.mutate(async (assertCurrent) => {
 			const existing = this.opportunities.find((candidate) => candidate.id === opportunity.id);
 			const payload = opportunityPayload(opportunity, this.currencyCatalogue);
 			if (!existing || opportunity.stage === existing.stage) {
@@ -229,12 +288,13 @@ export class CRMPageController {
 				return;
 			}
 			await updateCRMOpportunity(opportunity.id, payload);
+			assertCurrent();
 			await transitionCRMOpportunity(opportunity.id, transition);
-		});
+		}, ['opportunities', 'activities']);
 	}
 
 	async archiveOpportunity(opportunityID: string): Promise<void> {
-		await this.mutate(() => archiveCRMOpportunity(opportunityID));
+		await this.mutate(() => archiveCRMOpportunity(opportunityID), ['opportunities']);
 	}
 
 	async saveVocabulary(vocabulary: CRMVocabulary): Promise<void> {
@@ -243,19 +303,13 @@ export class CRMPageController {
 			this.pipelines = crmPipelinesOf(vocabulary);
 			return;
 		}
-		this.isSaving = true;
-		this.error = null;
-		this.permissionDenied = false;
-		try {
+		await this.mutate(async (assertCurrent) => {
 			await saveCRMVocabulary(vocabulary);
+			assertCurrent();
 			this.vocabulary = cloneCRMVocabulary(vocabulary);
 			this.pipelines = crmPipelinesOf(vocabulary);
-		} catch (error) {
-			this.applyError(error);
-			throw new Error(this.errorMessage);
-		} finally {
-			this.isSaving = false;
-		}
+			if (this.remoteData) this.remoteData = { ...this.remoteData, vocabulary: this.vocabulary, pipelines: this.pipelines };
+		}, []);
 	}
 
 	async moveOpportunity(request: CRMPipelineBoardMoveRequest): Promise<void> {
@@ -286,7 +340,7 @@ export class CRMPageController {
 				beforeOpportunityID: request.beforeOpportunityID ?? '',
 				updatedAt: new Date().toISOString()
 			});
-		});
+		}, ['opportunities', 'activities']);
 	}
 
 	async saveActivity(activity: CRMActivity, draft: CRMActivityEditDraft): Promise<void> {
@@ -310,64 +364,94 @@ export class CRMPageController {
 			...activityPayload(updated),
 			participantIDs: draft.participantPersonIDs.length > 0 ? draft.participantPersonIDs : activity.participantIDs,
 			taskStatus: draft.taskStatus || activity.taskStatus || taskStatus.planned
-		}));
+		}), ['activities', 'opportunities']);
 	}
 
-	private async mutate(operation: () => Promise<unknown>): Promise<void> {
+	private async mutate(operation: (assertCurrent: () => void) => Promise<unknown>, changed: readonly CRMReadPart[]): Promise<void> {
 		if (fixtureMode) throw new Error(this.text.fixtureModeReadOnly);
+		if (!this.hasData || this.isLoading || this.permissionDenied) throw new Error(this.text.loading);
+		const generation = this.generation;
+		const assertCurrent = () => {
+			if (generation !== this.generation) throw new Error(this.text.processingFailed);
+		};
+		this.pendingMutations += 1;
 		this.isSaving = true;
-		this.error = null;
-		this.permissionDenied = false;
-		try {
+		const pending = this.mutationQueue.then(async () => {
+			assertCurrent();
+			if (this.permissionDenied) throw new Error(this.errorMessage);
+			this.error = null;
 			try {
-				await operation();
+				await operation(assertCurrent);
 			} catch (error) {
+				if (generation !== this.generation) throw error;
 				this.applyError(error);
+				if (error instanceof CRMRelationshipContactCreateError) throw error;
 				throw new Error(this.errorMessage);
 			}
+			assertCurrent();
 			try {
-				await this.reloadRemote();
-			} catch {
-				this.error = new CRMPageError('refresh_after_save_failed');
+				await this.reloadRemote(changed, generation);
+			} catch (error) {
+				if (generation === this.generation) {
+					this.remoteData = undefined;
+					if (error instanceof CRMApiError && (error.status === 401 || error.status === 403)) this.applyError(error);
+					else this.error = new CRMPageError('refresh_after_save_failed');
+				}
 			}
+			assertCurrent();
+		});
+		this.mutationQueue = pending.catch(() => {});
+		try {
+			await pending;
 		} finally {
-			this.isSaving = false;
+			if (generation === this.generation) {
+				this.pendingMutations -= 1;
+				this.isSaving = this.pendingMutations > 0;
+			}
 		}
 	}
 
-	private async reloadRemote(): Promise<void> {
-		const data = await loadCRMData();
+	private async reloadRemote(changed?: readonly CRMReadPart[], generation = this.generation): Promise<void> {
+		const data = await loadCRMData(this.remoteData, changed);
+		if (generation !== this.generation) return;
+		this.validateCurrencies(data, this.currencyCatalogue);
+		this.remoteData = data;
 		this.applyViewData(mapCRMViewData(data, this.people, this.currencyCatalogue, browserTimeZone(), this.groups));
 	}
 
+	private validateCurrencies(data: CRMDataResponse, catalogue: CurrencyCatalogue): void {
+		for (const opportunity of data.opportunities) {
+			const currencies = [
+				...(opportunity.amountMinor === undefined ? [] : [opportunity.currencyCode]),
+				...(opportunity.baseAmountMinor === undefined ? [] : [opportunity.baseCurrencyCode])
+			];
+			if (currencies.some((code) => !catalogue.some((entry) => entry.code === code))) {
+				throw new Error(this.text.currencyUnavailable);
+			}
+		}
+	}
+
 	private async createRelationship(draft: Extract<CRMCreateDraft, { kind: 'relationship' }>): Promise<void> {
-		this.isSaving = true;
-		this.error = null;
-		this.permissionDenied = false;
-		try {
+		const generation = this.generation;
+		await this.mutate(async (assertCurrent) => {
 			const owner = resolveOwner(this.people, draft.ownerPersonID, this.currentEmail);
 			try {
-				await createCRMRelationshipRecords(draft, owner, this.text.relationshipContactCreateFailed);
+				await createCRMRelationshipRecords(draft, owner, this.text.relationshipContactCreateFailed, assertCurrent);
 			} catch (error) {
-				if (error instanceof CRMRelationshipContactCreateError) {
+				if (error instanceof CRMRelationshipContactCreateError && generation === this.generation) {
 					try {
-						await this.reloadRemote();
+						await this.reloadRemote(undefined, generation);
 					} catch {
-						this.error = new CRMPageError('refresh_after_save_failed');
+						if (generation === this.generation) {
+							this.remoteData = undefined;
+							this.error = new CRMPageError('refresh_after_save_failed');
+						}
 					}
 					throw error;
 				}
-				this.applyError(error);
-				throw new Error(this.errorMessage);
+				throw error;
 			}
-			try {
-				await this.reloadRemote();
-			} catch {
-				this.error = new CRMPageError('refresh_after_save_failed');
-			}
-		} finally {
-			this.isSaving = false;
-		}
+		}, ['organizations', 'contacts']);
 	}
 
 	private applyViewData(data: CRMViewData): void {
@@ -384,14 +468,6 @@ export class CRMPageController {
 	private applyError(error: unknown): void {
 		this.permissionDenied = error instanceof CRMApiError && (error.status === 401 || error.status === 403);
 		this.error = error;
-	}
-
-	private async loadOrganizationDirectory(): Promise<Awaited<ReturnType<typeof loadCRMOrganizationDirectory>>> {
-		try {
-			return await loadCRMOrganizationDirectory();
-		} catch {
-			throw new CRMPageError('organization_load_failed');
-		}
 	}
 
 	private transitionPayload(

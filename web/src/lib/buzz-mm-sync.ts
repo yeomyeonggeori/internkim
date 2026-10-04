@@ -48,19 +48,22 @@ async function relayURL(): Promise<string | null> {
 // On messenger load, pull the person's Mattermost posts not yet mirrored to
 // Buzz, sign each with their key in the browser, publish to Buzz, and record the
 // mapping — so MM-authored messages reach Buzz client-signed, not server-signed.
-export async function syncMattermostToBuzz(secretHex: string): Promise<number> {
+export async function syncMattermostToBuzz(secretHex: string, isCurrent: () => boolean = () => true): Promise<number> {
 	const url = await relayURL();
-	if (!url) return 0;
+	if (!url || !isCurrent()) return 0;
 	const cursor = Number(localStorage.getItem(CURSOR_STORAGE_KEY) ?? '0');
 	const pending: { items: BuzzMMPendingItem[] } = await fetch(`/agent/api/buzz-mm-pending?since=${cursor}`, {
 		credentials: 'include'
 	}).then((response) => response.json());
 
 	const result = await mirrorPending(pending.items ?? [], cursor, async (item) => {
+		if (!isCurrent()) throw new Error('the signed-in identity changed');
 		const eventId = await publishBuzzMessage(url, secretHex, {
 			channelId: item.buzzChannelId,
-			content: item.text
+			content: item.text,
+			isCurrent
 		});
+		if (!isCurrent()) throw new Error('the signed-in identity changed');
 		const response = await fetch('/agent/api/buzz-mm-mirrored', {
 			method: 'POST',
 			credentials: 'include',
@@ -74,6 +77,6 @@ export async function syncMattermostToBuzz(secretHex: string): Promise<number> {
 		if (!response.ok) throw new Error(`record mirrored returned ${response.status}`);
 	});
 
-	localStorage.setItem(CURSOR_STORAGE_KEY, String(result.cursor));
+	if (isCurrent()) localStorage.setItem(CURSOR_STORAGE_KEY, String(result.cursor));
 	return result.mirrored;
 }

@@ -46,13 +46,16 @@ export async function attendanceOfCompany(
 	caller: SupabaseClient,
 	from: string,
 	to: string,
-	mostRecent: number
+	mostRecent: number,
+	memberIDs?: string[]
 ): Promise<AttendanceRow[]> {
-	const { data, error } = await caller
+	let query = caller
 		.from('attendance')
 		.select(heldColumns)
 		.gte('occurred_at', from)
-		.lte('occurred_at', to)
+		.lte('occurred_at', to);
+	if (memberIDs) query = query.in('member_id', memberIDs);
+	const { data, error } = await query
 		.order('occurred_at', { ascending: false })
 		.limit(mostRecent)
 		.returns<AttendanceRow[]>();

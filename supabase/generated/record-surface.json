@@ -163,6 +163,15 @@
       ]
     },
     {
+      "name": "attendance_current",
+      "arguments": "",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
       "name": "attendance_leave_policy_save",
       "arguments": "target_policy jsonb",
       "returns": "jsonb",
@@ -206,6 +215,15 @@
       "callableBy": [
         "authenticated",
         "service_role"
+      ]
+    },
+    {
+      "name": "attendance_team_page",
+      "arguments": "page_kind text DEFAULT 'teams'::text, team_offset integer DEFAULT 0, team_limit integer DEFAULT 12, selected_team_key text DEFAULT NULL::text, member_offset integer DEFAULT 0, member_limit integer DEFAULT 24, search_text text DEFAULT ''::text, location_filter text DEFAULT ''::text",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "authenticated"
       ]
     },
     {

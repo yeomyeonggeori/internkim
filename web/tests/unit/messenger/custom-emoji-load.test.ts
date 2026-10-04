@@ -4,11 +4,16 @@ let originalState: unknown;
 let customEmoji: { load(): Promise<void>; nameToURL: Map<string, string> };
 let timesAsked = 0;
 
+const centralPlane = { ...(await import('$lib/supabase')) };
+const messengerAPI = { ...(await import('$lib/messenger/messenger-api')) };
+
 mock.module('$lib/supabase', () => ({
+	...centralPlane,
 	isSupabaseConfigured: () => true
 }));
 
 mock.module('$lib/messenger/messenger-api', () => ({
+	...messengerAPI,
 	fetchCustomEmojiNames: () => {
 		timesAsked += 1;
 		return Promise.resolve([]);
@@ -23,7 +28,10 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-	Reflect.set(globalThis, '$state', originalState);
+	mock.module('$lib/supabase', () => centralPlane);
+	mock.module('$lib/messenger/messenger-api', () => messengerAPI);
+	if (originalState === undefined) Reflect.deleteProperty(globalThis, '$state');
+	else Reflect.set(globalThis, '$state', originalState);
 });
 
 describe('customEmoji.load on the plane', () => {

@@ -1,4 +1,7 @@
 import type { TaskReportSnapshot } from './report/task-report-data';
+import type { TaskChildProgress } from './task-relationships';
+
+export type TaskCompleteness = 'board' | 'full';
 
 export type TaskWeek = {
 	code: string;
@@ -88,6 +91,10 @@ export type TaskDefinitions = {
 };
 
 export type TaskSummary = {
+	completeness: TaskCompleteness;
+	peopleReady: boolean;
+	boardWeek?: string;
+	childProgressByParent?: Record<string, TaskChildProgress>;
 	week: TaskWeek;
 	currentWeek?: TaskWeek;
 	members: TaskMember[];
@@ -111,6 +118,10 @@ export type TaskWeeklySummary = {
 };
 
 export type TaskState = {
+	completeness: TaskCompleteness;
+	peopleReady: boolean;
+	boardWeek?: string;
+	childProgressByParent?: Record<string, TaskChildProgress>;
 	currentWeek?: TaskWeek;
 	members: TaskMember[];
 	tasks: Task[];

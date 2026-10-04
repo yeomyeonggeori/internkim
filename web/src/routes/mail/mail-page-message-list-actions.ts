@@ -133,6 +133,12 @@ async function applyMessagePage(controller: MailPageControllerState, text: MailP
 	controller.hasMoreMessages = page.nextCursor !== '';
 	mergeMessageDetailCache(controller.messageDetailCache, page.messages);
 	controller.messages = messagesThroughPage(controller.messageListCache, page.actorEmail, page.mailbox, page.searchText, page.pageIndex);
+	if (controller.requestedMessage) {
+		controller.selectedMessage = null;
+		controller.errorMessage = '';
+		controller.isLoadingMessages = false;
+		return;
+	}
 	controller.selectedMessage = selectedVisibleMessage(controller.visibleMessages(), controller.selectedMessage, controller.canSelectFirstMessage);
 	controller.errorMessage = '';
 	controller.isLoadingMessages = false;

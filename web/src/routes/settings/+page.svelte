@@ -124,21 +124,21 @@
 
 <main class="h-full min-h-0 w-full flex-1 overflow-y-auto bg-background text-foreground max-sm:scroll-pb-[calc(var(--app-mobile-nav-height)+var(--app-mobile-nav-bottom))]">
 	<div class="mx-auto grid max-w-3xl gap-6 px-4 py-6 max-sm:pb-[calc(var(--app-mobile-nav-height)+var(--app-mobile-nav-bottom)+1.5rem)] sm:px-6">
-		{#if !isLoading && isAdmin}
-			<Tabs.Root bind:value={activeTab}>
+		<Tabs.Root bind:value={activeTab}>
+			{#if !isLoading && isAdmin}
 				<Tabs.List class="mb-6">
 					<Tabs.Trigger value="general">{text.generalTab}</Tabs.Trigger>
 					<Tabs.Trigger value="admin">{text.adminTab}</Tabs.Trigger>
 				</Tabs.List>
-				<Tabs.Content value="general" class="grid gap-6">
-					{@render generalSections()}
-				</Tabs.Content>
+			{/if}
+			<Tabs.Content value="general" class="grid gap-6">
+				{@render generalSections()}
+			</Tabs.Content>
+			{#if !isLoading && isAdmin}
 				<Tabs.Content value="admin" class="grid gap-6">
 					{@render adminSections()}
 				</Tabs.Content>
-			</Tabs.Root>
-		{:else}
-			{@render generalSections()}
-		{/if}
+			{/if}
+		</Tabs.Root>
 	</div>
 </main>

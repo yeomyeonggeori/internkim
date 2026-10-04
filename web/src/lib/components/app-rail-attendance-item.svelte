@@ -3,17 +3,20 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../../routes/attendance/text';
-	import { tick } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 
 	const text = createPageText(attendanceText);
 	let clockOutElement = $state<HTMLElement | null>(null);
 	let locationElements = $state<(HTMLElement | null)[]>([]);
+	let isDisposed = false;
+	onDestroy(() => { isDisposed = true; });
 
 	focusPrimaryAction();
 
 	async function focusPrimaryAction() {
 		await myAttendanceToday.load();
 		await tick();
+		if (isDisposed) return;
 		const element = myAttendanceToday.nextKind === 'clock_out' ? clockOutElement : locationElements[0];
 		element?.focus();
 	}

@@ -1,22 +1,15 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 
 const asked: { name: string; input: Record<string, unknown> }[] = [];
 
-class ToolRefused extends Error {
-	constructor(
-		message: string,
-		readonly errorCode: string | undefined,
-		readonly status: number
-	) {
-		super(message);
-		this.name = 'ToolRefused';
-	}
-}
+const publicAPICall = { ...(await import('../../../src/lib/public-api-call')) };
+const attendanceAnnouncements = { ...(await import('../../../src/lib/attendance/announce-attendance')) };
+const { ToolRefused } = publicAPICall;
 
-let refuseWith: ToolRefused | null = null;
+let refuseWith: InstanceType<typeof ToolRefused> | null = null;
 
 mock.module('../../../src/lib/public-api-call', () => ({
-	ToolRefused,
+	...publicAPICall,
 	invokeTool: async (name: string, input: Record<string, unknown>) => {
 		if (name === 'company_settings_get') return { timeZone: 'Asia/Seoul' };
 		if (refuseWith) throw refuseWith;
@@ -26,12 +19,18 @@ mock.module('../../../src/lib/public-api-call', () => ({
 }));
 
 mock.module('../../../src/lib/attendance/announce-attendance', () => ({
+	...attendanceAnnouncements,
 	announceToTheCompany: async () => undefined
 }));
 
 const { cancelSupabaseLeaveRequest, createSupabaseLeaveRequest, leaveSpanAsked } = await import(
 	'../../../src/lib/attendance/supabase-leave'
 );
+
+afterAll(() => {
+	mock.module('../../../src/lib/public-api-call', () => publicAPICall);
+	mock.module('../../../src/lib/attendance/announce-attendance', () => attendanceAnnouncements);
+});
 
 describe('a leave the browser files', () => {
 	test('names a whole day by its dates and lets the record decide the moments', async () => {

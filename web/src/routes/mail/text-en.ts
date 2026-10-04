@@ -132,6 +132,7 @@ export const mailTextEn = {
 		loadMailboxes: 'Could not load mailboxes.',
 		loadMessages: 'Could not load messages.',
 		loadMessage: 'Could not load message.',
+		messageNotFound: 'This message is no longer in the requested mailbox. Refresh to try again.',
 		saveAccount: 'Could not save account.',
 		sendMessage: 'Could not send message.',
 		moveMessage: 'Could not move message.',

@@ -2,6 +2,7 @@ import { isSupabaseConfigured, projectURL, supabase } from '$lib/supabase';
 import { fetchPeople, keepPersonPictureForReading } from '$lib/messenger/messenger-api';
 import { accountsHeldBy, fetchMessengerDirectory, type MessengerDirectory } from '$lib/messenger/messenger-directory';
 import { assetBucket, readableAddresses } from '$lib/messenger/kept-attachment';
+import { messengerCacheKey, onMessengerCacheReset } from '$lib/messenger/cache-scope';
 import { keptPictureOf, readKeptPictures, writeKeptPictures, type KeptPicture } from './person-picture-cache';
 
 export type PersonIdentity = { memberID?: string; email?: string; externalID?: string };
@@ -14,7 +15,7 @@ type PictureAnswer = { externalID: string; address: string; failed: boolean };
 // bytes. What is held here is the address the reader signed for, asked after
 // once: a failure leaves nothing behind to be believed on the next visit.
 class PersonPictureStore {
-	private kept: Map<string, KeptPicture> = readKeptPictures();
+	private kept: Map<string, KeptPicture> = readKeptPictures(Date.now(), messengerCacheKey());
 	private readableOfExternal = $state<Map<string, string>>(
 		new Map([...this.kept].map(([externalID, picture]) => [externalID, picture.signedURL]))
 	);
@@ -25,6 +26,22 @@ class PersonPictureStore {
 	private directory: Promise<MessengerDirectory | null> | null = null;
 	private hostDirectory: Promise<void> | null = null;
 	private avatarURLs: Promise<void> | null = null;
+	private generation = 0;
+
+	constructor() {
+		onMessengerCacheReset(() => {
+			this.generation += 1;
+			this.kept = new Map();
+			this.readableOfExternal = new Map();
+			this.urlOfEmail = new Map();
+			this.resolved = null;
+			this.avatarURLOfExternal.clear();
+			this.asked.clear();
+			this.directory = null;
+			this.hostDirectory = null;
+			this.avatarURLs = null;
+		});
+	}
 
 	// Somebody who was on one messenger and is now on another holds an account on
 	// each, and only the one the company runs today has a picture to give. Which
@@ -59,9 +76,12 @@ class PersonPictureStore {
 
 	async rememberExternals(externalIDs: string[]): Promise<void> {
 		if (!isSupabaseConfigured()) return this.rememberHostDirectory();
+		const generation = this.generation;
 		const wanted = [...new Set(externalIDs)].filter((externalID) => externalID !== '');
 		if (wanted.length === 0) return;
 		await this.knownAvatarURLs();
+		if (generation !== this.generation) return;
+		if (this.kept.size === 0) this.kept = readKeptPictures(Date.now(), messengerCacheKey());
 		this.forgetListedWithoutPicture(wanted);
 
 		const stale = wanted.filter((externalID) => this.needsAsking(externalID));
@@ -69,8 +89,10 @@ class PersonPictureStore {
 		stale.forEach((externalID) => this.asked.add(externalID));
 
 		const answers = await Promise.all(stale.map((externalID) => this.askAfter(externalID)));
+		if (generation !== this.generation) return;
 		const unsigned = answers.filter((answer) => answer.address !== '' && !this.keptSignedURLOf(answer));
 		const readable = await this.signedFor(unsigned.map((answer) => answer.address));
+		if (generation !== this.generation) return;
 		const next = new Map(this.readableOfExternal);
 		for (const answer of answers) {
 			if (answer.address === '' && !answer.failed) {
@@ -88,7 +110,7 @@ class PersonPictureStore {
 			if (!reused) this.kept.set(answer.externalID, keptPictureOf(answer.address, signed));
 		}
 		this.readableOfExternal = next;
-		writeKeptPictures(this.kept);
+		writeKeptPictures(this.kept, messengerCacheKey());
 	}
 
 	private forgetListedWithoutPicture(externalIDs: string[]): void {
@@ -100,7 +122,7 @@ class PersonPictureStore {
 			this.kept.delete(externalID);
 		}
 		this.readableOfExternal = next;
-		writeKeptPictures(this.kept);
+		writeKeptPictures(this.kept, messengerCacheKey());
 	}
 
 	private keptSignedURLOf(answer: PictureAnswer): string {
@@ -135,15 +157,17 @@ class PersonPictureStore {
 	}
 
 	private knownAvatarURLs(): Promise<void> {
+		const generation = this.generation;
 		this.avatarURLs ??= Promise.resolve()
 			.then(() => fetchPeople())
 			.then((people) => {
+				if (generation !== this.generation) return;
 				for (const person of people) {
 					this.avatarURLOfExternal.set(person.externalID, person.avatarURL ?? '');
 				}
 			})
 			.catch(() => {
-				this.avatarURLs = null;
+				if (generation === this.generation) this.avatarURLs = null;
 			});
 		return this.avatarURLs;
 	}
@@ -155,10 +179,11 @@ class PersonPictureStore {
 
 	private knownPeople(): Promise<MessengerDirectory | null> {
 		if (!isSupabaseConfigured()) return Promise.resolve(null);
+		const generation = this.generation;
 		this.directory ??= fetchMessengerDirectory()
-			.then((people) => (this.resolved = people))
+			.then((people) => generation === this.generation ? (this.resolved = people) : null)
 			.catch(() => {
-				this.directory = null;
+				if (generation === this.generation) this.directory = null;
 				return null;
 			});
 		return this.directory;
@@ -168,9 +193,11 @@ class PersonPictureStore {
 	// serves the messenger's own directory itself, keyed by the address the
 	// company knows each person by.
 	private rememberHostDirectory(): Promise<void> {
+		const generation = this.generation;
 		this.hostDirectory ??= fetch('/agent/api/person-pictures', { credentials: 'include' })
 			.then((response) => (response.ok ? response.json() : { pictures: [] }))
 			.then((document) => {
+				if (generation !== this.generation) return;
 				const pictures = ((document as { pictures?: HostPicture[] }).pictures ?? []).filter(
 					(picture) => picture.pictureURL
 				);
@@ -179,7 +206,7 @@ class PersonPictureStore {
 				);
 			})
 			.catch(() => {
-				this.hostDirectory = null;
+				if (generation === this.generation) this.hostDirectory = null;
 			});
 		return this.hostDirectory;
 	}

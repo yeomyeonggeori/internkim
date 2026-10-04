@@ -250,6 +250,8 @@ function calendarEvent(
 
 function taskStateFixture(tasks: Task[]): TaskState {
 	return {
+		completeness: 'full',
+		peopleReady: true,
 		members: [
 			taskMember('kim', '김철수', 'kim@example.com'),
 			taskMember('park', '박지민', 'park@example.com')

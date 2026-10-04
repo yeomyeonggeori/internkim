@@ -8,7 +8,8 @@ import {
 	seedAttendanceEvents,
 	seoulInstant,
 	seoulMonthToday,
-	signInToAttendance
+	signInToAttendance,
+	openMonthlyAttendance
 } from './attendance-central-test-utils';
 import { member1Email, member1ID, member1Name, member3Email, member3ID, member3Name } from './central-test-utils';
 
@@ -54,9 +55,9 @@ function seededCell(page: Page, email: string) {
 
 async function openSeededMonth(page: Page): Promise<void> {
 	await signInToAttendance(page);
-	await statusTable(page).waitFor({ state: 'visible', timeout: 30000 });
-	await page.getByRole('button', { name: '이전 달' }).first().click();
-	await expect(page.getByRole('button', { name: monthLabel(seededMonth) })).toBeVisible({
+	await openMonthlyAttendance(page);
+	await page.getByTestId('team-status-grid').getByRole('button', { name: '이전 달' }).first().click();
+	await expect(page.getByTestId('team-status-grid').getByRole('button', { name: monthLabel(seededMonth) })).toBeVisible({
 		timeout: 20000
 	});
 	await seededCell(page, member1Email).waitFor({ state: 'visible', timeout: 20000 });
@@ -74,9 +75,9 @@ test('the month table shows the people and the days the record holds', async ({ 
 test('the month picker walks back to the current month', async ({ page }) => {
 	await openSeededMonth(page);
 
-	await page.getByRole('button', { name: '다음 달' }).first().click();
+	await page.getByTestId('team-status-grid').getByRole('button', { name: '다음 달' }).first().click();
 
-	await expect(page.getByRole('button', { name: monthLabel(seoulMonthToday()) })).toBeVisible({
+	await expect(page.getByTestId('team-status-grid').getByRole('button', { name: monthLabel(seoulMonthToday()) })).toBeVisible({
 		timeout: 20000
 	});
 	await expect(seededCell(page, member1Email)).toHaveCount(0);

@@ -28,6 +28,7 @@
 	let selectedDocument = $state<DataRoomDocument | null>(null);
 	let isLoading = $state(true);
 	let errorMessage = $state('');
+	let loadGeneration = 0;
 	const categories = $derived(room?.categories ?? []);
 	const selectedCategory = $derived(categories.find((category) => category.code === selectedCode));
 	const parentCategory = $derived(
@@ -47,21 +48,25 @@
 	]);
 
 	async function load() {
+		const generation = ++loadGeneration;
 		isLoading = true;
 		errorMessage = '';
-		try {
-			const [roomAnswer, documentAnswer] = await Promise.all([
-				invokeTool('dataroom_get', {}),
-				invokeTool('company_document_list', {})
-			]);
-			room = dataRoomGetResultSchema.parse(roomAnswer);
-			documents = companyDocumentListResultSchema.parse(documentAnswer).documents;
-			selectedDocument = null;
-		} catch (error) {
-			errorMessage = error instanceof Error ? error.message : text.loadFailed;
-		} finally {
-			isLoading = false;
+		const results = await Promise.allSettled([
+			invokeTool('dataroom_get', {}).then((answer) => {
+				if (generation !== loadGeneration) return;
+				room = dataRoomGetResultSchema.parse(answer);
+			}),
+			invokeTool('company_document_list', {}).then((answer) => {
+				if (generation !== loadGeneration) return;
+				documents = companyDocumentListResultSchema.parse(answer).documents;
+				selectedDocument = null;
+			})
+		]);
+		if (generation !== loadGeneration) return;
+		for (const result of results) {
+			if (result.status === 'rejected') errorMessage = result.reason instanceof Error ? result.reason.message : text.loadFailed;
 		}
+		isLoading = false;
 	}
 
 	function openCategory(code: string) {

@@ -16,6 +16,7 @@ import {
 } from '$lib/attendance/supabase-work-status';
 import type { AttendanceWorkMode } from '$lib/attendance/work-mode';
 import type { AttendanceKind, AttendanceSummary } from './attendance-context.svelte';
+import type { AttendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 
 export type AttendanceSummaryRequest = {
 	month: string;
@@ -153,9 +154,10 @@ export function attendanceWorkStatusPairFrom(
 
 export async function fetchAttendanceWorkStatusPair(
 	period: AttendanceWorkStatusRequest,
-	month: AttendanceWorkStatusRequest
+	month: AttendanceWorkStatusRequest,
+	summaryRecords?: AttendanceSummaryRecords
 ): Promise<AttendanceWorkStatusPair> {
-	const rows = await supabaseWorkStatusInputs([period, month]);
+	const rows = await supabaseWorkStatusInputs([period, month], summaryRecords);
 	return {
 		period: attendanceWorkStatusFrom(rows, period),
 		month: attendanceWorkStatusFrom(rows, month),

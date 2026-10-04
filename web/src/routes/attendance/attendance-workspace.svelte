@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
+	import { attendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 	import { pageActions } from '$lib/components/app-page-actions.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount, untrack } from 'svelte';
@@ -32,26 +33,33 @@
 		setWorkStatusState,
 		WorkStatusState
 	} from './work-status/work-status-state.svelte';
+	import { AttendanceTeamState, setAttendanceTeamState } from './team/attendance-team-state.svelte';
 
 	let { children, cacheScope }: { children: import('svelte').Snippet; cacheScope: string } = $props();
 	let isDisposed = false;
 
 	const text = createPageText(attendanceText);
-	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope));
+	const attendance = untrack(() => new AttendanceState(text.loadFailed, cacheScope, myAttendanceToday.refresh));
 	const attendanceView = new AttendanceViewState(ensureSelectedAdminView);
 	const workStatus = untrack(() => new WorkStatusState(cacheScope));
-	const isAdmin = $derived(attendance.summary?.isAdmin ?? false);
+	const teamState = new AttendanceTeamState();
+	const isAdmin = $derived(myAttendanceToday.summary?.isAdmin ?? false);
+
+	function refreshLoadedSummary(): Promise<void> {
+		return attendance.summary ? attendance.load() : Promise.resolve();
+	}
 
 	async function refreshAfterEmployeeLeaveMutation(): Promise<void> {
 		clearAdminView('approvals');
 		clearAdminView('leaveManagement');
-		await Promise.all([attendance.load(), refreshSelectedAdminView()]);
+		await Promise.all([myAttendanceToday.refresh(), refreshLoadedSummary(), teamState.refresh(), refreshSelectedAdminView()]);
 	}
 
 	async function refreshAfterApprovalMutation(): Promise<void> {
 		clearAdminView('leaveManagement');
 		await Promise.all([
-			attendance.load(),
+			myAttendanceToday.refresh(),
+			refreshLoadedSummary(), teamState.refresh(),
 			employeeLeave.load()
 		]);
 	}
@@ -59,7 +67,8 @@
 	async function refreshAfterManagementMutation(): Promise<void> {
 		clearAdminView('approvals');
 		await Promise.all([
-			attendance.load(),
+			myAttendanceToday.refresh(),
+			refreshLoadedSummary(), teamState.refresh(),
 			employeeLeave.load()
 		]);
 	}
@@ -70,7 +79,9 @@
 		text.management,
 		refreshAfterManagementMutation
 	);
-	const handWritten = new HandWrittenState(text.handWritten, () => attendance.load());
+	const handWritten = new HandWrittenState(text.handWritten, async () => {
+		await Promise.all([myAttendanceToday.refresh(), refreshLoadedSummary(), teamState.refresh()]);
+	});
 	setAttendanceState(attendance);
 	setEmployeeLeaveState(employeeLeave);
 	setAttendanceViewState(attendanceView);
@@ -78,6 +89,7 @@
 	setLeaveManagementState(leaveManagement);
 	setHandWrittenState(handWritten);
 	setWorkStatusState(workStatus);
+	setAttendanceTeamState(teamState);
 
 	const pendingAdminViews = new Map<string, Promise<void>>();
 
@@ -90,6 +102,7 @@
 
 	async function ensureSelectedAdminView(view: AttendanceWorkspaceView = attendanceView.selected): Promise<void> {
 		if (!isAdmin) return;
+		if (view !== 'approvals' && view !== 'leaveManagement' && view !== 'handWritten') return;
 		if (view === 'approvals' && leaveApproval.inbox) return;
 		if (view === 'leaveManagement' && leaveManagement.payload) return;
 		if (view === 'handWritten' && handWritten.dayRange.from) return;
@@ -102,7 +115,9 @@
 	}
 
 	function refreshServerClock(): void {
-		void attendance.refreshServerClock();
+		void myAttendanceToday.load(true);
+		if (attendance.summary) void attendance.refreshServerClock();
+		void teamState.refresh();
 	}
 
 	function refreshVisibleServerClock(): void {
@@ -114,15 +129,15 @@
 		if (!isAdmin) return;
 		if (selectedView === 'approvals') await leaveApproval.load();
 		if (selectedView === 'leaveManagement') await leaveManagement.load();
-		if (selectedView === 'handWritten') await handWritten.load(todayDateInTimeZone(attendance.summary?.timeZone));
+		if (selectedView === 'handWritten') await handWritten.load(todayDateInTimeZone(myAttendanceToday.summary?.timeZone));
 	}
 
 	onMount(() => {
 		myAttendanceToday.setClockEventHandler((event) => workStatus.applyAttendanceEvent(event));
-		void attendance.load();
-		void employeeLeave.load();
+		myAttendanceToday.setClockMutationHandler(() => { void teamState.refresh(true); });
+		void myAttendanceToday.load();
 		const releaseRefresh = pageActions.setRefresh(async () => {
-			await Promise.all([attendance.load(), employeeLeave.load(), refreshSelectedAdminView()]);
+			await Promise.all([myAttendanceToday.load(true), refreshLoadedSummary(), teamState.refresh(), employeeLeave.load(), refreshSelectedAdminView()]);
 		});
 		window.addEventListener('focus', refreshServerClock);
 		window.addEventListener('pageshow', refreshServerClock);
@@ -130,7 +145,10 @@
 		return () => {
 			isDisposed = true;
 			attendance.dispose();
+			workStatus.dispose();
+			teamState.dispose();
 			myAttendanceToday.setClockEventHandler(undefined);
+			myAttendanceToday.setClockMutationHandler(undefined);
 			window.removeEventListener('focus', refreshServerClock);
 			window.removeEventListener('pageshow', refreshServerClock);
 			document.removeEventListener('visibilitychange', refreshVisibleServerClock);
@@ -145,18 +163,15 @@
 	});
 
 	$effect(() => {
-		myAttendanceToday.adoptSummary(attendance.currentMonthSummary);
-	});
-
-	$effect(() => {
 		const summary = attendance.summary;
 		const period = attendance.chartMode;
 		const selectedMonth = attendance.selectedMonth;
-		if (!summary) return;
+		if (!summary || attendance.isShowingCachedSummary || summary.month !== selectedMonth) return;
+		const records = summary[attendanceSummaryRecords];
 		const today = todayDateInTimeZone(summary.timeZone);
 		const anchor =
 			selectedMonth && !today.startsWith(selectedMonth) ? `${selectedMonth}-01` : today;
-		untrack(() => void workStatus.load(period, anchor, summary));
+		untrack(() => void workStatus.load(period, anchor, records ?? summary, records));
 	});
 
 	$effect(() => {
@@ -169,15 +184,17 @@
 	$effect(() => {
 		const selectedView = attendanceView.selected;
 		if (!isAdmin) return;
-		untrack(() => void ensureSelectedAdminView(selectedView));
+		untrack(() => {
+			void ensureSelectedAdminView(selectedView);
+			if (selectedView === 'status' || selectedView === 'tools') void ensureSelectedAdminView('approvals');
+		});
 	});
 
 	$effect(() => {
 		const selectedView = attendanceView.selected;
 		if (!isAdmin) return;
 		const nextView = selectedView === 'approvals' ? 'leaveManagement'
-			: selectedView === 'leaveManagement' ? 'handWritten'
-			: selectedView === 'status' || selectedView === 'tools' ? 'approvals' : null;
+			: selectedView === 'leaveManagement' ? 'handWritten' : null;
 		if (!nextView) return;
 		const prepare = () => {
 			if (!isDisposed && document.visibilityState === 'visible') void ensureSelectedAdminView(nextView);

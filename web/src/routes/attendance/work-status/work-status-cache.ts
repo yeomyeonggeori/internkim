@@ -1,5 +1,6 @@
 import type { SupabaseWorkStatusInputs } from '$lib/attendance/supabase-work-status';
 import type { SupabaseWorkPolicy } from '$lib/attendance/supabase-work-policy';
+import { invalidateAttendanceCacheGeneration } from '../attendance-cache-generation';
 
 const storageKeyPrefix = 'attendance.workStatusRows.';
 
@@ -55,6 +56,7 @@ export function writeCachedWorkStatusRows(rows: SupabaseWorkStatusInputs, scope:
 }
 
 export function clearCachedWorkStatusRows(): void {
+	invalidateAttendanceCacheGeneration();
 	if (typeof window === 'undefined') return;
 	try {
 		const storage = window.localStorage;

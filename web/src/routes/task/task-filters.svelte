@@ -30,6 +30,7 @@
 		participantFilterIDs: string[];
 		statusOptions: Option[];
 		participantOptions: Option[];
+		peopleReady?: boolean;
 		businessOptions: Option[];
 		typeOptions: Option[];
 		hasBusinessFilter: boolean;
@@ -47,6 +48,7 @@
 		participantFilterIDs,
 		statusOptions,
 		participantOptions,
+		peopleReady = true,
 		businessOptions,
 		typeOptions,
 		hasBusinessFilter,
@@ -71,6 +73,7 @@
 	});
 
 	function selectParticipant(memberID: string): void {
+		if (!peopleReady) return;
 		setParticipantFilterIDs(memberID === 'all' ? [] : [memberID]);
 	}
 
@@ -114,6 +117,7 @@
 					<FilterCombobox bind:value={businessFilter} options={businessOptions} label={text.business} clearValue="all" class="w-full sm:w-[calc(50%-0.25rem)]" />
 				{/if}
 				<FilterCombobox
+					disabled={!peopleReady}
 					bind:value={participantValue}
 					options={formattedParticipantOptions}
 					label={text.participants}

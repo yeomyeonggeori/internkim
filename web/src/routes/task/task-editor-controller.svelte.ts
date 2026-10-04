@@ -33,6 +33,7 @@ type TaskEditorControllerInput = {
 export class TaskEditorController {
 	taskDraft = $state<Task | null>(null);
 	statusWhenOpened = $state<string | null>(null);
+	private originalTask: Task | undefined;
 	isEditingTask = $state(false);
 	taskErrorMessage = $state('');
 	isSavingTask = $state(false);
@@ -64,6 +65,7 @@ export class TaskEditorController {
 	openTask = (task: Task, isTaskPending: (taskID: string) => boolean): void => {
 		if (isTaskPending(task.id)) return;
 		this.taskDraft = cloneTask(task);
+		this.originalTask = cloneTask(task);
 		this.statusWhenOpened = task.status;
 		this.isEditingTask = false;
 		this.taskErrorMessage = '';
@@ -78,6 +80,7 @@ export class TaskEditorController {
 		const owner = this.defaultTaskOwner();
 		if (!owner || !this.summary) return;
 		this.taskDraft = createTaskDraft(owner, definitionsFromSummary(this.summary), this.taskWeek());
+		this.originalTask = undefined;
 		this.statusWhenOpened = null;
 		this.isEditingTask = true;
 		if (typeof status === 'string' && status) this.taskDraft.status = status;
@@ -97,6 +100,7 @@ export class TaskEditorController {
 		this.taskErrorMessage = '';
 		const result = await saveTaskDraft({
 			task: this.taskDraft,
+			originalTask: this.originalTask,
 			statusBefore: this.statusWhenOpened,
 			canUpdateTask: this.canUpdateTask,
 			loadTask: this.loadTask,
@@ -127,12 +131,12 @@ export class TaskEditorController {
 	};
 
 	setParticipantIDs = (memberIDs: string[]): void => {
-		if (!this.taskDraft) return;
+		if (!this.taskDraft || !this.summary?.peopleReady) return;
 		this.taskDraft = updateTaskParticipantIDs(this.taskDraft, this.members(), memberIDs);
 	};
 
 	removeParticipantID = (memberID: string): void => {
-		if (!this.taskDraft || !this.canRemoveParticipant(this.taskDraft, memberID)) return;
+		if (!this.taskDraft || !this.summary?.peopleReady || !this.canRemoveParticipant(this.taskDraft, memberID)) return;
 		this.taskDraft = removeTaskParticipant(this.taskDraft, memberID);
 	};
 
@@ -144,7 +148,7 @@ export class TaskEditorController {
 	isOwnTask = (task: Task): boolean => currentTaskMember(this.summary)?.id === task.ownerID;
 	canUpdateTask = (task: Task): boolean => canUpdateTask(this.summary, task);
 	canDeleteTask = (task: Task): boolean => canDeleteTask(this.summary, task);
-	canManageTaskAssignment = (task: Task): boolean => canManageTaskAssignment(this.summary, task);
+	canManageTaskAssignment = (task: Task): boolean => Boolean(this.summary?.peopleReady) && canManageTaskAssignment(this.summary, task);
 	canRemoveParticipant = (task: Task, memberID: string): boolean => canRemoveTaskParticipant(task, memberID);
 
 	private members(): TaskMember[] {

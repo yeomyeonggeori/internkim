@@ -48,8 +48,8 @@ export type CalendarEventPayload = {
 	participants: CalendarParticipantInput[];
 };
 
-export async function fetchCalendarEvents(startDate: Date, endDate: Date): Promise<CalendarEvent[]> {
-	return supabaseCalendarEvents(startDate, endDate);
+export async function fetchCalendarEvents(startDate: Date, endDate: Date, timeZone?: Promise<string>): Promise<CalendarEvent[]> {
+	return supabaseCalendarEvents(startDate, endDate, timeZone);
 }
 
 export async function writeCalendarEvent(

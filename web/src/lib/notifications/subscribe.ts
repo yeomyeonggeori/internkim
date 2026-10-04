@@ -47,8 +47,8 @@ function isSupported(): boolean {
 }
 
 async function heldSubscription(): Promise<PushSubscription | null> {
-	const registration = await navigator.serviceWorker.ready;
-	return registration.pushManager.getSubscription();
+	const registration = await navigator.serviceWorker.getRegistration();
+	return registration ? registration.pushManager.getSubscription() : null;
 }
 
 export function answersTo(subscription: PushSubscription, serverKey: string): boolean {

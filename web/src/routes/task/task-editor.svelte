@@ -51,6 +51,12 @@
 		) => void | boolean | Promise<void | boolean>;
 		setTaskParents: (taskIDs: string[], parentTaskID: string) => boolean | Promise<boolean>;
 		createChildTask: (parentTaskID: string) => void;
+		hasRelationshipData: boolean;
+		relationshipsReady: boolean;
+		relationshipsLoadingLabel: string;
+		relationshipsError: string;
+		relationshipsRetryLabel: string;
+		loadRelationships: () => Promise<boolean>;
 	};
 
 	let {
@@ -87,8 +93,25 @@
 		openRelatedTask,
 		setTaskParent,
 		setTaskParents,
-		createChildTask
+		createChildTask,
+		hasRelationshipData,
+		relationshipsReady,
+		relationshipsLoadingLabel,
+		relationshipsError,
+		relationshipsRetryLabel,
+		loadRelationships
 	}: Props = $props();
+
+	let requestedRelationshipTaskID = $state('');
+	$effect(() => {
+		if (!taskDraft) requestedRelationshipTaskID = '';
+	});
+
+	function requestRelationships(): void {
+		if (!taskDraft?.id) return;
+		requestedRelationshipTaskID = taskDraft.id;
+		void loadRelationships();
+	}
 
 	let canEditTask = $derived(taskDraft ? canUpdateTask(taskDraft) : false);
 	let canRemoveTask = $derived(taskDraft ? Boolean(taskDraft.id) && canDeleteTask(taskDraft) : false);
@@ -111,6 +134,38 @@
 	}
 </script>
 
+{#snippet relationships(editable: boolean, allowTaskSwitching: boolean)}
+	{#if taskDraft?.id}
+		{#if requestedRelationshipTaskID !== taskDraft.id}
+			<Button variant="outline" onclick={requestRelationships}>{text.relationships.title}</Button>
+		{:else if hasRelationshipData}
+			{#if !relationshipsReady}
+				<p role="status" class="text-sm text-muted-foreground">{relationshipsError || relationshipsLoadingLabel}</p>
+				{#if relationshipsError}<Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>{/if}
+			{/if}
+			<TaskRelationshipsSection
+				task={taskDraft}
+				{tasks}
+				{currentMemberID}
+				{editable}
+				canManageRelationships={editable && relationshipsReady}
+				pendingTaskIDs={pendingRelationshipTaskIDs}
+				text={text.relationships}
+				{taskTypeColor}
+				{statusLabel}
+				onOpenTask={openRelatedTask}
+				onSetParent={setTaskParent}
+				onSetParents={setTaskParents}
+				onCreateChild={createChildTask}
+				{allowTaskSwitching}
+			/>
+		{:else}
+			<p role="status" class="text-sm text-muted-foreground">{relationshipsError || relationshipsLoadingLabel}</p>
+			{#if relationshipsError}<Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>{/if}
+		{/if}
+	{/if}
+{/snippet}
+
 <Sheet.Root open={taskDraft !== null} onOpenChange={(open) => {
 	if (!open) closeEditor();
 }}>
@@ -123,24 +178,7 @@
 			{#if !isEditingTask}
 				<div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
 					<TaskDetailView task={taskDraft} {text} {statusLabel} {businessColor} {taskTypeColor} {memberEmail} />
-					{#if taskDraft.id}
-						<TaskRelationshipsSection
-							task={taskDraft}
-							{tasks}
-							{currentMemberID}
-							editable={false}
-							canManageRelationships={false}
-							pendingTaskIDs={pendingRelationshipTaskIDs}
-							text={text.relationships}
-							{taskTypeColor}
-							{statusLabel}
-							onOpenTask={openRelatedTask}
-							onSetParent={setTaskParent}
-							onSetParents={setTaskParents}
-							onCreateChild={createChildTask}
-							allowTaskSwitching={true}
-						/>
-					{/if}
+					{@render relationships(false, true)}
 				</div>
 				<Sheet.Footer class="border-t">
 					{#if canEditTask}
@@ -176,24 +214,7 @@
 						{removeParticipantID}
 						{canRemoveParticipant}
 					/>
-					{#if taskDraft.id}
-						<TaskRelationshipsSection
-							task={taskDraft}
-							{tasks}
-							{currentMemberID}
-							editable={canEditTask}
-							canManageRelationships={canEditTask}
-							pendingTaskIDs={pendingRelationshipTaskIDs}
-							text={text.relationships}
-							{taskTypeColor}
-							{statusLabel}
-							onOpenTask={openRelatedTask}
-							onSetParent={setTaskParent}
-							onSetParents={setTaskParents}
-							onCreateChild={createChildTask}
-							allowTaskSwitching={false}
-						/>
-					{/if}
+					{@render relationships(canEditTask, false)}
 					<Separator />
 					<div class="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
 						{text.dateRule}

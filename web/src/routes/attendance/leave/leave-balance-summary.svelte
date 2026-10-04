@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from '../text';
@@ -8,6 +9,7 @@
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
+	onMount(() => { void employeeLeave.ensureLoaded(); });
 	const summary = $derived(employeeLeave.payload?.summary);
 	const isUnlimited = $derived(employeeLeave.payload?.balanceTrackingMode === 'unlimited');
 	const segments = $derived(leaveBalanceSegments(summary));

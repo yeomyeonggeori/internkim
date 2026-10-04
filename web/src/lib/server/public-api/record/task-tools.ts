@@ -22,10 +22,11 @@ import {
 	deleteTask,
 	participantsOfHints,
 	RecordRefusedTheWrite,
-	rowOfSavedID,
 	saveTask,
+	savedTaskByID,
 	statusOfPostgresCode,
 	taskOfHint,
+	taskFromHint,
 	tasksOfCompany,
 	taskWriteArguments,
 	type TaskRow
@@ -33,6 +34,7 @@ import {
 import { ownerNamedBy, whoseRecords, whoseRecordsHoldsAny } from './whose';
 import { labelsOfVocabulary, type CompanyLabels } from './labels';
 import { countUnfinishedTasks } from './unfinished-task-count';
+import { taskBoardWindow, tasksForBoard, taskChildProgressForBoard, type TaskCardRow } from './task-board';
 
 type TaskWritten = {
 	title?: string;
@@ -61,8 +63,8 @@ export type AnsweredPerson = {
 export type AnsweredTask = {
 	taskID: string;
 	parentTaskID: string;
-	organizationID: string;
-	opportunityID: string;
+	organizationID?: string;
+	opportunityID?: string;
 	requesterID: string;
 	requesterName: string;
 	createdAt: string;
@@ -93,13 +95,15 @@ function presentationOf(personID: string, person: RecordPerson | undefined, loca
 	};
 }
 
-function participantsOf(context: RecordContext, row: TaskRow): AnsweredPerson[] {
-	const personOf = new Map(context.people.map((person) => [person.personID, person]));
+function participantsOf(context: RecordContext, row: TaskCardRow, personOf = peopleByID(context)): AnsweredPerson[] {
 	return row.task_participant.map(({ member_id }) => presentationOf(member_id, personOf.get(member_id), context.locale));
 }
 
-function ownerOf(context: RecordContext, row: TaskRow): { id: string; name: string } {
-	const personOf = new Map(context.people.map((person) => [person.personID, person]));
+function peopleByID(context: RecordContext): Map<string, RecordPerson> {
+	return new Map(context.people.map((person) => [person.personID, person]));
+}
+
+function ownerOf(context: RecordContext, row: TaskCardRow, personOf = peopleByID(context)): { id: string; name: string } {
 	return compatibilityOwnerOf(
 		row.task_participant.map(({ member_id }) => ({
 			id: member_id,
@@ -108,18 +112,18 @@ function ownerOf(context: RecordContext, row: TaskRow): { id: string; name: stri
 	);
 }
 
-function answeredTask(context: RecordContext, row: TaskRow): AnsweredTask {
-	const participants = participantsOf(context, row);
-	const owner = ownerOf(context, row);
+function answeredTask(context: RecordContext, row: TaskCardRow, people = peopleByID(context)): AnsweredTask {
+	const participants = participantsOf(context, row, people);
+	const owner = ownerOf(context, row, people);
 	const endDate = dayOfInstant(context.labels.timezone, row.ends_at);
 	const requesterID = row.requester_id ?? '';
 	return {
 		taskID: row.id,
 		parentTaskID: row.parent_task_id ?? '',
-		organizationID: row.organization_id ?? '',
-		opportunityID: row.opportunity_id ?? '',
+		...(row.organization_id !== undefined ? { organizationID: row.organization_id ?? '' } : {}),
+		...(row.opportunity_id !== undefined ? { opportunityID: row.opportunity_id ?? '' } : {}),
 		requesterID,
-		requesterName: personName(context.people.find((person) => person.personID === requesterID)?.name ?? '', context.locale),
+		requesterName: personName(people.get(requesterID)?.name ?? '', context.locale),
 		createdAt: row.created_at,
 		content: row.title,
 		ownerID: owner.id,
@@ -145,12 +149,11 @@ function instantOrNothing(timezone: string, written: string | undefined, endOfDa
 }
 
 export async function taskRowOfHint(context: RecordContext, hint: string): Promise<TaskRow> {
-	const tasks = await tasksOfCompany(context.caller, false);
-	return taskOfHint(tasks, hint, 'task', context.requesterID);
+	return taskFromHint(context.caller, hint, false, context.requesterID);
 }
 
 async function taskByID(context: RecordContext, taskID: string): Promise<TaskRow> {
-	return rowOfSavedID(await tasksOfCompany(context.caller, false), taskID, 'task');
+	return savedTaskByID(context.caller, taskID, false);
 }
 
 function writtenFields(context: RecordContext, written: TaskWritten, row: TaskRow | null) {
@@ -364,7 +367,7 @@ function weekCodeOfDay(context: RecordContext, instant: string | null): string {
 	return day ? taskWeekCodeForDateISO(day) : '';
 }
 
-function weekCodeOfTask(context: RecordContext, row: TaskRow, thisWeek: string): string {
+function weekCodeOfTask(context: RecordContext, row: TaskCardRow, thisWeek: string): string {
 	const startWeek = weekCodeOfDay(context, row.starts_at);
 	const endWeek = weekCodeOfDay(context, row.ends_at);
 	if (row.status === 'paused') return thisWeek;
@@ -393,7 +396,7 @@ function searchableText(value: string): string {
 	return value.trim().toLowerCase().split(/\s+/).join('');
 }
 
-function matchesQuery(context: RecordContext, row: TaskRow, query: string | undefined): boolean {
+function matchesQuery(context: RecordContext, row: TaskCardRow, query: string | undefined): boolean {
 	const asked = searchableText(query ?? '');
 	if (!asked) return true;
 	const searched = [row.title, row.business ?? '', row.type ?? '', ownerOf(context, row).name, row.status];
@@ -410,10 +413,25 @@ export type TaskListInput = {
 	organizationHint?: string;
 	opportunityHint?: string;
 	everyWeek?: boolean;
+	boardWeek?: string;
 	limit?: number;
 };
 
 export async function taskList(context: RecordContext, input: TaskListInput) {
+	if (input.boardWeek !== undefined) throw new Error('use task_board_get to read a board week');
+	return readTaskList(context, input);
+}
+
+export async function taskBoard(context: RecordContext, input: TaskListInput) {
+	if (!input.boardWeek) throw new Error('task_board_get requires boardWeek');
+	return readTaskList(context, input);
+}
+
+async function readTaskList(context: RecordContext, input: TaskListInput) {
+	if (input.boardWeek && (input.everyWeek !== undefined || input.weekFrom !== undefined || input.weekTo !== undefined)) {
+		throw new Error('boardWeek cannot be combined with everyWeek, weekFrom or weekTo');
+	}
+	const board = input.boardWeek ? taskBoardWindow(input.boardWeek, context.labels.timezone, context.now) : undefined;
 	const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
 	const weeks = weeksAsked(context, input.weekFrom ?? 0, input.weekTo ?? input.weekFrom ?? 0);
 	const thisWeek = weekCodeOfOffset(context, 0);
@@ -425,25 +443,33 @@ export async function taskList(context: RecordContext, input: TaskListInput) {
 		input.everyWeek === true ||
 		(Boolean(deal || organization) && input.weekFrom === undefined && input.weekTo === undefined);
 
-	const rows = (await tasksOfCompany(context.caller, false)).filter((row) => {
+	const candidates = board
+		? await tasksForBoard(context.caller, board, { organizationID: organization?.id, opportunityID: deal?.id })
+		: await tasksOfCompany(context.caller, false, { status: input.status });
+	const rows = candidates.filter((row) => {
 		if (!whoseRecordsHoldsAny(whose, row.task_participant.map(({ member_id }) => member_id))) return false;
 		if (input.status && row.status !== input.status) return false;
-		if (deal && row.opportunity_id !== deal.id) return false;
-		if (organization && row.organization_id !== organization.id) return false;
+		if (!board && deal && row.opportunity_id !== deal.id) return false;
+		if (!board && organization && row.organization_id !== organization.id) return false;
 		if (!matchesQuery(context, row, input.query)) return false;
-		return everyWeek || weeks.has(weekCodeOfTask(context, row, thisWeek));
+		return Boolean(board) || everyWeek || weeks.has(weekCodeOfTask(context, row, thisWeek));
 	});
 
 	const kept = input.limit && input.limit > 0 ? rows.slice(0, input.limit) : rows;
+	const people = peopleByID(context);
 	return {
+		...(board ? {
+			boardWeek: board.week,
+			childProgress: Object.entries(await taskChildProgressForBoard(context.caller, kept.map(row => row.id)))
+				.map(([parentTaskID, progress]) => ({ parentTaskID, ...progress }))
+		} : {}),
 		scope: whose.everyone ? 'everyone' : 'person',
 		ownerID: ownerNamedBy(whose),
-		weekFrom: input.weekFrom ?? 0,
-		weekTo: input.weekTo ?? input.weekFrom ?? 0,
+		...(!board ? { weekFrom: input.weekFrom ?? 0, weekTo: input.weekTo ?? input.weekFrom ?? 0 } : {}),
 		statusFilter: input.status ?? '',
 		count: kept.length,
 		unfinishedCount: countUnfinishedTasks(rows),
-		tasks: kept.map((row) => answeredTask(context, row)),
+		tasks: kept.map((row) => answeredTask(context, row, people)),
 		registeredLabels: registeredLabelsOf(context.labels)
 	};
 }

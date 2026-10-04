@@ -3,6 +3,7 @@
 	import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 	import type { TaskState } from '../../task/task-types';
 	import type { AttendanceText } from '../text';
+	import type { AttendanceSummary } from '../attendance-context.svelte';
 	import TeamStatusDateHeader from './team-status-date-header.svelte';
 	import TeamStatusDayCell from './team-status-day-cell.svelte';
 	import { buildTeamStatusDayContext } from './team-status-day-context';
@@ -13,13 +14,14 @@
 
 	type Props = {
 		rows: TeamStatusPersonRow[];
+		summary: AttendanceSummary;
 		statusDates: string[];
 		selectedDate: string;
 		today: string;
 		text: AttendanceText;
 	};
 
-	let { rows, statusDates, selectedDate, today, text }: Props = $props();
+	let { rows, summary, statusDates, selectedDate, today, text }: Props = $props();
 	const initialRenderedDateCount = 6;
 	const renderedDateChunkSize = 6;
 	let renderedDateCount = $state(initialRenderedDateCount);
@@ -249,6 +251,7 @@
 			{#each rows as row, employeeIndex (row.email)}
 				<TeamStatusPersonHeader
 					{row}
+					{summary}
 					columnIndex={employeeIndex}
 					isLastColumn={employeeIndex === rows.length - 1}
 					{text}

@@ -51,6 +51,8 @@ async function openMobileTeamStatus(page: Page): Promise<void> {
 	await page.setViewportSize(mobileViewport);
 	await signInToAttendance(page);
 	await tabList(page).getByRole('tab', { name: '팀 현황' }).click();
+	await page.getByTestId('attendance-team-dashboard').waitFor({ state: 'visible', timeout: 30000 });
+	await page.getByRole('button', { name: '월간 현황 보기' }).click();
 	await statusTable(page).waitFor({ state: 'visible', timeout: 30000 });
 	await page
 		.getByTestId(`team-status-cell-${member1Email}-${today}`)
@@ -65,7 +67,7 @@ test('the mobile layout swaps between the personal tools and the team status', a
 	const statusTab = tabList(page).getByRole('tab', { name: '팀 현황' });
 	await expect(recordsTab).toHaveAttribute('data-state', 'active');
 	await expect(page.getByTestId('mobile-attendance-tools-view')).toBeVisible();
-	await expect(page.getByTestId('team-status-grid')).toBeHidden();
+	await expect(page.getByTestId('attendance-team-dashboard')).toBeHidden();
 
 	const tabColors = await mobileTabStyle(recordsTab, statusTab);
 	expect(tabColors.recordsBackground).not.toBe(tabColors.statusBackground);
@@ -75,7 +77,7 @@ test('the mobile layout swaps between the personal tools and the team status', a
 	expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth);
 
 	await statusTab.click();
-	await expect(page.getByTestId('team-status-grid')).toBeVisible({ timeout: 20000 });
+	await expect(page.getByTestId('attendance-team-dashboard')).toBeVisible({ timeout: 20000 });
 	await expect(page.getByTestId('mobile-attendance-tools-view')).toBeHidden();
 });
 
@@ -119,7 +121,7 @@ test('the desktop layout keeps the personal tools in the scrolling sidebar', asy
 	await signInToAttendance(page);
 
 	await expect(tabList(page)).toHaveCount(0);
-	await expect(page.getByTestId('team-status-grid')).toBeVisible({ timeout: 20000 });
+	await expect(page.getByTestId('attendance-team-dashboard')).toBeVisible({ timeout: 20000 });
 
 	const sidebarScroll = page.getByTestId('attendance-sidebar-scroll');
 	const scrolling = await sidebarScroll.evaluate((element) => ({
@@ -139,5 +141,5 @@ test('widening the window returns the team status table', async ({ page }) => {
 	await page.setViewportSize(desktopViewport);
 
 	await expect(tabList(page)).toHaveCount(0);
-	await expect(page.getByTestId('team-status-grid')).toBeVisible({ timeout: 20000 });
+	await expect(page.getByTestId('attendance-team-dashboard')).toBeVisible({ timeout: 20000 });
 });

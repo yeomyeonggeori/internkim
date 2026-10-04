@@ -11,9 +11,6 @@
 	import PowerIcon from '@lucide/svelte/icons/power';
 	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
-	import { buzzPasskeyLogin, buzzPasswordLogin } from '$lib/buzz-key-login';
-	import { claimCentralBuzzSecret } from '$lib/buzz-identity-central-login';
-	import { createBuzzIdentityTransport, enrollKnownBuzzIdentity } from '$lib/buzz-identity-session';
 	import { isPasskeySupported as isBuzzPasskeySupported } from '$lib/buzz-passkey';
 	import { isPasskeySupported as isSupabasePasskeySupported } from '$lib/supabase-passkey';
 	import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
@@ -24,7 +21,6 @@
 
 	const text = createPageText(appShellText);
 	const fieldId = $props.id();
-	const identityTransport = createBuzzIdentityTransport();
 	let servesCompanies = $state(false);
 	let buzzEnabled = $state<boolean | null>(null);
 	const passkeyAvailable = $derived(servesCompanies ? isSupabasePasskeySupported() : isBuzzPasskeySupported());
@@ -77,20 +73,26 @@
 		if (servesCompanies) {
 			return runLogin(async () => {
 				await signInWithSupabase(normalizedEmail, password);
-				return claimCentralBuzzSecret();
+				return null;
 			});
 		}
-		return runLogin(() => buzzPasswordLogin(normalizedEmail, password));
+		return runLogin(async () => {
+			const { buzzPasswordLogin } = await import('$lib/buzz-key-login');
+			return buzzPasswordLogin(normalizedEmail, password);
+		});
 	}
 
 	function loginWithPasskey() {
 		if (servesCompanies) {
 			return runLogin(async () => {
 				await signInWithPasskey();
-				return claimCentralBuzzSecret();
+				return null;
 			});
 		}
-		return runLogin(buzzPasskeyLogin);
+		return runLogin(async () => {
+			const { buzzPasskeyLogin } = await import('$lib/buzz-key-login');
+			return buzzPasskeyLogin();
+		});
 	}
 </script>
 

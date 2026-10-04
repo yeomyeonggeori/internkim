@@ -13,6 +13,9 @@ const askedWith: { externalID: string; avatarURL: string }[] = [];
 const avatarURLOfExternal = new Map<string, string | undefined>();
 let signingFails = false;
 
+const centralPlane = { ...(await import('$lib/supabase')) };
+const messengerAPI = { ...(await import('$lib/messenger/messenger-api')) };
+
 function addressOf(name: string): string {
 	return `${projectURL}/storage/v1/object/asset/company-1/shared/person-picture/${name}`;
 }
@@ -26,6 +29,7 @@ function timesAsked(externalID: string): number {
 }
 
 mock.module('$lib/supabase', () => ({
+	...centralPlane,
 	isSupabaseConfigured: () => true,
 	projectURL: () => projectURL,
 	supabase: () => ({
@@ -44,6 +48,7 @@ mock.module('$lib/supabase', () => ({
 }));
 
 mock.module('$lib/messenger/messenger-api', () => ({
+	...messengerAPI,
 	fetchPeople: () =>
 		Promise.resolve(
 			[...avatarURLOfExternal].map(([externalID, avatarURL]) => ({ externalID, name: externalID, avatarURL }))
@@ -66,6 +71,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+	mock.module('$lib/supabase', () => centralPlane);
+	mock.module('$lib/messenger/messenger-api', () => messengerAPI);
 	if (originalState === undefined) Reflect.deleteProperty(globalThis, '$state');
 	else Reflect.set(globalThis, '$state', originalState);
 });

@@ -65,8 +65,9 @@ async function saveWorkSettings(page: Page): Promise<void> {
 
 async function openTheMonthBefore(page: Page): Promise<void> {
 	await page.goto('/example-co/attendance');
+	await page.getByRole('button', { name: '월간 현황 보기' }).click();
 	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 20000 });
-	await page.getByRole('button', { name: '이전 달' }).first().click();
+	await page.getByTestId('team-status-grid').getByRole('button', { name: '이전 달' }).first().click();
 	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 20000 });
 }
 

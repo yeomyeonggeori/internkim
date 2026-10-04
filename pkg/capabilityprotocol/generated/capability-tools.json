@@ -1405,7 +1405,7 @@
             "type": "boolean"
           },
           "limit": {
-            "description": "Maximum number of tasks to return. Defaults to 50.",
+            "description": "Maximum number of tasks to return. Omit to return every matching task.",
             "type": "number"
           },
           "opportunityHint": {
@@ -1894,6 +1894,591 @@
       "sideEffect": "read",
       "sideEffectClass": "read",
       "version": "4",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "task_board_get",
+      "description": "Get one task board week: its visible cards, including undated and overdue carry-over work, with direct-child progress across all weeks. Counts describe this board selection; use task_list for complete history and reports. Uses the same person scope and read permissions as task_list.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "boardWeek": {
+            "description": "Monday of the displayed board week as YYYY-MM-DD. Includes carry-over work according to the board status rules.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of tasks to return. Omit to return every matching task.",
+            "type": "number"
+          },
+          "opportunityHint": {
+            "description": "Only the work on one deal. Names the deal this work belongs to, as a crm_opportunity_list result shows it, or its exact opportunity ID. The deal already says which organization it is with.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "organizationHint": {
+            "description": "Only the work for one organization. Names the organization this work is for, as a crm_organization_list result shows it, or its exact organization ID. Omit for work that is about nobody outside the company.",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose tasks to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "query": {
+            "description": "Free-text keyword filter matched against task titles and notes, e.g. 'budget'. Do not put dates, week codes, or person names here — use the dedicated fields instead.",
+            "type": "string"
+          },
+          "scope": {
+            "description": "Set to all to read the whole company's tasks. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
+            "enum": [
+              "self",
+              "all"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Filter by task status. Omit the field to return every status.",
+            "enum": [
+              "requested",
+              "planned",
+              "in_progress",
+              "completed",
+              "paused",
+              "rejected",
+              "stopped"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "boardWeek"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "task_board_get",
+      "modelVisibility": "visible",
+      "modelVisible": true,
+      "name": "task_board_get",
+      "namespace": "task",
+      "namespaceSummary": "The team's work items: add, find, update, and who takes part.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "boardWeek": {
+            "type": "string"
+          },
+          "childProgress": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "completed": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "parentTaskID": {
+                  "type": "string"
+                },
+                "percent": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                },
+                "total": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "parentTaskID",
+                "completed",
+                "total",
+                "percent"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "ownerID": {
+            "type": "string"
+          },
+          "registeredLabels": {
+            "additionalProperties": false,
+            "properties": {
+              "businesses": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "etcBusinessColor": {
+                "type": "string"
+              },
+              "etcTypeColor": {
+                "type": "string"
+              },
+              "sizes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "statuses": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "types": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "businesses",
+              "types",
+              "sizes",
+              "statuses"
+            ],
+            "type": "object"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "statusFilter": {
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "business": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "endDate": {
+                  "type": "string"
+                },
+                "opportunityID": {
+                  "type": "string"
+                },
+                "organizationID": {
+                  "type": "string"
+                },
+                "ownerID": {
+                  "type": "string"
+                },
+                "ownerName": {
+                  "type": "string"
+                },
+                "parentTaskID": {
+                  "type": "string"
+                },
+                "participantIDs": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "participantNames": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "participantPresentations": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      },
+                      "mention": {
+                        "type": "string"
+                      },
+                      "personID": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "requesterID": {
+                  "type": "string"
+                },
+                "requesterName": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "string"
+                },
+                "startDate": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "taskID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "weekCode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "taskID"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "unfinishedCount": {
+            "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "weekFrom": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "weekTo": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tasks",
+          "count",
+          "unfinishedCount",
+          "scope",
+          "registeredLabels",
+          "boardWeek",
+          "childProgress"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:task_board_get",
+      "privacyClass": "workspace_task",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "boardWeek": {
+              "type": "string"
+            },
+            "childProgress": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "completed": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "parentTaskID": {
+                    "type": "string"
+                  },
+                  "percent": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "total": {
+                    "maximum": 9007199254740991,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "parentTaskID",
+                  "completed",
+                  "total",
+                  "percent"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "ownerID": {
+              "type": "string"
+            },
+            "registeredLabels": {
+              "additionalProperties": false,
+              "properties": {
+                "businesses": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "etcBusinessColor": {
+                  "type": "string"
+                },
+                "etcTypeColor": {
+                  "type": "string"
+                },
+                "sizes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "statuses": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "types": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "color": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "businesses",
+                "types",
+                "sizes",
+                "statuses"
+              ],
+              "type": "object"
+            },
+            "scope": {
+              "type": "string"
+            },
+            "statusFilter": {
+              "type": "string"
+            },
+            "tasks": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "business": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "createdAt": {
+                    "type": "string"
+                  },
+                  "endDate": {
+                    "type": "string"
+                  },
+                  "opportunityID": {
+                    "type": "string"
+                  },
+                  "organizationID": {
+                    "type": "string"
+                  },
+                  "ownerID": {
+                    "type": "string"
+                  },
+                  "ownerName": {
+                    "type": "string"
+                  },
+                  "parentTaskID": {
+                    "type": "string"
+                  },
+                  "participantIDs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "participantNames": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "participantPresentations": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "displayName": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "mention": {
+                          "type": "string"
+                        },
+                        "personID": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "requesterID": {
+                    "type": "string"
+                  },
+                  "requesterName": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "string"
+                  },
+                  "startDate": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "taskID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "weekCode": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "taskID"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "unfinishedCount": {
+              "description": "Number of unfinished tasks among all matching rows before the optional limit is applied.",
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "weekFrom": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "weekTo": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "tasks",
+            "count",
+            "unfinishedCount",
+            "scope",
+            "registeredLabels",
+            "boardWeek",
+            "childProgress"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
       "worksOffline": false
     },
     {
@@ -6912,6 +7497,1185 @@
       },
       "sideEffect": "workspace_write",
       "sideEffectClass": "workspace_write",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attendance_team_page_get",
+      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and clock-in locations. Employee search and location filtering happen before paging. Historical records are read separately.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "locationFilter": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "memberLimit": {
+            "maximum": 48,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "memberOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageKind": {
+            "enum": [
+              "teams",
+              "members"
+            ],
+            "type": "string"
+          },
+          "searchText": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "selectedTeamKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamLimit": {
+            "maximum": 24,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "teamOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pageKind"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_team_page_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_team_page_get",
+      "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "authorization": {
+            "additionalProperties": false,
+            "properties": {
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "teamViewVisibleToAll": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "isAdmin",
+              "teamViewVisibleToAll"
+            ],
+            "type": "object"
+          },
+          "companyID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "memberLimit": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "memberOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memberTotal": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "latestAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "memberID": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "working",
+                    "done",
+                    "away",
+                    "needs_checkout",
+                    "not_started"
+                  ],
+                  "type": "string"
+                },
+                "teamKey": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "memberID",
+                "name",
+                "email",
+                "teamKey",
+                "status",
+                "latestAt",
+                "location"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "selectedTeamKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serverTime": {
+            "type": "string"
+          },
+          "teamLimit": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "teamOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teamTotal": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teams": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "away": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "done": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "memberCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "needsCheckout": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "notStarted": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "recentClockIns": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "email": {
+                        "type": "string"
+                      },
+                      "location": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "memberID": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "occurredAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "memberID",
+                      "name",
+                      "email",
+                      "occurredAt",
+                      "location"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 5,
+                  "type": "array"
+                },
+                "recentClockOuts": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "email": {
+                        "type": "string"
+                      },
+                      "location": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "memberID": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "occurredAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "memberID",
+                      "name",
+                      "email",
+                      "occurredAt",
+                      "location"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 5,
+                  "type": "array"
+                },
+                "recordedLocations": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "count": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "count"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "teamKey": {
+                  "type": "string"
+                },
+                "unknownLocationCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "working": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "teamKey",
+                "name",
+                "memberCount",
+                "working",
+                "done",
+                "away",
+                "needsCheckout",
+                "notStarted",
+                "recentClockIns",
+                "recentClockOuts",
+                "recordedLocations",
+                "unknownLocationCount"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "companyID",
+          "timeZone",
+          "serverTime",
+          "authorization",
+          "teamOffset",
+          "teamLimit",
+          "teamTotal",
+          "teams",
+          "selectedTeamKey",
+          "memberOffset",
+          "memberLimit",
+          "memberTotal",
+          "members"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_team_page_get",
+      "privacyClass": "workspace_attendance",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "authorization": {
+              "additionalProperties": false,
+              "properties": {
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "teamViewVisibleToAll": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "isAdmin",
+                "teamViewVisibleToAll"
+              ],
+              "type": "object"
+            },
+            "companyID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "memberLimit": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            },
+            "memberOffset": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "memberTotal": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "members": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "latestAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "memberID": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "working",
+                      "done",
+                      "away",
+                      "needs_checkout",
+                      "not_started"
+                    ],
+                    "type": "string"
+                  },
+                  "teamKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "memberID",
+                  "name",
+                  "email",
+                  "teamKey",
+                  "status",
+                  "latestAt",
+                  "location"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "selectedTeamKey": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "serverTime": {
+              "type": "string"
+            },
+            "teamLimit": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            },
+            "teamOffset": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "teamTotal": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "teams": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "away": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "done": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "needsCheckout": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "notStarted": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "recentClockIns": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberID": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "occurredAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "memberID",
+                        "name",
+                        "email",
+                        "occurredAt",
+                        "location"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 5,
+                    "type": "array"
+                  },
+                  "recentClockOuts": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberID": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "occurredAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "memberID",
+                        "name",
+                        "email",
+                        "occurredAt",
+                        "location"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 5,
+                    "type": "array"
+                  },
+                  "recordedLocations": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "count": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "count"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "teamKey": {
+                    "type": "string"
+                  },
+                  "unknownLocationCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "working": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "teamKey",
+                  "name",
+                  "memberCount",
+                  "working",
+                  "done",
+                  "away",
+                  "needsCheckout",
+                  "notStarted",
+                  "recentClockIns",
+                  "recentClockOuts",
+                  "recordedLocations",
+                  "unknownLocationCount"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "timeZone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "companyID",
+            "timeZone",
+            "serverTime",
+            "authorization",
+            "teamOffset",
+            "teamLimit",
+            "teamTotal",
+            "teams",
+            "selectedTeamKey",
+            "memberOffset",
+            "memberLimit",
+            "memberTotal",
+            "members"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
+      "canonicalName": "attendance_current_get",
+      "description": "Read the authenticated requester's actionable attendance state in one record snapshot: company time zone and clock, registered workplaces, today's events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_current_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_current_get",
+      "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "activeLeave": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "days": {
+                    "type": "number"
+                  },
+                  "endsAt": {
+                    "type": "string"
+                  },
+                  "kindID": {
+                    "type": "string"
+                  },
+                  "kindName": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "leaveID": {
+                    "type": "string"
+                  },
+                  "startsAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "leaveID",
+                  "kindID",
+                  "kindName",
+                  "days",
+                  "startsAt",
+                  "endsAt"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authorization": {
+            "additionalProperties": false,
+            "properties": {
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "teamViewVisibleToAll": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "isAdmin",
+              "teamViewVisibleToAll"
+            ],
+            "type": "object"
+          },
+          "backdatedAfterMinutes": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "companyID": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "latestEvent": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "clock_in",
+                      "clock_out"
+                    ],
+                    "type": "string"
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "personID",
+                  "kind",
+                  "occurredAt",
+                  "location"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memberID": {
+            "type": "string"
+          },
+          "serverTime": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "todayEvents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "clock_in",
+                    "clock_out"
+                  ],
+                  "type": "string"
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "personID": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "personID",
+                "kind",
+                "occurredAt",
+                "location"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "workLocations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "color"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "memberID",
+          "email",
+          "companyID",
+          "timeZone",
+          "serverTime",
+          "backdatedAfterMinutes",
+          "workLocations",
+          "authorization",
+          "todayEvents",
+          "latestEvent",
+          "activeLeave"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_current_get",
+      "privacyClass": "workspace_attendance",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "activeLeave": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "days": {
+                      "type": "number"
+                    },
+                    "endsAt": {
+                      "type": "string"
+                    },
+                    "kindID": {
+                      "type": "string"
+                    },
+                    "kindName": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "leaveID": {
+                      "type": "string"
+                    },
+                    "startsAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "leaveID",
+                    "kindID",
+                    "kindName",
+                    "days",
+                    "startsAt",
+                    "endsAt"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "authorization": {
+              "additionalProperties": false,
+              "properties": {
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "teamViewVisibleToAll": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "isAdmin",
+                "teamViewVisibleToAll"
+              ],
+              "type": "object"
+            },
+            "backdatedAfterMinutes": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            },
+            "companyID": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "latestEvent": {
+              "anyOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "clock_in",
+                        "clock_out"
+                      ],
+                      "type": "string"
+                    },
+                    "location": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string"
+                    },
+                    "personID": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "personID",
+                    "kind",
+                    "occurredAt",
+                    "location"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "memberID": {
+              "type": "string"
+            },
+            "serverTime": {
+              "type": "string"
+            },
+            "timeZone": {
+              "type": "string"
+            },
+            "todayEvents": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "clock_in",
+                      "clock_out"
+                    ],
+                    "type": "string"
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string"
+                  },
+                  "personID": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "personID",
+                  "kind",
+                  "occurredAt",
+                  "location"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "workLocations": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "color": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "color"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "memberID",
+            "email",
+            "companyID",
+            "timeZone",
+            "serverTime",
+            "backdatedAfterMinutes",
+            "workLocations",
+            "authorization",
+            "todayEvents",
+            "latestEvent",
+            "activeLeave"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
       "version": "1",
       "worksOffline": false
     },
@@ -23229,7 +24993,12 @@
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "includeProfileImage": {
+            "description": "Whether to prepare the company image URL. Defaults to true; omit the image for settings-only reads.",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "inputSchemaStrict": true,

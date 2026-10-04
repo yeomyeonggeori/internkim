@@ -208,6 +208,14 @@ func TestFlowListDescriptorMatchesTaskLookupInput(t *testing.T) {
 	assertSchemaOmitsProperties(t, schema, "weekCode", "title", "description", "assignee", "dueDate")
 }
 
+func TestTaskBoardDescriptorKeepsHistoryReadSeparate(t *testing.T) {
+	schema := descriptorSchema(t, TaskToolDescriptors(), "task_board_get")
+	assertSchemaRequires(t, schema, "boardWeek")
+	assertSchemaHasProperties(t, schema, "boardWeek", "personHints", "scope")
+	assertSchemaOmitsProperties(t, schema, "everyWeek", "weekFrom", "weekTo")
+	assertSchemaOmitsProperties(t, descriptorSchema(t, TaskToolDescriptors(), "task_list"), "boardWeek")
+}
+
 func TestFlowDescriptorIncludesTaskUpdateInput(t *testing.T) {
 	schema := descriptorSchema(t, TaskToolDescriptors(), "task_update")
 

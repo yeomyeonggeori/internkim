@@ -21,11 +21,22 @@ export class EmployeeLeaveState {
 	errorMessage = $state('');
 	mutationErrorMessage = $state('');
 	private loadSequence = 0;
+	private pendingInitialLoad: Promise<void> | undefined;
 
 	constructor(
 		private readonly text: AttendanceText['leave'],
 		private readonly onMutationCompleted: () => Promise<void> = async () => undefined
 	) {}
+
+	ensureLoaded(): Promise<void> {
+		if (this.payload) return Promise.resolve();
+		if (this.pendingInitialLoad) return this.pendingInitialLoad;
+		const reading = this.load().finally(() => {
+			if (this.pendingInitialLoad === reading) this.pendingInitialLoad = undefined;
+		});
+		this.pendingInitialLoad = reading;
+		return reading;
+	}
 
 	async load(): Promise<void> {
 		this.errorMessage = '';

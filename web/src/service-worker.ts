@@ -1,7 +1,7 @@
 /// <reference types="@sveltejs/kit" />
 /// <reference lib="webworker" />
 
-import { build, files, version } from '$service-worker';
+import { build, files } from '$service-worker';
 import { homePath } from '$lib/home-path';
 import { isShippedFile } from '$lib/offline-shell';
 import { readArriving } from '$lib/notifications/arriving';
@@ -9,25 +9,42 @@ import { openedNotificationMessage } from '$lib/notifications/opened-notificatio
 import { keepPendingDestination } from '$lib/notifications/pending-destination';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
-const cacheName = `internkim-${version}`;
+const cacheName = 'internkim-assets';
 const shipped = new Set([...build, ...files]);
+const immutable = new Set(build.filter((path) => path.includes('/_app/immutable/')));
 
 worker.addEventListener('install', (event) => {
 	event.waitUntil(
-		caches
-			.open(cacheName)
-			.then((cache) => cache.addAll([...shipped]))
-			.then(() => worker.skipWaiting())
+		caches.open(cacheName).then(() => worker.skipWaiting())
 	);
 });
 
 worker.addEventListener('activate', (event) => {
-	event.waitUntil(forgetOlderVersions().then(() => worker.clients.claim()));
+	event.waitUntil(keepRequestedAssets().then(() => worker.clients.claim()));
 });
 
-async function forgetOlderVersions(): Promise<void> {
-	const names = await caches.keys();
-	await Promise.all(names.filter((name) => name !== cacheName).map((name) => caches.delete(name)));
+async function keepRequestedAssets(): Promise<void> {
+	const cache = await caches.open(cacheName);
+	const held = await cache.keys();
+	await Promise.all(held.filter((request) => !isShippedFile(request, location.origin, shipped)).map((request) => cache.delete(request)));
+}
+
+async function previouslyCachedAsset(pathname: string): Promise<Response | undefined> {
+	for (const name of await caches.keys()) {
+		if (name === cacheName || !name.startsWith('internkim-')) continue;
+		const previous = await caches.open(name);
+		const held = await previous.match(pathname);
+		if (held) return held;
+	}
+	return undefined;
+}
+
+async function rememberAsset(cache: Cache, pathname: string, response: Response): Promise<void> {
+	try {
+		await cache.put(pathname, response.clone());
+	} catch (error) {
+		console.warn('the static asset could not be cached', error);
+	}
 }
 
 worker.addEventListener('fetch', (event) => {
@@ -78,9 +95,24 @@ async function shippedFile(request: Request): Promise<Response> {
 	const cache = await caches.open(cacheName);
 	const pathname = new URL(request.url).pathname;
 	const held = await cache.match(pathname);
-	if (held) return held;
+	if (immutable.has(pathname)) {
+		if (held) return held;
+		const previous = await previouslyCachedAsset(pathname);
+		if (previous) {
+			await rememberAsset(cache, pathname, previous);
+			return previous;
+		}
+	}
 
-	const response = await fetch(request);
-	if (response.ok) await cache.put(pathname, response.clone());
+	let response: Response;
+	try {
+		response = await fetch(request);
+	} catch (error) {
+		if (held) return held;
+		const previous = await previouslyCachedAsset(pathname);
+		if (previous) return previous;
+		throw error;
+	}
+	if (response.ok) await rememberAsset(cache, pathname, response);
 	return response;
 }

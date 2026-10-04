@@ -27,14 +27,14 @@ test('task startup leaves attendance reads to the clock menu', async ({ page }) 
 	const attendanceReads: string[] = [];
 	page.on('request', request => {
 		const path = new URL(request.url()).pathname;
-		if (/\/(company_settings_get|attendance_list|leave_list)\/invoke$/.test(path)) attendanceReads.push(path);
+		if (/\/(company_settings_get|attendance_current_get|attendance_list|leave_list)\/invoke$/.test(path)) attendanceReads.push(path);
 	});
 	await signInToTheTaskBoard(page);
 	await page.waitForTimeout(500);
 	expect(attendanceReads).toEqual([]);
 	await page.keyboard.press('.');
 	await expect(page.locator('[data-app-rail-profile-menu]')).toBeVisible();
-	await expect.poll(() => attendanceReads.some(path => path.endsWith('/attendance_list/invoke'))).toBe(true);
+	await expect.poll(() => attendanceReads.some(path => path.endsWith('/attendance_current_get/invoke'))).toBe(true);
 	await expect(page.locator('[data-app-rail-profile-menu]').getByRole('menuitem', { name: /출근|퇴근/ }).first()).toBeVisible();
 	await page.keyboard.press('Escape');
 	await page.keyboard.press('/');
@@ -44,7 +44,7 @@ test('task startup leaves attendance reads to the clock menu', async ({ page }) 
 test('a cold command palette loads its clock actions', async ({ page }) => {
 	let attendanceReads = 0;
 	page.on('request', request => {
-		if (new URL(request.url()).pathname.endsWith('/attendance_list/invoke')) attendanceReads++;
+		if (new URL(request.url()).pathname.endsWith('/attendance_current_get/invoke')) attendanceReads++;
 	});
 	await signInToTheTaskBoard(page);
 	expect(attendanceReads).toBe(0);
@@ -95,8 +95,12 @@ test('calendar keys do not mutate an event behind the settings sheet', async ({ 
 	} finally { await cleanupCalendarEvents([eventID]); }
 });
 
-test('week changes reuse state and survive session refresh', async ({ page }) => {
+test('full history reuses week changes and survives session refresh', async ({ page }) => {
 	await signInToTheTaskBoard(page);
+	const fullHistory = page.waitForResponse(response => response.url().includes('/task_list/invoke') && response.ok());
+	await page.getByRole('tab', { name: '목록', exact: true }).click();
+	await fullHistory;
+	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 	let taskReads = 0;
 	page.on('request', request => { if (request.url().includes('/task_list/invoke')) taskReads++; });
 	await page.getByRole('button', { name: '이전 주', exact: true }).click();
@@ -114,7 +118,7 @@ test('a delayed refresh accepts new state while keeping a locally chosen week', 
 	const gate = new Promise<void>(resolve => { release = resolve; });
 	let started!: () => void;
 	const pending = new Promise<void>(resolve => { started = resolve; });
-	await page.route('**/task_list/invoke', async route => { started(); await gate; await route.continue(); });
+	await page.route('**/task_board_get/invoke', async route => { started(); await gate; await route.continue(); });
 	await page.keyboard.press('r');
 	await pending;
 	await page.getByRole('button', { name: '이전 주', exact: true }).click();
@@ -135,12 +139,12 @@ test('a late task response cannot change the route after leaving', async ({ page
 	const gate = new Promise<void>(resolve => { release = resolve; });
 	let started!: () => void;
 	const pending = new Promise<void>(resolve => { started = resolve; });
-	await page.route('**/task_list/invoke', async route => { started(); await gate; await route.continue(); });
+	await page.route('**/task_board_get/invoke', async route => { started(); await gate; await route.continue(); });
 	await page.keyboard.press('r');
 	await pending;
 	await page.locator('a[href="/example-co/organization"]').first().click();
 	await expect(page.getByTestId('organization-board')).toBeVisible();
-	const response = page.waitForResponse(response => response.url().includes('/task_list/invoke'));
+	const response = page.waitForResponse(response => response.url().includes('/task_board_get/invoke'));
 	release();
 	await response;
 	await page.waitForTimeout(150);

@@ -18,6 +18,7 @@ import {
 	attendanceServerTime
 } from './shared/attendance-server-clock';
 import { AttendanceServerClockSync } from './attendance-server-clock-sync';
+import { attendanceSummaryRecords, type AttendanceSummaryRecords } from '$lib/attendance/attendance-summary-records';
 
 const selectedMonthSummaryLoadTarget = 'selectedMonthSummary';
 const currentMonthSummaryLoadTarget = 'currentMonthSummary';
@@ -123,6 +124,8 @@ export type AttendanceActiveLeave = {
 };
 
 export type AttendanceSummary = {
+	readScope?: 'mine' | 'person' | 'all';
+	[attendanceSummaryRecords]?: AttendanceSummaryRecords;
 	month: string;
 	serverTime?: string;
 	timeZoneAuthoritative?: boolean;
@@ -158,7 +161,7 @@ export class AttendanceState {
 	private activeLoadCount = 0;
 	private isDisposed = false;
 
-	constructor(loadFailedMessage: string, private readonly cacheScope = '') {
+	constructor(loadFailedMessage: string, private readonly cacheScope = '', private readonly onRecordMutation?: () => Promise<unknown>) {
 		this.loadFailedMessage = loadFailedMessage;
 		this.serverClockSync = new AttendanceServerClockSync({
 			requestSummary: (month) => fetchAttendanceSummary({ month }),
@@ -171,6 +174,7 @@ export class AttendanceState {
 					this.summary.todayStatus = summary.todayStatus;
 					this.summary.activeLeave = summary.activeLeave;
 					if (this.summary.month === summary.month) {
+						this.summary[attendanceSummaryRecords] = summary[attendanceSummaryRecords];
 						this.summary.events = summary.events;
 						this.summary.absences = summary.absences;
 					}
@@ -182,6 +186,7 @@ export class AttendanceState {
 					this.currentMonthSummary.todayStatus = summary.todayStatus;
 					this.currentMonthSummary.activeLeave = summary.activeLeave;
 					if (this.currentMonthSummary.month === summary.month) {
+						this.currentMonthSummary[attendanceSummaryRecords] = summary[attendanceSummaryRecords];
 						this.currentMonthSummary.events = summary.events;
 						this.currentMonthSummary.absences = summary.absences;
 					}
@@ -311,25 +316,25 @@ export class AttendanceState {
 
 	async updateEvent(eventID: string, request: UpdateAttendanceEventRequest) {
 		const result = await updateAttendanceEvent(eventID, request);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 
 	async updateEvents(updates: { eventID: string; request: UpdateAttendanceEventRequest }[]) {
 		const result = await updateAttendanceEvents(updates);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 
 	async addEvent(request: AddAttendanceEventRequest): Promise<AttendanceWriteResult> {
 		const result = await addAttendanceEvent(request);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 
 	async removeEvent(request: RemoveAttendanceEventRequest): Promise<AttendanceWriteResult> {
 		const result = await removeAttendanceEvent(request);
-		await this.load();
+		await Promise.all([this.onRecordMutation?.(), this.load()]);
 		return result;
 	}
 }

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 import {
 	attendanceRowsOf,
 	removeAttendanceOf,
@@ -30,14 +30,20 @@ function quickActions(page: Page) {
 	return page.getByTestId('personal-tools-panel');
 }
 
-function trackToolInvokes(page: Page): { names: string[]; stop: () => void } {
+function trackToolInvokes(page: Page): { names: string[]; attendanceInputs: Record<string, unknown>[]; stop: () => void } {
 	const names: string[] = [];
-	const recordRequest = (request: { url(): string }) => {
+	const attendanceInputs: Record<string, unknown>[] = [];
+	const recordRequest = (request: Request) => {
 		const match = request.url().match(/\/api\/v1\/tools\/([^/]+)\/invoke$/);
-		if (match) names.push(match[1]);
+		if (match) {
+			names.push(match[1]);
+			if (match[1] === 'attendance_list') {
+				attendanceInputs.push((request.postDataJSON() as { input: Record<string, unknown> }).input);
+			}
+		}
 	};
 	page.on('request', recordRequest);
-	return { names, stop: () => page.off('request', recordRequest) };
+	return { names, attendanceInputs, stop: () => page.off('request', recordRequest) };
 }
 
 function paletteItem(page: Page, value: string) {
@@ -85,8 +91,9 @@ test('the first clock menu opens an existing clock-in without an eager task read
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 		await page.waitForLoadState('networkidle');
 		expect(invokes.names).not.toContain('attendance_list');
+		expect(invokes.names).not.toContain('attendance_current_get');
 		const attendanceLoad = page.waitForResponse(
-			(response) => response.url().includes('/api/v1/tools/attendance_list/invoke') && response.ok(),
+			(response) => response.url().includes('/api/v1/tools/attendance_current_get/invoke') && response.ok(),
 			{ timeout: 30000 }
 		);
 		await page.keyboard.press('Period');
@@ -112,7 +119,8 @@ test('the command palette clocks in at the location it names', async ({ page }) 
 	await expect(quickActions(page).getByText(home)).toBeVisible({ timeout: 20000 });
 	await expect(quickActions(page).getByRole('button', { name: '퇴근', exact: true })).toBeVisible();
 	invokes.stop();
-	expect(invokes.names).toEqual(['attendance_add']);
+	expect(invokes.names).toContain('attendance_add');
+	expect(invokes.attendanceInputs.every((input) => input.scope !== 'all' && Array.isArray(input.personHints) && input.personHints.length === 1)).toBe(true);
 });
 
 test('the clock rail clocks out and the record keeps the pair', async ({ page }) => {
@@ -129,7 +137,8 @@ test('the clock rail clocks out and the record keeps the pair', async ({ page })
 		timeout: 20000
 	});
 	invokes.stop();
-	expect(invokes.names).toEqual(['attendance_add']);
+	expect(invokes.names).toContain('attendance_add');
+	expect(invokes.attendanceInputs.every((input) => input.scope !== 'all' && Array.isArray(input.personHints) && input.personHints.length === 1)).toBe(true);
 });
 
 test('the clock rail clocks in at the location the menu offers', async ({ page }) => {

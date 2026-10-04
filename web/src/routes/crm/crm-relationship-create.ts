@@ -13,11 +13,13 @@ export class CRMRelationshipContactCreateError extends Error {
 export async function createCRMRelationshipRecords(
 	draft: CRMRelationshipCreateDraft,
 	owner: UserRecord,
-	contactFailureMessage: string
+	contactFailureMessage: string,
+	assertCurrent: () => void = () => {}
 ): Promise<void> {
 	const organizationID = draft.createdOrganizationID
 		?? (await createCRMOrganization(organizationPayloadFromDraft(draft, owner))).id;
 	if (!draft.contact) return;
+	assertCurrent();
 	try {
 		await createCRMContact(contactPayloadFromDraft({
 			kind: 'contact',

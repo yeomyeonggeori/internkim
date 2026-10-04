@@ -7,6 +7,7 @@ import { taskBoardState } from '$lib/task/task-state';
 import { ToolRefused } from '$lib/public-api-call';
 import { lastSeenTask } from './task-last-seen';
 import { taskSnapshotGeneration } from './task-snapshot-storage';
+import { taskWeekForCode } from '$lib/task/task-week-code';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ parent, depends, url }) => {
@@ -17,12 +18,14 @@ export const load: PageLoad = async ({ parent, depends, url }) => {
 	if (!member.companyID || !member.memberID) return { taskRead: null, taskBoardRead: null, taskScope: '', lastTask: null };
 	const taskScope = taskAccountScope(member, projectURL());
 	const taskReadGeneration = taskSnapshotGeneration();
-	const cached = lastSeenTask(taskScope);
+	const taskWeek = taskWeekForCode(url.searchParams.get('week') ?? '', new Date());
+	const cached = lastSeenTask(taskScope, taskWeek.startISO);
 	const lastTask = cached.state ? { ...cached, summary: mergeTaskSummary(cached.state, taskWeeklySummaryOf(cached.state, url.searchParams.get('week') ?? '')) } : cached;
-	const taskRead = fetchTaskState(taskScope).then(
+	const taskRead = fetchTaskState(taskScope, taskWeek.startISO).then(
 		(state) => ({ state, error: '', denied: false }),
 		(error: unknown) => ({ state: null, error: error instanceof Error ? error.message : String(error), denied: error instanceof ToolRefused && (error.status === 401 || error.status === 403) })
 	);
-	const taskBoardRead = taskBoardState(taskScope, { email: session.email, name: member.name, isAdmin: member.role === 'admin' }).catch(() => null);
-	return { taskRead, taskBoardRead, taskScope, taskReadGeneration, lastTask };
+	const taskViewer = { memberID: member.memberID, email: session.email, name: member.name, isAdmin: member.role === 'admin' };
+	const taskBoardRead = taskBoardState(taskScope, taskViewer, taskWeek.startISO).catch(() => null);
+	return { taskRead, taskBoardRead, taskScope, taskReadGeneration, taskWeek, taskViewer, lastTask };
 };

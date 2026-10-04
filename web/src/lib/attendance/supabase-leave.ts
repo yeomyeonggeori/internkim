@@ -6,7 +6,8 @@ import {
 	everyLeaveOfTheCompany,
 	myLeaveBalance,
 	timeZoneOfPerson,
-	type RecordLeave
+	type RecordLeave,
+	type RecordLeaveList
 } from './attendance-record';
 import type {
 	EmployeeLeaveErrorCode,
@@ -40,6 +41,7 @@ type LeaveStatus = 'requested' | 'approved' | 'rejected';
 
 type MemberDirectory = {
 	emailOf: (memberID: string) => string;
+	nameOf: (memberID: string) => string;
 	timeZoneOf: (memberID: string) => string;
 };
 
@@ -83,15 +85,19 @@ export async function leaveInFull(): Promise<LeaveRow[]> {
 }
 
 export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
-	const directory = await supabaseLeaveTypeDirectory();
-	const answeredBalance = await myLeaveBalance();
+	const [directory, answeredBalance, answeredLeave, members] = await Promise.all([
+		supabaseLeaveTypeDirectory(),
+		myLeaveBalance(),
+		invokeTool<RecordLeaveList>('leave_list', {}),
+		memberDirectory()
+	]);
 	const balanceOfMine = answeredBalance.balances[0];
 	if (!balanceOfMine) throw new Error('the record answered no balance for the requester');
 	const memberID = balanceOfMine.personID;
-	const rows = (await leaveInFull())
+	const rows = answeredLeave.leave.map(leaveRowOf)
 		.filter((row) => row.member_id === memberID)
 		.sort((left, right) => right.starts_at.localeCompare(left.starts_at));
-	const timeZone = await memberTimeZone(memberID);
+	const timeZone = members.timeZoneOf(memberID);
 	const mappedLeave = rows.map((row) => ({
 		row,
 		request: employeeLeaveRequestOfRow(row, timeZone, directory.nameOf)
@@ -166,12 +172,15 @@ export async function cancelSupabaseLeaveRequest(requestID: string): Promise<voi
 }
 
 export async function supabaseLeaveApprovalInbox(): Promise<LeaveApprovalInbox> {
-	const directory = await supabaseLeaveTypeDirectory();
-	const rows = (await leaveInFull())
+	const [directory, answered, members] = await Promise.all([
+		supabaseLeaveTypeDirectory(),
+		invokeTool<RecordLeaveList>('leave_list', { scope: 'all', status: 'requested' }),
+		memberDirectory()
+	]);
+	const rows = answered.leave.map(leaveRowOf)
 		.filter((row) => row.status === 'requested')
 		.sort((left, right) => left.starts_at.localeCompare(right.starts_at));
 
-	const members = await memberDirectory();
 	const pending = rows.map((row) => approvalOf(row, members, directory));
 	return { pendingCount: pending.length, pending };
 }
@@ -217,6 +226,7 @@ function approvalOf(
 	return {
 		id: row.id,
 		employeeEmail: members.emailOf(row.member_id),
+		employeeName: members.nameOf(row.member_id),
 		leaveTypeID: row.kind,
 		leaveTypeName: directory.nameOf(row.kind),
 		balanceMode: directory.ownsAnnualBalance(row.kind) ? 'annual' : 'none',
@@ -242,28 +252,20 @@ function shiftedDay(date: string, days: number): string {
 	return moved.toISOString().slice(0, 10);
 }
 
-async function memberTimeZone(memberID: string): Promise<string> {
-	const companyZone = await companyTimeZone();
-	const directory = await companyDirectory();
-	return timeZoneOfPerson(
-		directory.people.find((person) => person.personID === memberID),
-		companyZone
-	);
-}
-
 async function companyTimeZone(): Promise<string> {
 	return (await companySettings()).timeZone;
 }
 
 async function memberDirectory(): Promise<MemberDirectory> {
-	const companyZone = await companyTimeZone();
-	const directory = await companyDirectory();
+	const [companyZone, directory] = await Promise.all([companyTimeZone(), companyDirectory()]);
 	const emails = new Map(directory.people.map((person) => [person.personID, person.email]));
+	const names = new Map(directory.people.map((person) => [person.personID, person.name]));
 	const timeZones = new Map(
 		directory.people.map((person) => [person.personID, timeZoneOfPerson(person, companyZone)])
 	);
 	return {
 		emailOf: (memberID) => emails.get(memberID) ?? '',
+		nameOf: (memberID) => names.get(memberID) || emails.get(memberID) || '',
 		timeZoneOf: (memberID) => timeZones.get(memberID) || companyZone
 	};
 }

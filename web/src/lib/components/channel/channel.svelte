@@ -50,7 +50,13 @@
 	import { activityLabel } from '$lib/messenger/typing-signal';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
-	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
+	import {
+		channelMessageCacheGeneration,
+		getCachedMessages,
+		getCachedReaderID,
+		setCachedMessages,
+		setCachedReaderID
+	} from './channel-message-cache';
 	import { groupConsecutiveMessages } from './channel-message-groups';
 	import { jumpToLatestLabel, unseenMessageCount } from './channel-unseen-messages';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
@@ -63,6 +69,7 @@
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
+	import { isCurrentMessengerScope, messengerCacheScope, onMessengerCacheReset, requireCurrentMessengerScope } from '$lib/messenger/cache-scope';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 	import { onCompanyEvent } from '$lib/host-bridge';
 	import type { CompanyEvent } from '$lib/company-event';
@@ -129,12 +136,34 @@
 	let isLoadingOlder = $state(false);
 	let lightbox = $state<LightboxView | null>(null);
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	let isDestroyed = false;
+	let channelGeneration = 0;
+	let nextReadSequence = 0;
+
+	function isCurrentChannel(
+		requestedChannelID: string | undefined,
+		generation: number,
+		cacheGeneration: number
+	): boolean {
+		return !isDestroyed && channelId === requestedChannelID && channelGeneration === generation &&
+			channelMessageCacheGeneration() === cacheGeneration;
+	}
+
+	function isCurrentRead(
+		requestedChannelID: string | undefined,
+		generation: number,
+		cacheGeneration: number,
+		readSequence: number
+	): boolean {
+		return readSequence === nextReadSequence && isCurrentChannel(requestedChannelID, generation, cacheGeneration);
+	}
 
 	function openLightbox(images: string[], index: number) {
 		if (images.length === 0) return;
 		lightbox = { images, index: Math.max(0, index) };
 	}
 	let lastConversationSignature = '';
+	let cacheGeneration = $state(0);
 	let openThreadRoot = $state<ChannelMessage | null>(null);
 	let isThreadSending = $state(false);
 
@@ -217,9 +246,20 @@
 	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
 
 	async function loadConversation() {
+		if (isDestroyed) return;
+		const requestedChannelID = channelId;
+		const generation = channelGeneration;
+		let messageCacheGeneration = channelMessageCacheGeneration();
+		const readSequence = ++nextReadSequence;
 		const deliveredBeforeReading = outgoing.deliveredSoFar();
+		let scope: Awaited<ReturnType<typeof messengerCacheScope>> | undefined;
 		try {
-			const conversation = await fetchChannelConversation(channelId);
+			scope = await messengerCacheScope();
+			messageCacheGeneration = channelMessageCacheGeneration();
+			if (!isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) return;
+			const conversation = await fetchChannelConversation(requestedChannelID);
+			await requireCurrentMessengerScope(scope);
+			if (!isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) return;
 			currentUserID = conversation.currentUserID;
 			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
@@ -237,7 +277,7 @@
 			if (signature !== lastConversationSignature) {
 				lastConversationSignature = signature;
 				messages = mergeOlderMessages(olderMessages, conversation.messages);
-				setCachedMessages(channelId, conversation.messages);
+				setCachedMessages(requestedChannelID, conversation.messages);
 				if (openThreadRoot) {
 					openThreadRoot = visibleMessages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
 				}
@@ -245,9 +285,11 @@
 			outgoing.forgetDeliveredThrough(deliveredBeforeReading);
 			loadFailed = false;
 		} catch {
-			loadFailed = true;
+			if ((!scope || isCurrentMessengerScope(scope)) &&
+				isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) loadFailed = true;
 		} finally {
-			hasLoadedOnce = true;
+			if ((!scope || isCurrentMessengerScope(scope)) &&
+				isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) hasLoadedOnce = true;
 		}
 	}
 
@@ -286,9 +328,20 @@
 
 	async function loadOlderMessages() {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
+		const requestedChannelID = channelId;
+		const generation = channelGeneration;
+		let messageCacheGeneration = channelMessageCacheGeneration();
+		const requestedCursor = historyCursor;
 		isLoadingOlder = true;
 		try {
-			const page = await fetchChannelConversation(channelId, historyCursor);
+			const scope = await messengerCacheScope();
+			messageCacheGeneration = channelMessageCacheGeneration();
+			if (!isCurrentChannel(requestedChannelID, generation, messageCacheGeneration) || historyCursor !== requestedCursor)
+				return;
+			const page = await fetchChannelConversation(requestedChannelID, requestedCursor);
+			await requireCurrentMessengerScope(scope);
+			if (!isCurrentChannel(requestedChannelID, generation, messageCacheGeneration) || historyCursor !== requestedCursor)
+				return;
 			hasMoreBefore = page.hasMoreBefore;
 			historyCursor = page.historyCursor;
 			const existingIds = new Set(messages.map((message) => message.id));
@@ -300,8 +353,9 @@
 			olderMessages = [...fresh, ...olderMessages];
 			messages = [...fresh, ...messages];
 		} finally {
-			isLoadingOlder = false;
+			if (isCurrentChannel(requestedChannelID, generation, messageCacheGeneration)) isLoadingOlder = false;
 		}
+		if (!isCurrentChannel(requestedChannelID, generation, messageCacheGeneration)) return;
 		// Only keep a small buffer ahead of the fold as the user scrolls up — load
 		// on demand, never speculatively, so we don't pay for history nobody reads.
 		requestAnimationFrame(prefetchOlderIfNearTop);
@@ -336,17 +390,20 @@
 	}
 
 	async function loadCurrentUser() {
+		const cacheGeneration = channelMessageCacheGeneration();
 		try {
 			const response = await fetch('/auth/session', { credentials: 'include', cache: 'no-store' });
 			if (!response.ok) return;
 			const session: { authenticated?: boolean; email?: string; image?: string } = await response.json();
-			if (session.authenticated) {
+			if (!isDestroyed && cacheGeneration === channelMessageCacheGeneration() && session.authenticated) {
 				currentUserEmail = session.email ?? '';
 				currentUserImage = session.image ?? '';
 			}
 		} catch {
-			currentUserEmail = '';
-			currentUserImage = '';
+			if (!isDestroyed && cacheGeneration === channelMessageCacheGeneration()) {
+				currentUserEmail = '';
+				currentUserImage = '';
+			}
 		}
 	}
 
@@ -361,6 +418,7 @@
 
 	function scheduleRefresh() {
 		clearTimeout(refreshTimer);
+		if (isDestroyed) return;
 		agentWorkingSince = stillWorkingSince(agentWorkingSince, Date.now());
 		if (!isActive) return;
 		const delay = isAgentWorking ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
@@ -430,6 +488,7 @@
 
 	$effect(() => {
 		const activeChannelID = channelId;
+		channelGeneration += 1;
 		olderMessages = [];
 		hasMoreBefore = false;
 		historyCursor = '';
@@ -449,8 +508,27 @@
 	});
 
 	let stopListeningForArrivals = () => {};
+	let stopFollowingCacheScope = () => {};
 
 	onMount(async () => {
+		stopFollowingCacheScope = onMessengerCacheReset(() => {
+			cacheGeneration += 1;
+			messages = [];
+			olderMessages = [];
+			currentUserID = '';
+			currentUserEmail = '';
+			currentUserImage = '';
+			hasLoadedOnce = false;
+			openThreadRoot = null;
+			threadEditing = null;
+			lightbox = null;
+			agentWorkingSince = null;
+			isLoadingOlder = false;
+			hasMoreBefore = false;
+			historyCursor = '';
+			lastConversationSignature = '';
+			for (const message of outgoing.messagesIn(channelId)) outgoing.discard(message.id);
+		});
 		customEmoji.load();
 		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent((event) => void readAgainOnArrival(event));
 		await loadCurrentUser();
@@ -458,6 +536,9 @@
 	});
 
 	onDestroy(() => {
+		isDestroyed = true;
+		channelGeneration += 1;
+		stopFollowingCacheScope();
 		stopListeningForArrivals();
 		clearTimeout(refreshTimer);
 	});
@@ -777,7 +858,7 @@
 			{/if}
 		</div>
 	</div>
-	<ChannelComposer
+	{#key cacheGeneration}<ChannelComposer
 		bind:this={threadComposer}
 		bind:isSending={isThreadSending}
 		bind:editing={threadEditing}
@@ -788,7 +869,7 @@
 		cancelsEditOnEscape={threadLayout === 'inline'}
 		saveEdit={messageActions.saveEdit}
 		onSend={sendThreadReply}
-	/>
+	/>{/key}
 {/snippet}
 
 <div class="flex min-h-0 flex-1">
@@ -868,6 +949,7 @@
 		{/if}
 	</div>
 	<ConversationDock {activity} bind:height={dockHeight}>
+		{#key cacheGeneration}
 		<ChannelComposer
 			bind:this={conversationComposer}
 			bind:isSending
@@ -880,6 +962,7 @@
 			onSend={sendToConversation}
 			onTyping={typing.announce}
 		/>
+		{/key}
 	</ConversationDock>
 </div>
 {#if threadLayout === 'inline' && openThreadRoot}

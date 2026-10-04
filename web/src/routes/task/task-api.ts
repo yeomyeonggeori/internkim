@@ -29,14 +29,18 @@ export type TaskQuickTaskResult = {
 
 export const taskStateDependency = 'app:task-state';
 
-export function fetchTaskState(scope?: string): Promise<TaskState> {
-	return taskState(scope);
+export function fetchTaskState(scope?: string, boardWeek?: string): Promise<TaskState> {
+	return taskState(scope, boardWeek);
 }
 
 export { taskWeeklySummaryOf, forgetTaskStateRead };
 
 export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySummary): TaskSummary {
 	return {
+		completeness: state.completeness,
+		peopleReady: state.peopleReady,
+		boardWeek: state.boardWeek,
+		childProgressByParent: state.childProgressByParent,
 		week: weeklySummary.week,
 		currentWeek: state.currentWeek ?? weeklySummary.currentWeek,
 		members: state.members,
@@ -44,9 +48,11 @@ export function mergeTaskSummary(state: TaskState, weeklySummary: TaskWeeklySumm
 		weeklyTasks: weeklySummary.weeklyTasks,
 		metrics: {
 			...weeklySummary.metrics,
-			memberScores: state.metrics.memberScores ?? {},
-			memberScoreDetails: state.metrics.memberScoreDetails ?? {},
-			totalScore: state.metrics.totalScore ?? 0
+			...(state.completeness === 'full' ? {
+				memberScores: state.metrics.memberScores ?? {},
+				memberScoreDetails: state.metrics.memberScoreDetails ?? {},
+				totalScore: state.metrics.totalScore ?? 0
+			} : {})
 		},
 		definitions: state.definitions,
 		report: weeklySummary.report,
@@ -79,8 +85,8 @@ function companyAppErrorMessage(body: unknown, fallback: string): string {
 	return fallback;
 }
 
-export function saveTask(task: Task, statusBefore: string | null): Promise<void> {
-	return saveTaskOnRecord(task, statusBefore);
+export function saveTask(task: Task, statusBefore: string | null, originalTask?: Task): Promise<void> {
+	return saveTaskOnRecord(task, statusBefore, originalTask);
 }
 
 export function moveTaskOnBoard(request: TaskBoardMoveRequest): Promise<void> {

@@ -4,7 +4,7 @@ let configured = false;
 let heldEmail: string | undefined;
 let sessionLookups = 0;
 
-const centralPlane = await import('../../src/lib/supabase');
+const centralPlane = { ...(await import('../../src/lib/supabase')) };
 
 mock.module('$lib/supabase', () => ({
 	...centralPlane,

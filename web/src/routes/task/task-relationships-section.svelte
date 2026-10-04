@@ -136,9 +136,10 @@
 	</div>
 </section>
 
-{#if canManageRelationships}
+{#if canManageRelationships || parentSelectorOpen || childSelectorOpen}
 	<TaskRelationshipSelector
 		bind:open={parentSelectorOpen}
+		disabled={!canManageRelationships}
 		mode="parent"
 		{task}
 		{tasks}
@@ -152,6 +153,7 @@
 	/>
 	<TaskRelationshipSelector
 		bind:open={childSelectorOpen}
+		disabled={!canManageRelationships}
 		mode="children"
 		{task}
 		{tasks}

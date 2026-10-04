@@ -6,6 +6,7 @@ import catalog from '../../../pkg/capabilityprotocol/generated/capability-tools.
 import { dayIn } from '../../src/lib/server/public-api/record/days';
 import { toolInputRecovered } from '../../src/lib/server/public-api/tool-input';
 import { taskOf } from '../../src/lib/task/task-state';
+import { taskWeekOfDate } from '../../src/lib/task/task-week-code';
 import type { RecordTask } from '../../src/lib/task/task-record';
 import { buildTaskChildProgress } from '../../src/routes/task/task-relationships';
 import { heldToTheContract } from './tool-answers';
@@ -58,7 +59,7 @@ beforeAll(async () => {
 		email: `${slug}-sample@example.test`,
 		email_confirm: true
 	});
-	await client.from('member').update({ user_id: account.user!.id }).eq('id', sampleID);
+	await client.from('member').update({ user_id: account.user!.id, status: 'active' }).eq('id', sampleID);
 
 	const session = await sessionForMember({ projectURL, serviceRoleKey, signingKey }, sampleID);
 	caller = asMember({ projectURL, publishableKey }, session.accessToken);
@@ -128,6 +129,68 @@ describe('person_list', () => {
 		expect(names).toContain('이샘플');
 		expect(names).toContain('박예시');
 	});
+});
+
+describe('attendance_team_page_get', () => {
+	test('answers a bounded team card from the caller company', async () => {
+		const result = resultOf(await run('attendance_team_page_get', { pageKind: 'teams', teamLimit: 1 }));
+		expect(result.companyID).toBe(companyID);
+		expect(result.teamTotal).toBeGreaterThan(0);
+		expect(result.teams).toHaveLength(1);
+	});
+});
+
+describe('task_board_get over real company rows', () => {
+	test('excludes 1501 historical rows, preserves 1501 cards and counts only direct children', async () => {
+		const boardWeek = taskWeekOfDate(new Date()).startISO;
+		const prefix = `board-scaling-${Date.now()}`;
+		const parentID = crypto.randomUUID();
+		const children = [crypto.randomUUID(), crypto.randomUUID()];
+		const grandchildID = crypto.randomUUID();
+		const relevantIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
+		const historicalIDs = Array.from({ length: 1501 }, () => crypto.randomUUID());
+		const allIDs = [parentID, ...children, grandchildID, ...relevantIDs, ...historicalIDs];
+		const insert = async (rows: Record<string, unknown>[]) => {
+			for (let offset = 0; offset < rows.length; offset += 500) {
+				const { error } = await client.from('task').insert(rows.slice(offset, offset + 500));
+				if (error) throw new Error(error.message);
+			}
+		};
+		const row = (id: string, status: string, parentTaskID: string | null = null) => ({
+			id, company_id: companyID, title: prefix, status, parent_task_id: parentTaskID,
+			starts_at: status === 'completed' ? '2020-01-01T00:00:00Z' : null,
+			ends_at: status === 'completed' ? '2020-01-02T00:00:00Z' : null
+		});
+		const boardIDs = async () => {
+			const result = resultOf(await run('task_board_get', { boardWeek, query: prefix }));
+			return { result, ids: (result.tasks as { taskID: string }[]).map(task => task.taskID) };
+		};
+		try {
+			await insert([row(parentID, 'planned'), row(children[0], 'completed', parentID), row(children[1], 'paused', parentID), row(grandchildID, 'completed', children[0])]);
+			for (const taskID of [parentID, ...children, grandchildID]) {
+				const { error } = await client.from('task_participant').insert({ task_id: taskID, member_id: sampleID });
+				if (error) throw new Error(error.message);
+			}
+			const small = await boardIDs();
+			expect(small.ids.sort()).toEqual([parentID, children[1]].sort());
+			await insert(historicalIDs.map(id => row(id, 'completed')));
+			const afterHistory = await boardIDs();
+			expect(afterHistory.ids.sort()).toEqual(small.ids.sort());
+			await insert(relevantIDs.map(id => row(id, 'planned')));
+			for (let offset = 0; offset < relevantIDs.length; offset += 500) {
+				const { error } = await client.from('task_participant').insert(relevantIDs.slice(offset, offset + 500).map(taskID => ({ task_id: taskID, member_id: sampleID })));
+				if (error) throw new Error(error.message);
+			}
+			const scaled = await boardIDs();
+			expect(new Set(scaled.ids)).toEqual(new Set([parentID, children[1], ...relevantIDs]));
+			expect(scaled.result.childProgress).toContainEqual({ parentTaskID: parentID, completed: 1, total: 2, percent: 50 });
+		} finally {
+			for (let offset = 0; offset < allIDs.length; offset += 100) {
+				const { error } = await client.from('task').delete().in('id', allIDs.slice(offset, offset + 100));
+				if (error) throw new Error(error.message);
+			}
+		}
+	}, networkHookTimeout);
 });
 
 describe('a task written through the record', () => {

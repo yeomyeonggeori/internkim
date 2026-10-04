@@ -18,6 +18,7 @@
 
 	type Props = {
 		open?: boolean;
+		disabled?: boolean;
 		mode: RelationshipMode;
 		task: Task;
 		tasks: Task[];
@@ -32,6 +33,7 @@
 
 	let {
 		open = $bindable(false),
+		disabled = false,
 		mode,
 		task,
 		tasks,
@@ -65,7 +67,7 @@
 	}
 
 	async function selectParent(parentID: string): Promise<void> {
-		if (submitting || pendingTaskIDs.includes(task.id)) return;
+		if (disabled || submitting || pendingTaskIDs.includes(task.id)) return;
 		submitting = true;
 		try {
 			const result = await onSetParent(task.id, parentID);
@@ -76,7 +78,7 @@
 	}
 
 	async function connectSelectedChildren(): Promise<void> {
-		if (submitting || selectedTaskIDs.length === 0) return;
+		if (disabled || submitting || selectedTaskIDs.length === 0) return;
 		submitting = true;
 		try {
 			if (await onSetParents(selectedTaskIDs, task.id)) open = false;
@@ -86,6 +88,7 @@
 	}
 
 	function createChild(): void {
+		if (disabled || submitting) return;
 		if (onCreateChild()) open = false;
 	}
 </script>
@@ -98,7 +101,7 @@
 	class="sm:max-w-lg"
 	onOpenChange={handleOpenChange}
 >
-	<Command.Input placeholder={searchPlaceholder} />
+	<Command.Input placeholder={searchPlaceholder} {disabled} />
 	<Command.List>
 		<Command.Empty>{text.noCandidates}</Command.Empty>
 		<Command.Group heading={title}>
@@ -107,7 +110,7 @@
 					value={`relationship-${mode}-${candidate.id}`}
 					keywords={[candidate.content, candidate.ownerName, candidate.type ?? '', candidate.business ?? '']}
 					data-checked={mode === 'parent' ? task.parentTaskID === candidate.id : selectedTaskIDs.includes(candidate.id)}
-					disabled={submitting || pendingTaskIDs.includes(candidate.id)}
+					disabled={disabled || submitting || pendingTaskIDs.includes(candidate.id)}
 					onSelect={() => mode === 'parent' ? void selectParent(candidate.id) : toggleChild(candidate.id)}
 				>
 					<div class="min-w-0 flex-1">
@@ -128,7 +131,7 @@
 		{#if mode === 'children'}
 			<Command.Separator />
 			<Command.Group>
-				<Command.Item value="relationship-create-child" forceMount onSelect={createChild} disabled={submitting}>
+				<Command.Item value="relationship-create-child" forceMount onSelect={createChild} disabled={disabled || submitting}>
 					<PlusIcon />
 					{text.createChild}
 				</Command.Item>
@@ -140,7 +143,7 @@
 		<div class="flex items-center justify-end border-t border-border/60 p-2">
 			<Button
 				size="sm"
-				disabled={submitting || selectedTaskIDs.length === 0}
+				disabled={disabled || submitting || selectedTaskIDs.length === 0}
 				onclick={() => void connectSelectedChildren()}
 			>
 				<Link2Icon />

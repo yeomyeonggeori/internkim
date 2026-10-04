@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, projectURL } from '$lib/supabase';
 import { copyAttachmentForReading, type MessengerAttachment } from '$lib/messenger/messenger-api';
 import { keptAssetPathOf } from '$lib/messenger/kept-attachment';
+import { onMessengerCacheReset } from '$lib/messenger/cache-scope';
 import { signedForReading } from '$lib/transfer/company-transfer';
 
 export type AttachmentSourceStatus = 'unasked' | 'loading' | 'ready' | 'failed';
@@ -13,6 +14,18 @@ class AttachmentSourceStore {
 	private failureByURL = $state<Map<string, string>>(new Map());
 	private loadingURLs = $state<Set<string>>(new Set());
 	private asked = new Map<string, MessengerAttachment>();
+	private generation = 0;
+
+	constructor() {
+		onMessengerCacheReset(() => {
+			this.generation += 1;
+			this.openableByURL = new Map();
+			this.progressByURL = new Map();
+			this.failureByURL = new Map();
+			this.loadingURLs = new Set();
+			this.asked.clear();
+		});
+	}
 
 	openable(url: string): string {
 		return this.openableByURL.get(url) ?? '';
@@ -50,22 +63,29 @@ class AttachmentSourceStore {
 	}
 
 	private async open(attachment: MessengerAttachment): Promise<void> {
+		const generation = this.generation;
 		const url = attachment.url;
 		this.loadingURLs = new Set([...this.loadingURLs, url]);
 		try {
-			const address = keptAssetPathOf(projectURL(), url) ? url : await this.copied(attachment);
-			this.openableByURL = new Map(this.openableByURL).set(url, await signedForReading(address));
+			const address = keptAssetPathOf(projectURL(), url) ? url : await this.copied(attachment, generation);
+			if (generation !== this.generation) return;
+			const signed = await signedForReading(address);
+			if (generation !== this.generation) return;
+			this.openableByURL = new Map(this.openableByURL).set(url, signed);
 		} catch (failure) {
+			if (generation !== this.generation) return;
 			const reason = failure instanceof Error ? failure.message : String(failure);
 			this.failureByURL = new Map(this.failureByURL).set(url, reason);
 		} finally {
+			if (generation !== this.generation) return;
 			this.progressByURL = withoutKey(this.progressByURL, url);
 			this.loadingURLs = new Set([...this.loadingURLs].filter((loading) => loading !== url));
 		}
 	}
 
-	private async copied(attachment: MessengerAttachment): Promise<string> {
+	private async copied(attachment: MessengerAttachment, generation: number): Promise<string> {
 		const copy = await copyAttachmentForReading(attachment, (copiedBytes, totalBytes) => {
+			if (generation !== this.generation) return;
 			this.progressByURL = new Map(this.progressByURL).set(attachment.url, { copiedBytes, totalBytes });
 		});
 		return copy.address;

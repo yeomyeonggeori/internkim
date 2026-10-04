@@ -101,13 +101,25 @@ export function refusedWriteOf(reason: string, code: string | undefined, changes
 // boundary; the answer is ordered by recency once every page is in.
 const rowsPerPage = 500;
 
-export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean): Promise<TaskRow[]> {
+export type TaskReadScope = {
+	linkedToOrganization?: boolean;
+	organizationID?: string;
+	opportunityID?: string;
+	status?: string;
+};
+
+export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean, scope: TaskReadScope = {}): Promise<TaskRow[]> {
 	const rows: TaskRow[] = [];
 	for (let from = 0; ; from += rowsPerPage) {
-		const { data, error } = await caller
+		let query = caller
 			.from('task')
 			.select(taskSelection)
-			.eq('is_event', areEvents)
+			.eq('is_event', areEvents);
+		if (scope.linkedToOrganization && !scope.organizationID) query = query.not('organization_id', 'is', null);
+		if (scope.organizationID) query = query.eq('organization_id', scope.organizationID);
+		if (scope.opportunityID) query = query.eq('opportunity_id', scope.opportunityID);
+		if (scope.status) query = query.eq('status', scope.status);
+		const { data, error } = await query
 			.order('id')
 			.range(from, from + rowsPerPage - 1)
 			.returns<TaskRow[]>();
@@ -117,6 +129,33 @@ export async function tasksOfCompany(caller: SupabaseClient, areEvents: boolean)
 		if (page.length < rowsPerPage) break;
 	}
 	return rows.sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+}
+
+async function taskWithID(caller: SupabaseClient, taskID: string, areEvents: boolean): Promise<TaskRow | null> {
+	const { data, error } = await caller.from('task').select(taskSelection)
+		.eq('id', taskID).eq('is_event', areEvents).maybeSingle<TaskRow>();
+	if (error) throw new Error(error.message);
+	return data;
+}
+
+export async function savedTaskByID(caller: SupabaseClient, taskID: string, areEvents: boolean): Promise<TaskRow> {
+	const data = await taskWithID(caller, taskID, areEvents);
+	return rowOfSavedID(data ? [data] : [], taskID, areEvents ? 'event' : 'task');
+}
+
+export async function taskFromHint(
+	caller: SupabaseClient,
+	hint: string,
+	areEvents: boolean,
+	requesterID = ''
+): Promise<TaskRow> {
+	const identifier = hint.trim().toLowerCase();
+	if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(identifier)) {
+		const identified = await taskWithID(caller, identifier, areEvents);
+		if (identified) return identified;
+	}
+	// A missing identifier can still be an exact title, including a UUID title.
+	return taskOfHint(await tasksOfCompany(caller, areEvents), hint, areEvents ? 'event' : 'task', requesterID);
 }
 
 const taskMatcher: HintMatcher<TaskRow> = {

@@ -1,4 +1,5 @@
 import type { SignedInMember } from '$lib/supabase-session';
+import { invalidateMessengerCacheScope } from '$lib/messenger/cache-scope';
 
 type RememberedLookup<Value> = { accountID: string; value: Promise<Value> };
 
@@ -35,7 +36,8 @@ class AccountMemo<Value> {
 export const companyMembership = new AccountMemo<boolean>((belongs) => belongs);
 export const signedInMember = new AccountMemo<SignedInMember>((member) => member.memberID !== '');
 
-export function forgetSignedInAccount(): void {
+export function forgetSignedInAccount(forgetStoredMessenger = false): void {
 	companyMembership.forget();
 	signedInMember.forget();
+	invalidateMessengerCacheScope(forgetStoredMessenger);
 }

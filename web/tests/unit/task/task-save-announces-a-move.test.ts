@@ -1,8 +1,11 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { Task } from '../../../src/routes/task/task-types';
 
 let announced: { name: string; body: unknown }[] = [];
 let invoked: { tool: string; input: Record<string, unknown> }[] = [];
+
+const centralPlane = { ...(await import('$lib/supabase')) };
+const publicAPICall = { ...(await import('../../../src/lib/public-api-call')) };
 
 const plane = {
 	auth: { getSession: async () => ({ data: { session: { access_token: 'a-token' } } }) },
@@ -14,17 +17,22 @@ const plane = {
 	}
 };
 
-mock.module('$lib/supabase', () => ({ supabase: () => plane, isSupabaseConfigured: () => true }));
+mock.module('$lib/supabase', () => ({ ...centralPlane, supabase: () => plane, isSupabaseConfigured: () => true }));
 
 mock.module('../../../src/lib/public-api-call', () => ({
+	...publicAPICall,
 	invokeTool: async (name: string, input: Record<string, unknown>) => {
 		invoked.push({ tool: name, input });
 		return { taskID: 'task-1' };
-	},
-	isRefusalCode: () => false
+	}
 }));
 
 const { saveTask } = await import('../../../src/lib/task/task-state');
+
+afterAll(() => {
+	mock.module('$lib/supabase', () => centralPlane);
+	mock.module('../../../src/lib/public-api-call', () => publicAPICall);
+});
 
 function taskWith(fields: Partial<Task> = {}): Task {
 	return {

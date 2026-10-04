@@ -8,6 +8,7 @@ import { personPicture } from '$lib/stores/person-picture.svelte';
 import { attachmentSource } from '$lib/stores/attachment-source.svelte';
 import { emojifyText, glyphOfEmojiName } from './emoji-glyph';
 import { customEmojiNamesIn } from './custom-emoji-names';
+import { messengerCacheScope, requireCurrentMessengerScope } from './cache-scope';
 import {
 	addReaction,
 	deletePost,
@@ -90,22 +91,12 @@ const pageSize = 50;
 // from uses.
 type Viewer = { key: string; names: Set<string> };
 
-let reader: Promise<Viewer> | null = null;
-
 function externalIDOf(person: MessengerPerson, people: MessengerDirectory): string {
 	if (person.externalID) return person.externalID;
 	return person.memberID ? (externalIDsOfMember(people, person.memberID)[0] ?? '') : '';
 }
 
-function whoIsReading(people: MessengerDirectory): Promise<Viewer> {
-	reader ??= readViewer(people).catch((refusal) => {
-		reader = null;
-		throw refusal;
-	});
-	return reader;
-}
-
-async function readViewer(people: MessengerDirectory): Promise<Viewer> {
+async function whoIsReading(people: MessengerDirectory): Promise<Viewer> {
 	const { memberID } = await supabaseMember();
 	if (!memberID) return { key: '', names: new Set() };
 	const key = personKey({ memberID });
@@ -145,9 +136,11 @@ function placementOf(person: MessengerPerson, people: MessengerDirectory): Messe
 }
 
 export async function bridgeConversations(): Promise<ChannelSummary[]> {
+	const scope = await messengerCacheScope();
 	const [answer, people] = await Promise.all([fetchChannels(), fetchMessengerDirectory()]);
 	const { channels, agentExternalID } = answer;
 	const [viewer, messengerNames] = await Promise.all([whoIsReading(people), messengerNamesOf(channels, people)]);
+	await requireCurrentMessengerScope(scope);
 	void personPicture.rememberExternals(channels.flatMap((channel) => channel.participants.map((person) => externalIDOf(person, people))));
 	return [...channels]
 		.sort((left, right) => left.position - right.position)
@@ -247,14 +240,19 @@ export async function bridgeAgentConversation(): Promise<string> {
 }
 
 export async function bridgeConversation(channelID?: string, before?: string): Promise<Conversation> {
-	const people = await fetchMessengerDirectory();
+	const scope = await messengerCacheScope();
+	const [people, posts] = await Promise.all([
+		fetchMessengerDirectory(),
+		channelID ? fetchPosts(channelID, before) : Promise.resolve([])
+	]);
 	const viewer = await whoIsReading(people);
+	await requireCurrentMessengerScope(scope);
 	if (!channelID) {
 		return { conversationID: '', currentUserID: viewer.key, messages: [], hasMoreBefore: false, historyCursor: '' };
 	}
-	const posts = await fetchPosts(channelID, before);
-	await customEmoji.load();
-	await customEmoji.draw(customEmojiNamesIn(posts));
+	void customEmoji.load().then(() => customEmoji.draw(customEmojiNamesIn(posts))).catch((failure: unknown) =>
+		console.warn('custom emoji did not load', failure)
+	);
 	void personPicture.rememberExternals(posts.map((post) => externalIDOf(post.author, people)));
 	void attachmentSource.wants(posts.flatMap((post) => post.attachments));
 	return {

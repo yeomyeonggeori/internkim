@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
+	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import AttendanceLoadingSkeleton from './attendance-loading-skeleton.svelte';
-	import { getAttendanceState } from './attendance-context.svelte';
 	import { getAttendanceViewState } from './attendance-view-state.svelte';
 	import LeaveApprovalView from './approval/leave-approval-view.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
@@ -16,14 +17,13 @@
 	import { attendanceText } from './text';
 
 	const text = createPageText(attendanceText);
-	const attendance = getAttendanceState();
 	const attendanceView = getAttendanceViewState();
 	const leaveApproval = getLeaveApprovalState();
 	const isMobile = new IsMobile();
 
 	$effect(() => {
 		if (
-			!attendance.summary?.isAdmin &&
+			!myAttendanceToday.summary?.isAdmin &&
 			(attendanceView.selected === 'approvals' ||
 				attendanceView.selected === 'leaveManagement' ||
 				attendanceView.selected === 'handWritten')
@@ -37,8 +37,12 @@
 	});
 </script>
 
-{#if !attendance.summary}
+{#if !myAttendanceToday.summary}
 	<AttendanceLoadingSkeleton />
+	{#if myAttendanceToday.loadFailure}
+		<p role="alert" class="mt-3 text-sm text-destructive">{myAttendanceToday.loadFailure}</p>
+		<Button variant="outline" size="sm" onclick={() => myAttendanceToday.refresh()}>{text.refresh}</Button>
+	{/if}
 {:else}
 	<Tabs.Root
 		bind:value={attendanceView.selected}
@@ -65,7 +69,7 @@
 		>
 			{text.leave.historyTab}
 		</Tabs.Trigger>
-		{#if attendance.summary?.isAdmin}
+		{#if myAttendanceToday.summary?.isAdmin}
 			<Tabs.Trigger
 				value="approvals"
 				onpointerenter={() => attendanceView.prefetch('approvals')}
@@ -115,7 +119,7 @@
 			/>
 		{/if}
 	</Tabs.Content>
-	{#if attendance.summary?.isAdmin}
+	{#if myAttendanceToday.summary?.isAdmin}
 		<Tabs.Content value="approvals" class="min-h-0 min-w-0">
 			<LeaveApprovalView />
 		</Tabs.Content>

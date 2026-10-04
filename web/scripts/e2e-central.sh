@@ -19,7 +19,7 @@ cd "$repository"
 
 supabase db reset
 
-eval "$(supabase status --env --output-format text 2>/dev/null | grep -E '^(API_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
+eval "$(supabase status --env --output-format text 2>/dev/null | grep -E '^(API_URL|DB_URL|PUBLISHABLE_KEY|SECRET_KEY)=')"
 . "$repository/web/scripts/local-plane-signing-key.sh"
 
 central_plane_serves() {
@@ -42,6 +42,7 @@ wait_until_central_plane_serves
 
 cd web
 SUPABASE_URL="$API_URL" \
+SUPABASE_DB_URL="$DB_URL" \
 SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
 SUPABASE_SECRET_KEY="$SECRET_KEY" \
 SUPABASE_JWT_SIGNING_KEY="$(local_plane_signing_key "$repository")" \

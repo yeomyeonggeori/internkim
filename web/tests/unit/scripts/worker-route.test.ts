@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
 import { routePatternOfSubdomain, zoneOfSettings } from '../../../scripts/worker-route';
 import { defaultZone } from '../../../src/lib/server/fleet-domain';
@@ -31,7 +31,7 @@ describe('rendering a route from a subdomain', () => {
 
 describe('no worker configuration writes the fleet domain down again', () => {
 	const configurations = readdirSync(workersDirectory, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory())
+		.filter((entry) => entry.isDirectory() && existsSync(new URL(`${entry.name}/wrangler.jsonc`, workersDirectory)))
 		.map((entry) => ({ worker: entry.name, written: readFileSync(new URL(`${entry.name}/wrangler.jsonc`, workersDirectory), 'utf8') }));
 
 	test('there is a worker to check', () => {

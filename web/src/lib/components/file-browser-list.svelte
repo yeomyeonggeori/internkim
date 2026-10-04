@@ -45,6 +45,7 @@
 
 <section
 	aria-label={title}
+	aria-busy={isLoading}
 	class="bg-card min-w-0 flex-1 overflow-hidden rounded-xl border shadow-sm"
 >
 	<div
@@ -54,7 +55,7 @@
 		<span class="text-right max-sm:hidden">{secondaryLabel}</span>
 		<span class="text-right">{dateLabel}</span>
 	</div>
-	{#if isLoading}
+	{#if isLoading && entries.length === 0}
 		<div class="flex justify-center py-16" role="status" aria-label={title}><Spinner /></div>
 	{:else if entries.length === 0}
 		<Empty.Root>
@@ -92,5 +93,6 @@
 				</span>
 			</button>
 		{/each}
+		{#if isLoading}<div class="flex justify-center py-4" role="status" aria-label={title}><Spinner /></div>{/if}
 	{/if}
 </section>

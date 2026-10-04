@@ -6,15 +6,16 @@ import type { AttendanceActiveLeave } from '../../routes/attendance/attendance-c
 
 export async function supabaseActiveLeave(
 	timeZone: string,
-	now: Date
+	now: Date,
+	knownLeave?: RecordLeave[]
 ): Promise<AttendanceActiveLeave | undefined> {
 	const today = companyDateOf(now, timeZone);
-	const mine = await invokeTool<RecordLeaveList>('leave_list', {
+	const mine = knownLeave ?? (await invokeTool<RecordLeaveList>('leave_list', {
 		status: 'approved',
 		from: today,
 		to: today
-	});
-	const covering = mine.leave
+	})).leave;
+	const covering = mine
 		.filter((taken) => coversTheMoment(taken, now))
 		.sort((left, right) => left.startsAt.localeCompare(right.startsAt))[0];
 	if (!covering) return undefined;

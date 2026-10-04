@@ -14,10 +14,13 @@ import {
 	companySettings,
 	orderablePersonOf,
 	type RecordAttendance,
+	type RecordAttendanceList,
 	type RecordLeave,
+	type RecordLeaveList,
 	type RecordWorkLocation
 } from './attendance-record';
 import { returnEarlyFromSupabaseLeave, supabaseActiveLeave } from './supabase-active-leave';
+import { attendanceSummaryRecords } from './attendance-summary-records';
 import { colourOf } from '$lib/task/task-vocabulary';
 import { membersInReadingOrder, type OrderableMember } from '$lib/member-order';
 import type {
@@ -46,17 +49,26 @@ export type SupabaseAttendanceAddition = {
 };
 
 export async function supabaseAttendanceSummary(month: string): Promise<AttendanceSummary> {
-	const settings = await companySettings();
+	const settingsRequest = companySettings();
+	const directoryRequest = companyDirectory();
+	const recordsRequest = (async () => {
+		const selectedMonth = month || monthIn(new Date(), (await settingsRequest).timeZone);
+		const firstDay = `${selectedMonth}-01`;
+		const lastDay = lastDayOfMonth(selectedMonth);
+		const [attendance, leave] = await Promise.all([
+			attendanceBetween(shiftedDay(firstDay, -1), lastDay),
+			approvedLeaveBetween(firstDay, lastDay)
+		]);
+		return { selectedMonth, attendance, leave };
+	})();
+	const [settings, directory, { selectedMonth, attendance, leave }] = await Promise.all([
+		settingsRequest,
+		directoryRequest,
+		recordsRequest
+	]);
 	const timeZone = settings.timeZone;
-	const selectedMonth = month || monthIn(new Date(), timeZone);
 	const firstDay = `${selectedMonth}-01`;
 	const lastDay = lastDayOfMonth(selectedMonth);
-
-	const [directory, attendance, leave] = await Promise.all([
-		companyDirectory(),
-		attendanceBetween(shiftedDay(firstDay, -1), lastDay),
-		approvedLeaveBetween(firstDay, lastDay)
-	]);
 
 	const me = directory.people.find((person) => person.personID === directory.requesterID);
 	const emailOf = new Map(directory.people.map((person) => [person.personID, person.email]));
@@ -64,8 +76,15 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 		eventOf(row, emailOf.get(row.personID) ?? '', timeZone)
 	);
 	const myEmail = me?.email ?? '';
+	const serverNow = new Date(attendance.serverTime);
+	const today = companyDateOf(serverNow, timeZone);
+	const todayLeave = today >= firstDay && today <= lastDay
+		? leave.leave.filter((taken) => taken.personID === me?.personID)
+		: undefined;
 
 	return {
+		[attendanceSummaryRecords]: { readScope: 'all', settings, directory, attendance, leave, from: firstDay, to: lastDay },
+		readScope: 'all',
 		month: selectedMonth,
 		serverTime: attendance.serverTime,
 		timeZoneAuthoritative: true,
@@ -81,9 +100,52 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 			me?.personID
 		).map(memberOf),
 		todayStatus: todayStatusOf(events, myEmail, timeZone),
-		activeLeave: me ? await supabaseActiveLeave(timeZone, new Date(attendance.serverTime)) : undefined,
+		activeLeave: me ? await supabaseActiveLeave(timeZone, serverNow, todayLeave) : undefined,
 		locations: locationsOf(settings.workLocations),
 		teamViewVisibleToAll: settings.teamViewVisibleToAll,
+		teamViewBlocked: false
+	};
+}
+
+// A selected person's month uses only that member's event and leave rows. The
+// company comparison remains an explicit separate view.
+export async function supabaseAttendancePersonSummary(
+	month: string,
+	member: AttendanceMember,
+	requester: AttendanceSummary
+): Promise<AttendanceSummary> {
+	if (!member.memberID || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+		throw new Error('Select a member and month to read attendance');
+	}
+	const firstDay = `${month}-01`;
+	const lastDay = lastDayOfMonth(month);
+	const personHints = [member.memberID];
+	const [attendance, leave] = await Promise.all([
+		invokeTool<RecordAttendanceList>('attendance_list', {
+			personHints, from: shiftedDay(firstDay, -1), to: lastDay
+		}),
+		invokeTool<RecordLeaveList>('leave_list', {
+			personHints, status: 'approved', from: firstDay, to: lastDay
+		})
+	]);
+	if (attendance.count >= 20000) throw new Error('Attendance history exceeds the supported page; narrow the period');
+	const events = attendance.attendance.map((row) => eventOf(row, member.email, requester.timeZone));
+	return {
+		readScope: 'person',
+		month,
+		serverTime: attendance.serverTime,
+		timeZoneAuthoritative: true,
+		backdatedAfterMinutes: attendance.backdatedAfterMinutes,
+		currentUserEmail: requester.currentUserEmail,
+		currentMemberID: requester.currentMemberID,
+		isAdmin: requester.isAdmin,
+		timeZone: requester.timeZone,
+		events,
+		absences: leave.leave.flatMap((row) => absencesOf(row, member.email)),
+		members: [member],
+		todayStatus: todayStatusOf(events, member.email, requester.timeZone),
+		locations: requester.locations,
+		teamViewVisibleToAll: requester.teamViewVisibleToAll,
 		teamViewBlocked: false
 	};
 }
@@ -217,7 +279,7 @@ function absencesOf(row: RecordLeave, email: string): AttendanceAbsence[] {
 	return days;
 }
 
-function locationsOf(workLocations: RecordWorkLocation[]): AttendanceLocation[] {
+export function locationsOf(workLocations: RecordWorkLocation[]): AttendanceLocation[] {
 	return workLocations.map((location, index) => ({
 		id: location.name,
 		name: location.name,

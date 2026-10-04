@@ -4,6 +4,7 @@ export type LeaveApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancell
 export type LeaveApprovalRequest = {
 	id: string;
 	employeeEmail: string;
+	employeeName: string;
 	leaveTypeID: string;
 	leaveTypeName: string;
 	balanceMode: 'annual' | 'separate' | 'none';
