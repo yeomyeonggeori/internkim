@@ -4,7 +4,6 @@
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { fetchMemoryRecall, type MemoryLayer, type MemoryRecalled } from './memory-facts-api';
-	import MemoryLayerDepth from './memory-layer-depth.svelte';
 	import type { MemoryText } from './text';
 
 	type Props = { labelOf: (layer: MemoryLayer) => string; onSelectFact: (factID: string) => void; text: MemoryText };
@@ -55,7 +54,6 @@
 				{#each recalled as fact (fact.factID)}
 					<li>
 						<button type="button" class="flex w-full min-w-0 items-start gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring" onclick={() => onSelectFact(fact.factID)}>
-							<MemoryLayerDepth class="mt-1" layer={fact} />
 							<span class="flex min-w-0 flex-col"><span class="break-words">{fact.content}</span><span class="text-xs text-muted-foreground">{labelOf(fact)}</span></span>
 						</button>
 					</li>

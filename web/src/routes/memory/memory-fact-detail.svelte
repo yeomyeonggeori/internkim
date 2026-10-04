@@ -10,7 +10,6 @@
 	import * as Field from '$lib/components/ui/field';
 	import { forgetMemoryFact, type MemoryFact } from './memory-facts-api';
 	import MemoryImportance from './memory-importance.svelte';
-	import MemoryLayerDepth from './memory-layer-depth.svelte';
 	import { isCurrentMemory, memoryDate, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
 
@@ -44,7 +43,6 @@
 	<header class="flex flex-col gap-3">
 		<h2 class="text-sm font-semibold">{text.memoryDetails}</h2>
 		<div class="flex items-center gap-2 text-sm">
-			<MemoryLayerDepth layer={fact} />
 			<span class="font-medium">{scope}</span>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
