@@ -11,7 +11,7 @@ root=/mnt/kim-mini
 baseImage="$(dirname "$outputImage")/$(basename "$baseImageURL")"
 
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates xz-utils parted e2fsprogs fdisk util-linux >/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates xz-utils parted e2fsprogs fdisk util-linux python3-pil >/dev/null
 
 [ -e "$baseImage" ] || curl -fsSL -o "$baseImage" "$baseImageURL"
 expectedChecksum="$(curl -fsSL "$baseImageURL.sha256" | cut -d' ' -f1)"
@@ -74,6 +74,11 @@ sed -i 's/^WirelessEnabled=.*/WirelessEnabled=true/' "$root/var/lib/NetworkManag
 grep -q '^WirelessEnabled=true$' "$root/var/lib/NetworkManager/NetworkManager.state" || { echo "NetworkManager still starts with Wi-Fi off" >&2; exit 1; }
 chroot "$root" raspi-config nonint do_change_timezone "$timeZone"
 [ "$(readlink "$root/etc/localtime")" = "/usr/share/zoneinfo/$timeZone" ] || { echo "raspi-config did not set the time zone to $timeZone" >&2; exit 1; }
+
+chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fastfetch >/dev/null
+install -D -m 0644 /work/tools/fastfetch.jsonc "$root/etc/xdg/fastfetch/config.jsonc"
+python3 /work/tools/draw-logo /work/round-mark.png /work/tools/fastfetch.jsonc "$root"
+install -m 0644 /work/tools/fastfetch-at-login.sh "$root/etc/profile.d/kim-mini-fastfetch.sh"
 
 echo kimmini > "$root/etc/hostname"
 sed -i 's/^127\.0\.1\.1.*/127.0.1.1\tkimmini/' "$root/etc/hosts"

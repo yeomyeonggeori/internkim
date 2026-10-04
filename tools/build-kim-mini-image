@@ -21,6 +21,7 @@ package of that release installed, the box started with --wifi-setup and
 --host-name-from-key, and Wi-Fi turned on for the country the box is sold in,
 which Raspberry Pi OS otherwise leaves off until someone picks one. The clock
 keeps that country's time zone, where Raspberry Pi OS would keep Europe/London.
+A login shell opens with fastfetch beside the round mark.
 It runs in a privileged arm64 Linux container through Docker and writes
 .artifacts/kim-mini/kim-mini-<release>.img.xz. Write it to a card with
 tools/flash-kim-mini, which also records the day the box was made.
@@ -51,5 +52,6 @@ docker run --rm --privileged --platform linux/arm64 \
   ${releaseMount[@]+"${releaseMount[@]}"} \
   -v "$scriptDirectory/kim-mini-image:/work/tools:ro" \
   -v "$repositoryRoot/web/static/install.sh:/work/install.sh:ro" \
+  -v "$repositoryRoot/assets/internkim.favicon.png:/work/round-mark.png:ro" \
   -v "$outputDirectory:/output" \
   debian:trixie sh /work/tools/assemble "$baseImageURL" "$releaseTag" "/output/kim-mini-$releaseTag.img" "$wifiCountry" "$timeZone"

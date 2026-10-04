@@ -534,5 +534,9 @@
   "XDG_CACHE_HOME": {
     "process": "tools/prepare-container-kernel",
     "description": "the XDG cache directory, read on Linux to locate the default container-kernel cache path"
+  },
+  "TERM": {
+    "process": "tools/kim-mini-image/fastfetch-at-login.sh",
+    "description": "the terminal type a Kim mini login shell runs in (standard POSIX variable); `linux` is the box's own console, whose font has no braille, so the login banner leaves its logo out there"
   }
 }
