@@ -235,7 +235,7 @@ enabled = true
 host = "smtp.mx.cloudflare.net"
 port = 465
 user = "api_token"
-pass = "env(CLOUDFLARE_EMAIL_SENDING_TOKEN)"
+pass = "env(CLOUDFLARE_EMAIL_TOKEN)"
 admin_email = "noreply@intern.kim"
 sender_name = "internkim"
 
