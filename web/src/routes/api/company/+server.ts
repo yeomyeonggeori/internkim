@@ -1,9 +1,9 @@
 import { env } from '$env/dynamic/private';
-import { slugShape } from '$lib/company-path';
+import { isUsableCompanyAddress } from '$lib/company-path';
 import {
-	AddressBelongsToAnotherCompany,
 	asMember,
 	claimMemberFor,
+	CompanyAddressTaken,
 	controlPlane,
 	foundCompany,
 	planeCredentialsOf
@@ -20,12 +20,12 @@ export const GET: RequestHandler = async ({ platform, url }) => {
 	if (!projectURL || !serviceRoleKey) error(500, 'the central plane is not configured');
 
 	const slug = (url.searchParams.get('slug') ?? '').trim().toLowerCase();
-	if (!slugShape.test(slug)) return json({ slug, taken: false, usable: false });
+	if (!isUsableCompanyAddress(slug)) return json({ slug, taken: false, usable: false });
 
 	const client = controlPlane({ projectURL, serviceRoleKey });
-	const { data, error: readError } = await client.from('company').select('name').eq('slug', slug).maybeSingle();
+	const { data, error: readError } = await client.from('company').select('id').eq('slug', slug).maybeSingle();
 	if (readError) error(500, readError.message);
-	return json({ slug, taken: Boolean(data), usable: !data, name: data?.name ?? null });
+	return json({ slug, taken: Boolean(data), usable: !data });
 };
 
 export const POST: RequestHandler = async ({ request, platform }) => {
@@ -42,38 +42,32 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	const body = (await request.json().catch(() => ({}))) as {
 		name?: unknown;
 		slug?: unknown;
+		founderName?: unknown;
 		timezone?: unknown;
-		country?: unknown;
 		locale?: unknown;
-		invited?: unknown;
 	};
 	const name = typeof body.name === 'string' ? body.name.trim() : '';
 	const slug = typeof body.slug === 'string' ? body.slug.trim().toLowerCase() : '';
+	const founderName = typeof body.founderName === 'string' ? body.founderName.trim() : '';
 	if (!name) error(400, 'a company needs a name');
-	if (!slugShape.test(slug)) error(400, 'that address will not do');
+	if (!founderName) error(400, 'the founder needs a name');
+	if (!isUsableCompanyAddress(slug)) error(400, 'that address will not do');
 
 	const client = controlPlane(plane);
 
 	const already = await claimMemberFor(client, account.user.id, email);
 	if (already) error(409, 'this account already belongs to a company');
 
-	const invited = Array.isArray(body.invited)
-		? [...new Set(body.invited.filter((entry): entry is string => typeof entry === 'string')
-			.map((entry) => entry.trim().toLowerCase())
-			.filter((entry) => entry.includes('@')))]
-		: [];
-
-	const founded = await companyFoundedUnlessAnInviteeIsTaken(
+	const founded = await companyFoundedUnlessTheAddressIsTaken(
 		client,
-		{ accountID: account.user.id, email },
+		{ accountID: account.user.id, email, name: founderName },
 		{
 			name,
 			slug,
-			country: typeof body.country === 'string' && body.country ? body.country : 'KR',
-			locale: typeof body.locale === 'string' && body.locale ? body.locale : 'ko',
-			timezone: typeof body.timezone === 'string' && body.timezone ? body.timezone : 'Asia/Seoul'
-		},
-		invited
+			country: 'KR',
+			locale: body.locale === 'en' ? 'en' : 'ko',
+			timezone: isTimeZone(body.timezone) ? body.timezone : 'Asia/Seoul'
+		}
 	);
 
 	const notifications = await setUpNotificationsFor(environment, accessToken, email, client);
@@ -81,15 +75,23 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 	return json({ ...founded, slug, notifications });
 };
 
-async function companyFoundedUnlessAnInviteeIsTaken(
+async function companyFoundedUnlessTheAddressIsTaken(
 	...founding: Parameters<typeof foundCompany>
 ): ReturnType<typeof foundCompany> {
 	try {
 		return await foundCompany(...founding);
 	} catch (refusal) {
-		if (refusal instanceof AddressBelongsToAnotherCompany) {
-			error(409, `${refusal.email} already belongs to a company, so it cannot be invited here`);
-		}
+		if (refusal instanceof CompanyAddressTaken) error(409, `${refusal.slug} is already a company's address`);
 		throw refusal;
+	}
+}
+
+function isTimeZone(value: unknown): value is string {
+	if (typeof value !== 'string' || !value) return false;
+	try {
+		new Intl.DateTimeFormat('en', { timeZone: value });
+		return true;
+	} catch {
+		return false;
 	}
 }

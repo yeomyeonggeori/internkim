@@ -45,8 +45,8 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await expect(page.locator('[data-slot="input-otp-slot"]')).toHaveCount(8);
 		await capture('claim-code');
 		await page.goto('/start');
-		await expect(page.locator('textarea')).toBeVisible();
-		await page.locator('textarea').fill('first@example.com\nsecond@example.com');
+		await page.getByRole('textbox', { name: '회사 이름', exact: true }).fill('Sample Company With A Long Name');
+		await page.getByRole('textbox', { name: '내 이름', exact: true }).fill('이샘플');
 		await capture('start');
 		await page.goto('/share/invitations/00000000-0000-4000-8000-000000000001');
 		await expect(page.getByRole('button', { name: 'Send verification code' })).toBeVisible();

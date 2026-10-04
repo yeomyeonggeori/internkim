@@ -5,6 +5,7 @@ import {
 	AddressBelongsToAnotherCompany,
 	adminCallerOf,
 	AlreadyAMember,
+	CompanyAddressTaken,
 	asMember,
 	closeSignInOfMembersWhoLeft,
 	controlPlane,
@@ -161,14 +162,19 @@ describe('an address belongs to one company', () => {
 		expect(admin.status).toBe('active');
 	});
 
-	test('founding with an invitee another company holds founds nothing and moves nobody', async () => {
+	test('an address another company took is refused by name, not as a database error', async () => {
+		await expect(
+			provisionCompany(client, companyInput(slug), `${slug}-second-admin@example.test`),
+		).rejects.toBeInstanceOf(CompanyAddressTaken);
+	});
+
+	test('founding as an address another company holds founds nothing and moves nobody', async () => {
 		const refusedSlug = `${slug}-refused`;
 		await expect(
 			foundCompany(
 				client,
-				{ accountID: crypto.randomUUID(), email: `${refusedSlug}-founder@example.test` },
+				{ accountID: crypto.randomUUID(), email: colleagueEmail, name: '박예시' },
 				companyInput(refusedSlug),
-				[colleagueEmail],
 			),
 		).rejects.toBeInstanceOf(AddressBelongsToAnotherCompany);
 
