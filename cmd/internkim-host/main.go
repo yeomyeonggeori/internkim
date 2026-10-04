@@ -195,7 +195,17 @@ func withAdminPasswordFor(daemon box.Daemon, account string) box.Daemon {
 	daemon.SetAdminPassword = func(ctx context.Context, password string) error {
 		return setPassword(ctx, account, password)
 	}
+	daemon.LockAdminPassword = func(ctx context.Context) error {
+		return lockPassword(ctx, account)
+	}
 	return daemon
+}
+
+func lockPassword(ctx context.Context, account string) error {
+	if output, errorValue := exec.CommandContext(ctx, "passwd", "--lock", account).CombinedOutput(); errorValue != nil {
+		return fmt.Errorf("passwd could not lock %s: %v: %s", account, errorValue, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func setPassword(ctx context.Context, account, password string) error {
@@ -260,6 +270,7 @@ func boxDaemon(appURL string) box.Daemon {
 			ConnectionFilePath:        companyhost.CurrentConnectionPath(),
 			CredentialPaths:           []string{blueclaw.CompanyHostAgentKeyPath, blueclaw.RelayAgentKeyPath},
 			ModelKeyPath:              blueclaw.CompanyHostModelKeyPath,
+			ResetRequestPath:          blueclaw.CompanyHostBoxResetRequestPath,
 			CompanyStateDirectoryPath: companyhost.DefaultStateDirectoryPath,
 		},
 		Install: func(request companyhost.Request) error {

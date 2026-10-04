@@ -133,8 +133,8 @@ func TestOnlyAComputerAskedToIsRenamedAfterItsKey(t *testing.T) {
 	if without := boxDaemon("https://example.com"); without.SetAdminPassword != nil {
 		t.Fatal("a daemon built without --admin-account would set an account's password")
 	}
-	if with := withAdminPasswordFor(box.Daemon{}, "admin"); with.SetAdminPassword == nil {
-		t.Fatal("a daemon built with --admin-account does not set that account's password")
+	if with := withAdminPasswordFor(box.Daemon{}, "admin"); with.SetAdminPassword == nil || with.LockAdminPassword == nil {
+		t.Fatal("a daemon built with --admin-account does not set and lock that account's password")
 	}
 }
 

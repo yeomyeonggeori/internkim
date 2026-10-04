@@ -40,6 +40,7 @@ const (
 	CompanyHostStateRoot                   = "/var/lib/internkim"
 	CompanyHostBoxStatePath                = "/var/lib/internkim/box"
 	CompanyHostBoxPairingPageListenAddress = ":18088"
+	CompanyHostBoxResetRequestPath         = "/boot/firmware/internkim-reset"
 	CompanyHostCompaniesRoot               = "/var/lib/internkim/companies"
 	CompanyHostCurrentPath                 = "/var/lib/internkim/current"
 	CompanyHostEnvironmentPath             = "/var/lib/internkim/current/host.env"
