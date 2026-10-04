@@ -852,7 +852,7 @@ export const browserScreenshotInputSchema = z.strictObject({});
 export const browserScreenshotResultSchema = z.strictObject({
   ok: z.literal(true),
   action: z.literal('screenshot'),
-  attachments: z.array(imageReadAttachmentSchema).min(1),
+  attachments: z.array(imageReadAttachmentSchema.omit({ devicePath: true })).min(1),
   capturedAt: resourceIDSchema,
 });
 
@@ -1587,7 +1587,7 @@ const browserToolDefinitions: CapabilityToolDefinition[] = [
     privacyClass: 'device_browser',
     policyResource: 'tool:browser_screenshot',
     description: 'Capture the visible browser page as a PNG attachment for visual inspection.',
-    version: '3',
+    version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Interactive,
     inputSchema: browserScreenshotInputSchema,
     result: { schema: browserScreenshotResultSchema, effects: [] },

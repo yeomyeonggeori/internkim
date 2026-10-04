@@ -12024,11 +12024,6 @@
                   "pattern": "^\\S(?:.*\\S)?$",
                   "type": "string"
                 },
-                "devicePath": {
-                  "minLength": 1,
-                  "pattern": "^\\S(?:.*\\S)?$",
-                  "type": "string"
-                },
                 "filename": {
                   "minLength": 1,
                   "pattern": "^\\S(?:.*\\S)?$",
@@ -12041,7 +12036,6 @@
                 }
               },
               "required": [
-                "devicePath",
                 "filename",
                 "contentType",
                 "sizeBytes",
@@ -12097,11 +12091,6 @@
                     "pattern": "^\\S(?:.*\\S)?$",
                     "type": "string"
                   },
-                  "devicePath": {
-                    "minLength": 1,
-                    "pattern": "^\\S(?:.*\\S)?$",
-                    "type": "string"
-                  },
                   "filename": {
                     "minLength": 1,
                     "pattern": "^\\S(?:.*\\S)?$",
@@ -12114,7 +12103,6 @@
                   }
                 },
                 "required": [
-                  "devicePath",
                   "filename",
                   "contentType",
                   "sizeBytes",
@@ -12146,7 +12134,7 @@
       },
       "sideEffect": "read",
       "sideEffectClass": "read",
-      "version": "3",
+      "version": "4",
       "worksOffline": false
     },
     {

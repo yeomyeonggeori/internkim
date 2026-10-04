@@ -475,9 +475,15 @@ describe('canonical capability tools', () => {
     expect(browserScreenshotResultSchema.safeParse({
       ok: true,
       action: 'screenshot',
-      attachments: [{ devicePath: 'shot.png', filename: 'shot.png', contentType: 'image/png', sizeBytes: 3, contentBase64: 'AAAA' }],
+      attachments: [{ filename: 'shot.png', contentType: 'image/png', sizeBytes: 3, contentBase64: 'AAAA' }],
       capturedAt: '2026-07-19T00:00:00Z',
     }).success).toBe(true);
+    expect(browserScreenshotResultSchema.safeParse({
+      ok: true,
+      action: 'screenshot',
+      attachments: [{ devicePath: 'shot.png', filename: 'shot.png', contentType: 'image/png', sizeBytes: 3, contentBase64: 'AAAA' }],
+      capturedAt: '2026-07-19T00:00:00Z',
+    }).success).toBe(false);
     expect(browserClickResultSchema.safeParse({
       ok: true,
       action: 'click',

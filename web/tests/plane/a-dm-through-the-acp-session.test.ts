@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
+import { z } from 'zod';
 import { aCompanyPlane, type ACompanyPlane } from './a-company-plane';
 import {
 	aPlanThatNeedsNoClarification,
@@ -105,6 +106,65 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 	).toBe(true);
 }, 180_000);
 
+test('a native workspace file is delivered as one attachment with the final reply', async () => {
+	const [sender] = plane.people;
+	const conversationID = `file-conversation-${plane.runIdentifier}`;
+	const filePath = `~/documents/${marker}.txt`;
+	const fileContents = `plane attachment body: ${marker}`;
+	const finalMessage = `파일을 첨부했습니다: ${marker}`;
+	const request = `문서 파일을 만들고 이 DM에 첨부해줘: ${marker}`;
+	const previousPostCount = postsToTheConversation().length;
+	const postSchema = z.object({
+		message: z.string(),
+		attachments: z.array(z.object({ address: z.string().url(), filename: z.string() })).default([])
+	});
+	const currentPosts = () => postsToTheConversation().slice(previousPostCount).map(({ body }) => postSchema.parse(body));
+
+	await plane.model.decideTurn(aTurnStartingWork(request, ['write']));
+	await plane.model.answerNext(turnRouterSchemaName, {
+		expectedResults: [{ id: 'reply-file', type: 'file', description: 'The requested text file attached to this reply', required: true, acceptanceHints: ['file_deliver'] }]
+	});
+	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+	await plane.model.callNext('write', { path: filePath, content: fileContents });
+	await plane.model.callNext('reply', {
+		message: finalMessage,
+		attachments: [{ path: filePath }],
+		final: true,
+		goalStatus: 'satisfied',
+		goalSatisfied: true,
+		completionEvidenceIDs: []
+	});
+
+	const asked = await askTheRelay({
+		sender: { email: sender.email, name: sender.name },
+		conversationID,
+		messageID: 'file-message-1',
+		message: request
+	});
+	expect(asked.status, `the relay refused the turn: ${await asked.clone().text()}`).toBe(202);
+
+	try {
+		await until(
+			`the file and reply did not reach the messenger connector: ${JSON.stringify(plane.connector.pathsCalled())}`,
+			() => currentPosts().some((post) => post.message === finalMessage)
+		);
+	} catch (error) {
+		throw new Error(`the file delivery ledger says: ${await theLedger()}`, { cause: error });
+	}
+	const posts = currentPosts();
+	expect(posts.filter((post) => post.message === finalMessage)).toHaveLength(1);
+	const filePosts = posts.filter((post) => post.attachments.length > 0);
+	expect(filePosts).toHaveLength(1);
+	const attachments = filePosts[0]?.attachments ?? [];
+	expect(attachments).toHaveLength(1);
+	const attachment = attachments[0];
+	if (!attachment) throw new Error('the messenger attachment did not contain its asset address');
+	expect(attachment.filename).toBe(`${marker}.txt`);
+	const deliveredFile = await fetch(attachment.address);
+	expect(deliveredFile.status).toBe(200);
+	expect(await deliveredFile.text()).toBe(fileContents);
+}, 180_000);
+
 test('the connector event route refuses a turn while the acp session admits them', async () => {
 	const answer = await fetch(`${plane.blueclawURL}/connectors/api/events`, {
 		method: 'POST',
@@ -148,7 +208,7 @@ async function theLedger(): Promise<string> {
 			: null;
 		const events = (document?.taskEvents ?? []).map((event) =>
 			/fail|error|refus|unavailable|result/.test(event.name)
-				? `${event.name}(${event.body.slice(0, 400)})`
+				? `${event.name}(${event.body})`
 				: event.name
 		);
 		lines.push(

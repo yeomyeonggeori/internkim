@@ -318,6 +318,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 	const socketDirectory = join(tmpdir(), `ikplane-${runIdentifier}`);
 	mkdirSync(join(runDirectory, 'state'), { recursive: true });
 	mkdirSync(join(runDirectory, 'secrets'), { recursive: true });
+	mkdirSync(join(runDirectory, 'workspace', '.blueclaw'), { recursive: true });
 	mkdirSync(socketDirectory, { recursive: true });
 
 	const admin = createClient(projectURL, serviceRoleKey, {
@@ -397,6 +398,10 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		writeFileSync(blueclawAssertionKeyPath, `${crypto.randomUUID()}\n`, { mode: 0o600 });
 		const openRouterKeyPath = join(runDirectory, 'secrets', 'openrouter-key');
 		writeFileSync(openRouterKeyPath, 'the-model-stand-in-takes-any-key\n', { mode: 0o600 });
+		const ownership = Bun.spawnSync(['chown', '-R', 'blueclaw:blueclaw', runDirectory, socketDirectory]);
+		if (ownership.exitCode !== 0) {
+			throw new Error(`the service account could not own its plane files: ${ownership.stderr.toString()}`);
+		}
 
 		const admindPort = await aFreePort();
 		const blueclawPort = await aFreePort();
@@ -489,6 +494,7 @@ export async function aCompanyPlane(request: PlaneRequest = {}): Promise<ACompan
 		const startBlueclaw = () =>
 			Bun.spawn(
 				[
+					'runuser', '-u', 'blueclaw', '--',
 					join(binaryDirectory, 'blueclaw'),
 					...blueclawArgumentsForPlane({
 						runtimeConfigurationPath,

@@ -1,5 +1,10 @@
 [
 	{
+		"path": "browser_screenshot.result.attachments[].devicePath",
+		"reason": "A browser capture returns inline PNG bytes and its temporary directory is removed before the answer. The old devicePath was only a filename, which produced an invalid file URL when treated as a delivery path. Version 4 removes that nonexistent path; image_read retains its durable workspace path.",
+		"release": "the screenshot delivery fix release carries the version 4 catalog, capabilityd answer and explicit-file delivery runtime together on company hosts before the web/API catalog deploys; older hosts keep their own embedded browser contract"
+	},
+	{
 		"path": "company_dataroom_get",
 		"reason": "The data room has its own dataroom namespace. dataroom_get replaces the company-prefixed name without changing its input or result.",
 		"release": "the dataroom namespace release carries the renamed central-plane client and data room skill to company hosts before the web/API deployment"
