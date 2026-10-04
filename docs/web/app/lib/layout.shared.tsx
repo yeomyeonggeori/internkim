@@ -70,7 +70,7 @@ export function baseOptions(locale: string): BaseLayoutProps {
     nav: {
       title: (
         <span className="flex items-center gap-2">
-          <img src="/logo.svg" alt="" className="size-6" />
+          <img src="/favicon.svg" alt="" className="size-6" />
           <span>{appName[locale] ?? appName[i18n.defaultLanguage]}</span>
         </span>
       ),

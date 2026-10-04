@@ -88,10 +88,10 @@ otp_expiry = 3600
 enabled = false
 
 [auth.email.template.magic_link]
-subject = "Set up your internkim sign-in"
+subject = "Your internkim code: {{ .Token }}"
 
 [auth.email.template.confirmation]
-subject = "Set up your internkim sign-in"
+subject = "Your internkim code: {{ .Token }}"
 
 [auth.mfa]
 max_enrolled_factors = 10

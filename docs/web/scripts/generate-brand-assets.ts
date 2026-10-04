@@ -7,7 +7,6 @@ const publicDirectory = resolve(scriptDirectory, '../public');
 const fontDirectory = resolve(publicDirectory, 'fonts');
 const sourceFontDirectory = resolve(repositoryRoot, 'web/src/lib/fonts');
 const assetNames = [
-  'logo.svg',
   'favicon.svg',
   'favicon.png',
   'favicon-192.png',
