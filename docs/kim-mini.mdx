@@ -79,6 +79,20 @@ shows there without the mark.
 records the day in `internkim-made-on`. It writes only to an SD card or USB disk,
 and asks for the disk name before erasing it.
 
+## Nobody on a box holds root
+
+A box has one login account, `admin`, and it has no `sudo`. It is in
+`systemd-journal`, so it reads every log, and in `internkim-admin`, so it restarts
+the host's services. The host is updated from company setup, as any host is.
+Because nothing on the box raises an account to root, `admin` cannot open another
+person's workspace either, and the file permissions that keep people apart hold
+for the company's administrators too.
+
+The image removes Raspberry Pi OS's `pi` account, which is in `sudo`, and its
+first-boot dialog, which would otherwise give whoever reaches the console first a
+`sudo` account. SSH is on and refuses `root`. Anyone who needs root on the
+hardware installs Raspberry Pi OS and the host package themselves.
+
 ## Claiming a box
 
 1. The box joins the office network and announces its public key to the central

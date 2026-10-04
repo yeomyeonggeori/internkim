@@ -84,6 +84,29 @@ func TestTheDeclaredAccountsAreTheFourServiceAccountsWithNoLogin(t *testing.T) {
 	}
 }
 
+func TestTheAdministratorGroupIsDeclared(t *testing.T) {
+	if declared := blueclaw.CompanyHostSysusersFile(); !strings.Contains(declared, "g "+blueclaw.CompanyHostAdministratorGroup+" -\n") {
+		t.Fatalf("sysusers does not declare the %s group:\n%s", blueclaw.CompanyHostAdministratorGroup, declared)
+	}
+}
+
+func TestTheAdministratorGroupManagesEveryPackageUnitAndNothingElse(t *testing.T) {
+	rules := blueclaw.CompanyHostPolkitRules()
+	for _, unit := range blueclaw.CompanyPackageUnits() {
+		if !strings.Contains(rules, `"`+unit.FileName()+`"`) {
+			t.Errorf("the polkit rules leave out %s:\n%s", unit.FileName(), rules)
+		}
+	}
+	for _, wanted := range []string{`action.id === "org.freedesktop.systemd1.manage-units"`, `subject.isInGroup("` + blueclaw.CompanyHostAdministratorGroup + `")`} {
+		if !strings.Contains(rules, wanted) {
+			t.Errorf("the polkit rules do not check %s:\n%s", wanted, rules)
+		}
+	}
+	if strings.Count(rules, "polkit.Result.YES") != 1 {
+		t.Errorf("the polkit rules grant more than one thing:\n%s", rules)
+	}
+}
+
 func TestTheDeclaredDirectoriesCarryTheStateRootModeAndTheHelpersSetuidBit(t *testing.T) {
 	declared := blueclaw.CompanyHostTmpfilesFile()
 	for _, line := range []string{

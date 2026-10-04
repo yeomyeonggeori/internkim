@@ -134,6 +134,10 @@ systemctl status internkim-relay
 journalctl -u internkim-relay -n 50 --no-pager
 ```
 
+패키지는 `internkim-admin` 그룹을 만듭니다. 이 그룹의 구성원은 `sudo` 없이 위 서비스를 시작, 중지,
+재시작할 수 있고, 그 밖에 컴퓨터의 다른 것은 열리지 않습니다. 계정을 그룹에 넣으려면
+`sudo usermod -aG internkim-admin <account>`를 실행합니다.
+
 macOS에서는 `launchctl print system/kim.intern.<service>`로 서비스를 확인합니다.
 로그는 `/var/log/internkim/`에 있습니다.
 

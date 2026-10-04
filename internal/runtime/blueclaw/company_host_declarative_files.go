@@ -6,8 +6,10 @@ import (
 )
 
 const (
-	CompanyPackageSysusersPath = "/usr/lib/sysusers.d/internkim.conf"
-	CompanyPackageTmpfilesPath = "/usr/lib/tmpfiles.d/internkim.conf"
+	CompanyPackageSysusersPath    = "/usr/lib/sysusers.d/internkim.conf"
+	CompanyPackageTmpfilesPath    = "/usr/lib/tmpfiles.d/internkim.conf"
+	CompanyPackagePolkitRulesPath = "/usr/share/polkit-1/rules.d/50-internkim-administrators.rules"
+	CompanyHostAdministratorGroup = "internkim-admin"
 
 	companyHostNoLoginShell = "/usr/sbin/nologin"
 )
@@ -32,7 +34,28 @@ func CompanyHostSysusersFile() string {
 	for _, account := range companyHostServiceAccounts() {
 		lines = append(lines, fmt.Sprintf("u %s - %q %s %s", account.Name, account.Description, account.HomePath, companyHostNoLoginShell))
 	}
+	lines = append(lines, fmt.Sprintf("g %s -", CompanyHostAdministratorGroup))
 	return strings.Join(append(lines, ""), "\n")
+}
+
+func CompanyHostPolkitRules() string {
+	unitNames := []string{}
+	for _, unit := range CompanyPackageUnits() {
+		unitNames = append(unitNames, fmt.Sprintf("%q", unit.FileName()))
+	}
+	return strings.Join([]string{
+		"polkit.addRule(function (action, subject) {",
+		"  var units = [" + strings.Join(unitNames, ", ") + "];",
+		`  var verbs = ["start", "stop", "restart", "try-restart"];`,
+		`  if (action.id === "org.freedesktop.systemd1.manage-units" &&`,
+		fmt.Sprintf("      subject.isInGroup(%q) &&", CompanyHostAdministratorGroup),
+		`      units.indexOf(action.lookup("unit")) >= 0 &&`,
+		`      verbs.indexOf(action.lookup("verb")) >= 0) {`,
+		"    return polkit.Result.YES;",
+		"  }",
+		"});",
+		"",
+	}, "\n")
 }
 
 func CompanyHostTmpfilesFile() string {
