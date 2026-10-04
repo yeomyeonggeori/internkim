@@ -109,6 +109,11 @@
     "description": "a Cloudflare API token with Pages edit rights, handed to Wrangler for Pages and Worker deploys",
     "isInVault": true
   },
+  "CLOUDFLARE_EMAIL_SENDING_TOKEN": {
+    "process": "supabase config push",
+    "description": "a Cloudflare API token with Email Sending edit rights, the SMTP password production auth mail is sent with from noreply@intern.kim",
+    "isInVault": true
+  },
   "CLOUDFLARE_DOMAIN": {
     "process": "web, cli",
     "description": "the zone the web app treats as home when redirecting a company hostname, and the CLI's zone; falls back to the compiled-in default zone",

@@ -18,6 +18,7 @@ Svelte's process.env dot and bracket forms plus env/environment dot access
 (SvelteKit's $env/dynamic/private, Vite's loadEnv, a Cloudflare platform.env,
 and a Workers Env parameter all use that same accessor shape), the Python
 scripts under tools/ calling os.environ's get and item forms or os.getenv,
+the Supabase CLI's quoted env(NAME) substitution in supabase/config.toml,
 and shell's dollar-brace and bare-dollar forms with a colon-dash, colon-
 question, colon-equals or colon-plus default. No file is parsed for meaning
 beyond that: a name assembled at runtime, or read through a variable holding
@@ -72,6 +73,7 @@ TS_REQUIRED_CALL = re.compile(r"""\b(?:required|requiredSetting)\(\s*['"]([A-Za-
 PYTHON_ENV_CALL = re.compile(
     r"""os\.(?:environ\.get|getenv)\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']"""
 )
+SUPABASE_CONFIG_ENV = re.compile(r'"env\(([A-Za-z_][A-Za-z0-9_]*)\)"')
 PYTHON_ENV_BRACKET = re.compile(r"""os\.environ\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\]""")
 SHELL_BRACED = re.compile(r"\$\{(" + SHELL_NAME_PATTERN + r")(:?[-=?+][^}]*)?\}")
 SHELL_BARE = re.compile(r"\$(" + SHELL_NAME_PATTERN + r")\b")
@@ -186,6 +188,10 @@ def python_reads(relative_path, text):
     yield from matches_at(PYTHON_ENV_BRACKET, text, relative_path)
 
 
+def supabase_config_reads(relative_path, text):
+    yield from matches_at(SUPABASE_CONFIG_ENV, text, relative_path)
+
+
 def is_inside_double_quotes(line, position):
     unescaped_quotes_before = 0
     for index in range(position):
@@ -275,6 +281,8 @@ def collect_reads():
         elif is_shell_suffixed_path(relative_path):
             text = read_text(absolute_path)
             reads.extend(shell_reads(relative_path, text))
+        elif str(relative_path) == "supabase/config.toml":
+            reads.extend(supabase_config_reads(relative_path, read_text(absolute_path)))
         elif is_tools_path(relative_path):
             text = read_text(absolute_path)
             # tools/ scripts carry no extension, so a script's own shebang —
