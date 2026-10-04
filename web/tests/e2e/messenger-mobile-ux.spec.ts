@@ -286,5 +286,6 @@ async function selectText(composer: Locator, start: number, end: number): Promis
 		const selection = window.getSelection();
 		selection?.removeAllRanges();
 		selection?.addRange(range);
+		document.dispatchEvent(new Event('selectionchange'));
 	}, { start, end });
 }

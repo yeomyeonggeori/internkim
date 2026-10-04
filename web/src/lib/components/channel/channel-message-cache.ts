@@ -16,6 +16,11 @@ export function setCachedMessages(channelID: string | undefined, messages: Chann
 }
 
 let readerID = '';
+let generation = 0;
+
+export function channelMessageCacheGeneration(): number {
+	return generation;
+}
 
 export function getCachedReaderID(): string {
 	return readerID;
@@ -26,6 +31,7 @@ export function setCachedReaderID(id: string): void {
 }
 
 export function clearChannelMessageCache(): void {
+	generation += 1;
 	messagesByChannel.clear();
 	readerID = '';
 }

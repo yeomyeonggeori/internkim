@@ -50,7 +50,13 @@
 	import { activityLabel } from '$lib/messenger/typing-signal';
 	import { whatToCopy } from './message-copy';
 	import { messagesWithReactions } from './channel-reactions';
-	import { getCachedMessages, getCachedReaderID, setCachedMessages, setCachedReaderID } from './channel-message-cache';
+	import {
+		channelMessageCacheGeneration,
+		getCachedMessages,
+		getCachedReaderID,
+		setCachedMessages,
+		setCachedReaderID
+	} from './channel-message-cache';
 	import { groupConsecutiveMessages } from './channel-message-groups';
 	import { jumpToLatestLabel, unseenMessageCount } from './channel-unseen-messages';
 	import CornerDownRightIcon from '@lucide/svelte/icons/corner-down-right';
@@ -130,13 +136,33 @@
 	let isLoadingOlder = $state(false);
 	let lightbox = $state<LightboxView | null>(null);
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	let isDestroyed = false;
+	let channelGeneration = 0;
+	let nextReadSequence = 0;
+
+	function isCurrentChannel(
+		requestedChannelID: string | undefined,
+		generation: number,
+		cacheGeneration: number
+	): boolean {
+		return !isDestroyed && channelId === requestedChannelID && channelGeneration === generation &&
+			channelMessageCacheGeneration() === cacheGeneration;
+	}
+
+	function isCurrentRead(
+		requestedChannelID: string | undefined,
+		generation: number,
+		cacheGeneration: number,
+		readSequence: number
+	): boolean {
+		return readSequence === nextReadSequence && isCurrentChannel(requestedChannelID, generation, cacheGeneration);
+	}
 
 	function openLightbox(images: string[], index: number) {
 		if (images.length === 0) return;
 		lightbox = { images, index: Math.max(0, index) };
 	}
 	let lastConversationSignature = '';
-	let readGeneration = 0;
 	let cacheGeneration = $state(0);
 	let openThreadRoot = $state<ChannelMessage | null>(null);
 	let isThreadSending = $state(false);
@@ -220,14 +246,20 @@
 	const threadReplyGroups = $derived(groupConsecutiveMessages(threadReplies));
 
 	async function loadConversation() {
-		const reading = ++readGeneration;
-		const requestedChannel = channelId;
+		if (isDestroyed) return;
+		const requestedChannelID = channelId;
+		const generation = channelGeneration;
+		let messageCacheGeneration = channelMessageCacheGeneration();
+		const readSequence = ++nextReadSequence;
 		const deliveredBeforeReading = outgoing.deliveredSoFar();
+		let scope: Awaited<ReturnType<typeof messengerCacheScope>> | undefined;
 		try {
-			const scope = await messengerCacheScope();
-			const conversation = await fetchChannelConversation(requestedChannel);
+			scope = await messengerCacheScope();
+			messageCacheGeneration = channelMessageCacheGeneration();
+			if (!isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) return;
+			const conversation = await fetchChannelConversation(requestedChannelID);
 			await requireCurrentMessengerScope(scope);
-			if (reading !== readGeneration || requestedChannel !== channelId) return;
+			if (!isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) return;
 			currentUserID = conversation.currentUserID;
 			setCachedReaderID(conversation.currentUserID);
 			const latestIncoming = conversation.messages.at(-1);
@@ -245,7 +277,7 @@
 			if (signature !== lastConversationSignature) {
 				lastConversationSignature = signature;
 				messages = mergeOlderMessages(olderMessages, conversation.messages);
-				setCachedMessages(channelId, conversation.messages);
+				setCachedMessages(requestedChannelID, conversation.messages);
 				if (openThreadRoot) {
 					openThreadRoot = visibleMessages.find((message) => message.id === openThreadRoot?.id) ?? openThreadRoot;
 				}
@@ -253,9 +285,11 @@
 			outgoing.forgetDeliveredThrough(deliveredBeforeReading);
 			loadFailed = false;
 		} catch {
-			if (reading === readGeneration) loadFailed = true;
+			if ((!scope || isCurrentMessengerScope(scope)) &&
+				isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) loadFailed = true;
 		} finally {
-			if (reading === readGeneration) hasLoadedOnce = true;
+			if ((!scope || isCurrentMessengerScope(scope)) &&
+				isCurrentRead(requestedChannelID, generation, messageCacheGeneration, readSequence)) hasLoadedOnce = true;
 		}
 	}
 
@@ -294,13 +328,20 @@
 
 	async function loadOlderMessages() {
 		if (isLoadingOlder || !hasMoreBefore || !historyCursor) return;
-		const requestedChannel = channelId;
-		const scope = await messengerCacheScope();
+		const requestedChannelID = channelId;
+		const generation = channelGeneration;
+		let messageCacheGeneration = channelMessageCacheGeneration();
+		const requestedCursor = historyCursor;
 		isLoadingOlder = true;
 		try {
-			const page = await fetchChannelConversation(requestedChannel, historyCursor);
+			const scope = await messengerCacheScope();
+			messageCacheGeneration = channelMessageCacheGeneration();
+			if (!isCurrentChannel(requestedChannelID, generation, messageCacheGeneration) || historyCursor !== requestedCursor)
+				return;
+			const page = await fetchChannelConversation(requestedChannelID, requestedCursor);
 			await requireCurrentMessengerScope(scope);
-			if (requestedChannel !== channelId) return;
+			if (!isCurrentChannel(requestedChannelID, generation, messageCacheGeneration) || historyCursor !== requestedCursor)
+				return;
 			hasMoreBefore = page.hasMoreBefore;
 			historyCursor = page.historyCursor;
 			const existingIds = new Set(messages.map((message) => message.id));
@@ -312,8 +353,9 @@
 			olderMessages = [...fresh, ...olderMessages];
 			messages = [...fresh, ...messages];
 		} finally {
-			if (requestedChannel === channelId && isCurrentMessengerScope(scope)) isLoadingOlder = false;
+			if (isCurrentChannel(requestedChannelID, generation, messageCacheGeneration)) isLoadingOlder = false;
 		}
+		if (!isCurrentChannel(requestedChannelID, generation, messageCacheGeneration)) return;
 		// Only keep a small buffer ahead of the fold as the user scrolls up — load
 		// on demand, never speculatively, so we don't pay for history nobody reads.
 		requestAnimationFrame(prefetchOlderIfNearTop);
@@ -348,17 +390,20 @@
 	}
 
 	async function loadCurrentUser() {
+		const cacheGeneration = channelMessageCacheGeneration();
 		try {
 			const response = await fetch('/auth/session', { credentials: 'include', cache: 'no-store' });
 			if (!response.ok) return;
 			const session: { authenticated?: boolean; email?: string; image?: string } = await response.json();
-			if (session.authenticated) {
+			if (!isDestroyed && cacheGeneration === channelMessageCacheGeneration() && session.authenticated) {
 				currentUserEmail = session.email ?? '';
 				currentUserImage = session.image ?? '';
 			}
 		} catch {
-			currentUserEmail = '';
-			currentUserImage = '';
+			if (!isDestroyed && cacheGeneration === channelMessageCacheGeneration()) {
+				currentUserEmail = '';
+				currentUserImage = '';
+			}
 		}
 	}
 
@@ -373,6 +418,7 @@
 
 	function scheduleRefresh() {
 		clearTimeout(refreshTimer);
+		if (isDestroyed) return;
 		agentWorkingSince = stillWorkingSince(agentWorkingSince, Date.now());
 		if (!isActive) return;
 		const delay = isAgentWorking ? agentWorkingRefreshIntervalMs : idleRefreshIntervalMs;
@@ -442,6 +488,7 @@
 
 	$effect(() => {
 		const activeChannelID = channelId;
+		channelGeneration += 1;
 		olderMessages = [];
 		hasMoreBefore = false;
 		historyCursor = '';
@@ -465,7 +512,6 @@
 
 	onMount(async () => {
 		stopFollowingCacheScope = onMessengerCacheReset(() => {
-			readGeneration += 1;
 			cacheGeneration += 1;
 			messages = [];
 			olderMessages = [];
@@ -490,7 +536,8 @@
 	});
 
 	onDestroy(() => {
-		readGeneration += 1;
+		isDestroyed = true;
+		channelGeneration += 1;
 		stopFollowingCacheScope();
 		stopListeningForArrivals();
 		clearTimeout(refreshTimer);

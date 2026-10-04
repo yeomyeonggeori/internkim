@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	channelMessageCacheGeneration,
 	clearChannelMessageCache,
 	getCachedMessages,
 	getCachedReaderID,
@@ -22,9 +23,11 @@ describe('the cache a reopened channel draws from', () => {
 	});
 
 	test('forgets both messages and reader when the account signs out', () => {
+		const previousGeneration = channelMessageCacheGeneration();
 		setCachedReaderID('member:old');
 		setCachedMessages('old-channel', []);
 		clearChannelMessageCache();
+		expect(channelMessageCacheGeneration()).toBe(previousGeneration + 1);
 		expect(getCachedReaderID()).toBe('');
 		expect(getCachedMessages('old-channel')).toBeUndefined();
 	});
