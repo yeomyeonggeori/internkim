@@ -12,6 +12,7 @@
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
+	import { feelHaptic } from '$lib/native-shell/haptics';
 	import PowerOffIcon from '@lucide/svelte/icons/power-off';
 	import MoreHorizontalIcon from '@lucide/svelte/icons/more-horizontal';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -101,6 +102,7 @@
 		aria-current={isActive(item.href) ? 'page' : undefined}
 		data-active={isActive(item.href)}
 		data-sveltekit-preload-data="hover"
+		onclick={() => feelHaptic('selection')}
 		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
 	>
 		<Icon class="size-5 shrink-0" />
@@ -187,7 +189,10 @@
 		aria-label={text.more}
 		aria-expanded={isMoreSheetOpen}
 		data-active={isMoreActive || isMoreSheetOpen}
-		onclick={() => (isMoreSheetOpen = true)}
+		onclick={() => {
+			feelHaptic('selection');
+			isMoreSheetOpen = true;
+		}}
 		class="flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1 text-[11px] font-medium leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:text-foreground data-[active=true]:font-semibold"
 	>
 		<MoreHorizontalIcon class="size-5 shrink-0" />
