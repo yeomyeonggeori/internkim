@@ -143,10 +143,14 @@ test('a native workspace file is delivered as one attachment with the final repl
 	});
 	expect(asked.status, `the relay refused the turn: ${await asked.clone().text()}`).toBe(202);
 
-	await until(
-		`the file and reply did not reach the messenger connector: ${JSON.stringify(plane.connector.pathsCalled())}`,
-		() => currentPosts().some((post) => post.message === finalMessage)
-	);
+	try {
+		await until(
+			`the file and reply did not reach the messenger connector: ${JSON.stringify(plane.connector.pathsCalled())}`,
+			() => currentPosts().some((post) => post.message === finalMessage)
+		);
+	} catch (error) {
+		throw new Error(`the file delivery ledger says: ${await theLedger()}`, { cause: error });
+	}
 	const posts = currentPosts();
 	expect(posts.filter((post) => post.message === finalMessage)).toHaveLength(1);
 	const filePosts = posts.filter((post) => post.attachments.length > 0);
@@ -209,7 +213,7 @@ async function theLedger(): Promise<string> {
 			: null;
 		const events = (document?.taskEvents ?? []).map((event) =>
 			/fail|error|refus|unavailable|result/.test(event.name)
-				? `${event.name}(${event.body.slice(0, 400)})`
+				? `${event.name}(${event.body})`
 				: event.name
 		);
 		lines.push(
