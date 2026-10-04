@@ -1,3 +1,4 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import type { ChannelMessage, ChannelParticipant } from './channel-api';
 import type { OutgoingMessage } from './channel-composer.svelte';
 
@@ -34,6 +35,7 @@ export function createOutgoingMessages(options: {
 			await options.deliver(entry);
 		} catch {
 			replace(entry.message.id, { hasFailed: true });
+			feelHaptic('failure');
 			return;
 		}
 		deliveredSerial++;

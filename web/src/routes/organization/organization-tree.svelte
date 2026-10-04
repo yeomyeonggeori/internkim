@@ -11,6 +11,7 @@
 	import EllipsisVerticalIcon from '@lucide/svelte/icons/ellipsis-vertical';
 	import OrganizationAvatarStack from './organization-avatar-stack.svelte';
 	import { organizationTreeDrag } from './organization-tree-drag-action';
+	import { feelHaptic } from '$lib/native-shell/haptics';
 	import {
 		organizationOrganizationMovePreview,
 		organizationOrganizationSubtreeIDs,
@@ -100,6 +101,7 @@
 
 	function startDrag(groupID: string, clientX: number, clientY: number): void {
 		draggedGroupID = groupID;
+		feelHaptic('touch');
 		updateDrag(clientX, clientY);
 	}
 
@@ -116,7 +118,10 @@
 	}
 
 	function finishDrag(): void {
-		if (draggedGroupID && movePreview) onMove(draggedGroupID, movePreview.insertionIndex, movePreview.depth);
+		if (draggedGroupID && movePreview) {
+			feelHaptic('touch');
+			onMove(draggedGroupID, movePreview.insertionIndex, movePreview.depth);
+		}
 		clearDrag();
 	}
 

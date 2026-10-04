@@ -1,3 +1,5 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
+
 export type TouchHoldOptions = {
 	isMenuOpen: boolean;
 };
@@ -35,7 +37,10 @@ export function swallowClickAfterTouchHold(
 		update(nextOptions) {
 			const hasJustOpened = nextOptions.isMenuOpen && !isMenuOpen;
 			const hasJustClosed = !nextOptions.isMenuOpen && isMenuOpen;
-			if (hasJustOpened && isTouchDown) shouldSwallowNextClick = true;
+			if (hasJustOpened && isTouchDown) {
+				shouldSwallowNextClick = true;
+				feelHaptic('touch');
+			}
 			if (hasJustClosed) shouldSwallowNextClick = false;
 			isMenuOpen = nextOptions.isMenuOpen;
 		},

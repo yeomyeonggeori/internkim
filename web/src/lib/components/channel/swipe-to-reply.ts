@@ -1,3 +1,5 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
+
 export const swipeReplyThresholdPixels = 56;
 export const swipeReplyLimitPixels = 80;
 export const swipeDecisionPixels = 8;
@@ -70,6 +72,7 @@ export function swipeToReply(
 			return;
 		}
 		isSwiping = true;
+		if (state.isArmed && !isArmed) feelHaptic('touch');
 		isArmed = state.isArmed;
 		node.style.setProperty('--swipe-offset', `${-state.offsetPixels}px`);
 		node.style.setProperty('--swipe-progress', `${Math.min(state.offsetPixels / swipeReplyThresholdPixels, 1)}`);

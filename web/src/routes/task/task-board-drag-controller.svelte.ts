@@ -1,3 +1,4 @@
+import { feelHaptic } from '$lib/native-shell/haptics';
 import type { TaskBoardMoveRequest } from './task-board-drag';
 import { isTaskBoardStatus } from './task-board-model';
 import type { Task } from './task-types';
@@ -24,6 +25,7 @@ export class TaskBoardDragController {
 			return;
 		}
 		this.draggedTaskID = task.id;
+		feelHaptic('touch');
 		event.dataTransfer?.setData(boardDragDataType, task.id);
 		event.dataTransfer?.setData('text/plain', task.id);
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
@@ -49,6 +51,7 @@ export class TaskBoardDragController {
 			this.handleTaskDragEnd();
 			return;
 		}
+		feelHaptic('touch');
 		void this.input.moveTask({ taskID, targetStatus: status });
 		this.handleTaskDragEnd();
 	};
