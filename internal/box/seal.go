@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	modelKeySealInformation    = "internkim model key"
-	mailAccountSealInformation = "internkim mail account"
-	wifiNetworkSealInformation = "internkim wifi network"
+	modelKeySealInformation      = "internkim model key"
+	mailAccountSealInformation   = "internkim mail account"
+	wifiNetworkSealInformation   = "internkim wifi network"
+	adminPasswordSealInformation = "internkim admin password"
 
 	// Version 1 is RFC 9180 HPKE in base mode with DHKEM(X25519, HKDF-SHA256),
 	// HKDF-SHA256 and AES-256-GCM.
@@ -58,6 +59,13 @@ func WifiNetworkPurpose(companyID, boxEncryptionKey, requestID string) SealPurpo
 	return SealPurpose{
 		Information:    wifiNetworkSealInformation,
 		AdditionalData: additionalDataOf(companyID, boxEncryptionKey, "wifi", requestID),
+	}
+}
+
+func AdminPasswordPurpose(companyID, boxEncryptionKey, settingID string) SealPurpose {
+	return SealPurpose{
+		Information:    adminPasswordSealInformation,
+		AdditionalData: additionalDataOf(companyID, boxEncryptionKey, "admin-password", settingID),
 	}
 }
 

@@ -21,6 +21,7 @@ import {
 	releaseBox
 } from '../../src/lib/server/box';
 import { pendingWifiChangeOf, recordNearbyNetworks, reportWifiOutcome, requestWifiChange, wifiChangeStatusFor } from '../../src/lib/server/box-wifi';
+import { adminPasswordStatusFor, noteAdminAccount, pendingAdminPasswordOf, reportAdminPasswordOutcome, requestAdminPassword } from '../../src/lib/server/box-admin-password';
 import {
 	asMember,
 	companyOfHostSession,
@@ -468,6 +469,63 @@ describe('changing the Wi-Fi network of a connected box', () => {
 		await announceBox(client, { publicKey: box.publicKey, encryptionKey: box.encryptionKey, publicAddress: officeAddress, wantsPairingCode: false });
 
 		expect(await boxOfPublicKey(client, box.publicKey)).toBeNull();
+	});
+});
+
+describe('setting the admin password of a connected box', () => {
+	async function aClaimedBoxWithAnAdminAccount() {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const claimed = await boxOfPublicKey(client, box.publicKey);
+		if (!claimed) throw new Error('a claimed box is found by its public key');
+		await noteAdminAccount(client, claimed);
+		return box;
+	}
+
+	test('an administrator sets a password, the box fetches it, and reports it applied', async () => {
+		const box = await aClaimedBoxWithAnAdminAccount();
+		const settingID = crypto.randomUUID();
+		const sealed = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+
+		expect(await requestAdminPassword(client, companyID, settingID, sealed)).toEqual({ hasAdminAccount: true, pendingSettingID: settingID, outcome: null });
+		expect((await connectedBoxOf(client, companyID))?.hasAdminAccount).toBe(true);
+
+		const fetched = await boxOfPublicKey(client, box.publicKey);
+		if (!fetched) throw new Error('a claimed box is found by its public key');
+		expect(pendingAdminPasswordOf(fetched)).toEqual({ settingID, sealed });
+
+		await reportAdminPasswordOutcome(client, fetched, settingID, 'applied');
+
+		expect(await adminPasswordStatusFor(client, companyID)).toMatchObject({
+			hasAdminAccount: true,
+			pendingSettingID: null,
+			outcome: { settingID, result: 'applied' }
+		});
+		const cleared = await boxOfPublicKey(client, box.publicKey);
+		if (!cleared) throw new Error('a claimed box is found by its public key');
+		expect(pendingAdminPasswordOf(cleared)).toBeNull();
+	});
+
+	test('an outcome naming a setting that is not pending is refused, and clears nothing', async () => {
+		const box = await aClaimedBoxWithAnAdminAccount();
+		const settingID = crypto.randomUUID();
+		const sealed = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+		await requestAdminPassword(client, companyID, settingID, sealed);
+		const current = await boxOfPublicKey(client, box.publicKey);
+		if (!current) throw new Error('a claimed box is found by its public key');
+
+		await expect(reportAdminPasswordOutcome(client, current, crypto.randomUUID(), 'failed')).rejects.toBeInstanceOf(BoxRefused);
+
+		expect(await adminPasswordStatusFor(client, companyID)).toMatchObject({ pendingSettingID: settingID, outcome: null });
+	});
+
+	test('a box that never asked for an admin password has no admin account to set one for', async () => {
+		const box = await aBox();
+		await claimWithCode(companyID, box.publicKey, await announcedCode(box));
+		const sealed = { version: 1 as const, recipient: box.encryptionKey, enc: box.encryptionKey, ciphertext: 'c2VhbGVk' };
+
+		expect((await connectedBoxOf(client, companyID))?.hasAdminAccount).toBe(false);
+		await expect(requestAdminPassword(client, companyID, crypto.randomUUID(), sealed)).rejects.toBeInstanceOf(BoxRefused);
 	});
 });
 

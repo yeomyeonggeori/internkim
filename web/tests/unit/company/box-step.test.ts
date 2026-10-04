@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { boxStepOf, shortBoxName } from '../../../src/routes/settings/setup/box-step';
 
 const publicKey = 'oYwaGe-VYDGlZRd4ButkPDL65UP6m3BBNTUfLugolZI';
-const connected = { companyID: 'company-a', publicKey, encryptionKey: publicKey, lastSeenAt: null, hasModelKey: false };
+const connected = { companyID: 'company-a', publicKey, encryptionKey: publicKey, lastSeenAt: null, hasModelKey: false, hasAdminAccount: false };
 const announced = { publicKey, announcedAt: '2026-09-27T00:00:00.000Z', hostName: null, pairingPageAddresses: [] };
 
 describe('the company computer step', () => {

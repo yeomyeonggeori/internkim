@@ -130,6 +130,12 @@ func TestOnlyAComputerAskedToIsRenamedAfterItsKey(t *testing.T) {
 	if with := withHostNameFromCompany(box.Daemon{}); with.NameHost == nil {
 		t.Fatal("a daemon built with --host-name-from-company does not rename this computer")
 	}
+	if without := boxDaemon("https://example.com"); without.SetAdminPassword != nil {
+		t.Fatal("a daemon built without --admin-account would set an account's password")
+	}
+	if with := withAdminPasswordFor(box.Daemon{}, "admin"); with.SetAdminPassword == nil {
+		t.Fatal("a daemon built with --admin-account does not set that account's password")
+	}
 }
 
 func TestReachesURLTreatsAnyHTTPResponseAsReachable(t *testing.T) {

@@ -116,7 +116,7 @@ func (daemon Daemon) watchForWifiChanges(ctx context.Context, identity Identity)
 	var handledRequestID string
 	var handledResult WifiChangeOutcome
 	for {
-		if errorValue := daemon.wifiChangeSleep(ctx, wifiChangeCheckInterval); errorValue != nil {
+		if errorValue := daemon.watcherSleep(ctx, wifiChangeCheckInterval); errorValue != nil {
 			return
 		}
 		handledRequestID, handledResult = daemon.checkForWifiChange(ctx, identity, handledRequestID, handledResult)
@@ -185,9 +185,9 @@ func (daemon Daemon) reportWifiChange(ctx context.Context, identity Identity, re
 	}
 }
 
-func (daemon Daemon) wifiChangeSleep(ctx context.Context, wait time.Duration) error {
-	if daemon.WifiChangeSleep != nil {
-		return daemon.WifiChangeSleep(ctx, wait)
+func (daemon Daemon) watcherSleep(ctx context.Context, wait time.Duration) error {
+	if daemon.WatcherSleep != nil {
+		return daemon.WatcherSleep(ctx, wait)
 	}
 	timer := time.NewTimer(wait)
 	defer timer.Stop()

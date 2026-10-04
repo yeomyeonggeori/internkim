@@ -6,6 +6,8 @@ export const modelKeySealInformation = 'internkim model key';
 
 export const wifiNetworkSealInformation = 'internkim wifi network';
 
+export const adminPasswordSealInformation = 'internkim admin password';
+
 export const boxSealingSuite = new CipherSuite({
 	kem: new DhkemX25519HkdfSha256(),
 	kdf: new HkdfSha256(),
@@ -78,4 +80,19 @@ export function sealWifiNetwork(
 		box.encryptionKey,
 		wifiNetworkPurpose(box.companyID, box.encryptionKey, requestID)
 	);
+}
+
+export function adminPasswordPurpose(companyID: string, boxEncryptionKey: string, settingID: string): SealPurpose {
+	return {
+		information: adminPasswordSealInformation,
+		additionalData: additionalDataOf(companyID, boxEncryptionKey, 'admin-password', settingID)
+	};
+}
+
+export function sealAdminPassword(
+	password: string,
+	box: { companyID: string; encryptionKey: string },
+	settingID: string
+): Promise<SealedSecret> {
+	return sealToBox(password, box.encryptionKey, adminPasswordPurpose(box.companyID, box.encryptionKey, settingID));
 }

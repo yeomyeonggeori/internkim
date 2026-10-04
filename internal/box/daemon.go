@@ -33,16 +33,17 @@ type Places struct {
 }
 
 type Daemon struct {
-	Client          Client
-	Places          Places
-	Install         func(companyhost.Request) error
-	NameHost        func(ctx context.Context, companySlug string) error
-	GetOnline       func(ctx context.Context, boxPublicKey string) error
-	ChangeWifi      func(ctx context.Context, ssid, password string) error
-	ScanWifi        func(ctx context.Context) ([]NearbyNetwork, error)
-	WifiChangeSleep func(ctx context.Context, wait time.Duration) error
-	Sleep           func(context.Context, time.Duration) error
-	Now             func() time.Time
+	Client           Client
+	Places           Places
+	Install          func(companyhost.Request) error
+	NameHost         func(ctx context.Context, companySlug string) error
+	GetOnline        func(ctx context.Context, boxPublicKey string) error
+	ChangeWifi       func(ctx context.Context, ssid, password string) error
+	ScanWifi         func(ctx context.Context) ([]NearbyNetwork, error)
+	SetAdminPassword func(ctx context.Context, password string) error
+	WatcherSleep     func(ctx context.Context, wait time.Duration) error
+	Sleep            func(context.Context, time.Duration) error
+	Now              func() time.Time
 }
 
 func (daemon Daemon) Run(ctx context.Context) error {
@@ -61,6 +62,16 @@ func (daemon Daemon) Run(ctx context.Context) error {
 		go func() {
 			defer close(watcherDone)
 			daemon.watchForWifiChanges(watcherContext, identity)
+		}()
+		defer func() { <-watcherDone }()
+		defer stopWatcher()
+	}
+	if daemon.SetAdminPassword != nil {
+		watcherContext, stopWatcher := context.WithCancel(ctx)
+		watcherDone := make(chan struct{})
+		go func() {
+			defer close(watcherDone)
+			daemon.watchForAdminPassword(watcherContext, identity)
 		}()
 		defer func() { <-watcherDone }()
 		defer stopWatcher()
