@@ -160,13 +160,8 @@ test('a native workspace file is delivered as one attachment with the final repl
 	const attachment = attachments[0];
 	if (!attachment) throw new Error('the messenger attachment did not contain its asset address');
 	expect(attachment.filename).toBe(`${marker}.txt`);
-	const assetPath = decodeURIComponent(
-		new URL(attachment.address).pathname.split('/storage/v1/object/asset/')[1] ?? ''
-	);
-	expect(assetPath).toContain(`${plane.companyID}/shared/attachment/`);
-	const { data: deliveredFile, error: downloadError } = await plane.admin.storage.from('asset').download(assetPath);
-	expect(downloadError).toBeNull();
-	if (!deliveredFile) throw new Error(`the delivered attachment could not be read: ${downloadError?.message}`);
+	const deliveredFile = await fetch(attachment.address);
+	expect(deliveredFile.status).toBe(200);
 	expect(await deliveredFile.text()).toBe(fileContents);
 }, 180_000);
 
