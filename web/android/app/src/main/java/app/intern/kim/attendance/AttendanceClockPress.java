@@ -16,6 +16,7 @@ final class AttendanceClockPress {
             api = AttendanceAPI.held(context);
         } catch (AttendanceAPI.Failure noKey) {
             AttendanceRefusal.keep(context, noKey.getMessage(), System.currentTimeMillis());
+            AttendanceWidgetHaptic.failure(context);
             AttendanceWidgetRefresh.redrawNow(context, false);
             return;
         }
@@ -53,9 +54,11 @@ final class AttendanceClockPress {
             AttendanceWidgetCacheStore.amend(context, origin, cache ->
                 cache.settle(pressed, written, added, System.currentTimeMillis())
             );
+            AttendanceWidgetHaptic.success(context);
         } catch (AttendanceAPI.Failure refused) {
             AttendanceWidgetCacheStore.amend(context, origin, cache -> cache.refuse(pressed));
             AttendanceRefusal.keep(context, refused.getMessage(), System.currentTimeMillis());
+            AttendanceWidgetHaptic.failure(context);
         }
         AttendanceWidgetRefresh.redrawNow(context, false);
     }
