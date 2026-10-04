@@ -228,7 +228,7 @@ timebox = "0s"
 inactivity_timeout = "0s"
 
 [remotes.production.auth.rate_limit]
-email_sent = 30
+email_sent = 200
 
 [remotes.production.auth.email.smtp]
 enabled = true
