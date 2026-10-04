@@ -53,7 +53,9 @@ AlmaLinux), pacman on Arch Linux, and the Homebrew tap on an Apple-silicon Mac.
 Linux machines can be arm64 or amd64. The second command asks for an
 [OpenRouter API key](https://openrouter.ai/settings/keys) and registers the services.
 On Linux the machine then signs in with a key it generated itself, so the
-downloaded file is used once and never again.
+downloaded file is used once.
+
+![fastfetch on a Kim mini](assets/kim-mini-login.png)
 
 ## How it is built
 
@@ -87,7 +89,7 @@ This repository puts them on a machine and operates them.
 
 ## Documentation
 
-The pages live in `docs/` and are published at
+The pages in `docs/` are published at
 [docs.intern.kim](https://docs.intern.kim), in English and Korean.
 
 - [Architecture](https://docs.intern.kim/architecture) and
