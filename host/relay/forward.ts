@@ -464,6 +464,7 @@ function noAddressRefusal(): Answered {
 
 export const workspaceCapabilityPaths: Record<string, string> = {
 	'person.memory.facts': '/memory/api/facts',
+	'person.memory.recall': '/memory/api/recall',
 	'person.memory.schedules': '/memory/api/schedules',
 	'person.skills.list': '/skills/api',
 	[workspaceRootsCapability]: '/files/api/roots',

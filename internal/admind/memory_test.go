@@ -499,7 +499,7 @@ func TestMemoryAPIFactsHidesUpstreamFailureDetails(t *testing.T) {
 	if strings.Contains(responseBody, "Traceback") || strings.Contains(responseBody, "/workspace") {
 		t.Fatalf("memory graph leaked upstream detail: %s", responseBody)
 	}
-	if !strings.Contains(responseBody, "memory facts unavailable") {
+	if !strings.Contains(responseBody, "memory unavailable") {
 		t.Fatalf("memory graph body = %s", responseBody)
 	}
 }
@@ -660,5 +660,40 @@ func TestScheduleToolCancelPassesBlueclawsRefusalThrough(t *testing.T) {
 
 	if response.Code != http.StatusConflict || response.Body.String() != refusal {
 		t.Fatalf("schedule cancel response = %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMemoryAPIRecallsAsTheSessionUserAndNobodyElse(t *testing.T) {
+	service := NewService(Configuration{
+		APIBaseURL:      "https://api.example.test",
+		BlueclawBaseURL: "http://blueclaw.local",
+	})
+	holdWorkspaceSettingsForTest(service, "Asia/Seoul", workspaceLanguageKorean)
+	seatPeopleInACompanyDirectoryForTest(t, service)
+	asked := url.Values{}
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isCompanyDirectoryRequest(request) {
+			return memoryDirectoryForTest().respond(t, request)
+		}
+		if request.URL.Path == "/admin/api/memory/recall" && request.Method == http.MethodGet {
+			asked = request.URL.Query()
+			return jsonResponse(http.StatusOK, `{"facts":[]}`, nil), nil
+		}
+		t.Fatalf("unexpected request %s %s", request.Method, request.URL.String())
+		return nil, nil
+	})}
+
+	request := httptest.NewRequest(http.MethodGet, "/memory/api/recall?query="+url.QueryEscape("이사회 언제?")+"&readerPersonID=user:someone-else&limit=50", nil)
+	request.RemoteAddr = "198.51.100.10:443"
+	request.Header.Set("Cf-Access-Authenticated-User-Email", "member@example.com")
+	response := httptest.NewRecorder()
+
+	service.router().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("memory recall status = %d body = %s", response.Code, response.Body.String())
+	}
+	if asked.Get("readerPersonID") != "user:person-1" || asked.Get("query") != "이사회 언제?" || asked.Has("limit") {
+		t.Fatalf("memory recall asked upstream with %v", asked)
 	}
 }

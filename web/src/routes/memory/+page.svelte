@@ -14,7 +14,7 @@
 </svelte:head>
 
 
-<main class="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+<main class="mx-auto flex w-full min-w-0 max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
 	<header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex min-w-0 flex-col gap-1.5">
 			<h1 class="text-xl font-semibold tracking-tight">{text.title}</h1>

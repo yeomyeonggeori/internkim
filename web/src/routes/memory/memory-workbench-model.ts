@@ -1,5 +1,5 @@
 import type { Circle } from '$lib/data-room/model';
-import type { MemoryFact } from './memory-facts-api';
+import type { MemoryFact, MemoryLayer } from './memory-facts-api';
 import type { MemoryText } from './text';
 
 export function isCurrentMemory(fact: MemoryFact, now = Date.now()): boolean {
@@ -15,12 +15,40 @@ export function filterMemoryFacts(facts: MemoryFact[], query: string, scopeLabel
 	);
 }
 
-export function memoryScopeLabel(fact: MemoryFact, circles: Circle[], text: MemoryText, locale: string): string {
-	if (fact.scopeType === 'person') return text.myMemory;
-	if (fact.scopeType === 'workspace') return text.companyMemory;
-	const circle = circles.find((candidate) => candidate.id === fact.scopeID);
-	const name = circle ? (locale === 'ko' ? circle.nameKO || circle.name : circle.name) : fact.scopeID;
-	return `${text.circleMemory} · ${name ?? ''}`;
+export function memoryScopeLabel(layer: MemoryLayer, circles: Circle[], text: MemoryText, locale: string): string {
+	if (layer.scopeType === 'person') return text.myMemory;
+	if (layer.scopeType === 'workspace') return text.companyMemory;
+	return `${text.circleMemory} · ${circleName(layer.scopeID ?? '', circles, locale)}`;
+}
+
+export function memoryLayerReader(layer: MemoryLayer, circles: Circle[], text: MemoryText, locale: string): string {
+	if (layer.scopeType === 'person') return text.readByYou;
+	if (layer.scopeType === 'workspace') return text.readByEveryone;
+	return text.readByCircleTemplate.replace('{circle}', circleName(layer.scopeID ?? '', circles, locale));
+}
+
+function circleName(circleID: string, circles: Circle[], locale: string): string {
+	const circle = circles.find((candidate) => candidate.id === circleID);
+	if (!circle) return circleID;
+	return locale === 'ko' ? circle.nameKO || circle.name : circle.name;
+}
+
+export function memoryLayerKey(layer: MemoryLayer): string {
+	return layer.scopeType === 'circle' ? `circle:${layer.scopeID ?? ''}` : layer.scopeType;
+}
+
+export const memoryLayerTones: Record<MemoryLayer['scopeType'], string> = {
+	person: 'bg-foreground',
+	circle: 'bg-muted-foreground',
+	workspace: 'bg-muted-foreground/40'
+};
+
+export type MemoryLayerGroup = { layer: MemoryLayer; facts: MemoryFact[] };
+
+export function groupFactsByLayer(layers: MemoryLayer[], facts: MemoryFact[]): MemoryLayerGroup[] {
+	return layers
+		.map((layer) => ({ layer, facts: facts.filter((fact) => memoryLayerKey(fact) === memoryLayerKey(layer)) }))
+		.filter((group) => group.facts.length > 0);
 }
 
 export function memoryWhen(fact: MemoryFact, text: MemoryText, locale: string): string {

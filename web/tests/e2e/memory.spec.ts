@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const memoryFactsFixture = {
 	personID: 'person-1',
+	layers: [{ scopeType: 'circle', scopeID: 'member' }, { scopeType: 'workspace' }],
 	index: { embeddingModel: 'baai/bge-m3', current: 12, stale: 0 },
 	facts: Array.from({ length: 12 }, (_, index) => ({
 		factID: `fact-${index}`,
@@ -77,7 +78,7 @@ test.describe('memory facts', () => {
 		await page.goto('/memory/');
 
 		await expect(page.getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
-		await expect(page.getByRole('button', { name: /Memory fact 0/ }).getByText('서클 · member')).toBeVisible();
+		await expect(page.getByRole('region', { name: '서클 · member' }).getByRole('button', { name: /Memory fact 0/ })).toBeVisible();
 		await expect(page.getByRole('link', { name: '기억 지도' })).toHaveCount(0);
 	});
 
