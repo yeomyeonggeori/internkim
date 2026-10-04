@@ -206,8 +206,8 @@ export class BlueclawACPClient {
 	private async openConnection(): Promise<ClientSideConnection> {
 		const socket = await unixSocketStreams(this.settings.socketPath, () => this.socketEnded());
 		this.closeSocket = socket.close;
-		const connection = new ClientSideConnection(
-			() => this.asTheClient(),
+		const connection: ClientSideConnection = new ClientSideConnection(
+			() => this.asTheClient(() => connection),
 			ndJsonStream(socket.writable, socket.readable)
 		);
 		await connection.initialize({
@@ -289,10 +289,10 @@ export class BlueclawACPClient {
 		return opened.sessionId;
 	}
 
-	private asTheClient(): Client {
+	private asTheClient(readConnection: () => ClientSideConnection): Client {
 		return {
 			sessionUpdate: (notification: SessionNotification) => this.readUpdate(notification),
-			requestPermission: (request: RequestPermissionRequest) => this.answerPermission(request)
+			requestPermission: (request: RequestPermissionRequest) => this.answerPermission(request, readConnection())
 		};
 	}
 
@@ -345,7 +345,8 @@ export class BlueclawACPClient {
 	}
 
 	private async answerPermission(
-		request: RequestPermissionRequest
+		request: RequestPermissionRequest,
+		connectionThatAsked: ClientSideConnection
 	): Promise<RequestPermissionResponse> {
 		const delivery = deliveryOf(request._meta);
 		const held = this.heldSessionOf(request.sessionId);
@@ -364,13 +365,10 @@ export class BlueclawACPClient {
 		}
 		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held, addressedBy(held, delivery), delivery);
 		this.answeredPermissions.set(toolCallID, asking);
-		const connectionThatAsked = this.connection;
 		try {
 			const words = await asking;
-			// The daemon that asked this is gone; the one that replaced it asked
-			// again, and that request is the one worth answering.
-			if (this.connection !== connectionThatAsked) return { outcome: { outcome: 'cancelled' } };
-			const optionID = await this.readApprovalReply(request.sessionId, toolCallID, words);
+			if (connectionThatAsked.signal.aborted) return { outcome: { outcome: 'cancelled' } };
+			const optionID = await this.readApprovalReply(connectionThatAsked, request.sessionId, toolCallID, words);
 			this.answeredPermissions.delete(toolCallID);
 			await this.settings.questions.forget(toolCallID);
 			return { outcome: { outcome: 'selected', optionId: optionID } };
@@ -437,11 +435,11 @@ export class BlueclawACPClient {
 	}
 
 	private async readApprovalReply(
+		agent: ClientSideConnection,
 		sessionID: string,
 		toolCallID: string,
 		reply: string
 	): Promise<string> {
-		const agent = await this.agent();
 		const read = await agent.request<Record<string, unknown>>(
 			approvalReplyExtensionMethod,
 			approvalReplyRequest(sessionID, toolCallID, reply)
