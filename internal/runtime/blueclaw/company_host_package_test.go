@@ -5,7 +5,21 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
 )
+
+func TestMemberBrowsersHaveOneStatePathOutsidePrivateAndDynamicUserState(t *testing.T) {
+	if CompanyHostBrowserStatePath != browserruntime.DeviceBrowsersStateDirectory {
+		t.Fatal("the package and capabilityd disagree about member browser state")
+	}
+	if CompanyHostBrowserStatePath == browserruntime.DeviceBrowserStateDirectory {
+		t.Fatal("member browsers share the legacy DynamicUser state directory")
+	}
+	if strings.HasPrefix(CompanyHostBrowserStatePath, CompanyHostStateRoot+"/") {
+		t.Fatal("the browser user must traverse the private company state root")
+	}
+}
 
 func TestEveryBundledUnitWaitsForSomethingInstallWrites(t *testing.T) {
 	for _, unit := range CompanyHostSystemdUnits(LinuxCompanyHostLayout()) {

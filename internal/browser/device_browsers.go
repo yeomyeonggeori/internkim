@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const DeviceBrowsersStateDirectory = "/var/lib/internkim/device-browsers"
+const DeviceBrowsersStateDirectory = "/var/lib/internkim-browsers"
 const DeviceBrowsersFirstPort = 9230
 const DeviceBrowsersCapacity = 4
 const DeviceBrowsersUserName = "blueclaw"

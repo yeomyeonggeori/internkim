@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	browserruntime "github.com/yeomyeonggeori/internkim/internal/browser"
 )
 
 // The company host installed by a package manager is the relay, capabilityd, blueclaw,
@@ -60,7 +62,7 @@ const (
 	CompanyHostChatdStatePath              = "/var/lib/internkim/chatd"
 	CompanyHostWorkspacePath               = "/workspace"
 	CompanyHostLogPath                     = "/var/log/internkim"
-	CompanyHostBrowserStatePath            = "/var/lib/internkim-moli"
+	CompanyHostBrowserStatePath            = browserruntime.DeviceBrowsersStateDirectory
 	CompanyHostRunPath                     = "/run/internkim"
 
 	CompanyHostConfigurationRoot = "/etc/internkim"

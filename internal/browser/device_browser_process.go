@@ -65,10 +65,8 @@ func LaunchDeviceBrowserProcess(ctx context.Context, launch DeviceBrowserLaunch)
 
 func prepareDeviceBrowserDirectories(launch DeviceBrowserLaunch, owner *deviceBrowserOwner) error {
 	membersDirectory := filepath.Dir(launch.MemberDirectory)
-	if errorValue := os.MkdirAll(membersDirectory, 0o711); errorValue != nil {
-		return fmt.Errorf("the device browser directory %s could not be made: %w", membersDirectory, errorValue)
-	}
-	for _, directory := range []string{launch.MemberDirectory, launch.ProfileDirectory, launch.CacheDirectory} {
+	stateDirectory := filepath.Dir(membersDirectory)
+	for _, directory := range []string{stateDirectory, membersDirectory, launch.MemberDirectory, launch.ProfileDirectory, launch.CacheDirectory} {
 		if errorValue := os.MkdirAll(directory, 0o700); errorValue != nil {
 			return fmt.Errorf("the device browser directory %s could not be made: %w", directory, errorValue)
 		}
