@@ -105,3 +105,52 @@ func TestAHostUpdateAdmindRefusesComesBackAsAFailureBeforeAnyQuestion(t *testing
 		t.Fatalf("a refused plan came back as %+v", response)
 	}
 }
+
+func publicAPIHostUpdate(input string) string {
+	return `{"toolName":"host_update","input":` + input + `,"context":{"requesterPersonID":"person-1","requesterEmail":"member1@example.com","taskSource":"public_api","isApprovalContinuation":true}}`
+}
+
+func TestAHostUpdateCalledThroughThePublicAPIStartsAsTheCallerAsked(t *testing.T) {
+	admind := &admindStandIn{status: http.StatusOK, answer: `{"status":"started","fromVersion":"v2026.10.01.000000","toVersion":"v2026.10.02.090000","startedAt":"2026-10-02T14:00:00Z","expectedDowntimeSeconds":60}`}
+	response, errorValue := serviceAskingAdmind(admind).invokeCapabilityTool(context.Background(), hostUpdateToolName, strings.NewReader(publicAPIHostUpdate(`{}`)))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError || len(admind.paths) != 1 || admind.emails[0] != "member1@example.com" || !carriedApproval(t, admind.bodies[0]) {
+		t.Fatalf("the update came back as %+v after admind heard %v", response, admind.bodies)
+	}
+}
+
+func TestAHostUpdateCalledThroughThePublicAPIIsNotHeldForLater(t *testing.T) {
+	admind := &admindStandIn{status: http.StatusOK, answer: `{}`}
+	response, errorValue := serviceAskingAdmind(admind).invokeCapabilityTool(context.Background(), hostUpdateToolName, strings.NewReader(publicAPIHostUpdate(`{"startsAt":"2026-10-03T03:00:00+09:00"}`)))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(admind.paths) != 0 || response.ErrorCode != "scheduled_start_unsupported" || !strings.Contains(response.Message, "leave startsAt out") {
+		t.Fatalf("a held start came back as %+v after admind heard %v", response, admind.paths)
+	}
+}
+
+func TestAnAgentsHostUpdateWithAStartTimeStillReachesAdmindOnceApproved(t *testing.T) {
+	admind := &admindStandIn{status: http.StatusOK, answer: `{"status":"started","fromVersion":"v2026.10.01.000000","toVersion":"v2026.10.02.090000","startedAt":"2026-10-02T14:00:00Z","expectedDowntimeSeconds":60}`}
+	call := hostUpdateCall(`{"startsAt":"2026-10-03T03:00:00+09:00"}`, capabilityprotocol.ToolInvokeContext{ApprovedCallID: "held-1", ConversationID: "conversation-1"})
+	response, errorValue := serviceAskingAdmind(admind).invokeHostUpdateTool(context.Background(), call)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if response.IsError || len(admind.paths) != 1 {
+		t.Fatalf("the agent's approved update came back as %+v", response)
+	}
+}
+
+func TestAnAgentsHostUpdateStillWaitsForTheRequestersApproval(t *testing.T) {
+	admind := &admindStandIn{status: http.StatusOK, answer: `{}`}
+	response, errorValue := serviceAskingAdmind(admind).invokeCapabilityTool(context.Background(), hostUpdateToolName, strings.NewReader(`{"toolName":"host_update","input":{},"context":{"requesterPersonID":"person-1","requesterEmail":"member1@example.com","conversationID":"conversation-1"}}`))
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if len(admind.paths) != 0 || response.ErrorCode != "approval_required" {
+		t.Fatalf("an unapproved agent call came back as %+v after admind heard %v", response, admind.paths)
+	}
+}

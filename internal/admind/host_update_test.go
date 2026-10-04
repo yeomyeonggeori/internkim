@@ -36,13 +36,15 @@ type hostUpdateRig struct {
 	reportBodies  []string
 	reportStatus  int
 	releaseServer *httptest.Server
+	listings      int
+	now           time.Time
 }
 
 func newHostUpdateRig(t *testing.T) *hostUpdateRig {
 	t.Helper()
-	rig := &hostUpdateRig{channel: "stable", method: "apt-get", installed: "2026.10.01.000000", reportStatus: http.StatusCreated}
+	rig := &hostUpdateRig{channel: "stable", method: "apt-get", installed: "2026.10.01.000000", reportStatus: http.StatusCreated, now: time.Date(2026, 10, 2, 14, 0, 0, 0, time.UTC)}
 	rig.notePath = filepath.Join(t.TempDir(), "host-update.json")
-	rig.releaseServer = servingStableReleases(t)
+	rig.releaseServer = servingStableReleases(t, func() { rig.listings++ })
 	keyPath := filepath.Join(t.TempDir(), "assertion-key")
 	os.WriteFile(keyPath, []byte("a-test-assertion-key-of-enough-length"), 0o600)
 	rig.service = NewService(Configuration{StateDirectory: t.TempDir(), BlueclawBaseURL: hostUpdateBlueclawURL, BlueclawAssertionKeyPath: keyPath})
@@ -67,9 +69,10 @@ func newHostUpdateRig(t *testing.T) *hostUpdateRig {
 	return rig
 }
 
-func servingStableReleases(t *testing.T) *httptest.Server {
+func servingStableReleases(t *testing.T, onListing func()) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		onListing()
 		io.WriteString(responseWriter, `[{"tag_name":"v2026.10.03.000000","prerelease":true},{"tag_name":"v2026.10.02.090000","published_at":"2026-10-02T09:00:00Z","body":"Faster replies."},{"tag_name":"v2026.10.01.000000"},{"tag_name":"v2026.09.30.000000"}]`)
 	}))
 	t.Cleanup(server.Close)
@@ -111,7 +114,7 @@ func (rig *hostUpdateRig) dependencies() hostUpdateDependencies {
 		},
 		NotePath:    rig.notePath,
 		HostCommand: "/usr/bin/internkim",
-		Now:         func() time.Time { return time.Date(2026, 10, 2, 14, 0, 0, 0, time.UTC) },
+		Now:         func() time.Time { return rig.now },
 	}
 }
 
@@ -153,12 +156,32 @@ func TestAMemberWhoIsNotAnAdministratorIsRefusedTheUpdate(t *testing.T) {
 }
 
 type hostVersionForTest struct {
-	InstalledVersion  string              `json:"installedVersion"`
-	Channel           string              `json:"channel"`
-	UpdateMethod      string              `json:"updateMethod"`
-	LatestStable      *hostupdate.Release `json:"latestStable"`
-	PreviousStable    *hostupdate.Release `json:"previousStable"`
-	IsUpdateAvailable bool                `json:"isUpdateAvailable"`
+	InstalledVersion        string              `json:"installedVersion"`
+	Channel                 string              `json:"channel"`
+	UpdateMethod            string              `json:"updateMethod"`
+	LatestStable            *hostupdate.Release `json:"latestStable"`
+	PreviousStable          *hostupdate.Release `json:"previousStable"`
+	IsUpdateAvailable       bool                `json:"isUpdateAvailable"`
+	ExpectedDowntimeSeconds int                 `json:"expectedDowntimeSeconds"`
+	UpdateInProgress        *struct {
+		ToVersion string `json:"toVersion"`
+	} `json:"updateInProgress"`
+	LastUpdate *struct {
+		ToVersion string `json:"toVersion"`
+		Succeeded bool   `json:"succeeded"`
+		Error     string `json:"error"`
+	} `json:"lastUpdate"`
+}
+
+func (rig *hostUpdateRig) readVersion(t *testing.T) hostVersionForTest {
+	t.Helper()
+	response := rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("the version answered %d %s", response.Code, response.Body.String())
+	}
+	var answer hostVersionForTest
+	json.Unmarshal(response.Body.Bytes(), &answer)
+	return answer
 }
 
 func TestAnyMemberCanReadTheHostVersion(t *testing.T) {
@@ -168,8 +191,35 @@ func TestAnyMemberCanReadTheHostVersion(t *testing.T) {
 	json.Unmarshal(response.Body.Bytes(), &answer)
 	if response.Code != http.StatusOK || answer.InstalledVersion != "v2026.10.01.000000" || answer.Channel != "stable" || answer.UpdateMethod != "apt" ||
 		answer.LatestStable == nil || answer.LatestStable.Version != "v2026.10.02.090000" || answer.LatestStable.Notes != "Faster replies." ||
-		!answer.IsUpdateAvailable || answer.PreviousStable == nil || answer.PreviousStable.Version != "v2026.09.30.000000" {
+		!answer.IsUpdateAvailable || answer.PreviousStable == nil || answer.PreviousStable.Version != "v2026.09.30.000000" ||
+		answer.ExpectedDowntimeSeconds != expectedHostUpdateDowntimeSeconds || answer.UpdateInProgress != nil || answer.LastUpdate != nil {
 		t.Fatalf("the version answer is %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestTheReleaseListIsReadOnceWhileItIsFresh(t *testing.T) {
+	rig := newHostUpdateRig(t)
+	rig.readVersion(t)
+	rig.ask(t, hostUpdatePlanPath, hostUpdateAdminEmail, `{}`)
+	rig.readVersion(t)
+	if rig.listings != 1 {
+		t.Fatalf("the release list was read %d times inside its freshness", rig.listings)
+	}
+	rig.now = rig.now.Add(stableReleaseFreshness)
+	rig.readVersion(t)
+	if rig.listings != 2 {
+		t.Fatalf("the release list was read %d times once it went stale", rig.listings)
+	}
+}
+
+func TestAnUpdateInProgressIsShownToEveryMember(t *testing.T) {
+	rig := newHostUpdateRig(t)
+	if response := rig.ask(t, hostUpdateStartPath, hostUpdateAdminEmail, `{"isApproved":true,"input":{}}`); response.Code != http.StatusOK {
+		t.Fatalf("the update answered %d %s", response.Code, response.Body.String())
+	}
+	answer := rig.readVersion(t)
+	if answer.UpdateInProgress == nil || answer.UpdateInProgress.ToVersion != "v2026.10.02.090000" || answer.LastUpdate != nil {
+		t.Fatalf("a running update reads as %+v", answer)
 	}
 }
 
@@ -399,5 +449,61 @@ func TestTheResultReportIsAScheduleTheAgentAccepts(t *testing.T) {
 	}
 	if errorValue := capabilityschema.ValidateInput(blueclawScheduleCreateSchema(t), body); errorValue != nil {
 		t.Fatalf("blueclaw refuses the result report %s: %v", body, errorValue)
+	}
+}
+
+func TestAnUpdateAskedWithoutAConversationIsLeftForItsScreenToRead(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		outcome *hostupdate.Outcome
+		failure string
+	}{
+		{"a failed update", &hostupdate.Outcome{FinishedAt: time.Date(2026, 10, 2, 13, 1, 0, 0, time.UTC), Error: "install.sh failed: exit status 1"}, "install.sh failed: exit status 1"},
+		{"an update that stopped without a result", nil, "the update stopped before it recorded a result, as when the machine restarts during it"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			rig := newHostUpdateRig(t)
+			hostupdate.WriteNote(rig.notePath, hostupdate.Note{
+				Requester:   hostupdate.Requester{Email: hostUpdateAdminEmail, PersonID: "person-1"},
+				FromVersion: "v2026.10.01.000000", ToVersion: "v2026.10.02.090000", StartedAt: time.Date(2026, 10, 2, 13, 0, 0, 0, time.UTC), Outcome: testCase.outcome,
+			})
+			rig.service.hostUpdateDependencies = rig.dependencies()
+			rig.service.reportHostUpdateOnce(t.Context())
+			rig.service.reportHostUpdateOnce(t.Context())
+			if len(rig.reportBodies) != 0 {
+				t.Fatalf("an update nobody asked for in a conversation was reported into one: %v", rig.reportBodies)
+			}
+			answer := rig.readVersion(t)
+			if answer.UpdateInProgress != nil || answer.LastUpdate == nil || answer.LastUpdate.Succeeded || answer.LastUpdate.Error != testCase.failure {
+				t.Fatalf("the screen reads %+v", answer)
+			}
+			if again := rig.ask(t, hostUpdateStartPath, hostUpdateAdminEmail, `{"isApproved":true,"input":{}}`); again.Code != http.StatusOK {
+				t.Fatalf("the last update's result held off the next one: %d %s", again.Code, again.Body.String())
+			}
+		})
+	}
+}
+
+func TestEveryHostVersionAnswerIsOneTheCatalogDescribes(t *testing.T) {
+	var resultSchema json.RawMessage
+	for _, descriptor := range capabilities.DefaultToolDescriptors() {
+		if descriptor.CanonicalName == "host_version_get" {
+			resultSchema = descriptor.ResultContract.Schema
+		}
+	}
+	rig := newHostUpdateRig(t)
+	answers := []string{rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`).Body.String()}
+	rig.ask(t, hostUpdateStartPath, hostUpdateAdminEmail, `{"isApproved":true,"input":{}}`)
+	answers = append(answers, rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`).Body.String())
+	hostupdate.Update(rig.notePath, "v2026.10.02.090000", func([]string, io.Writer) error { return errors.New("exit status 1") }, func() time.Time { return rig.now })
+	answers = append(answers, rig.ask(t, hostVersionPath, hostUpdateMemberEmail, `{}`).Body.String())
+	for _, answer := range answers {
+		check, errorValue := capabilityschema.ValidateResult(resultSchema, json.RawMessage(answer))
+		if errorValue != nil || len(check.UnknownFields) > 0 {
+			t.Fatalf("the catalog does not describe %s: %v %v", answer, errorValue, check.UnknownFields)
+		}
+	}
+	if !strings.Contains(answers[1], `"updateInProgress"`) || !strings.Contains(answers[2], `"lastUpdate"`) {
+		t.Fatalf("the answers did not cover a running and a finished update: %v", answers)
 	}
 }

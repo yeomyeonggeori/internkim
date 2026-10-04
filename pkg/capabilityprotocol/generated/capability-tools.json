@@ -29999,11 +29999,47 @@
             ],
             "type": "string"
           },
+          "expectedDowntimeSeconds": {
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
           "installedVersion": {
             "type": "string"
           },
           "isUpdateAvailable": {
             "type": "boolean"
+          },
+          "lastUpdate": {
+            "additionalProperties": false,
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "finishedAt": {
+                "type": "string"
+              },
+              "fromVersion": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "string"
+              },
+              "succeeded": {
+                "type": "boolean"
+              },
+              "toVersion": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fromVersion",
+              "toVersion",
+              "startedAt",
+              "finishedAt",
+              "succeeded"
+            ],
+            "type": "object"
           },
           "latestStable": {
             "additionalProperties": false,
@@ -30102,11 +30138,47 @@
               ],
               "type": "string"
             },
+            "expectedDowntimeSeconds": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
             "installedVersion": {
               "type": "string"
             },
             "isUpdateAvailable": {
               "type": "boolean"
+            },
+            "lastUpdate": {
+              "additionalProperties": false,
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "type": "string"
+                },
+                "fromVersion": {
+                  "type": "string"
+                },
+                "startedAt": {
+                  "type": "string"
+                },
+                "succeeded": {
+                  "type": "boolean"
+                },
+                "toVersion": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fromVersion",
+                "toVersion",
+                "startedAt",
+                "finishedAt",
+                "succeeded"
+              ],
+              "type": "object"
             },
             "latestStable": {
               "additionalProperties": false,

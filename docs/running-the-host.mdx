@@ -41,7 +41,7 @@ describes how the claim works and how Disconnect undoes it.
 
 ## Updating [#updating]
 
-A host is updated by running the installer again, or by asking the agent.
+A host is updated by running the installer again, by asking the agent, or from Settings.
 
 ### With the installer
 
@@ -77,6 +77,18 @@ its own, `internkim-host-update`, which outlives the restart it causes. A second
 update is refused while one runs. When the agent is back it answers in that
 conversation with the version the host reached, or with what failed and the
 version the host is on.
+
+### From Settings
+
+Settings shows every member the installed version, the channel, and the latest
+stable release with its notes. On the administrator tab, an administrator updates
+to that release or goes back to the previous one with a button. The click is the
+confirmation, so no question follows; a dialog says what the restart costs first.
+The call goes through the public API to the same admin gateway, which checks that
+the caller is an administrator and refuses a Mac or a host off the stable channel
+as above. The page then reads the host until it answers on the new version, and
+the gateway keeps the result for it, so nothing is posted to a conversation. The
+API starts the update at once, and only the agent schedules one for later.
 
 ### What the restart costs
 

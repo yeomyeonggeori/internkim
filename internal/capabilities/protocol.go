@@ -23,6 +23,8 @@ const (
 	ToolOutcomeSucceeded = capabilityprotocol.ToolOutcomeSucceeded
 	ToolOutcomeFailed    = capabilityprotocol.ToolOutcomeFailed
 	ToolOutcomeDenied    = capabilityprotocol.ToolOutcomeDenied
+
+	TaskSourcePublicAPI = capabilityprotocol.TaskSourcePublicAPI
 )
 
 type Descriptor = capabilityprotocol.Descriptor

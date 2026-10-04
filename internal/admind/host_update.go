@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
@@ -22,6 +23,7 @@ const (
 	expectedHostUpdateDowntimeSeconds = 60
 	offHoursStartHour                 = 3
 	releaseNotesLimit                 = 4000
+	stableReleaseFreshness            = 5 * time.Minute
 )
 
 type hostUpdateDependencies struct {
@@ -45,6 +47,29 @@ func (service *Service) hostUpdate() hostUpdateDependencies {
 		HostCommand: blueclaw.CompanyPackageBinaryRoot + "/internkim",
 		Now:         time.Now,
 	}
+}
+
+type heldStableReleases struct {
+	mutex     sync.Mutex
+	releases  []hostupdate.Release
+	fetchedAt time.Time
+	isHeld    bool
+}
+
+func (service *Service) stableReleases(ctx context.Context) ([]hostupdate.Release, error) {
+	dependencies := service.hostUpdate()
+	held := &service.stableReleaseCache
+	held.mutex.Lock()
+	defer held.mutex.Unlock()
+	if held.isHeld && dependencies.Now().Sub(held.fetchedAt) < stableReleaseFreshness {
+		return held.releases, nil
+	}
+	releases, errorValue := dependencies.Releases.StableReleases(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
+	held.releases, held.fetchedAt, held.isHeld = releases, dependencies.Now(), true
+	return releases, nil
 }
 
 type hostRequest struct {
@@ -119,16 +144,17 @@ func (refusal hostRefusal) write(responseWriter http.ResponseWriter) {
 
 func (service *Service) hostVersion(ctx context.Context, _ string, _ hostRequest) (any, *hostRefusal, error) {
 	dependencies := service.hostUpdate()
-	stable, errorValue := dependencies.Releases.StableReleases(ctx)
+	stable, errorValue := service.stableReleases(ctx)
 	if errorValue != nil {
 		return nil, nil, errorValue
 	}
 	installed := dependencies.Machine.InstalledVersion
 	answer := map[string]any{
-		"installedVersion":  installed,
-		"channel":           dependencies.Machine.Channel(),
-		"updateMethod":      dependencies.Machine.UpdateMethod(),
-		"isUpdateAvailable": len(stable) > 0 && hostupdate.IsOlder(installed, stable[0].Version),
+		"installedVersion":        installed,
+		"channel":                 dependencies.Machine.Channel(),
+		"updateMethod":            dependencies.Machine.UpdateMethod(),
+		"isUpdateAvailable":       len(stable) > 0 && hostupdate.IsOlder(installed, stable[0].Version),
+		"expectedDowntimeSeconds": expectedHostUpdateDowntimeSeconds,
 	}
 	if len(stable) > 0 {
 		answer["latestStable"] = withClippedNotes(stable[0])
@@ -139,10 +165,28 @@ func (service *Service) hostVersion(ctx context.Context, _ string, _ hostRequest
 			break
 		}
 	}
-	if note, isPending, _ := hostupdate.ReadNote(dependencies.NotePath); isPending && !note.IsFinished() {
-		answer["updateInProgress"] = map[string]any{"fromVersion": note.FromVersion, "toVersion": note.ToVersion, "startedAt": note.StartedAt}
+	if note, isPending, _ := hostupdate.ReadNote(dependencies.NotePath); isPending {
+		describeTheNote(answer, note)
 	}
 	return answer, nil, nil
+}
+
+func describeTheNote(answer map[string]any, note hostupdate.Note) {
+	if !note.IsFinished() {
+		answer["updateInProgress"] = map[string]any{"fromVersion": note.FromVersion, "toVersion": note.ToVersion, "startedAt": note.StartedAt}
+		return
+	}
+	lastUpdate := map[string]any{
+		"fromVersion": note.FromVersion,
+		"toVersion":   note.ToVersion,
+		"startedAt":   note.StartedAt,
+		"finishedAt":  note.Outcome.FinishedAt,
+		"succeeded":   note.Outcome.Succeeded,
+	}
+	if note.Outcome.Error != "" {
+		lastUpdate["error"] = note.Outcome.Error
+	}
+	answer["lastUpdate"] = lastUpdate
 }
 
 func withClippedNotes(release hostupdate.Release) hostupdate.Release {
@@ -179,7 +223,7 @@ func (service *Service) planHostUpdate(ctx context.Context, requesterEmail strin
 	if refusal := refusalForThisHost(dependencies); refusal != nil {
 		return hostUpdatePlan{}, refusal, nil
 	}
-	stable, errorValue := dependencies.Releases.StableReleases(ctx)
+	stable, errorValue := service.stableReleases(ctx)
 	if errorValue != nil {
 		return hostUpdatePlan{}, nil, errorValue
 	}

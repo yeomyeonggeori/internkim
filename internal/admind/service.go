@@ -59,6 +59,7 @@ type Service struct {
 	rosterReadinessMutex    sync.Mutex
 	rosterReadiness         rosterReadiness
 	hostUpdateDependencies  hostUpdateDependencies
+	stableReleaseCache      heldStableReleases
 }
 
 func NewService(configuration Configuration) *Service {

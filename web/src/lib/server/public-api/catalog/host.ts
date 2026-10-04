@@ -7,30 +7,9 @@ import {
   ResourceEffectIdentity,
 } from './protocol';
 import { ResourceMutationEffect, type CapabilityToolDefinition } from './definition';
-
-const releaseTagSchema = z.string().regex(/^v\d{4}\.\d{2}\.\d{2}\.\d{6}$/);
-
-const hostReleaseSchema = z.strictObject({
-  version: z.string().min(1),
-  publishedAt: z.string(),
-  notes: z.string().optional(),
-});
+import { hostUpdateResultSchema, hostVersionGetResultSchema, releaseTagSchema } from '$lib/host/host-version';
 
 export const hostVersionGetInputSchema = z.strictObject({});
-
-export const hostVersionGetResultSchema = z.strictObject({
-  installedVersion: z.string(),
-  channel: z.enum(['stable', 'testing', 'unrecorded']),
-  updateMethod: z.enum(['apt', 'dnf', 'pacman', 'brew', '']),
-  latestStable: hostReleaseSchema.optional(),
-  previousStable: hostReleaseSchema.optional(),
-  isUpdateAvailable: z.boolean(),
-  updateInProgress: z.strictObject({
-    fromVersion: z.string(),
-    toVersion: z.string(),
-    startedAt: z.string(),
-  }).optional(),
-});
 
 export const hostUpdateInputSchema = z.strictObject({
   targetVersion: releaseTagSchema
@@ -42,14 +21,6 @@ export const hostUpdateInputSchema = z.strictObject({
   isRequestedNow: z.boolean()
     .describe('True when the requester asked for the update to happen right away.')
     .optional(),
-});
-
-export const hostUpdateResultSchema = z.strictObject({
-  status: z.literal('started'),
-  fromVersion: z.string(),
-  toVersion: z.string(),
-  startedAt: z.string(),
-  expectedDowntimeSeconds: z.int().min(1),
 });
 
 export const hostToolDefinitions: CapabilityToolDefinition[] = [

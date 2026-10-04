@@ -528,5 +528,15 @@
 		"path": "dataroom_share_add.input.roleCode",
 		"reason": "A circle is one table: what was a data room role is a circle named by its id, circles and who belongs to them are read and set through circle_list, circle_update and circle_member_update, and a company member reads through the circles they belong to rather than through a share.",
 		"release": "the circle table release carries this catalog to company hosts with the plane that renames the columns; no shipped skill names a role"
+	},
+	{
+		"path": "host_version_get.result.expectedDowntimeSeconds",
+		"reason": "The settings screen tells an administrator how long the restart takes before the update starts. The field is optional, so the screen reads an older host that does not send it, and capabilityd under an older contract keeps an answer that carries it and only logs the field it does not know.",
+		"release": "the release carrying admind's host version answer with this field reaches company hosts; the plane deploys the catalog that names it, and no shipped skill reads it"
+	},
+	{
+		"path": "host_version_get.result.lastUpdate",
+		"reason": "An update started from the settings screen has no conversation to be reported into, so admind keeps its result for the screen to read. The field is optional, and capabilityd under an older contract keeps an answer that carries it and only logs the field it does not know.",
+		"release": "the release carrying admind's host version answer with this field reaches company hosts; the plane deploys the catalog that names it, and no shipped skill reads it"
 	}
 ]
