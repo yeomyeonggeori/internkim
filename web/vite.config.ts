@@ -60,7 +60,7 @@ export default defineConfig(({ mode }) => {
 				'/agent/api': admindProxy(admindTarget, devUserEmail),
 				'/buzz/api': admindProxy(admindTarget, devUserEmail),
 				'/attendance/api': admindProxy(admindTarget),
-				'/auth': admindProxy(admindTarget, devUserEmail),
+				'^/auth/(?!claim)': admindProxy(admindTarget, devUserEmail),
 				'/calendar/api': admindProxy(admindTarget),
 				'/crm/api': admindProxy(admindTarget, devUserEmail),
 				'/mail/api': admindProxy(admindTarget),
