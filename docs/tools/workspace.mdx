@@ -70,14 +70,15 @@ system-modifying command simply fails for an unprivileged actor. The
 
 | Path | Who may touch it | Holds |
 |---|---|---|
-| `home/<path>` | you | durable personal files |
+| `private/people/<personID>` | you | your `$HOME`: durable personal files |
 | `private/people/<personID>/tmp/<task>` | you | drafts and build intermediates |
 | `private/people/<personID>/artifacts/<slug>` | you | finished personal output |
+| `private/protected/<personID>` | the service writes, you read | your memory |
 | `circles/<circleID>` | the circle's group | deliberate team sharing |
 | `shared/public` | everyone; safe for outsiders | externally shareable content |
 | `shared/cache/dependencies` | everyone | package caches only |
 | `skills` | read and execute | bundled skill source |
-| `.blueclaw` | the service only | database, logs, internal state |
+| `.blueclaw` | the service only | policy, logs, internal state |
 
 ## How finished work leaves [#delivery]
 

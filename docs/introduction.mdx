@@ -36,8 +36,8 @@ regardless of which one sent it.
 A Supabase project. Postgres holds the company's records, row level security
 decides who may read a row, and Supabase Auth signs people in with a password,
 a passkey or a Google account. The schema is the directory of migrations at
-`supabase/migrations`, and the tables are listed in
-[What lives where](/docs/what-lives-where).
+`supabase/migrations`, and [What the tables mean](/docs/record/schema)
+explains them.
 
 Alongside it, three more things we run:
 
@@ -70,9 +70,10 @@ Each of those would have to be written again.
 
 One computer that stays on. A Linux server, a Mac that does not sleep, a box
 in a cupboard. It runs the agent, the connector to your messenger, the daemons
-around them, and a Postgres of its own holding conversations, what the agent
-did, and what it remembers. [Running the host](/docs/running-the-host) lists
-the processes and what each needs.
+around them, a Postgres of its own holding conversations and what the agent
+did, and a memory file for each person and circle.
+[Architecture](/docs/architecture#the-processes-on-the-host) lists the
+processes and what each does.
 
 Once it belongs to a company, nothing on it listens beyond the machine itself.
 Every connection it makes goes outward, so there is no
@@ -116,5 +117,5 @@ needs after a hardware replacement.
 | [Architecture](/docs/architecture) | what talks to what, and where each process lives in the tree |
 | [Boundaries](/docs/boundaries) | the two things that decide who may do what |
 | [What lives where](/docs/what-lives-where) | which data is central and which is on the box |
-| [Running the host](/docs/running-the-host) | the boot order and the settings of the always-on computer |
+| [Running the host](/docs/running-the-host) | installing, updating and backing up the always-on computer |
 | [Glossary](/docs/glossary) | the words this documentation uses precisely |

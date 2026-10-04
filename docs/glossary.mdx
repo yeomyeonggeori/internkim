@@ -115,8 +115,9 @@ keeps memory in bluememo, and owns approval and the task ledger. It listens on
 
 bluememo, a library blueclaw embeds, at
 `.dependency/blueclaw/.dependency/bluememo/`. It keeps the facts a model
-extracts from finished work in the agent's store, each owned by a person and
-shared with zero or more circles, and recalls only what the reader may see.
+extracts from finished work in one SQLite file per person, per circle and for
+the whole workspace, each in that subject's protected directory. A recall runs
+as the reader, so file permissions decide what they may see.
 
 ## The skills
 

@@ -24,7 +24,7 @@ Verified by booting `cmd/blueclaw` on an ordinary machine until it reported
 | **Moli** | the device browser, a headless engine agent-browser drives over the Chrome DevTools Protocol; without it the browser tools report unavailable and everything else answers |
 | **the POSIX helper** | `bash` and the file tools run as the person who asked, through the setuid `blueclaw-posix-helper` the package installs (`/usr/lib/internkim/` on Linux), called by blueclaw running as the `blueclaw` user because the terminal refuses root; without it blueclaw refuses every one of them, and health still reports `ok` |
 
-A virtual-machine guest and cloudflared are **not** needed.
+cloudflared is **not** needed.
 
 ### What the skills need
 
