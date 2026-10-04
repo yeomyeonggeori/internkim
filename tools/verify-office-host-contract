@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Check that blueclaw's copy of the office host contract matches the plugin's.
+
+The plugin's skills/office/assets/host-contract.json names the runtime
+context's fields, the source snapshot suffix and the deliverable extensions.
+Blueclaw cannot import the plugin, so it embeds a copy; this is the check that
+keeps the two the same document.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+PLUGIN_CONTRACT = Path(".dependency/internkim-plugin/skills/office/assets/host-contract.json")
+HOST_CONTRACT = Path(".dependency/blueclaw/internal/agentruntime/office_host_contract.json")
+
+
+def read_contract(root: Path, relative_path: Path, findings: list[str]) -> object:
+    try:
+        return json.loads((root / relative_path).read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        findings.append(f"{relative_path}: cannot be read as JSON: {error}")
+        return None
+
+
+def differences(plugin: object, host: object, location: str) -> list[str]:
+    if isinstance(plugin, dict) and isinstance(host, dict):
+        found = []
+        for key in sorted(set(plugin) | set(host)):
+            if key not in host:
+                found.append(f"{location}.{key}: in the plugin's contract, missing from blueclaw's copy")
+            elif key not in plugin:
+                found.append(f"{location}.{key}: in blueclaw's copy, missing from the plugin's contract")
+            else:
+                found.extend(differences(plugin[key], host[key], f"{location}.{key}"))
+        return found
+    if plugin != host:
+        return [f"{location}: the plugin says {json.dumps(plugin, ensure_ascii=False)}, blueclaw's copy says {json.dumps(host, ensure_ascii=False)}"]
+    return []
+
+
+def findings_for(root: Path) -> list[str]:
+    findings: list[str] = []
+    plugin = read_contract(root, PLUGIN_CONTRACT, findings)
+    host = read_contract(root, HOST_CONTRACT, findings)
+    if findings:
+        return findings
+    return differences(plugin, host, "contract")
+
+
+def main() -> int:
+    findings = findings_for(REPOSITORY_ROOT)
+    for finding in findings:
+        print(finding, file=sys.stderr)
+    if findings:
+        print(f"copy {PLUGIN_CONTRACT} to {HOST_CONTRACT} in blueclaw, or change the plugin's, so the two agree", file=sys.stderr)
+    return 1 if findings else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
