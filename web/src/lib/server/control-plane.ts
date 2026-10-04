@@ -95,10 +95,19 @@ export async function promoteToAdministrator(caller: SupabaseClient, memberID: s
 	if (error) throw new Error(`administrator ${memberID}: ${error.message}`);
 }
 
+export class CompanyAddressTaken extends Error {
+	constructor(readonly slug: string) {
+		super(`${slug} is already a company's address`);
+	}
+}
+
+const uniqueViolation = '23505';
+
 export async function provisionCompany(
 	client: SupabaseClient,
 	company: CompanyInput,
 	adminEmail: string,
+	adminName = '',
 ): Promise<ProvisionedCompany> {
 	const { data: created, error: companyError } = await client
 		.from('company')
@@ -112,10 +121,16 @@ export async function provisionCompany(
 		})
 		.select('id')
 		.single();
+	if (companyError?.code === uniqueViolation) throw new CompanyAddressTaken(company.slug);
 	if (companyError) throw new Error(`company: ${companyError.message}`);
 
-	const adminMemberID = await addMember(client, created.id, adminEmail, { isAdmin: true });
-	return { companyID: created.id, adminMemberID };
+	try {
+		const adminMemberID = await addMember(client, created.id, adminEmail, { isAdmin: true, name: adminName });
+		return { companyID: created.id, adminMemberID };
+	} catch (refusal) {
+		await client.from('company').delete().eq('id', created.id);
+		throw refusal;
+	}
 }
 
 export class AddressBelongsToAnotherCompany extends Error {
@@ -160,14 +175,6 @@ function memberWhoMayBeInvitedAgain(held: MemberRow, companyID: string, email: s
 	if (held.company_id !== companyID) throw new AddressBelongsToAnotherCompany(email);
 	if (held.status === 'active') throw new AlreadyAMember(email);
 	return held.id;
-}
-
-async function refuseAddressesHeldByAnyCompany(client: SupabaseClient, emails: string[]): Promise<void> {
-	if (emails.length === 0) return;
-	const { data, error } = await client.from('member').select('email').in('email', emails).limit(1);
-	if (error) throw new Error(error.message);
-	const taken = data[0]?.email;
-	if (taken) throw new AddressBelongsToAnotherCompany(taken);
 }
 
 // Somebody who worked here leaves their attendance, their leave and the tasks
@@ -287,7 +294,6 @@ async function isAccountClosed(client: SupabaseClient, accountID: string): Promi
 export type FoundedCompany = {
 	companyID: string;
 	adminMemberID: string;
-	invitations: Invitation[];
 };
 
 export type ClaimedMember = { memberID: string; companyID: string; hasJustArrived: boolean };
@@ -346,26 +352,20 @@ async function markArrived(client: SupabaseClient, memberID: string, accountID: 
 
 export async function foundCompany(
 	client: SupabaseClient,
-	founder: { accountID: string; email: string },
+	founder: { accountID: string; email: string; name: string },
 	company: CompanyInput,
-	invited: string[],
 ): Promise<FoundedCompany> {
-	const colleagues = invited.filter((email) => email !== founder.email);
-	await refuseAddressesHeldByAnyCompany(client, colleagues);
-	const { companyID, adminMemberID } = await provisionCompany(client, company, founder.email);
+	const { companyID, adminMemberID } = await provisionCompany(client, company, founder.email, founder.name);
 
 	const { error } = await client
 		.from('member')
 		.update({ user_id: founder.accountID, status: 'active', joined_at: new Date().toISOString() })
 		.eq('id', adminMemberID);
-	if (error) throw new Error(`founder: ${error.message}`);
-
-	const invitations: Invitation[] = [];
-	for (const email of colleagues) {
-		const memberID = await addMember(client, companyID, email);
-		invitations.push(await inviteMember(client, memberID));
+	if (error) {
+		await client.from('company').delete().eq('id', companyID);
+		throw new Error(`founder: ${error.message}`);
 	}
-	return { companyID, adminMemberID, invitations };
+	return { companyID, adminMemberID };
 }
 
 export type Invitation = {

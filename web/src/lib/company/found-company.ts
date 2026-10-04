@@ -2,23 +2,15 @@ import { supabase } from '$lib/supabase';
 import { tellTheCompanyServerTheDirectoryChanged } from '$lib/organization/invite-member';
 import { companyMembership } from '$lib/signed-in-account-memo';
 
-export type FoundingInvitation = {
-	memberID: string;
-	email: string;
-	temporaryPassword: string;
-};
-
 export type FoundedCompany = {
 	companyID: string;
 	slug: string;
-	invitations: FoundingInvitation[];
 };
 
 export type AddressCheck = {
 	slug: string;
 	taken: boolean;
 	usable: boolean;
-	name: string | null;
 };
 
 export async function checkCompanyAddress(slug: string): Promise<AddressCheck> {
@@ -27,11 +19,15 @@ export async function checkCompanyAddress(slug: string): Promise<AddressCheck> {
 	return (await response.json()) as AddressCheck;
 }
 
-export async function foundCompany(company: {
+export type FoundingCompany = {
 	name: string;
 	slug: string;
-	invited: string[];
-}): Promise<FoundedCompany> {
+	founderName: string;
+	locale: string;
+	timezone: string;
+};
+
+export async function foundCompany(company: FoundingCompany): Promise<FoundedCompany> {
 	const { data } = await supabase().auth.getSession();
 	const accessToken = data.session?.access_token;
 	if (!accessToken) throw new Error('sign in first');

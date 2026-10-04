@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	companyPathOf,
+	isUsableCompanyAddress,
 	companySlugOf,
 	reservedFirstSegments,
 	routePathOf,
@@ -74,6 +75,20 @@ describe('the reserved segments', () => {
 			.sort();
 
 		expect(reservedFirstSegments.slice().sort()).toEqual(routeDirectories);
+	});
+});
+
+describe('an address a company may take', () => {
+	test('is a slug that names no route of the app', () => {
+		expect(isUsableCompanyAddress('samplecompany')).toBe(true);
+		expect(isUsableCompanyAddress('settings')).toBe(false);
+		expect(isUsableCompanyAddress('start')).toBe(false);
+	});
+
+	test('keeps to the shape the record allows', () => {
+		expect(isUsableCompanyAddress('ab')).toBe(false);
+		expect(isUsableCompanyAddress('sample-')).toBe(false);
+		expect(isUsableCompanyAddress('Sample')).toBe(false);
 	});
 });
 

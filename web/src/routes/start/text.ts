@@ -1,0 +1,42 @@
+export const startCompanyText = {
+	ko: {
+		title: '회사 만들기',
+		signedInAs: '{email} 계정으로 새 회사를 만듭니다.',
+		companyName: '회사 이름',
+		companyAddress: '회사 주소',
+		companyAddressHint: '회사 웹 주소와 회사 컴퓨터 이름에 쓰이고, 나중에 바꾸기 어렵습니다.',
+		addressChecking: '확인하고 있습니다…',
+		addressUsable: '쓸 수 있습니다.',
+		addressTaken: '이미 다른 회사가 쓰고 있습니다.',
+		addressReserved: '김인턴이 쓰는 이름이라 쓸 수 없습니다.',
+		addressShape: '영문 소문자, 숫자, 하이픈으로 3~40자. 하이픈으로 시작하거나 끝날 수 없습니다.',
+		addressNeedsLatin: '회사 이름에 영문이 없어 주소를 직접 정해야 합니다.',
+		addressUnchecked: '주소를 확인하지 못했습니다. 잠시 뒤 다시 시도하세요.',
+		founderName: '내 이름',
+		founderNameHint: '동료와 김인턴이 부르는 이름입니다.',
+		create: '만들기',
+		creating: '만드는 중…',
+		createFailed: '회사를 만들지 못했습니다. 잠시 뒤 다시 시도하세요.',
+		signInAsAnother: '다른 계정으로 로그인'
+	},
+	en: {
+		title: 'Create a company',
+		signedInAs: 'You are creating a company as {email}.',
+		companyName: 'Company name',
+		companyAddress: 'Company address',
+		companyAddressHint: 'Used for your web address and your company computer’s name, and hard to change later.',
+		addressChecking: 'Checking…',
+		addressUsable: 'Available.',
+		addressTaken: 'Another company already uses this.',
+		addressReserved: 'internkim uses this name, so it is not available.',
+		addressShape: '3 to 40 lowercase letters, digits or hyphens, not starting or ending with a hyphen.',
+		addressNeedsLatin: 'Your company name has no Latin letters, so choose an address yourself.',
+		addressUnchecked: 'The address could not be checked. Try again in a moment.',
+		founderName: 'Your name',
+		founderNameHint: 'What colleagues and internkim call you.',
+		create: 'Create',
+		creating: 'Creating…',
+		createFailed: 'The company could not be created. Try again in a moment.',
+		signInAsAnother: 'Sign in with another account'
+	}
+} as const;

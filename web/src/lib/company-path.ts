@@ -26,6 +26,10 @@ export const reservedFirstSegments = [
 const reserved = new Set(reservedFirstSegments);
 export const slugShape = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
+export function isUsableCompanyAddress(slug: string): boolean {
+	return slugShape.test(slug) && !reserved.has(slug);
+}
+
 export function companySlugOf(pathname: string): string {
 	const [, first = ''] = pathname.split('/');
 	if (reserved.has(first)) return '';
