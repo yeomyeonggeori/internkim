@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { answerMCP, descriptorMetaKey, toolsOfferedTo } from '$lib/server/public-api/mcp';
+import { annotationsOf, answerMCP, descriptorMetaKey, toolsOfferedTo } from '$lib/server/public-api/mcp';
 import { isSeenByAModel, toolsAModelReachesWith, toolsReachableBy } from '$lib/server/public-api/catalog';
 import type { CallingMember } from '$lib/server/member-request';
 import type { PublicAPIPermission } from '$lib/public-api-permission';
@@ -57,6 +57,51 @@ describe('the tools offered over MCP', () => {
 		const offered = toolsOfferedTo(aMemberWhoMay('delete')).map((tool) => tool.name);
 		expect(offered).toContain('company_document_search');
 		expect(offered).toContain('company_document_list');
+	});
+});
+
+describe('the annotations a harness decides from', () => {
+	const offered = toolsOfferedTo(aMemberWhoMay('delete'));
+	const descriptors = toolsAModelReachesWith('delete');
+
+	test('mark every tool that requires approval destructive, and no other', () => {
+		expect(descriptors.some((descriptor) => descriptor.requiresApproval)).toBe(true);
+		for (const [ordinal, descriptor] of descriptors.entries()) {
+			expect(offered[ordinal].annotations?.destructiveHint).toBe(descriptor.requiresApproval ? true : undefined);
+		}
+	});
+
+	test('mark every tool that only reads read-only, and no other', () => {
+		for (const [ordinal, descriptor] of descriptors.entries()) {
+			const readsOnly = descriptor.sideEffectClass === 'read' || descriptor.sideEffectClass === 'computation';
+			expect(offered[ordinal].annotations?.readOnlyHint).toBe(readsOnly ? true : undefined);
+		}
+	});
+
+	test('carry neither hint on a tool that writes without approval', () => {
+		const writing = descriptors.find(
+			(descriptor) => descriptor.sideEffectClass === 'workspace_write' && !descriptor.requiresApproval
+		);
+		if (!writing) throw new Error('the catalog has no unapproved workspace write to hold');
+		expect(annotationsOf(writing)).toEqual({});
+	});
+
+	test('state no fact a descriptor does not', () => {
+		for (const tool of offered) {
+			for (const key of Object.keys(tool.annotations ?? {})) {
+				expect(['readOnlyHint', 'destructiveHint']).toContain(key);
+			}
+		}
+	});
+
+	test('reach a client over the wire', async () => {
+		const connected = await anMCPClient('delete');
+		try {
+			const listed = (await connected.listTools()).tools;
+			expect(listed.map((tool) => tool.annotations)).toEqual(offered.map((tool) => tool.annotations));
+		} finally {
+			await connected.close();
+		}
 	});
 });
 
