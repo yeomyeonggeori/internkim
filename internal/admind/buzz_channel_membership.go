@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"log"
 	"os"
@@ -48,7 +47,10 @@ func (service *Service) startMemberChannelMembershipSync(ctx context.Context) {
 }
 
 func (service *Service) intervalUntilTheNextMembershipPass(ctx context.Context) time.Duration {
-	everyone := service.everyoneTheRelayShouldHold(ctx)
+	everyone, errorValue := service.everyoneTheRelayShouldHold(ctx)
+	if errorValue != nil {
+		return memberChannelFirstPassInterval
+	}
 	if len(service.pubkeysTheRelayMayNotHold(ctx, pubkeysOf(everyone))) > 0 {
 		return memberChannelFirstPassInterval
 	}
@@ -399,17 +401,20 @@ func (service *Service) ensureUserChannelMembership(ctx context.Context, email s
 // Everyone this company's messenger has to let in: its people, and the agent,
 // which administers every room the company runs and is what a room with no
 // admin in it still needs once the company account has left.
-func (service *Service) everyoneTheRelayShouldHold(ctx context.Context) []buzzMember {
+func (service *Service) everyoneTheRelayShouldHold(ctx context.Context) ([]buzzMember, error) {
 	seed := service.buzzKeySeed()
 	if seed == "" {
-		return nil
+		return nil, nil
 	}
-	member := service.memberBuzzMembers(ctx)
+	member, errorValue := service.memberBuzzMembers(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	agentPubkey, errorValue := buzzPublicKey(buzzidentity.Secret(seed, buzzidentity.AgentSubject))
 	if errorValue != nil {
-		return member
+		return member, nil
 	}
-	return append(member, buzzMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole})
+	return append(member, buzzMember{Pubkey: agentPubkey, Role: buzzChannelOwnerRole}), nil
 }
 
 func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
@@ -417,7 +422,11 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	if seed == "" {
 		return
 	}
-	member := service.everyoneTheRelayShouldHold(ctx)
+	member, errorValue := service.everyoneTheRelayShouldHold(ctx)
+	if errorValue != nil {
+		log.Printf("buzz member membership: nobody is seated this pass, %v", errorValue)
+		return
+	}
 	service.letOntoTheRelay(ctx, pubkeysOf(member))
 	service.publishTheAgentProfile(ctx)
 	service.openTheAgentDirectRoomForEveryMember(ctx, member)
@@ -539,7 +548,11 @@ func (service *Service) raiseAdminsStandingInRoom(ctx context.Context, relay *sq
 	if errorValue != nil {
 		return
 	}
-	adminRoles := service.buzzRolesByPubkey(ctx, service.allMemberEmails(ctx))
+	emails, errorValue := service.allMemberEmails(ctx)
+	if errorValue != nil {
+		return
+	}
+	adminRoles := service.buzzRolesByPubkey(ctx, emails)
 	actorSecret := service.buzzRoomActorSecret(ctx, heldRoles, seed)
 	for pubkey, role := range adminRoles {
 		heldRole, isHeld := heldRoles[pubkey]
@@ -622,40 +635,22 @@ func (service *Service) directoryRecords(ctx context.Context) []adminUserMutatio
 	return records
 }
 
-func (service *Service) allMemberEmails(ctx context.Context) []string {
+func (service *Service) allMemberEmails(ctx context.Context) ([]string, error) {
+	addresses, errorValue := service.addressesTheDirectoryHolds(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	seen := map[string]bool{}
-	var emails []string
-	add := func(email string) {
-		email = strings.ToLower(strings.TrimSpace(email))
+	emails := []string{}
+	for _, address := range addresses {
+		email := strings.ToLower(strings.TrimSpace(address))
 		if email == "" || seen[email] {
-			return
+			continue
 		}
 		seen[email] = true
 		emails = append(emails, email)
 	}
-	for _, record := range service.directoryRecords(ctx) {
-		add(record.Email)
-	}
-	for _, email := range service.usersSyncCacheEmails() {
-		add(email)
-	}
-	add(service.seedAdminEmail())
-	add(service.claimedAdminEmail())
-	return emails
-}
-
-func (service *Service) usersSyncCacheEmails() []string {
-	content, errorValue := os.ReadFile(service.Configuration.UsersSyncStatePath)
-	if errorValue != nil {
-		return nil
-	}
-	var cache struct {
-		Users []string `json:"users"`
-	}
-	if json.Unmarshal(content, &cache) != nil {
-		return nil
-	}
-	return cache.Users
+	return emails, nil
 }
 
 type buzzMember struct {
@@ -664,11 +659,15 @@ type buzzMember struct {
 	Email  string
 }
 
-func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
+func (service *Service) memberBuzzMembers(ctx context.Context) ([]buzzMember, error) {
+	emails, errorValue := service.allMemberEmails(ctx)
+	if errorValue != nil {
+		return nil, errorValue
+	}
 	adminEmails := service.buzzAdminEmails(ctx)
 	seen := map[string]bool{}
 	var members []buzzMember
-	for _, email := range service.allMemberEmails(ctx) {
+	for _, email := range emails {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
 			continue
@@ -680,5 +679,5 @@ func (service *Service) memberBuzzMembers(ctx context.Context) []buzzMember {
 		seen[pubkey] = true
 		members = append(members, buzzMember{Pubkey: pubkey, Role: buzzChannelRoleFor(adminEmails, email), Email: email})
 	}
-	return members
+	return members, nil
 }

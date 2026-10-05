@@ -95,9 +95,11 @@ func (service *Service) everyAddressThisDeviceKnows(ctx context.Context) []strin
 		seen[email] = true
 		addresses = append(addresses, email)
 	}
-	for _, email := range service.allMemberEmails(ctx) {
-		add(email)
+	for _, record := range service.directoryRecords(ctx) {
+		add(record.Email)
 	}
+	add(service.seedAdminEmail())
+	add(service.claimedAdminEmail())
 	if client := service.centralPlane(); client != nil {
 		if members, errorValue := client.Members(ctx); errorValue == nil {
 			for _, member := range members {

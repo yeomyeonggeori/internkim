@@ -29,14 +29,23 @@ func serviceRecordingRelayMembershipGrants(t *testing.T) (*Service, string) {
 	return service, grantsPath
 }
 
-func TestAPersonTheDeviceCanNameOnBuzzIsLetOntoTheRelay(t *testing.T) {
-	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
+func answerAsADirectoryNamingTheSample(t *testing.T, service *Service) {
+	t.Helper()
+	pointAtACompanyDirectory(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isTheDirectoryAsked(request) {
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"sample@example.com","status":"active"}]}`, nil), nil
+		}
 		if isBlueclawPolicyGet(request) {
 			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`, nil), nil
 		}
-		return nil, errors.New("the company directory is not answering")
+		return nil, errors.New("nothing else answers in this test")
 	})}
+}
+
+func TestAPersonTheDeviceCanNameOnBuzzIsLetOntoTheRelay(t *testing.T) {
+	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
+	answerAsADirectoryNamingTheSample(t, service)
 	service.Configuration.BuzzAccountLinksPath = filepath.Join(t.TempDir(), "buzz-account-links.json")
 
 	service.linkDeterministicBuzzPeople(context.Background())
@@ -61,12 +70,7 @@ func TestAPersonTheDeviceCanNameOnBuzzIsLetOntoTheRelay(t *testing.T) {
 // nobody in ever again, and the person is named and locked out.
 func TestAGrantTheRelayCouldNotTakeIsMadeAgainOnTheNextPass(t *testing.T) {
 	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if isBlueclawPolicyGet(request) {
-			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["sample@example.com"]}]}`, nil), nil
-		}
-		return nil, errors.New("the company directory is not answering")
-	})}
+	answerAsADirectoryNamingTheSample(t, service)
 	service.Configuration.BuzzAccountLinksPath = filepath.Join(t.TempDir(), "buzz-account-links.json")
 
 	service.linkDeterministicBuzzPeople(context.Background())
@@ -88,6 +92,7 @@ func TestAGrantTheRelayCouldNotTakeIsMadeAgainOnTheNextPass(t *testing.T) {
 
 func TestRelayMembershipIsGrantedBeforeAnyRoomExists(t *testing.T) {
 	service, grantsPath := serviceRecordingRelayMembershipGrants(t)
+	answerAsADirectoryNamingTheSample(t, service)
 
 	service.ensureMemberChannelMembership(context.Background())
 

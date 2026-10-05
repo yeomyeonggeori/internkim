@@ -305,9 +305,14 @@ func (service *Service) linkDeterministicBuzzPeople(ctx context.Context) {
 	if service.buzzKeySeed() == "" {
 		return
 	}
+	emails, errorValue := service.allMemberEmails(ctx)
+	if errorValue != nil {
+		log.Printf("buzz people links: nobody is linked this pass, %v", errorValue)
+		return
+	}
 	derivedLinks := map[string]string{}
 	var derivedPubkeys []string
-	for _, email := range service.allMemberEmails(ctx) {
+	for _, email := range emails {
 		secretHex := service.buzzSecretForEmail(ctx, email)
 		if secretHex == "" {
 			continue

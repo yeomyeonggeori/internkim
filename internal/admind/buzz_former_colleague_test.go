@@ -51,7 +51,27 @@ const recordedKeyOfTheDeparted = "21ff000000000000000000000000000000000000000000
 
 func serviceWhoseDirectoryHas(t *testing.T, directory string) *Service {
 	t.Helper()
+	return serviceWhoseDirectoryAndPolicyHold(t, directory, `{"people":[]}`)
+}
+
+func serviceWhoseDirectoryAndPolicyHold(t *testing.T, directory string, policy string) *Service {
+	t.Helper()
 	service := serviceHoldingTheSeed(t)
+	pointAtACompanyDirectory(t, service)
+	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isTheDirectoryAsked(request) {
+			return jsonResponse(http.StatusOK, directory, nil), nil
+		}
+		if isBlueclawPolicyGet(request) {
+			return jsonResponse(http.StatusOK, policy, nil), nil
+		}
+		return jsonResponse(http.StatusOK, `{}`, nil), nil
+	})}
+	return service
+}
+
+func pointAtACompanyDirectory(t *testing.T, service *Service) {
+	t.Helper()
 	agentKeyPath := filepath.Join(t.TempDir(), "agent-key")
 	if errorValue := os.WriteFile(agentKeyPath, []byte("agent-key"), 0o600); errorValue != nil {
 		t.Fatalf("write agent key: %v", errorValue)
@@ -60,16 +80,10 @@ func serviceWhoseDirectoryHas(t *testing.T, directory string) *Service {
 	service.Configuration.CentralPlaneProjectURL = "http://supabase.test"
 	service.Configuration.CentralPlanePublishableKey = "publishable-key"
 	service.Configuration.CentralPlaneAgentKeyPath = agentKeyPath
-	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Path == "/api/agent/member" && request.Method == http.MethodGet {
-			return jsonResponse(http.StatusOK, directory, nil), nil
-		}
-		if isBlueclawPolicyGet(request) {
-			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
-		}
-		return jsonResponse(http.StatusOK, `{}`, nil), nil
-	})}
-	return service
+}
+
+func isTheDirectoryAsked(request *http.Request) bool {
+	return request.URL.Path == "/api/agent/member" && request.Method == http.MethodGet
 }
 
 func derivedKey(t *testing.T, subject string) string {
