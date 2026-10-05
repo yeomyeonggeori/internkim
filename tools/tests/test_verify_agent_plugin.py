@@ -42,6 +42,11 @@ class VerifyAgentPluginTest(unittest.TestCase):
         (self.plugin_root / "com.example.client").mkdir()
         self.assertEqual(verify_agent_plugin.findings_for(self.plugin_root), [])
 
+    def test_license_and_notice_files_are_allowed(self):
+        (self.plugin_root / "LICENSE").write_text("license\n")
+        (self.plugin_root / "NOTICE").write_text("adapted material\n")
+        self.assertEqual(verify_agent_plugin.findings_for(self.plugin_root), [])
+
     def test_a_client_manifest_at_the_root_is_a_finding(self):
         (self.plugin_root / ".claude-plugin").mkdir()
         (self.plugin_root / ".mcp.json").write_text("{}")
