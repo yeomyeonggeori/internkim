@@ -108,7 +108,7 @@ func TestWriteJSONReturnsSerializationFailureForInvalidRawMessage(t *testing.T) 
 
 func invokeAttendanceAdd(t *testing.T, service Service) *httptest.ResponseRecorder {
 	t.Helper()
-	requestBody := `{"input":{"kind":"clock_in","date":"2026-09-01","time":"09:02","reason":"기록을 잊었습니다"},"context":{"requesterPersonID":"person-sample","requesterEmail":"member@example.com","approvedCallID":"held-4f2a91c0"}}`
+	requestBody := `{"input":{"kind":"clock_in","date":"2026-09-01","time":"09:02","reason":"기록을 잊었습니다"},"context":{"requesterPersonID":"person-sample","requesterEmail":"member@example.com","holdID":"held-4f2a91c0"}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/tools/attendance_add/invoke", bytes.NewBufferString(requestBody))
 	responseRecorder := httptest.NewRecorder()
 	service.router().ServeHTTP(responseRecorder, request.WithContext(context.Background()))

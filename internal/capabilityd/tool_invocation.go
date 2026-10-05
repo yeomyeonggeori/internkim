@@ -391,5 +391,5 @@ func capabilityUnavailableResponse(toolName string, code string) capabilities.To
 // earlier turn says so as a property of the turn; a call approved inside the
 // turn it was made in names the held call it spends.
 func requesterApprovedThisCall(toolContext capabilities.ToolInvokeContext) bool {
-	return toolContext.IsApprovalContinuation || strings.TrimSpace(toolContext.ApprovedCallID) != ""
+	return toolContext.IsApprovalContinuation || strings.TrimSpace(toolContext.HoldID) != ""
 }
