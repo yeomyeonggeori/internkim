@@ -1,9 +1,9 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, Tool, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import { capabilityAnsweredFilesMetaKey, capabilityDescriptorMetaKey } from './catalog/protocol';
-import { isSeenByAModel, toolsAModelReachesWith } from '$lib/server/public-api/catalog';
+import { isSeenByAModel, permissionForTool, toolsAModelReachesWith } from '$lib/server/public-api/catalog';
 import type { ToolDescriptor } from '$lib/server/public-api/catalog';
 import { toolAnswerOrRefusal } from '$lib/server/public-api/tool-call';
 import type { CallingMember } from '$lib/server/member-request';
@@ -20,11 +20,19 @@ export function toolsOfferedTo(member: CallingMember): Tool[] {
 	return toolsAModelReachesWith(member.permission).map(mcpToolOf);
 }
 
+export function annotationsOf(descriptor: ToolDescriptor): ToolAnnotations {
+	return {
+		...(permissionForTool(descriptor) === 'read' ? { readOnlyHint: true } : {}),
+		...(descriptor.requiresApproval ? { destructiveHint: true } : {})
+	};
+}
+
 function mcpToolOf(descriptor: ToolDescriptor): Tool {
 	return {
 		name: descriptor.name,
 		description: descriptor.description,
 		inputSchema: descriptor.inputSchema as Tool['inputSchema'],
+		annotations: annotationsOf(descriptor),
 		_meta: { [capabilityDescriptorMetaKey]: descriptor }
 	};
 }
