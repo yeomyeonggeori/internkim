@@ -124,10 +124,7 @@ func runDevFleetArguments(arguments []string) error {
 		}
 		return printLocalFleetStatus(service)
 	case "run":
-		if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
-			return runHoldingTheLocalPlane()
-		}
-		return runDevFleetRunArguments(commandArguments)
+		return runDevFleetRunHoldingThePlane(commandArguments)
 	case "help":
 		printDevFleetUsage()
 		return nil
@@ -157,11 +154,21 @@ func runHoldingTheLocalPlane() error {
 	return command.Run()
 }
 
-func runDevFleetRunArguments(arguments []string) error {
+func runDevFleetRunHoldingThePlane(arguments []string) error {
 	configuration, errorValue := parseDevFleetRunArguments(arguments)
+	if errors.Is(errorValue, flag.ErrHelp) {
+		return nil
+	}
 	if errorValue != nil {
 		return errorValue
 	}
+	if os.Getenv("LOCAL_PLANE_LOCK_HOLDER") == "" {
+		return runHoldingTheLocalPlane()
+	}
+	return runDevFleetConfiguration(configuration)
+}
+
+func runDevFleetConfiguration(configuration devFleetRunConfiguration) error {
 	service, errorValue := newLocalFleetServiceWithOptions(configuration.ServiceOptions)
 	if errorValue != nil {
 		return errorValue

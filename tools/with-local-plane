@@ -229,7 +229,9 @@ def is_this_checkout(stack):
 
 def is_selected(stack):
     if selection == "other-checkouts":
-        return not is_this_checkout(stack) and belongs_to_this_repository(stack["project_root"])
+        return not is_this_checkout(stack) and os.path.isdir(stack["project_root"]) and belongs_to_this_repository(stack["project_root"])
+    if selection == "removed-checkouts":
+        return not os.path.isdir(stack["project_root"])
     return is_this_checkout(stack) and stack["runtime"] != stack_runtime
 
 for stack in json.loads(stack_list)["stacks"]:
@@ -243,10 +245,18 @@ destroyStack() {
   (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase stack destroy --stack-id "$1" --yes --output-format text)
 }
 
-destroyOtherStacks() {
+stopStack() {
+  printf 'stopping the local plane stack %s, %s; its data is kept\n' "$1" "$2" >&2
+  (cd / && SUPABASE_EXPERIMENTAL_STACK=1 runQuietlyUnlessItFails supabase stack stop --stack-id "$1" --output-format text)
+}
+
+freePortsFromOtherCheckouts() {
   local stackIdentifier
   for stackIdentifier in $(stacksOfThisRepository other-checkouts); do
-    destroyStack "$stackIdentifier" "left holding its ports by another checkout or branch"
+    stopStack "$stackIdentifier" "held by another checkout or branch that is not running a command"
+  done
+  for stackIdentifier in $(stacksOfThisRepository removed-checkouts); do
+    destroyStack "$stackIdentifier" "its checkout no longer exists"
   done
 }
 
@@ -262,7 +272,7 @@ startStackWhenDown() {
   if stackIsServing; then
     return 0
   fi
-  destroyOtherStacks
+  freePortsFromOtherCheckouts
   printf 'starting the local plane\n' >&2
   (cd "$repositoryRoot" && runQuietlyUnlessItFails supabase start --runtime "$stackRuntime" --output-format text)
 }
