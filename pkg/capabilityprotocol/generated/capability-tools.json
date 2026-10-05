@@ -2900,7 +2900,7 @@
         "mode": "success",
         "targetKind": "task"
       },
-      "description": "Permanently delete a task. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. Requires approval; this action is irreversible.",
+      "description": "Permanently delete a task. taskHint is the exact task ID or exact task title from a task_list result, resolved server-side to the canonical task; use task_list first when neither is known. This action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -3899,7 +3899,7 @@
         "state": "ok"
       },
       "canonicalName": "person_invite",
-      "description": "Invite somebody to the company: it creates their account, gives them a temporary password to sign in with once, and puts them in the directory. Only an administrator invites people. The answer carries the temporary password, which is the only time it is readable, so pass it to whoever is bringing the person in. Requires approval; an account and an address are hard to take back.",
+      "description": "Invite somebody to the company: it creates their account, gives them a temporary password to sign in with once, and puts them in the directory. Only an administrator invites people. The answer carries the temporary password, which is the only time it is readable, so pass it to whoever is bringing the person in. An account and an address are hard to take back.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -4562,7 +4562,7 @@
         "state": "ok"
       },
       "canonicalName": "team_delete",
-      "description": "Remove one team from the organization chart, so that organization is gone. Everybody who belonged to it keeps their directory entry and belongs to no organization until somebody moves them. An organization with organizations under it is refused; remove or move those first. Requires approval; this action is irreversible.",
+      "description": "Remove one team from the organization chart, so that organization is gone. Everybody who belonged to it keeps their directory entry and belongs to no organization until somebody moves them. An organization with organizations under it is refused; remove or move those first. This action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -5531,7 +5531,7 @@
         "mode": "success",
         "targetKind": "calendar"
       },
-      "description": "Permanently delete a calendar event. eventHint is the exact event ID or exact event title from a event_list result, resolved server-side to the canonical event; use event_list first when neither is known. Requires approval; this action is irreversible.",
+      "description": "Permanently delete a calendar event. eventHint is the exact event ID or exact event title from a event_list result, resolved server-side to the canonical event; use event_list first when neither is known. This action is irreversible.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -7162,7 +7162,7 @@
         "state": "ok"
       },
       "canonicalName": "leave_grant_set",
-      "description": "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces every grant they hold, so 'give them three more days' is read with leave_balance first and written as the total. Somebody who has never been given a number of their own holds the company's annual grant, which company_settings_get answers as leaveDays. Requires approval; an entitlement is what every later leave is spent against.",
+      "description": "Set how much leave one person is entitled to in a year. Only an administrator may, and the record refuses anybody else. The number replaces every grant they hold, so 'give them three more days' is read with leave_balance first and written as the total. Somebody who has never been given a number of their own holds the company's annual grant, which company_settings_get answers as leaveDays. An entitlement is what every later leave is spent against.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -29782,7 +29782,7 @@
         "mode": "success",
         "targetKind": "email"
       },
-      "description": "Send an email message from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
+      "description": "Send an email message from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,

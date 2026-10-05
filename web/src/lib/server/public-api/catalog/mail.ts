@@ -263,7 +263,7 @@ export const mailToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Company,
     privacyClass: "workspace_mail",
     policyResource: "tool:mail_message_send",
-    description: "Send an email message from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body. Requires approval before sending.",
+    description: "Send an email message from the requester's connected mail account. Provide at least one recipient in 'to', a subject, and a body.",
     version: "1",
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: mailMessageSendInputSchema,
