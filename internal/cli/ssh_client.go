@@ -68,7 +68,8 @@ func (connection hostSSH) privilegedCommand(command string) string {
 	if connection.password == "" {
 		return "sudo -p '' bash -lc " + quoteShellValue(command)
 	}
-	return "printf '%s\n' " + quoteShellValue(connection.password) + " | sudo -S -p '' bash -lc " + quoteShellValue(command)
+	passwordPipe := "printf '%s\n' " + quoteShellValue(connection.password) + " | sudo -S -p '' -v"
+	return passwordPipe + " && sudo -n -p '' bash -lc " + quoteShellValue(command)
 }
 
 func quoteShellValue(value string) string {
