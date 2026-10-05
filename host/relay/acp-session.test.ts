@@ -29,7 +29,7 @@ import {
 	type Delivery,
 	type MessageFacts
 } from './acp-session';
-import { HeldSessionStore } from './held-session-store';
+import { SessionBindingStore } from './session-binding-store';
 import { agentFilePoster } from './conversation-post';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 
@@ -52,15 +52,15 @@ type AgentBehaviour = {
 	reply?: string;
 	replyFor?: (prompt: string) => string;
 	holdPrompt?: { text: string; until: Promise<void> };
-	askPermissionAbout?: { toolCallID: string; question: string; onlyWhenAskedTo?: string };
+	askApprovalAbout?: { toolCallID: string; question: string; onlyWhenAskedTo?: string };
 	approvalReplies?: { reply: string; optionID: string }[];
 	refuseSessionsWith?: string;
 };
 
 const cleanUps: (() => void)[] = [];
 
-function aSessionStore(filePath?: string): HeldSessionStore {
-	return new HeldSessionStore({ filePath: filePath ?? join(mkdtempSync(join(tmpdir(), 'acp-sessions-')), 'sessions.json') });
+function aSessionStore(filePath?: string): SessionBindingStore {
+	return new SessionBindingStore({ filePath: filePath ?? join(mkdtempSync(join(tmpdir(), 'acp-sessions-')), 'sessions.json') });
 }
 
 afterEach(() => {
@@ -135,7 +135,7 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 				const connection = connectionOf();
 				if (!connection) throw new Error('the agent has no connection to answer on');
 				const prompt = promptTextOf(request);
-				const asking = behaviour.askPermissionAbout;
+				const asking = behaviour.askApprovalAbout;
 				if (asking && (asking.onlyWhenAskedTo ?? prompt) === prompt) {
 					await connection.requestPermission({
 						sessionId: request.sessionId,
@@ -304,7 +304,7 @@ test('a session names the requester and the conversation it answers in', async (
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 
@@ -326,7 +326,7 @@ test('a second message in the same conversation reuses the session', async () =>
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 
@@ -344,15 +344,15 @@ async function aSessionOpenedBy(client: BlueclawACPClient): Promise<void> {
 	await client.ask(sampleRequester, sampleAddressing, '안녕하세요');
 }
 
-test('a reply blueclaw calls an answer resolves the permission with the option it names', async () => {
+test('a reply blueclaw calls an answer resolves the approval with the option it names', async () => {
 	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });
 	const conversation = aConversation();
 	const client = aClientFor(agent.socketPath, conversation);
 	await aSessionOpenedBy(client);
 
-	const asking = agent.askWithNoTurnOpen('session-1', 'held-9', '박예시에게 보낼까요?', questionDelivery);
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the question');
-	const wasAnswer = await client.answerOpenPermission(questionThread, 'message-10', '응 보내줘');
+	const wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘');
 
 	expect(wasAnswer).toBe(true);
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
@@ -365,53 +365,53 @@ test('a reply blueclaw calls an answer resolves the permission with the option i
 	expect(agent.approvalRequestsRead).toEqual([
 		{
 			sessionId: 'session-1',
-			toolCallId: 'held-9',
+			toolCallId: 'call-9',
 			reply: '응 보내줘',
 			messageId: 'message-10',
 			replyTargetId: questionThread.replyTargetID,
 			isThread: true
 		}
 	]);
-	expect(client.hasOpenPermissionIn('conversation-1')).toBe(false);
+	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
 });
 
-test('a reply blueclaw calls not an answer leaves the permission open for the one that is', async () => {
+test('a reply blueclaw calls not an answer leaves the approval open for the one that is', async () => {
 	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });
 	const client = aClientFor(agent.socketPath, aConversation());
 	await aSessionOpenedBy(client);
-	const asking = agent.askWithNoTurnOpen('session-1', 'held-9', '박예시에게 보낼까요?', questionDelivery);
-	await waitUntil(() => client.hasOpenPermissionIn('conversation-1'), 'the permission to open');
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
 
-	const wasAnswer = await client.answerOpenPermission(sampleAddressing, 'message-10', '오늘 일정 알려줘');
+	const wasAnswer = await client.answerPendingApproval(sampleAddressing, 'message-10', '오늘 일정 알려줘');
 
 	expect(wasAnswer).toBe(false);
-	expect(client.hasOpenPermissionIn('conversation-1')).toBe(true);
-	expect(await client.answerOpenPermission(sampleAddressing, 'message-11', '응 보내줘')).toBe(true);
+	expect(client.hasPendingApprovalIn('conversation-1')).toBe(true);
+	expect(await client.answerPendingApproval(sampleAddressing, 'message-11', '응 보내줘')).toBe(true);
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 });
 
-test('a permission blueclaw says it already posted is not posted again, and still waits for its answer', async () => {
+test('an approval blueclaw says it already posted is not posted again, and still waits for its answer', async () => {
 	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });
 	const conversation = aConversation();
 	const client = aClientFor(agent.socketPath, conversation);
 	await aSessionOpenedBy(client);
 
-	const asking = agent.askWithNoTurnOpen('session-1', 'held-9', '박예시에게 보낼까요?', {
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', {
 		...questionDelivery,
 		alreadyPosted: true
 	});
-	await waitUntil(() => client.hasOpenPermissionIn('conversation-1'), 'the permission to open');
-	await client.answerOpenPermission(sampleAddressing, 'message-10', '응 보내줘');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
+	await client.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘');
 
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 	expect(conversation.posted).toEqual([]);
 	expect(agent.deliveryReports).toEqual([]);
 });
 
-test('each reply is posted in the thread it names, even while another turn waits on a permission', async () => {
+test('each reply is posted in the thread it names, even while another turn waits on an approval', async () => {
 	const agent = anAgentOnASocket({
 		replyFor: (prompt) => `${prompt}에 답합니다`,
-		askPermissionAbout: { toolCallID: 'held-1', question: '박예시에게 보낼까요?', onlyWhenAskedTo: '박예시한테 DM 보내줘' },
+		askApprovalAbout: { toolCallID: 'call-1', question: '박예시에게 보낼까요?', onlyWhenAskedTo: '박예시한테 DM 보내줘' },
 		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
 	});
 	const conversation = aConversation();
@@ -420,9 +420,9 @@ test('each reply is posted in the thread it names, even while another turn waits
 	const laterThread = { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-2' };
 
 	const waiting = client.ask(sampleRequester, askingThread, '박예시한테 DM 보내줘', factsIn(askingThread, 'message-1'));
-	await waitUntil(() => client.hasOpenPermissionIn('conversation-1'), 'the first turn to ask its question');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the first turn to ask its question');
 	await client.ask(sampleRequester, laterThread, '오늘 일정 알려줘', factsIn(laterThread, 'message-2'));
-	await client.answerOpenPermission(askingThread, 'message-3', '응 보내줘');
+	await client.answerPendingApproval(askingThread, 'message-3', '응 보내줘');
 	await waiting;
 
 	expect(
@@ -435,45 +435,45 @@ test('each reply is posted in the thread it names, even while another turn waits
 	]);
 });
 
-test('a question the conversation refuses cancels the permission and is reported undelivered with the reason', async () => {
+test('a question the conversation refuses cancels the approval and is reported undelivered with the reason', async () => {
 	const agent = anAgentOnASocket({});
 	const client = aClientFor(agent.socketPath, aConversation('chatd refused the post to buzz:conversation-1:message-9 with 503'));
 	await aSessionOpenedBy(client);
 
-	const answered = await agent.askWithNoTurnOpen('session-1', 'held-9', '박예시에게 보낼까요?', questionDelivery);
+	const answered = await agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 
 	expect(answered.outcome).toEqual({ outcome: 'cancelled' });
 	expect(agent.deliveryReports.map((report) => report.method)).toEqual([undeliveredExtensionMethod]);
 	expect(String(agent.deliveryReports[0].params.reason)).toContain('with 503');
-	expect(client.hasOpenPermissionIn('conversation-1')).toBe(false);
+	expect(client.hasPendingApprovalIn('conversation-1')).toBe(false);
 });
 
-test('a permission asked in a session this relay does not hold is cancelled and reported undelivered with the reason', async () => {
+test('an approval asked in a session this relay has no binding for is cancelled and reported undelivered with the reason', async () => {
 	const agent = anAgentOnASocket({});
 	const client = aClientFor(agent.socketPath, aConversation());
 	await aSessionOpenedBy(client);
 
-	const answered = await agent.askWithNoTurnOpen('session-nobody-holds', 'held-9', '박예시에게 보낼까요?', questionDelivery);
+	const answered = await agent.askWithNoTurnOpen('session-nobody-binds', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 
 	expect(answered.outcome).toEqual({ outcome: 'cancelled' });
 	expect(agent.deliveryReports.map((report) => report.method)).toEqual([undeliveredExtensionMethod]);
-	expect(String(agent.deliveryReports[0].params.reason)).toContain('session-nobody-holds');
+	expect(String(agent.deliveryReports[0].params.reason)).toContain('session-nobody-binds');
 });
 
-test('a permission that blueclaw leaves the socket without hearing an answer for is cancelled out loud', async () => {
+test('an approval that blueclaw leaves the socket without hearing an answer for is cancelled out loud', async () => {
 	const agent = anAgentOnASocket({});
 	const reported: string[] = [];
 	const client = aClientFor(agent.socketPath, aConversation(), { report: (line) => reported.push(line) });
 	await aSessionOpenedBy(client);
-	const asking = agent.askWithNoTurnOpen('session-1', 'held-9', '박예시에게 보낼까요?', questionDelivery);
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 	asking.catch(() => {});
-	await waitUntil(() => client.hasOpenPermissionIn('conversation-1'), 'the permission to open');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
 
 	client.close();
 
 	await waitUntil(
-		() => reported.some((line) => line.includes('held-9') && line.includes('cancelled')),
-		'the cancelled permission to be reported'
+		() => reported.some((line) => line.includes('call-9') && line.includes('cancelled')),
+		'the cancelled approval to be reported'
 	);
 });
 
@@ -561,37 +561,37 @@ test('a final reply of another delivery does not replace the progress of this on
 	expect(conversation.posted.map((posted) => posted.message)).toEqual(['◐ 일정 읽기', '다른 답']);
 });
 
-test('a turn parked on a permission is told apart from one that is not, also after a reissue', async () => {
+test('a turn waiting on an approval is told apart from one that is not, also after a reissue', async () => {
 	const release = Promise.withResolvers<void>();
 	const agent = anAgentOnASocket({
-		askPermissionAbout: { toolCallID: 'held-1', question: '박예시에게 보낼까요?', onlyWhenAskedTo: '박예시한테 DM 보내줘' },
+		askApprovalAbout: { toolCallID: 'call-1', question: '박예시에게 보낼까요?', onlyWhenAskedTo: '박예시한테 DM 보내줘' },
 		holdPrompt: { text: '오늘 일정 알려줘', until: release.promise },
 		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }]
 	});
 	const client = aClientFor(agent.socketPath, aConversation());
-	const parking = client.ask(sampleRequester, sampleAddressing, '박예시한테 DM 보내줘', factsIn(sampleAddressing, 'message-1'));
-	await waitUntil(() => client.hasOpenPermissionIn('conversation-1'), 'the first turn to park');
+	const waiting = client.ask(sampleRequester, sampleAddressing, '박예시한테 DM 보내줘', factsIn(sampleAddressing, 'message-1'));
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the first turn to wait');
 	const running = client.ask(sampleRequester, sampleAddressing, '오늘 일정 알려줘', factsIn(sampleAddressing, 'message-2'));
 	await waitUntil(() => agent.promptsTaken.length === 2, 'the second turn to start');
 
-	expect(client.isParkedOnPermission('conversation-1', 'message-1')).toBe(true);
-	expect(client.isParkedOnPermission('conversation-1', 'message-2')).toBe(false);
+	expect(client.isWaitingOnApproval('conversation-1', 'message-1')).toBe(true);
+	expect(client.isWaitingOnApproval('conversation-1', 'message-2')).toBe(false);
 
-	await client.answerOpenPermission(sampleAddressing, 'message-3', '응 보내줘');
-	await parking;
-	const reissued = agent.askWithNoTurnOpen('session-1', 'held-2', '다시 보낼까요?', { ...questionDelivery, alreadyPosted: true });
-	await waitUntil(() => client.hasOpenPermissionIn('conversation-1'), 'the permission to be reissued');
+	await client.answerPendingApproval(sampleAddressing, 'message-3', '응 보내줘');
+	await waiting;
+	const reissued = agent.askWithNoTurnOpen('session-1', 'call-2', '다시 보낼까요?', { ...questionDelivery, alreadyPosted: true });
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be reissued');
 
-	expect(client.isParkedOnPermission('conversation-1', 'message-1')).toBe(false);
-	expect(client.isParkedOnPermission('conversation-1', 'message-2'), 'a turn that was running when the permission was reissued was taken as parked').toBe(false);
+	expect(client.isWaitingOnApproval('conversation-1', 'message-1')).toBe(false);
+	expect(client.isWaitingOnApproval('conversation-1', 'message-2'), 'a turn that was running when the approval was reissued was taken as waiting').toBe(false);
 
-	await client.answerOpenPermission(sampleAddressing, 'message-4', '응 보내줘');
+	await client.answerPendingApproval(sampleAddressing, 'message-4', '응 보내줘');
 	await reissued;
 	release.resolve();
 	await running;
 });
 
-test('after a restart the held sessions are loaded, a reissued permission waits without posting, and the next message answers it', async () => {
+test('after a restart the session bindings are loaded, a reissued approval waits without posting, and the next message answers it', async () => {
 	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });
 	const sessions = aSessionStore();
 	const beforeTheRestart = aClientFor(agent.socketPath, aConversation(), { sessions });
@@ -600,14 +600,14 @@ test('after a restart the held sessions are loaded, a reissued permission waits 
 
 	const conversation = aConversation();
 	const afterTheRestart = aClientFor(agent.socketPath, conversation, { sessions });
-	await afterTheRestart.restoreHeldSessions();
-	await waitUntil(() => agent.sessionsLoaded.length === 1, 'the held session to be loaded');
-	const asking = agent.askWithNoTurnOpen('session-1', 'held-9', '박예시에게 보낼까요?', { ...questionDelivery, alreadyPosted: true });
-	await waitUntil(() => afterTheRestart.hasOpenPermissionIn('conversation-1'), 'the permission to be waited on');
+	await afterTheRestart.restoreSessionBindings();
+	await waitUntil(() => agent.sessionsLoaded.length === 1, 'the session binding to be loaded');
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', { ...questionDelivery, alreadyPosted: true });
+	await waitUntil(() => afterTheRestart.hasPendingApprovalIn('conversation-1'), 'the approval to be waited on');
 
 	expect(agent.sessionsLoaded[0].sessionId).toBe('session-1');
 	expect(agent.sessionsLoaded[0]._meta?.[sessionMetaKey]).toEqual({ requester: sampleRequester, addressing: sampleAddressing });
-	expect(await afterTheRestart.answerOpenPermission(sampleAddressing, 'message-10', '응 보내줘')).toBe(true);
+	expect(await afterTheRestart.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘')).toBe(true);
 	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
 	expect(conversation.posted).toEqual([]);
 	expect(agent.sessionsOpened).toHaveLength(1);
@@ -649,7 +649,7 @@ test('a reply is posted as it arrives, and the agent is told once which message 
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 	const thread = { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-7' };
@@ -673,7 +673,7 @@ test('a reply the conversation refuses is reported undelivered with the reason, 
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 	const thread = { ...sampleAddressing, replyTargetID: 'buzz:conversation-1:message-7' };
@@ -696,7 +696,7 @@ test('a reply that arrives with no turn open is posted in the thread it names an
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 	await client.ask(sampleRequester, sampleAddressing, '안녕하세요');
@@ -736,7 +736,7 @@ function aClientPostingFilesThrough(socketPath: string, messenger: ReturnType<ty
 		postFileToConversation: agentFilePoster({ keepForTheMessenger: messenger.keep, postToConversation: conversation.post }),
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 	return client;
@@ -814,7 +814,7 @@ test('what the relay cannot post is reported undelivered, never dropped', async 
 		postFileToConversation: noFileExpected,
 		editInConversation: async () => {},
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {}
+		approvalWasRequested: () => {}
 	});
 	cleanUps.push(() => client.close());
 	await client.ask(sampleRequester, sampleAddressing, '안녕하세요');
@@ -824,14 +824,14 @@ test('what the relay cannot post is reported undelivered, never dropped', async 
 		{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' },
 		{ deliveryID: 'picture-1' }
 	);
-	await agent.speakWithNoTurnOpen('session-nobody-holds', { type: 'text', text: '안녕하세요' }, { deliveryID: 'stray-1' });
+	await agent.speakWithNoTurnOpen('session-nobody-binds', { type: 'text', text: '안녕하세요' }, { deliveryID: 'stray-1' });
 	await waitUntil(() => agent.deliveryReports.length === 2, 'the relay to report both');
 
 	expect(conversation.posted).toEqual([]);
 	const reasons = new Map(agent.deliveryReports.map((report) => [report.params.deliveryID, String(report.params.reason)]));
 	expect(agent.deliveryReports.every((report) => report.method === undeliveredExtensionMethod)).toBe(true);
 	expect(reasons.get('picture-1')).toContain('image');
-	expect(reasons.get('stray-1')).toContain('session-nobody-holds');
+	expect(reasons.get('stray-1')).toContain('session-nobody-binds');
 });
 
 function aClientOn(socketPath: string): BlueclawACPClient {
@@ -851,7 +851,7 @@ function aClientFor(
 		postFileToConversation: noFileExpected,
 		editInConversation: conversation.edit,
 		sessions: aSessionStore(),
-		permissionWasOpened: () => {},
+		approvalWasRequested: () => {},
 		...overrides
 	});
 	cleanUps.push(() => client.close());

@@ -14,7 +14,7 @@ type RunningTurn = {
 	eventKey: string;
 	conversationID: string;
 	messageID: string;
-	blueclawOpenedARun: boolean;
+	isHandedToBlueclaw: boolean;
 	finished: Promise<void>;
 };
 
@@ -31,18 +31,18 @@ export class InboundTurns {
 		this.settings = settings;
 	}
 
-	handTheRunToBlueclaw = (conversationID: string): void => {
-		const parked = [...this.turnsInFlight.values()].filter(
-			(running) => running.conversationID === conversationID && this.isParked(running)
+	releaseTurnsWaitingOnApproval = (conversationID: string): void => {
+		const waiting = [...this.turnsInFlight.values()].filter(
+			(running) => running.conversationID === conversationID && this.isWaiting(running)
 		);
-		for (const running of parked) running.blueclawOpenedARun = true;
-		Promise.all(parked.map((running) => this.forget(running.eventKey)))
-			.catch((failure) => this.settings.report?.(`a parked turn would not leave the queue: ${String(failure)}`))
+		for (const running of waiting) running.isHandedToBlueclaw = true;
+		Promise.all(waiting.map((running) => this.forget(running.eventKey)))
+			.catch((failure) => this.settings.report?.(`a waiting turn would not leave the queue: ${String(failure)}`))
 			.finally(() => this.startDraining());
 	};
 
-	private isParked(running: RunningTurn): boolean {
-		return this.settings.client.isParkedOnPermission(running.conversationID, running.messageID);
+	private isWaiting(running: RunningTurn): boolean {
+		return this.settings.client.isWaitingOnApproval(running.conversationID, running.messageID);
 	}
 
 	async keep(key: string, body: unknown): Promise<boolean> {
@@ -59,7 +59,7 @@ export class InboundTurns {
 
 	async settled(): Promise<void> {
 		await this.draining;
-		const finishing = this.unparkedTurns().map((running) => running.finished);
+		const finishing = this.activeTurns().map((running) => running.finished);
 		if (finishing.length === 0) return;
 		await Promise.all(finishing);
 		await this.settled();
@@ -74,17 +74,17 @@ export class InboundTurns {
 				continue;
 			}
 			if (this.turnsInFlight.has(event.key)) continue;
-			if (await this.consumedAsAnAnswer(event, inbound)) continue;
+			if (await this.isConsumedAsApprovalAnswer(event, inbound)) continue;
 			if (this.activeTurnIn(inbound.addressing.conversationID)) continue;
 			this.beginTurn(event, inbound);
 		}
 	}
 
-	private async consumedAsAnAnswer(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
+	private async isConsumedAsApprovalAnswer(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
 		if (event.isPrompt) return false;
-		if (!this.settings.client.hasOpenPermissionIn(inbound.addressing.conversationID)) return false;
+		if (!this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID)) return false;
 		const { addressing, messageID, message } = inbound;
-		const isAnswer = await this.settings.client.answerOpenPermission(addressing, messageID, message);
+		const isAnswer = await this.settings.client.answerPendingApproval(addressing, messageID, message);
 		if (!isAnswer) {
 			await this.settings.queue.recordAsPrompt(event.key);
 			return false;
@@ -94,11 +94,11 @@ export class InboundTurns {
 	}
 
 	private activeTurnIn(conversationID: string): RunningTurn | undefined {
-		return this.unparkedTurns().find((running) => running.conversationID === conversationID);
+		return this.activeTurns().find((running) => running.conversationID === conversationID);
 	}
 
-	private unparkedTurns(): RunningTurn[] {
-		return [...this.turnsInFlight.values()].filter((running) => !this.isParked(running));
+	private activeTurns(): RunningTurn[] {
+		return [...this.turnsInFlight.values()].filter((running) => !this.isWaiting(running));
 	}
 
 	private beginTurn(event: QueuedInboundEvent, inbound: InboundMessage): void {
@@ -106,7 +106,7 @@ export class InboundTurns {
 			eventKey: event.key,
 			conversationID: inbound.addressing.conversationID,
 			messageID: inbound.messageID,
-			blueclawOpenedARun: false,
+			isHandedToBlueclaw: false,
 			finished: Promise.resolve()
 		};
 		this.turnsInFlight.set(event.key, running);
@@ -130,7 +130,7 @@ export class InboundTurns {
 			});
 			await this.forget(event.key);
 		} catch (failure) {
-			if (running.blueclawOpenedARun) {
+			if (running.isHandedToBlueclaw) {
 				await this.leaveItToBlueclaw(event, failure);
 				return;
 			}

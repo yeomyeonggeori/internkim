@@ -71,7 +71,7 @@ export class InboundQueue {
 
 	/** Removes the event; it has been delivered, or given up on. */
 	async forget(key: string): Promise<void> {
-		await unlink(this.pathFor(key)).catch(missingAsNothing);
+		await unlink(this.pathFor(key)).catch(nothingWhenMissing);
 	}
 
 	/** True when this key has been through attemptCeiling attempts. */
@@ -90,9 +90,9 @@ export class InboundQueue {
 	}
 
 	private async readEvent(path: string): Promise<QueuedInboundEvent | null> {
-		const written = await readFile(path, 'utf8').catch(missingAsNothing);
+		const written = await readFile(path, 'utf8').catch(nothingWhenMissing);
 		if (written === null) return null;
-		const event = readQueuedEvent(parsedOrNothing(written));
+		const event = readQueuedEvent(nothingWhenUnparsable(written));
 		if (!event) {
 			this.settings.report?.(`a queued inbound event will not parse and was left in place: ${path}`);
 			return null;
@@ -119,7 +119,7 @@ function readQueuedEvent(offered: unknown): QueuedInboundEvent | null {
 	return { key, body: held.body, attempts, firstQueuedAt, isPrompt: held.isPrompt === true };
 }
 
-function parsedOrNothing(written: string): unknown {
+function nothingWhenUnparsable(written: string): unknown {
 	try {
 		return JSON.parse(written);
 	} catch {
@@ -136,11 +136,11 @@ function oldestFirst(one: QueuedInboundEvent, other: QueuedInboundEvent): number
 }
 
 async function alreadyWritten(path: string): Promise<boolean> {
-	const found = await stat(path).catch(missingAsNothing);
+	const found = await stat(path).catch(nothingWhenMissing);
 	return found !== null;
 }
 
-async function missingAsNothing(failure: unknown): Promise<null> {
+async function nothingWhenMissing(failure: unknown): Promise<null> {
 	if (isMissing(failure)) return null;
 	throw failure;
 }
