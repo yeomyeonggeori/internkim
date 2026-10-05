@@ -37,7 +37,7 @@ export function currentAndPreviousMonth(today: string): HandWrittenDayRange {
 export async function fetchHandWrittenRecords(
  dayRange: HandWrittenDayRange, pageOffset = 0, selectedTeamKey = '', selectedChangedByID = ''
 ): Promise<AnsweredHandWrittenRecords> {
- return await invokeTool<AnsweredHandWrittenRecords>('attendance_list', {
+ return await invokeTool<AnsweredHandWrittenRecords>('attendance_changes_page_get', {
   scope: 'all', from: dayRange.from, to: dayRange.to, handWrittenOnly: true,
   pageOffset, pageLimit: 24, ...(selectedTeamKey ? {selectedTeamKey} : {}), ...(selectedChangedByID ? {selectedChangedByID} : {})
  });
