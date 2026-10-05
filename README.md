@@ -70,7 +70,7 @@ browser or messenger app, any network
         ▼
   the company's computer
     ├── relay ───────── answers the web app, carries messages to the agent
-    ├── blueclaw ────── the agent: runs tools as the requester, approval, task ledger
+    ├── blueclaw ────── the meta-harness: tools as the requester, task ledger
     ├── chatd ───────── messenger adapter (Buzz)
     ├── capabilityd ─── holds provider keys: model calls, mail, web, browser
     └── Postgres ────── the agent's own store: conversations, runs, the ledger
@@ -82,8 +82,8 @@ history and the workspace files. Each person is a Linux user on that machine, so
 permissions bound what the agent can touch for them.
 
 The agent is two other repositories.
-[blueclaw](https://github.com/yeomyeonggeori/blueclaw) hosts it and
-[bluecollar](https://github.com/yeomyeonggeori/bluecollar) is its loop. Its skills
+[blueclaw](https://github.com/yeomyeonggeori/blueclaw), a harness that runs harnesses,
+runs [bluecollar](https://github.com/yeomyeonggeori/bluecollar) by default. Its skills
 come from [internkim-plugin](https://github.com/yeomyeonggeori/internkim-plugin).
 This repository puts them on a machine and operates them.
 
