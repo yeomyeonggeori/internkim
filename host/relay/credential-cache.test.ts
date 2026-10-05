@@ -51,6 +51,21 @@ describe('CredentialCache', () => {
 		expect(reads).toEqual(['member-2', 'member-2']);
 	});
 
+	test('a member acting is read again past a kept absence, so a credential issued moments ago is used', async () => {
+		const clock = { now: 0 };
+		const answers: Record<string, { kind: string; secret: string } | null> = {};
+		const { cache, reads } = cacheReadingFrom(answers, clock);
+
+		expect(await cache.credentialOf('member-2')).toBeNull();
+		answers['member-2'] = { kind: 'buzz-secret', secret: 's2' };
+		clock.now = 9_000;
+		expect(await cache.credentialOf('member-2')).toBeNull();
+		expect(await cache.credentialForAction('member-2')).toEqual({ kind: 'buzz-secret', secret: 's2' });
+		expect(await cache.credentialOf('member-2')).toEqual({ kind: 'buzz-secret', secret: 's2' });
+		expect(await cache.credentialForAction('member-2')).toEqual({ kind: 'buzz-secret', secret: 's2' });
+		expect(reads).toEqual(['member-2', 'member-2']);
+	});
+
 	test('forgets one member or everyone on request', async () => {
 		const clock = { now: 0 };
 		const { cache, reads } = cacheReadingFrom(
