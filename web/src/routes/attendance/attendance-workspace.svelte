@@ -206,12 +206,18 @@
 		const timer = setTimeout(prepare, 150);
 		return () => clearTimeout(timer);
 	});
+let contentPane = $state<HTMLDivElement>();
+ let previousView = attendanceView.selected;
+ $effect(() => {
+  const selected = attendanceView.selected;
+  if (selected !== previousView) { previousView = selected; contentPane?.scrollTo({top: 0}); }
+ });
 </script>
 
 <div class="flex min-h-0 min-w-0 flex-1">
 	<AttendanceSidebar />
 
-	<div class="min-w-0 flex-1 overflow-y-auto p-3 md:p-6">
+	<div bind:this={contentPane} class="min-w-0 flex-1 overflow-y-auto p-3 md:p-6">
 		{@render children()}
 	</div>
 </div>

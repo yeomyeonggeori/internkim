@@ -195,11 +195,11 @@
 				<Select.Trigger size="sm" class="w-full text-xs">
 					{locations.find((location) => location.id === selectedLocationID)?.name ?? text.location}
 				</Select.Trigger>
-				<Select.Content>
+				<Select.Content><Select.Group>
 					{#each locations as location (location.id)}
 						<Select.Item value={location.id} label={location.name}>{location.name}</Select.Item>
 					{/each}
-				</Select.Content>
+				</Select.Group></Select.Content>
 			</Select.Root>
 		{/if}
 

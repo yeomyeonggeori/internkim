@@ -41,7 +41,7 @@ select is((public.attendance_team_page('teams',0,1)->'teams'->0->>'done')::integ
 select is(public.attendance_team_page('teams',0,1)->'teams'->0->'recentClockOuts'->0->>'name','Peer Sample','recent actor is an actual clock-out');
 select is(jsonb_array_length(public.attendance_team_page('teams',0,1)->'teams'->0->'recentClockIns'),2,'recent actor stack contains distinct people');
 select is((public.attendance_team_page('teams',0,1)->'teams'->0->'recordedLocations'->0->>'count')::integer,1,'locations count current workers, not clock-in events');
-select is((public.attendance_team_page('teams',2,1)->'teams'->0->>'needsCheckout')::integer,1,'an older open shift stays visible without claiming it is a current shift');
+select is((public.attendance_team_page('teams',2,1)->'teams'->0->>'working')::integer,1,'an older open shift is grouped into current working attendance');
 select is((public.attendance_team_page('members',0,12,'43200000-0000-0000-0000-000000000010',0,1)->>'memberTotal')::integer,2,'member total precedes page limit');
 select is(jsonb_array_length(public.attendance_team_page('members',0,12,'43200000-0000-0000-0000-000000000010',0,1)->'members'),1,'employee page is bounded');
 select is((public.attendance_team_page('members',0,12,'43200000-0000-0000-0000-000000000010',0,24,'Peer')->>'memberTotal')::integer,1,'name search runs before paging');

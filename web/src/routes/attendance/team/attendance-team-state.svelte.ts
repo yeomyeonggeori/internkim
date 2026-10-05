@@ -23,6 +23,8 @@ export class AttendanceTeamState {
 	isLoadingMembers = $state(false);
 	error = $state('');
 	memberError = $state('');
+	companyName = $state('');
+	companySummary = $state<AttendanceTeamPage['companySummary']>();
 	timeZone = $state('');
 	serverTime = $state('');
 	revision = $state(0);
@@ -60,12 +62,14 @@ export class AttendanceTeamState {
 		this.isLoadingTeams = true;
 		this.error = '';
 		try {
-			const page = await this.read({ pageKind: 'teams', teamOffset: offset, teamLimit: 12 });
+			const page = await this.read({ pageKind: 'teams', teamOffset: offset, teamLimit: 6 });
 			if (this.disposed || sequence !== this.teamsSequence) return;
 			if (page.teamTotal > 0 && offset >= page.teamTotal) {
-				void this.loadTeams(Math.floor((page.teamTotal - 1) / 12) * 12);
+				void this.loadTeams(Math.floor((page.teamTotal - 1) / 6) * 6);
 				return;
 			}
+			this.companyName = page.companyName ?? '';
+			this.companySummary = page.companySummary;
 			this.teams = page.teams;
 			this.teamTotal = page.teamTotal;
 			this.timeZone = page.timeZone;

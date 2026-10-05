@@ -5,7 +5,7 @@ struct AttendanceWorkplaceEntity: AppEntity {
 
     var id: String { name }
 
-    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Workplace")
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Work location")
     static let defaultQuery = AttendanceWorkplaceQuery()
 
     var displayRepresentation: DisplayRepresentation {
@@ -31,6 +31,6 @@ struct AttendanceWidgetConfiguration: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Attendance"
     static let description = IntentDescription("See today's hours, and clock in and out with a tap.")
 
-    @Parameter(title: "Default workplace")
+    @Parameter(title: "Default work location")
     var workplace: AttendanceWorkplaceEntity?
 }

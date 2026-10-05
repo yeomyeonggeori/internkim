@@ -16,6 +16,13 @@ export class HandWrittenState {
 	errorMessage = $state('');
 	private loadSequence = 0;
 	private today = '';
+	pageOffset = $state(0);
+	totalCount = $state(0);
+	selectedTeamKey = $state('');
+	selectedChangedByID = $state('');
+	appliedDayRange = $state<HandWrittenDayRange>({from:'',to:''});
+	private appliedTeamKey = '';
+	private appliedChangedByID = '';
 
 	constructor(
 		private readonly text: AttendanceText['handWritten'],
@@ -29,11 +36,13 @@ export class HandWrittenState {
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
-			const dayRange = currentAndPreviousMonth(today);
-			const records = await fetchHandWrittenRecords(dayRange);
+			const dayRange = this.appliedDayRange.from ? this.appliedDayRange : currentAndPreviousMonth(today);
+			const result = await fetchHandWrittenRecords(dayRange, this.pageOffset, this.appliedTeamKey, this.appliedChangedByID);
 			if (loadSequence !== this.loadSequence) return;
-			this.dayRange = dayRange;
-			this.records = records;
+			if(!this.dayRange.from) this.dayRange = dayRange;
+			this.appliedDayRange = dayRange;
+			this.records = result.attendance;
+			this.totalCount = result.totalCount;
 		} catch {
 			if (loadSequence !== this.loadSequence) return;
 			this.errorMessage = this.text.loadFailed;
@@ -42,6 +51,8 @@ export class HandWrittenState {
 		}
 	}
 
+	async filter(): Promise<void> { this.appliedDayRange = {...this.dayRange}; this.appliedTeamKey = this.selectedTeamKey; this.appliedChangedByID = this.selectedChangedByID; this.pageOffset = 0; await this.load(); }
+	async page(offset: number): Promise<void> { this.pageOffset = Math.max(0, offset); await this.load(); }
 	async undo(record: HandWrittenRecord, reason: string): Promise<void> {
 		if (this.undoingEventID) return;
 		this.undoingEventID = record.eventID;
@@ -61,6 +72,13 @@ export class HandWrittenState {
 		this.loadSequence += 1;
 		this.records = [];
 		this.dayRange = { from: '', to: '' };
+		this.appliedDayRange = {from:'',to:''};
+		this.appliedTeamKey = '';
+		this.appliedChangedByID = '';
+		this.pageOffset = 0;
+		this.totalCount = 0;
+		this.selectedTeamKey = '';
+		this.selectedChangedByID = '';
 		this.isLoading = false;
 		this.errorMessage = '';
 	}

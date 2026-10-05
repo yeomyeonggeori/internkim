@@ -1,3 +1,4 @@
+import { attendanceChangeReasons } from '$lib/attendance/change-reason';
 import { z } from 'zod';
 import { savedAttendanceEventSchema } from '$lib/attendance/recorded-attendance';
 import { currentAttendanceSchema } from '$lib/attendance/current-attendance';
@@ -1192,7 +1193,7 @@ export const leaveGrantSetInputIntentSchema = leaveGrantSetInputSchema.partial()
 export const leaveGrantSetResultSchema = leaveBalanceEntrySchema;
 
 export const leaveReturnEarlyInputSchema = z.strictObject({
-  location: z.string().describe('The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.').optional(),
+  location: z.string().describe('The registered work location they came back to, named as company_settings_get lists them. Omit when they did not say where.').optional(),
 });
 
 export const leaveReturnEarlyInputIntentSchema = leaveReturnEarlyInputSchema.partial();
@@ -1223,6 +1224,12 @@ export const attendanceListInputSchema = z.strictObject({
   scope: z.enum(WorkspaceTaskScope).describe(whoseScopeDescription('attendance')).optional(),
   from: z.string().describe(`Earliest day to include. ${attendanceDayDescription} Omit to start thirty days ago.`).optional(),
   to: z.string().describe(`Latest day to include. ${attendanceDayDescription} Omit to end today.`).optional(),
+  pageOffset: z.number().int().min(0).optional(),
+  pageLimit: z.number().int().min(1).max(100).optional(),
+  teamSearch: z.string().max(128).optional(),
+  changedBySearch: z.string().max(128).optional(),
+  selectedTeamKey: z.string().max(100).optional(),
+  selectedChangedByID: z.string().uuid().optional(),
   handWrittenOnly: z.boolean().describe('Keep only the records somebody wrote or changed by hand, and drop the ones clocked live. A hand-written record carries the reason it was written, or the moment it was moved from, or both; a live clock carries neither. Use it for "what has been written by hand this month" or to review what an administrator entered for somebody. Omit for every record in the window.').optional(),
   limit: z.number().describe('Maximum number of rows to return.').optional(),
 });
@@ -1232,8 +1239,9 @@ export const attendanceAddInputSchema = z.strictObject({
   kind: z.enum(WorkspaceAttendanceKind).describe('clock_in for arriving, clock_out for leaving.'),
   date: z.string().describe(`The day the person actually arrived or left. ${attendanceDayDescription} Omit it when only a time is known: the record takes the latest day that time has already come, today or else yesterday.`).optional(),
   time: z.string().describe(`The time they actually arrived or left. ${attendanceTimeDescription} Omit it, with date, for the moment this call is made; a date needs a time.`).optional(),
-  location: z.string().describe('The registered workplace they were at. clock_out does not use it, so omit it there.').optional(),
+  location: z.string().describe('The registered work location they were at. clock_out does not use it, so omit it there.').optional(),
   reason: attendanceReasonSchema.describe('Why the record is being written by hand, in the requester\'s own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.').optional(),
+  reasonCode: z.enum(attendanceChangeReasons).describe('Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.').optional(),
 });
 
 export const attendanceAddInputIntentSchema = attendanceAddInputSchema.partial();
@@ -1242,26 +1250,34 @@ export const attendanceCorrectionSchema = z.strictObject({
   eventHint: attendanceHintSchema,
   date: z.string().describe(`The day it actually happened. ${attendanceDayDescription} Omit to keep the day it has.`).optional(),
   time: z.string().describe(`The time it actually happened. ${attendanceTimeDescription} Omit to keep the time it has.`).optional(),
-  location: z.string().describe('The registered workplace it happened at. Omit to keep the one it has.').optional(),
+  location: z.string().describe('The registered work location it happened at. Omit to keep the one it has.').optional(),
 });
 
 export const attendanceUpdateInputSchema = z.strictObject({
   corrections: z.array(attendanceCorrectionSchema).describe('The records to correct, together. Correcting one record is an array of one. A day whose clock-in and clock-out both move goes in one call, because the record refuses a correction that would leave the day out of order partway through.'),
   reason: attendanceReasonSchema.describe('Why the records were wrong, in the requester\'s own words.').optional(),
+  reasonCode: z.enum(attendanceChangeReasons).describe('Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.').optional(),
+  undoOnly: z.boolean().describe('Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.').optional(),
 });
 
 export const attendanceUpdateInputIntentSchema = z.strictObject({
   corrections: z.array(attendanceCorrectionSchema).describe('The records to correct, together.').optional(),
   reason: attendanceReasonSchema.describe('Why the records were wrong.').optional(),
+  reasonCode: z.enum(attendanceChangeReasons).describe('Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.').optional(),
+  undoOnly: z.boolean().describe('Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.').optional(),
 });
 
 export const attendanceDeleteInputSchema = z.strictObject({
   eventHint: attendanceHintSchema,
   reason: attendanceReasonSchema.describe('Why the record should not be there, in the requester\'s own words.').optional(),
+  reasonCode: z.enum(attendanceChangeReasons).describe('Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.').optional(),
+  undoOnly: z.boolean().describe('Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.').optional(),
 });
 
 export const attendanceDeleteInputIntentSchema = z.strictObject({
   reason: attendanceReasonSchema.describe('Why the record should not be there.').optional(),
+  reasonCode: z.enum(attendanceChangeReasons).describe('Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.').optional(),
+  undoOnly: z.boolean().describe('Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.').optional(),
 });
 
 export const attendanceResultSchema = z.strictObject({
@@ -1277,7 +1293,16 @@ export const attendanceResultSchema = z.strictObject({
   originalDate: z.string().nullable(),
   originalTime: z.string().nullable(),
   originalOccurredAt: z.string().nullable(),
+  originalLocation: z.string().nullable().optional(),
+  previousRecorded: z.boolean().optional(),
+  personEmail: z.string().nullable().optional(),
+  changedByID: z.string().nullable().optional(),
   reason: z.string().nullable(),
+  teamName: z.string().optional(),
+  changedByName: z.string().nullable().optional(),
+  changedByEmail: z.string().nullable().optional(),
+  changedBySource: z.enum(['observed','legacy_subject']).optional(),
+  changedAt: z.string().nullable().optional(),
 });
 
 export const attendanceListResultSchema = z.strictObject({
@@ -1290,6 +1315,9 @@ export const attendanceListResultSchema = z.strictObject({
   backdatedAfterMinutes: z.number().int(),
   count: z.number().int(),
   attendance: z.array(attendanceResultSchema),
+  totalCount: z.number().int().optional(),
+  pageOffset: z.number().int().optional(),
+  pageLimit: z.number().int().optional(),
 });
 
 export const attendanceWriteResultSchema = z.strictObject({
@@ -1843,7 +1871,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_team_page_get',
-    description: 'Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and clock-in locations. Employee search and location filtering happen before paging. Historical records are read separately.',
+    description: 'Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and recorded work locations. Employee search and location filtering happen before paging. Historical records are read separately.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     modelVisibility: CapabilityModelVisibility.Hidden,
@@ -1857,7 +1885,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_current_get',
-    description: 'Read the authenticated requester\'s actionable attendance state in one record snapshot: company time zone and clock, registered workplaces, today\'s events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.',
+    description: 'Read the authenticated requester\'s actionable attendance state in one record snapshot: company time zone and clock, registered work locations, today\'s events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     modelVisibility: CapabilityModelVisibility.Hidden,
@@ -1884,7 +1912,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_add',
-    description: "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. A press right now that reverses the one before it within a minute, clocking back in at the same place or clocking straight out again, takes that earlier record back instead of adding one: status removed, eventID names the record taken back, and that is a finished answer too. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
+    description: "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. A press right now that reverses the one before it within a minute, clocking back in at the same place or clocking straight out again, takes that earlier record back instead of adding one: status removed, eventID names the record taken back, and that is a finished answer too. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a work location this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
     version: '4',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceAddInputSchema,
@@ -1898,7 +1926,7 @@ const attendanceToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_attendance',
     policyResource: 'tool:attendance_update',
-    description: 'Correct the day, the time, or the workplace of attendance records that were written wrong, all in one call. What the record held before the correction is kept alongside it, with the reason. A person corrects their own records from the last three days. Correcting an older one, or anybody else\'s, is an administrator\'s: asked by anybody else it comes back with status asked, the administrators have been told, and the task is done. Say an administrator was asked; do not call this again.',
+    description: 'Correct the day, the time, or the work location of attendance records that were written wrong, all in one call. What the record held before the correction is kept alongside it, with the reason. A person corrects their own records from the last three days. Correcting an older one, or anybody else\'s, is an administrator\'s: asked by anybody else it comes back with status asked, the administrators have been told, and the task is done. Say an administrator was asked; do not call this again.',
     version: '1',
     estimatedLatency: CapabilityEstimatedLatency.Medium,
     inputSchema: attendanceUpdateInputSchema,

@@ -1,3 +1,4 @@
+import { isAttendanceChangeReason } from './change-reason';
 import { announceToTheCompany } from './announce-attendance';
 import { companyDateOf, companyTimeOf } from '$lib/company-time';
 import { shiftedDay } from './supabase-work-status-range';
@@ -107,8 +108,24 @@ export async function supabaseAttendanceSummary(month: string): Promise<Attendan
 	};
 }
 
+// The visible page reuses the monthly day-cell model, with only today's
+// records and the existing 24-hour shift carry window.
+export async function supabaseAttendanceTodaySummary(members: AttendanceMember[], requester: AttendanceSummary): Promise<AttendanceSummary> {
+ const today = companyDateOf(new Date(), requester.timeZone);
+ const personHints = members.map(member => member.memberID);
+ const [attendance, leave] = await Promise.all([
+  invokeTool<RecordAttendanceList>('attendance_list', {personHints, from: shiftedDay(today, -1), to: today}),
+  invokeTool<RecordLeaveList>('leave_list', {personHints, status:'approved', from:today, to:today})
+ ]);
+ if (attendance.count >= 20000) throw new Error('Today attendance exceeded the supported page');
+ const emails = new Map(members.map(member => [member.memberID, member.email]));
+ return {...requester, readScope:'person', month:today.slice(0,7), members,
+  events:attendance.attendance.map(row => eventOf(row, emails.get(row.personID) ?? '', requester.timeZone)),
+  absences:leave.leave.flatMap(row => absencesOf(row, emails.get(row.personID) ?? ''))};
+}
+
 // A selected person's month uses only that member's event and leave rows. The
-// company comparison remains an explicit separate view.
+// selected month is shown directly in the person side panel.
 export async function supabaseAttendancePersonSummary(
 	month: string,
 	member: AttendanceMember,
@@ -205,7 +222,7 @@ export async function correctSupabaseAttendanceEvents(
 				time: correction.localTime,
 				location: correction.locationID || undefined
 			})),
-			reason
+			...(isAttendanceChangeReason(reason) ? {reasonCode: reason} : {reason})
 		})
 	);
 }
@@ -221,7 +238,7 @@ export async function addSupabaseAttendanceEvent(
 			date: addition.localDate,
 			time: addition.localTime,
 			location: addition.kind === 'clock_in' ? addition.locationID || undefined : undefined,
-			reason: addition.reason
+			...(isAttendanceChangeReason(addition.reason) ? {reasonCode: addition.reason} : {reason: addition.reason})
 		})
 	);
 }
@@ -230,7 +247,7 @@ export async function removeSupabaseAttendanceEvent(
 	eventID: string,
 	reason: string
 ): Promise<AttendanceWriteResult> {
-	return attendanceWriteResultFrom(await invokeTool('attendance_delete', { eventHint: eventID, reason }));
+	return attendanceWriteResultFrom(await invokeTool('attendance_delete', { eventHint: eventID, ...(isAttendanceChangeReason(reason) ? {reasonCode: reason} : {reason}) }));
 }
 
 function memberOf(member: OrderableMember): AttendanceMember {

@@ -84,7 +84,7 @@ canvas work for every card during startup.
 The application shell does not fetch the attendance workspace on every route.
 The account menu, command palette and attendance workspace read the requester's
 current state through `attendance_current_get`. Its caller-RLS `attendance_current`
-RPC returns company time, workplaces, today's own events, the latest own event
+RPC returns company time, work locations, today's own events, the latest own event
 across all dates, and active approved leave in one snapshot. It accepts no target
 identity and skips the whole-directory record context. Existing clock writes keep
 their authoritative validation. The attendance landing page separately requests

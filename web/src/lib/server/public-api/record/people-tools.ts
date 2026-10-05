@@ -92,7 +92,19 @@ export function answeredPerson(
 	};
 }
 
-export async function personList(context: RecordContext) {
+export async function personList(context: RecordContext, input: {searchText?: string;limit?: number} = {}) {
+ if(input.limit !== undefined) {
+  let query = context.caller.from('member').select('id,name,email,is_admin').eq('company_id',context.companyID).neq('status','withdrawn').order('name').order('id').limit(Math.min(48,Math.max(1,input.limit)));
+  const search = (input.searchText ?? '').trim();
+  if(search) {
+   const pattern = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
+   query = query.or(`name.ilike.${JSON.stringify(pattern)},email.ilike.${JSON.stringify(pattern)}`);
+  }
+  const {data,error} = await query;
+  if(error) throw new Error(error.message);
+  const people = (data ?? []).map(person => ({personID:person.id,name:person.name || person.email || '',email:person.email || '',isAdmin:person.is_admin === true}));
+  return {requesterID:context.requesterID,count:people.length,people};
+ }
 	const teams = await teamsOfCompany(context.caller);
 	return {
 		requesterID: context.requesterID,
