@@ -2,6 +2,13 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import HistoryIcon from '@lucide/svelte/icons/history';
+	import PalmTreeIcon from '@lucide/svelte/icons/palmtree';
+	import EraserIcon from '@lucide/svelte/icons/eraser';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
+	import InboxIcon from '@lucide/svelte/icons/inbox';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -28,12 +35,10 @@
 				attendanceView.selected === 'leaveManagement' ||
 				attendanceView.selected === 'handWritten')
 		) {
-			attendanceView.select(isMobile.current ? 'tools' : 'status');
+			attendanceView.select('status');
 			return;
 		}
-		if (!isMobile.current && attendanceView.selected === 'tools') {
-			attendanceView.select('status');
-		}
+
 	});
 </script>
 
@@ -48,60 +53,24 @@
 		bind:value={attendanceView.selected}
 		class="min-h-0 min-w-0 flex-1 gap-3 max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+0.75rem)]"
 	>
-	<Tabs.List
-		class="inline-flex h-9 w-full max-w-full self-start justify-start overflow-x-auto rounded-full border-0 bg-muted p-1 md:hidden"
-	>
-		<Tabs.Trigger
-			value="tools"
-			class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-		>
-			{text.mobileToolsView}
-		</Tabs.Trigger>
-		<Tabs.Trigger
-			value="status"
-			class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-		>
-			{text.mobileStatusView}
-		</Tabs.Trigger>
-		<Tabs.Trigger
-			value="leaveHistory"
-			class="h-7 flex-none gap-1.5 rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-		>
-			{text.leave.historyTab}
-		</Tabs.Trigger>
-		{#if myAttendanceToday.summary?.isAdmin}
-			<Tabs.Trigger
-				value="approvals"
-				onpointerenter={() => attendanceView.prefetch('approvals')}
-				onfocus={() => attendanceView.prefetch('approvals')}
-				ontouchstart={() => attendanceView.prefetch('approvals')}
-				class="h-7 flex-none gap-1.5 rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-			>
-				{text.approval.mobileTab}
-				{#if leaveApproval.inbox}
-					<Badge variant="secondary">{leaveApproval.inbox.pendingCount}</Badge>
-				{/if}
-			</Tabs.Trigger>
-			<Tabs.Trigger
-				value="leaveManagement"
-				onpointerenter={() => attendanceView.prefetch('leaveManagement')}
-				onfocus={() => attendanceView.prefetch('leaveManagement')}
-				ontouchstart={() => attendanceView.prefetch('leaveManagement')}
-				class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-			>
-				{text.management.mobileTab}
-			</Tabs.Trigger>
-			<Tabs.Trigger
-				value="handWritten"
-				onpointerenter={() => attendanceView.prefetch('handWritten')}
-				onfocus={() => attendanceView.prefetch('handWritten')}
-				ontouchstart={() => attendanceView.prefetch('handWritten')}
-				class="h-7 flex-none rounded-full px-3 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
-			>
-				{text.handWritten.mobileTab}
-			</Tabs.Trigger>
-		{/if}
-	</Tabs.List>
+    <nav class="flex items-center gap-2 md:hidden" aria-label={text.title}>
+        <Button size="sm" variant={attendanceView.selected === 'status' ? 'secondary' : 'ghost'} onclick={() => attendanceView.select('status')}><HistoryIcon class="size-4" />{text.navigation.status}</Button>
+        <Button size="sm" variant={attendanceView.selected === 'leaveHistory' ? 'secondary' : 'ghost'} onclick={() => attendanceView.select('leaveHistory')}><PalmTreeIcon class="size-4" />{text.navigation.mine}</Button>
+        {#if myAttendanceToday.summary?.isAdmin}
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger class="ml-auto inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm">{text.navigation.management}<ChevronDownIcon class="size-3.5" /></DropdownMenu.Trigger>
+                <DropdownMenu.Content align="end">
+                    <DropdownMenu.Item onclick={() => attendanceView.select('approvals')}><InboxIcon class="size-4" />{text.approval.pendingNavigation}{#if leaveApproval.inbox}<Badge variant="secondary">{leaveApproval.inbox.pendingCount}</Badge>{/if}</DropdownMenu.Item>
+                    <DropdownMenu.Item onclick={() => attendanceView.select('leaveManagement')}><UsersRoundIcon class="size-4" />{text.management.navigation}</DropdownMenu.Item>
+                    <DropdownMenu.Item onclick={() => attendanceView.select('handWritten')}><EraserIcon class="size-4" />{text.handWritten.navigation}</DropdownMenu.Item>
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
+        {/if}
+    </nav>
+    {#if ['approvals','leaveManagement','handWritten'].includes(attendanceView.selected)}
+        <p class="text-sm font-medium md:hidden">{attendanceView.selected === 'approvals' ? text.approval.pendingNavigation : attendanceView.selected === 'leaveManagement' ? text.management.navigation : text.handWritten.navigation}</p>
+    {/if}
+
 	<Tabs.Content value="status" class="min-h-0 min-w-0">
 		<TeamView />
 	</Tabs.Content>
@@ -113,11 +82,9 @@
 		class="min-h-[calc(100vh-9rem)] min-w-0 overflow-auto"
 		data-testid="mobile-attendance-tools-view"
 	>
-		{#if isMobile.current}
 			<PersonalToolsPanel
 				containerClass="pb-4 [&>[data-slot=card]]:border [&>[data-slot=card]]:border-border [&>[data-slot=card]]:ring-0"
 			/>
-		{/if}
 	</Tabs.Content>
 	{#if myAttendanceToday.summary?.isAdmin}
 		<Tabs.Content value="approvals" class="min-h-0 min-w-0">

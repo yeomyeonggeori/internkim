@@ -59,6 +59,7 @@
 	{/if}
 
 	<ListPaginationFooter
+ onPageChange={(page) => (pageIndex = page)}
 		totalItems={history.length}
 		pageIndex={currentPageIndex}
 		{pageSize}

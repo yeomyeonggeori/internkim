@@ -10,7 +10,6 @@
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 	import DeferredSection from '$lib/components/deferred-section.svelte';
 	import LeaveBalanceSummary from '../leave/leave-balance-summary.svelte';
-	import LeaveRequestDialog from '../leave/leave-request-dialog.svelte';
 	import QuickActions from '../quick-actions.svelte';
 	import { todayDateInTimeZone } from '../shared/attendance-date';
 	import { formatHoursMinutes } from '../shared/attendance-format';
@@ -183,6 +182,5 @@
 				<Skeleton class="h-28 w-full rounded-xl" />
 			{/snippet}
 		</DeferredSection>
-		<LeaveRequestDialog />
 	{/if}
 </div>

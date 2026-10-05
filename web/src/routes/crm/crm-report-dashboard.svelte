@@ -231,11 +231,11 @@
 	<div class="flex min-w-0 flex-wrap items-center gap-2">
 		<Select.Root type="single" value={period} onValueChange={(value) => (period = value as CRMReportPeriod)}>
 			<Select.Trigger class="w-44" aria-label={text.reportPeriod}>{periodLabel}</Select.Trigger>
-			<Select.Content>
+			<Select.Content><Select.Group>
 				<Select.Item value="quarter" label={quarterLabel}>{quarterLabel}</Select.Item>
 				<Select.Item value="next_90_days" label={text.reportPeriodNext90Days}>{text.reportPeriodNext90Days}</Select.Item>
 				<Select.Item value="all" label={text.reportPeriodAll}>{text.reportPeriodAll}</Select.Item>
-			</Select.Content>
+			</Select.Group></Select.Content>
 		</Select.Root>
 		<CRMViewCurrencySelect {text} {currencyCatalogue} {companyBaseCurrency} {sourceCurrencies} />
 	</div>

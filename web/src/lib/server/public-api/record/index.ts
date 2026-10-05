@@ -120,7 +120,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	event_update: (context, input) => eventUpdate(context, input),
 	event_list: (context, input) => eventList(context, input),
 	event_delete: (context, input) => eventDelete(context, input),
-	person_list: (context) => personList(context),
+	person_list: (context,input) => personList(context,input),
 	person_update: (context, input) => personUpdate(context, input),
 	person_invite: (context, input) => personInvite(context, input),
 	team_list: (context) => teamList(context),
@@ -254,7 +254,7 @@ export async function runToolOverTheRecord(
 			: name === 'attendance_team_page_get'
 				? await teamAttendance(caller, input as Parameters<typeof teamAttendance>[1])
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name), exactAttendancePersonIDs(name, input)), input);
+					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !(name === 'attendance_list' && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {

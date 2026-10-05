@@ -51,7 +51,7 @@
 
 <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
 	{#if showTrigger}
-		<Dialog.Trigger class={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
+		<Dialog.Trigger class={cn(buttonVariants({ variant: 'default', size: 'sm' }))}>
 			{text.leave.registerAction}
 		</Dialog.Trigger>
 	{/if}

@@ -3450,13 +3450,33 @@
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "limit": {
+            "maximum": 48,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "searchText": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "limit": {
+            "maximum": 48,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "searchText": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "inputSchemaStrict": true,
@@ -7361,7 +7381,7 @@
         "additionalProperties": false,
         "properties": {
           "location": {
-            "description": "The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.",
+            "description": "The registered work location they came back to, named as company_settings_get lists them. Omit when they did not say where.",
             "type": "string"
           }
         },
@@ -7372,7 +7392,7 @@
         "additionalProperties": false,
         "properties": {
           "location": {
-            "description": "The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.",
+            "description": "The registered work location they came back to, named as company_settings_get lists them. Omit when they did not say where.",
             "type": "string"
           }
         },
@@ -7506,7 +7526,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_team_page_get",
-      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and clock-in locations. Employee search and location filtering happen before paging. Historical records are read separately.",
+      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and recorded work locations. Employee search and location filtering happen before paging. Historical records are read separately.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -7592,6 +7612,53 @@
           "companyID": {
             "minLength": 1,
             "type": "string"
+          },
+          "companyName": {
+            "type": "string"
+          },
+          "companySummary": {
+            "additionalProperties": false,
+            "properties": {
+              "away": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "done": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "memberCount": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "needsCheckout": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "notStarted": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "working": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "memberCount",
+              "working",
+              "done",
+              "away",
+              "notStarted",
+              "needsCheckout"
+            ],
+            "type": "object"
           },
           "memberLimit": {
             "exclusiveMinimum": 0,
@@ -7913,6 +7980,53 @@
               "minLength": 1,
               "type": "string"
             },
+            "companyName": {
+              "type": "string"
+            },
+            "companySummary": {
+              "additionalProperties": false,
+              "properties": {
+                "away": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "done": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "memberCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "needsCheckout": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "notStarted": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "working": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "memberCount",
+                "working",
+                "done",
+                "away",
+                "notStarted",
+                "needsCheckout"
+              ],
+              "type": "object"
+            },
             "memberLimit": {
               "exclusiveMinimum": 0,
               "maximum": 9007199254740991,
@@ -8215,7 +8329,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_current_get",
-      "description": "Read the authenticated requester's actionable attendance state in one record snapshot: company time zone and clock, registered workplaces, today's events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.",
+      "description": "Read the authenticated requester's actionable attendance state in one record snapshot: company time zone and clock, registered work locations, today's events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -8696,6 +8810,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "changedBySearch": {
+            "maxLength": 128,
+            "type": "string"
+          },
           "from": {
             "description": "Earliest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to start thirty days ago.",
             "type": "string"
@@ -8707,6 +8825,16 @@
           "limit": {
             "description": "Maximum number of rows to return.",
             "type": "number"
+          },
+          "pageLimit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
           },
           "personHints": {
             "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
@@ -8721,6 +8849,19 @@
               "self",
               "all"
             ],
+            "type": "string"
+          },
+          "selectedChangedByID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "selectedTeamKey": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "teamSearch": {
+            "maxLength": 128,
             "type": "string"
           },
           "to": {
@@ -8745,6 +8886,53 @@
             "items": {
               "additionalProperties": false,
               "properties": {
+                "changedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedByEmail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedByID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedByName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedBySource": {
+                  "enum": [
+                    "observed",
+                    "legacy_subject"
+                  ],
+                  "type": "string"
+                },
                 "date": {
                   "type": "string"
                 },
@@ -8779,6 +8967,16 @@
                     }
                   ]
                 },
+                "originalLocation": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "originalOccurredAt": {
                   "anyOf": [
                     {
@@ -8802,8 +9000,21 @@
                 "person": {
                   "type": "string"
                 },
+                "personEmail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "personID": {
                   "type": "string"
+                },
+                "previousRecorded": {
+                  "type": "boolean"
                 },
                 "reason": {
                   "anyOf": [
@@ -8814,6 +9025,9 @@
                       "type": "null"
                     }
                   ]
+                },
+                "teamName": {
+                  "type": "string"
                 },
                 "time": {
                   "type": "string"
@@ -8854,6 +9068,16 @@
           "from": {
             "type": "string"
           },
+          "pageLimit": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pageOffset": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
           "personID": {
             "anyOf": [
               {
@@ -8875,6 +9099,11 @@
           },
           "to": {
             "type": "string"
+          },
+          "totalCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
           }
         },
         "required": [
@@ -8904,6 +9133,53 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
+                  "changedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedByEmail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedByID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedByName": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedBySource": {
+                    "enum": [
+                      "observed",
+                      "legacy_subject"
+                    ],
+                    "type": "string"
+                  },
                   "date": {
                     "type": "string"
                   },
@@ -8938,6 +9214,16 @@
                       }
                     ]
                   },
+                  "originalLocation": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "originalOccurredAt": {
                     "anyOf": [
                       {
@@ -8961,8 +9247,21 @@
                   "person": {
                     "type": "string"
                   },
+                  "personEmail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "personID": {
                     "type": "string"
+                  },
+                  "previousRecorded": {
+                    "type": "boolean"
                   },
                   "reason": {
                     "anyOf": [
@@ -8973,6 +9272,9 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "teamName": {
+                    "type": "string"
                   },
                   "time": {
                     "type": "string"
@@ -9013,6 +9315,16 @@
             "from": {
               "type": "string"
             },
+            "pageLimit": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "pageOffset": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
             "personID": {
               "anyOf": [
                 {
@@ -9034,6 +9346,11 @@
             },
             "to": {
               "type": "string"
+            },
+            "totalCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
             }
           },
           "required": [
@@ -9061,7 +9378,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_add",
-      "description": "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. A press right now that reverses the one before it within a minute, clocking back in at the same place or clocking straight out again, takes that earlier record back instead of adding one: status removed, eventID names the record taken back, and that is a finished answer too. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
+      "description": "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. A press right now that reverses the one before it within a minute, clocking back in at the same place or clocking straight out again, takes that earlier record back instead of adding one: status removed, eventID names the record taken back, and that is a finished answer too. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a work location this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -9085,7 +9402,7 @@
             "type": "string"
           },
           "location": {
-            "description": "The registered workplace they were at. clock_out does not use it, so omit it there.",
+            "description": "The registered work location they were at. clock_out does not use it, so omit it there.",
             "type": "string"
           },
           "personHint": {
@@ -9094,6 +9411,16 @@
           },
           "reason": {
             "description": "Why the record is being written by hand, in the requester's own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.",
+            "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
             "type": "string"
           },
           "time": {
@@ -9120,7 +9447,7 @@
             "type": "string"
           },
           "location": {
-            "description": "The registered workplace they were at. clock_out does not use it, so omit it there.",
+            "description": "The registered work location they were at. clock_out does not use it, so omit it there.",
             "type": "string"
           },
           "personHint": {
@@ -9129,6 +9456,16 @@
           },
           "reason": {
             "description": "Why the record is being written by hand, in the requester's own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.",
+            "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
             "type": "string"
           },
           "time": {
@@ -9321,7 +9658,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_update",
-      "description": "Correct the day, the time, or the workplace of attendance records that were written wrong, all in one call. What the record held before the correction is kept alongside it, with the reason. A person corrects their own records from the last three days. Correcting an older one, or anybody else's, is an administrator's: asked by anybody else it comes back with status asked, the administrators have been told, and the task is done. Say an administrator was asked; do not call this again.",
+      "description": "Correct the day, the time, or the work location of attendance records that were written wrong, all in one call. What the record held before the correction is kept alongside it, with the reason. A person corrects their own records from the last three days. Correcting an older one, or anybody else's, is an administrator's: asked by anybody else it comes back with status asked, the administrators have been told, and the task is done. Say an administrator was asked; do not call this again.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -9348,7 +9685,7 @@
                   "type": "string"
                 },
                 "location": {
-                  "description": "The registered workplace it happened at. Omit to keep the one it has.",
+                  "description": "The registered work location it happened at. Omit to keep the one it has.",
                   "type": "string"
                 },
                 "time": {
@@ -9366,6 +9703,20 @@
           "reason": {
             "description": "Why the records were wrong.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -9390,7 +9741,7 @@
                   "type": "string"
                 },
                 "location": {
-                  "description": "The registered workplace it happened at. Omit to keep the one it has.",
+                  "description": "The registered work location it happened at. Omit to keep the one it has.",
                   "type": "string"
                 },
                 "time": {
@@ -9408,6 +9759,20 @@
           "reason": {
             "description": "Why the records were wrong, in the requester's own words.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -9522,6 +9887,20 @@
           "reason": {
             "description": "Why the record should not be there.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -9539,6 +9918,20 @@
           "reason": {
             "description": "Why the record should not be there, in the requester's own words.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -24971,7 +25364,7 @@
         "state": "ok"
       },
       "canonicalName": "company_settings_get",
-      "description": "The company settings: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+      "description": "The company settings: its name, country, language, time zone, base currency, the work locations attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The work location names are what attendance_add's location takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -25227,7 +25620,7 @@
             "type": "string"
           },
           "workLocations": {
-            "description": "The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
+            "description": "The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -25237,7 +25630,7 @@
                   "type": "string"
                 },
                 "name": {
-                  "description": "The workplace's name as people say it, e.g. 'the office' or 'home'.",
+                  "description": "The work location's name as people say it, e.g. 'the office' or 'home'.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string"
@@ -25290,7 +25683,7 @@
             "type": "string"
           },
           "workLocations": {
-            "description": "The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
+            "description": "The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -25300,7 +25693,7 @@
                   "type": "string"
                 },
                 "name": {
-                  "description": "The workplace's name as people say it, e.g. 'the office' or 'home'.",
+                  "description": "The work location's name as people say it, e.g. 'the office' or 'home'.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string"

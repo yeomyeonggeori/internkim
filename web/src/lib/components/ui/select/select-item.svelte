@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Select as SelectPrimitive } from "bits-ui";
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import { cn, type WithoutChild } from "$lib/utils.js";
 
 	let {
@@ -15,14 +16,21 @@
 <SelectPrimitive.Item
 	bind:ref
 	{value}
+	{label}
 	data-slot="select-item"
 	class={cn(
-		"focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground gap-1.5 rounded-md py-1 px-1.5 text-sm [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 focus:bg-accent data-highlighted:bg-accent data-highlighted:text-accent-foreground data-selected:bg-accent data-selected:text-accent-foreground focus:text-accent-foreground flex w-full cursor-default items-center outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		"focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		"data-highlighted:bg-accent data-highlighted:text-accent-foreground",
 		className
 	)}
 	{...restProps}
 >
 	{#snippet children({ selected, highlighted })}
+		<span class="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
+			{#if selected}
+				<CheckIcon class="pointer-events-none" />
+			{/if}
+		</span>
 		<span class="flex flex-1 gap-2 shrink-0 whitespace-nowrap">
 			{#if childrenProp}
 				{@render childrenProp({ selected, highlighted })}

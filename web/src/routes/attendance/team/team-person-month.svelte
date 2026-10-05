@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PersonWorkStandard from './person-work-standard.svelte';
 	import { onMount } from 'svelte';
 	import { companyDateOf } from '$lib/company-time';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
@@ -23,6 +24,8 @@
 		const requester = myAttendanceToday.summary;
 		if (disposed || !requester || !nextMonth) return;
 		const request = ++sequence;
+        const requesterScope = [requester.currentMemberID, requester.currentUserEmail, requester.isAdmin, requester.teamViewVisibleToAll].join("|");
+        const currentScope = () => { const current = myAttendanceToday.summary; return current ? [current.currentMemberID, current.currentUserEmail, current.isAdmin, current.teamViewVisibleToAll].join("|") : ""; };
 		month = nextMonth;
 		if (summary?.month !== nextMonth) summary = null;
 		loading = true;
@@ -31,10 +34,10 @@
 			const answer = await supabaseAttendancePersonSummary(nextMonth, {
 				memberID: member.memberID, email: member.email, displayName: member.name
 			}, requester);
-			if (disposed || request !== sequence) return;
+			if (disposed || request !== sequence || requesterScope !== currentScope()) return;
 			summary = answer;
 		} catch (reason) {
-			if (disposed || request !== sequence) return;
+			if (disposed || request !== sequence || requesterScope !== currentScope()) return;
 			summary = null;
 			error = reason instanceof Error ? reason.message : String(reason);
 		} finally {
@@ -64,6 +67,7 @@
 	<button type="button" class="text-sm underline" onclick={() => load()}>Retry</button>
 {:else if summary}
 	<div class:opacity-60={loading}>
+		{#if member.memberID === summary.currentMemberID}{#key summary.month}<PersonWorkStandard {summary} />{/key}{/if}
 		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} />
 	</div>
 {:else}

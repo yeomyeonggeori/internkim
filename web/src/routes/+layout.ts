@@ -1,3 +1,4 @@
+import { attendancePreviewEnabled } from '$lib/attendance/attendance-preview';
 import { redirect } from '@sveltejs/kit';
 import { belongsToACompany } from '$lib/company/found-company';
 import { isEmbeddedFrame } from '$lib/embedded';
@@ -14,6 +15,7 @@ export const ssr = !isBoard;
 
 export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string }> = async ({ fetch, depends, url }) => {
 	depends(webAuthSessionDependency);
+	if (attendancePreviewEnabled()) return { session: { authenticated: true, email: 'sample001@example.com', image: '', canViewTasks: true, cloudflareLoginURL: '', isUnavailable: false }, companyLocale: 'ko' };
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };
 	const returnPath = url.pathname + url.search;
 	if (isSupabaseConfigured()) {

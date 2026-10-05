@@ -122,6 +122,7 @@
 	</div>
 	<div class="border-t bg-card px-3 py-3">
 		<ListPaginationFooter
+ onPageChange={(page) => (pageIndex = page)}
 			totalItems={sortedContacts.length}
 			{pageIndex}
 			{pageSize}

@@ -1,15 +1,9 @@
 <script lang="ts">
-	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-
-	type Props = {
-		name: string;
-		class?: string;
-	};
-
-	let { name, class: className = '' }: Props = $props();
+ import ColoredOutlineBadge from '$lib/components/colored-outline-badge.svelte';
+ import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
+ let { name, color, count, class: className = '' }: {name: string; color?: string; count?: number; class?: string} = $props();
+ const registeredColor = $derived(color || myAttendanceToday.locations.find(location => location.name === name)?.color);
 </script>
-
-<span class={`inline-flex min-w-0 items-center gap-1 text-xs text-muted-foreground ${className}`}>
-	<MapPinIcon class="size-3 shrink-0" />
-	<span class="min-w-0 truncate">{name}</span>
-</span>
+<ColoredOutlineBadge color={registeredColor} class={className} title={name}>
+ <span class="max-w-32 truncate">{name}</span>{#if count !== undefined}<span class="ml-1 tabular-nums">{count}</span>{/if}
+</ColoredOutlineBadge>
