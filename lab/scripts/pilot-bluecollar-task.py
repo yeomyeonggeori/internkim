@@ -73,7 +73,7 @@ def is_run_of_message(listed, message_reference):
 
 
 def approve_as_the_requester(task_run_id):
-    request("/admin/api/run/approve", {"taskRunID": task_run_id, "decision": "confirm"}, accepted=(200, 400), timeout=600)
+    request("/admin/api/run/approve", {"taskRunID": task_run_id, "decision": "approve"}, accepted=(200, 400), timeout=600)
 
 
 def settled_run_of_message(person_id, message_reference):

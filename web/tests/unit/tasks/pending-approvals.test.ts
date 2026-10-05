@@ -67,9 +67,9 @@ describe('a run waiting on approval, read out of a relay answer', () => {
 
 describe('the decision the approvals page sends', () => {
 	test('names the run and the decision, and nothing else', () => {
-		expect(approvalDecisionRequestOf('run-77', 'confirm')).toEqual({
+		expect(approvalDecisionRequestOf('run-77', 'approve')).toEqual({
 			taskRunID: 'run-77',
-			decision: 'confirm'
+			decision: 'approve'
 		});
 	});
 

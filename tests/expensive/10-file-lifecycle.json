@@ -192,9 +192,9 @@
         "file_delete"
       ],
       "expectedEvents": [
-        "approval.pending_call",
+        "approval.hold_opened",
         "confirmation.requested",
-        "approval.executed"
+        "approval.hold_spent"
       ],
       "expectedEventCounts": [
         {

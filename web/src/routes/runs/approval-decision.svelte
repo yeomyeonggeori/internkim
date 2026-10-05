@@ -20,8 +20,8 @@
 	let decisionError = $state('');
 
 	const decisionButtons: { decision: ApprovalDecision; label: string; icon: typeof CheckIcon; variant: 'default' | 'outline' | 'destructive' }[] = $derived([
-		{ decision: 'confirm', label: text.approveOnce, icon: CheckIcon, variant: 'default' },
-		{ decision: 'cancel', label: text.rejectApproval, icon: XIcon, variant: 'destructive' }
+		{ decision: 'approve', label: text.approveOnce, icon: CheckIcon, variant: 'default' },
+		{ decision: 'reject', label: text.rejectApproval, icon: XIcon, variant: 'destructive' }
 	]);
 
 	async function decide(decision: ApprovalDecision) {
