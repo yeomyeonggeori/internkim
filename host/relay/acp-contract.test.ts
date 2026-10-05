@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-	toolCallProgressOf,
-	toolCallStartKind,
+	progressOfToolCall,
+	startedToolCallKind,
 	toolCallStatuses,
-	toolCallUpdateKind,
+	updatedToolCallKind,
 	type StartedToolCall,
 	type UpdatedToolCall
 } from './tool-progress';
@@ -66,7 +66,7 @@ function fieldsReadFromAnApprovalReplyAnswer(): string[] {
 
 function fieldsReadFrom<Call extends StartedToolCall | UpdatedToolCall>(call: Call): string[] {
 	const read = new Set<string>();
-	toolCallProgressOf(
+	progressOfToolCall(
 		new Proxy(call, {
 			get: (target, name) => {
 				read.add(String(name));
@@ -120,16 +120,16 @@ describe('the relay speaks the ACP extension blueclaw declares', () => {
 
 	test('with the same tool call shapes', () => {
 		const startedCall: StartedToolCall = {
-			sessionUpdate: toolCallStartKind,
+			sessionUpdate: startedToolCallKind,
 			toolCallId: 'call',
 			title: 'a title',
 			status: 'pending'
 		};
-		const updatedCall: UpdatedToolCall = { sessionUpdate: toolCallUpdateKind, toolCallId: 'call', status: 'completed' };
+		const updatedCall: UpdatedToolCall = { sessionUpdate: updatedToolCallKind, toolCallId: 'call', status: 'completed' };
 		const relayToolCalls: ClientContract['toolCalls'] = {
-			startKind: toolCallStartKind,
+			startKind: startedToolCallKind,
 			startFields: fieldsReadFrom(startedCall),
-			updateKind: toolCallUpdateKind,
+			updateKind: updatedToolCallKind,
 			updateFields: fieldsReadFrom(updatedCall),
 			statuses: [...toolCallStatuses]
 		};

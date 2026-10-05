@@ -13,8 +13,8 @@ import {
 } from '@agentclientprotocol/sdk';
 import { fileURLToPath } from 'node:url';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
-import type { HeldSessionStore } from './held-session-store';
-import { ToolProgress, toolCallProgressOf, toolCallStartKind, toolCallUpdateKind } from './tool-progress';
+import type { SessionBindingStore } from './session-binding-store';
+import { ToolProgress, progressOfToolCall, startedToolCallKind, updatedToolCallKind } from './tool-progress';
 
 export const defaultBlueclawACPSocketPath = '/run/internkim/acp/blueclaw-acp.sock';
 export const sessionMetaKey = 'kim.intern/session';
@@ -87,22 +87,22 @@ export type ACPSessionSettings = {
 	postToConversation: PostToConversation;
 	postFileToConversation: PostFileToConversation;
 	editInConversation: EditInConversation;
-	sessions: HeldSessionStore;
-	permissionWasOpened: (conversationID: string) => void;
+	sessions: SessionBindingStore;
+	approvalWasRequested: (conversationID: string) => void;
 	report?: (line: string) => void;
 };
 
 type PostOutcome = { messageID: string } | { reason: string };
 
-export type HeldSession = {
+export type SessionBinding = {
 	sessionID: string;
 	requester: Requester;
 	addressing: Addressing;
 };
 
-type OpenPermission = {
+type PendingApproval = {
 	toolCallID: string;
-	parkedMessageIDs: Set<string>;
+	waitingMessageIDs: Set<string>;
 	select: (optionID: string) => void;
 };
 
@@ -112,8 +112,8 @@ export class BlueclawACPClient {
 	private connecting: Promise<ClientSideConnection> | null = null;
 	private closeSocket: (() => void) | null = null;
 	private isClosed = false;
-	private readonly heldByConversation = new Map<string, HeldSession>();
-	private readonly openPermissions = new Map<string, OpenPermission>();
+	private readonly bindingByConversation = new Map<string, SessionBinding>();
+	private readonly pendingApprovals = new Map<string, PendingApproval>();
 	private readonly sessionOfPromptInFlight = new Map<string, string>();
 	private readonly toolProgress: ToolProgress;
 
@@ -136,13 +136,13 @@ export class BlueclawACPClient {
 		this.closeSocket = null;
 		this.connection = null;
 		this.connecting = null;
-		this.heldByConversation.clear();
-		this.openPermissions.clear();
+		this.bindingByConversation.clear();
+		this.pendingApprovals.clear();
 	}
 
-	async restoreHeldSessions(): Promise<void> {
-		for (const held of await this.settings.sessions.all()) {
-			this.heldByConversation.set(held.addressing.conversationID, held);
+	async restoreSessionBindings(): Promise<void> {
+		for (const binding of await this.settings.sessions.list()) {
+			this.bindingByConversation.set(binding.addressing.conversationID, binding);
 		}
 		void this.agent().catch(() => this.reconnectUntilItComesBack());
 	}
@@ -193,7 +193,7 @@ export class BlueclawACPClient {
 			clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } }
 		});
 		this.connection = connection;
-		await this.loadHeldSessions(connection);
+		await this.loadSessionBindings(connection);
 		return connection;
 	}
 
@@ -222,21 +222,21 @@ export class BlueclawACPClient {
 		}
 	}
 
-	private async loadHeldSessions(connection: ClientSideConnection): Promise<void> {
-		for (const held of [...this.heldByConversation.values()]) {
+	private async loadSessionBindings(connection: ClientSideConnection): Promise<void> {
+		for (const binding of [...this.bindingByConversation.values()]) {
 			await connection
 				.loadSession({
-					sessionId: held.sessionID,
+					sessionId: binding.sessionID,
 					cwd: this.settings.workspaceRootPath,
 					mcpServers: this.settings.catalogFor(
-						held.requester.email,
-						held.addressing.conversationID
+						binding.requester.email,
+						binding.addressing.conversationID
 					),
-					_meta: { [sessionMetaKey]: { requester: held.requester, addressing: held.addressing } }
+					_meta: { [sessionMetaKey]: { requester: binding.requester, addressing: binding.addressing } }
 				})
 				.catch((failure) => {
-					this.settings.report?.(`session ${held.sessionID} would not load: ${String(failure)}`);
-					this.heldByConversation.delete(held.addressing.conversationID);
+					this.settings.report?.(`session ${binding.sessionID} would not load: ${String(failure)}`);
+					this.bindingByConversation.delete(binding.addressing.conversationID);
 				});
 		}
 	}
@@ -246,23 +246,23 @@ export class BlueclawACPClient {
 		requester: Requester,
 		addressing: Addressing
 	): Promise<string> {
-		const held = this.heldByConversation.get(addressing.conversationID);
-		if (held) return held.sessionID;
+		const binding = this.bindingByConversation.get(addressing.conversationID);
+		if (binding) return binding.sessionID;
 		const opened = await agent.newSession({
 			cwd: this.settings.workspaceRootPath,
 			mcpServers: this.settings.catalogFor(requester.email, addressing.conversationID),
 			_meta: { [sessionMetaKey]: { requester, addressing } }
 		});
-		const heldSession: HeldSession = { sessionID: opened.sessionId, requester, addressing };
-		this.heldByConversation.set(addressing.conversationID, heldSession);
-		await this.settings.sessions.keep(heldSession);
+		const sessionBinding: SessionBinding = { sessionID: opened.sessionId, requester, addressing };
+		this.bindingByConversation.set(addressing.conversationID, sessionBinding);
+		await this.settings.sessions.save(sessionBinding);
 		return opened.sessionId;
 	}
 
 	private asTheClient(readConnection: () => ClientSideConnection): Client {
 		return {
 			sessionUpdate: (notification: SessionNotification) => this.readUpdate(notification),
-			requestPermission: (request: RequestPermissionRequest) => this.answerPermission(request, readConnection())
+			requestPermission: (request: RequestPermissionRequest) => this.answerApprovalRequest(request, readConnection())
 		};
 	}
 
@@ -272,7 +272,7 @@ export class BlueclawACPClient {
 			this.settings.report?.(`progress: ${update.content.text}`);
 			return;
 		}
-		if (update.sessionUpdate === toolCallStartKind || update.sessionUpdate === toolCallUpdateKind) {
+		if (update.sessionUpdate === startedToolCallKind || update.sessionUpdate === updatedToolCallKind) {
 			void this.showToolProgress(notification.sessionId, update, deliveryOf(notification._meta));
 			return;
 		}
@@ -282,21 +282,21 @@ export class BlueclawACPClient {
 
 	private async showToolProgress(
 		sessionID: string,
-		call: Parameters<typeof toolCallProgressOf>[0],
+		call: Parameters<typeof progressOfToolCall>[0],
 		delivery: Delivery
 	): Promise<void> {
-		const held = this.heldSessionOf(sessionID);
-		if (!held || !delivery.deliveryID) {
+		const binding = this.sessionBindingOf(sessionID);
+		if (!binding || !delivery.deliveryID) {
 			this.settings.report?.(`progress for ${call.toolCallId} has no conversation or delivery to show in, so it was not shown`);
 			return;
 		}
-		await this.toolProgress.show(delivery.deliveryID, addressedBy(held, delivery), toolCallProgressOf(call));
+		await this.toolProgress.showToolCall(delivery.deliveryID, addressedBy(binding, delivery), progressOfToolCall(call));
 	}
 
 	private async deliverChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<void> {
-		const held = this.heldSessionOf(sessionID);
-		const outcome = held
-			? await attemptPost(() => this.post(content, held.requester, addressedBy(held, delivery), delivery))
+		const binding = this.sessionBindingOf(sessionID);
+		const outcome = binding
+			? await attemptPost(() => this.post(content, binding.requester, addressedBy(binding, delivery), delivery))
 			: { reason: `this relay holds no session ${sessionID}, so it has no conversation to post in` };
 		await this.tellTheAgent(delivery, outcome);
 	}
@@ -310,7 +310,7 @@ export class BlueclawACPClient {
 		if (content.type === 'text') {
 			const progressMessageID =
 				delivery.final && delivery.deliveryID
-					? await this.toolProgress.replaceWith(delivery.deliveryID, addressing, content.text)
+					? await this.toolProgress.replaceWithReply(delivery.deliveryID, addressing, content.text)
 					: undefined;
 			return progressMessageID ?? this.settings.postToConversation(addressing, content.text);
 		}
@@ -335,26 +335,26 @@ export class BlueclawACPClient {
 		}
 	}
 
-	hasOpenPermissionIn(conversationID: string): boolean {
-		const held = this.heldByConversation.get(conversationID);
-		return held !== undefined && this.openPermissions.has(held.sessionID);
+	hasPendingApprovalIn(conversationID: string): boolean {
+		const binding = this.bindingByConversation.get(conversationID);
+		return binding !== undefined && this.pendingApprovals.has(binding.sessionID);
 	}
 
-	isParkedOnPermission(conversationID: string, messageID: string): boolean {
-		const held = this.heldByConversation.get(conversationID);
-		return held !== undefined && this.openPermissions.get(held.sessionID)?.parkedMessageIDs.has(messageID) === true;
+	isWaitingOnApproval(conversationID: string, messageID: string): boolean {
+		const binding = this.bindingByConversation.get(conversationID);
+		return binding !== undefined && this.pendingApprovals.get(binding.sessionID)?.waitingMessageIDs.has(messageID) === true;
 	}
 
-	async answerOpenPermission(addressing: Addressing, messageID: string, reply: string): Promise<boolean> {
-		const held = this.heldByConversation.get(addressing.conversationID);
-		const open = held && this.openPermissions.get(held.sessionID);
-		if (!held || !open) return false;
+	async answerPendingApproval(addressing: Addressing, messageID: string, reply: string): Promise<boolean> {
+		const binding = this.bindingByConversation.get(addressing.conversationID);
+		const pending = binding && this.pendingApprovals.get(binding.sessionID);
+		if (!binding || !pending) return false;
 		const optionID = await this.readApprovalReply(
-			approvalReplyRequest(held.sessionID, open.toolCallID, reply, messageID, addressing)
+			approvalReplyRequest(binding.sessionID, pending.toolCallID, reply, messageID, addressing)
 		);
 		if (optionID === undefined) return false;
-		this.openPermissions.delete(held.sessionID);
-		open.select(optionID);
+		this.pendingApprovals.delete(binding.sessionID);
+		pending.select(optionID);
 		return true;
 	}
 
@@ -363,50 +363,50 @@ export class BlueclawACPClient {
 			const agent = await this.agent();
 			return optionChosenIn(await agent.request<Record<string, unknown>>(approvalReplyExtensionMethod, request));
 		} catch (failure) {
-			this.settings.report?.(`blueclaw could not say whether a message answers the open permission: ${String(failure)}`);
+			this.settings.report?.(`blueclaw could not say whether a message answers the pending approval: ${String(failure)}`);
 			return undefined;
 		}
 	}
 
-	private async answerPermission(
+	private async answerApprovalRequest(
 		request: RequestPermissionRequest,
 		connectionThatAsked: ClientSideConnection
 	): Promise<RequestPermissionResponse> {
 		const delivery = deliveryOf(request._meta);
-		const held = this.heldSessionOf(request.sessionId);
-		const outcome: PostOutcome | undefined = !held
+		const binding = this.sessionBindingOf(request.sessionId);
+		const outcome: PostOutcome | undefined = !binding
 			? { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` }
 			: delivery.alreadyPosted
 				? undefined
-				: await attemptPost(() => this.settings.postToConversation(addressedBy(held, delivery), request.toolCall.title ?? ''));
+				: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
 		if (outcome) await this.tellTheAgent(delivery, outcome);
-		if (!held || (outcome && 'reason' in outcome)) return cancelled;
-		return this.waitForAnAnswer(request, held, delivery, connectionThatAsked);
+		if (!binding || (outcome && 'reason' in outcome)) return cancelled;
+		return this.waitForApprovalAnswer(request, binding, delivery, connectionThatAsked);
 	}
 
-	private waitForAnAnswer(
+	private waitForApprovalAnswer(
 		request: RequestPermissionRequest,
-		held: HeldSession,
+		binding: SessionBinding,
 		delivery: Delivery,
 		connectionThatAsked: ClientSideConnection
 	): Promise<RequestPermissionResponse> {
 		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
-		const open: OpenPermission = {
+		const pending: PendingApproval = {
 			toolCallID: request.toolCall.toolCallId,
-			parkedMessageIDs: new Set(delivery.alreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
+			waitingMessageIDs: new Set(delivery.alreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
 			select: (optionID) => resolve({ outcome: { outcome: 'selected', optionId: optionID } })
 		};
-		this.openPermissions.set(request.sessionId, open);
+		this.pendingApprovals.set(request.sessionId, pending);
 		connectionThatAsked.signal.addEventListener(
 			'abort',
 			() => {
-				if (this.openPermissions.get(request.sessionId) === open) this.openPermissions.delete(request.sessionId);
-				this.settings.report?.(`permission ${open.toolCallID} was cancelled: blueclaw left the socket before it was answered`);
+				if (this.pendingApprovals.get(request.sessionId) === pending) this.pendingApprovals.delete(request.sessionId);
+				this.settings.report?.(`approval ${pending.toolCallID} was cancelled: blueclaw left the socket before it was answered`);
 				resolve(cancelled);
 			},
 			{ once: true }
 		);
-		this.settings.permissionWasOpened(held.addressing.conversationID);
+		this.settings.approvalWasRequested(binding.addressing.conversationID);
 		return promise;
 	}
 
@@ -414,8 +414,8 @@ export class BlueclawACPClient {
 		return [...this.sessionOfPromptInFlight].filter(([, inSession]) => inSession === sessionID).map(([messageID]) => messageID);
 	}
 
-	private heldSessionOf(sessionID: string): HeldSession | undefined {
-		return [...this.heldByConversation.values()].find((held) => held.sessionID === sessionID);
+	private sessionBindingOf(sessionID: string): SessionBinding | undefined {
+		return [...this.bindingByConversation.values()].find((binding) => binding.sessionID === sessionID);
 	}
 }
 
@@ -479,9 +479,9 @@ export function optionChosenIn(answer: Record<string, unknown>): string | undefi
 	return optionID;
 }
 
-function addressedBy(held: HeldSession, delivery: Delivery): Addressing {
-	if (!delivery.replyTargetID) return held.addressing;
-	return { ...held.addressing, replyTargetID: delivery.replyTargetID };
+function addressedBy(binding: SessionBinding, delivery: Delivery): Addressing {
+	if (!delivery.replyTargetID) return binding.addressing;
+	return { ...binding.addressing, replyTargetID: delivery.replyTargetID };
 }
 
 const unnamedContentType = 'application/octet-stream';

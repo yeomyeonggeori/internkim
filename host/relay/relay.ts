@@ -51,7 +51,7 @@ import { RecordCatalogs, ticketOf } from './record-catalog';
 import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
-import { HeldSessionStore } from './held-session-store';
+import { SessionBindingStore } from './session-binding-store';
 import { agentFilePoster, conversationEditor, conversationPoster } from './conversation-post';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
@@ -503,11 +503,11 @@ const blueclawClient = new BlueclawACPClient({
 	postToConversation,
 	postFileToConversation,
 	editInConversation,
-	sessions: new HeldSessionStore({
+	sessions: new SessionBindingStore({
 		filePath: `${relayStateDirectory}/sessions.json`,
 		report: (line) => console.log(`sessions: ${line}`)
 	}),
-	permissionWasOpened: (conversationID) => inboundTurns.handTheRunToBlueclaw(conversationID),
+	approvalWasRequested: (conversationID) => inboundTurns.releaseTurnsWaitingOnApproval(conversationID),
 	report: (line) => console.log(`acp: ${line}`)
 });
 
@@ -520,7 +520,7 @@ const inboundTurns: InboundTurns = new InboundTurns({
 	report: (line) => console.log(`acp: ${line}`)
 });
 
-await blueclawClient.restoreHeldSessions();
+await blueclawClient.restoreSessionBindings();
 
 async function keepInboundMessage(offered: unknown): Promise<Response> {
 	const localizedOffered = await inboundBodyWithDisplayName(offered);

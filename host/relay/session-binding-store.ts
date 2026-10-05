@@ -1,46 +1,46 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { HeldSession } from './acp-session';
+import type { SessionBinding } from './acp-session';
 import { writeDurably } from './durable-write';
 
-export type HeldSessionStoreSettings = {
+export type SessionBindingStoreSettings = {
 	filePath: string;
 	report?: (line: string) => void;
 };
 
-export class HeldSessionStore {
-	private readonly settings: HeldSessionStoreSettings;
+export class SessionBindingStore {
+	private readonly settings: SessionBindingStoreSettings;
 	private writing: Promise<void> = Promise.resolve();
 
-	constructor(settings: HeldSessionStoreSettings) {
+	constructor(settings: SessionBindingStoreSettings) {
 		this.settings = settings;
 	}
 
-	async all(): Promise<HeldSession[]> {
-		const written = await readFile(this.settings.filePath, 'utf8').catch(missingAsNothing);
+	async list(): Promise<SessionBinding[]> {
+		const written = await readFile(this.settings.filePath, 'utf8').catch(nothingWhenMissing);
 		if (written === null) return [];
-		const offered = parsedOrNothing(written);
-		if (Array.isArray(offered)) return offered.filter(isHeldSession);
-		this.settings.report?.(`the held sessions will not parse and were left in place: ${this.settings.filePath}`);
+		const offered = nothingWhenUnparsable(written);
+		if (Array.isArray(offered)) return offered.filter(isSessionBinding);
+		this.settings.report?.(`the binding sessions will not parse and were left in place: ${this.settings.filePath}`);
 		return [];
 	}
 
-	keep(held: HeldSession): Promise<void> {
-		this.writing = this.writing.then(() => this.keepOnDisk(held));
+	save(binding: SessionBinding): Promise<void> {
+		this.writing = this.writing.then(() => this.saveToDisk(binding));
 		return this.writing;
 	}
 
-	private async keepOnDisk(held: HeldSession): Promise<void> {
-		const known = (await this.all()).filter((other) => other.addressing.conversationID !== held.addressing.conversationID);
+	private async saveToDisk(binding: SessionBinding): Promise<void> {
+		const known = (await this.list()).filter((other) => other.addressing.conversationID !== binding.addressing.conversationID);
 		await mkdir(dirname(this.settings.filePath), { recursive: true });
-		await writeDurably(this.settings.filePath, JSON.stringify([...known, held]));
+		await writeDurably(this.settings.filePath, JSON.stringify([...known, binding]));
 	}
 }
 
 const requesterTexts = ['name', 'callingName', 'handle'];
 const addressingTexts = ['conversationType', 'replyTargetID', 'responseLanguage'];
 
-function isHeldSession(offered: unknown): offered is HeldSession {
+function isSessionBinding(offered: unknown): offered is SessionBinding {
 	if (!isRecord(offered) || !isRecord(offered.requester) || !isRecord(offered.addressing)) return false;
 	const { requester, addressing } = offered;
 	return (
@@ -65,7 +65,7 @@ function isRecord(offered: unknown): offered is Record<string, unknown> {
 	return typeof offered === 'object' && offered !== null;
 }
 
-function parsedOrNothing(written: string): unknown {
+function nothingWhenUnparsable(written: string): unknown {
 	try {
 		return JSON.parse(written);
 	} catch {
@@ -73,7 +73,7 @@ function parsedOrNothing(written: string): unknown {
 	}
 }
 
-async function missingAsNothing(failure: unknown): Promise<null> {
+async function nothingWhenMissing(failure: unknown): Promise<null> {
 	if (typeof failure === 'object' && failure !== null && 'code' in failure && failure.code === 'ENOENT') return null;
 	throw failure;
 }
