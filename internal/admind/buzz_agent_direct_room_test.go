@@ -94,12 +94,16 @@ func TestEveryAdmittedMemberGetsOneRoomWithTheAgentAndASecondPassOpensNothing(t 
 	service.Configuration.BuzzDatabaseURL = "postgres://the-disposable-relay"
 	service.buzzDatabaseOwner.database = relay
 	service.buzzDatabaseOwner.connectionURL = service.Configuration.BuzzDatabaseURL
+	pointAtACompanyDirectory(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isTheDirectoryAsked(request) {
+			return jsonResponse(http.StatusOK, `{"members":[
+				{"memberID":"member-1","email":"first@example.com","status":"active"},
+				{"memberID":"member-2","email":"second@example.com","status":"active"},
+				{"memberID":"member-3","email":"outsider@example.com","status":"active"}]}`, nil), nil
+		}
 		if isBlueclawPolicyGet(request) {
-			return jsonResponse(http.StatusOK, `{"people":[
-				{"personID":"p-1","emails":["first@example.com"]},
-				{"personID":"p-2","emails":["second@example.com"]},
-				{"personID":"p-3","emails":["outsider@example.com"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		}
 		if request.URL.String() != "http://chatd.test/v1/platform/buzz/dm.ensure" {
 			return nil, errors.New("nothing else answers in this test")
@@ -117,7 +121,10 @@ func TestEveryAdmittedMemberGetsOneRoomWithTheAgentAndASecondPassOpensNothing(t 
 		return jsonResponse(http.StatusOK, `{"channelID":"`+channelID+`"}`, nil), nil
 	})}
 
-	members := service.memberBuzzMembers(context.Background())
+	members, errorValue := service.memberBuzzMembers(context.Background())
+	if errorValue != nil {
+		t.Fatalf("read who the company holds: %v", errorValue)
+	}
 	service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
 	service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
 
@@ -157,9 +164,13 @@ func TestNoRoomIsAskedForWhileTheRelayCannotSayWhoItAdmits(t *testing.T) {
 	service.Configuration.ChatdEndpoint = "http://chatd.test"
 	service.Configuration.ChatdPlatform = "buzz"
 	service.Configuration.BuzzDatabaseURL = "postgres://buzz@127.0.0.1:1/buzz?sslmode=disable"
+	pointAtACompanyDirectory(t, service)
 	service.HTTPClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if isTheDirectoryAsked(request) {
+			return jsonResponse(http.StatusOK, `{"members":[{"memberID":"member-1","email":"first@example.com","status":"active"}]}`, nil), nil
+		}
 		if isBlueclawPolicyGet(request) {
-			return jsonResponse(http.StatusOK, `{"people":[{"personID":"p-1","emails":["first@example.com"]}]}`, nil), nil
+			return jsonResponse(http.StatusOK, `{"people":[]}`, nil), nil
 		}
 		if strings.HasPrefix(request.URL.String(), "http://chatd.test/") {
 			t.Fatalf("a room was asked for although the relay could not say who it admits: %s", request.URL.String())
@@ -167,5 +178,9 @@ func TestNoRoomIsAskedForWhileTheRelayCannotSayWhoItAdmits(t *testing.T) {
 		return nil, errors.New("nothing else answers in this test")
 	})}
 
-	service.openTheAgentDirectRoomForEveryMember(context.Background(), service.memberBuzzMembers(context.Background()))
+	members, errorValue := service.memberBuzzMembers(context.Background())
+	if errorValue != nil {
+		t.Fatalf("read who the company holds: %v", errorValue)
+	}
+	service.openTheAgentDirectRoomForEveryMember(context.Background(), members)
 }

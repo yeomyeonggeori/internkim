@@ -43,10 +43,8 @@ func (service *Service) accountedBuzzPubkeys(ctx context.Context, seed string) (
 }
 
 // Who works here, asked of the directory itself rather than of anything that
-// remembers what it once said. The caches admind seats people from are there so
-// a room still fills during an outage; a cache that has not caught up with
-// somebody leaving is exactly what leaves their seat behind, so no cache
-// answers this.
+// remembers what it once said. Filling a room and sweeping it both read this, so
+// a key one of them seats is a key the other keeps.
 func (service *Service) addressesTheDirectoryHolds(ctx context.Context) ([]string, error) {
 	records, errorValue := service.currentUserRecords(ctx)
 	if errorValue != nil {
