@@ -50,7 +50,7 @@ export function attendancePreviewAnswer(name: string, input: Record<string, unkn
  if(name==='attendance_leave_policy_get') return defaultLeavePolicy();
  if(name==='attendance_work_policy_get') return {timeZone,workMode:'flexible',policy:{version:1,revisions:[{...defaultWorkPolicy(),effectiveDate:'1970-01-01'}]},people:previewMembers.map(m=>({personID:m.memberID,workHours:null,minimumDailyMinutes:480}))};
  if(name==='company_holiday_list') return {count:0,year:null,holidays:[]};
- if(name==='attendance_team_page_get') {
+ if((name==='attendance_team_page_get'||name==='attendance_team_dashboard_get')) {
   const filtered=previewMembers.filter(m=>m.teamKey===input.selectedTeamKey && (!input.searchText || (m.name+' '+m.email).toLowerCase().includes(String(input.searchText).toLowerCase())) && (!input.locationFilter || m.location===input.locationFilter)).sort(compareMembers);
   const teamOffset=Number(input.teamOffset||0),teamLimit=Number(input.teamLimit||6),memberOffset=Number(input.memberOffset||0),memberLimit=Number(input.memberLimit||24);
   return {companyID,companyName,companySummary:totals(previewMembers),timeZone,serverTime,authorization:{isAdmin,teamViewVisibleToAll:true},teamOffset,teamLimit,teamTotal:teams.length,teams:teams.slice(teamOffset,teamOffset+teamLimit),selectedTeamKey:input.selectedTeamKey||null,memberOffset,memberLimit,memberTotal:filtered.length,members:filtered.slice(memberOffset,memberOffset+memberLimit)};
@@ -69,7 +69,7 @@ export function attendancePreviewAnswer(name: string, input: Record<string, unkn
  if(name==='company_settings_get') return settings;
  if(name==='person_list' && input.limit) {const people=previewMembers.filter(m=>!input.searchText||(m.name+' '+m.email).toLowerCase().includes(String(input.searchText).toLowerCase())).slice(0,Number(input.limit)).map(m=>({personID:m.memberID,name:m.name,email:m.email}));return {requesterID:own.memberID,count:people.length,people};}
  if(name==='person_list') return {requesterID:own.memberID,count:previewMembers.length,people:previewMembers.map(m=>({personID:m.memberID,name:m.name,email:m.email,isAdmin:isAdmin && m.memberID===own.memberID}))};
- if(name==='attendance_list') {
+ if((name==='attendance_list'||name==='attendance_changes_page_get')) {
   const requested=Array.isArray(input.personHints)?previewMembers.filter(m=>(input.personHints as string[]).includes(m.memberID)):input.scope==='all'?previewMembers:[own];
   if (input.handWrittenOnly) {
    const changes = previewState==='empty'?[]:Array.from({length:62}, (_,index)=>{

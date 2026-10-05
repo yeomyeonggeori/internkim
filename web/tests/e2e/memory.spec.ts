@@ -147,7 +147,7 @@ test.describe('memory facts', () => {
 
 	test('shows an empty schedules state', async ({ page }) => {
 		await page.route('**/memory/api/schedules**', async (route) => {
-			await route.fulfill({ json: { schedules: [], count: 0 } });
+			await route.fulfill({ json: { schedules: [], count: 0, totalCount: 0 } });
 		});
 		await page.goto('/memory/');
 

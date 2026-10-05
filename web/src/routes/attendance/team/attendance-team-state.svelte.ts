@@ -145,7 +145,7 @@ export class AttendanceTeamState {
 	}
 
 	private async read(input: AttendanceTeamPageInput): Promise<AttendanceTeamPage> {
-		return attendanceTeamPageSchema.parse(await invokeTool('attendance_team_page_get', input));
+		return attendanceTeamPageSchema.parse(await invokeTool('attendance_team_dashboard_get', input));
 	}
 }
 

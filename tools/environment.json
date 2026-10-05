@@ -508,6 +508,10 @@
     "process": "web",
     "description": "the fake signed-in user's role for the local Vite dev server's mock-data screens"
   },
+  "VITE_ATTENDANCE_PREVIEW": {
+    "process": "web development preview",
+    "description": "when 1 in DEV on a loopback browser, uses disposable synthetic attendance records; production builds ignore it"
+  },
   "VITE_MOCK_ADMIN": {
     "process": "web",
     "description": "when \"1\", enables the local dev server's mocked admin/CRM screen instead of the Supabase-backed one"
