@@ -22,7 +22,7 @@ PERMITTED_MANIFEST_FIELDS = {
     "$schema", "name", "version", "description", "author", "homepage", "repository", "license", "keywords", "extensions",
 }
 MCP_TRANSPORTS = {"stdio": "command", "streamable-http": "url", "sse": "url"}
-PORTABLE_ROOT_ENTRIES = {"plugin.json", "mcp.json", "skills", "tests", "README.md", "LICENSE", ".gitignore", ".git"}
+PORTABLE_ROOT_ENTRIES = {"plugin.json", "mcp.json", "skills", "tests", "README.md", "LICENSE", "NOTICE", ".gitignore", ".git"}
 MARKETPLACE_CATALOGS = {".claude-plugin": {"marketplace.json"}, ".agents": {"plugins/marketplace.json"}}
 REVERSE_DOMAIN_DIRECTORY = re.compile(r"^[a-z0-9-]+(\.[a-z0-9-]+)+$")
 
