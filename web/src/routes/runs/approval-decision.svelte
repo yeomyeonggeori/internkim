@@ -3,7 +3,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import CheckCheckIcon from '@lucide/svelte/icons/check-check';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { decideApproval, type ApprovalDecision, type ApprovalOutcome, type PendingApproval } from './runs-api';
 	import type { TasksText } from './text';
@@ -22,7 +21,6 @@
 
 	const decisionButtons: { decision: ApprovalDecision; label: string; icon: typeof CheckIcon; variant: 'default' | 'outline' | 'destructive' }[] = $derived([
 		{ decision: 'confirm', label: text.approveOnce, icon: CheckIcon, variant: 'default' },
-		{ decision: 'confirm_task', label: text.approveWholeTask, icon: CheckCheckIcon, variant: 'outline' },
 		{ decision: 'cancel', label: text.rejectApproval, icon: XIcon, variant: 'destructive' }
 	]);
 

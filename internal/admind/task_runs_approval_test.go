@@ -78,7 +78,7 @@ func TestApprovalAsksBlueclawWhetherTheViewerMaySeeTheRunFirst(t *testing.T) {
 	service := NewService(Configuration{BlueclawBaseURL: blueclaw.URL})
 
 	recorder := httptest.NewRecorder()
-	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"confirm_task"}`), "member@example.com", false)
+	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"confirm"}`), "member@example.com", false)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("a run the viewer may see answered %d, want 200", recorder.Code)
@@ -96,7 +96,7 @@ func TestApprovalAsksBlueclawWhetherTheViewerMaySeeTheRunFirst(t *testing.T) {
 	if errorValue := json.Unmarshal([]byte(recorded.approveBodies[0]), &forwarded); errorValue != nil {
 		t.Fatalf("the forwarded decision was unreadable: %v", errorValue)
 	}
-	if forwarded.TaskRunID != "run-1" || forwarded.Decision != "confirm_task" {
+	if forwarded.TaskRunID != "run-1" || forwarded.Decision != "confirm" {
 		t.Fatalf("the forwarded decision was %+v", forwarded)
 	}
 }
