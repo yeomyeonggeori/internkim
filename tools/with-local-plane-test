@@ -219,8 +219,11 @@ cat > "$fakeState/stacks.json" <<STACKS
 ]}
 STACKS
 "$withLocalPlane" true 2> /dev/null
-if ! called "supabase stack destroy --stack-id other-checkout --yes --output-format text"; then
+if ! called "supabase stack stop --stack-id other-checkout --output-format text"; then
   fail "the lock left another checkout's stack holding the plane's ports"
+fi
+if called "supabase stack destroy --stack-id other-checkout --yes --output-format text"; then
+  fail "the lock destroyed the data of a stack that belongs to a checkout that still exists"
 fi
 if ! called "supabase stack destroy --stack-id removed-checkout --yes --output-format text"; then
   fail "the lock left a removed checkout's stack holding the plane's ports"
