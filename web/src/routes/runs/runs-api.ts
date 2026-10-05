@@ -120,7 +120,7 @@ export function readRetryTaskRunResponse(document: unknown): RetryTaskRunRespons
 export const waitingApprovalStatus = 'waiting_approval';
 export const confirmationRequestedEventName = 'confirmation.requested';
 export const askRequestedEventName = 'ask.requested';
-export const approvalDecisions = ['confirm', 'confirm_task', 'cancel'] as const;
+export const approvalDecisions = ['confirm', 'cancel'] as const;
 
 export type ApprovalDecision = (typeof approvalDecisions)[number];
 

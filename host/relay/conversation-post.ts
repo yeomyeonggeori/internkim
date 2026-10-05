@@ -1,4 +1,4 @@
-import type { Addressing, PostFileToConversation, PostToConversation } from './acp-session';
+import type { Addressing, EditInConversation, PostFileToConversation, PostToConversation } from './acp-session';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
 
 export type ChatdAnswer = { status: number; body: unknown };
@@ -32,6 +32,18 @@ export function conversationPoster(settings: ConversationPostSettings): PostToCo
 	};
 }
 
+export function conversationEditor(settings: Pick<ConversationPostSettings, 'askChatd'>): EditInConversation {
+	return async (addressing, messageID, message) => {
+		const threadID = replyThreadOf(addressing);
+		const edited = await settings.askChatd('message.edit', { replyTargetID: threadID, messageID, message });
+		if (edited.status >= 300) {
+			throw new Error(
+				`chatd refused the edit of ${messageID} in ${threadID} with ${edited.status}: ${JSON.stringify(edited.body)}`
+			);
+		}
+	};
+}
+
 export function agentFilePoster(settings: AgentFilePostSettings): PostFileToConversation {
 	return async (addressing, requesterEmail, file) => {
 		const kept = await settings.keepForTheMessenger(requesterEmail, file);
@@ -39,13 +51,7 @@ export function agentFilePoster(settings: AgentFilePostSettings): PostFileToConv
 	};
 }
 
-export function isAReplyInTheThreadOf(message: Addressing, thread: Addressing): boolean {
-	if (!message.isThread) return false;
-	if (message.conversationID !== thread.conversationID) return false;
-	return replyThreadOf(message) === replyThreadOf(thread);
-}
-
-function replyThreadOf(addressing: Addressing): string {
+export function replyThreadOf(addressing: Addressing): string {
 	return addressing.replyTargetID ?? addressing.conversationID;
 }
 
