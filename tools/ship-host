@@ -171,6 +171,17 @@ def failure_excerpt(output):
     return "\n".join(output.strip().splitlines()[-FAILURE_OUTPUT_LINES:])
 
 
+def compact_argument(argument):
+    lines = argument.splitlines()
+    if len(lines) <= 1:
+        return argument
+    return f"<{len(lines)} lines starting {lines[0]!r}>"
+
+
+def compact_command(arguments):
+    return " ".join(compact_argument(argument) for argument in arguments)
+
+
 def write_log(log_path, output):
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(output)
@@ -183,7 +194,7 @@ def run_command(arguments, log_path=None):
         write_log(log_path, output)
     if completed.returncode != 0:
         where = f"\nfull output: {log_path}" if log_path is not None else ""
-        raise CommandFailure(f"{' '.join(arguments)} exited {completed.returncode}{where}\n{failure_excerpt(output)}")
+        raise CommandFailure(f"{compact_command(arguments)} exited {completed.returncode}{where}\n{failure_excerpt(output)}")
     return completed.stdout
 
 

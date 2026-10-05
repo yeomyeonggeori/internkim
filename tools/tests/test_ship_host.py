@@ -360,6 +360,19 @@ class RigFailureTest(unittest.TestCase):
         self.assertIn("        | missing", message)
 
 
+class CommandFailureReportTest(unittest.TestCase):
+    def test_a_multiline_argument_is_summarised_and_the_commands_own_error_follows(self):
+        notes = "Install or upgrade the company host:\ncurl -fsSL https://intern.kim/install.sh | sh"
+        script = "echo 'HTTP 408: request timeout' >&2; exit 1"
+        with self.assertRaises(ship_host.CommandFailure) as raised:
+            ship_host.run_command(["sh", "-c", script, "gh-release-create", "--notes", notes])
+        message = str(raised.exception)
+        self.assertEqual(len(message.splitlines()), 2)
+        self.assertIn("--notes <2 lines starting 'Install or upgrade the company host:'>", message)
+        self.assertNotIn("curl -fsSL", message)
+        self.assertTrue(message.endswith("HTTP 408: request timeout"))
+
+
 class ReportParsingTest(unittest.TestCase):
     def test_inactive_units_are_named(self):
         self.assertEqual(ship_host.inactive_units(HEALTHY_UNITS), [])
