@@ -122,23 +122,43 @@ func (service *Service) pubkeysTheRelayMayNotHold(ctx context.Context, pubkeys [
 }
 
 func (service *Service) grantRelayMembership(ctx context.Context, pubkey string) {
-	command := strings.TrimSpace(service.Configuration.BuzzAdminCommandPath)
-	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
-	if command == "" || databaseURL == "" {
+	execution := service.buzzAdminCommand(ctx, "add-member", "--pubkey", pubkey)
+	if execution == nil {
 		return
-	}
-	execution := exec.CommandContext(ctx, command, "add-member", "--pubkey", pubkey)
-	execution.Env = append(os.Environ(), "DATABASE_URL="+databaseURL, "RELAY_URL="+service.buzzRelayEffectiveURL())
-	if content, errorValue := os.ReadFile(strings.TrimSpace(service.Configuration.BuzzRelayKeyPath)); errorValue == nil {
-		for _, line := range strings.Split(string(content), "\n") {
-			if strings.HasPrefix(strings.TrimSpace(line), "BUZZ_RELAY_PRIVATE_KEY=") {
-				execution.Env = append(execution.Env, strings.TrimSpace(line))
-			}
-		}
 	}
 	if output, errorValue := execution.CombinedOutput(); errorValue != nil && !strings.Contains(string(output), "already") {
 		log.Printf("buzz relay membership grant for %s failed: %v (%s)", pubkey, errorValue, strings.TrimSpace(string(output)))
 	}
+}
+
+// buzz-admin as this host runs it: the binary, the relay's database and its
+// public address from the admind configuration, and the relay's signing key when
+// the host holds one. Nil when the host names no binary or database.
+func (service *Service) buzzAdminCommand(ctx context.Context, arguments ...string) *exec.Cmd {
+	command := strings.TrimSpace(service.Configuration.BuzzAdminCommandPath)
+	databaseURL := strings.TrimSpace(service.Configuration.BuzzDatabaseURL)
+	if command == "" || databaseURL == "" {
+		return nil
+	}
+	execution := exec.CommandContext(ctx, command, arguments...)
+	execution.Env = append(os.Environ(), "DATABASE_URL="+databaseURL, "RELAY_URL="+service.buzzRelayEffectiveURL())
+	if relayKey := service.buzzRelayKeySetting(); relayKey != "" {
+		execution.Env = append(execution.Env, relayKey)
+	}
+	return execution
+}
+
+func (service *Service) buzzRelayKeySetting() string {
+	content, errorValue := os.ReadFile(strings.TrimSpace(service.Configuration.BuzzRelayKeyPath))
+	if errorValue != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		if setting := strings.TrimSpace(line); strings.HasPrefix(setting, "BUZZ_RELAY_PRIVATE_KEY=") && setting != "BUZZ_RELAY_PRIVATE_KEY=" {
+			return setting
+		}
+	}
+	return ""
 }
 
 const (
