@@ -2,6 +2,14 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+	toolCallProgressOf,
+	toolCallStartKind,
+	toolCallStatuses,
+	toolCallUpdateKind,
+	type StartedToolCall,
+	type UpdatedToolCall
+} from './tool-progress';
+import {
 	approvalReplyExtensionMethod,
 	approvalReplyRequest,
 	deliveredExtensionMethod,
@@ -24,10 +32,53 @@ type ClientContract = {
 	metaKeys: Record<string, string>;
 	extensionMethods: Record<string, string>;
 	fields: Record<string, string[]>;
+	toolCalls: {
+		startKind: string;
+		startFields: string[];
+		updateKind: string;
+		updateFields: string[];
+		statuses: string[];
+	};
 };
 
 function blueclawContract(): ClientContract {
 	return JSON.parse(readFileSync(contractPath, 'utf8'));
+}
+
+function valueOfDeliveryField(name: string): string | boolean {
+	return name === 'alreadyPosted' || name === 'final' ? true : `a ${name}`;
+}
+
+function fieldsReadFromAnApprovalReplyAnswer(): string[] {
+	const read = new Set<string>();
+	const answer = new Proxy<Record<string, unknown>>(
+		{ isAnswer: true, optionId: 'approve_once' },
+		{
+			get: (target, name) => {
+				read.add(String(name));
+				return Reflect.get(target, name);
+			}
+		}
+	);
+	optionChosenIn(answer);
+	return [...read];
+}
+
+function fieldsReadFrom<Call extends StartedToolCall | UpdatedToolCall>(call: Call): string[] {
+	const read = new Set<string>();
+	toolCallProgressOf(
+		new Proxy(call, {
+			get: (target, name) => {
+				read.add(String(name));
+				return Reflect.get(target, name);
+			}
+		})
+	);
+	return [...read].sort();
+}
+
+function sortedFields(fields: Record<string, string[]>): Record<string, string[]> {
+	return Object.fromEntries(Object.entries(fields).map(([shape, names]) => [shape, [...names].sort()]));
 }
 
 describe('the relay speaks the ACP extension blueclaw declares', () => {
@@ -53,17 +104,39 @@ describe('the relay speaks the ACP extension blueclaw declares', () => {
 
 	test('with the same field names in each shape', () => {
 		const everyDeliveryField = deliveryOf({
-			[deliveryMetaKey]: Object.fromEntries(contract.fields.delivery.map((name) => [name, `a ${name}`]))
+			[deliveryMetaKey]: Object.fromEntries(contract.fields.delivery.map((name) => [name, valueOfDeliveryField(name)]))
 		});
 		const relayFields: Record<string, string[]> = {
 			delivery: Object.keys(everyDeliveryField),
 			delivered: Object.keys(deliveredReport('delivery', 'message')),
 			undelivered: Object.keys(undeliveredReport('delivery', 'reason')),
-			approvalReply: Object.keys(approvalReplyRequest('session', 'tool call', 'reply')),
-			approvalReplyAnswer: contract.fields.approvalReplyAnswer.filter(
-				(name) => optionChosenIn({ [name]: 'approve_once' }) === 'approve_once'
-			)
+			approvalReply: Object.keys(
+				approvalReplyRequest('session', 'tool call', 'reply', 'message', { platform: 'buzz', conversationID: 'conversation' })
+			),
+			approvalReplyAnswer: fieldsReadFromAnApprovalReplyAnswer()
 		};
-		expect(relayFields).toEqual(contract.fields);
+		expect(sortedFields(relayFields)).toEqual(sortedFields(contract.fields));
+	});
+
+	test('with the same tool call shapes', () => {
+		const startedCall: StartedToolCall = {
+			sessionUpdate: toolCallStartKind,
+			toolCallId: 'call',
+			title: 'a title',
+			status: 'pending'
+		};
+		const updatedCall: UpdatedToolCall = { sessionUpdate: toolCallUpdateKind, toolCallId: 'call', status: 'completed' };
+		const relayToolCalls: ClientContract['toolCalls'] = {
+			startKind: toolCallStartKind,
+			startFields: fieldsReadFrom(startedCall),
+			updateKind: toolCallUpdateKind,
+			updateFields: fieldsReadFrom(updatedCall),
+			statuses: [...toolCallStatuses]
+		};
+		expect(relayToolCalls).toEqual({
+			...contract.toolCalls,
+			startFields: [...contract.toolCalls.startFields].sort(),
+			updateFields: [...contract.toolCalls.updateFields].sort()
+		});
 	});
 });

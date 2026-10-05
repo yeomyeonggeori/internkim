@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { conversationPoster, type ChatdAnswer } from './conversation-post';
+import { conversationEditor, conversationPoster, type ChatdAnswer } from './conversation-post';
 import { readInboundMessage } from './inbound-message';
 import type { Addressing } from './acp-session';
 
@@ -83,5 +83,34 @@ describe('conversationPoster', () => {
 		expect(String(failure)).toContain(answeredThreadID);
 		expect(String(failure)).toContain('502');
 		expect(String(failure)).toContain(refusal.error);
+	});
+});
+
+describe('conversationEditor', () => {
+	test('edits the message in the thread chatd named', async () => {
+		const asked: { capability: string; body: Record<string, unknown> }[] = [];
+		const edit = conversationEditor({
+			askChatd: async (capability, body) => {
+				asked.push({ capability, body });
+				return { status: 200, body: {} };
+			}
+		});
+
+		await edit(addressingOf({ conversationID: directConversationID, replyTargetID: answeredThreadID }), 'progress-1', 'done');
+
+		expect(asked).toEqual([
+			{ capability: 'message.edit', body: { replyTargetID: answeredThreadID, messageID: 'progress-1', message: 'done' } }
+		]);
+	});
+
+	test('a refused edit fails, saying which message and how chatd answered', async () => {
+		const edit = conversationEditor({ askChatd: async () => ({ status: 403, body: { error: 'not yours' } }) });
+
+		const failure = await edit(addressingOf({ conversationID: directConversationID }), 'progress-1', 'done').catch(
+			(caught: unknown) => caught
+		);
+
+		expect(String(failure)).toContain('progress-1');
+		expect(String(failure)).toContain('403');
 	});
 });

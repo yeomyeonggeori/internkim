@@ -13,7 +13,8 @@ import {
 } from '@agentclientprotocol/sdk';
 import { fileURLToPath } from 'node:url';
 import type { KeptAttachment, WorkspaceFile } from './file-transfer';
-import type { HeldQuestion, HeldQuestionStore } from './held-question-store';
+import type { HeldSessionStore } from './held-session-store';
+import { ToolProgress, toolCallProgressOf, toolCallStartKind, toolCallUpdateKind } from './tool-progress';
 
 export const defaultBlueclawACPSocketPath = '/run/internkim/acp/blueclaw-acp.sock';
 export const sessionMetaKey = 'kim.intern/session';
@@ -50,14 +51,10 @@ export const undeliveredExtensionMethod = '_kim.intern/undelivered';
 export type Delivery = {
 	deliveryID?: string;
 	replyTargetID?: string;
+	alreadyPosted?: boolean;
+	final?: boolean;
 };
 
-export type PutQuestion = {
-	messageID: string;
-	answered: Promise<string>;
-};
-
-/** The agent never answered: it was not listening, or it went away before it replied. */
 export class AgentUnreachable extends Error {
 	constructor(cause: unknown) {
 		super(`the agent could not be reached: ${String(cause)}`, { cause });
@@ -77,15 +74,11 @@ async function fromTheAgent<T>(request: Promise<T>): Promise<T> {
 const firstReconnectDelayMilliseconds = 250;
 const longestReconnectDelayMilliseconds = 5_000;
 
-/** Posts the message and answers with the ID it was posted under; throws when it was not posted. */
 export type PostToConversation = (addressing: Addressing, message: string, attachments?: KeptAttachment[]) => Promise<string>;
 
 export type PostFileToConversation = (addressing: Addressing, requesterEmail: string, file: WorkspaceFile) => Promise<string>;
 
-export type AskedPermission = {
-	toolCallID: string;
-	question: string;
-};
+export type EditInConversation = (addressing: Addressing, messageID: string, message: string) => Promise<void>;
 
 export type ACPSessionSettings = {
 	socketPath: string;
@@ -93,20 +86,24 @@ export type ACPSessionSettings = {
 	catalogFor: (requesterEmail: string, conversationID: string) => McpServerEntry[];
 	postToConversation: PostToConversation;
 	postFileToConversation: PostFileToConversation;
-	questions: HeldQuestionStore;
-	/** Posts the question to the requester; `answered` settles with the words they write back. */
-	askThePerson: (asked: AskedPermission, addressing: Addressing) => Promise<PutQuestion>;
-	/** Waits for the answer to a question already asked before a restart, without asking again. */
-	awaitAnAlreadyAskedQuestion: (addressing: Addressing) => Promise<string>;
+	editInConversation: EditInConversation;
+	sessions: HeldSessionStore;
+	permissionWasOpened: (conversationID: string) => void;
 	report?: (line: string) => void;
 };
 
 type PostOutcome = { messageID: string } | { reason: string };
 
-type HeldSession = {
+export type HeldSession = {
 	sessionID: string;
 	requester: Requester;
 	addressing: Addressing;
+};
+
+type OpenPermission = {
+	toolCallID: string;
+	parkedMessageIDs: Set<string>;
+	select: (optionID: string) => void;
 };
 
 export class BlueclawACPClient {
@@ -116,16 +113,17 @@ export class BlueclawACPClient {
 	private closeSocket: (() => void) | null = null;
 	private isClosed = false;
 	private readonly heldByConversation = new Map<string, HeldSession>();
-	private readonly heldBySession = new Map<string, HeldSession>();
-	/**
-	 * The words the person answered with, not the agent's reading of them: a
-	 * restarted agent asks again and has to be told the same thing, and only the
-	 * agent decides what it meant.
-	 */
-	private readonly answeredPermissions = new Map<string, Promise<string>>();
+	private readonly openPermissions = new Map<string, OpenPermission>();
+	private readonly sessionOfPromptInFlight = new Map<string, string>();
+	private readonly toolProgress: ToolProgress;
 
 	constructor(settings: ACPSessionSettings) {
 		this.settings = settings;
+		this.toolProgress = new ToolProgress({
+			postToConversation: settings.postToConversation,
+			editInConversation: settings.editInConversation,
+			report: settings.report
+		});
 	}
 
 	async connect(): Promise<void> {
@@ -139,40 +137,14 @@ export class BlueclawACPClient {
 		this.connection = null;
 		this.connecting = null;
 		this.heldByConversation.clear();
-		this.heldBySession.clear();
+		this.openPermissions.clear();
 	}
 
-	/**
-	 * Reads every question this relay had not delivered before it last stopped,
-	 * and puts each conversation back into a state where a re-issued
-	 * `RequestPermission` is answered from the store rather than asked again.
-	 */
-	async restoreOutstandingQuestions(): Promise<void> {
-		const stored = await this.settings.questions.all();
-		if (stored.length === 0) return;
-		for (const held of stored) {
-			const heldSession: HeldSession = {
-				sessionID: held.sessionID,
-				requester: held.requester,
-				addressing: held.addressing
-			};
-			this.heldByConversation.set(held.addressing.conversationID, heldSession);
-			this.heldBySession.set(held.sessionID, heldSession);
-			this.answeredPermissions.set(held.toolCallID, this.answerFromStoreOrPerson(held));
+	async restoreHeldSessions(): Promise<void> {
+		for (const held of await this.settings.sessions.all()) {
+			this.heldByConversation.set(held.addressing.conversationID, held);
 		}
-		// The reconnect makes blueclaw call session/load for the sessions just
-		// restored, which is what makes it re-issue the calls it stopped on. It is
-		// not awaited: the relay answers /inbound for every other conversation
-		// whether or not blueclaw is up yet.
 		void this.agent().catch(() => this.reconnectUntilItComesBack());
-	}
-
-	private answerFromStoreOrPerson(held: HeldQuestion): Promise<string> {
-		if (held.answer !== undefined) return Promise.resolve(held.answer);
-		return this.settings.awaitAnAlreadyAskedQuestion(held.addressing).then(async (words) => {
-			await this.settings.questions.answer(held.toolCallID, words);
-			return words;
-		});
 	}
 
 	async ask(
@@ -183,14 +155,20 @@ export class BlueclawACPClient {
 	): Promise<StopReason> {
 		const agent = await fromTheAgent(this.agent());
 		const sessionID = await fromTheAgent(this.sessionFor(agent, requester, addressing));
-		const answer = await fromTheAgent(
-			agent.prompt({
-				sessionId: sessionID,
-				prompt: [{ type: 'text', text: message }],
-				...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
-			})
-		);
-		return answer.stopReason;
+		const messageID = facts?.messageID;
+		if (messageID !== undefined) this.sessionOfPromptInFlight.set(messageID, sessionID);
+		try {
+			const answer = await fromTheAgent(
+				agent.prompt({
+					sessionId: sessionID,
+					prompt: [{ type: 'text', text: message }],
+					...(facts ? { _meta: { [messageMetaKey]: messageMetaFrom(facts) } } : {})
+				})
+			);
+			return answer.stopReason;
+		} finally {
+			if (messageID !== undefined) this.sessionOfPromptInFlight.delete(messageID);
+		}
 	}
 
 	private async agent(): Promise<ClientSideConnection> {
@@ -227,10 +205,6 @@ export class BlueclawACPClient {
 		void this.reconnectUntilItComesBack();
 	}
 
-	/**
-	 * A restarting daemon is not listening yet, and its socket file is removed
-	 * and remade, so the first attempt lands on nothing.
-	 */
 	private async reconnectUntilItComesBack(): Promise<void> {
 		for (
 			let delay = firstReconnectDelayMilliseconds;
@@ -248,10 +222,6 @@ export class BlueclawACPClient {
 		}
 	}
 
-	/**
-	 * A daemon that restarted knows none of these; loading them is what makes it
-	 * ask again about the calls it stopped on.
-	 */
 	private async loadHeldSessions(connection: ClientSideConnection): Promise<void> {
 		for (const held of [...this.heldByConversation.values()]) {
 			await connection
@@ -285,7 +255,7 @@ export class BlueclawACPClient {
 		});
 		const heldSession: HeldSession = { sessionID: opened.sessionId, requester, addressing };
 		this.heldByConversation.set(addressing.conversationID, heldSession);
-		this.heldBySession.set(opened.sessionId, heldSession);
+		await this.settings.sessions.keep(heldSession);
 		return opened.sessionId;
 	}
 
@@ -302,27 +272,48 @@ export class BlueclawACPClient {
 			this.settings.report?.(`progress: ${update.content.text}`);
 			return;
 		}
+		if (update.sessionUpdate === toolCallStartKind || update.sessionUpdate === toolCallUpdateKind) {
+			void this.showToolProgress(notification.sessionId, update, deliveryOf(notification._meta));
+			return;
+		}
 		if (update.sessionUpdate !== 'agent_message_chunk') return;
 		void this.deliverChunk(notification.sessionId, update.content, deliveryOf(notification._meta));
 	}
 
+	private async showToolProgress(
+		sessionID: string,
+		call: Parameters<typeof toolCallProgressOf>[0],
+		delivery: Delivery
+	): Promise<void> {
+		const held = this.heldSessionOf(sessionID);
+		if (!held || !delivery.deliveryID) {
+			this.settings.report?.(`progress for ${call.toolCallId} has no conversation or delivery to show in, so it was not shown`);
+			return;
+		}
+		await this.toolProgress.show(delivery.deliveryID, addressedBy(held, delivery), toolCallProgressOf(call));
+	}
+
 	private async deliverChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<void> {
-		const outcome = await this.postChunk(sessionID, content, delivery);
+		const held = this.heldSessionOf(sessionID);
+		const outcome = held
+			? await attemptPost(() => this.post(content, held.requester, addressedBy(held, delivery), delivery))
+			: { reason: `this relay holds no session ${sessionID}, so it has no conversation to post in` };
 		await this.tellTheAgent(delivery, outcome);
 	}
 
-	private async postChunk(sessionID: string, content: ContentBlock, delivery: Delivery): Promise<PostOutcome> {
-		const held = this.heldSessionOf(sessionID);
-		if (!held) return { reason: `this relay holds no session ${sessionID}, so it has no conversation to post in` };
-		try {
-			return { messageID: await this.post(content, held.requester, addressedBy(held, delivery)) };
-		} catch (failure) {
-			return { reason: String(failure) };
+	private async post(
+		content: ContentBlock,
+		requester: Requester,
+		addressing: Addressing,
+		delivery: Delivery
+	): Promise<string> {
+		if (content.type === 'text') {
+			const progressMessageID =
+				delivery.final && delivery.deliveryID
+					? await this.toolProgress.replaceWith(delivery.deliveryID, addressing, content.text)
+					: undefined;
+			return progressMessageID ?? this.settings.postToConversation(addressing, content.text);
 		}
-	}
-
-	private post(content: ContentBlock, requester: Requester, addressing: Addressing): Promise<string> {
-		if (content.type === 'text') return this.settings.postToConversation(addressing, content.text);
 		if (content.type === 'resource_link') {
 			return this.settings.postFileToConversation(addressing, requester.email, workspaceFileOf(content));
 		}
@@ -344,107 +335,97 @@ export class BlueclawACPClient {
 		}
 	}
 
+	hasOpenPermissionIn(conversationID: string): boolean {
+		const held = this.heldByConversation.get(conversationID);
+		return held !== undefined && this.openPermissions.has(held.sessionID);
+	}
+
+	isParkedOnPermission(conversationID: string, messageID: string): boolean {
+		const held = this.heldByConversation.get(conversationID);
+		return held !== undefined && this.openPermissions.get(held.sessionID)?.parkedMessageIDs.has(messageID) === true;
+	}
+
+	async answerOpenPermission(addressing: Addressing, messageID: string, reply: string): Promise<boolean> {
+		const held = this.heldByConversation.get(addressing.conversationID);
+		const open = held && this.openPermissions.get(held.sessionID);
+		if (!held || !open) return false;
+		const optionID = await this.readApprovalReply(
+			approvalReplyRequest(held.sessionID, open.toolCallID, reply, messageID, addressing)
+		);
+		if (optionID === undefined) return false;
+		this.openPermissions.delete(held.sessionID);
+		open.select(optionID);
+		return true;
+	}
+
+	private async readApprovalReply(request: Record<string, unknown>): Promise<string | undefined> {
+		try {
+			const agent = await this.agent();
+			return optionChosenIn(await agent.request<Record<string, unknown>>(approvalReplyExtensionMethod, request));
+		} catch (failure) {
+			this.settings.report?.(`blueclaw could not say whether a message answers the open permission: ${String(failure)}`);
+			return undefined;
+		}
+	}
+
 	private async answerPermission(
 		request: RequestPermissionRequest,
 		connectionThatAsked: ClientSideConnection
 	): Promise<RequestPermissionResponse> {
 		const delivery = deliveryOf(request._meta);
 		const held = this.heldSessionOf(request.sessionId);
-		if (!held) {
-			await this.tellTheAgent(delivery, {
-				reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in`
-			});
-			return { outcome: { outcome: 'cancelled' } };
-		}
-
-		const toolCallID = request.toolCall.toolCallId;
-		const question = request.toolCall.title ?? '';
-		const alreadyAsked = this.answeredPermissions.get(toolCallID);
-		if (alreadyAsked) {
-			await this.tellTheAgent(delivery, { reason: `${toolCallID} was already put to the person and was not posted again` });
-		}
-		const asking = alreadyAsked ?? this.askAndPersist(toolCallID, question, held, addressedBy(held, delivery), delivery);
-		this.answeredPermissions.set(toolCallID, asking);
-		try {
-			const words = await asking;
-			if (connectionThatAsked.signal.aborted) return { outcome: { outcome: 'cancelled' } };
-			const optionID = await this.readApprovalReply(connectionThatAsked, request.sessionId, toolCallID, words);
-			this.answeredPermissions.delete(toolCallID);
-			await this.settings.questions.forget(toolCallID);
-			return { outcome: { outcome: 'selected', optionId: optionID } };
-		} catch (failure) {
-			if (this.answeredPermissions.get(toolCallID) === asking) this.answeredPermissions.delete(toolCallID);
-			this.settings.report?.(`nobody answered ${toolCallID}: ${String(failure)}`);
-			return { outcome: { outcome: 'cancelled' } };
-		}
+		const outcome: PostOutcome | undefined = !held
+			? { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` }
+			: delivery.alreadyPosted
+				? undefined
+				: await attemptPost(() => this.settings.postToConversation(addressedBy(held, delivery), request.toolCall.title ?? ''));
+		if (outcome) await this.tellTheAgent(delivery, outcome);
+		if (!held || (outcome && 'reason' in outcome)) return cancelled;
+		return this.waitForAnAnswer(request, held, delivery, connectionThatAsked);
 	}
 
-	/**
-	 * The only path that puts a genuinely new question to the person: it records
-	 * the question before asking, and the answer as soon as it has one, so a
-	 * relay that stops between either step finds them on disk when it starts
-	 * again.
-	 */
-	private async askAndPersist(
-		toolCallID: string,
-		question: string,
+	private waitForAnAnswer(
+		request: RequestPermissionRequest,
 		held: HeldSession,
-		addressing: Addressing,
-		delivery: Delivery
-	): Promise<string> {
-		await this.settings.questions.keep({
-			toolCallID,
-			sessionID: held.sessionID,
-			requester: held.requester,
-			addressing,
-			question,
-			askedAt: new Date().toISOString()
-		});
-		const put = await this.putTheQuestion(toolCallID, question, addressing, delivery);
-		const words = await put.answered;
-		await this.settings.questions.answer(toolCallID, words);
-		return words;
+		delivery: Delivery,
+		connectionThatAsked: ClientSideConnection
+	): Promise<RequestPermissionResponse> {
+		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
+		const open: OpenPermission = {
+			toolCallID: request.toolCall.toolCallId,
+			parkedMessageIDs: new Set(delivery.alreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
+			select: (optionID) => resolve({ outcome: { outcome: 'selected', optionId: optionID } })
+		};
+		this.openPermissions.set(request.sessionId, open);
+		connectionThatAsked.signal.addEventListener(
+			'abort',
+			() => {
+				if (this.openPermissions.get(request.sessionId) === open) this.openPermissions.delete(request.sessionId);
+				this.settings.report?.(`permission ${open.toolCallID} was cancelled: blueclaw left the socket before it was answered`);
+				resolve(cancelled);
+			},
+			{ once: true }
+		);
+		this.settings.permissionWasOpened(held.addressing.conversationID);
+		return promise;
 	}
 
-	private async putTheQuestion(
-		toolCallID: string,
-		question: string,
-		addressing: Addressing,
-		delivery: Delivery
-	): Promise<PutQuestion> {
-		try {
-			const put = await this.settings.askThePerson({ toolCallID, question }, addressing);
-			await this.tellTheAgent(delivery, { messageID: put.messageID });
-			return put;
-		} catch (failure) {
-			await this.settings.questions.forget(toolCallID);
-			await this.tellTheAgent(delivery, { reason: String(failure) });
-			throw failure;
-		}
+	private messageIDsInFlightIn(sessionID: string): string[] {
+		return [...this.sessionOfPromptInFlight].filter(([, inSession]) => inSession === sessionID).map(([messageID]) => messageID);
 	}
 
 	private heldSessionOf(sessionID: string): HeldSession | undefined {
-		const known = this.heldBySession.get(sessionID);
-		if (known) return known;
-		for (const held of this.heldByConversation.values()) {
-			if (held.sessionID !== sessionID) continue;
-			this.heldBySession.set(sessionID, held);
-			return held;
-		}
-		return undefined;
+		return [...this.heldByConversation.values()].find((held) => held.sessionID === sessionID);
 	}
+}
 
-	private async readApprovalReply(
-		agent: ClientSideConnection,
-		sessionID: string,
-		toolCallID: string,
-		reply: string
-	): Promise<string> {
-		const read = await agent.request<Record<string, unknown>>(
-			approvalReplyExtensionMethod,
-			approvalReplyRequest(sessionID, toolCallID, reply)
-		);
-		return optionChosenIn(read);
+const cancelled: RequestPermissionResponse = { outcome: { outcome: 'cancelled' } };
+
+async function attemptPost(post: () => Promise<string>): Promise<PostOutcome> {
+	try {
+		return { messageID: await post() };
+	} catch (failure) {
+		return { reason: String(failure) };
 	}
 }
 
@@ -453,7 +434,12 @@ export function deliveryOf(meta: Record<string, unknown> | null | undefined): De
 	if (typeof carried !== 'object' || carried === null) return {};
 	const deliveryID = nonEmptyStringIn(carried, 'deliveryID');
 	const replyTargetID = nonEmptyStringIn(carried, 'replyTargetID');
-	return { ...(deliveryID ? { deliveryID } : {}), ...(replyTargetID ? { replyTargetID } : {}) };
+	return {
+		...(deliveryID ? { deliveryID } : {}),
+		...(replyTargetID ? { replyTargetID } : {}),
+		...(Reflect.get(carried, 'alreadyPosted') === true ? { alreadyPosted: true } : {}),
+		...(Reflect.get(carried, 'final') === true ? { final: true } : {})
+	};
 }
 
 function nonEmptyStringIn(carried: object, name: string): string | undefined {
@@ -469,13 +455,27 @@ export function undeliveredReport(deliveryID: string, reason: string): Record<st
 	return { deliveryID, reason };
 }
 
-export function approvalReplyRequest(sessionID: string, toolCallID: string, reply: string): Record<string, string> {
-	return { sessionId: sessionID, toolCallId: toolCallID, reply };
+export function approvalReplyRequest(
+	sessionID: string,
+	toolCallID: string,
+	reply: string,
+	messageID: string,
+	addressing: Addressing
+): Record<string, unknown> {
+	return {
+		sessionId: sessionID,
+		toolCallId: toolCallID,
+		reply,
+		messageId: messageID,
+		replyTargetId: addressing.replyTargetID,
+		isThread: addressing.isThread
+	};
 }
 
-export function optionChosenIn(answer: Record<string, unknown>): string {
+export function optionChosenIn(answer: Record<string, unknown>): string | undefined {
+	if (answer.isAnswer !== true) return undefined;
 	const optionID = answer.optionId;
-	if (typeof optionID !== 'string') throw new Error(`blueclaw read the reply as no option: ${JSON.stringify(answer)}`);
+	if (typeof optionID !== 'string') throw new Error(`blueclaw read the reply as an answer to no option: ${JSON.stringify(answer)}`);
 	return optionID;
 }
 

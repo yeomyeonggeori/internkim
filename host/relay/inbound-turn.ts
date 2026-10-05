@@ -1,35 +1,20 @@
 import { RequestError } from '@agentclientprotocol/sdk';
-import {
-	AgentUnreachable,
-	type Addressing,
-	type AskedPermission,
-	type BlueclawACPClient,
-	type PutQuestion
-} from './acp-session';
-import { isAReplyInTheThreadOf } from './conversation-post';
+import { AgentUnreachable, type BlueclawACPClient } from './acp-session';
 import { readInboundMessage, type InboundMessage } from './inbound-message';
 import type { InboundQueue, QueuedInboundEvent } from './inbound-queue';
 
 export type InboundTurnSettings = {
 	client: BlueclawACPClient;
 	queue: InboundQueue;
-	postToConversation: (addressing: Addressing, message: string) => Promise<string>;
 	waitBeforeRetrying?: (milliseconds: number) => Promise<void>;
 	report?: (line: string) => void;
-};
-
-type PendingQuestion = {
-	addressing: Addressing;
-	answered: Promise<string>;
-	answer: (words: string) => void;
 };
 
 type RunningTurn = {
 	eventKey: string;
 	conversationID: string;
-	/** Set once the agent asks something, which only a started run can do. */
+	messageID: string;
 	blueclawOpenedARun: boolean;
-	question?: PendingQuestion;
 	finished: Promise<void>;
 };
 
@@ -38,9 +23,7 @@ const longestRetryDelayMilliseconds = 30_000;
 
 export class InboundTurns {
 	private readonly settings: InboundTurnSettings;
-	private readonly pendingQuestions = new Set<PendingQuestion>();
 	private readonly turnsInFlight = new Map<string, RunningTurn>();
-	/** How many times in a row the agent could not be reached for each event; no ceiling ends this. */
 	private readonly unreachedInARow = new Map<string, number>();
 	private draining: Promise<void> = Promise.resolve();
 
@@ -48,48 +31,20 @@ export class InboundTurns {
 		this.settings = settings;
 	}
 
-	/** Puts every question this relay had not delivered before it last stopped back in play. */
-	async restoreHeldQuestions(): Promise<void> {
-		await this.settings.client.restoreOutstandingQuestions();
-	}
-
-	askThePerson = async (asked: AskedPermission, addressing: Addressing): Promise<PutQuestion> => {
-		const asking = this.activeTurnIn(addressing.conversationID);
-		const question = this.holdQuestion(addressing);
-		if (asking) await this.handTheRunToBlueclaw(asking, question);
-		try {
-			const messageID = await this.settings.postToConversation(addressing, asked.question);
-			return { messageID, answered: question.answered };
-		} catch (failure) {
-			this.pendingQuestions.delete(question);
-			throw failure;
-		} finally {
-			this.startDraining();
-		}
+	handTheRunToBlueclaw = (conversationID: string): void => {
+		const parked = [...this.turnsInFlight.values()].filter(
+			(running) => running.conversationID === conversationID && this.isParked(running)
+		);
+		for (const running of parked) running.blueclawOpenedARun = true;
+		Promise.all(parked.map((running) => this.forget(running.eventKey)))
+			.catch((failure) => this.settings.report?.(`a parked turn would not leave the queue: ${String(failure)}`))
+			.finally(() => this.startDraining());
 	};
 
-	private async handTheRunToBlueclaw(running: RunningTurn, question: PendingQuestion): Promise<void> {
-		running.blueclawOpenedARun = true;
-		running.question = question;
-		await this.forget(running.eventKey);
+	private isParked(running: RunningTurn): boolean {
+		return this.settings.client.isParkedOnPermission(running.conversationID, running.messageID);
 	}
 
-	/** The question already reached the person before this relay last stopped; only wait. */
-	awaitAnAlreadyAskedQuestion = (addressing: Addressing): Promise<string> => {
-		return this.holdQuestion(addressing).answered;
-	};
-
-	private holdQuestion(addressing: Addressing): PendingQuestion {
-		const { promise, resolve } = Promise.withResolvers<string>();
-		const question: PendingQuestion = { addressing, answered: promise, answer: resolve };
-		this.pendingQuestions.add(question);
-		return question;
-	}
-
-	/**
-	 * Answers only once the event is on disk, so the 202 chatd retries until it
-	 * gets is a promise the message will be delivered, not that it was heard.
-	 */
 	async keep(key: string, body: unknown): Promise<boolean> {
 		const isNew = await this.settings.queue.keep(key, body);
 		this.startDraining();
@@ -102,16 +57,9 @@ export class InboundTurns {
 		});
 	}
 
-	/**
-	 * Resolves once nothing is left to happen on its own: the queue has been
-	 * drained and every turn not parked on a question has finished. A parked
-	 * turn is waiting for a message that has to come through this same queue.
-	 */
 	async settled(): Promise<void> {
 		await this.draining;
-		const finishing = [...this.turnsInFlight.values()]
-			.filter((running) => !this.isWaitingForAnAnswer(running))
-			.map((running) => running.finished);
+		const finishing = this.unparkedTurns().map((running) => running.finished);
 		if (finishing.length === 0) return;
 		await Promise.all(finishing);
 		await this.settled();
@@ -126,50 +74,38 @@ export class InboundTurns {
 				continue;
 			}
 			if (this.turnsInFlight.has(event.key)) continue;
+			if (await this.consumedAsAnAnswer(event, inbound)) continue;
 			if (this.activeTurnIn(inbound.addressing.conversationID)) continue;
-			const question = this.questionAnsweredBy(inbound);
-			if (question) {
-				await this.deliverTheAnswer(question, event, inbound);
-				continue;
-			}
 			this.beginTurn(event, inbound);
 		}
 	}
 
-	private activeTurnIn(conversationID: string): RunningTurn | undefined {
-		return [...this.turnsInFlight.values()].find(
-			(running) => running.conversationID === conversationID && !this.isWaitingForAnAnswer(running)
-		);
-	}
-
-	private isWaitingForAnAnswer(running: RunningTurn): boolean {
-		return running.question !== undefined && this.pendingQuestions.has(running.question);
-	}
-
-	private questionAnsweredBy(inbound: InboundMessage): PendingQuestion | undefined {
-		return [...this.pendingQuestions].find((question) =>
-			isAReplyInTheThreadOf(inbound.addressing, question.addressing)
-		);
-	}
-
-	private async deliverTheAnswer(
-		question: PendingQuestion,
-		event: QueuedInboundEvent,
-		inbound: InboundMessage
-	): Promise<void> {
-		this.pendingQuestions.delete(question);
-		question.answer(inbound.message);
+	private async consumedAsAnAnswer(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
+		if (event.isPrompt) return false;
+		if (!this.settings.client.hasOpenPermissionIn(inbound.addressing.conversationID)) return false;
+		const { addressing, messageID, message } = inbound;
+		const isAnswer = await this.settings.client.answerOpenPermission(addressing, messageID, message);
+		if (!isAnswer) {
+			await this.settings.queue.recordAsPrompt(event.key);
+			return false;
+		}
 		await this.forget(event.key);
+		return true;
 	}
 
-	/**
-	 * The turn is not awaited here: a turn that stopped to ask something is
-	 * waiting for a message that has to come through this same queue.
-	 */
+	private activeTurnIn(conversationID: string): RunningTurn | undefined {
+		return this.unparkedTurns().find((running) => running.conversationID === conversationID);
+	}
+
+	private unparkedTurns(): RunningTurn[] {
+		return [...this.turnsInFlight.values()].filter((running) => !this.isParked(running));
+	}
+
 	private beginTurn(event: QueuedInboundEvent, inbound: InboundMessage): void {
 		const running: RunningTurn = {
 			eventKey: event.key,
 			conversationID: inbound.addressing.conversationID,
+			messageID: inbound.messageID,
 			blueclawOpenedARun: false,
 			finished: Promise.resolve()
 		};
@@ -250,7 +186,6 @@ export class InboundTurns {
 	}
 }
 
-/** A refusal the agent answered with carries its reason in the data, not in the message. */
 function described(failure: unknown): string {
 	if (failure instanceof RequestError && failure.data !== undefined) {
 		return `${String(failure)} ${JSON.stringify(failure.data)}`;

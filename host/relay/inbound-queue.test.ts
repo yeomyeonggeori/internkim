@@ -129,4 +129,19 @@ describe('InboundQueue', () => {
 
 		expect((await queue.undelivered()).map((event) => event.key)).toEqual([secondKey, firstKey]);
 	});
+
+	test('the verdict that a message is a prompt survives a restart, and a new event starts without one', async () => {
+		const directoryPath = directoryForOneTest();
+		const queue = new InboundQueue({ directoryPath });
+		await queue.keep(firstKey, { text: 'a' });
+		await queue.keep(secondKey, { text: 'b' });
+
+		await queue.recordAsPrompt(firstKey);
+
+		const afterTheRestart = await new InboundQueue({ directoryPath }).undelivered();
+		expect(afterTheRestart.map((event) => [event.key, event.isPrompt])).toEqual([
+			[firstKey, true],
+			[secondKey, false]
+		]);
+	});
 });

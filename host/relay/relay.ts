@@ -51,8 +51,8 @@ import { RecordCatalogs, ticketOf } from './record-catalog';
 import { displayNameForRequester, readInboundMessage } from './inbound-message';
 import { InboundQueue } from './inbound-queue';
 import { InboundTurns } from './inbound-turn';
-import { agentFilePoster, conversationPoster } from './conversation-post';
-import { HeldQuestionStore } from './held-question-store';
+import { HeldSessionStore } from './held-session-store';
+import { agentFilePoster, conversationEditor, conversationPoster } from './conversation-post';
 import { ArrivalWatchers, activeMemberIDsOf, arrivalsPath, keepWatchingArrivals } from './arrival-watchers';
 import { readTyping, typingPath, typingTeller } from './typing';
 import { fetchWhenChatdListens } from './chatd-reach';
@@ -489,31 +489,38 @@ async function keepForTheMessenger(requesterEmail: string, file: WorkspaceFile) 
 	return keepWorkspaceFileInTheMessenger(fileTransfer, memberID, actor, requesterEmail, file);
 }
 
+const editInConversation = conversationEditor({
+	askChatd: (capability, body) => dispatch.askChatd(capability, body)
+});
+
 const postFileToConversation = agentFilePoster({ keepForTheMessenger, postToConversation });
 
-const inboundTurns: InboundTurns = new InboundTurns({
-	client: new BlueclawACPClient({
-		socketPath: blueclawACPSocketPath,
-		workspaceRootPath,
-		catalogFor: (requesterEmail, conversationID) =>
-			recordCatalogs.serversFor(requesterEmail, conversationID),
-		postToConversation,
-		postFileToConversation,
-		questions: new HeldQuestionStore({
-			directoryPath: `${relayStateDirectory}/questions`,
-			report: (line) => console.log(`questions: ${line}`)
-		}),
-		askThePerson: (asked, addressing) => inboundTurns.askThePerson(asked, addressing),
-		awaitAnAlreadyAskedQuestion: (addressing) => inboundTurns.awaitAnAlreadyAskedQuestion(addressing),
-		report: (line) => console.log(`acp: ${line}`)
+const blueclawClient = new BlueclawACPClient({
+	socketPath: blueclawACPSocketPath,
+	workspaceRootPath,
+	catalogFor: (requesterEmail, conversationID) =>
+		recordCatalogs.serversFor(requesterEmail, conversationID),
+	postToConversation,
+	postFileToConversation,
+	editInConversation,
+	sessions: new HeldSessionStore({
+		filePath: `${relayStateDirectory}/sessions.json`,
+		report: (line) => console.log(`sessions: ${line}`)
 	}),
+	permissionWasOpened: (conversationID) => inboundTurns.handTheRunToBlueclaw(conversationID),
+	report: (line) => console.log(`acp: ${line}`)
+});
+
+const inboundTurns: InboundTurns = new InboundTurns({
+	client: blueclawClient,
 	queue: new InboundQueue({
 		directoryPath: `${relayStateDirectory}/inbound`,
 		report: (line) => console.log(`inbound: ${line}`)
 	}),
-	postToConversation,
 	report: (line) => console.log(`acp: ${line}`)
 });
+
+await blueclawClient.restoreHeldSessions();
 
 async function keepInboundMessage(offered: unknown): Promise<Response> {
 	const localizedOffered = await inboundBodyWithDisplayName(offered);
@@ -523,10 +530,6 @@ async function keepInboundMessage(offered: unknown): Promise<Response> {
 	tellBrowsers(inbound.addressing.conversationID, inbound.messageID);
 	return Response.json({ queued: isNew, key: inbound.key }, { status: 202 });
 }
-
-// Whatever a stopped relay had asked and not yet delivered is on disk; put it
-// back in play before /inbound answers anything.
-await inboundTurns.restoreHeldQuestions();
 
 Bun.serve({
 	hostname: '127.0.0.1',

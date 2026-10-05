@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, open, readdir, readFile, rename, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink } from 'node:fs/promises';
+import { writeDurably } from './durable-write';
 import { join } from 'node:path';
 
 export type QueuedInboundEvent = {
@@ -7,6 +8,7 @@ export type QueuedInboundEvent = {
 	body: unknown;
 	attempts: number;
 	firstQueuedAt: string;
+	isPrompt: boolean;
 };
 
 export type InboundQueueSettings = {
@@ -33,7 +35,7 @@ export class InboundQueue {
 		await this.makeDirectory();
 		const path = this.pathFor(key);
 		if (await alreadyWritten(path)) return false;
-		await this.write(path, { key, body, attempts: 0, firstQueuedAt: new Date().toISOString() });
+		await this.write(path, { key, body, attempts: 0, firstQueuedAt: new Date().toISOString(), isPrompt: false });
 		return true;
 	}
 
@@ -58,6 +60,13 @@ export class InboundQueue {
 		const attempted = { ...event, attempts: event.attempts + 1 };
 		await this.write(path, attempted);
 		return attempted.attempts;
+	}
+
+	async recordAsPrompt(key: string): Promise<void> {
+		const path = this.pathFor(key);
+		const event = await this.readEvent(path);
+		if (!event) return;
+		await this.write(path, { ...event, isPrompt: true });
 	}
 
 	/** Removes the event; it has been delivered, or given up on. */
@@ -91,18 +100,8 @@ export class InboundQueue {
 		return event;
 	}
 
-	private async write(path: string, event: QueuedInboundEvent): Promise<void> {
-		const writingPath = `${path}.${randomUUID()}.writing`;
-		const file = await open(writingPath, 'w');
-		try {
-			await file.writeFile(JSON.stringify(event));
-			await file.sync();
-		} finally {
-			await file.close();
-		}
-		// POSIX.1-2017 rename() replaces the name in one step, so an interrupted
-		// write leaves either the whole event under its own name or no file at all.
-		await rename(writingPath, path);
+	private write(path: string, event: QueuedInboundEvent): Promise<void> {
+		return writeDurably(path, JSON.stringify(event));
 	}
 }
 
@@ -117,7 +116,7 @@ function readQueuedEvent(offered: unknown): QueuedInboundEvent | null {
 	if (typeof attempts !== 'number' || !Number.isFinite(attempts)) return null;
 	if (typeof firstQueuedAt !== 'string' || firstQueuedAt === '') return null;
 
-	return { key, body: held.body, attempts, firstQueuedAt };
+	return { key, body: held.body, attempts, firstQueuedAt, isPrompt: held.isPrompt === true };
 }
 
 function parsedOrNothing(written: string): unknown {
