@@ -43,14 +43,8 @@ const (
 	BuzzRelayName                        = "buzz-relay"
 	BuzzAdminName                        = "buzz-admin"
 	BuzzRelayServiceName                 = "buzz-relay"
-	BuzzRelayServicePath                 = "/etc/systemd/system/buzz-relay.service"
-	BuzzRelayBinaryPath                  = "/usr/local/bin/buzz-relay"
-	BuzzAdminBinaryPath                  = "/usr/local/bin/buzz-admin"
 	BuzzRelayDatabaseName                = "buzz"
 	BuzzRelayDatabaseUser                = "buzz"
-	BuzzRelayDatabasePasswordPath        = "/root/.internkim/secrets/buzz-db-pass"
-	BuzzRelayKeyEnvironmentFilePath      = "/root/.internkim/secrets/buzz-relay-env"
-	BuzzRelayDatabaseEnvironmentFilePath = "/root/.internkim/secrets/buzz-relay-db"
 	BuzzRelayBindAddress                 = "127.0.0.1:3000"
 
 	// The relay answers /_readiness twice: on its own bind address, and again on

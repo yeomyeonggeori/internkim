@@ -3,12 +3,11 @@ package admind
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
-
-	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
 const joiningNoticePruneInterval = 2 * time.Minute
@@ -60,36 +59,26 @@ DELETE FROM events WHERE kind = 40099 AND id IN (
 	}
 }
 
+var errNoClientCanBeTold = errors.New("this host names no buzz-admin, relay database or relay key, so the room's discovery events are left as they are")
+
 // A client reads a room's members from its kind 39002 discovery event, not from
 // channel_members, so a membership this device writes is invisible until the
 // event is written again. reconcile-channels writes one only where none exists,
-// which is what makes dropping this room's first.
+// which is what makes dropping this room's first. A client lists rooms from
+// their kind 39000 event too, so dropping it without writing it again takes the
+// room off every client: nothing is dropped until the rewrite can run.
 func (service *Service) tellClientsWhoIsInTheRoom(ctx context.Context, relay *sql.DB, channelID string) error {
+	republish := service.buzzAdminCommand(ctx, "reconcile-channels")
+	if republish == nil || service.buzzRelayKeySetting() == "" {
+		return errNoClientCanBeTold
+	}
 	if _, errorValue := relay.ExecContext(ctx,
 		"DELETE FROM events WHERE kind IN (39000,39001,39002) AND channel_id = $1", channelID); errorValue != nil {
 		return errorValue
 	}
-	output, errorValue := service.runCommand(ctx, "sh", "-lc", buzzRoomChangeRepublish())
-	if errorValue != nil {
-		return fmt.Errorf("the room changed and no client was told: %s: %w", strings.TrimSpace(string(output)), errorValue)
+	if output, errorValue := republish.CombinedOutput(); errorValue != nil {
+		return fmt.Errorf("room %s changed and its discovery events were not written again, so no client lists it: %s: %w",
+			channelID, strings.TrimSpace(string(output)), errorValue)
 	}
 	return nil
-}
-
-// A client lists rooms from their kind 39000 discovery events, not from the
-// channels table, and reconcile-channels writes an event only where none
-// exists. A row changed without dropping its event leaves every client showing
-// the room as it was, through a reload and through a restart.
-func buzzRoomChangeRepublish() string {
-	return `
-export BUZZ_RELAY_PRIVATE_KEY=$(grep '^BUZZ_RELAY_PRIVATE_KEY=' ` + blueclaw.BuzzRelayKeyEnvironmentFilePath + ` | head -1 | sed 's/^BUZZ_RELAY_PRIVATE_KEY=//')
-export DATABASE_URL=$(grep '^DATABASE_URL=' ` + blueclaw.BuzzRelayDatabaseEnvironmentFilePath + ` | head -1 | sed 's/^DATABASE_URL=//')
-export RELAY_URL=$(systemctl show ` + blueclaw.BuzzRelayServiceName + ` -p Environment | tr ' ' '\n' | sed -n 's/^RELAY_URL=//p' | head -1)
-if [ -z "$BUZZ_RELAY_PRIVATE_KEY" ] || [ -z "$RELAY_URL" ]; then
-  echo "the rows changed but no client was told: this device names no relay key or public host"
-  exit 1
-fi
-printf '== told the clients ==\n'
-` + blueclaw.BuzzAdminBinaryPath + ` reconcile-channels
-`
 }
