@@ -323,6 +323,19 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "crm-currency-ui",
+        [
+            "web/src/routes/crm/crm-view-currency*",
+            "web/src/routes/crm/text.ts",
+            "web/src/lib/currency/converted-amount.ts",
+            "web/src/lib/server/exchange-rates.ts",
+            "web/tests/e2e/crm-currency-recovery.spec.ts",
+        ],
+        [["bun", "run", "test:e2e:crm:currency:fixture"]],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "avatar-ui",
         [
             "web/src/lib/components/person-avatar-stack.svelte",

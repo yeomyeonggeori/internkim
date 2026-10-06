@@ -16,30 +16,43 @@ export type CRMViewCurrencyReader = {
 
 const ratePreviewAmountMinor = 1000000;
 
+function currencyRequestKey(view: string, sourceCurrencies: string[]): string {
+	return `${view}|${[...new Set(sourceCurrencies)].sort().join(',')}`;
+}
+
 export class CRMViewCurrency implements CRMViewCurrencyReader {
 	selected = $state<string>('');
 	ratesBySource = $state<Record<string, number>>({});
 	isLoading = $state(false);
 	hasManualChoice = $state(false);
+	pending = $state('');
+	failed = $state('');
 
 	private lastFailedFollowKey = '';
+	private manualView = '';
+	private requestSequence = 0;
 
 	constructor(private readonly loadRate: typeof loadConvertedAmount = loadConvertedAmount) {}
 
 	async choose(view: string, sourceCurrencies: string[]): Promise<boolean> {
+		if (!view) return false;
 		this.hasManualChoice = true;
+		this.manualView = view;
 		return this.apply(view, sourceCurrencies);
 	}
 
 	async follow(baseCurrency: string, sourceCurrencies: string[]): Promise<void> {
 		if (this.isLoading) return;
-		const view = this.hasManualChoice ? this.selected : baseCurrency;
+		const view = this.hasManualChoice ? this.manualView : baseCurrency;
 		if (!view) return;
-		if (this.selected === view && this.hasRatesFor(sourceCurrencies)) return;
-		const followKey = `${view}|${[...new Set(sourceCurrencies)].sort().join(',')}`;
+		if (this.selected === view && this.hasRatesFor(sourceCurrencies)) {
+			this.failed = '';
+			this.lastFailedFollowKey = '';
+			return;
+		}
+		const followKey = currencyRequestKey(view, sourceCurrencies);
 		if (followKey === this.lastFailedFollowKey) return;
-		const succeeded = await this.apply(view, sourceCurrencies);
-		this.lastFailedFollowKey = succeeded ? '' : followKey;
+		await this.apply(view, sourceCurrencies);
 	}
 
 	private hasRatesFor(sourceCurrencies: string[]): boolean {
@@ -50,20 +63,42 @@ export class CRMViewCurrency implements CRMViewCurrencyReader {
 
 	private async apply(view: string, sourceCurrencies: string[]): Promise<boolean> {
 		if (!view) return false;
+		const request = ++this.requestSequence;
+		const followKey = currencyRequestKey(view, sourceCurrencies);
+		const previousRates = this.selected === view ? this.ratesBySource : {};
 		this.isLoading = true;
+		this.pending = view;
+		this.failed = '';
 		try {
 			const rates: Record<string, number> = {};
-			for (const source of new Set([...sourceCurrencies, rateHintAnchorCurrency])) {
-				if (source === view) continue;
+			await Promise.all([...new Set([...sourceCurrencies, rateHintAnchorCurrency])].map(async (source) => {
+				if (source === view) return;
+				if (previousRates[source] !== undefined) {
+					rates[source] = previousRates[source];
+					return;
+				}
 				const converted = await this.loadRate(ratePreviewAmountMinor, source, view);
-				if (!converted) return false;
+				if (!converted || converted.currencyCode !== view || !Number.isFinite(converted.rate) || converted.rate <= 0) {
+					throw new Error('The requested view currency rate is unavailable');
+				}
 				rates[source] = converted.rate;
-			}
+			}));
+			if (request !== this.requestSequence) return false;
 			this.selected = view;
 			this.ratesBySource = rates;
+			this.lastFailedFollowKey = '';
 			return true;
+		} catch {
+			if (request === this.requestSequence) {
+				this.failed = view;
+				this.lastFailedFollowKey = followKey;
+			}
+			return false;
 		} finally {
-			this.isLoading = false;
+			if (request === this.requestSequence) {
+				this.isLoading = false;
+				this.pending = '';
+			}
 		}
 	}
 
