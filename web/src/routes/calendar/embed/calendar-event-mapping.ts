@@ -25,6 +25,7 @@ export function dayTaskEventFromCalendarEvent(event: CalendarEvent): DayTaskEven
 			location: event.location,
 			color: event.color,
 			participants: calendarParticipantsFromUnknown(event.participants),
+			isOpenToCompany: event.isOpenToCompany ?? false,
 			reminderMinutesBefore: eventReminderLeadOf(event.reminderMinutesBefore),
 			timeZone: event.timeZone,
 			createdByEmail: event.createdByEmail,
@@ -64,6 +65,7 @@ export function calendarEventPayloadFromDayTaskEvent(
 	event: DayTaskEvent,
 	color: string
 ): CalendarEventPayload {
+	const participants = calendarParticipantInputs(calendarParticipantsFromUnknown(event.meta?.participants));
 	return {
 		eventID: event.id,
 		title: event.title || 'Untitled event',
@@ -74,7 +76,8 @@ export function calendarEventPayloadFromDayTaskEvent(
 		isAllDay: event.allDay ?? false,
 		color,
 		reminderMinutesBefore: eventReminderLeadOf(event.meta?.reminderMinutesBefore),
-		participants: calendarParticipantInputs(calendarParticipantsFromUnknown(event.meta?.participants))
+		participants,
+		isOpenToCompany: participants.length === 0 && event.meta?.isOpenToCompany !== false
 	};
 }
 

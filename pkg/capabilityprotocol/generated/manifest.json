@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "767fd754b967a1e15b4172614934108cbd9878284afad2124f7a27ca2e8953a6",
+  "aggregateHash": "da3d304ea19d0aad780eda0fceeff85325a6639bff824872a2d0e9d0d842b370",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "fe479b21da72f3f90226290d77158a56844bcd913c4880732e91ebee7084780f"
+    "hash": "0cc7182c5b4c58d1c6b24e1cead9bb1fddc58f172e0a2112d415c6f318f754c1"
   },
   "protocolVersion": "0.4.0",
   "schemas": [
@@ -93,7 +93,7 @@
     },
     {
       "fileName": "task-event-name.schema.json",
-      "hash": "9057233b11c2dda1cfa0b1803de8a2b32836999d71f6470fcce8c3fdd999026f",
+      "hash": "b5332f28b4f60ac153d41e2fac634c39eb0180080df444d3e83f61c64f38c857",
       "name": "task-event-name"
     },
     {
@@ -108,7 +108,7 @@
     },
     {
       "fileName": "tool-invoke-request.schema.json",
-      "hash": "a0fba8d30ccd46b01c54a6d1db0ffefedad5a65fc292ec4367289ad44c5ace98",
+      "hash": "c4783a7a849f6ee2d82a1a5dabd854f83c034996f74227e923334341f5ccef2d",
       "name": "tool-invoke-request"
     },
     {

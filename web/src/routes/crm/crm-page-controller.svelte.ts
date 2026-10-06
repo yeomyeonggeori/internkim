@@ -315,7 +315,7 @@ export class CRMPageController {
 	async moveOpportunity(request: CRMPipelineBoardMoveRequest): Promise<void> {
 		const opportunity = this.opportunities.find((candidate) => candidate.id === request.opportunityID);
 		if (!opportunity) return;
-		await this.mutate(async () => {
+		await this.mutateWithoutAForm(async () => {
 			if (opportunity.stage !== request.targetStage) {
 				const payload = opportunityPayload(opportunity, this.currencyCatalogue);
 				await transitionCRMOpportunity(
@@ -367,6 +367,15 @@ export class CRMPageController {
 		}), ['activities', 'opportunities']);
 	}
 
+	private async mutateWithoutAForm(operation: (assertCurrent: () => void) => Promise<unknown>, changed: readonly CRMReadPart[]): Promise<void> {
+		try {
+			await this.mutate(operation, changed);
+		} catch (error) {
+			if (!this.permissionDenied) this.error = error;
+			throw error;
+		}
+	}
+
 	private async mutate(operation: (assertCurrent: () => void) => Promise<unknown>, changed: readonly CRMReadPart[]): Promise<void> {
 		if (fixtureMode) throw new Error(this.text.fixtureModeReadOnly);
 		if (!this.hasData || this.isLoading || this.permissionDenied) throw new Error(this.text.loading);
@@ -384,9 +393,9 @@ export class CRMPageController {
 				await operation(assertCurrent);
 			} catch (error) {
 				if (generation !== this.generation) throw error;
-				this.applyError(error);
+				if (isPermissionDenial(error)) this.applyError(error);
 				if (error instanceof CRMRelationshipContactCreateError) throw error;
-				throw new Error(this.errorMessage);
+				throw new Error(crmErrorMessage(error, this.text));
 			}
 			assertCurrent();
 			try {
@@ -394,7 +403,7 @@ export class CRMPageController {
 			} catch (error) {
 				if (generation === this.generation) {
 					this.remoteData = undefined;
-					if (error instanceof CRMApiError && (error.status === 401 || error.status === 403)) this.applyError(error);
+					if (isPermissionDenial(error)) this.applyError(error);
 					else this.error = new CRMPageError('refresh_after_save_failed');
 				}
 			}
@@ -466,7 +475,7 @@ export class CRMPageController {
 	}
 
 	private applyError(error: unknown): void {
-		this.permissionDenied = error instanceof CRMApiError && (error.status === 401 || error.status === 403);
+		this.permissionDenied = isPermissionDenial(error);
 		this.error = error;
 	}
 
@@ -549,4 +558,8 @@ export class CRMPageController {
 
 function ownerHint(draft: CRMCreateDraft): string {
 	return draft.kind === 'progress' ? draft.ownerPersonID : '';
+}
+
+function isPermissionDenial(error: unknown): boolean {
+	return error instanceof CRMApiError && (error.status === 401 || error.status === 403);
 }

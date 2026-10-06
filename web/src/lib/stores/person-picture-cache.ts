@@ -3,10 +3,15 @@ import { readableForSeconds } from '$lib/messenger/kept-attachment';
 const storageKey = 'personPicture.signed';
 const renewBeforeExpiryMilliseconds = 60 * 60 * 1000;
 
-export type KeptPicture = { address: string; signedURL: string; expiresAt: number };
+export type KeptPicture = { address: string; signedURL: string; avatarURL: string; expiresAt: number };
 
-export function keptPictureOf(address: string, signedURL: string, now: number = Date.now()): KeptPicture {
-	return { address, signedURL, expiresAt: now + readableForSeconds * 1000 };
+export function keptPictureOf(
+	address: string,
+	signedURL: string,
+	avatarURL: string,
+	now: number = Date.now()
+): KeptPicture {
+	return { address, signedURL, avatarURL, expiresAt: now + readableForSeconds * 1000 };
 }
 
 export function readKeptPictures(now: number = Date.now(), scope = 'device'): Map<string, KeptPicture> {

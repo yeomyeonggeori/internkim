@@ -21,6 +21,8 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `asset_uuid` | `object_name text, segment_index integer` | `uuid` | invoker | anon, authenticated, service_role |
 | `attendance_add` | `target_member uuid, kind attendance_kind, local_date date, local_time time without time zone, location text, reason text` | `jsonb` | definer | authenticated |
 | `attendance_backdated_after_minutes` | — | `integer` | invoker | authenticated, service_role |
+| `attendance_change_undo` | `event_id uuid` | `jsonb` | definer | authenticated |
+| `attendance_changes_page` | `from_timestamp timestamp with time zone, to_timestamp timestamp with time zone, page_offset integer DEFAULT 0, page_limit integer DEFAULT 24, team_search text DEFAULT ''::text, actor_search text DEFAULT ''::text, selected_members uuid[] DEFAULT NULL::uuid[], selected_team_key text DEFAULT NULL::text, selected_actor uuid DEFAULT NULL::uuid` | `jsonb` | invoker | anon, authenticated, service_role |
 | `attendance_correct` | `corrections jsonb, reason text` | `jsonb` | definer | authenticated |
 | `attendance_correction_window_minutes` | — | `integer` | invoker | authenticated, service_role |
 | `attendance_current` | — | `jsonb` | invoker | authenticated |
@@ -115,7 +117,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `status_my_leave_request_takes` | — | `leave_status` | definer | authenticated, service_role |
 | `task_children_link` | `parent_id uuid, child_ids uuid[]` | `void` | definer | authenticated |
 | `task_parent_set` | `target_task_id uuid, target_parent_task_id uuid` | `void` | definer | authenticated |
-| `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb` | `uuid` | definer | authenticated |
+| `task_save` | `target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean` | `uuid` | definer | authenticated |
 | `task_vocabulary_save` | `target_vocabulary jsonb` | `jsonb` | definer | authenticated |
 | `team_add` | `new_name text, parent_team uuid, new_position integer` | `uuid` | definer | authenticated, service_role |
 | `team_delete` | `target_team uuid` | `integer` | definer | authenticated, service_role |
@@ -156,6 +158,7 @@ description: "PostgREST가 /rest/v1/rpc로 노출하는 함수 전부와, 누가
 | `member_leave_days_follow_the_leave` |
 | `member_leave_days_follow_the_leave_policy` |
 | `order_time_range` |
+| `record_attendance_change_actor` |
 | `record_opportunity_stage_change` |
 | `refuse_a_second_copy_of_an_event` |
 | `refuse_task_parent_cycle` |

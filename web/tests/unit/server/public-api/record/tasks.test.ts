@@ -27,6 +27,7 @@ function row(overrides: Partial<TaskRow> = {}): TaskRow {
 		size: 'M',
 		is_event: false,
 		is_whole_day: false,
+		is_open_to_company: false,
 		notify_minutes_before: null,
 		starts_at: '2026-08-01T00:00:00.000Z',
 		ends_at: '2026-08-31T23:59:59.999Z',

@@ -141,7 +141,7 @@ test('rejects deleting an in-use CRM definition with guidance', async ({ page })
 		.last()
 		.click();
 	await expect(
-		page.getByText('등록된 CRM 기록에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.').first()
+		page.getByText('등록된 CRM 기록에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.')
 	).toBeVisible({ timeout: 10000 });
 });
 
@@ -167,7 +167,7 @@ test('rejects deleting an in-use flow business with guidance', async ({ page }) 
 	const confirm = page.locator('[role="alertdialog"][data-state="open"]').filter({ hasText: '사업하나' });
 	await confirm.locator('[data-alert-dialog-action]').last().click();
 	await expect(
-		page.getByText('등록된 업무나 거래에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.').first()
+		page.getByText('등록된 업무나 거래에서 사용 중인 항목입니다. 연결된 기록의 값을 변경한 후 삭제해 주세요.')
 	).toBeVisible({ timeout: 10000 });
 });
 
