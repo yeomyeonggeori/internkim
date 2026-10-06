@@ -42,7 +42,8 @@
 	let companyLabel = $state('');
 	const ownEmail = $derived(myAttendanceToday.summary?.currentUserEmail ?? '');
 	const ownName = $derived(appNavigation.displayUserName);
-	const ownStatus = $derived(myAttendanceToday.status === 'working' ? text.working : myAttendanceToday.status === 'finished' ? text.finished : text.teamNotStarted);
+	const ownStatusKind = $derived(myAttendanceToday.activeLeave ? 'away' : myAttendanceToday.status === 'working' ? 'working' : myAttendanceToday.status === 'finished' ? 'done' : 'not_started');
+	const ownStatus = $derived(statusName(ownStatusKind));
 	const ownLocation = $derived(myAttendanceToday.day.activeSegment?.locationName ?? '—');
 	const companyTotals = $derived(teamState.companySummary);
 	const companyMetrics = $derived(companyTotals ? [
@@ -103,7 +104,7 @@
     function openOwnRecord(): void {
         const own = myAttendanceToday.summary;
         if (!own?.currentMemberID) return;
-        selectedMember = {memberID: own.currentMemberID, name: ownName, email: ownEmail, teamKey: '', status: myAttendanceToday.status === 'working' ? 'working' : myAttendanceToday.status === 'finished' ? 'done' : 'not_started', latestAt: myAttendanceToday.day.clockIn?.occurredAt ?? null, location: ownLocation === '—' ? null : ownLocation};
+        selectedMember = {memberID: own.currentMemberID, name: ownName, email: ownEmail, teamKey: '', status: ownStatusKind, latestAt: myAttendanceToday.day.clockIn?.occurredAt ?? null, location: ownLocation === '—' ? null : ownLocation};
         sheetOpen = true;
     }
 
@@ -165,7 +166,7 @@
 	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6" data-testid="attendance-team-dashboard">
 
         <Card.Root class="gap-0 py-0" data-testid="attendance-own-strip">
-            <AttendancePersonRow name={ownName} email={ownEmail} status={myAttendanceToday.status === 'working' ? 'working' : myAttendanceToday.status === 'finished' ? 'done' : 'not_started'} statusLabel={ownStatus} day={ownDay} location={ownLocation === '—' ? null : ownLocation} onclick={openOwnRecord}>
+            <AttendancePersonRow name={ownName} email={ownEmail} status={ownStatusKind} statusLabel={ownStatus} day={ownDay} location={ownLocation === '—' ? null : ownLocation} onclick={openOwnRecord}>
                 {#snippet action()}<OwnClockAction />{/snippet}
             </AttendancePersonRow>
         </Card.Root>

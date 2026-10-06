@@ -17,7 +17,7 @@ import CalendarIcon from '@lucide/svelte/icons/calendar';
 import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
 import CogIcon from '@lucide/svelte/icons/cog';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-import HandshakeIcon from '@lucide/svelte/icons/handshake';
+import HeartHandshakeIcon from '@lucide/svelte/icons/heart-handshake';
 import SquareCheckBigIcon from '@lucide/svelte/icons/square-check-big';
 import MailIcon from '@lucide/svelte/icons/mail';
 import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
@@ -56,7 +56,7 @@ class AppNavigation {
 		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarIcon, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },
 		{ href: this.link('/attendance/'), label: text.attendance, icon: FlameIcon },
-		{ href: this.link('/crm/'), label: text.crm, icon: HandshakeIcon },
+		{ href: this.link('/crm/'), label: text.crm, icon: HeartHandshakeIcon },
 		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
 		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon }
 	]);
@@ -90,6 +90,7 @@ class AppNavigation {
 		if (isSupabaseConfigured()) {
 			const member = await supabaseMember();
 			this.userMemberID = member.memberID;
+			this.userName = member.name || this.userName;
 			this.adminRole = member.role;
 			this.companySlug = member.companySlug;
 			return;
