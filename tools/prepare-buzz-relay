@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "$0")/.." && pwd)"
 
-pinned_revision="973386351646d01efca2735ad4921c0d219cff85"
+pinned_revision="2b4b138dc5cf2d9cc1a0ceb21d9063ff56fe8bf4"
 source_repository="https://github.com/block/buzz"
 
 # rust-s3 puts the endpoint's path in the Host header, so an S3 endpoint that
@@ -18,7 +18,7 @@ fixed_rustls_version="0.23.45"
 # only by the order of its zip entries, otherwise calling it application/zip.
 declared_mime_patch="$repository_root/tools/buzz-relay-patches/declared-mime-agrees-with-stored.patch"
 declared_mime_patch_digest="$(git hash-object "$declared_mime_patch" | cut -c1-12)"
-built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-1+declared-mime-$declared_mime_patch_digest+rustls-$fixed_rustls_version"
+built_revision="$pinned_revision+rust-s3-$patched_s3_revision+traceless-delete-2+declared-mime-$declared_mime_patch_digest+rustls-$fixed_rustls_version"
 
 # The messenger is built for the machine that will run it. linux/arm64 is the
 # appliance and stays the default, so the artifact directory every other caller
@@ -102,7 +102,9 @@ if [ ! -d "$source_directory/.git" ]; then
   git clone "$source_repository" "$source_directory"
 fi
 git -C "$source_directory" fetch --depth 1 origin "$pinned_revision"
-git -C "$source_directory" checkout --detach "$pinned_revision"
+# The clone carries the last build's patches, so a moved pin is checked out over
+# them; every patch below is applied again to the clean tree.
+git -C "$source_directory" checkout --force --detach "$pinned_revision"
 
 # A deletion leaves a relay-signed kind:40099 "removed a message" row in the
 # channel, and the desktop app renders it forever. The app already removes the
@@ -118,12 +120,12 @@ source = pathlib.Path(sys.argv[1])
 text = source.read_text()
 unconditional = """    copy_optional_string_field(event, &mut tombstone, "public_reason");
 
-    emit_system_message(tenant, state, channel_id, tombstone).await?;
+    emit_system_message(tenant, state, channel_id, tombstone, chrono::Utc::now()).await?;
 """
 conditional = """    copy_optional_string_field(event, &mut tombstone, "public_reason");
 
     if tombstone.get("public_reason").is_some() {
-        emit_system_message(tenant, state, channel_id, tombstone).await?;
+        emit_system_message(tenant, state, channel_id, tombstone, chrono::Utc::now()).await?;
     }
 """
 if conditional in text:
