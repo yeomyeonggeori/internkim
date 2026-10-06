@@ -53,6 +53,12 @@ export default defineConfig(({ mode }) => {
 			tailwindcss(),
 			sveltekit()
 		],
+		optimizeDeps: {
+			entries: [
+				'src/lib/components/app-command-palette.svelte',
+				'src/lib/components/buzz/buzz-identity-gate.svelte'
+			]
+		},
 		server: {
 			allowedHosts: env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',') : undefined,
 			proxy: {
