@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Fail when a hand-written tool name names a tool nothing serves.
 
-A skill's tool-references name this repository's tools by hand, and they fail
-quietly. The selector hides a skill whose references are all unreachable
-instead of reporting them, which is how the calculator's terminal_run survived
-#875.
+Two places name this repository's tools by hand: a skill's tool-references, and
+the standing duty registry in blueclaw, which is the ceiling on what a task an
+ambient duty launches may call. Both fail quietly. The selector hides a skill
+whose references are all unreachable instead of reporting them, which is how the
+calculator's terminal_run survived #875; the ceiling silently drops a name no
+tool answers to, which is how calendar_upkeep spent #1282 unable to call the one
+tool it exists for.
 
-A second place names them: the agent's own Go source, where a tool name is a
+A third place names them: the agent's own Go source, where a tool name is a
 string constant nothing validates. loop/calendar_duplicate_gate.go held
 "calendar_add" for the two months after the host renamed it event_add, and the
 gate behind it never ran once (#1297). Every rename records the old name in
@@ -18,7 +21,7 @@ A name the catalog knows is still unreachable when the catalog hides it from
 the model: bluecollar registers a hidden tool as internal and never exposes it.
 #1332 hid the company, mail and web_fetch tools while moving the catalog, and
 the dataroom, company-data, paperwork, mail and web-search skills went quiet on
-every host for two weeks. So a skill may only name a tool the
+every host for two weeks. So a skill or a standing duty may only name a tool the
 model can see.
 
 This cannot catch a tool name deleted with no successor, or one that never
@@ -39,6 +42,7 @@ from tool_name_sources import (
 )
 
 RETIRED_TOOL_NAMES = REPOSITORY_ROOT / "internal" / "capabilities" / "legacy.go"
+STANDING_DUTIES = BLUECLAW_ROOT / "internal" / "inboundengagement" / "vocabulary.go"
 
 MINIMUM_CATALOG_SIZE = 60
 MINIMUM_RETIRED_NAMES = 12
@@ -51,6 +55,19 @@ def unreachable_reason(tool_name: str, catalog: set[str], hidden: set[str]) -> s
     if tool_name in hidden:
         return "is hidden from the model"
     return None
+
+
+def standing_duty_tool_names() -> list[tuple[str, str]]:
+    document = STANDING_DUTIES.read_text()
+    duties: list[tuple[str, str]] = []
+    for duty in re.finditer(
+        r'Name:\s+"([a-z0-9_]+)".*?ToolNames:\s+\[\]string\{([^}]*)\}',
+        document,
+        re.DOTALL,
+    ):
+        for tool_name in re.findall(r'"([a-z0-9_.]+)"', duty.group(2)):
+            duties.append((duty.group(1), tool_name))
+    return duties
 
 
 def retired_tool_names() -> dict[str, str]:
@@ -111,6 +128,15 @@ def main() -> int:
         print("no skill was checked, so this check is reading the wrong place", file=sys.stderr)
         return 1
 
+    duties = standing_duty_tool_names()
+    if not duties:
+        print("no standing duty was checked, so this check is reading the wrong place", file=sys.stderr)
+        return 1
+    for duty_name, tool_name in duties:
+        reason = unreachable_reason(tool_name, catalog, hidden)
+        if reason:
+            unknown.append(f"standing duty {duty_name} names {tool_name}, which {reason}")
+
     retired_names = retired_tool_names()
     if len(retired_names) < MINIMUM_RETIRED_NAMES:
         print(
@@ -134,8 +160,9 @@ def main() -> int:
         for entry in unknown:
             print(f"  {entry}", file=sys.stderr)
         return 1
+    duty_names = {duty_name for duty_name, _ in duties}
     print(
-        f"ok {checked} skills and {len(source_paths)} agent"
+        f"ok {checked} skills, {len(duty_names)} standing duties and {len(source_paths)} agent"
         f" sources against {len(catalog)} tools"
     )
     return 0
