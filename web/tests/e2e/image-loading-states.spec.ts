@@ -22,11 +22,11 @@ async function capture(page: Page, scene: string) {
 	await page.screenshot({ path: `${directory}/${scene}.png`, animations: 'disabled' });
 }
 
-async function mockChannel(page: Page, source = pictureURL) {
+async function mockChannel(page: Page, source = pictureURL, dimensions: { widthPixels?: number; heightPixels?: number } = { widthPixels: 540, heightPixels: 960 }) {
 	await mockDeviceMessenger(page, reader, [{ id: channelID, name: '사진 대화', kind: 'group', myRole: 'member' }], [
 		{
 			id: 'image-message', sender: author, text: '', sentAt: '2026-10-06T02:00:00Z',
-			attachments: [{ kind: 'image', url: source, source, filename: 'sample-photo.svg', widthPixels: 540, heightPixels: 960 }],
+			attachments: [{ kind: 'image', url: source, source, filename: 'sample-photo.svg', ...dimensions }],
 			thread: { replyCount: 1, lastReplyAt: '2026-10-06T02:01:00Z', participants: [reader] }
 		},
 		{ id: 'image-reply', threadRootId: 'image-message', sender: reader, text: '사진 확인했어요', sentAt: '2026-10-06T02:01:00Z' }
@@ -96,6 +96,70 @@ test('a failed image settles to a visible fallback without a perpetual skeleton'
 	await expect(frame.getByRole('img', { name: 'sample-photo.svg: 이미지를 불러올 수 없어요' })).toBeVisible();
 	await expect(frame.locator('[data-slot="skeleton"]')).toHaveCount(0);
 	await expect(frame).toHaveAttribute('aria-busy', 'false');
+});
+
+const unknownSizeCases: { name: string; dimensions: { widthPixels?: number; heightPixels?: number } }[] = [
+	{ name: 'missing', dimensions: {} },
+	{ name: 'partial', dimensions: { widthPixels: 540 } },
+	{ name: 'invalid', dimensions: { widthPixels: 0, heightPixels: -960 } }
+];
+
+for (const { name, dimensions } of unknownSizeCases) {
+	test(`${name} photo dimensions use a square until the natural portrait ratio is known`, async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await mockChannel(page, pictureURL, dimensions);
+		const pending = gate();
+		await page.route(`**${pictureURL}`, async route => {
+			await pending.promise;
+			await route.fulfill({ contentType: 'image/svg+xml', body: picture });
+		});
+		try {
+			await page.goto(`/messenger?channel=${channelID}`);
+			await page.getByRole('button', { name: /1개 답글/ }).click();
+			const thread = page.getByRole('dialog', { name: '글타래' });
+			const frame = thread.locator('[data-loading-image]');
+			await expect(frame).toHaveAttribute('data-loading-image', 'loading');
+			await thread.evaluate(element => Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished)));
+			const before = await frame.boundingBox();
+			if (!before) throw new Error('The unknown-size photo has no loading frame');
+			expect(before.width / before.height).toBeCloseTo(1, 3);
+			await capture(page, `image-size-${name}-loading`);
+			pending.release();
+			await expect(frame).toHaveAttribute('data-loading-image', 'loaded');
+			const after = await frame.boundingBox();
+			if (!after) throw new Error('The decoded photo has no frame');
+			expect(after.width / after.height).toBeCloseTo(540 / 960, 3);
+			await expect(frame.locator('img')).toHaveCSS('object-fit', 'contain');
+			await capture(page, `image-size-${name}-loaded`);
+			if (process.env.LOADING_EVIDENCE_DIRECTORY) {
+				await writeFile(`${process.env.LOADING_EVIDENCE_DIRECTORY}/image-size-${name}-geometry.json`, JSON.stringify({ before, after, metadata: dimensions, naturalWidth: 540, naturalHeight: 960 }, null, 2));
+			}
+		} finally { pending.release(); }
+	});
+}
+
+test('known landscape metadata reserves its actual ratio before the image arrives', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await mockChannel(page, pictureURL, { widthPixels: 960, heightPixels: 540 });
+	const pending = gate();
+	await page.route(`**${pictureURL}`, async route => {
+		await pending.promise;
+		await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="540" fill="#466baa"/></svg>' });
+	});
+	try {
+		await page.goto(`/messenger?channel=${channelID}`);
+		const frame = page.locator('[data-loading-image]').first();
+		await expect(frame).toHaveAttribute('data-loading-image', 'loading');
+		const before = await frame.boundingBox();
+		if (!before) throw new Error('The landscape photo has no loading frame');
+		expect(before.width / before.height).toBeCloseTo(960 / 540, 3);
+		pending.release();
+		await expect(frame).toHaveAttribute('data-loading-image', 'loaded');
+		const after = await frame.boundingBox();
+		if (!after) throw new Error('The loaded landscape photo has no frame');
+		expect(after.width).toBeCloseTo(before.width, 1);
+		expect(after.height).toBeCloseTo(before.height, 1);
+	} finally { pending.release(); }
 });
 
 test('the lightbox keeps attachment proportions while its image is pending', async ({ page }) => {
