@@ -18,7 +18,8 @@
 	import CalendarToolbar from './calendar-toolbar.svelte';
 	import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
 	import CalendarLoadWarning from './calendar-load-warning.svelte';
-	import { Spinner } from '$lib/components/ui/spinner';
+	import { Button } from '$lib/components/ui/button';
+	import * as Empty from '$lib/components/ui/empty';
 
 	type CalendarOption = {
 		id: string;
@@ -116,6 +117,7 @@
 		updatePopover,
 		stageElement = $bindable<HTMLElement | null>(null)
 	}: CalendarPageContentProps = $props();
+	let hasVisibleEvents = $state(true);
 
 	const participantFilterOptions = $derived([
 		{ value: '', label: text.allParticipants, email: '', image: '' },
@@ -143,8 +145,6 @@
 </script>
 
 <main class="calendar-page relative flex min-h-0 w-full flex-1 flex-col" aria-busy={isLoading}>
-	{#if isLoading && !isInitialLoading}<span class="absolute right-2 top-2 z-10"><Spinner aria-label={text.loading} /></span>{/if}
-	{#if isInitialLoading}<span role="status" class="sr-only">{text.loading}</span>{/if}
 	<CalendarLoadWarning message={loadErrorMessage} />
 	<CalendarToolbar
 		{currentMonthTitle}
@@ -161,8 +161,16 @@
 		{participantFilterKey}
 		{selectParticipantFilter}
 	/>
+	{#if !isInitialLoading && !loadErrorMessage && participantFilterKey && !hasVisibleEvents}
+		<Empty.Root data-testid="calendar-filter-empty" class="flex-none flex-row justify-between gap-3 rounded-none border-b border-border/50 px-3 py-2 text-left">
+			<Empty.Header class="items-start"><Empty.Title class="text-sm">{text.noFilteredEvents}</Empty.Title></Empty.Header>
+			<Empty.Content class="w-auto shrink-0"><Button size="sm" variant="ghost" onclick={() => selectParticipantFilter('')}>{text.clearFilter}</Button></Empty.Content>
+		</Empty.Root>
+	{/if}
 	<CalendarStage
 		loading={isInitialLoading}
+		busy={isLoading}
+		onVisibleEventsChange={(hasEvents) => { hasVisibleEvents = hasEvents; }}
 		showEmptyState={!loadErrorMessage}
 		{activeMobileEditorEventID}
 		{clearActiveMobileEditorEvent}

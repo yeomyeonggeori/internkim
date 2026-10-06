@@ -46,6 +46,8 @@ export type CalendarLocaleText = {
 	searchCalendar: string;
 	searchResults: string;
 	noResults: string;
+	noFilteredEvents: string;
+	clearFilter: string;
 	calendarView: string;
 	day: string;
 	week: string;
@@ -146,6 +148,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		searchCalendar: '일정 검색',
 		searchResults: '검색 결과',
 		noResults: '결과 없음',
+		noFilteredEvents: '선택한 참여자의 일정이 없습니다',
+		clearFilter: '필터 해제',
 		calendarView: '일정 보기',
 		day: '일',
 		week: '주',
@@ -255,6 +259,8 @@ export const calendarText: Record<'ko' | 'en', CalendarLocaleText> = {
 		searchCalendar: 'Search calendar',
 		searchResults: 'Search results',
 		noResults: 'No results',
+		noFilteredEvents: 'No events for the selected participant',
+		clearFilter: 'Clear filter',
 		calendarView: 'Calendar view',
 		day: 'Day',
 		week: 'Week',

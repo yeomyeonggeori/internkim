@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fetchLinkPreview, type LinkPreview } from '$lib/messenger/messenger-api';
 	import { isSupabaseConfigured } from '$lib/supabase';
+	import LoadingImage from '$lib/components/loading-image.svelte';
 
 	let { url }: { url: string } = $props();
 
@@ -28,12 +29,13 @@
 		class="flex w-full max-w-[min(70%,20rem)] flex-col self-start overflow-hidden rounded-lg border bg-card text-card-foreground no-underline transition-colors group-data-[align=end]/message:self-end hover:bg-accent"
 	>
 		{#if preview.imageURL}
-			<img
+			<LoadingImage
 				src={preview.imageURL}
 				alt=""
 				loading="lazy"
-				decoding="async"
-				class="aspect-[1.91/1] w-full object-cover"
+				fill
+				class="aspect-[1.91/1] w-full"
+				imageClass="object-cover"
 			/>
 		{/if}
 		<div class="grid gap-0.5 px-3 py-2">

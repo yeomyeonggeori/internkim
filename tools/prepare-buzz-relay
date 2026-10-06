@@ -44,12 +44,10 @@ fi
 case "$target" in
   linux-arm64)
     artifact_directory="$repository_root/.dependency/buzz-relay"
-    bun_target="bun-linux-arm64"
     container_platform="linux/arm64"
     ;;
   linux-amd64)
     artifact_directory="$repository_root/.dependency/buzz-relay-linux-amd64"
-    bun_target="bun-linux-x64"
     container_platform="linux/amd64"
     ;;
   darwin-arm64)
@@ -58,7 +56,6 @@ case "$target" in
       exit 1
     fi
     artifact_directory="$repository_root/.dependency/buzz-relay-darwin-arm64"
-    bun_target="bun-darwin-arm64"
     ;;
   *)
     echo "no messenger is built for $target; the targets are linux-arm64, linux-amd64 and darwin-arm64" >&2
@@ -70,26 +67,6 @@ source_directory="$artifact_directory/src"
 relay_binary="$artifact_directory/buzz-relay"
 admin_binary="$artifact_directory/buzz-admin"
 revision_file="$artifact_directory/REVISION"
-chatd_binary="$artifact_directory/chatd"
-chatd_revision_file="$artifact_directory/CHATD_REVISION"
-
-# chatd is the messenger a company's messages travel over, and setup treats it as
-# optional, so a device provisioned without it comes up with no way to be talked
-# to. It is built here beside the relay it talks through.
-build_chatd() {
-  (cd "$repository_root/.dependency/blueclaw/chatd" \
-    && bun build src/main.ts --compile --target="$bun_target" --outfile "$chatd_binary")
-  chmod +x "$chatd_binary"
-  git -C "$repository_root/.dependency/blueclaw" rev-parse HEAD > "$chatd_revision_file"
-  echo "chatd built at $(cat "$chatd_revision_file")"
-}
-
-chatd_revision="$(git -C "$repository_root/.dependency/blueclaw" rev-parse HEAD)"
-if [ ! -x "$chatd_binary" ] || [ "$(cat "$chatd_revision_file" 2>/dev/null)" != "$chatd_revision" ]; then
-  build_chatd
-else
-  echo "chatd already up to date at $chatd_revision"
-fi
 
 if [ -x "$relay_binary" ] && [ -x "$admin_binary" ] && [ "$(cat "$revision_file" 2>/dev/null)" = "$built_revision" ]; then
   echo "buzz-relay artifact already up to date at $built_revision"

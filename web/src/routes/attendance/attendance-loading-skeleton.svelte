@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Card from '$lib/components/ui/card';
+	import AttendanceCompanyMetrics from './team/attendance-company-metrics.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { attendanceText } from './text';
 	let { kind = 'dashboard', rowCount = 6 }: {
@@ -11,14 +12,7 @@
 </script>
 
 {#snippet metrics()}
-	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		{#each Array.from({ length: 4 }) as _, index (index)}
-			<Card.Root class="gap-2 py-4">
-				<Card.Header class="px-4"><Card.Description><Skeleton class="h-5 w-20" /></Card.Description></Card.Header>
-				<Card.Content class="flex items-end justify-between px-4"><Skeleton class="h-9 w-20" /><Skeleton class="h-5 w-9" /></Card.Content>
-			</Card.Root>
-		{/each}
-	</div>
+	<AttendanceCompanyMetrics />
 {/snippet}
 
 {#snippet teams()}
@@ -62,10 +56,16 @@
 				<div class="overflow-hidden rounded-md border"><div class="grid grid-cols-[4.5rem_minmax(0,1fr)] border-b bg-muted"><div class="border-r"></div><div class="flex flex-col gap-1 px-2 py-2"><div class="flex items-center gap-2"><Skeleton class="size-7 rounded-full" /><Skeleton class="h-4 w-24" /></div><Skeleton class="ml-auto h-5 w-16" /></div></div>
 				<div class="divide-y">{#each Array.from({ length: rowCount }) as _, index (index)}<div class="grid h-12 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2"><div class="px-2"><Skeleton class="h-4 w-12" /></div><div class="space-y-2 px-2"><Skeleton class="h-3 w-24" /><Skeleton class="h-1.5 w-full rounded-full" /></div></div>{/each}</div></div>
 			</Card.Content></Card.Root>
+		{:else if kind === 'members'}
+			<Card.Root class="gap-0 py-0"><Card.Content class="divide-y p-0">
+				{#each Array.from({ length: rowCount }) as _, index (index)}
+					<Card.Content class="py-3"><div class="flex min-h-9 items-center gap-3"><Skeleton class="size-9 shrink-0 rounded-full" /><div class="flex h-9 min-w-0 flex-1 flex-col justify-center gap-1"><Skeleton class="h-4 w-24 max-w-full" /><Skeleton class="h-3 w-36 max-w-full" /></div><div class="flex shrink-0 gap-2"><Skeleton class="h-5 w-10" /><Skeleton class="h-5 w-10" /></div></div><div class="mt-2 pl-12"><Skeleton class="h-1.5 w-full rounded-full" /></div></Card.Content>
+				{/each}
+			</Card.Content></Card.Root>
 		{:else}
 			<div class="divide-y rounded-xl border">
 				{#each Array.from({ length: rowCount }) as _, index (index)}
-					<div class="space-y-2 px-6 py-3"><div class="flex items-center gap-3"><Skeleton class="size-9 shrink-0 rounded-full" /><div class="min-w-0 flex-1 space-y-2"><Skeleton class="h-5 w-24" /><Skeleton class="h-3 w-36 max-w-full" /></div><Skeleton class="h-5 w-14" /></div><div class="pl-12"><Skeleton class={kind === 'members' ? 'h-1.5 w-full rounded-full' : 'h-4 w-3/4'} /></div></div>
+					<div class="space-y-2 px-6 py-3"><div class="flex items-center gap-3"><Skeleton class="size-9 shrink-0 rounded-full" /><div class="min-w-0 flex-1 space-y-2"><Skeleton class="h-5 w-24" /><Skeleton class="h-3 w-36 max-w-full" /></div><Skeleton class="h-5 w-14" /></div><div class="pl-12"><Skeleton class="h-4 w-3/4" /></div></div>
 				{/each}
 			</div>
 		{/if}

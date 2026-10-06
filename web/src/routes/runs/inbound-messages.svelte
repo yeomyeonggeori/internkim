@@ -3,6 +3,7 @@
 	import { taskRunDetailPathOf } from '$lib/app-shell';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
 	import { onMount } from 'svelte';
@@ -103,7 +104,9 @@
 	</div>
 {:else if inboundMessages.length === 0}
 	<Card.Root size="sm">
-		<Card.Content class="text-sm text-muted-foreground">{text.inboundEmpty}</Card.Content>
+		<Card.Content>
+			<Empty.Root><Empty.Header><Empty.Title>{text.inboundEmpty}</Empty.Title></Empty.Header></Empty.Root>
+		</Card.Content>
 	</Card.Root>
 {:else}
 	<Card.Root class="min-w-0 max-md:mb-[calc(5rem+env(safe-area-inset-bottom))]">

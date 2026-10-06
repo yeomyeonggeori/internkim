@@ -156,6 +156,8 @@ export const taskText = {
 			endDate: '종료일',
 			participants: '참여자',
 			participantsPlaceholder: '이름을 입력해 추가',
+			noParticipants: '추가할 수 있는 참여자가 없습니다.',
+			noMatchingParticipants: '검색에 맞는 참여자가 없습니다.',
 			removeParticipantAction: '{name} 제거',
 			relationships: {
 				etcLabel: '기타',
@@ -166,6 +168,7 @@ export const taskText = {
 				searchParent: '부모 업무 검색',
 				searchChildren: '자녀 업무 검색',
 				noCandidates: '연결할 수 있는 업무가 없습니다.',
+				noMatchingCandidates: '검색에 맞는 업무가 없습니다.',
 				createChild: '새 자녀 업무 만들기',
 				connectSelected: '선택한 업무 연결',
 				removeRelationship: '관계 해제',
@@ -190,6 +193,7 @@ export const taskText = {
 			deleting: '삭제 중...',
 			saveError: '업무를 저장하지 못했습니다.',
 			empty: '조건에 맞는 업무가 없습니다.',
+			noTasks: '아직 업무가 없습니다.',
 			viewTabs: {
 				board: '보드',
 				list: '목록'
@@ -410,6 +414,8 @@ export const taskText = {
 			endDate: 'End date',
 			participants: 'Participants',
 			participantsPlaceholder: 'Type a name to add',
+			noParticipants: 'No participants available.',
+			noMatchingParticipants: 'No participants match this search.',
 			removeParticipantAction: 'Remove {name}',
 			relationships: {
 				etcLabel: 'Etc.',
@@ -420,6 +426,7 @@ export const taskText = {
 				searchParent: 'Search parent tasks',
 				searchChildren: 'Search child tasks',
 				noCandidates: 'No tasks can be connected.',
+				noMatchingCandidates: 'No tasks match this search.',
 				createChild: 'Create a new child task',
 				connectSelected: 'Connect selected tasks',
 				removeRelationship: 'Remove relationship',
@@ -444,6 +451,7 @@ export const taskText = {
 			deleting: 'Deleting...',
 			saveError: 'Could not save the task.',
 			empty: 'No tasks match these filters.',
+			noTasks: 'No tasks yet.',
 			viewTabs: {
 				board: 'Board',
 				list: 'List'

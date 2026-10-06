@@ -30,7 +30,7 @@ export function timelineMessages(
 
 function threadSummaryFor(rootMessage: ChannelMessage, replies: ChannelMessage[]): ThreadSummary {
 	const participantsById = new Map<string, ChannelParticipant>();
-	for (const message of [rootMessage, ...replies]) {
+	for (const message of replies) {
 		participantsById.set(message.sender.id, message.sender);
 	}
 	return {

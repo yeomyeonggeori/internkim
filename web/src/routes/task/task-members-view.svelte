@@ -13,10 +13,12 @@
 
 	type Props = {
 		members: TaskMember[];
+		isLoading: boolean;
+		hasLoadError: boolean;
 		text: MembersText;
 	};
 
-	let { members, text }: Props = $props();
+	let { members, text, isLoading, hasLoadError }: Props = $props();
 
 	const headClass = 'h-10 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground';
 	const countsByID = $derived(new Map(members.map((member) => [member.id, member])));
@@ -51,6 +53,8 @@
 	<Card.Content>
 		<MemberTable
 			{members}
+			{isLoading}
+			{hasLoadError}
 			{text}
 			minimumWidth="min-w-[760px]"
 			extraHeaders={workHeaders}

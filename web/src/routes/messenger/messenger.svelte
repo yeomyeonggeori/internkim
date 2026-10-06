@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import Channel from '$lib/components/channel/channel.svelte';
 	import ChannelLoadingSkeleton from '$lib/components/channel/channel-loading-skeleton.svelte';
 	import MessengerChannelList from './messenger-channel-list.svelte';
@@ -600,7 +601,7 @@
 				</button>
 			{/each}
 				{#if people.length === 0 && !peopleError}
-					<p class="text-muted-foreground px-2 py-6 text-center text-sm">{text.noPeople}</p>
+					<Empty.Root><Empty.Header><Empty.Title>{text.noPeople}</Empty.Title></Empty.Header></Empty.Root>
 				{/if}
 				{/if}
 		</div>

@@ -1,6 +1,7 @@
 import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { SkillReadError } from './skill-read-error';
 
 export type LoadedSkill = {
 	name: string;
@@ -114,12 +115,12 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 async function askTheDevice(): Promise<unknown> {
 	const response = await adminApiFetch('/skills/api');
-	if (!response.ok) throw new Error(`Skill inventory request returned ${response.status}`);
+	if (!response.ok) throw new SkillReadError(`Skill inventory request returned ${response.status}`, response.status);
 	return response.json();
 }
 
 async function askTheCompanyApp(): Promise<unknown> {
 	const answer = await callCompanyApp({ capability: 'person.skills.list' });
-	if (answer.status >= 400) throw new Error(`Skill inventory request returned ${answer.status}`);
+	if (answer.status >= 400) throw new SkillReadError(`Skill inventory request returned ${answer.status}`, answer.status);
 	return answer.body;
 }

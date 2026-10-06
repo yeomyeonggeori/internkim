@@ -247,22 +247,10 @@ func buildBrewGoPrograms(repositoryRootPath string, binaryPath string, libraryPa
 
 func buildBrewBunPrograms(repositoryRootPath string, libraryPath string, output io.Writer) error {
 	for _, program := range packagedBunPrograms() {
-		installArguments := []string{"install", "--frozen-lockfile"}
-		if program.InstallFilter != "" {
-			installArguments = append(installArguments, "--filter", program.InstallFilter)
+		if errorValue := bundlePackagedBunProgram(repositoryRootPath, program, filepath.Join(libraryPath, program.Name)); errorValue != nil {
+			return errorValue
 		}
-		install := exec.Command("bun", installArguments...)
-		install.Dir = filepath.Join(repositoryRootPath, program.InstallWorking)
-		if commandOutput, errorValue := install.CombinedOutput(); errorValue != nil {
-			return fmt.Errorf("resolve %s dependencies: %s", program.Name, strings.TrimSpace(string(commandOutput)))
-		}
-		build := exec.Command("bun", "build", "--compile", "--target=bun-darwin-arm64",
-			"--outfile", filepath.Join(libraryPath, program.Name), program.EntryPoint)
-		build.Dir = filepath.Join(repositoryRootPath, program.WorkingRoot)
-		if commandOutput, errorValue := build.CombinedOutput(); errorValue != nil {
-			return fmt.Errorf("compile %s for darwin/arm64: %s", program.Name, strings.TrimSpace(string(commandOutput)))
-		}
-		fmt.Fprintf(output, "  compiled %s\n", program.Name)
+		fmt.Fprintf(output, "  bundled %s\n", program.Name)
 	}
 	return nil
 }

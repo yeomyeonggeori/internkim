@@ -94,6 +94,7 @@
 	<Card.Content class="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
 		{#if summary}<TeamStatusTable
 			rows={filteredRows}
+			emptyMessage={searchText.trim() && rows.length > 0 ? text.noMatchingMembers : text.noMembers}
 			{summary}
 			{statusDates}
 			selectedDate={attendance.selectedDate || defaultAnchorDate}

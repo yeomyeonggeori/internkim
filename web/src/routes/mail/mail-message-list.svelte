@@ -5,6 +5,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { Input } from '$lib/components/ui/input';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Empty from '$lib/components/ui/empty';
 	import MailMessageRow from './mail-message-row.svelte';
 	import MailOpenIcon from '@lucide/svelte/icons/mail-open';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -27,6 +28,7 @@
 		selectedMessage: MailMessage | null;
 		hasMailboxTrigger: boolean;
 		searchText: string;
+		activeSearchText?: string;
 		text: PageText<typeof mailText>;
 		openSettings: () => void;
 		loadMoreMessages: () => void | Promise<void>;
@@ -49,6 +51,7 @@
 		selectedMessage,
 		hasMailboxTrigger,
 		searchText = $bindable(''),
+		activeSearchText = '',
 		text,
 		openSettings,
 		loadMoreMessages,
@@ -60,6 +63,12 @@
 	function submitSearch(event: SubmitEvent) {
 		event.preventDefault();
 		searchMessages();
+	}
+
+	async function clearFilters() {
+		searchText = '';
+		if (isUnreadOnly) await setUnreadOnly(false);
+		if (activeSearchText) await searchMessages();
 	}
 
 	function autoLoadMoreOnReach(sentinel: HTMLElement) {
@@ -114,23 +123,18 @@
 					{#each [0, 1, 2, 3, 4, 5] as row (row)}<MailMessageRow isPlaceholder {text} />{/each}
 				</div>
 			{:else if !messages.length && !errorMessage}
-			<div class="flex flex-1 flex-col justify-center px-3 text-center">
-				<MailOpenIcon class="mx-auto size-6 text-muted-foreground/60" />
-				{#if !hasLoadedAccount}
-					<p class="mt-3 text-sm font-medium">{text.checkingMail}</p>
-					<p class="mt-1 text-xs text-muted-foreground">{text.checkingMailDescription}</p>
-				{:else if account.isConfigured}
-					<p class="mt-3 text-sm font-medium">{text.noMessages}</p>
-					<p class="mt-1 text-xs text-muted-foreground">{text.emptyMailbox}</p>
-				{:else}
-					<p class="mt-3 text-sm font-medium">{text.connectMail}</p>
-					<p class="mt-1 text-xs text-muted-foreground">{text.emptyUnconfigured}</p>
-					<Button class="mt-4 gap-2 self-center" variant="secondary" onclick={() => openSettings()}>
-						<SettingsIcon />
-						{text.connectAccount}
-					</Button>
+			<Empty.Root>
+				<Empty.Header>
+					<Empty.Media variant="icon"><MailOpenIcon /></Empty.Media>
+					<Empty.Title>{!account.isConfigured ? text.connectMail : activeSearchText ? text.noSearchResults : isUnreadOnly ? text.noUnreadMessages : text.noMessages}</Empty.Title>
+					<Empty.Description>{!account.isConfigured ? text.emptyUnconfigured : activeSearchText || isUnreadOnly ? text.emptySearch : text.emptyMailbox}</Empty.Description>
+				</Empty.Header>
+				{#if !account.isConfigured}
+					<Empty.Content><Button variant="secondary" onclick={openSettings}><SettingsIcon />{text.connectAccount}</Button></Empty.Content>
+				{:else if activeSearchText || isUnreadOnly}
+					<Empty.Content><Button variant="outline" size="sm" onclick={clearFilters}>{text.resetFilters}</Button></Empty.Content>
 				{/if}
-			</div>
+			</Empty.Root>
 		{:else if messages.length}
 			<div class="flex flex-col gap-2">
 				{#each messages as message (messageKey(message))}

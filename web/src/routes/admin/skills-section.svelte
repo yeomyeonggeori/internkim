@@ -2,6 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -10,6 +11,7 @@
 	import { onMount } from 'svelte';
 	import { fetchSkillInventory, skillRootsOf, type SkillInventory } from './skills-api';
 	import { skillsText } from './skills-text';
+	import { isSkillReadAccessDenied } from './skill-read-error';
 
 	const text = createPageText(skillsText);
 	let inventory = $state<SkillInventory | undefined>(undefined);
@@ -23,7 +25,8 @@
 		loadError = '';
 		try {
 			inventory = await fetchSkillInventory();
-		} catch {
+		} catch (error) {
+			if (isSkillReadAccessDenied(error)) inventory = undefined;
 			loadError = text.loadError;
 		} finally {
 			isLoading = false;
@@ -58,12 +61,19 @@
 	</Card.Header>
 	<Card.Content class="flex flex-col gap-4">
 		{#if loadError}
-			<p class="text-sm text-destructive">{loadError}</p>
-		{:else if !inventory}
+			<p role="alert" class="text-sm text-destructive">{loadError}</p>
+		{/if}
+		{#if !inventory && !loadError}
 			<Skeleton class="h-24 w-full" />
-		{:else if inventory.skills.length === 0 && inventory.unavailableSkills.length === 0}
-			<p class="text-sm text-muted-foreground">{text.empty}</p>
-		{:else}
+		{:else if inventory && inventory.skills.length === 0 && inventory.unavailableSkills.length === 0}
+			{#if isLoading}
+				<Skeleton class="h-24 w-full" />
+			{:else if !loadError}
+				<Empty.Root>
+					<Empty.Header><Empty.Title>{text.empty}</Empty.Title></Empty.Header>
+				</Empty.Root>
+			{/if}
+		{:else if inventory}
 			{#each skillRoots as skillRoot (skillRoot.path)}
 				<div class="flex flex-col gap-2">
 					<div class="flex flex-wrap items-baseline gap-2">

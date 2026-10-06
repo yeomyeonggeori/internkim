@@ -1,11 +1,12 @@
 <script lang="ts" module>
-	export type LightboxView = { images: string[]; index: number };
+	export type LightboxView = { images: { source: string; width?: number; height?: number }[]; index: number };
 </script>
 
 <script lang="ts">
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import { fade, scale } from 'svelte/transition';
+	import { fade } from 'svelte/transition';
+	import LoadingImage from '$lib/components/loading-image.svelte';
 
 	let { view = $bindable() }: { view: LightboxView | null } = $props();
 
@@ -66,11 +67,14 @@
 			onclick={closeFromBackdrop}
 		></button>
 		{#key view.index}
-			<img
-				src={currentImage}
+			<LoadingImage
+				src={currentImage.source}
+				width={currentImage.width}
+				height={currentImage.height}
 				alt=""
-				class="pointer-events-none relative z-10 max-h-full max-w-full rounded-md object-contain p-6"
-				in:scale={{ duration: 200, start: 0.94 }}
+				loading="eager"
+				maxHeight="calc(100dvh - 3rem)"
+				class="pointer-events-none z-10 max-w-[calc(100vw-3rem)] rounded-md"
 			/>
 		{/key}
 		{#if hasMultiple}

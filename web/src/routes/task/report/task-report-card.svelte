@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import TaskBusinessDistanceDonut from './task-business-distance-donut.svelte';
 	import TaskDailyTypeDistanceChart from './task-daily-type-distance-chart.svelte';
 	import TaskDistanceLineChart from './task-distance-line-chart.svelte';
@@ -9,9 +10,10 @@
 	type Props = {
 		section: TaskChartSection;
 		definitions?: TaskDefinitions;
+		showEmpty?: boolean;
 	};
 
-	let { section, definitions }: Props = $props();
+	let { section, definitions, showEmpty = true }: Props = $props();
 
 	function isCompactCard(): boolean {
 		return section.chartKind === 'dailyTypeStacked';
@@ -43,11 +45,9 @@
 	</Card.Header>
 	<Card.Content class="min-h-0 flex-1">
 		{#if isSectionEmpty()}
-			<div class="grid min-h-36 place-items-center rounded-md border border-dashed bg-muted/20 px-4 text-sm text-muted-foreground">
-				{section.emptyLabel}
-			</div>
+			{#if showEmpty}<Empty.Root><Empty.Header><Empty.Title>{section.emptyLabel}</Empty.Title></Empty.Header></Empty.Root>{/if}
 		{:else if section.chartKind === 'dailyTypeStacked'}
-			<TaskDailyTypeDistanceChart section={section} {definitions} />
+			<TaskDailyTypeDistanceChart section={section} {definitions} {showEmpty} />
 		{:else if section.chartKind === 'lineComparison'}
 			<TaskDistanceLineChart section={section} variant={section.id === 'monthlyDistanceTrend' ? 'monthly' : 'weekly'} />
 		{:else if section.chartKind === 'donut'}

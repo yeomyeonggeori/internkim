@@ -3,6 +3,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { Input } from '$lib/components/ui/input';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Table from '$lib/components/ui/table';
@@ -20,6 +21,7 @@
 	import LeaveTimeCorrectionDialog from './leave-time-correction-dialog.svelte';
 	import PastLeaveDialog from './past-leave-dialog.svelte';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import AttendanceListLoading from '../attendance-list-loading.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
@@ -114,11 +116,22 @@
 			</Card.Header>
 			<Card.Content class="min-h-0 max-h-[65dvh] overflow-auto">
 				{#if !management.payload && !management.errorMessage}
-					<AttendanceLoadingSkeleton kind="records" />
+					<AttendanceListLoading kind="leave-employees" {isUnlimited} rowCount={6} />
+				{:else if filteredEmployees.length === 0}
+					{#if management.isLoading}
+						<AttendanceListLoading kind="leave-employees" {isUnlimited} rowCount={6} />
+					{:else if !management.errorMessage}
+						<Empty.Root>
+							<Empty.Header><Empty.Title>{search.trim() && management.payload?.employees.length ? text.management.noMatchingEmployees : text.management.noEmployees}</Empty.Title></Empty.Header>
+							{#if search.trim()}
+								<Empty.Content><Button variant="outline" size="sm" onclick={() => search = ''}>{text.clearFilters}</Button></Empty.Content>
+							{/if}
+						</Empty.Root>
+					{/if}
 				{:else if isMobile.current}
 					<ul class="divide-y">
 						{#each filteredEmployees as employee (employee.email)}
-							<li class="grid min-w-0 gap-3 py-3">
+							<li class="grid min-w-0 gap-3 py-3" data-testid="leave-management-employee-row">
 								<Button variant="ghost" class="h-auto min-h-11 w-full min-w-0 justify-start whitespace-normal px-0 text-left" onclick={() => openMobileEmployee(employee.email)}>
 									<PersonAvatar name={displayPersonName(employee.displayName)} email={employee.email} class="size-10 shrink-0" />
 									<span class="min-w-0"><span class="block break-words font-medium">{displayPersonName(employee.displayName)}</span><span class="block break-all text-xs text-muted-foreground">{employee.email}</span></span>
@@ -130,7 +143,7 @@
 
 								</dl>
 							</li>
-						{:else}<li class="py-8 text-center text-muted-foreground">{text.management.noEmployees}</li>{/each}
+						{/each}
 					</ul>
 				{:else}
 				<Table.Root>
@@ -148,7 +161,8 @@
 					<Table.Body>
 						{#each filteredEmployees as employee (employee.email)}
 							{@const isSelected = management.selectedEmployeeEmail === employee.email}
-							<Table.Row
+								<Table.Row
+									data-testid="leave-management-employee-row"
 								data-state={isSelected ? 'selected' : undefined}
 								class={`cursor-pointer ${isSelected ? 'bg-primary/10' : ''}`}
 								onclick={() => management.selectEmployee(employee.email)}
@@ -185,12 +199,6 @@
 									</Table.Cell>
 								{/if}
 							</Table.Row>
-						{:else}
-							<Table.Row>
-								<Table.Cell colspan={isUnlimited ? 3 : 4} class="h-28 text-center text-muted-foreground">
-									{text.management.noEmployees}
-								</Table.Cell>
-							</Table.Row>
 						{/each}
 					</Table.Body>
 				</Table.Root>
@@ -200,13 +208,13 @@
 
 		{#snippet employeeDetails()}
 		<div class="min-w-0 space-y-5">
-			{#if management.isLoading && !management.payload?.detail}
+			{#if management.selectedEmployeeEmail && management.isLoading && !management.payload?.detail}
 				<AttendanceLoadingSkeleton kind="records" rowCount={3} />
-			{:else if isMobile.current && management.errorMessage}
+			{:else if isMobile.current && management.errorMessage && management.payload?.detail?.employee.email !== requestedEmployeeEmail}
 				<p role="alert" class="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{management.errorMessage}</p>
 				<Button variant="outline" onclick={() => void management.selectEmployee(requestedEmployeeEmail)}>{text.management.refresh}</Button>
 			{:else if isMobile.current && management.payload?.detail?.employee.email !== requestedEmployeeEmail}
-				<p class="p-4 text-sm text-muted-foreground">{text.management.selectEmployeePrompt}</p>
+				<Empty.Root><Empty.Header><Empty.Description>{text.management.selectEmployeePrompt}</Empty.Description></Empty.Header></Empty.Root>
 			{:else if management.payload?.detail}
 				{@const detail = management.payload.detail}
 				<Card.Root>
@@ -315,16 +323,18 @@
 								</div>
 							</div>
 						{:else}
-							<p class="py-8 text-center text-sm text-muted-foreground">
-								{text.management.noRequests}
-							</p>
+							{#if management.isLoading}
+								<AttendanceLoadingSkeleton kind="records" rowCount={3} />
+							{:else if !management.errorMessage}
+								<Empty.Root><Empty.Header><Empty.Title>{text.management.noRequests}</Empty.Title></Empty.Header></Empty.Root>
+							{/if}
 						{/each}
 					</Card.Content>
 				</Card.Root>
 			{:else}
-				<div class="grid min-h-72 place-items-center rounded-xl border border-dashed text-sm text-muted-foreground">
-					{text.management.selectEmployeePrompt}
-				</div>
+				{#if !management.errorMessage}
+					<Empty.Root class="border"><Empty.Header><Empty.Description>{text.management.selectEmployeePrompt}</Empty.Description></Empty.Header></Empty.Root>
+				{/if}
 			{/if}
 		</div>
 		{/snippet}

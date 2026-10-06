@@ -4,6 +4,7 @@
 	import PersonChip from '$lib/components/person-chip.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Popover from '$lib/components/ui/popover';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { displayPersonName } from '$lib/person-name.svelte';
@@ -34,7 +35,11 @@
 	}: Props = $props();
 
 	let isPickerOpen = $state(false);
+	let searchQuery = $state('');
 	let selectedParticipantIDs = $derived(new Set(taskDraft.participantIDs));
+	$effect(() => {
+		if (!isPickerOpen) searchQuery = '';
+	});
 
 	function participant(memberID: string): TaskMember | undefined {
 		return members.find((member) => member.id === memberID);
@@ -76,9 +81,11 @@
 		</Popover.Trigger>
 		<Popover.Content class="w-[var(--bits-popover-anchor-width)] p-0" align="start" side="top">
 			<Command.Root>
-				<Command.Input placeholder={text.participantsPlaceholder} />
+				<Command.Input bind:value={searchQuery} placeholder={text.participantsPlaceholder} />
 				<Command.List>
-					<Command.Empty>{text.participantsPlaceholder}</Command.Empty>
+					{#if canEditTask && canEditTaskAssignment}
+						<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{searchQuery.trim() ? text.noMatchingParticipants : text.noParticipants}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
+					{/if}
 					<Command.Group value="participants">
 						{#each members as member (member.id)}
 							<Command.Item

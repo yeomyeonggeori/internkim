@@ -14,6 +14,9 @@
 	import PersonChip from '$lib/components/person-chip.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
+	import * as Empty from '$lib/components/ui/empty';
+	import { appShellText } from '$lib/i18n/app-shell-text';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import { displayPersonName } from '$lib/person-name.svelte';
 
@@ -48,6 +51,7 @@
 	}: Props = $props();
 
 	let isPickerOpen = $state(false);
+	const text = createPageText(appShellText);
 	const selected = $derived(new Set(selectedIDs));
 
 	function personOf(memberID: string): SelectablePerson | undefined {
@@ -82,7 +86,7 @@
 			<Command.Root>
 				<Command.Input {placeholder} />
 				<Command.List>
-					<Command.Empty>{placeholder}</Command.Empty>
+					<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.searchNoResults}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
 					<Command.Group value="people">
 						{#each people as person (person.memberID)}
 							<Command.Item

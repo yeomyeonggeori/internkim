@@ -7,6 +7,7 @@
 	import { reactionPeopleLabel } from './channel-reactions';
 	import type { ChannelMessageReaction } from './channel-api';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
+	import LoadingImage from '$lib/components/loading-image.svelte';
 
 	let {
 		reactions,
@@ -60,13 +61,14 @@
 	}
 
 	function reactionImage(reaction: ChannelMessageReaction): string | undefined {
-		return reaction.imageURL ?? customEmoji.nameToURL.get(reaction.value);
+		return customEmoji.nameToURL.get(reaction.value) || reaction.imageURL;
 	}
 </script>
 
 <Bubble.Reactions bind:ref={pill} {side} align={farCorner} style={placement}>
 	{#each reactions as reaction (reaction.value)}
 		{@const imageURL = reactionImage(reaction)}
+		{@const shortcode = `:${reaction.value}:`}
 		{@const peopleLabel = reactionPeopleLabel(
 			(reaction.people ?? []).map((person) => person.name).filter(Boolean),
 			{ reactedBy: text.reactedBy, reactedByMore: text.reactedByMore }
@@ -80,10 +82,11 @@
 						size="xs"
 						class={reaction.reactedByMe ? 'border-foreground/30 hover:bg-foreground/10' : 'hover:bg-foreground/10'}
 						aria-pressed={reaction.reactedByMe ?? false}
+						aria-label={imageURL ? `${shortcode} ${reaction.count}` : undefined}
 						onclick={() => toggleWhenJoinable(reaction)}
 					>
 						{#if imageURL}
-							<img src={imageURL} alt={reaction.emoji} class="inline size-4" />
+							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
 						{:else}
 							{reaction.emoji}
 						{/if}
@@ -94,8 +97,8 @@
 			<Tooltip.Content>
 				<div class="flex flex-col gap-0.5">
 					<div class="flex items-center gap-1">
-						{#if reaction.imageURL}
-							<img src={reaction.imageURL} alt={reaction.emoji} class="inline size-4" />
+						{#if imageURL}
+							<LoadingImage src={imageURL} alt={shortcode} fallbackText={shortcode} fill loading="eager" class="size-4 shrink-0 rounded-none" />
 						{:else}
 							<span>{reaction.emoji}</span>
 						{/if}

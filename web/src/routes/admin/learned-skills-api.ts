@@ -1,6 +1,7 @@
 import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { SkillReadError } from './skill-read-error';
 
 export type LearnedSkill = {
 	id: string;
@@ -42,11 +43,11 @@ export async function updateLearnedSkill(id: string, action: 'protect' | 'retire
 export async function fetchLearningSettings(): Promise<{ enabled: boolean; activeLimit: number }> {
 	if (isSupabaseConfigured()) {
 		const response = await callCompanyApp({ capability: 'person.agent_learning.settings.get' });
-		if (response.status >= 400) throw new Error(`Learning settings request returned ${response.status}`);
+		if (response.status >= 400) throw new SkillReadError(`Learning settings request returned ${response.status}`, response.status);
 		return readSettings(response.body);
 	}
 	const response = await adminApiFetch('/agent-learning/api/settings');
-	if (!response.ok) throw new Error(`Learning settings request returned ${response.status}`);
+	if (!response.ok) throw new SkillReadError(`Learning settings request returned ${response.status}`, response.status);
 	return readSettings(await response.json());
 }
 
@@ -58,23 +59,23 @@ export async function updateLearningSettings(settings: { enabled: boolean; activ
 export async function fetchLearnedSkillHistory(id: string): Promise<LearnedSkill[]> {
 	if (isSupabaseConfigured()) {
 		const response = await callCompanyApp({ capability: 'person.agent_learning.skills.get', body: { id, includeHistory: true } });
-		if (response.status >= 400) throw new Error(`Learned skill history request returned ${response.status}`);
+		if (response.status >= 400) throw new SkillReadError(`Learned skill history request returned ${response.status}`, response.status);
 		return readArray(readRecord(response.body)?.skills, readLearnedSkill);
 	}
 	const response = await adminApiFetch(`/agent-learning/api/skills/${encodeURIComponent(id)}?includeHistory=true`);
-	if (!response.ok) throw new Error(`Learned skill history request returned ${response.status}`);
+	if (!response.ok) throw new SkillReadError(`Learned skill history request returned ${response.status}`, response.status);
 	return readArray(readRecord(await response.json())?.skills, readLearnedSkill);
 }
 
 async function askDevice(): Promise<unknown> {
 	const response = await adminApiFetch('/agent-learning/api/skills?includeRetired=true');
-	if (!response.ok) throw new Error(`Learned skills request returned ${response.status}`);
+	if (!response.ok) throw new SkillReadError(`Learned skills request returned ${response.status}`, response.status);
 	return response.json();
 }
 
 async function askCompanyApp(): Promise<unknown> {
 	const response = await callCompanyApp({ capability: 'person.agent_learning.skills.list', body: { includeRetired: true } });
-	if (response.status >= 400) throw new Error(`Learned skills request returned ${response.status}`);
+	if (response.status >= 400) throw new SkillReadError(`Learned skills request returned ${response.status}`, response.status);
 	return response.body;
 }
 

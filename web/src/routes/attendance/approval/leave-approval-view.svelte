@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import * as Empty from '$lib/components/ui/empty';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { attendanceText } from '../text';
 	import LeaveApprovalCard from './leave-approval-card.svelte';
 	import { getLeaveApprovalState } from './leave-approval-state.svelte';
-	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import AttendanceListLoading from '../attendance-list-loading.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
@@ -41,12 +42,14 @@
 	{/if}
 
 	{#if !approval.errorMessage || approval.inbox}<div class="divide-y rounded-lg border px-4" aria-busy={approval.isLoading}>
-		{#if !approval.inbox}
-			<AttendanceLoadingSkeleton kind="records" rowCount={3} />
+		{#if !approval.inbox || (approval.isLoading && approval.inbox.pending.length === 0)}
+			<AttendanceListLoading kind="approvals" />
 		{:else if (approval.inbox?.pending.length ?? 0) === 0}
-			<p class="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
-				{text.approval.pendingEmpty}
-			</p>
+			{#if !approval.errorMessage}
+				<Empty.Root>
+					<Empty.Header><Empty.Title>{text.approval.pendingEmpty}</Empty.Title></Empty.Header>
+				</Empty.Root>
+			{/if}
 		{:else}
 			{#each approval.inbox?.pending ?? [] as request (request.id)}
 				<LeaveApprovalCard {request} text={text.approval} />

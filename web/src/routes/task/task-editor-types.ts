@@ -12,6 +12,7 @@ export type TaskRelationshipsText = {
 	searchParent: string;
 	searchChildren: string;
 	noCandidates: string;
+	noMatchingCandidates: string;
 	createChild: string;
 	connectSelected: string;
 	removeRelationship: string;
@@ -43,6 +44,8 @@ export type TaskEditorText = {
 	endDate: string;
 	participants: string;
 	participantsPlaceholder: string;
+	noParticipants: string;
+	noMatchingParticipants: string;
 	removeParticipantAction: string;
 	relationships: TaskRelationshipsText;
 	requestReason: string;

@@ -2,6 +2,7 @@
 	import { buttonVariants } from '$lib/components/ui/button';
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Table from '$lib/components/ui/table';
 	import { cn } from '$lib/utils';
 	import ChartNoAxesColumnIncreasingIcon from '@lucide/svelte/icons/chart-no-axes-column-increasing';
@@ -15,9 +16,10 @@
 	type Props = {
 		summary: TaskSummary | null;
 		text: TaskReportText;
+		showEmpty?: boolean;
 	};
 
-	let { summary, text }: Props = $props();
+	let { summary, text, showEmpty = true }: Props = $props();
 
 	let detail = $derived(buildTaskPersonalScoreDetail(summary));
 
@@ -89,8 +91,8 @@
 					{@render scoreTable(text.weeklyScoreDetail, detail.weekly, weekLabel, text)}
 					{@render scoreTable(text.monthlyScoreDetail, detail.monthly, monthLabel, text)}
 				</div>
-			{:else}
-				<div class="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">{text.scoreEmpty}</div>
+			{:else if summary && showEmpty}
+				<Empty.Root><Empty.Header><Empty.Title>{text.scoreEmpty}</Empty.Title></Empty.Header></Empty.Root>
 			{/if}
 		</div>
 	</Dialog.Content>

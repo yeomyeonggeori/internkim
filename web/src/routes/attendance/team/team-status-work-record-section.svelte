@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import * as Empty from '$lib/components/ui/empty';
 	import ChangeReasonSelect from '../shared/change-reason-select.svelte';
-	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import Clock3Icon from '@lucide/svelte/icons/clock-3';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -262,10 +262,9 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="flex items-center gap-3 rounded-lg bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-			<CircleAlertIcon class="size-4 shrink-0" />
-			{text.eventNone}
-		</div>
+		<Empty.Root class="p-4">
+			<Empty.Header><Empty.Title>{text.eventNone}</Empty.Title></Empty.Header>
+		</Empty.Root>
 	{/if}
 </div>
 

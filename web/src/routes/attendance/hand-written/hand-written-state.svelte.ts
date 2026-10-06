@@ -16,14 +16,21 @@ export class HandWrittenState {
 	undoingEventID = $state('');
 	errorMessage = $state('');
 	private loadSequence = 0;
-	private today = '';
+	private today = $state('');
 	pageOffset = $state(0);
 	totalCount = $state(0);
 	selectedTeamKey = $state('');
 	selectedChangedByID = $state('');
 	appliedDayRange = $state<HandWrittenDayRange>({from:'',to:''});
-	private appliedTeamKey = '';
-	private appliedChangedByID = '';
+	private appliedTeamKey = $state('');
+	private appliedChangedByID = $state('');
+
+	get hasAppliedFilters(): boolean {
+		if (this.appliedTeamKey || this.appliedChangedByID) return true;
+		if (!this.today || !this.appliedDayRange.from) return false;
+		const defaultRange = currentAndPreviousMonth(this.today);
+		return this.appliedDayRange.from !== defaultRange.from || this.appliedDayRange.to !== defaultRange.to;
+	}
 
 	constructor(
 		private readonly text: AttendanceText['handWritten'],

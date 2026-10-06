@@ -86,6 +86,7 @@
 				account={page.account}
 				selectedMailboxLabel={page.selectedMailboxLabel()}
 				bind:searchText={page.searchText}
+				activeSearchText={page.activeSearchText}
 				isLoading={page.isLoading}
 				isSyncing={page.isSyncing}
 				hasLoadedAccount={page.hasLoadedAccount}

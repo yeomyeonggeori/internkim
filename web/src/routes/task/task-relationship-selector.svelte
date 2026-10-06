@@ -2,6 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
+	import * as Empty from '$lib/components/ui/empty';
 	import Link2Icon from '@lucide/svelte/icons/link-2';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
@@ -47,6 +48,7 @@
 	}: Props = $props();
 
 	let selectedTaskIDs = $state<string[]>([]);
+	let searchQuery = $state('');
 	let submitting = $state(false);
 	let candidates = $derived(
 		mode === 'parent'
@@ -57,7 +59,10 @@
 	let searchPlaceholder = $derived(mode === 'parent' ? text.searchParent : text.searchChildren);
 
 	function handleOpenChange(nextOpen: boolean): void {
-		if (!nextOpen) selectedTaskIDs = [];
+		if (!nextOpen) {
+			selectedTaskIDs = [];
+			searchQuery = '';
+		}
 	}
 
 	function toggleChild(taskID: string): void {
@@ -101,9 +106,11 @@
 	class="sm:max-w-lg"
 	onOpenChange={handleOpenChange}
 >
-	<Command.Input placeholder={searchPlaceholder} {disabled} />
+	<Command.Input bind:value={searchQuery} placeholder={searchPlaceholder} {disabled} />
 	<Command.List>
-		<Command.Empty>{text.noCandidates}</Command.Empty>
+		{#if !disabled}
+			<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{searchQuery.trim() ? text.noMatchingCandidates : text.noCandidates}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
+		{/if}
 		<Command.Group heading={title}>
 			{#each candidates as candidate (candidate.id)}
 				<Command.Item
