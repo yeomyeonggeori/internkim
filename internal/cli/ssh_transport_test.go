@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -76,5 +79,40 @@ func TestSSHLeavesKeyAuthenticationAloneWithoutAPassword(t *testing.T) {
 	connection := hostSSH{user: "admin", hostname: "ssh.example.test"}
 	if strings.Contains(strings.Join(connection.sshArguments(nil), " "), "PubkeyAuthentication=no") {
 		t.Error("ssh refused keys although no password was given")
+	}
+}
+
+const fakeSudoScript = `#!/bin/sh
+while [ "$1" = "-k" ] || [ "$1" = "-S" ] || [ "$1" = "-p" ] || [ "$1" = "" ]; do
+  [ "$1" = "-S" ] && reads_password=1
+  [ "$1" = "-p" ] && shift
+  shift
+done
+[ -n "$reads_password" ] || exit 1
+IFS= read -r password
+[ "$password" = "secret" ] || exit 1
+exec "$@"
+`
+
+func TestSudoLeavesStandardInputToTheCommand(t *testing.T) {
+	directory := t.TempDir()
+	if errorValue := os.WriteFile(filepath.Join(directory, "sudo"), []byte(fakeSudoScript), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Setenv("PATH", directory+string(os.PathListSeparator)+os.Getenv("PATH"))
+	connection := hostSSH{password: "secret"}
+	destinationPath := filepath.Join(directory, "uploaded")
+
+	command := exec.Command("bash", "-c", connection.privilegedCommand("cat > "+quoteShellValue(destinationPath)))
+	command.Stdin = strings.NewReader("file contents\n")
+	if output, errorValue := command.CombinedOutput(); errorValue != nil {
+		t.Fatalf("sudo command failed: %v\n%s", errorValue, output)
+	}
+	uploaded, errorValue := os.ReadFile(destinationPath)
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if string(uploaded) != "file contents\n" {
+		t.Errorf("the command read %q from stdin, expected the caller's input", uploaded)
 	}
 }

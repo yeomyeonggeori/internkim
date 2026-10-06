@@ -295,3 +295,41 @@ func TestDevFleetRunHoldsTheLocalPlaneLock(t *testing.T) {
 		t.Fatalf("dev fleet run runs %v, expected %v", command.Args, expected)
 	}
 }
+
+func TestDevFleetRunAnswersWithoutTouchingTheLocalPlane(t *testing.T) {
+	repositoryRoot := t.TempDir()
+	touchedPath := filepath.Join(repositoryRoot, "plane-touched")
+	toolsPath := filepath.Join(repositoryRoot, "tools")
+	if errorValue := os.MkdirAll(toolsPath, 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	script := "#!/bin/sh\ntouch " + touchedPath + "\n"
+	if errorValue := os.WriteFile(filepath.Join(toolsPath, "with-local-plane"), []byte(script), 0o755); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	t.Chdir(repositoryRoot)
+	t.Setenv("LOCAL_PLANE_LOCK_HOLDER", "")
+
+	for name, arguments := range map[string][]string{
+		"help":            {"--help"},
+		"missing":         {},
+		"unknown flag":    {"--no-such-flag"},
+		"extra arguments": {"--scenario", "workspace-ownership", "stray"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			readEnd, writeEnd, errorValue := os.Pipe()
+			if errorValue != nil {
+				t.Fatal(errorValue)
+			}
+			previousStderr := os.Stderr
+			os.Stderr = writeEnd
+			runDevFleetArguments(append([]string{"run"}, arguments...))
+			os.Stderr = previousStderr
+			writeEnd.Close()
+			io.Copy(io.Discard, readEnd)
+			if _, statError := os.Stat(touchedPath); statError == nil {
+				t.Fatalf("dev fleet run %v started the local plane before answering", arguments)
+			}
+		})
+	}
+}
