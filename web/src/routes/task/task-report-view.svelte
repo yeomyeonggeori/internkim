@@ -12,19 +12,20 @@
 		sections: TaskReportSections;
 		summary: TaskSummary | null;
 		text: TaskReportText;
+		showEmpty: boolean;
 	};
 
-	let { sections, summary, text }: Props = $props();
+	let { sections, summary, text, showEmpty }: Props = $props();
 </script>
 
 <section class="grid min-w-0 gap-4 lg:grid-cols-2">
 	<div class="grid min-w-0 gap-4">
-		<TaskReportCard section={sections.weeklyStatus} definitions={summary?.definitions} />
-		<TaskReportCard section={sections.businessDistance} definitions={summary?.definitions} />
+		<TaskReportCard section={sections.weeklyStatus} definitions={summary?.definitions} {showEmpty} />
+		<TaskReportCard section={sections.businessDistance} definitions={summary?.definitions} {showEmpty} />
 	</div>
 	<div class="min-w-0">
-		<TaskMemberScoreCard section={sections.memberDistance} {summary} {text} />
+		<TaskMemberScoreCard section={sections.memberDistance} {summary} {text} {showEmpty} />
 	</div>
-	<TaskReportCard section={sections.weeklyDistanceTrend} definitions={summary?.definitions} />
-	<TaskReportCard section={sections.monthlyDistanceTrend} definitions={summary?.definitions} />
+	<TaskReportCard section={sections.weeklyDistanceTrend} definitions={summary?.definitions} {showEmpty} />
+	<TaskReportCard section={sections.monthlyDistanceTrend} definitions={summary?.definitions} {showEmpty} />
 </section>

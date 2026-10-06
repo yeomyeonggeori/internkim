@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import { taskTypeColor } from '../task-definition-colors';
 	import { paletteColorAt } from '$lib/color-picker-palette';
 	import type { TaskDefinitions } from '../task-types';
@@ -7,9 +8,10 @@
 	type Props = {
 		section: TaskDailyTypeDistanceSection;
 		definitions?: TaskDefinitions;
+		showEmpty?: boolean;
 	};
 
-	let { section, definitions }: Props = $props();
+	let { section, definitions, showEmpty = true }: Props = $props();
 	let activeDailyIndex = $state<number | null>(null);
 
 	const dailyGridTicks = [0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100];
@@ -93,8 +95,8 @@
 						{/each}
 					</div>
 				</div>
-				{#if section.total === 0}
-					<div class="absolute inset-0 grid place-items-center text-sm text-muted-foreground">{section.emptyLabel}</div>
+				{#if section.total === 0 && showEmpty}
+					<Empty.Root class="absolute inset-0"><Empty.Header><Empty.Title>{section.emptyLabel}</Empty.Title></Empty.Header></Empty.Root>
 				{/if}
 				{#if activeDailyIndex !== null}
 					{@const activeRow = activeDailyRow()}

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
+	import * as Empty from '$lib/components/ui/empty';
 	import type { AttendanceText } from '../text';
 	import type { EmployeeLeaveRequest } from './employee-leave-types';
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import LeaveHistoryRow from './leave-history-row.svelte';
 	import { buildLeaveHistory } from './leave-history-model';
-	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import AttendanceListLoading from '../attendance-list-loading.svelte';
 
 	type Props = {
 		text: AttendanceText['leave'];
@@ -42,8 +43,8 @@
 		</p>
 	{/if}
 
-	{#if !employeeLeave.payload && !employeeLeave.errorMessage}
-		<AttendanceLoadingSkeleton kind="records" rowCount={3} />
+	{#if (!employeeLeave.payload || (employeeLeave.isLoading && !paginatedHistory.length)) && !employeeLeave.errorMessage}
+		<AttendanceListLoading kind="leave-history" />
 	{:else if paginatedHistory.length}
 		<div class="divide-y" data-testid="leave-history-list">
 			{#each paginatedHistory as item (item.id)}
@@ -55,10 +56,10 @@
 				/>
 			{/each}
 		</div>
-	{:else}
-		<div class="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-			{text.historyEmpty}
-		</div>
+	{:else if employeeLeave.payload && !employeeLeave.errorMessage}
+		<Empty.Root class="border">
+			<Empty.Header><Empty.Title>{text.historyEmpty}</Empty.Title></Empty.Header>
+		</Empty.Root>
 	{/if}
 
 	{#if employeeLeave.payload}<ListPaginationFooter

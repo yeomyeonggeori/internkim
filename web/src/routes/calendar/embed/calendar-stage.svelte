@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { setContext } from 'svelte';
 	import * as ContextMenu from '$lib/components/ui/context-menu';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import TrashIcon from '@lucide/svelte/icons/trash';
@@ -12,6 +13,7 @@
 	import CalendarTimeView from '../grid/calendar-time-view.svelte';
 	import { calendarGridEventsFromDayTaskEvents } from '../grid/calendar-grid-events';
 	import { calendarGridDateKey } from '../grid/calendar-grid-dates';
+	import { calendarRangeHasEvents, type CalendarVisibleDateRange } from '../grid/calendar-visible-event-range';
 	import type { CalendarGridEvent } from '../grid/calendar-grid-layout';
 	import CalendarMonthRangePreview from './calendar-month-range-preview.svelte';
 	import type { DraftPopoverAnchor } from './calendar-draft-popover-state';
@@ -41,7 +43,9 @@
 
 	type CalendarStageProps = {
 		loading?: boolean;
+		busy?: boolean;
 		showEmptyState?: boolean;
+		onVisibleEventsChange?: (hasEvents: boolean) => void;
 		activeMobileEditorEventID: string | null;
 		clearActiveMobileEditorEvent: (eventID: string) => void;
 		clearSelectedEvent: () => void;
@@ -78,7 +82,9 @@
 
 	let {
 		loading = false,
+		busy = false,
 		showEmptyState = true,
+		onVisibleEventsChange = () => {},
 		activeMobileEditorEventID,
 		clearActiveMobileEditorEvent,
 		clearSelectedEvent,
@@ -152,6 +158,10 @@
 			event.id === editingEvent?.id ? { ...event, ...editingEvent } : event
 		)
 	);
+	let monthViewport = $state<CalendarVisibleDateRange | null>(null);
+	let timeViewport = $state<CalendarVisibleDateRange | null>(null);
+	const hasVisibleEvents = $derived(calendarRangeHasEvents(gridEvents, toolbarView === ViewType.MONTH ? monthViewport : timeViewport));
+	$effect(() => { onVisibleEventsChange(hasVisibleEvents); });
 	function openGridEvent(event: CalendarGridEvent, originElement: HTMLElement): void {
 		const rectangle = originElement.getBoundingClientRect();
 		openEvent(event.id, {
@@ -251,7 +261,6 @@
 					{#if toolbarView === ViewType.MONTH}
 						<div class="absolute inset-0 flex min-h-0 flex-col">
 						<CalendarMonthView
-							{loading}
 							visibleDate={toolbarDate}
 							selectedDateKey={selectedMonthDateKey ?? ''}
 							selectedEventID={selectedEventID ?? ''}
@@ -265,6 +274,7 @@
 							addEventOnRange={(startDateKey, endDateKey) => addEventOnRange(startDateKey, endDateKey)}
 							openEvent={openGridEvent}
 							visibleMonthChanged={(month) => visibleMonthChanged(month)}
+							visibleRangeChanged={(range) => { monthViewport = range; }}
 						/>
 						</div>
 					{:else}
@@ -272,6 +282,7 @@
 							<CalendarTimeView
 								{loading}
 								{showEmptyState}
+								visibleRangeChanged={(range) => { timeViewport = range; }}
 								visibleDate={toolbarDate}
 								dayCount={toolbarView === ViewType.DAY ? 1 : 7}
 								selectedEventID={selectedEventID ?? ''}
@@ -284,6 +295,12 @@
 								addEventOnTimeRange={(start, end) => addEventOnTimeRange(start, end)}
 								addEventOnDayRange={(startDateKey, endDateKey) => addEventOnRange(startDateKey, endDateKey)}
 							/>
+						</div>
+					{/if}
+					{#if busy}
+						<div role="status" data-calendar-loading-status class="pointer-events-none absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100%_-_2rem)] -translate-x-1/2 items-center gap-2 rounded-full border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm max-sm:bottom-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+1rem)]">
+							<Spinner class="size-3.5 shrink-0" aria-hidden="true" />
+							<span class:sr-only={!loading}>{text.loading}</span>
 						</div>
 					{/if}
 					<CalendarMonthRangePreview segments={monthRangePreviewSegments} title={monthRangePreviewTitle} />

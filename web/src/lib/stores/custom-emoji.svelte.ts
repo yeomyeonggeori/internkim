@@ -80,7 +80,11 @@ class CustomEmojiStore {
 		if (already) return already;
 		const drawing = fetchCustomEmojiImage(name)
 			.then((image) => image?.dataURL ?? null)
-			.catch(() => null);
+			.catch(() => null)
+			.then((url) => {
+				if (!url && this.beingDrawn.get(name) === drawing) this.beingDrawn.delete(name);
+				return url;
+			});
 		this.beingDrawn.set(name, drawing);
 		return drawing;
 	}

@@ -5,12 +5,16 @@ const phase = process.env.LOADING_EVIDENCE_PHASE || 'after';
 const screenshots = process.env.LOADING_EVIDENCE_DIR;
 const selectedCaptureScenes = process.env.LOADING_EVIDENCE_SCENES?.split(',');
 async function capture(page: Page, scene: string, width: number): Promise<void> {
-	await page.evaluate(() => {
+	await page.evaluate(async () => {
+		await document.fonts.ready;
+		(document.activeElement as HTMLElement | null)?.blur();
+		await Promise.all(document.getAnimations().filter(animation => animation.playState === 'running' && Number.isFinite(animation.effect?.getComputedTiming().endTime)).map(animation => animation.finished.catch(() => {})));
 		let element: HTMLElement | null = document.querySelector('[data-testid="attendance-team-dashboard"]');
 		while (element) { element.scrollTop = 0; element = element.parentElement; }
 		window.scrollTo(0, 0);
+		await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 	});
-	if (screenshots && (!selectedCaptureScenes || selectedCaptureScenes.includes(scene))) await page.screenshot({ animations: 'disabled', path: `${screenshots}/attendance-${scene}-${width}-${phase}.png` });
+	if (screenshots && (!selectedCaptureScenes || selectedCaptureScenes.includes(scene))) await page.screenshot({ animations: 'allow', caret: 'initial', path: `${screenshots}/attendance-${scene}-${width}-${phase}.png` });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 }
 test.use({ locale: 'ko-KR' });

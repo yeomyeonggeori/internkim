@@ -412,7 +412,7 @@
 						</Collapsible.Content>
 					</Collapsible.Root>
 				</div>
-				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {organizationTypeDefinitions} {currencyCatalogue} {text} {openOrganization} />
+				<CRMRelationshipTable organizations={filteredOrganizations} contacts={controller.contacts} {organizationTypeDefinitions} {currencyCatalogue} {text} emptyLabel={hasRelationshipFacets || relationshipView !== 'all' ? text.noOrganizations : text.organizationsEmpty} {openOrganization} />
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="contacts" class="grid min-w-0 gap-3 pb-24">
@@ -445,7 +445,7 @@
 					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('progress')}><PlusIcon data-icon="inline-start" />{text.newOpportunity}</Button>
 				</div>
 				{#if pipelineView === 'table'}
-					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onEdit={openOpportunityEdit} />
+					<CRMProgressTable opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} emptyLabel={hasPipelineFacets ? text.noMatchingProgress : text.progressEmpty} onEdit={openOpportunityEdit} />
 				{:else}
 					<CRMPipelineBoard opportunities={pipelineOpportunities} organizations={controller.organizations} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {text} onMove={moveOpportunity} onEdit={openOpportunityEdit} />
 				{/if}
@@ -459,7 +459,7 @@
 					{/if}
 					<Button type="button" class="ml-auto" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('activity')}><PlusIcon data-icon="inline-start" />{text.logActivity}</Button>
 				</div>
-				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} opportunities={controller.opportunities} people={controller.people} taskDefinitions={activityTaskDefinitions} {text} onEdit={openActivityEdit} />
+				<CRMActivityTable activities={filteredActivities} organizations={controller.organizations} opportunities={controller.opportunities} people={controller.people} taskDefinitions={activityTaskDefinitions} {text} emptyLabel={activityView !== 'all' ? text.noActivities : text.activitiesEmpty} onEdit={openActivityEdit} />
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>

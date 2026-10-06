@@ -8,6 +8,8 @@
 	import * as Card from '$lib/components/ui/card';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import * as Empty from '$lib/components/ui/empty';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import RunListLoadingSkeleton from './run-list-loading-skeleton.svelte';
 	import { isRunsAccessDenied } from './runs-read-error';
 	import * as Table from '$lib/components/ui/table';
@@ -225,20 +227,33 @@
 	{#if isAdmin && selectedView === 'inbound'}
 		<InboundMessages {text} />
 	{:else}
-	{#if dailyCostRows.length > 0}
-	<section class="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3">
-		<p class="text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
+	{#if dailyCostRows.length > 0 || isLoading && taskRuns.length === 0}
+	<section class="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3" aria-busy={isLoading && dailyCostRows.length === 0}>
+		{#if dailyCostRows.length > 0}
+			<p class="text-xs text-muted-foreground">{text.dailyCostTitle} · {dailyCostScopeLabel(dailyCostScope)}</p>
+		{:else}
+			<div aria-hidden="true" class="flex h-4 items-center"><Skeleton class="h-3 w-40" /></div>
+		{/if}
 		<div class="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 gap-y-2 text-sm tabular-nums sm:w-fit sm:grid-cols-[auto_auto_auto_auto] sm:gap-x-8 sm:gap-y-1">
 			<span class="text-xs text-muted-foreground">{text.dailyCostDateColumn}</span>
 			<span class="text-right text-xs text-muted-foreground">{text.columnCost}</span>
 			<span class="text-right text-xs text-muted-foreground">{text.dailyCostTasksColumn}</span>
 			<span class="text-right text-xs text-muted-foreground">{text.dailyCostCallsColumn}</span>
+			{#if dailyCostRows.length === 0}
+				{#each [0, 1] as row (row)}
+					<div aria-hidden="true" class="flex h-5 items-center"><Skeleton class="h-4 w-20" /></div>
+					<div aria-hidden="true" class="flex h-5 items-center justify-end"><Skeleton class="h-4 w-14" /></div>
+					<div aria-hidden="true" class="flex h-5 items-center justify-end"><Skeleton class="h-4 w-6" /></div>
+					<div aria-hidden="true" class="flex h-5 items-center justify-end"><Skeleton class="h-4 w-8" /></div>
+				{/each}
+			{:else}
 			{#each dailyCostRows as summary (summary.date)}
 				<span class="text-muted-foreground">{formatCostDate(summary.date)}</span>
 				<span class="text-right font-medium">{formatCostUSD(summary.costUSD)}</span>
 				<span class="text-right">{summary.taskRunCount.toLocaleString()}</span>
 				<span class="text-right">{summary.llmCallCount.toLocaleString()}</span>
 			{/each}
+			{/if}
 		</div>
 	</section>
 	{/if}
@@ -272,7 +287,14 @@
 			<RunListLoadingSkeleton label={text.title} {isAdmin} />
 		{:else if taskRuns.length === 0 && !isLoading && !loadError}
 		<Card.Root size="sm">
-			<Card.Content class="text-sm text-muted-foreground">{text.empty}</Card.Content>
+			<Card.Content>
+				<Empty.Root>
+					<Empty.Header><Empty.Title>{statusFilter ? text.noMatchingRuns : text.empty}</Empty.Title></Empty.Header>
+					{#if statusFilter}
+						<Empty.Content><Button variant="outline" size="sm" onclick={() => selectStatus('')}>{text.clearFilters}</Button></Empty.Content>
+					{/if}
+				</Empty.Root>
+			</Card.Content>
 		</Card.Root>
 		{:else if taskRuns.length > 0}
 			<Card.Root class="min-w-0">

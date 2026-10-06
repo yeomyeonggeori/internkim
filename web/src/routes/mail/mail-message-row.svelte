@@ -23,13 +23,13 @@
 
 {#snippet placeholderContent()}
 	<div class="flex w-full flex-col gap-1">
-		<div class="flex items-center gap-2">
+		<div class="flex h-5 items-center gap-2">
 			<Skeleton class="h-4 w-40" />
 			<Skeleton class="ml-auto h-3 w-10" />
 		</div>
-		<Skeleton class="h-3 w-3/5" />
+		<div class="flex h-4 items-center"><Skeleton class="h-3 w-3/5" /></div>
 	</div>
-	<Skeleton class="h-3 w-4/5" />
+	<div class="flex h-4 w-full items-center"><Skeleton class="h-3 w-4/5" /></div>
 {/snippet}
 
 {#snippet rowContent()}

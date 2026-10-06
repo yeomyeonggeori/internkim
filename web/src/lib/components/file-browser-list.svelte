@@ -62,7 +62,7 @@
 		<div role="status" aria-label={title} data-testid="file-list-loading-skeleton">
 			{#each [0, 1, 2, 3, 4, 5] as row (row)}
 				<div aria-hidden="true" class="grid grid-cols-[minmax(0,1fr)_5rem_7rem] items-center gap-3 border-b px-4 py-2.5 last:border-b-0 max-sm:min-h-16 max-sm:grid-cols-[minmax(0,1fr)_6rem]">
-					<div class="flex min-w-0 items-center gap-2.5"><Skeleton class="size-4 shrink-0" /><Skeleton class="h-4 w-3/4 max-w-64" /></div>
+					<div class="flex min-h-5 min-w-0 items-center gap-2.5"><Skeleton class="size-4 shrink-0" /><Skeleton class="h-4 w-3/4 max-w-64" /></div>
 					<Skeleton class="ml-auto h-3 w-12 max-sm:hidden" /><Skeleton class="ml-auto h-3 w-20" />
 				</div>
 			{/each}
@@ -71,7 +71,7 @@
 		<Empty.Root>
 			<Empty.Header>
 				<Empty.Media variant="icon"><FolderOpenIcon /></Empty.Media>
-				<Empty.Description>{emptyLabel}</Empty.Description>
+				<Empty.Title>{emptyLabel}</Empty.Title>
 			</Empty.Header>
 		</Empty.Root>
 	{:else}

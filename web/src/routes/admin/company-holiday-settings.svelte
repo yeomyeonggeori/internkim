@@ -2,6 +2,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
 	import { Switch } from '$lib/components/ui/switch';
@@ -127,12 +128,15 @@
 			</div>
 		{/if}
 
-		{#if settingsState.isLoading}
+		{#if settingsState.loadError}
+			<p class="text-sm text-destructive" role="alert">{settingsState.loadError}</p>
+		{/if}
+		{#if (settingsState.isLoading || !settingsState.hasLoadedHolidays) && !settingsState.loadError && settingsState.holidays.length === 0}
 			<p class="text-sm text-muted-foreground">{text.companyHolidays.loading}</p>
-		{:else if settingsState.holidays.length === 0 && !settingsState.draft}
-			<p class="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-				{text.companyHolidays.empty}
-			</p>
+		{:else if settingsState.hasLoadedHolidays && settingsState.holidays.length === 0 && !settingsState.draft && !settingsState.loadError}
+			<Empty.Root class="border">
+				<Empty.Header><Empty.Title>{text.companyHolidays.empty}</Empty.Title></Empty.Header>
+			</Empty.Root>
 		{:else}
 			<div class="grid gap-2">
 				{#each settingsState.holidays as holiday (holiday.id)}

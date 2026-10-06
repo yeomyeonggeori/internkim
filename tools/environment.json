@@ -152,6 +152,14 @@
     "process": "docs site",
     "description": "Vite's own build-mode flag (import.meta.env.DEV, true outside a production build), not a deployment setting"
   },
+  "EMPTY_CAPTURE_DIR": {
+    "process": "web fixture tests",
+    "description": "optional output directory for settled-empty, filtered-empty and error-state screenshot evidence"
+  },
+  "EMPTY_CAPTURE_PHASE": {
+    "process": "web fixture tests",
+    "description": "before or after label for Empty component evidence; defaults to after"
+  },
   "GATEWAY_ADMIN_TOKEN": {
     "process": "web, connection-gateway worker",
     "description": "the bearer token the web app's public-API gateway caller and the connection-gateway worker's admin endpoints share",
@@ -433,6 +441,10 @@
   "LOADING_EVIDENCE_SCENES": {
     "process": "web fixture tests",
     "description": "optional comma-separated attendance scene names to save during a targeted evidence refresh; all scene assertions still run"
+  },
+  "SKELETON_FIDELITY_DIRECTORY": {
+    "process": "web fixture tests",
+    "description": "optional output directory for matched CRM, organization and task loading-to-ready geometry evidence"
   },
   "PLAYWRIGHT_BASE_URL": {
     "process": "web e2e tests",

@@ -2,6 +2,7 @@
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import { FlexRender } from '$lib/components/ui/data-table';
 	import * as Table from '$lib/components/ui/table';
+	import * as Empty from '$lib/components/ui/empty';
 	import { cn } from '$lib/utils';
 	import type { Table as TableInstance } from '@tanstack/table-core';
 	import type { Task } from './task-types';
@@ -21,13 +22,14 @@
 		columnCount: number;
 		pageSize: number;
 		emptyLabel: string;
+		showEmpty?: boolean;
 		pagination: PaginationText;
 		openTask: (task: Task) => void;
 		focusedTaskID: string;
 		mobileLabels: { sort: string; details: string; [key: string]: string | PaginationText };
 	};
 
-	let { taskTable, columnCount, pageSize, emptyLabel, pagination, openTask, focusedTaskID, mobileLabels }: Props = $props();
+	let { taskTable, columnCount, pageSize, emptyLabel, showEmpty = true, pagination, openTask, focusedTaskID, mobileLabels }: Props = $props();
 	const isMobile = new MediaQuery('(max-width: 639px)');
 	let rowModel = $derived(taskTable.getRowModel());
 	let totalRows = $derived(taskTable.getFilteredRowModel().rows.length);
@@ -65,7 +67,9 @@
 						</Collapsible.Content>
 					</Collapsible.Root>
 				</li>
-			{:else}<li class="py-10 text-center text-muted-foreground">{emptyLabel}</li>{/each}
+			{:else}
+				{#if showEmpty}<li><Empty.Root><Empty.Header><Empty.Title>{emptyLabel}</Empty.Title></Empty.Header></Empty.Root></li>{/if}
+			{/each}
 		</ul>
 	{:else}
 	<div class="overflow-hidden rounded-lg border bg-card">
@@ -99,9 +103,11 @@
 						{/each}
 					</Table.Row>
 				{/each}
-				{#if rowModel.rows.length === 0}
+				{#if rowModel.rows.length === 0 && showEmpty}
 					<Table.Row class="hover:bg-transparent">
-						<Table.Cell colspan={columnCount} class="py-10 text-center text-muted-foreground">{emptyLabel}</Table.Cell>
+						<Table.Cell colspan={columnCount}>
+							<Empty.Root><Empty.Header><Empty.Title>{emptyLabel}</Empty.Title></Empty.Header></Empty.Root>
+						</Table.Cell>
 					</Table.Row>
 				{/if}
 			</Table.Body>

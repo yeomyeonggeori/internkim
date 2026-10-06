@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import * as Empty from '$lib/components/ui/empty';
 	import { Button } from '$lib/components/ui/button';
 	import type { CRMOrganization, CRMNextAction, CRMOpportunity, CRMPipeline, CRMPipelineStage } from './crm-types';
 	import { CRMPipelineBoardDragController } from './crm-pipeline-board-drag-controller.svelte';
@@ -132,7 +133,7 @@
 									</div>
 								</article>
 							{:else}
-								<p class="px-2 py-8 text-center text-xs leading-5 text-muted-foreground">{text.noProgress}</p>
+								<Empty.Root><Empty.Header><Empty.Title>{text.noProgress}</Empty.Title></Empty.Header></Empty.Root>
 							{/each}
 
 							<div

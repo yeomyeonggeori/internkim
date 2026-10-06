@@ -381,7 +381,7 @@
 		<div class={activeTab === 'report' ? '' : 'hidden'}>
 			{#if TaskReportView && sections && summary?.completeness === 'full' && summary.week.code === selectedWeek}
 				<div aria-busy={isRefreshing || isHistoryLoading}>
-					<TaskReportView {sections} {summary} text={text.report} />
+					<TaskReportView {sections} {summary} text={text.report} showEmpty={isStateFresh && !isLoading && !isRefreshing && !isHistoryLoading && !errorMessage && !historyError} />
 				</div>
 			{/if}
 			{#if activeTab === 'report'}
@@ -406,12 +406,12 @@
 		<div class={activeTab === 'members' ? '' : 'hidden'}>
 			{#if TaskMembersView && summary?.completeness === 'full' && summary.week.code === selectedWeek}
 				<div aria-busy={isRefreshing || isHistoryLoading}>
-					<TaskMembersView members={members()} text={text.members} />
+					<TaskMembersView members={members()} text={text.members} isLoading={isLoading || isRefreshing || isHistoryLoading} hasLoadError={Boolean(errorMessage || historyError) || !isStateFresh} />
 				</div>
 			{/if}
 			{#if activeTab === 'members'}
 				{#if paneError || historyError}<p role="alert" class="text-sm text-destructive">{paneError || historyError}</p><button class="mt-2 text-sm underline" onclick={() => selectTab('members')}>{text.retryHistory}</button>
-				{:else if !TaskMembersView || summary?.completeness !== 'full' || summary.week.code !== selectedWeek}<TaskContentSkeleton variant="members" label={text.loadingHistory} />{/if}
+				{:else if !TaskMembersView || summary?.completeness !== 'full' || summary.week.code !== selectedWeek}<TaskContentSkeleton variant="members" label={text.loadingHistory} {text} />{/if}
 			{/if}
 		</div>
 		{/key}

@@ -2,6 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import SettingsListLoading from './settings-list-loading.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { connectedApps, disconnectApp, type ConnectedApp } from '$lib/connected-apps';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { onMount } from 'svelte';
@@ -16,6 +17,7 @@
 	let disconnectingID = $state('');
 
 	async function load() {
+		isLoading = true;
 		hasLoadError = false;
 		try {
 			apps = await connectedApps();
@@ -48,13 +50,15 @@
 		<Card.Title>{text.connectedApps}</Card.Title>
 		<Card.Description>{text.connectedAppsDescription}</Card.Description>
 	</Card.Header>
-	{#if isLoading}
+	{#if isLoading && apps.length === 0}
 		<Card.Content><SettingsListLoading label={text.connectedApps} /></Card.Content>
 	{:else}
 		<Card.Content>
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.connectedAppsLoadFailed}</p>{/if}
 			{#if apps.length === 0 && !hasLoadError}
-				<p class="text-sm text-muted-foreground">{text.noConnectedApps}</p>
+				<Empty.Root>
+					<Empty.Header><Empty.Title>{text.noConnectedApps}</Empty.Title></Empty.Header>
+				</Empty.Root>
 			{:else}
 				<ul class="grid gap-2">
 					{#each apps as app (app.clientID)}

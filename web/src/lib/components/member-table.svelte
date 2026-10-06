@@ -4,6 +4,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Table from '$lib/components/ui/table';
+	import * as Empty from '$lib/components/ui/empty';
 	import type { Snippet } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 
@@ -73,7 +74,7 @@
 				{@render mobileExtra?.(member)}
 			</li>
 		{:else}
-			<li class="py-10 text-center text-muted-foreground">{text.empty}</li>
+			<li><Empty.Root><Empty.Header><Empty.Title>{text.empty}</Empty.Title></Empty.Header></Empty.Root></li>
 		{/each}
 	</ul>
 {:else}
@@ -107,8 +108,8 @@
 			{/each}
 			{#if members.length === 0}
 				<Table.Row class="hover:bg-transparent">
-					<Table.Cell colspan={4 + extraColumnCount} class="py-10 text-center text-muted-foreground">
-						{text.empty}
+					<Table.Cell colspan={4 + extraColumnCount} class="whitespace-normal p-0">
+						<Empty.Root><Empty.Header><Empty.Title>{text.empty}</Empty.Title></Empty.Header></Empty.Root>
 					</Table.Cell>
 				</Table.Row>
 			{/if}

@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
-	import { tick, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
+	import type { CalendarVisibleDateRange } from './calendar-visible-event-range';
 	import CalendarDayCell from './calendar-day-cell.svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
-	import { Skeleton } from '$lib/components/ui/skeleton';
 	import {
+		addCalendarGridDays,
 		calendarGridDateFromKey,
 		calendarGridDateKey,
 		calendarGridDominantMonth,
@@ -18,7 +19,6 @@
 	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
 
 	type CalendarMonthViewProps = {
-		loading?: boolean;
 		visibleDate: Date;
 		selectedDateKey: string;
 		selectedEventID: string;
@@ -32,10 +32,10 @@
 		addEventOnRange: (startDateKey: string, endDateKey: string) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		visibleMonthChanged: (month: Date) => void;
+		visibleRangeChanged?: (range: CalendarVisibleDateRange) => void;
 	};
 
 	let {
-		loading = false,
 		visibleDate,
 		selectedDateKey,
 		selectedEventID,
@@ -48,7 +48,8 @@
 		addEventOnDay,
 		addEventOnRange,
 		openEvent,
-		visibleMonthChanged
+		visibleMonthChanged,
+		visibleRangeChanged = () => {}
 	}: CalendarMonthViewProps = $props();
 
 	const weeksBeforeVisibleDate = 26;
@@ -76,6 +77,7 @@
 	let isRangeDragging = $state(false);
 	let rangeStartPoint: { clientX: number; clientY: number } | null = null;
 	let longPressTimer: number | null = null;
+	let reportedVisibleRange = '';
 
 	let windowAnchorDateKey = $state(untrack(() => calendarGridDateKey(startOfCalendarGridMonth(visibleDate))));
 	let weeksBeforeAnchor = $state(weeksBeforeVisibleDate);
@@ -124,6 +126,26 @@
 		};
 	});
 
+	onMount(() => {
+		const observer = new ResizeObserver(() => reportVisibleRange());
+		if (scrollElement) observer.observe(scrollElement);
+		return () => observer.disconnect();
+	});
+
+	function reportVisibleRange(): void {
+		if (!scrollElement) return;
+		const viewport = scrollElement.getBoundingClientRect();
+		const visibleWeeks = Array.from(scrollElement.querySelectorAll<HTMLElement>('[data-week-start]')).filter(element => {
+			const rectangle = element.getBoundingClientRect();
+			return rectangle.bottom > viewport.top && rectangle.top < viewport.bottom;
+		});
+		const first = visibleWeeks[0]?.dataset.weekStart;
+		const last = visibleWeeks.at(-1)?.dataset.weekStart;
+		if (!first || !last || `${first}|${last}` === reportedVisibleRange) return;
+		reportedVisibleRange = `${first}|${last}`;
+		visibleRangeChanged({ start: calendarGridDateFromKey(first), end: addCalendarGridDays(calendarGridDateFromKey(last), 7) });
+	}
+
 	function scrollWeekIntoView(weekStartKey: string, attempt = 0): void {
 		requestAnimationFrame(() => {
 			const weekElement = scrollElement?.querySelector<HTMLElement>(`[data-week-start="${weekStartKey}"]`);
@@ -135,6 +157,7 @@
 			scrollElement.scrollTop += weekElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
 			requestAnimationFrame(() => {
 				isScrollingToWeek = false;
+				reportVisibleRange();
 			});
 		});
 	}
@@ -165,6 +188,7 @@
 
 	function updateVisibleWeek(): void {
 		if (!scrollElement) return;
+		reportVisibleRange();
 		const scrollTop = scrollElement.getBoundingClientRect().top;
 		const weekElements = scrollElement.querySelectorAll<HTMLElement>('[data-week-start]');
 		let topWeekStartKey = '';
@@ -373,7 +397,6 @@
 								</button>
 							{/if}
 						</div>
-						{#if loading}<div aria-hidden="true" class="pointer-events-none space-y-1" data-calendar-loading-cell><Skeleton class="h-[18px] w-full" /><Skeleton class="h-[18px] w-2/3" /></div>{/if}
 					</CalendarDayCell>
 				{/each}
 				{#if draftRangeForWeek(week)}

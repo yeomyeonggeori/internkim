@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import * as Field from '$lib/components/ui/field';
@@ -24,7 +25,7 @@
 		<Button disabled={!canCreate} type="button" variant="outline" size="sm" onclick={() => onCreate(organizationID)}>{text.newExternalContact}</Button>
 	</div>
 	{#if organizationContacts.length === 0}
-		<p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{text.noOrganizationContacts}</p>
+		<Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noOrganizationContacts}</Empty.Title></Empty.Header></Empty.Root>
 	{:else}
 		<div class="grid gap-2">
 			{#each organizationContacts as contact (contact.id)}

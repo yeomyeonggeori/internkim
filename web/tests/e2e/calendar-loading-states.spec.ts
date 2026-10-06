@@ -22,12 +22,14 @@ for (const width of [1280, 390, 320]) {
 			await expect.poll(() => fixture.calendar.reads).toBeGreaterThan(0);
 			if (phase !== 'before') {
 				await expect(page.locator('.calendar-stage')).toHaveAttribute('aria-busy', 'true');
-				await expect(page.locator('[data-calendar-loading-cell]').first()).toBeAttached();
+				await expect(page.locator('[data-calendar-loading-status]')).toBeVisible();
+				await expect(page.locator('[data-calendar-loading-cell]')).toHaveCount(0);
 			}
 			await capture(page, `${view}-pending`, width);
 			fixture.calendar.release();
 			await expect(page.locator('.calendar-stage').getByRole('button', { name: /제품 점검/ }).first()).toBeVisible();
 			if (phase !== 'before') await expect(page.locator('[data-calendar-loading-cell]')).toHaveCount(0);
+			if (phase !== 'before') await expect(page.locator('[data-calendar-loading-status]')).toHaveCount(0);
 			await capture(page, `${view}-loaded`, width);
 		});
 	}

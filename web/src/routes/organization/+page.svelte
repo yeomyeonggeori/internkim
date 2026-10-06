@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import { page } from '$app/state';
 	import { Button } from '$lib/components/ui/button';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
@@ -92,7 +93,7 @@
 	<div class="grid h-full min-h-0">
 		<section class="min-h-0 overflow-hidden">
 			{#if controller.isLoading}
-					<OrganizationLoadingSkeleton label={text.title} />
+					<OrganizationLoadingSkeleton label={text.title} {text} canManage={controller.canManage} />
 			{:else}
 				<div class="grid h-full min-h-0 lg:grid-cols-[270px_minmax(0,1fr)]" data-testid="organization-board">
 					<div class="hidden min-h-0 lg:block">
@@ -171,10 +172,15 @@
 							</div>
 							<div class="min-h-0 overflow-y-auto px-4 sm:px-6" data-organization-scroll data-testid="organization-list-scroll">
 								{#if controller.errorMessage}
-									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
+									<p role="alert" class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
 								{/if}
 									{#if controller.organizationSections.every((section) => section.records.length === 0) && !controller.errorMessage}
-									<p class="rounded-md border bg-muted/30 px-4 py-5 text-sm text-muted-foreground">{text.empty}</p>
+									<Empty.Root>
+										<Empty.Header><Empty.Title>{controller.query.trim() || controller.groupID ? text.noMatches : text.empty}</Empty.Title></Empty.Header>
+										{#if controller.query.trim() || controller.groupID}
+											<Empty.Content><Button variant="outline" size="sm" onclick={() => { controller.query = ''; controller.selectGroup(''); }}>{text.resetFilters}</Button></Empty.Content>
+										{/if}
+									</Empty.Root>
 								{:else}
 									<OrganizationPeopleLayer
 										sections={controller.organizationSections}

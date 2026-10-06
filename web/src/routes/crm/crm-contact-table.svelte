@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Table from '$lib/components/ui/table';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { buttonVariants } from '$lib/components/ui/button';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
@@ -115,7 +116,7 @@
 						<Table.Cell class="hidden whitespace-nowrap pr-6 xl:table-cell">{#if contact.phone}<a class="block truncate hover:underline" href={`tel:${contact.phone}`} onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>{contact.phone}</a>{:else}{text.none}{/if}</Table.Cell>
 					</Table.Row>
 				{:else}
-					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={6} class="py-10 text-center text-sm text-muted-foreground">{text.noContacts}</Table.Cell></Table.Row>
+					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={6} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{text.contactsEmpty}</Empty.Title></Empty.Header></Empty.Root></Table.Cell></Table.Row>
 				{/each}
 			</Table.Body>
 		</Table.Root>

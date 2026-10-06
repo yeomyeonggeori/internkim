@@ -2,6 +2,7 @@
 	import SettingsListLoading from './settings-list-loading.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import {
 		forgetPasskey,
 		isPasskeySupported,
@@ -40,6 +41,7 @@
 	}
 
 	async function load() {
+		isLoading = true;
 		hasLoadError = false;
 		try {
 			passkeys = await listPasskeys();
@@ -90,12 +92,12 @@
 	<Card.Content class="grid gap-4">
 		{#if !isSupported}
 			<p class="text-sm text-muted-foreground">{text.passkeysUnsupported}</p>
-		{:else if isLoading}
+		{:else if isLoading && passkeys.length === 0}
 			<SettingsListLoading label={text.passkeys} />
 		{:else}
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.passkeysLoadFailed}</p>{/if}
-			{#if passkeys.length === 0 && !hasLoadError}
-				<p class="text-sm text-muted-foreground">{text.noPasskeys}</p>
+			{#if passkeys.length === 0 && !isLoading && !hasLoadError}
+				<Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noPasskeys}</Empty.Title></Empty.Header></Empty.Root>
 			{:else}
 				<ul class="grid gap-2">
 					{#each passkeys as passkey (passkey.id)}

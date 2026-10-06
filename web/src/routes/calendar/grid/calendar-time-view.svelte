@@ -23,6 +23,7 @@
 	import { defaultCalendarEventColor } from './calendar-grid-events';
 	import { calendarGridAllDaySpans, calendarGridTimedBlocks, type CalendarGridEvent } from './calendar-grid-layout';
 	import { createCalendarScrollSnap } from './calendar-grid-scroll-snap.svelte';
+	import { calendarDateRangeForColumns, type CalendarVisibleDateRange } from './calendar-visible-event-range';
 
 	type CalendarTimeViewProps = {
 		visibleDate: Date;
@@ -34,6 +35,7 @@
 		noEventsText: string;
 		loading?: boolean;
 		showEmptyState?: boolean;
+		visibleRangeChanged?: (range: CalendarVisibleDateRange | null) => void;
 		selectDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		addEventOnTimeRange: (start: Date, end: Date) => void;
@@ -50,6 +52,7 @@
 		noEventsText,
 		loading = false,
 		showEmptyState = true,
+		visibleRangeChanged = () => {},
 		selectDay,
 		openEvent,
 		addEventOnTimeRange,
@@ -304,7 +307,27 @@
 	function syncHeaderStripScroll(): void {
 		if (!columnsElement || !headerStripElement) return;
 		headerStripElement.scrollLeft = columnsElement.scrollLeft;
+		reportVisibleRange();
 	}
+
+	function reportVisibleRange(): void {
+		if (!columnsElement || columnsElement.clientWidth === 0) return;
+		const columnWidth = columnWidthPixels();
+		const firstIndex = Math.max(0, Math.floor((columnsElement.scrollLeft + 0.5) / columnWidth));
+		const lastIndex = Math.min(stripDays.length - 1, Math.ceil((columnsElement.scrollLeft + columnsElement.clientWidth - 0.5) / columnWidth) - 1);
+		visibleRangeChanged(calendarDateRangeForColumns(stripDays, firstIndex, lastIndex - firstIndex + 1));
+	}
+
+	$effect(() => {
+		if (!canSwipeWeeks) {
+			visibleRangeChanged(calendarDateRangeForColumns(days, 0, days.length));
+			return;
+		}
+		if (!columnsElement) return;
+		const observer = new ResizeObserver(() => reportVisibleRange());
+		observer.observe(columnsElement);
+		return () => observer.disconnect();
+	});
 
 	async function recenterColumns(): Promise<void> {
 		isRecenteringColumns = true;
@@ -457,7 +480,6 @@
 				/>
 			</div>
 		{/each}
-		{#if loading}<div aria-hidden="true" class="pointer-events-none absolute inset-x-1 top-[24rem] space-y-12" data-calendar-loading-cell><Skeleton class="h-12 w-full" /><Skeleton class="h-24 w-3/4" /><Skeleton class="h-12 w-full" /></div>{/if}
 
 		{#if draftRange}
 			<div
@@ -674,7 +696,11 @@
 			</MiniCalendar>
 			<Separator class="my-3" />
 			{#if loading}
-				<div class="space-y-2" aria-hidden="true"><Skeleton class="h-16 w-full" /><Skeleton class="h-16 w-full" /></div>
+				<div class="space-y-2" aria-hidden="true" data-calendar-agenda-loading>
+					{#each [0, 1] as row (row)}
+						<div class="space-y-2 rounded-md border px-3 py-2"><Skeleton class="h-2.5 w-16" /><Skeleton class="h-4 w-3/4" /></div>
+					{/each}
+				</div>
 			{:else if selectedDayEvents.length > 0}
 				<div class="grid gap-2">
 					{#each selectedDayEvents as event (event.id)}

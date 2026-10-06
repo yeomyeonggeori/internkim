@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { Input } from '$lib/components/ui/input';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { fallbackPickerColor, paletteColorAt } from '$lib/color-picker-palette';
@@ -192,7 +193,7 @@
 			{/if}
 
 			{#if items.length === 0 && !fallbackItem}
-				<p class="text-muted-foreground flex h-9 items-center px-2 text-sm">{emptyLabel}</p>
+				<Empty.Root class="p-2"><Empty.Header><Empty.Title>{emptyLabel}</Empty.Title></Empty.Header></Empty.Root>
 			{/if}
 		</div>
 

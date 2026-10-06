@@ -2,6 +2,7 @@
 	import SettingsListLoading from './settings-list-loading.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import * as Field from '$lib/components/ui/field';
 	import { Input } from '$lib/components/ui/input';
@@ -54,6 +55,7 @@
 	}
 
 	async function load() {
+		isLoading = true;
 		hasLoadError = false;
 		try {
 			keys = await personalAccessTokens();
@@ -157,12 +159,14 @@
 			</div>
 		</Field.Field>
 
-		{#if isLoading}
+		{#if isLoading && keys.length === 0}
 			<SettingsListLoading label={text.personalAccessTokens} />
 		{:else}
 			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.personalAccessTokensLoadFailed}</p>{/if}
 			{#if keys.length === 0 && !hasLoadError}
-				<p class="text-sm text-muted-foreground">{text.noPersonalAccessTokens}</p>
+				<Empty.Root>
+					<Empty.Header><Empty.Title>{text.noPersonalAccessTokens}</Empty.Title></Empty.Header>
+				</Empty.Root>
 			{:else}
 				<ul class="grid gap-2">
 					{#each keys as key (key.name)}

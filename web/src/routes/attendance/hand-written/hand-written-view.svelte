@@ -1,7 +1,7 @@
 <script lang="ts">
  import ListPaginationFooter from "$lib/components/list-pagination-footer.svelte";
 	import { onMount } from 'svelte';
-	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import AttendanceListLoading from '../attendance-list-loading.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import { invokeTool } from '$lib/public-api-call';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
@@ -22,6 +22,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Table from '$lib/components/ui/table';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -40,6 +41,8 @@
  let teamOptionOffset = $state(0);
  let teamOptionTotal = $state(teamState.teamTotal);
  let peopleOptions = $state<{value:string;label:string;email:string;keywords:string[]}[]>([]);
+ let isSearchingPeople = $state(true);
+ let peopleSearchError = $state('');
  let selectedPerson = $state<{value:string;label:string;email:string;keywords:string[]}>();
  const personOptions = $derived(selectedPerson && !peopleOptions.some(p=>p.value===selectedPerson?.value) ? [selectedPerson,...peopleOptions] : peopleOptions);
  let disposed = false;
@@ -47,12 +50,22 @@
  let searchTimer: ReturnType<typeof setTimeout>;
  async function loadPeople(query = '') {
   const sequence = ++peopleSequence;
+  isSearchingPeople = true;
+  peopleSearchError = '';
   try {const answer = await invokeTool<{people:{personID:string;name:string;email:string}[]}>('person_list',{searchText:query,limit:24});
    if(disposed || sequence !== peopleSequence) return;
    peopleOptions = answer.people.map(person=>({value:person.personID,label:person.name,email:person.email,keywords:[person.name,person.email]}));
-  } catch {if(!disposed && sequence === peopleSequence) peopleOptions = [];}
+  } catch {if(!disposed && sequence === peopleSequence) peopleSearchError = text.handWritten.peopleLoadFailed;}
+  finally {if(!disposed && sequence === peopleSequence) isSearchingPeople = false;}
  }
- function searchPeople(query: string) {peopleSequence++;clearTimeout(searchTimer);searchTimer = setTimeout(()=>void loadPeople(query),250);}
+ function searchPeople(query: string) {
+  peopleSequence++;
+  clearTimeout(searchTimer);
+  peopleOptions = [];
+  isSearchingPeople = true;
+  peopleSearchError = '';
+  searchTimer = setTimeout(()=>void loadPeople(query),250);
+ }
  async function loadTeamOptions(offset = 0) {try {const page = await invokeTool<AttendanceTeamPage>('attendance_team_page_get',{pageKind:'teams',teamOffset:offset,teamLimit:24});if(disposed) return;teamOptions=page.teams;teamOptionOffset=offset;teamOptionTotal=page.teamTotal;} catch {}}
  onMount(()=>{if(teamOptions.length === 0 || teamOptionTotal > teamOptions.length) void loadTeamOptions();void loadPeople();return ()=>{disposed=true;peopleSequence++;clearTimeout(searchTimer);};});
 
@@ -185,7 +198,7 @@
 
  <form class="flex flex-wrap items-center gap-2" aria-label={text.handWritten.filter} onsubmit={(event) => {event.preventDefault(); void handWritten.filter();}}>
 
-  <div class="order-1 w-full sm:order-2 sm:w-52"><FilterCombobox value={handWritten.selectedChangedByID} options={personOptions} label={text.handWritten.actor} searchPlaceholder={text.handWritten.actor} class="h-9 w-full" contentClass="w-72 p-0" remoteSearch onSearchChange={searchPeople} onSelect={(id)=>{handWritten.selectedChangedByID=id;selectedPerson=personOptions.find(person=>person.value===id);}}>
+  <div class="order-1 w-full sm:order-2 sm:w-52"><FilterCombobox value={handWritten.selectedChangedByID} options={personOptions} label={text.handWritten.actor} searchPlaceholder={text.handWritten.actor} class="h-9 w-full" contentClass="w-72 p-0" remoteSearch isSearching={isSearchingPeople} searchError={peopleSearchError} searchStatusLabel={text.loading} onSearchChange={searchPeople} onSelect={(id)=>{handWritten.selectedChangedByID=id;selectedPerson=personOptions.find(person=>person.value===id);}}>
    {#snippet optionContent(person)}<div class="flex min-w-0 items-center gap-2"><PersonAvatar name={person.label} email={person.email} memberID={person.value} class="size-5" /><span class="truncate">{person.label}</span></div>{/snippet}
    {#snippet selectedContent(person)}<PersonAvatar name={person.label} email={person.email} memberID={person.value} class="size-4" /><span class="truncate">{person.label}</span>{/snippet}
   </FilterCombobox></div>
@@ -199,12 +212,12 @@
 		<Card.Content class="overflow-x-auto pt-6" aria-busy={handWritten.isLoading}>
 			{#if handWritten.errorMessage && !handWritten.records.length}
 				<p role="status" class="sr-only">{handWritten.errorMessage}</p>
-			{:else if handWritten.isLoading && !handWritten.records.length}
-				<AttendanceLoadingSkeleton kind="records" />
+			{:else if (handWritten.isLoading || !handWritten.appliedDayRange.from) && !handWritten.records.length}
+				<AttendanceListLoading kind="changes" />
 			{:else if handWritten.records.length === 0}
-				<p class="py-6 text-sm text-muted-foreground" data-testid="hand-written-empty">
-					{text.handWritten.empty}
-				</p>
+				<Empty.Root data-testid="hand-written-empty">
+					<Empty.Header><Empty.Title>{handWritten.hasAppliedFilters ? text.handWritten.filteredEmpty : text.handWritten.empty}</Empty.Title></Empty.Header>
+				</Empty.Root>
 			{:else if isMobile.current}
 				<ul class="divide-y">
 					{#each handWritten.records as record (record.eventID)}
