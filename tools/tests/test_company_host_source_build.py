@@ -34,13 +34,14 @@ def connection_document():
 class CompanyHostSourceBuildTests(unittest.TestCase):
     def build(self):
         self.addCleanup(built_binary.unlink, missing_ok=True)
-        subprocess.run(
+        build = subprocess.run(
             ["make", "build-company-host"],
             cwd=repository_root,
-            check=True,
             capture_output=True,
             text=True,
         )
+        if build.returncode != 0:
+            self.fail(f"make build-company-host exited {build.returncode}:\n{build.stderr}")
         return built_binary
 
     def run_install(self):
