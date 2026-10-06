@@ -462,7 +462,7 @@
 			</UnderlineTabs.Content>
 
 			<UnderlineTabs.Content value="reports" class="min-w-0 pb-24"><CRMReportDashboard organizations={controller.organizations} opportunities={controller.opportunities} pipelines={controller.pipelines} nextActions={controller.nextActions} stages={controller.stages} {currencyCatalogue} {companyBaseCurrency} sourceCurrencies={opportunityCurrencies} {text} onOpenOrganization={openOrganization} /></UnderlineTabs.Content>
-			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} isSaving={controller.isSaving} errorMessage={controller.errorMessage} text={text.definitions} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
+			<UnderlineTabs.Content value="definitions" class="min-w-0 pb-24"><CRMDefinitionsEditor vocabulary={controller.vocabulary} isSaving={controller.isSaving} text={text.definitions} onSave={(vocabulary) => controller.saveVocabulary(vocabulary)} /></UnderlineTabs.Content>
 		</UnderlineTabs.Root>
 	{/if}
 </main>

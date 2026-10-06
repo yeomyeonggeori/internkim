@@ -83,6 +83,7 @@ class PersonPictureStore {
 		if (generation !== this.generation) return;
 		if (this.kept.size === 0) this.kept = readKeptPictures(Date.now(), messengerCacheKey());
 		this.forgetListedWithoutPicture(wanted);
+		this.drawKeptWithUnchangedAvatar(wanted);
 
 		const stale = wanted.filter((externalID) => this.needsAsking(externalID));
 		if (stale.length === 0) return;
@@ -107,7 +108,9 @@ class PersonPictureStore {
 				continue;
 			}
 			next.set(answer.externalID, signed);
-			if (!reused) this.kept.set(answer.externalID, keptPictureOf(answer.address, signed));
+			if (!reused) {
+				this.kept.set(answer.externalID, keptPictureOf(answer.address, signed, this.avatarURLOf(answer.externalID)));
+			}
 		}
 		this.readableOfExternal = next;
 		writeKeptPictures(this.kept, messengerCacheKey());
@@ -123,6 +126,24 @@ class PersonPictureStore {
 		}
 		this.readableOfExternal = next;
 		writeKeptPictures(this.kept, messengerCacheKey());
+	}
+
+	private drawKeptWithUnchangedAvatar(externalIDs: string[]): void {
+		const unchanged = externalIDs.filter((externalID) => !this.asked.has(externalID) && this.keptAvatarIsCurrent(externalID));
+		if (unchanged.length === 0) return;
+		const next = new Map(this.readableOfExternal);
+		for (const externalID of unchanged) {
+			const kept = this.kept.get(externalID);
+			if (!kept) continue;
+			this.asked.add(externalID);
+			next.set(externalID, kept.signedURL);
+		}
+		this.readableOfExternal = next;
+	}
+
+	private keptAvatarIsCurrent(externalID: string): boolean {
+		const avatarURL = this.avatarURLOf(externalID);
+		return avatarURL !== '' && this.kept.get(externalID)?.avatarURL === avatarURL;
 	}
 
 	private keptSignedURLOf(answer: PictureAnswer): string {
