@@ -37,6 +37,9 @@
 		"test:e2e:attendance:central": "./scripts/e2e-attendance-central.sh",
 		"test:e2e:task:central": "./scripts/e2e-task-central.sh",
 		"test:e2e:task:fixture": "SUPABASE_URL=http://127.0.0.1:56801 SUPABASE_PUBLISHABLE_KEY=nonfunctional-fixture-key SUPABASE_SECRET_KEY= PLAYWRIGHT_CENTRAL_PLANE=1 PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:5397} bunx playwright test tests/e2e/task-relationships-fixture.spec.ts --workers=1",
+		"test:e2e:loading:central:fixture": "SUPABASE_URL=http://127.0.0.1:56801 SUPABASE_PUBLISHABLE_KEY=nonfunctional-fixture-key SUPABASE_SECRET_KEY= PLAYWRIGHT_CENTRAL_PLANE=1 PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5397 bunx playwright test tests/e2e/attendance-loading-states.spec.ts tests/e2e/calendar-loading-states.spec.ts tests/e2e/task-loading-states.spec.ts --workers=1",
+		"test:e2e:loading:workspace:fixture": "SUPABASE_URL=http://127.0.0.1:56801 SUPABASE_PUBLISHABLE_KEY=nonfunctional-fixture-key SUPABASE_SECRET_KEY= GATEWAY_URL=http://127.0.0.1:56802 PLAYWRIGHT_CENTRAL_PLANE=1 PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5397 bunx playwright test tests/e2e/workspace-loading-states.spec.ts --workers=1",
+		"test:e2e:loading:fixture": "bun run test:e2e:loading:central:fixture && bun run test:e2e:loading:workspace:fixture && PLAYWRIGHT_START_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5397 bunx playwright test tests/e2e/messenger-loading-states.spec.ts --workers=1",
 		"test:e2e:public": "bunx playwright test tests/e2e/public-url.spec.ts",
 		"gen": "wrangler types"
 	},
