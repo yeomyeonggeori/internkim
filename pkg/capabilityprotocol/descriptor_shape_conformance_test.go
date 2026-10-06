@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const bluecollarDescriptorSchemaPath = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/generated/tool-descriptor.schema.json"
+const bluecollarDescriptorSchemaPath = "../../.dependency/blueclaw/.dependency/blueprotocol/toolcontract/generated/tool-descriptor.schema.json"
 
 var namesMeaningDifferentThings = map[string]string{
 	"idempotency": "bluecollar writes a word beside idempotencyScope; the catalog writes an object, and blueclaw translates between them",
@@ -23,7 +23,7 @@ func bluecollarDescriptorProperties(t *testing.T) map[string]declaredProperty {
 	t.Helper()
 	document, errorValue := os.ReadFile(filepath.FromSlash(bluecollarDescriptorSchemaPath))
 	if errorValue != nil {
-		t.Skipf("bluecollar's generated descriptor schema is unavailable: %v", errorValue)
+		t.Fatalf("blueprotocol's generated descriptor schema is unavailable: %v", errorValue)
 	}
 	var schema struct {
 		Properties map[string]json.RawMessage `json:"properties"`
