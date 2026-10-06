@@ -410,6 +410,30 @@
     "process": "web pilot",
     "description": "the kept Local Fleet's config.json the pilot runner's bluecollar arms drive"
   },
+  "LOADING_CAPTURE_DIR": {
+    "process": "web fixture tests",
+    "description": "optional output directory for workspace loading-state screenshot evidence; unset runs assertions without saving images"
+  },
+  "LOADING_CAPTURE_PHASE": {
+    "process": "web fixture tests",
+    "description": "before or after label for workspace loading-state screenshot evidence; defaults to after"
+  },
+  "LOADING_EVIDENCE_DIR": {
+    "process": "web fixture tests",
+    "description": "optional output directory for attendance, calendar and authorization loading evidence"
+  },
+  "LOADING_EVIDENCE_DIRECTORY": {
+    "process": "web fixture tests",
+    "description": "optional output directory for messenger and task loading-state screenshot evidence"
+  },
+  "LOADING_EVIDENCE_PHASE": {
+    "process": "web fixture tests",
+    "description": "before or after label for attendance, calendar, messenger, task and authorization evidence; defaults to after"
+  },
+  "LOADING_EVIDENCE_SCENES": {
+    "process": "web fixture tests",
+    "description": "optional comma-separated attendance scene names to save during a targeted evidence refresh; all scene assertions still run"
+  },
   "PLAYWRIGHT_BASE_URL": {
     "process": "web e2e tests",
     "description": "the base URL web/playwright.config.ts points its browser at; defaults to http://127.0.0.1:5174"
