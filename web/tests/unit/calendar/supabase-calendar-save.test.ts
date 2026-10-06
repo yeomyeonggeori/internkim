@@ -21,6 +21,7 @@ function eventWith(fields: Partial<CalendarEventPayload> = {}): CalendarEventPay
 			{ personID: 'member-1', name: '첫 번째' },
 			{ personID: 'member-2', name: '두 번째' }
 		],
+		isOpenToCompany: false,
 		...fields
 	};
 }
@@ -35,12 +36,26 @@ describe('what the calendar sends the record', () => {
 			endsAt: '2026-08-20T11:00:00.000Z',
 			isWholeDay: false,
 			notifyMinutesBefore: 0,
-			participantPersonHints: ['member-1', 'member-2']
+			participantPersonHints: ['member-1', 'member-2'],
+			everyoneAttends: false
 		});
 	});
 
 	test('sends the whole attendee set, so clearing one removes it', () => {
 		expect(calendarEventWritten(eventWith({ participants: [] })).participantPersonHints).toEqual([]);
+	});
+
+	test('says an event nobody is named on is open to the whole company, when it was or is new', () => {
+		const unnamed = createCalendarModelEvent({ id: 'draft', title: '전사 공지', start: new Date(2026, 8, 2, 10), end: new Date(2026, 8, 2, 11) });
+		expect(calendarEventWritten(calendarEventPayloadFromDayTaskEvent(unnamed, '')).everyoneAttends).toBe(true);
+	});
+
+	test('keeps a personal event personal when it is moved with nobody left on it', () => {
+		const orphan = createCalendarModelEvent({
+			id: 'orphan', title: '치과', start: new Date(2026, 8, 2, 10), end: new Date(2026, 8, 2, 11),
+			meta: { participants: [], isOpenToCompany: false }
+		});
+		expect(calendarEventWritten(calendarEventPayloadFromDayTaskEvent(orphan, '')).everyoneAttends).toBe(false);
 	});
 
 	test('names a reminder in minutes, and sends zero when the event has none', () => {

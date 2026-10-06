@@ -118,6 +118,7 @@ export function draftPopoverChanges(popover: DraftPopoverState): DraftPopoverEve
 		meta: {
 			location: popover.location.trim(),
 			participants: popover.participants,
+			isOpenToCompany: popover.participants.length === 0,
 			reminderMinutesBefore: popover.reminderMinutesBefore
 		}
 	};

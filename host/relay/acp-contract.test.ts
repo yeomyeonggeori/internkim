@@ -46,7 +46,7 @@ function blueclawContract(): ClientContract {
 }
 
 function valueOfDeliveryField(name: string): string | boolean {
-	return name === 'alreadyPosted' || name === 'final' ? true : `a ${name}`;
+	return name === 'isAlreadyPosted' || name === 'isFinal' ? true : `a ${name}`;
 }
 
 function fieldsReadFromAnApprovalReplyAnswer(): string[] {

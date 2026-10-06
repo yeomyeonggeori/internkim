@@ -51,7 +51,7 @@ func TestATellingReachesTheRecipientAsADirectMessageFromTheBot(t *testing.T) {
 	if invoked.Context.RequesterPersonID != "user-member" || invoked.Context.RequesterEmail != "member@example.com" {
 		t.Fatalf("context = %#v", invoked.Context)
 	}
-	if invoked.Actor.Source != tellDirectMessageSource {
+	if invoked.Actor.Source != capabilities.TaskSourcePlaneTelling {
 		t.Fatalf("actor = %#v", invoked.Actor)
 	}
 }
@@ -70,8 +70,8 @@ func TestATellingIsNotHeldAtTheApprovalGate(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 	}
-	if !invoked.Context.IsApprovalContinuation {
-		t.Fatal("a system telling waits on an approver nobody asked, so it never leaves the device")
+	if invoked.Context.TaskSource != capabilities.TaskSourcePlaneTelling {
+		t.Fatal("a system telling says it is one, so the device does not wait on an approver nobody asked")
 	}
 }
 

@@ -144,6 +144,26 @@
       ]
     },
     {
+      "name": "attendance_change_undo",
+      "arguments": "event_id uuid",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "attendance_changes_page",
+      "arguments": "from_timestamp timestamp with time zone, to_timestamp timestamp with time zone, page_offset integer DEFAULT 0, page_limit integer DEFAULT 24, team_search text DEFAULT ''::text, actor_search text DEFAULT ''::text, selected_members uuid[] DEFAULT NULL::uuid[], selected_team_key text DEFAULT NULL::text, selected_actor uuid DEFAULT NULL::uuid",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "attendance_correct",
       "arguments": "corrections jsonb, reason text",
       "returns": "jsonb",
@@ -1087,7 +1107,7 @@
     },
     {
       "name": "task_save",
-      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb",
+      "arguments": "target_task_id uuid, target_title text, target_status task_status DEFAULT NULL::task_status, target_note text DEFAULT NULL::text, target_location jsonb DEFAULT NULL::jsonb, target_business text DEFAULT NULL::text, target_type text DEFAULT NULL::text, target_size text DEFAULT NULL::text, target_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_write_dates boolean DEFAULT true, target_is_event boolean DEFAULT false, target_is_whole_day boolean DEFAULT false, target_notify_minutes_before integer DEFAULT NULL::integer, target_participant_ids uuid[] DEFAULT '{}'::uuid[], target_parent_task_id uuid DEFAULT NULL::uuid, target_expected_updated_at timestamp with time zone DEFAULT NULL::timestamp with time zone, target_mirrors jsonb DEFAULT NULL::jsonb, target_is_open_to_company boolean DEFAULT NULL::boolean",
       "returns": "uuid",
       "security": "definer",
       "callableBy": [
@@ -1240,6 +1260,7 @@
     "member_leave_days_follow_the_leave",
     "member_leave_days_follow_the_leave_policy",
     "order_time_range",
+    "record_attendance_change_actor",
     "record_opportunity_stage_change",
     "refuse_a_second_copy_of_an_event",
     "refuse_task_parent_cycle",

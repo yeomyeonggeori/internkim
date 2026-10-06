@@ -56,7 +56,6 @@ func TestTheHostUpdateTellsAdmindWhetherTheRequesterApprovedThisCall(t *testing.
 	}{
 		{"an unapproved call", capabilityprotocol.ToolInvokeContext{}, false},
 		{"a scheduled run that carries no approved call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true}, false},
-		{"an approval continuation", capabilityprotocol.ToolInvokeContext{IsApprovalContinuation: true}, true},
 		{"a held call spent", capabilityprotocol.ToolInvokeContext{HoldID: "held-1"}, true},
 		{"the scheduled run of exactly this call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("host_update", `{ "targetVersion": "v2026.10.02.090000" }`)}, true},
 		{"a scheduled run that approved another tool", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("message_send", input)}, false},
@@ -107,7 +106,7 @@ func TestAHostUpdateAdmindRefusesComesBackAsAFailureBeforeAnyQuestion(t *testing
 }
 
 func publicAPIHostUpdate(input string) string {
-	return `{"toolName":"host_update","input":` + input + `,"context":{"requesterPersonID":"person-1","requesterEmail":"member1@example.com","taskSource":"public_api","isApprovalContinuation":true}}`
+	return `{"toolName":"host_update","input":` + input + `,"context":{"requesterPersonID":"person-1","requesterEmail":"member1@example.com","taskSource":"public_api","holdID":"held-test"}}`
 }
 
 func TestAHostUpdateCalledThroughThePublicAPIStartsAsTheCallerAsked(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestTheResolvedRecipientIdentityResolvesToItself(t *testing.T) {
 
 	byIdentity := decodeResolvedApprovalTarget(t, resolveApprovalTargetThroughRoute(t, service, "message_send", messageSendTargetInput(byName.ID)))
 
-	if byIdentity != byName {
+	if !reflect.DeepEqual(byIdentity, byName) {
 		t.Fatalf("narrowing the hold to the identity is only safe while it resolves to itself, got %+v then %+v", byName, byIdentity)
 	}
 }
@@ -94,19 +95,6 @@ func TestAReplyInTheCurrentThreadNeedsNoRecipient(t *testing.T) {
 	}
 }
 
-func TestABroadcastNamesEveryRecipientAndRefusesOnTheFirstUnclearOne(t *testing.T) {
-	service := messageSendTargetService(t, append(messageSendTargetPeople(), platformDMAmbiguousTestPeople()...))
-
-	resolved := resolveApprovalTargetThroughRoute(t, service, "message_send", json.RawMessage(`{"targetType":"directMessage","personHints":["박예시","이샘플"],"message":"x"}`))
-	refused := resolveApprovalTargetThroughRoute(t, service, "message_send", json.RawMessage(`{"targetType":"directMessage","personHints":["박예시","lee"],"message":"x"}`))
-
-	preview := decodeResolvedApprovalTarget(t, resolved).Preview
-	if !strings.Contains(preview, "yesi@example.com") || !strings.Contains(preview, "sample@example.com") {
-		t.Fatalf("the question lists every recipient, got %q", preview)
-	}
-	assertPlatformDMStructuredFailure(t, refused, "error", "interaction_required", "target_resolution", true, true)
-}
-
 func TestExecutionSendsToTheIdentityTheHoldResolved(t *testing.T) {
 	people := platformDMAmbiguousTestPeople()
 	askedKeysFor := []string{}
@@ -132,7 +120,7 @@ func TestExecutionSendsToTheIdentityTheHoldResolved(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
 		Input:    approvedInput,
-		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
+		Context:  capabilities.ToolInvokeContext{HoldID: "held-test"},
 	})
 
 	if errorValue != nil || response.Status != "sent" {

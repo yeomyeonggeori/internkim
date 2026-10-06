@@ -27,6 +27,7 @@ export type CompanyCalendarEntry = {
 	color: string;
 	reminderMinutesBefore: number | null;
 	participants: CompanyCalendarParticipant[];
+	isOpenToCompany: boolean;
 	createdByEmail: string;
 	createdByName: string;
 	updatedAt: string;
@@ -56,6 +57,7 @@ type EventRow = {
 	ends_at: string;
 	is_whole_day: boolean;
 	notify_minutes_before: number | null;
+	is_open_to_company: boolean;
 	updated_at: string;
 	task_participant: { member_id: string }[];
 };
@@ -71,7 +73,7 @@ export type ApprovedLeaveRow = {
 };
 
 const eventSelection =
-	'id, title, note, location, starts_at, ends_at, is_whole_day, notify_minutes_before, updated_at, task_participant (member_id)';
+	'id, title, note, location, starts_at, ends_at, is_whole_day, notify_minutes_before, is_open_to_company, updated_at, task_participant (member_id)';
 
 const leaveSelection = 'id, member_id, kind, days, status, starts_at, ends_at';
 
@@ -163,6 +165,7 @@ function calendarEntryOfEvent(event: EventRow, reader: CompanyCalendarReader): C
 		participants: event.task_participant.map((participant) =>
 			calendarParticipant(participant.member_id, reader.members, reader.locale)
 		),
+		isOpenToCompany: event.is_open_to_company,
 		createdByEmail: '',
 		createdByName: '',
 		updatedAt: event.updated_at,
@@ -195,6 +198,7 @@ export function calendarEntryOfApprovedLeave(
 		color: dayOffColor,
 		reminderMinutesBefore: null,
 		participants: [{ personID: leave.member_id, name, ...(email ? { email } : {}) }],
+		isOpenToCompany: false,
 		createdByEmail: email,
 		createdByName: name,
 		updatedAt: leave.starts_at,

@@ -51,8 +51,8 @@ export const undeliveredExtensionMethod = '_kim.intern/undelivered';
 export type Delivery = {
 	deliveryID?: string;
 	replyTargetID?: string;
-	alreadyPosted?: boolean;
-	final?: boolean;
+	isAlreadyPosted?: boolean;
+	isFinal?: boolean;
 };
 
 export class AgentUnreachable extends Error {
@@ -309,7 +309,7 @@ export class BlueclawACPClient {
 	): Promise<string> {
 		if (content.type === 'text') {
 			const progressMessageID =
-				delivery.final && delivery.deliveryID
+				delivery.isFinal && delivery.deliveryID
 					? await this.toolProgress.replaceWithReply(delivery.deliveryID, addressing, content.text)
 					: undefined;
 			return progressMessageID ?? this.settings.postToConversation(addressing, content.text);
@@ -374,40 +374,49 @@ export class BlueclawACPClient {
 	): Promise<RequestPermissionResponse> {
 		const delivery = deliveryOf(request._meta);
 		const binding = this.sessionBindingOf(request.sessionId);
-		const outcome: PostOutcome | undefined = !binding
-			? { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` }
-			: delivery.alreadyPosted
-				? undefined
-				: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
+		if (!binding) {
+			await this.tellTheAgent(delivery, { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` });
+			return cancelled;
+		}
+		const approval = this.registerPendingApproval(request, binding, delivery, connectionThatAsked);
+		const outcome = delivery.isAlreadyPosted
+			? undefined
+			: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
 		if (outcome) await this.tellTheAgent(delivery, outcome);
-		if (!binding || (outcome && 'reason' in outcome)) return cancelled;
-		return this.waitForApprovalAnswer(request, binding, delivery, connectionThatAsked);
+		if (outcome && 'reason' in outcome) {
+			approval.withdraw();
+			return cancelled;
+		}
+		this.settings.approvalWasRequested(binding.addressing.conversationID);
+		return approval.answer;
 	}
 
-	private waitForApprovalAnswer(
+	private registerPendingApproval(
 		request: RequestPermissionRequest,
 		binding: SessionBinding,
 		delivery: Delivery,
 		connectionThatAsked: ClientSideConnection
-	): Promise<RequestPermissionResponse> {
+	): { answer: Promise<RequestPermissionResponse>; withdraw: () => void } {
 		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
 		const pending: PendingApproval = {
 			toolCallID: request.toolCall.toolCallId,
-			waitingMessageIDs: new Set(delivery.alreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
+			waitingMessageIDs: new Set(delivery.isAlreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
 			select: (optionID) => resolve({ outcome: { outcome: 'selected', optionId: optionID } })
 		};
 		this.pendingApprovals.set(request.sessionId, pending);
+		const withdraw = () => {
+			if (this.pendingApprovals.get(request.sessionId) === pending) this.pendingApprovals.delete(request.sessionId);
+		};
 		connectionThatAsked.signal.addEventListener(
 			'abort',
 			() => {
-				if (this.pendingApprovals.get(request.sessionId) === pending) this.pendingApprovals.delete(request.sessionId);
+				withdraw();
 				this.settings.report?.(`approval ${pending.toolCallID} was cancelled: blueclaw left the socket before it was answered`);
 				resolve(cancelled);
 			},
 			{ once: true }
 		);
-		this.settings.approvalWasRequested(binding.addressing.conversationID);
-		return promise;
+		return { answer: promise, withdraw };
 	}
 
 	private messageIDsInFlightIn(sessionID: string): string[] {
@@ -437,8 +446,8 @@ export function deliveryOf(meta: Record<string, unknown> | null | undefined): De
 	return {
 		...(deliveryID ? { deliveryID } : {}),
 		...(replyTargetID ? { replyTargetID } : {}),
-		...(Reflect.get(carried, 'alreadyPosted') === true ? { alreadyPosted: true } : {}),
-		...(Reflect.get(carried, 'final') === true ? { final: true } : {})
+		...(Reflect.get(carried, 'isAlreadyPosted') === true ? { isAlreadyPosted: true } : {}),
+		...(Reflect.get(carried, 'isFinal') === true ? { isFinal: true } : {})
 	};
 }
 

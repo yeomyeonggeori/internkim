@@ -987,7 +987,7 @@ func gateCases() map[string]catalogGateCase {
 			},
 			input: `{"targetVersion":"v2026.10.02.090000"}`,
 			arrives: func(arriving capabilities.ToolInvokeRequest) capabilities.ToolInvokeRequest {
-				arriving.Context.IsApprovalContinuation = true
+				arriving.Context.HoldID = "held-test"
 				return arriving
 			},
 			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
