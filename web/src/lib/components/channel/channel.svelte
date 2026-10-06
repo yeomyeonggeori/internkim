@@ -24,6 +24,7 @@
 	import { clockTime, dateKeyOf, dateLabel, relativeTime } from './channel-time';
 	import { threadRepliesByRoot, timelineMessages } from './channel-threads';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
+	import LoadingImage from '$lib/components/loading-image.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
 	import { channelText } from '$lib/i18n/channel-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -160,9 +161,12 @@
 		return readSequence === nextReadSequence && isCurrentChannel(requestedChannelID, generation, cacheGeneration);
 	}
 
-	function openLightbox(images: string[], index: number) {
+	function openLightbox(attachments: NonNullable<ChannelMessage['attachments']>, source: string) {
+		const images = attachments
+			.filter(attachment => attachment.kind === 'image' && attachment.source)
+			.map(attachment => ({ source: attachment.source ?? '', width: attachment.widthPixels, height: attachment.heightPixels }));
 		if (images.length === 0) return;
-		lightbox = { images, index: Math.max(0, index) };
+		lightbox = { images, index: Math.max(0, images.findIndex(image => image.source === source)) };
 	}
 	let lastConversationSignature = '';
 	let cacheGeneration = $state(0);
@@ -578,7 +582,6 @@
 	{@const reactionAlign = mine ? 'start' : 'end'}
 	{@const reactionSpacing = reactions.length > 0 && nameWidthPixels === 0 ? 'mt-5' : ''}
 	{@const imageReactionSpacing = bodyText ? '' : reactionSpacing}
-	{@const imageAttachmentURLs = pictureAddressesOf(attachments)}
 	{@const loneImage =
 		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source
 			? attachments[0]
@@ -598,19 +601,18 @@
 		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
 			<button
 				type="button"
-				class="block cursor-zoom-in overflow-hidden rounded-lg"
+				class="block max-w-full cursor-zoom-in overflow-hidden rounded-lg"
 				aria-label={loneImage.filename ?? '이미지 크게 보기'}
-				onclick={() => openLightbox(imageAttachmentURLs, 0)}
+				onclick={() => openLightbox(attachments, loneImage.source ?? '')}
 			>
-				<img
-					data-message-picture
-					src={loneImage.source}
+				<LoadingImage
+					messagePicture
+					src={loneImage.source ?? ''}
 					alt={loneImage.filename ?? ''}
 					width={loneImage.widthPixels}
 					height={loneImage.heightPixels}
 					loading="lazy"
-					decoding="async"
-					class="h-auto max-h-[min(60vh,26rem)] w-auto max-w-full rounded-lg object-contain"
+					class="rounded-lg"
 				/>
 			</button>
 			{#if !bodyText && reactions.length > 0}
@@ -630,16 +632,16 @@
 								type="button"
 								class="block h-full w-full cursor-zoom-in"
 								aria-label={attachment.filename ?? '이미지 크게 보기'}
-								onclick={() =>
-									openLightbox(imageAttachmentURLs, imageAttachmentURLs.indexOf(attachment.source ?? ''))}
+								onclick={() => openLightbox(attachments, attachment.source ?? '')}
 							>
-								<img
-									data-message-picture
+								<LoadingImage
+									messagePicture
 									src={attachment.source}
 									alt={attachment.filename ?? ''}
 									loading="lazy"
-									decoding="async"
-									class="aspect-square h-full w-full object-cover"
+									fill
+									class="aspect-square h-full w-full"
+									imageClass="object-cover"
 								/>
 							</button>
 						</Attachment.Media>
@@ -890,14 +892,13 @@
 			{#if !hasLoadedOnce}
 				<ChannelLoadingSkeleton label={text.loadingMessages} />
 		{:else if loadFailed && shownMessages.length === 0}
-			<Empty.Root class="h-full pb-[var(--dock-height)]">
-				<Empty.Header>
-					<Empty.Media variant="icon"><MessageCircleDashedIcon /></Empty.Media>
-					<Empty.Title>{text.unavailableTitle}</Empty.Title>
-					<Empty.Description>{text.unavailableDescription}</Empty.Description>
-				</Empty.Header>
-				<Button variant="outline" size="sm" onclick={loadConversation}>{text.retry}</Button>
-			</Empty.Root>
+			<div class="flex h-full items-center justify-center px-6 pb-[var(--dock-height)]">
+				<div role="alert" class="grid max-w-sm gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm">
+					<p class="font-medium text-destructive">{text.unavailableTitle}</p>
+					<p class="text-muted-foreground">{text.unavailableDescription}</p>
+					<Button variant="outline" size="sm" onclick={loadConversation}>{text.retry}</Button>
+				</div>
+			</div>
 		{:else if shownMessages.length === 0}
 			<Empty.Root class="h-full pb-[var(--dock-height)]">
 				<Empty.Header>

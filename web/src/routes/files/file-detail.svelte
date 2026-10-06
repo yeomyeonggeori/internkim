@@ -2,6 +2,7 @@
 	import * as Code from '$lib/components/ui/code';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import LoadingImage from '$lib/components/loading-image.svelte';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -136,10 +137,12 @@
 
 	<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4">
 		{#if canPreviewImage && imageSource}
-		<img
+		<LoadingImage
 			src={imageSource}
 			alt={file.name}
-			class="bg-muted max-h-80 w-full rounded-md border object-contain"
+			loading="eager"
+			fill
+			class="bg-muted aspect-video max-h-80 w-full rounded-md border"
 		/>
 	{:else if canPreviewImage && isPreviewLoading}
 		<div role="status" aria-label={text.previewLoading} aria-busy="true"><Skeleton aria-hidden="true" class="aspect-video max-h-80 w-full rounded-md" /></div>
