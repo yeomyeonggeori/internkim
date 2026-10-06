@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	bluecollarTaskEventNamePath = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/task_event_name.go"
-	bluecollarKernelToolsPath   = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go"
-	expensiveScenarioDirectory  = "../../tests/expensive"
-	scenarioEventCountField     = "expectedEventCounts"
-	scenarioEventListField      = "expectedEvents"
+	bluecollarTaskEventNamePath   = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/task_event_name.go"
+	blueclawHostTaskEventNamePath = "../../.dependency/blueclaw/internal/task/host_task_event_names.go"
+	bluecollarKernelToolsPath     = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go"
+	expensiveScenarioDirectory    = "../../tests/expensive"
+	scenarioEventCountField       = "expectedEventCounts"
+	scenarioEventListField        = "expectedEvents"
 )
 
 var taskEventNameConsumerPaths = []string{
@@ -30,9 +31,11 @@ var (
 
 func TestDeclaredTaskEventNamesMatchBluecollar(t *testing.T) {
 	canonicalNames := []string{}
-	for identifier, value := range bluecollarStringConstants(t, bluecollarTaskEventNamePath) {
-		if strings.HasPrefix(identifier, "TaskEvent") {
-			canonicalNames = append(canonicalNames, value)
+	for _, sourcePath := range []string{bluecollarTaskEventNamePath, blueclawHostTaskEventNamePath} {
+		for identifier, value := range bluecollarStringConstants(t, sourcePath) {
+			if strings.HasPrefix(identifier, "TaskEvent") {
+				canonicalNames = append(canonicalNames, value)
+			}
 		}
 	}
 	sort.Strings(canonicalNames)
