@@ -92,7 +92,7 @@
 					: text.management.description}
 			</p>
 		</div>
-		{#if !isMobile.current || !showsEmployeeDetail}{@render managementActions()}{/if}
+		{#if !isMobile.current || !showsEmployeeDetail || management.errorMessage}{@render managementActions()}{/if}
 	</header>
 
 	{#if management.errorMessage}
