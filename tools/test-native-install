@@ -123,9 +123,9 @@ echo "the agent did not answer after its restart"; exit 1
 """
 
 RELAY_QUEUE_COMMAND = r"""
-pid="$(systemctl show %(relay)s -p MainPID --value 2>/dev/null)"
-directory="$(tr '\0' '\n' < /proc/${pid:-0}/environ 2>/dev/null | sed -n 's/^RELAY_STATE_DIR=//p')"
-printf 'queued=%%s\n' "$(ls "${directory:-/var/lib/internkim/relay}/inbound" 2>/dev/null | grep -c '\.json$' || true)"
+directory="$(systemctl show %(relay)s -p Environment --value 2>/dev/null | tr ' ' '\n' | sed -n 's/^RELAY_STATE_DIR=//p')"
+[ -n "$directory" ] || { echo "queued=the relay unit sets no RELAY_STATE_DIR"; exit 0; }
+printf 'queued=%%s\n' "$(ls "$directory/inbound" 2>/dev/null | grep -c '\.json$' || true)"
 printf 'dropped=%%s\n' "$(journalctl -u %(relay)s --no-pager --since '-%(seconds)s seconds' 2>/dev/null | grep -c 'dropped ' || true)"
 """
 PEOPLE_DIRECTORY = "/workspace/private/people"

@@ -17,6 +17,16 @@ export class CredentialCache {
 	credentialOf(memberID: string): Promise<HeldCredential> {
 		const held = this.kept.get(memberID);
 		if (held && held.until > this.now()) return Promise.resolve(held.credential);
+		return this.readAndKeep(memberID);
+	}
+
+	credentialForAction(memberID: string): Promise<HeldCredential> {
+		const held = this.kept.get(memberID);
+		if (held?.credential && held.until > this.now()) return Promise.resolve(held.credential);
+		return this.readAndKeep(memberID);
+	}
+
+	private readAndKeep(memberID: string): Promise<HeldCredential> {
 		const inFlight = this.reading.get(memberID);
 		if (inFlight) return inFlight;
 

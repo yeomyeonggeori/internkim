@@ -148,7 +148,7 @@ const arrivalWatchers = new ArrivalWatchers({
 });
 
 async function credentialOfMemberActedFor(memberID: string): Promise<{ kind: string; secret: string } | null> {
-	const credential = await credentials.credentialOf(memberID);
+	const credential = await credentials.credentialForAction(memberID);
 	if (credential) void arrivalWatchers.watchOnceTheyAct(memberID, credential);
 	return credential;
 }
