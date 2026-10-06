@@ -114,6 +114,15 @@ begin
  if public.my_member() is null or not public.is_company_admin() then
   raise exception 'Only a company administrator can undo attendance changes' using errcode = 'insufficient_privilege';
  end if;
+ perform event.id from public.attendance event
+ where event.member_id in (
+  select target.member_id from public.attendance target
+  join public.member subject on subject.id = target.member_id
+  where target.id = event_id and target.deleted_at is null
+   and subject.company_id = internal.company_of_member(public.my_member())
+ )
+ order by event.member_id, event.id
+ for update;
  select event.* into held from public.attendance event
  join public.member subject on subject.id=event.member_id
  where event.id=event_id and event.deleted_at is null

@@ -364,3 +364,55 @@ describe('what the attendance screens need out of a list', () => {
 		);
 	});
 });
+
+
+describe('compatible dashboard and change pages', () => {
+ test('undo restores a location-only correction without deleting it and refuses a nonadministrator', async () => {
+  const eventID=crypto.randomUUID();
+  const date=dayShiftedBy(-5);
+  const {error}=await client.from('attendance').insert({id:eventID,member_id:sampleID,kind:'clock_in',occurred_at:`${date}T08:00:00+09:00`,location:'사무실'});
+  if(error) throw error;
+  try {
+   const corrected=await asAdmin('attendance_update',{corrections:[{eventHint:eventID,location:'재택'}],reasonCode:'location_correction'});
+   expect(corrected.status).toBe(200);
+   const {data:changed}=await client.from('attendance').select('changed_by,change_actor_recorded,change_previous_recorded,change_previous_location,location').eq('id',eventID).single();
+   expect(changed).toMatchObject({changed_by:adminID,change_actor_recorded:true,change_previous_recorded:true,change_previous_location:'사무실',location:'재택'});
+   expect((await asSample('attendance_update',{corrections:[{eventHint:eventID}],undoOnly:true})).status).toBe(403);
+   expect((await asAdmin('attendance_update',{corrections:[{eventHint:eventID}],undoOnly:true})).status).toBe(200);
+   const {data:restored}=await client.from('attendance').select('location,deleted_at,occurred_at,changed_by').eq('id',eventID).single();
+   expect(restored).toMatchObject({location:'사무실',deleted_at:null,changed_by:adminID});
+   expect(new Date(restored!.occurred_at).getTime()).toBe(new Date(`${date}T08:00:00+09:00`).getTime());
+  } finally {
+   await client.from('attendance').delete().eq('id',eventID);
+  }
+ });
+ test('the dashboard includes true company totals while the legacy team answer keeps its shape', async () => {
+  const rich=await asAdmin('attendance_team_dashboard_get',{pageKind:'teams',teamLimit:1});
+  expect(rich.status).toBe(200);
+  expect(resultOf(rich).companyName).toBe('Attendance Tools Test');
+  expect(resultOf(rich).companySummary).toMatchObject({memberCount:2});
+  const legacy=await asAdmin('attendance_team_page_get',{pageKind:'teams',teamLimit:1});
+  expect(legacy.status).toBe(200);
+  expect(resultOf(legacy)).not.toHaveProperty('companyName');
+  expect(resultOf(legacy)).not.toHaveProperty('companySummary');
+ });
+ test('the change page retains actual administrator provenance and legacy history strips new metadata', async () => {
+  const added=await asAdmin('attendance_add',{personHint:'이샘플',kind:'clock_in',date:dayShiftedBy(-2),time:'07:00',location:'사무실',reasonCode:'record_missing'});
+  expect(added.status).toBe(200);
+  const eventID=resultOf(added).eventID;
+  const rich=await asAdmin('attendance_changes_page_get',{scope:'all',handWrittenOnly:true,pageOffset:0,pageLimit:24,selectedChangedByID:adminID,from:dayShiftedBy(-2),to:dayShiftedBy(-2)});
+  expect(rich.status).toBe(200);
+  const page=resultOf(rich);
+  expect(page.totalCount).toBeGreaterThanOrEqual(1);
+  expect(page.pageLimit).toBe(24);
+  const row=(page.attendance as Record<string,unknown>[]).find(record=>record.eventID===eventID);
+  expect(row).toMatchObject({changedByID:adminID,changedBySource:'observed',reason:'기록 누락'});
+  const refused=await asSample('attendance_changes_page_get',{scope:'all',handWrittenOnly:true,pageOffset:0});
+  expect(refused.status).toBe(403);
+  const legacy=resultOf(await asAdmin('attendance_list',{scope:'all',handWrittenOnly:true,from:dayShiftedBy(-2),to:dayShiftedBy(-2)}));
+  expect(legacy).not.toHaveProperty('totalCount');
+  const old=(legacy.attendance as Record<string,unknown>[]).find(record=>record.eventID===eventID);
+  expect(old).toBeDefined();
+  expect(old).not.toHaveProperty('changedByID');
+ });
+});

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
 import { currentAttendance } from './current-attendance';
-import { teamAttendance } from './team-attendance';
+import { teamAttendance, legacyTeamAttendance } from './team-attendance';
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import {
@@ -138,10 +138,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	attendance_list: async (context, input) => legacyAttendanceListResultSchema.parse(await attendanceList(context, input)),
 	attendance_changes_page_get: (context, input) => attendanceList(context, input),
 	attendance_current_get: (context) => currentAttendance(context.caller),
-	attendance_team_page_get: async (context, input) => {
-		const {companyName,companySummary,...page}=await teamAttendance(context.caller,input);
-		return page;
-	},
+	attendance_team_page_get: (context, input) => legacyTeamAttendance(context.caller,input),
 	attendance_team_dashboard_get: (context, input) => teamAttendance(context.caller, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
@@ -256,8 +253,10 @@ export async function runToolOverTheRecord(
 	try {
 		const result = name === 'attendance_current_get'
 			? await currentAttendance(caller)
+			: name === 'attendance_team_page_get'
+				? await legacyTeamAttendance(caller,input)
 			: name === 'attendance_team_dashboard_get'
-				? await teamAttendance(caller, input as Parameters<typeof teamAttendance>[1])
+				? await teamAttendance(caller,input)
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
 					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input);
 		noteWhereTheAnswerLeftItsContract(name, result);

@@ -20,7 +20,7 @@ const clockOutID = '4c000000-0000-0000-0000-000000000102';
 const racer: LoginRole = {
 	name: 'attendance_correction_racer',
 	password: crypto.randomUUID(),
-	grants: ['usage on schema public', 'execute on function public.attendance_correct(jsonb, text)']
+	grants: ['usage on schema public', 'execute on function public.attendance_correct(jsonb, text)', 'execute on function public.attendance_change_undo(uuid)']
 };
 
 const administrator = administratorSession();
@@ -76,6 +76,30 @@ afterAll(async () => {
 });
 
 describe('attendance correction', () => {
+	test('undo locks all member events in correction order before reading its target', async () => {
+		const holder = administratorSession();
+		const challenger = sessionAs(racer);
+		try {
+			await actAs(holder, userID);
+			await actAs(challenger, userID);
+			await holder`select public.attendance_correct(${correction(clockInID, '09:10')}::text::jsonb, '첫 번째 수정')`;
+			await holder`select public.attendance_correct(${correction(clockOutID, '10:10')}::text::jsonb, '두 번째 수정')`;
+			await holder`begin`;
+			await holder`select id from public.attendance where id = ${clockInID} for update`;
+			const challengerProcessID = await backendProcessID(challenger);
+			const challenge = challenger`select public.attendance_change_undo(${clockOutID}::uuid)`;
+			const answer = Promise.resolve(challenge);
+			expect(await waitUntilWaitingOnLock(administrator, challengerProcessID)).toBe(true);
+			await holder`select public.attendance_change_undo(${clockInID}::uuid)`;
+			await holder`commit`;
+			await answer;
+			expect(await recordedLocalTimes()).toEqual(['2026-08-10 09:00', '2026-08-10 10:00']);
+		} finally {
+			await holder`rollback`;
+			await holder.close();
+			await challenger.close();
+		}
+	});
 	test('a competing request waits for the member event lock, then rechecks order after the first commit', async () => {
 		const holder = sessionAs(racer);
 		const challenger = sessionAs(racer);

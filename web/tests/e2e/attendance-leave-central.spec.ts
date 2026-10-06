@@ -96,7 +96,8 @@ async function statusOf(memberID: string, leaveID: string): Promise<string> {
 
 test('leave_request writes the leave the form asked for', async ({ page }) => {
 	await signInToAttendance(page);
-	await page.getByRole('button', { name: '휴가 등록' }).first().click();
+	await page.getByTestId('leave-history-navigation').click();
+	await page.getByRole('button', { name: '휴가 신청', exact: true }).click();
 
 	const form = page.getByTestId('leave-request-dialog').getByTestId('leave-request-form');
 	await form.waitFor({ state: 'visible', timeout: 20000 });

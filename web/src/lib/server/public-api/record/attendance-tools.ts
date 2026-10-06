@@ -138,7 +138,7 @@ export async function attendanceList(context: RecordContext, input: AttendanceLi
             context.caller.rpc('attendance_changes_page', {from_timestamp:window.from, to_timestamp:window.to, page_offset:input.pageOffset, page_limit:input.pageLimit ?? 24, team_search:input.teamSearch ?? '', actor_search:input.changedBySearch ?? '', selected_members:whose.everyone ? null : whose.personIDs, selected_team_key: input.selectedTeamKey || null, selected_actor: input.selectedChangedByID || null}),
             attendanceClock(context.caller), attendanceBackdatedAfterMinutes(context.caller)
         ]);
-        if(result.error) throw new Error(result.error.message);
+        if(result.error) throw new RecordRefusedTheWrite(result.error.message,statusOfPostgresCode(result.error.code));
         const page = result.data as {totalCount:number; pageOffset:number; pageLimit:number; attendance:AnsweredAttendance[]};
         return {scope:'everyone', personID:null, personName:'', from:window.firstDay, to:window.lastDay, serverTime, backdatedAfterMinutes, count:page.attendance.length, ...page};
     }
