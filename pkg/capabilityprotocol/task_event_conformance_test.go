@@ -12,26 +12,31 @@ import (
 )
 
 const (
-	bluecollarTaskEventNamePath   = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/task_event_name.go"
-	blueclawHostTaskEventNamePath = "../../.dependency/blueclaw/internal/task/host_task_event_names.go"
-	bluecollarKernelToolsPath     = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go"
-	expensiveScenarioDirectory    = "../../tests/expensive"
-	scenarioEventCountField       = "expectedEventCounts"
-	scenarioEventListField        = "expectedEvents"
+	bluecollarTaskEventNamePath = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/task_event_name.go"
+	bluecollarKernelToolsPath   = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go"
+	expensiveScenarioDirectory  = "../../tests/expensive"
+	scenarioEventCountField     = "expectedEventCounts"
+	scenarioEventListField      = "expectedEvents"
 )
+
+var blueclawHostTaskEventNamePaths = []string{
+	"../../.dependency/blueclaw/internal/task/host_task_event_names.go",
+	"../../.dependency/blueclaw/internal/approvalgate/permission_asker.go",
+	"../../.dependency/blueclaw/internal/approvalgate/wording.go",
+}
 
 var taskEventNameConsumerPaths = []string{
 	"../../web/src/routes/runs/runs-api.ts",
 }
 
 var (
-	goStringConstant     = regexp.MustCompile(`(?m)^\s*([A-Za-z][A-Za-z0-9]*)\s+=\s+"([^"]*)"`)
+	goStringConstant     = regexp.MustCompile(`(?m)^\s*(?:const\s+)?([A-Za-z][A-Za-z0-9]*)\s+=\s+"([^"]*)"`)
 	quotedEventCandidate = regexp.MustCompile(`['"]([a-z.][a-zA-Z0-9_.]*)['"]`)
 )
 
 func TestDeclaredTaskEventNamesMatchBluecollar(t *testing.T) {
 	canonicalNames := []string{}
-	for _, sourcePath := range []string{bluecollarTaskEventNamePath, blueclawHostTaskEventNamePath} {
+	for _, sourcePath := range append([]string{bluecollarTaskEventNamePath}, blueclawHostTaskEventNamePaths...) {
 		for identifier, value := range bluecollarStringConstants(t, sourcePath) {
 			if strings.HasPrefix(identifier, "TaskEvent") {
 				canonicalNames = append(canonicalNames, value)
