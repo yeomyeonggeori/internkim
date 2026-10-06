@@ -5,7 +5,11 @@ Every step prints one line and a failing step stops the run. A failure after
 the host was touched puts the host and stable back on the previous stable
 release and marks the failed one a prerelease.
 
-    tools/ship-host [--skip-host] [--plan]
+--host-only builds our host's package from origin/main here and installs it on
+our host, publishing nothing: the everyday deploy between milestone releases.
+A failure puts the host back on the version it ran.
+
+    tools/ship-host [--skip-host | --host-only] [--plan]
 """
 
 import argparse
@@ -32,6 +36,8 @@ CHECKSUMS_NAME = "SHA256SUMS"
 RIG_DISTRIBUTION = "debian-13"
 AGENT_UNIT = "blueclaw.service"
 SETTLE_SECONDS = 120
+HOST_PACKAGE_CACHE = "/var/cache/internkim/host-packages"
+HOST_PACKAGES_KEPT = 3
 FAILURE_OUTPUT_LINES = 40
 RIG_PROFILE = "@test"
 ARTIFACTS_DIRECTORY = REPOSITORY_ROOT / ".artifacts" / "ship-host"
@@ -61,6 +67,7 @@ class CommandFailure(Exception):
 class Options:
     skip_host: bool
     is_plan: bool
+    is_host_only: bool = False
 
 
 @dataclass
@@ -69,6 +76,8 @@ class Shipment:
     run: object
     sleep: object
     directory: Path
+    send: object = None
+    package_path: Path = None
     log_directory: Path = ARTIFACTS_DIRECTORY
     previous_tag: str = ""
     tag: str = ""
@@ -80,9 +89,12 @@ class Shipment:
 def parse_arguments(arguments):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--skip-host", action="store_true", help="stop after stable is promoted")
+    parser.add_argument("--host-only", action="store_true", dest="is_host_only", help="build our host's package here and install it on our host, publishing no release")
     parser.add_argument("--plan", action="store_true", dest="is_plan", help="print the steps and the tags, change nothing")
     parsed = parser.parse_args(arguments)
-    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan)
+    if parsed.skip_host and parsed.is_host_only:
+        parser.error("--skip-host releases without touching our host and --host-only touches only our host; name one")
+    return Options(skip_host=parsed.skip_host, is_plan=parsed.is_plan, is_host_only=parsed.is_host_only)
 
 
 def tag_for_commit_time(epoch_seconds):
@@ -198,6 +210,13 @@ def run_command(arguments, log_path=None):
     return completed.stdout
 
 
+def send_file(local_path, remote_path):
+    with open(local_path, "rb") as package:
+        completed = subprocess.run([INTERNKIM, "@host", "ssh", "--", f"cat > {remote_path}"], cwd=REPOSITORY_ROOT, stdin=package, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise CommandFailure(f"sending {local_path} to {remote_path} exited {completed.returncode}\n{failure_excerpt(completed.stdout + completed.stderr)}")
+
+
 def run_on_host(shipment, script):
     output = shipment.run([INTERNKIM, "@host", "ssh", "--sudo", "--", script])
     return "\n".join(line for line in output.splitlines() if not line.startswith("SSH: "))
@@ -298,8 +317,41 @@ def watch_the_agent(shipment):
     check_host_runs(shipment, shipment.tag)
 
 
+def kept_package_path(tag, architecture):
+    return f"{HOST_PACKAGE_CACHE}/{PACKAGE_NAME}-{tag}-{architecture}.deb"
+
+
+def build_host_package(shipment):
+    read_host_architecture(shipment)
+    output_directory = shipment.directory / package_directory_name(shipment.tag)
+    shipment.run([INTERNKIM, "release", "packages", "--format", "deb", "--architecture", shipment.host_architecture, "--out", str(output_directory)])
+    shipment.package_path = output_directory / f"{PACKAGE_NAME}-{shipment.host_architecture}.deb"
+    if not shipment.package_path.is_file():
+        raise ShipFailure("build the package", f"release packages left no {shipment.package_path.name} in {output_directory}")
+
+
+def keep_package_script(staged, kept):
+    return (
+        f"set -e; install -D -m 0644 {staged} {kept}; rm -f {staged}; "
+        f"ls -1t {HOST_PACKAGE_CACHE}/*.deb | tail -n +{HOST_PACKAGES_KEPT + 1} | xargs -r rm -f"
+    )
+
+
+def copy_package_to_host(shipment):
+    staged = f"/tmp/{PACKAGE_NAME}-{shipment.tag}-{shipment.host_architecture}.deb"
+    shipment.send(shipment.package_path, staged)
+    run_on_host(shipment, keep_package_script(staged, kept_package_path(shipment.tag, shipment.host_architecture)))
+
+
+def host_install_script(shipment):
+    if not shipment.options.is_host_only:
+        return f"{INSTALL_LINE} --version {shipment.tag}"
+    kept = kept_package_path(shipment.tag, shipment.host_architecture)
+    return f"set -e; apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y {kept}"
+
+
 def upgrade_host(shipment):
-    run_on_host(shipment, f"{INSTALL_LINE} --version {shipment.tag}")
+    run_on_host(shipment, host_install_script(shipment))
     check_host_runs(shipment, shipment.tag)
     watch_the_agent(shipment)
 
@@ -312,15 +364,19 @@ def roll_the_host_back(shipment):
 def host_downgrade_script(tag, architecture):
     asset = f"{PACKAGE_NAME}-{architecture}.deb"
     url = f"https://github.com/{RELEASE_REPOSITORY}/releases/download/{tag}/{asset}"
+    kept = kept_package_path(tag, architecture)
     return (
-        f"set -e; curl -fsSL {url} -o /tmp/{asset}; "
-        f"DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades /tmp/{asset}"
+        f"set -e; package={kept}; "
+        f"if [ ! -f \"$package\" ]; then package=/tmp/{asset}; curl -fsSL {url} -o \"$package\"; fi; "
+        f"DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades \"$package\""
     )
 
 
 def rollback_actions(shipment):
     previous = shipment.previous_tag
     host_actions = [("roll the host back to " + shipment.host_tag, lambda: roll_the_host_back(shipment))] if shipment.host_tag else []
+    if shipment.options.is_host_only:
+        return host_actions
     return host_actions + [
         ("mark " + shipment.tag + " a prerelease", lambda: shipment.run(["gh", "release", "edit", shipment.tag, "--repo", RELEASE_REPOSITORY, "--prerelease"])),
         ("point stable at " + previous, lambda: promote_to_stable(shipment, previous)),
@@ -348,7 +404,18 @@ def upgrade_host_or_roll_back(shipment):
         raise ShipFailure("upgrade our own host", f"{failure}{left_undone}")
 
 
+def host_only_steps():
+    return [
+        (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main", refuse_unless_origin_main),
+        (lambda shipment: f"build {shipment.tag} for our host's architecture here", build_host_package),
+        (lambda shipment: f"copy {shipment.tag} to our host and keep it in {HOST_PACKAGE_CACHE}", copy_package_to_host),
+        (lambda shipment: f"install {shipment.tag} on our host, watch it for {SETTLE_SECONDS} seconds, roll it back to the version it ran on failure", upgrade_host_or_roll_back),
+    ]
+
+
 def planned_steps(options):
+    if options.is_host_only:
+        return host_only_steps()
     steps = [
         (lambda shipment: "refuse unless the checkout is clean and HEAD is origin/main", refuse_unless_origin_main),
         (lambda shipment: "cut the testing release", cut_testing_release),
@@ -377,16 +444,21 @@ def ship(shipment):
     if shipment.options.is_plan:
         print_plan(shipment)
         return
+    if shipment.options.is_host_only:
+        shipment.tag = read_origin_tag(shipment.run)
     for number, (describe, step) in enumerate(planned_steps(shipment.options), 1):
         print(f"{number}. {describe(shipment)}", flush=True)
         step(shipment)
+    if shipment.options.is_host_only:
+        print(f"installed {shipment.tag} on our host; stable stays {shipment.previous_tag}")
+        return
     print(f"shipped {shipment.tag}; stable was {shipment.previous_tag}")
 
 
 def main():
     options = parse_arguments(sys.argv[1:])
     with tempfile.TemporaryDirectory(prefix="ship-host-") as directory:
-        shipment = Shipment(options=options, run=run_command, sleep=time.sleep, directory=Path(directory))
+        shipment = Shipment(options=options, run=run_command, sleep=time.sleep, directory=Path(directory), send=send_file)
         try:
             ship(shipment)
         except (CommandFailure, ShipFailure) as failure:

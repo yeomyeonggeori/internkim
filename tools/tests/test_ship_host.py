@@ -40,6 +40,11 @@ class ScriptedCommands:
             **(host_answers or {}),
         }
         self.failing = failing
+        self.sent = []
+
+    def send(self, local_path, remote_path):
+        self.calls.append(["send", str(local_path), remote_path])
+        self.sent.append((Path(local_path).read_bytes(), remote_path))
 
     def __call__(self, arguments, log_path=None):
         self.calls.append(arguments)
@@ -60,6 +65,8 @@ class ScriptedCommands:
             return f"released {NEW_TAG} on testing: https://example.com\n"
         if arguments[:3] == ["gh", "release", "download"]:
             return self.write_download(arguments)
+        if arguments[1:3] == ["release", "packages"]:
+            return self.write_package(arguments)
         if "ssh" in arguments:
             return self.host_answer(arguments[-1])
         return ""
@@ -73,6 +80,13 @@ class ScriptedCommands:
         for package in packages:
             (directory / package).write_bytes(b"package")
         (directory / ship_host.CHECKSUMS_NAME).write_text("".join(f"{digest}  {package}\n" for package in packages))
+        return ""
+
+    def write_package(self, arguments):
+        directory = Path(arguments[arguments.index("--out") + 1])
+        directory.mkdir(parents=True, exist_ok=True)
+        architecture = arguments[arguments.index("--architecture") + 1]
+        (directory / f"internkim-{architecture}.deb").write_bytes(b"built here")
         return ""
 
     def host_answer(self, script):
@@ -92,7 +106,10 @@ class ScriptedCommands:
 
 def shipment_with(commands, options=None, directory="."):
     options = options or ship_host.Options(skip_host=False, is_plan=False)
-    return ship_host.Shipment(options=options, run=commands, sleep=lambda seconds: None, directory=Path(directory))
+    return ship_host.Shipment(options=options, run=commands, sleep=lambda seconds: None, directory=Path(directory), send=commands.send)
+
+
+HOST_ONLY = ship_host.Options(skip_host=False, is_plan=False, is_host_only=True)
 
 
 def ship_quietly(shipment):
@@ -109,6 +126,13 @@ class ArgumentTest(unittest.TestCase):
     def test_skip_host_and_plan(self):
         options = ship_host.parse_arguments(["--skip-host", "--plan"])
         self.assertEqual(options, ship_host.Options(skip_host=True, is_plan=True))
+
+    def test_host_only(self):
+        self.assertEqual(ship_host.parse_arguments(["--host-only"]), HOST_ONLY)
+
+    def test_host_only_and_skip_host_are_one_or_the_other(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            ship_host.parse_arguments(["--host-only", "--skip-host"])
 
     def test_nothing_else_is_accepted(self):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
@@ -306,6 +330,72 @@ class RollbackTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.CommandFailure):
             ship_quietly(shipment_with(commands, directory=directory))
         self.assertFalse(commands.matching("release edit"))
+
+
+class HostOnlyTest(unittest.TestCase):
+    def ship_host_only(self, commands):
+        with tempfile.TemporaryDirectory() as directory:
+            return ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+
+    def test_the_plan_builds_copies_and_installs_and_releases_nothing(self):
+        options = ship_host.Options(skip_host=False, is_plan=True, is_host_only=True)
+        output = ship_quietly(shipment_with(ScriptedCommands(), options))
+        steps = [line for line in output.splitlines() if line[:1].isdigit()]
+        self.assertEqual(len(steps), 4)
+        self.assertNotIn("release", " ".join(steps[1:]))
+
+    def test_the_package_built_here_is_the_one_our_host_installs(self):
+        commands = ScriptedCommands({"dpkg --print-architecture": "arm64\n"})
+        output = self.ship_host_only(commands)
+        build = commands.calls[commands.matching("release packages")[0]]
+        self.assertEqual(build[build.index("--format") + 1], "deb")
+        self.assertEqual(build[build.index("--architecture") + 1], "arm64")
+        self.assertEqual(commands.sent[0][0], b"built here")
+        kept = ship_host.kept_package_path(NEW_TAG, "arm64")
+        install = commands.calls[commands.matching("apt-get install")[0]][-1]
+        self.assertIn(kept, install)
+        self.assertIn(f"installed {NEW_TAG} on our host", output)
+
+    def test_steps_run_in_order_and_nothing_is_published(self):
+        commands = ScriptedCommands()
+        self.ship_host_only(commands)
+        positions = [
+            commands.matching("release-tree")[0],
+            commands.matching("release packages")[0],
+            commands.matching("send")[0],
+            commands.matching("apt-get install")[0],
+        ]
+        self.assertEqual(positions, sorted(positions))
+        for published in ("release host", "release create", "release edit", "release download", "--channel", "install.sh", "test-native-install"):
+            self.assertFalse(commands.matching(published), published)
+
+    def test_a_tree_that_is_not_origin_main_builds_nothing(self):
+        commands = ScriptedCommands()
+        original = commands.answer
+        commands.answer = lambda arguments: "other\n" if arguments[:3] == ["git", "rev-parse", "origin/main"] else original(arguments)
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure):
+            ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        self.assertFalse(commands.matching("release packages"))
+        self.assertFalse(commands.sent)
+
+    def test_a_failed_install_puts_the_host_back_and_touches_no_release(self):
+        commands = ScriptedCommands({"dpkg-query": wrong_version_then_back()})
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure) as raised:
+            ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        self.assertTrue(commands.matching("--allow-downgrades"))
+        self.assertFalse(commands.matching("release edit"))
+        self.assertFalse(commands.matching("--channel stable"))
+        self.assertIn("rolled back", str(raised.exception))
+
+    def test_a_host_goes_back_to_the_package_it_kept_before_asking_github(self):
+        script = ship_host.host_downgrade_script(HOST_TAG, "arm64")
+        kept = ship_host.kept_package_path(HOST_TAG, "arm64")
+        self.assertLess(script.index(kept), script.index("curl"))
+        self.assertIn(f"{HOST_TAG}/internkim-arm64.deb", script)
+
+    def test_the_host_keeps_only_its_newest_packages(self):
+        script = ship_host.keep_package_script("/tmp/staged.deb", ship_host.kept_package_path(NEW_TAG, "arm64"))
+        self.assertIn(f"tail -n +{ship_host.HOST_PACKAGES_KEPT + 1}", script)
 
 
 RIG_REPORT = """boot noise

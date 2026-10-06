@@ -530,8 +530,14 @@ and delete the duplicates.
   `--channel stable` promotes one and gives the Homebrew tap its formula. It
   refuses a dirty tree, a commit `main` lacks, or a submodule checkout off the
   recorded pointer. A host takes it by running the install line again.
-- `tools/ship-host` takes `origin/main` to stable and onto our own host in one
-  command: it cuts the testing release, checks the packages against
+- Our own host takes `origin/main` with `tools/ship-host --host-only`. It
+  builds the host's one package here, copies it to the host, keeps it beside
+  the last two, installs it and watches `blueclaw` for two minutes, putting
+  the host back on the version it ran when that fails. It publishes nothing,
+  so it is the everyday deploy. A release builds eight packages, uploads about
+  2 GB and runs two rigs, more than an hour, so one is cut at a milestone.
+- At a milestone, `tools/ship-host` takes `origin/main` to stable and onto our
+  own host in one command: it cuts the testing release, checks the packages against
   `SHA256SUMS`, runs the Debian 13 rig and its `--people-upgrade` step (a host
   that already has people and memory must stay up through the upgrade),
   promotes, upgrades the host and watches `blueclaw` for two minutes. A
