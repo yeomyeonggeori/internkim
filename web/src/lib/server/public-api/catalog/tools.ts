@@ -555,6 +555,7 @@ export const calendarEventResultSchema = z.strictObject({
   startsAt: z.string(),
   endsAt: z.string(),
   isWholeDay: z.boolean(),
+  isOpenToCompany: z.literal(true).describe('Present only when the event is open to the whole company, which names no attendees.').optional(),
   participants: z.array(calendarParticipantResultSchema),
   notifyMinutesBefore: z.number().int().optional(),
   updatedAt: z.string(),

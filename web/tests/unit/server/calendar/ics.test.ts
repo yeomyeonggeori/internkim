@@ -17,6 +17,7 @@ function event(overrides: Partial<CompanyCalendarEntry> = {}): CompanyCalendarEn
 		color: '',
 		reminderMinutesBefore: null,
 		participants: [],
+		isOpenToCompany: false,
 		createdByEmail: '',
 		createdByName: '',
 		updatedAt: '2026-08-31T00:00:00.000Z',

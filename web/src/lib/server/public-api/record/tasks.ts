@@ -16,6 +16,7 @@ export type TaskRow = {
 	size: string | null;
 	is_event: boolean;
 	is_whole_day: boolean;
+	is_open_to_company: boolean;
 	notify_minutes_before: number | null;
 	starts_at: string | null;
 	ends_at: string | null;
@@ -30,7 +31,7 @@ export type TaskRow = {
 };
 
 export const taskSelection =
-	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id)';
+	'id, parent_task_id, title, status, note, location, business, type, size, is_event, is_whole_day, is_open_to_company, notify_minutes_before, starts_at, ends_at, created_at, updated_at, organization_id, opportunity_id, contact_id, due_at, requester_id, task_participant (member_id)';
 
 // Postgres says why it refused, and the three answers are different things: a
 // permission the caller does not hold, a row that moved under them, and a rule

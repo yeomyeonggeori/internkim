@@ -4816,6 +4816,11 @@
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
+          "isOpenToCompany": {
+            "const": true,
+            "description": "Present only when the event is open to the whole company, which names no attendees.",
+            "type": "boolean"
+          },
           "isWholeDay": {
             "type": "boolean"
           },
@@ -4898,6 +4903,11 @@
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
+            },
+            "isOpenToCompany": {
+              "const": true,
+              "description": "Present only when the event is open to the whole company, which names no attendees.",
+              "type": "boolean"
             },
             "isWholeDay": {
               "type": "boolean"
@@ -5042,6 +5052,11 @@
                   "pattern": "^\\S(?:.*\\S)?$",
                   "type": "string"
                 },
+                "isOpenToCompany": {
+                  "const": true,
+                  "description": "Present only when the event is open to the whole company, which names no attendees.",
+                  "type": "boolean"
+                },
                 "isWholeDay": {
                   "type": "boolean"
                 },
@@ -5141,6 +5156,11 @@
                     "minLength": 1,
                     "pattern": "^\\S(?:.*\\S)?$",
                     "type": "string"
+                  },
+                  "isOpenToCompany": {
+                    "const": true,
+                    "description": "Present only when the event is open to the whole company, which names no attendees.",
+                    "type": "boolean"
                   },
                   "isWholeDay": {
                     "type": "boolean"
@@ -5373,6 +5393,11 @@
             "pattern": "^\\S(?:.*\\S)?$",
             "type": "string"
           },
+          "isOpenToCompany": {
+            "const": true,
+            "description": "Present only when the event is open to the whole company, which names no attendees.",
+            "type": "boolean"
+          },
           "isWholeDay": {
             "type": "boolean"
           },
@@ -5455,6 +5480,11 @@
               "minLength": 1,
               "pattern": "^\\S(?:.*\\S)?$",
               "type": "string"
+            },
+            "isOpenToCompany": {
+              "const": true,
+              "description": "Present only when the event is open to the whole company, which names no attendees.",
+              "type": "boolean"
             },
             "isWholeDay": {
               "type": "boolean"

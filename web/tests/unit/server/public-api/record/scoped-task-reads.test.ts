@@ -7,7 +7,7 @@ function task(index: number, organizationID: string | null = null): TaskRow {
 	return {
 		id: String(index).padStart(6, '0'), parent_task_id: null, title: `Task ${index}`,
 		status: 'planned', note: null, location: null, business: null, type: null, size: null,
-		is_event: false, is_whole_day: false, notify_minutes_before: null, starts_at: null,
+		is_event: false, is_whole_day: false, is_open_to_company: false, notify_minutes_before: null, starts_at: null,
 		ends_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 		organization_id: organizationID, opportunity_id: null, contact_id: null, due_at: null,
 		requester_id: null, task_participant: []

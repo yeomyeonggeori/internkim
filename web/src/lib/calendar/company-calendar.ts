@@ -15,6 +15,7 @@ export type AnsweredEvent = {
 	startsAt: string;
 	endsAt: string;
 	isWholeDay: boolean;
+	isOpenToCompany?: true;
 	notifyMinutesBefore?: number;
 	participants: AnsweredParticipant[];
 	updatedAt: string;
@@ -51,6 +52,7 @@ function calendarEventOfEntry(entry: AnsweredEntry, timeZone: string): CalendarE
 		isAllDay: entry.isWholeDay,
 		color: isDayOff ? dayOffColor : '',
 		participants: entry.participants.map(calendarParticipant),
+		isOpenToCompany: entry.isOpenToCompany === true,
 		createdByEmail: isDayOff ? person?.email ?? '' : '',
 		createdByName: isDayOff ? person?.name ?? '' : '',
 		reminderMinutesBefore: eventReminderLeadOf(entry.notifyMinutesBefore),
