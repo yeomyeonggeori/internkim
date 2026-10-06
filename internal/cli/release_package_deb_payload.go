@@ -43,8 +43,8 @@ func rewriteDebianPackage(packagePath string, rewrittenPath string) error {
 	}
 	defer destination.Close()
 	reader := ar.NewReader(source)
-	writer := ar.NewWriter(destination)
-	if errorValue := writer.WriteGlobalHeader(); errorValue != nil {
+	writer := archiveWriter{destination: destination, headers: ar.NewWriter(destination)}
+	if errorValue := writer.headers.WriteGlobalHeader(); errorValue != nil {
 		return errorValue
 	}
 	hasPayload := false
@@ -73,15 +73,30 @@ func rewriteDebianPackage(packagePath string, rewrittenPath string) error {
 	return destination.Close()
 }
 
-func copyArchiveMember(writer *ar.Writer, header *ar.Header, body io.Reader) error {
-	if errorValue := writer.WriteHeader(header); errorValue != nil {
+type archiveWriter struct {
+	destination io.Writer
+	headers     *ar.Writer
+}
+
+func copyArchiveMember(writer archiveWriter, header *ar.Header, body io.Reader) error {
+	if errorValue := writer.headers.WriteHeader(header); errorValue != nil {
 		return errorValue
 	}
-	_, errorValue := io.Copy(writer, body)
+	written, errorValue := io.Copy(writer.destination, body)
+	if errorValue != nil {
+		return errorValue
+	}
+	if written != header.Size {
+		return fmt.Errorf("the deb's %s member is %d bytes and its header says %d", header.Name, written, header.Size)
+	}
+	if written%2 == 0 {
+		return nil
+	}
+	_, errorValue = writer.destination.Write([]byte{'\n'})
 	return errorValue
 }
 
-func writeCompressedPayload(writer *ar.Writer, header *ar.Header, payload io.Reader, scratchDirectory string) error {
+func writeCompressedPayload(writer archiveWriter, header *ar.Header, payload io.Reader, scratchDirectory string) error {
 	compressed, errorValue := os.CreateTemp(scratchDirectory, "payload-*.xz")
 	if errorValue != nil {
 		return errorValue
