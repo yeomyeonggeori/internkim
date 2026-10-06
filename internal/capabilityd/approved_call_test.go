@@ -37,7 +37,7 @@ func TestATurnCarryingOutAnEarlierApprovalRuns(t *testing.T) {
 
 func TestACallNamingTheApprovalItSpendsRuns(t *testing.T) {
 	assertCallIsAllowed(t,
-		capabilities.ToolInvokeContext{RequesterPersonID: "person-sample", ApprovedCallID: "held-4f2a91c0"},
+		capabilities.ToolInvokeContext{RequesterPersonID: "person-sample", HoldID: "held-4f2a91c0"},
 		"a call approved inside its own turn names the held call it spends")
 }
 

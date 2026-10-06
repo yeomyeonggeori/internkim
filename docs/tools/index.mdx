@@ -77,7 +77,7 @@ conversation. A direct message to anyone else, or to the requester from a
 channel, still asks.
 
 <Callout>
-A held call is persisted to the task ledger as `approval.pending_call`, so an
+A held call is persisted to the task ledger as `approval.hold_opened`, so an
 approval survives a daemon restart. Approving replays the recorded call
 verbatim; declining tells the model to stop, and it is instructed never to
 retry a declined call.
