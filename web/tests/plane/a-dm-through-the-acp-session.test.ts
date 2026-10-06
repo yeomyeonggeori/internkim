@@ -111,12 +111,16 @@ test('a native workspace file is delivered as one attachment with the final repl
 	const fileContents = `plane attachment body: ${marker}`;
 	const finalMessage = `파일을 첨부했습니다: ${marker}`;
 	const request = `문서 파일을 만들고 이 DM에 첨부해줘: ${marker}`;
-	const previousPostCount = postsToTheConversation().length;
+	const previousCallCount = plane.connector.calls.length;
 	const postSchema = z.object({
 		message: z.string(),
 		attachments: z.array(z.object({ address: z.string().url(), filename: z.string() })).default([])
 	});
-	const currentPosts = () => postsToTheConversation().slice(previousPostCount).map(({ body }) => postSchema.parse(body));
+	const currentDeliveries = () =>
+		plane.connector.calls
+			.slice(previousCallCount)
+			.filter((call) => /\/message\.(post|edit)$/.test(call.path))
+			.map(({ body }) => postSchema.parse(body));
 
 	await plane.model.decideTurn(aTurnStartingWork(request, ['write']));
 	await plane.model.answerNext(turnRouterSchemaName, {
@@ -143,15 +147,19 @@ test('a native workspace file is delivered as one attachment with the final repl
 
 	try {
 		await until(
-			`the file and reply did not reach the messenger connector: ${JSON.stringify(plane.connector.calls, null, 2)}`,
-			() => currentPosts().some((post) => post.message === finalMessage)
+			'the file and reply did not reach the messenger connector',
+			() => currentDeliveries().some((delivery) => delivery.message === finalMessage)
 		);
 	} catch (error) {
-		throw new Error(`the file delivery ledger says: ${await theLedger()}`, { cause: error });
+		throw new Error(
+			`the connector saw: ${JSON.stringify(plane.connector.calls, null, 2)}\n` +
+				`the file delivery ledger says: ${await theLedger()}`,
+			{ cause: error }
+		);
 	}
-	const posts = currentPosts();
-	expect(posts.filter((post) => post.message === finalMessage)).toHaveLength(1);
-	const filePosts = posts.filter((post) => post.attachments.length > 0);
+	const deliveries = currentDeliveries();
+	expect(deliveries.filter((delivery) => delivery.message === finalMessage)).toHaveLength(1);
+	const filePosts = deliveries.filter((delivery) => delivery.attachments.length > 0);
 	expect(filePosts).toHaveLength(1);
 	const attachments = filePosts[0]?.attachments ?? [];
 	expect(attachments).toHaveLength(1);
@@ -205,7 +213,7 @@ async function theLedger(): Promise<string> {
 			? ((await detail.json()) as { taskEvents?: { name: string; body: string }[] })
 			: null;
 		const events = (document?.taskEvents ?? []).map((event) =>
-			/fail|error|refus|unavailable|result/.test(event.name)
+			/fail|error|refus|unavailable|result|connector\.reply/.test(event.name)
 				? `${event.name}(${event.body})`
 				: event.name
 		);
