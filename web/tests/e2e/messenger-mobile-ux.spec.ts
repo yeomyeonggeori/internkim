@@ -182,17 +182,18 @@ test('landscape keeps navigation below the composer', async ({ page }) => {
 
 test('mobile search opens from More and follows the keyboard viewport', async ({ page }) => {
 	await openConversation(page, 320);
+	await page.getByRole('button', { name: '더보기', exact: true }).click();
+	await page.getByRole('dialog', { name: '더보기' }).getByRole('button', { name: '검색', exact: true }).click();
+	const search = page.getByRole('dialog', { name: '검색', exact: true });
+	await expect(search).toBeVisible();
+	await expect(search.getByRole('combobox')).toBeFocused();
 	await page.evaluate(() => {
 		const viewport = window.visualViewport!;
 		Object.defineProperty(viewport, 'height', { configurable: true, value: 440 });
 		Object.defineProperty(viewport, 'offsetTop', { configurable: true, value: 20 });
 		viewport.dispatchEvent(new Event('resize'));
 	});
-	await page.getByRole('button', { name: '더보기', exact: true }).click();
-	await page.getByRole('dialog', { name: '더보기' }).getByRole('button', { name: '검색', exact: true }).click();
-	const search = page.getByRole('dialog', { name: '검색', exact: true });
-	await expect(search).toBeVisible();
-	await expect(search.getByRole('combobox')).toBeFocused();
+	await expect.poll(async () => (await search.boundingBox())!.y).toBeGreaterThanOrEqual(20);
 	const bounds = await search.boundingBox();
 	expect(bounds!.x).toBeGreaterThanOrEqual(0);
 	expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
@@ -227,22 +228,23 @@ test('software keyboard viewport and bottom safe area keep the composer reachabl
 		viewport.dispatchEvent(new Event('resize'));
 	});
 	const navigation = page.locator('.internkim-app-mobile-navigation');
-	const composer = page.locator('.channel-composer');
+	const input = page.locator('.channel-composer .composer-input');
+	await expect(navigation).toBeHidden();
 	await expect.poll(async () => {
-		const navigationBounds = await navigation.boundingBox();
-		const composerBounds = await composer.boundingBox();
-		return !!navigationBounds && !!composerBounds &&
-			navigationBounds.y + navigationBounds.height <= 464 &&
-			composerBounds.y + composerBounds.height <= navigationBounds.y;
-	}).toBe(true);
-	await expectComposerGap(page);
-	await expect(navigation).toHaveCSS('height', '56px');
+		const inputBounds = await input.boundingBox();
+		return inputBounds ? 464 - inputBounds.y - inputBounds.height : -1;
+	}).toBeGreaterThanOrEqual(0);
+	await expect.poll(async () => {
+		const inputBounds = await input.boundingBox();
+		return inputBounds ? 464 - inputBounds.y - inputBounds.height : Infinity;
+	}).toBeLessThanOrEqual(4.5);
 	await expectTouchTarget(page.getByRole('button', { name: '파일 첨부' }));
 	await page.evaluate(() => {
 		const viewport = window.visualViewport!;
 		Object.defineProperties(viewport, { height: { configurable: true, value: 760 }, offsetTop: { configurable: true, value: 0 } });
 		viewport.dispatchEvent(new Event('resize'));
 	});
+	await expect(navigation).toBeVisible();
 	await expectComposerGap(page);
 	await expect(navigation).toHaveCSS('height', '90px');
 	await page.evaluate(() => {
