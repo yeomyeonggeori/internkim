@@ -73,12 +73,12 @@ describe('the decision the approvals page sends', () => {
 		});
 	});
 
-	test('offers the three decisions blueclaw accepts', () => {
+	test('offers the decisions blueclaw accepts', () => {
 		const decisionsBlueclawAccepts = readFileSync(
 			'../.dependency/blueclaw/internal/adminapi/task_approval_handler.go',
 			'utf8'
 		)
-			.split('func approvalTurnDecision')[1]
+			.split('func approvalSignalOf')[1]
 			.split('default:')[0]
 			.match(/case "([a-z_]+)":/g)
 			?.map((line) => line.replace(/case "|":/g, ''));

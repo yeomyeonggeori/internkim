@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	bluecollarTaskEventNamePath = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/task_event_name.go"
-	bluecollarKernelToolsPath   = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go"
+	bluecollarTaskEventNamePath = "../../.dependency/blueclaw/.dependency/blueprotocol/agentcontract/task_event_name.go"
+	bluecollarKernelToolsPath   = "../../.dependency/blueclaw/.dependency/blueprotocol/toolcontract/kernel_tools.go"
 	expensiveScenarioDirectory  = "../../tests/expensive"
 	scenarioEventCountField     = "expectedEventCounts"
 	scenarioEventListField      = "expectedEvents"
@@ -218,7 +218,7 @@ func bluecollarStringConstants(t *testing.T, sourcePath string) map[string]strin
 	t.Helper()
 	source, errorValue := os.ReadFile(filepath.FromSlash(sourcePath))
 	if errorValue != nil {
-		t.Skipf("bluecollar source unavailable: %v", errorValue)
+		t.Fatalf("blueprotocol source unavailable: %v", errorValue)
 	}
 	constants := map[string]string{}
 	for _, match := range goStringConstant.FindAllStringSubmatch(string(source), -1) {

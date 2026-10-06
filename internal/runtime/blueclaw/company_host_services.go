@@ -146,7 +146,7 @@ func companyHostRelayService(layout CompanyHostLayout) CompanyHostService {
 	return CompanyHostService{
 		Name:        RelayServiceName,
 		Description: "internkim relay",
-		Command:     []string{layout.BinaryPath(RelayName)},
+		Command:     bunProgramCommand(layout, RelayName),
 		Account:     RelayUserName,
 		Environment: []CompanyHostEnvironmentSource{
 			environmentFile(RelayEnvironmentFilePath),
@@ -336,7 +336,7 @@ func companyHostMessengerBridgeService(layout CompanyHostLayout) CompanyHostServ
 	return CompanyHostService{
 		Name:        ChatdServiceName,
 		Description: "Buzz chatd bridge",
-		Command:     []string{layout.BinaryPath(ChatdName)},
+		Command:     bunProgramCommand(layout, ChatdName),
 		Environment: withCommonEnvironment(
 			environmentFile(CompanyHostChatdSecretPath),
 			environmentSettings(
@@ -352,6 +352,10 @@ func companyHostMessengerBridgeService(layout CompanyHostLayout) CompanyHostServ
 		RestartAfterSeconds:   5,
 		WaitsForTheFileAtPath: CompanyHostChatdSecretPath,
 	}
+}
+
+func bunProgramCommand(layout CompanyHostLayout, programName string) []string {
+	return []string{layout.BinaryPath(BunProgramName), "--no-env-file", layout.BinaryPath(programName)}
 }
 
 // CommandLine is the command as one line, for a supervisor that takes a string.

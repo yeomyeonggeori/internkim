@@ -8,7 +8,7 @@ import (
 )
 
 func TestBlueclawNamesTheScenarioSkillRootsVariable(t *testing.T) {
-	scenariosPath := filepath.Join("..", "..", ".dependency", "blueclaw", "internal", "e2e", "scenarios.go")
+	scenariosPath := filepath.Join("..", "..", ".dependency", "blueclaw", "internal", "defaultharness", "e2e", "scenarios.go")
 	document, errorValue := os.ReadFile(scenariosPath)
 	if errorValue != nil {
 		t.Skip("blueclaw is not checked out: git submodule update --init --recursive")
@@ -20,7 +20,7 @@ func TestBlueclawNamesTheScenarioSkillRootsVariable(t *testing.T) {
 }
 
 func TestBlueclawNamesTheScenarioCapabilityCatalogVariable(t *testing.T) {
-	sessionPath := filepath.Join("..", "..", ".dependency", "blueclaw", "internal", "e2e", "virtual_session.go")
+	sessionPath := filepath.Join("..", "..", ".dependency", "blueclaw", "internal", "defaultharness", "e2e", "virtual_session.go")
 	document, errorValue := os.ReadFile(sessionPath)
 	if errorValue != nil {
 		t.Skip("blueclaw is not checked out: git submodule update --init --recursive")

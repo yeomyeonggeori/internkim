@@ -57,6 +57,12 @@ test('the mounted image component clears old results, handles cached pixels, and
 	expect(exitCode, errors).toBe(0);
 	expect(JSON.parse(output)).toEqual({
 		cached: 'loaded', cachedSkeletons: 0, replacementPending: 'loading', staleResultIgnored: 'loading',
-		replacementLoaded: 'loaded', failed: 'error', fallback: 'Sample picture: Image could not be loaded', removed: null
+		replacementLoaded: 'loaded', failed: 'error', fallback: 'Sample picture: Image could not be loaded', removed: null,
+		sizing: [
+			{ name: 'known portrait', pendingAspectRatio: '240 / 320', loadedAspectRatio: '240 / 320' },
+			...['missing', 'partial', 'zero', 'negative', 'infinite', 'not a number'].map(name => ({
+				name, pendingAspectRatio: '320 / 320', loadedAspectRatio: '240 / 320'
+			}))
+		]
 	});
 });

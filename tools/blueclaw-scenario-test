@@ -20,23 +20,10 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "tools"))
 from skill_paths import skill_root_paths  # noqa: E402
 
 
-SCENARIO_PACKAGE_PATHS = [
-    pathlib.Path("internal") / "defaultharness" / "e2e",
-    pathlib.Path("internal") / "e2e",
-]
-
-
-def scenario_package_path() -> pathlib.Path:
-    for relative_path in SCENARIO_PACKAGE_PATHS:
-        if (SUBMODULE_PATH / relative_path).is_dir():
-            return relative_path
-    raise SystemExit("blueclaw has no scenario package in " + ", ".join(str(path) for path in SCENARIO_PACKAGE_PATHS))
-
-
 def declared_variable(constant_name: str, source_name: str) -> str:
     declaration = re.search(
         constant_name + r' = "([A-Z_]+)"',
-        (SUBMODULE_PATH / scenario_package_path() / source_name).read_text(),
+        (SUBMODULE_PATH / "internal" / "defaultharness" / "e2e" / source_name).read_text(),
     )
     if declaration is None:
         raise SystemExit(f"blueclaw declares no {constant_name}, so its scenarios would skip")
@@ -72,7 +59,7 @@ def main() -> int:
     environment = dict(os.environ)
     environment[declared_variable("ScenarioSkillRootsVariable", "scenarios.go")] = os.pathsep.join(skill_roots)
     environment[declared_variable("ScenarioCapabilityCatalogVariable", "virtual_session.go")] = str(catalog_path)
-    arguments = sys.argv[1:] or ["-tags", "appliance", "./" + scenario_package_path().as_posix() + "/"]
+    arguments = sys.argv[1:] or ["-tags", "appliance", "./internal/defaultharness/e2e/"]
     return subprocess.run(["go", "test", *arguments], cwd=SUBMODULE_PATH, env=environment).returncode
 
 

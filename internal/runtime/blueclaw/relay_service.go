@@ -17,7 +17,7 @@ func RelayServiceUnit() string {
 // write, keeps its state beside the company tree rather than inside it, and
 // carries the settings its package decides. The reason for the state directory
 // is in RelayStateDirectoryName.
-func relayServiceUnit(binaryPath string, stateDirectoryName string, settings []EnvironmentSetting) string {
+func relayServiceUnit(command string, stateDirectoryName string, settings []EnvironmentSetting) string {
 	return fmt.Sprintf(`[Unit]
 Description=internkim relay
 Documentation=https://github.com/yeomyeonggeori/internkim/blob/main/host/README.md
@@ -43,7 +43,7 @@ ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
-`, RelayEnvironmentFilePath, binaryPath, RelayEnvironmentFilePath,
+`, RelayEnvironmentFilePath, command, RelayEnvironmentFilePath,
 		systemdEnvironmentLines(settings), RelayUserName, RelayUserName, stateDirectoryName)
 }
 

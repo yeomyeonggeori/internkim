@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-const bluecollarToolContractPath = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/registry.go"
-const bluecollarApprovalTargetPath = "../../.dependency/blueclaw/.dependency/bluecollar/agentcontract/approval_target.go"
+const bluecollarToolContractPath = "../../.dependency/blueclaw/.dependency/blueprotocol/toolcontract/registry.go"
+const bluecollarApprovalTargetPath = "../../.dependency/blueclaw/.dependency/blueprotocol/agentcontract/approval_target.go"
 
 func TestRecoveryHintMatchesBluecollarToolContract(t *testing.T) {
 	canonicalTags := bluecollarStructJSONTags(t, bluecollarToolContractPath, "RecoveryHint")
@@ -27,7 +27,7 @@ func bluecollarStructJSONTags(t *testing.T, sourcePath string, structName string
 	t.Helper()
 	source, errorValue := os.ReadFile(filepath.FromSlash(sourcePath))
 	if errorValue != nil {
-		t.Skipf("bluecollar source unavailable: %v", errorValue)
+		t.Fatalf("blueprotocol source unavailable: %v", errorValue)
 	}
 	declaration := regexp.MustCompile(`(?s)type ` + structName + ` struct \{(.*?)\n\}`).FindSubmatch(source)
 	if declaration == nil {

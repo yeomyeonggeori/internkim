@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const bluecollarProviderPath = "../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/provider.go"
+const bluecollarProviderPath = "../../.dependency/blueclaw/.dependency/blueprotocol/toolcontract/provider.go"
 
 // bluecollar owns the grammar, so it is read from bluecollar rather than retyped.
 func TestEveryCatalogNameSatisfiesTheCanonicalGrammar(t *testing.T) {
@@ -29,7 +29,7 @@ func bluecollarCanonicalToolNamePattern(t *testing.T) *regexp.Regexp {
 	t.Helper()
 	source, errorValue := os.ReadFile(filepath.FromSlash(bluecollarProviderPath))
 	if errorValue != nil {
-		t.Skipf("bluecollar source unavailable: %v", errorValue)
+		t.Fatalf("blueprotocol source unavailable: %v", errorValue)
 	}
 	declaration := regexp.MustCompile("canonicalToolNamePattern = regexp.MustCompile\\(`([^`]+)`\\)").FindSubmatch(source)
 	if declaration == nil {
