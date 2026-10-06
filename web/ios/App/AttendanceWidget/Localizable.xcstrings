@@ -51,7 +51,7 @@
         }
       }
     },
-    "Choose a workplace in Edit Widget" : {
+    "Choose a work location in Edit Widget" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
@@ -61,12 +61,12 @@
         }
       }
     },
-    "Choose another location" : {
+    "Choose another work location" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "다른 장소 고르기"
+            "value" : "다른 근무지 고르기"
           }
         }
       }
@@ -121,17 +121,17 @@
         }
       }
     },
-    "Default location · %@" : {
+    "Default work location · %@" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기본 장소 · %@"
+            "value" : "기본 근무지 · %@"
           }
         }
       }
     },
-    "Default workplace" : {
+    "Default work location" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
@@ -151,16 +151,6 @@
         }
       }
     },
-    "Location" : {
-      "localizations" : {
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "장소"
-          }
-        }
-      }
-    },
     "m" : {
       "localizations" : {
         "ko" : {
@@ -171,22 +161,22 @@
         }
       }
     },
-    "No workplace registered" : {
+    "No work location registered" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "등록된 장소 없음"
+            "value" : "등록된 근무지 없음"
           }
         }
       }
     },
-    "Other location" : {
+    "Other work location" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "다른 장소"
+            "value" : "다른 근무지"
           }
         }
       }
@@ -241,7 +231,7 @@
         }
       }
     },
-    "Workplace" : {
+    "Work location" : {
       "localizations" : {
         "ko" : {
           "stringUnit" : {

@@ -101,11 +101,11 @@
 						<Select.Trigger id="workspace-language" class="w-full">
 							{workspaceLanguageOptions().find((option) => option.value === workspaceSettingsDraft.language)?.label}
 						</Select.Trigger>
-						<Select.Content>
+						<Select.Content><Select.Group>
 							{#each workspaceLanguageOptions() as option (option.value)}
 								<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 							{/each}
-						</Select.Content>
+						</Select.Group></Select.Content>
 					</Select.Root>
 					<Field.Description>{text.settings.workspaceLanguageDescription}</Field.Description>
 				</Field.Field>

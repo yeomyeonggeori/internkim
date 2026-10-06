@@ -1,3 +1,4 @@
+import { attendanceChangeReasonText, type AttendanceChangeReason } from '$lib/attendance/change-reason';
 import { dayIn, dayOfInstant, dayShifted, instantOfDay } from './days';
 import { personName } from '$lib/person-name';
 import { personOfHint } from './people';
@@ -125,10 +126,23 @@ export type AttendanceListInput = {
 	from?: string;
 	to?: string;
 	handWrittenOnly?: boolean;
+    pageOffset?: number; pageLimit?: number; teamSearch?: string; changedBySearch?: string; selectedTeamKey?: string; selectedChangedByID?: string;
 	limit?: number;
 };
 
 export async function attendanceList(context: RecordContext, input: AttendanceListInput) {
+    if (input.handWrittenOnly && input.pageOffset !== undefined) {
+        const window = windowOf(context, input.from, input.to);
+        const whose = whoseRecords(context.people, input.personHints, input.scope, context.requesterID);
+        const [result, serverTime, backdatedAfterMinutes] = await Promise.all([
+            context.caller.rpc('attendance_changes_page', {from_timestamp:window.from, to_timestamp:window.to, page_offset:input.pageOffset, page_limit:input.pageLimit ?? 24, team_search:input.teamSearch ?? '', actor_search:input.changedBySearch ?? '', selected_members:whose.everyone ? null : whose.personIDs, selected_team_key: input.selectedTeamKey || null, selected_actor: input.selectedChangedByID || null}),
+            attendanceClock(context.caller), attendanceBackdatedAfterMinutes(context.caller)
+        ]);
+        if(result.error) throw new RecordRefusedTheWrite(result.error.message,statusOfPostgresCode(result.error.code));
+        const page = result.data as {totalCount:number; pageOffset:number; pageLimit:number; attendance:AnsweredAttendance[]};
+        return {scope:'everyone', personID:null, personName:'', from:window.firstDay, to:window.lastDay, serverTime, backdatedAfterMinutes, count:page.attendance.length, ...page};
+    }
+
 	const [found, serverTime, backdatedAfterMinutes] = await Promise.all([
 		rowsInWindow(context, input.personHints, input.scope, input.from, input.to),
 		attendanceClock(context.caller),
@@ -158,6 +172,7 @@ export type AttendanceAddInput = {
 	time?: string;
 	location?: string;
 	reason?: string;
+	reasonCode?: AttendanceChangeReason;
 };
 
 export async function attendanceAdd(context: RecordContext, input: AttendanceAddInput) {
@@ -171,7 +186,7 @@ export async function addAttendanceFor(caller: SupabaseClient, memberID: string 
 		local_date: input.date?.trim() || null,
 		local_time: input.time?.trim() || null,
 		location: input.location?.trim() || null,
-		reason: input.reason?.trim() || null
+		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, status === 401 ? 401 : statusOfPostgresCode(error.code));
 	return attendanceAddResultSchema.parse(data);
@@ -184,9 +199,13 @@ export type AttendanceCorrection = {
 	location?: string;
 };
 
-export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reason?: string };
+export type AttendanceUpdateInput = { corrections?: AttendanceCorrection[]; reason?: string; reasonCode?: AttendanceChangeReason; undoOnly?: boolean };
 
 export async function attendanceUpdate(context: RecordContext, input: AttendanceUpdateInput) {
+ if (input.undoOnly) {
+  if (input.corrections?.length !== 1) throw new Error('Undo needs one exact event ID');
+  return undoAttendanceChange(context, input.corrections[0].eventHint ?? '');
+ }
 	const corrections = [];
 	for (const correction of input.corrections ?? []) {
 		const row = await attendanceOfHint(context, correction.eventHint ?? '');
@@ -201,23 +220,30 @@ export async function attendanceUpdate(context: RecordContext, input: Attendance
 
 	const { data, error } = await context.caller.rpc('attendance_correct', {
 		corrections,
-		reason: input.reason?.trim() || null
+		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return { ...answeredWrite(data), eventID: corrections[0].event_id };
 }
 
-export type AttendanceDeleteInput = { eventHint?: string; reason?: string };
+export type AttendanceDeleteInput = { eventHint?: string; reason?: string; reasonCode?: AttendanceChangeReason; undoOnly?: boolean };
 
 export async function attendanceDelete(context: RecordContext, input: AttendanceDeleteInput) {
+ if (input.undoOnly) return undoAttendanceChange(context, input.eventHint ?? '');
 	const row = await attendanceOfHint(context, input.eventHint ?? '');
 
 	const { data, error } = await context.caller.rpc('attendance_remove', {
 		event_id: row.id,
-		reason: input.reason?.trim() || null
+		reason: input.reasonCode ? attendanceChangeReasonText(input.reasonCode) : input.reason?.trim() || null
 	});
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return answeredWrite(data);
+}
+
+async function undoAttendanceChange(context: RecordContext, eventID: string) {
+ const {data,error} = await context.caller.rpc('attendance_change_undo', {event_id:eventID});
+ if(error) throw new RecordRefusedTheWrite(error.message,statusOfPostgresCode(error.code));
+ return answeredWrite(data);
 }
 
 function reachableFrom(context: RecordContext): string {

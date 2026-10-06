@@ -82,13 +82,13 @@
 							{chosen}
 						{/if}
 					</Select.Trigger>
-					<Select.Content class="max-h-72">
+					<Select.Content class="max-h-72"><Select.Group>
 						{#each catalogue as option (option.code)}
 							<Select.Item value={option.code} label={currencyLabel(option)}>
 								{@render currencyRow(option)}
 							</Select.Item>
 						{/each}
-					</Select.Content>
+					</Select.Group></Select.Content>
 				</Select.Root>
 			</div>
 			<p class="text-sm text-muted-foreground">{text.baseCurrencySettledNote}</p>

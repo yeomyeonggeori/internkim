@@ -39,7 +39,7 @@
 		<Select.Trigger class="shrink-0" aria-label={text.viewCurrency}>
 			{crmViewCurrency.selected || companyBaseCurrency || text.viewCurrency}
 		</Select.Trigger>
-		<Select.Content class="max-h-72">
+		<Select.Content class="max-h-72"><Select.Group>
 			{#each currencyCatalogue as option (option.code)}
 				<Select.Item value={option.code} label={`${option.code} ${currencyNameOf(option, currencyDisplayNames)}`}>
 					<span class="w-9 shrink-0 font-medium">{option.code}</span>
@@ -49,6 +49,6 @@
 			{#if rateHint !== ''}
 				<p class="mt-1 border-t px-2 pb-1 pt-2 text-xs text-muted-foreground">{rateHint}</p>
 			{/if}
-		</Select.Content>
+		</Select.Group></Select.Content>
 	</Select.Root>
 {/if}

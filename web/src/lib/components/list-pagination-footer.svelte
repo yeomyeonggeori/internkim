@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { Button } from '$lib/components/ui/button';
+	import * as Pagination from '$lib/components/ui/pagination';
+	import { MediaQuery } from 'svelte/reactivity';
+	const mobile = new MediaQuery('(max-width: 639px)');
 
 	type Props = {
 		totalItems: number;
@@ -14,6 +16,9 @@
 		previousLabel: string;
 		nextLabel: string;
 		ariaLabel?: string;
+		onPageChange: (pageIndex: number) => void;
+		disabled?: boolean;
+		showSummary?: boolean;
 	};
 
 	let {
@@ -28,12 +33,14 @@
 		summary,
 		previousLabel,
 		nextLabel,
-		ariaLabel
+		ariaLabel,
+		onPageChange,
+		disabled = false,
+		showSummary = true
 	}: Props = $props();
 
 	let fromItem = $derived(totalItems === 0 ? 0 : pageIndex * pageSize + 1);
 	let toItem = $derived(Math.min(totalItems, (pageIndex + 1) * pageSize));
-	let visiblePageCount = $derived(Math.max(1, pageCount));
 	let summaryText = $derived(
 		summary
 			.replace('{from}', String(fromItem))
@@ -43,16 +50,19 @@
 </script>
 
 {#if totalItems > 0}
-	<nav aria-label={ariaLabel} class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-		<div>{summaryText}</div>
-		<div class="flex items-center gap-1">
-			<Button variant="outline" size="sm" onclick={previousPage} disabled={!canPreviousPage}>
-				{previousLabel}
-			</Button>
-			<span class="px-2 tabular-nums">{pageIndex + 1} / {visiblePageCount}</span>
-			<Button variant="outline" size="sm" onclick={nextPage} disabled={!canNextPage}>
-				{nextLabel}
-			</Button>
-		</div>
-	</nav>
+ <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+  {#if showSummary}<div>{summaryText}</div>{/if}
+  <Pagination.Root class="mx-0 w-auto" aria-label={ariaLabel} count={totalItems} perPage={pageSize} page={pageIndex + 1} siblingCount={mobile.current ? 0 : 1} onPageChange={(page) => {if (!disabled && page !== pageIndex + 1 && page >= 1 && page <= pageCount) onPageChange(page - 1);}}>
+   {#snippet children({ pages, currentPage })}
+    <Pagination.Content>
+     <Pagination.Item><Pagination.Previous label={previousLabel} aria-label={previousLabel} disabled={disabled || !canPreviousPage} /></Pagination.Item>
+     {#each pages as page (page.key)}
+      {#if page.type === 'ellipsis'}<Pagination.Item><Pagination.Ellipsis /></Pagination.Item>
+      {:else}<Pagination.Item><Pagination.Link {page} isActive={currentPage === page.value} disabled={disabled} /></Pagination.Item>{/if}
+     {/each}
+     <Pagination.Item><Pagination.Next label={nextLabel} aria-label={nextLabel} disabled={disabled || !canNextPage} /></Pagination.Item>
+    </Pagination.Content>
+   {/snippet}
+  </Pagination.Root>
+ </div>
 {/if}

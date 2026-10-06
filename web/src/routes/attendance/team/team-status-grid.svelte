@@ -63,7 +63,7 @@
 	}
 </script>
 
-<Card.Root data-testid="team-status-grid" class="flex min-h-[calc(100vh-7rem)] min-w-0 flex-1 flex-col">
+<Card.Root data-testid="team-status-grid" class={scopedSummary ? "flex min-w-0 flex-col" : "flex min-h-[calc(100vh-7rem)] min-w-0 flex-1 flex-col"}>
 	<Card.Header class="flex min-w-0 flex-col gap-[10px] overflow-hidden pb-1 sm:flex-row sm:items-start sm:justify-between">
 		<div class="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto">
 			<Card.Title class="min-w-0 flex-1 truncate text-base sm:flex-none sm:whitespace-nowrap">{text.teamMonthlyStatus}</Card.Title>
@@ -75,7 +75,7 @@
 			<div class="hidden min-w-0 max-w-full overflow-hidden sm:block">
 				<AttendanceMonthPicker selectedMonth={calendarMonth} onSelectMonth={selectMonth} />
 			</div>
-			<FilterCombobox
+			{#if !scopedSummary}<FilterCombobox
 				bind:value={searchText}
 				options={memberOptions}
 				label={text.teamMemberSelectLabel}
@@ -88,7 +88,7 @@
 					{/if}
 					<span class="min-w-0 truncate">{option.label}</span>
 				{/snippet}
-			</FilterCombobox>
+			</FilterCombobox>{/if}
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">

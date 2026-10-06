@@ -120,14 +120,9 @@ test.describe('memory workbench', () => {
 		await expect(page.getByRole('button', { name: /금요일 오후에 회고/ })).toBeVisible();
 	});
 
-	test('narrows to one layer and shows what a question would bring to mind', async ({ page }) => {
+	test('narrows stored memories to one layer without a recall preview', async ({ page }) => {
 		await prepareMemoryPage(page);
 		await page.route('**/memory/api/facts?**', (route) => route.fulfill({ json: factsResponse() }));
-		let recallQuery = '';
-		await page.route('**/memory/api/recall?**', async (route) => {
-			recallQuery = new URL(route.request().url()).searchParams.get('query') ?? '';
-			await route.fulfill({ json: { facts: [{ factID: 'fact-language', scopeType: 'circle', scopeID: 'member', content: '한국어로 답변받는 것을 선호한다.' }] } });
-		});
 		await page.goto('/memory/');
 
 		const layers = page.getByRole('complementary', { name: '기억의 층' });
@@ -135,10 +130,7 @@ test.describe('memory workbench', () => {
 		await expect(page.getByRole('button', { name: /한국어로 답변받는/ })).toBeVisible();
 		await expect(page.getByRole('button', { name: /금요일 오후에 회고/ })).toHaveCount(0);
 
-		await page.getByRole('textbox', { name: '떠올려 보기' }).fill('답변 언어');
-		await page.getByRole('button', { name: '떠올리기' }).click();
-		await expect.poll(() => recallQuery).toBe('답변 언어');
-		await page.getByRole('list', { name: '떠올려 보기' }).getByRole('button', { name: /한국어로 답변받는/ }).click();
-		await expect(page.getByLabel('저장된 기억').getByText('member', { exact: true })).toBeVisible();
+		await expect(page.getByRole('textbox', { name: '떠올려 보기' })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: '떠올리기' })).toHaveCount(0);
 	});
 });

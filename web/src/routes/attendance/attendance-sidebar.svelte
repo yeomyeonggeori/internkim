@@ -4,15 +4,14 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import InboxIcon from '@lucide/svelte/icons/inbox';
-	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 	import HistoryIcon from '@lucide/svelte/icons/history';
-	import PencilLineIcon from '@lucide/svelte/icons/pencil-line';
+	import PalmTreeIcon from '@lucide/svelte/icons/palmtree';
+	import EraserIcon from '@lucide/svelte/icons/eraser';
 	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import { getAttendanceViewState } from './attendance-view-state.svelte';
 	import { getLeaveApprovalState } from './approval/leave-approval-state.svelte';
-	import PersonalToolsPanel from './personal/personal-tools-panel.svelte';
-	import { attendanceText } from './text';
+		import { attendanceText } from './text';
 
 	const text = createPageText(attendanceText);
 	const attendanceView = getAttendanceViewState();
@@ -20,7 +19,7 @@
 	const isSidebarHidden = new IsMobile(768);
 </script>
 
-<aside class="flex w-60 shrink-0 flex-col border-r bg-background max-md:hidden">
+<aside class="flex w-52 shrink-0 flex-col border-r bg-background max-md:hidden">
 	<div class="min-h-0 flex-1 overflow-y-auto" data-testid="attendance-sidebar-scroll">
 		<nav class="space-y-1 px-4 pt-4" aria-label={text.title}>
 			<Button
@@ -28,8 +27,8 @@
 				class="w-full justify-start"
 				onclick={() => attendanceView.select('status')}
 			>
-				<LayoutDashboardIcon />
-				{text.approval.statusNavigation}
+				<HistoryIcon />
+				{text.navigation.status}
 			</Button>
 			<Button
 				variant={attendanceView.selected === 'leaveHistory' ? 'secondary' : 'ghost'}
@@ -37,10 +36,12 @@
 				onclick={() => attendanceView.select('leaveHistory')}
 				data-testid="leave-history-navigation"
 			>
-				<HistoryIcon />
-				<span class="flex-1 text-left">{text.leave.historyTab}</span>
+				<PalmTreeIcon />
+				<span class="flex-1 text-left">{text.navigation.mine}</span>
 			</Button>
+
 			{#if myAttendanceToday.summary?.isAdmin}
+                <div class="mt-4 border-t pt-4 pb-1 text-xs font-medium text-muted-foreground">{text.navigation.admin}</div>
 				<Button
 					variant={attendanceView.selected === 'approvals' ? 'secondary' : 'ghost'}
 					class="w-full justify-start"
@@ -77,14 +78,12 @@
 				ontouchstart={() => attendanceView.prefetch('handWritten')}
 					data-testid="hand-written-navigation"
 				>
-					<PencilLineIcon />
+					<EraserIcon />
 					{text.handWritten.navigation}
 				</Button>
 			{/if}
 		</nav>
 
-		{#if !isSidebarHidden.current}
-			<PersonalToolsPanel containerClass="p-4 pt-3" />
-		{/if}
+
 	</div>
 </aside>

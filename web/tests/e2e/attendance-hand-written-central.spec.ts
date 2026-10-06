@@ -18,7 +18,7 @@ test.use({ locale: 'ko-KR' });
 const writtenDate = dayOfMonth(monthBefore(seoulMonthToday()), 15);
 const movedTo = '10:00';
 const writtenAt = '09:00';
-const writtenReason = '지각으로 잘못 남은 기록을 고쳤습니다';
+const writtenReason = 'time_correction';
 
 let seededEventIDs: string[] = [];
 
@@ -59,10 +59,10 @@ test('an administrator sees what was written by hand and undoes it from the list
 	const row = seededRow(page);
 	await expect(row).toBeVisible();
 	await expect(row).toContainText(member3Name);
-	await expect(row).toContainText(writtenReason);
-	await expect(row.getByTestId('hand-written-now')).toContainText(`${writtenDate} ${movedTo}`);
+	await expect(row).toContainText('시간 정정');
+	await expect(row.getByTestId('hand-written-now')).toContainText(new RegExp(`${writtenDate}\\s*${movedTo}`));
 	await expect(row.getByTestId('hand-written-before')).toContainText(
-		`${writtenDate} ${writtenAt}`
+		new RegExp(`${writtenDate}\\s*${writtenAt}`)
 	);
 
 	await row.getByTestId('hand-written-undo').click();
@@ -70,7 +70,7 @@ test('an administrator sees what was written by hand and undoes it from the list
 	await page.getByTestId('hand-written-undo-confirm').click();
 
 	await expect(row.getByTestId('hand-written-now')).toContainText(
-		`${writtenDate} ${writtenAt}`,
+		new RegExp(`${writtenDate}\\s*${writtenAt}`),
 		{ timeout: 20000 }
 	);
 	await expect

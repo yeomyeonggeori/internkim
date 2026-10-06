@@ -38,9 +38,9 @@ const parentHintSchema = z.string().max(256).describe(
   'The organization this one sits under, named the way teamHint is. An empty string makes it a top-level organization.',
 );
 
-export const personListInputSchema = z.strictObject({});
+export const personListInputSchema = z.strictObject({searchText: z.string().max(100).optional(),limit: z.number().int().min(1).max(48).optional()});
 
-export const personListInputIntentSchema = z.strictObject({});
+export const personListInputIntentSchema = personListInputSchema;
 
 const directoryPersonSchema = z.strictObject({
   personID: z.string(),

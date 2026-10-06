@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import ChangeReasonSelect from '../shared/change-reason-select.svelte';
 	import type { AttendanceText } from '../text';
 	import type { AttendanceRecordRemovalState } from './attendance-record-removal.svelte';
 	import { attendanceWriteIntent, attendanceWriteSubmitLabel } from './attendance-write-notice';
@@ -46,15 +46,7 @@
 				</span>
 			</div>
 
-			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-				<span>{text.records.reason}</span>
-				<Textarea
-					bind:value={removal.reason}
-					placeholder={text.records.reasonPlaceholder}
-					disabled={removal.isSaving}
-					class="min-h-16 text-sm"
-				/>
-			</label>
+			<ChangeReasonSelect bind:value={removal.reason} disabled={removal.isSaving} label={text.records.reason} />
 
 			<p class="text-xs text-muted-foreground" data-testid="attendance-record-remove-notice">
 				{noticeMessage}

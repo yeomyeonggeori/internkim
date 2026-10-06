@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TeamStatusDayProgress from './team-status-day-progress.svelte';
 	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip/index.js';
 	import { mergeProps } from 'bits-ui';
@@ -54,26 +55,11 @@
 		return `relative flex h-full min-h-12 w-full max-w-none flex-col items-center justify-center gap-1 px-1.5 pb-2 text-center text-xs font-medium transition hover:bg-muted/30 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${cellToneClass(dayToStyle)}`;
 	}
 
-	function segmentBarColor(segment: TeamStatusPersonDay['timelineSegments'][number]): string {
-		if (segment.kind === 'leave') return ABSENCE_TONE.leave.bar;
-		return segment.locationColor ?? ABSENCE_TONE.other.bar;
-	}
 
 	function absenceLabelClass(dayToStyle: TeamStatusPersonDay): string {
 		return ABSENCE_TONE[dayToStyle.absenceTone ?? 'other'].label;
 	}
 
-	function absenceMeterClass(dayToStyle: TeamStatusPersonDay): string {
-		return ABSENCE_TONE[dayToStyle.absenceTone ?? 'other'].meter;
-	}
-
-	function daySegmentsTotalPercent(dayToMeasure: TeamStatusPersonDay): number {
-		const totalPercent = dayToMeasure.timelineSegments.reduce(
-			(total, segment) => total + segment.widthPercent,
-			0
-		);
-		return Math.min(100, totalPercent);
-	}
 
 	const hasVisibleLabel = $derived(day.tone === 'absence' || day.label !== '-');
 	const hasWorkTooltip = $derived(!isMobile.current && day.timelineSegments.length > 0);
@@ -111,23 +97,7 @@
 				{day.detailLabel}
 			</span>
 		{/if}
-		{#if day.tone === 'absence'}
-			<span class={`absolute inset-x-1.5 bottom-1 h-1.5 rounded-full ${absenceMeterClass(day)}`} aria-hidden="true"></span>
-		{:else}
-			<span class="absolute inset-x-1.5 bottom-1 h-1.5 rounded-full bg-muted" aria-hidden="true">
-				{#if day.timelineSegments.length > 0}
-					<span class="flex h-full overflow-hidden rounded-full" style:width={`${daySegmentsTotalPercent(day)}%`}>
-						{#each day.timelineSegments as segment (segment.id)}
-							<span
-								class="h-full"
-								style:flex-grow={segment.widthPercent}
-								style:background-color={segmentBarColor(segment)}
-							></span>
-						{/each}
-					</span>
-				{/if}
-			</span>
-		{/if}
+        <span class="absolute inset-x-1.5 bottom-1"><TeamStatusDayProgress {day} /></span>
 	</button>
 {/snippet}
 

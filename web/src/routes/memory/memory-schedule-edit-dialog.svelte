@@ -51,11 +51,11 @@
 					<Label>{text.scheduleKind}</Label>
 					<Select.Root type="single" bind:value={scheduleDraft.kind}>
 						<Select.Trigger class="w-full">{scheduleKindLabel(text, scheduleDraft.kind)}</Select.Trigger>
-						<Select.Content>
+						<Select.Content><Select.Group>
 							<Select.Item value="once" label={text.scheduleKindOnce}>{text.scheduleKindOnce}</Select.Item>
 							<Select.Item value="interval" label={text.scheduleKindInterval}>{text.scheduleKindInterval}</Select.Item>
 							<Select.Item value="cron" label={text.scheduleKindCron}>{text.scheduleKindCron}</Select.Item>
-						</Select.Content>
+						</Select.Group></Select.Content>
 					</Select.Root>
 				</div>
 
@@ -85,10 +85,10 @@
 						<Label>{text.scheduleRepeatPolicyLabel}</Label>
 						<Select.Root type="single" bind:value={scheduleDraft.repeatPolicy}>
 							<Select.Trigger class="w-full">{scheduleDraft.repeatPolicy === 'unbounded' ? text.scheduleRepeatUnbounded : text.scheduleRepeatFinite}</Select.Trigger>
-							<Select.Content>
+							<Select.Content><Select.Group>
 								<Select.Item value="unbounded" label={text.scheduleRepeatUnbounded}>{text.scheduleRepeatUnbounded}</Select.Item>
 								<Select.Item value="finite" label={text.scheduleRepeatFinite}>{text.scheduleRepeatFinite}</Select.Item>
-							</Select.Content>
+							</Select.Group></Select.Content>
 						</Select.Root>
 					</div>
 					<div class="grid gap-2 sm:grid-cols-2">

@@ -96,7 +96,7 @@
 						<Field.Label for="crm-edit-contact-organization">{text.organizationName}</Field.Label>
 						<Select.Root type="single" value={organizationID || noOrganizationValue} onValueChange={(value) => (organizationID = value === noOrganizationValue ? '' : value)}>
 							<Select.Trigger id="crm-edit-contact-organization" class="w-full">{organizationID ? findOrganizationByID(organizations, organizationID)?.name ?? text.selectRelationship : text.none}</Select.Trigger>
-							<Select.Content><Select.Item value={noOrganizationValue} label={text.none}>{text.none}</Select.Item>{#each organizations as organization (organization.id)}<Select.Item value={organization.id} label={organization.name}>{organization.name}</Select.Item>{/each}</Select.Content>
+							<Select.Content><Select.Group><Select.Item value={noOrganizationValue} label={text.none}>{text.none}</Select.Item>{#each organizations as organization (organization.id)}<Select.Item value={organization.id} label={organization.name}>{organization.name}</Select.Item>{/each}</Select.Group></Select.Content>
 						</Select.Root>
 					</Field.Field>
 					<div class="grid gap-4 sm:grid-cols-2">

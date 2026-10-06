@@ -18,7 +18,6 @@
 	import MemoryFactDetail from './memory-fact-detail.svelte';
 	import MemoryImportance from './memory-importance.svelte';
 	import MemoryLayerStack from './memory-layer-stack.svelte';
-	import MemoryRecallPreview from './memory-recall-preview.svelte';
 	import type { Circle } from '$lib/data-room/model';
 	import { fetchCircles, fetchMemoryFacts, type MemoryLayer, type MemoryFactsResponse } from './memory-facts-api';
 	import { filterMemoryFacts, groupFactsByLayer, isCurrentMemory, memoryLayerKey, memoryScopeLabel, memoryWhen } from './memory-workbench-model';
@@ -67,11 +66,6 @@
 		selectedFactID = '';
 	}
 
-	function showRecalledFact(factID: string): void {
-		query = '';
-		selectedLayerKey = 'all';
-		selectedFactID = factID;
-	}
 
 	function removeForgottenFact(factID: string): void {
 		if (!memory) return;
@@ -85,7 +79,6 @@
 	{#if memory}
 		<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
 	{/if}
-	<MemoryRecallPreview labelOf={scopeLabel} onSelectFact={showRecalledFact} {text} />
 </aside>
 <div class="flex min-w-0 flex-col rounded-xl border bg-background">
 	<div class="flex min-w-0 flex-col gap-4 p-4">

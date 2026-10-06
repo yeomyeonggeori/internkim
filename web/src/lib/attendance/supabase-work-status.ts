@@ -1,3 +1,5 @@
+import { invokeTool } from '$lib/public-api-call';
+import type { RecordAttendanceList, RecordLeaveList } from './attendance-record';
 import { membersInReadingOrder } from '$lib/member-order';
 import {
 	approvedLeaveBetween,
@@ -90,12 +92,13 @@ export function workStatusMemberOf(person: RecordPerson): SupabaseWorkStatusMemb
 
 export async function supabaseWorkStatusInputs(
 	requests: AttendanceWorkStatusRequest[],
-	providedSummaryRecords?: AttendanceSummaryRecords
+	providedSummaryRecords?: AttendanceSummaryRecords,
+    scopedPerson?: RecordPerson
 ): Promise<SupabaseWorkStatusInputs> {
 	const requestNow = new Date();
 	const summaryRecords = providedSummaryRecords?.readScope === 'mine' ? undefined : providedSummaryRecords;
 	const settingsRequest = summaryRecords ? Promise.resolve(summaryRecords.settings) : companySettings();
-	const directoryRequest = summaryRecords ? Promise.resolve(summaryRecords.directory) : companyDirectory();
+	const directoryRequest = scopedPerson ? Promise.resolve({requesterID: scopedPerson.personID, count:1, people:[scopedPerson]}) : summaryRecords ? Promise.resolve(summaryRecords.directory) : companyDirectory();
 	const policiesRequest = supabaseWorkPolicies();
 	const [settings, directory, policiesByMember, records] = await Promise.all([
 		settingsRequest,
@@ -108,8 +111,8 @@ export async function supabaseWorkStatusInputs(
 			const lastDay = coveredDays[coveredDays.length - 1];
 			const isCovered = summaryRecords && firstDay >= summaryRecords.from && lastDay <= summaryRecords.to;
 			const [attendance, leave, holidays] = await Promise.all([
-				isCovered ? summaryRecords.attendance : attendanceBetween(shiftedDay(firstDay, -1), lastDay),
-				isCovered ? summaryRecords.leave : approvedLeaveBetween(firstDay, lastDay),
+				isCovered ? summaryRecords.attendance : scopedPerson ? invokeTool<RecordAttendanceList>('attendance_list', {personHints:[scopedPerson.personID], from:shiftedDay(firstDay, -1), to:lastDay}) : attendanceBetween(shiftedDay(firstDay, -1), lastDay),
+				isCovered ? summaryRecords.leave : scopedPerson ? invokeTool<RecordLeaveList>('leave_list', {personHints:[scopedPerson.personID], status:'approved', from:firstDay, to:lastDay}) : approvedLeaveBetween(firstDay, lastDay),
 				workStatusHolidays(coveredDays)
 			]);
 			return { coveredDays, attendance, leave, holidays };
