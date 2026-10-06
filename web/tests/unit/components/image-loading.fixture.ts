@@ -67,4 +67,29 @@ lateImage.dispatchEvent(new Event('error'));
 flushSync();
 const removed = status();
 await unmount(instance);
-console.log(JSON.stringify({ cached, cachedSkeletons, replacementPending, staleResultIgnored, replacementLoaded, failed, fallback, removed }));
+
+const { default: LoadingImage } = await import('../../../src/lib/components/loading-image.svelte');
+const sizingCases: { name: string; width?: number; height?: number }[] = [
+	{ name: 'known portrait', width: 240, height: 320 },
+	{ name: 'missing' },
+	{ name: 'partial', width: 240 },
+	{ name: 'zero', width: 0, height: 320 },
+	{ name: 'negative', width: 240, height: -320 },
+	{ name: 'infinite', width: Number.POSITIVE_INFINITY, height: 320 },
+	{ name: 'not a number', width: 240, height: Number.NaN }
+];
+const sizing = [];
+for (const entry of sizingCases) {
+	const source = `/sizing-${entry.name}.svg`;
+	const component = mount(LoadingImage, { target, props: { src: source, alt: 'Sizing sample', width: entry.width, height: entry.height, loading: 'eager' } });
+	flushSync();
+	const frame = target.querySelector<HTMLSpanElement>('[data-loading-image]');
+	if (!frame) throw new Error('The sizing frame did not mount');
+	const pendingAspectRatio = frame.style.aspectRatio;
+	decodedSources.add(source);
+	image().dispatchEvent(new Event('load'));
+	flushSync();
+	sizing.push({ name: entry.name, pendingAspectRatio, loadedAspectRatio: frame.style.aspectRatio });
+	await unmount(component);
+}
+console.log(JSON.stringify({ cached, cachedSkeletons, replacementPending, staleResultIgnored, replacementLoaded, failed, fallback, removed, sizing }));

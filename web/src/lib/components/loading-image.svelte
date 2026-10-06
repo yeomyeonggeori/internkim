@@ -43,7 +43,7 @@
 			? { width, height }
 			: result?.source === src && result.state === 'loaded' && result.width > 0 && result.height > 0
 				? result
-				: { width: 320, height: 240 }
+				: { width: 320, height: 320 }
 	);
 
 	function watchImage(image: HTMLImageElement) {
