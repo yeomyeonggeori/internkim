@@ -57,7 +57,7 @@ func TestTheHostUpdateTellsAdmindWhetherTheRequesterApprovedThisCall(t *testing.
 		{"an unapproved call", capabilityprotocol.ToolInvokeContext{}, false},
 		{"a scheduled run that carries no approved call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true}, false},
 		{"an approval continuation", capabilityprotocol.ToolInvokeContext{IsApprovalContinuation: true}, true},
-		{"a held call spent", capabilityprotocol.ToolInvokeContext{ApprovedCallID: "held-1"}, true},
+		{"a held call spent", capabilityprotocol.ToolInvokeContext{HoldID: "held-1"}, true},
 		{"the scheduled run of exactly this call", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("host_update", `{ "targetVersion": "v2026.10.02.090000" }`)}, true},
 		{"a scheduled run that approved another tool", capabilityprotocol.ToolInvokeContext{IsScheduledRun: true, ScheduledApprovedCall: scheduledCall("message_send", input)}, false},
 	} {
@@ -134,7 +134,7 @@ func TestAHostUpdateCalledThroughThePublicAPIIsNotHeldForLater(t *testing.T) {
 
 func TestAnAgentsHostUpdateWithAStartTimeStillReachesAdmindOnceApproved(t *testing.T) {
 	admind := &admindStandIn{status: http.StatusOK, answer: `{"status":"started","fromVersion":"v2026.10.01.000000","toVersion":"v2026.10.02.090000","startedAt":"2026-10-02T14:00:00Z","expectedDowntimeSeconds":60}`}
-	call := hostUpdateCall(`{"startsAt":"2026-10-03T03:00:00+09:00"}`, capabilityprotocol.ToolInvokeContext{ApprovedCallID: "held-1", ConversationID: "conversation-1"})
+	call := hostUpdateCall(`{"startsAt":"2026-10-03T03:00:00+09:00"}`, capabilityprotocol.ToolInvokeContext{HoldID: "held-1", ConversationID: "conversation-1"})
 	response, errorValue := serviceAskingAdmind(admind).invokeHostUpdateTool(context.Background(), call)
 	if errorValue != nil {
 		t.Fatal(errorValue)

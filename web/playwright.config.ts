@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const companyTimeZone = 'Asia/Seoul';
+process.env.TZ = companyTimeZone;
+
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5174';
 const shouldStartWebServer = process.env.PLAYWRIGHT_START_WEB_SERVER === '1';
 const webServer = shouldStartWebServer ? createWebServer(baseURL) : null;
@@ -15,6 +18,7 @@ export default defineConfig({
 		...devices['Desktop Chrome'],
 		...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
 		baseURL,
+		timezoneId: companyTimeZone,
 		trace: 'retain-on-failure'
 	},
 	reporter: [['list']]

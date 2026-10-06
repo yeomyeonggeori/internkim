@@ -61,7 +61,7 @@ func TestApprovalIsRefusedForARunTheViewerCannotSee(t *testing.T) {
 	service := NewService(Configuration{BlueclawBaseURL: blueclaw.URL})
 
 	recorder := httptest.NewRecorder()
-	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"confirm"}`), "member@example.com", false)
+	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"approve"}`), "member@example.com", false)
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("a run the viewer cannot see answered %d, want 404", recorder.Code)
@@ -78,7 +78,7 @@ func TestApprovalAsksBlueclawWhetherTheViewerMaySeeTheRunFirst(t *testing.T) {
 	service := NewService(Configuration{BlueclawBaseURL: blueclaw.URL})
 
 	recorder := httptest.NewRecorder()
-	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"confirm"}`), "member@example.com", false)
+	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"approve"}`), "member@example.com", false)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("a run the viewer may see answered %d, want 200", recorder.Code)
@@ -96,7 +96,7 @@ func TestApprovalAsksBlueclawWhetherTheViewerMaySeeTheRunFirst(t *testing.T) {
 	if errorValue := json.Unmarshal([]byte(recorded.approveBodies[0]), &forwarded); errorValue != nil {
 		t.Fatalf("the forwarded decision was unreadable: %v", errorValue)
 	}
-	if forwarded.TaskRunID != "run-1" || forwarded.Decision != "confirm" {
+	if forwarded.TaskRunID != "run-1" || forwarded.Decision != "approve" {
 		t.Fatalf("the forwarded decision was %+v", forwarded)
 	}
 }
@@ -110,7 +110,7 @@ func TestApprovalCarriesNothingTheCallerDidNotName(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	service.proxyScopedTaskApproval(
 		recorder,
-		approvalRequest(`{"taskRunID":"run-1","decision":"cancel","viewerIsAdmin":true,"viewerEmail":"admin@example.com"}`),
+		approvalRequest(`{"taskRunID":"run-1","decision":"reject","viewerIsAdmin":true,"viewerEmail":"admin@example.com"}`),
 		"member@example.com",
 		false,
 	)
@@ -133,7 +133,7 @@ func TestApprovalWithoutATaskRunIDIsRefusedBeforeBlueclawIsAsked(t *testing.T) {
 	service := NewService(Configuration{BlueclawBaseURL: blueclaw.URL})
 
 	recorder := httptest.NewRecorder()
-	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"decision":"confirm"}`), "member@example.com", false)
+	service.proxyScopedTaskApproval(recorder, approvalRequest(`{"decision":"approve"}`), "member@example.com", false)
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("a decision naming no run answered %d, want 400", recorder.Code)
@@ -162,7 +162,7 @@ func TestApprovalPathIsRoutedToTheTaskRunHandler(t *testing.T) {
 	router := service.router()
 
 	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"confirm"}`))
+	router.ServeHTTP(recorder, approvalRequest(`{"taskRunID":"run-1","decision":"approve"}`))
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("an unauthenticated decision answered %d; it is 401", recorder.Code)

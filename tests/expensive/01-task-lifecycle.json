@@ -95,8 +95,8 @@
       ],
       "expectedEvents": [
         "confirmation.requested",
-        "approval.pending_call",
-        "approval.executed"
+        "approval.hold_opened",
+        "approval.hold_spent"
       ],
       "expectedEventCounts": [
         {
