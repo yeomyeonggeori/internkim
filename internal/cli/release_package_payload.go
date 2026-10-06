@@ -52,13 +52,12 @@ every unit stays inactive rather than restarting into a failure.`
 type packageTarget struct {
 	Architecture   string
 	GoArchitecture string
-	BunTarget      string
 	ELFMachine     string
 }
 
 var packageTargets = []packageTarget{
-	{Architecture: "arm64", GoArchitecture: "arm64", BunTarget: "bun-linux-arm64", ELFMachine: "aarch64"},
-	{Architecture: "amd64", GoArchitecture: "amd64", BunTarget: "bun-linux-x64", ELFMachine: "x86-64"},
+	{Architecture: "arm64", GoArchitecture: "arm64", ELFMachine: "aarch64"},
+	{Architecture: "amd64", GoArchitecture: "amd64", ELFMachine: "x86-64"},
 }
 
 // packagedFile is one path the package owns.
@@ -297,10 +296,10 @@ func buildPackagedPrograms(repositoryRootPath string, target packageTarget, vers
 	}
 	for _, program := range packagedBunPrograms() {
 		builtPath := filepath.Join(stagingPath, program.Name)
-		if errorValue := compilePackagedBunProgram(repositoryRootPath, program, target, builtPath); errorValue != nil {
+		if errorValue := bundlePackagedBunProgram(repositoryRootPath, program, builtPath); errorValue != nil {
 			return nil, errorValue
 		}
-		fmt.Fprintf(output, "  compiled %s for %s\n", program.Name, target.Architecture)
+		fmt.Fprintf(output, "  bundled %s\n", program.Name)
 		packaged = append(packaged, packagedFile{
 			SourcePath:  builtPath,
 			Destination: packageLayout.BinaryPath(program.Name),
@@ -338,7 +337,7 @@ func crossCompilePackagedProgram(repositoryRootPath string, program packagedGoPr
 	return nil
 }
 
-func compilePackagedBunProgram(repositoryRootPath string, program packagedBunProgram, target packageTarget, outputPath string) error {
+func bundlePackagedBunProgram(repositoryRootPath string, program packagedBunProgram, outputPath string) error {
 	installArguments := []string{"install", "--frozen-lockfile"}
 	if program.InstallFilter != "" {
 		installArguments = append(installArguments, "--filter", program.InstallFilter)
@@ -348,12 +347,12 @@ func compilePackagedBunProgram(repositoryRootPath string, program packagedBunPro
 	if commandOutput, errorValue := install.CombinedOutput(); errorValue != nil {
 		return fmt.Errorf("resolve %s dependencies: %s", program.Name, strings.TrimSpace(string(commandOutput)))
 	}
-	build := exec.Command("bun", "build", "--compile", "--target="+target.BunTarget, "--outfile", outputPath, program.EntryPoint)
+	build := exec.Command("bun", "build", "--target=bun", "--banner=#!/usr/bin/env bun", "--outfile", outputPath, program.EntryPoint)
 	build.Dir = filepath.Join(repositoryRootPath, program.WorkingRoot)
 	if commandOutput, errorValue := build.CombinedOutput(); errorValue != nil {
-		return fmt.Errorf("compile %s for %s: %s", program.Name, target.Architecture, strings.TrimSpace(string(commandOutput)))
+		return fmt.Errorf("bundle %s: %s", program.Name, strings.TrimSpace(string(commandOutput)))
 	}
-	return nil
+	return os.Chmod(outputPath, 0o755)
 }
 
 // The messenger is built by tools/prepare-buzz-relay from a pinned upstream revision
