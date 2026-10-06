@@ -48,6 +48,29 @@ func TestTheDebCarriesItsPayloadAsXzThatHoldsEveryFile(t *testing.T) {
 	}
 }
 
+func TestAnArchiveMemberLongerThanOneCopyAndOfOddSizeReadsBackWhole(t *testing.T) {
+	body := bytes.Repeat([]byte("odd"), 70_001)
+	var archive bytes.Buffer
+	writer := archiveWriter{destination: &archive, headers: ar.NewWriter(&archive)}
+	if errorValue := writer.headers.WriteGlobalHeader(); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	for _, name := range []string{"first", "second"} {
+		header := &ar.Header{Name: name, Mode: 0o644, Size: int64(len(body))}
+		if errorValue := copyArchiveMember(writer, header, bytes.NewReader(body)); errorValue != nil {
+			t.Fatal(errorValue)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "sample.a")
+	if errorValue := os.WriteFile(path, archive.Bytes(), 0o644); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	members := readArchiveMembers(t, path)
+	if len(members) != 2 || !bytes.Equal(members[0].body, body) || !bytes.Equal(members[1].body, body) {
+		t.Fatalf("read back %d members; an odd-sized member longer than one copy must come back whole and keep the next one aligned", len(members))
+	}
+}
+
 type archiveMember struct {
 	name string
 	body []byte
