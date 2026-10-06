@@ -6,6 +6,7 @@
 	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button';
 	import * as Command from '$lib/components/ui/command';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Popover from '$lib/components/ui/popover';
 	import {
 		calendarParticipantKey,
@@ -98,7 +99,7 @@
 		<Command.Root>
 			<Command.Input {placeholder} class="h-9" />
 			<Command.List>
-				<Command.Empty class="py-4 text-sm">{emptyText}</Command.Empty>
+				<Command.Empty class="p-0"><Empty.Root class="gap-0 px-3 py-4"><Empty.Header><Empty.Title class="text-sm font-normal">{emptyText}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
 				{#each candidates as candidate (calendarParticipantKey(candidate))}
 					<Command.Item
 						value={calendarParticipantOptionLabel(candidate, candidates)}
