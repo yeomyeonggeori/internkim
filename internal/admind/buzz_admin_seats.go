@@ -57,10 +57,15 @@ func adminsMissingTheirSeat(heldRoles map[string]string, adminPubkeys []string) 
 	return missing
 }
 
+// The relay refuses every write to an archived room, and an add to a room only
+// from someone already in it, so a room archived or left empty is one no
+// administrator can ever be seated in.
 const everyStreamChannelQuery = `
-SELECT id::text FROM channels
-WHERE community_id = ANY($1::uuid[]) AND channel_type = 'stream' AND deleted_at IS NULL
-ORDER BY id`
+SELECT c.id::text FROM channels c
+WHERE c.community_id = ANY($1::uuid[]) AND c.channel_type = 'stream'
+  AND c.deleted_at IS NULL AND c.archived_at IS NULL
+  AND EXISTS (SELECT 1 FROM channel_members m WHERE m.channel_id = c.id AND m.removed_at IS NULL)
+ORDER BY c.id`
 
 func (service *Service) buzzCommunities(ctx context.Context, database *sql.DB) []string {
 	if named := strings.TrimSpace(service.Configuration.BuzzCommunityID); named != "" {
