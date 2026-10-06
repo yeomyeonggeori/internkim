@@ -83,20 +83,14 @@ func TestSSHLeavesKeyAuthenticationAloneWithoutAPassword(t *testing.T) {
 }
 
 const fakeSudoScript = `#!/bin/sh
-ticket="$FAKE_SUDO_DIRECTORY/ticket"
-while [ "$1" = "-S" ] || [ "$1" = "-n" ] || [ "$1" = "-p" ] || [ "$1" = "" ]; do
-  case "$1" in
-    -S) reads_password=1 ;;
-    -n) never_prompts=1 ;;
-    -p) shift ;;
-  esac
+while [ "$1" = "-k" ] || [ "$1" = "-S" ] || [ "$1" = "-p" ] || [ "$1" = "" ]; do
+  [ "$1" = "-S" ] && reads_password=1
+  [ "$1" = "-p" ] && shift
   shift
 done
-if [ "$1" = "-v" ]; then
-  [ -n "$reads_password" ] && [ "$(head -1)" = "secret" ] && touch "$ticket"
-  exit $?
-fi
-[ -e "$ticket" ] || exit 1
+[ -n "$reads_password" ] || exit 1
+IFS= read -r password
+[ "$password" = "secret" ] || exit 1
 exec "$@"
 `
 
@@ -106,7 +100,6 @@ func TestSudoLeavesStandardInputToTheCommand(t *testing.T) {
 		t.Fatal(errorValue)
 	}
 	t.Setenv("PATH", directory+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("FAKE_SUDO_DIRECTORY", directory)
 	connection := hostSSH{password: "secret"}
 	destinationPath := filepath.Join(directory, "uploaded")
 
