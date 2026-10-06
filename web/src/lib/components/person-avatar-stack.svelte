@@ -3,6 +3,7 @@
 	import type { Snippet } from 'svelte';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { displayPersonName } from '$lib/person-name.svelte';
+	import { cn } from '$lib/utils';
 
 	type StackPerson = { name: string; seed?: string; email?: string; image?: string; memberID?: string; externalID?: string };
 
@@ -43,6 +44,11 @@
 		{/if}
 	{/each}
 	{#if remainingCount > 0}
-		<Avatar.GroupCount data-testid="avatar-stack-overflow">+{remainingCount}</Avatar.GroupCount>
+		<Avatar.GroupCount class={cn(avatarClass, '@container/avatar-count z-10')} data-testid="avatar-stack-overflow">
+			<span
+				class="leading-none tabular-nums"
+				style:font-size={`min(0.875rem, 45cqi, calc(140cqi / ${String(remainingCount).length + 1}))`}
+			>+{remainingCount}</span>
+		</Avatar.GroupCount>
 	{/if}
 </Avatar.Group>
