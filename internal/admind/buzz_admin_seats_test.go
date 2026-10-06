@@ -3,7 +3,6 @@ package admind
 import (
 	"context"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -41,15 +40,39 @@ func TestACompanyWithNoAdministratorNamesNobody(t *testing.T) {
 	}
 }
 
-func TestEveryStreamChannelLeavesOutWhatIsNotACompanyChannel(t *testing.T) {
-	for _, left := range []string{
-		"community_id = ANY($1::uuid[])",
-		"channel_type = 'stream'",
-		"deleted_at IS NULL",
-	} {
-		if !strings.Contains(everyStreamChannelQuery, left) {
-			t.Fatalf("the channel query no longer says %q", left)
-		}
+func TestAdministratorsAreSeatedOnlyInRoomsTheRelayLetsThemInto(t *testing.T) {
+	relay := disposableRelayDatabase(t)
+	if _, errorValue := relay.Exec(roomShapeCreateStatement); errorValue != nil {
+		t.Fatalf("create the room tables: %v", errorValue)
+	}
+	const (
+		liveRoom      = "00000000-0000-0000-0000-0000000000a1"
+		archivedRoom  = "00000000-0000-0000-0000-0000000000a2"
+		emptyRoom     = "00000000-0000-0000-0000-0000000000a3"
+		everyoneLeft  = "00000000-0000-0000-0000-0000000000a4"
+		deletedRoom   = "00000000-0000-0000-0000-0000000000a5"
+		directRoom    = "00000000-0000-0000-0000-0000000000a6"
+		somebodysSeat = "aa00000000000000000000000000000000000000000000000000000000000001"
+	)
+	holdRoom(t, relay, liveRoom, "stream", "private", "", "")
+	seatInRoom(t, relay, liveRoom, somebodysSeat, false)
+	holdRoom(t, relay, archivedRoom, "stream", "private", "now()", "")
+	seatInRoom(t, relay, archivedRoom, somebodysSeat, false)
+	holdRoom(t, relay, emptyRoom, "stream", "private", "", "")
+	holdRoom(t, relay, everyoneLeft, "stream", "private", "", "")
+	seatInRoom(t, relay, everyoneLeft, somebodysSeat, true)
+	holdRoom(t, relay, deletedRoom, "stream", "private", "", "now()")
+	seatInRoom(t, relay, deletedRoom, somebodysSeat, false)
+	holdRoom(t, relay, directRoom, "dm", "private", "", "")
+	seatInRoom(t, relay, directRoom, somebodysSeat, false)
+
+	channelIDs, errorValue := everyStreamChannel(context.Background(), relay, []string{roomCommunity})
+	if errorValue != nil {
+		t.Fatalf("read the rooms: %v", errorValue)
+	}
+
+	if !reflect.DeepEqual(channelIDs, []string{liveRoom}) {
+		t.Fatalf("only a live, unarchived company room somebody is still in can take an administrator, got %v", channelIDs)
 	}
 }
 
