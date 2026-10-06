@@ -93,15 +93,24 @@ func main() {
 	case "refresh":
 		stopOnFailure("The company was not brought back", runRefresh())
 	case blueclaw.SkillPreparationVerb:
-		if len(os.Args) > 2 {
-			printUsage(command)
-		}
-		stopOnFailure("The skills were not prepared", companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout))
+		stopOnFailure("The skills were not prepared", runSkillPreparation(os.Args[2:], command))
 	case "update":
 		stopOnFailure("Update stopped", runUpdate(os.Args[2:]))
 	default:
 		printUsage(command)
 	}
+}
+
+func runSkillPreparation(arguments []string, command string) error {
+	flags := flag.NewFlagSet(blueclaw.SkillPreparationVerb, flag.ContinueOnError)
+	skillsDirectory := flags.String("skills-directory", "", "prepare the skills in this directory on this machine's python3 and PATH, instead of the installed bundle")
+	if errorValue := flags.Parse(arguments); errorValue != nil || flags.NArg() > 0 {
+		printUsage(command)
+	}
+	if *skillsDirectory == "" {
+		return companyhost.PrepareTheBundledSkills(thisComputer{}, os.Stdout)
+	}
+	return companyhost.PrepareSkillsIn(*skillsDirectory, thisComputer{}, os.Stdout)
 }
 
 func stopOnFailure(whatStopped string, errorValue error) {
@@ -119,7 +128,7 @@ func printUsage(command string) {
 	fmt.Fprintf(os.Stderr, "       %s backup [--directory DIR] [--keep N]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s restore <archive> [--replace]\n", command)
 	fmt.Fprintf(os.Stderr, "       %s refresh\n", command)
-	fmt.Fprintf(os.Stderr, "       %s %s\n", command, blueclaw.SkillPreparationVerb)
+	fmt.Fprintf(os.Stderr, "       %s %s [--skills-directory DIR]\n", command, blueclaw.SkillPreparationVerb)
 	fmt.Fprintf(os.Stderr, "       %s update --version vYYYY.MM.DD.HHMMSS\n", command)
 	os.Exit(1)
 }

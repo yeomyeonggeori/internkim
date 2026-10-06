@@ -98,6 +98,18 @@ func PrepareTheBundledSkills(runner SkillSetupRunner, progress io.Writer) error 
 	return prepareSkillsAt(platform.Layout().BundledSkillsPlace(), runner, progress)
 }
 
+// PrepareSkillsIn prepares the skills in a directory of this checkout the way
+// the install step prepares the bundled ones, on this machine's own python3 and
+// PATH. Scenario runs offer blueclaw a skill root that no install has touched.
+func PrepareSkillsIn(skillsPath string, runner SkillSetupRunner, progress io.Writer) error {
+	pythonPath, errorValue := exec.LookPath("python3")
+	if errorValue != nil {
+		return fmt.Errorf("no python3 on PATH to prepare the skills in %s on: %w", skillsPath, errorValue)
+	}
+	place := blueclaw.BundledSkillsPlace{SkillsPath: skillsPath, PythonPath: pythonPath, SearchPath: os.Getenv("PATH")}
+	return prepareSkillsAt(place, runner, progress)
+}
+
 func prepareSkillsAt(place blueclaw.BundledSkillsPlace, runner SkillSetupRunner, progress io.Writer) error {
 	syscall.Umask(0o022)
 	return prepareSkillsIn(place, runner, progress)

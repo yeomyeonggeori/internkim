@@ -2,7 +2,9 @@
 """Run blueclaw's scenario tests against the skills and tools this repository ships.
 
 Blueclaw's scenarios read their skill roots and their capability catalog from
-the environment, and skip when nothing sets either.
+the environment, and skip when nothing sets either. The skills are prepared
+first by the step the install runs, because a skill that was never prepared asks
+the agent to run its own setup, which a scenario cannot approve.
 """
 
 import os
@@ -28,6 +30,17 @@ def declared_variable(constant_name: str, source_name: str) -> str:
     return declaration.group(1)
 
 
+def prepare_skills(skill_roots: list[str]) -> int:
+    for skill_root in skill_roots:
+        result = subprocess.run(
+            ["go", "run", "./cmd/internkim-host", "prepare-skills", "--skills-directory", skill_root],
+            cwd=REPOSITORY_ROOT,
+        )
+        if result.returncode != 0:
+            return result.returncode
+    return 0
+
+
 def main() -> int:
     if not (SUBMODULE_PATH / "go.mod").is_file():
         print("blueclaw is not checked out: git submodule update --init --recursive", file=sys.stderr)
@@ -40,6 +53,9 @@ def main() -> int:
     if not catalog_path.is_file():
         print(f"no capability catalog at {catalog_path}: make generate-protocol", file=sys.stderr)
         return 1
+    preparation_status = prepare_skills(skill_roots)
+    if preparation_status != 0:
+        return preparation_status
     environment = dict(os.environ)
     environment[declared_variable("ScenarioSkillRootsVariable", "scenarios.go")] = os.pathsep.join(skill_roots)
     environment[declared_variable("ScenarioCapabilityCatalogVariable", "virtual_session.go")] = str(catalog_path)

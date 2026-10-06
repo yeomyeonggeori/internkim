@@ -254,3 +254,18 @@ func dependencyManifestIn(t *testing.T, skill bundledSkill) string {
 	}
 	return found
 }
+
+func TestASkillDirectoryOfThisCheckoutIsPreparedByTheSameSetupTheInstallRuns(t *testing.T) {
+	layout := skillsLayout(t, map[string]skillFixture{"office": {hasLauncher: true}})
+	machine := &recordedMachine{printed: map[string]string{"env": readySetupAnswer}}
+	if errorValue := PrepareSkillsIn(layout.SkillsPath(), machine, &strings.Builder{}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	runs := launcherSetupRuns(machine, layout, "office")
+	if len(runs) != 1 {
+		t.Fatalf("expected the office launcher's setup to run once, ran %v", machine.runs)
+	}
+	if !slices.Contains(runs[0], "PATH="+os.Getenv("PATH")) {
+		t.Fatalf("%v does not run on this machine's PATH", runs[0])
+	}
+}
