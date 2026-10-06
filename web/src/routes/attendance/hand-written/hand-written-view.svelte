@@ -1,6 +1,8 @@
 <script lang="ts">
  import ListPaginationFooter from "$lib/components/list-pagination-footer.svelte";
 	import { onMount } from 'svelte';
+	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { invokeTool } from '$lib/public-api-call';
 	import FilterCombobox from '$lib/components/filter-combobox.svelte';
 	import * as Select from '$lib/components/ui/select';
@@ -170,7 +172,7 @@
 			disabled={handWritten.isLoading}
 			data-testid="hand-written-refresh"
 		>
-			<RefreshCwIcon class={handWritten.isLoading ? 'animate-spin text-primary' : ''} />
+			{#if handWritten.isLoading}<Spinner aria-label={text.loading} />{:else}<RefreshCwIcon />{/if}
 		</Button>
 	</header>
 
@@ -194,11 +196,11 @@
 
 
 	<Card.Root>
-		<Card.Content class="overflow-x-auto pt-6">
-			{#if handWritten.errorMessage}
+		<Card.Content class="overflow-x-auto pt-6" aria-busy={handWritten.isLoading}>
+			{#if handWritten.errorMessage && !handWritten.records.length}
 				<p role="status" class="sr-only">{handWritten.errorMessage}</p>
-			{:else if handWritten.isLoading}
-				<p class="py-6 text-sm text-muted-foreground" aria-busy="true">{text.handWritten.refresh}…</p>
+			{:else if handWritten.isLoading && !handWritten.records.length}
+				<AttendanceLoadingSkeleton kind="records" />
 			{:else if handWritten.records.length === 0}
 				<p class="py-6 text-sm text-muted-foreground" data-testid="hand-written-empty">
 					{text.handWritten.empty}

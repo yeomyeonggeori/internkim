@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { invokeTool } from '$lib/public-api-call';
+import { invokeTool, ToolRefused } from '$lib/public-api-call';
 import {
 	attendanceTeamPageSchema,
 	type AttendanceTeamPage,
@@ -47,17 +47,17 @@ export class AttendanceTeamState {
 
 	async refresh(resetPages = false): Promise<void> {
 		if (!this.started || this.disposed) return;
-		if (resetPages) {
-			this.teamOffset = 0;
-			this.memberOffset = 0;
-		}
-		await Promise.all([this.loadTeams(), this.selectedTeamKey ? this.loadMembers() : Promise.resolve()]);
+		await Promise.all([
+			this.loadTeams(resetPages ? 0 : this.teamOffset),
+			this.selectedTeamKey ? this.loadMembers(resetPages ? 0 : this.memberOffset) : Promise.resolve()
+		]);
 		if (!this.disposed) this.revision += 1;
 	}
 
 	async loadTeams(offset = this.teamOffset): Promise<void> {
 		if (this.disposed) return;
 		const sequence = ++this.teamsSequence;
+		if (offset !== this.teamOffset) this.teams = [];
 		this.teamOffset = offset;
 		this.isLoadingTeams = true;
 		this.error = '';
@@ -79,9 +79,12 @@ export class AttendanceTeamState {
 			}
 		} catch (error) {
 			if (this.disposed || sequence !== this.teamsSequence) return;
-			this.teams = [];
-			this.teamTotal = 0;
-			this.clearSelection();
+			if (error instanceof ToolRefused && [401, 403].includes(error.status)) {
+				this.teams = [];
+				this.teamTotal = 0;
+				this.companySummary = undefined;
+				this.clearSelection();
+			}
 			this.error = error instanceof Error ? error.message : String(error);
 		} finally {
 			if (!this.disposed && sequence === this.teamsSequence) this.isLoadingTeams = false;
@@ -99,6 +102,7 @@ export class AttendanceTeamState {
 
 	clearSelection(): void {
 		this.membersSequence += 1;
+		this.isLoadingMembers = false;
 		this.selectedTeamKey = '';
 		this.members = [];
 		this.memberTotal = 0;
@@ -107,6 +111,8 @@ export class AttendanceTeamState {
 	}
 
 	filter(search: string, location: string): void {
+		this.members = [];
+		this.memberTotal = 0;
 		this.searchText = search;
 		this.locationFilter = location;
 		this.memberOffset = 0;
@@ -116,6 +122,7 @@ export class AttendanceTeamState {
 	async loadMembers(offset = this.memberOffset): Promise<void> {
 		if (this.disposed || !this.selectedTeamKey) return;
 		const sequence = ++this.membersSequence;
+		if (offset !== this.memberOffset) this.members = [];
 		this.memberOffset = offset;
 		this.isLoadingMembers = true;
 		this.memberError = '';
@@ -136,8 +143,10 @@ export class AttendanceTeamState {
 			this.serverTime = page.serverTime;
 		} catch (error) {
 			if (this.disposed || sequence !== this.membersSequence) return;
-			this.members = [];
-			this.memberTotal = 0;
+			if (error instanceof ToolRefused && [401, 403].includes(error.status)) {
+				this.members = [];
+				this.memberTotal = 0;
+			}
 			this.memberError = error instanceof Error ? error.message : String(error);
 		} finally {
 			if (!this.disposed && sequence === this.membersSequence) this.isLoadingMembers = false;

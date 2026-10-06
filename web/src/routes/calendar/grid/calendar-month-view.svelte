@@ -3,6 +3,7 @@
 	import { tick, untrack } from 'svelte';
 	import CalendarDayCell from './calendar-day-cell.svelte';
 	import CalendarEventChip from './calendar-event-chip.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import {
 		calendarGridDateFromKey,
 		calendarGridDateKey,
@@ -17,6 +18,7 @@
 	import { calendarGridWeekLayout, type CalendarGridEvent, type CalendarGridWeekLayout } from './calendar-grid-layout';
 
 	type CalendarMonthViewProps = {
+		loading?: boolean;
 		visibleDate: Date;
 		selectedDateKey: string;
 		selectedEventID: string;
@@ -33,6 +35,7 @@
 	};
 
 	let {
+		loading = false,
 		visibleDate,
 		selectedDateKey,
 		selectedEventID,
@@ -370,6 +373,7 @@
 								</button>
 							{/if}
 						</div>
+						{#if loading}<div aria-hidden="true" class="pointer-events-none space-y-1" data-calendar-loading-cell><Skeleton class="h-[18px] w-full" /><Skeleton class="h-[18px] w-2/3" /></div>{/if}
 					</CalendarDayCell>
 				{/each}
 				{#if draftRangeForWeek(week)}

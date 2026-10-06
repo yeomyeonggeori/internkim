@@ -12,6 +12,7 @@
 	import type { AttendanceText } from '../text';
 	import type { TeamStatusDayDetail } from './team-status-day-detail';
 	import TeamStatusWorkRecordSection from './team-status-work-record-section.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	type Props = {
 		text: AttendanceText;
@@ -59,13 +60,13 @@
 
 		<div class="mt-4" data-testid="team-status-calendar-event-list">
 			{#if detail.context.isCalendarEventsLoading}
-				<div class="grid gap-4" aria-label={text.loading}>
+				<div class="grid gap-4" role="status" aria-busy="true" aria-label={text.loading}>
 					{#each [0, 1] as loadingRow (loadingRow)}
-						<div class="flex animate-pulse gap-3">
-							<span class="size-8 shrink-0 rounded-md bg-muted"></span>
+						<div class="flex gap-3" aria-hidden="true">
+							<Skeleton class="size-8 shrink-0" />
 							<div class="flex-1 space-y-2 py-0.5">
-								<div class="h-3 w-2/3 rounded bg-muted"></div>
-								<div class="h-2.5 w-1/3 rounded bg-muted"></div>
+								<Skeleton class="h-3 w-2/3" />
+								<Skeleton class="h-2.5 w-1/3" />
 							</div>
 						</div>
 					{/each}
@@ -125,13 +126,13 @@
 
 		<div class="mt-4" data-testid="team-status-completed-task-list">
 			{#if detail.context.isCompletedWorkLoading}
-				<div class="grid gap-4" aria-label={text.loading}>
+				<div class="grid gap-4" role="status" aria-busy="true" aria-label={text.loading}>
 					{#each [0, 1] as loadingRow (loadingRow)}
-						<div class="flex animate-pulse gap-3">
-							<span class="size-8 shrink-0 rounded-md bg-muted"></span>
+						<div class="flex gap-3" aria-hidden="true">
+							<Skeleton class="size-8 shrink-0" />
 							<div class="flex-1 space-y-2 py-0.5">
-								<div class="h-3 w-3/4 rounded bg-muted"></div>
-								<div class="h-2.5 w-1/2 rounded bg-muted"></div>
+								<Skeleton class="h-3 w-3/4" />
+								<Skeleton class="h-2.5 w-1/2" />
 							</div>
 						</div>
 					{/each}
@@ -167,4 +168,3 @@
 		</div>
 	</section>
 </div>
-

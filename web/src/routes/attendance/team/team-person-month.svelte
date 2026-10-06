@@ -1,5 +1,6 @@
 <script lang="ts">
 	import PersonWorkStandard from './person-work-standard.svelte';
+	import { ToolRefused } from '$lib/public-api-call';
 	import { onMount } from 'svelte';
 	import { companyDateOf } from '$lib/company-time';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
@@ -59,9 +60,11 @@
 			recordState.serverClock = createAttendanceServerClock(answer.serverTime, performance.now());
 		} catch (reason) {
 			if (disposed || request !== sequence || requesterScope !== currentScope()) return;
-			summary = null;
-			recordState.summary = null;
-			recordState.serverClock = null;
+			if (reason instanceof ToolRefused && [401, 403].includes(reason.status)) {
+				summary = null;
+				recordState.summary = null;
+				recordState.serverClock = null;
+			}
 			error = reason instanceof Error ? reason.message : String(reason);
 		} finally {
 			if (!disposed && request === sequence) loading = false;
@@ -88,11 +91,12 @@
 {#if error}
 	<p role="alert" class="text-sm text-destructive">{error}</p>
 	<button type="button" class="text-sm underline" onclick={() => load()}>Retry</button>
-{:else if summary}
-	<div class:opacity-60={loading}>
+{/if}
+{#if summary}
+	<div class:opacity-60={loading} aria-busy={loading}>
 		{#if member.memberID === summary.currentMemberID}{#key summary.month}<PersonWorkStandard {summary} />{/key}{/if}
 		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} />
 	</div>
-{:else}
-	<AttendanceLoadingSkeleton rowCount={8} />
+{:else if !error}
+	<AttendanceLoadingSkeleton kind="month" rowCount={8} />
 {/if}

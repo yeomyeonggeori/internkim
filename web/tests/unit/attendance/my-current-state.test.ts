@@ -5,5 +5,5 @@ test('own current state shares fresh reads, forces mutation reads and rejects la
 	const run = Bun.spawn([process.execPath, '--conditions', 'browser', fixture], { stdout: 'pipe', stderr: 'pipe' });
 	const [output, errors] = await Promise.all([new Response(run.stdout).text(), new Response(run.stderr).text()]);
 	expect(await run.exited, errors).toBe(0);
-	expect(JSON.parse(output)).toEqual({ freshShared: true, forceRefreshes: true, undoRefreshes: true, lateReadIgnored: true, lateWriteIgnored: true, partialFailure: true, partialCloseRefreshed: true });
+	expect(JSON.parse(output)).toEqual({ freshShared: true, forceRefreshes: true, undoRefreshes: true, lateReadIgnored: true, lateWriteIgnored: true, partialFailure: true, partialCloseRefreshed: true, mutationClearsReadBusy: true, oldReadKeepsBusyCleared: true });
 });

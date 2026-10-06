@@ -6,10 +6,12 @@
 	import { companyDateOf, companyTimeOf } from '$lib/company-time';
 	import AttendancePersonRow from './attendance-person-row.svelte';
 	import TeamPersonMonth from './team-person-month.svelte';
-	import { invokeTool } from '$lib/public-api-call';
+	import { invokeTool, ToolRefused } from '$lib/public-api-call';
 	import { appNavigation } from '$lib/components/app-navigation.svelte';
 	import { getAttendanceViewState } from '../attendance-view-state.svelte';
 	import { onMount } from 'svelte';
+	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
@@ -67,14 +69,18 @@
     const todayDays = $derived(new Map((todaySummary ? buildTeamRowsForDates([progressDate], todaySummary, text, progressDate, todaySummary, progressTime, progressNow) : []).map(row => [row.memberID, row.days[0]])));
     const ownDay = $derived(myAttendanceToday.summary ? buildTeamRowsForDates([progressDate], myAttendanceToday.summary, text, progressDate, myAttendanceToday.summary, progressTime, progressNow).find(row => row.email === ownEmail)?.days[0] : undefined);
     let todayError = $state('');
+    let todayLoading = $state(false);
+    let todayScope = '';
     $effect(() => {
         const members = teamState.members;
         const requester = myAttendanceToday.summary;
         teamState.revision;
         let active = true;
-        todaySummary = null;
+        const scope = JSON.stringify([requester?.currentMemberID, requester?.currentUserEmail, requester?.isAdmin, progressDate, members.map(member => member.memberID)]);
+        if (scope !== todayScope) { todaySummary = null; todayScope = scope; }
         todayError = '';
-        if (requester && members.length) void supabaseAttendanceTodaySummary(members.map(member => ({memberID:member.memberID,email:member.email,displayName:member.name})), requester).then(summary => {if(active) todaySummary = summary;}).catch(error => {if(active) todayError = error instanceof Error ? error.message : String(error);});
+        todayLoading = Boolean(requester && members.length);
+        if (requester && members.length) void supabaseAttendanceTodaySummary(members.map(member => ({memberID:member.memberID,email:member.email,displayName:member.name})), requester).then(summary => {if(active) todaySummary = summary;}).catch(error => {if(active) { if(error instanceof ToolRefused && [401, 403].includes(error.status)) todaySummary = null; todayError = error instanceof Error ? error.message : String(error); }}).finally(() => {if(active) todayLoading = false;});
         return () => {active = false;};
     });
 
@@ -163,14 +169,17 @@
 {/snippet}
 
 <Tooltip.Provider>
-	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6" data-testid="attendance-team-dashboard">
+	<div class="mx-auto flex w-full max-w-7xl flex-col gap-6" data-testid="attendance-team-dashboard" aria-busy={teamState.isLoadingTeams || teamState.isLoadingMembers}>
 
-        <Card.Root class="gap-0 py-0" data-testid="attendance-own-strip">
+        {#if myAttendanceToday.loadFailure}<p role="alert" class="text-sm text-destructive">{myAttendanceToday.loadFailure}</p>{/if}
+        <Card.Root class="gap-0 py-0" data-testid="attendance-own-strip" aria-busy={myAttendanceToday.isLoading}>
             <AttendancePersonRow name={ownName} email={ownEmail} status={ownStatusKind} statusLabel={ownStatus} day={ownDay} location={ownLocation === '—' ? null : ownLocation} onclick={openOwnRecord}>
                 {#snippet action()}<OwnClockAction />{/snippet}
             </AttendancePersonRow>
         </Card.Root>
-        {#if !teamState.selectedTeamKey && companyTotals}
+        {#if !teamState.selectedTeamKey && !companyTotals && !teamState.error}
+            <AttendanceLoadingSkeleton kind="metrics" />
+        {:else if !teamState.selectedTeamKey && companyTotals}
             <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="attendance-company-summary">
                 {#each companyMetrics as metric (metric.label)}
                     <Card.Root class="gap-2 py-4">
@@ -189,16 +198,17 @@
 				{/if}
 				<h2 class="text-xl font-semibold tracking-tight">{selectedTeam ? teamName(selectedTeam) : text.teamTodayTitle}</h2>
 			</div>
-			<div class="flex items-center gap-3"><span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
+			<div class="flex items-center gap-3">{#if (teamState.isLoadingTeams && teamState.teams.length) || (teamState.isLoadingMembers && teamState.members.length)}<Spinner aria-label={text.refresh} />{/if}<span class="text-xs text-muted-foreground">{teamState.serverTime ? timeOf(teamState.serverTime) : '—'} 기준</span></div>
 		</div>
 
 		{#if !teamState.selectedTeamKey}
 			{#if teamState.error}
 				<p role="alert" class="text-sm text-destructive">{text.teamLoadFailed} {teamState.error}</p>
 				<Button variant="outline" size="sm" onclick={() => teamState.loadTeams()}>{text.refresh}</Button>
-			{:else if teamState.isLoadingTeams && !teamState.teams.length}
-				<p class="text-sm text-muted-foreground" data-testid="team-cards-loading">{text.teamTodayTitle}…</p>
-			{:else}
+			{/if}
+			{#if teamState.isLoadingTeams && !teamState.teams.length}
+				<AttendanceLoadingSkeleton kind="teams" />
+			{:else if teamState.teams.length || !teamState.error}
 				<div class="grid gap-4 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="team-card-page">
 					{#each teamState.teams as team (team.teamKey)}
 						<Card.Root class="gap-0 overflow-hidden rounded-xl py-0" data-testid="attendance-team-card">
@@ -266,14 +276,17 @@
 			{#if teamState.memberError}
 				<p role="alert" class="text-sm text-destructive">{teamState.memberError}</p>
 				<Button variant="outline" size="sm" onclick={() => teamState.loadMembers()}>{text.refresh}</Button>
-			{:else}
+			{/if}
+			{#if teamState.isLoadingMembers && !teamState.members.length}
+				<AttendanceLoadingSkeleton kind="members" />
+			{:else if teamState.members.length || !teamState.memberError}
 				{#if todayError}<p role="alert" class="text-sm text-destructive">{todayError}</p>{/if}
 				<Card.Root class="gap-0 py-0" data-testid="team-employee-page">
 					<Card.Content class="divide-y p-0">
 						{#each teamState.members as member (member.memberID)}
-                            <AttendancePersonRow name={member.name} email={member.email} status={member.status} statusLabel={statusName(member.status)} day={todayDays.get(member.memberID)} location={member.location ?? text.teamUnknownLocation} onclick={() => { selectedMember = member; sheetOpen = true; }} />
+                            <AttendancePersonRow name={member.name} email={member.email} status={member.status} statusLabel={statusName(member.status)} day={todayDays.get(member.memberID)} progressLoading={todayLoading} location={member.location ?? text.teamUnknownLocation} onclick={() => { selectedMember = member; sheetOpen = true; }} />
 						{:else}
-							<p class="p-5 text-sm text-muted-foreground">{teamState.isLoadingMembers ? text.teamEmployees + '…' : text.noMembers}</p>
+							<p class="p-5 text-sm text-muted-foreground">{text.noMembers}</p>
 						{/each}
 					</Card.Content>
 				</Card.Root>

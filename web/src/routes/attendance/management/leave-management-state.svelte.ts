@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import { ToolRefused } from '$lib/public-api-call';
 import type { AttendanceText } from '../text';
 import { employeeLeaveErrorMessage } from '../leave/employee-leave-error';
 import {
@@ -30,6 +31,8 @@ export class LeaveManagementState {
 
 	async load(employeeEmail = this.selectedEmployeeEmail): Promise<void> {
 		const loadSequence = ++this.loadSequence;
+		if (employeeEmail !== this.selectedEmployeeEmail && this.payload) this.payload = { ...this.payload, detail: undefined };
+		this.selectedEmployeeEmail = employeeEmail;
 		this.isLoading = true;
 		this.errorMessage = '';
 		try {
@@ -39,8 +42,12 @@ export class LeaveManagementState {
 			if (employeeEmail && payload.detail?.employee.email === employeeEmail) {
 				this.selectedEmployeeEmail = employeeEmail;
 			}
-		} catch {
+		} catch (error) {
 			if (loadSequence !== this.loadSequence) return;
+			if (error instanceof ToolRefused && [401, 403].includes(error.status)) {
+				this.payload = null;
+				this.selectedEmployeeEmail = '';
+			}
 			this.errorMessage = this.text.loadFailed;
 		} finally {
 			if (loadSequence === this.loadSequence) {

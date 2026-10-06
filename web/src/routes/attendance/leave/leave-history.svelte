@@ -5,6 +5,7 @@
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import LeaveHistoryRow from './leave-history-row.svelte';
 	import { buildLeaveHistory } from './leave-history-model';
+	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
 
 	type Props = {
 		text: AttendanceText['leave'];
@@ -41,7 +42,9 @@
 		</p>
 	{/if}
 
-	{#if paginatedHistory.length}
+	{#if !employeeLeave.payload && !employeeLeave.errorMessage}
+		<AttendanceLoadingSkeleton kind="records" rowCount={3} />
+	{:else if paginatedHistory.length}
 		<div class="divide-y" data-testid="leave-history-list">
 			{#each paginatedHistory as item (item.id)}
 				<LeaveHistoryRow
@@ -58,7 +61,7 @@
 		</div>
 	{/if}
 
-	<ListPaginationFooter
+	{#if employeeLeave.payload}<ListPaginationFooter
  onPageChange={(page) => (pageIndex = page)}
 		totalItems={history.length}
 		pageIndex={currentPageIndex}
@@ -72,5 +75,5 @@
 		previousLabel={text.historyPaginationPrevious}
 		nextLabel={text.historyPaginationNext}
 		ariaLabel={text.historyPaginationLabel}
-	/>
+	/>{/if}
 </div>

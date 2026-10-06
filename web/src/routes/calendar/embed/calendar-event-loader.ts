@@ -1,5 +1,6 @@
 import type { CalendarModelEvent as DayTaskEvent } from './calendar-event-model';
 import { companyTimeZone } from '$lib/company/company-settings';
+import { ToolRefused } from '$lib/public-api-call';
 import {
 	dayTaskEventFromCalendarEvent,
 	dayTaskEventFromCalendarHoliday,
@@ -24,6 +25,7 @@ type CalendarEventLoaderContext = {
 	setVisibleEvents: (events: DayTaskEvent[]) => void;
 	setEventCount: (eventCount: number) => void;
 	setIsLoading: (isLoading: boolean) => void;
+	setIsInitialLoading?: (isLoading: boolean) => void;
 	setErrorMessage: (message: string) => void;
 	refreshSelectedMonthDateCell: () => void;
 	preservedLocalEvents?: () => DayTaskEvent[];
@@ -52,6 +54,7 @@ export function createCalendarEventLoader(
 	let loadEventsRequestID = 0;
 	let loadHolidaysRequestID = 0;
 	let isLoadPending = false;
+	const loadedRanges = new Set<string>();
 
 	function hasVisibleRange(): boolean {
 		return visibleRange !== null;
@@ -63,6 +66,8 @@ export function createCalendarEventLoader(
 		const holidayRequestID = (loadHolidaysRequestID += 1);
 		isLoadPending = true;
 		visibleRange = { startDate, endDate };
+		const rangeKey = `${startDate.getTime()}:${endDate.getTime()}`;
+		context.setIsInitialLoading?.(!loadedRanges.has(rangeKey));
 		context.setIsLoading(true);
 		context.setErrorMessage('');
 		let timeZone: Promise<string> | undefined;
@@ -85,6 +90,8 @@ export function createCalendarEventLoader(
 				...events
 			]);
 			publishEvents(mergedEvents);
+			loadedRanges.add(rangeKey);
+			context.setIsInitialLoading?.(false);
 			context.setIsLoading(false);
 			context.afterRenderEvents?.(events);
 			const holidayResult = await holidays;
@@ -104,12 +111,16 @@ export function createCalendarEventLoader(
 			}
 		} catch (error) {
 			if (requestID !== loadEventsRequestID) return;
-			context.setVisibleEvents([]);
+			if (error instanceof ToolRefused && [401, 403].includes(error.status)) {
+				loadedRanges.clear();
+				publishEvents([]);
+			}
 			context.setErrorMessage(error instanceof Error ? error.message : context.errorFallback());
 		} finally {
 			if (requestID !== loadEventsRequestID) return;
 			isLoadPending = false;
 			context.setIsLoading(false);
+			context.setIsInitialLoading?.(false);
 		}
 	}
 
@@ -125,6 +136,7 @@ export function createCalendarEventLoader(
 		loadEventsRequestID += 1;
 		isLoadPending = false;
 		context.setIsLoading(false);
+		context.setIsInitialLoading?.(false);
 	}
 
 	function holidayInRange(event: DayTaskEvent, startDate: Date, endDate: Date): boolean {

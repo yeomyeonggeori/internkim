@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import { ToolRefused } from '$lib/public-api-call';
 import type { AttendanceText } from '../text';
 import { decideLeaveApproval, fetchLeaveApprovalInbox } from './leave-approval-api';
 import type { LeaveApprovalDecision, LeaveApprovalInbox } from './leave-approval-types';
@@ -57,7 +58,10 @@ export class LeaveApprovalState {
 			if (loadSequence !== this.loadSequence) return;
 			this.inbox = inbox;
 		} catch (error) {
-			if (loadSequence === this.loadSequence) throw error;
+			if (loadSequence === this.loadSequence) {
+				if (error instanceof ToolRefused && [401, 403].includes(error.status)) { this.inbox = null; this.errorMessage = this.text.loadFailed; }
+				throw error;
+			}
 		} finally {
 			if (loadSequence === this.loadSequence) {
 				this.isLoading = false;

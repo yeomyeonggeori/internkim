@@ -5,6 +5,8 @@
 	import { attendanceText } from '../text';
 	import LeaveApprovalCard from './leave-approval-card.svelte';
 	import { getLeaveApprovalState } from './leave-approval-state.svelte';
+	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const approval = getLeaveApprovalState();
@@ -22,7 +24,7 @@
 			onclick={() => void approval.load()}
 			disabled={approval.isLoading}
 		>
-			<RefreshCwIcon class={approval.isLoading ? 'animate-spin' : ''} />
+			{#if approval.isLoading}<Spinner aria-label={text.loading} />{:else}<RefreshCwIcon />{/if}
 			{text.approval.refresh}
 		</Button>
 	</header>
@@ -38,9 +40,9 @@
 		</p>
 	{/if}
 
-	{#if !approval.errorMessage}<div class="divide-y rounded-lg border px-4">
-		{#if approval.isLoading && !approval.inbox}
-			<p class="py-12 text-center text-sm text-muted-foreground">{text.approval.loading}</p>
+	{#if !approval.errorMessage || approval.inbox}<div class="divide-y rounded-lg border px-4" aria-busy={approval.isLoading}>
+		{#if !approval.inbox}
+			<AttendanceLoadingSkeleton kind="records" rowCount={3} />
 		{:else if (approval.inbox?.pending.length ?? 0) === 0}
 			<p class="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
 				{text.approval.pendingEmpty}

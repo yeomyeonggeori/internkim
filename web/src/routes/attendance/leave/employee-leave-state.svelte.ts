@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import { ToolRefused } from '$lib/public-api-call';
 import type { AttendanceText } from '../text';
 import {
 	cancelEmployeeLeaveRequest,
@@ -87,7 +88,10 @@ export class EmployeeLeaveState {
 			if (loadSequence !== this.loadSequence) return;
 			this.payload = payload;
 		} catch (error) {
-			if (loadSequence === this.loadSequence) throw error;
+			if (loadSequence === this.loadSequence) {
+				if (error instanceof ToolRefused && [401, 403].includes(error.status)) { this.payload = null; this.errorMessage = this.localizedErrorMessage(error, this.text.loadFailed); }
+				throw error;
+			}
 		} finally {
 			if (loadSequence === this.loadSequence) {
 				this.isLoading = false;

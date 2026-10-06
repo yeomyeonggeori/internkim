@@ -6,9 +6,10 @@
  import ColoredOutlineBadge from '$lib/components/colored-outline-badge.svelte';
  import LocationLabel from '../shared/location-label.svelte';
  import * as Card from '$lib/components/ui/card';
- let {name, email, status, statusLabel, location, onclick, action, day}: {
+ import { Skeleton } from '$lib/components/ui/skeleton';
+ let {name, email, status, statusLabel, location, onclick, action, day, progressLoading = false}: {
   name: string; email: string; status: string; statusLabel: string;
-  location?: string | null; onclick: () => void; action?: Snippet; day?: TeamStatusPersonDay;
+  location?: string | null; onclick: () => void; action?: Snippet; day?: TeamStatusPersonDay; progressLoading?: boolean;
  } = $props();
 </script>
 {#snippet metadata()}
@@ -27,6 +28,6 @@
    {#if !action}<span class="flex shrink-0 items-center gap-2">{@render metadata()}</span>{/if}
   </button>
   {#if action}<div class="order-3 col-span-2 mt-4 sm:order-none sm:col-span-1 sm:mt-0">{@render action()}</div>{/if}
- {#if day}<div class={action ? "order-2 col-span-2 mt-4 sm:order-3 sm:mt-3" : "col-span-2 mt-2 pl-12"}><TeamStatusDayProgress {day} /></div>{/if}
+ {#if day || progressLoading}<div aria-busy={progressLoading} class={action ? "order-2 col-span-2 mt-4 sm:order-3 sm:mt-3" : "col-span-2 mt-2 pl-12"}>{#if day}<TeamStatusDayProgress {day} />{:else}<Skeleton class="h-1.5 w-full rounded-full" data-testid="employee-today-progress-loading" aria-hidden="true" />{/if}</div>{/if}
  </div>
 </Card.Content>

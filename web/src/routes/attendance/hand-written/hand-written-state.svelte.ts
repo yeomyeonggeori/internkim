@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import { ToolRefused } from '$lib/public-api-call';
 import type { AttendanceText } from '../text';
 import {
 	currentAndPreviousMonth,
@@ -43,16 +44,29 @@ export class HandWrittenState {
 			this.appliedDayRange = dayRange;
 			this.records = result.attendance;
 			this.totalCount = result.totalCount;
-		} catch {
+		} catch (error) {
 			if (loadSequence !== this.loadSequence) return;
+			if (error instanceof ToolRefused && [401, 403].includes(error.status)) { this.records = []; this.totalCount = 0; }
 			this.errorMessage = this.text.loadFailed;
 		} finally {
 			if (loadSequence === this.loadSequence) this.isLoading = false;
 		}
 	}
 
-	async filter(): Promise<void> { this.appliedDayRange = {...this.dayRange}; this.appliedTeamKey = this.selectedTeamKey; this.appliedChangedByID = this.selectedChangedByID; this.pageOffset = 0; await this.load(); }
-	async page(offset: number): Promise<void> { this.pageOffset = Math.max(0, offset); await this.load(); }
+	async filter(): Promise<void> {
+		if (this.appliedDayRange.from !== this.dayRange.from || this.appliedDayRange.to !== this.dayRange.to || this.appliedTeamKey !== this.selectedTeamKey || this.appliedChangedByID !== this.selectedChangedByID || this.pageOffset !== 0) this.records = [];
+		this.appliedDayRange = { ...this.dayRange };
+		this.appliedTeamKey = this.selectedTeamKey;
+		this.appliedChangedByID = this.selectedChangedByID;
+		this.pageOffset = 0;
+		await this.load();
+	}
+	async page(offset: number): Promise<void> {
+		const nextOffset = Math.max(0, offset);
+		if (this.pageOffset !== nextOffset) this.records = [];
+		this.pageOffset = nextOffset;
+		await this.load();
+	}
 	async undo(record: HandWrittenRecord, reason: string): Promise<void> {
 		if (this.undoingEventID) return;
 		this.undoingEventID = record.eventID;

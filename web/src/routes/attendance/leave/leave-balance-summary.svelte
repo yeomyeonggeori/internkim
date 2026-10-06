@@ -6,6 +6,7 @@
 	import { getEmployeeLeaveState } from './employee-leave-state.svelte';
 	import { milliDaysValue } from './leave-history-model';
 	import { leaveBalanceSegments } from './leave-balance-segments';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	const text = createPageText(attendanceText);
 	const employeeLeave = getEmployeeLeaveState();
@@ -27,11 +28,15 @@
 	role="region"
 	aria-label={text.leave.summaryTitle}
 	data-testid="leave-balance-summary"
+	aria-busy={employeeLeave.isLoading}
 >
 	<Card.Header class="pb-0">
 		<Card.Title class="text-sm">{text.leave.summaryTitle}</Card.Title>
 	</Card.Header>
 	<Card.Content class="space-y-2 px-3 pb-3 pt-1">
+		{#if !summary && !employeeLeave.errorMessage}
+			<div role="status" aria-label={text.loading}><div aria-hidden="true" class="space-y-2"><div class="grid grid-cols-3 gap-2">{#each [0, 1, 2] as column (column)}<div class="space-y-2"><Skeleton class="h-3 w-16 max-w-full" /><Skeleton class="h-5 w-12" /></div>{/each}</div><Skeleton class="h-2 w-full rounded-full" /></div></div>
+		{:else if summary}
 		<div class="grid grid-cols-[1fr_1fr_auto] gap-2" data-testid="leave-balance-summary-columns">
 			<div>
 				<p class="text-[11px] text-muted-foreground">{text.leave.summaryUsed}</p>
@@ -65,6 +70,7 @@
 					<span class="h-full bg-muted-foreground/15" style:width={`${segments.availablePercent}%`}></span>
 				{/if}
 			</div>
+		{/if}
 		{/if}
 
 		{#if employeeLeave.errorMessage}

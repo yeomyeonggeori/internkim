@@ -6,6 +6,7 @@ import { createPageText } from '$lib/i18n/page-text.svelte';
 import { attendanceText } from '../../routes/attendance/text';
 import { addAttendanceEvent, toggleAttendanceOnServer } from '../../routes/attendance/attendance-api';
 import { supabaseCurrentAttendance } from './supabase-current-attendance';
+import { ToolRefused } from '$lib/public-api-call';
 import { attendanceEventFromClock } from './supabase-attendance';
 import type { AttendanceWriteEvent } from './attendance-write';
 import type {
@@ -28,6 +29,7 @@ class MyAttendanceToday {
 	clockFailure = $state<string>('');
 	isMenuOpen = $state(false);
 	isSubmitting = $state(false);
+	isLoading = $state(false);
 	private clockEventHandler: ((event: AttendanceWriteEvent) => void) | undefined;
 	private clockMutationHandler: (() => void) | undefined;
 	private clockMutationSequence = 0;
@@ -78,6 +80,7 @@ class MyAttendanceToday {
 		this.loadFailure = '';
 		this.clockFailure = '';
 		this.isSubmitting = false;
+		this.isLoading = false;
 		this.loadedAt = Number.NEGATIVE_INFINITY;
 	};
 
@@ -89,6 +92,7 @@ class MyAttendanceToday {
 	private invalidateRead(): void {
 		this.clockMutationSequence += 1;
 		this.loadPromise = undefined;
+		this.isLoading = false;
 		this.hasFreshRead = false;
 	}
 
@@ -117,6 +121,8 @@ class MyAttendanceToday {
 
 	private loadFromServer = async (): Promise<AttendanceSummary | null> => {
 		const loadSequence = this.clockMutationSequence;
+		this.isLoading = true;
+		this.loadFailure = '';
 		try {
 			const summary = await supabaseCurrentAttendance();
 			if (loadSequence !== this.clockMutationSequence) return this.summary;
@@ -126,9 +132,11 @@ class MyAttendanceToday {
 			this.loadFailure = '';
 		} catch (failure) {
 			if (loadSequence !== this.clockMutationSequence) return this.summary;
-			this.summary = null;
+			if (failure instanceof ToolRefused && [401, 403].includes(failure.status)) this.summary = null;
 			this.hasFreshRead = false;
 			this.loadFailure = failure instanceof Error ? failure.message : String(failure);
+		} finally {
+			if (loadSequence === this.clockMutationSequence) this.isLoading = false;
 		}
 		return this.summary;
 	};

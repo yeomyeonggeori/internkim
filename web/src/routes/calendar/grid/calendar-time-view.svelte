@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import { Calendar as MiniCalendar, Day as MiniCalendarDay } from '$lib/components/ui/calendar';
 	import * as Empty from '$lib/components/ui/empty';
@@ -31,6 +32,8 @@
 		localeCode: string;
 		draftPreviewTitle: string;
 		noEventsText: string;
+		loading?: boolean;
+		showEmptyState?: boolean;
 		selectDay: (day: Date) => void;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		addEventOnTimeRange: (start: Date, end: Date) => void;
@@ -45,6 +48,8 @@
 		localeCode,
 		draftPreviewTitle,
 		noEventsText,
+		loading = false,
+		showEmptyState = true,
 		selectDay,
 		openEvent,
 		addEventOnTimeRange,
@@ -452,6 +457,7 @@
 				/>
 			</div>
 		{/each}
+		{#if loading}<div aria-hidden="true" class="pointer-events-none absolute inset-x-1 top-[24rem] space-y-12" data-calendar-loading-cell><Skeleton class="h-12 w-full" /><Skeleton class="h-24 w-3/4" /><Skeleton class="h-12 w-full" /></div>{/if}
 
 		{#if draftRange}
 			<div
@@ -667,7 +673,9 @@
 				{/snippet}
 			</MiniCalendar>
 			<Separator class="my-3" />
-			{#if selectedDayEvents.length > 0}
+			{#if loading}
+				<div class="space-y-2" aria-hidden="true"><Skeleton class="h-16 w-full" /><Skeleton class="h-16 w-full" /></div>
+			{:else if selectedDayEvents.length > 0}
 				<div class="grid gap-2">
 					{#each selectedDayEvents as event (event.id)}
 						<CalendarEventListCard
@@ -681,7 +689,7 @@
 						/>
 					{/each}
 				</div>
-			{:else}
+			{:else if showEmptyState}
 				<Empty.Root class="border-border/50 bg-muted/10 min-h-24 border border-dashed p-4">
 					<Empty.Header class="gap-1.5">
 						<Empty.Media class="text-muted-foreground mb-0">
