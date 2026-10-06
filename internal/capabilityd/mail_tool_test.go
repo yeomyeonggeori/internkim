@@ -42,8 +42,8 @@ func TestMailMessageSendApprovedContinuationPostsToAdmind(t *testing.T) {
 		ToolName: "mail_message_send",
 		Input:    []byte(`{"to":["recipient@example.com"],"subject":"Demo","body":"Hello"}`),
 		Context: capabilities.ToolInvokeContext{
-			RequesterEmail:         "Member@Example.com",
-			IsApprovalContinuation: true,
+			RequesterEmail: "Member@Example.com",
+			HoldID:         "held-test",
 		},
 	})
 	if errorValue != nil {

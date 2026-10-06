@@ -50,7 +50,7 @@ func TestDecodeToolInvokeRequestAcceptsPlausibleRequesterPersonID(t *testing.T) 
 	request, errorValue := decodeToolInvokeRequest("message_send", strings.NewReader(`{
 		"context": {
 			"requesterPersonID": " person-1 ",
-			"isApprovalContinuation": true
+			"holdID": "held-test"
 		}
 	}`))
 	if errorValue != nil {
@@ -85,7 +85,7 @@ func TestInvokeCapabilityToolRejectsInputOutsideDescriptorSchema(t *testing.T) {
 		response, errorValue := (Service{}).invokeCapabilityTool(
 			context.Background(),
 			testCase.toolName,
-			strings.NewReader(`{"context":{"requesterPersonID":"person-1","isApprovalContinuation":true},"input":`+testCase.input+`}`),
+			strings.NewReader(`{"context":{"requesterPersonID":"person-1","holdID":"held-test"},"input":`+testCase.input+`}`),
 		)
 		if errorValue != nil {
 			t.Fatalf("%s returned an unexpected error: %v", testCase.toolName, errorValue)

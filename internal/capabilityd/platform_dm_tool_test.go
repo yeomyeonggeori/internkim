@@ -130,7 +130,7 @@ func TestPlatformDMSendApprovedContinuationSendsThroughChatd(t *testing.T) {
 		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHint":"샘플","message":"승인 후 전송"}`),
 		Context: capabilities.ToolInvokeContext{
-			IsApprovalContinuation: true,
+			HoldID: "held-test",
 		},
 	})
 	if errorValue != nil {
@@ -204,7 +204,7 @@ func TestPlatformMessageBroadcastFansOutWithPerRecipientRollup(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
 		Input:    []byte(`{"targetType":"directMessage","personHints":["샘플","정국","없는사람"],"message":"완료 확인 부탁"}`),
-		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
+		Context:  capabilities.ToolInvokeContext{HoldID: "held-test"},
 	})
 	if errorValue != nil {
 		t.Fatal(errorValue)

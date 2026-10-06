@@ -63,15 +63,13 @@ func (service Service) invokeChatdDirectMessageBroadcast(ctx context.Context, re
 // The runtime speaks for itself when it tells somebody about a decision the
 // company made; a person asking for a message to be passed on is somebody
 // else's words, and they go out under that person's name.
-const platformTellingTaskSource = "plane_telling"
-
 func (service Service) sendChatdDirectMessageToHint(ctx context.Context, request capabilities.ToolInvokeRequest, personHint string, message string) (platformMessageBroadcastResult, platformDMFailure, bool) {
 	named, failure, hasFailure := service.namedDirectoryPerson(ctx, personHint, request.Context.ResponseLanguage)
 	if hasFailure {
 		return platformMessageBroadcastResult{}, failure, true
 	}
 	senderEmail := strings.TrimSpace(request.Context.RequesterEmail)
-	if senderEmail != "" && strings.TrimSpace(request.Context.TaskSource) != platformTellingTaskSource {
+	if senderEmail != "" && strings.TrimSpace(request.Context.TaskSource) != capabilities.TaskSourcePlaneTelling {
 		return service.sendChatdDirectMessageAsRequester(ctx, senderEmail, named, message)
 	}
 	pubkeyHex, errorValue := service.directoryBuzzKey(ctx, named.Email)

@@ -60,7 +60,6 @@ func hostUpdateBody(request capabilities.ToolInvokeRequest) []byte {
 	if len(bytes.TrimSpace(input)) == 0 {
 		input = json.RawMessage("{}")
 	}
-	scheduledCall := request.Context.ScheduledApprovedCall
 	body, _ := json.Marshal(hostUpdateStart{
 		Input: input,
 		Requester: hostUpdateRequester{
@@ -69,7 +68,7 @@ func hostUpdateBody(request capabilities.ToolInvokeRequest) []byte {
 			ConversationID: request.Context.ConversationID,
 			ReplyTargetID:  request.Context.ReplyTargetID,
 		},
-		IsApproved: requesterApprovedThisCall(request.Context) || (scheduledCall != nil && strings.TrimSpace(scheduledCall.ToolName) == hostUpdateToolName),
+		IsApproved: requesterApprovedThisCall(request),
 	})
 	return body
 }

@@ -185,7 +185,10 @@ type WorkspaceFile struct {
 	SHA256        string `json:"sha256,omitempty"`
 }
 
-const TaskSourcePublicAPI = "public_api"
+const (
+	TaskSourcePublicAPI    = "public_api"
+	TaskSourcePlaneTelling = "plane_telling"
+)
 
 type ToolInvokeContext struct {
 	RequesterPersonID       string                 `json:"requesterPersonID,omitempty"`
@@ -194,7 +197,6 @@ type ToolInvokeContext struct {
 	RequesterPlatformUserID string                 `json:"requesterPlatformUserID,omitempty"`
 	TaskSource              string                 `json:"taskSource,omitempty"`
 	IsScheduledRun          bool                   `json:"isScheduledRun,omitempty"`
-	IsApprovalContinuation  bool                   `json:"isApprovalContinuation,omitempty"`
 	HoldID                  string                 `json:"holdID,omitempty"`
 	ScheduledApprovedCall   *ScheduledApprovedCall `json:"scheduledApprovedCall,omitempty"`
 	ConversationID          string                 `json:"conversationID,omitempty"`

@@ -398,7 +398,7 @@ test('an approval blueclaw says it already posted is not posted again, and still
 
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', {
 		...questionDelivery,
-		alreadyPosted: true
+		isAlreadyPosted: true
 	});
 	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
 	await client.answerPendingApproval(sampleAddressing, 'message-10', '응 보내줘');
@@ -479,7 +479,7 @@ test('an approval that blueclaw leaves the socket without hearing an answer for 
 
 const progressThread = 'buzz:conversation-1:message-7';
 const progressDelivery = { deliveryID: 'turn-1', replyTargetID: progressThread };
-const finalReplyDelivery = { ...progressDelivery, final: true };
+const finalReplyDelivery = { ...progressDelivery, isFinal: true };
 
 test('tool progress is posted once, edited on each update, and replaced by the reply', async () => {
 	const agent = anAgentOnASocket({});
@@ -579,7 +579,7 @@ test('a turn waiting on an approval is told apart from one that is not, also aft
 
 	await client.answerPendingApproval(sampleAddressing, 'message-3', '응 보내줘');
 	await waiting;
-	const reissued = agent.askWithNoTurnOpen('session-1', 'call-2', '다시 보낼까요?', { ...questionDelivery, alreadyPosted: true });
+	const reissued = agent.askWithNoTurnOpen('session-1', 'call-2', '다시 보낼까요?', { ...questionDelivery, isAlreadyPosted: true });
 	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be reissued');
 
 	expect(client.isWaitingOnApproval('conversation-1', 'message-1')).toBe(false);
@@ -602,7 +602,7 @@ test('after a restart the session bindings are loaded, a reissued approval waits
 	const afterTheRestart = aClientFor(agent.socketPath, conversation, { sessions });
 	await afterTheRestart.restoreSessionBindings();
 	await waitUntil(() => agent.sessionsLoaded.length === 1, 'the session binding to be loaded');
-	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', { ...questionDelivery, alreadyPosted: true });
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', { ...questionDelivery, isAlreadyPosted: true });
 	await waitUntil(() => afterTheRestart.hasPendingApprovalIn('conversation-1'), 'the approval to be waited on');
 
 	expect(agent.sessionsLoaded[0].sessionId).toBe('session-1');

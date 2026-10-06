@@ -256,7 +256,7 @@ func (service *Service) invokePublicTool(responseWriter http.ResponseWriter, req
 	}
 	toolRequest.ToolName = toolName
 	toolRequest.Actor = actor.Actor
-	toolRequest.Context = publicToolInvokeContext(actor.Actor, descriptor)
+	toolRequest.Context = publicToolInvokeContext(actor.Actor)
 	toolRequest.PrivacyClass = descriptor.PrivacyClass
 	toolRequest.RequiresUserPresence = descriptor.RequiresUserPresence
 	carriedFiles, refusalStatus, errorValue := service.carriedWorkspaceFiles(request.Context(), actor.Actor, toolRequest.Input)
@@ -419,13 +419,12 @@ func decodeOptionalJSONBody(reader io.Reader, target any) error {
 	return json.Unmarshal(document, target)
 }
 
-func publicToolInvokeContext(actor capabilities.ActorContext, descriptor capabilities.Descriptor) capabilities.ToolInvokeContext {
+func publicToolInvokeContext(actor capabilities.ActorContext) capabilities.ToolInvokeContext {
 	return capabilities.ToolInvokeContext{
-		RequesterPersonID:      actor.PersonID,
-		RequesterEmail:         strings.ToLower(strings.TrimSpace(actor.Email)),
-		RequesterName:          actor.DisplayName,
-		TaskSource:             capabilities.TaskSourcePublicAPI,
-		IsApprovalContinuation: publicToolPermissionForDescriptor(descriptor) != "",
+		RequesterPersonID: actor.PersonID,
+		RequesterEmail:    strings.ToLower(strings.TrimSpace(actor.Email)),
+		RequesterName:     actor.DisplayName,
+		TaskSource:        capabilities.TaskSourcePublicAPI,
 	}
 }
 

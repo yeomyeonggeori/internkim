@@ -90,8 +90,8 @@ func TestPublicToolGatewayAllowsConnectWithWritePermission(t *testing.T) {
 		if request.ToolName != "mail_connection_start" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
-		if !request.Context.IsApprovalContinuation {
-			t.Fatal("connect tool should be treated as approved continuation for a public token")
+		if request.Context.TaskSource != capabilities.TaskSourcePublicAPI {
+			t.Fatalf("the call reached the capability daemon as %#v", request.Context)
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "connection_required", Result: json.RawMessage(`{"authorizationURL":"https://example.com/oauth"}`)}
 	})
@@ -134,8 +134,8 @@ func TestPublicToolGatewayAllowsDeletePermission(t *testing.T) {
 		if request.ToolName != "task_delete" {
 			t.Fatalf("tool name = %q", request.ToolName)
 		}
-		if !request.Context.IsApprovalContinuation {
-			t.Fatal("delete tool should be treated as approved continuation for a public token")
+		if request.Context.TaskSource != capabilities.TaskSourcePublicAPI {
+			t.Fatalf("the call reached the capability daemon as %#v", request.Context)
 		}
 		return capabilities.ToolInvokeResponse{Provider: "internkim", SelectedBackend: "device", ToolName: request.ToolName, Status: "deleted", Result: json.RawMessage(`{"status":"deleted"}`)}
 	})
@@ -403,12 +403,11 @@ func TestPublicAPICarriesNoConversationAtAll(t *testing.T) {
 
 func TestThePublicAPICallIsTheAdministratorsConfirmationOfAHostUpdate(t *testing.T) {
 	for _, testCase := range []struct {
-		toolName       string
-		permission     string
-		isConfirmation bool
+		toolName   string
+		permission string
 	}{
-		{"host_update", publicAPIPermissionDelete, true},
-		{"host_version_get", publicAPIPermissionRead, false},
+		{"host_update", publicAPIPermissionDelete},
+		{"host_version_get", publicAPIPermissionRead},
 	} {
 		t.Run(testCase.toolName, func(t *testing.T) {
 			service := newTaskAuthorizationTestService(t)
@@ -427,7 +426,7 @@ func TestThePublicAPICallIsTheAdministratorsConfirmationOfAHostUpdate(t *testing
 			if response.Code != http.StatusOK {
 				t.Fatalf("status = %d body = %s", response.Code, response.Body.String())
 			}
-			if invoked.Context.IsApprovalContinuation != testCase.isConfirmation || invoked.Context.TaskSource != capabilities.TaskSourcePublicAPI {
+			if invoked.Context.TaskSource != capabilities.TaskSourcePublicAPI {
 				t.Fatalf("the call reached the capability daemon as %#v", invoked.Context)
 			}
 			if invoked.Context.RequesterEmail != "admin@example.com" || invoked.Context.RequesterPersonID != "user-admin" || invoked.Context.ConversationID != "" {
