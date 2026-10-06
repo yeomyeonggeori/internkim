@@ -28,7 +28,7 @@
 	const adminPageText = createPageText(adminText);
 	const adminBaseURL = '/admin/api';
 	const detailSheetViewport = new IsMobile(1024);
-	const controller = new OrganizationDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value);
+	const controller = new OrganizationDirectoryController(adminBaseURL, text, adminPageText, () => currentLocale.value, page.data.workspaceScope ?? '');
 
 	const orderedRecords = $derived([
 		...controller.records.filter((record) => controller.isOwnRecord(record)),
@@ -70,6 +70,7 @@
 
 	onMount(() => {
 		void controller.load();
+		return () => controller.dispose();
 	});
 
 	function handleDetailSheetOpenChange(nextOpen: boolean): void {
@@ -91,7 +92,7 @@
 	<div class="grid h-full min-h-0">
 		<section class="min-h-0 overflow-hidden">
 			{#if controller.isLoading}
-				<OrganizationLoadingSkeleton />
+					<OrganizationLoadingSkeleton label={text.title} />
 			{:else}
 				<div class="grid h-full min-h-0 lg:grid-cols-[270px_minmax(0,1fr)]" data-testid="organization-board">
 					<div class="hidden min-h-0 lg:block">
@@ -172,7 +173,7 @@
 								{#if controller.errorMessage}
 									<p class="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{controller.errorMessage}</p>
 								{/if}
-									{#if controller.organizationSections.every((section) => section.records.length === 0)}
+									{#if controller.organizationSections.every((section) => section.records.length === 0) && !controller.errorMessage}
 									<p class="rounded-md border bg-muted/30 px-4 py-5 text-sm text-muted-foreground">{text.empty}</p>
 								{:else}
 									<OrganizationPeopleLayer
