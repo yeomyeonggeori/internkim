@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
@@ -69,7 +70,7 @@
 	</Card.Header>
 	<Card.Content class="grid gap-4">
 		{#if isLoading}
-			<p class="text-sm text-muted-foreground">{text.messengerLoading}</p>
+			<p role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />{text.messengerLoading}</p>
 		{:else if !requirement}
 			<p class="text-sm text-muted-foreground">{text.messengerUnavailable}</p>
 		{:else}

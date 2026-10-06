@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { z } from 'zod';
 	import { Button } from '$lib/components/ui/button';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import * as Select from '$lib/components/ui/select';
 	import { dataRoomRequest, dataRoomFile, sharedDataRoomSchema } from '$lib/data-room/guest';
 
@@ -58,15 +59,16 @@
 				{/each}
 			{/each}
 		</nav>
-		<section aria-label="Documents" class="min-w-0 space-y-4">
-			{#each visibleDocuments as document (document.id)}
+			<section aria-label="Documents" class="min-w-0 space-y-4">
+				{#if !room && !failure}<div role="status" aria-label="Loading documents" aria-busy="true" class="grid gap-4">{#each [0, 1, 2] as row (row)}<div aria-hidden="true" class="grid gap-3 rounded-lg border p-4"><div class="flex justify-between gap-4"><Skeleton class="h-4 w-2/3" /><Skeleton class="h-3 w-12" /></div><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-4/5" /><div class="flex gap-2"><Skeleton class="h-8 w-16" /><Skeleton class="h-8 w-24" /></div></div>{/each}</div>{/if}
+				{#each visibleDocuments as document (document.id)}
 				<article class="rounded-lg border p-4">
 					<div class="flex items-start justify-between gap-4"><h2 class="min-w-0 break-words text-sm font-semibold">{document.title}</h2><span class="shrink-0 font-mono text-xs text-muted-foreground">{document.category_code}</span></div>
 					<p class="mt-2 text-sm text-muted-foreground">{document.summary ?? ''}</p>
 					<div class="mt-3 flex gap-2"><Button variant="outline" size="sm" onclick={() => openDocument(document.id)}>Read</Button><Button variant="ghost" size="sm" onclick={() => openDocument(document.id, true)}>Download</Button></div>
 					{#if selectedDocument === document.id}<pre class="mt-4 max-h-[70vh] overflow-auto whitespace-pre-wrap break-words border-t pt-4 text-sm font-sans">{text}</pre>{/if}
 				</article>
-			{:else}<p class="rounded-lg border p-8 text-sm text-muted-foreground">{room ? 'No documents are available to you.' : 'Loading…'}</p>{/each}
+				{:else}{#if room}<p class="rounded-lg border p-8 text-sm text-muted-foreground">No documents are available to you.</p>{/if}{/each}
 		</section>
 	</div>
 </main>

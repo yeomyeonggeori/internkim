@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
@@ -71,7 +72,9 @@
 		<Card.Description>{text.baseCurrencyDescription}</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-4">
-		{#if !isLoading}
+		{#if isLoading}
+			<div role="status" aria-label={text.baseCurrency} aria-busy="true"><div aria-hidden="true" class="grid gap-4"><div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-9 w-full" /></div><Skeleton class="h-4 w-4/5" /><Skeleton class="h-9 w-full" /></div></div>
+		{:else}
 			<div class="grid gap-2">
 				<Label for="{fieldID}-currency">{text.baseCurrency}</Label>
 				<Select.Root type="single" value={chosen} onValueChange={(value) => (chosen = value)} disabled={isSaving}>

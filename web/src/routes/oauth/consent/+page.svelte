@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import * as Alert from '$lib/components/ui/alert';
 	import { Button } from '$lib/components/ui/button';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
 	import * as Select from '$lib/components/ui/select';
@@ -68,11 +69,11 @@
 				{#if !authorizationID}
 					<Card.Description>{text.missing}</Card.Description>
 				{:else if request === null}
-					<Card.Description>{text.reading}</Card.Description>
+					<Card.Description role="status" class="flex items-center gap-2"><Spinner />{text.reading}</Card.Description>
 				{:else if request.kind === 'unreadable'}
 					<Card.Description>{text.unreadable}</Card.Description>
 				{:else if request.kind === 'decided'}
-					<Card.Description>{text.redirecting}</Card.Description>
+					<Card.Description role="status" class="flex items-center gap-2"><Spinner />{text.redirecting}</Card.Description>
 				{:else}
 					<Card.Description>
 						{text.asking

@@ -2,6 +2,7 @@ import { supabase } from '$lib/supabase';
 import { callCompanyApp } from '$lib/host-bridge';
 import { normalizeMailAccountResponse } from './mail-api-normalizers';
 import type { MailAccountWritePayload } from './mail-types';
+import { MailReadError } from './mail-read-error';
 
 async function askTheRecord(method: string, payload?: MailAccountWritePayload): Promise<unknown> {
 	const { data } = await supabase().auth.getSession();
@@ -16,7 +17,7 @@ async function askTheRecord(method: string, payload?: MailAccountWritePayload): 
 		},
 		body: payload ? JSON.stringify(payload) : undefined
 	});
-	if (!response.ok) throw new Error((await refusalOf(response)) || `the mail account answered ${response.status}`);
+	if (!response.ok) throw new MailReadError((await refusalOf(response)) || `the mail account answered ${response.status}`, response.status);
 	const answered = (await response.json()) as { account: unknown };
 	return answered.account;
 }

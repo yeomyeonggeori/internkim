@@ -1,6 +1,7 @@
 import { adminApiFetch } from '$lib/admin-api';
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { RunsReadError } from './runs-read-error';
 
 export type TaskRunSummary = {
 	taskRunID: string;
@@ -81,7 +82,7 @@ export async function fetchTaskRuns(request: TaskRunsRequest = {}): Promise<Task
 
 	const response = await adminApiFetch(taskRunsAPIPath(request));
 	if (!response.ok) {
-		throw new Error(`Task list request returned ${response.status}`);
+		throw new RunsReadError(`Task list request returned ${response.status}`, response.status);
 	}
 	const document: unknown = await response.json();
 	return readTaskRunsResponse(document);
@@ -483,13 +484,13 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 async function askTheDeviceForDetail(taskRunID: string): Promise<unknown> {
 	const query = new URLSearchParams({ taskRunID });
 	const response = await adminApiFetch(`/runs/api/detail?${query.toString()}`);
-	if (!response.ok) throw new Error(`Task detail request returned ${response.status}`);
+	if (!response.ok) throw new RunsReadError(`Task detail request returned ${response.status}`, response.status);
 	return response.json();
 }
 
 async function askTheCompanyAppForDetail(taskRunID: string): Promise<unknown> {
 	const answer = await callCompanyApp({ capability: 'person.runs.detail', body: { taskRunID } });
-	if (answer.status >= 400) throw new Error(`Task detail request returned ${answer.status}`);
+	if (answer.status >= 400) throw new RunsReadError(`Task detail request returned ${answer.status}`, answer.status);
 	return answer.body;
 }
 
@@ -503,6 +504,6 @@ async function askTheCompanyApp(request: TaskRunsRequest): Promise<unknown> {
 	if (request.status) body.status = request.status;
 
 	const answer = await callCompanyApp({ capability: 'person.runs.list', body });
-	if (answer.status >= 400) throw new Error(`Task list request returned ${answer.status}`);
+	if (answer.status >= 400) throw new RunsReadError(`Task list request returned ${answer.status}`, answer.status);
 	return answer.body;
 }

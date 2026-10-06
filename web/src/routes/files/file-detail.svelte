@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Code from '$lib/components/ui/code';
 	import { Button } from '$lib/components/ui/button';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -141,12 +142,12 @@
 			class="bg-muted max-h-80 w-full rounded-md border object-contain"
 		/>
 	{:else if canPreviewImage && isPreviewLoading}
-		<p class="text-muted-foreground text-sm">{text.previewLoading}</p>
+		<div role="status" aria-label={text.previewLoading} aria-busy="true"><Skeleton aria-hidden="true" class="aspect-video max-h-80 w-full rounded-md" /></div>
 	{:else if canPreviewImage && hasPreviewError}
 		<p class="text-destructive text-sm">{text.previewError}</p>
 	{:else if canPreviewText}
 		{#if isPreviewLoading}
-			<p class="text-muted-foreground text-sm">{text.previewLoading}</p>
+			<div role="status" aria-label={text.previewLoading} aria-busy="true"><div aria-hidden="true" class="grid gap-3 rounded-md border p-3">{#each [0, 1, 2, 3, 4, 5] as row (row)}<div class={isTabular ? 'grid grid-cols-3 gap-3' : 'grid'}><Skeleton class="h-3 w-4/5" />{#if isTabular}<Skeleton class="h-3 w-full" /><Skeleton class="h-3 w-2/3" />{/if}</div>{/each}</div></div>
 		{:else if hasPreviewError}
 			<p class="text-destructive text-sm">{text.previewError}</p>
 		{:else if isTabular}

@@ -139,7 +139,8 @@
 							dateLabel={text.modified}
 							emptyLabel={text.empty}
 							selectedID={files.selectedFile?.agentPath}
-							isLoading={files.isLoading || files.isLoadingPath(files.currentPath)}
+								isLoading={files.isLoading || files.isLoadingPath(files.currentPath)}
+								hasLoadError={Boolean(files.errorMessage)}
 							onSelect={openEntry}
 						/>
 						{#if isDraggingOver}<div

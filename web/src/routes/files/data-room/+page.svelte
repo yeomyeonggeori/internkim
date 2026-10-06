@@ -112,6 +112,7 @@
 			<FileBrowserList
 				{entries}
 				{isLoading}
+				hasLoadError={Boolean(errorMessage)}
 				title={text.title}
 				nameLabel={text.name}
 				secondaryLabel={text.category}

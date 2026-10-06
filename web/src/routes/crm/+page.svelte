@@ -12,7 +12,8 @@
 	import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
 	import AlertCircleIcon from '@lucide/svelte/icons/alert-circle';
 	import CheckCircle2Icon from '@lucide/svelte/icons/check-circle-2';
-	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
+	import { Spinner } from '$lib/components/ui/spinner';
+	import CRMLoadingSkeleton from './crm-loading-skeleton.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { untrack } from 'svelte';
@@ -374,10 +375,10 @@
 	{/if}
 
 	{#if controller.isLoading}
-		<div role="status" class="flex min-h-64 items-center justify-center gap-2 rounded-md border text-sm text-muted-foreground"><LoaderCircleIcon class="size-4 animate-spin" />{text.loading}</div>
+			<CRMLoadingSkeleton {text} tabs={tabItems} />
 	{:else if controller.hasData && !controller.permissionDenied}
 		{#if controller.isDirectoryLoading}
-			<div role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircleIcon class="size-4 animate-spin" />{text.directoryLoading}</div>
+				<div role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner />{text.directoryLoading}</div>
 		{:else if controller.directoryErrorMessage}
 			<div role="alert" class="flex items-center gap-2 text-sm text-destructive"><AlertCircleIcon class="size-4" />{controller.directoryErrorMessage}<Button variant="outline" size="sm" onclick={() => controller.retryDirectory()}>{text.retry}</Button></div>
 		{/if}

@@ -6,7 +6,7 @@
 	import * as Field from '$lib/components/ui/field';
 	import { Label } from '$lib/components/ui/label';
 	import { Switch } from '$lib/components/ui/switch';
-	import LoaderIcon from '@lucide/svelte/icons/loader';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onMount } from 'svelte';
 	import {
@@ -36,7 +36,7 @@
 	let totalCount = $state(0);
 	let hasLoadError = $state(false);
 	let actionErrorMessage = $state('');
-	let isLoading = $state(false);
+	let isLoading = $state(true);
 	let isSavingSchedule = $state(false);
 	let isEditDialogOpen = $state(false);
 	let includeExpiredSchedules = $state(true);
@@ -151,7 +151,7 @@
 				</Label>
 			</div>
 			<Button type="button" variant="ghost" size="icon-sm" disabled={isLoading} onclick={refreshSchedules} aria-label={text.refresh} title={text.refresh}>
-				<RefreshCwIcon class={isLoading ? 'animate-spin' : ''} />
+				{#if isLoading}<Spinner />{:else}<RefreshCwIcon />{/if}
 			</Button>
 		</Card.Action>
 	</Card.Header>

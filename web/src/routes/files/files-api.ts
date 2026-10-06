@@ -1,5 +1,6 @@
 import { callCompanyApp } from '$lib/host-bridge';
 import { isSupabaseConfigured } from '$lib/supabase';
+import { FilesReadError } from './files-read-error';
 import {
 	copiedForReading,
 	signedForReading,
@@ -38,7 +39,7 @@ export async function fetchWorkspaceRoots(): Promise<WorkspaceRoot[]> {
 		return (answered as { roots?: WorkspaceRoot[] }).roots ?? [];
 	}
 	const response = await fetch('/files/api/roots', { credentials: 'include' });
-	if (!response.ok) throw new Error(await failedResponseMessage(response));
+	if (!response.ok) throw new FilesReadError(await failedResponseMessage(response), response.status);
 	const payload = (await response.json()) as { roots: WorkspaceRoot[] };
 	return payload.roots ?? [];
 }
@@ -49,7 +50,7 @@ export async function listWorkspaceDirectory(path: string): Promise<WorkspaceEnt
 		return (answered as { entries?: WorkspaceEntry[] }).entries ?? [];
 	}
 	const response = await fetch(`/files/api/list?path=${encodeURIComponent(path)}`, { credentials: 'include' });
-	if (!response.ok) throw new Error(await failedResponseMessage(response));
+	if (!response.ok) throw new FilesReadError(await failedResponseMessage(response), response.status);
 	const payload = (await response.json()) as { entries: WorkspaceEntry[] };
 	return payload.entries ?? [];
 }
@@ -111,7 +112,7 @@ export async function uploadWorkspaceFiles(
 
 async function askTheCompanyApp(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	const answer = await callCompanyApp({ capability, body });
-	if (answer.status >= 400) throw new Error(companyAppErrorMessage(answer.body, answer.status));
+	if (answer.status >= 400) throw new FilesReadError(companyAppErrorMessage(answer.body, answer.status), answer.status);
 	return answer.body;
 }
 

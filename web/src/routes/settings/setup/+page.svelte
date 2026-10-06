@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { ensureAgentConversation } from '$lib/components/channel/channel-api';
@@ -95,7 +96,7 @@
 		</header>
 		{#if errorMessage}<p role="alert" class="text-sm text-destructive">{errorMessage}</p>{/if}
 		{#if isLoading}
-			<p role="status">{text.loading}</p>
+				<div role="status" aria-label={text.loading} aria-busy="true" class="grid gap-6"><Skeleton aria-hidden="true" class="h-4 w-48" /><div aria-hidden="true" class="grid gap-6 rounded-xl border p-6"><div class="grid gap-2"><Skeleton class="h-5 w-32" /><Skeleton class="h-4 w-4/5" /></div><div class="grid gap-3 rounded-lg border p-4"><Skeleton class="h-5 w-36" /><Skeleton class="h-4 w-2/3" /></div><Skeleton class="h-4 w-40" /><Skeleton class="h-9 w-28" /></div></div>
 		{:else if status}
 			<p class="text-sm">{status.company.name} · {text.accountReady}</p>
 			<Card.Root>

@@ -4,6 +4,7 @@ import { normalizeMailMessagePageCacheActorEmail } from './mail-message-page-cac
 import type { MailPageControllerState, MailPageText } from './mail-page-controller-types';
 import type { MailMessage } from './mail-types';
 import { markMailMessageRead } from './mail-page-message-mutation-actions';
+import { discardDeniedMail, isMailAccessDenied } from './mail-read-error';
 
 export function selectMailPageMessage(controller: MailPageControllerState, text: MailPageText, message: MailMessage) {
 	controller.selectedMessage = message;
@@ -34,6 +35,7 @@ export async function loadMessageDetail(controller: MailPageControllerState, tex
 		controller.messageDetailCache.set(messageKey, controller.selectedMessage);
 	} catch (error) {
 		if (!isCurrentMessageDetailRequest(controller, requestID, actorEmail, messageKey)) return;
+		if (isMailAccessDenied(error)) discardDeniedMail(controller);
 		controller.errorMessage = error instanceof Error ? error.message : text.errors.loadMessage;
 	} finally {
 		if (isCurrentMessageDetailRequest(controller, requestID, actorEmail, messageKey)) controller.isLoadingMessage = false;

@@ -16,21 +16,27 @@
 	import { fetchPendingApprovals, type PendingApproval } from '../runs-api';
 	import { formatTaskTimestamp } from '../runs-view';
 	import { tasksText } from '../text';
+	import { isRunsAccessDenied } from '../runs-read-error';
 
 	const text = createPageText(tasksText);
 	let approvals = $state<PendingApproval[] | undefined>(undefined);
 	let loadError = $state('');
 	let isLoading = $state(false);
+	let loadGeneration = 0;
 
 	async function load() {
+		const generation = ++loadGeneration;
 		isLoading = true;
 		loadError = '';
 		try {
-			approvals = await fetchPendingApprovals();
-		} catch {
+			const response = await fetchPendingApprovals();
+			if (generation === loadGeneration) approvals = response;
+		} catch (error) {
+			if (generation !== loadGeneration) return;
+			if (isRunsAccessDenied(error)) approvals = undefined;
 			loadError = text.approvalsLoadError;
 		} finally {
-			isLoading = false;
+			if (generation === loadGeneration) isLoading = false;
 		}
 	}
 
@@ -64,12 +70,12 @@
 		<Card.Root size="sm" class="border-destructive/30">
 			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
 		</Card.Root>
-	{:else if approvals === undefined}
-		<section class="flex flex-col gap-3">
-			<Skeleton class="h-40 w-full" />
-			<Skeleton class="h-40 w-full" />
-		</section>
-	{:else if approvals.length === 0}
+		{/if}
+		{#if approvals === undefined && !loadError}
+			<section role="status" aria-label={text.approvalsTitle} aria-busy="true" class="grid gap-4" data-testid="approvals-loading-skeleton">
+				{#each [0, 1] as card (card)}<div aria-hidden="true" class="grid gap-4 rounded-xl border p-6"><div class="flex flex-wrap gap-3"><Skeleton class="h-5 w-24 rounded-full" /><Skeleton class="h-4 w-28" /><Skeleton class="h-4 w-28" /></div><Skeleton class="h-5 w-3/4" /><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-2/3" /><div class="flex gap-2"><Skeleton class="h-9 w-24" /><Skeleton class="h-9 w-24" /></div><Skeleton class="h-4 w-20" /></div>{/each}
+			</section>
+		{:else if approvals?.length === 0}
 		<Empty.Root>
 			<Empty.Header>
 				<Empty.Media variant="icon">
@@ -78,7 +84,7 @@
 				<Empty.Title>{text.approvalsEmpty}</Empty.Title>
 			</Empty.Header>
 		</Empty.Root>
-	{:else}
+		{:else if approvals}
 		<section class="flex flex-col gap-4">
 			{#each approvals as approval (approval.taskRun.taskRunID)}
 				<Card.Root>

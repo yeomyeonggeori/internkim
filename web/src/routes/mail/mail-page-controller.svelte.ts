@@ -29,6 +29,7 @@ import {
 } from './mail-page-utils';
 import type { MailMoveTarget } from './mail-page-utils';
 import type { ComposeDraft, MailAccount, MailAccountDraft, Mailbox, MailMessage } from './mail-types';
+import { discardDeniedMail, isMailAccessDenied } from './mail-read-error';
 import type { MailComposeFocusField, MailMessagePageCacheEntry, MailPageText, RequestedMailMessage } from './mail-page-controller-types';
 
 export function createMailPageController(text: MailPageText) {
@@ -82,6 +83,7 @@ class MailPageController {
 	selectedMailboxLabel = () => selectedMailboxLabel(this.pageMailboxes(), this.selectedMailbox);
 
 	loadMail = async () => {
+		const actorEmail = this.mailActorEmail();
 		this.isLoading = !this.hasLoadedAccount && this.messages.length === 0;
 		this.isSyncing = true;
 		this.errorMessage = '';
@@ -97,6 +99,7 @@ class MailPageController {
 			await Promise.all([loadPageMailboxes(this, this.text), this.loadMessages()]);
 			await this.resolveRequestedMessage();
 		} catch (error) {
+			if (isMailAccessDenied(error) && actorEmail === this.mailActorEmail()) discardDeniedMail(this);
 			this.hasLoadedAccount = true;
 			this.errorMessage = error instanceof Error ? error.message : this.text.errors.loadMail;
 		} finally {

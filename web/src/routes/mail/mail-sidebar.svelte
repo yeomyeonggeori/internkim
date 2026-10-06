@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import ArchiveIcon from '@lucide/svelte/icons/archive';
 	import AtSignIcon from '@lucide/svelte/icons/at-sign';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
@@ -60,11 +61,11 @@
 		<Sidebar.Group>
 			<Sidebar.GroupLabel>{text.mailboxes}</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
-				{#if !hasLoadedAccount}
-					<p class="px-2 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">{text.checkingMail}</p>
-				{:else if isLoadingMailboxes && !mailboxes.length}
-					<p class="px-2 py-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">{text.loadingMailboxes}</p>
-				{/if}
+				{#if !hasLoadedAccount || (isLoadingMailboxes && !mailboxes.length)}
+					<div role="status" aria-label={text.loadingMailboxes} aria-busy="true" class="grid gap-2 p-2">
+						{#each [0, 1, 2, 3] as row (row)}<div aria-hidden="true" class="flex items-center gap-2"><Skeleton class="size-4 shrink-0" /><Skeleton class="h-5 w-3/4 group-data-[collapsible=icon]:hidden" /></div>{/each}
+					</div>
+				{:else}
 				<Sidebar.Menu>
 					{#each mailboxes as mailbox (mailbox.name)}
 						{@const Icon = mailboxIcon(mailbox.name)}
@@ -85,6 +86,7 @@
 						</Sidebar.MenuItem>
 					{/each}
 				</Sidebar.Menu>
+				{/if}
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
 	</Sidebar.Content>

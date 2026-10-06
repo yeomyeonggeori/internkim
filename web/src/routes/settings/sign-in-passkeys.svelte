@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SettingsListLoading from './settings-list-loading.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import {
@@ -21,6 +22,7 @@
 
 	let passkeys = $state<Passkey[]>([]);
 	let isLoading = $state(true);
+	let hasLoadError = $state(false);
 	let removingID = $state('');
 	let isRegistering = $state(false);
 
@@ -38,9 +40,11 @@
 	}
 
 	async function load() {
+		hasLoadError = false;
 		try {
 			passkeys = await listPasskeys();
 		} catch {
+			hasLoadError = true;
 			toast.error(text.passkeysLoadFailed);
 		} finally {
 			isLoading = false;
@@ -86,8 +90,11 @@
 	<Card.Content class="grid gap-4">
 		{#if !isSupported}
 			<p class="text-sm text-muted-foreground">{text.passkeysUnsupported}</p>
-		{:else if !isLoading}
-			{#if passkeys.length === 0}
+		{:else if isLoading}
+			<SettingsListLoading label={text.passkeys} />
+		{:else}
+			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.passkeysLoadFailed}</p>{/if}
+			{#if passkeys.length === 0 && !hasLoadError}
 				<p class="text-sm text-muted-foreground">{text.noPasskeys}</p>
 			{:else}
 				<ul class="grid gap-2">

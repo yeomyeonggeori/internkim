@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import SettingsListLoading from './settings-list-loading.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { connectedApps, disconnectApp, type ConnectedApp } from '$lib/connected-apps';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -11,12 +12,15 @@
 
 	let apps = $state<ConnectedApp[]>([]);
 	let isLoading = $state(true);
+	let hasLoadError = $state(false);
 	let disconnectingID = $state('');
 
 	async function load() {
+		hasLoadError = false;
 		try {
 			apps = await connectedApps();
 		} catch {
+			hasLoadError = true;
 			toast.error(text.connectedAppsLoadFailed);
 		} finally {
 			isLoading = false;
@@ -44,9 +48,12 @@
 		<Card.Title>{text.connectedApps}</Card.Title>
 		<Card.Description>{text.connectedAppsDescription}</Card.Description>
 	</Card.Header>
-	{#if !isLoading}
+	{#if isLoading}
+		<Card.Content><SettingsListLoading label={text.connectedApps} /></Card.Content>
+	{:else}
 		<Card.Content>
-			{#if apps.length === 0}
+			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.connectedAppsLoadFailed}</p>{/if}
+			{#if apps.length === 0 && !hasLoadError}
 				<p class="text-sm text-muted-foreground">{text.noConnectedApps}</p>
 			{:else}
 				<ul class="grid gap-2">

@@ -37,6 +37,7 @@
 	});
 
 	let members = $state<TabledMember[]>([]);
+	let isLoading = $state(true);
 	let isInviteOpen = $state(false);
 	let leaving = $state<TabledMember | null>(null);
 	let isPurging = $state(false);
@@ -50,6 +51,8 @@
 	onMount(readTheDirectory);
 
 	async function readTheDirectory() {
+		isLoading = true;
+		errorMessage = '';
 		try {
 			const directory = await supabaseOrganizationDirectory();
 			members = (directory.records ?? []).map((record) => ({
@@ -62,6 +65,8 @@
 			}));
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : text.membersUnavailable;
+		} finally {
+			isLoading = false;
 		}
 	}
 
@@ -178,7 +183,7 @@
 
 <Card.Root>
 	<Card.Content class="grid gap-4">
-		<MemberTable {members} text={tableText} extraHeaders={actionsHeader} extraCells={actionsCell} mobileExtra={memberActions} extraColumnCount={1} />
+		<MemberTable {members} {isLoading} hasLoadError={Boolean(errorMessage)} text={tableText} extraHeaders={actionsHeader} extraCells={actionsCell} mobileExtra={memberActions} extraColumnCount={1} />
 		<div>
 			<Button type="button" variant="outline" onclick={() => (isInviteOpen = true)}>
 				<UserPlusIcon />

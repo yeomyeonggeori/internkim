@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
@@ -124,6 +125,7 @@
 		<Card.Description>{text.notificationsDescription}</Card.Description>
 	</Card.Header>
 	<Card.Content class="grid gap-4">
+		{#if isLoadingReachability}<div role="status" aria-label={text.notifications} aria-busy="true"><Skeleton aria-hidden="true" class="h-9 w-full" /></div>{/if}
 		{#if reach === 'unsupported'}
 			<p class="text-sm text-muted-foreground">{text.notifyUnsupported}</p>
 		{:else if reach === 'unconfigured'}
@@ -145,7 +147,9 @@
 				</p>
 			{/if}
 		{/if}
-		{#if !isLoadingSettings}
+		{#if isLoadingSettings}
+			<div role="status" aria-label={text.notifications} aria-busy="true" class="grid gap-3">{#each [0, 1, 2] as row (row)}<div aria-hidden="true" class="flex items-center justify-between gap-4"><Skeleton class="h-4 w-40 max-w-[70%]" /><Skeleton class="h-5 w-9 rounded-full" /></div>{/each}</div>
+		{:else}
 			<div class="grid gap-3" class:opacity-50={isLoadingReachability || reach !== 'on'}>
 				{#each settings.categories.filter((choice) => choice.isChoosable) as choice (choice.category)}
 					<div class="flex items-center justify-between gap-4">

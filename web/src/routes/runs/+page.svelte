@@ -8,7 +8,8 @@
 	import * as Card from '$lib/components/ui/card';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { Skeleton } from '$lib/components/ui/skeleton';
+	import RunListLoadingSkeleton from './run-list-loading-skeleton.svelte';
+	import { isRunsAccessDenied } from './runs-read-error';
 	import * as Table from '$lib/components/ui/table';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -39,7 +40,8 @@
 	let statusFilter = $state('');
 	let loadError = $state('');
 	let actionError = $state('');
-	let isLoading = $state(false);
+	let isLoading = $state(true);
+	let loadGeneration = 0;
 	let isAdmin = $state(false);
 	let selectedView = $state('tasks');
 	let deletingTaskRunIDs = $state<Set<string>>(new Set());
@@ -55,6 +57,7 @@
 	]);
 
 	async function loadTaskRuns(pageIndex: number = taskPageIndex) {
+		const generation = ++loadGeneration;
 		isLoading = true;
 		loadError = '';
 		actionError = '';
@@ -65,8 +68,9 @@
 				offset: pageIndex * taskPageSize,
 				includeTotal: true,
 				includeCost: true,
-				dailyCostTaskRunLimit
-			});
+					dailyCostTaskRunLimit
+				});
+			if (generation !== loadGeneration) return;
 			if (response.totalCount === undefined) throw new Error('Task list response is missing totalCount');
 			const loadedTotalCount = response.totalCount;
 			const lastPageIndex = Math.max(0, Math.ceil(loadedTotalCount / taskPageSize) - 1);
@@ -79,10 +83,17 @@
 			dailyCostScope = response.dailyCostScope;
 			totalTaskRunCount = loadedTotalCount;
 			taskPageIndex = pageIndex;
-		} catch {
+		} catch (error) {
+			if (generation !== loadGeneration) return;
+			if (isRunsAccessDenied(error)) {
+				taskRuns = [];
+				dailyCostSummaries = [];
+				dailyCostScope = undefined;
+				totalTaskRunCount = 0;
+			}
 			loadError = text.loadError;
 		} finally {
-			isLoading = false;
+			if (generation === loadGeneration) isLoading = false;
 		}
 	}
 
@@ -256,20 +267,15 @@
 		<Card.Root size="sm" class="border-destructive/30">
 			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
 		</Card.Root>
-	{:else if isLoading && taskRuns.length === 0}
-		<Card.Root>
-			<Card.Content class="flex flex-col gap-2">
-				<Skeleton class="h-10 w-full" />
-				<Skeleton class="h-10 w-full" />
-				<Skeleton class="h-10 w-full" />
-			</Card.Content>
-		</Card.Root>
-	{:else if taskRuns.length === 0 && !isLoading}
+		{/if}
+		{#if isLoading && taskRuns.length === 0}
+			<RunListLoadingSkeleton label={text.title} {isAdmin} />
+		{:else if taskRuns.length === 0 && !isLoading && !loadError}
 		<Card.Root size="sm">
 			<Card.Content class="text-sm text-muted-foreground">{text.empty}</Card.Content>
 		</Card.Root>
-	{:else}
-		<Card.Root class="min-w-0">
+		{:else if taskRuns.length > 0}
+			<Card.Root class="min-w-0">
 			<Card.Content class="px-0">
 				<div class="divide-y md:hidden" data-task-run-mobile-list>
 					{#each taskRuns as taskRun (taskRun.taskRunID)}

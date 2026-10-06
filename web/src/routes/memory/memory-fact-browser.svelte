@@ -13,6 +13,7 @@
 	import * as Field from '$lib/components/ui/field';
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Empty from '$lib/components/ui/empty';
 	import { cn } from '$lib/utils';
 	import MemoryFactDetail from './memory-fact-detail.svelte';
@@ -22,6 +23,7 @@
 	import { fetchCircles, fetchMemoryFacts, type MemoryLayer, type MemoryFactsResponse } from './memory-facts-api';
 	import { filterMemoryFacts, groupFactsByLayer, isCurrentMemory, memoryLayerKey, memoryScopeLabel, memoryWhen } from './memory-workbench-model';
 	import type { MemoryText } from './text';
+	import { isMemoryAccessDenied } from './memory-read-error';
 
 	let { text }: { text: MemoryText } = $props();
 	let memory = $state<MemoryFactsResponse | null>(null);
@@ -29,7 +31,7 @@
 	let selectedFactID = $state('');
 	let selectedLayerKey = $state('all');
 	let query = $state('');
-	let isLoading = $state(false);
+	let isLoading = $state(true);
 	let includesPrevious = $state(false);
 	let hasLoadError = $state(false);
 	let requestSequence = 0;
@@ -48,14 +50,20 @@
 		const requestID = ++requestSequence;
 		isLoading = true;
 		hasLoadError = false;
-		memory = null;
 		try {
 			const [response, knownCircles] = await Promise.all([fetchMemoryFacts(), fetchCircles()]);
 			if (requestID !== requestSequence) return;
 			memory = response;
 			circles = knownCircles;
-		} catch {
-			if (requestID === requestSequence) hasLoadError = true;
+		} catch (error) {
+			if (requestID !== requestSequence) return;
+			if (isMemoryAccessDenied(error)) {
+				memory = null;
+				circles = [];
+				selectedFactID = '';
+				selectedLayerKey = 'all';
+			}
+			hasLoadError = true;
 		} finally {
 			if (requestID === requestSequence) isLoading = false;
 		}
@@ -76,9 +84,11 @@
 
 <div class="grid min-w-0 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:items-start">
 <aside class="flex min-w-0 flex-col gap-5" aria-label={text.layersTitle}>
-	{#if memory}
-		<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
-	{/if}
+		{#if memory}
+			<MemoryLayerStack layers={memory.layers} selectedKey={selectedLayerKey} {countOf} labelOf={scopeLabel} onSelect={(key) => { selectedLayerKey = key; selectedFactID = ''; }} {text} />
+		{:else if isLoading}
+			<div aria-hidden="true" class="grid gap-3"><Skeleton class="h-4 w-24" /><Skeleton class="h-3 w-4/5" />{#each [0, 1, 2, 3] as layer (layer)}<Skeleton class="h-10 w-full" />{/each}<Skeleton class="h-16 w-full" /></div>
+		{/if}
 </aside>
 <div class="flex min-w-0 flex-col rounded-xl border bg-background">
 	<div class="flex min-w-0 flex-col gap-4 p-4">
@@ -100,7 +110,7 @@
 	</form>
 
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<p class="min-w-0 text-sm text-muted-foreground" aria-live="polite">{isLoading ? text.loading : errorMessage ? '' : `${isSearching ? text.searchResults : text.currentMemories} · ${text.visibleCountTemplate.replace('{count}', String(visibleFacts.length))}`}</p>
+			<p class="flex min-w-0 items-center gap-2 text-sm text-muted-foreground" aria-live="polite">{#if isLoading}<Spinner />{text.loading}{:else if memory}{isSearching ? text.searchResults : text.currentMemories} · {text.visibleCountTemplate.replace('{count}', String(visibleFacts.length))}{/if}</p>
 		<div class="flex shrink-0 items-center gap-3">
 			<Field.Field orientation="horizontal" class="w-auto">
 				<Checkbox id="memory-include-previous" bind:checked={includesPrevious} />
@@ -118,12 +128,11 @@
 			</Alert.Root>
 		</div>
 	{/if}
-	{#if isLoading}
-		<div class="grid min-h-96 content-start gap-5 border-t p-5" aria-label={text.loading} aria-busy="true">
-			{#each [0, 1, 2, 3] as row (row)}
-				<div class="grid gap-2"><Skeleton class="h-5 w-3/4" /><Skeleton class="h-3 w-1/3" /></div>
-			{/each}
-		</div>
+		{#if isLoading && !memory}
+			<div class="grid min-w-0 border-t xl:min-h-[28rem] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]" role="status" aria-label={text.loading} aria-busy="true" data-testid="memory-loading-skeleton">
+				<div aria-hidden="true"><div class="border-b bg-muted/30 px-4 py-2"><Skeleton class="h-4 w-24" /></div>{#each [0, 1, 2, 3] as row (row)}<div class="grid gap-3 border-b px-4 py-5"><div class="flex items-start gap-3"><div class="grid flex-1 gap-2"><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-4/5" /></div><Skeleton class="h-3 w-8" /></div><Skeleton class="h-3 w-28" /></div>{/each}</div>
+				<div aria-hidden="true" class="hidden min-h-[28rem] items-center justify-center border-l xl:flex"><div class="grid justify-items-center gap-3"><Skeleton class="size-10 rounded-full" /><Skeleton class="h-4 w-28" /><Skeleton class="h-3 w-44" /></div></div>
+			</div>
 	{:else if memory}
 		{#if visibleFacts.length > 0}
 			<div class="grid min-w-0 border-t xl:min-h-[28rem] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
