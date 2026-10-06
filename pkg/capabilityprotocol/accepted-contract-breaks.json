@@ -543,5 +543,20 @@
 		"path": "host_version_get.result.lastUpdate",
 		"reason": "An update started from the settings screen has no conversation to be reported into, so admind keeps its result for the screen to read. The field is optional, and capabilityd under an older contract keeps an answer that carries it and only logs the field it does not know.",
 		"release": "the release carrying admind's host version answer with this field reaches company hosts; the plane deploys the catalog that names it, and no shipped skill reads it"
+	},
+	{
+		"path": "event_add.result.isOpenToCompany",
+		"reason": "An event open to the whole company says so, because that scope was only the absence of attendees and a deleted attendee turned a personal event into one. The field is present only on an open event, so every other answer is the shape the fleet already reads.",
+		"release": "the release carrying the catalog that names isOpenToCompany reaches devices before the plane deploys the migration that returns it; no shipped skill reads it"
+	},
+	{
+		"path": "event_update.result.isOpenToCompany",
+		"reason": "An event open to the whole company says so, because that scope was only the absence of attendees and a deleted attendee turned a personal event into one. The field is present only on an open event, so every other answer is the shape the fleet already reads.",
+		"release": "the release carrying the catalog that names isOpenToCompany reaches devices before the plane deploys the migration that returns it; no shipped skill reads it"
+	},
+	{
+		"path": "event_list.result.events[].isOpenToCompany",
+		"reason": "An event open to the whole company says so, because that scope was only the absence of attendees and a deleted attendee turned a personal event into one. The field is present only on an open event, so every other answer is the shape the fleet already reads.",
+		"release": "the release carrying the catalog that names isOpenToCompany reaches devices before the plane deploys the migration that returns it; no shipped skill reads it"
 	}
 ]

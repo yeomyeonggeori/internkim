@@ -20,6 +20,7 @@ function entry(overrides: Partial<CompanyCalendarEntry>): CompanyCalendarEntry {
 		color: '',
 		reminderMinutesBefore: null,
 		participants: [],
+		isOpenToCompany: false,
 		createdByEmail: '',
 		createdByName: '',
 		updatedAt: '',
@@ -35,7 +36,11 @@ describe('what is on a person schedule', () => {
 	});
 
 	test('an event open to the whole company, which names nobody', () => {
-		expect(isOnScheduleOf(whoseSample, entry({ participants: [] }))).toBe(true);
+		expect(isOnScheduleOf(whoseSample, entry({ participants: [], isOpenToCompany: true }))).toBe(true);
+	});
+
+	test('not a personal event whose participants are all gone', () => {
+		expect(isOnScheduleOf(whoseSample, entry({ participants: [], isOpenToCompany: false }))).toBe(false);
 	});
 
 	test('not an event others attend', () => {

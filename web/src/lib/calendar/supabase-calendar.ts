@@ -22,7 +22,8 @@ export function calendarEventWritten(payload: CalendarEventPayload): Record<stri
 		endsAt: payload.endsAt,
 		isWholeDay: payload.isAllDay,
 		notifyMinutesBefore: payload.reminderMinutesBefore ?? noReminder,
-		participantPersonHints: payload.participants.map((participant) => participant.personID)
+		participantPersonHints: payload.participants.map((participant) => participant.personID),
+		everyoneAttends: payload.isOpenToCompany
 	};
 }
 
@@ -73,6 +74,7 @@ export function calendarEventFromAnswer(answered: AnsweredEvent, timeZone: strin
 		timeZone,
 		isAllDay: answered.isWholeDay,
 		color: '',
+		isOpenToCompany: answered.isOpenToCompany === true,
 		participants: answered.participants.map((attendee) => ({
 			personID: attendee.personID ?? '',
 			name: attendee.name,
