@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestTheResolvedRecipientIdentityResolvesToItself(t *testing.T) {
 
 	byIdentity := decodeResolvedApprovalTarget(t, resolveApprovalTargetThroughRoute(t, service, "message_send", messageSendTargetInput(byName.ID)))
 
-	if byIdentity != byName {
+	if !reflect.DeepEqual(byIdentity, byName) {
 		t.Fatalf("narrowing the hold to the identity is only safe while it resolves to itself, got %+v then %+v", byName, byIdentity)
 	}
 }
