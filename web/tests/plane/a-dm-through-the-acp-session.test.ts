@@ -143,7 +143,7 @@ test('a native workspace file is delivered as one attachment with the final repl
 
 	try {
 		await until(
-			`the file and reply did not reach the messenger connector: ${JSON.stringify(plane.connector.pathsCalled())}`,
+			`the file and reply did not reach the messenger connector: ${JSON.stringify(plane.connector.calls, null, 2)}`,
 			() => currentPosts().some((post) => post.message === finalMessage)
 		);
 	} catch (error) {
