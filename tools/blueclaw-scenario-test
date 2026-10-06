@@ -21,7 +21,7 @@ from skill_paths import skill_root_paths  # noqa: E402
 def declared_variable(constant_name: str, source_name: str) -> str:
     declaration = re.search(
         constant_name + r' = "([A-Z_]+)"',
-        (SUBMODULE_PATH / "internal" / "e2e" / source_name).read_text(),
+        (SUBMODULE_PATH / "internal" / "defaultharness" / "e2e" / source_name).read_text(),
     )
     if declaration is None:
         raise SystemExit(f"blueclaw declares no {constant_name}, so its scenarios would skip")
@@ -43,7 +43,7 @@ def main() -> int:
     environment = dict(os.environ)
     environment[declared_variable("ScenarioSkillRootsVariable", "scenarios.go")] = os.pathsep.join(skill_roots)
     environment[declared_variable("ScenarioCapabilityCatalogVariable", "virtual_session.go")] = str(catalog_path)
-    arguments = sys.argv[1:] or ["-tags", "appliance", "./internal/e2e/"]
+    arguments = sys.argv[1:] or ["-tags", "appliance", "./internal/defaultharness/e2e/"]
     return subprocess.run(["go", "test", *arguments], cwd=SUBMODULE_PATH, env=environment).returncode
 
 

@@ -2,7 +2,7 @@
 """Fail when a hand-written tool name names a tool nothing serves.
 
 Two places name this repository's tools by hand: a skill's tool-references, and
-the standing duty registry in bluecollar, which is the ceiling on what a task an
+the standing duty registry in blueclaw, which is the ceiling on what a task an
 ambient duty launches may call. Both fail quietly. The selector hides a skill
 whose references are all unreachable instead of reporting them, which is how the
 calculator's terminal_run survived #875; the ceiling silently drops a name no
@@ -36,14 +36,13 @@ import sys
 from skill_paths import skill_root_paths
 from tool_name_sources import (
     BLUECLAW_ROOT,
-    BLUECOLLAR_ROOT,
     REPOSITORY_ROOT,
     model_hidden_tool_names,
     served_tool_names,
 )
 
 RETIRED_TOOL_NAMES = REPOSITORY_ROOT / "internal" / "capabilities" / "legacy.go"
-STANDING_DUTIES = BLUECOLLAR_ROOT / "agentcontract" / "standing_duty.go"
+STANDING_DUTIES = BLUECLAW_ROOT / "internal" / "inboundengagement" / "vocabulary.go"
 
 MINIMUM_CATALOG_SIZE = 60
 MINIMUM_RETIRED_NAMES = 12

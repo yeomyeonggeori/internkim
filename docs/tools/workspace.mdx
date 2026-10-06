@@ -26,7 +26,7 @@ file is an ordinary `bash` command under your own permissions.
 
 Registered in `.dependency/blueclaw/internal/agentruntime/file_tools.go` and
 `shell_tools.go`; the names live in
-`.dependency/blueclaw/.dependency/bluecollar/toolcontract/kernel_tools.go`.
+`.dependency/blueclaw/.dependency/blueprotocol/toolcontract/kernel_tools.go`.
 The file tools are not a separate code path: each builds a shell command and
 runs it through the same requester primitive as `bash`
 (`internal/agentruntime/requester_shell.go`), starting in your own `$HOME`, so

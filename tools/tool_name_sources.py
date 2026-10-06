@@ -18,8 +18,8 @@ GENERATED_CATALOG = (
 CAPABILITY_DESCRIPTORS = REPOSITORY_ROOT / "internal" / "capabilities" / "protocol.go"
 BLUECLAW_ROOT = REPOSITORY_ROOT / ".dependency" / "blueclaw"
 BLUECLAW_LOCAL_TOOLS = BLUECLAW_ROOT / "internal" / "agentruntime" / "local_tool_provider.go"
-BLUECOLLAR_ROOT = BLUECLAW_ROOT / ".dependency" / "bluecollar"
-KERNEL_TOOLS = BLUECOLLAR_ROOT / "toolcontract" / "kernel_tools.go"
+BLUEPROTOCOL_ROOT = BLUECLAW_ROOT / ".dependency" / "blueprotocol"
+KERNEL_TOOLS = BLUEPROTOCOL_ROOT / "toolcontract" / "kernel_tools.go"
 
 
 def names_in(path: pathlib.Path, pattern: str) -> set[str]:
