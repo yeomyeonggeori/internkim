@@ -235,7 +235,7 @@ func TestEveryToolThatResolvesATargetAheadNamesARequiredFieldOfItsOwnInputSchema
 // own resolver tests (message_delete:
 // TestMessageDeleteApprovalPreviewQuotesTheTargets and the route-path test
 // below; host_update: TestTheHostUpdateTargetCarriesAdmindsFactsAndChoices).
-var previewApprovalTargetRouteNames = []string{"message_delete", "host_update"}
+var previewApprovalTargetRouteNames = []string{"message_delete", "message_send", "host_update"}
 
 func TestEveryTargetRouteIsCoveredByAFixture(t *testing.T) {
 	if len(capabilityToolTargetRoutes) != len(previewApprovalTargetRouteNames) {
