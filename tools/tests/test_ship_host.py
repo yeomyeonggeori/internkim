@@ -200,7 +200,7 @@ class OrderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             ship_quietly(shipment_with(commands, options, directory))
         self.assertTrue(commands.matching("--channel stable"))
-        self.assertFalse(commands.matching("ssh"))
+        self.assertFalse(commands.matching("@host"))
 
     def test_a_tree_that_is_not_origin_main_cuts_nothing(self):
         commands = ScriptedCommands()
@@ -216,7 +216,7 @@ class OrderTest(unittest.TestCase):
             ship_quietly(shipment_with(commands, directory=directory))
         self.assertFalse(commands.matching("--channel stable"))
         self.assertFalse(commands.matching("release edit"))
-        self.assertFalse(commands.matching("ssh"))
+        self.assertFalse(commands.matching("@host"))
 
     def test_the_release_under_test_brings_the_package_the_restore_step_installs(self):
         commands = ScriptedCommands()
@@ -396,6 +396,55 @@ class HostOnlyTest(unittest.TestCase):
     def test_the_host_keeps_only_its_newest_packages(self):
         script = ship_host.keep_package_script("/tmp/staged.deb", ship_host.kept_package_path(NEW_TAG, "arm64"))
         self.assertIn(f"tail -n +{ship_host.HOST_PACKAGES_KEPT + 1}", script)
+
+
+class SshFlakeTest(unittest.TestCase):
+    def flaky(self, marker, failures, message="✗ exit status 255"):
+        commands = ScriptedCommands()
+        original = commands.answer
+        remaining = [failures]
+
+        def answer(arguments):
+            if marker in " ".join(arguments) and remaining[0] > 0:
+                remaining[0] -= 1
+                raise ship_host.CommandFailure(f"internkim @host ssh exited 1\n{message}")
+            return original(arguments)
+
+        commands.answer = answer
+        return commands
+
+    def test_a_host_command_that_could_not_connect_is_sent_again(self):
+        commands = self.flaky("apt-get install", 2)
+        with tempfile.TemporaryDirectory() as directory:
+            output = ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        self.assertEqual(len(commands.matching("apt-get install")), 3)
+        self.assertFalse(commands.matching("--allow-downgrades"))
+        self.assertIn("trying again", output)
+
+    def test_a_host_command_that_failed_on_the_host_is_not_sent_again(self):
+        commands = self.flaky("apt-get install", 1, message="E: Unable to locate package")
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure):
+            ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        self.assertEqual(len(commands.matching("apt-get install -y /")), 1)
+
+    def test_connection_failures_stop_after_the_last_attempt(self):
+        commands = self.flaky("apt-get install", ship_host.SSH_ATTEMPTS)
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(ship_host.ShipFailure):
+            ship_quietly(shipment_with(commands, HOST_ONLY, directory))
+        self.assertEqual(len(commands.matching("apt-get install -y /")), ship_host.SSH_ATTEMPTS)
+
+    def test_an_install_cut_off_midway_is_finished_by_the_next_one(self):
+        script = ship_host.host_install_script(shipment_with(ScriptedCommands(), HOST_ONLY))
+        self.assertLess(script.index("dpkg --configure -a"), script.index("apt-get install"))
+
+    def test_keeping_the_package_twice_keeps_it_once(self):
+        script = ship_host.keep_package_script("/tmp/staged.deb", "/var/cache/kept.deb")
+        self.assertIn("if [ -f /tmp/staged.deb ]", script)
+        self.assertIn("test -f /var/cache/kept.deb", script)
+
+    def test_a_failure_whose_only_report_line_is_the_exit_shows_what_came_before(self):
+        output = "SSH: operator@host\nkex_exchange_identification: Connection closed by remote host\n✗ exit status 255\n"
+        self.assertIn("Connection closed", ship_host.failure_excerpt(output))
 
 
 RIG_REPORT = """boot noise
