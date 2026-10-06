@@ -192,6 +192,14 @@
     translate: -50% 0;
   }
 
+  :root[data-mobile-keyboard-open] {
+    --app-mobile-nav-height: 0px;
+  }
+
+  :root[data-mobile-keyboard-open] .internkim-app-mobile-navigation {
+    visibility: hidden;
+  }
+
   .internkim-app-floating-action {
     position: fixed;
     right: max(0.75rem, env(safe-area-inset-right));
