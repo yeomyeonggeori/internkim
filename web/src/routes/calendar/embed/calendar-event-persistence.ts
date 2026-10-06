@@ -18,6 +18,7 @@ export type CalendarEvent = {
 	color: string;
 	reminderMinutesBefore?: number | null;
 	participants?: CalendarParticipant[];
+	isOpenToCompany?: boolean;
 	createdByEmail: string;
 	createdByName: string;
 	createdByImage?: string;
@@ -46,6 +47,7 @@ export type CalendarEventPayload = {
 	color: string;
 	reminderMinutesBefore: number | null;
 	participants: CalendarParticipantInput[];
+	isOpenToCompany: boolean;
 };
 
 export async function fetchCalendarEvents(startDate: Date, endDate: Date, timeZone?: Promise<string>): Promise<CalendarEvent[]> {

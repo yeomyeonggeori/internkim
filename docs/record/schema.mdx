@@ -49,6 +49,11 @@ company's zone, and `notify_minutes_before` is the reminder's lead time. A
 sixteen-day piece of work has a span and is not an event, which is why the
 calendar index is partial on `is_event`.
 
+An event open to the whole company says so in `is_open_to_company` and has no
+participant rows. An event with no rows that is not open belongs to nobody in
+particular: deleting a member removes their participant rows, and that does not
+widen the event to the company.
+
 There is no recurrence. Each occurrence is its own row, so "everything on my
 plate" is one query.
 

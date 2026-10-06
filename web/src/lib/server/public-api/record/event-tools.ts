@@ -61,6 +61,7 @@ export type AnsweredEvent = {
 	startsAt: string;
 	endsAt: string;
 	isWholeDay: boolean;
+	isOpenToCompany?: true;
 	notifyMinutesBefore?: number;
 	participants: AnsweredAttendee[];
 	updatedAt: string;
@@ -140,23 +141,31 @@ function answeredEvent(context: RecordContext, row: TaskRow): AnsweredEvent {
 		startsAt: row.starts_at ? momentIn(context.labels.timezone, row.starts_at) : '',
 		endsAt: row.ends_at ? momentIn(context.labels.timezone, row.ends_at) : '',
 		isWholeDay: row.is_whole_day,
+		...(row.is_open_to_company ? { isOpenToCompany: true as const } : {}),
 		...(row.notify_minutes_before ? { notifyMinutesBefore: row.notify_minutes_before } : {}),
 		participants: attendeesOfRow(context, row),
 		updatedAt: row.updated_at
 	};
 }
 
-// Everyone attending is the company, so it is read here rather than left as a
-// flag nothing acts on.
-function attendeesOf(context: RecordContext, written: EventWritten, row: TaskRow | null): string[] {
-	if (written.everyoneAttends) return [];
+type EventScope = { attendees: string[]; isOpenToCompany: boolean };
+
+function scopeOfEvent(context: RecordContext, written: EventWritten, row: TaskRow | null): EventScope {
+	if (written.everyoneAttends) return { attendees: [], isOpenToCompany: true };
 	if (written.participantPersonHints !== undefined) {
-		return peopleOfHints(context.people, written.participantPersonHints, 'participant').map(
+		const attendees = peopleOfHints(context.people, written.participantPersonHints, 'participant').map(
 			(person) => person.personID
 		);
+		const isOpenToCompany = written.everyoneAttends === undefined && attendees.length === 0;
+		return { attendees, isOpenToCompany };
 	}
-	if (row) return row.task_participant.map(({ member_id }) => member_id);
-	return [context.requesterID];
+	if (row && !(written.everyoneAttends === false && row.is_open_to_company)) {
+		return {
+			attendees: row.task_participant.map(({ member_id }) => member_id),
+			isOpenToCompany: row.is_open_to_company
+		};
+	}
+	return { attendees: [context.requesterID], isOpenToCompany: false };
 }
 
 function isRequestedOfSomebodyElse(requesterID: string, attendees: string[]): boolean {
@@ -187,7 +196,7 @@ function eventWriteArguments(
 		written.notifyMinutesBefore !== undefined
 			? written.notifyMinutesBefore
 			: row?.notify_minutes_before ?? null;
-	const attendees = attendeesOf(context, written, row);
+	const { attendees, isOpenToCompany } = scopeOfEvent(context, written, row);
 	return {
 		target_task_id: row?.id ?? null,
 		...(row
@@ -209,6 +218,7 @@ function eventWriteArguments(
 		target_is_event: true,
 		target_notify_minutes_before: notify !== null && notify > 0 ? notify : null,
 		target_participant_ids: attendees,
+		target_is_open_to_company: isOpenToCompany,
 		...(row ? { target_expected_updated_at: row.updated_at } : {})
 	};
 }
@@ -254,17 +264,18 @@ async function eventAlreadyHeld(
 ): Promise<string> {
 	const { data } = await context.caller
 		.from('task')
-		.select('id, starts_at, ends_at, task_participant (member_id)')
+		.select('id, starts_at, ends_at, is_open_to_company, task_participant (member_id)')
 		.eq('is_event', true)
 		.eq('title', writeArguments.target_title)
 		.neq('id', writeArguments.target_task_id ?? '00000000-0000-0000-0000-000000000000')
-		.returns<Pick<TaskRow, 'id' | 'starts_at' | 'ends_at' | 'task_participant'>[]>();
+		.returns<Pick<TaskRow, 'id' | 'starts_at' | 'ends_at' | 'is_open_to_company' | 'task_participant'>[]>();
 
 	const attendees = new Set(writeArguments.target_participant_ids as string[]);
 	const clashing = (data ?? []).find(
 		(row) =>
 			isTheSameHeldMoment(row.starts_at, writeArguments.target_starts_at) &&
 			isTheSameHeldMoment(row.ends_at, writeArguments.target_ends_at) &&
+			row.is_open_to_company === writeArguments.target_is_open_to_company &&
 			row.task_participant.length === attendees.size &&
 			row.task_participant.every(({ member_id }) => attendees.has(member_id))
 	);
@@ -369,6 +380,7 @@ function answeredEntry(context: RecordContext, entry: CompanyCalendarEntry): Ans
 		startsAt: momentIn(context.labels.timezone, entry.startISO),
 		endsAt: momentIn(context.labels.timezone, entry.endISO),
 		isWholeDay: entry.isAllDay,
+		...(entry.isOpenToCompany ? { isOpenToCompany: true as const } : {}),
 		...(entry.reminderMinutesBefore ? { notifyMinutesBefore: entry.reminderMinutesBefore } : {}),
 		participants: entry.participants,
 		updatedAt: entry.updatedAt,
@@ -378,12 +390,8 @@ function answeredEntry(context: RecordContext, entry: CompanyCalendarEntry): Ans
 }
 
 export function isOnScheduleOf(whose: WhoseRecords, entry: CompanyCalendarEntry): boolean {
-	if (isOpenToTheWholeCompany(entry)) return true;
+	if (entry.isOpenToCompany) return true;
 	return whoseRecordsHoldsAny(whose, entry.participants.map((participant) => participant.personID));
-}
-
-function isOpenToTheWholeCompany(entry: CompanyCalendarEntry): boolean {
-	return entry.source === 'event' && entry.participants.length === 0;
 }
 
 export async function eventList(context: RecordContext, input: EventListInput) {
