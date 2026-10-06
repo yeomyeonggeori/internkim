@@ -95,8 +95,8 @@ test('a colour repainted on the record repaints the badge', async ({ page }) => 
 		await businessBadgeOf(card).evaluate((element) => getComputedStyle(element).backgroundColor)
 	).toBe(rgbOf(repaintedBusinessColor));
 	expect(
-		await typeBadgeOf(card, typeName).evaluate((element) => getComputedStyle(element).color)
-	).toBe(rgbOf(repaintedTypeColor));
+		await typeBadgeOf(card, typeName).evaluate((element) => getComputedStyle(element).getPropertyValue('--badge-color').trim().toLowerCase())
+	).toBe(repaintedTypeColor.toLowerCase());
 });
 
 test('a task the record gives no business and no type is labelled 기타 twice', async ({ page }) => {

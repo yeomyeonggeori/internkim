@@ -68,11 +68,11 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await fits(page, 'organization-detail');
 		if (width < 1024) await page.keyboard.press('Escape');
 		await page.goto('/example-co/attendance');
-		if (width < 768) await page.getByRole('tab', { name: '내 기록', exact: true }).click();
-		await expect(page.getByTestId('personal-tools-panel').filter({ visible: true }).first()).toBeVisible();
+		await expect(page.getByRole('button', { name: '근무 현황', exact: true }).or(page.getByTestId('attendance-team-dashboard')).first()).toBeVisible();
 		await fits(page, 'attendance');
 		if (width < 640) {
-			await page.getByRole('tab', { name: '직원별 휴가', exact: true }).click();
+			await page.getByRole('button', { name: '관리', exact: true }).click();
+			await page.getByRole('menuitem', { name: '휴가 관리', exact: true }).click();
 			const management = page.getByTestId('leave-management-view');
 			await expect(management.getByRole('button', { name: /member1@example.com/ })).toBeVisible();
 			await fits(page, 'leave-management');
@@ -84,14 +84,15 @@ for (const width of [320, 360, 390, 568, 1280]) {
 			if (width === 320) {
 				await page.route('**/api/v1/tools/company_settings_get/invoke', route => route.fulfill({ status: 503, json: { message: 'test unavailable' } }));
 				await management.getByRole('button', { name: /member3@example.com/ }).click();
-				await expect(page.getByRole('dialog').getByRole('alert')).toBeVisible();
+				await expect(management.getByText('직원별 휴가 정보를 불러오지 못했습니다.')).toBeVisible();
 				await expect(page.getByTestId('leave-management-employee-detail-header')).toBeHidden();
 				await page.unroute('**/api/v1/tools/company_settings_get/invoke');
-				await page.getByRole('dialog').getByTestId('leave-management-refresh').click();
+				await page.getByTestId('leave-management-refresh').click();
 				await expect(page.getByTestId('leave-management-employee-detail-header')).toContainText('member3@example.com');
 				await page.keyboard.press('Escape');
 			}
-			await page.getByRole('tab', { name: '손으로 쓴 기록', exact: true }).click();
+			await page.getByRole('button', { name: '관리', exact: true }).click();
+			await page.getByRole('menuitem', { name: '수정 내역', exact: true }).click();
 			const record = page.locator(`[data-event-id="${attendanceIDs[0]}"]`);
 			await expect(record).toBeVisible();
 			await expect(record.getByTestId('hand-written-before')).toContainText('09:00');

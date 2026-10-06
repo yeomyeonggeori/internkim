@@ -30,13 +30,6 @@
 			{#if selected}
 				<CheckIcon class="pointer-events-none" />
 			{/if}
-		</span>
-		<span class="flex flex-1 gap-2 shrink-0 whitespace-nowrap">
-			{#if childrenProp}
-				{@render childrenProp({ selected, highlighted })}
-			{:else}
-				{label || value}
-			{/if}
-		</span>
+		</span><span class="flex flex-1 gap-2 shrink-0 whitespace-nowrap">{#if childrenProp}{@render childrenProp({ selected, highlighted })}{:else}{label || value}{/if}</span>
 	{/snippet}
 </SelectPrimitive.Item>
