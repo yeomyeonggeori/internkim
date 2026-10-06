@@ -331,6 +331,7 @@ blueclaw is one process built from separate repositories, each with one job:
 |---|---|---|
 | [blueclaw](https://github.com/yeomyeonggeori/blueclaw) | the agent host: identity, the approval gate, the task ledger, the ACP agent the relay talks to | `.dependency/blueclaw/` |
 | [bluecollar](https://github.com/yeomyeonggeori/bluecollar) | the agent loop and the model client, running in-process | `.dependency/blueclaw/.dependency/bluecollar/` |
+| [blueprotocol](https://github.com/yeomyeonggeori/blueprotocol) | the contract packages blueclaw and bluecollar share: tool descriptors, task event names, approval targets | `.dependency/blueclaw/.dependency/blueprotocol/` |
 | [bluememo](https://github.com/yeomyeonggeori/bluememo) | long-term memory: facts extracted from finished work, scoped by owner and circle | `.dependency/blueclaw/.dependency/bluememo/` |
 | internkim-plugin | the skills the agent loads for a kind of work | `.dependency/internkim-plugin/` |
 

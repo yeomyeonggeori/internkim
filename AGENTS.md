@@ -308,7 +308,7 @@ and delete the duplicates.
 - For Blueclaw agent-loop, prompt, skill, policy, schedule/runtime, or tool
   behavior changes, start with `./internkim dev simulate --scenario <name>`. The
   scenarios are registered in `BuiltinScenario`
-  (`.dependency/blueclaw/internal/e2e/virtual_session.go`). Read that switch; a
+  (`.dependency/blueclaw/internal/defaultharness/e2e/virtual_session.go`). Read that switch; a
   list kept anywhere else goes stale. `dev fleet run --scenario` reads a
   different registry, `localfleet.ScenarioNames()`
   (`internal/localfleet/service.go`), which its own `--help` prints.

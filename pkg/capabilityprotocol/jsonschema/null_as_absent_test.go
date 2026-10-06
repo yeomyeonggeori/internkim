@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const nullAsAbsentCasesPath = "../../../.dependency/blueclaw/.dependency/bluecollar/toolcontract/testdata/null-as-absent.json"
+const nullAsAbsentCasesPath = "../../../.dependency/blueclaw/.dependency/blueprotocol/toolcontract/testdata/null-as-absent.json"
 
 func TestNullIsReadAsAbsentTheWayBluecollarReadsIt(t *testing.T) {
 	content, errorValue := os.ReadFile(nullAsAbsentCasesPath)
