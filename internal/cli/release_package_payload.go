@@ -43,10 +43,7 @@ every unit stays inactive rather than restarting into a failure.`
 
 	documentConversionLockPath = "assets/document-conversion/requirements.txt"
 
-	// dpkg has read xz since 1.15, which predates every distribution the package
-	// is for.
-	debPayloadCompression = "xz"
-	packageLicense        = "Apache-2.0"
+	packageLicense = "Apache-2.0"
 )
 
 type packageTarget struct {

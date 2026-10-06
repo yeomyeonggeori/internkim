@@ -32,8 +32,10 @@ type linuxPackageFormat struct {
 	Manager blueclaw.PackageManager
 	// HasPurge is whether the format can tell a removal from a purge.
 	HasPurge bool
-	// Compression is what the payload is compressed with.
+	// Compression is what nfpm compresses the payload with.
 	Compression string
+	// CompressPayload, when set, compresses the payload nfpm left uncompressed.
+	CompressPayload func(packagePath string) error
 	// Suffix ends the file the format is shipped as, and is what the format's
 	// manager asks a local file to end with.
 	Suffix string
@@ -45,8 +47,9 @@ var (
 		Manager:  blueclaw.PackageManagerApt,
 		HasPurge: true,
 		// dpkg has read xz since 1.15, older than every distribution the package is for.
-		Compression: "xz",
-		Suffix:      ".deb",
+		Compression:     "none",
+		CompressPayload: compressDebianPayload,
+		Suffix:          ".deb",
 	}
 	rpmPackageFormat = linuxPackageFormat{
 		Name:        "rpm",
@@ -211,7 +214,13 @@ func writeLinuxPackage(format linuxPackageFormat, information *nfpm.Info, packag
 		return errorValue
 	}
 	defer file.Close()
-	return packager.Package(information, file)
+	if errorValue := packager.Package(information, file); errorValue != nil {
+		return errorValue
+	}
+	if errorValue := file.Close(); errorValue != nil || format.CompressPayload == nil {
+		return errorValue
+	}
+	return format.CompressPayload(packagePath)
 }
 
 func writeMaintainerScripts(format linuxPackageFormat, stagingPath string) (nfpm.Scripts, error) {
