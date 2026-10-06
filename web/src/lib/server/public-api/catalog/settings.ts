@@ -52,7 +52,7 @@ export enum WorkspaceLeaveUnit {
 }
 
 const workLocationSchema = z.strictObject({
-  name: z.string().min(1).max(64).describe("The workplace's name as people say it, e.g. 'the office' or 'home'."),
+  name: z.string().min(1).max(64).describe("The work location's name as people say it, e.g. 'the office' or 'home'."),
   color: z.string().max(32).describe('The colour the attendance screens draw it in, as a CSS colour. Omit to leave it uncoloured.').optional(),
 });
 
@@ -65,7 +65,7 @@ export const companySettingsUpdateInputSchema = z.strictObject({
   locale: z.string().min(2).max(16).describe("The language the company works in, as a BCP 47 tag, e.g. 'ko' or 'en-US'.").optional(),
   timeZone: z.string().min(1).max(64).describe("The company's time zone as an IANA name, e.g. 'Asia/Seoul'. Every date and time the record answers is read in it.").optional(),
   currencyCode: z.string().length(3).describe("The currency amounts are held in, as an ISO 4217 code, e.g. 'KRW'.").optional(),
-  workLocations: z.array(workLocationSchema).describe('The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.').optional(),
+  workLocations: z.array(workLocationSchema).describe('The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.').optional(),
   leaveDays: z.number().describe("The annual leave a person is granted, in days. It is the leave policy's annual grant, so this writes that, and attendance_leave_policy_set is where the rest of the policy is written.").optional(),
   teamViewVisibleToAll: z.boolean().describe("Whether everybody sees the whole company's attendance, or only the administrators do.").optional(),
 });
@@ -263,7 +263,7 @@ export const settingsToolDefinitions: CapabilityToolDefinition[] = [
     answeredBy: CapabilityAnsweredBy.Record,
     privacyClass: 'workspace_company',
     policyResource: 'tool:company_settings_get',
-    description: "The company settings: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+    description: "The company settings: its name, country, language, time zone, base currency, the work locations attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The work location names are what attendance_add's location takes.",
     version: '2',
     estimatedLatency: CapabilityEstimatedLatency.Low,
     inputSchema: companySettingsGetInputSchema,

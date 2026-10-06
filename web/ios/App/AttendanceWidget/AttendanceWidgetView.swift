@@ -65,11 +65,11 @@ struct AttendanceWidgetView: View {
             } else if entry.today.isWorking {
                 Text("Working")
             } else if let location = defaultLocation {
-                Text("Default location · \(location.name)")
+                Text("Default work location · \(location.name)")
             } else if case let .gone(name) = choice {
                 Text("\(name) gone · Edit Widget")
             } else {
-                Text("No workplace registered")
+                Text("No work location registered")
             }
         }
         .font(.caption)
@@ -129,14 +129,14 @@ struct AttendanceWidgetView: View {
                 if showingLocations, !otherLocations.isEmpty {
                     Button(intent: ShowLocationsIntent()) {
                         HStack(spacing: 4) {
-                            Text("Other location").lineLimit(1)
+                            Text("Other work location").lineLimit(1)
                             Image(systemName: "chevron.right")
                         }
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 } else {
-                    Text("Choose a workplace in Edit Widget")
+                    Text("Choose a work location in Edit Widget")
                         .font(.footnote.weight(.medium))
                         .lineLimit(2)
                         .frame(maxWidth: .infinity)
@@ -160,7 +160,7 @@ struct AttendanceWidgetView: View {
                 if showingLocations, !otherLocations.isEmpty {
                     Button(intent: ShowLocationsIntent()) {
                         HStack(spacing: 4) {
-                            Text("Other location").lineLimit(1)
+                            Text("Other work location").lineLimit(1)
                             Image(systemName: "chevron.right")
                         }
                         .frame(maxWidth: .infinity)

@@ -1,8 +1,8 @@
 {
-  "aggregateHash": "c73732f17bcb06e706b9d0fb3666d50bde72c2de4153078e5008dcc8c0055076",
+  "aggregateHash": "767fd754b967a1e15b4172614934108cbd9878284afad2124f7a27ca2e8953a6",
   "capabilityToolCatalog": {
     "fileName": "capability-tools.json",
-    "hash": "93e59ebfea1922f15782b7d8cce25eece51aebeb5fd175ec6388d1e2c80fd831"
+    "hash": "fe479b21da72f3f90226290d77158a56844bcd913c4880732e91ebee7084780f"
   },
   "protocolVersion": "0.4.0",
   "schemas": [
@@ -93,7 +93,7 @@
     },
     {
       "fileName": "task-event-name.schema.json",
-      "hash": "b3049a0dd4bb63ac986c0032d2f706a1f0dd3188092f2d9f0825af8258cdb1af",
+      "hash": "9057233b11c2dda1cfa0b1803de8a2b32836999d71f6470fcce8c3fdd999026f",
       "name": "task-event-name"
     },
     {

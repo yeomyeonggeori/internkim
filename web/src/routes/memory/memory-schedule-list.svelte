@@ -54,7 +54,8 @@
 			const response = await fetchMemorySchedules({ page, pageSize, includeExpired: includeExpiredSchedules });
 			const loadedSchedules = response.schedules ?? [];
 			const loadedPageSize = response.pageSize && response.pageSize > 0 ? response.pageSize : pageSize;
-			const loadedTotalCount = response.totalCount ?? response.count ?? loadedSchedules.length;
+			if (response.totalCount === undefined) throw new Error('Schedule list response is missing totalCount');
+			const loadedTotalCount = response.totalCount;
 			const lastPage = Math.max(1, Math.ceil(loadedTotalCount / loadedPageSize));
 			if (page > lastPage && loadedSchedules.length === 0 && loadedTotalCount > 0) {
 				await loadSchedules(lastPage);
@@ -163,6 +164,8 @@
 	{#if totalCount > 0 && !hasLoadError && !(isLoading && schedules.length === 0)}
 		<Card.Footer>
 			<ListPaginationFooter
+ onPageChange={(page) => changeSchedulePage(page + 1)}
+ disabled={isLoading}
 				totalItems={totalCount}
 				pageIndex={currentPage - 1}
 				{pageSize}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import ChangeReasonSelect from '../shared/change-reason-select.svelte';
 	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import Clock3Icon from '@lucide/svelte/icons/clock-3';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -271,15 +271,7 @@
 
 {#if workRecordEditor.isEditing}
 	<div class="mt-4 grid gap-3 border-t pt-4" data-testid="work-record-edit-actions">
-		<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-			<span>{text.editReason}</span>
-			<Textarea
-				bind:value={workRecordEditor.reason}
-				placeholder={text.editReasonPlaceholder}
-				disabled={workRecordEditor.isSaving}
-				class="min-h-16 text-sm"
-			/>
-		</label>
+		<ChangeReasonSelect bind:value={workRecordEditor.reason} disabled={workRecordEditor.isSaving} label={text.editReason} />
 		<p class="text-xs text-muted-foreground" data-testid="work-record-edit-notice">{editingNotice}</p>
 		{#if workRecordEditor.errorMessage}<p class="text-xs text-destructive">{workRecordEditor.errorMessage}</p>{/if}
 		<div class="flex justify-end gap-2">

@@ -63,13 +63,13 @@ async function openSeededMonth(page: Page): Promise<void> {
 	await seededCell(page, member1Email).waitFor({ state: 'visible', timeout: 20000 });
 }
 
-test('the month table shows the people and the days the record holds', async ({ page }) => {
+test('the person month table contains only that person and their recorded days', async ({ page }) => {
 	await openSeededMonth(page);
 
 	await expect(page.getByTestId(`team-status-person-header-${member1Email}`)).toContainText(member1Name);
-	await expect(page.getByTestId(`team-status-person-header-${member3Email}`)).toContainText(member3Name);
+	await expect(page.getByTestId(`team-status-person-header-${member3Email}`)).toHaveCount(0);
 	await expect(page.getByTestId(`team-status-day-${seededDate}`)).toBeVisible();
-	await expect(seededCell(page, member3Email)).toBeVisible();
+	await expect(seededCell(page, member3Email)).toHaveCount(0);
 });
 
 test('the month picker walks back to the current month', async ({ page }) => {
@@ -113,7 +113,7 @@ test('a day cell opens the day the record wrote', async ({ page }) => {
 test('the person header opens that person work time', async ({ page }) => {
 	await openSeededMonth(page);
 
-	await page.getByTestId(`team-status-person-header-${member3Email}`).hover();
+	await page.getByTestId(`team-status-person-header-${member1Email}`).hover();
 
 	const workTimeCard = page.locator('[data-slot="hover-card-content"]');
 	await expect(workTimeCard).toBeVisible({ timeout: 20000 });
@@ -130,7 +130,8 @@ test('an edited clock-out moves the row the record keeps', async ({ page }) => {
 
 	const lastSegment = detail.getByTestId('team-status-day-segment').last();
 	await lastSegment.getByLabel('퇴근').fill('17:00');
-	await detail.getByTestId('work-record-edit-actions').getByRole('textbox').fill('E2E 근무 기록 정정');
+	await detail.getByTestId('work-record-edit-actions').locator('[data-slot="select-trigger"]').click();
+	await page.getByRole('option', {name:'시간 정정',exact:true}).click();
 	await detail.getByRole('button', { name: '저장', exact: true }).click();
 
 	await expect
@@ -147,11 +148,11 @@ test('an edited clock-out moves the row the record keeps', async ({ page }) => {
 test('adding a whole span in one submit writes both moments as a single segment', async ({ page }) => {
 	const spanDate = dayOfMonth(seededMonth, 20);
 	await openSeededMonth(page);
-	await page.getByTestId(`team-status-cell-${member3Email}-${spanDate}`).click();
+	await page.getByTestId(`team-status-cell-${member1Email}-${spanDate}`).click();
 
 	const detail = page.getByTestId('team-status-day-detail-dialog');
 	await expect(detail).toBeVisible({ timeout: 20000 });
-	await expect(detail.getByTestId('team-status-day-detail-person')).toHaveText(member3Name);
+	await expect(detail.getByTestId('team-status-day-detail-person')).toHaveText(member1Name);
 	await expect(detail.getByTestId('team-status-day-segment')).toHaveCount(0);
 
 	await detail.getByTestId('work-record-add-button').click();
@@ -164,7 +165,7 @@ test('adding a whole span in one submit writes both moments as a single segment'
 	await expect(detail.getByTestId('team-status-day-segment')).toHaveCount(1, { timeout: 20000 });
 	await expect(detail.getByLabel('09:00-18:00')).toBeVisible();
 
-	const spanRows = (await attendanceRowsOf(member3ID)).filter((row) =>
+	const spanRows = (await attendanceRowsOf(member1ID)).filter((row) =>
 		row.occurred_at.startsWith(spanDate)
 	);
 	expect(spanRows).toHaveLength(2);

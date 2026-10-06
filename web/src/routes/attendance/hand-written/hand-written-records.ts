@@ -4,6 +4,16 @@ import type { AttendanceKind } from '../attendance-context.svelte';
 export type HandWrittenRecord = {
 	eventID: string;
 	person: string;
+	personID?: string;
+	personEmail?: string | null;
+	changedByID?: string | null;
+	location?: string | null;
+	originalLocation?: string | null;
+	previousRecorded?: boolean;
+	teamName?: string;
+	changedByName?: string | null;
+	changedByEmail?: string | null;
+	changedBySource?: string;
 	kind: AttendanceKind;
 	date: string;
 	time: string;
@@ -14,7 +24,7 @@ export type HandWrittenRecord = {
 
 export type HandWrittenDayRange = { from: string; to: string };
 
-type AnsweredHandWrittenRecords = { attendance: HandWrittenRecord[] };
+export type AnsweredHandWrittenRecords = { attendance: HandWrittenRecord[]; totalCount: number };
 
 export function currentAndPreviousMonth(today: string): HandWrittenDayRange {
 	const [year, month] = today.split('-').map(Number);
@@ -25,29 +35,33 @@ export function currentAndPreviousMonth(today: string): HandWrittenDayRange {
 }
 
 export async function fetchHandWrittenRecords(
-	dayRange: HandWrittenDayRange
-): Promise<HandWrittenRecord[]> {
-	const answered = await invokeTool<AnsweredHandWrittenRecords>('attendance_list', {
-		scope: 'all',
-		from: dayRange.from,
-		to: dayRange.to,
-		handWrittenOnly: true
-	});
-	return answered.attendance;
+ dayRange: HandWrittenDayRange, pageOffset = 0, selectedTeamKey = '', selectedChangedByID = ''
+): Promise<AnsweredHandWrittenRecords> {
+ return await invokeTool<AnsweredHandWrittenRecords>('attendance_changes_page_get', {
+  scope: 'all', from: dayRange.from, to: dayRange.to, handWrittenOnly: true,
+  pageOffset, pageLimit: 24, ...(selectedTeamKey ? {selectedTeamKey} : {}), ...(selectedChangedByID ? {selectedChangedByID} : {})
+ });
+}
+
+export function canUndoHandWrittenRecord(record: HandWrittenRecord): boolean {
+ // Historical location-only edits and historical additions have the same old shape.
+ // Refuse destructive inference when no previous state was actually observed.
+ return !!(record.originalDate && record.originalTime) || record.changedBySource === 'observed';
 }
 
 export async function undoHandWrittenRecord(
 	record: HandWrittenRecord,
 	reason: string
 ): Promise<void> {
+	if (!canUndoHandWrittenRecord(record)) throw new Error('Previous attendance state is unknown');
 	if (record.originalDate && record.originalTime) {
 		await invokeTool('attendance_update', {
 			corrections: [
-				{ eventHint: record.eventID, date: record.originalDate, time: record.originalTime }
+				{ eventHint: record.eventID, date: record.originalDate, time: record.originalTime, ...(record.previousRecorded && record.kind === 'clock_in' ? {location: record.originalLocation ?? undefined} : {}) }
 			],
-			reason
+			reason, undoOnly: true
 		});
 		return;
 	}
-	await invokeTool('attendance_delete', { eventHint: record.eventID, reason });
+	await invokeTool('attendance_delete', { eventHint: record.eventID, reason, undoOnly: true });
 }

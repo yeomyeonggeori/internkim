@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { attendanceAdd, attendanceDelete, attendanceList, attendanceUpdate } from './attendance-tools';
 import { currentAttendance } from './current-attendance';
-import { teamAttendance } from './team-attendance';
+import { teamAttendance, legacyTeamAttendance } from './team-attendance';
 import { NoSuchAttendanceRecord } from './attendance';
 import { recordContextOf, type RecordContext } from './company';
 import {
@@ -90,7 +90,7 @@ import { teamAdd, teamDelete, teamList, teamUpdate } from './team-tools';
 import { previewOfTool } from './preview';
 import { leavesTaskLabelsUndecided, type TaskLabelDecider } from './task-labels';
 import { answererOfTool, toolNamesAnsweredBy } from '../catalog';
-import { capabilityToolResultSchema } from '../catalog/tools';
+import { capabilityToolResultSchema, legacyAttendanceListResultSchema } from '../catalog/tools';
 import { readWithNullAsAbsent } from '../null-as-absent';
 import { sentencesOfSchemaRefusal } from '../schema-sentences';
 
@@ -120,7 +120,7 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	event_update: (context, input) => eventUpdate(context, input),
 	event_list: (context, input) => eventList(context, input),
 	event_delete: (context, input) => eventDelete(context, input),
-	person_list: (context) => personList(context),
+	person_list: (context,input) => personList(context,input),
 	person_update: (context, input) => personUpdate(context, input),
 	person_invite: (context, input) => personInvite(context, input),
 	team_list: (context) => teamList(context),
@@ -135,9 +135,11 @@ const toolsOverTheRecord: Record<string, ToolRun> = {
 	leave_decide: (context, input) => leaveDecide(context, input),
 	leave_grant_set: (context, input) => leaveGrantSet(context, input),
 	leave_return_early: (context, input) => leaveReturnEarly(context, input),
-	attendance_list: (context, input) => attendanceList(context, input),
+	attendance_list: async (context, input) => legacyAttendanceListResultSchema.parse(await attendanceList(context, input)),
+	attendance_changes_page_get: (context, input) => attendanceList(context, input),
 	attendance_current_get: (context) => currentAttendance(context.caller),
-	attendance_team_page_get: (context, input) => teamAttendance(context.caller, input),
+	attendance_team_page_get: (context, input) => legacyTeamAttendance(context.caller,input),
+	attendance_team_dashboard_get: (context, input) => teamAttendance(context.caller, input),
 	attendance_add: (context, input) => attendanceAdd(context, input),
 	attendance_update: (context, input) => attendanceUpdate(context, input),
 	attendance_delete: (context, input) => attendanceDelete(context, input),
@@ -252,9 +254,11 @@ export async function runToolOverTheRecord(
 		const result = name === 'attendance_current_get'
 			? await currentAttendance(caller)
 			: name === 'attendance_team_page_get'
-				? await teamAttendance(caller, input as Parameters<typeof teamAttendance>[1])
+				? await legacyTeamAttendance(caller,input)
+			: name === 'attendance_team_dashboard_get'
+				? await teamAttendance(caller,input)
 				: await run(await recordContextOf(caller, accountDirectory, requesterID, now, decideTaskLabels,
-					!readsWithoutPeople.has(name), exactAttendancePersonIDs(name, input)), input);
+					!readsWithoutPeople.has(name) && !(name === 'person_list' && input.limit !== undefined) && !((name === 'attendance_list' || name === 'attendance_changes_page_get') && input.handWrittenOnly === true && input.pageOffset !== undefined && input.scope === 'all' && !input.personHints) && !((name === 'attendance_update' || name === 'attendance_delete') && input.undoOnly === true), exactAttendancePersonIDs(name, input)), input);
 		noteWhereTheAnswerLeftItsContract(name, result);
 		return { status: 200, body: { tool: name, result } };
 	} catch (refusal) {

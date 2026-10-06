@@ -27,7 +27,7 @@ test.afterAll(async () => {
 });
 
 function quickActions(page: Page) {
-	return page.getByTestId('personal-tools-panel');
+	return page.getByTestId('attendance-own-strip');
 }
 
 function trackToolInvokes(page: Page): { names: string[]; attendanceInputs: Record<string, unknown>[]; stop: () => void } {

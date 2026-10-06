@@ -3450,13 +3450,33 @@
       "inputIntentSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "limit": {
+            "maximum": 48,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "searchText": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "inputSchema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "limit": {
+            "maximum": 48,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "searchText": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "inputSchemaStrict": true,
@@ -7361,7 +7381,7 @@
         "additionalProperties": false,
         "properties": {
           "location": {
-            "description": "The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.",
+            "description": "The registered work location they came back to, named as company_settings_get lists them. Omit when they did not say where.",
             "type": "string"
           }
         },
@@ -7372,7 +7392,7 @@
         "additionalProperties": false,
         "properties": {
           "location": {
-            "description": "The registered workplace they came back to, named as company_settings_get lists them. Omit when they did not say where.",
+            "description": "The registered work location they came back to, named as company_settings_get lists them. Omit when they did not say where.",
             "type": "string"
           }
         },
@@ -7506,7 +7526,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_team_page_get",
-      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and clock-in locations. Employee search and location filtering happen before paging. Historical records are read separately.",
+      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and recorded work locations. Employee search and location filtering happen before paging. Historical records are read separately.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -8214,8 +8234,811 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "attendance_team_dashboard_get",
+      "description": "Read one authorized page of team attendance counts or employees for the current company day. Team cards contain true current-state counts, recent recorded clock events and recorded work locations. Employee search and location filtering happen before paging. Historical records are read separately.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "locationFilter": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "memberLimit": {
+            "maximum": 48,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "memberOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageKind": {
+            "enum": [
+              "teams",
+              "members"
+            ],
+            "type": "string"
+          },
+          "searchText": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "selectedTeamKey": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamLimit": {
+            "maximum": 24,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "teamOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pageKind"
+        ],
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_team_dashboard_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_team_dashboard_get",
+      "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "authorization": {
+            "additionalProperties": false,
+            "properties": {
+              "isAdmin": {
+                "type": "boolean"
+              },
+              "teamViewVisibleToAll": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "isAdmin",
+              "teamViewVisibleToAll"
+            ],
+            "type": "object"
+          },
+          "companyID": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "companyName": {
+            "type": "string"
+          },
+          "companySummary": {
+            "additionalProperties": false,
+            "properties": {
+              "away": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "done": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "memberCount": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "needsCheckout": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "notStarted": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "working": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "memberCount",
+              "working",
+              "done",
+              "away",
+              "notStarted",
+              "needsCheckout"
+            ],
+            "type": "object"
+          },
+          "memberLimit": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "memberOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memberTotal": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "latestAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "memberID": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "working",
+                    "done",
+                    "away",
+                    "needs_checkout",
+                    "not_started"
+                  ],
+                  "type": "string"
+                },
+                "teamKey": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "memberID",
+                "name",
+                "email",
+                "teamKey",
+                "status",
+                "latestAt",
+                "location"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "selectedTeamKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serverTime": {
+            "type": "string"
+          },
+          "teamLimit": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "teamOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teamTotal": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teams": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "away": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "done": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "memberCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "needsCheckout": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "notStarted": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "recentClockIns": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "email": {
+                        "type": "string"
+                      },
+                      "location": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "memberID": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "occurredAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "memberID",
+                      "name",
+                      "email",
+                      "occurredAt",
+                      "location"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 5,
+                  "type": "array"
+                },
+                "recentClockOuts": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "email": {
+                        "type": "string"
+                      },
+                      "location": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "memberID": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "occurredAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "memberID",
+                      "name",
+                      "email",
+                      "occurredAt",
+                      "location"
+                    ],
+                    "type": "object"
+                  },
+                  "maxItems": 5,
+                  "type": "array"
+                },
+                "recordedLocations": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "count": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "count"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "teamKey": {
+                  "type": "string"
+                },
+                "unknownLocationCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "working": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "teamKey",
+                "name",
+                "memberCount",
+                "working",
+                "done",
+                "away",
+                "needsCheckout",
+                "notStarted",
+                "recentClockIns",
+                "recentClockOuts",
+                "recordedLocations",
+                "unknownLocationCount"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "companyID",
+          "timeZone",
+          "serverTime",
+          "authorization",
+          "teamOffset",
+          "teamLimit",
+          "teamTotal",
+          "teams",
+          "selectedTeamKey",
+          "memberOffset",
+          "memberLimit",
+          "memberTotal",
+          "members"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_team_dashboard_get",
+      "privacyClass": "workspace_attendance",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "authorization": {
+              "additionalProperties": false,
+              "properties": {
+                "isAdmin": {
+                  "type": "boolean"
+                },
+                "teamViewVisibleToAll": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "isAdmin",
+                "teamViewVisibleToAll"
+              ],
+              "type": "object"
+            },
+            "companyID": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "companyName": {
+              "type": "string"
+            },
+            "companySummary": {
+              "additionalProperties": false,
+              "properties": {
+                "away": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "done": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "memberCount": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "needsCheckout": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "notStarted": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "working": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "memberCount",
+                "working",
+                "done",
+                "away",
+                "notStarted",
+                "needsCheckout"
+              ],
+              "type": "object"
+            },
+            "memberLimit": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            },
+            "memberOffset": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "memberTotal": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "members": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "latestAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "memberID": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "working",
+                      "done",
+                      "away",
+                      "needs_checkout",
+                      "not_started"
+                    ],
+                    "type": "string"
+                  },
+                  "teamKey": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "memberID",
+                  "name",
+                  "email",
+                  "teamKey",
+                  "status",
+                  "latestAt",
+                  "location"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "selectedTeamKey": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "serverTime": {
+              "type": "string"
+            },
+            "teamLimit": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer"
+            },
+            "teamOffset": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "teamTotal": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "teams": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "away": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "done": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "needsCheckout": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "notStarted": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "recentClockIns": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberID": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "occurredAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "memberID",
+                        "name",
+                        "email",
+                        "occurredAt",
+                        "location"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 5,
+                    "type": "array"
+                  },
+                  "recentClockOuts": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "location": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "memberID": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "occurredAt": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "memberID",
+                        "name",
+                        "email",
+                        "occurredAt",
+                        "location"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 5,
+                    "type": "array"
+                  },
+                  "recordedLocations": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "count": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "count"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "teamKey": {
+                    "type": "string"
+                  },
+                  "unknownLocationCount": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "working": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "teamKey",
+                  "name",
+                  "memberCount",
+                  "working",
+                  "done",
+                  "away",
+                  "needsCheckout",
+                  "notStarted",
+                  "recentClockIns",
+                  "recentClockOuts",
+                  "recordedLocations",
+                  "unknownLocationCount"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "timeZone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "companyID",
+            "timeZone",
+            "serverTime",
+            "authorization",
+            "teamOffset",
+            "teamLimit",
+            "teamTotal",
+            "teams",
+            "selectedTeamKey",
+            "memberOffset",
+            "memberLimit",
+            "memberTotal",
+            "members"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "attendance_current_get",
-      "description": "Read the authenticated requester's actionable attendance state in one record snapshot: company time zone and clock, registered workplaces, today's events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.",
+      "description": "Read the authenticated requester's actionable attendance state in one record snapshot: company time zone and clock, registered work locations, today's events, the latest event across all dates, and currently active approved leave. Accepts no member or company selection. This snapshot contains no colleague rows or period totals; use attendance_list for history.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -8696,6 +9519,10 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "changedBySearch": {
+            "maxLength": 128,
+            "type": "string"
+          },
           "from": {
             "description": "Earliest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to start thirty days ago.",
             "type": "string"
@@ -8707,6 +9534,16 @@
           "limit": {
             "description": "Maximum number of rows to return.",
             "type": "number"
+          },
+          "pageLimit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
           },
           "personHints": {
             "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
@@ -8721,6 +9558,19 @@
               "self",
               "all"
             ],
+            "type": "string"
+          },
+          "selectedChangedByID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "selectedTeamKey": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "teamSearch": {
+            "maxLength": 128,
             "type": "string"
           },
           "to": {
@@ -9060,8 +9910,587 @@
       "availability": {
         "state": "ok"
       },
+      "canonicalName": "attendance_changes_page_get",
+      "description": "List clock-ins and clock-outs as the record holds them. Use this to answer 'when did I come in', 'was anybody late this week', or to find the record another attendance tool is about to correct. Dates are yyyy-mm-dd and times are 24-hour HH:MM, both in the company time zone. Without from and to it covers the last thirty days. It reads the requester's own attendance unless personHints names other people or scope is all. Each row says whether it was written by hand: reason is what the writer gave, and originalDate with originalTime are the moment it was moved from, both null when it was never moved. handWrittenOnly keeps those rows alone. serverTime is the record's own clock, which is the one to compare a moment against rather than the caller's; backdatedAfterMinutes is how far into the past a moment has to be before writing it counts as writing after the fact.",
+      "estimatedLatency": "low",
+      "idempotency": {
+        "required": false,
+        "scope": "operation",
+        "supported": false
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "changedBySearch": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "from": {
+            "description": "Earliest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to start thirty days ago.",
+            "type": "string"
+          },
+          "handWrittenOnly": {
+            "description": "Keep only the records somebody wrote or changed by hand, and drop the ones clocked live. A hand-written record carries the reason it was written, or the moment it was moved from, or both; a live clock carries neither. Use it for \"what has been written by hand this month\" or to review what an administrator entered for somebody. Omit for every record in the window.",
+            "type": "boolean"
+          },
+          "limit": {
+            "description": "Maximum number of rows to return.",
+            "type": "number"
+          },
+          "pageLimit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "pageOffset": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "personHints": {
+            "description": "Names, @handles, or emails of the people whose attendance to read. Omit it for the requester's own, which is the usual case. Do not send it together with scope.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "description": "Set to all to read the whole company's attendance. Omit it for the requester's own; name people in personHints instead of listing everyone. Sending both is refused.",
+            "enum": [
+              "self",
+              "all"
+            ],
+            "type": "string"
+          },
+          "selectedChangedByID": {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+          },
+          "selectedTeamKey": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "teamSearch": {
+            "maxLength": 128,
+            "type": "string"
+          },
+          "to": {
+            "description": "Latest day to include. The day it happened, as yyyy-mm-dd in the company time zone. Omit to end today.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "inputSchemaStrict": true,
+      "modelName": "attendance_changes_page_get",
+      "modelVisibility": "hidden",
+      "modelVisible": false,
+      "name": "attendance_changes_page_get",
+      "namespace": "attendance",
+      "namespaceSummary": "Clock-ins and clock-outs, and the working hours and leave policy they are judged against.",
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "attendance": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "changedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedByEmail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedByID": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedByName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "changedBySource": {
+                  "enum": [
+                    "observed",
+                    "legacy_subject"
+                  ],
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "eventID": {
+                  "minLength": 1,
+                  "pattern": "^\\S(?:.*\\S)?$",
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "location": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "originalDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "originalLocation": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "originalOccurredAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "originalTime": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "person": {
+                  "type": "string"
+                },
+                "personEmail": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "personID": {
+                  "type": "string"
+                },
+                "previousRecorded": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "teamName": {
+                  "type": "string"
+                },
+                "time": {
+                  "type": "string"
+                },
+                "wasCorrected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "eventID",
+                "personID",
+                "person",
+                "kind",
+                "date",
+                "time",
+                "occurredAt",
+                "location",
+                "wasCorrected",
+                "originalDate",
+                "originalTime",
+                "originalOccurredAt",
+                "reason"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "backdatedAfterMinutes": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "count": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "from": {
+            "type": "string"
+          },
+          "pageLimit": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pageOffset": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "personID": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "personName": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "serverTime": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "totalCount": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "personID",
+          "personName",
+          "from",
+          "to",
+          "serverTime",
+          "backdatedAfterMinutes",
+          "count",
+          "attendance"
+        ],
+        "type": "object"
+      },
+      "outputSchemaStrict": true,
+      "policyResource": "tool:attendance_changes_page_get",
+      "privacyClass": "workspace_attendance",
+      "requiresUserPresence": false,
+      "resultContract": {
+        "effects": [],
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "attendance": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "changedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedByEmail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedByID": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedByName": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "changedBySource": {
+                    "enum": [
+                      "observed",
+                      "legacy_subject"
+                    ],
+                    "type": "string"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "eventID": {
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "occurredAt": {
+                    "type": "string"
+                  },
+                  "originalDate": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "originalLocation": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "originalOccurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "originalTime": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "person": {
+                    "type": "string"
+                  },
+                  "personEmail": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "personID": {
+                    "type": "string"
+                  },
+                  "previousRecorded": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "teamName": {
+                    "type": "string"
+                  },
+                  "time": {
+                    "type": "string"
+                  },
+                  "wasCorrected": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "eventID",
+                  "personID",
+                  "person",
+                  "kind",
+                  "date",
+                  "time",
+                  "occurredAt",
+                  "location",
+                  "wasCorrected",
+                  "originalDate",
+                  "originalTime",
+                  "originalOccurredAt",
+                  "reason"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "backdatedAfterMinutes": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "count": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "from": {
+              "type": "string"
+            },
+            "pageLimit": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "pageOffset": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "personID": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "personName": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string"
+            },
+            "serverTime": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "totalCount": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "scope",
+            "personID",
+            "personName",
+            "from",
+            "to",
+            "serverTime",
+            "backdatedAfterMinutes",
+            "count",
+            "attendance"
+          ],
+          "type": "object"
+        }
+      },
+      "sideEffect": "read",
+      "sideEffectClass": "read",
+      "version": "1",
+      "worksOffline": false
+    },
+    {
+      "answeredBy": "record",
+      "availability": {
+        "state": "ok"
+      },
       "canonicalName": "attendance_add",
-      "description": "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. A press right now that reverses the one before it within a minute, clocking back in at the same place or clocking straight out again, takes that earlier record back instead of adding one: status removed, eventID names the record taken back, and that is a finished answer too. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a workplace this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
+      "description": "Write one attendance record, a clock-in or clock-out, at the moment it actually happened. Omit date and time for right now, which is what somebody clocking in as they arrive means. A person writes their own record from the last three days and it goes in at once, with status added and its eventID. A press right now that reverses the one before it within a minute, clocking back in at the same place or clocking straight out again, takes that earlier record back instead of adding one: status removed, eventID names the record taken back, and that is a finished answer too. Reaching further back is an administrator's to write, for anybody. Asked by anybody else it comes back with status asked and no eventID, and the administrators have already been told what was asked for: that is a finished answer and the task is done. Say an administrator was asked and leave it there; do not call this again. A moment in the future is refused. location names a work location this company has registered and clock_out does not use it. reason says why a record is being written by hand, and is kept when given, never demanded.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -9085,7 +10514,7 @@
             "type": "string"
           },
           "location": {
-            "description": "The registered workplace they were at. clock_out does not use it, so omit it there.",
+            "description": "The registered work location they were at. clock_out does not use it, so omit it there.",
             "type": "string"
           },
           "personHint": {
@@ -9094,6 +10523,16 @@
           },
           "reason": {
             "description": "Why the record is being written by hand, in the requester's own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.",
+            "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
             "type": "string"
           },
           "time": {
@@ -9120,7 +10559,7 @@
             "type": "string"
           },
           "location": {
-            "description": "The registered workplace they were at. clock_out does not use it, so omit it there.",
+            "description": "The registered work location they were at. clock_out does not use it, so omit it there.",
             "type": "string"
           },
           "personHint": {
@@ -9129,6 +10568,16 @@
           },
           "reason": {
             "description": "Why the record is being written by hand, in the requester's own words. It is kept when given and never demanded; somebody clocking in or out right now needs none.",
+            "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
             "type": "string"
           },
           "time": {
@@ -9321,7 +10770,7 @@
         "state": "ok"
       },
       "canonicalName": "attendance_update",
-      "description": "Correct the day, the time, or the workplace of attendance records that were written wrong, all in one call. What the record held before the correction is kept alongside it, with the reason. A person corrects their own records from the last three days. Correcting an older one, or anybody else's, is an administrator's: asked by anybody else it comes back with status asked, the administrators have been told, and the task is done. Say an administrator was asked; do not call this again.",
+      "description": "Correct the day, the time, or the work location of attendance records that were written wrong, all in one call. What the record held before the correction is kept alongside it, with the reason. A person corrects their own records from the last three days. Correcting an older one, or anybody else's, is an administrator's: asked by anybody else it comes back with status asked, the administrators have been told, and the task is done. Say an administrator was asked; do not call this again.",
       "estimatedLatency": "medium",
       "idempotency": {
         "required": false,
@@ -9348,7 +10797,7 @@
                   "type": "string"
                 },
                 "location": {
-                  "description": "The registered workplace it happened at. Omit to keep the one it has.",
+                  "description": "The registered work location it happened at. Omit to keep the one it has.",
                   "type": "string"
                 },
                 "time": {
@@ -9366,6 +10815,20 @@
           "reason": {
             "description": "Why the records were wrong.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -9390,7 +10853,7 @@
                   "type": "string"
                 },
                 "location": {
-                  "description": "The registered workplace it happened at. Omit to keep the one it has.",
+                  "description": "The registered work location it happened at. Omit to keep the one it has.",
                   "type": "string"
                 },
                 "time": {
@@ -9408,6 +10871,20 @@
           "reason": {
             "description": "Why the records were wrong, in the requester's own words.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -9522,6 +10999,20 @@
           "reason": {
             "description": "Why the record should not be there.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -9539,6 +11030,20 @@
           "reason": {
             "description": "Why the record should not be there, in the requester's own words.",
             "type": "string"
+          },
+          "reasonCode": {
+            "description": "Structured change reason. New UI changes use this instead of a free-text note; legacy reason text remains supported.",
+            "enum": [
+              "record_missing",
+              "time_correction",
+              "location_correction",
+              "other"
+            ],
+            "type": "string"
+          },
+          "undoOnly": {
+            "description": "Undo the last observed attendance change atomically. Unknown historical previous state is refused, never inferred as deletion.",
+            "type": "boolean"
           }
         },
         "required": [
@@ -24971,7 +26476,7 @@
         "state": "ok"
       },
       "canonicalName": "company_settings_get",
-      "description": "The company settings: its name, country, language, time zone, base currency, the workplaces attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The workplace names are what attendance_add's location takes.",
+      "description": "The company settings: its name, country, language, time zone, base currency, the work locations attendance can be recorded at, the annual leave a person is granted, whether everybody may see the whole company's attendance, and the address of its picture. Read this to answer 'what time zone are we on', 'which currency do we use', or 'where can we clock in from'. The work location names are what attendance_add's location takes.",
       "estimatedLatency": "low",
       "idempotency": {
         "required": false,
@@ -25227,7 +26732,7 @@
             "type": "string"
           },
           "workLocations": {
-            "description": "The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
+            "description": "The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -25237,7 +26742,7 @@
                   "type": "string"
                 },
                 "name": {
-                  "description": "The workplace's name as people say it, e.g. 'the office' or 'home'.",
+                  "description": "The work location's name as people say it, e.g. 'the office' or 'home'.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string"
@@ -25290,7 +26795,7 @@
             "type": "string"
           },
           "workLocations": {
-            "description": "The workplaces attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
+            "description": "The work locations attendance can be recorded at, in the order the screens list them. Replaces the whole list.",
             "items": {
               "additionalProperties": false,
               "properties": {
@@ -25300,7 +26805,7 @@
                   "type": "string"
                 },
                 "name": {
-                  "description": "The workplace's name as people say it, e.g. 'the office' or 'home'.",
+                  "description": "The work location's name as people say it, e.g. 'the office' or 'home'.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string"

@@ -17,3 +17,8 @@ export async function teamAttendance(caller: SupabaseClient, untrustedInput: Rec
 	if (error) throw new RecordRefusedTheWrite(error.message, statusOfPostgresCode(error.code));
 	return attendanceTeamPageSchema.parse(data);
 }
+
+export async function legacyTeamAttendance(caller: SupabaseClient, input: Record<string, unknown>) {
+ const answer=await teamAttendance(caller,input);
+ return attendanceTeamPageSchema.omit({companyName:true,companySummary:true}).strip().parse(answer);
+}

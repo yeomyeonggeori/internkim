@@ -6,7 +6,7 @@ struct ClockInIntent: AppIntent {
     static var title: LocalizedStringResource = "Clock in"
     static var isDiscoverable = false
 
-    @Parameter(title: "Location")
+    @Parameter(title: "Work location")
     var location: String?
 
     init() {}
@@ -49,7 +49,7 @@ struct HomeClockOutIntent: AppIntent {
 
 @available(iOS 17.0, *)
 struct ShowLocationsIntent: AppIntent {
-    static var title: LocalizedStringResource = "Choose another location"
+    static var title: LocalizedStringResource = "Choose another work location"
     static var isDiscoverable = false
 
     init() {}

@@ -71,12 +71,12 @@
 			<Select.Trigger class={selectTriggerClass} aria-label={text.organization.organization}>
 				{organizationLabel()}
 			</Select.Trigger>
-			<Select.Content>
+			<Select.Content><Select.Group>
 				<Select.Item value={noSelectionValue} label={text.organization.none}>{text.organization.none}</Select.Item>
 				{#each groups as group (group.id)}
 					<Select.Item value={group.id} label={group.name}>{group.name}</Select.Item>
 				{/each}
-			</Select.Content>
+			</Select.Group></Select.Content>
 		</Select.Root>
 	</div>
 	<label class={fieldClass}>
@@ -100,12 +100,12 @@
 			<Select.Trigger class={selectTriggerClass} aria-label={text.organization.supervisor}>
 				{supervisorLabel()}
 			</Select.Trigger>
-			<Select.Content>
+			<Select.Content><Select.Group>
 				<Select.Item value={noSelectionValue} label={text.organization.none}>{text.organization.none}</Select.Item>
 				{#each supervisorOptions() as option (option.memberID)}
 					<Select.Item value={option.memberID} label={personLabel(option)}>{personLabel(option)}</Select.Item>
 				{/each}
-			</Select.Content>
+			</Select.Group></Select.Content>
 		</Select.Root>
 	</div>
 </div>

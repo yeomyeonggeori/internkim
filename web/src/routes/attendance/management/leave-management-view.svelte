@@ -101,7 +101,7 @@
 		</p>
 	{/if}
 
-	<div class="grid min-h-0 gap-5 xl:grid-cols-[minmax(28rem,1fr)_minmax(30rem,1.2fr)]">
+	{#if !management.errorMessage}<div class="grid min-h-0 gap-5 xl:grid-cols-[minmax(28rem,1fr)_minmax(30rem,1.2fr)]">
 		<Card.Root class="min-h-0">
 			<Card.Header class="gap-3">
 				<div>
@@ -110,7 +110,7 @@
 				</div>
 				<Input bind:value={search} aria-label={text.management.searchPlaceholder} placeholder={text.management.searchPlaceholder} />
 			</Card.Header>
-			<Card.Content class="min-h-0 overflow-x-auto">
+			<Card.Content class="min-h-0 max-h-[65dvh] overflow-auto">
 				{#if isMobile.current}
 					<ul class="divide-y">
 						{#each filteredEmployees as employee (employee.email)}
@@ -123,7 +123,7 @@
 									{#if !isUnlimited}<div><dt class="text-xs text-muted-foreground">{text.management.available}</dt><dd class="font-medium tabular-nums">{dayValue(employee.availableMilliDays)}</dd></div>{/if}
 									<div><dt class="text-xs text-muted-foreground">{text.management.used}</dt><dd class="tabular-nums">{dayValue(employee.usedMilliDays)}</dd></div>
 									<div><dt class="text-xs text-muted-foreground">{text.management.pending}</dt><dd class="tabular-nums">{dayValue(employee.reservedMilliDays)}</dd></div>
-									{#if !isUnlimited}<div><dt class="text-xs text-muted-foreground">{text.management.granted}</dt><dd class="tabular-nums">{dayValue(employee.grantedMilliDays)}</dd></div><div><dt class="text-xs text-muted-foreground">{text.management.expiring}</dt><dd class="tabular-nums">{dayValue(employee.expiringMilliDays)}</dd></div>{/if}
+
 								</dl>
 							</li>
 						{:else}<li class="py-8 text-center text-muted-foreground">{text.management.noEmployees}</li>{/each}
@@ -133,14 +133,11 @@
 					<Table.Header>
 						<Table.Row>
 							<Table.Head>{text.management.employee}</Table.Head>
-							{#if !isUnlimited}
-								<Table.Head class="text-right">{text.management.granted}</Table.Head>
-							{/if}
+
 							<Table.Head class="text-right">{text.management.used}</Table.Head>
 							<Table.Head class="text-right">{text.management.pending}</Table.Head>
 							{#if !isUnlimited}
 								<Table.Head class="text-right">{text.management.available}</Table.Head>
-								<Table.Head class="text-right">{text.management.expiring}</Table.Head>
 							{/if}
 						</Table.Row>
 					</Table.Header>
@@ -171,11 +168,7 @@
 										</span>
 									</button>
 								</Table.Cell>
-								{#if !isUnlimited}
-									<Table.Cell class="text-right tabular-nums">
-										{dayValue(employee.grantedMilliDays)}
-									</Table.Cell>
-								{/if}
+
 								<Table.Cell class="text-right tabular-nums">
 									{dayValue(employee.usedMilliDays)}
 								</Table.Cell>
@@ -186,14 +179,11 @@
 									<Table.Cell class="text-right font-medium tabular-nums">
 										{dayValue(employee.availableMilliDays)}
 									</Table.Cell>
-									<Table.Cell class="text-right tabular-nums">
-										{dayValue(employee.expiringMilliDays)}
-									</Table.Cell>
 								{/if}
 							</Table.Row>
 						{:else}
 							<Table.Row>
-								<Table.Cell colspan={isUnlimited ? 3 : 6} class="h-28 text-center text-muted-foreground">
+								<Table.Cell colspan={isUnlimited ? 3 : 4} class="h-28 text-center text-muted-foreground">
 									{text.management.noEmployees}
 								</Table.Cell>
 							</Table.Row>
@@ -342,5 +332,5 @@
 				</Sheet.Content>
 			</Sheet.Root>
 		{:else}{@render employeeDetails()}{/if}
-	</div>
+	</div>{/if}
 </section>
