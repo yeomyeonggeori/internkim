@@ -4,6 +4,7 @@
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import { buttonVariants } from '$lib/components/ui/button';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
@@ -26,10 +27,11 @@
 		nextActions: CRMNextAction[];
 		stages: CRMPipelineStage[];
 		text: CRMText;
+		emptyLabel?: string;
 		onEdit: (opportunityID: string) => void;
 	};
 
-	let { opportunities, organizations, pipelines, nextActions, stages, text, onEdit }: Props = $props();
+	let { opportunities, organizations, pipelines, nextActions, stages, text, emptyLabel, onEdit }: Props = $props();
 
 	const comparators: CRMSortComparators<CRMOpportunity> = {
 		name: (opportunity) => opportunity.name,
@@ -177,7 +179,7 @@
 						<Table.Cell class="hidden whitespace-nowrap pr-6 text-right tabular-nums text-muted-foreground xl:table-cell">{elapsedDaysLabel(opportunity)}</Table.Cell>
 					</Table.Row>
 				{:else}
-					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={9} class="py-10 text-center text-sm text-muted-foreground">{text.noProgress}</Table.Cell></Table.Row>
+					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={9} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{emptyLabel ?? text.progressEmpty}</Empty.Title></Empty.Header></Empty.Root></Table.Cell></Table.Row>
 				{/each}
 			</Table.Body>
 		</Table.Root>

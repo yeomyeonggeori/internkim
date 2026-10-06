@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { currentLocale } from '$lib/i18n/locale.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Chart from '$lib/components/ui/chart';
 	import * as HoverCard from '$lib/components/ui/hover-card';
 	import * as Select from '$lib/components/ui/select';
@@ -321,7 +322,7 @@
 					</BarChart>
 				</Chart.Container>
 			{:else}
-				<p class="py-8 text-center text-sm text-muted-foreground">{text.noReportData}</p>
+				<Empty.Root><Empty.Header><Empty.Title>{text.noReportData}</Empty.Title></Empty.Header></Empty.Root>
 			{/if}
 		</Card.Content>
 	</Card.Root>
@@ -345,7 +346,7 @@
 						<span class="break-all text-right font-medium tabular-nums">{money(row.totals)}</span>
 					</div>
 				{:else}
-					<p class="py-8 text-center text-sm text-muted-foreground">{text.noReportData}</p>
+					<Empty.Root><Empty.Header><Empty.Title>{text.noReportData}</Empty.Title></Empty.Header></Empty.Root>
 				{/each}
 			</Card.Content>
 		</Card.Root>
@@ -369,7 +370,7 @@
 						<span class="break-all text-right font-medium tabular-nums">{money(row.totals)}</span>
 					</div>
 				{:else}
-					<p class="py-8 text-center text-sm text-muted-foreground">{text.noReportData}</p>
+					<Empty.Root><Empty.Header><Empty.Title>{text.noReportData}</Empty.Title></Empty.Header></Empty.Root>
 				{/each}
 			</Card.Content>
 		</Card.Root>
@@ -424,7 +425,7 @@
 								</Table.Cell>
 							</Table.Row>
 						{:else}
-							<Table.Row><Table.Cell colspan={4} class="py-10 text-center text-sm text-muted-foreground">{text.noOrganizations}</Table.Cell></Table.Row>
+							<Table.Row><Table.Cell colspan={4} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{text.noOrganizations}</Empty.Title></Empty.Header></Empty.Root></Table.Cell></Table.Row>
 						{/each}
 					</Table.Body>
 				</Table.Root>
@@ -471,7 +472,7 @@
 							<Table.Cell class="hidden whitespace-nowrap pr-6 text-right tabular-nums md:table-cell">{owner.missingActionCount}</Table.Cell>
 						</Table.Row>
 					{:else}
-						<Table.Row><Table.Cell colspan={6} class="py-10 text-center text-sm text-muted-foreground">{text.noReportData}</Table.Cell></Table.Row>
+						<Table.Row><Table.Cell colspan={6} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{text.noReportData}</Empty.Title></Empty.Header></Empty.Root></Table.Cell></Table.Row>
 					{/each}
 				</Table.Body>
 			</Table.Root>

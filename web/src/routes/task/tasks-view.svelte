@@ -146,6 +146,8 @@
 			{#if summary?.completeness === 'full' && hasShownWeek}
 			{#if isPendingRead}<p role="status" class="mb-3 flex items-center gap-2 text-sm text-muted-foreground"><Spinner class="size-4" /><span class="sr-only">{text.loadingHistory}</span></p>{/if}
 			<TaskListView
+				emptyLabel={page.tasks().length > 0 ? text.task.empty : text.task.noTasks}
+				showEmpty={!isPendingRead && !isLoading && !loadError && !historyError}
 				memberEmail={page.memberEmail}
 				businessColor={page.businessColor}
 				taskTypeColor={page.taskTypeColor}
@@ -160,7 +162,7 @@
 				{focusedTaskID}
 			/>
 			{:else if !historyError && !loadError}
-				<TaskContentSkeleton label={text.loadingHistory} />
+				<TaskContentSkeleton label={text.loadingHistory} {text} />
 			{/if}
 		</Tabs.Content>
 	</Tabs.Root>

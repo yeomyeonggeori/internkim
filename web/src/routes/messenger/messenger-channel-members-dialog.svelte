@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import PersonMultiSelect from '$lib/components/person-multi-select.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -33,6 +34,8 @@
 	const text = createPageText(channelText);
 
 	let candidates = $state<ChannelCandidate[]>([]);
+	let isLoadingCandidates = $state(false);
+	let candidateError = $state('');
 	let chosenIDs = $state<string[]>([]);
 	let isAdding = $state(false);
 	let removing = $state<ChannelMember | null>(null);
@@ -43,10 +46,15 @@
 
 	$effect(() => {
 		if (!open) return;
+		let active = true;
 		chosenIDs = [];
+		isLoadingCandidates = true;
+		candidateError = '';
 		fetchChannelCandidates(text.title)
-			.then((found) => (candidates = found))
-			.catch(() => (candidates = []));
+			.then((found) => { if (active) candidates = found; })
+			.catch((error: unknown) => { if (active) candidateError = error instanceof Error ? error.message : text.loadPeopleFailed; })
+			.finally(() => { if (active) isLoadingCandidates = false; });
+		return () => { active = false; };
 	});
 
 	function switchChosen(memberID: string) {
@@ -119,7 +127,7 @@
 					placeholder={text.addMembersPlaceholder}
 					onToggle={switchChosen}
 					onRemove={switchChosen}
-					disabled={isAdding}
+					disabled={isAdding || isLoadingCandidates || Boolean(candidateError)}
 				/>
 			</div>
 			<Button onclick={addChosen} disabled={isAdding || chosenIDs.length === 0}>
@@ -127,10 +135,11 @@
 				{text.addChannelMembers}
 			</Button>
 		</div>
+		{#if isLoadingCandidates}<div role="status" aria-label={text.loadingPeople} class="flex justify-center"><Spinner /></div>{:else if candidateError}<p role="alert" class="text-sm text-destructive">{candidateError}</p>{/if}
 		<Command.Root>
 			<Command.Input placeholder={text.searchMembers} />
 			<Command.List>
-				<Command.Empty>{text.noMatchingMembers}</Command.Empty>
+				<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noMatchingMembers}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
 				<Command.Group heading={text.channelMemberCount.replace('{count}', String(members.length))}>
 					{#each members as member (member.memberID ?? member.externalID)}
 						<Command.Item

@@ -10,6 +10,8 @@
 	import type { Snippet } from 'svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Command from '$lib/components/ui/command/index.js';
+	import * as Empty from '$lib/components/ui/empty';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -34,7 +36,10 @@
 		optionContent,
 		selectedContent,
 		onSearchChange,
-		remoteSearch = false
+		remoteSearch = false,
+		isSearching = false,
+		searchError = '',
+		searchStatusLabel
 	}: {
 		value?: string;
 		options: Option[];
@@ -53,6 +58,9 @@
 		selectedContent?: Snippet<[Option]>;
 		onSearchChange?: (query: string) => void;
 		remoteSearch?: boolean;
+		isSearching?: boolean;
+		searchError?: string;
+		searchStatusLabel?: string;
 	} = $props();
 
 	const text = createPageText(appShellText);
@@ -112,7 +120,13 @@
 				<Command.Input placeholder={searchPlaceholder ?? text.search} oninput={(event) => onSearchChange?.(event.currentTarget.value)} />
 			{/if}
 			<Command.List>
-				<Command.Empty>{text.searchNoResults}</Command.Empty>
+				{#if isSearching}
+					<div role="status" aria-label={searchStatusLabel ?? label} aria-busy="true" class="flex justify-center p-3"><Spinner /></div>
+				{:else if searchError}
+					<p role="alert" class="p-3 text-sm text-destructive">{searchError}</p>
+				{:else}
+					<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.searchNoResults}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
+				{/if}
 				<Command.Group value="options">
 					{#each options as option (option.value)}
 						<Command.Item

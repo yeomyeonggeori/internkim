@@ -6,6 +6,7 @@
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import FileBrowserList, { type FileBrowserEntry } from '$lib/components/file-browser-list.svelte';
 	import FileBrowserPreview from '$lib/components/file-browser-preview.svelte';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -95,6 +96,9 @@
 				<div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
 					<Breadcrumb.Root class="min-w-0 max-w-full overflow-x-auto">
 						<Breadcrumb.List class="w-max flex-nowrap">
+							{#if files.isLoading && files.breadcrumbs.length === 0}
+								<Breadcrumb.Item aria-hidden="true" class="h-5"><Skeleton class="h-4 w-24" /></Breadcrumb.Item>
+							{/if}
 							{#each files.breadcrumbs as crumb, index (crumb.path)}
 								{#if index > 0}<Breadcrumb.Separator />{/if}
 								<Breadcrumb.Item>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -22,11 +23,12 @@
 		schedules: MemorySchedule[];
 		isLoading: boolean;
 		hasLoadError: boolean;
+		includeExpired?: boolean;
 		openEditDialog: (schedule: MemorySchedule) => void;
 		confirmDeleteSchedule: (schedule: MemorySchedule) => void;
 	};
 
-	let { text, schedules, isLoading, hasLoadError, openEditDialog, confirmDeleteSchedule }: Props = $props();
+	let { text, schedules, isLoading, hasLoadError, includeExpired = true, openEditDialog, confirmDeleteSchedule }: Props = $props();
 	const isMobile = new MediaQuery('(max-width: 639px)');
 
 	function scheduleTitle(schedule: MemorySchedule): string {
@@ -93,15 +95,61 @@
 	}
 </script>
 
+{#snippet tableHeader()}
+	<Table.Header>
+		<Table.Row class="hover:bg-transparent">
+			<Table.Head class="min-w-80 px-4 text-xs text-muted-foreground">{text.schedulePrompt}</Table.Head>
+			<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleStatus}</Table.Head>
+			<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleKind}</Table.Head>
+			<Table.Head class="min-w-44 px-3 text-xs text-muted-foreground">{text.scheduleTiming}</Table.Head>
+			<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleNextRun}</Table.Head>
+			<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleExpiresAt}</Table.Head>
+			<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleRunCount}</Table.Head>
+			<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleFailures}</Table.Head>
+			<Table.Head class="w-20 px-4 text-right text-xs text-muted-foreground">{text.scheduleActions}</Table.Head>
+		</Table.Row>
+	</Table.Header>
+{/snippet}
+
 {#if isLoading && schedules.length === 0}
 	<div role="status" aria-label={text.loading} aria-busy="true" data-testid="schedule-loading-skeleton">
-		<div aria-hidden="true" class="divide-y sm:hidden">{#each [0, 1, 2] as row (row)}<div class="grid gap-3 p-4"><Skeleton class="h-4 w-4/5" /><div class="flex gap-2"><Skeleton class="h-5 w-16" /><Skeleton class="h-4 w-24" /></div><Skeleton class="h-4 w-44" /><div class="flex gap-2"><Skeleton class="h-9 w-20" /><Skeleton class="h-9 w-20" /></div><Skeleton class="h-4 w-24" /></div>{/each}</div>
-		<div aria-hidden="true" class="hidden overflow-x-auto sm:block"><div class="min-w-[1200px]"><div class="grid grid-cols-[minmax(20rem,1fr)_5rem_5rem_11rem_9rem_9rem_5rem_5rem_5rem] gap-4 border-b px-4 py-3">{#each [0, 1, 2, 3, 4, 5, 6, 7, 8] as column (column)}<Skeleton class="h-3 w-16" />{/each}</div>{#each [0, 1, 2, 3, 4] as row (row)}<div class="grid grid-cols-[minmax(20rem,1fr)_5rem_5rem_11rem_9rem_9rem_5rem_5rem_5rem] items-center gap-4 border-b px-4 py-4 last:border-b-0"><div class="grid gap-2"><Skeleton class="h-4 w-4/5" /><Skeleton class="h-3 w-1/2" /></div>{#each [0, 1, 2, 3, 4, 5, 6, 7] as column (column)}<Skeleton class="h-4 w-4/5" />{/each}</div>{/each}</div></div>
+		<div aria-hidden="true" class="divide-y sm:hidden">
+			{#each [0, 1, 2] as row (row)}
+				<div class="grid min-w-0 gap-3 p-4">
+					<div class="flex h-5 items-center"><Skeleton class="h-4 w-4/5" /></div>
+					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-5 w-16" /><Skeleton class="h-4 w-24" /></div>
+					<div class="flex h-5 items-center"><Skeleton class="h-4 w-44" /></div>
+					<div class="flex flex-wrap items-center gap-2"><Skeleton class="h-11 w-20" /><Skeleton class="h-11 w-20" /></div>
+					<div class="flex h-11 items-center"><Skeleton class="h-4 w-24" /></div>
+				</div>
+			{/each}
+		</div>
+		<div aria-hidden="true" class="hidden overflow-x-auto sm:block">
+			<Table.Root>
+				{@render tableHeader()}
+				<Table.Body>
+					{#each [0, 1, 2, 3, 4] as row (row)}
+						<Table.Row class="hover:bg-transparent">
+							<Table.Cell class="max-w-96 px-4 py-3">
+								<div class="flex h-5 items-center"><Skeleton class="h-4 w-4/5" /></div>
+								<div class="mt-0.5 flex h-4 items-center"><Skeleton class="h-3 w-1/2" /></div>
+							</Table.Cell>
+							<Table.Cell class="px-3 py-3"><Skeleton class="h-5 w-12" /></Table.Cell>
+							<Table.Cell class="px-3 py-3"><Skeleton class="h-5 w-14" /></Table.Cell>
+							<Table.Cell class="max-w-72 px-3 py-3"><Skeleton class="h-4 w-28" /></Table.Cell>
+							<Table.Cell class="px-3 py-3"><Skeleton class="h-4 w-28" /></Table.Cell>
+							<Table.Cell class="px-3 py-3"><Skeleton class="h-4 w-28" /></Table.Cell>
+							<Table.Cell class="px-3 py-3"><Skeleton class="h-4 w-10" /></Table.Cell>
+							<Table.Cell class="px-3 py-3"><Skeleton class="h-5 w-10" /></Table.Cell>
+							<Table.Cell class="px-4 py-3"><div class="flex justify-end gap-1"><Skeleton class="size-7" /><Skeleton class="size-7" /></div></Table.Cell>
+						</Table.Row>
+					{/each}
+				</Table.Body>
+			</Table.Root>
+		</div>
 	</div>
-{:else if schedules.length === 0 && !hasLoadError}
-	<div class="grid place-items-center px-4 py-16">
-		<p class="text-sm text-muted-foreground">{text.scheduleEmpty}</p>
-	</div>
+{:else if schedules.length === 0 && !isLoading && !hasLoadError}
+	<Empty.Root><Empty.Header><Empty.Title>{includeExpired ? text.scheduleEmpty : text.scheduleNoMatches}</Empty.Title></Empty.Header></Empty.Root>
 {:else if schedules.length > 0}
 	{#if isMobile.current}
 		<ul class="divide-y">
@@ -130,19 +178,7 @@
 	{:else}
 	<div class="overflow-x-auto">
 		<Table.Root>
-			<Table.Header>
-				<Table.Row class="hover:bg-transparent">
-					<Table.Head class="min-w-80 px-4 text-xs text-muted-foreground">{text.schedulePrompt}</Table.Head>
-					<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleStatus}</Table.Head>
-					<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleKind}</Table.Head>
-					<Table.Head class="min-w-44 px-3 text-xs text-muted-foreground">{text.scheduleTiming}</Table.Head>
-					<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleNextRun}</Table.Head>
-					<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleExpiresAt}</Table.Head>
-					<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleRunCount}</Table.Head>
-					<Table.Head class="px-3 text-xs text-muted-foreground">{text.scheduleFailures}</Table.Head>
-					<Table.Head class="w-20 px-4 text-right text-xs text-muted-foreground">{text.scheduleActions}</Table.Head>
-				</Table.Row>
-			</Table.Header>
+			{@render tableHeader()}
 			<Table.Body>
 				{#each schedules as schedule}
 					<Table.Row>

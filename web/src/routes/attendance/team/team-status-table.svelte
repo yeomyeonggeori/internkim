@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import * as Empty from '$lib/components/ui/empty';
 	import type { CalendarEvent } from '../../calendar/embed/calendar-event-persistence';
 	import type { TaskState } from '../../task/task-types';
 	import type { AttendanceText } from '../text';
@@ -19,9 +20,10 @@
 		selectedDate: string;
 		today: string;
 		text: AttendanceText;
+		emptyMessage?: string;
 	};
 
-	let { rows, summary, statusDates, selectedDate, today, text }: Props = $props();
+	let { rows, summary, statusDates, selectedDate, today, text, emptyMessage }: Props = $props();
 	const initialRenderedDateCount = 6;
 	const renderedDateChunkSize = 6;
 	let renderedDateCount = $state(initialRenderedDateCount);
@@ -286,8 +288,8 @@
 					</div>
 				{/each}
 			{:else}
-				<div class="py-8 text-center text-sm text-muted-foreground" role="row">
-					<div role="cell">{text.noMembers}</div>
+				<div role="row">
+					<div role="cell"><Empty.Root><Empty.Header><Empty.Title>{emptyMessage ?? text.noMembers}</Empty.Title></Empty.Header></Empty.Root></div>
 				</div>
 			{/if}
 		</div>

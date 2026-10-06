@@ -19,6 +19,8 @@
 
 	type Props = {
 		tasks: Task[];
+		emptyLabel: string;
+		showEmpty: boolean;
 		text: TaskPageText;
 		statusOptionsForTask: (task: Task) => TaskListStatusOption[];
 		pendingStatusTaskID: string;
@@ -34,6 +36,8 @@
 
 	let {
 		tasks,
+		emptyLabel,
+		showEmpty,
 		text,
 		statusOptionsForTask,
 		pendingStatusTaskID,
@@ -107,7 +111,8 @@
 	{taskTable}
 	columnCount={taskColumns.length}
 	pageSize={taskPagination.pageSize}
-	emptyLabel={text.task.empty}
+	{emptyLabel}
+	{showEmpty}
 	pagination={text.table.pagination}
 	{openTask}
 	{focusedTaskID}

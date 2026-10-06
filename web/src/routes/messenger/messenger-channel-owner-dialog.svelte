@@ -1,4 +1,5 @@
 <script lang="ts">
+	import * as Empty from '$lib/components/ui/empty';
 	import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import * as Command from '$lib/components/ui/command';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -65,7 +66,7 @@
 		<Command.Root>
 			<Command.Input placeholder={text.searchMembers} />
 			<Command.List>
-				<Command.Empty>{text.noMatchingMembers}</Command.Empty>
+				<Command.Empty class="p-0"><Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noMatchingMembers}</Empty.Title></Empty.Header></Empty.Root></Command.Empty>
 				<Command.Group>
 					{#each candidates as member (member.memberID ?? member.externalID)}
 						<Command.Item

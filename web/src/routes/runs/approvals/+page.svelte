@@ -71,16 +71,32 @@
 			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
 		</Card.Root>
 		{/if}
-		{#if approvals === undefined && !loadError}
+		{#if (approvals === undefined || isLoading && approvals.length === 0) && !loadError}
 			<section role="status" aria-label={text.approvalsTitle} aria-busy="true" class="grid gap-4" data-testid="approvals-loading-skeleton">
-				{#each [0, 1] as card (card)}<div aria-hidden="true" class="grid gap-4 rounded-xl border p-6"><div class="flex flex-wrap gap-3"><Skeleton class="h-5 w-24 rounded-full" /><Skeleton class="h-4 w-28" /><Skeleton class="h-4 w-28" /></div><Skeleton class="h-5 w-3/4" /><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-2/3" /><div class="flex gap-2"><Skeleton class="h-9 w-24" /><Skeleton class="h-9 w-24" /></div><Skeleton class="h-4 w-20" /></div>{/each}
+				{#each [0, 1] as card (card)}
+					<Card.Root aria-hidden="true">
+						<Card.Header class="gap-3">
+							<div class="flex min-w-0 flex-wrap items-center gap-2"><Skeleton class="h-5 w-18" /><Skeleton class="h-3 w-32" /><Skeleton class="h-3 w-24" /></div>
+							<div class="flex h-6 items-center"><Skeleton class="h-5 w-3/4" /></div>
+						</Card.Header>
+						<Card.Content>
+							<div class="flex flex-col gap-3">
+								<div class="flex h-4 items-center"><Skeleton class="h-3 w-20" /></div>
+								<div>
+									<div class="flex h-5 items-center"><Skeleton class="h-4 w-full sm:w-2/3" /></div>
+									<div class="flex h-5 items-center sm:hidden"><Skeleton class="h-4 w-2/3" /></div>
+								</div>
+								<div class="h-px bg-border"></div>
+								<div class="flex flex-wrap gap-2"><Skeleton class="h-11 w-22 sm:h-7" /><Skeleton class="h-11 w-14 sm:h-7" /></div>
+							</div>
+						</Card.Content>
+						<Card.Footer><div class="flex h-11 items-center px-2.5 sm:h-7"><Skeleton class="h-4 w-20" /></div></Card.Footer>
+					</Card.Root>
+				{/each}
 			</section>
-		{:else if approvals?.length === 0}
-		<Empty.Root>
+		{:else if approvals?.length === 0 && !isLoading && !loadError}
+		<Empty.Root class="flex-none">
 			<Empty.Header>
-				<Empty.Media variant="icon">
-					<HourglassIcon />
-				</Empty.Media>
 				<Empty.Title>{text.approvalsEmpty}</Empty.Title>
 			</Empty.Header>
 		</Empty.Root>

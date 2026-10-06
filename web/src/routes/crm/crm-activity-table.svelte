@@ -8,6 +8,7 @@
 	import DefinitionBadge from '$lib/components/definition-badge.svelte';
 	import TaskListBusinessCell from '../task/task-list-business-cell.svelte';
 	import * as Table from '$lib/components/ui/table';
+	import * as Empty from '$lib/components/ui/empty';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import PersonChipList from '$lib/components/person-chip-list.svelte';
 	import CalendarCheckIcon from '@lucide/svelte/icons/calendar-check';
@@ -30,10 +31,11 @@
 		people: UserRecord[];
 		taskDefinitions: TaskDefinitions;
 		text: CRMText;
+		emptyLabel?: string;
 		onEdit: (activityID: string) => void;
 	};
 
-	let { activities, organizations, opportunities, people, taskDefinitions, text, onEdit }: Props = $props();
+	let { activities, organizations, opportunities, people, taskDefinitions, text, emptyLabel, onEdit }: Props = $props();
 	function emailOf(memberID: string): string {
 		return people.find((person) => person.memberID === memberID)?.email ?? '';
 	}
@@ -162,7 +164,7 @@
 						</Table.Cell>
 					</Table.Row>
 				{:else}
-					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={10} class="py-10 text-center text-sm text-muted-foreground">{text.noActivities}</Table.Cell></Table.Row>
+					<Table.Row class="hover:bg-transparent"><Table.Cell colspan={10} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{emptyLabel ?? text.activitiesEmpty}</Empty.Title></Empty.Header></Empty.Root></Table.Cell></Table.Row>
 				{/each}
 			</Table.Body>
 		</Table.Root>

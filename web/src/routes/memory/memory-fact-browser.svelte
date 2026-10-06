@@ -74,6 +74,11 @@
 		selectedFactID = '';
 	}
 
+	function showAllMemories(): void {
+		clearSearch();
+		selectedLayerKey = 'all';
+		includesPrevious = true;
+	}
 
 	function removeForgottenFact(factID: string): void {
 		if (!memory) return;
@@ -170,8 +175,15 @@
 					{/if}
 				</aside>
 			</div>
-		{:else}
-			<Empty.Root class="min-h-80 border-t"><Empty.Header><Empty.Media variant="icon"><BookOpenIcon /></Empty.Media><Empty.Title>{isSearching ? text.noSearchResults : text.noVisibleMemory}</Empty.Title><Empty.Description>{isSearching ? text.noSearchDescription : text.browseDescription}</Empty.Description></Empty.Header></Empty.Root>
+		{:else if !isLoading && !hasLoadError}
+			{@const hasFilters = isSearching || selectedLayerKey !== 'all' || memory.facts.length > 0}
+			<Empty.Root class="border-t">
+				<Empty.Header>
+					<Empty.Title>{isSearching ? text.noSearchResults : hasFilters ? text.noMatchingMemory : text.noVisibleMemory}</Empty.Title>
+					<Empty.Description>{isSearching ? text.noSearchDescription : hasFilters ? text.noMatchingDescription : text.browseDescription}</Empty.Description>
+				</Empty.Header>
+				{#if hasFilters}<Empty.Content><Button variant="outline" size="sm" onclick={showAllMemories}>{text.showAllMemories}</Button></Empty.Content>{/if}
+			</Empty.Root>
 		{/if}
 	{/if}
 </div>

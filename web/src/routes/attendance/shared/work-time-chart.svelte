@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import type * as Chart from '$lib/components/ui/chart';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
@@ -164,9 +165,9 @@
 	</Card.Header>
 	<Card.Content class={compact ? 'px-3 pb-3 pt-1' : undefined}>
 		{#if !hasRecordedTime}
-			<div class={compact ? 'flex h-20 items-center justify-center rounded-md bg-muted/30 px-3 text-center text-xs text-muted-foreground' : 'flex h-48 items-center justify-center rounded-md bg-muted/30 text-sm text-muted-foreground'}>
-				{text.empty}
-			</div>
+			<Empty.Root class={compact ? 'p-4' : undefined}>
+				<Empty.Header><Empty.Title>{text.empty}</Empty.Title></Empty.Header>
+			</Empty.Root>
 		{:else if !plotComponent}
 			<Skeleton class={compact ? 'h-24 w-full' : 'h-72 w-full'} />
 		{:else}

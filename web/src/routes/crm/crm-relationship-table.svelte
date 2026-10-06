@@ -4,6 +4,7 @@
 	import { displayPersonName } from '$lib/person-name.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
+	import * as Empty from '$lib/components/ui/empty';
 	import ListPaginationFooter from '$lib/components/list-pagination-footer.svelte';
 	import type { CRMDefinition } from './crm-api-types';
 	import { crmDefinitionLabel, crmLabel } from './crm-labels';
@@ -24,10 +25,11 @@
 		organizationTypeDefinitions: CRMDefinition[];
 		currencyCatalogue: CurrencyCatalogue;
 		text: CRMText;
+		emptyLabel?: string;
 		openOrganization: (organizationID: string) => void;
 	};
 
-	let { organizations, contacts, organizationTypeDefinitions, currencyCatalogue, text, openOrganization }: Props = $props();
+	let { organizations, contacts, organizationTypeDefinitions, currencyCatalogue, text, emptyLabel, openOrganization }: Props = $props();
 
 	function openAmountOf(organization: CRMOrganization): number | undefined {
 		const collapsed = collapsedViewMoneyTotal(organization.expectedValues, crmViewCurrency);
@@ -145,7 +147,7 @@
 					</Table.Row>
 				{:else}
 					<Table.Row class="hover:bg-transparent">
-						<Table.Cell colspan={7} class="py-10 text-center text-sm text-muted-foreground">{text.noOrganizations}</Table.Cell>
+						<Table.Cell colspan={8} class="whitespace-normal p-0"><Empty.Root><Empty.Header><Empty.Title>{emptyLabel ?? text.organizationsEmpty}</Empty.Title></Empty.Header></Empty.Root></Table.Cell>
 					</Table.Row>
 				{/each}
 			</Table.Body>

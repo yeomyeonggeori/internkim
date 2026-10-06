@@ -21,6 +21,8 @@ export class AttendanceTeamState {
 	locationFilter = $state('');
 	isLoadingTeams = $state(false);
 	isLoadingMembers = $state(false);
+	hasLoadedTeams = $state(false);
+	hasLoadedMembers = $state(false);
 	error = $state('');
 	memberError = $state('');
 	companyName = $state('');
@@ -71,6 +73,7 @@ export class AttendanceTeamState {
 			this.companyName = page.companyName ?? '';
 			this.companySummary = page.companySummary;
 			this.teams = page.teams;
+			this.hasLoadedTeams = true;
 			this.teamTotal = page.teamTotal;
 			this.timeZone = page.timeZone;
 			this.serverTime = page.serverTime;
@@ -97,6 +100,7 @@ export class AttendanceTeamState {
 		this.searchText = '';
 		this.locationFilter = '';
 		this.members = [];
+		this.hasLoadedMembers = false;
 		void this.loadMembers(0);
 	}
 
@@ -105,6 +109,7 @@ export class AttendanceTeamState {
 		this.isLoadingMembers = false;
 		this.selectedTeamKey = '';
 		this.members = [];
+		this.hasLoadedMembers = false;
 		this.memberTotal = 0;
 		this.memberOffset = 0;
 		this.memberError = '';
@@ -138,6 +143,7 @@ export class AttendanceTeamState {
 				return;
 			}
 			this.members = page.members;
+			this.hasLoadedMembers = true;
 			this.memberTotal = page.memberTotal;
 			this.timeZone = page.timeZone;
 			this.serverTime = page.serverTime;

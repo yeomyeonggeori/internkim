@@ -6,6 +6,7 @@
 	import * as Accordion from '$lib/components/ui/accordion';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Input } from '$lib/components/ui/input';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -52,6 +53,7 @@
 	const text = createPageText(tasksText);
 	let detail = $state<TaskDetail | undefined>(undefined);
 	let loadError = $state('');
+	let detailLoading = $state(true);
 	let selectedTab = $state('story');
 	let selectedEventLane = $state('all');
 	let eventSearchQuery = $state('');
@@ -72,6 +74,7 @@
 	const taskListPath = $derived(taskListPathOf(page.url.pathname));
 
 	async function load(taskRunID: string, generation: number) {
+		detailLoading = true;
 		loadError = '';
 		try {
 			const nextDetail = await fetchTaskDetail(taskRunID);
@@ -85,6 +88,8 @@
 				serviceLogLines = undefined;
 			}
 			loadError = text.detailLoadError;
+		} finally {
+			if (generation === loadGeneration && page.params.id === taskRunID) detailLoading = false;
 		}
 	}
 
@@ -200,6 +205,8 @@
 				{/if}
 				<CopyButton text={taskShareText} />
 			</div>
+		{:else if !loadError}
+			<Skeleton aria-hidden="true" class="size-11 sm:size-8" />
 		{/if}
 	</div>
 
@@ -210,7 +217,44 @@
 		{/if}
 		{#if !detail && !loadError}
 			<section role="status" aria-label={text.pageTitle} aria-busy="true" data-testid="run-detail-loading-skeleton">
-				<div aria-hidden="true" class="grid gap-3"><div class="flex gap-2"><Skeleton class="h-5 w-20 rounded-full" /><Skeleton class="h-4 w-32" /></div><Skeleton class="h-6 w-4/5 max-w-2xl" /><div class="mt-2 grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-3 lg:grid-cols-6">{#each [0, 1, 2, 3, 4, 5] as fact (fact)}<div class="grid gap-2 border-r border-b px-3 py-3"><Skeleton class="h-3 w-16" /><Skeleton class="h-5 w-20" /></div>{/each}</div><div class="mt-3 flex gap-5 border-b py-3"><Skeleton class="h-4 w-20" /><Skeleton class="h-4 w-20" /><Skeleton class="h-4 w-20" /></div>{#each [0, 1, 2] as step (step)}<div class="flex items-center gap-3 rounded-lg border p-4"><Skeleton class="size-6 shrink-0 rounded-full" /><div class="grid flex-1 gap-2"><Skeleton class="h-4 w-3/5" /><Skeleton class="h-3 w-1/3" /></div><Skeleton class="h-3 w-16" /></div>{/each}</div>
+				<div aria-hidden="true" class="flex min-w-0 flex-col gap-5">
+					<div class="flex min-w-0 flex-col gap-2">
+						<div class="flex h-4 items-center gap-2"><Skeleton class="h-3 w-12" /><Skeleton class="h-3 w-24" /><Skeleton class="h-3 w-28" /></div>
+						<div class="flex h-[1lh] items-center text-lg leading-snug"><Skeleton class="h-5 w-4/5 max-w-2xl" /></div>
+						<div class="mt-2 rounded-lg bg-muted/50 px-4 py-3 text-sm leading-relaxed">
+							<div class="flex h-[1lh] items-center"><Skeleton class="h-4 w-full sm:w-3/4" /></div>
+							<div class="flex h-[1lh] items-center sm:hidden"><Skeleton class="h-4 w-2/3" /></div>
+						</div>
+						<div class="mt-2 grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-3 lg:grid-flow-col lg:grid-cols-none lg:auto-cols-fr">
+							{#each [0, 1, 2, 3, 4, 5] as fact (fact)}
+								<div class="-mr-px -mb-px flex min-w-0 flex-col gap-1 border-r border-b px-3 py-2.5 sm:px-4 sm:py-3">
+									<div class="flex h-4 items-center"><Skeleton class="h-3 w-16" /></div>
+									<div class="flex h-5 items-center sm:h-6"><Skeleton class="h-4 w-20 sm:h-5" /></div>
+								</div>
+							{/each}
+						</div>
+					</div>
+					<div class="flex min-w-0 flex-col gap-2">
+						<UnderlineTabs.Root value="story">
+							<UnderlineTabs.List>
+								<UnderlineTabs.Trigger value="story" disabled>{text.storyTab}</UnderlineTabs.Trigger>
+								<UnderlineTabs.Trigger value="timeline" disabled>{text.rawTab}</UnderlineTabs.Trigger>
+								<UnderlineTabs.Trigger value="logs" disabled>{text.logsTab}</UnderlineTabs.Trigger>
+							</UnderlineTabs.List>
+						</UnderlineTabs.Root>
+						<div class="divide-y">
+							{#each [0, 1, 2] as step (step)}
+								<div>
+									<div class="flex min-w-0 items-center gap-3 border border-transparent py-2.5">
+										<Skeleton class="size-4 shrink-0" />
+										<div class="flex h-5 min-w-0 flex-1 items-center"><Skeleton class="h-4 w-3/5" /></div>
+										<Skeleton class="h-3 w-12 shrink-0" /><Skeleton class="size-4 shrink-0" />
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				</div>
 			</section>
 		{:else if detail}
 		<section class="flex flex-col gap-2">
@@ -246,7 +290,9 @@
 
 			<UnderlineTabs.Content value="story" class="min-w-0">
 				{#if story.steps.length === 0 && !story.intakeDecision}
-					<p class="py-8 text-center text-sm text-muted-foreground">{text.noSteps}</p>
+					{#if !detailLoading && !loadError}
+						<Empty.Root><Empty.Header><Empty.Title>{text.noSteps}</Empty.Title></Empty.Header></Empty.Root>
+					{/if}
 				{:else}
 					<Accordion.Root type="multiple" bind:value={openStepValues}>
 						{#if story.intakeDecision}
@@ -274,7 +320,14 @@
 					</label>
 				</div>
 				{#if ledgerSections.length === 0}
-					<p class="py-8 text-center text-sm text-muted-foreground">{text.noMatchingEvents}</p>
+					{#if !detailLoading && !loadError}
+						<Empty.Root>
+							<Empty.Header><Empty.Title>{eventSearchQuery.trim() || selectedEventLane !== 'all' ? text.noMatchingEvents : text.noEvents}</Empty.Title></Empty.Header>
+							{#if eventSearchQuery.trim() || selectedEventLane !== 'all'}
+								<Empty.Content><Button variant="outline" size="sm" onclick={() => { eventSearchQuery = ''; selectedEventLane = 'all'; }}>{text.clearFilters}</Button></Empty.Content>
+							{/if}
+						</Empty.Root>
+					{/if}
 				{:else}
 					<RawLedgerView sections={ledgerSections} {text} />
 				{/if}
@@ -289,11 +342,11 @@
 				</div>
 					{#if serviceLogsError}
 						<p class="text-sm text-destructive">{serviceLogsError}</p>
-					{:else if serviceLogsLoading && serviceLogLines === undefined}
+					{:else if serviceLogsLoading && (serviceLogLines === undefined || serviceLogLines.length === 0)}
 						<div role="status" aria-label={text.logsTab} aria-busy="true" class="grid gap-2 rounded-lg border bg-muted/30 p-4" data-testid="service-logs-loading-skeleton"><div aria-hidden="true" class="grid gap-2">{#each [0, 1, 2, 3, 4, 5] as line (line)}<Skeleton class="h-3 w-4/5" />{/each}</div></div>
-				{:else if serviceLogLines !== undefined && serviceLogLines.length === 0}
-					<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
-				{:else if serviceLogLines !== undefined}
+				{:else if serviceLogLines?.length === 0 && !serviceLogsLoading && !serviceLogsError}
+					<Empty.Root><Empty.Header><Empty.Title>{text.serviceLogsEmpty}</Empty.Title></Empty.Header></Empty.Root>
+				{:else if serviceLogLines && serviceLogLines.length > 0}
 					<RawDocument document={serviceLogLines.join('\n')} />
 				{/if}
 			</UnderlineTabs.Content>

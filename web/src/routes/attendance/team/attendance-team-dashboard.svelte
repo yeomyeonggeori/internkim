@@ -11,15 +11,12 @@
 	import { getAttendanceViewState } from '../attendance-view-state.svelte';
 	import { onMount } from 'svelte';
 	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import AttendanceCompanyMetrics from './attendance-company-metrics.svelte';
 	import { Spinner } from '$lib/components/ui/spinner';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
-	import LogOutIcon from '@lucide/svelte/icons/log-out';
-	import PalmtreeIcon from '@lucide/svelte/icons/palmtree';
-	import BedIcon from '@lucide/svelte/icons/bed';
 	import Clock3Icon from '@lucide/svelte/icons/clock-3';
-	import FlameIcon from '@lucide/svelte/icons/flame';
 	import LocationLabel from '../shared/location-label.svelte';
 	import ColorMarker from '$lib/components/color-marker.svelte';
 	import PersonAvatarStack from '$lib/components/person-avatar-stack.svelte';
@@ -28,6 +25,7 @@
 	import { Button } from '$lib/components/ui/button';
  import OwnClockAction from './own-clock-action.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as InputGroup from '$lib/components/ui/input-group';
 	import * as Select from '$lib/components/ui/select';
 	import * as Sheet from '$lib/components/ui/sheet';
@@ -48,12 +46,6 @@
 	const ownStatus = $derived(statusName(ownStatusKind));
 	const ownLocation = $derived(myAttendanceToday.day.activeSegment?.locationName ?? '—');
 	const companyTotals = $derived(teamState.companySummary);
-	const companyMetrics = $derived(companyTotals ? [
-		{ label: text.working, icon: FlameIcon, count: companyTotals.working },
-		{ label: text.finished, icon: LogOutIcon, count: companyTotals.done },
-		{ label: text.onLeave, icon: PalmtreeIcon, count: companyTotals.away },
-		{ label: text.teamNotStarted, icon: BedIcon, count: companyTotals.notStarted }
-	] : []);
 	let searchDraft = $state('');
 	let locationDraft = $state('');
 	let selectedMember = $state<AttendanceTeamPage['members'][number] | null>(null);
@@ -180,14 +172,7 @@
         {#if !teamState.selectedTeamKey && teamState.isLoadingTeams && !companyTotals && !teamState.error}
             <AttendanceLoadingSkeleton kind="metrics" />
         {:else if !teamState.selectedTeamKey && companyTotals}
-            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="attendance-company-summary">
-                {#each companyMetrics as metric (metric.label)}
-                    <Card.Root class="gap-2 py-4">
-                        <Card.Header class="px-4"><Card.Description class="flex items-center gap-1.5"><metric.icon class="size-3.5" />{metric.label}</Card.Description></Card.Header>
-                        <Card.Content class="flex items-end justify-between px-4"><span class="text-3xl font-semibold tracking-tight tabular-nums">{metric.count}<span class="ml-1 text-sm font-normal text-muted-foreground">/ {companyTotals.memberCount}</span></span><span class="text-sm tabular-nums text-muted-foreground">{Math.round(proportion(metric.count, companyTotals.memberCount))}%</span></Card.Content>
-                    </Card.Root>
-                {/each}
-            </div>
+			<AttendanceCompanyMetrics summary={companyTotals} />
         {/if}
 		<div class="flex flex-wrap items-end justify-between gap-3">
 			<div>
@@ -206,8 +191,12 @@
 				<p role="alert" class="text-sm text-destructive">{text.teamLoadFailed} {teamState.error}</p>
 				<Button variant="outline" size="sm" onclick={() => teamState.loadTeams()}>{text.refresh}</Button>
 			{/if}
-			{#if teamState.isLoadingTeams && !teamState.teams.length}
+			{#if (teamState.isLoadingTeams || !teamState.hasLoadedTeams) && !teamState.teams.length && !teamState.error}
 				<AttendanceLoadingSkeleton kind="teams" />
+			{:else if !teamState.teams.length && !teamState.error}
+				<Empty.Root class="border">
+					<Empty.Header><Empty.Title>{text.noTeams}</Empty.Title></Empty.Header>
+				</Empty.Root>
 			{:else if teamState.teams.length || !teamState.error}
 				<div class="grid gap-4 min-[761px]:grid-cols-2 min-[1101px]:grid-cols-3" data-testid="team-card-page">
 					{#each teamState.teams as team (team.teamKey)}
@@ -277,7 +266,7 @@
 				<p role="alert" class="text-sm text-destructive">{teamState.memberError}</p>
 				<Button variant="outline" size="sm" onclick={() => teamState.loadMembers()}>{text.refresh}</Button>
 			{/if}
-			{#if teamState.isLoadingMembers && !teamState.members.length}
+			{#if (teamState.isLoadingMembers || !teamState.hasLoadedMembers) && !teamState.members.length && !teamState.memberError}
 				<AttendanceLoadingSkeleton kind="members" />
 			{:else if teamState.members.length || !teamState.memberError}
 				{#if todayError}<p role="alert" class="text-sm text-destructive">{todayError}</p>{/if}
@@ -286,7 +275,12 @@
 						{#each teamState.members as member (member.memberID)}
                             <AttendancePersonRow name={member.name} email={member.email} status={member.status} statusLabel={statusName(member.status)} day={todayDays.get(member.memberID)} progressLoading={todayLoading} location={member.location ?? text.teamUnknownLocation} onclick={() => { selectedMember = member; sheetOpen = true; }} />
 						{:else}
-							<p class="p-5 text-sm text-muted-foreground">{text.noMembers}</p>
+							<Empty.Root>
+								<Empty.Header><Empty.Title>{teamState.searchText.trim() || teamState.locationFilter ? text.noMatchingMembers : text.noMembers}</Empty.Title></Empty.Header>
+								{#if teamState.searchText.trim() || teamState.locationFilter}
+									<Empty.Content><Button variant="outline" size="sm" onclick={() => { searchDraft = ''; locationDraft = ''; teamState.filter('', ''); }}>{text.clearFilters}</Button></Empty.Content>
+								{/if}
+							</Empty.Root>
 						{/each}
 					</Card.Content>
 				</Card.Root>

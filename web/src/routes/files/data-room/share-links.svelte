@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { z } from 'zod';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Empty from '$lib/components/ui/empty';
 	import * as Select from '$lib/components/ui/select';
 	import * as Field from '$lib/components/ui/field';
 	import { Button } from '$lib/components/ui/button';
@@ -142,6 +143,7 @@
 				>{text.description}</Dialog.Description
 			></Dialog.Header
 		>
+		{#if isBusy && !circleItems.length && !links.length}<div role="status" aria-label={text.title} aria-busy="true" class="flex justify-center p-4"><Spinner /></div>{/if}
 		{#if circleItems.length}<form onsubmit={create} class="grid gap-4">
 				<Field.Group>
 					<Field.Field
@@ -204,7 +206,7 @@
 				<Button type="submit" disabled={isBusy}
 					>{#if isBusy}<Spinner />{/if}{text.create}</Button
 				>
-			</form>{:else}<p class="text-sm text-muted-foreground">{text.noCircles}</p>{/if}
+			</form>{:else if !isBusy && !errorMessage}<p class="text-sm text-muted-foreground">{text.noCircles}</p>{/if}
 		{#if createdLink}<section class="grid gap-3 rounded-lg border p-4" aria-label={text.code}>
 				<p class="text-sm text-muted-foreground">{text.codeOnce}</p>
 				<div class="flex gap-2">
@@ -236,7 +238,7 @@
 							disabled={isBusy}
 							onclick={() => revoke(link.id)}>{text.revoke}</Button
 						>{/if}
-				</div>{:else}<p class="text-sm text-muted-foreground">{text.noLinks}</p>{/each}
+				</div>{:else}{#if !isBusy && !errorMessage}<Empty.Root class="p-3"><Empty.Header><Empty.Title>{text.noLinks}</Empty.Title></Empty.Header></Empty.Root>{/if}{/each}
 		</section>
 	</Dialog.Content>
 </Dialog.Root>

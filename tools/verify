@@ -323,9 +323,22 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "avatar-ui",
+        [
+            "web/src/lib/components/person-avatar-stack.svelte",
+            "web/src/lib/components/channel/channel-threads.ts",
+            "web/src/routes/attendance/stack-preview/*",
+            "web/tests/e2e/person-avatar-stack.spec.ts",
+        ],
+        [["bun", "run", "test:e2e:avatars:fixture"]],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "web-loading-fixture",
         [
             "web/tests/e2e/*loading*",
+            "web/tests/e2e/*empty*",
             "web/src/lib/components/ui/skeleton/*",
             "web/src/lib/components/ui/spinner/*",
             "web/src/routes/+layout.*",

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as Card from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 	import TaskPersonalScoreDialog from '../task-personal-score-dialog.svelte';
 	import type { TaskSummary } from '../task-types';
 	import { taskText } from '../text';
@@ -13,9 +14,10 @@
 		section: TaskMemberScoreSection;
 		summary: TaskSummary | null;
 		text: TaskReportText;
+		showEmpty?: boolean;
 	};
 
-	let { section, summary, text }: Props = $props();
+	let { section, summary, text, showEmpty = true }: Props = $props();
 
 	function formatValue(value: number, unit: string): string {
 		return `${value}${unit}`;
@@ -34,14 +36,12 @@
 					{section.teamAverageLabel}: {formatValue(section.averageValue, section.unit)}
 				</Card.Description>
 			</div>
-			<TaskPersonalScoreDialog {summary} {text} />
+			<TaskPersonalScoreDialog {summary} {text} {showEmpty} />
 		</div>
 	</Card.Header>
 	<Card.Content class="min-h-0 flex-1">
 		{#if section.rows.length === 0}
-			<div class="grid min-h-36 place-items-center rounded-md border border-dashed bg-muted/20 px-4 text-sm text-muted-foreground">
-				{section.emptyLabel}
-			</div>
+			{#if showEmpty}<Empty.Root><Empty.Header><Empty.Title>{section.emptyLabel}</Empty.Title></Empty.Header></Empty.Root>{/if}
 		{:else}
 			<TaskMemberScoreList {section} members={summary?.members ?? []} />
 		{/if}

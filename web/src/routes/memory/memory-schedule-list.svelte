@@ -159,7 +159,7 @@
 		{#if hasLoadError || actionErrorMessage}
 			<Field.Error class="px-4">{hasLoadError ? text.scheduleLoadFailed : actionErrorMessage}</Field.Error>
 		{/if}
-		<MemoryScheduleTable {text} {schedules} {isLoading} {hasLoadError} {openEditDialog} {confirmDeleteSchedule} />
+		<MemoryScheduleTable {text} {schedules} {isLoading} {hasLoadError} includeExpired={includeExpiredSchedules} {openEditDialog} {confirmDeleteSchedule} />
 	</Card.Content>
 	{#if totalCount > 0 && !hasLoadError && !(isLoading && schedules.length === 0)}
 		<Card.Footer>
