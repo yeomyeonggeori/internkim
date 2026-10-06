@@ -153,7 +153,7 @@ async function theLedger(): Promise<string> {
 			? ((await detail.json()) as { taskEvents?: { name: string; body: string }[] })
 			: null;
 		const events = (document?.taskEvents ?? []).map((event) =>
-			/fail|error|refus|unavailable|result/.test(event.name)
+			/fail|error|refus|unavailable|result|reject|approval|hold|task_launched/.test(event.name)
 				? `${event.name}(${event.body.slice(0, 400)})`
 				: event.name
 		);
