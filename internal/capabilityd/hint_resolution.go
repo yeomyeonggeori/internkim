@@ -3,8 +3,6 @@ package capabilityd
 import (
 	"sort"
 	"strings"
-
-	"github.com/yeomyeonggeori/internkim/internal/personname"
 )
 
 const approximateHintCandidateLimit = 8
@@ -22,7 +20,7 @@ const (
 // matched it outright, on the scale that this kind of value actually fails on.
 type hintMatchable interface {
 	hintIdentifiers() []string
-	hintTitle() string
+	hintMatchesTitle(hint string) bool
 	hintNearness(hint string) float64
 }
 
@@ -131,7 +129,7 @@ func normalizedHintValue(value string) string {
 func itemsWithTitleMatching[Item hintMatchable](title string, items []Item) []Item {
 	found := make([]Item, 0, 1)
 	for _, item := range items {
-		if personname.Matches(title, item.hintTitle()) {
+		if item.hintMatchesTitle(title) {
 			found = append(found, item)
 		}
 	}
