@@ -57,10 +57,10 @@ test('a question held across a relay restart is asked once and answered once', a
 	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
 	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
-	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
 	await plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	await plane.model.callNext('reply', replyingAndFinishing('보냈습니다'));
 
@@ -89,7 +89,6 @@ test('a question held across a relay restart is asked once and answered once', a
 		sender: { email: sender.email },
 		conversationID: theConversation(),
 		messageID: 'message-2',
-		isThread: true,
 		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);
@@ -154,7 +153,7 @@ async function theLedger(): Promise<string> {
 			? ((await detail.json()) as { taskEvents?: { name: string; body: string }[] })
 			: null;
 		const events = (document?.taskEvents ?? []).map((event) =>
-			/fail|error|refus|unavailable|result/.test(event.name)
+			/fail|error|refus|unavailable|result|reject|approval|hold|task_launched/.test(event.name)
 				? `${event.name}(${event.body.slice(0, 400)})`
 				: event.name
 		);

@@ -122,6 +122,7 @@ export class InboundTurns {
 		running: RunningTurn
 	): Promise<void> {
 		try {
+			if (await this.isAnsweredOnceTheAgentIsBack(event, inbound)) return;
 			await this.settings.client.ask(inbound.requester, inbound.addressing, inbound.message, {
 				messageID: inbound.messageID,
 				replyTargetID: inbound.addressing.replyTargetID,
@@ -141,6 +142,13 @@ export class InboundTurns {
 			this.unreachedInARow.delete(event.key);
 			await this.giveItAnotherGo(event, failure);
 		}
+	}
+
+	private async isAnsweredOnceTheAgentIsBack(event: QueuedInboundEvent, inbound: InboundMessage): Promise<boolean> {
+		const wasJudgedAlready = event.isPrompt || this.settings.client.hasPendingApprovalIn(inbound.addressing.conversationID);
+		await this.settings.client.connect().catch(() => undefined);
+		if (wasJudgedAlready) return false;
+		return this.isConsumedAsApprovalAnswer(event, inbound);
 	}
 
 	private async forget(key: string): Promise<void> {

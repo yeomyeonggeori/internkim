@@ -56,10 +56,10 @@ test('a question held across a blueclaw restart is asked once and answered once'
 	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
 	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
-	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
 	await plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
+	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
 	await plane.model.callNext('reply', replyingAndFinishing('보냈습니다'));
 
@@ -87,7 +87,6 @@ test('a question held across a blueclaw restart is asked once and answered once'
 		sender: { email: sender.email },
 		conversationID: theConversation(),
 		messageID: 'message-2',
-		isThread: true,
 		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);

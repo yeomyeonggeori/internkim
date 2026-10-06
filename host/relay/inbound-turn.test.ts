@@ -60,10 +60,11 @@ type PendingApproval = {
 	waitingMessageIDs: Set<string>;
 	answered: PromiseWithResolvers<string>;
 	isAnswer: (reply: string) => boolean;
+	isReissuedOnReconnect: boolean;
 };
 
 function anApprovalAnsweredBy(isAnswer: (reply: string) => boolean): PendingApproval {
-	return { isPending: false, judged: [], waitingMessageIDs: new Set(), answered: Promise.withResolvers<string>(), isAnswer };
+	return { isPending: false, judged: [], waitingMessageIDs: new Set(), answered: Promise.withResolvers<string>(), isAnswer, isReissuedOnReconnect: false };
 }
 
 function aClientThat(
@@ -73,6 +74,9 @@ function aClientThat(
 	approval: PendingApproval = anApprovalAnsweredBy(() => false)
 ): BlueclawACPClient {
 	const client = {
+		connect: async (): Promise<void> => {
+			if (approval.isReissuedOnReconnect) approval.isPending = true;
+		},
 		hasPendingApprovalIn: (): boolean => approval.isPending,
 		isWaitingOnApproval: (_conversationID: string, messageID: string): boolean =>
 			approval.isPending && approval.waitingMessageIDs.has(messageID),
@@ -205,6 +209,48 @@ describe('InboundTurns', () => {
 
 		expect(calls).toHaveLength(1);
 		expect(posted).toEqual(['보냈습니다']);
+	});
+
+	test('an answer that arrives while the agent is reconnecting resolves the question the agent reissues', async () => {
+		const calls: AskCall[] = [];
+		const approval = anApprovalAnsweredBy((reply) => reply === '응 보내줘');
+		approval.isReissuedOnReconnect = true;
+		const conversation = aConversation();
+		const turns = new InboundTurns({
+			client: aClientThat(async () => '새 요청으로 읽었습니다', calls, conversation, approval),
+			queue: new InboundQueue({ directoryPath: directoryForOneTest() }),
+			waitBeforeRetrying: async () => {}
+		});
+
+		await turns.keep(firstKey, aChatdBody({ prompt: '응 보내줘' }));
+		await turns.settled();
+
+		expect(approval.judged).toEqual(['응 보내줘']);
+		expect(calls, 'the answer started a turn of its own').toEqual([]);
+	});
+
+	test('a message the relay already delivered is refused when it is replayed after the relay restarts', async () => {
+		const directoryPath = directoryForOneTest();
+		const calls: AskCall[] = [];
+		const conversation = aConversation();
+		const firstRelay = new InboundTurns({
+			client: aClientThatSays('보냈습니다', calls, conversation),
+			queue: new InboundQueue({ directoryPath }),
+			waitBeforeRetrying: async () => {}
+		});
+		await firstRelay.keep(firstKey, aChatdBody());
+		await firstRelay.settled();
+		const restartedRelay = new InboundTurns({
+			client: aClientThatSays('보냈습니다', calls, conversation),
+			queue: new InboundQueue({ directoryPath }),
+			waitBeforeRetrying: async () => {}
+		});
+
+		const isNew = await restartedRelay.keep(firstKey, aChatdBody());
+		await restartedRelay.settled();
+
+		expect(isNew).toBe(false);
+		expect(calls).toHaveLength(1);
 	});
 
 	test('the facts of the message reach the agent alongside the words', async () => {
@@ -393,6 +439,7 @@ describe('InboundTurns', () => {
 		const reported: string[] = [];
 		let attempted = 0;
 		const client = {
+			connect: async (): Promise<void> => {},
 			hasPendingApprovalIn: (): boolean => false,
 			isWaitingOnApproval: (): boolean => false,
 			ask: async (): Promise<StopReason> => {
@@ -430,6 +477,7 @@ describe('InboundTurns', () => {
 		const delays: number[] = [];
 		let attempted = 0;
 		const client = {
+			connect: async (): Promise<void> => {},
 			hasPendingApprovalIn: (): boolean => false,
 			isWaitingOnApproval: (): boolean => false,
 			ask: async (): Promise<StopReason> => {
