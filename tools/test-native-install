@@ -243,7 +243,7 @@ messenger_url="$(sed -n 's/^DATABASE_URL=//p' %(messenger_path)s 2>/dev/null | h
 task="$(psql "$agent_url" -tAc "select task_run_id from task_run where position('%(marker)s' in prompt) > 0 order by created_at desc limit 1" 2>&1 | tr -d ' \n')"
 printf 'task=%%s status=%%s\n' "$task" "$(psql "$agent_url" -tAc "select status from task_run where task_run_id = '$task'" 2>&1 | tr -d ' \n')"
 printf 'events=%%s\n' "$(psql "$agent_url" -tAc "select name from task_event where task_run_id = '$task' order by created_at" 2>&1 | uniq -c | awk '{print $2 "x" $1}' | tr '\n' ' ')"
-psql "$agent_url" -tAc "select name || ': ' || left(body, 600) from task_event where task_run_id = '$task' and name in ('completion.change_check', 'agent.evidence_missing', 'agent.failure_report') order by created_at desc limit 3" 2>&1
+psql "$agent_url" -tAc "select name || ': ' || left(body, 600) from task_event where task_run_id = '$task' and name in ('completion.change_check', 'agent.evidence_missing', 'agent.failure_report', 'blueclaw.launch.failure_report', 'blueclaw.connector.files_undelivered') order by created_at desc limit 3" 2>&1
 psql "$messenger_url" -tAc "select 'answered: ' || left(replace(answer.content, chr(10), ' '), 300) from events answer join events asked on encode(asked.id,'hex') = '%(message)s' where answer.kind = 9 and answer.pubkey <> asked.pubkey and answer.created_at >= asked.created_at order by answer.created_at" 2>&1
 """
 
