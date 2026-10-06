@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { leaveTypeDirectory } from '../../../src/lib/attendance/supabase-leave-types';
+import { leaveTypeDirectory, withAnnualBalance } from '../../../src/lib/attendance/supabase-leave-types';
 import { defaultLeavePolicy } from '../../../src/lib/attendance/leave-policy-defaults';
 
 describe('leaveTypeDirectory', () => {
@@ -25,5 +25,13 @@ describe('leaveTypeDirectory', () => {
 		expect(directory.nameOf('annual')).toBe('연차');
 		expect(directory.nameOf('연차')).toBe('연차');
 		expect(directory.nameOf('leave')).toBe('leave');
+	});
+
+	test('the annual type carries its used days even while the company tracks no balance', () => {
+		const directory = leaveTypeDirectory(defaultLeavePolicy(), 'unlimited');
+		const summary = { usedMilliDays: 2000, reservedMilliDays: 0, availableMilliDays: 0 };
+		const offered = withAnnualBalance(directory.offered, summary);
+		expect(offered.find((leaveType) => leaveType.id === 'annual')?.balance).toEqual(summary);
+		expect(offered.find((leaveType) => leaveType.id === 'sick')?.balance).toBeUndefined();
 	});
 });

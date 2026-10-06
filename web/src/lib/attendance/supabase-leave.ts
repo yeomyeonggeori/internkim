@@ -120,7 +120,7 @@ export async function supabaseEmployeeLeave(): Promise<EmployeeLeavePayload> {
 	);
 	return {
 		balanceTrackingMode: balance.trackingMode,
-		leaveTypes: withAnnualBalance(directory.offered, directory, balance.summary),
+		leaveTypes: withAnnualBalance(directory.offered, balance.summary),
 		summary: balance.summary,
 		requests
 	};

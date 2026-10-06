@@ -45,11 +45,10 @@ export function leaveTypeDirectory(
 
 export function withAnnualBalance(
 	leaveTypes: EmployeeLeaveType[],
-	directory: LeaveTypeDirectory,
 	balance: EmployeeLeaveSummary
 ): EmployeeLeaveType[] {
 	return leaveTypes.map((leaveType) =>
-		directory.ownsAnnualBalance(leaveType.id) ? { ...leaveType, balance } : leaveType
+		leaveType.id === annualLeaveTypeID ? { ...leaveType, balance } : leaveType
 	);
 }
 
