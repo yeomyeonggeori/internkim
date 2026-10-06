@@ -273,6 +273,12 @@ html.internkim-embedded [data-app-shell-scroll] {
   padding-bottom: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  html, body {
+    overscroll-behavior-x: none;
+  }
+}
+
 [data-sonner-toaster].toaster [data-sonner-toast][data-front='true'] {
   pointer-events: auto;
 }
