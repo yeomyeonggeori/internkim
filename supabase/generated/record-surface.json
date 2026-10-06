@@ -144,6 +144,26 @@
       ]
     },
     {
+      "name": "attendance_change_undo",
+      "arguments": "event_id uuid",
+      "returns": "jsonb",
+      "security": "definer",
+      "callableBy": [
+        "authenticated"
+      ]
+    },
+    {
+      "name": "attendance_changes_page",
+      "arguments": "from_timestamp timestamp with time zone, to_timestamp timestamp with time zone, page_offset integer DEFAULT 0, page_limit integer DEFAULT 24, team_search text DEFAULT ''::text, actor_search text DEFAULT ''::text, selected_members uuid[] DEFAULT NULL::uuid[], selected_team_key text DEFAULT NULL::text, selected_actor uuid DEFAULT NULL::uuid",
+      "returns": "jsonb",
+      "security": "invoker",
+      "callableBy": [
+        "anon",
+        "authenticated",
+        "service_role"
+      ]
+    },
+    {
       "name": "attendance_correct",
       "arguments": "corrections jsonb, reason text",
       "returns": "jsonb",
@@ -1240,6 +1260,7 @@
     "member_leave_days_follow_the_leave",
     "member_leave_days_follow_the_leave_policy",
     "order_time_range",
+    "record_attendance_change_actor",
     "record_opportunity_stage_change",
     "refuse_a_second_copy_of_an_event",
     "refuse_task_parent_cycle",

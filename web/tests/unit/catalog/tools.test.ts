@@ -80,11 +80,13 @@ describe('canonical capability tools', () => {
     expect(catalog.tools.map(tool => tool.name).sort()).toEqual([
       'artifact_review',
       'attendance_add',
+      'attendance_changes_page_get',
       'attendance_current_get',
       'attendance_delete',
       'attendance_leave_policy_get',
       'attendance_leave_policy_set',
       'attendance_list',
+      'attendance_team_dashboard_get',
       'attendance_team_page_get',
       'attendance_update',
       'attendance_work_policy_get',

@@ -18,6 +18,7 @@ type capabilityToolTargetRoute struct {
 
 var capabilityToolTargetRoutes = []capabilityToolTargetRoute{
 	{ToolName: "message_delete", Resolver: Service.resolveMessageDeleteTarget},
+	{ToolName: "message_send", Resolver: Service.resolveMessageSendTarget},
 	{ToolName: hostUpdateToolName, Resolver: Service.resolveHostUpdateTarget},
 }
 

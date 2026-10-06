@@ -1,3 +1,5 @@
+import FlameIcon from '@lucide/svelte/icons/flame';
+import { attendancePreviewEnabled } from '$lib/attendance/attendance-preview';
 import { page } from '$app/state';
 import { adminApiFetch } from '$lib/admin-api';
 import { appBadgeCounts } from '$lib/components/app-badge-counts.svelte';
@@ -11,15 +13,14 @@ import { homePath } from '$lib/home-path';
 import type { UserRole } from '$lib/types';
 import type { WebAuthSession } from '$lib/web-auth-session';
 import ActivityIcon from '@lucide/svelte/icons/activity';
-import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
+import CalendarIcon from '@lucide/svelte/icons/calendar';
 import CircleHelpIcon from '@lucide/svelte/icons/circle-help';
-import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
 import CogIcon from '@lucide/svelte/icons/cog';
 import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-import HandshakeIcon from '@lucide/svelte/icons/handshake';
-import ListChecksIcon from '@lucide/svelte/icons/list-checks';
+import HeartHandshakeIcon from '@lucide/svelte/icons/heart-handshake';
+import SquareCheckBigIcon from '@lucide/svelte/icons/square-check-big';
 import MailIcon from '@lucide/svelte/icons/mail';
-import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
+import MessageCircleIcon from '@lucide/svelte/icons/message-circle';
 import BrainIcon from '@lucide/svelte/icons/brain';
 import NetworkIcon from '@lucide/svelte/icons/network';
 import { withReturnPath } from '$lib/return-path';
@@ -49,13 +50,13 @@ class AppNavigation {
 	displayUserName = $derived(this.userName || text.workspace);
 
 	apps = $derived<AppRailItem[]>([
-		{ href: this.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon },
-		{ href: this.link('/task/'), label: text.task, icon: ListChecksIcon, badgeCount: appBadgeCounts.requestedTasks },
+		{ href: this.link('/messenger/'), label: text.messenger, icon: MessageCircleIcon },
+		{ href: this.link('/task/'), label: text.task, icon: SquareCheckBigIcon, badgeCount: appBadgeCounts.requestedTasks },
 		{ href: this.link('/memory/'), label: text.memory, icon: BrainIcon },
-		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon, badgeCount: appBadgeCounts.participatingEvents },
+		{ href: this.link('/calendar/'), label: text.calendar, icon: CalendarIcon, badgeCount: appBadgeCounts.participatingEvents },
 		{ href: this.link('/mail/'), label: text.mail, icon: MailIcon },
-		{ href: this.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: this.link('/crm/'), label: text.crm, icon: HandshakeIcon },
+		{ href: this.link('/attendance/'), label: text.attendance, icon: FlameIcon },
+		{ href: this.link('/crm/'), label: text.crm, icon: HeartHandshakeIcon },
 		{ href: this.link('/organization/'), label: text.organization, icon: NetworkIcon },
 		{ href: this.link('/files/'), label: text.files, icon: FolderOpenIcon }
 	]);
@@ -81,6 +82,7 @@ class AppNavigation {
 			this.clearSession();
 			return;
 		}
+		if (attendancePreviewEnabled()) { this.userEmail = session.email; this.userName = '이샘플'; this.adminRole = 'admin'; return; }
 		this.userEmail = session.email;
 		this.userName = session.email ? session.email.split('@')[0] : '';
 		this.userImage = session.image;
@@ -88,6 +90,7 @@ class AppNavigation {
 		if (isSupabaseConfigured()) {
 			const member = await supabaseMember();
 			this.userMemberID = member.memberID;
+			this.userName = member.name || this.userName;
 			this.adminRole = member.role;
 			this.companySlug = member.companySlug;
 			return;

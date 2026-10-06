@@ -48,6 +48,8 @@ export const attendanceTeamPageInputSchema = z.strictObject({
 
 export const attendanceTeamPageSchema = z.strictObject({
 	companyID: z.string().min(1),
+	companyName: z.string().optional(),
+	companySummary: z.strictObject({ memberCount: z.number().int().nonnegative(), working: z.number().int().nonnegative(), done: z.number().int().nonnegative(), away: z.number().int().nonnegative(), notStarted: z.number().int().nonnegative(), needsCheckout: z.number().int().nonnegative() }).optional(),
 	timeZone: z.string(),
 	serverTime: z.string(),
 	authorization: z.strictObject({

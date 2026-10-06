@@ -88,11 +88,11 @@
 						<Field.Label for="connected-app-permission">{text.permission}</Field.Label>
 						<Select.Root type="single" bind:value={permission} disabled={isAnswering}>
 							<Select.Trigger id="connected-app-permission">{permissionLabels[permission]}</Select.Trigger>
-							<Select.Content>
+							<Select.Content><Select.Group>
 								{#each connectedAppPermissions as choice (choice)}
 									<Select.Item value={choice} label={permissionLabels[choice]}>{permissionLabels[choice]}</Select.Item>
 								{/each}
-							</Select.Content>
+							</Select.Group></Select.Content>
 						</Select.Root>
 					</Field.Field>
 					{#if returnsToThisComputer(request.details.redirect_uri)}

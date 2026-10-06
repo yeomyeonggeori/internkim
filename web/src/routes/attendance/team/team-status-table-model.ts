@@ -108,7 +108,7 @@ export function resolveDefaultDate(
 	return `${month}-01`;
 }
 
-function buildTeamRowsForDates(
+export function buildTeamRowsForDates(
 	dates: string[],
 	summary: AttendanceSummary,
 	text: AttendanceText,

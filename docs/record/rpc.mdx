@@ -21,6 +21,8 @@ The record answers these directly. A caller reaches one at `POST /rest/v1/rpc/<n
 | `asset_uuid` | `object_name text, segment_index integer` | `uuid` | invoker | anon, authenticated, service_role |
 | `attendance_add` | `target_member uuid, kind attendance_kind, local_date date, local_time time without time zone, location text, reason text` | `jsonb` | definer | authenticated |
 | `attendance_backdated_after_minutes` | — | `integer` | invoker | authenticated, service_role |
+| `attendance_change_undo` | `event_id uuid` | `jsonb` | definer | authenticated |
+| `attendance_changes_page` | `from_timestamp timestamp with time zone, to_timestamp timestamp with time zone, page_offset integer DEFAULT 0, page_limit integer DEFAULT 24, team_search text DEFAULT ''::text, actor_search text DEFAULT ''::text, selected_members uuid[] DEFAULT NULL::uuid[], selected_team_key text DEFAULT NULL::text, selected_actor uuid DEFAULT NULL::uuid` | `jsonb` | invoker | anon, authenticated, service_role |
 | `attendance_correct` | `corrections jsonb, reason text` | `jsonb` | definer | authenticated |
 | `attendance_correction_window_minutes` | — | `integer` | invoker | authenticated, service_role |
 | `attendance_current` | — | `jsonb` | invoker | authenticated |
@@ -156,6 +158,7 @@ These run when a row changes. Nobody calls them.
 | `member_leave_days_follow_the_leave` |
 | `member_leave_days_follow_the_leave_policy` |
 | `order_time_range` |
+| `record_attendance_change_actor` |
 | `record_opportunity_stage_change` |
 | `refuse_a_second_copy_of_an_event` |
 | `refuse_task_parent_cycle` |

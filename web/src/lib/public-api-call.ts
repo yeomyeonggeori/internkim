@@ -1,3 +1,4 @@
+import { attendancePreviewEnabled } from '$lib/attendance/attendance-preview';
 import { supabase } from '$lib/supabase';
 import { resultOrRefusal, ToolRefused } from '$lib/tool-answer';
 
@@ -18,6 +19,10 @@ export async function invokeTool<Result>(
 	name: string,
 	input: Record<string, unknown>
 ): Promise<Result> {
+	if (attendancePreviewEnabled()) {
+		const { attendancePreviewAnswer } = await import('$lib/attendance/attendance-preview-data');
+		return attendancePreviewAnswer(name, input) as Result;
+	}
 	const accessToken = await memberAccessToken();
 
 	const response = await fetch(`/api/v1/tools/${name}/invoke`, {

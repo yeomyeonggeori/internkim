@@ -487,6 +487,26 @@ func gateCases() map[string]catalogGateCase {
 				expectResultHolds(t, answered, `"teamKey":"team-1"`)
 			},
 		},
+		"attendance_changes_page_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_changes_page_get","result":{"scope":"person","personID":"p1","personName":"이샘플","from":"2026-08-02","to":"2026-09-01","serverTime":"2026-09-01T00:02:00Z","backdatedAfterMinutes":4320,"count":1,"totalCount":1,"pageOffset":0,"pageLimit":24,"attendance":[{"eventID":"a1","personID":"p1","person":"이샘플","kind":"clock_in","date":"2026-09-01","time":"09:02","occurredAt":"2026-09-01T00:02:00Z","location":"본사","wasCorrected":false,"originalDate":null,"originalTime":null,"originalOccurredAt":null,"reason":"근무지 정정","changedByID":"43300000-0000-4000-8000-000000000201","originalLocation":"외근","previousRecorded":true}]}}`)},
+			input:   `{"scope":"all","handWrittenOnly":true,"pageOffset":0,"pageLimit":24,"selectedChangedByID":"43300000-0000-4000-8000-000000000201"}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"changedByID":"43300000-0000-4000-8000-000000000201"`)
+				expectResultHolds(t, answered, `"totalCount":1`)
+			},
+		},
+		"attendance_team_dashboard_get": {
+			kind:    provesCarrying,
+			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_team_dashboard_get","result":{"companyID":"company-1","companyName":"Sample Company","companySummary":{"memberCount":1,"working":1,"done":0,"away":0,"notStarted":0,"needsCheckout":0},"timeZone":"Asia/Seoul","serverTime":"2026-09-01T00:02:00Z","authorization":{"isAdmin":false,"teamViewVisibleToAll":true},"teamOffset":0,"teamLimit":12,"teamTotal":1,"teams":[{"teamKey":"team-1","name":"Sample Team","memberCount":1,"working":1,"done":0,"away":0,"needsCheckout":0,"notStarted":0,"recentClockIns":[],"recentClockOuts":[],"recordedLocations":[],"unknownLocationCount":0}],"selectedTeamKey":null,"memberOffset":0,"memberLimit":24,"memberTotal":0,"members":[]}}`)},
+			input:   `{"pageKind":"teams","teamLimit":12}`,
+			expect: func(t *testing.T, answered capabilities.ToolInvokeResponse) {
+				expectSucceeded(t, answered)
+				expectResultHolds(t, answered, `"companyName":"Sample Company"`)
+				expectResultHolds(t, answered, `"working":1`)
+			},
+		},
 		"attendance_add": {
 			kind:    provesCarrying,
 			reaches: map[gateBackend]*standingIn{admindOverTheSocket: answering(`{"tool":"attendance_add","result":{"status":"added","eventID":"a2","backdated":false,"event":{"id":"a2","personID":"p1","kind":"clock_in","occurredAt":"2026-09-01T00:02:00Z","location":"본사"}}}`)},

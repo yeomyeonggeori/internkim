@@ -141,13 +141,13 @@
 					<Select.Trigger id="personal-access-token-permission" class="flex-1">
 						{permissionLabels[keyPermission]}
 					</Select.Trigger>
-					<Select.Content>
+					<Select.Content><Select.Group>
 						{#each publicAPIPermissions as permission (permission)}
 							<Select.Item value={permission} label={permissionLabels[permission]}>
 								{permissionLabels[permission]}
 							</Select.Item>
 						{/each}
-					</Select.Content>
+					</Select.Group></Select.Content>
 				</Select.Root>
 				<Button onclick={issue} disabled={isWorking}>{text.issuePersonalAccessToken}</Button>
 			</div>

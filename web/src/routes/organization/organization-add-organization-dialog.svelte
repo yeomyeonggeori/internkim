@@ -63,12 +63,12 @@
 				<Label>{text.parentOrganization}</Label>
 				<Select.Root type="single" value={newGroupParentID || rootValue} onValueChange={selectParent} disabled={isSaving}>
 					<Select.Trigger class="w-full" aria-label={text.parentOrganization}>{selectedParentName}</Select.Trigger>
-					<Select.Content>
+					<Select.Content><Select.Group>
 						<Select.Item value={rootValue} label={text.rootOrganization}>{text.rootOrganization}</Select.Item>
 						{#each groups as group (group.id)}
 							<Select.Item value={group.id} label={group.name}>{group.name}</Select.Item>
 						{/each}
-					</Select.Content>
+					</Select.Group></Select.Content>
 				</Select.Root>
 			</div>
 			<Dialog.Footer>

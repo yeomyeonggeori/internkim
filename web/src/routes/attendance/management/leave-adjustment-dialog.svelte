@@ -1,4 +1,5 @@
 <script lang="ts">
+ import PersonAvatar from '$lib/components/person-avatar.svelte';
 	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
@@ -63,6 +64,8 @@
 			<Dialog.Title>{text.management.adjustTitle}</Dialog.Title>
 			<Dialog.Description>{text.management.adjustDescription}</Dialog.Description>
 		</Dialog.Header>
+  {@const employee = management.payload?.detail?.employee}
+  <div class="flex min-w-0 items-center gap-3 rounded-md border p-3"><PersonAvatar name={employee?.displayName || management.selectedEmployeeEmail} email={management.selectedEmployeeEmail} /><div class="min-w-0"><p class="truncate font-medium">{employee?.displayName || management.selectedEmployeeEmail}</p><p class="truncate text-xs text-muted-foreground">{management.selectedEmployeeEmail}</p><p class="text-sm">{text.management.available}: {(employee?.availableMilliDays ?? 0) / 1000}{currentLocale.value === 'ko' ? '일' : ' days'}</p></div></div>
 
 		<div class="grid gap-4 py-2">
 			<label class="grid gap-1.5 text-sm font-medium">
@@ -76,7 +79,7 @@
 							? leaveTypeName(selectedLeaveType.id, selectedLeaveType.name)
 							: text.management.selectLeaveType}
 					</Select.Trigger>
-					<Select.Content>
+					<Select.Content><Select.Group>
 						{#each balanceTypes as leaveType (leaveType.id)}
 							<Select.Item
 								value={leaveType.id}
@@ -85,7 +88,7 @@
 								{leaveTypeName(leaveType.id, leaveType.name)}
 							</Select.Item>
 						{/each}
-					</Select.Content>
+					</Select.Group></Select.Content>
 				</Select.Root>
 			</label>
 

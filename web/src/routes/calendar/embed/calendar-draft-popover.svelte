@@ -201,13 +201,13 @@
 							<Select.Trigger size="sm" aria-label={text.reminder}>
 								{reminderLeadName(popover.reminderMinutesBefore)}
 							</Select.Trigger>
-							<Select.Content portalProps={{ disabled: true }}>
+							<Select.Content portalProps={{ disabled: true }}><Select.Group>
 								{#each eventReminderLeads as lead (lead)}
 									<Select.Item value={String(lead)} label={reminderLeadName(lead)}>
 										{reminderLeadName(lead)}
 									</Select.Item>
 								{/each}
-							</Select.Content>
+							</Select.Group></Select.Content>
 						</Select.Root>
 					{/if}
 					<Switch
@@ -344,11 +344,11 @@
 					<Select.Trigger size="sm" aria-label={text.calendar} class="h-8 flex-1 text-sm">
 						{selectedCalendarName}
 					</Select.Trigger>
-					<Select.Content>
+					<Select.Content><Select.Group>
 						{#each calendarOptions as option (option.id)}
 							<Select.Item value={option.id} label={option.name}>{option.name}</Select.Item>
 						{/each}
-					</Select.Content>
+					</Select.Group></Select.Content>
 				</Select.Root>
 			</div>
 			{/if}

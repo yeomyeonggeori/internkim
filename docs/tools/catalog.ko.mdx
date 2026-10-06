@@ -91,7 +91,7 @@ security가 정합니다. 수량은 숫자 `days`이고 종류는 회사가 등�
 `result.event`(`id`, `personID`, `kind`, `occurredAt`, `location`)를 돌려줍니다.
 과거 기록과 관리자 쓰기도 저장되면 같은 `result.event`를 돌려주고,
 `asked` 응답에는 event가 없습니다. 화면은
-그 기록의 시각과 장소를 기준으로 쓰고 `attendance_list`를 다시 부를 필요가
+그 기록의 시각과 근무지를 기준으로 쓰고 `attendance_list`를 다시 부를 필요가
 없습니다. 이 실시간 자기 출퇴근의 알림은 저장 뒤 백그라운드에서 시작하므로
 응답에 `notified`가 없습니다. 과거 기록과 관리자 출퇴근 쓰기의 `notified`
 응답은 그대로입니다. `reason`은 선택 사항이고 보내면 보관합니다.

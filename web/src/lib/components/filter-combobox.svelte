@@ -32,7 +32,9 @@
 		icon,
 		onSelect,
 		optionContent,
-		selectedContent
+		selectedContent,
+		onSearchChange,
+		remoteSearch = false
 	}: {
 		value?: string;
 		options: Option[];
@@ -49,6 +51,8 @@
 		onSelect?: (value: string) => void;
 		optionContent?: Snippet<[Option]>;
 		selectedContent?: Snippet<[Option]>;
+		onSearchChange?: (query: string) => void;
+		remoteSearch?: boolean;
 	} = $props();
 
 	const text = createPageText(appShellText);
@@ -103,9 +107,9 @@
 		{/snippet}
 	</Popover.Trigger>
 	<Popover.Content class={cn('w-[200px] p-0', contentClass)}>
-		<Command.Root>
+		<Command.Root shouldFilter={!remoteSearch}>
 			{#if searchable}
-				<Command.Input placeholder={searchPlaceholder ?? text.search} />
+				<Command.Input placeholder={searchPlaceholder ?? text.search} oninput={(event) => onSearchChange?.(event.currentTarget.value)} />
 			{/if}
 			<Command.List>
 				<Command.Empty>{text.searchNoResults}</Command.Empty>

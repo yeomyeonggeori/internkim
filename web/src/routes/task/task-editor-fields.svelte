@@ -87,11 +87,11 @@
 			<Select.Trigger class="w-full">
 				{statusLabel(taskDraft.status)}
 			</Select.Trigger>
-			<Select.Content>
+			<Select.Content><Select.Group>
 				{#each statusOptions as option (option.value)}
 					<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 				{/each}
-			</Select.Content>
+			</Select.Group></Select.Content>
 		</Select.Root>
 	</label>
 	{#if categoryOptions.length > 1}
@@ -101,11 +101,11 @@
 				<Select.Trigger class="w-full">
 					{taskDefinitionLabel(taskDraft.business, unchosenLabel)}
 				</Select.Trigger>
-				<Select.Content>
+				<Select.Content><Select.Group>
 					{#each categoryOptions as option (option.value)}
 						<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 					{/each}
-				</Select.Content>
+				</Select.Group></Select.Content>
 			</Select.Root>
 		</label>
 	{/if}
@@ -115,11 +115,11 @@
 			<Select.Trigger class="w-full">
 				{taskDefinitionLabel(taskDraft.type, unchosenLabel)}
 			</Select.Trigger>
-			<Select.Content>
+			<Select.Content><Select.Group>
 				{#each typeOptions as option (option.value)}
 					<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 				{/each}
-			</Select.Content>
+			</Select.Group></Select.Content>
 		</Select.Root>
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">
@@ -128,11 +128,11 @@
 			<Select.Trigger class="w-full">
 				{sizeOptions.find((option) => option.value === taskDraft.size)?.label ?? (taskDraft.id ? '-' : text.automaticLabel)}
 			</Select.Trigger>
-			<Select.Content>
+			<Select.Content><Select.Group>
 				{#each sizeOptions as option (option.value)}
 					<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 				{/each}
-			</Select.Content>
+			</Select.Group></Select.Content>
 		</Select.Root>
 	</label>
 	<label class="grid gap-1 text-xs font-medium text-muted-foreground">

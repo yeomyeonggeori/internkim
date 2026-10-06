@@ -43,10 +43,10 @@
 		>
 			{statusLabel(task.status)}
 		</Select.Trigger>
-		<Select.Content>
+		<Select.Content><Select.Group>
 			{#each statusOptions as option (option.value)}
 				<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
 			{/each}
-		</Select.Content>
+		</Select.Group></Select.Content>
 	</Select.Root>
 </div>
