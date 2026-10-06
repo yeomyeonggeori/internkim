@@ -35,7 +35,7 @@
 	}
 </script>
 
-<div class="grid gap-4 px-4 pt-4 pb-5 sm:px-6" data-testid="leave-history">
+<div class="grid min-w-0 grid-cols-1 gap-4 px-4 pt-4 pb-5 sm:px-6" data-testid="leave-history">
 	{#if employeeLeave.mutationErrorMessage}
 		<p class="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
 			{employeeLeave.mutationErrorMessage}

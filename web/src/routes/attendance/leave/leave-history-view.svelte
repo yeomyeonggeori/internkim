@@ -15,7 +15,7 @@
 </script>
 
 
-<section class="mx-auto grid w-full max-w-5xl gap-5" data-testid="leave-history-view">
+<section class="mx-auto grid w-full min-w-0 max-w-5xl grid-cols-1 gap-5" data-testid="leave-history-view">
  <header class="flex items-center justify-between gap-3"><h1 class="text-2xl font-semibold tracking-tight">{text.navigation.mine}</h1>{#if employeeLeave.isLoading && employeeLeave.payload}<Spinner aria-label={text.loading} />{/if}<LeaveRequestDialog /></header>
  {#if employeeLeave.errorMessage}<p role="alert" class="rounded-md border border-destructive/40 p-3 text-sm text-destructive">{employeeLeave.errorMessage}</p>{/if}
  {#if employeeLeave.payload || !employeeLeave.errorMessage}

@@ -177,7 +177,7 @@
                 {#snippet action()}<OwnClockAction />{/snippet}
             </AttendancePersonRow>
         </Card.Root>
-        {#if !teamState.selectedTeamKey && !companyTotals && !teamState.error}
+        {#if !teamState.selectedTeamKey && teamState.isLoadingTeams && !companyTotals && !teamState.error}
             <AttendanceLoadingSkeleton kind="metrics" />
         {:else if !teamState.selectedTeamKey && companyTotals}
             <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="attendance-company-summary">

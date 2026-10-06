@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PersonWorkStandard from './person-work-standard.svelte';
 	import { ToolRefused } from '$lib/public-api-call';
+	import { Button } from '$lib/components/ui/button';
 	import { onMount } from 'svelte';
 	import { companyDateOf } from '$lib/company-time';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
@@ -98,5 +99,8 @@
 		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} />
 	</div>
 {:else if !error}
-	<AttendanceLoadingSkeleton kind="month" rowCount={8} />
+	<div aria-busy="true">
+		{#if member.memberID === myAttendanceToday.summary?.currentMemberID}<Button variant="ghost" size="sm" disabled>{text.workStatus.standard}</Button>{/if}
+		<AttendanceLoadingSkeleton kind="month" rowCount={8} />
+	</div>
 {/if}

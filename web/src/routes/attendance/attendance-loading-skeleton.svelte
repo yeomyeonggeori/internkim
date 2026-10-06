@@ -58,9 +58,9 @@
 		{:else if kind === 'teams'}
 			{@render teams()}
 		{:else if kind === 'month'}
-			<Card.Root class="min-w-0 gap-4"><Card.Header class="flex-row justify-between gap-2"><Skeleton class="h-6 w-28" /><Skeleton class="h-8 w-32" /></Card.Header><Card.Content class="space-y-3 overflow-hidden">
-				<div class="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 border-b pb-3"><Skeleton class="h-4 w-10" /><div class="flex items-center gap-2"><Skeleton class="size-7 rounded-full" /><Skeleton class="h-4 w-24" /></div></div>
-				<div class="divide-y">{#each Array.from({ length: rowCount }) as _, index (index)}<div class="grid h-14 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-3"><Skeleton class="h-4 w-12" /><div class="space-y-2"><Skeleton class="h-3 w-24" /><Skeleton class="h-1.5 w-full rounded-full" /></div></div>{/each}</div>
+			<Card.Root class="min-w-0 gap-4"><Card.Header class="flex min-w-0 flex-col gap-[10px] overflow-hidden pb-1 sm:flex-row sm:items-start sm:justify-between"><div class="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto"><Card.Title class="min-w-0 flex-1 truncate text-base sm:flex-none sm:whitespace-nowrap">{text.teamMonthlyStatus}</Card.Title><Skeleton class="h-11 w-36 shrink-0 sm:hidden" /></div><div class="flex w-full min-w-0 flex-col gap-[10px] sm:w-auto"><Skeleton class="hidden h-8 w-40 sm:block" /></div></Card.Header><Card.Content class="overflow-hidden">
+				<div class="overflow-hidden rounded-md border"><div class="grid grid-cols-[4.5rem_minmax(0,1fr)] border-b bg-muted"><div class="border-r"></div><div class="flex flex-col gap-1 px-2 py-2"><div class="flex items-center gap-2"><Skeleton class="size-7 rounded-full" /><Skeleton class="h-4 w-24" /></div><Skeleton class="ml-auto h-5 w-16" /></div></div>
+				<div class="divide-y">{#each Array.from({ length: rowCount }) as _, index (index)}<div class="grid h-12 grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-2"><div class="px-2"><Skeleton class="h-4 w-12" /></div><div class="space-y-2 px-2"><Skeleton class="h-3 w-24" /><Skeleton class="h-1.5 w-full rounded-full" /></div></div>{/each}</div></div>
 			</Card.Content></Card.Root>
 		{:else}
 			<div class="divide-y rounded-xl border">
