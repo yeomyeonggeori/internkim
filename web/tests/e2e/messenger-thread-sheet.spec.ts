@@ -155,6 +155,39 @@ test.describe('messenger thread sheet', () => {
 	});
 });
 
+test.describe('messenger reply chip', () => {
+	const crowdedRoot = {
+		...rootMessage,
+		thread: {
+			replyCount: 5,
+			lastReplyAt: '2026-09-28T01:05:00Z',
+			participants: [
+				reader,
+				author,
+				{ id: 'person-third', name: '최견본', email: 'third@example.com' },
+				{ id: 'person-fourth', name: '김샘플', email: 'fourth@example.com' }
+			]
+		}
+	};
+
+	test('draws the overflow count the same size as the avatars beside it', async ({ page }) => {
+		await mockDeviceMessenger(page, reader, [{ id: channelID, name: '스레드 채널', kind: 'group', myRole: 'member' }], [crowdedRoot]);
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto(`/messenger?channel=${channelID}`);
+
+		const chip = page.getByRole('button', { name: /5개 답글/ });
+		const overflow = chip.getByTestId('avatar-stack-overflow');
+		await expect(overflow).toHaveText('+1');
+		const avatarBox = await chip.locator('[data-slot="avatar"]').first().boundingBox();
+		const overflowBox = await overflow.boundingBox();
+		if (avatarBox === null || overflowBox === null) throw new Error('the reply chip avatars have no layout box to measure');
+
+		expect(overflowBox.width).toBe(avatarBox.width);
+		expect(overflowBox.height).toBe(avatarBox.height);
+		await expect(overflow).toHaveCSS('font-size', '9px');
+	});
+});
+
 test.describe('messenger thread sheet on a touch screen', () => {
 	test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 

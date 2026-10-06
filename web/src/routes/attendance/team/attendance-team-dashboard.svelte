@@ -151,7 +151,7 @@
 	<div class="flex min-w-0 items-center justify-between gap-2">
 		<span class="text-xs text-muted-foreground">{label}</span>
 		{#if actors.length}
-            <PersonAvatarStack people={actors} max={4} label={label} avatarClass="size-8 ring-2 ring-card">
+            <PersonAvatarStack people={actors} max={4} label={label} avatarClass="size-8 text-sm font-normal ring-2 ring-card">
                 {#snippet renderPerson(person, index)}
                     {@const actor = actors[index]}
                     <Tooltip.Root>
