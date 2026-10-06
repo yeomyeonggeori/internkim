@@ -13,8 +13,8 @@ Blueclaw POSIX helper. Those identities use a requester primary group plus
 service group and should not be able to open the host capability socket
 directly.
 
-`RequesterPersonID`, `IsScheduledRun`, and `IsApprovalContinuation` are
+`RequesterPersonID`, `IsScheduledRun`, `HoldID`, and `ScheduledApprovedCall` are
 therefore trusted at the Blueclaw runtime boundary, not at the model/tool-code
 boundary. `capabilityd` still rejects malformed requester IDs at decode time,
-and requires a requester ID when scheduled-run or approval-continuation flags
-are present, as defense in depth.
+and requires a requester ID when the scheduled-run flag is present, as defense in
+depth.

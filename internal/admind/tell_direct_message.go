@@ -13,7 +13,6 @@ import (
 const (
 	tellDirectMessagePath     = "/tell/api/direct-message"
 	tellDirectMessageToolName = "message_send"
-	tellDirectMessageSource   = "plane_telling"
 	tellDirectMessageCeiling  = 1 << 18
 )
 
@@ -97,7 +96,7 @@ func tellDirectMessageActorContext(actor userActor) capabilities.ActorContext {
 		PersonID:    strings.TrimSpace(actor.UserID),
 		Email:       strings.ToLower(strings.TrimSpace(actor.Email)),
 		DisplayName: strings.TrimSpace(actor.Name),
-		Source:      tellDirectMessageSource,
+		Source:      capabilities.TaskSourcePlaneTelling,
 		Scopes:      normalizePublicAPIPermissions([]string{publicAPIPermissionWrite}),
 		IsAdmin:     actor.isAdmin(),
 	}
@@ -105,10 +104,9 @@ func tellDirectMessageActorContext(actor userActor) capabilities.ActorContext {
 
 func tellDirectMessageInvokeContext(actor capabilities.ActorContext) capabilities.ToolInvokeContext {
 	return capabilities.ToolInvokeContext{
-		RequesterPersonID:      actor.PersonID,
-		RequesterEmail:         actor.Email,
-		RequesterName:          actor.DisplayName,
-		TaskSource:             tellDirectMessageSource,
-		IsApprovalContinuation: true,
+		RequesterPersonID: actor.PersonID,
+		RequesterEmail:    actor.Email,
+		RequesterName:     actor.DisplayName,
+		TaskSource:        capabilities.TaskSourcePlaneTelling,
 	}
 }

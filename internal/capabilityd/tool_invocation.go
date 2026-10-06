@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 
 	"github.com/yeomyeonggeori/internkim/internal/capabilities"
@@ -240,7 +241,7 @@ func (service Service) capabilityToolApprovalDeniedResponse(ctx context.Context,
 	if !descriptor.RequiresApproval {
 		return capabilities.ToolInvokeResponse{}, false
 	}
-	if requesterApprovedThisCall(request.Context) || request.Context.IsScheduledRun {
+	if requesterApprovedThisCall(request) {
 		return capabilities.ToolInvokeResponse{}, false
 	}
 	if sendsIntoTheAnsweredConversation(request) {
@@ -314,8 +315,8 @@ func decodeToolInvokeRequest(toolName string, reader io.Reader) (capabilities.To
 func validateToolInvokeContext(toolContext capabilities.ToolInvokeContext) (capabilities.ToolInvokeContext, error) {
 	requesterPersonID := strings.TrimSpace(toolContext.RequesterPersonID)
 	if requesterPersonID == "" {
-		if toolContext.IsScheduledRun || toolContext.IsApprovalContinuation {
-			return capabilities.ToolInvokeContext{}, errors.New("requesterPersonID is required for scheduled runs and approval continuations")
+		if toolContext.IsScheduledRun {
+			return capabilities.ToolInvokeContext{}, errors.New("requesterPersonID is required for scheduled runs")
 		}
 		return toolContext, nil
 	}
@@ -387,9 +388,39 @@ func capabilityUnavailableResponse(toolName string, code string) capabilities.To
 	}
 }
 
-// The requester approved this call. A turn that carries out a call held on an
-// earlier turn says so as a property of the turn; a call approved inside the
-// turn it was made in names the held call it spends.
-func requesterApprovedThisCall(toolContext capabilities.ToolInvokeContext) bool {
-	return toolContext.IsApprovalContinuation || strings.TrimSpace(toolContext.HoldID) != ""
+func requesterApprovedThisCall(request capabilities.ToolInvokeRequest) bool {
+	toolContext := request.Context
+	if strings.TrimSpace(toolContext.HoldID) != "" {
+		return true
+	}
+	if toolContext.TaskSource == capabilities.TaskSourcePublicAPI || toolContext.TaskSource == capabilities.TaskSourcePlaneTelling {
+		return true
+	}
+	return isScheduledRunOfExactlyThisCall(request)
+}
+
+func isScheduledRunOfExactlyThisCall(request capabilities.ToolInvokeRequest) bool {
+	approvedCall := request.Context.ScheduledApprovedCall
+	if !request.Context.IsScheduledRun || approvedCall == nil {
+		return false
+	}
+	if strings.TrimSpace(approvedCall.ToolName) != strings.TrimSpace(request.ToolName) {
+		return false
+	}
+	return isSameJSON(approvedCall.ToolInput, request.Input)
+}
+
+func isSameJSON(first json.RawMessage, second json.RawMessage) bool {
+	var firstValue, secondValue any
+	if json.Unmarshal(emptyObjectIfBlank(first), &firstValue) != nil || json.Unmarshal(emptyObjectIfBlank(second), &secondValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(firstValue, secondValue)
+}
+
+func emptyObjectIfBlank(document json.RawMessage) []byte {
+	if len(bytes.TrimSpace(document)) == 0 {
+		return []byte("{}")
+	}
+	return document
 }

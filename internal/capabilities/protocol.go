@@ -24,7 +24,8 @@ const (
 	ToolOutcomeFailed    = capabilityprotocol.ToolOutcomeFailed
 	ToolOutcomeDenied    = capabilityprotocol.ToolOutcomeDenied
 
-	TaskSourcePublicAPI = capabilityprotocol.TaskSourcePublicAPI
+	TaskSourcePublicAPI    = capabilityprotocol.TaskSourcePublicAPI
+	TaskSourcePlaneTelling = capabilityprotocol.TaskSourcePlaneTelling
 )
 
 type Descriptor = capabilityprotocol.Descriptor

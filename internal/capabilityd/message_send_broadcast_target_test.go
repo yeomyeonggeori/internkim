@@ -129,7 +129,7 @@ func TestExecutionSendsABroadcastToExactlyTheResolvedIdentities(t *testing.T) {
 	response, errorValue := service.invokePlatformMessageTool(context.Background(), capabilities.ToolInvokeRequest{
 		ToolName: "message_send",
 		Input:    approvedInput,
-		Context:  capabilities.ToolInvokeContext{IsApprovalContinuation: true},
+		Context:  capabilities.ToolInvokeContext{HoldID: "held-test"},
 	})
 
 	if errorValue != nil || response.Status != "sent" {

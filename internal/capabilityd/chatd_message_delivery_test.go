@@ -785,7 +785,7 @@ func TestATellingKeepsTheAgentsOwnName(testContext *testing.T) {
 		Context: capabilities.ToolInvokeContext{
 			Platform:       "buzz",
 			RequesterEmail: "sample@example.com",
-			TaskSource:     platformTellingTaskSource,
+			TaskSource:     capabilities.TaskSourcePlaneTelling,
 		},
 	})
 	if errorValue != nil {

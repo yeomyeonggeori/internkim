@@ -21,7 +21,7 @@ func TestPlatformMessageSendRefusesAFileNobodyCarried(t *testing.T) {
 		Context: capabilities.ToolInvokeContext{
 			RequesterEmail:          "member@example.com",
 			RequesterPlatformUserID: "member-1",
-			IsApprovalContinuation:  true,
+			HoldID:                  "held-test",
 		},
 	})
 	if errorValue != nil {
