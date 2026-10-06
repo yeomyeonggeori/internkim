@@ -11,7 +11,9 @@ const documents = Array.from({ length: 3 }, (_, index) => ({ documentID: `docume
 
 class SupplementaryFixture extends WorkspaceLoadingFixture {
 	readonly statuses = new Map<string, number>();
+	isAdmin = true;
 	tool(name: string, input: Record<string, unknown>): unknown {
+		if (name === 'host_version_get') return { installedVersion: 'v2026.10.06.000001', channel: 'stable', updateMethod: 'apt', isUpdateAvailable: false };
 		if (name === 'dataroom_get') return { categories, shares: [], canManage: false };
 		if (name === 'company_document_list') return { count: documents.length, documents };
 		return super.tool(name, input);
@@ -37,10 +39,12 @@ async function prepare(page: Page, fixture: SupplementaryFixture) {
 	await page.route('**/api/v1/tokens', route => reply(route, 'tokens', { tokens: [{ name: 'fixture-review-token', permission: 'read', expiresAt: '2027-01-01T00:00:00Z', lastUsedAt: null }] }));
 	await page.route('**/api/company/host-setup', route => reply(route, 'host-setup', { company: { id: companyID, name: '예시 회사', slug: 'example-co' }, hasConfiguration: true, lastSeenAt: '2026-10-06T03:00:00Z' }));
 	await page.route('**/api/company/box', route => route.fulfill({ json: { connected: null, empty: [] } }));
+	await page.route('**/api/member/push-device', route => route.fulfill({ json: { serverKey: '', isServerKeyVaulted: false, hasClaimedDevice: false } }));
 	await page.route('**/admin/api/diagnostics/service-logs?*', route => reply(route, 'service-logs', { service: 'blueclaw', lines: ['2026-10-06T03:00:00Z task accepted', '2026-10-06T03:00:01Z model request started', '2026-10-06T03:00:04Z task completed'], count: 3 }));
 	await page.route(`**/api/v1/data-room/${companyID}`, route => reply(route, 'public-data-room', { categories: categories.map(({ nameKO, ...category }) => ({ ...category, name_ko: nameKO })), documents: documents.map(document => ({ id: document.documentID, title: document.title, summary: document.summary, category_code: document.categoryCode, document_date: document.date, status: document.status })) }));
 	await page.route('http://127.0.0.1:56801/**', async route => {
 		const path = new URL(route.request().url()).pathname;
+		if (path === '/rest/v1/member' && !fixture.isAdmin) return route.fulfill({ json: { id: '10000000-0000-4000-8000-000000000001', company_id: companyID, is_admin: false, name: '이샘플', company: { slug: 'example-co', locale: 'ko' } } });
 		if (path === '/auth/v1/passkeys') return reply(route, 'passkeys', [{ id: 'fixture-passkey', friendly_name: 'Sample computer', created_at: '2026-01-01T00:00:00Z', last_used_at: null }]);
 		if (path === '/auth/v1/user/oauth/grants') return reply(route, 'grants', []);
 		if (path === '/auth/v1/oauth/authorizations/fixture-authorization') return reply(route, 'oauth', { authorization_id: 'fixture-authorization', client: { id: 'fixture-client', name: 'Sample reporting app', uri: 'http://localhost:8080', logo_uri: null }, user: { id: 'sample', email: 'member@example.com' }, redirect_uri: 'http://localhost:8080/callback', scope: 'openid', expires_at: '2026-10-06T04:00:00Z' });
@@ -71,18 +75,45 @@ const scenes: Scene[] = [
 test.use({ locale: 'ko-KR', colorScheme: 'light', contextOptions: { reducedMotion: 'reduce' } });
 async function capture(page: Page, scene: string, width: number, state: string) {
 	if (!output) return;
+	const securityDesktop = scene === 'settings-security' && width === 1280;
+	const stableScroll = scene === 'settings-members' || securityDesktop;
+	if (stableScroll) await page.evaluate(async () => {
+		await document.fonts.ready;
+		if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		await Promise.all(document.getAnimations().filter(animation => Number.isFinite(animation.effect?.getComputedTiming().endTime)).map(animation => animation.finished.catch(() => {})));
+		for (const element of document.querySelectorAll('main,[data-app-shell-scroll]')) element.scrollTo(0, 0);
+		window.scrollTo(0, 0);
+	});
+	let targetGeometry: { x: number; y: number; width: number; height: number } | null = null;
+	if (securityDesktop) {
+		await expect(page.getByText('Sample computer', { exact: true })).toBeVisible();
+		const tokenCard = page.locator('[data-slot="card"]').filter({ has: page.locator('#personal-access-token-name') });
+		await tokenCard.evaluate(card => {
+			const main = card.closest('main');
+			if (!main) throw new Error('Token list has no settings scroll container');
+			main.scrollTop += card.getBoundingClientRect().top - 120;
+		});
+		await expect(tokenCard).toBeInViewport({ ratio: 1 });
+		if (state === 'loading' && phase === 'after') await expect(tokenCard.getByRole('status', { name: '개인 액세스 토큰', exact: true })).toBeInViewport({ ratio: 1 });
+		if (state === 'ready') await expect(tokenCard.getByText('fixture-review-token', { exact: true })).toBeInViewport({ ratio: 1 });
+		targetGeometry = await tokenCard.boundingBox();
+		expect(targetGeometry?.y).toBe(120);
+	}
 	await mkdir(`${output}/${phase}`, { recursive: true });
 	const motion = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
 	expect(motion).toBe(true);
 	const scroll = await page.evaluate(() => ({ windowY: window.scrollY, regions: Array.from(document.querySelectorAll('main,[data-app-shell-scroll],[role="tabpanel"]')).map(element => ({ tag: element.tagName, role: element.getAttribute('role'), top: element.scrollTop, left: element.scrollLeft })) }));
-	await page.screenshot({ path: `${output}/${phase}/${scene}-${width}-${state}.png`, animations: 'disabled' });
-	await writeFile(`${output}/${phase}/${scene}-${width}-${state}.json`, JSON.stringify({ route: new URL(page.url()).pathname, viewport: page.viewportSize(), reducedMotionVerified: motion, animations: 'disabled', scroll }, null, 2));
+	await page.screenshot({ path: `${output}/${phase}/${scene}-${width}-${state}.png`, animations: stableScroll ? 'allow' : 'disabled', caret: 'initial' });
+	const afterScroll = await page.evaluate(() => ({ windowY: window.scrollY, regions: Array.from(document.querySelectorAll('main,[data-app-shell-scroll],[role="tabpanel"]')).map(element => ({ tag: element.tagName, role: element.getAttribute('role'), top: element.scrollTop, left: element.scrollLeft })) }));
+	if (stableScroll) expect(afterScroll).toEqual(scroll);
+	await writeFile(`${output}/${phase}/${scene}-${width}-${state}.json`, JSON.stringify({ route: new URL(page.url()).pathname, viewport: page.viewportSize(), reducedMotionVerified: motion, animations: stableScroll ? 'allow after finite animations settled' : 'disabled', scroll, afterScroll, postScreenshotScrollVerified: stableScroll, targetGeometry, tokenCardFullyInViewport: securityDesktop }, null, 2));
 }
 
 for (const width of [1280, 390]) for (const scene of scenes) {
 	test(`${scene.name} supplementary pending and ready at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 900 });
 		const fixture = new SupplementaryFixture();
+		if (scene.name === 'settings-security') fixture.isAdmin = false;
 		for (const gate of scene.gates) fixture.hold(gate);
 		await prepare(page, fixture);
 		await page.goto(scene.path);
@@ -150,6 +181,7 @@ for (const status of [401, 403]) for (const target of ['memory', 'files', 'mail'
 test('security and public data-room first-read failures do not masquerade as empty', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	const fixture = new SupplementaryFixture();
+	fixture.isAdmin = false;
 	fixture.statuses.set('tokens', 503);
 	fixture.statuses.set('public-data-room', 503);
 	await prepare(page, fixture);
@@ -180,20 +212,20 @@ for (const changed of ['company', 'role', 'account']) {
 		await page.route('**/api/v1/tools/person_list/invoke', async route => {
 			const requestedPhase = directoryPhase;
 			const requestNumber = ++reads;
-			const name = requestedPhase === 0 ? '이전 조직 구성원' : '현재 조직 구성원';
+			const name = requestedPhase === 0 ? '이샘플' : '박예시';
 			const person = { personID: identity.memberID, name, email: identity.email, isAdmin: identity.isAdmin, teamID: 'team-product', jobTitle: '프로덕트 디자이너' };
 			await fixture.waitFor(`directory-${requestedPhase}`);
 			await route.fulfill({ json: { result: { people: [person], count: 1 } } });
 			if (requestedPhase === 0 && requestNumber > 1) oldRefreshReturned = true;
 		});
 		await page.goto('/example-co/organization');
-		await expect(page.getByText('이전 조직 구성원', { exact: true }).first()).toBeVisible();
+		await expect(page.locator('main').getByText('이샘플', { exact: true }).first()).toBeVisible();
 		await page.locator('a[href="/example-co/runs"]').first().click();
 		await expect(page.locator('main tbody').first()).toBeVisible();
 		fixture.hold('directory-0');
 		await page.locator('a[href="/example-co/organization"]').first().click();
 		await expect.poll(() => reads).toBeGreaterThan(1);
-		await expect(page.getByText('이전 조직 구성원', { exact: true }).first()).toBeVisible();
+		await expect(page.locator('main').getByText('이샘플', { exact: true }).first()).toBeVisible();
 		directoryPhase = 1;
 		fixture.hold('directory-1');
 		if (changed === 'company') identity.companyID = '20000000-0000-4000-8000-000000000002';
@@ -212,14 +244,14 @@ for (const changed of ['company', 'role', 'account']) {
 		}
 		await page.evaluate(() => { window.dispatchEvent(new Event('blur')); window.dispatchEvent(new Event('focus')); });
 		await expect.poll(() => fixture.requested.has('directory-1')).toBe(true);
-		await expect(page.getByText('이전 조직 구성원', { exact: true })).toHaveCount(0);
+		await expect(page.locator('main').getByText('이샘플', { exact: true })).toHaveCount(0);
 		await expect(page.getByTestId('organization-skeleton')).toBeVisible();
 		fixture.release('directory-0');
 		await expect.poll(() => oldRefreshReturned).toBe(true);
-		await expect(page.getByText('이전 조직 구성원', { exact: true })).toHaveCount(0);
+		await expect(page.locator('main').getByText('이샘플', { exact: true })).toHaveCount(0);
 		await expect(page.getByTestId('organization-skeleton')).toBeVisible();
 		fixture.release('directory-1');
-		await expect(page.getByText('현재 조직 구성원', { exact: true }).first()).toBeVisible();
-		await expect(page.getByText('이전 조직 구성원', { exact: true })).toHaveCount(0);
+		await expect(page.locator('main').getByText('박예시', { exact: true }).first()).toBeVisible();
+		await expect(page.locator('main').getByText('이샘플', { exact: true })).toHaveCount(0);
 	});
 }

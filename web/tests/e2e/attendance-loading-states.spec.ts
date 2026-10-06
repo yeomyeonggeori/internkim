@@ -3,13 +3,14 @@ import { AttendanceLoadingFixture } from './attendance-loading-fixture';
 
 const phase = process.env.LOADING_EVIDENCE_PHASE || 'after';
 const screenshots = process.env.LOADING_EVIDENCE_DIR;
+const selectedCaptureScenes = process.env.LOADING_EVIDENCE_SCENES?.split(',');
 async function capture(page: Page, scene: string, width: number): Promise<void> {
 	await page.evaluate(() => {
 		let element: HTMLElement | null = document.querySelector('[data-testid="attendance-team-dashboard"]');
 		while (element) { element.scrollTop = 0; element = element.parentElement; }
 		window.scrollTo(0, 0);
 	});
-	if (screenshots) await page.screenshot({ animations: 'disabled', path: `${screenshots}/attendance-${scene}-${width}-${phase}.png` });
+	if (screenshots && (!selectedCaptureScenes || selectedCaptureScenes.includes(scene))) await page.screenshot({ animations: 'disabled', path: `${screenshots}/attendance-${scene}-${width}-${phase}.png` });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 }
 test.use({ locale: 'ko-KR' });
@@ -61,8 +62,14 @@ for (const width of [1280, 390, 320]) {
 		await expect(page.getByRole('dialog')).toBeVisible();
 		await expect.poll(() => fixture.month.reads).toBeGreaterThan(0);
 		await capture(page, 'month-pending', width);
+		const monthlyPlaceholder = phase === 'before' ? null : await page.locator('[data-attendance-skeleton="month"] [data-slot="card"]').boundingBox();
 		fixture.month.release();
 		await expect(page.getByTestId('team-status-grid')).toBeVisible();
+		if (phase !== 'before') {
+			const monthlyTable = await page.getByTestId('team-status-grid').boundingBox();
+			if (!monthlyPlaceholder || !monthlyTable) throw new Error('Monthly card geometry was not measurable');
+			expect(Math.abs(monthlyPlaceholder.y - monthlyTable.y)).toBeLessThanOrEqual(1);
+		}
 		await capture(page, 'month-loaded', width);
 	});
 }
@@ -79,6 +86,16 @@ test('attendance error is terminal and retry can show content', async ({ page })
 	fixture.current.fail = false;
 	await page.getByRole('button', { name: '새로고침', exact: true }).last().click();
 	await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
+});
+
+test('successful team response without optional metrics stops its loading placeholders', async ({ page }) => {
+	const fixture = new AttendanceLoadingFixture();
+	fixture.includeCompanySummary = false;
+	await fixture.install(page);
+	await page.goto('/example-co/attendance');
+	await expect(page.getByTestId('attendance-team-card')).toHaveCount(6);
+	await expect(page.locator('[data-attendance-skeleton="metrics"]')).toHaveCount(0);
+	await expect(page.getByTestId('attendance-company-summary')).toHaveCount(0);
 });
 
 for (const width of [1280, 390, 320]) {
@@ -102,6 +119,13 @@ for (const width of [1280, 390, 320]) {
 			} else await page.getByRole('button', { name: scene.label, exact: true }).filter({ visible: true }).click();
 			await expect.poll(() => gate.reads).toBeGreaterThan(0);
 			if (phase !== 'before') await expect(page.locator('[data-slot="skeleton"]').filter({ visible: true }).first()).toBeVisible();
+			if (phase !== 'before' && scene.name === 'leave-history') {
+				for (const target of [page.getByTestId(scene.testId), page.getByTestId(scene.testId).getByRole('button', { name: '휴가 신청', exact: true })]) {
+					const box = await target.boundingBox();
+					expect(box).not.toBeNull();
+					expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+				}
+			}
 			await capture(page, `${scene.name}-pending`, width);
 			gate.release();
 			await expect(page.locator('[data-slot="skeleton"]:visible')).toHaveCount(0);

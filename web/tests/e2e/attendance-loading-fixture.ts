@@ -35,6 +35,7 @@ export class AttendanceLoadingFixture {
 	identity = { memberID, companyID, isAdmin: true, email: 'member@example.com' };
 	membershipReads = 0;
 	calendarTitle = '제품 점검';
+	includeCompanySummary = true;
 	current = new LoadingResponseGate();
 	teams = new LoadingResponseGate();
 	members = new LoadingResponseGate();
@@ -54,7 +55,7 @@ export class AttendanceLoadingFixture {
 			answer = { memberID, email: 'member@example.com', companyID, timeZone: 'Asia/Seoul', serverTime: loadingFixtureTime, backdatedAfterMinutes: 60, workLocations, authorization: { isAdmin: true, teamViewVisibleToAll: true }, todayEvents: [ownEvent], latestEvent: ownEvent, activeLeave: null };
 		} else if (tool === 'attendance_team_dashboard_get' || tool === 'attendance_team_page_get') {
 			gate = input.pageKind === 'members' ? this.members : this.teams;
-			answer = { companyID, companyName: '샘플컴퍼니', companySummary: { memberCount: 48, working: 30, done: 6, away: 6, notStarted: 6, needsCheckout: 0 }, timeZone: 'Asia/Seoul', serverTime: loadingFixtureTime, authorization: { isAdmin: true, teamViewVisibleToAll: true }, teamOffset: 0, teamLimit: 6, teamTotal: 6, teams, selectedTeamKey: input.selectedTeamKey || null, memberOffset: 0, memberLimit: 24, memberTotal: 8, members: people.map(person => ({ memberID: person.personID, name: person.name, email: person.email, teamKey: String(input.selectedTeamKey || 'team-0'), status: 'working', latestAt: ownEvent.occurredAt, location: '사무실' })) };
+			answer = { companyID, companyName: '샘플컴퍼니', companySummary: this.includeCompanySummary ? { memberCount: 48, working: 30, done: 6, away: 6, notStarted: 6, needsCheckout: 0 } : undefined, timeZone: 'Asia/Seoul', serverTime: loadingFixtureTime, authorization: { isAdmin: true, teamViewVisibleToAll: true }, teamOffset: 0, teamLimit: 6, teamTotal: 6, teams, selectedTeamKey: input.selectedTeamKey || null, memberOffset: 0, memberLimit: 24, memberTotal: 8, members: people.map(person => ({ memberID: person.personID, name: person.name, email: person.email, teamKey: String(input.selectedTeamKey || 'team-0'), status: 'working', latestAt: ownEvent.occurredAt, location: '사무실' })) };
 		} else if (tool === 'attendance_list') {
 			gate = input.to === '2026-10-06' ? this.progress : this.month;
 			const personHints = input.personHints;
