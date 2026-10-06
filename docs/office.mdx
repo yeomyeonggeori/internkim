@@ -17,42 +17,68 @@ your own machine makes the same files.
 
 ## Decks [#decks]
 
-The agent writes one file, `slides.html`, with a theme on the body and a
-layout on each slide:
+A deck has no preset theme, layout kit or stock graphic. The agent designs each
+one for its request, in stages adapted from
+[GenOffice](https://github.com/genspark-ai/genoffice) (Apache-2.0, credited in
+the plugin's `NOTICE`). Each stage is one file, and each is checked before the
+next begins.
 
-```html
-<body data-theme="corporate">
-<section data-layout="cover">
-  <h1>3분기 매출 <em>41.3억 원</em>, 목표를 3% 넘겼습니다</h1>
-</section>
-<section data-layout="chart">
-  <h2>매출은 세 달 연속 늘었습니다</h2>
-  <figure data-chart="column" data-labels="7월, 8월, 9월" data-values="12.4, 13.1, 15.8" data-unit="억"></figure>
-</section>
-```
+| Stage | File | What it holds |
+|---|---|---|
+| Style sheet | `DESIGN.md` | a palette with up to two accents, a background per page type, type sizes, and one line naming the style |
+| Outline | `outline.json` | the core message, then per page its title, type, brief, figures and the photos it needs |
+| Pages | `pages/01.html`, `pages/02.html`, … | one page per file, written from its outline entry |
+| Build | `build/<name>.pptx` | the PowerPoint, with the PDF beside it |
 
-The deck kit supplies everything the model would otherwise get wrong: the
-type scale, spacing, palette, footer and page numbers, Korean line breaking,
-charts drawn from attributes, and diagram layouts from a process to a 2×2
-matrix. `office guide slides` lists the themes, layouts and chart types.
+The style sheet is checked only for what can be measured: the colours parse,
+text sizes stay above the readable minimum, and text has enough contrast
+against its background.
 
-`office create build/<name>.pdf slides.html` checks the structure first, then
-draws every slide, measures the drawn page, and writes the PDF. The measurement looks
-for what a reader would notice: text that overflows or is covered by a box,
-content crossing the footer, hollow cards, empty bands, text too small to
-read, titles longer than three lines, stretched pictures and charts. The
-result ends in one verdict the agent acts on:
+Every number in the outline is a figure with a label, a value and a unit.
+Before any page exists, a decision model (jev) reads the outline's text against
+the request and its attachments and refuses what they do not support, such as
+an invented number, a source line or a slogan. In one more call for the whole
+deck, the same model picks each page's layout from GenOffice's library of named
+compositions: covers, three column cards, a hero number, a timeline, two
+columns, a row of KPI cards, a chart with its insight, photo layouts and
+closings. Two body pages in a row never share a layout, and a deck uses at least
+three. The layout names the composition; the model still decides the
+proportions, the elements, their sizes and their colours.
+
+A page takes its title from its outline entry, and the build fills it in, so a
+page cannot carry another page's title. A chart plots only its entry's figures
+with their units, and a chart with two units on one axis is refused. After each
+page is written, `office check pages/NN.html` measures that page alone: content
+spilling out of its box or the page, parts drawn over each other, clipped text,
+contrast, and text below the minimum size.
+
+`office create build/<name>.pptx .` checks every stage again, renders and
+measures every page, and ends in one verdict the agent acts on:
 
 | Verdict | What the agent does |
 |---|---|
 | `ACCEPTABLE` | delivers the named file; remaining notes are advice |
-| `FIX ROUND n OF 2` | fixes only the listed defects in `slides.html` and builds again |
+| `FIX ROUND n OF 2` | fixes only the listed defects in their page files and builds again |
 | `STOP FIXING` | delivers and names what is left |
 
-Two rounds is the limit, so a model never redesigns a clean slide in a loop.
-Naming a `.pptx` output writes an editable PowerPoint file instead: text
-stays text, kit charts and tables become native charts and tables with their
-data, diagram arrows become connectors, and the fonts are embedded.
+Then an image-reading decision model (clef) looks at each rendered slide, and
+at the whole deck for repeated layouts. It reports only objective defects:
+overlap, cramped or wasted space, misalignment, an unreadable chart, a bad
+picture. The host rewrites the pages it flags, for at most two rounds, and
+leaves clean pages untouched. When the file is delivered, a last claim check
+reads its text once more as a safety net, and a value the sources do not
+support is left blank for the reply to offer to complete.
+
+InternKim picks a deck's typeface from the request: Paperlogy by default,
+Freesentation or A2Z. A font the person names is
+looked for among the attachments, the data room and Google Fonts and embedded;
+when none is found, the deck is set in Paperlogy and the reply says so. The
+company logo goes on the cover and the closing page. Photos come from the
+request's attachments and the data room images the requester can read, and a
+page with no photo gets no placeholder.
+
+In the `.pptx`, text stays editable text, charts and tables are native with
+their data, and the fonts are embedded.
 
 A `.pptx` someone hands over is edited in place with `office apply`, and
 `office check` previews and measures it. A layout problem it reports
