@@ -37,6 +37,6 @@ describe('the root layout', () => {
 
 	test('renders the page through a boundary everywhere it renders children', () => {
 		expect(layout.match(/\{@render children\(\)\}/g)?.length).toBe(1);
-		expect(layout).toMatch(/\{#snippet contained\(\)\}\s*<EffectErrorBoundary region="page">\s*\{@render children\(\)\}/);
+		expect(layout).toMatch(/\{#snippet contained\(\)\}\s*\{#key workspaceScope\}\s*<EffectErrorBoundary region="page">\s*\{@render children\(\)\}\s*<\/EffectErrorBoundary>\s*\{\/key\}/);
 	});
 });

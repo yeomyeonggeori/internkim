@@ -18,6 +18,7 @@
 	import CalendarToolbar from './calendar-toolbar.svelte';
 	import type { TimelineRangePreviewSegment } from './calendar-timeline-preview';
 	import CalendarLoadWarning from './calendar-load-warning.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 
 	type CalendarOption = {
 		id: string;
@@ -35,6 +36,8 @@
 		goToToday: () => void;
 		isMobileTwoDayWeekView: boolean;
 		loadErrorMessage: string;
+		isLoading: boolean;
+		isInitialLoading: boolean;
 		localeCode: string;
 		monthRangePreviewSegments: MonthRangePreviewSegment[];
 		monthRangePreviewTitle: string;
@@ -83,6 +86,8 @@
 		goToToday,
 		isMobileTwoDayWeekView,
 		loadErrorMessage,
+		isLoading,
+		isInitialLoading,
 		localeCode,
 		monthRangePreviewSegments,
 		monthRangePreviewTitle,
@@ -137,7 +142,9 @@
 	);
 </script>
 
-<main class="calendar-page flex min-h-0 w-full flex-1 flex-col">
+<main class="calendar-page relative flex min-h-0 w-full flex-1 flex-col" aria-busy={isLoading}>
+	{#if isLoading && !isInitialLoading}<span class="absolute right-2 top-2 z-10"><Spinner aria-label={text.loading} /></span>{/if}
+	{#if isInitialLoading}<span role="status" class="sr-only">{text.loading}</span>{/if}
 	<CalendarLoadWarning message={loadErrorMessage} />
 	<CalendarToolbar
 		{currentMonthTitle}
@@ -155,6 +162,8 @@
 		{selectParticipantFilter}
 	/>
 	<CalendarStage
+		loading={isInitialLoading}
+		showEmptyState={!loadErrorMessage}
 		{activeMobileEditorEventID}
 		{clearActiveMobileEditorEvent}
 		{clearSelectedEvent}

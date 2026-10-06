@@ -1,0 +1,9 @@
+<script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	let { label, isAdmin = false }: { label: string; isAdmin?: boolean } = $props();
+</script>
+
+<div role="status" aria-label={label} aria-busy="true" class="min-w-0 overflow-hidden rounded-xl border bg-card" data-testid="run-list-loading-skeleton">
+	<div aria-hidden="true" class="divide-y md:hidden">{#each [0, 1, 2, 3, 4] as row (row)}<div class="grid gap-2 px-4 py-3"><div class="flex items-start justify-between gap-3"><div class="grid flex-1 gap-2"><Skeleton class="h-4 w-full" /><Skeleton class="h-3 w-3/4" /></div><Skeleton class="h-5 w-16 rounded-full" /></div>{#if isAdmin}<Skeleton class="h-4 w-24" />{/if}<Skeleton class="h-3 w-4/5" /><div class="mt-1 flex justify-between"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-12" /></div></div>{/each}</div>
+	<div aria-hidden="true" class="hidden overflow-x-auto md:block"><table class="w-full text-sm"><thead><tr class="border-b"><th class="p-3"><Skeleton class="h-4 w-24" /></th>{#if isAdmin}<th class="w-44 p-3"><Skeleton class="h-4 w-20" /></th>{/if}<th class="w-32 p-3"><Skeleton class="h-4 w-16" /></th><th class="w-28 p-3"><Skeleton class="ml-auto h-4 w-14" /></th><th class="w-44 p-3"><Skeleton class="ml-auto h-4 w-20" /></th><th class="w-12"></th></tr></thead><tbody>{#each [0, 1, 2, 3, 4, 5] as row (row)}<tr class="border-b last:border-b-0"><td class="p-3"><div class="grid gap-2"><Skeleton class="h-4 w-4/5" /><Skeleton class="h-3 w-3/5" /></div></td>{#if isAdmin}<td class="p-3"><Skeleton class="h-5 w-24" /></td>{/if}<td class="p-3"><Skeleton class="h-5 w-20 rounded-full" /></td><td class="p-3"><Skeleton class="ml-auto h-3 w-12" /></td><td class="p-3"><Skeleton class="ml-auto h-3 w-28" /></td><td class="p-3"><Skeleton class="size-5" /></td></tr>{/each}</tbody></table></div>
+</div>

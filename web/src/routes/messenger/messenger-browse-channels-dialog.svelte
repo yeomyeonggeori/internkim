@@ -8,6 +8,7 @@
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import { fetchOpenChannels, joinChannel, type OpenChannel } from '$lib/messenger/messenger-api';
 	import { toast } from 'svelte-sonner';
+	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
 
 	let {
 		open = $bindable(false),
@@ -21,18 +22,22 @@
 
 	let channels = $state<OpenChannel[]>([]);
 	let isLoading = $state(false);
+	let loadError = $state('');
+	let retryRevision = $state(0);
 	let joiningID = $state<string | null>(null);
 
 	$effect(() => {
 		if (!open) return;
+		retryRevision;
+		let active = true;
 		isLoading = true;
+		loadError = '';
 		channels = [];
 		fetchOpenChannels()
-			.then((found) => (channels = found))
-			.catch((failure: unknown) =>
-				toast.error(failure instanceof Error ? failure.message : text.loadOpenChannelsFailed)
-			)
-			.finally(() => (isLoading = false));
+			.then((found) => { if (active) channels = found; })
+			.catch((failure: unknown) => { if (active) loadError = failure instanceof Error ? failure.message : text.loadOpenChannelsFailed; })
+			.finally(() => { if (active) isLoading = false; });
+		return () => { active = false; };
 	});
 
 	async function join(channel: OpenChannel) {
@@ -55,7 +60,10 @@
 			<Dialog.Title>{text.browseChannels}</Dialog.Title>
 		</Dialog.Header>
 		{#if isLoading}
-			<div class="grid place-items-center py-8"><Spinner class="size-5" /></div>
+			<MessengerListSkeleton label={text.loadingChannels} action />
+		{:else if loadError}
+			<p role="alert" class="text-sm text-destructive">{loadError}</p>
+			<Button variant="outline" onclick={() => retryRevision += 1}>{text.retry}</Button>
 		{:else if channels.length === 0}
 			<Empty.Root>
 				<Empty.Header>

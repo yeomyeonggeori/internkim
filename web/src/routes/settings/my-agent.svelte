@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import * as Field from '$lib/components/ui/field';
@@ -8,7 +9,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import LoaderIcon from '@lucide/svelte/icons/loader';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { draftToUser, toneRegisters, toneTraitLimit, toneTraits, userToDraft, type UserDraft } from '$lib/persona/soul-draft';
@@ -109,8 +110,8 @@
 	<form aria-label={text.persona.userTitle} onsubmit={save} class="grid gap-6">
 		<Card.Content class="grid gap-5">
 			{#if !hasLoaded}
-				{#if isLoading}
-					<p role="status">{text.persona.loading}</p>
+				{#if isLoading || !errorMessage}
+					<div role="status" aria-label={text.persona.loading} aria-busy="true" class="grid gap-5" data-testid="personal-settings-loading-skeleton"><div aria-hidden="true" class="grid gap-5"><div class="grid gap-5 md:grid-cols-2">{#each [0, 1] as field (field)}<div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-9 w-full" /></div>{/each}</div><div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-20 w-full" /></div><div class="grid gap-2"><Skeleton class="h-4 w-32" /><Skeleton class="h-28 w-full" /></div><div class="grid gap-5 md:grid-cols-2">{#each [0, 1] as field (field)}<div class="grid gap-2"><Skeleton class="h-4 w-24" /><Skeleton class="h-9 w-full" /></div>{/each}</div></div></div>
 				{:else if errorMessage}
 					<Alert.Root variant="destructive">
 						<Alert.Title>{errorMessage}</Alert.Title>
@@ -202,7 +203,7 @@
 			<Card.Footer class="justify-end">
 				<Button type="submit" disabled={!hasLoaded || isLoading || isSaving}>
 					{#if isSaving}
-						<LoaderIcon data-icon="inline-start" class="animate-spin" />
+						<Spinner data-icon="inline-start" />
 					{/if}
 					{text.persona.save}
 				</Button>

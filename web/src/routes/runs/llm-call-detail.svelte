@@ -52,7 +52,7 @@
 	{@render decisionTables()}
 {:else}
 	{#await exchangeOnce(llmCallID)}
-		<Skeleton class="h-24 w-full" />
+		<div role="status" aria-label={text.requestAsSent} aria-busy="true" class="grid gap-3" data-testid="exchange-loading-skeleton"><div aria-hidden="true" class="grid gap-3"><div class="flex flex-wrap gap-4"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-24" /></div>{#each [0, 1] as message (message)}<div class="grid gap-3 border-t pt-3 sm:grid-cols-[5rem_minmax(0,1fr)]"><Skeleton class="h-3 w-16" /><div class="grid gap-2"><Skeleton class="h-4 w-full" /><Skeleton class="h-4 w-4/5" /><Skeleton class="h-4 w-2/3" /></div></div>{/each}</div></div>
 	{:then exchange}
 		<ExchangeView {exchange} callFacts={facts} {text}>
 			{@render decisionTables()}

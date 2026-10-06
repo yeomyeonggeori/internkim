@@ -1,4 +1,6 @@
 <script lang="ts">
+	import TaskContentSkeleton from './task-content-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { Button } from '$lib/components/ui/button';
 	import { confirmDelete } from '$lib/components/ui/confirm-delete-dialog';
 	import { Separator } from '$lib/components/ui/separator';
@@ -139,9 +141,9 @@
 		{#if requestedRelationshipTaskID !== taskDraft.id}
 			<Button variant="outline" onclick={requestRelationships}>{text.relationships.title}</Button>
 		{:else if hasRelationshipData}
-			{#if !relationshipsReady}
-				<p role="status" class="text-sm text-muted-foreground">{relationshipsError || relationshipsLoadingLabel}</p>
-				{#if relationshipsError}<Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>{/if}
+				{#if !relationshipsReady}
+					{#if relationshipsError}<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
+					{:else}<p role="status" class="flex items-center gap-2 text-sm text-muted-foreground"><Spinner class="size-4" /><span class="sr-only">{relationshipsLoadingLabel}</span></p>{/if}
 			{/if}
 			<TaskRelationshipsSection
 				task={taskDraft}
@@ -159,9 +161,9 @@
 				onCreateChild={createChildTask}
 				{allowTaskSwitching}
 			/>
-		{:else}
-			<p role="status" class="text-sm text-muted-foreground">{relationshipsError || relationshipsLoadingLabel}</p>
-			{#if relationshipsError}<Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>{/if}
+			{:else}
+				{#if relationshipsError}<p role="status" class="text-sm text-destructive">{relationshipsError}</p><Button variant="outline" onclick={loadRelationships}>{relationshipsRetryLabel}</Button>
+				{:else}<TaskContentSkeleton variant="relationships" label={relationshipsLoadingLabel} />{/if}
 		{/if}
 	{/if}
 {/snippet}
@@ -232,12 +234,15 @@
 								if (taskDraft) confirmTaskDelete(taskDraft);
 							}}
 							disabled={isDeletingTask || isSavingTask}
+							aria-busy={isDeletingTask}
 						>
+							{#if isDeletingTask}<Spinner aria-hidden="true" />{/if}
 							{isDeletingTask ? text.deleting : text.deleteAction}
 						</Button>
 					{/if}
 					{#if canEditTask}
-						<Button onclick={saveTask} disabled={isSavingTask || !taskDraft.content.trim()}>
+						<Button onclick={saveTask} disabled={isSavingTask || !taskDraft.content.trim()} aria-busy={isSavingTask}>
+							{#if isSavingTask}<Spinner aria-hidden="true" />{/if}
 							{isSavingTask ? text.saving : text.save}
 						</Button>
 					{/if}

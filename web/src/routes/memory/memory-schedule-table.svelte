@@ -94,10 +94,9 @@
 </script>
 
 {#if isLoading && schedules.length === 0}
-	<div class="grid gap-2 p-4">
-		<Skeleton class="h-9 w-full" />
-		<Skeleton class="h-9 w-full" />
-		<Skeleton class="h-9 w-full" />
+	<div role="status" aria-label={text.loading} aria-busy="true" data-testid="schedule-loading-skeleton">
+		<div aria-hidden="true" class="divide-y sm:hidden">{#each [0, 1, 2] as row (row)}<div class="grid gap-3 p-4"><Skeleton class="h-4 w-4/5" /><div class="flex gap-2"><Skeleton class="h-5 w-16" /><Skeleton class="h-4 w-24" /></div><Skeleton class="h-4 w-44" /><div class="flex gap-2"><Skeleton class="h-9 w-20" /><Skeleton class="h-9 w-20" /></div><Skeleton class="h-4 w-24" /></div>{/each}</div>
+		<div aria-hidden="true" class="hidden overflow-x-auto sm:block"><div class="min-w-[1200px]"><div class="grid grid-cols-[minmax(20rem,1fr)_5rem_5rem_11rem_9rem_9rem_5rem_5rem_5rem] gap-4 border-b px-4 py-3">{#each [0, 1, 2, 3, 4, 5, 6, 7, 8] as column (column)}<Skeleton class="h-3 w-16" />{/each}</div>{#each [0, 1, 2, 3, 4] as row (row)}<div class="grid grid-cols-[minmax(20rem,1fr)_5rem_5rem_11rem_9rem_9rem_5rem_5rem_5rem] items-center gap-4 border-b px-4 py-4 last:border-b-0"><div class="grid gap-2"><Skeleton class="h-4 w-4/5" /><Skeleton class="h-3 w-1/2" /></div>{#each [0, 1, 2, 3, 4, 5, 6, 7] as column (column)}<Skeleton class="h-4 w-4/5" />{/each}</div>{/each}</div></div>
 	</div>
 {:else if schedules.length === 0 && !hasLoadError}
 	<div class="grid place-items-center px-4 py-16">

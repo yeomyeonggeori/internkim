@@ -7,6 +7,8 @@
 	import DurationText from '../shared/duration-text.svelte';
 	import WorkStandardCapacityBar from './work-standard-capacity-bar.svelte';
 	import { calculateCalendarCapacitySeconds } from './work-standard-capacity';
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const workStatus = getWorkStatusState();
@@ -28,11 +30,11 @@
 	const compliance = $derived(workStatusCompliance(status?.days ?? []));
 </script>
 
-<div class="mt-3 border-t pt-3" data-testid="personal-work-standard">
+<div class="mt-3 border-t pt-3" data-testid="personal-work-standard" aria-busy={workStatus.isLoading}>
 	<div class="mb-2 flex items-center justify-between gap-2">
 		<p class="text-[11px] font-medium">{text.workStatus.standard}</p>
 		{#if workStatus.isLoading}
-			<span class="text-[10px] text-muted-foreground">{text.loading}</span>
+			<Spinner aria-label={text.loading} />
 		{:else if status}
 			<span class="text-xs font-medium">{text.workStatus[status.workMode]}</span>
 		{/if}
@@ -40,6 +42,9 @@
 
 	{#if workStatus.errorMessage}
 		<p class="text-[10px] text-destructive">{text.workStatus.loadFailed}</p>
+	{/if}
+	{#if !status && workStatus.isLoading}
+		<div aria-hidden="true" class="space-y-3"><Skeleton class="h-3 w-36" /><Skeleton class="h-6 w-24" /><Skeleton class="h-2 w-full rounded-full" /><div class="space-y-2 border-t pt-3">{#each [0, 1, 2] as row (row)}<div class="flex justify-between"><Skeleton class="h-3 w-20" /><Skeleton class="h-3 w-12" /></div>{/each}</div></div>
 	{:else if status}
 		<div class="mb-1">
 			<p class="text-[10px] text-muted-foreground">

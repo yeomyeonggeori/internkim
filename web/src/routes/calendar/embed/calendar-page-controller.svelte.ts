@@ -69,7 +69,8 @@ export function createCalendarPageController(context: CalendarPageControllerCont
 			context.state.visibleEvents = events;
 		},
 		setEventCount: () => {},
-		setIsLoading: () => {},
+		setIsLoading: (loading) => { context.state.isLoading = loading; },
+		setIsInitialLoading: (loading) => { context.state.isInitialLoading = loading; },
 		setErrorMessage: (message) => {
 			context.state.loadErrorMessage = message;
 		},

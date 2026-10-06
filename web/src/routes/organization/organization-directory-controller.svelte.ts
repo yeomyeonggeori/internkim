@@ -2,6 +2,7 @@ import type { AdminPageText } from '../admin/admin-types';
 import type { Locale } from '../../lib/i18n/locale.svelte';
 import { signedInEmail } from '$lib/signed-in-email';
 import { isSupabaseConfigured, supabaseMemberRole } from '$lib/supabase-session';
+import { ToolRefused } from '$lib/tool-answer';
 import { apiErrorMessage, fetchAdminSession } from '../admin/admin-api';
 import { adminSessionRole, canManageOrganization } from '../admin/admin-role-policy';
 import {
@@ -12,7 +13,7 @@ import {
 	saveOwnOrganizationProfile,
 	type OwnOrganizationProfile
 } from './organization-api';
-import { lastSeenDirectory, rememberDirectory } from './organization-last-seen';
+import { forgetLastSeenDirectory, lastSeenDirectory, rememberDirectory } from './organization-last-seen';
 import { filterOrganizationRecords, organizationFilterOptions, unassignedGroupID } from './organization-directory-model';
 import { organizationGroupSavePlan } from './organization-group-controller';
 import { OrganizationOrganizationEditController } from './organization-edit-controller.svelte';
@@ -40,15 +41,15 @@ import type { PageText } from '$lib/i18n/page-text.svelte';
 type OrganizationDirectoryPageText = PageText<typeof organizationDirectoryText>;
 
 export class OrganizationDirectoryController {
-	records = $state<UserRecord[]>(lastSeenDirectory()?.records ?? []);
-	groups = $state<OrgGroup[]>(lastSeenDirectory()?.groups ?? []);
+	records = $state<UserRecord[]>([]);
+	groups = $state<OrgGroup[]>([]);
 	query = $state('');
 	groupID = $state('');
 	selectedUserID = $state('');
 	editingUserID = $state('');
 	isFilterOpen = $state(false);
 	isAddingGroup = $state(false);
-	isLoading = $state(!lastSeenDirectory());
+	isLoading = $state(true);
 	isSavingGroups = $state(false);
 	canManage = $state(false);
 	sessionEmail = $state('');
@@ -73,12 +74,24 @@ export class OrganizationDirectoryController {
 	private text: OrganizationDirectoryPageText;
 	private adminPageText: AdminPageText;
 	private resolveLocale: () => Locale;
+	private loadGeneration = 0;
+	private isDisposed = false;
+	private isDirectoryDenied = false;
 
-	constructor(adminBaseURL: string, text: OrganizationDirectoryPageText, adminPageText: AdminPageText, resolveLocale: () => Locale = () => 'ko') {
+	constructor(adminBaseURL: string, text: OrganizationDirectoryPageText, adminPageText: AdminPageText, resolveLocale: () => Locale = () => 'ko', private readonly workspaceScope = '') {
 		this.adminBaseURL = adminBaseURL;
 		this.text = text;
 		this.adminPageText = adminPageText;
 		this.resolveLocale = resolveLocale;
+		const cached = lastSeenDirectory(workspaceScope);
+		this.records = cached?.records ?? [];
+		this.groups = cached?.groups ?? [];
+		this.isLoading = !cached;
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
+		this.loadGeneration += 1;
 	}
 
 	get organizationSections(): OrganizationOrganizationSection[] {
@@ -106,29 +119,52 @@ export class OrganizationDirectoryController {
 	}
 
 	async loadDirectory(): Promise<void> {
+		if (this.isDisposed) return;
+		const generation = ++this.loadGeneration;
+		this.isDirectoryDenied = false;
 		this.isLoading = this.records.length === 0;
 		this.errorMessage = '';
 		try {
 			const response = await fetchOrganizationDirectory();
+			if (this.isDisposed || generation !== this.loadGeneration) return;
 			this.applyUsersResponse(response);
-			rememberDirectory({ records: this.records, groups: this.groups });
+			rememberDirectory(this.workspaceScope, { records: this.records, groups: this.groups });
 			this.clearSelection();
 		} catch (error) {
+			if (this.isDisposed || generation !== this.loadGeneration) return;
+			if (error instanceof ToolRefused && (error.status === 401 || error.status === 403)) {
+				this.isDirectoryDenied = true;
+				forgetLastSeenDirectory();
+				this.records = [];
+				this.groups = [];
+				this.selectedUserID = '';
+				this.editingUserID = '';
+				this.isConfirmingDiscard = false;
+				this.isAddingGroup = false;
+				this.originalProfiles = {};
+				this.organizationEdit.cancel();
+				this.canManage = false;
+				this.editingRecordsByUserID = {};
+			}
 			this.errorMessage = organizationApiErrorMessage(error, this.text.loadError);
 		} finally {
-			this.isLoading = false;
+			if (!this.isDisposed && generation === this.loadGeneration) this.isLoading = false;
 		}
 	}
 
 	async loadAdminAccess(): Promise<void> {
-		this.sessionEmail = await signedInEmail();
+		const email = await signedInEmail();
+		if (this.isDisposed) return;
+		this.sessionEmail = email;
 		if (isSupabaseConfigured()) {
-			this.canManage = (await supabaseMemberRole()) === 'admin';
+			const role = await supabaseMemberRole();
+			if (!this.isDisposed) this.canManage = !this.isDirectoryDenied && role === 'admin';
 			return;
 		}
 		try {
 			const session = await fetchAdminSession(this.adminBaseURL, '');
-			this.canManage = canManageOrganization(adminSessionRole(session));
+			if (this.isDisposed) return;
+			this.canManage = !this.isDirectoryDenied && canManageOrganization(adminSessionRole(session));
 		} catch {
 			this.canManage = false;
 			this.isAddingGroup = false;

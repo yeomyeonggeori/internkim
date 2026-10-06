@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { Button } from '$lib/components/ui/button';
 	import { companyDateOf } from '$lib/company-time';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
@@ -141,13 +142,13 @@
 	data-testid="personal-tools-panel"
 >
 	{#if !myAttendanceToday.summary}
-		<AttendanceLoadingSkeleton rowCount={3} />
+		<AttendanceLoadingSkeleton kind="records" rowCount={3} />
 	{:else}
 		<QuickActions />
 		{#if ownMonth}
 			<div class="flex items-center justify-end gap-2">
 				<AttendanceMonthPicker selectedMonth={ownMonth} onSelectMonth={(month) => (ownMonth = month)} density="compact" />
-				{#if ownHistoryLoading}<span class="text-xs text-muted-foreground">{text.loading}</span>{/if}
+				{#if ownHistoryLoading}<Spinner aria-label={text.loading} />{/if}
 			</div>
 		{/if}
 		{#if chartSummary}

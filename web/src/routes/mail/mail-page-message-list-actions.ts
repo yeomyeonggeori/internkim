@@ -11,6 +11,7 @@ import {
 } from './mail-message-page-cache';
 import type { MailMessagePageCacheEntry, MailPageControllerState, MailPageText } from './mail-page-controller-types';
 import { loadMessageDetail } from './mail-page-message-detail-actions';
+import { discardDeniedMail, isMailAccessDenied } from './mail-read-error';
 
 type MailMessagePageLoadOptions = {
 	mode: 'cache-first' | 'force';
@@ -64,6 +65,11 @@ export async function loadMessagesPage(controller: MailPageControllerState, text
 		await applyMessagePage(controller, text, page, true);
 	} catch (error) {
 		if (!isCurrentMessageListRequest(controller, requestID, actorEmail, mailbox, searchText, pageIndex)) return;
+		if (isMailAccessDenied(error)) {
+			discardDeniedMail(controller);
+			controller.errorMessage = error instanceof Error ? error.message : text.errors.loadMessages;
+			return;
+		}
 		controller.nextCursor = cachedPage?.nextCursor ?? '';
 		controller.hasMoreMessages = Boolean(cachedPage?.nextCursor);
 		controller.isLoadingMessages = false;

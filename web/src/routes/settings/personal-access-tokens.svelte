@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SettingsListLoading from './settings-list-loading.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
 	import { CopyButton } from '$lib/components/ui/copy-button';
@@ -27,6 +28,7 @@
 
 	let keys = $state<PersonalAccessToken[]>([]);
 	let isLoading = $state(true);
+	let hasLoadError = $state(false);
 	let keyName = $state('');
 	let keyPermission = $state<PublicAPIPermission>(fullPublicAPIPermission);
 	let isWorking = $state(false);
@@ -52,9 +54,11 @@
 	}
 
 	async function load() {
+		hasLoadError = false;
 		try {
 			keys = await personalAccessTokens();
 		} catch {
+			hasLoadError = true;
 			toast.error(text.personalAccessTokensLoadFailed);
 		} finally {
 			isLoading = false;
@@ -153,8 +157,11 @@
 			</div>
 		</Field.Field>
 
-		{#if !isLoading}
-			{#if keys.length === 0}
+		{#if isLoading}
+			<SettingsListLoading label={text.personalAccessTokens} />
+		{:else}
+			{#if hasLoadError}<p role="alert" class="text-sm text-destructive">{text.personalAccessTokensLoadFailed}</p>{/if}
+			{#if keys.length === 0 && !hasLoadError}
 				<p class="text-sm text-muted-foreground">{text.noPersonalAccessTokens}</p>
 			{:else}
 				<ul class="grid gap-2">

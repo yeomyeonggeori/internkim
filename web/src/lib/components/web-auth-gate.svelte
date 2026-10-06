@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import * as Card from '$lib/components/ui/card';
 	import { Input } from '$lib/components/ui/input';
 	import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from '$lib/components/ui/field';
@@ -99,8 +100,9 @@
 {#if session?.authenticated}
 	{@render children?.()}
 {:else if buzzEnabled === null}
-	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
-		<p class="text-sm text-muted-foreground">{text.checkingSession}</p>
+	<div class="flex min-h-0 flex-1 items-center justify-center p-6" role="status" aria-busy="true" data-testid="web-auth-loading-status">
+		<Spinner class="size-5 text-muted-foreground" aria-hidden="true" />
+		<span class="sr-only">{text.checkingSession}</span>
 	</div>
 {:else if buzzEnabled}
 	<div class="flex min-h-0 flex-1 items-center justify-center p-6">
@@ -114,8 +116,8 @@
 					<FieldGroup>
 						{#if passkeyAvailable}
 							<Field>
-								<Button type="button" class="w-full gap-2" onclick={loginWithPasskey} disabled={busy}>
-									<FingerprintIcon class="size-4" />
+								<Button type="button" class="w-full gap-2" onclick={loginWithPasskey} disabled={busy} aria-busy={busy}>
+									{#if busy}<Spinner aria-hidden="true" />{:else}<FingerprintIcon class="size-4" />{/if}
 									{text.signInWithPasskey}
 								</Button>
 							</Field>
@@ -133,7 +135,8 @@
 							{#if errorMessage}
 								<p class="text-sm text-destructive">{errorMessage}</p>
 							{/if}
-							<Button type="submit" class="w-full" disabled={busy || password.length === 0}>
+							<Button type="submit" class="w-full" disabled={busy || password.length === 0} aria-busy={busy}>
+								{#if busy}<Spinner aria-hidden="true" />{/if}
 								{text.signInWithPassword}
 							</Button>
 							{#if servesCompanies}

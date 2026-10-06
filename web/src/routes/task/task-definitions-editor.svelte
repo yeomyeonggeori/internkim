@@ -171,6 +171,7 @@
 	{setEtcBusinessColor}
 	{setEtcTypeColor}
 	isAdmin={summary?.isAdmin ?? false}
+	hasDefinitions={summary !== null && definitions().sizes.length > 0}
 	canEditDefinitions={canEditDefinitions()}
 	{definitionSaveState}
 	{loadError}

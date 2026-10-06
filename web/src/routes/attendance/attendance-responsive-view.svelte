@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Button } from '$lib/components/ui/button';
 	import { myAttendanceToday } from '$lib/attendance/my-attendance-today.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
@@ -42,20 +43,13 @@
 	});
 </script>
 
-{#if !myAttendanceToday.summary}
-	<AttendanceLoadingSkeleton />
-	{#if myAttendanceToday.loadFailure}
-		<p role="alert" class="mt-3 text-sm text-destructive">{myAttendanceToday.loadFailure}</p>
-		<Button variant="outline" size="sm" onclick={() => myAttendanceToday.refresh()}>{text.refresh}</Button>
-	{/if}
-{:else}
 	<Tabs.Root
 		bind:value={attendanceView.selected}
 		class="min-h-0 min-w-0 flex-1 gap-3 max-sm:pb-[calc(var(--app-mobile-nav-bottom)+var(--app-mobile-nav-height)+0.75rem)]"
 	>
     <nav class="flex items-center gap-2 md:hidden" aria-label={text.title}>
-        <Button size="sm" variant={attendanceView.selected === 'status' ? 'secondary' : 'ghost'} onclick={() => attendanceView.select('status')}><HistoryIcon class="size-4" />{text.navigation.status}</Button>
-        <Button size="sm" variant={attendanceView.selected === 'leaveHistory' ? 'secondary' : 'ghost'} onclick={() => attendanceView.select('leaveHistory')}><PalmTreeIcon class="size-4" />{text.navigation.mine}</Button>
+        <Button size="sm" disabled={!myAttendanceToday.summary} variant={attendanceView.selected === 'status' ? 'secondary' : 'ghost'} onclick={() => attendanceView.select('status')}><HistoryIcon class="size-4" />{text.navigation.status}</Button>
+        <Button size="sm" disabled={!myAttendanceToday.summary} variant={attendanceView.selected === 'leaveHistory' ? 'secondary' : 'ghost'} onclick={() => attendanceView.select('leaveHistory')}><PalmTreeIcon class="size-4" />{text.navigation.mine}</Button>
         {#if myAttendanceToday.summary?.isAdmin}
             <DropdownMenu.Root>
                 <DropdownMenu.Trigger class="ml-auto inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm">{text.navigation.management}<ChevronDownIcon class="size-3.5" /></DropdownMenu.Trigger>
@@ -65,8 +59,16 @@
                     <DropdownMenu.Item onclick={() => attendanceView.select('handWritten')}><EraserIcon class="size-4" />{text.handWritten.navigation}</DropdownMenu.Item>
                 </DropdownMenu.Content>
             </DropdownMenu.Root>
-        {/if}
+        {:else if !myAttendanceToday.summary && !myAttendanceToday.loadFailure}<Skeleton class="ml-auto h-9 w-16" aria-hidden="true" />{/if}
     </nav>
+{#if !myAttendanceToday.summary}
+	{#if myAttendanceToday.loadFailure}
+		<p role="alert" class="mt-3 text-sm text-destructive">{myAttendanceToday.loadFailure}</p>
+		<Button variant="outline" size="sm" onclick={() => myAttendanceToday.refresh()}>{text.refresh}</Button>
+	{:else}
+		<AttendanceLoadingSkeleton />
+	{/if}
+{:else}
     {#if ['approvals','leaveManagement','handWritten'].includes(attendanceView.selected)}
         <p class="text-sm font-medium md:hidden">{attendanceView.selected === 'approvals' ? text.approval.pendingNavigation : attendanceView.selected === 'leaveManagement' ? text.management.navigation : text.handWritten.navigation}</p>
     {/if}
@@ -97,5 +99,5 @@
 			<HandWrittenView />
 		</Tabs.Content>
 	{/if}
-	</Tabs.Root>
 {/if}
+	</Tabs.Root>

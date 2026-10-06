@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from '$lib/supabase';
 import { circleListResultSchema } from '$lib/data-room/schemas';
 import type { Circle } from '$lib/data-room/model';
 import type { MemoryChange } from './memory-change';
+import { MemoryReadError } from './memory-read-error';
 
 export const memoryScopeTypes = ['person', 'circle', 'workspace'] as const;
 export type MemoryScopeType = (typeof memoryScopeTypes)[number];
@@ -99,14 +100,14 @@ export async function forgetMemoryFact(factID: string, reason: string): Promise<
 async function askTheDevice(): Promise<unknown> {
 	const response = await adminApiFetch(`/memory/api/facts?limit=${defaultLimit}`);
 	if (!response.ok) {
-		throw new Error(`Memory facts request returned ${response.status}`);
+		throw new MemoryReadError(`Memory facts request returned ${response.status}`, response.status);
 	}
 	return response.json();
 }
 
 async function askTheCompanyApp(): Promise<unknown> {
 	const answer = await callCompanyApp({ capability: 'person.memory.facts', body: { limit: defaultLimit } });
-	if (answer.status >= 400) throw new Error(`Memory facts request returned ${answer.status}`);
+	if (answer.status >= 400) throw new MemoryReadError(`Memory facts request returned ${answer.status}`, answer.status);
 	return answer.body;
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { Button } from '$lib/components/ui/button';
 	import TooltipIconButton from '$lib/components/tooltip-icon-button.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
@@ -108,7 +109,11 @@
 			</div>
 		{/if}
 
-		{#if !messages.length && !(isLoadingMessages && account.isConfigured)}
+			{#if !messages.length && (isLoading || !hasLoadedAccount || (isLoadingMessages && account.isConfigured))}
+				<div role="status" aria-label={text.loadingMessages} aria-busy="true" class="flex flex-col gap-2">
+					{#each [0, 1, 2, 3, 4, 5] as row (row)}<MailMessageRow isPlaceholder {text} />{/each}
+				</div>
+			{:else if !messages.length && !errorMessage}
 			<div class="flex flex-1 flex-col justify-center px-3 text-center">
 				<MailOpenIcon class="mx-auto size-6 text-muted-foreground/60" />
 				{#if !hasLoadedAccount}
@@ -126,13 +131,8 @@
 					</Button>
 				{/if}
 			</div>
-		{:else}
+		{:else if messages.length}
 			<div class="flex flex-col gap-2">
-				{#if !messages.length}
-					{#each Array.from({ length: 6 }) as _, placeholderIndex (placeholderIndex)}
-						<MailMessageRow isPlaceholder {text} />
-					{/each}
-				{/if}
 				{#each messages as message (messageKey(message))}
 					<MailMessageRow {message} isActive={messageKey(selectedMessage) === messageKey(message)} {text} {selectMessage} />
 				{/each}
@@ -140,6 +140,7 @@
 				{#if canLoadMoreMessages}
 					<div use:autoLoadMoreOnReach class="py-2">
 						<Button variant="outline" size="sm" class="w-full" onclick={loadMoreMessages} disabled={isLoadingMessages}>
+							{#if isLoadingMessages}<Spinner />{/if}
 							{isLoadingMessages ? text.loadingMessages : text.loadMoreMessages}
 						</Button>
 					</div>

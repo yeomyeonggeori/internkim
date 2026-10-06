@@ -46,10 +46,12 @@
 	import { onMount, untrack } from 'svelte';
 	import { keepMemberPicture } from '$lib/profile/keep-member-picture';
 	import { memberPresence } from '$lib/messenger/member-presence.svelte';
+	import { workspaceIdentityKey } from '$lib/workspace-identity';
 
 
 	let { children, data } = $props();
 	const text = createPageText(appShellText);
+	const workspaceScope = $derived(data.workspaceScope ?? workspaceIdentityKey(data.session));
 	let isCommandPaletteOpen = $state(false);
 	let hasRequestedCommandPalette = $state(false);
 	$effect(() => {
@@ -61,7 +63,7 @@
 	let widgetSuppliedEmail = '';
 	$effect(() => setPersonNameCompanyLocale(data.companyLocale ?? ''));
 	$effect.pre(() => {
-		const sessionKey = `${data.session?.authenticated ?? false}:${data.session?.email ?? ''}`;
+		const sessionKey = workspaceScope;
 		untrack(() => {
 			const hasSessionChanged = sessionKey !== attendanceSessionKey;
 			attendanceSessionKey = sessionKey;
@@ -189,9 +191,11 @@
 </script>
 
 {#snippet contained()}
+	{#key workspaceScope}
 	<EffectErrorBoundary region="page">
 		{@render children()}
 	</EffectErrorBoundary>
+	{/key}
 {/snippet}
 
 <svelte:window onkeydown={handleKeydown} onmessage={handleFrameShortcut} />
@@ -211,7 +215,7 @@
 		<Sidebar.Provider bind:open={isAppSidebarOpen} class="flex h-[min(var(--app-viewport-height,100svh),100%)] min-h-0 w-full bg-background text-foreground max-sm:relative max-sm:top-[var(--app-viewport-top,0px)]">
 			{#if !isEmbeddedFrame()}
 				<EffectErrorBoundary region="app rail">
-					<AppRail session={data.session} onSearch={openCommandPalette} />
+					<AppRail session={data.session} {workspaceScope} onSearch={openCommandPalette} />
 				</EffectErrorBoundary>
 			{/if}
 			<div class="flex min-w-0 flex-1 flex-col">

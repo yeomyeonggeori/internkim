@@ -19,7 +19,7 @@
 </script>
 
 {#await turnInputOnce()}
-	<Skeleton class="h-24 w-full" />
+	<div role="status" aria-label="task.turn_input" aria-busy="true" class="rounded-lg border bg-muted/30 py-3 pr-10 pl-3" data-testid="turn-input-loading-skeleton"><div aria-hidden="true" class="grid gap-2">{#each [0, 1, 2, 3, 4, 5] as line (line)}<Skeleton class="h-3 w-4/5" />{/each}</div></div>
 {:then turnInputDocument}
 	<RawDocument document={turnInputDocument} />
 {:catch error}

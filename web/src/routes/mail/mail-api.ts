@@ -1,4 +1,6 @@
 import { invokeTool } from '$lib/public-api-call';
+import { ToolRefused } from '$lib/tool-answer';
+import { MailReadError } from './mail-read-error';
 import { isSupabaseConfigured } from '$lib/supabase';
 import { keepRecordMailAccount, recordMailAccount, testRecordMailAccount } from './mail-account-api';
 import {
@@ -141,6 +143,7 @@ async function askTheCompany(name: string, input: Record<string, unknown>, error
 	try {
 		return await invokeTool<unknown>(name, input);
 	} catch (error) {
+		if (error instanceof ToolRefused) throw error;
 		const said = error instanceof Error ? error.message.trim() : '';
 		throw new Error(said || `${errors.fallback} ${errors.serviceUnavailable}`);
 	}
@@ -172,7 +175,7 @@ async function fetchMailResponse(input: RequestInfo | URL, init: RequestInit, er
 
 async function assertMailResponse(response: Response, errors: MailErrorMessages) {
 	if (response.ok) return;
-	throw new Error(await responseErrorMessage(response, errors));
+	throw new MailReadError(await responseErrorMessage(response, errors), response.status);
 }
 
 async function responseErrorMessage(response: Response, errors: MailErrorMessages) {

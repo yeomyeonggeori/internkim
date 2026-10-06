@@ -323,6 +323,21 @@ GROUPS = [
         lane="web",
     ),
     Group(
+        "web-loading-fixture",
+        [
+            "web/tests/e2e/*loading*",
+            "web/src/lib/components/ui/skeleton/*",
+            "web/src/lib/components/ui/spinner/*",
+            "web/src/routes/+layout.*",
+            "web/src/lib/workspace-identity.ts",
+            "web/src/routes/organization/organization-directory-controller.svelte.ts",
+            "web/src/routes/organization/organization-last-seen.ts",
+        ],
+        [["bun", "run", "test:e2e:loading:fixture"]],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
         "host",
         ["host/*", "tools/render-company-runtime"],
         [["bun", "test", "tests/unit/host"]],

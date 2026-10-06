@@ -3,6 +3,8 @@ import { redirect } from '@sveltejs/kit';
 import { belongsToACompany } from '$lib/company/found-company';
 import { isEmbeddedFrame } from '$lib/embedded';
 import { isSupabaseConfigured, supabaseMember, supabaseWebAuthSession } from '$lib/supabase-session';
+import { projectURL } from '$lib/supabase';
+import { workspaceIdentityKey } from '$lib/workspace-identity';
 import { companyPathOf, wantsCompanyPrefix } from '$lib/company-path';
 import { withReturnPath } from '$lib/return-path';
 import { signedOutSession, webAuthSessionDependency, webAuthSessionFrom, type WebAuthSession } from '$lib/web-auth-session';
@@ -13,7 +15,7 @@ const isBoard = import.meta.env.VITE_BUILD_TARGET === 'board';
 export const prerender = isBoard;
 export const ssr = !isBoard;
 
-export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string }> = async ({ fetch, depends, url }) => {
+export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: string; workspaceScope?: string }> = async ({ fetch, depends, url }) => {
 	depends(webAuthSessionDependency);
 	if (attendancePreviewEnabled()) return { session: { authenticated: true, email: 'sample001@example.com', image: '', canViewTasks: true, cloudflareLoginURL: '', isUnavailable: false }, companyLocale: 'ko' };
 	if (typeof window === 'undefined' || isEmbeddedFrame()) return { session: null };
@@ -29,7 +31,7 @@ export const load: LayoutLoad<{ session: WebAuthSession | null; companyLocale?: 
 			if (member.companySlug && wantsCompanyPrefix(url.pathname)) {
 				redirect(307, companyPathOf(member.companySlug, url.pathname) + url.search);
 			}
-			return { session, companyLocale: member.companyLocale };
+			return { session, companyLocale: member.companyLocale, workspaceScope: workspaceIdentityKey(session, member, projectURL()) };
 		}
 		return { session };
 	}

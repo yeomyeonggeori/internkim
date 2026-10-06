@@ -4,7 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Select from '$lib/components/ui/select';
-	import LoaderIcon from '@lucide/svelte/icons/loader';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { scheduleKindLabel, type ScheduleEditDraft } from './memory-schedule-draft';
 	import type { MemoryText } from './text';
 
@@ -108,7 +108,7 @@
 				<Button type="button" variant="outline" onclick={() => (isOpen = false)}>{text.cancel}</Button>
 				<Button type="submit" disabled={!canSaveSchedule} class="gap-2">
 					{#if isSavingSchedule}
-						<LoaderIcon class="size-4 animate-spin" />
+						<Spinner />
 					{/if}
 					{text.save}
 				</Button>

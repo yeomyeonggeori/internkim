@@ -68,4 +68,12 @@ let partialFailure = false;
 try { await myAttendanceToday.closeAndClockIn('23:59', 'Office'); }
 catch { partialFailure = true; }
 const partialCloseRefreshed = myAttendanceToday.summary?.events[0]?.kind === 'clock_out' && myAttendanceToday.clockInNobodyClosed === undefined;
-console.log(JSON.stringify({ freshShared, forceRefreshes, undoRefreshes, lateReadIgnored, lateWriteIgnored, partialFailure, partialCloseRefreshed }));
+read = () => new Promise<AttendanceSummary>((resolve) => { releaseRead = () => resolve(structuredClone(serverSummary)); });
+const overlappingRead = myAttendanceToday.load(true);
+const pendingFlag = myAttendanceToday.isLoading;
+toggle = async () => ({ outcome: 'saved', event: { id: 'overlap', personID: 'own', kind: 'clock_out', occurredAt: now, location: null } });
+await myAttendanceToday.clock('clock_out', 'Office');
+const mutationClearsReadBusy = pendingFlag && !myAttendanceToday.isLoading;
+releaseRead(); await overlappingRead;
+const oldReadKeepsBusyCleared = !myAttendanceToday.isLoading;
+console.log(JSON.stringify({ freshShared, forceRefreshes, undoRefreshes, lateReadIgnored, lateWriteIgnored, partialFailure, partialCloseRefreshed, mutationClearsReadBusy, oldReadKeepsBusyCleared }));

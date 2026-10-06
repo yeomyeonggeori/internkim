@@ -68,7 +68,8 @@
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
-	import { Skeleton } from '$lib/components/ui/skeleton/index.js';
+	import ChannelLoadingSkeleton from './channel-loading-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner/index.js';
 	import { customEmoji } from '$lib/stores/custom-emoji.svelte';
 	import { isCurrentMessengerScope, messengerCacheScope, onMessengerCacheReset, requireCurrentMessengerScope } from '$lib/messenger/cache-scope';
 	import { attachmentSource } from '$lib/stores/attachment-source.svelte';
@@ -886,18 +887,8 @@
 <div class="flex min-h-0 flex-1">
 <div class="relative flex min-h-0 min-w-0 flex-1 flex-col" style:--dock-height="{dockHeight}px">
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-		{#if !hasLoadedOnce}
-			<div class="flex h-full flex-col gap-8 px-4 pt-12 pb-[calc(var(--dock-height)+1rem)]">
-				{#each Array(6) as _, index (index)}
-					<div class="flex gap-3" class:flex-row-reverse={index % 3 === 0}>
-						<Skeleton class="size-9 shrink-0 rounded-full" />
-						<div class="flex max-w-[70%] flex-col gap-2">
-							<Skeleton class="h-4 w-24" />
-							<Skeleton class="h-16 w-64 max-w-full rounded-2xl" />
-						</div>
-					</div>
-				{/each}
-			</div>
+			{#if !hasLoadedOnce}
+				<ChannelLoadingSkeleton label={text.loadingMessages} />
 		{:else if loadFailed && shownMessages.length === 0}
 			<Empty.Root class="h-full pb-[var(--dock-height)]">
 				<Empty.Header>
@@ -920,8 +911,10 @@
 				{#if isLoadingOlder}
 					<div class="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
 						<span
-							class="bg-background/80 text-muted-foreground rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur"
+							class="bg-background/80 text-muted-foreground inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur"
+							role="status"
 						>
+							<Spinner class="size-3" />
 							{text.loadingOlder}
 						</span>
 					</div>

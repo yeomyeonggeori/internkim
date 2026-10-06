@@ -9,6 +9,8 @@
 	import { CopyButton } from '$lib/components/ui/copy-button';
 	import { Input } from '$lib/components/ui/input';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { Spinner } from '$lib/components/ui/spinner';
+	import { isRunsAccessDenied } from '../runs-read-error';
 	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
@@ -76,8 +78,12 @@
 			if (generation !== loadGeneration || page.params.id !== taskRunID) return;
 			detail = nextDetail;
 			if (isActiveTaskRunStatus(nextDetail.taskRun.status)) schedulePoll(taskRunID, generation);
-		} catch {
+		} catch (error) {
 			if (generation !== loadGeneration || page.params.id !== taskRunID) return;
+			if (isRunsAccessDenied(error)) {
+				detail = undefined;
+				serviceLogLines = undefined;
+			}
 			loadError = text.detailLoadError;
 		}
 	}
@@ -201,12 +207,12 @@
 		<Card.Root size="sm" class="border-destructive/30">
 			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
 		</Card.Root>
-	{:else if !detail}
-		<section class="flex flex-col gap-3">
-			<Skeleton class="h-28 w-full" />
-			<Skeleton class="h-64 w-full" />
-		</section>
-	{:else}
+		{/if}
+		{#if !detail && !loadError}
+			<section role="status" aria-label={text.pageTitle} aria-busy="true" data-testid="run-detail-loading-skeleton">
+				<div aria-hidden="true" class="grid gap-3"><div class="flex gap-2"><Skeleton class="h-5 w-20 rounded-full" /><Skeleton class="h-4 w-32" /></div><Skeleton class="h-6 w-4/5 max-w-2xl" /><div class="mt-2 grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-3 lg:grid-cols-6">{#each [0, 1, 2, 3, 4, 5] as fact (fact)}<div class="grid gap-2 border-r border-b px-3 py-3"><Skeleton class="h-3 w-16" /><Skeleton class="h-5 w-20" /></div>{/each}</div><div class="mt-3 flex gap-5 border-b py-3"><Skeleton class="h-4 w-20" /><Skeleton class="h-4 w-20" /><Skeleton class="h-4 w-20" /></div>{#each [0, 1, 2] as step (step)}<div class="flex items-center gap-3 rounded-lg border p-4"><Skeleton class="size-6 shrink-0 rounded-full" /><div class="grid flex-1 gap-2"><Skeleton class="h-4 w-3/5" /><Skeleton class="h-3 w-1/3" /></div><Skeleton class="h-3 w-16" /></div>{/each}</div>
+			</section>
+		{:else if detail}
 		<section class="flex flex-col gap-2">
 			<div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
 				<TaskRunStatus status={detail.taskRun.status} label={taskStatusLabel(detail.taskRun.status, text)} class="text-xs" />
@@ -277,12 +283,14 @@
 			<UnderlineTabs.Content value="logs" class="flex min-w-0 flex-col gap-3">
 				<div class="flex justify-end">
 					<Button onclick={loadServiceLogs} disabled={serviceLogsLoading} variant="outline" size="sm">
-						<RefreshCwIcon data-icon="inline-start" class={serviceLogsLoading ? 'animate-spin' : ''} />
+						{#if serviceLogsLoading}<Spinner data-icon="inline-start" />{:else}<RefreshCwIcon data-icon="inline-start" />{/if}
 						{text.refresh}
 					</Button>
 				</div>
-				{#if serviceLogsError}
-					<p class="text-sm text-destructive">{serviceLogsError}</p>
+					{#if serviceLogsError}
+						<p class="text-sm text-destructive">{serviceLogsError}</p>
+					{:else if serviceLogsLoading && serviceLogLines === undefined}
+						<div role="status" aria-label={text.logsTab} aria-busy="true" class="grid gap-2 rounded-lg border bg-muted/30 p-4" data-testid="service-logs-loading-skeleton"><div aria-hidden="true" class="grid gap-2">{#each [0, 1, 2, 3, 4, 5] as line (line)}<Skeleton class="h-3 w-4/5" />{/each}</div></div>
 				{:else if serviceLogLines !== undefined && serviceLogLines.length === 0}
 					<p class="text-sm text-muted-foreground">{text.serviceLogsEmpty}</p>
 				{:else if serviceLogLines !== undefined}

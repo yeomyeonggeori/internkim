@@ -270,6 +270,8 @@
 		if (state.activeMobileEditorEventID === eventID) state.activeMobileEditorEventID = null;
 	}}
 	loadErrorMessage={state.loadErrorMessage}
+	isLoading={state.isLoading}
+	isInitialLoading={state.isInitialLoading}
 	{currentMonthTitle}
 	toolbarDate={state.toolbarDate}
 	toolbarView={state.toolbarView}

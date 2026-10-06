@@ -19,6 +19,8 @@
 	import { getLeaveManagementState } from './leave-management-state.svelte';
 	import LeaveTimeCorrectionDialog from './leave-time-correction-dialog.svelte';
 	import PastLeaveDialog from './past-leave-dialog.svelte';
+	import AttendanceLoadingSkeleton from '../attendance-loading-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 
 	const text = createPageText(attendanceText);
 	const management = getLeaveManagementState();
@@ -77,7 +79,7 @@
 			aria-label={text.management.refresh} aria-busy={management.isLoading}
 			onclick={() => management.load(showsEmployeeDetail ? requestedEmployeeEmail : management.selectedEmployeeEmail)}
 			disabled={management.isLoading} data-testid="leave-management-refresh">
-			<RefreshCwIcon class={management.isLoading ? 'animate-spin text-primary' : ''} />
+			{#if management.isLoading}<Spinner aria-label={text.loading} />{:else}<RefreshCwIcon />{/if}
 		</Button>
 	</div>
 {/snippet}
@@ -101,7 +103,7 @@
 		</p>
 	{/if}
 
-	{#if !management.errorMessage}<div class="grid min-h-0 gap-5 xl:grid-cols-[minmax(28rem,1fr)_minmax(30rem,1.2fr)]">
+	{#if !management.errorMessage || management.payload}<div class="grid min-h-0 gap-5 xl:grid-cols-[minmax(28rem,1fr)_minmax(30rem,1.2fr)]" aria-busy={management.isLoading}>
 		<Card.Root class="min-h-0">
 			<Card.Header class="gap-3">
 				<div>
@@ -111,7 +113,9 @@
 				<Input bind:value={search} aria-label={text.management.searchPlaceholder} placeholder={text.management.searchPlaceholder} />
 			</Card.Header>
 			<Card.Content class="min-h-0 max-h-[65dvh] overflow-auto">
-				{#if isMobile.current}
+				{#if !management.payload && !management.errorMessage}
+					<AttendanceLoadingSkeleton kind="records" />
+				{:else if isMobile.current}
 					<ul class="divide-y">
 						{#each filteredEmployees as employee (employee.email)}
 							<li class="grid min-w-0 gap-3 py-3">
@@ -196,8 +200,8 @@
 
 		{#snippet employeeDetails()}
 		<div class="min-w-0 space-y-5">
-			{#if isMobile.current && management.isLoading}
-				<p role="status" class="p-4 text-sm text-muted-foreground" aria-busy="true">{text.loading}</p>
+			{#if management.isLoading && !management.payload?.detail}
+				<AttendanceLoadingSkeleton kind="records" rowCount={3} />
 			{:else if isMobile.current && management.errorMessage}
 				<p role="alert" class="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{management.errorMessage}</p>
 				<Button variant="outline" onclick={() => void management.selectEmployee(requestedEmployeeEmail)}>{text.management.refresh}</Button>

@@ -7,6 +7,7 @@ import {
 	type WorkspaceRoot
 } from './files-api';
 import { workspaceBreadcrumbs, type WorkspaceBreadcrumb } from './files-path';
+import { isFilesAccessDenied } from './files-read-error';
 
 const filesStateKey = Symbol('files');
 
@@ -17,12 +18,14 @@ export class FilesState {
 	selectedFile = $state<WorkspaceEntry | null>(null);
 	childrenCache = $state<Record<string, WorkspaceEntry[]>>({});
 	loadingPaths = $state<Record<string, boolean>>({});
-	isLoading = $state<boolean>(false);
+	isLoading = $state<boolean>(true);
 	isUploading = $state<boolean>(false);
 	uploadedFraction = $state<number>(0);
 	errorMessage = $state<string>('');
 
 	private loadFailedMessage: string;
+	private directoryGeneration = 0;
+	private loadingPathGenerations: Record<string, number> = {};
 
 	constructor(loadFailedMessage: string) {
 		this.loadFailedMessage = loadFailedMessage;
@@ -38,16 +41,27 @@ export class FilesState {
 	}
 
 	async loadRoots() {
+		this.isLoading = true;
 		this.errorMessage = '';
 		try {
 			this.roots = await fetchWorkspaceRoots();
 			if (this.roots.length > 0) await this.openRoot(this.roots[0]);
 		} catch (error) {
+			if (isFilesAccessDenied(error)) {
+				this.roots = [];
+				this.currentRoot = null;
+				this.currentPath = '';
+				this.childrenCache = {};
+				this.selectedFile = null;
+			}
 			this.errorMessage = errorText(error, this.loadFailedMessage);
+		} finally {
+			this.isLoading = false;
 		}
 	}
 
 	async openRoot(root: WorkspaceRoot) {
+		this.directoryGeneration += 1;
 		this.currentRoot = root;
 		this.currentPath = root.agentPath;
 		this.selectedFile = null;
@@ -60,16 +74,36 @@ export class FilesState {
 		}
 	}
 
-	async loadChildren(path: string) {
-		if (path in this.childrenCache || this.loadingPaths[path]) return;
+	async loadChildren(path: string, refresh = false) {
+		if ((!refresh && path in this.childrenCache) || (this.loadingPaths[path] && this.loadingPathGenerations[path] === this.directoryGeneration)) return;
+		const generation = this.directoryGeneration;
 		this.loadingPaths[path] = true;
+		this.loadingPathGenerations[path] = generation;
+		this.errorMessage = '';
 		try {
-			this.childrenCache[path] = await listWorkspaceDirectory(path);
+			const entries = await listWorkspaceDirectory(path);
+			if (generation !== this.directoryGeneration) return;
+			this.childrenCache[path] = entries;
+			if (refresh && path === this.currentPath && this.selectedFile) {
+				this.selectedFile = entries.find((entry) => entry.agentPath === this.selectedFile?.agentPath) ?? null;
+			}
 			this.errorMessage = '';
 		} catch (error) {
-			this.errorMessage = errorText(error, this.loadFailedMessage);
+			if (generation !== this.directoryGeneration) return;
+			if (isFilesAccessDenied(error)) {
+				delete this.childrenCache[path];
+				if (path === this.currentPath) {
+					this.directoryGeneration += 1;
+					this.childrenCache = {};
+					this.selectedFile = null;
+				}
+			}
+			if (path === this.currentPath) this.errorMessage = errorText(error, this.loadFailedMessage);
 		} finally {
-			delete this.loadingPaths[path];
+			if (this.loadingPathGenerations[path] === generation) {
+				delete this.loadingPaths[path];
+				delete this.loadingPathGenerations[path];
+			}
 		}
 	}
 
@@ -95,7 +129,7 @@ export class FilesState {
 			await this.loadRoots();
 			return;
 		}
-		await this.openRoot(this.currentRoot);
+		await this.loadChildren(this.currentPath, true);
 	}
 
 	async upload(files: File[]) {

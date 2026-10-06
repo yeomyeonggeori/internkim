@@ -40,6 +40,8 @@
 	};
 
 	type CalendarStageProps = {
+		loading?: boolean;
+		showEmptyState?: boolean;
 		activeMobileEditorEventID: string | null;
 		clearActiveMobileEditorEvent: (eventID: string) => void;
 		clearSelectedEvent: () => void;
@@ -75,6 +77,8 @@
 	};
 
 	let {
+		loading = false,
+		showEmptyState = true,
 		activeMobileEditorEventID,
 		clearActiveMobileEditorEvent,
 		clearSelectedEvent,
@@ -242,10 +246,12 @@
 					tabindex="-1"
 					role="region"
 					aria-label={text.pageTitle}
+					aria-busy={loading}
 				>
 					{#if toolbarView === ViewType.MONTH}
 						<div class="absolute inset-0 flex min-h-0 flex-col">
 						<CalendarMonthView
+							{loading}
 							visibleDate={toolbarDate}
 							selectedDateKey={selectedMonthDateKey ?? ''}
 							selectedEventID={selectedEventID ?? ''}
@@ -264,6 +270,8 @@
 					{:else}
 						<div class="absolute inset-0 flex min-h-0 flex-col">
 							<CalendarTimeView
+								{loading}
+								{showEmptyState}
 								visibleDate={toolbarDate}
 								dayCount={toolbarView === ViewType.DAY ? 1 : 7}
 								selectedEventID={selectedEventID ?? ''}
