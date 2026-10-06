@@ -14,12 +14,11 @@
 	type Props = {
 		vocabulary: CRMVocabulary;
 		isSaving?: boolean;
-		errorMessage?: string;
 		text: CRMDefinitionsText;
 		onSave: (vocabulary: CRMVocabulary) => Promise<void> | void;
 	};
 
-	let { vocabulary, isSaving = false, errorMessage = '', text, onSave }: Props = $props();
+	let { vocabulary, isSaving = false, text, onSave }: Props = $props();
 
 	const draft = new CRMDefinitionsDraft(
 		() => vocabulary,
@@ -52,9 +51,9 @@
 <section class="space-y-4" aria-label={text.title}>
 	<p class="sr-only" role="status" aria-live="polite">{saveState}</p>
 
-	{#if errorMessage || draft.errorMessage}
+	{#if draft.errorMessage}
 		<p class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
-			{draft.errorMessage || errorMessage}
+			{draft.errorMessage}
 		</p>
 	{/if}
 
