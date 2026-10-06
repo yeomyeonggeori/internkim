@@ -44,6 +44,12 @@ describe('first-read request dependencies', () => {
 			lateRefused: true, correctAfterRace: true, reopenPreserved: true, refreshPreserved: true, logoutCleared: true
 		});
 	});
+	test('a reopened messenger shows what it kept for the same account before verification, and nothing after logout', async () => {
+		expect(await outcome('remembered-scope')).toEqual({
+			otherAccountAdopted: null, adoptedKey: true, listBeforeVerification: ['kept-channel'], messagesBeforeVerification: ['안녕'],
+			readerBeforeVerification: 'member:m1', storedLength: 50, logoutCleared: true
+		});
+	});
 	test('old emoji, avatar and attachment work cannot repopulate a new account', async () => {
 		expect(await outcome('asset-scope')).toEqual({ emoji: null, avatar: '', attachment: '', attachmentStatus: 'unasked', signedOldAssets: 0, newEmoji: 'new-image' });
 	});

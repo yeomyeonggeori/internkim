@@ -47,7 +47,8 @@
 	import { syncMattermostToBuzz } from '$lib/buzz-mm-sync';
 	import { loadChannelOrder, saveChannelOrder, orderChannels, moveChannel } from './channel-order';
 	import { holdBackNotificationsFor } from '$lib/native-shell/open-conversation';
-	import { conversationStorageKey, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
+	import { adoptRememberedMessengerScope, messengerCacheScope, messengerCacheKey, onMessengerCacheReset, requireCurrentMessengerScope, type MessengerCacheScope } from '$lib/messenger/cache-scope';
+	import { keepCachedConversations, readCachedConversations } from '$lib/messenger/conversation-list-cache';
 
 	const lastChannelKey = 'messenger-last-channel';
 
@@ -162,16 +163,6 @@
 		selectChannel(channelID);
 	}
 
-	function loadCachedConversations(scope: MessengerCacheScope): ChannelSummary[] {
-		if (typeof sessionStorage === 'undefined') return [];
-		try {
-			const cached: unknown = JSON.parse(sessionStorage.getItem(conversationStorageKey(scope)) ?? '[]');
-			return Array.isArray(cached) ? (cached as ChannelSummary[]) : [];
-		} catch {
-			return [];
-		}
-	}
-
 	async function loadConversationList() {
 		if (isDestroyed) return;
 		const sequence = ++conversationReadSequence;
@@ -185,9 +176,7 @@
 			conversations = next;
 			hasLoadedConversations = true;
 			if (activeID === undefined) selectInitialChannel();
-			if (typeof sessionStorage !== 'undefined') {
-				sessionStorage.setItem(conversationStorageKey(scope), JSON.stringify(conversations));
-			}
+			keepCachedConversations(scope, conversations);
 		} catch (failure) {
 			if (sequence === conversationReadSequence) conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
 			throw failure;
@@ -401,8 +390,16 @@
 		userChannelOrder = loadChannelOrder();
 		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
 
-		let scope: MessengerCacheScope;
 		const mountedGeneration = cacheGeneration;
+		const remembered = await adoptRememberedMessengerScope();
+		if (isDestroyed || mountedGeneration !== cacheGeneration) return;
+		const cached = remembered ? readCachedConversations(remembered) : [];
+		if (cached.length > 0) {
+			conversations = cached;
+			hasLoadedConversations = true;
+			selectInitialChannel();
+		}
+		let scope: MessengerCacheScope;
 		try { scope = await messengerCacheScope(); } catch (failure) {
 			if (isDestroyed || mountedGeneration !== cacheGeneration) return;
 			conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
@@ -413,12 +410,6 @@
 		mutedConversations()
 			.then(async (held) => { await requireCurrentMessengerScope(scope); muted = held; })
 			.catch(() => undefined);
-		const cached = loadCachedConversations(scope);
-		if (cached.length > 0) {
-			conversations = cached;
-			hasLoadedConversations = true;
-			selectInitialChannel();
-		}
 		try {
 			await loadConversationList();
 			if (!conversations.some((conversation) => conversation.id === activeID)) {
