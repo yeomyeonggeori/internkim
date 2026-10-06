@@ -528,6 +528,7 @@ func (service *Service) ensureMemberChannelMembership(ctx context.Context) {
 	service.retireBootstrapFromRemainingRooms(ctx, relay, connections, seed)
 	service.nameMembersTheRelayCannotName(ctx, relay)
 	service.removeSeatsNobodyAccountsFor(ctx, relay, channelIDs, seed)
+	retirePrivateRoomsNobodyIsIn(ctx, relay)
 }
 
 // The member and seat syncs cover the rooms the company runs, but the company
