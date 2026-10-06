@@ -352,6 +352,7 @@ test('a reply blueclaw calls an answer resolves the approval with the option it 
 
 	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
 	await waitUntil(() => agent.deliveryReports.length === 1, 'the relay to report the question');
+	await waitUntil(() => client.hasPendingApprovalIn('conversation-1'), 'the approval to be requested');
 	const wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘');
 
 	expect(wasAnswer).toBe(true);
