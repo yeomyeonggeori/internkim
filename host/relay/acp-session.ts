@@ -51,7 +51,7 @@ export const undeliveredExtensionMethod = '_kim.intern/undelivered';
 export type Delivery = {
 	deliveryID?: string;
 	replyTargetID?: string;
-	alreadyPosted?: boolean;
+	isAlreadyPosted?: boolean;
 	final?: boolean;
 };
 
@@ -376,7 +376,7 @@ export class BlueclawACPClient {
 		const binding = this.sessionBindingOf(request.sessionId);
 		const outcome: PostOutcome | undefined = !binding
 			? { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` }
-			: delivery.alreadyPosted
+			: delivery.isAlreadyPosted
 				? undefined
 				: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
 		if (outcome) await this.tellTheAgent(delivery, outcome);
@@ -393,7 +393,7 @@ export class BlueclawACPClient {
 		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
 		const pending: PendingApproval = {
 			toolCallID: request.toolCall.toolCallId,
-			waitingMessageIDs: new Set(delivery.alreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
+			waitingMessageIDs: new Set(delivery.isAlreadyPosted ? [] : this.messageIDsInFlightIn(request.sessionId)),
 			select: (optionID) => resolve({ outcome: { outcome: 'selected', optionId: optionID } })
 		};
 		this.pendingApprovals.set(request.sessionId, pending);
@@ -437,7 +437,7 @@ export function deliveryOf(meta: Record<string, unknown> | null | undefined): De
 	return {
 		...(deliveryID ? { deliveryID } : {}),
 		...(replyTargetID ? { replyTargetID } : {}),
-		...(Reflect.get(carried, 'alreadyPosted') === true ? { alreadyPosted: true } : {}),
+		...(Reflect.get(carried, 'isAlreadyPosted') === true ? { isAlreadyPosted: true } : {}),
 		...(Reflect.get(carried, 'final') === true ? { final: true } : {})
 	};
 }
