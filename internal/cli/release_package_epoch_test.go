@@ -21,6 +21,7 @@ func writtenPackage(t *testing.T, format linuxPackageFormat, version string) []b
 	t.Helper()
 	information := linuxPackageInformation(format, packageTargets[0], version, files.Contents{}, nfpm.Scripts{})
 	information.Deb.Compression = "gzip"
+	format.CompressPayload = nil
 	packagePath := filepath.Join(t.TempDir(), format.assetName(packageTargets[0].Architecture))
 	if errorValue := writeLinuxPackage(format, information, packagePath); errorValue != nil {
 		t.Fatal(errorValue)
