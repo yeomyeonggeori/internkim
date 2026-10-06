@@ -122,7 +122,7 @@ func TestThePackagedRelayUnitIsTheDeviceUnitWithThePackagesValues(t *testing.T) 
 	if packaged == "" {
 		t.Fatal("the package installs no relay unit, and the relay is what keeps the screen alive when the agent is down")
 	}
-	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, LinuxCompanyHostLayout().BinaryPath(RelayName))
+	expected := strings.ReplaceAll(RelayServiceUnit(), RelayBinaryPath, strings.Join(bunProgramCommand(LinuxCompanyHostLayout(), RelayName), " "))
 	expected = strings.ReplaceAll(expected,
 		RelayStateDirectoryPath(RelayStateDirectoryName), RelayStateDirectoryPath(CompanyHostRelayStateDirectoryName))
 	expected = strings.ReplaceAll(expected,

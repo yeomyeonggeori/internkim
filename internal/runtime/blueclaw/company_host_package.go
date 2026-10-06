@@ -171,7 +171,7 @@ func CompanyHostSystemdUnits(layout CompanyHostLayout) []CompanyPackageUnit {
 		if service.Name == RelayServiceName {
 			units = append(units, CompanyPackageUnit{
 				Name:     service.Name,
-				Contents: relayServiceUnit(layout.BinaryPath(RelayName), CompanyHostRelayStateDirectoryName, companyHostRelaySettings(layout)),
+				Contents: relayServiceUnit(service.CommandLine(), CompanyHostRelayStateDirectoryName, companyHostRelaySettings(layout)),
 			})
 			continue
 		}
