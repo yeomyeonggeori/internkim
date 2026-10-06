@@ -208,7 +208,7 @@
 
 		{#snippet employeeDetails()}
 		<div class="min-w-0 space-y-5">
-			{#if management.isLoading && !management.payload?.detail}
+			{#if management.selectedEmployeeEmail && management.isLoading && !management.payload?.detail}
 				<AttendanceLoadingSkeleton kind="records" rowCount={3} />
 			{:else if isMobile.current && management.errorMessage && management.payload?.detail?.employee.email !== requestedEmployeeEmail}
 				<p role="alert" class="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{management.errorMessage}</p>

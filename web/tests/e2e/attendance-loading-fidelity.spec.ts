@@ -58,6 +58,13 @@ for (const width of [1280, 390, 320]) {
 			await expect.poll(() => gate.reads).toBeGreaterThan(0);
 			const pendingRow = await loading.locator('[data-loading-row]:visible').first().boundingBox();
 			expect(pendingRow).not.toBeNull();
+			const checksUnselectedDetail = scene.name === 'leave-employees' && width === 1280;
+			const selectionPrompt = panel.getByText('직원을 선택해 휴가 상세 내역을 확인하세요.', { exact: true });
+			if (checksUnselectedDetail) {
+				await expect(selectionPrompt).toBeVisible();
+				await expect(panel.locator('[data-attendance-skeleton="records"]')).toHaveCount(0);
+			}
+			const pendingPrompt = checksUnselectedDetail ? await selectionPrompt.boundingBox() : null;
 			await capture(page, scene.name, width, 'loading', pendingRow);
 			gate.release();
 			await expect(loading).toHaveCount(0);
@@ -66,6 +73,19 @@ for (const width of [1280, 390, 320]) {
 			await capture(page, scene.name, width, 'loaded', loadedRow);
 			for (const key of ['x', 'y', 'width', 'height'] as const) {
 				expect(Math.abs(pendingRow![key] - loadedRow![key]), `${scene.name} ${width}px first-row ${key}`).toBeLessThanOrEqual(2);
+			}
+			if (checksUnselectedDetail) {
+				await expect(selectionPrompt).toBeVisible();
+				expect(await selectionPrompt.boundingBox()).toEqual(pendingPrompt);
+				const reads = gate.reads;
+				gate.block();
+				await panel.locator(`${scene.row}:visible`).first().getByRole('button').click();
+				await expect.poll(() => gate.reads).toBeGreaterThan(reads);
+				await expect(selectionPrompt).toHaveCount(0);
+				await expect(panel.locator('[data-attendance-skeleton="records"]')).toBeVisible();
+				gate.release();
+				await expect(panel.getByTestId('leave-management-employee-detail-header')).toBeVisible();
+				await expect(panel.locator('[data-attendance-skeleton="records"]')).toHaveCount(0);
 			}
 		});
 	}
