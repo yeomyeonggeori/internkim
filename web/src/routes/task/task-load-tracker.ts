@@ -5,6 +5,8 @@ export type TaskLoadOptions = {
 
 export type LoadTask = (week: string, options?: TaskLoadOptions) => Promise<boolean>;
 
+export const supersededLoadIsNotAFailure = true;
+
 export type TaskLoadTracker = {
 	start: () => number;
 	isCurrent: (loadID: number) => boolean;

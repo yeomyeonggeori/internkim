@@ -18,6 +18,7 @@ import {
 	taskStatusOf,
 	type CentralTaskStatus
 } from './task-central-test-utils';
+import { taskText } from '../../src/routes/task/text';
 
 test.describe.configure({ mode: 'serial', timeout: 90_000 });
 test.use({ locale: 'ko-KR' });
@@ -114,6 +115,34 @@ test('a card says its move is in flight, and opens again once the record has it'
 	await expectTaskStatus(movedTaskID, 'in_progress');
 	await expect(taskCard(page, movedTaskID)).toHaveAttribute('data-task-board-pending', 'false');
 	await openTaskCard(page, movedTaskID);
+});
+
+test('a move that the company channel also announces leaves no load error behind', async ({ page }) => {
+	const [movedTaskID] = await seedForThisRun([{ title: 'E2E 보드 이동 알림', status: 'planned' }]);
+	let companyChannelJoined = false;
+	page.on('websocket', (socket) => {
+		socket.on('framereceived', (frame) => {
+			const payload = String(frame.payload);
+			if (payload.includes('realtime:company:') && payload.includes('phx_reply')) companyChannelJoined = true;
+		});
+	});
+	await signInToTheTaskBoard(page);
+	await expect(taskColumn(page, 'planned').locator(`[data-task-board-card="${movedTaskID}"]`)).toBeVisible();
+	await expect.poll(() => companyChannelJoined).toBe(true);
+	let boardReadsAnswered = 0;
+	await page.route('**/api/v1/tools/task_board_get/invoke', async (route) => {
+		await new Promise((resolve) => setTimeout(resolve, 1_500));
+		await route.continue();
+		boardReadsAnswered += 1;
+	});
+
+	await dragCardOntoColumn(page, movedTaskID, 'in_progress');
+	await expectTaskStatus(movedTaskID, 'in_progress');
+
+	await expect.poll(() => boardReadsAnswered, { timeout: 10_000 }).toBe(2);
+	await expect(page.locator('main[data-task-ready="true"]')).toBeVisible();
+	await expect(page.getByText(taskText.ko.loadError)).toHaveCount(0);
+	await expect(taskColumn(page, 'in_progress').locator(`[data-task-board-card="${movedTaskID}"]`)).toBeVisible();
 });
 
 test('a move the record refuses puts the card back and says why', async ({ page }) => {

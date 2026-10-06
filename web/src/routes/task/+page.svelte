@@ -13,7 +13,7 @@
 	import { taskBoardState } from '$lib/task/task-state';
 	import { ToolRefused } from '$lib/public-api-call';
 	import { subscribeTaskWrites } from '$lib/task/task-live-refresh';
-	import type { TaskLoadOptions } from './task-load-tracker';
+	import { supersededLoadIsNotAFailure, type TaskLoadOptions } from './task-load-tracker';
 	import { createTaskReadSession, sameTaskReadContext, type TaskReadContext } from './task-read-session';
 	import { rememberTask, forgetLastSeenTask } from './task-last-seen';
 	import { clearStoredTaskSnapshot, taskSnapshotGeneration, subscribeTaskSnapshotInvalidation } from './task-snapshot-storage';
@@ -236,7 +236,7 @@
 		try {
 			const loaded = await taskRead;
 			settled = true;
-			if (!isCurrent()) return false;
+			if (!isCurrent()) return supersededLoadIsNotAFailure;
 			if (loaded.denied) {
 				forgetLastSeenTask(scope);
 				taskState = null;
@@ -253,7 +253,7 @@
 			applyTaskState(loaded.state, true);
 			return true;
 		} catch (error) {
-			if (!isCurrent()) return false;
+			if (!isCurrent()) return supersededLoadIsNotAFailure;
 			const message = error instanceof Error ? error.message : text.loadError;
 			if (full) historyError = message;
 			else errorMessage = message;
