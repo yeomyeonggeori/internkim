@@ -2,6 +2,7 @@
 	import { BOARD_STATUS_VALUES } from './task-board-model';
 	import { taskBoardViewportHeight } from './task-board-viewport-height';
 	import './task-board-layout.css';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	let { label, statusLabel }: { label: string; statusLabel: (status: string) => string } = $props();
 </script>
 
@@ -13,14 +14,14 @@
 				<section class="task-board-column flex h-full min-h-0 shrink-0 flex-col overflow-hidden rounded-lg border bg-muted/30">
 					<header class="flex h-11 items-center gap-2 border-b bg-card px-3">
 						<h3 class="text-sm font-semibold">{statusLabel(status)}</h3>
-						<span class="h-4 w-6 rounded bg-muted motion-safe:animate-pulse"></span>
+						<Skeleton class="h-4 w-6" />
 					</header>
 					<div class="flex flex-col gap-3 p-2.5">
 						{#each [0, 1, 2] as row}
-							<div class="flex h-28 flex-col gap-3 rounded-md border bg-card p-3 motion-safe:animate-pulse">
-								<div class={row % 2 ? 'h-3 w-2/3 rounded bg-muted' : 'h-3 w-5/6 rounded bg-muted'}></div>
-								<div class="h-3 w-1/2 rounded bg-muted"></div>
-								<div class="mt-auto flex gap-2"><span class="size-5 rounded-full bg-muted"></span><span class="h-4 w-16 rounded bg-muted"></span></div>
+							<div class="flex h-28 flex-col gap-3 rounded-md border bg-card p-3">
+								<Skeleton class={row % 2 ? 'h-3 w-2/3' : 'h-3 w-5/6'} />
+								<Skeleton class="h-3 w-1/2" />
+								<div class="mt-auto flex gap-2"><Skeleton class="size-5 rounded-full" /><Skeleton class="h-4 w-16" /></div>
 							</div>
 						{/each}
 					</div>

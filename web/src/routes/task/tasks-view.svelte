@@ -6,6 +6,8 @@
 	import TaskWeekSelector from './task-week-selector.svelte';
 	import TaskBoard from './task-board.svelte';
 	import TaskBoardSkeleton from './task-board-skeleton.svelte';
+	import TaskContentSkeleton from './task-content-skeleton.svelte';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { taskBoardWeekPosition } from './task-board-week-position';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { untrack } from 'svelte';
@@ -26,6 +28,8 @@
 		openTaskWhenReady: (taskID: string) => void;
 		text: TaskPageText;
 		isLoading: boolean;
+		isPendingRead: boolean;
+		loadError: string;
 		ensureFullState: () => Promise<boolean>;
 		isHistoryLoading: boolean;
 		historyError: string;
@@ -34,7 +38,8 @@
 		setPageErrorMessage: (message: string) => void;
 	};
 
-	let { summary, shownWeek, canNavigateWeek, focusedTaskID, openTaskWhenReady, text, isLoading, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
+	let { summary, shownWeek, canNavigateWeek, focusedTaskID, openTaskWhenReady, text, isLoading, isPendingRead, loadError, ensureFullState, isHistoryLoading, historyError, loadTask, selectWeek, setPageErrorMessage }: Props = $props();
+	const hasShownWeek = $derived(Boolean(summary && summary.week.code === shownWeek?.code));
 
 	const page = createTasksController();
 	let taskViewTab = $state('board');
@@ -110,8 +115,8 @@
 			/>
 		</div>
 		<Tabs.Content value="board" class="min-h-[36rem]">
-			{#if !summary && isLoading}
-				<TaskBoardSkeleton label={text.loading} statusLabel={page.statusLabel} />
+			{#if !hasShownWeek}
+				{#if isPendingRead && !loadError}<TaskBoardSkeleton label={text.loading} statusLabel={page.statusLabel} />{/if}
 			{:else}
 			<TaskBoard
 				memberEmail={page.memberEmail}
@@ -137,7 +142,9 @@
 			{/if}
 		</Tabs.Content>
 		<Tabs.Content value="list" class="min-h-[36rem]">
-			{#if summary?.completeness === 'full' && !isHistoryLoading && !isLoading}
+			{#if historyError}<p role="alert" class="text-sm text-destructive">{historyError}</p><button class="mt-2 text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>{/if}
+			{#if summary?.completeness === 'full' && hasShownWeek}
+			{#if isPendingRead}<p role="status" class="mb-3 flex items-center gap-2 text-sm text-muted-foreground"><Spinner class="size-4" /><span class="sr-only">{text.loadingHistory}</span></p>{/if}
 			<TaskListView
 				memberEmail={page.memberEmail}
 				businessColor={page.businessColor}
@@ -152,9 +159,8 @@
 				canUpdateTask={isLoading ? () => false : page.canUpdateTask}
 				{focusedTaskID}
 			/>
-			{:else}
-				<p role="status" class="text-sm text-muted-foreground">{historyError || text.loadingHistory}</p>
-				{#if historyError}<button class="mt-2 text-sm underline" onclick={ensureFullState}>{text.retryHistory}</button>{/if}
+			{:else if !historyError && !loadError}
+				<TaskContentSkeleton label={text.loadingHistory} />
 			{/if}
 		</Tabs.Content>
 	</Tabs.Root>

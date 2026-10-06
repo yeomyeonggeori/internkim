@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
+	import { Spinner } from '$lib/components/ui/spinner';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import { taskText } from './text';
@@ -50,8 +51,9 @@
 		class="w-full"
 		onclick={submitQuickTask}
 		disabled={isCreatingQuickTask || !quickTaskText.trim() || !hasMembers}
+		aria-busy={isCreatingQuickTask}
 	>
-		<SparklesIcon />
+		{#if isCreatingQuickTask}<Spinner aria-hidden="true" />{:else}<SparklesIcon />{/if}
 		{isCreatingQuickTask ? text.saving : text.quickAdd}
 	</Button>
 	{#if taskErrorMessage}

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Channel from '$lib/components/channel/channel.svelte';
+	import ChannelLoadingSkeleton from '$lib/components/channel/channel-loading-skeleton.svelte';
 	import MessengerChannelList from './messenger-channel-list.svelte';
+	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
 	import MessengerBrowseChannelsDialog from './messenger-browse-channels-dialog.svelte';
 	import MessengerChannelDetails from './messenger-channel-details.svelte';
 	import MessengerChannelHeaderActions from './messenger-channel-header-actions.svelte';
@@ -66,6 +68,11 @@
 	const text = createPageText(channelText);
 
 	let conversations = $state<ChannelSummary[]>([]);
+	let isLoadingConversations = $state(true);
+	let hasLoadedConversations = $state(false);
+	let conversationError = $state('');
+	let conversationReadSequence = 0;
+	let isDestroyed = false;
 	let activeID = $state<string | undefined>(undefined);
 	let cacheGeneration = $state(0);
 	let isNewDirectMessageOpen = $state(false);
@@ -78,6 +85,9 @@
 	const canManageChannels = isSupabaseConfigured();
 	let isChannelSheetOpen = $state(false);
 	let people = $state<Person[]>([]);
+	let isLoadingPeople = $state(false);
+	let peopleError = $state('');
+	let peopleReadSequence = 0;
 	let muted = $state<Set<string>>(new Set());
 	let syncedIdentityRevision = -1;
 	let userChannelOrder = $state<string[]>([]);
@@ -162,16 +172,31 @@
 	}
 
 	async function loadConversationList() {
-		const scope = await messengerCacheScope();
-		const next = await fetchConversations();
-		await requireCurrentMessengerScope(scope);
-		conversations = next;
-		if (typeof sessionStorage !== 'undefined') {
-			sessionStorage.setItem(conversationStorageKey(scope), JSON.stringify(conversations));
+		if (isDestroyed) return;
+		const sequence = ++conversationReadSequence;
+		isLoadingConversations = true;
+		conversationError = '';
+		try {
+			const scope = await messengerCacheScope();
+			const next = await fetchConversations();
+			await requireCurrentMessengerScope(scope);
+			if (sequence !== conversationReadSequence) return;
+			conversations = next;
+			hasLoadedConversations = true;
+			if (activeID === undefined) selectInitialChannel();
+			if (typeof sessionStorage !== 'undefined') {
+				sessionStorage.setItem(conversationStorageKey(scope), JSON.stringify(conversations));
+			}
+		} catch (failure) {
+			if (sequence === conversationReadSequence) conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
+			throw failure;
+		} finally {
+			if (sequence === conversationReadSequence) isLoadingConversations = false;
 		}
 	}
 
 	function selectInitialChannel() {
+		if (isDestroyed) return;
 		const requestedID = page.url.searchParams.get('channel') ?? loadLastChannelID();
 		const remembered = requestedID
 			? conversations.find((conversation) => conversation.id === requestedID)
@@ -197,13 +222,22 @@
 
 	async function openNewDirectMessage() {
 		isNewDirectMessageOpen = true;
+		const sequence = ++peopleReadSequence;
+		isLoadingPeople = true;
+		peopleError = '';
 		try {
 			const scope = await messengerCacheScope();
 			const next = await fetchPeople();
 			await requireCurrentMessengerScope(scope);
+			if (sequence !== peopleReadSequence) return;
 			people = next;
-		} catch {
-			people = [];
+		} catch (failure) {
+			if (sequence === peopleReadSequence) {
+				people = [];
+				peopleError = failure instanceof Error ? failure.message : text.unavailableDescription;
+			}
+		} finally {
+			if (sequence === peopleReadSequence) isLoadingPeople = false;
 		}
 	}
 
@@ -332,6 +366,9 @@
 	});
 
 	onDestroy(() => {
+		isDestroyed = true;
+		conversationReadSequence += 1;
+		peopleReadSequence += 1;
 		stopListeningForArrivals();
 		stopFollowingCacheScope();
 		holdBackNotificationsFor(undefined).catch((failure: unknown) =>
@@ -343,6 +380,12 @@
 	onMount(async () => {
 		stopFollowingCacheScope = onMessengerCacheReset(() => {
 			cacheGeneration += 1;
+			conversationReadSequence += 1;
+			peopleReadSequence += 1;
+			hasLoadedConversations = false;
+			conversationError = '';
+			isLoadingPeople = false;
+			peopleError = '';
 			conversations = [];
 			people = [];
 			activeID = undefined;
@@ -359,13 +402,21 @@
 		if (isSupabaseConfigured()) stopListeningForArrivals = onCompanyEvent(readListOnArrival);
 
 		let scope: MessengerCacheScope;
-		try { scope = await messengerCacheScope(); } catch { return; }
+		const mountedGeneration = cacheGeneration;
+		try { scope = await messengerCacheScope(); } catch (failure) {
+			if (isDestroyed || mountedGeneration !== cacheGeneration) return;
+			conversationError = failure instanceof Error ? failure.message : text.unavailableDescription;
+			isLoadingConversations = false;
+			return;
+		}
+		if (isDestroyed || mountedGeneration !== cacheGeneration) return;
 		mutedConversations()
 			.then(async (held) => { await requireCurrentMessengerScope(scope); muted = held; })
 			.catch(() => undefined);
 		const cached = loadCachedConversations(scope);
 		if (cached.length > 0) {
 			conversations = cached;
+			hasLoadedConversations = true;
 			selectInitialChannel();
 		}
 		try {
@@ -391,6 +442,9 @@
 			<Sheet.Description class="sr-only">{text.channelListDescription}</Sheet.Description>
 		</Sheet.Header>
 		<MessengerChannelList
+			isLoading={isLoadingConversations && !hasLoadedConversations}
+			error={conversationError}
+			retry={() => refreshConversations('the channel list did not refresh')}
 			{activeID}
 			{directMessages}
 			{groupChannels}
@@ -410,6 +464,9 @@
 		<div class="flex min-h-0 w-full flex-row overflow-hidden">
 			<MessengerChannelList
 				class="border-r max-sm:hidden"
+				isLoading={isLoadingConversations && !hasLoadedConversations}
+				error={conversationError}
+				retry={() => refreshConversations('the channel list did not refresh')}
 				{activeID}
 				{directMessages}
 				{groupChannels}
@@ -459,6 +516,11 @@
 						/>
 					{/if}
 				</header>
+				{#if !hasLoadedConversations && isLoadingConversations}
+					<ChannelLoadingSkeleton label={text.loadingConversations} />
+				{:else if !hasLoadedConversations && conversationError}
+					<div class="grid flex-1 place-content-center gap-3 p-6"><p role="alert" class="text-sm text-destructive">{conversationError}</p><Button variant="outline" onclick={() => refreshConversations('the channel list did not refresh')}>{text.retry}</Button></div>
+				{:else}
 				{#key `${cacheGeneration}:${activeID}`}
 					<Channel
 						channelId={activeID}
@@ -470,6 +532,7 @@
 						onReadThrough={(sentAt) => readThrough(activeID, sentAt)}
 					/>
 				{/key}
+				{/if}
 			</div>
 		</div>
 	</div>
@@ -513,8 +576,14 @@
 			<Dialog.Title>{text.newDirectMessage}</Dialog.Title>
 		</Dialog.Header>
 		<div class="-mx-2 max-h-80 overflow-y-auto">
-			<Button variant="ghost" class="w-full justify-start" onclick={startAgentConversation}>{text.openLabel}</Button>
-			{#each people as person (person.id)}
+				<Button variant="ghost" class="w-full justify-start" onclick={startAgentConversation}>{text.openLabel}</Button>
+				{#if peopleError}
+					<div class="space-y-2 px-2 py-3"><p role="alert" class="text-destructive text-sm">{peopleError}</p><Button variant="outline" size="sm" onclick={openNewDirectMessage}>{text.retry}</Button></div>
+				{/if}
+				{#if isLoadingPeople && !people.length}
+					<MessengerListSkeleton label={text.loadingPeople} />
+				{:else}
+				{#each people as person (person.id)}
 				<button
 					type="button"
 					class="hover:bg-muted/60 flex w-full items-center gap-3 rounded-md px-2 py-2 text-left"
@@ -530,9 +599,10 @@
 					<span class="truncate text-sm font-medium">{displayPersonName(person.name)}</span>
 				</button>
 			{/each}
-			{#if people.length === 0}
-				<p class="text-muted-foreground px-2 py-6 text-center text-sm">{text.noPeople}</p>
-			{/if}
+				{#if people.length === 0 && !peopleError}
+					<p class="text-muted-foreground px-2 py-6 text-center text-sm">{text.noPeople}</p>
+				{/if}
+				{/if}
 		</div>
 	</Dialog.Content>
 </Dialog.Root>

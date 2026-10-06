@@ -48,6 +48,7 @@
 		setEtcBusinessColor: (color: string) => void;
 		setEtcTypeColor: (color: string) => void;
 		isAdmin: boolean;
+		hasDefinitions: boolean;
 		canEditDefinitions: boolean;
 		definitionSaveState: DefinitionSaveState;
 		loadError: string;
@@ -76,6 +77,7 @@
 		setEtcBusinessColor,
 		setEtcTypeColor,
 		isAdmin,
+		hasDefinitions,
 		canEditDefinitions,
 		definitionSaveState,
 		loadError,
@@ -112,7 +114,7 @@
 	}
 </script>
 
-{#if canEditDefinitions}
+{#if hasDefinitions}
 	<section class="grid gap-4">
 		<TaskSizeDefinitionsCard {text} />
 		<div class="grid gap-4 lg:grid-cols-2">
@@ -120,7 +122,7 @@
 				title={text.business}
 				items={businessItems}
 				itemColor={(item) => taskBusinessColor(item.name, definitions)}
-				isEditable={isAdmin}
+				isEditable={isAdmin && canEditDefinitions}
 				{saveState}
 				addLabel={text.add}
 				removeLabel={text.removeAction}
@@ -145,7 +147,7 @@
 				title={text.type}
 				items={typeItems}
 				itemColor={(item) => taskTypeColor(item.name, definitions)}
-				isEditable={isAdmin}
+				isEditable={isAdmin && canEditDefinitions}
 				{saveState}
 				addLabel={text.add}
 				removeLabel={text.removeAction}

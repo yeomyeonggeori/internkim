@@ -12,6 +12,8 @@
 	import { cn } from '$lib/utils';
 	import ConversationMenu from '$lib/components/channel/conversation-menu.svelte';
 	import MessengerChannelSection from './messenger-channel-section.svelte';
+	import MessengerListSkeleton from './messenger-list-skeleton.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import { isSectionOpen, setSectionOpen } from './channel-sections.svelte';
 	import type { ChannelSummary } from '$lib/components/channel/channel-api';
 	import { isUnreadEmphasized, unreadBadgeLabel } from '$lib/messenger/unread-badge';
@@ -19,6 +21,9 @@
 
 	let {
 		activeID,
+		isLoading = false,
+		error = '',
+		retry,
 		class: className = '',
 		directMessages,
 		groupChannels,
@@ -33,6 +38,9 @@
 		sidebarWidth = '16rem'
 	}: {
 		activeID: string | undefined;
+		isLoading?: boolean;
+		error?: string;
+		retry?: () => void;
 		class?: string;
 		directMessages: ChannelSummary[];
 		groupChannels: ChannelSummary[];
@@ -72,6 +80,9 @@
 <Sidebar.Provider class={cn('messenger-channel-list h-full min-h-0 w-auto', className)} style="--sidebar-width: {sidebarWidth};">
 	<Sidebar.Root collapsible="none">
 		<Sidebar.Content class="pt-2">
+			{#if error}
+				<div class="space-y-2 px-3 py-2"><p role="alert" class="text-sm text-destructive">{error}</p>{#if retry}<Button variant="outline" size="sm" onclick={retry}>{text.retry}</Button>{/if}</div>
+			{/if}
 			<MessengerChannelSection
 				title={text.channelListTitle}
 				open={isSectionOpen('channels')}
@@ -101,6 +112,7 @@
 					{/if}
 				{/snippet}
 				<Sidebar.Menu>
+					{#if isLoading}<li><MessengerListSkeleton label={text.loadingConversations} compact /></li>{/if}
 					{#each groupChannels as channel (channel.id)}
 						<ConversationMenu
 							isMuted={muted.has(channel.id)}
@@ -154,6 +166,7 @@
 					</Sidebar.GroupAction>
 				{/snippet}
 				<Sidebar.Menu>
+					{#if isLoading}<li><MessengerListSkeleton label={text.loadingConversations} compact /></li>{/if}
 					{#each directMessages as conversation (conversation.id)}
 						<ConversationMenu
 							isMuted={muted.has(conversation.id)}
