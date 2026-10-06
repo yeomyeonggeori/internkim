@@ -55,6 +55,7 @@ type AgentBehaviour = {
 	askApprovalAbout?: { toolCallID: string; question: string; onlyWhenAskedTo?: string };
 	approvalReplies?: { reply: string; optionID: string }[];
 	refuseSessionsWith?: string;
+	whenAReportArrives?: () => Promise<void>;
 };
 
 const cleanUps: (() => void)[] = [];
@@ -175,6 +176,7 @@ function anAgentOnASocket(behaviour: AgentBehaviour): AnAgentThatRecords {
 			extMethod: async (method: string, params: Record<string, unknown>) => {
 				if (method !== approvalReplyExtensionMethod) {
 					deliveryReports.push({ method, params });
+					await behaviour.whenAReportArrives?.();
 					return {};
 				}
 				approvalRequestsRead.push(params);
@@ -343,6 +345,23 @@ const questionDelivery = { deliveryID: 'question-9', replyTargetID: questionThre
 async function aSessionOpenedBy(client: BlueclawACPClient): Promise<void> {
 	await client.ask(sampleRequester, sampleAddressing, '안녕하세요');
 }
+
+test('a reply that arrives the moment the question is reported delivered still answers it', async () => {
+	let wasAnswer: boolean | undefined;
+	const agent = anAgentOnASocket({
+		approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }],
+		whenAReportArrives: async () => {
+			wasAnswer = await client.answerPendingApproval(questionThread, 'message-10', '응 보내줘');
+		}
+	});
+	const client = aClientFor(agent.socketPath, aConversation());
+	await aSessionOpenedBy(client);
+
+	const asking = agent.askWithNoTurnOpen('session-1', 'call-9', '박예시에게 보낼까요?', questionDelivery);
+
+	expect((await asking).outcome).toEqual({ outcome: 'selected', optionId: 'approve_once' });
+	expect(wasAnswer).toBe(true);
+});
 
 test('a reply blueclaw calls an answer resolves the approval with the option it names', async () => {
 	const agent = anAgentOnASocket({ approvalReplies: [{ reply: '응 보내줘', optionID: 'approve_once' }] });

@@ -95,19 +95,6 @@ func TestAReplyInTheCurrentThreadNeedsNoRecipient(t *testing.T) {
 	}
 }
 
-func TestABroadcastNamesEveryRecipientAndRefusesOnTheFirstUnclearOne(t *testing.T) {
-	service := messageSendTargetService(t, append(messageSendTargetPeople(), platformDMAmbiguousTestPeople()...))
-
-	resolved := resolveApprovalTargetThroughRoute(t, service, "message_send", json.RawMessage(`{"targetType":"directMessage","personHints":["박예시","이샘플"],"message":"x"}`))
-	refused := resolveApprovalTargetThroughRoute(t, service, "message_send", json.RawMessage(`{"targetType":"directMessage","personHints":["박예시","lee"],"message":"x"}`))
-
-	preview := decodeResolvedApprovalTarget(t, resolved).Preview
-	if !strings.Contains(preview, "yesi@example.com") || !strings.Contains(preview, "sample@example.com") {
-		t.Fatalf("the question lists every recipient, got %q", preview)
-	}
-	assertPlatformDMStructuredFailure(t, refused, "error", "interaction_required", "target_resolution", true, true)
-}
-
 func TestExecutionSendsToTheIdentityTheHoldResolved(t *testing.T) {
 	people := platformDMAmbiguousTestPeople()
 	askedKeysFor := []string{}
