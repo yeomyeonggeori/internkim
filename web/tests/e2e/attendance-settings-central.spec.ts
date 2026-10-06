@@ -47,7 +47,8 @@ test('a leave type an administrator adds is offered on the leave request form', 
 	await expect(page.getByText('휴가 설정을 저장했습니다.')).toBeVisible({ timeout: 20000 });
 
 	await page.goto('/example-co/attendance');
-	await page.getByRole('button', { name: '휴가 등록' }).click();
+	await page.getByTestId('leave-history-navigation').click();
+	await page.getByRole('button', { name: '휴가 신청', exact: true }).click();
 	await page.getByTestId('leave-request-type-trigger').click();
 	await expect(page.getByRole('option', { name: customLeaveTypeName })).toBeVisible({
 		timeout: 20000

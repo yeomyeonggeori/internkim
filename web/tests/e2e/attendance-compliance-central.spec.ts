@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { signInToTheCentralPlane } from './central-plane-sign-in';
 import {
 	cleanupAttendanceEvents,
+	openMonthlyAttendance,
 	dayOfMonth,
 	monthBefore,
 	removeAttendanceOf,
@@ -65,9 +66,9 @@ async function saveWorkSettings(page: Page): Promise<void> {
 
 async function openTheMonthBefore(page: Page): Promise<void> {
 	await page.goto('/example-co/attendance');
-	await page.getByRole('button', { name: '월간 현황 보기' }).click();
+	await openMonthlyAttendance(page);
 	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 20000 });
-	await page.getByTestId('team-status-grid').getByRole('button', { name: '이전 달' }).first().click();
+	await page.getByRole('dialog').getByRole('button', { name: '이전 달', exact: true }).click();
 	await page.getByTestId('team-status-table').waitFor({ state: 'visible', timeout: 20000 });
 }
 
@@ -93,9 +94,8 @@ test('a fixed schedule nobody meets is reported on both surfaces', async ({ page
 
 	await openTheMonthBefore(page);
 
+	await page.getByRole('dialog').getByRole('button', { name: '근무 기준', exact: true }).click();
 	await expect(complianceMarks(page).first()).toBeVisible({ timeout: 20000 });
-
-	await page.getByRole('button', { name: '월별' }).first().click();
 	await expect(personalPanel(page).getByTestId('work-standard-compliance-late')).toBeVisible({
 		timeout: 20000
 	});
@@ -110,7 +110,7 @@ test('an autonomous schedule reports none of the three', async ({ page }) => {
 	await saveWorkSettings(page);
 
 	await openTheMonthBefore(page);
-	await page.getByRole('button', { name: '월별' }).first().click();
+	await page.getByRole('dialog').getByRole('button', { name: '근무 기준', exact: true }).click();
 	await expect(personalPanel(page)).toContainText(`${dayOfMonth(workedMonth, 1)}–`, {
 		timeout: 20000
 	});

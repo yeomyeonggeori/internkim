@@ -11,7 +11,7 @@
 </script>
 
 <section class="mx-auto min-h-0 w-full max-w-6xl space-y-5" data-testid="leave-approval-view">
-	<header class="flex flex-wrap items-start justify-between gap-4">
+	<header class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
 		<div>
 			<h1 class="text-2xl font-semibold tracking-tight">{text.approval.title}</h1>
 			<p class="mt-1 text-sm text-muted-foreground">{text.approval.description}</p>
@@ -38,7 +38,7 @@
 		</p>
 	{/if}
 
-	<div class="space-y-3">
+	{#if !approval.errorMessage}<div class="divide-y rounded-lg border px-4">
 		{#if approval.isLoading && !approval.inbox}
 			<p class="py-12 text-center text-sm text-muted-foreground">{text.approval.loading}</p>
 		{:else if (approval.inbox?.pending.length ?? 0) === 0}
@@ -50,5 +50,5 @@
 				<LeaveApprovalCard {request} text={text.approval} />
 			{/each}
 		{/if}
-	</div>
+	</div>{/if}
 </section>

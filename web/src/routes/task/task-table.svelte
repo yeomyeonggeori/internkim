@@ -109,6 +109,7 @@
 	</div>
 	{/if}
 	<ListPaginationFooter
+ onPageChange={(page) => taskTable.setPageIndex(page)}
 		totalItems={totalRows}
 		{pageIndex}
 		{pageSize}

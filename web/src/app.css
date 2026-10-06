@@ -294,9 +294,9 @@ html.internkim-embedded [data-app-shell-scroll] {
 }
 
 @media (max-width: 639px) {
-  [data-slot='select-trigger'], [data-slot='tabs-trigger'],
+  [data-slot='tabs-trigger'],
   [data-slot='underline-tabs-trigger'], [data-slot='command-item'],
-  [data-slot='select-item'], [data-slot='dropdown-menu-item'] {
+  [data-slot='dropdown-menu-item'] {
     min-height: 44px;
     min-width: 44px;
   }

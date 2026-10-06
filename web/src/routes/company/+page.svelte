@@ -187,11 +187,11 @@
 				{#if availableLanguages.length > 1}
 					<Select.Root type="single" value={language} onValueChange={selectLanguage}>
 						<Select.Trigger class="h-8 w-auto min-w-28" aria-label={text.changeLanguage}>{languageLabel(language)}</Select.Trigger>
-						<Select.Content>
+						<Select.Content><Select.Group>
 							{#each availableLanguages as availableLanguage}
 								<Select.Item value={availableLanguage} label={languageLabel(availableLanguage)}>{languageLabel(availableLanguage)}</Select.Item>
 							{/each}
-						</Select.Content>
+						</Select.Group></Select.Content>
 					</Select.Root>
 				{/if}
 				{#if pageState === 'ready'}<Button variant="ghost" size="sm" onclick={lockPage}><LockIcon data-icon="inline-start" />{text.lock}</Button>{/if}

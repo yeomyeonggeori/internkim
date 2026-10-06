@@ -1,3 +1,4 @@
+import { attendancePreviewEnabled } from '$lib/attendance/attendance-preview';
 import { browser } from '$app/environment';
 import { adminApiFetch } from '$lib/admin-api';
 
@@ -22,6 +23,7 @@ export const currentLocale = {
 
 export function initializeLocale() {
 	if (!browser) return;
+	if (attendancePreviewEnabled()) { localeValue = 'ko'; return; }
 
 	const storedLocale = parseLocale(localStorage.getItem(localeStorageKey));
 	localeValue = storedLocale ?? localeFromBrowser();

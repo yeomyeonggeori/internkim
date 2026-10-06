@@ -67,8 +67,8 @@
 				includeCost: true,
 				dailyCostTaskRunLimit
 			});
-			const minimumTotalCount = pageIndex * taskPageSize + response.taskRuns.length;
-			const loadedTotalCount = Math.max(response.totalCount ?? minimumTotalCount, minimumTotalCount);
+			if (response.totalCount === undefined) throw new Error('Task list response is missing totalCount');
+			const loadedTotalCount = response.totalCount;
 			const lastPageIndex = Math.max(0, Math.ceil(loadedTotalCount / taskPageSize) - 1);
 			if (pageIndex > lastPageIndex && response.taskRuns.length === 0 && loadedTotalCount > 0) {
 				await loadTaskRuns(lastPageIndex);
@@ -418,6 +418,8 @@
 		</Card.Root>
 		<div class="max-md:pb-[calc(5rem+env(safe-area-inset-bottom))]">
 			<ListPaginationFooter
+ onPageChange={(page) => void loadTaskRuns(page)}
+ disabled={isLoading}
 				totalItems={totalTaskRunCount}
 				pageIndex={taskPageIndex}
 				pageSize={taskPageSize}

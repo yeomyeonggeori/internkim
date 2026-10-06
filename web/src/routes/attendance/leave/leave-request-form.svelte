@@ -144,7 +144,7 @@
 					<Select.Trigger class="w-full" data-testid="leave-request-type-trigger">
 						{selectedLeaveType ? leaveTypeName(selectedLeaveType) : text.leave.selectLeaveType}
 					</Select.Trigger>
-					<Select.Content>
+					<Select.Content><Select.Group>
 						{#each selectableLeaveTypes as leaveType (leaveType.id)}
 							<Select.Item
 								value={leaveType.id}
@@ -154,7 +154,7 @@
 								{leaveTypeName(leaveType)}
 							</Select.Item>
 						{/each}
-					</Select.Content>
+					</Select.Group></Select.Content>
 				</Select.Root>
 				{#if selectedLeaveType}
 					<span class="text-xs font-normal text-muted-foreground">
@@ -163,6 +163,7 @@
 				{/if}
 			</label>
 
+			{#if selectedLeaveType}
 			<div class="grid content-start gap-1.5">
 				<p class="text-sm font-medium">{text.leave.unitLabel}</p>
 				<div
@@ -184,6 +185,7 @@
 					{/each}
 				</div>
 			</div>
+			{/if}
 		</div>
 
 		<div class="grid gap-4 sm:grid-cols-2">

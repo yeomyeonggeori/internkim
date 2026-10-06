@@ -27,46 +27,9 @@
 	}
 </script>
 
-<section class="border-b px-4 py-4 sm:px-6" data-testid="leave-type-balances">
-	<div>
-		<h3 class="text-sm font-semibold">
-			{isUnlimited ? text.leave.usageOverviewTitle : text.leave.balanceOverviewTitle}
-		</h3>
-		<p class="mt-1 text-xs text-muted-foreground">
-			{isUnlimited
-				? text.leave.usageOverviewDescription
-				: text.leave.balanceOverviewDescription}
-		</p>
-	</div>
-	{#if balanceTypes.length}
-		<div class="mt-3 divide-y">
-			{#each balanceTypes as leaveType (leaveType.id)}
-				<div class="flex items-center justify-between gap-4 py-2.5">
-					<span class="text-sm font-medium">{leaveTypeName(leaveType.id, leaveType.name)}</span>
-					<span class="text-right text-sm tabular-nums">
-						<span class="font-semibold">
-							{isUnlimited
-								? text.leave.balanceOverviewUsed
-								: text.leave.balanceOverviewAvailable}
-							{days(
-								isUnlimited
-									? leaveType.balance?.usedMilliDays ?? 0
-									: leaveType.balance?.availableMilliDays ?? 0
-							)}
-						</span>
-						{#if (leaveType.balance?.reservedMilliDays ?? 0) > 0}
-							<span class="ml-2 text-xs text-muted-foreground">
-								{text.leave.balanceOverviewPending}
-								{days(leaveType.balance?.reservedMilliDays ?? 0)}
-							</span>
-						{/if}
-					</span>
-				</div>
-			{/each}
-		</div>
-	{:else}
-		<p class="mt-3 text-sm text-muted-foreground">
-			{text.leave.balanceOverviewEmpty}
-		</p>
-	{/if}
+
+<section data-testid="leave-type-balances" aria-label={text.leave.balanceOverviewTitle}>
+ {#if balanceTypes.length}<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{#each balanceTypes as leaveType (leaveType.id)}
+  <div class="rounded-lg border px-4 py-3"><p class="text-sm font-medium">{leaveTypeName(leaveType.id,leaveType.name)}</p><div class="mt-2 flex flex-wrap items-baseline justify-between gap-2"><p class="tabular-nums"><span class="mr-2 text-xs text-muted-foreground">{isUnlimited ? text.leave.balanceOverviewUsed : text.leave.balanceOverviewAvailable}</span><span class="text-2xl font-semibold">{days(isUnlimited ? leaveType.balance?.usedMilliDays ?? 0 : leaveType.balance?.availableMilliDays ?? 0)}</span></p>{#if (leaveType.balance?.reservedMilliDays ?? 0) > 0}<p class="text-xs text-muted-foreground">{text.leave.balanceOverviewPending} {days(leaveType.balance?.reservedMilliDays ?? 0)}</p>{/if}</div></div>
+ {/each}</div>{:else}<p class="text-sm text-muted-foreground">{text.leave.balanceOverviewEmpty}</p>{/if}
 </section>

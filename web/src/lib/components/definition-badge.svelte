@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
+	import ColoredOutlineBadge from '$lib/components/colored-outline-badge.svelte';
 	import { cn } from '$lib/utils';
 
 	type Props = {
@@ -11,16 +11,15 @@
 	let { label, color = '', class: className }: Props = $props();
 </script>
 
-<Badge
-	variant="outline"
+<ColoredOutlineBadge
+	{color}
 	class={cn(
 		'h-5 gap-1.5 px-1.5 py-0 text-[11px] font-medium shadow-none',
 		color
-			? 'border-[var(--marker-color)] bg-[color-mix(in_oklch,var(--marker-color)_8%,transparent)] text-[var(--marker-color)] dark:bg-[color-mix(in_oklch,var(--marker-color)_12%,transparent)] dark:text-[color-mix(in_oklch,var(--marker-color)_65%,white)]'
+			? 'bg-[color-mix(in_oklch,var(--badge-color)_8%,transparent)] dark:bg-[color-mix(in_oklch,var(--badge-color)_12%,transparent)]'
 			: 'border-border/70 bg-muted/30 text-muted-foreground',
 		className
 	)}
-	style={color ? `--marker-color: ${color}` : undefined}
 >
 	{label}
-</Badge>
+</ColoredOutlineBadge>

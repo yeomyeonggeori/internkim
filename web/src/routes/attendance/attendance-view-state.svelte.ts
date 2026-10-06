@@ -9,7 +9,7 @@ export type AttendanceWorkspaceView =
 	| 'handWritten';
 
 export class AttendanceViewState {
-	selected = $state<AttendanceWorkspaceView>('tools');
+	selected = $state<AttendanceWorkspaceView>('status');
 
 	constructor(private readonly prepareView: (view: AttendanceWorkspaceView) => Promise<void> = async () => undefined) {}
 

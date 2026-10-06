@@ -34,7 +34,8 @@ function startedBeforeNowWithinTheDay(): string {
 
 async function requestLeaveCoveringNow(page: Page): Promise<void> {
 	await signInToTheCentralPlane(page, '/example-co/attendance');
-	await page.getByRole('button', { name: '휴가 등록' }).first().click();
+	await page.getByTestId('leave-history-navigation').click();
+	await page.getByRole('button', { name: '휴가 신청', exact: true }).click();
 	const form = page.getByTestId('leave-request-dialog').getByTestId('leave-request-form');
 	await form.waitFor({ state: 'visible', timeout: 20000 });
 
@@ -64,14 +65,14 @@ test('a member who returns early is clocked in and no longer on leave', async ({
 	await approveTheRequest(page);
 
 	await page.reload();
-	const onLeave = page.getByTestId('active-leave-status');
+	const onLeave = page.getByTestId('attendance-own-strip');
 	await expect(onLeave).toBeVisible({ timeout: 20000 });
 	await expect(onLeave).toContainText('휴가 중');
 
 	await page.getByRole('button', { name: '출근', exact: true }).click();
 	await page.getByRole('button', { name: '출근하기' }).click();
 
-	await expect(page.getByTestId('active-leave-status')).toHaveCount(0, { timeout: 20000 });
+	await expect(page.getByTestId('attendance-own-strip')).not.toContainText('휴가 중', { timeout: 20000 });
 	await expect(page.getByRole('button', { name: '퇴근', exact: true })).toBeVisible({
 		timeout: 20000
 	});

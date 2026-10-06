@@ -62,11 +62,11 @@
 		<Select.Trigger class="h-8 w-[9.5rem] justify-between rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
 			{selectedWeekLabel}
 		</Select.Trigger>
-		<Select.Content>
+		<Select.Content><Select.Group>
 			{#each weekChoices as choice (choice.value)}
 				<Select.Item value={choice.value} label={choice.label}>{choice.label}</Select.Item>
 			{/each}
-		</Select.Content>
+		</Select.Group></Select.Content>
 	</Select.Root>
 	<TooltipIconButton label={nextWeekLabel} variant="outline" size="icon-sm" {disabled} onclick={() => onSelectWeek(week?.next ?? '')}>
 		<ChevronRightIcon />

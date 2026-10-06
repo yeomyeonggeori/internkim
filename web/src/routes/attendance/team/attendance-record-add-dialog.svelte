@@ -4,7 +4,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import ChangeReasonSelect from '../shared/change-reason-select.svelte';
 	import { getAttendanceState } from '../attendance-context.svelte';
 	import type { AttendanceText } from '../text';
 	import type { AttendanceRecordAdditionState } from './attendance-record-addition.svelte';
@@ -122,15 +122,7 @@
 				</label>
 			{/if}
 
-			<label class="grid gap-1 text-xs font-medium text-muted-foreground">
-				<span>{text.records.reasonOptional}</span>
-				<Textarea
-					bind:value={addition.reason}
-					placeholder={text.records.reasonPlaceholder}
-					disabled={addition.isSaving}
-					class="min-h-16 text-sm"
-				/>
-			</label>
+			<ChangeReasonSelect bind:value={addition.reason} disabled={addition.isSaving} label={text.records.reason} />
 
 			{#if addition.isSpanInverted}
 				<p class="text-xs text-destructive" data-testid="attendance-record-add-span-error">
