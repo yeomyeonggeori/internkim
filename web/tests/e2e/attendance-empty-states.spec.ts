@@ -101,7 +101,7 @@ for (const width of [1280, 390]) {
 			await fixture.install(page);
 			const scope = await openScene(page, scene, width);
 			await expect.poll(() => gate.reads).toBeGreaterThan(0);
-			await expect(scope.locator('[data-slot="skeleton"]').first()).toBeVisible();
+			await expect(scope.locator('[data-slot="skeleton"]:visible').first()).toBeVisible();
 			await expect(scope.getByText(scene.empty, { exact: true })).toHaveCount(0);
 			await expect(scope.locator('[data-slot="empty"]')).toHaveCount(0);
 			await capture(page, `${scene.name}-pending`, width);
