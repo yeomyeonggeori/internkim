@@ -42,6 +42,7 @@ test('a message written in a room and addressed to the agent is answered in that
 	const [sender] = plane.people;
 	const request = '인턴킴, 이번 주 정산 어떻게 됐는지 한 줄로 알려줘';
 	await plane.model.decideTurn(aTurnStartingWork(request, []));
+	await plane.model.decideTurn(aTurnStartingWork(request, []));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.callNext('reply', replyingAndFinishing(marker));

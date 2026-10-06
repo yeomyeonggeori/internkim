@@ -58,7 +58,6 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 	await plane.model.decideTurn(aTurnStartingWork(request, ['message_send']));
 	await plane.model.decideTurn(aTurnApprovingTheHeldCall(answer));
 	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
-	await plane.model.answerNext(turnRouterSchemaName, turnWordsOwingOnlyTheReply);
 	await plane.model.answerNext('bluecollar_execution_plan', aPlanThatNeedsNoClarification(recipient.name));
 	await plane.model.answerNext(expectedChangesSchemaName, changingNothingTheCheckCanRead);
 	await plane.model.callNext('message_send', sendingTheMessage(recipient.name));
@@ -82,7 +81,6 @@ test('a message the relay carries becomes a turn, an approval, and a message in 
 		sender: { email: sender.email },
 		conversationID: `conversation-${plane.runIdentifier}`,
 		messageID: 'message-2',
-		isThread: true,
 		message: answer
 	});
 	expect(answering.status, await answering.clone().text()).toBe(202);
