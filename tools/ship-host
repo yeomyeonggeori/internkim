@@ -38,6 +38,9 @@ AGENT_UNIT = "blueclaw.service"
 SETTLE_SECONDS = 120
 HOST_PACKAGE_CACHE = "/var/cache/internkim/host-packages"
 HOST_PACKAGES_KEPT = 3
+SSH_ATTEMPTS = 4
+SSH_RETRY_SECONDS = 15
+SSH_COULD_NOT_CONNECT = "exit status 255"
 FAILURE_OUTPUT_LINES = 40
 RIG_PROFILE = "@test"
 ARTIFACTS_DIRECTORY = REPOSITORY_ROOT / ".artifacts" / "ship-host"
@@ -178,7 +181,7 @@ def report_lines(output):
 
 def failure_excerpt(output):
     report = report_lines(output)
-    if report:
+    if len(report) > 1:
         return "\n".join(report)
     return "\n".join(output.strip().splitlines()[-FAILURE_OUTPUT_LINES:])
 
@@ -217,8 +220,19 @@ def send_file(local_path, remote_path):
         raise CommandFailure(f"sending {local_path} to {remote_path} exited {completed.returncode}\n{failure_excerpt(completed.stdout + completed.stderr)}")
 
 
+def with_ssh_retries(shipment, action):
+    for attempt in range(1, SSH_ATTEMPTS + 1):
+        try:
+            return action()
+        except CommandFailure as failure:
+            if attempt == SSH_ATTEMPTS or SSH_COULD_NOT_CONNECT not in str(failure):
+                raise
+            print(f"  ssh to our host failed, trying again in {SSH_RETRY_SECONDS} seconds ({attempt}/{SSH_ATTEMPTS})", flush=True)
+            shipment.sleep(SSH_RETRY_SECONDS)
+
+
 def run_on_host(shipment, script):
-    output = shipment.run([INTERNKIM, "@host", "ssh", "--sudo", "--", script])
+    output = with_ssh_retries(shipment, lambda: shipment.run([INTERNKIM, "@host", "ssh", "--sudo", "--", script]))
     return "\n".join(line for line in output.splitlines() if not line.startswith("SSH: "))
 
 
@@ -332,14 +346,14 @@ def build_host_package(shipment):
 
 def keep_package_script(staged, kept):
     return (
-        f"set -e; install -D -m 0644 {staged} {kept}; rm -f {staged}; "
+        f"set -e; if [ -f {staged} ]; then install -D -m 0644 {staged} {kept}; rm -f {staged}; fi; test -f {kept}; "
         f"ls -1t {HOST_PACKAGE_CACHE}/*.deb | tail -n +{HOST_PACKAGES_KEPT + 1} | xargs -r rm -f"
     )
 
 
 def copy_package_to_host(shipment):
     staged = f"/tmp/{PACKAGE_NAME}-{shipment.tag}-{shipment.host_architecture}.deb"
-    shipment.send(shipment.package_path, staged)
+    with_ssh_retries(shipment, lambda: shipment.send(shipment.package_path, staged))
     run_on_host(shipment, keep_package_script(staged, kept_package_path(shipment.tag, shipment.host_architecture)))
 
 
@@ -347,7 +361,7 @@ def host_install_script(shipment):
     if not shipment.options.is_host_only:
         return f"{INSTALL_LINE} --version {shipment.tag}"
     kept = kept_package_path(shipment.tag, shipment.host_architecture)
-    return f"set -e; apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y {kept}"
+    return f"set -e; dpkg --configure -a; apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y {kept}"
 
 
 def upgrade_host(shipment):
