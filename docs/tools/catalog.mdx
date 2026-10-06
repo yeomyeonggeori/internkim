@@ -57,6 +57,9 @@ and `eventHint` follows the same resolution rule as `taskHint`.
 today where the company is, through the seven days after it. Given one end of a
 window and not the other, the missing end is a day away. `query` matches the
 title, note and location, whatever the case.
+`personHints` narrows the answer to those people's schedule: the events they
+attend and the events open to the whole company, which name no attendees. Other
+people's leave is left out.
 
 `everyoneAttends` leaves the event with no attendee list, which is what open to
 the whole company means; it does not name every member. An event whose

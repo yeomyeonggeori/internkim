@@ -19,7 +19,7 @@ import {
 } from './days';
 import { labelOf } from './labels';
 import { peopleOfHints } from './people';
-import { whoseRecords, whoseRecordsHoldsAny } from './whose';
+import { whoseRecords, whoseRecordsHoldsAny, type WhoseRecords } from './whose';
 import type { RecordContext } from './company';
 import {
 	deleteTask,
@@ -377,6 +377,15 @@ function answeredEntry(context: RecordContext, entry: CompanyCalendarEntry): Ans
 	};
 }
 
+export function isOnScheduleOf(whose: WhoseRecords, entry: CompanyCalendarEntry): boolean {
+	if (isOpenToTheWholeCompany(entry)) return true;
+	return whoseRecordsHoldsAny(whose, entry.participants.map((participant) => participant.personID));
+}
+
+function isOpenToTheWholeCompany(entry: CompanyCalendarEntry): boolean {
+	return entry.source === 'event' && entry.participants.length === 0;
+}
+
 export async function eventList(context: RecordContext, input: EventListInput) {
 	const window = eventWindowOf(context, input);
 	const entries = await companyCalendarEntries(
@@ -391,9 +400,7 @@ export async function eventList(context: RecordContext, input: EventListInput) {
 		? whoseRecords(context.people, personHints, undefined, context.requesterID)
 		: null;
 	const found = entries.filter((entry) => {
-		if (whose && !whoseRecordsHoldsAny(whose, entry.participants.map((participant) => participant.personID))) {
-			return false;
-		}
+		if (whose && !isOnScheduleOf(whose, entry)) return false;
 		if (!asked) return true;
 		const searched = `${entry.title} ${entry.description} ${entry.location}`;
 		return searched.toLowerCase().includes(asked);

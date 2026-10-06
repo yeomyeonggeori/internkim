@@ -4990,7 +4990,7 @@
             "type": "number"
           },
           "personHints": {
-            "description": "Only calendar entries whose participants include these exact person IDs, names, @handles, or emails. For a personal briefing, supply the requester's exact person ID or email. Omit to read the visible company calendar.",
+            "description": "Only the calendar entries on these people's schedule: events they attend, plus events open to the whole company, which name no attendees. Another person's leave is left out. Give exact person IDs, names, @handles, or emails; for a personal briefing or a person asking about their own day, supply the requester's exact person ID or email. Omit to read the whole visible company calendar.",
             "items": {
               "type": "string"
             },

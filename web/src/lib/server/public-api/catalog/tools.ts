@@ -614,7 +614,7 @@ export const calendarListInputSchema = z.strictObject({
     .optional(),
   weekTo: z.number().int().describe('End of the week range as an offset from this week.').optional(),
   query: z.string().describe('Optional free-text filter matched against event titles, notes, and locations.').optional(),
-  personHints: z.array(z.string()).describe("Only calendar entries whose participants include these exact person IDs, names, @handles, or emails. For a personal briefing, supply the requester's exact person ID or email. Omit to read the visible company calendar.").optional(),
+  personHints: z.array(z.string()).describe("Only the calendar entries on these people's schedule: events they attend, plus events open to the whole company, which name no attendees. Another person's leave is left out. Give exact person IDs, names, @handles, or emails; for a personal briefing or a person asking about their own day, supply the requester's exact person ID or email. Omit to read the whole visible company calendar.").optional(),
   limit: z.number().positive().refine(Number.isInteger, 'Limit must be a whole number.').describe('Maximum number of events to return.').optional(),
 });
 

@@ -520,6 +520,35 @@ describe('an event written through the record', () => {
 		expect(made.participants).toEqual([]);
 	});
 
+	test('is on the schedule of a person it is open to, but not of one it is only asked of others', async () => {
+		await run('event_add', {
+			title: '전사 일정표 확인',
+			startsAt: `${companyDay}T09:00:00+09:00`,
+			endsAt: `${companyDay}T09:30:00+09:00`,
+			everyoneAttends: true
+		});
+		await run('event_add', {
+			title: '박예시만 있는 일정표 확인',
+			startsAt: `${companyDay}T09:00:00+09:00`,
+			endsAt: `${companyDay}T09:30:00+09:00`,
+			participantPersonHints: ['박예시']
+		});
+		await run('event_add', {
+			title: '내 일정표 확인',
+			startsAt: `${companyDay}T09:00:00+09:00`,
+			endsAt: `${companyDay}T09:30:00+09:00`
+		});
+
+		const mine = resultOf(await run('event_list', { query: '일정표 확인', personHints: ['이샘플'] }));
+		expect((mine.events as { title: string }[]).map((event) => event.title).sort()).toEqual([
+			'내 일정표 확인',
+			'전사 일정표 확인'
+		]);
+
+		const everyone = resultOf(await run('event_list', { query: '일정표 확인' }));
+		expect((everyone.events as unknown[]).length).toBe(3);
+	});
+
 	test('answers the hours where the company is, not in UTC', async () => {
 		const made = resultOf(
 			await run('event_add', {
