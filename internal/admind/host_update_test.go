@@ -507,3 +507,32 @@ func TestEveryHostVersionAnswerIsOneTheCatalogDescribes(t *testing.T) {
 		t.Fatalf("the answers did not cover a running and a finished update: %v", answers)
 	}
 }
+
+func servingReleases(t *testing.T, listing string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(responseWriter http.ResponseWriter, request *http.Request) {
+		io.WriteString(responseWriter, listing)
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestADateVersionHostIsOfferedAMilestoneAndCanGoBackToTheDateRelease(t *testing.T) {
+	rig := newHostUpdateRig(t)
+	rig.releaseServer = servingReleases(t, `[{"tag_name":"v2026.10.02.090000"},{"tag_name":"v0.0.1"},{"tag_name":"v2026.10.01.000000"}]`)
+	answer := rig.readVersion(t)
+	if answer.LatestStable == nil || answer.LatestStable.Version != "v0.0.1" || !answer.IsUpdateAvailable {
+		t.Fatalf("a date version host was not offered the milestone: %+v", answer)
+	}
+	rig = newHostUpdateRig(t)
+	rig.installed = "0.0.1+37"
+	rig.releaseServer = servingReleases(t, `[{"tag_name":"v2026.10.02.090000"},{"tag_name":"v0.0.1"},{"tag_name":"v2026.10.01.000000"}]`)
+	answer = rig.readVersion(t)
+	if answer.IsUpdateAvailable || answer.InstalledVersion != "v0.0.1+37" || answer.PreviousStable == nil || answer.PreviousStable.Version != "v0.0.1" {
+		t.Fatalf("a milestone host was offered an update or no way back: %+v", answer)
+	}
+	response := rig.ask(t, hostUpdateStartPath, hostUpdateAdminEmail, `{"isApproved":true,"input":{"targetVersion":"v2026.10.02.090000"}}`)
+	if response.Code != http.StatusOK || !strings.HasSuffix(rig.started[0], "--version v2026.10.02.090000") {
+		t.Fatalf("a rollback to a date release answered %d %s", response.Code, response.Body.String())
+	}
+}

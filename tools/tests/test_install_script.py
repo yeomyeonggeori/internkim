@@ -449,30 +449,45 @@ class InstallScriptTests(unittest.TestCase):
                 ])
 
     def test_a_pinned_version_installs_that_release_and_lets_apt_go_back_to_it(self):
-        shims = self.linux_machine("apt-get")
-        completed = self.run_host_install(shims, arguments=("--version", "v7"), first=[self.github(newest_tag="v7")])
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(self.requested_addresses(), [
-            f"{github_downloads}/download/v7/SHA256SUMS",
-            f"{github_downloads}/download/v7/internkim-arm64.deb",
-        ])
-        self.assertTrue(self.manager_log.read_text().splitlines()[1].startswith("apt-get install -y --allow-downgrades /"))
+        for tag in ["v0.0.1", "v2026.10.01.090507"]:
+            with self.subTest(tag=tag):
+                shims = self.linux_machine("apt-get")
+                completed = self.run_host_install(shims, arguments=("--version", tag), first=[self.github(newest_tag=tag)])
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertEqual(self.requested_addresses()[-2:], [
+                    f"{github_downloads}/download/{tag}/SHA256SUMS",
+                    f"{github_downloads}/download/{tag}/internkim-arm64.deb",
+                ])
+                self.assertTrue(self.manager_log.read_text().splitlines()[1].startswith("apt-get install -y --allow-downgrades /"))
 
     def test_a_pinned_version_older_than_the_installed_one_is_a_dnf_downgrade(self):
-        for installed, command in [("9", "downgrade"), ("7", "install"), (None, "install")]:
-            with self.subTest(installed=installed):
+        date_version = "(none):2026.10.01.090507"
+        for offered, installed, command in [
+            ("1:0.0.1", "1:0.0.2", "downgrade"),
+            ("1:0.0.2", "1:0.0.1", "install"),
+            ("1:0.0.1", "1:0.0.1", "install"),
+            ("1:0.0.1", "1:0.0.1+37", "downgrade"),
+            ("1:0.0.1+37", "1:0.0.1", "install"),
+            (date_version, "1:0.0.1", "downgrade"),
+            ("1:0.0.1", date_version, "install"),
+            (date_version, "(none):2026.10.02.000000", "downgrade"),
+            ("1:0.0.9", "1:0.0.10", "downgrade"),
+            ("1:0.0.10", "1:0.0.9", "install"),
+            ("1:0.0.1", None, "install"),
+        ]:
+            with self.subTest(offered=offered, installed=installed):
                 shims = self.linux_machine("dnf")
-                rpm_answer = '[ "$1" = -qp ] && { echo 7; exit 0; }\n' + (f"echo {installed}\n" if installed else "exit 1\n")
+                rpm_answer = f'[ "$1" = -qp ] && {{ echo "{offered}"; exit 0; }}\n' + (f'echo "{installed}"\n' if installed else "exit 1\n")
                 (Path(shims) / "rpm").write_text("#!/bin/sh\n" + rpm_answer)
                 (Path(shims) / "rpm").chmod(0o755)
-                completed = self.run_host_install(shims, arguments=("--version=v7",), first=[self.github(newest_tag="v7")])
+                completed = self.run_host_install(shims, arguments=("--version=v0.0.1",), first=[self.github(newest_tag="v0.0.1")])
                 self.assertEqual(completed.returncode, 0, completed.stderr)
                 self.assertTrue(self.manager_log.read_text().startswith(f"dnf {command} -y /"), self.manager_log.read_text())
 
     def test_a_pinned_version_that_is_not_a_tag_is_refused_before_anything_is_fetched(self):
         shims = self.linux_machine("apt-get")
         github = self.github()
-        for arguments in [("--version", "latest"), ("--version",), ("--version", "2026.10.01")]:
+        for arguments in [("--version", "latest"), ("--version",), ("--version", "2026.10.01"), ("--version", "v7"), ("--version", "0.0.1"), ("--version", "v0.0.1+37"), ("--version", "v1:0.0.1")]:
             with self.subTest(arguments=arguments):
                 completed = self.run_host_install(shims, arguments=arguments, first=[github])
                 self.assertEqual(completed.returncode, 1, completed.stdout)
@@ -486,7 +501,7 @@ class InstallScriptTests(unittest.TestCase):
         (brew / "brew").chmod(0o755)
         environment = dict(os.environ)
         environment["PATH"] = os.pathsep.join([str(brew), self.uname_shim("Darwin", "arm64"), self.path_without_a_package_manager()])
-        completed = subprocess.run(["sh", str(install_script), "host", "--version", "v7"], capture_output=True, text=True, env=environment)
+        completed = subprocess.run(["sh", str(install_script), "host", "--version", "v0.0.1"], capture_output=True, text=True, env=environment)
         self.assertEqual(completed.returncode, 1, completed.stdout)
         self.assertFalse(log_path.exists())
 

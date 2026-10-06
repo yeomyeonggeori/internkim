@@ -552,3 +552,29 @@ class ArchivedModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             archive_path = self.archive_holding(directory, "workspace/other.md", 0o600)
             self.assertEqual(rig_driver.archived_mode(archive_path, "/workspace/private/people/a/rig-backup.md"), "absent")
+
+
+class ReleaseVersionOfTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        directory = Path(tempfile.mkdtemp())
+        cls.addClassCleanup(lambda: __import__("shutil").rmtree(directory, ignore_errors=True))
+        binary = directory / "internkim"
+        subprocess.run(["go", "build", "-o", str(binary), "./cmd/internkim"], cwd=repository_root, check=True)
+        original = rig.INTERNKIM_PATH
+        rig.INTERNKIM_PATH = binary
+        cls.addClassCleanup(lambda: setattr(rig, "INTERNKIM_PATH", original))
+
+    def test_a_package_version_is_read_without_its_epoch(self):
+        for package_version, release_version in [
+            ("1:0.0.1", "0.0.1"),
+            ("1:0.0.1+37", "0.0.1+37"),
+            ("0.0.1+2", "0.0.1+2"),
+            ("2026.10.01.090507", "2026.10.01.090507"),
+        ]:
+            with self.subTest(package_version=package_version):
+                self.assertEqual(rig.release_version_of(package_version), release_version)
+
+    def test_a_version_that_is_not_one_stops_the_rig(self):
+        with self.assertRaises(rig.RigFailure):
+            rig.release_version_of("0.0.0+standin1")

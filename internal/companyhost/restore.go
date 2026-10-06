@@ -7,11 +7,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/yeomyeonggeori/internkim/internal/hostbackup"
+	"github.com/yeomyeonggeori/internkim/internal/hostversion"
 	"github.com/yeomyeonggeori/internkim/internal/runtime/blueclaw"
 )
 
@@ -160,50 +160,20 @@ func isRestorableMember(name string) bool {
 }
 
 func refuseANewerPackage(archived string, installed string) error {
-	archivedParts, isArchivedReadable := versionParts(archived)
-	installedParts, isInstalledReadable := versionParts(installed)
-	if !isArchivedReadable || !isInstalledReadable {
+	archivedVersion, errorValue := hostversion.Parse(archived)
+	if errorValue != nil {
 		return nil
 	}
-	if compareVersionParts(archivedParts, installedParts) > 0 {
+	installedVersion, errorValue := hostversion.Parse(installed)
+	if errorValue != nil {
+		return nil
+	}
+	if hostversion.Compare(archivedVersion, installedVersion) > 0 {
 		return fmt.Errorf(
 			"the backup was made by internkim %s and this computer runs %s. Its databases may carry changes this version cannot read, so upgrade internkim first",
 			archived, installed)
 	}
 	return nil
-}
-
-func versionParts(version string) ([]int, bool) {
-	fields := strings.FieldsFunc(version, func(character rune) bool { return character < '0' || character > '9' })
-	if len(fields) == 0 {
-		return nil, false
-	}
-	parts := []int{}
-	for _, field := range fields {
-		part, errorValue := strconv.Atoi(field)
-		if errorValue != nil {
-			return nil, false
-		}
-		parts = append(parts, part)
-	}
-	return parts, true
-}
-
-func compareVersionParts(left []int, right []int) int {
-	for index := 0; index < max(len(left), len(right)); index++ {
-		difference := partAt(left, index) - partAt(right, index)
-		if difference != 0 {
-			return difference
-		}
-	}
-	return 0
-}
-
-func partAt(parts []int, index int) int {
-	if index < len(parts) {
-		return parts[index]
-	}
-	return 0
 }
 
 func refuseToOverwriteWithoutConsent(archivedCompanyID string, isReplacing bool) error {

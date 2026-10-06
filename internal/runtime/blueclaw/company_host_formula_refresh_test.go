@@ -25,3 +25,13 @@ func TestTheFormulaRefreshesAnExistingCompanyAfterAnUpgrade(t *testing.T) {
 		t.Errorf("the refresh must run after the skills are prepared:\n%s", postInstall)
 	}
 }
+
+func TestTheFormulaOutranksTheDateVersionsTheTapOnceHeld(t *testing.T) {
+	formula, errorValue := HomebrewFormula(HomebrewFormulaRequest{Version: "0.0.1", SourceSHA256: "sum", SourceTarballURL: "https://example.com/a.tar.gz"})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	if !strings.Contains(formula, "\n  version \"0.0.1\"\n  version_scheme 1\n") {
+		t.Fatalf("the formula carries no version scheme:\n%s", formula)
+	}
+}

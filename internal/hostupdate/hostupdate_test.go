@@ -124,3 +124,17 @@ func TestTheUpdateUnitIsATransientUnitOfItsOwn(t *testing.T) {
 		t.Fatalf("systemd-run is given %v", got)
 	}
 }
+
+func TestTheTagOfAPackageVersionDropsTheEpoch(t *testing.T) {
+	for version, tag := range map[string]string{"1:0.0.1": "v0.0.1", "0.0.1+37": "v0.0.1+37", "2026.10.01.000000": "v2026.10.01.000000", "": "", "v0.0.1": "v0.0.1"} {
+		if got := TagOf(version); got != tag {
+			t.Errorf("TagOf(%q) = %q, want %q", version, got, tag)
+		}
+	}
+}
+
+func TestEveryDateVersionIsOlderThanEveryMilestone(t *testing.T) {
+	if !IsOlder("v2026.10.01.000000", "v0.0.1") || IsOlder("v0.0.1", "v2026.10.01.000000") {
+		t.Fatal("a date version outranked a milestone")
+	}
+}

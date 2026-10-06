@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -156,38 +155,6 @@ func TestEachFormatAndArchitectureShipsUnderANameNoVersionChanges(t *testing.T) 
 	if names := linuxPackageAssetNames(); strings.Join(names, " ") != strings.Join(expected, " ") {
 		t.Errorf("a release ships %v, and install.sh asks for %v", names, expected)
 	}
-}
-
-func TestALaterCommitIsAVersionEveryManagerOrdersAfterAnEarlierOne(t *testing.T) {
-	morning := time.Date(2026, 10, 1, 9, 5, 7, 0, time.UTC)
-	for _, pair := range [][2]time.Time{
-		{morning, morning.Add(time.Second)},
-		{morning, morning.Add(5 * time.Hour)},
-		{morning, morning.AddDate(0, 0, 9)},
-		{morning, morning.AddDate(0, 3, 0)},
-	} {
-		earlier, later := packageVersionAt(pair[0]), packageVersionAt(pair[1])
-		if compareVersionSegments(earlier, later) >= 0 {
-			t.Errorf("%s does not order before %s, so re-running install.sh would not upgrade", earlier, later)
-		}
-	}
-	if version := packageVersionAt(morning); version != "2026.10.01.090507" {
-		t.Errorf("the version reads %s", version)
-	}
-}
-
-// compareVersionSegments compares dot-separated numbers one by one, which is
-// what dpkg, rpmvercmp and pacman's vercmp all reduce to for an all-digit version.
-func compareVersionSegments(left string, right string) int {
-	leftSegments, rightSegments := strings.Split(left, "."), strings.Split(right, ".")
-	for index := range leftSegments {
-		leftNumber, _ := strconv.Atoi(leftSegments[index])
-		rightNumber, _ := strconv.Atoi(rightSegments[index])
-		if leftNumber != rightNumber {
-			return leftNumber - rightNumber
-		}
-	}
-	return 0
 }
 
 func TestTheChecksumListNamesEveryPackageTheDirectoryHolds(t *testing.T) {

@@ -29,6 +29,7 @@ import native_install_agent_update as agent_update  # noqa: E402
 from native_install_deliveries import Deliveries, load_requests  # noqa: E402
 from native_install_rig import (  # noqa: E402
     AGENT_HEALTH,
+    release_version_of,
     ARCHITECTURE,
     BACKUP_TIMER_NAME,
     BACKUP_UNIT_NAME,
@@ -523,7 +524,7 @@ class Rig:
                 write_release_directory(
                     directory / version, build_stand_in_package(directory / "packages", version, revision)
                 )
-                for version, revision in (("0.0.0+standin1", "standinrevision1"), ("0.0.0+standin2", "standinrevision2"))
+                for version, revision in (("0.0.1+1", "standinrevision1"), ("0.0.1+2", "standinrevision2"))
             ]
         directories = [self.options.older_package_directory, self.options.package_directory]
         return [
@@ -1349,8 +1350,9 @@ class Rig:
 
     def run_step_ten(self, step, releases, plane):
         """An administrator asks the agent for the newer release, the way host_update asks admind."""
-        older = package_fields(releases[0] / asset_name(".deb"))["Version"]
-        newer = package_fields(releases[1] / asset_name(".deb"))["Version"]
+        older_package = package_fields(releases[0] / asset_name(".deb"))["Version"]
+        newer_package = package_fields(releases[1] / asset_name(".deb"))["Version"]
+        older, newer = release_version_of(older_package), release_version_of(newer_package)
         self.serve_the_newer_release_as_stable(releases[1], older, newer)
         administrator = plane.administrator_email
 
@@ -1403,7 +1405,7 @@ class Rig:
         attempt_while_away = self.send_while_the_services_are_away(plane)
         finished = self.wait_in_the_guest(
             f"systemctl is-active {agent_update.UPDATE_UNIT_NAME}; dpkg-query -W -f 'version=${{Version}}\\n' {PACKAGE_NAME}",
-            lambda reading: f"version={newer}" in reading
+            lambda reading: f"version={newer_package}" in reading
             and reading.split("\n")[0].strip() not in ("active", "activating", "deactivating"),
             timeout_seconds=2400,
         )
@@ -1425,7 +1427,7 @@ class Rig:
             "admind's health route reports",
             "the unit exiting is the updater's account of itself; dpkg and the running gateway are the machine's",
         ).record(
-            f"version={newer}" in finished.stdout and build_identity_reported(self.machine).get("admindBuildID") == newer,
+            f"version={newer_package}" in finished.stdout and build_identity_reported(self.machine).get("admindBuildID") == newer,
             finished.stdout.strip() + f"\nrunning {json.dumps(build_identity_reported(self.machine))}",
         )
         step.observe(

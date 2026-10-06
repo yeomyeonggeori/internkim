@@ -29,6 +29,7 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+INTERNKIM_PATH = REPOSITORY_ROOT / "internkim"
 KERNEL_IMAGE_PATH = REPOSITORY_ROOT / ".dependency" / "container-kernel" / "Image-6.1.68-kvm"
 DISTRIBUTIONS = {
     "debian-13": "debian:trixie-slim",
@@ -173,6 +174,15 @@ def write_archive(destination, members):
             archive.write(payload)
             if len(payload) % 2:
                 archive.write(b"\n")
+
+
+def release_version_of(package_version):
+    completed = subprocess.run(
+        [str(INTERNKIM_PATH), "release", "version", "--of", package_version], capture_output=True, text=True
+    )
+    if completed.returncode != 0:
+        raise RigFailure(f"internkim does not read {package_version} as a host version: {completed.stderr.strip()}")
+    return completed.stdout.strip()
 
 
 def package_fields(package_path):
