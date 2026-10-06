@@ -227,3 +227,19 @@ test('switching accounts cancels queued writes and ignores an in-flight mutation
 	expect(controller.organizations[0].name).toBe('New Account');
 	expect(controller.isSaving).toBe(false);
 });
+
+test('a refused save reaches the form that asked and leaves the page without a second alert', async () => {
+	const controller = new CRMPageController(crmText.en);
+	await controller.load(owner.email);
+	write = async () => { throw new CRMApiError('in use', 409, 'crm_definition_in_use'); };
+	await expect(controller.saveVocabulary(controller.vocabulary)).rejects.toThrow(crmText.en.definitionInUse);
+	expect(controller.errorMessage).toBe('');
+});
+
+test('a refused move on the board has no form, so the page shows it', async () => {
+	const controller = new CRMPageController(crmText.en);
+	await controller.load(owner.email);
+	write = async () => { throw new CRMApiError('conflict', 409, 'conflict'); };
+	await expect(controller.moveOpportunity({ opportunityID: 'deal', targetStage: 'waiting', beforeOpportunityID: null })).rejects.toThrow(crmText.en.conflict);
+	expect(controller.errorMessage).toBe(crmText.en.conflict);
+});

@@ -374,22 +374,29 @@ export class BlueclawACPClient {
 	): Promise<RequestPermissionResponse> {
 		const delivery = deliveryOf(request._meta);
 		const binding = this.sessionBindingOf(request.sessionId);
-		const outcome: PostOutcome | undefined = !binding
-			? { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` }
-			: delivery.isAlreadyPosted
-				? undefined
-				: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
+		if (!binding) {
+			await this.tellTheAgent(delivery, { reason: `this relay holds no session ${request.sessionId}, so it has no conversation to ask in` });
+			return cancelled;
+		}
+		const approval = this.registerPendingApproval(request, binding, delivery, connectionThatAsked);
+		const outcome = delivery.isAlreadyPosted
+			? undefined
+			: await attemptPost(() => this.settings.postToConversation(addressedBy(binding, delivery), request.toolCall.title ?? ''));
 		if (outcome) await this.tellTheAgent(delivery, outcome);
-		if (!binding || (outcome && 'reason' in outcome)) return cancelled;
-		return this.waitForApprovalAnswer(request, binding, delivery, connectionThatAsked);
+		if (outcome && 'reason' in outcome) {
+			approval.withdraw();
+			return cancelled;
+		}
+		this.settings.approvalWasRequested(binding.addressing.conversationID);
+		return approval.answer;
 	}
 
-	private waitForApprovalAnswer(
+	private registerPendingApproval(
 		request: RequestPermissionRequest,
 		binding: SessionBinding,
 		delivery: Delivery,
 		connectionThatAsked: ClientSideConnection
-	): Promise<RequestPermissionResponse> {
+	): { answer: Promise<RequestPermissionResponse>; withdraw: () => void } {
 		const { promise, resolve } = Promise.withResolvers<RequestPermissionResponse>();
 		const pending: PendingApproval = {
 			toolCallID: request.toolCall.toolCallId,
@@ -397,17 +404,19 @@ export class BlueclawACPClient {
 			select: (optionID) => resolve({ outcome: { outcome: 'selected', optionId: optionID } })
 		};
 		this.pendingApprovals.set(request.sessionId, pending);
+		const withdraw = () => {
+			if (this.pendingApprovals.get(request.sessionId) === pending) this.pendingApprovals.delete(request.sessionId);
+		};
 		connectionThatAsked.signal.addEventListener(
 			'abort',
 			() => {
-				if (this.pendingApprovals.get(request.sessionId) === pending) this.pendingApprovals.delete(request.sessionId);
+				withdraw();
 				this.settings.report?.(`approval ${pending.toolCallID} was cancelled: blueclaw left the socket before it was answered`);
 				resolve(cancelled);
 			},
 			{ once: true }
 		);
-		this.settings.approvalWasRequested(binding.addressing.conversationID);
-		return promise;
+		return { answer: promise, withdraw };
 	}
 
 	private messageIDsInFlightIn(sessionID: string): string[] {

@@ -29,7 +29,9 @@ func (person directoryPerson) hintIdentifiers() []string {
 	return identifiers
 }
 
-func (person directoryPerson) hintTitle() string { return person.Name }
+func (person directoryPerson) hintMatchesTitle(hint string) bool {
+	return personname.Matches(hint, person.Name)
+}
 
 func (person directoryPerson) hintNearness(hint string) float64 {
 	nearness := typoNearness(normalizedHintValue(hint), normalizedHintValue(person.Name))

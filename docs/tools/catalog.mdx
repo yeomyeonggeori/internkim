@@ -61,8 +61,10 @@ title, note and location, whatever the case.
 attend and the events open to the whole company, which name no attendees. Other
 people's leave is left out.
 
-`everyoneAttends` leaves the event with no attendee list, which is what open to
-the whole company means; it does not name every member. An event whose
+`everyoneAttends` marks the event open to the whole company and leaves it with
+no attendee list; it does not name every member. An open event's answer carries
+`isOpenToCompany: true`, so an event whose attendees were all deleted reads as
+personal, not as open. An event whose
 attendees do not include the person asking for it is being asked *of* them, and
 stands at `requested` until they answer. Adding an event the company already
 holds — same title, same time, same people — is refused with

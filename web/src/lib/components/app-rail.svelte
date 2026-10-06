@@ -11,35 +11,21 @@
 	import type { AppMobileNavigationItem } from '$lib/components/app-mobile-navigation.svelte';
 	import { appShellText } from '$lib/i18n/app-shell-text';
 	import { createPageText } from '$lib/i18n/page-text.svelte';
-	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
-	import ClipboardCheckIcon from '@lucide/svelte/icons/clipboard-check';
-	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
-	import HandshakeIcon from '@lucide/svelte/icons/handshake';
-	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
-	import MailIcon from '@lucide/svelte/icons/mail';
-	import MessagesSquareIcon from '@lucide/svelte/icons/messages-square';
-	import NetworkIcon from '@lucide/svelte/icons/network';
-	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
+	import { routePathOf } from '$lib/company-path';
 	import type { WebAuthSession } from '$lib/web-auth-session';
 
-	let { session, onSearch }: { session: WebAuthSession | null; onSearch?: () => void } = $props();
+	let { session, onSearch, workspaceScope = '' }: { session: WebAuthSession | null; onSearch?: () => void; workspaceScope?: string } = $props();
 
 	const text = createPageText(appShellText);
 	const sidebar = useSidebar();
 
-	const mobilePrimaryItems = $derived<AppMobileNavigationItem[]>([
-		{ href: appNavigation.link('/messenger/'), label: text.messenger, icon: MessagesSquareIcon },
-		{ href: appNavigation.link('/attendance/'), label: text.attendance, icon: ClipboardCheckIcon },
-		{ href: appNavigation.link('/task/'), label: text.task, icon: ListChecksIcon },
-		{ href: appNavigation.link('/calendar/'), label: text.calendar, icon: CalendarDaysIcon }
-	]);
+	function mobileItems(paths: string[]): AppMobileNavigationItem[] {
+		return paths.flatMap(path => appNavigation.apps.filter(item => routePathOf(item.href).replace(/\/$/, '') === path));
+	}
+	const mobilePrimaryItems = $derived(mobileItems(['/messenger', '/attendance', '/task', '/calendar']));
 
 	const mobileMoreItems = $derived<AppMobileNavigationItem[]>([
-		{ href: appNavigation.link('/mail/'), label: text.mail, icon: MailIcon },
-		{ href: appNavigation.link('/memory/'), label: text.memory, icon: NetworkIcon },
-		{ href: appNavigation.link('/crm/'), label: text.crm, icon: HandshakeIcon },
-		{ href: appNavigation.link('/organization/'), label: text.organization, icon: UsersRoundIcon },
-		{ href: appNavigation.link('/files/'), label: text.files, icon: FolderOpenIcon },
+		...mobileItems(['/mail', '/memory', '/crm', '/organization', '/files']),
 		...appNavigation.workspace
 	]);
 
@@ -53,7 +39,7 @@
 	let appliedSessionKey = '';
 
 	$effect(() => {
-		const sessionKey = `${session?.authenticated ?? false}:${session?.email ?? ''}`;
+		const sessionKey = workspaceScope || `${session?.authenticated ?? false}:${session?.email ?? ''}`;
 		if (sessionKey === appliedSessionKey) return;
 		appliedSessionKey = sessionKey;
 		void appNavigation.load(session);

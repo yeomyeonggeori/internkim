@@ -520,6 +520,69 @@ describe('an event written through the record', () => {
 		expect(made.participants).toEqual([]);
 	});
 
+	test('says whether it is open to the whole company, and keeps a personal event personal when it changes', async () => {
+		const open = resultOf(
+			await run('event_add', {
+				title: '전사 범위 확인',
+				startsAt: `${companyDay}T14:00:00+09:00`,
+				endsAt: `${companyDay}T15:00:00+09:00`,
+				everyoneAttends: true
+			})
+		);
+		expect(open.isOpenToCompany).toBe(true);
+		expect(open.participants).toEqual([]);
+
+		const nobodyNamed = resultOf(
+			await run('event_add', {
+				title: '아무도 적지 않은 범위 확인',
+				startsAt: `${companyDay}T14:00:00+09:00`,
+				endsAt: `${companyDay}T15:00:00+09:00`,
+				participantPersonHints: []
+			})
+		);
+		expect(nobodyNamed.isOpenToCompany).toBe(true);
+
+		const own = resultOf(
+			await run('event_add', {
+				title: '내 범위 확인',
+				startsAt: `${companyDay}T16:00:00+09:00`,
+				endsAt: `${companyDay}T17:00:00+09:00`
+			})
+		);
+		expect(own.isOpenToCompany).toBeUndefined();
+
+		const noted = resultOf(await run('event_update', { eventHint: own.eventID, note: '메모' }));
+		expect(noted.isOpenToCompany).toBeUndefined();
+		expect((noted.participants as { name: string }[]).map((one) => one.name)).toEqual(['이샘플']);
+	});
+
+	test('stays personal when the only person on it is deleted', async () => {
+		const leaverID = await addMember(client, companyID, `${slug}-leaver@example.test`);
+		await client.from('member').update({ name: '최견본' }).eq('id', leaverID);
+		const made = resultOf(
+			await run('event_add', {
+				title: '떠난 사람의 일정',
+				startsAt: `${companyDay}T11:00:00+09:00`,
+				endsAt: `${companyDay}T12:00:00+09:00`,
+				participantPersonHints: ['최견본']
+			})
+		);
+		expect((made.participants as { name: string }[]).map((one) => one.name)).toEqual(['최견본']);
+
+		const deleted = await client.from('member').delete().eq('id', leaverID);
+		expect(deleted.error).toBeNull();
+
+		const onSampleSchedule = resultOf(
+			await run('event_list', { query: '떠난 사람의 일정', personHints: ['이샘플'] })
+		);
+		expect(onSampleSchedule.events).toEqual([]);
+
+		const listed = resultOf(await run('event_list', { query: '떠난 사람의 일정' }));
+		const [event] = listed.events as { isOpenToCompany?: true; participants: unknown[] }[];
+		expect(event.participants).toEqual([]);
+		expect(event.isOpenToCompany).toBeUndefined();
+	});
+
 	test('is on the schedule of a person it is open to, but not of one it is only asked of others', async () => {
 		await run('event_add', {
 			title: '전사 일정표 확인',

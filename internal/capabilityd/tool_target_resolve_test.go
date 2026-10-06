@@ -136,7 +136,7 @@ func TestEveryApprovalTargetFieldAcceptsTheIdentityItResolvesTo(t *testing.T) {
 
 			byIdentity := decodeResolvedApprovalTarget(t, resolveApprovalTargetThroughRoute(t, service, fixture.toolName, approvalTargetToolInput(byTitle.InputField, byTitle.ID)))
 
-			if byIdentity != byTitle {
+			if !reflect.DeepEqual(byIdentity, byTitle) {
 				t.Fatalf("narrowing the approved call to the identity is only safe while the field accepts it, got %+v then %+v", byTitle, byIdentity)
 			}
 		})
