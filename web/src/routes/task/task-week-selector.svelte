@@ -59,7 +59,7 @@
 		<ChevronLeftIcon />
 	</TooltipIconButton>
 	<Select.Root type="single" bind:value={selectedWeekCode} {disabled} onValueChange={(weekCode) => weekCode && onSelectWeek(weekCode)}>
-		<Select.Trigger class="h-8 w-auto justify-between max-sm:data-[size=default]:h-11 sm:w-[9.5rem] rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
+		<Select.Trigger class="h-8 w-auto justify-between sm:w-[9.5rem] rounded-[min(var(--radius-md),10px)] tabular-nums" aria-label={selectWeekLabel}>
 			{selectedWeekLabel}
 		</Select.Trigger>
 		<Select.Content><Select.Group>

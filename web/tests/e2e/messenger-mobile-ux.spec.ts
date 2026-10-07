@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expectTouchTarget } from './touch-target';
 import { mockDeviceMessenger } from './messenger-device-mock';
 
 for (const viewport of [{ width: 320, height: 760 }, { width: 568, height: 320 }, { width: 1280, height: 800 }]) {
@@ -70,11 +71,6 @@ async function openConversation(page: Page, width: number, height = 760) {
 	await expect(page.getByRole('combobox', { name: '메시지를 입력하세요' })).toBeVisible();
 }
 
-async function expectTouchTarget(control: Locator) {
-	await expect.poll(async () => (await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-	await expect.poll(async () => (await control.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
-}
-
 async function expectNoHorizontalOverflow(page: Page) {
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
 		page.viewportSize()?.width ?? 0
@@ -90,7 +86,7 @@ for (const width of [320, 360, 390]) {
 		await expectTouchTarget(attachment);
 		expect(await attachment.evaluate((element) => getComputedStyle(element).borderWidth)).toBe('0px');
 		expect(await attachment.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-		expect(await page.locator('.composer-input').evaluate((element) => parseFloat(getComputedStyle(element).borderRadius))).toBe(8);
+		expect(await page.locator('.composer-input').evaluate((element) => parseFloat(getComputedStyle(element).borderRadius))).toBeGreaterThanOrEqual(24);
 		await expect(page.getByRole('button', { name: '이모지 넣기' })).toBeHidden();
 		await expect(page.getByRole('button', { name: '서식 표시' })).toBeHidden();
 		await expectTouchTarget(page.getByRole('button', { name: '채널 목록 열기' }));

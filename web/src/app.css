@@ -283,12 +283,28 @@ html.internkim-embedded [data-app-shell-scroll] {
   pointer-events: auto;
 }
 
-@media (max-width: 639px) {
-  :is([data-slot='button'], [data-slot='toggle'],
-  [class~='group/button'], [class~='group/toggle']):not([data-sonner-toaster] *) {
-    min-height: 44px;
-    min-width: 44px;
+@layer base {
+  @media (max-width: 639px) {
+    :is([data-slot='button'], [data-slot='toggle'],
+    [class~='group/button'], [class~='group/toggle']):not([data-sonner-toaster] *) {
+      position: relative;
+      min-height: 36px;
+      min-width: 36px;
+    }
+    :is([data-slot='button'], [data-slot='toggle'],
+    [class~='group/button'], [class~='group/toggle']):not([data-sonner-toaster] *)::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      translate: -50% -50%;
+    }
   }
+}
+
+@media (max-width: 639px) {
   .messenger-channel-list [data-sidebar='menu-button'],
   .messenger-channel-list [data-sidebar='group-label'] {
     min-height: 44px;
@@ -308,7 +324,6 @@ html.internkim-embedded [data-app-shell-scroll] {
 }
 
 @media (max-width: 639px) {
-  [data-slot='tabs-trigger'],
   [data-slot='underline-tabs-trigger'], [data-slot='command-item'],
   [data-slot='dropdown-menu-item'] {
     min-height: 44px;
@@ -316,27 +331,34 @@ html.internkim-embedded [data-app-shell-scroll] {
   }
   input[data-slot='input'], input[data-slot='input-group-control'], input[data-slot='command-input'],
   textarea[data-slot], select {
-    min-height: 44px;
+    min-height: 36px;
     font-size: 16px;
   }
   [data-slot='command-input-wrapper'] [data-slot='input-group'] {
     height: 44px !important;
   }
   [data-slot='input-group'], [data-slot='select-trigger'] {
-    min-height: 44px;
+    min-height: 36px;
   }
   [data-slot='tabs-list'], [data-slot='underline-tabs-list'] {
-    min-height: 48px;
-    height: auto;
     max-width: 100%;
     overflow-x: auto;
     justify-content: flex-start;
   }
+  [data-slot='underline-tabs-list'] {
+    min-height: 48px;
+    height: auto;
+  }
   [data-slot='tabs-trigger'] { flex-shrink: 0; }
+  [data-slot='tabs-list'][data-variant='default'] {
+    height: 36px;
+  }
+  [data-slot='tabs-list'][data-variant='line'] [data-slot='tabs-trigger'] {
+    min-height: 44px;
+  }
   .calendar-toolbar [data-slot='tabs-list'] {
     width: 100%;
-    height: 44px;
-    min-height: 44px;
+    height: 36px;
     padding: 0;
   }
   .calendar-toolbar [data-slot='tabs-trigger'] {

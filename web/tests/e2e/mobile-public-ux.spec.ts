@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectTouchTarget } from './touch-target';
 import { mockBuzzDisabled } from './buzz-test-routes';
 
 for (const width of [320, 390, 1280]) {
@@ -20,8 +21,8 @@ for (const width of [320, 390, 1280]) {
 			expect(Math.abs(left!.y - right!.y)).toBeLessThan(1);
 			expect(left!.y - (primary!.y + primary!.height)).toBeLessThanOrEqual(4.5);
 			expect(right!.x - (left!.x + left!.width)).toBeLessThanOrEqual(4.5);
-			expect(left!.height).toBeGreaterThanOrEqual(44);
-			expect(right!.height).toBeGreaterThanOrEqual(44);
+			await expectTouchTarget(resend);
+			await expectTouchTarget(another);
 		}
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 		const output = process.env.MOBILE_UX_SCREENSHOTS;
