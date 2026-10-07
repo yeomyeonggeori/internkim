@@ -2,6 +2,7 @@
 	import * as Message from '$lib/components/ui/message/index.js';
 	import EmojiPicker from './emoji-picker.svelte';
 	import MessageContextMenu from './message-context-menu.svelte';
+	import MessageHoverBar from './message-hover-bar.svelte';
 	import { openThreadOnTap } from './open-thread-on-tap';
 	import { swallowClickAfterTouchHold } from './swallow-click-after-touch-hold';
 	import { swipeToReply } from './swipe-to-reply';
@@ -57,13 +58,16 @@
 		onCapture?: () => void;
 		avatar: Snippet;
 		children: Snippet<[{ nameWidthPixels: number }]>;
-		footer: Snippet;
+		footer: Snippet<[{ openPicker: (anchor: HTMLElement) => void }]>;
 	} = $props();
 
 	let contentElement = $state<HTMLDivElement | null>(null);
 	let measuredNameWidthPixels = $state(0);
+	let footerHeightPixels = $state(0);
 	let isAnchoredPickerOpen = $state(false);
+	let pickerAnchor = $state<HTMLElement | null>(null);
 	let isContextMenuOpen = $state(false);
+	let isMenuFromBar = $state(false);
 	let pictureUnderPointer = $state('');
 
 	const canChangeThis = $derived(canChange && isSettled);
@@ -80,6 +84,25 @@
 
 	async function openPickerOnceTheMenuHasClosed(): Promise<void> {
 		await tick();
+		openPickerAt(contentElement);
+	}
+
+	const menuWidthPixels = 208;
+
+	$effect(() => {
+		if (!isContextMenuOpen) isMenuFromBar = false;
+	});
+
+	function openMenuAt(anchor: HTMLElement): void {
+		const box = anchor.getBoundingClientRect();
+		isMenuFromBar = true;
+		contentElement?.dispatchEvent(
+			new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.right - menuWidthPixels, clientY: box.bottom + 6 })
+		);
+	}
+
+	function openPickerAt(anchor: HTMLElement | null): void {
+		pickerAnchor = anchor;
 		isAnchoredPickerOpen = true;
 	}
 </script>
@@ -102,6 +125,7 @@
 		canDownloadPicture={pictureToDownload !== undefined}
 		disabled={!isSettled || !hasActions}
 		bind:open={isContextMenuOpen}
+		omitsWhatTheBarOffers={isMenuFromBar}
 		onQuickReact={onReact}
 		onOpenPicker={openPickerOnceTheMenuHasClosed}
 		{onReply}
@@ -118,7 +142,7 @@
 			use:swallowClickAfterTouchHold={{ isMenuOpen: isContextMenuOpen }}
 			use:openThreadOnTap={{ onOpen: onReply, disabled: !canReply || !isSettled }}
 		>
-			<Message.Root align={mine ? 'end' : 'start'}>
+			<Message.Root align={mine ? 'end' : 'start'} style="--footer-lift: {footerHeightPixels + 10}px">
 				{#if !mine}
 					{#if endsGroup}
 						{@render avatar()}
@@ -134,7 +158,11 @@
 					{/if}
 					{@render children({ nameWidthPixels: hasHeader ? measuredNameWidthPixels : 0 })}
 					{#if hasFooter}
-						<Message.Footer class="px-0">{@render footer()}</Message.Footer>
+						<Message.Footer class="px-0">
+							<div bind:offsetHeight={footerHeightPixels} class="flex min-w-0 flex-wrap items-center gap-1.5 group-data-[align=end]/message:justify-end">
+								{@render footer({ openPicker: openPickerAt })}
+							</div>
+						</Message.Footer>
 					{/if}
 				</Message.Content>
 			</Message.Root>
@@ -148,11 +176,22 @@
 			<ReplyIcon class="size-4" />
 		</div>
 	{/if}
+	{#if hasActions && isSettled}
+		<MessageHoverBar
+			{mine}
+			canReact={canChangeThis}
+			canReply={canReply && isSettled}
+			{onReact}
+			onOpenPicker={openPickerAt}
+			{onReply}
+			onOpenMenu={openMenuAt}
+		/>
+	{/if}
 	{#if canChangeThis}
 		<EmojiPicker
 			bind:open={isAnchoredPickerOpen}
 			onPick={onReact}
-			customAnchor={contentElement}
+			customAnchor={pickerAnchor ?? contentElement}
 			side="top"
 			align={mine ? 'end' : 'start'}
 		/>

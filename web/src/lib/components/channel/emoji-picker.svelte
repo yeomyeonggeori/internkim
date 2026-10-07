@@ -26,6 +26,7 @@
 	const text = createPageText(channelText);
 
 	let query = $state('');
+	let content = $state<HTMLElement | null>(null);
 	const quickGlyphs = $derived(open ? quickEmojiGlyphs(8) : []);
 	const searchResults = $derived(query.trim() === '' ? [] : searchEmoji(query, 40));
 	const categoryLabels = $derived<Record<string, string>>({
@@ -38,6 +39,16 @@
 		Objects: text.emojiObjects,
 		Symbols: text.emojiSymbols,
 		Flags: text.emojiFlags
+	});
+
+	$effect(() => {
+		if (!open) return;
+		const closeOnScrollElsewhere = (event: Event): void => {
+			if (event.target instanceof Node && content?.contains(event.target)) return;
+			open = false;
+		};
+		window.addEventListener('scroll', closeOnScrollElsewhere, { capture: true, passive: true });
+		return () => window.removeEventListener('scroll', closeOnScrollElsewhere, { capture: true });
 	});
 
 	function pickEmoji(glyph: string): void {
@@ -56,7 +67,7 @@
 			{/snippet}
 		</Popover.Trigger>
 	{/if}
-	<Popover.Content {side} {align} {customAnchor} class="w-64 p-0">
+	<Popover.Content bind:ref={content} {side} {align} {customAnchor} class="w-64 p-0">
 		<Command.Root shouldFilter={false}>
 			<Command.Input bind:value={query} placeholder={text.searchEmoji} />
 			<Command.List>

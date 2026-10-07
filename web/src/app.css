@@ -283,6 +283,10 @@ html.internkim-embedded [data-app-shell-scroll] {
   pointer-events: auto;
 }
 
+:root {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
 .frosted-surface {
   border-color: color-mix(in srgb, var(--color-foreground) 10%, transparent);
   background-color: color-mix(in srgb, var(--color-muted) 65%, transparent);
