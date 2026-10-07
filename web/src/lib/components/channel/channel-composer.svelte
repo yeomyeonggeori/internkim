@@ -424,47 +424,55 @@
 	@media (max-width: 639px) {
 		.channel-composer :global(.composer-input) {
 			display: grid;
-			grid-template-columns: 44px minmax(0, 1fr) 44px;
+			grid-template-columns: 32px minmax(0, 1fr) 32px;
+			align-items: end;
 			column-gap: 4px;
-			padding: 4px;
-			border-radius: 26px;
+			min-height: 0;
+			height: auto;
+			padding: 3px;
+			border-radius: 20px;
 			background: color-mix(in srgb, var(--muted) 45%, var(--background));
 		}
-		.channel-composer :global(.composer-tools-start) {
-			grid-column: 1;
-			grid-row: 2;
-			align-self: end;
+		.channel-composer :global(.composer-tools-start),
+		.channel-composer :global(.composer-send-end) {
+			grid-row: 1;
 			margin: 0;
 			padding: 0;
 		}
+		.channel-composer :global(.composer-tools-start) {
+			grid-column: 1;
+		}
+		.channel-composer :global(.composer-send-end) {
+			grid-column: 3;
+		}
+		.channel-composer :global(.composer-input button) {
+			width: 32px;
+			height: 32px;
+			min-height: 32px;
+			border-radius: 9999px;
+		}
+		.channel-composer :global(.composer-tools-start button) {
+			color: var(--muted-foreground);
+		}
 		.channel-composer :global([data-slot="input-group-control"]) {
 			grid-column: 2;
-			grid-row: 2;
+			grid-row: 1;
 		}
 		.channel-composer :global(.tiptap) {
-			min-height: 44px;
+			min-height: 32px;
 			max-height: min(160px, 30dvh);
 			overflow-y: auto;
-			padding: 10px 4px;
+			padding: 6px 4px 6px 0;
 			font-size: 16px;
-			line-height: 24px;
+			line-height: 20px;
 		}
 		.channel-composer :global(.tiptap p) {
 			margin-block: 0;
 		}
 		.channel-composer :global([data-slot="input-group-control"] > span) {
-			top: 10px;
-			left: 4px;
-		}
-		.channel-composer :global(.composer-send-end) {
-			grid-column: 3;
-			grid-row: 2;
-			align-self: end;
-			margin: 0;
-			padding: 0;
-		}
-		.channel-composer :global(.composer-send-end button) {
-			border-radius: 9999px;
+			top: 6px;
+			left: 0;
+			line-height: 20px;
 		}
 	}
 </style>

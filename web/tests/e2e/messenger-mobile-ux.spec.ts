@@ -86,7 +86,14 @@ for (const width of [320, 360, 390]) {
 		await expectTouchTarget(attachment);
 		expect(await attachment.evaluate((element) => getComputedStyle(element).borderWidth)).toBe('0px');
 		expect(await attachment.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-		expect(await page.locator('.composer-input').evaluate((element) => parseFloat(getComputedStyle(element).borderRadius))).toBeGreaterThanOrEqual(24);
+		const pill = await page.locator('.composer-input').evaluate((element) => ({ radius: parseFloat(getComputedStyle(element).borderRadius), height: element.getBoundingClientRect().height }));
+		expect(pill.height).toBeLessThanOrEqual(40);
+		expect(pill.radius).toBeGreaterThanOrEqual(pill.height / 2);
+		const placeholderCenter = await page.locator('.composer-input [data-slot="input-group-control"] > span').evaluate((element) => { const box = element.getBoundingClientRect(); return box.top + box.height / 2; });
+		for (const button of [attachment, page.getByRole('button', { name: '보내기', exact: true })]) {
+			const box = await button.boundingBox();
+			expect(Math.abs((box?.y ?? 0) + (box?.height ?? 0) / 2 - placeholderCenter)).toBeLessThanOrEqual(1);
+		}
 		await expect(page.getByRole('button', { name: '이모지 넣기' })).toBeHidden();
 		await expect(page.getByRole('button', { name: '서식 표시' })).toBeHidden();
 		await expectTouchTarget(page.getByRole('button', { name: '채널 목록 열기' }));
