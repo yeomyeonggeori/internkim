@@ -17,6 +17,7 @@ import { publishBuzzMessage } from '$lib/buzz-relay-client';
 import { imetaTag, uploadBlob } from '$lib/buzz-blossom';
 import { shortcodePattern } from '$lib/messenger/custom-emoji-names';
 import type { OutgoingAttachment } from '$lib/messenger/messenger-api';
+import type { AttachmentKind } from '$lib/messenger/attachment-kind';
 import { buzzIdentity } from '$lib/stores/buzz-identity.svelte';
 
 export type ChannelParticipant = {
@@ -54,7 +55,7 @@ export type ChannelMessageReaction = {
 // open it, which is somewhere else whenever the message points at the company's
 // own machine. Empty until that copy exists.
 export type ChannelMessageAttachment = {
-	kind: 'image' | 'file';
+	kind: AttachmentKind;
 	url: string;
 	source?: string;
 	filename?: string;

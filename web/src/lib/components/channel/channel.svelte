@@ -13,6 +13,7 @@
 	import ChannelMessageBody from './channel-message-body.svelte';
 	import ChannelComposer, { type OutgoingMessage } from './channel-composer.svelte';
 	import ChannelLightbox, { type LightboxView } from './channel-lightbox.svelte';
+	import ChannelVideoPlayer from './channel-video-player.svelte';
 	import ChannelLinkPreview from './channel-link-preview.svelte';
 	import FailedMessageActions from './failed-message-actions.svelte';
 	import { createOutgoingMessages } from './outgoing-messages.svelte';
@@ -47,7 +48,8 @@
 		preparingLabel,
 		openableAttachments,
 		pictureAddressesOf,
-		messagePicturesOf
+		messagePicturesOf,
+		lightboxItemsOf
 	} from './channel-attachments';
 	import { startDownload } from './attachment-download';
 	import { messageActionsFor } from './channel-message-actions';
@@ -169,11 +171,9 @@
 	}
 
 	function openLightbox(attachments: NonNullable<ChannelMessage['attachments']>, source: string) {
-		const images = attachments
-			.filter(attachment => attachment.kind === 'image' && attachment.source)
-			.map(attachment => ({ source: attachment.source ?? '', filename: attachment.filename ?? '', width: attachment.widthPixels, height: attachment.heightPixels }));
-		if (images.length === 0) return;
-		lightbox = { images, index: Math.max(0, images.findIndex(image => image.source === source)) };
+		const items = lightboxItemsOf(attachments);
+		if (items.length === 0) return;
+		lightbox = { items, index: Math.max(0, items.findIndex(item => item.source === source)) };
 	}
 	let lastConversationSignature = '';
 	let cacheGeneration = $state(0);
@@ -600,7 +600,25 @@
 		attachments.length === 1 && attachments[0].kind === 'image' && attachments[0].source
 			? attachments[0]
 			: undefined}
-	{#if loneImage}
+	{@const loneVideo =
+		attachments.length === 1 && attachments[0].kind === 'video' && attachments[0].source
+			? attachments[0]
+			: undefined}
+	{#if loneVideo}
+		<div class={`relative w-fit max-w-[80%] self-start group-data-[align=end]/message:self-end ${imageReactionSpacing}`}>
+			<ChannelVideoPlayer
+				source={loneVideo.source ?? ''}
+				width={loneVideo.widthPixels}
+				height={loneVideo.heightPixels}
+				variant="message"
+				onOpen={() => openLightbox(attachments, loneVideo.source ?? '')}
+			/>
+			{#if !bodyText && reactions.length > 0}
+				{@render ownReactions(message, reactionAlign, nameWidthPixels)}
+			{/if}
+			{#if !bodyText}{@render timeStamp(message)}{/if}
+		</div>
+	{:else if loneImage}
 		<!-- One photograph is a photograph, not a thumbnail in a grid: it keeps its
 		     own proportions, bounded so a tall one cannot take the whole screen.
 		     Attachment.Media squares whatever it holds, which is right for a row of
