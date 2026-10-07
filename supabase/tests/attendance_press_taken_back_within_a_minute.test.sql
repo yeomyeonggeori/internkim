@@ -90,12 +90,12 @@ begin
 	answer := public.attendance_add(null, 'clock_in', null, null, 'Branch', null);
 	assert answer ->> 'status' = 'added', 'moving to another place is recorded';
 	answer := public.attendance_add(null, 'clock_out', null, null, null, null);
-	assert answer ->> 'status' = 'added', 'clocking out after a move closes the day';
-end $$;$block$, 'a clock-out right after a move is a clock-out');
+	assert answer ->> 'status' = 'removed', 'clocking out right after a move takes the move back';
+end $$;$block$, 'a clock-out right after a move ends the day where it was');
 select results_eq(
 	$$execute live_attendance('47000000-0000-0000-0000-000000000011')$$,
-	$$values ('clock_in:Office clock_in:Branch clock_out:-')$$,
-	'the move and the clock-out are both kept'
+	$$values ('clock_in:Office clock_out:-')$$,
+	'the day ends at the move, with no shift of a few seconds left behind'
 );
 
 select set_config('request.jwt.claim.sub', '47000000-0000-0000-0000-000000000002', true);
