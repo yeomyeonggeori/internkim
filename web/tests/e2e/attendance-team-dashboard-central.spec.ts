@@ -78,3 +78,27 @@ test('a team opens a server-paged employee list with search and on-demand monthl
 	expect(leaveReads).toHaveLength(1);
 	expect(leaveReads[0].input.personHints).toEqual(attendanceReads[0].input.personHints);
 });
+
+test('a day opened from a person month covers that month and steps back to it', async ({ page }) => {
+	await signInToAttendance(page);
+	await page.getByTestId('attendance-own-strip').getByRole('button').first().click();
+	const month = page.getByTestId('team-status-grid');
+	await expect(month).toBeVisible();
+	const personSheet = page.locator('[data-slot="sheet-content"]').filter({ has: month });
+	const day = page.locator('[data-testid^="team-status-cell-"]').first();
+	const detail = page.getByTestId('team-status-day-detail-dialog');
+	await day.click();
+	await expect(detail).toBeVisible();
+	const personBox = await personSheet.boundingBox();
+	await expect.poll(async () => { const box = await detail.boundingBox(); return [box?.x, box?.width]; }).toEqual([personBox?.x, personBox?.width]);
+	await detail.getByRole('button', { name: /^뒤로: / }).click();
+	await expect(detail).toHaveCount(0);
+	await expect(month).toBeVisible();
+	await day.click();
+	await expect(detail).toBeVisible();
+	await page.mouse.click(10, 500);
+	await expect(detail).toHaveCount(0);
+	await expect(month).toBeVisible();
+	await page.mouse.click(10, 500);
+	await expect(month).toHaveCount(0);
+});

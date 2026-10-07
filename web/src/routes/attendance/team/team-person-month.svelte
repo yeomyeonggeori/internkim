@@ -96,7 +96,7 @@
 {#if summary}
 	<div class:opacity-60={loading} aria-busy={loading}>
 		{#if member.memberID === summary.currentMemberID}{#key summary.month}<PersonWorkStandard {summary} />{/key}{/if}
-		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} />
+		<TeamStatusGrid {summary} onSelectMonth={(nextMonth) => load(nextMonth)} initialMemberName={member.name} backLabel={member.name} />
 	</div>
 {:else if !error}
 	<div aria-busy="true">
