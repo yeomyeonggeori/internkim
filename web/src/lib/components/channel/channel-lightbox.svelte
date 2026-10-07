@@ -1,22 +1,48 @@
 <script lang="ts" module>
-	export type LightboxView = { images: { source: string; width?: number; height?: number }[]; index: number };
+	export type LightboxView = {
+		images: { source: string; filename: string; width?: number; height?: number }[];
+		index: number;
+	};
 </script>
 
 <script lang="ts">
 	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import DownloadIcon from '@lucide/svelte/icons/download';
+	import XIcon from '@lucide/svelte/icons/x';
+	import ZoomInIcon from '@lucide/svelte/icons/zoom-in';
+	import ZoomOutIcon from '@lucide/svelte/icons/zoom-out';
 	import { fade } from 'svelte/transition';
 	import LoadingImage from '$lib/components/loading-image.svelte';
+	import { Slider } from '$lib/components/ui/slider/index.js';
+	import { channelText } from '$lib/i18n/channel-text';
+	import { createPageText } from '$lib/i18n/page-text.svelte';
+	import { startDownload } from './attachment-download';
 
 	let { view = $bindable() }: { view: LightboxView | null } = $props();
 
+	const text = createPageText(channelText);
+	const smallestZoomPercent = 100;
+	const largestZoomPercent = 300;
+	const zoomStepPercent = 10;
+
 	let touchStartX = 0;
 	let touchMoved = false;
+	let zoomPercent = $state(smallestZoomPercent);
+
+	$effect(() => {
+		if (!view) zoomPercent = smallestZoomPercent;
+	});
 
 	function step(delta: number) {
 		if (!view || view.images.length < 2) return;
 		const count = view.images.length;
+		zoomPercent = smallestZoomPercent;
 		view = { images: view.images, index: (view.index + delta + count) % count };
+	}
+
+	function zoomBy(deltaPercent: number) {
+		zoomPercent = Math.min(largestZoomPercent, Math.max(smallestZoomPercent, zoomPercent + deltaPercent));
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -67,16 +93,64 @@
 			onclick={closeFromBackdrop}
 		></button>
 		{#key view.index}
-			<LoadingImage
-				src={currentImage.source}
-				width={currentImage.width}
-				height={currentImage.height}
-				alt=""
-				loading="eager"
-				maxHeight="calc(100dvh - 3rem)"
-				class="pointer-events-none z-10 max-w-[calc(100vw-3rem)] rounded-md"
-			/>
+			<div class="pointer-events-none z-10 transition-transform" style:transform={`scale(${zoomPercent / 100})`}>
+				<LoadingImage
+					src={currentImage.source}
+					width={currentImage.width}
+					height={currentImage.height}
+					alt=""
+					loading="eager"
+					maxHeight="calc(100dvh - 3rem)"
+					class="max-w-[calc(100vw-3rem)] rounded-md"
+				/>
+			</div>
 		{/key}
+		<div class="absolute inset-x-0 top-0 z-20 flex items-center gap-3 p-3 text-white">
+			<span class="min-w-0 flex-1 truncate text-sm text-white/90">{currentImage.filename}</span>
+			<button
+				type="button"
+				class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
+				aria-label={text.downloadAttachment}
+				onclick={() => startDownload(currentImage.source, currentImage.filename)}
+			>
+				<DownloadIcon class="size-5" />
+			</button>
+			<div class="flex items-center gap-2 max-md:hidden">
+				<button
+					type="button"
+					class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
+					aria-label={text.zoomOut}
+					onclick={() => zoomBy(-zoomStepPercent)}
+				>
+					<ZoomOutIcon class="size-5" />
+				</button>
+				<Slider
+					type="single"
+					bind:value={zoomPercent}
+					min={smallestZoomPercent}
+					max={largestZoomPercent}
+					step={zoomStepPercent}
+					class="w-28"
+				/>
+				<button
+					type="button"
+					class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
+					aria-label={text.zoomIn}
+					onclick={() => zoomBy(zoomStepPercent)}
+				>
+					<ZoomInIcon class="size-5" />
+				</button>
+				<span class="w-12 text-sm tabular-nums text-white/90">{zoomPercent}%</span>
+			</div>
+			<button
+				type="button"
+				class="flex size-9 items-center justify-center rounded-full transition hover:bg-white/20"
+				aria-label={text.closeViewer}
+				onclick={() => (view = null)}
+			>
+				<XIcon class="size-5" />
+			</button>
+		</div>
 		{#if hasMultiple}
 			<button
 				type="button"

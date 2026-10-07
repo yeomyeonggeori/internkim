@@ -5,6 +5,7 @@
 	import { quickEmojiGlyphs, rememberEmojiGlyph } from '$lib/messenger/recent-emoji';
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
@@ -18,6 +19,7 @@
 		canEdit,
 		canCopyText,
 		canCopyPicture,
+		canDownloadPicture,
 		disabled,
 		open = $bindable(false),
 		onQuickReact,
@@ -26,6 +28,7 @@
 		onEdit,
 		onCopyText,
 		onCopyPicture,
+		onDownloadPicture,
 		onDelete,
 		children
 	}: {
@@ -35,6 +38,7 @@
 		canEdit: boolean;
 		canCopyText: boolean;
 		canCopyPicture: boolean;
+		canDownloadPicture: boolean;
 		disabled?: boolean;
 		open?: boolean;
 		onQuickReact: (glyph: string) => void;
@@ -43,6 +47,7 @@
 		onEdit: () => void;
 		onCopyText: () => void;
 		onCopyPicture: () => void;
+		onDownloadPicture: () => void;
 		onDelete: () => void;
 		children: Snippet;
 	} = $props();
@@ -94,6 +99,12 @@
 			<ContextMenu.Item onSelect={onCopyPicture}>
 				<ImageIcon />
 				<span>{text.copyPicture}</span>
+			</ContextMenu.Item>
+		{/if}
+		{#if canDownloadPicture}
+			<ContextMenu.Item onSelect={onDownloadPicture}>
+				<DownloadIcon />
+				<span>{text.downloadPicture}</span>
 			</ContextMenu.Item>
 		{/if}
 		{#if canCopyText}
