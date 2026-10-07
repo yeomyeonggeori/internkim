@@ -58,11 +58,7 @@
 			</Card.Root>
 		{:else}
 			<div class="space-y-3">
-				<div class="space-y-3 sm:hidden">
-					<Button variant="outline" disabled>{#if text}{text.table.sort}{:else}<Skeleton class="h-4 w-7" />{/if}</Button>
-					<div class="grid gap-2">{#each [0, 1, 2, 3] as row (row)}<div class="min-w-0 rounded-lg border bg-card px-3 py-1" data-task-list-row-skeleton><div class="flex min-w-0 items-center gap-2"><div class="flex min-h-11 min-w-0 flex-1 items-center"><Skeleton class="h-4 w-4/5" /></div><Skeleton class="h-7 w-28 shrink-0" /></div><div class="flex min-w-0 items-center gap-2"><Skeleton class="h-3 flex-1" /><Button variant="ghost" size="sm" disabled class="-mr-2 text-muted-foreground">{#if text}{text.table.details}{:else}<Skeleton class="h-4 w-16" />{/if}</Button></div></div>{/each}</div>
-				</div>
-				<div class="hidden overflow-hidden rounded-lg border bg-card sm:block">
+				<div class="overflow-hidden rounded-lg border bg-card">
 					<Table.Root class="min-w-[1080px]">
 						<Table.Header class="bg-muted/40"><Table.Row class="hover:bg-transparent">{#each [text?.table.business, text?.table.type, text?.table.content, text?.table.participants, text?.table.size, text?.table.status, text?.table.startDate, text?.table.endDate] as heading, column (column)}<Table.Head class="h-10"><div class="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{#if heading}{heading}{:else}<Skeleton class="h-4 w-12" />{/if}{#if column !== 2 && column !== 3}<ArrowUpDownIcon class="size-3 opacity-40" />{/if}</div></Table.Head>{/each}</Table.Row></Table.Header>
 						<Table.Body>{#each [0, 1, 2, 3, 4, 5] as row (row)}<Table.Row>

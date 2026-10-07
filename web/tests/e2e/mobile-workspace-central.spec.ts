@@ -39,17 +39,15 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await page.keyboard.press('Escape');
 		await page.getByRole('tab', { name: '목록', exact: true }).click();
 		if (width < 640) {
-			const task = page.getByRole('listitem').filter({ has: page.getByRole('button', { name: title, exact: true }) });
+			const task = page.getByRole('row').filter({ hasText: title });
 			await expect(task).toBeVisible();
-			await task.getByRole('button', { name: '업무 정보', exact: true }).click();
 			await expect(task).toContainText('M');
-			await fits(page, 'task-list-details');
+			await fits(page, 'task-list');
 			await task.locator('[data-slot="select-trigger"]').click();
 			await page.getByRole('option', { name: '진행', exact: true }).click();
 			await expect.poll(async () => (await taskRowOf(taskIDs[0]))?.status).toBe('in_progress');
-			await page.getByRole('button', { name: '정렬', exact: true }).click();
 			await expect(page.getByRole('button', { name: /시작일/ })).toBeVisible();
-			await task.getByRole('button', { name: title, exact: true }).click();
+			await task.getByText(title, { exact: true }).click();
 			await expect(page.getByRole('dialog')).toBeVisible();
 			await fits(page, 'task-edit');
 			await page.keyboard.press('Escape');
