@@ -19,6 +19,8 @@ export type InboundQueueSettings = {
 
 const defaultAttemptCeiling = 8;
 const eventSuffix = '.json';
+const settledSuffix = '.settled';
+const settledMemoryMilliseconds = 7 * 24 * 60 * 60 * 1000;
 
 export class InboundQueue {
 	private readonly settings: InboundQueueSettings;
@@ -30,11 +32,11 @@ export class InboundQueue {
 		this.attemptCeiling = settings.attemptCeiling ?? defaultAttemptCeiling;
 	}
 
-	/** Writes the event to disk. Returns false when this key is already known. */
+	/** Writes the event to disk. Returns false when this key is already known, delivered or not. */
 	async keep(key: string, body: unknown): Promise<boolean> {
 		await this.makeDirectory();
 		const path = this.pathFor(key);
-		if (await alreadyWritten(path)) return false;
+		if (await alreadyWritten(path) || await alreadyWritten(this.settledPathFor(key))) return false;
 		await this.write(path, { key, body, attempts: 0, firstQueuedAt: new Date().toISOString(), isPrompt: false });
 		return true;
 	}
@@ -43,6 +45,7 @@ export class InboundQueue {
 	async undelivered(): Promise<QueuedInboundEvent[]> {
 		await this.makeDirectory();
 		const names = await readdir(this.settings.directoryPath);
+		await this.forgetOldSettlements(names);
 		const events: QueuedInboundEvent[] = [];
 		for (const name of names) {
 			if (!name.endsWith(eventSuffix)) continue;
@@ -71,6 +74,8 @@ export class InboundQueue {
 
 	/** Removes the event; it has been delivered, or given up on. */
 	async forget(key: string): Promise<void> {
+		await this.makeDirectory();
+		await writeDurably(this.settledPathFor(key), '');
 		await unlink(this.pathFor(key)).catch(nothingWhenMissing);
 	}
 
@@ -85,8 +90,22 @@ export class InboundQueue {
 	}
 
 	private pathFor(key: string): string {
-		const named = createHash('sha256').update(key).digest('hex');
-		return join(this.settings.directoryPath, `${named}${eventSuffix}`);
+		return join(this.settings.directoryPath, `${nameOf(key)}${eventSuffix}`);
+	}
+
+	private settledPathFor(key: string): string {
+		return join(this.settings.directoryPath, `${nameOf(key)}${settledSuffix}`);
+	}
+
+	private async forgetOldSettlements(names: string[]): Promise<void> {
+		for (const name of names) {
+			if (!name.endsWith(settledSuffix)) continue;
+			const path = join(this.settings.directoryPath, name);
+			const settled = await stat(path).catch(nothingWhenMissing);
+			if (settled && Date.now() - settled.mtimeMs > settledMemoryMilliseconds) {
+				await unlink(path).catch(nothingWhenMissing);
+			}
+		}
 	}
 
 	private async readEvent(path: string): Promise<QueuedInboundEvent | null> {
@@ -103,6 +122,10 @@ export class InboundQueue {
 	private write(path: string, event: QueuedInboundEvent): Promise<void> {
 		return writeDurably(path, JSON.stringify(event));
 	}
+}
+
+function nameOf(key: string): string {
+	return createHash('sha256').update(key).digest('hex');
 }
 
 function readQueuedEvent(offered: unknown): QueuedInboundEvent | null {
