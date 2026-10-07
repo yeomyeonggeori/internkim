@@ -1,5 +1,6 @@
 import { parseRoutedCall, serveRoutedCall, type GatewayAnswer } from './gateway-connector';
 import type { Dispatch } from './forward';
+import { doublingDelayMilliseconds } from './failure';
 import { FairOutbox } from './fair-outbox';
 import { MessengerStreams } from './messenger-streams';
 import { isStreamKind, parseStreamMessage, pingFrame } from '../../workers/connection-gateway/src/host-protocol';
@@ -10,8 +11,7 @@ export const pingEveryMilliseconds = 30_000;
 export const silenceBeforeRedialMilliseconds = 75_000;
 
 export function retryDelayMilliseconds(consecutiveFailures: number): number {
-	const doubled = firstRetryMilliseconds * 2 ** Math.max(consecutiveFailures - 1, 0);
-	return Math.min(doubled, longestRetryMilliseconds);
+	return doublingDelayMilliseconds(consecutiveFailures, firstRetryMilliseconds, longestRetryMilliseconds);
 }
 
 export function serverSocketURL(gatewayURL: string, companyID: string): string {

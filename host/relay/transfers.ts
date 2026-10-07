@@ -1,3 +1,4 @@
+import { reasonOf } from './failure';
 import type { CopyProgress } from './transfer-store';
 
 export type TransferWatcher = { memberID: string; transferID: string };
@@ -59,7 +60,7 @@ export class Transfers {
 		} catch (failure) {
 			this.running.delete(key);
 			const status = statusOf(failure);
-			const error = failure instanceof Error ? failure.message : String(failure);
+			const error = reasonOf(failure);
 			for (const watcher of job.watchers) {
 				this.deliver({ kind: 'transfer.failed', transferID: watcher.transferID, status, error }, watcher.memberID);
 			}

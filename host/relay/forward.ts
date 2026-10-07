@@ -2,6 +2,7 @@ import { extensionOf } from './asset-store';
 import { leafNameOf, type Answered, type KeptFileReference } from './file-transfer';
 import { TransferFailed } from './transfer-store';
 import { MessengerAnswered } from './person-picture';
+import { reasonOf } from './failure';
 import { chatdRestartWaitMilliseconds, fetchWhenChatdListens } from './chatd-reach';
 
 export type Call = {
@@ -130,8 +131,7 @@ export function askAdmind(socketPath: string, call: AdmindCall): Promise<Respons
 		},
 		body: call.body
 	}).catch((unreachable) => {
-		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
-		throw new Error(`admind did not answer on ${socketPath}: ${reason}`);
+		throw new Error(`admind did not answer on ${socketPath}: ${reasonOf(unreachable)}`);
 	});
 }
 
@@ -175,8 +175,7 @@ export async function forwardToChatd(
 		body: JSON.stringify({ ...body, largestBytes })
 	};
 	const response = await fetchWhenChatdListens(url, request, restartWaitMilliseconds).catch((unreachable) => {
-		const reason = unreachable instanceof Error ? unreachable.message : String(unreachable);
-		throw new Error(`${chatdBaseURL} did not answer: ${reason}`);
+		throw new Error(`${chatdBaseURL} did not answer: ${reasonOf(unreachable)}`);
 	});
 	return { status: response.status, body: await response.json().catch(() => null) };
 }
