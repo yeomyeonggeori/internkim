@@ -1,3 +1,4 @@
+import { doublingDelayMilliseconds } from './failure';
 import type { McpServerEntry } from './record-catalog';
 import {
 	ClientSideConnection,
@@ -206,18 +207,14 @@ export class BlueclawACPClient {
 	}
 
 	private async reconnectUntilItComesBack(): Promise<void> {
-		for (
-			let delay = firstReconnectDelayMilliseconds;
-			!this.isClosed && !this.connection;
-			delay = Math.min(delay * 2, longestReconnectDelayMilliseconds)
-		) {
+		for (let failures = 1; !this.isClosed && !this.connection; failures++) {
 			try {
 				await this.agent();
 				this.settings.report?.('blueclaw is back');
 				return;
 			} catch (failure) {
 				this.settings.report?.(`blueclaw is not back yet: ${String(failure)}`);
-				await Bun.sleep(delay);
+				await Bun.sleep(doublingDelayMilliseconds(failures, firstReconnectDelayMilliseconds, longestReconnectDelayMilliseconds));
 			}
 		}
 	}

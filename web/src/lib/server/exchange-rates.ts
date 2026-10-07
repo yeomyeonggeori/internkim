@@ -9,6 +9,7 @@ const providerName = 'Frankfurter';
 const frankfurterBaseURL = 'https://api.frankfurter.dev/v2';
 const cacheLifetimeInMilliseconds = 12 * 60 * 60 * 1000;
 const rateCacheLifetimeInMilliseconds = 60 * 60 * 1000;
+const defaultRequestTimeoutInMilliseconds = 5000;
 
 const zeroDecimalCurrencyCodes = new Set([
 	'BIF',
@@ -118,24 +119,42 @@ function pathOf(url: URL): string {
 	return `${url.pathname}${url.search}`;
 }
 
-async function fetchJSON(fetchImplementation: typeof fetch, url: URL): Promise<unknown> {
+async function fetchJSON(
+	fetchImplementation: typeof fetch,
+	url: URL,
+	requestTimeoutInMilliseconds: number
+): Promise<unknown> {
 	const attemptedPath = pathOf(url);
-	let response: Response;
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), requestTimeoutInMilliseconds);
 	try {
-		response = await fetchImplementation(url);
+		let response: Response;
+		try {
+			response = await fetchImplementation(url, { signal: controller.signal });
+		} catch (cause) {
+			const causeMessage = cause instanceof Error ? cause.message : String(cause);
+			throw new Error(`${providerName} request to ${attemptedPath} failed: ${causeMessage}`);
+		}
+		if (!response.ok) {
+			throw new Error(`${providerName} request to ${attemptedPath} failed with status ${response.status}`);
+		}
+		return await response.json();
 	} catch (cause) {
-		const causeMessage = cause instanceof Error ? cause.message : String(cause);
-		throw new Error(`${providerName} request to ${attemptedPath} failed: ${causeMessage}`);
+		if (controller.signal.aborted) {
+			throw new Error(`${providerName} request to ${attemptedPath} timed out after ${requestTimeoutInMilliseconds}ms`);
+		}
+		throw cause;
+	} finally {
+		clearTimeout(timeout);
 	}
-	if (!response.ok) {
-		throw new Error(`${providerName} request to ${attemptedPath} failed with status ${response.status}`);
-	}
-	return response.json();
 }
 
-async function fetchedSupportedCurrencies(fetchImplementation: typeof fetch): Promise<SupportedCurrency[]> {
+async function fetchedSupportedCurrencies(
+	fetchImplementation: typeof fetch,
+	requestTimeoutInMilliseconds: number
+): Promise<SupportedCurrency[]> {
 	const currenciesURL = new URL(`${frankfurterBaseURL}/currencies`);
-	const payload = await fetchJSON(fetchImplementation, currenciesURL);
+	const payload = await fetchJSON(fetchImplementation, currenciesURL, requestTimeoutInMilliseconds);
 	const currencies = parsedCurrenciesPayload(payload, pathOf(currenciesURL));
 	return currencies.map(({ code, name }) => ({
 		code,
@@ -147,7 +166,8 @@ async function fetchedSupportedCurrencies(fetchImplementation: typeof fetch): Pr
 async function cachedSupportedCurrencies(
 	caches: ProviderCaches,
 	fetchImplementation: typeof fetch,
-	nowInMilliseconds: number
+	nowInMilliseconds: number,
+	requestTimeoutInMilliseconds: number
 ): Promise<SupportedCurrency[]> {
 	const cache = caches.supportedCurrencies;
 	if (cache && nowInMilliseconds - cache.fetchedAtInMilliseconds < cacheLifetimeInMilliseconds) {
@@ -155,7 +175,7 @@ async function cachedSupportedCurrencies(
 	}
 
 	try {
-		const currencies = await fetchedSupportedCurrencies(fetchImplementation);
+		const currencies = await fetchedSupportedCurrencies(fetchImplementation, requestTimeoutInMilliseconds);
 		caches.supportedCurrencies = { currencies, fetchedAtInMilliseconds: nowInMilliseconds };
 		return currencies;
 	} catch (cause) {
@@ -172,7 +192,8 @@ async function fetchedLatestRate(
 	fetchImplementation: typeof fetch,
 	base: string,
 	quote: string,
-	nowInMilliseconds: number
+	nowInMilliseconds: number,
+	requestTimeoutInMilliseconds: number
 ): Promise<ExchangeRate> {
 	if (base === quote) return { base, quote, rate: 1, asOf: todayInUTC(nowInMilliseconds) };
 
@@ -180,7 +201,7 @@ async function fetchedLatestRate(
 	latestURL.searchParams.set('base', base);
 	latestURL.searchParams.set('quotes', quote);
 
-	const payload = await fetchJSON(fetchImplementation, latestURL);
+	const payload = await fetchJSON(fetchImplementation, latestURL, requestTimeoutInMilliseconds);
 	const parsed = parsedLatestPayload(payload, quote, pathOf(latestURL));
 	return { base: parsed.base, quote, rate: parsed.rate, asOf: parsed.date };
 }
@@ -190,9 +211,12 @@ async function cachedLatestRate(
 	fetchImplementation: typeof fetch,
 	base: string,
 	quote: string,
-	nowInMilliseconds: number
+	nowInMilliseconds: number,
+	requestTimeoutInMilliseconds: number
 ): Promise<ExchangeRate> {
-	if (base === quote) return fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds);
+	if (base === quote) {
+		return fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds, requestTimeoutInMilliseconds);
+	}
 
 	const pairKey = pairKeyOf(base, quote);
 	const cache = caches.ratesByPairKey.get(pairKey);
@@ -201,7 +225,7 @@ async function cachedLatestRate(
 	}
 
 	try {
-		const rate = await fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds);
+		const rate = await fetchedLatestRate(fetchImplementation, base, quote, nowInMilliseconds, requestTimeoutInMilliseconds);
 		caches.ratesByPairKey.set(pairKey, { rate, fetchedAtInMilliseconds: nowInMilliseconds });
 		return rate;
 	} catch (cause) {
@@ -210,12 +234,17 @@ async function cachedLatestRate(
 	}
 }
 
-export function frankfurterProvider(options?: { fetch?: typeof fetch; now?: () => number }): ExchangeRateProvider {
+export function frankfurterProvider(options?: {
+	fetch?: typeof fetch;
+	now?: () => number;
+	requestTimeoutInMilliseconds?: number;
+}): ExchangeRateProvider {
 	const fetchImplementation = options?.fetch ?? fetch;
 	const now = options?.now ?? Date.now;
+	const requestTimeoutInMilliseconds = options?.requestTimeoutInMilliseconds ?? defaultRequestTimeoutInMilliseconds;
 	const caches: ProviderCaches = { supportedCurrencies: null, ratesByPairKey: new Map() };
 	return {
-		supportedCurrencies: () => cachedSupportedCurrencies(caches, fetchImplementation, now()),
-		latestRate: (base, quote) => cachedLatestRate(caches, fetchImplementation, base, quote, now())
+		supportedCurrencies: () => cachedSupportedCurrencies(caches, fetchImplementation, now(), requestTimeoutInMilliseconds),
+		latestRate: (base, quote) => cachedLatestRate(caches, fetchImplementation, base, quote, now(), requestTimeoutInMilliseconds)
 	};
 }

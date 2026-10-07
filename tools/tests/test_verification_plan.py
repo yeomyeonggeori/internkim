@@ -20,6 +20,19 @@ def verification_module():
 
 
 class VerificationPlanTests(unittest.TestCase):
+    def test_currency_changes_run_the_mocked_recovery_browser_regression(self):
+        groups = verification_module().GROUPS
+        group = next(group for group in groups if group.name == "crm-currency-ui")
+        for path in [
+            "web/src/routes/crm/crm-view-currency.svelte.ts",
+            "web/src/routes/crm/crm-view-currency-select.svelte",
+            "web/src/lib/currency/converted-amount.ts",
+            "web/src/lib/server/exchange-rates.ts",
+            "web/tests/e2e/crm-currency-recovery.spec.ts",
+        ]:
+            self.assertTrue(group.is_touched_by([path]))
+        self.assertEqual(group.commands, [["bun", "run", "test:e2e:crm:currency:fixture"]])
+
     def test_web_installers_and_consumers_share_a_serial_lane(self):
         groups = verification_module().GROUPS
         web_groups = [group for group in groups if group.working_directory == "web"]

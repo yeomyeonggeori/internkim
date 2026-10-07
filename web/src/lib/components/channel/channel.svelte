@@ -923,7 +923,7 @@
 				<div
 					bind:this={scrollContainer}
 					onscroll={handleViewportScroll}
-					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+1rem)] [scrollbar-gutter:stable]"
+					class="@container/conversation flex min-h-0 flex-1 flex-col-reverse gap-4 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 pt-12 pb-[calc(var(--dock-height)+2.5rem)] [scrollbar-gutter:stable]"
 				>
 					{#each reversedTimeline as item (item.id)}
 						{#if item.kind === 'date'}
@@ -944,7 +944,7 @@
 						variant="outline"
 						size="sm"
 						onclick={scrollToBottom}
-						class="absolute bottom-[calc(var(--dock-height)+1rem)] left-1/2 z-10 -translate-x-1/2 shadow-md"
+						class="absolute bottom-[calc(var(--dock-height)+2.5rem)] left-1/2 z-10 -translate-x-1/2 shadow-md"
 					>
 						<ArrowDownIcon data-icon="inline-start" />
 						{jumpToLatestLabel(unseenCount, text)}

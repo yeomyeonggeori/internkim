@@ -128,3 +128,16 @@ for (const width of [320, 360, 390, 568, 1280]) {
 		await fits(page, 'circle-editor');
 	});
 }
+
+test('switching sections from the mobile navigation keeps the back history where it was', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await signInToTheCentralPlane(page, '/example-co/task');
+	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
+	const navigation = page.getByRole('navigation', { name: '앱', exact: true });
+	const historyBefore = await page.evaluate(() => history.length);
+	for (const [label, path] of [['근태', '/example-co/attendance'], ['일정', '/example-co/calendar'], ['메신저', '/example-co/messenger'], ['업무', '/example-co/task']]) {
+		await navigation.getByRole('link', { name: label, exact: true }).click();
+		await expect(page).toHaveURL(new RegExp(`${path}(\\?|$)`));
+	}
+	expect(await page.evaluate(() => history.length)).toBe(historyBefore);
+});

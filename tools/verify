@@ -82,19 +82,6 @@ GROUPS = [
         ],
     ),
     Group(
-        "office-host-contract",
-        [
-            ".dependency/blueclaw*",
-            ".dependency/internkim-plugin*",
-            "tools/verify-office-host-contract",
-            "tools/tests/test_verify_office_host_contract.py",
-        ],
-        [
-            ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_verify_office_host_contract.py"],
-            ["tools/verify-office-host-contract"],
-        ],
-    ),
-    Group(
         "skill-tool-references",
         [
             ".dependency/*",
@@ -319,6 +306,19 @@ GROUPS = [
             holding_the_local_plane(["bun", "run", "test:e2e:task:central"]),
             holding_the_local_plane(["bun", "run", "test:e2e:crm:central"]),
         ],
+        working_directory="web",
+        lane="web",
+    ),
+    Group(
+        "crm-currency-ui",
+        [
+            "web/src/routes/crm/crm-view-currency*",
+            "web/src/routes/crm/text.ts",
+            "web/src/lib/currency/converted-amount.ts",
+            "web/src/lib/server/exchange-rates.ts",
+            "web/tests/e2e/crm-currency-recovery.spec.ts",
+        ],
+        [["bun", "run", "test:e2e:crm:currency:fixture"]],
         working_directory="web",
         lane="web",
     ),
