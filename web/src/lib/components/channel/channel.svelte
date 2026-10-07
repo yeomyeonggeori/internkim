@@ -42,8 +42,10 @@
 		formatAttachmentMeta,
 		preparingLabel,
 		openableAttachments,
-		pictureAddressesOf
+		pictureAddressesOf,
+		messagePicturesOf
 	} from './channel-attachments';
+	import { startDownload } from './attachment-download';
 	import { messageActionsFor } from './channel-message-actions';
 	import type { MentionPerson } from '$lib/messenger/mention-candidates';
 	import { latestSentAtOf } from '$lib/messenger/conversation-read-marker';
@@ -65,6 +67,7 @@
 	import FileIcon from '@lucide/svelte/icons/file';
 	import InfoIcon from '@lucide/svelte/icons/info';
 	import RotateCwIcon from '@lucide/svelte/icons/rotate-cw';
+	import DownloadIcon from '@lucide/svelte/icons/download';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import MessageCircleDashedIcon from '@lucide/svelte/icons/message-circle-dashed';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -164,7 +167,7 @@
 	function openLightbox(attachments: NonNullable<ChannelMessage['attachments']>, source: string) {
 		const images = attachments
 			.filter(attachment => attachment.kind === 'image' && attachment.source)
-			.map(attachment => ({ source: attachment.source ?? '', width: attachment.widthPixels, height: attachment.heightPixels }));
+			.map(attachment => ({ source: attachment.source ?? '', filename: attachment.filename ?? '', width: attachment.widthPixels, height: attachment.heightPixels }));
 		if (images.length === 0) return;
 		lightbox = { images, index: Math.max(0, images.findIndex(image => image.source === source)) };
 	}
@@ -679,6 +682,16 @@
 									<RotateCwIcon />
 								</Attachment.Action>
 							</Attachment.Actions>
+						{:else if attachment.source}
+							{@const source = attachment.source}
+							<Attachment.Actions>
+								<Attachment.Action
+									aria-label={text.downloadAttachment}
+									onclick={() => startDownload(source, attachment.filename ?? '')}
+								>
+									<DownloadIcon />
+								</Attachment.Action>
+							</Attachment.Actions>
 						{/if}
 					{/if}
 				</Attachment.Root>
@@ -834,6 +847,7 @@
 			),
 			pictureAddressesOf(openableAttachments(message.attachments ?? [], openableAddressOf))
 		)}
+		pictures={messagePicturesOf(openableAttachments(message.attachments ?? [], openableAddressOf))}
 		onReply={() => openThread(message)}
 		onEdit={() => (isInTimeline ? conversationComposer : threadComposer)?.beginEdit(message)}
 		onCopy={(wanted) => messageActions.copy(wanted)}

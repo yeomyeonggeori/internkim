@@ -30,6 +30,14 @@ export function pictureAddressesOf(attachments: ChannelMessageAttachment[]): str
 		.map((attachment) => attachment.source ?? '');
 }
 
+export type MessagePicture = { address: string; filename: string };
+
+export function messagePicturesOf(attachments: ChannelMessageAttachment[]): MessagePicture[] {
+	return attachments
+		.filter((attachment) => attachment.kind === 'image' && attachment.source)
+		.map((attachment) => ({ address: attachment.source ?? '', filename: attachment.filename ?? '' }));
+}
+
 export function formatAttachmentMeta(attachment: {
 	mimeType?: string;
 	filename?: string;

@@ -7,6 +7,8 @@
 	import { swipeToReply } from './swipe-to-reply';
 	import type { ChannelMessage } from './channel-api';
 	import type { MessageCopy } from './message-copy';
+	import type { MessagePicture } from './channel-attachments';
+	import { startDownload } from './attachment-download';
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import { tick, type Snippet } from 'svelte';
 
@@ -23,6 +25,7 @@
 		isSettled,
 		hasFooter,
 		copyable,
+		pictures,
 		onReply,
 		onEdit,
 		onCopy,
@@ -44,6 +47,7 @@
 		isSettled: boolean;
 		hasFooter: boolean;
 		copyable: MessageCopy;
+		pictures: MessagePicture[];
 		onReply: () => void;
 		onEdit: () => void;
 		onCopy: (wanted: MessageCopy) => void;
@@ -63,6 +67,7 @@
 	const canChangeThis = $derived(canChange && isSettled);
 	const hasActions = $derived(canChangeThis || canReply || copyable.kind !== 'nothing');
 	const pictureToCopy = $derived(pictureUnderPointer || (copyable.kind === 'picture' ? copyable.address : ''));
+	const pictureToDownload = $derived(pictures.find((picture) => picture.address === pictureToCopy));
 	const hasHeader = $derived(startsGroup && !mine && senderName !== '');
 
 	function notePictureUnderPointer(event: PointerEvent): void {
@@ -92,6 +97,7 @@
 		{canEdit}
 		canCopyText={copyable.kind === 'text'}
 		canCopyPicture={pictureToCopy !== ''}
+		canDownloadPicture={pictureToDownload !== undefined}
 		disabled={!isSettled || !hasActions}
 		bind:open={isContextMenuOpen}
 		onQuickReact={onReact}
@@ -100,6 +106,7 @@
 		{onEdit}
 		onCopyText={() => onCopy(copyable)}
 		onCopyPicture={() => onCopy({ kind: 'picture', address: pictureToCopy })}
+		onDownloadPicture={() => pictureToDownload && startDownload(pictureToDownload.address, pictureToDownload.filename)}
 		{onDelete}
 	>
 		<div
