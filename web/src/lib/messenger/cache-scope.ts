@@ -13,10 +13,18 @@ let reading: Promise<MessengerCacheScope> | null = null;
 let watching = false;
 const resets = new Set<() => void>();
 const storagePrefix = 'messenger-conversations:';
+const messageStoragePrefix = 'messenger-messages:';
+const verifiedScopeKey = 'messenger-verified-scope';
+const storedPrefixes = [storagePrefix, messageStoragePrefix, 'messenger-last-channel:'];
+const storedKeys = ['messenger-conversations', 'messenger-last-channel', verifiedScopeKey];
 
 export function onMessengerCacheReset(reset: () => void): () => void {
 	resets.add(reset);
 	return () => { resets.delete(reset); };
+}
+
+function isStoredMessengerKey(key: string): boolean {
+	return storedKeys.includes(key) || storedPrefixes.some((prefix) => key.startsWith(prefix));
 }
 
 export function invalidateMessengerCacheScope(forgetStored = false): void {
@@ -27,18 +35,67 @@ export function invalidateMessengerCacheScope(forgetStored = false): void {
 	try {
 		if (typeof sessionStorage !== 'undefined') {
 			for (const key of Object.keys(sessionStorage)) {
-				if (key === 'messenger-conversations' || key.startsWith(storagePrefix)) sessionStorage.removeItem(key);
+				if (isStoredMessengerKey(key)) sessionStorage.removeItem(key);
 			}
 		}
 	} catch { /* Storage can be unavailable while in-memory caches still need clearing. */ }
 	try {
 		if (typeof localStorage !== 'undefined') {
 			for (const key of Object.keys(localStorage)) {
-				if (key === 'messenger-last-channel' || key.startsWith('messenger-last-channel:')) localStorage.removeItem(key);
+				if (isStoredMessengerKey(key)) localStorage.removeItem(key);
 			}
 		}
 	} catch { /* A storage refusal must not retain the previous account on screen. */ }
 	for (const reset of resets) reset();
+}
+
+export function forgetStoredMessages(): void {
+	try {
+		if (typeof localStorage === 'undefined') return;
+		for (const key of Object.keys(localStorage)) {
+			if (key.startsWith(messageStoragePrefix)) localStorage.removeItem(key);
+		}
+	} catch (refusal) {
+		console.warn('the messenger could not forget the messages it kept on this device', refusal);
+	}
+}
+
+function rememberVerifiedScope(key: string): void {
+	try {
+		if (typeof localStorage !== 'undefined') localStorage.setItem(verifiedScopeKey, key);
+	} catch (refusal) {
+		console.warn('the messenger could not remember its verified account', refusal);
+	}
+}
+
+function rememberedScopeKey(): string {
+	try {
+		return typeof localStorage === 'undefined' ? '' : localStorage.getItem(verifiedScopeKey) ?? '';
+	} catch {
+		return '';
+	}
+}
+
+function isScopeOf(key: string, scopeProjectURL: string, scopeAccountID: string): boolean {
+	try {
+		const parsed: unknown = JSON.parse(key);
+		return Array.isArray(parsed) && parsed[0] === scopeProjectURL && parsed[1] === scopeAccountID;
+	} catch {
+		return false;
+	}
+}
+
+export async function adoptRememberedMessengerScope(): Promise<MessengerCacheScope | null> {
+	if (!isSupabaseConfigured()) return { key: 'device', generation };
+	if (active) return active;
+	const remembered = rememberedScopeKey();
+	if (!remembered) return null;
+	const { data } = await supabase().auth.getSession();
+	const sessionAccountID = data.session?.user.id ?? '';
+	if (active) return active;
+	if (!sessionAccountID || !isScopeOf(remembered, projectURL(), sessionAccountID)) return null;
+	active = { key: remembered, generation };
+	return active;
 }
 
 export function messengerCacheKey(): string {
@@ -101,6 +158,7 @@ export async function messengerCacheScope(): Promise<MessengerCacheScope> {
 		const resolved = { key, generation };
 		active = resolved;
 		await requireCurrentMessengerScope(resolved);
+		rememberVerifiedScope(key);
 		return resolved;
 	});
 	reading = attempt;
@@ -114,4 +172,12 @@ export async function messengerCacheScope(): Promise<MessengerCacheScope> {
 
 export function conversationStorageKey(scope: MessengerCacheScope): string {
 	return storagePrefix + scope.key;
+}
+
+export function messageStorageKey(scopeKey: string, channelID: string): string {
+	return messageStoragePrefix + JSON.stringify([scopeKey, channelID]);
+}
+
+export function readerStorageKey(scopeKey: string): string {
+	return messageStoragePrefix + JSON.stringify([scopeKey]);
 }
