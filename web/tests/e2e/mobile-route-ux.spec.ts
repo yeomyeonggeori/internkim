@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { expectTouchTarget } from './touch-target';
 import { mockBuzzDisabled } from './buzz-test-routes';
 import { routeCalendarShellAPI } from './calendar-route-shell-test-utils';
 
@@ -36,8 +37,10 @@ for (const width of [320, 390, 1280]) {
 			expect(title && moreBox && today).toBeTruthy();
 			expect(Math.abs(title!.y + title!.height / 2 - (moreBox!.y + moreBox!.height / 2))).toBeLessThan(1);
 			expect(Math.abs(today!.y - moreBox!.y)).toBeLessThan(1);
-			expect(moreBox!.height).toBe(44);
-			expect(today!.height).toBe(44);
+			expect(moreBox!.height).toBe(36);
+			expect(today!.height).toBe(36);
+			await expectTouchTarget(more);
+			await expectTouchTarget(toolbar.getByRole('button', { name: '오늘', exact: true }));
 			await expect(toolbar.getByRole('tablist')).toBeHidden();
 			await expect(toolbar.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeHidden();
 			await screenshot(page, `calendar-compact-${width}`);
@@ -67,7 +70,7 @@ for (const width of [320, 390]) {
 		await expect(page.getByRole('tab', { name: '데이터룸', exact: true })).toBeVisible();
 		const item = page.getByRole('button', { name: /주간-회고.md/ });
 		await expect(item).toBeVisible();
-		expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+		await expectTouchTarget(item);
 		await page.getByRole('button', { name: '위치', exact: true }).click();
 		await page.getByRole('option', { name: '공개', exact: true }).click();
 		await page.getByRole('button', { name: /공지사항.md/ }).click();

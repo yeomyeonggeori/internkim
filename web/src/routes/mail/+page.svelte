@@ -112,15 +112,15 @@
 			{@render messageDetail(page.clearSelectedMessage)}
 		{/if}
 	</main>
-
-	<AppFloatingActionButton
-		label={text.compose}
-		disabled={!page.hasLoadedAccount || !page.account.isConfigured}
-		onclick={page.openCompose}
-	>
-		<PencilIcon />
-	</AppFloatingActionButton>
 </Sidebar.Provider>
+
+<AppFloatingActionButton
+	label={text.compose}
+	disabled={!page.hasLoadedAccount || !page.account.isConfigured}
+	onclick={page.openCompose}
+>
+	<PencilIcon />
+</AppFloatingActionButton>
 
 {#snippet mailboxSidebar()}
 	<MailSidebar

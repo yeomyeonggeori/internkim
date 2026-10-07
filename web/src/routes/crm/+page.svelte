@@ -15,6 +15,7 @@
 	import { Spinner } from '$lib/components/ui/spinner';
 	import CRMLoadingSkeleton from './crm-loading-skeleton.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import FilterIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import XIcon from '@lucide/svelte/icons/x';
 	import { untrack } from 'svelte';
@@ -156,8 +157,12 @@
 		importance: selectedImportance,
 		lastContact: selectedLastContact
 	});
-	let hasRelationshipFacets = $derived(
-		selectedStatus !== 'all' || selectedType !== 'all' || selectedImportance !== 'all' || selectedLastContact !== 'all'
+	let relationshipFacetCount = $derived(
+		[selectedStatus, selectedType, selectedImportance, selectedLastContact].filter((value) => value !== 'all').length
+	);
+	let hasRelationshipFacets = $derived(relationshipFacetCount > 0);
+	let relationshipFilterLabel = $derived(
+		relationshipFacetCount > 0 ? `${text.filters} ${relationshipFacetCount}` : text.filters
 	);
 	let hasPipelineFacets = $derived(selectedPipeline !== 'all' || selectedStage !== 'all');
 
@@ -400,7 +405,7 @@
 					<Tabs.Root value={relationshipView} onValueChange={(value) => (relationshipView = value as RelationshipView)} aria-label={text.relationships}><Tabs.List><Tabs.Trigger value="all">{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine" disabled={!controller.isDirectoryReady}>{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
 					<Button type="button" class="ml-auto max-sm:order-1 sm:order-last" disabled={!controller.isDirectoryReady} onclick={() => openCreateSheet('relationship')}><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
 					<Collapsible.Root class="contents" open={!isMobile.current || showsRelationshipFilters} onOpenChange={(open) => showsRelationshipFilters = open}>
-						<Collapsible.Trigger class="sm:hidden">{#snippet child({ props })}<Button {...props} variant="outline">{text.filters}{hasRelationshipFacets ? ' · ' + [selectedStatus, selectedType, selectedImportance, selectedLastContact].filter((value) => value !== 'all').length : ''}</Button>{/snippet}</Collapsible.Trigger>
+						<Collapsible.Trigger class="sm:hidden">{#snippet child({ props })}<Button {...props} variant="outline" class="gap-1" aria-label={relationshipFilterLabel}><FilterIcon class="size-4" />{#if relationshipFacetCount > 0}<span class="tabular-nums" aria-hidden="true">{relationshipFacetCount}</span>{/if}</Button>{/snippet}</Collapsible.Trigger>
 						<Collapsible.Content class="flex w-full min-w-0 flex-wrap gap-2 max-sm:order-2 sm:contents">
 					<FilterCombobox bind:value={selectedStatus} options={statusFilterOptions} label={text.status} clearValue="all" searchable={false} class="w-auto" />
 					<FilterCombobox bind:value={selectedType} options={typeFilterOptions} label={text.type} clearValue="all" searchable={false} class="w-auto" />
