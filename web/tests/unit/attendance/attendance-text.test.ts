@@ -10,8 +10,8 @@ describe('attendance text', () => {
 	});
 
 	test('provides localized labels for component status copy', () => {
-		expect(attendanceText.en.finished).toBe('Clocked out');
-		expect(attendanceText.en.absent).toBe('Not clocked in');
+		expect(attendanceText.en.finished).toBe('Out');
+		expect(attendanceText.en.absent).toBe('Not in');
 		expect(attendanceText.en.subscriptionDayTemplate).toBe('{count} days');
 		expect(attendanceText.en.absenceNoWeekdays).toBe('No weekdays to register.');
 		expect(attendanceText.en.absenceKindOther).toBe('Other');
