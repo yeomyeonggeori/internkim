@@ -63,13 +63,26 @@
 		rememberEmojiGlyph(glyph);
 		onQuickReact(glyph);
 	}
+
+	let isEditTakingFocus = false;
+
+	function beginEdit(): void {
+		isEditTakingFocus = true;
+		onEdit();
+	}
+
+	function keepFocusForEdit(event: Event): void {
+		if (!isEditTakingFocus) return;
+		isEditTakingFocus = false;
+		event.preventDefault();
+	}
 </script>
 
 <ContextMenu.Root bind:open>
 	<ContextMenu.Trigger {disabled} class="select-text [@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]">
 		{@render children()}
 	</ContextMenu.Trigger>
-	<ContextMenu.Content class="w-52">
+	<ContextMenu.Content class="w-52" onCloseAutoFocus={keepFocusForEdit}>
 		{#if canChange && !omitsWhatTheBarOffers}
 			<div class="flex items-center justify-between px-1 py-1">
 				{#each quickEmojiGlyphs(5) as glyph (glyph)}
@@ -95,7 +108,7 @@
 			</ContextMenu.Item>
 		{/if}
 		{#if canChange && canEdit}
-			<ContextMenu.Item onSelect={onEdit}>
+			<ContextMenu.Item onSelect={beginEdit}>
 				<PencilIcon />
 				<span>{text.editMessage}</span>
 			</ContextMenu.Item>
