@@ -355,7 +355,6 @@
 				conversations = conversations.map((conversation) =>
 					conversation.id === conversationID ? { ...conversation, unreadCount: 0 } : conversation
 				);
-				refreshConversations('the channel list did not refresh after reading a conversation');
 			})
 			.catch((failure: unknown) => console.warn('the messenger did not record how far this conversation was read', failure));
 	}
