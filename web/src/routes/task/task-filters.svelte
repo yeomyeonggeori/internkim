@@ -99,9 +99,10 @@
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger>
 			{#snippet child({ props })}
-				<Button {...props} type="button" variant="outline" size="sm" class="gap-2">
+				<Button {...props} type="button" variant="outline" size="sm" class="gap-2 max-sm:gap-1">
 					<FilterIcon class="size-4" />
-					{filterButtonLabel}
+					<span class="max-sm:sr-only">{filterButtonLabel}</span>
+					{#if activeFilterCount > 0}<span class="tabular-nums sm:hidden" aria-hidden="true">{activeFilterCount}</span>{/if}
 				</Button>
 			{/snippet}
 		</DropdownMenu.Trigger>

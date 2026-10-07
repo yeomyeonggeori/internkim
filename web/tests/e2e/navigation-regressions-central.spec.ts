@@ -15,7 +15,7 @@ for (const width of [320, 390]) {
 		await expect(page.locator('.calendar-toolbar').getByRole('button', { name: '오늘', exact: true })).toBeVisible();
 		const output = process.env.MOBILE_UX_SCREENSHOTS;
 		if (output) await page.screenshot({ path: `${output}/calendar-compact-${width}.png` });
-		await page.getByRole('button', { name: '일정 도구', exact: true }).click();
+		await page.getByRole('button', { name: /일정 도구$/ }).click();
 		await expect(page.getByRole('combobox', { name: '참여자 선택', exact: true })).toBeVisible();
 		if (output) await page.screenshot({ path: `${output}/calendar-tools-${width}.png` });
 		await page.getByRole('button', { name: '설정', exact: true }).click();

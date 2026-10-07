@@ -12,6 +12,7 @@
 		isSelected?: boolean;
 		continuesBefore?: boolean;
 		continuesAfter?: boolean;
+		isNarrow?: boolean;
 		openEvent: (event: CalendarGridEvent, originElement: HTMLElement) => void;
 		class?: string;
 	};
@@ -24,9 +25,17 @@
 		isSelected = false,
 		continuesBefore = false,
 		continuesAfter = false,
+		isNarrow = false,
 		openEvent,
 		class: className
 	}: CalendarEventChipProps = $props();
+
+	const titleOverflowClass = $derived(narrowTitleOverflowClass());
+
+	function narrowTitleOverflowClass(): string {
+		if (!isNarrow) return 'truncate';
+		return size === 'block' ? 'break-all' : 'whitespace-nowrap';
+	}
 </script>
 
 <button
@@ -44,6 +53,7 @@
 			: 'bg-(--calendar-event-color)/12 hover:bg-(--calendar-event-color)/22 text-foreground',
 		size === 'compact' && 'h-5 items-center py-0.5',
 		size === 'block' && 'h-full items-stretch py-1',
+		isNarrow && 'items-start border-l-2 border-(--calendar-event-color) px-0.5',
 		continuesBefore && 'rounded-l-none',
 		continuesAfter && 'rounded-r-none',
 		className
@@ -58,7 +68,7 @@
 		contextMenuEvent.stopPropagation();
 	}}
 >
-	{#if !continuesBefore}
+	{#if !continuesBefore && !isNarrow}
 		<span
 			class={cn(
 				'calendar-event-accent w-1 shrink-0 self-stretch rounded-full bg-(--calendar-event-color)',
@@ -67,7 +77,7 @@
 		></span>
 	{/if}
 	<span class={cn('flex min-w-0 flex-1 gap-1.5', size === 'compact' ? 'items-center' : 'flex-col')}>
-		<span class={cn('truncate font-medium', !event.title && 'opacity-70')}>{event.title || placeholder}</span>
+		<span class={cn('font-medium', titleOverflowClass, !event.title && 'opacity-70')}>{event.title || placeholder}</span>
 		{#if timeLabel}
 			<span class={cn('shrink-0 tabular-nums', isSelected ? 'text-white/80' : 'text-muted-foreground', size === 'compact' && 'ml-auto')}>
 			{timeLabel}

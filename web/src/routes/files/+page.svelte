@@ -22,6 +22,7 @@
 	const text = createPageText(filesText);
 	const files = getFilesState();
 	let isDraggingOver = $state(false);
+	const hasLocation = $derived(files.currentRoot !== null || files.isLoading);
 	const entries = $derived(
 		[...files.currentEntries]
 			.sort(
@@ -70,21 +71,7 @@
 
 <div class="flex h-full min-h-0">
 	<FilesSidebar />
-	<div class="min-w-0 flex-1 overflow-auto p-3 sm:p-6">
-		<div class="mb-4 grid gap-1.5 md:hidden">
-			<label for="files-root" class="text-sm font-medium">{text.roots}</label>
-			<Select.Root type="single" value={files.currentRoot?.id ?? ''} onValueChange={(id) => {
-				const root = files.roots.find((root) => root.id === id);
-				if (root) void files.openRoot(root);
-			}}>
-				<Select.Trigger id="files-root" class="w-full min-w-0"><span class="min-w-0 truncate">{files.currentRoot?.label ?? text.roots}</span></Select.Trigger>
-				<Select.Content><Select.Group>
-					{#each files.roots as root (root.id)}
-						<Select.Item value={root.id} label={root.label}><span class="min-w-0 whitespace-normal break-words">{root.label}</span></Select.Item>
-					{/each}
-				</Select.Group></Select.Content>
-			</Select.Root>
-		</div>
+	<div class="min-w-0 flex-1 overflow-auto p-4 sm:p-6">
 		{#if files.errorMessage}
 			<div role="alert" class="mb-4 flex items-center justify-between gap-3">
 				<span class="text-destructive text-sm">{files.errorMessage}</span>
@@ -93,8 +80,21 @@
 		{/if}
 		<FileDropZone.Root onUpload={(uploaded) => files.upload(uploaded)} disabled={files.isUploading}>
 			<div class="flex flex-col gap-4">
-				<div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-					<Breadcrumb.Root class="min-w-0 max-w-full overflow-x-auto">
+				<div class="flex min-w-0 flex-wrap items-center gap-2 md:flex-nowrap md:items-end md:justify-between {hasLocation ? '' : 'max-md:hidden'}">
+					{#if hasLocation}
+						<Select.Root type="single" value={files.currentRoot?.id ?? ''} onValueChange={(id) => {
+							const root = files.roots.find((root) => root.id === id);
+							if (root) void files.openRoot(root);
+						}}>
+							<Select.Trigger aria-label={text.roots} class="min-w-0 flex-1 md:hidden"><span class="min-w-0 truncate">{files.currentRoot?.label ?? text.roots}</span></Select.Trigger>
+							<Select.Content><Select.Group>
+								{#each files.roots as root (root.id)}
+									<Select.Item value={root.id} label={root.label}><span class="min-w-0 whitespace-normal break-words">{root.label}</span></Select.Item>
+								{/each}
+							</Select.Group></Select.Content>
+						</Select.Root>
+					{/if}
+					<Breadcrumb.Root class="min-w-0 max-w-full overflow-x-auto max-md:order-last max-md:basis-full {files.breadcrumbs.length > 1 ? '' : 'max-md:hidden'}">
 						<Breadcrumb.List class="w-max flex-nowrap">
 							{#if files.isLoading && files.breadcrumbs.length === 0}
 								<Breadcrumb.Item aria-hidden="true" class="h-5"><Skeleton class="h-4 w-24" /></Breadcrumb.Item>
@@ -112,7 +112,7 @@
 							{/each}
 						</Breadcrumb.List>
 					</Breadcrumb.Root>
-					<div class="flex shrink-0 items-center gap-2">
+					<div class="ml-auto flex shrink-0 items-center gap-2">
 						<TooltipIconButton
 							label={text.refresh}
 							variant="ghost"

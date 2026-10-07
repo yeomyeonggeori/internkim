@@ -90,7 +90,7 @@ for (const width of [320, 360, 390]) {
 		await expectTouchTarget(attachment);
 		expect(await attachment.evaluate((element) => getComputedStyle(element).borderWidth)).toBe('0px');
 		expect(await attachment.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-		expect(await page.locator('.composer-input').evaluate((element) => parseFloat(getComputedStyle(element).borderRadius))).toBeGreaterThanOrEqual(24);
+		expect(await page.locator('.composer-input').evaluate((element) => parseFloat(getComputedStyle(element).borderRadius))).toBe(8);
 		await expect(page.getByRole('button', { name: '이모지 넣기' })).toBeHidden();
 		await expect(page.getByRole('button', { name: '서식 표시' })).toBeHidden();
 		await expectTouchTarget(page.getByRole('button', { name: '채널 목록 열기' }));

@@ -427,7 +427,7 @@
 			grid-template-columns: 44px minmax(0, 1fr) 44px;
 			column-gap: 4px;
 			padding: 4px;
-			border-radius: 26px;
+			border-radius: 8px;
 			background: color-mix(in srgb, var(--muted) 45%, var(--background));
 		}
 		.channel-composer :global(.composer-tools-start) {
@@ -464,7 +464,7 @@
 			padding: 0;
 		}
 		.channel-composer :global(.composer-send-end button) {
-			border-radius: 9999px;
+			border-radius: 4px;
 		}
 	}
 </style>

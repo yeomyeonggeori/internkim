@@ -93,7 +93,9 @@ async function capture(page: Page, scene: string) {
 	for (const name of ['업무', '보고', '정의', '구성원']) await expect(page.getByRole('tab', { name, exact: true })).toBeInViewport({ ratio: 1 });
 	if (scene.startsWith('task-board-') || scene.startsWith('task-list-')) {
 		await expect(page.getByRole('tab', { name: '목록', exact: true })).toBeInViewport({ ratio: 1 });
-		await expect(page.getByRole('button', { name: '이전 주', exact: true })).toBeInViewport({ ratio: 1 });
+		const isPhone = (page.viewportSize()?.width ?? 1280) < 640;
+		const weekControl = isPhone ? page.getByLabel('날짜로 주차 이동', { exact: true }) : page.getByRole('button', { name: '이전 주', exact: true });
+		await expect(weekControl).toBeInViewport({ ratio: 1 });
 	}
 	if (!isBaseline) {
 		const animatedSkeletons = await page.locator('[data-slot="skeleton"]:visible').evaluateAll(elements => elements.filter(element => getComputedStyle(element).animationName !== 'none').length);

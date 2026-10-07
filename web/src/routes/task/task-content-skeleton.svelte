@@ -60,7 +60,7 @@
 			<div class="space-y-3">
 				<div class="space-y-3 sm:hidden">
 					<Button variant="outline" disabled>{#if text}{text.table.sort}{:else}<Skeleton class="h-4 w-7" />{/if}</Button>
-					<div class="grid gap-2">{#each [0, 1, 2, 3] as row (row)}<div class="min-w-0 rounded-lg border bg-card p-3" data-task-list-row-skeleton><div class="flex min-w-0 items-start gap-2"><div class="flex min-h-11 min-w-0 flex-1 items-center"><Skeleton class="h-4 w-4/5" /></div><Skeleton class="h-7 w-28 shrink-0" /></div><Button variant="ghost" size="sm" disabled class="px-0 text-muted-foreground">{#if text}{text.table.details}{:else}<Skeleton class="h-4 w-16" />{/if}</Button></div>{/each}</div>
+					<div class="grid gap-2">{#each [0, 1, 2, 3] as row (row)}<div class="min-w-0 rounded-lg border bg-card px-3 py-1" data-task-list-row-skeleton><div class="flex min-w-0 items-center gap-2"><div class="flex min-h-11 min-w-0 flex-1 items-center"><Skeleton class="h-4 w-4/5" /></div><Skeleton class="h-7 w-28 shrink-0" /></div><div class="flex min-w-0 items-center gap-2"><Skeleton class="h-3 flex-1" /><Button variant="ghost" size="sm" disabled class="-mr-2 text-muted-foreground">{#if text}{text.table.details}{:else}<Skeleton class="h-4 w-16" />{/if}</Button></div></div>{/each}</div>
 				</div>
 				<div class="hidden overflow-hidden rounded-lg border bg-card sm:block">
 					<Table.Root class="min-w-[1080px]">

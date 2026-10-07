@@ -109,7 +109,7 @@ for (const width of [1280, 390]) {
 		const response = await prepare(page, 'month');
 		await page.goto('/example-co/calendar?date=2026-10-06');
 		await expect(page.getByRole('button', { name: /제품 점검/ }).first()).toBeVisible();
-		if (width < 640) await page.getByRole('button', { name: '일정 도구', exact: true }).click();
+		if (width < 640) await page.getByRole('button', { name: /일정 도구$/ }).click();
 		await page.getByRole('combobox', { name: '참여자 선택', exact: true }).click();
 		await page.getByRole('combobox').last().fill('존재하지않는참여자');
 		await expect(page.getByText('결과가 없습니다', { exact: true })).toBeVisible();

@@ -96,7 +96,7 @@
 				errorMessage={page.errorMessage}
 				messages={page.visibleMessages()}
 				selectedMessage={page.selectedMessage}
-				hasMailboxTrigger={!fitsSidebarRail.current}
+				isNarrow={!fitsSidebarRail.current}
 				{text}
 				openSettings={page.openSettings}
 				loadMoreMessages={page.loadMoreMessages}

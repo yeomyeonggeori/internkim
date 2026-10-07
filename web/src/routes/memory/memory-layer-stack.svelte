@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import * as UnderlineTabs from '$lib/components/ui/underline-tabs';
 	import type { MemoryLayer } from './memory-facts-api';
 	import { memoryLayerDepth, memoryLayerKey } from './memory-workbench-model';
 	import type { MemoryText } from './text';
@@ -18,11 +19,19 @@
 </script>
 
 <section class="flex flex-col gap-3" aria-labelledby="memory-layers-title">
-	<div class="flex flex-col gap-1">
+	<div class="flex flex-col gap-1 max-sm:sr-only">
 		<h2 id="memory-layers-title" class="text-sm font-semibold">{text.layersTitle}</h2>
 		<p class="text-xs text-muted-foreground">{text.layersRule}</p>
 	</div>
-	<div class="flex flex-col gap-1.5">
+	<UnderlineTabs.Root value={selectedKey} onValueChange={onSelect} class="sm:hidden">
+		<UnderlineTabs.List>
+			{@render layerTab('all', text.allLayers, total)}
+			{#each layers as layer (memoryLayerKey(layer))}
+				{@render layerTab(memoryLayerKey(layer), labelOf(layer), countOf(memoryLayerKey(layer)))}
+			{/each}
+		</UnderlineTabs.List>
+	</UnderlineTabs.Root>
+	<div class="flex flex-col gap-1.5 max-sm:hidden">
 		{@render layerButton('all', text.allLayers, total)}
 		<div class="flex flex-col">
 			{#each layers as layer (memoryLayerKey(layer))}
@@ -40,6 +49,10 @@
 		</div>
 	</div>
 </section>
+
+{#snippet layerTab(key: string, label: string, count: number)}
+	<UnderlineTabs.Trigger value={key}>{label}<span class="text-xs font-normal tabular-nums text-muted-foreground">{count}</span></UnderlineTabs.Trigger>
+{/snippet}
 
 {#snippet layerButton(key: string, label: string, count: number)}
 	<button

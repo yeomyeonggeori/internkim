@@ -77,9 +77,9 @@
 	});
 </script>
 
-<div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0' : 'flex flex-col gap-4 pb-36 md:pb-16'}>
+<div class={taskViewTab === 'board' ? 'flex flex-col gap-4 pb-0 max-sm:pb-24' : 'flex flex-col gap-4 pb-36 md:pb-16'}>
 	<Tabs.Root bind:value={taskViewTab} class="flex flex-col gap-4" data-task-results>
-		<div class="flex flex-wrap items-center gap-2">
+		<div class="flex flex-wrap items-center gap-2 max-sm:gap-1.5">
 			<Tabs.List>
 				<Tabs.Trigger value="board">{text.task.viewTabs.board}</Tabs.Trigger>
 				<Tabs.Trigger value="list" disabled={!summary}>{text.task.viewTabs.list}</Tabs.Trigger>
@@ -114,7 +114,7 @@
 				setParticipantFilterIDs={page.setParticipantFilterIDs}
 			/>
 		</div>
-		<Tabs.Content value="board" class="min-h-[36rem]">
+		<Tabs.Content value="board" class="min-h-[36rem] max-sm:min-h-0">
 			{#if !hasShownWeek}
 				{#if isPendingRead && !loadError}<TaskBoardSkeleton label={text.loading} statusLabel={page.statusLabel} />{/if}
 			{:else}

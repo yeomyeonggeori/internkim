@@ -5,6 +5,7 @@
 	import * as Empty from '$lib/components/ui/empty';
 	import { Separator } from '$lib/components/ui/separator';
 	import { defaultEventDurationMinutes } from '$lib/calendar/default-event-duration';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import { cn } from '$lib/utils';
 	import { CalendarDate, type DateValue } from '@internationalized/date';
 	import { tick } from 'svelte';
@@ -87,6 +88,8 @@
 			: Array.from({ length: dayCount }, (_, dayOffset) => addCalendarGridDays(weekWindowStart, dayOffset))
 	);
 	const canSwipeWeeks = $derived(dayCount === 7);
+	const isPhone = new IsMobile();
+	const hasNarrowColumns = $derived(dayCount > 1 && isPhone.current);
 	const allDayRowLabel = '종일';
 	const allDayLaneHeightPixels = 22;
 	let allDayDragColumns = $state<{ days: Date[]; startIndex: number; endIndex: number } | null>(null);
@@ -472,7 +475,8 @@
 				<CalendarEventChip
 					event={block.event}
 					size={blockHeightPixels < 44 ? 'compact' : 'block'}
-					timeLabel={timeFormatter.format(block.event.start)}
+					timeLabel={hasNarrowColumns ? '' : timeFormatter.format(block.event.start)}
+					isNarrow={hasNarrowColumns}
 					isSelected={selectedEventID === block.event.id}
 					placeholder={draftPreviewTitle}
 					class="h-full"
@@ -574,6 +578,7 @@
 						continuesBefore={span.continuesBefore}
 						continuesAfter={span.continuesAfter}
 						placeholder={draftPreviewTitle}
+						isNarrow={hasNarrowColumns}
 						{openEvent}
 					/>
 				</div>

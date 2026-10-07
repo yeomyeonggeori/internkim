@@ -18,9 +18,9 @@
 	<Button variant="ghost" size="sm" disabled class="-ml-2 h-8 gap-1.5 px-2 font-medium">{label}<ArrowUpDownIcon class="size-3.5 shrink-0 opacity-60" /></Button>
 {/snippet}
 
-<div role="status" aria-label={text.loading} aria-busy="true" class="grid min-w-0 gap-4" data-testid="crm-loading-skeleton">
+<div role="status" aria-label={text.loading} aria-busy="true" class="grid min-w-0 gap-2 sm:gap-4" data-testid="crm-loading-skeleton">
 	<div class="min-w-0">
-		<button disabled class="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border px-3 text-sm font-medium sm:hidden">{text.metricsOverview}<span aria-hidden="true">+</span></button>
+		<button disabled class="flex min-h-11 w-full items-center gap-1 text-sm font-medium sm:hidden">{text.metricsOverview}<ChevronDownIcon class="size-4 text-muted-foreground" aria-hidden="true" /></button>
 		<Card.Root aria-hidden="true" class="hidden min-w-0 grid-cols-2 gap-px bg-border py-0 sm:grid lg:grid-cols-4">
 			{#each [0, 1, 2, 3] as column (column)}
 				<div class="flex min-w-0 flex-col gap-3 bg-card p-4">
@@ -35,8 +35,8 @@
 		<UnderlineTabs.Content value="relationships" class="grid min-w-0 gap-3 pb-24">
 			<div class="flex min-w-0 flex-wrap items-center gap-2">
 				<Tabs.Root value="all"><Tabs.List><Tabs.Trigger value="all" disabled>{text.allRelationships}</Tabs.Trigger><Tabs.Trigger value="mine" disabled>{text.myRelationships}</Tabs.Trigger></Tabs.List></Tabs.Root>
-				<Button disabled class="ml-auto sm:order-last"><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
-				<div class="w-full min-w-0 sm:contents">
+				<Button disabled class="ml-auto max-sm:order-1 sm:order-last"><PlusIcon data-icon="inline-start" />{text.newRelationship}</Button>
+				<div class="contents">
 					<Button variant="outline" disabled class="sm:hidden">{text.filters}</Button>
 					<div class="hidden sm:contents">
 						{#each [text.status, text.type, text.importance, text.lastContact] as label (label)}<FilterCombobox options={[]} {label} disabled class="w-auto" />{/each}

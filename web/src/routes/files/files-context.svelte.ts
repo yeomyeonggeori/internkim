@@ -8,6 +8,7 @@ import {
 } from './files-api';
 import { workspaceBreadcrumbs, type WorkspaceBreadcrumb } from './files-path';
 import { isFilesAccessDenied } from './files-read-error';
+import { HostUnreachableError } from '$lib/host-bridge';
 
 const filesStateKey = Symbol('files');
 
@@ -24,11 +25,13 @@ export class FilesState {
 	errorMessage = $state<string>('');
 
 	private loadFailedMessage: string;
+	private companyComputerOfflineMessage: string;
 	private directoryGeneration = 0;
 	private loadingPathGenerations: Record<string, number> = {};
 
-	constructor(loadFailedMessage: string) {
+	constructor(loadFailedMessage: string, companyComputerOfflineMessage = loadFailedMessage) {
 		this.loadFailedMessage = loadFailedMessage;
+		this.companyComputerOfflineMessage = companyComputerOfflineMessage;
 	}
 
 	get currentEntries(): WorkspaceEntry[] {
@@ -54,7 +57,7 @@ export class FilesState {
 				this.childrenCache = {};
 				this.selectedFile = null;
 			}
-			this.errorMessage = errorText(error, this.loadFailedMessage);
+			this.errorMessage = this.errorText(error);
 		} finally {
 			this.isLoading = false;
 		}
@@ -98,7 +101,7 @@ export class FilesState {
 					this.selectedFile = null;
 				}
 			}
-			if (path === this.currentPath) this.errorMessage = errorText(error, this.loadFailedMessage);
+			if (path === this.currentPath) this.errorMessage = this.errorText(error);
 		} finally {
 			if (this.loadingPathGenerations[path] === generation) {
 				delete this.loadingPaths[path];
@@ -144,16 +147,17 @@ export class FilesState {
 			delete this.childrenCache[this.currentPath];
 			await this.loadChildren(this.currentPath);
 		} catch (error) {
-			this.errorMessage = errorText(error, this.loadFailedMessage);
+			this.errorMessage = this.errorText(error);
 		} finally {
 			this.isUploading = false;
 		}
 	}
-}
 
-function errorText(error: unknown, fallback: string): string {
-	const message = error instanceof Error ? error.message.trim() : '';
-	return message || fallback;
+	private errorText(error: unknown): string {
+		if (error instanceof HostUnreachableError) return this.companyComputerOfflineMessage;
+		const message = error instanceof Error ? error.message.trim() : '';
+		return message || this.loadFailedMessage;
+	}
 }
 
 export function setFilesState(state: FilesState): FilesState {

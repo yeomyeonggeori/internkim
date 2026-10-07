@@ -112,13 +112,13 @@ export async function uploadWorkspaceFiles(
 
 async function askTheCompanyApp(capability: string, body: Record<string, unknown>): Promise<unknown> {
 	const answer = await callCompanyApp({ capability, body });
-	if (answer.status >= 400) throw new FilesReadError(companyAppErrorMessage(answer.body, answer.status), answer.status);
+	if (answer.status >= 400) throw new FilesReadError(companyAppErrorMessage(answer.body), answer.status);
 	return answer.body;
 }
 
-function companyAppErrorMessage(body: unknown, status: number): string {
+function companyAppErrorMessage(body: unknown): string {
 	if (typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string') {
 		return (body as { error: string }).error;
 	}
-	return `the company app answered ${status}`;
+	return '';
 }

@@ -10,6 +10,8 @@
 	import type { CalendarLocaleText } from '../text';
 	import type { CalendarParticipant } from './calendar-participants';
 	import CalendarMonthView from '../grid/calendar-month-view.svelte';
+	import CalendarMonthAgenda from '../grid/calendar-month-agenda.svelte';
+	import { IsMobile } from '$lib/hooks/is-mobile.svelte';
 	import CalendarTimeView from '../grid/calendar-time-view.svelte';
 	import { calendarGridEventsFromDayTaskEvents } from '../grid/calendar-grid-events';
 	import { calendarGridDateKey } from '../grid/calendar-grid-dates';
@@ -151,6 +153,7 @@
 		navigateToDateKey(dateKey);
 	}
 
+	const isPhone = new IsMobile();
 	const replayedContextMenuEventKey = 'calendarStageReplayedContextMenu';
 
 	const gridEvents = $derived(
@@ -258,7 +261,24 @@
 					aria-label={text.pageTitle}
 					aria-busy={loading}
 				>
-					{#if toolbarView === ViewType.MONTH}
+					{#if toolbarView === ViewType.MONTH && isPhone.current}
+						<div class="absolute inset-0 flex min-h-0 flex-col">
+							<CalendarMonthAgenda
+								visibleDate={toolbarDate}
+								events={gridEvents}
+								selectedEventID={selectedEventID ?? ''}
+								{localeCode}
+								{loading}
+								allDayText={text.allDay}
+								noEventsText={text.noDayEvents}
+								untitledText={text.newEvent}
+								selectDay={(day) => navigateToDateKey(calendarGridDateKey(day))}
+								addEventOnDay={(day) => addEventOnDay(calendarGridDateKey(day))}
+								openEvent={openGridEvent}
+								visibleRangeChanged={(range) => { monthViewport = range; }}
+							/>
+						</div>
+					{:else if toolbarView === ViewType.MONTH}
 						<div class="absolute inset-0 flex min-h-0 flex-col">
 						<CalendarMonthView
 							visibleDate={toolbarDate}

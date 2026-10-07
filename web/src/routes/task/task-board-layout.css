@@ -28,3 +28,9 @@
 			width: max(15.5rem, calc((100cqw - 1rem) / 4.5));
 		}
 	}
+
+	@media (max-width: 639px) {
+		.task-board-column {
+			width: auto;
+		}
+	}

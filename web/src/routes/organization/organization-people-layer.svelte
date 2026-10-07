@@ -24,7 +24,7 @@
 	const nodes = $derived(hidesEmptySections ? organizationSectionsWithRecords(tree) : tree);
 </script>
 
-<div class="grid pt-4 pb-6" data-testid="organization-people-layer">
+<div class="grid pt-4 pb-6 max-sm:pt-1" data-testid="organization-people-layer">
 	{#each nodes as node (node.section.id)}
 		<OrganizationPeopleGroup {node} {selectedUserID} {text} {selectRecord} />
 	{/each}

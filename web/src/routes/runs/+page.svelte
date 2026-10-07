@@ -218,7 +218,7 @@
 <main class="grid min-h-full w-full self-start content-start gap-5 px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
 	{#if isAdmin}
 		<Tabs.Root bind:value={selectedView}>
-			<Tabs.List>
+			<Tabs.List class="max-sm:w-full">
 				<Tabs.Trigger value="tasks">{text.viewTasks}</Tabs.Trigger>
 				<Tabs.Trigger value="inbound">{text.viewInbound}</Tabs.Trigger>
 			</Tabs.List>
@@ -259,14 +259,14 @@
 	{/if}
 
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus}>
+		<UnderlineTabs.Root value={statusFilter} onValueChange={selectStatus} class="max-sm:min-w-0 max-sm:flex-1">
 			<UnderlineTabs.List>
 				{#each statusFilters as filter (filter.value)}
 					<UnderlineTabs.Trigger value={filter.value}>{filter.label}</UnderlineTabs.Trigger>
 				{/each}
 			</UnderlineTabs.List>
 		</UnderlineTabs.Root>
-		<Button href={pendingApprovalsPathOf(page.url.pathname)} variant="outline" size="sm">
+		<Button href={pendingApprovalsPathOf(page.url.pathname)} variant="outline" size="sm" class="max-sm:ml-auto">
 			<HourglassIcon data-icon="inline-start" />
 			{text.approvalsTitle}
 		</Button>
@@ -280,7 +280,10 @@
 
 	{#if loadError}
 		<Card.Root size="sm" class="border-destructive/30">
-			<Card.Content class="text-sm text-destructive">{loadError}</Card.Content>
+			<Card.Content class="flex items-center justify-between gap-3 text-sm text-destructive">
+				<p>{loadError}</p>
+				<Button variant="outline" size="sm" class="shrink-0 sm:hidden" disabled={isLoading} onclick={() => loadTaskRuns(taskPageIndex)}>{text.reloadTaskRuns}</Button>
+			</Card.Content>
 		</Card.Root>
 		{/if}
 		{#if isLoading && taskRuns.length === 0}
