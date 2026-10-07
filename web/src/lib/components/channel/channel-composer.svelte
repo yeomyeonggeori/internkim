@@ -37,6 +37,7 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import AtSignIcon from '@lucide/svelte/icons/at-sign';
 	import CaseSensitiveIcon from '@lucide/svelte/icons/case-sensitive';
+	import CropIcon from '@lucide/svelte/icons/crop';
 	import FileIcon from '@lucide/svelte/icons/file';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SmilePlusIcon from '@lucide/svelte/icons/smile-plus';
@@ -54,7 +55,8 @@
 		editing = $bindable(null),
 		saveEdit,
 		onSend,
-		onTyping
+		onTyping,
+		onCapture
 	}: {
 		name: string;
 		placeholder: string;
@@ -67,6 +69,7 @@
 		saveEdit: (messageID: string, text: string) => Promise<boolean>;
 		onSend: (outgoing: OutgoingMessage) => Promise<void>;
 		onTyping?: () => void;
+		onCapture?: () => void;
 	} = $props();
 
 	type PendingAttachment = {
@@ -352,6 +355,11 @@
 						</InputGroup.Button>
 					{/snippet}
 				</EmojiPicker>
+				{#if onCapture}
+					<InputGroup.Button variant="ghost" size="icon-sm" aria-label={text.captureConversation} {disabled} onclick={onCapture}>
+						<CropIcon />
+					</InputGroup.Button>
+				{/if}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						{#snippet child({ props })}

@@ -5,6 +5,7 @@
 	import { quickEmojiGlyphs, rememberEmojiGlyph } from '$lib/messenger/recent-emoji';
 	import ReplyIcon from '@lucide/svelte/icons/reply';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import CropIcon from '@lucide/svelte/icons/crop';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ImageIcon from '@lucide/svelte/icons/image';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
@@ -30,6 +31,7 @@
 		onCopyPicture,
 		onDownloadPicture,
 		onDelete,
+		onCapture,
 		children
 	}: {
 		canChange: boolean;
@@ -49,6 +51,7 @@
 		onCopyPicture: () => void;
 		onDownloadPicture: () => void;
 		onDelete: () => void;
+		onCapture?: () => void;
 		children: Snippet;
 	} = $props();
 
@@ -111,6 +114,12 @@
 			<ContextMenu.Item onSelect={onCopyText}>
 				<CopyIcon />
 				<span>{text.copyMessage}</span>
+			</ContextMenu.Item>
+		{/if}
+		{#if onCapture}
+			<ContextMenu.Item onSelect={onCapture}>
+				<CropIcon />
+				<span>{text.captureConversation}</span>
 			</ContextMenu.Item>
 		{/if}
 		{#if canChange && canDelete}
