@@ -9,19 +9,11 @@
 	}: { activity: string; height?: number; children: Snippet } = $props();
 </script>
 
-<div bind:offsetHeight={height} class="absolute inset-x-0 bottom-0 z-10">
-	<div class="relative">
-		<div
-			class="bg-background/60 pointer-events-none absolute inset-0 backdrop-blur-md [mask-image:linear-gradient(to_bottom,transparent,black_1rem)]"
-		></div>
-		<div class="to-background pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent from-30%"></div>
-		<div class="relative">
-			{#if activity}
-				<div class="absolute inset-x-0 bottom-full flex h-6 items-center px-4">
-					<ActivityMarker label={activity} />
-				</div>
-			{/if}
-			{@render children()}
+<div bind:offsetHeight={height} class="pointer-events-none absolute inset-x-0 bottom-0 z-10 [&>*]:pointer-events-auto">
+	{#if activity}
+		<div class="absolute inset-x-0 bottom-full flex h-6 items-center px-4">
+			<ActivityMarker label={activity} />
 		</div>
-	</div>
+	{/if}
+	{@render children()}
 </div>

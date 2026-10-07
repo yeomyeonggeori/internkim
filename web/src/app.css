@@ -283,6 +283,13 @@ html.internkim-embedded [data-app-shell-scroll] {
   pointer-events: auto;
 }
 
+.frosted-surface {
+  border-color: color-mix(in srgb, var(--color-foreground) 10%, transparent);
+  background-color: color-mix(in srgb, var(--color-muted) 65%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  backdrop-filter: blur(20px) saturate(1.8);
+}
+
 @layer base {
   @media (max-width: 639px) {
     :is([data-slot='button'], [data-slot='toggle'],

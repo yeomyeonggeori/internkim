@@ -990,12 +990,12 @@
 				{#if showScrollToBottom && !capture.isCapturing}
 					<Button
 						variant="outline"
-						size="sm"
+						size="icon"
 						onclick={scrollToBottom}
-						class="absolute bottom-[calc(var(--dock-height)+2.5rem)] left-1/2 z-10 -translate-x-1/2 shadow-md"
+						aria-label={jumpToLatestLabel(unseenCount, text)}
+						class="frosted-surface absolute bottom-[calc(var(--dock-height)+0.75rem)] left-1/2 z-10 size-9 -translate-x-1/2 rounded-full"
 					>
-						<ArrowDownIcon data-icon="inline-start" />
-						{jumpToLatestLabel(unseenCount, text)}
+						<ArrowDownIcon />
 					</Button>
 				{/if}
 			</div>
