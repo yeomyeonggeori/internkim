@@ -69,7 +69,7 @@
 	const columnClass = [
 		'task-board-column group flex h-full min-h-0',
 		'shrink-0 snap-start flex-col overflow-hidden rounded-lg border bg-muted/30',
-		'max-sm:h-auto max-sm:overflow-visible'
+		'max-sm:h-auto'
 	].join(' ');
 	const boardScrollClass = [
 		'h-[var(--task-board-height,32rem)] min-h-80 min-w-0',

@@ -52,7 +52,7 @@ async function openTheListOfSeededTasks(page: Page): Promise<void> {
 	const panel = await openTaskFilters(page);
 	await panel.getByPlaceholder('내용, 목표, 참여자 검색').fill('E2E 목록');
 	await page.keyboard.press('Escape');
-	await page.getByRole('tab', { name: '목록', exact: true }).click();
+	await page.getByRole('tab', { name: '표', exact: true }).click();
 	await expect(page.getByRole('row', { name: new RegExp(plainTaskTitle) })).toBeVisible();
 }
 

@@ -196,7 +196,7 @@ export const taskText = {
 			noTasks: '아직 업무가 없습니다.',
 			viewTabs: {
 				board: '보드',
-				list: '목록'
+				list: '표'
 			},
 			board: {
 				addTask: '{status} 업무 추가'
@@ -452,7 +452,7 @@ export const taskText = {
 			noTasks: 'No tasks yet.',
 			viewTabs: {
 				board: 'Board',
-				list: 'List'
+				list: 'Table'
 			},
 			board: {
 				addTask: 'Add {status} task'

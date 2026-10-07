@@ -98,7 +98,7 @@ test('calendar keys do not mutate an event behind the settings sheet', async ({ 
 test('full history reuses week changes and survives session refresh', async ({ page }) => {
 	await signInToTheTaskBoard(page);
 	const fullHistory = page.waitForResponse(response => response.url().includes('/task_list/invoke') && response.ok());
-	await page.getByRole('tab', { name: '목록', exact: true }).click();
+	await page.getByRole('tab', { name: '표', exact: true }).click();
 	await fullHistory;
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
 	let taskReads = 0;

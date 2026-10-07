@@ -10,4 +10,6 @@
 	let { task }: Props = $props();
 </script>
 
-<Badge class={sizeBadgeClass(task.size)}>{task.size}</Badge>
+{#if task.size}
+	<Badge class={sizeBadgeClass(task.size)}>{task.size}</Badge>
+{/if}

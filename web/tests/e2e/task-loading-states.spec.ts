@@ -92,7 +92,7 @@ async function capture(page: Page, scene: string) {
 	await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 	for (const name of ['업무', '보고', '정의', '구성원']) await expect(page.getByRole('tab', { name, exact: true })).toBeInViewport({ ratio: 1 });
 	if (scene.startsWith('task-board-') || scene.startsWith('task-list-')) {
-		await expect(page.getByRole('tab', { name: '목록', exact: true })).toBeInViewport({ ratio: 1 });
+		await expect(page.getByRole('tab', { name: '표', exact: true })).toBeInViewport({ ratio: 1 });
 		const isPhone = (page.viewportSize()?.width ?? 1280) < 640;
 		const weekControl = isPhone ? page.getByLabel('날짜로 주차 이동', { exact: true }) : page.getByRole('button', { name: '이전 주', exact: true });
 		await expect(weekControl).toBeInViewport({ ratio: 1 });
@@ -127,7 +127,7 @@ for (const width of [1280, 390, 320]) {
 		await capture(page, `task-board-${width}`);
 		board.release();
 		await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
-		await page.getByRole('tab', { name: '목록', exact: true }).click();
+		await page.getByRole('tab', { name: '표', exact: true }).click();
 		await fixture.historyStarted.promise;
 		if (!isBaseline) await expect(page.locator('[data-task-content-skeleton="list"]')).toBeVisible();
 		else await expect(page.getByRole('status').filter({ hasText: '전체 업무 내역을 불러오고 있습니다' })).toBeVisible();
@@ -177,7 +177,7 @@ test('history failure shows retry rather than a perpetual content skeleton', asy
 	await installFixture(page, fixture);
 	await page.goto('/example-co/task');
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
-	await page.getByRole('tab', { name: '목록', exact: true }).click();
+	await page.getByRole('tab', { name: '표', exact: true }).click();
 	await expect(page.getByRole('button', { name: '다시 불러오기', exact: true })).toBeVisible();
 	await expect(page.locator('[data-task-content-skeleton="list"]')).toHaveCount(0);
 	fixture.historyFailure = false;
@@ -208,7 +208,7 @@ test('same-week refresh retains the settled task list', async ({ page }) => {
 	await installFixture(page, fixture);
 	await page.goto('/example-co/task');
 	await expect(page.locator('[data-task-ready="true"]')).toBeVisible();
-	await page.getByRole('tab', { name: '목록', exact: true }).click();
+	await page.getByRole('tab', { name: '표', exact: true }).click();
 	await expect(page.getByText(taskTitle, { exact: true }).last()).toBeVisible();
 	const pending = gate();
 	fixture.historyGate = pending.promise;
