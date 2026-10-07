@@ -26,6 +26,7 @@ function fakeRelay(): FakeRelay {
 	const sockets: ServerWebSocket<Dialled>[] = [];
 	const closed: number[] = [];
 	const server = Bun.serve<Dialled>({
+		hostname: '127.0.0.1',
 		port: 0,
 		fetch(request, serving) {
 			const url = new URL(request.url);
