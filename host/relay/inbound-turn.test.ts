@@ -382,7 +382,7 @@ describe('InboundTurns', () => {
 		await turns.keep(secondKey, aRootMessage('message-8', '오늘 일정 알려줘'));
 		await waitUntil(() => calls.length === 2, 'the second message to start its turn');
 		await turns.keep(thirdKey, aRootMessage('message-9', '내일 일정도 알려줘'));
-		await Bun.sleep(10);
+		await waitUntil(() => approval.judged.length === 2, 'both waiting messages to be judged');
 
 		expect(calls, 'a second turn started in the conversation while one was still running').toHaveLength(2);
 		expect(approval.judged).toEqual(['오늘 일정 알려줘', '내일 일정도 알려줘']);

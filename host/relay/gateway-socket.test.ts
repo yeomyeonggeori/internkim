@@ -97,6 +97,15 @@ describe('host gateway connections', () => {
 	});
 });
 
+async function waitUntilHeld(isReady: () => boolean, waitedFor: string): Promise<void> {
+	const deadline = Date.now() + 5_000;
+	while (Date.now() < deadline) {
+		if (isReady()) return;
+		await Bun.sleep(5);
+	}
+	throw new Error(`waited too long for ${waitedFor}`);
+}
+
 describe('the host socket keeping itself alive', () => {
 	function gatewayThat(answersPings: boolean): { url: string; opened: () => number; pings: () => number; stop: () => void } {
 		let opened = 0;
@@ -139,7 +148,7 @@ describe('the host socket keeping itself alive', () => {
 	test('pings, and stays on a gateway that answers', async () => {
 		const gateway = gatewayThat(true);
 		const connection = connect(gateway.url);
-		await Bun.sleep(250);
+		await waitUntilHeld(() => gateway.pings() > 3, 'the gateway to be pinged again and again');
 		connection.close();
 		gateway.stop();
 		expect(gateway.pings()).toBeGreaterThan(3);
@@ -149,7 +158,7 @@ describe('the host socket keeping itself alive', () => {
 	test('dials again when the gateway has gone silent', async () => {
 		const gateway = gatewayThat(false);
 		const connection = connect(gateway.url);
-		await Bun.sleep(1500);
+		await waitUntilHeld(() => gateway.opened() > 1, 'the host to dial the silent gateway again');
 		connection.close();
 		gateway.stop();
 		expect(gateway.opened()).toBeGreaterThan(1);

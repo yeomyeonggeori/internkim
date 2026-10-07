@@ -13,6 +13,15 @@ function outletBlockedUntilOpened(): { outlet: Outlet; sent: string[]; open: () 
 	};
 }
 
+async function waitUntil(isReady: () => boolean, waitedFor: string): Promise<void> {
+	const deadline = Date.now() + 3_000;
+	while (Date.now() < deadline) {
+		if (isReady()) return;
+		await Bun.sleep(1);
+	}
+	throw new Error(`waited too long for ${waitedFor}`);
+}
+
 describe('FairOutbox', () => {
 	test('sends straight through while the socket keeps up', () => {
 		const sent: string[] = [];
@@ -32,7 +41,7 @@ describe('FairOutbox', () => {
 		expect(sent).toEqual([]);
 
 		open();
-		await Bun.sleep(20);
+		await waitUntil(() => sent.length === 6, 'the backed up streams to drain');
 		expect(sent).toEqual(['a1', 'q1', 'a2', 'q2', 'a3', 'a4']);
 	});
 
@@ -51,7 +60,7 @@ describe('FairOutbox', () => {
 		outbox.push('kept', 'k1');
 		outbox.forget('gone');
 		open();
-		await Bun.sleep(20);
+		await waitUntil(() => sent.length === 1, 'the kept stream to drain');
 		expect(sent).toEqual(['k1']);
 	});
 });
