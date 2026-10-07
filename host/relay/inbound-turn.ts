@@ -1,3 +1,4 @@
+import { doublingDelayMilliseconds } from './failure';
 import { RequestError } from '@agentclientprotocol/sdk';
 import { AgentUnreachable, type BlueclawACPClient } from './acp-session';
 import { readInboundMessage, type InboundMessage } from './inbound-message';
@@ -185,12 +186,8 @@ export class InboundTurns {
 	}
 
 	private waitBeforeRetrying(attempts: number): Promise<void> {
-		const delay = Math.min(
-			firstRetryDelayMilliseconds * 2 ** (attempts - 1),
-			longestRetryDelayMilliseconds
-		);
 		const wait = this.settings.waitBeforeRetrying ?? ((milliseconds) => Bun.sleep(milliseconds));
-		return wait(delay);
+		return wait(doublingDelayMilliseconds(attempts, firstRetryDelayMilliseconds, longestRetryDelayMilliseconds));
 	}
 }
 

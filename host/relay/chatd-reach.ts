@@ -1,3 +1,4 @@
+import { reasonOf } from './failure';
 export const chatdRestartWaitMilliseconds = 30_000;
 
 const firstPauseMilliseconds = 250;
@@ -29,6 +30,5 @@ function wasRefused(failure: unknown): boolean {
 }
 
 function failureAfterWaiting(failure: unknown, waitMilliseconds: number): Error {
-	const reason = failure instanceof Error ? failure.message : String(failure);
-	return new Error(`nothing listened for ${waitMilliseconds / 1000} s: ${reason}`);
+	return new Error(`nothing listened for ${waitMilliseconds / 1000} s: ${reasonOf(failure)}`);
 }

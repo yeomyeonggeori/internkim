@@ -1,3 +1,4 @@
+import { reasonOf } from './failure';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ActorCredential } from './forward';
 
@@ -51,7 +52,7 @@ export class ArrivalWatchers {
 				if (refusal) this.dependencies.report(`arrival watch for ${refusal}`);
 			})
 			.catch((error) => {
-				this.dependencies.report(`arrival watch for member ${memberID} not started: ${described(error)}`);
+				this.dependencies.report(`arrival watch for member ${memberID} not started: ${reasonOf(error)}`);
 			})
 			.finally(() => this.watching.delete(memberID));
 		this.watching.set(memberID, watching);
@@ -114,11 +115,7 @@ async function renewedCompletely(watchers: ArrivalWatchers, report: (outcome: st
 		);
 		return renewal.refusals.length === 0;
 	} catch (error) {
-		report(`arrival watches not renewed: ${described(error)}`);
+		report(`arrival watches not renewed: ${reasonOf(error)}`);
 		return false;
 	}
-}
-
-function described(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }

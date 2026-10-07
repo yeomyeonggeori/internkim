@@ -1,3 +1,4 @@
+import { reasonOf } from './failure';
 import type { ActorCredential } from './forward';
 
 export const personPictureKind = 'person-picture';
@@ -72,7 +73,7 @@ export class PersonPictures {
 			return path;
 		} catch (thrown) {
 			this.sources.report(
-				`sender picture of ${externalID} not kept: ${thrown instanceof Error ? thrown.message : String(thrown)}`
+				`sender picture of ${externalID} not kept: ${reasonOf(thrown)}`
 			);
 			return '';
 		}
